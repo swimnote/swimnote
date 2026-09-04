@@ -153,3 +153,4 @@
 - [WP9-P1 완료 상태](wp9-p1-done-state.md) — SHA ec91382a; ai-origin-registry+verifyAiOrigin; SERVER VERIFIED YES; 36TC; OTA 없음; Render 미배포
 - [WP3 완료 상태](wp3-done-state.md) — subscription.tsx 2.0 플랜+Trial UX+Storage+DATA Pack; x-subscription X_TRIAL_ACTIVE; 80TC; SHA 75431ceb; Render/OTA 없음
 - [WP8-P1 완료 상태](wp8-p1-done-state.md) — SHA 1f0fa702; pool_memberships없음→users; cycle INSERT 컬럼 수정; 71TC; iOS OTA 01a06b1f; Render 미배포
+- [WP5 AI/Growth 완료](wp5-ai-growth-done-state.md) — SHA 55fc9c27; 10 GET routes+Web(MonthSelector/KpiCard/TraceDrawer/ReportDrawer); 461TC; Render/OTA 없음

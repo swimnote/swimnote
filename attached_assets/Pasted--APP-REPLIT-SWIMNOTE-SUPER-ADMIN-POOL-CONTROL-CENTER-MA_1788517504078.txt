@@ -1,0 +1,1826 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# WP5 — AI / GROWTH REPORT / JOB OPERATIONS
+# BASELINE: 5c8f8f4e
+# DO NOT START WP6
+
+============================================================
+0. WP5 목적
+============================================================
+
+WP4 Curriculum / Storage / Secure Download 완료.
+
+이번 WP5의 목표:
+
+Super Admin이 특정 수영장의
+
+- AI Diary
+- Parent Curriculum Search
+- Growth Reports
+- Growth Report batch jobs
+- retry / attempts / failure
+- request_id / trace_id
+- worker/job 상태
+
+를 실제 운영 데이터로 확인하고
+문제가 발생했을 때
+
+"어떤 기능에서
+어떤 요청이
+어떤 상태로
+왜 실패했고
+재시도 가능한지"
+
+까지 진단할 수 있도록 완성한다.
+
+이번 WP에서는
+WP6 Error / Incident 전체 통합으로 확장하지 않는다.
+
+============================================================
+1. CURRENT BASELINE
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+5c8f8f4e
+
+먼저 확인:
+
+git status
+git rev-parse HEAD
+git log --oneline -10
+
+5c8f8f4e ancestor:
+YES
+
+현재 존재하는 구조를 재사용:
+
+- x_monthly_operational_snapshots
+- ai_traces
+- event_logs
+- growth_reports
+- growth_report_cycles
+- growth_report_batch_jobs
+- notifications
+- existing WP11 metrics
+- existing WP8 growth report lifecycle
+- existing AI request_id / trace_id
+- existing worker/job fields
+
+새 AI telemetry system을 중복 생성하지 말 것.
+
+============================================================
+2. 완료 기준
+============================================================
+
+단순 KPI 카드 표시가 완료가 아니다.
+
+Super Admin에서 실제로:
+
+AI 사용량
+→ 최근 AI 요청
+→ 실패 요청
+→ 관련 request/trace
+
+Growth Report
+→ 월별 대상/생성/READY/실패/발송
+→ report row
+→ batch job
+→ attempts/retry/error
+
+까지 drill-down 가능해야 한다.
+
+Mock:
+0
+
+Fake KPI:
+0
+
+Fake AI status:
+0
+
+Fake job state:
+0
+
+============================================================
+3. AI OPERATIONS 범위
+============================================================
+
+최소 기능:
+
+A.
+AI Diary
+
+B.
+Parent Curriculum Search
+
+C.
+Growth Report AI
+
+D.
+공통 AI trace / request correlation
+
+현재 실제 source가 존재하는 것만.
+
+새 AI 기능:
+NO.
+
+============================================================
+4. AI MONTHLY SUMMARY
+============================================================
+
+가능한 경우
+x_monthly_operational_snapshots 재사용.
+
+표시:
+
+- ai_diary_count
+- ai_diary_teacher_count
+- parent_curriculum_search_count
+- parent_curriculum_user_count
+- growth_report_target_count
+- growth_report_generated_count
+- growth_report_failed_count
+- growth_report_sent_count
+
+현재 schema 실제 field명 사용.
+
+없는 metric 임의 생성:
+NO.
+
+============================================================
+5. SNAPSHOT vs RAW
+============================================================
+
+중요.
+
+Summary:
+snapshot 사용 가능.
+
+운영 진단:
+raw source 사용.
+
+예:
+
+KPI 카드:
+x_monthly_operational_snapshots
+
+상세:
+class_diaries
+event_logs
+ai_traces
+growth_reports
+jobs
+
+Snapshot 값과 raw 값이
+필요 시 비교 가능하게 설계.
+
+============================================================
+6. MONTH SELECTOR
+============================================================
+
+AI / Growth 탭에서
+월 선택 가능하게.
+
+기본:
+current month
+
+가능하면 최근 12개월.
+
+쿼리:
+
+YYYY-MM 기준
+date range 사용.
+
+LEFT(date,7) 금지.
+
+ISO month range 사용.
+
+============================================================
+7. AI DIARY SUMMARY
+============================================================
+
+표시:
+
+월 AI 일지 수
+사용 교사 수
+최근 AI Diary 요청
+성공/실패
+
+실제 primary source 확인:
+
+class_diaries.ai_generated
+event_logs
+ai_traces
+
+각 source 역할을 명확히 보고.
+
+중복 count:
+금지.
+
+============================================================
+8. AI DIARY RECENT REQUESTS
+============================================================
+
+최근 요청 목록:
+
+time
+teacher
+class
+request_id
+trace_id if exists
+status
+duration if reliable
+error code/message if safe
+result linkage where available
+
+request_id가 APP external correlation인지
+internal trace인지 구분.
+
+혼동 금지.
+
+============================================================
+9. PARENT CURRICULUM SUMMARY
+============================================================
+
+기존 source:
+
+event_logs
+category AI
+feature parent_curriculum_search
+
+등 실제 구현 기준으로 사용.
+
+표시:
+
+search count
+unique parent count
+recent search attempts
+success/failure
+
+검색 내용 원문 전체를
+불필요하게 노출하지 말 것.
+
+PII 최소화.
+
+============================================================
+10. PARENT CURRICULUM RECENT REQUESTS
+============================================================
+
+표시:
+
+time
+parent/user reference
+request_id if exists
+status
+safe error
+feature
+
+query raw text는
+필요 시 일부/masked.
+
+개인 검색내용 전체 노출:
+최소화.
+
+============================================================
+11. AI TRACE SOURCE
+============================================================
+
+현재 ai_traces table/schema를 정확히 조사.
+
+보고:
+
+table:
+...
+
+pool field:
+...
+
+user field:
+...
+
+feature:
+...
+
+request_id:
+...
+
+trace_id:
+...
+
+status:
+...
+
+latency:
+...
+
+model:
+...
+
+token usage:
+...
+
+cost:
+...
+
+error:
+...
+
+실제 필드만 보고.
+
+============================================================
+12. AI TRACE TABLE 미존재 환경
+============================================================
+
+이전 DEV 환경에서 ai_traces table이
+없는 경우 graceful 처리한 적 있음.
+
+이번 WP에서는:
+
+A.
+현재 Development schema상
+원래 존재해야 하는 table인지
+
+B.
+optional table인지
+
+C.
+migration 누락인지
+
+정확히 확인.
+
+필수 production telemetry table인데
+Dev migration 누락이면:
+Development에 정상 migration 적용.
+
+optional이면:
+optional로 명시.
+
+`.catch(()=>[])`만으로
+영구적으로 telemetry 문제를 숨기지 말 것.
+
+============================================================
+13. GROWTH REPORT SUMMARY
+============================================================
+
+월별:
+
+target
+generated
+ready_to_send
+failed
+discarded
+regenerating
+published
+sent
+
+표시.
+
+logical student/report count 기준.
+
+version row count를
+KPI로 잘못 계산 금지.
+
+v1/v2/v3가 있어도
+동일 logical report 중복 KPI 금지.
+
+============================================================
+14. REPORT LIST
+============================================================
+
+각 report:
+
+student
+period
+version
+status
+created_at
+updated_at
+attempt/error state where relevant
+published_at if exists
+discarded info
+batch job link
+
+표시.
+
+Pagination 필수.
+
+============================================================
+15. REPORT DETAIL
+============================================================
+
+report row 클릭:
+
+- student
+- period
+- version
+- lifecycle status
+- validation result
+- created
+- ready
+- discarded
+- regenerated
+- published
+- sent
+- failure reason
+- batch/job relation
+- request/trace if available
+
+actual report content 전체를
+Super Admin에서 볼 필요가 있는지
+현재 privacy/product 기준으로 판단.
+
+기본은 metadata/diagnostics 중심.
+
+============================================================
+16. GROWTH REPORT VERSION HISTORY
+============================================================
+
+v1 discarded
+v2 discarded
+v3 published
+
+같은 history를
+logical report 단위로 묶어 표시.
+
+현재 최종 PUBLISHED:
+명확히 표시.
+
+discarded version:
+history 보존.
+
+============================================================
+17. BATCH JOB LIST
+============================================================
+
+growth_report_batch_jobs:
+
+최소 표시:
+
+id
+pool
+year/month
+job_type
+status
+attempts
+next_attempt_at
+locked_at
+created_at
+updated_at
+last_error/safe error
+worker ownership if available
+
+actual schema에 맞춰 조정.
+
+============================================================
+18. JOB STATUS NORMALIZATION
+============================================================
+
+현재 실제 enum/state 사용.
+
+예:
+
+PENDING
+RUNNING
+FAILED
+SUCCEEDED
+
+등 실제 상태만.
+
+없는 상태 창작:
+NO.
+
+============================================================
+19. STUCK JOB 판정
+============================================================
+
+기존 worker reclaim logic이
+RUNNING 10분 이상 stale 등
+명확한 규칙을 갖고 있다면
+
+Super Admin에서
+STUCK warning을 rule-based로 표시 가능.
+
+단 실제 worker 정책과 동일 기준 사용.
+
+별도 다른 threshold 만들지 말 것.
+
+============================================================
+20. RETRY / ATTEMPT
+============================================================
+
+표시:
+
+attempts
+next_attempt_at
+retryable 여부 where reliable
+last failure
+
+단 "재시도 버튼"은
+현재 검증된 admin retry API가 존재하는 경우에만
+후보 검토.
+
+새 retry endpoint를 임의로 만들지 말 것.
+
+이번 WP 기본은:
+diagnostics/read-first.
+
+============================================================
+21. JOB SUPPORT ACTION INVENTORY
+============================================================
+
+현재 존재하는:
+
+retry
+requeue
+cancel
+reclaim
+regenerate
+
+관련 운영 API를 조사.
+
+각각:
+
+SAFE TO EXPOSE
+READ ONLY
+LATER
+DO NOT EXPOSE
+
+분류.
+
+Growth report regenerate/publish는
+기존 WP8 admin workflow와 충돌하지 않게.
+
+============================================================
+22. AUTO BATCH STATUS
+============================================================
+
+현재:
+
+GROWTH_REPORT_BATCH_AUTO_ENABLED
+
+status를 Super Admin global/diagnostic 영역에서
+read-only로 확인 가능한지 검토.
+
+Pool별 feature가 아니라 global env라면
+pool control로 오해시키지 말 것.
+
+표시 가능하면:
+
+Auto Batch:
+ENABLED / DISABLED
+
+Global:
+YES
+
+수정 기능:
+NO.
+
+Revenue/production flag 변경:
+이번 WP 금지.
+
+============================================================
+23. BATCH CYCLE
+============================================================
+
+growth_report_cycles가 있다면:
+
+pool
+period
+cycle state
+created
+generated
+completed
+
+등 현재 실제 field를 표시/연결.
+
+jobs와 cycle 역할을
+UI에서 구분.
+
+============================================================
+24. AI REQUEST CORRELATION
+============================================================
+
+가능한 요청 흐름:
+
+APP
+→ API server
+→ AI Engine
+→ event/trace
+→ saved result
+
+에서:
+
+request_id
+trace_id
+feature
+
+가 연결되는지 확인.
+
+Super Admin이 request_id 하나로
+관련:
+
+AI trace
+event log
+growth report/job
+diary
+
+를 찾을 수 있게 하는 것이 목표.
+
+============================================================
+25. REQUEST ID SEARCH
+============================================================
+
+AI Operations에서:
+
+request_id exact search
+
+지원.
+
+trace_id exact search도
+실제 존재하면 지원.
+
+substring 전체검색으로
+대형 table full scan 금지.
+
+exact/prefix + index 검토.
+
+============================================================
+26. TRACE DRILL-DOWN
+============================================================
+
+trace row 클릭 시:
+
+feature
+request_id
+trace_id
+actor/user
+pool
+status
+model
+latency
+usage
+safe error
+created_at
+
+실제 available fields.
+
+Prompt 원문:
+기본 노출 금지.
+
+LLM response 전체:
+기본 노출 금지.
+
+민감 사용자 입력:
+기본 노출 금지.
+
+============================================================
+27. TOKEN / COST
+============================================================
+
+현재 reliable usage source가 존재하면:
+
+input tokens
+output tokens
+total tokens
+model
+
+표시 가능.
+
+Cost는:
+
+실제 계산/저장된 source가 있을 때만 표시.
+
+임의 GPT 가격표 계산:
+금지.
+
+현재 source가 없으면:
+
+COST:
+NOT AVAILABLE
+
+로 명시.
+
+============================================================
+28. AI MODEL
+============================================================
+
+여러 GPT model 사용 중일 수 있음.
+
+trace에 실제 model field가 있으면 표시.
+
+없는 경우 추측 금지.
+
+============================================================
+29. FAILURE CATEGORIES
+============================================================
+
+AI/Growth 영역에서 최소:
+
+AI_ENGINE_ERROR
+TIMEOUT
+VALIDATION_ERROR
+GROUNDING_ERROR
+DB_ERROR
+JOB_ERROR
+UNKNOWN
+
+같은 normalized category를 만들려면
+실제 error code mapping이 명확한 경우만.
+
+원본 error_code가 존재하면 우선.
+
+============================================================
+30. ERROR MESSAGE SAFETY
+============================================================
+
+표시:
+
+safe_message
+
+금지:
+
+full prompt
+password
+JWT
+secret
+API key
+raw stack with secrets
+parent private query full text
+child sensitive metadata
+
+============================================================
+31. GROWTH REPORT USER LINK
+============================================================
+
+report row에서
+WP3 Member detail로 이동할 수 있으면 연결.
+
+학생 클릭
+→ Members detail
+
+현재 Control Center context 유지.
+
+새 page push 최소화.
+
+============================================================
+32. AI TEACHER LINK
+============================================================
+
+AI Diary trace의 teacher를
+WP3 Teacher detail로 이동 가능하게.
+
+실제 teacher ID 있을 때만.
+
+============================================================
+33. PARENT LINK
+============================================================
+
+Parent Curriculum trace의 parent를
+WP3 Parent detail로 이동 가능하게.
+
+실제 parent/user ID 있을 때만.
+
+============================================================
+34. ERROR / JOB PARTIAL FAILURE
+============================================================
+
+AI trace query 실패한다고
+Growth Reports 전체 blank:
+NO.
+
+Growth batch query 실패한다고
+AI Diary 전체 blank:
+NO.
+
+각 section partial/unavailable 처리.
+
+auth/pool validation:
+전체 실패.
+
+============================================================
+35. AUTH
+============================================================
+
+모든 WP5 Control Center endpoint:
+
+super_admin:
+PASS
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+============================================================
+36. CROSS-POOL
+============================================================
+
+POOL_A에서:
+
+POOL_B AI diary:
+0
+
+POOL_B AI trace:
+0
+
+POOL_B parent curriculum:
+0
+
+POOL_B report:
+0
+
+POOL_B report version:
+0
+
+POOL_B batch job:
+0
+
+POOL_B cycle:
+0
+
+request_id search로
+POOL_B result:
+0
+
+============================================================
+37. PAGINATION
+============================================================
+
+반드시 pagination:
+
+AI recent requests
+AI traces
+Growth reports
+Batch jobs
+Cycle/history if unbounded
+
+client limit:
+server max clamp.
+
+unbounded:
+0.
+
+============================================================
+38. PERFORMANCE
+============================================================
+
+Summary:
+monthly snapshot 중심.
+
+Detail:
+lazy fetch.
+
+월 선택:
+range index.
+
+N+1:
+0.
+
+Pool 전체 history:
+bounded.
+
+Control Center entry에서
+AI detail 수천 건 fetch:
+금지.
+
+============================================================
+39. INDEX REVIEW
+============================================================
+
+검토:
+
+ai_traces(pool_id, created_at)
+ai_traces(request_id)
+event_logs(pool_id, feature/category, created_at)
+growth_reports(pool_id, period/status)
+growth_report_batch_jobs(pool_id, year, month)
+growth_report_cycles(pool_id, report_period)
+
+현재 schema 기준.
+
+명백한 full scan 위험만
+Development additive index.
+
+과도한 index:
+NO.
+
+============================================================
+40. SNAPSHOT CONSISTENCY
+============================================================
+
+실제 DEV fixture에서:
+
+snapshot KPI
+vs
+raw recount
+
+비교.
+
+AI Diary:
+match
+
+Parent Curriculum:
+match
+
+Growth target/generated/failed/sent:
+logical count match
+
+불일치 발견 시
+snapshot refresh/recount logic을 추적.
+
++1 누적식 임의 보정 금지.
+
+raw recount + UPSERT 원칙 유지.
+
+============================================================
+41. JOB CONCURRENCY SAFETY
+============================================================
+
+기존:
+
+FOR UPDATE SKIP LOCKED
+advisory lock
+stale reclaim
+attempt increment
+
+등 worker concurrency 구조를
+이번 WP에서 재검증.
+
+새 worker architecture 만들지 말 것.
+
+============================================================
+42. READ-ONLY 우선
+============================================================
+
+WP5 기본은 운영진단.
+
+새 위험 mutation 최소화.
+
+특히:
+
+publish
+discard
+regenerate
+send push
+batch enqueue
+cancel batch
+
+는 현재 검증된 기존 admin workflow가 없으면
+Super Admin에 새로 만들지 말 것.
+
+============================================================
+43. EXISTING ADMIN WORKFLOW REUSE
+============================================================
+
+Growth Report admin 기능이
+현재 별도 admin 화면에 있다면
+
+Super Admin에서:
+
+"해당 기능으로 이동"
+또는
+safe read detail
+
+을 우선.
+
+같은 publish/regenerate business logic을
+중복 구현 금지.
+
+============================================================
+44. SUPPORT ACTION INVENTORY
+============================================================
+
+AI/Growth 관련 기존 action 조사:
+
+report preview
+discard
+regenerate
+publish
+bulk publish
+batch retry
+job retry
+worker reclaim
+
+각각:
+
+SAFE TO EXPOSE
+READ ONLY
+LATER
+DO NOT EXPOSE
+
+분류.
+
+이번 WP에서 실제 expose한 action은
+완료보고에 명시.
+
+============================================================
+45. AUDIT
+============================================================
+
+이번 WP가 read-only이면
+기본 조회 audit는 필요 없음.
+
+위험 운영 mutation을 실제 노출한 경우만
+audit 필수.
+
+actor
+pool
+target
+before
+after
+reason
+timestamp.
+
+============================================================
+46. UI — AI TAB
+============================================================
+
+추천 구조:
+
+상단:
+Month selector
+
+Summary cards:
+AI Diary
+AI Teachers
+Parent Searches
+Parent Users
+Growth Generated
+Growth Failed
+
+아래:
+
+AI Diary Requests
+Parent Curriculum Requests
+AI Traces
+
+filter/search.
+
+============================================================
+47. UI — GROWTH TAB
+============================================================
+
+상단:
+Month selector
+
+Summary:
+target
+generated
+ready
+failed
+published
+sent
+
+아래:
+
+Reports
+Batch Jobs
+Version/Job Detail
+
+status badge 명확.
+
+============================================================
+48. UI — JOB WARNING
+============================================================
+
+FAILED
+RETRY WAIT
+STUCK
+
+같은 실제 의미 있는 상태는
+눈에 띄게.
+
+단 실제 state/규칙 기반.
+
+============================================================
+49. EMPTY STATE
+============================================================
+
+AI 사용 없음:
+정상 empty
+
+Growth 대상 없음:
+정상 empty
+
+Batch job 없음:
+정상 empty
+
+Error로 표시 금지.
+
+============================================================
+50. APP IMPACT
+============================================================
+
+WP5 원칙:
+
+Super Admin Web
++
+Server
+
+일반 iOS APP 수정 없어야 함.
+
+하지만 trace/request id production 연결 오류 때문에
+shared runtime 수정이 꼭 필요한 경우만 최소 변경.
+
+APP/shared runtime changed:
+YES
+
+→ OTA immediate.
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED.
+
+============================================================
+51. OTA
+============================================================
+
+git diff 실제 확인.
+
+APP/shared changed:
+NO
+→ OTA NOT REQUIRED
+
+YES
+→ test/commit/OTA/SHA Match.
+
+============================================================
+52. TEST MATRIX — AI
+============================================================
+
+Month summary:
+PASS
+
+Snapshot/raw:
+PASS
+
+AI diary count:
+PASS
+
+Teacher count:
+PASS
+
+Parent search count:
+PASS
+
+Parent unique:
+PASS
+
+Recent AI diary:
+PASS
+
+Recent parent curriculum:
+PASS
+
+Trace:
+PASS if table required/exists
+
+Request search:
+PASS
+
+Cross-pool:
+0
+
+Pagination:
+PASS
+
+============================================================
+53. TEST MATRIX — GROWTH
+============================================================
+
+Target:
+PASS
+
+Generated:
+PASS
+
+Ready:
+PASS
+
+Failed:
+PASS
+
+Discarded:
+PASS
+
+Regenerating:
+PASS
+
+Published:
+PASS
+
+Sent:
+PASS
+
+Logical version counting:
+PASS
+
+Report list:
+PASS
+
+Report detail:
+PASS
+
+Version history:
+PASS
+
+Cross-pool:
+0
+
+============================================================
+54. TEST MATRIX — JOB
+============================================================
+
+Batch list:
+PASS
+
+Status:
+PASS
+
+Attempts:
+PASS
+
+next_attempt:
+PASS
+
+locked_at:
+PASS
+
+stale/stuck rule:
+PASS
+
+Cycle linkage:
+PASS if applicable
+
+Cross-pool:
+0
+
+Pagination:
+PASS
+
+============================================================
+55. TEST MATRIX — AUTH
+============================================================
+
+Every WP5 route:
+
+Super Admin:
+PASS
+
+Pool Admin:
+403
+
+Teacher:
+403
+
+Parent:
+403
+
+Unauthenticated:
+401
+
+============================================================
+56. TEST MATRIX — PRIVACY
+============================================================
+
+Password:
+NO
+
+JWT:
+NO
+
+API key:
+NO
+
+Prompt full text:
+NO
+
+LLM raw response:
+NO
+
+Signed secret:
+NO
+
+Parent full query:
+NO unless explicitly safe and masked
+
+============================================================
+57. REGRESSION
+============================================================
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+WP3:
+PASS
+
+WP4:
+PASS
+
+WP4-P1:
+PASS
+
+BASE:
+PASS
+
+X:
+PASS
+
+Plan:
+PASS
+
+Member limit:
+PASS
+
+Curriculum:
+PASS
+
+Storage:
+PASS
+
+============================================================
+58. DB
+============================================================
+
+필요 migration이 없으면:
+NO
+
+필수 telemetry table/index 누락이면:
+Development additive only.
+
+Production:
+NO
+
+============================================================
+59. SERVER
+============================================================
+
+test
+TS
+commit
+push release/v2.0.0
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+60. 완료보고
+============================================================
+
+# WP5 AI / GROWTH / JOB OPERATIONS REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+5c8f8f4e
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+FILES CHANGED
+============================================================
+
+Server:
+...
+
+Web:
+...
+
+APP/shared:
+...
+
+Migration:
+...
+
+Tests:
+...
+
+============================================================
+AI SOURCE
+============================================================
+
+Monthly snapshot:
+...
+
+AI Diary raw:
+...
+
+Parent Curriculum raw:
+...
+
+AI trace:
+...
+
+request_id source:
+...
+
+trace_id source:
+...
+
+============================================================
+AI OPERATIONS
+============================================================
+
+Month selector:
+PASS / FAIL
+
+AI Diary KPI:
+PASS / FAIL
+
+AI Teachers:
+PASS / FAIL
+
+Parent Search KPI:
+PASS / FAIL
+
+Parent Users:
+PASS / FAIL
+
+Recent Diary requests:
+PASS / FAIL
+
+Recent Parent requests:
+PASS / FAIL
+
+AI traces:
+PASS / FAIL / N/A
+
+Request search:
+PASS / FAIL
+
+Trace search:
+PASS / FAIL / N/A
+
+============================================================
+TRACE / USAGE
+============================================================
+
+ai_traces required:
+YES / NO
+
+Table present:
+YES / NO
+
+Model:
+AVAILABLE / N/A
+
+Tokens:
+AVAILABLE / N/A
+
+Cost:
+AVAILABLE / N/A
+
+Latency:
+AVAILABLE / N/A
+
+Safe error:
+PASS / FAIL
+
+============================================================
+GROWTH REPORT
+============================================================
+
+Target:
+PASS / FAIL
+
+Generated:
+PASS / FAIL
+
+Ready:
+PASS / FAIL
+
+Failed:
+PASS / FAIL
+
+Discarded:
+PASS / FAIL
+
+Regenerating:
+PASS / FAIL
+
+Published:
+PASS / FAIL
+
+Sent:
+PASS / FAIL
+
+Logical counting:
+PASS / FAIL
+
+Report list:
+PASS / FAIL
+
+Report detail:
+PASS / FAIL
+
+Version history:
+PASS / FAIL
+
+============================================================
+JOBS
+============================================================
+
+Batch jobs:
+PASS / FAIL
+
+Status:
+PASS / FAIL
+
+Attempts:
+PASS / FAIL
+
+Retry timing:
+PASS / FAIL
+
+Locked:
+PASS / FAIL
+
+Stuck rule:
+PASS / FAIL
+
+Cycle:
+PASS / FAIL / N/A
+
+Support actions exposed:
+...
+
+Actions intentionally not exposed:
+...
+
+============================================================
+CORRELATION
+============================================================
+
+request_id links AI/result:
+PASS / FAIL
+
+trace_id:
+PASS / FAIL / N/A
+
+Teacher link:
+PASS / FAIL / N/A
+
+Parent link:
+PASS / FAIL / N/A
+
+Student/report link:
+PASS / FAIL
+
+============================================================
+SNAPSHOT
+============================================================
+
+AI Diary raw match:
+PASS / FAIL
+
+Teacher raw match:
+PASS / FAIL
+
+Parent Search raw match:
+PASS / FAIL
+
+Parent User raw match:
+PASS / FAIL
+
+Growth logical raw match:
+PASS / FAIL
+
+============================================================
+AUTH
+============================================================
+
+Super Admin:
+PASS / FAIL
+
+Pool Admin:
+BLOCKED / FAIL
+
+Teacher:
+BLOCKED / FAIL
+
+Parent:
+BLOCKED / FAIL
+
+Unauthenticated:
+BLOCKED / FAIL
+
+============================================================
+CROSS-POOL
+============================================================
+
+AI Diary:
+0 / FAIL
+
+AI Trace:
+0 / FAIL
+
+Parent Search:
+0 / FAIL
+
+Reports:
+0 / FAIL
+
+Versions:
+0 / FAIL
+
+Batch:
+0 / FAIL
+
+Cycles:
+0 / FAIL
+
+Request search:
+0 / FAIL
+
+============================================================
+PRIVACY
+============================================================
+
+Password exposed:
+NO / YES
+
+JWT exposed:
+NO / YES
+
+Prompt exposed:
+NO / YES
+
+Raw LLM response exposed:
+NO / YES
+
+Parent query exposed:
+NO / YES
+
+============================================================
+PERFORMANCE
+============================================================
+
+N+1:
+0 / ...
+
+Unbounded:
+0 / ...
+
+Indexes added:
+...
+
+============================================================
+OBSERVABILITY GAPS FOR WP6
+============================================================
+
+Remaining AI console-only:
+...
+
+Remaining job console-only:
+...
+
+Remaining growth console-only:
+...
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0 / ...
+
+WP1 regression:
+PASS / FAIL
+
+WP2 regression:
+PASS / FAIL
+
+WP3 regression:
+PASS / FAIL
+
+WP4 regression:
+PASS / FAIL
+
+============================================================
+APP / OTA
+============================================================
+
+iOS APP/shared runtime modified:
+YES / NO
+
+If YES:
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group:
+...
+
+iOS Update:
+...
+
+Commit SHA:
+...
+
+Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+If NO:
+
+OTA:
+NOT REQUIRED
+
+============================================================
+DB
+============================================================
+
+Development migration:
+...
+
+Production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP5 complete:
+YES / NO
+
+AI operations support-ready:
+YES / NO
+
+Growth operations support-ready:
+YES / NO
+
+Job diagnostics support-ready:
+YES / NO
+
+Cross-pool:
+PASS / FAIL
+
+Remaining blocker:
+...
+
+Recommended next WP:
+WP6 — ERROR / INCIDENT / OBSERVABILITY
+
+DO NOT START WP6.
+WAIT FOR NEXT INSTRUCTION.
