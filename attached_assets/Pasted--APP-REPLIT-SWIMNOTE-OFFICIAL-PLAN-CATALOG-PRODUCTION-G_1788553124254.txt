@@ -1,0 +1,536 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE OFFICIAL PLAN CATALOG — PRODUCTION GO-LIVE
+# USER APPROVED
+# BRANCH: release/v2.0.0
+# TARGET SHA: 52516efc
+#
+# 목표:
+# 1. Production DB에 공식 신규 플랜 migration 2개 적용
+# 2. Render Production에 target SHA 배포 준비
+# 3. 사용자가 Render에서 수동 배포
+# 4. 배포 후 실제 Production에서 새 플랜/X 직접부여 확인
+#
+# IMPORTANT:
+# Production DB migration은 이번 지시에서 승인됨.
+# Render 자동 배포는 금지.
+# Replit은 DB migration까지만 실행 가능.
+# Render는 USER가 수동 배포.
+# OTA 금지.
+
+============================================================
+1. GIT PRECHECK
+============================================================
+
+확인:
+
+git branch --show-current
+git rev-parse HEAD
+git status --porcelain
+
+Expected:
+
+Branch:
+release/v2.0.0
+
+Target commit:
+52516efc ancestor YES
+
+Uncommitted product code:
+0
+
+============================================================
+2. PRODUCTION DB SAFETY CHECK
+============================================================
+
+반드시 Production DB ref 확인:
+
+mrgkiussgbbmxfnkjgqy
+
+Staging DB와 혼동 금지.
+
+Migration 실행 전 READ ONLY snapshot:
+
+subscription_plans 관련 row 전체 확인:
+
+tier / plan_key
+price
+member_limit
+storage_mb
+storage_gb
+display_storage
+is_active
+
+그리고 Production 예상 diff가 이전 보고와 일치하는지 확인.
+
+Expected:
+
+INSERT:
+data100
+data300
+
+UPDATE:
+x300
+x500
+x1000
+
+DEACTIVATE:
+free
+starter
+basic
+standard
+center_200
+advance
+pro
+max
+
+DELETE:
+0
+
+불일치가 크면 STOP.
+
+============================================================
+3. PRODUCTION MIGRATION 1
+============================================================
+
+먼저 실행:
+
+migrations/2026-09-05-subscription-plans-nullable.sql
+
+Expected DDL:
+
+ALTER TABLE subscription_plans
+ALTER COLUMN member_limit DROP NOT NULL
+
+ALTER COLUMN storage_mb DROP NOT NULL
+
+ALTER COLUMN storage_gb DROP NOT NULL
+
+ALTER COLUMN display_storage DROP NOT NULL
+
+실행 후 verify:
+
+4개 컬럼 nullable:
+YES
+
+기존 row loss:
+0
+
+============================================================
+4. PRODUCTION MIGRATION 2
+============================================================
+
+그 다음 실행:
+
+migrations/2026-09-05-official-plan-catalog.sql
+
+Expected final active plans:
+
+swimnote
+price=9900
+
+x300
+price=119000
+member_limit=300
+
+x500
+price=189000
+member_limit=500
+
+x1000
+price=349000
+member_limit=1000
+
+data100
+price=7900
+member_limit=NULL
+storage_gb=100
+storage_mb=102400
+display_storage="+100GB"
+
+data300
+price=22900
+member_limit=NULL
+storage_gb=300
+storage_mb=307200
+display_storage="+300GB"
+
+legacy 8개:
+is_active=false
+
+DELETE:
+0
+
+============================================================
+5. PRODUCTION POST-MIGRATION VERIFY
+============================================================
+
+반드시 확인:
+
+Active official plans:
+6
+
+Legacy selectable:
+0
+
+Historical rows deleted:
+0
+
+Toykids members changed:
+0
+
+Toykids classes changed:
+0
+
+Toykids diaries changed:
+0
+
+Other pools entitlement changed:
+0
+
+가격:
+
+SWIMNOTE 9900
+X300 119000
+X500 189000
+X1000 349000
+DATA100 7900
+DATA300 22900
+
+DB 값이 officialPlanCatalog.ts와 MATCH해야 함.
+
+============================================================
+6. RENDER DEPLOY PREP
+============================================================
+
+Render current SHA 확인.
+
+Target SHA:
+
+52516efc
+
+확인:
+
+Target contains:
+
+73fe63bd
+6453c988
+52516efc
+
+Production migration:
+DONE
+
+API/Super Admin tests:
+PASS
+
+Typecheck:
+0 new errors
+
+============================================================
+7. 여기서 USER MANUAL RENDER DEPLOY
+============================================================
+
+Replit은 Render deploy 실행 금지.
+
+다음 상태로 보고:
+
+READY FOR MANUAL RENDER DEPLOY
+
+Render current SHA:
+...
+
+Target SHA:
+52516efc
+
+Production migrations:
+DONE
+
+Production DB catalog:
+PASS
+
+OTA:
+NOT REQUIRED
+
+USER ACTION:
+Render에서 52516efc를 포함하는 최신 release/v2.0.0 배포.
+
+STOP and wait.
+
+============================================================
+8. USER가 Render 배포 완료 후 실행
+============================================================
+
+배포 완료 후 Production verify.
+
+Health:
+PASS
+
+Deployed SHA:
+Target SHA match
+
+Startup error:
+0
+
+Runtime DDL:
+0
+
+============================================================
+9. PRODUCTION SUPER ADMIN VERIFY
+============================================================
+
+실제 Production Super Admin에서:
+
+구독·결제 > 플랜 selector 확인.
+
+Expected:
+
+BASE:
+SWIMNOTE 9,900원
+
+X:
+X300 119,000원 / 300명
+X500 189,000원 / 500명
+X1000 349,000원 / 1000명
+
+DATA:
+DATA100 7,900원 / +100GB
+DATA300 22,900원 / +300GB
+
+Legacy Coach/Premier:
+미노출
+
+============================================================
+10. TOYKIDS X VERIFY
+============================================================
+
+Pool:
+
+pool_1780849364252_l9k44rbk3
+
+현재 expected:
+
+x_manual_entitlement=true
+x_paid_entitlement=false
+x_force_disabled=false
+effective=true
+x_plan_key=null
+
+Super Admin에서:
+
+X300/X500/X1000 selector가 실제 보이는지 확인.
+
+사용자가 최종 어떤 플랜을 선택할지 정하기 전
+임의로 저장하지 말 것.
+
+단 manual X 상태는 UI에서:
+
+Manual ON
+Paid OFF
+Effective ON
+Source MANUAL
+
+로 보여야 함.
+
+============================================================
+11. X DIRECT GRANT ENDPOINT VERIFY
+============================================================
+
+Production actual route:
+
+PATCH /super/operators/:id/xmode
+
+확인:
+
+404:
+NO
+
+Route mounted:
+YES
+
+Auth guard:
+PASS
+
+UI endpoint:
+MATCH
+
+DB readback:
+MATCH
+
+Toykids는 이미 manual=true이므로
+이번 verify에서 불필요하게 OFF/ON toggle하지 말 것.
+
+============================================================
+12. OTA
+============================================================
+
+이번 변경은 server / DB / Super Admin 기준.
+
+APP runtime 변경 없으면:
+
+iOS OTA:
+NO
+
+Android OTA:
+NO
+
+============================================================
+13. FINAL REPORT
+============================================================
+
+# PRODUCTION OFFICIAL PLAN GO-LIVE REPORT
+
+GIT
+
+Branch:
+HEAD:
+Target SHA:
+
+--------------------------------
+
+PRODUCTION MIGRATIONS
+
+Nullable migration:
+PASS / FAIL
+
+Official catalog migration:
+PASS / FAIL
+
+Historical rows deleted:
+0 / ...
+
+--------------------------------
+
+PRODUCTION CATALOG
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+...
+
+DATA300:
+...
+
+Legacy selectable:
+...
+
+--------------------------------
+
+DATA SAFETY
+
+Toykids members changed:
+0 / ...
+
+Toykids classes changed:
+0 / ...
+
+Toykids diaries changed:
+0 / ...
+
+Other pools entitlement changed:
+0 / ...
+
+--------------------------------
+
+RENDER
+
+Previous SHA:
+...
+
+Deployed SHA:
+...
+
+SHA Match:
+YES / NO
+
+Health:
+PASS / FAIL
+
+Startup DDL:
+0 / ...
+
+--------------------------------
+
+SUPER ADMIN
+
+New BASE selector:
+PASS / FAIL
+
+New X selector:
+PASS / FAIL
+
+New DATA selector:
+PASS / FAIL
+
+Legacy hidden:
+PASS / FAIL
+
+--------------------------------
+
+TOYKIDS
+
+Manual X:
+ON / OFF
+
+Paid X:
+ON / OFF
+
+Effective X:
+ON / OFF
+
+Source:
+...
+
+Current X Plan:
+...
+
+Selectable:
+X300 / X500 / X1000
+
+--------------------------------
+
+X ENDPOINT
+
+Route exists:
+YES / NO
+
+404:
+YES / NO
+
+UI/API route match:
+YES / NO
+
+--------------------------------
+
+OTA
+
+Required:
+NO
+
+--------------------------------
+
+FINAL
+
+Production DB on new catalog:
+YES / NO
+
+Render on new code:
+YES / NO
+
+Super Admin new plans live:
+YES / NO
+
+Toykids X manual state live:
+YES / NO
+
+Ready for next work:
+YES / NO
