@@ -1,0 +1,1459 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# WP2 — ACCESS / PLAN / FEATURE CONTROL
+# BASELINE: 16c83a79
+# DO NOT START WP3
+
+============================================================
+0. WP2 목적
+============================================================
+
+WP1 Overview / Health는 완료됨.
+
+이번 WP2의 목적은:
+
+Super Admin이 각 수영장의
+
+- BASE 이용권
+- X 이용권
+- X force disable
+- plan
+- member limit
+- 기능 entitlement
+
+를 실제 운영 수준에서
+안전하게 통제할 수 있도록
+
+Access / Plans 영역을 완성하는 것.
+
+이번 WP에서는
+Members / Teachers / Parents 등 WP3 영역으로
+확장하지 않는다.
+
+============================================================
+1. CURRENT BASELINE
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+16c83a79
+
+먼저 확인:
+
+git status
+git rev-parse HEAD
+git log --oneline -10
+
+16c83a79 ancestor:
+YES
+
+현재 존재하는:
+
+- base_manual_entitlement
+- x_paid_entitlement
+- x_manual_entitlement
+- x_force_disabled
+- x_plan_key
+- BASE grant/revoke
+- X grant/revoke
+- X plan selection
+- xPlanCatalog.ts
+- audit_logs
+
+전부 재사용.
+
+기존 기능을 새로 중복 구현하지 말 것.
+
+============================================================
+2. MASTER ENTITLEMENT RULE
+============================================================
+
+BASE:
+
+effective_base =
+valid_paid_base
+OR
+base_manual_entitlement
+
+X:
+
+effective_x =
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+PLAN:
+
+이번 WP에서
+현재 실제 repository 구조를 기준으로
+paid/manual/effective plan을 명확히 정리.
+
+원칙:
+
+manual plan override가 존재하면 우선.
+
+그 외 valid paid plan.
+
+그 외 현재 product default/fallback.
+
+즉 개념상:
+
+effective_plan =
+manual_plan_override
+OR paid_plan
+OR default/fallback
+
+단 기존 DB/model과 충돌하면
+새 필드를 임의 생성하기 전에
+현재 구조를 분석해 최소 변경.
+
+============================================================
+3. PLAN != PAYMENT
+============================================================
+
+반드시 유지:
+
+Plan은 기능 bundle.
+
+Payment는 billing.
+
+Super Admin이:
+
+x300
+x500
+x1000
+
+중 하나를 manual로 부여해도
+
+RevenueCat purchase:
+NONE
+
+App Store payment:
+NONE
+
+가능해야 한다.
+
+manual plan을
+가짜 paid subscription으로 기록하지 말 것.
+
+============================================================
+4. TOYKIDS PROTECTION
+============================================================
+
+이번 WP의 P0 회귀조건.
+
+토이키즈는 Production 적용 후:
+
+BASE:
+MANUAL ON
+
+X:
+MANUAL ON
+
+PLAN:
+MANUAL
+
+Payment:
+NONE
+
+상태로 완전 이용 가능해야 함.
+
+RevenueCat sync로:
+
+base manual OFF:
+금지
+
+x manual OFF:
+금지
+
+manual plan overwrite:
+금지
+
+pool name 하드코딩:
+금지.
+
+============================================================
+5. ACCESS / PLANS UI 최종 구조
+============================================================
+
+Super Admin
+→ Pools
+→ Pool Control Center
+→ Access / Plans
+
+에서 최소 다음을 명확히 분리 표시.
+
+------------------------------------------------------------
+BASE SWIMNOTE
+------------------------------------------------------------
+
+Paid:
+ON / OFF
+
+Manual:
+ON / OFF
+
+Effective:
+ON / OFF
+
+Paid status/source:
+가능한 실제 source만 표시
+
+Manual grant:
+현재 상태
+
+Actions:
+
+[BASE 직접 부여]
+[BASE 권한 회수]
+
+------------------------------------------------------------
+SWIMNOTE X
+------------------------------------------------------------
+
+Paid:
+ON / OFF
+
+Manual:
+ON / OFF
+
+Force Disabled:
+ON / OFF
+
+Effective:
+ON / OFF
+
+Actions:
+
+[X모드 직접 부여]
+[X모드 회수]
+
+[강제 비활성화]
+[강제 비활성화 해제]
+
+------------------------------------------------------------
+PLAN
+------------------------------------------------------------
+
+Paid/Billing Plan:
+...
+
+Manual Plan:
+...
+
+Effective Plan:
+...
+
+Member Limit:
+...
+
+Actions:
+
+[플랜 변경]
+
+필요한 경우:
+
+[회원 한도 Override]
+
+============================================================
+6. X FORCE DISABLE
+============================================================
+
+현재 x_force_disabled가 이미 존재.
+
+Super Admin UI에서 실제 연결.
+
+동작:
+
+x_force_disabled=true
+→ paid=true여도 X effective OFF
+→ manual=true여도 X effective OFF
+
+restore:
+x_force_disabled=false
+→ paid/manual entitlement에 따라
+effective X 다시 계산
+
+Actions:
+
+[X 강제 비활성화]
+
+[X 강제 비활성화 해제]
+
+위험 action이므로:
+
+confirmation
+reason
+audit
+
+필수.
+
+============================================================
+7. MANUAL PLAN OVERRIDE
+============================================================
+
+현재 x_plan_key가
+manual/paid 양쪽 의미가 섞여 있는지 먼저 확인.
+
+중요:
+
+RevenueCat billing plan과
+Super Admin manual plan을 구분할 수 있어야 함.
+
+이미 source를 구분하는 field/model이 있으면 재사용.
+
+없다면 최소 additive structure 설계.
+
+예시는 참고만:
+
+x_manual_plan_key nullable
+
+하지만 기존 x_plan_key가
+이미 manual override semantics라면
+불필요한 새 컬럼 생성 금지.
+
+반드시 완료보고에서:
+
+paid plan source
+manual plan source
+effective plan resolver
+
+를 명시.
+
+============================================================
+8. MEMBER LIMIT
+============================================================
+
+현재 plan catalog:
+
+x300 = 300
+x500 = 500
+x1000 = 1000
+
+서버 authoritative source:
+
+xPlanCatalog.ts
+
+유지.
+
+클라이언트가 member_limit 값을 보내더라도
+서버에서 그대로 신뢰 금지.
+
+plan-based limit:
+
+server catalog에서 결정.
+
+============================================================
+9. MEMBER LIMIT OVERRIDE
+============================================================
+
+운영상 필요한 Super Admin 기능으로
+plan limit과 별도로 manual member limit override 지원 여부를
+현재 schema/code 기준으로 확인.
+
+목적 예:
+
+특정 제휴 수영장
+x300 plan이지만
+temporary limit 350
+
+같은 운영 예외.
+
+최종 구조:
+
+Default Plan Limit:
+300
+
+Manual Limit Override:
+350 또는 NONE
+
+Effective Limit:
+350
+
+단 현재 architecture와
+member-limit enforcement가 명확히 연결 가능한 경우에만 구현.
+
+중요:
+
+UI 표시만 override:
+금지.
+
+실제 회원등록/limit guard가
+effective limit을 사용해야 함.
+
+만약 현재 member-limit enforcement가
+여러 군데 흩어져 있다면
+이번 WP에서 source를 정리.
+
+============================================================
+10. LIMIT RESOLVER
+============================================================
+
+권장 원칙:
+
+effective_member_limit =
+manual_member_limit_override
+OR
+plan_catalog[effective_plan].member_limit
+OR
+current fallback
+
+단 실제 코드에 맞춰 구현.
+
+모든 member-limit 체크가
+동일 resolver/source를 사용하도록 한다.
+
+중복 hardcoded limit:
+0 목표.
+
+============================================================
+11. PLAN CATALOG
+============================================================
+
+현재 authoritative server source:
+
+src/lib/xPlanCatalog.ts
+
+이번 WP에서 이 catalog를
+plan key / member limit의
+단일 authoritative server source로 확정.
+
+현재 가격:
+
+x300 129000
+x500 199000
+x1000 359000
+
+은 아직 OLD 가격으로 유지.
+
+사용자가 새 가격을 확정하기 전:
+
+가격 숫자 변경:
+NO
+
+RevenueCat product final mapping:
+NO
+
+새 product ID:
+NO
+
+============================================================
+12. WEB PLAN DISPLAY
+============================================================
+
+현재 Web의 X_PLANS가
+display-only duplicate라고 보고됨.
+
+이번 WP에서 가능한 범위에서:
+
+서버 catalog metadata를
+API response로 받아 렌더하거나
+
+공통 shared catalog가 안전하게 가능하면
+그 방식 사용.
+
+목표:
+
+server plan limits와
+Web display가 서로 다른 값을 가질 위험 제거.
+
+중요:
+
+Web에서 선택 가능한 plan을
+임의 hardcode한 뒤
+server와 따로 관리하는 구조 최소화.
+
+============================================================
+13. FEATURE CONTROL 조사
+============================================================
+
+Master Design의 WP2에는
+Feature Control이 포함됨.
+
+현재 pool-level feature/config를 실제 조사.
+
+예:
+
+- X setup status
+- X curriculum availability
+- AI Diary
+- Growth Reports
+- Parent Curriculum
+- PC Dashboard
+- 기타 pool feature flags
+
+모든 internal/debug flag를
+Super Admin UI에 노출하지 말 것.
+
+각 feature 후보를:
+
+MUST CONTROL
+READ ONLY
+LATER
+INTERNAL ONLY
+
+로 분류.
+
+============================================================
+14. FEATURE ENTITLEMENT 구현 범위
+============================================================
+
+실제 운영에서 Super Admin이
+수영장별로 켜고 끌 필요가 있고
+
+현재 서버/앱에서 실제 gating source가 존재하는
+기능만 이번 WP에서 연결.
+
+새 feature flag system을
+대규모로 새로 만들지 말 것.
+
+기능 제어가 실제 필요 없는 항목은
+read-only 상태만 보여도 됨.
+
+============================================================
+15. APP / SERVER REAL-TIME CONSISTENCY
+============================================================
+
+권한/플랜/limit 변경 후:
+
+Super Admin mutation
+→ DB commit
+→ resolver
+→ API latest state
+→ Control Center refetch
+
+PASS.
+
+그리고 일반 SWIMNOTE 앱이
+해당 entitlement/plan 정보를 사용하는 경우:
+
+APP refresh/re-entry
+→ latest effective state
+
+가 되어야 함.
+
+stale state:
+FAIL.
+
+필요한 기존 cache invalidation/refetch만 사용.
+
+새 cache framework:
+NO.
+
+============================================================
+16. APP IMPACT 조사
+============================================================
+
+이번 WP에서 가장 중요.
+
+변경 전:
+
+현재 APP/shared runtime 파일들이
+
+BASE
+X
+plan
+member limit
+feature gating
+
+을 어떻게 읽는지 조사.
+
+Server-only 변경으로
+정확히 반영 가능하면
+APP 수정하지 말 것.
+
+하지만 APP 코드가
+old entitlement/plan logic을 자체 계산하고 있어
+server effective state와 충돌하면:
+
+APP 수정 필요.
+
+그 경우 반드시:
+
+test
+commit
+iOS OTA
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+============================================================
+17. DANGEROUS MUTATION SAFEGUARD
+============================================================
+
+다음 action:
+
+BASE revoke
+X revoke
+X force disable
+plan downgrade
+member limit 감소
+
+는 실제 서비스에 영향을 줄 수 있음.
+
+반드시:
+
+confirmation
+reason
+before/after preview where practical
+audit
+
+실수 클릭 1회로 즉시 수행:
+금지.
+
+============================================================
+18. PLAN DOWNGRADE SAFETY
+============================================================
+
+예:
+
+현재 active members = 420
+새 plan x300 limit = 300
+
+일 때.
+
+무조건 막을지
+허용하되 warning할지는
+현재 business behavior를 조사.
+
+최소 요구:
+
+영향을 Super Admin에게 명확히 표시.
+
+기존 회원을 자동 삭제:
+절대 금지.
+
+기존 회원을 자동 탈퇴:
+절대 금지.
+
+limit 변경은
+향후 신규/활성화 정책에만
+기존 시스템 규칙대로 반영.
+
+현재 enforcement semantics를
+완료보고에 명시.
+
+============================================================
+19. BASE REVOKE SAFETY
+============================================================
+
+manual BASE를 회수하더라도
+paid BASE가 유효하면:
+
+effective BASE remains ON.
+
+paid도 없으면:
+기존 subscription policy대로.
+
+회수 버튼이
+paid entitlement를 수정:
+금지.
+
+============================================================
+20. X REVOKE SAFETY
+============================================================
+
+manual X를 회수하더라도
+paid X가 유효하면:
+
+effective X remains ON.
+
+paid도 없으면:
+OFF.
+
+manual revoke가
+x_paid_entitlement를 변경:
+금지.
+
+============================================================
+21. FORCE DISABLE SAFETY
+============================================================
+
+force disable은
+paid/manual과 별개.
+
+true이면 effective X OFF.
+
+중요:
+
+사용자가 restore하면
+entitlement source를 새로 만들지 말고
+
+기존 paid/manual 상태 기준으로
+effective state를 재계산.
+
+============================================================
+22. AUDIT
+============================================================
+
+다음 모든 mutation:
+
+BASE_GRANT
+BASE_REVOKE
+X_GRANT
+X_REVOKE
+X_FORCE_DISABLE
+X_FORCE_RESTORE
+PLAN_OVERRIDE
+PLAN_OVERRIDE_CLEAR
+MEMBER_LIMIT_OVERRIDE
+MEMBER_LIMIT_OVERRIDE_CLEAR
+FEATURE_CONTROL_CHANGE
+
+해당되는 실제 action을
+기존 audit_logs에 기록.
+
+필드:
+
+actor
+pool
+action
+target
+before
+after
+reason
+timestamp
+request_id if available
+
+============================================================
+23. AUTH / SCOPE
+============================================================
+
+모든 mutation:
+
+super_admin only.
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+target pool:
+명시.
+
+다른 pool 변경:
+P0 block.
+
+============================================================
+24. CONCURRENCY
+============================================================
+
+같은 pool의 entitlement/plan을
+두 Super Admin request가 동시에 변경할 때
+
+부분 적용이나 서로 다른 필드 조합이
+깨지지 않도록 검토.
+
+필요 시 transaction.
+
+예:
+
+plan update
++ member limit update
++ audit
+
+은 하나의 원자 작업으로 처리.
+
+============================================================
+25. FAILURE BEHAVIOR
+============================================================
+
+DB mutation 실패:
+
+UI success:
+NO
+
+audit success만 남음:
+NO
+
+부분 plan 적용:
+NO
+
+부분 limit 적용:
+NO
+
+명확한 error response.
+
+UI refetch 후
+원상태 유지.
+
+============================================================
+26. WP2 TEST MATRIX — BASE
+============================================================
+
+A.
+paid inactive + manual off
+→ current policy
+
+B.
+paid inactive + manual on
+→ BASE ON
+
+C.
+paid active + manual revoke
+→ BASE remains ON
+
+D.
+paid inactive + manual revoke
+→ BASE current unpaid policy
+
+E.
+billing sync + manual on
+→ manual survives
+
+F.
+non-super grant/revoke
+→ blocked
+
+G.
+cross-pool
+→ blocked
+
+H.
+audit
+→ PASS
+
+============================================================
+27. WP2 TEST MATRIX — X
+============================================================
+
+A.
+paid off + manual on
+→ X ON
+
+B.
+paid on + manual off
+→ X ON
+
+C.
+both off
+→ X OFF
+
+D.
+force disable + paid on
+→ X OFF
+
+E.
+force disable + manual on
+→ X OFF
+
+F.
+restore + paid on
+→ X ON
+
+G.
+restore + manual on
+→ X ON
+
+H.
+manual revoke + paid on
+→ X ON
+
+I.
+manual revoke + paid off
+→ X OFF
+
+J.
+billing sync
+→ manual untouched
+
+============================================================
+28. WP2 TEST MATRIX — PLAN
+============================================================
+
+x300
+→ effective plan x300
+→ catalog limit 300
+
+x500
+→ 500
+
+x1000
+→ 1000
+
+manual override:
+PASS
+
+manual override clear:
+expected fallback PASS
+
+invalid plan:
+400
+
+client fake member_limit:
+ignored/rejected
+
+paid/manual source:
+correct
+
+============================================================
+29. WP2 TEST MATRIX — LIMIT
+============================================================
+
+If manual limit override implemented:
+
+set override:
+PASS
+
+effective limit:
+PASS
+
+clear override:
+PASS
+
+plan fallback:
+PASS
+
+negative:
+reject
+
+0:
+reject unless explicitly valid current policy
+
+unreasonably high:
+validate against defined Super Admin policy
+
+non-super:
+403
+
+cross-pool:
+blocked
+
+audit:
+PASS
+
+actual member-limit guard:
+uses effective limit
+
+============================================================
+30. WP2 TEST MATRIX — UI
+============================================================
+
+Loading:
+PASS
+
+Success:
+PASS
+
+Mutation pending:
+button double-submit blocked
+
+Mutation failure:
+error shown
+
+Mutation success:
+refetch actual DB state
+
+Dangerous action:
+confirmation + reason
+
+Paid/Manual/Effective:
+visually distinguishable
+
+Force disabled:
+prominent warning
+
+============================================================
+31. REGRESSION
+============================================================
+
+WP1 Overview:
+unchanged/PASS
+
+Members:
+route unaffected
+
+Curriculum:
+unaffected
+
+AI:
+unaffected
+
+Growth:
+unaffected
+
+Errors:
+unaffected
+
+Support:
+unaffected
+
+X existing 12/12:
+PASS
+
+BASE existing preflight:
+PASS
+
+============================================================
+32. PERFORMANCE
+============================================================
+
+Access / Plans 탭 진입 시
+불필요한 전체 user/member scan:
+NO
+
+Mutation 후
+14개 detail endpoint 전체 refresh:
+NO
+
+필요한:
+
+Access state
+Overview summary if affected
+
+만 refetch.
+
+N+1:
+NO.
+
+============================================================
+33. DB MIGRATION
+============================================================
+
+새 field가 정말 필요한 경우에만:
+
+Development migration:
+YES
+
+Production:
+NO
+
+Additive only.
+
+DROP:
+NO
+
+기존 paid/manual data:
+보존.
+
+migration 멱등성:
+필수.
+
+============================================================
+34. APP / OTA
+============================================================
+
+iOS/shared runtime 변경 여부를
+git diff로 실제 확인.
+
+YES:
+
+test
+commit
+HEAD verify
+iOS OTA publish
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+보고:
+
+OTA Group ID
+iOS Update ID
+Commit SHA
+Export Source SHA
+SHA Match
+
+NO:
+
+OTA NOT REQUIRED
+
+추측으로 NO 판정 금지.
+
+============================================================
+35. SERVER
+============================================================
+
+Server 변경:
+
+tests
+TS
+commit
+push release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+36. PRODUCTION
+============================================================
+
+이번 WP:
+
+Production DB:
+NO
+
+Render deploy:
+NO
+
+main merge:
+NO
+
+RevenueCat live:
+NO
+
+============================================================
+37. WP2 완료보고
+============================================================
+
+# WP2 ACCESS / PLAN / FEATURE CONTROL REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+16c83a79
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+FILES CHANGED
+============================================================
+
+Server:
+...
+
+Web:
+...
+
+APP/shared runtime:
+...
+
+Migration:
+...
+
+Tests:
+...
+
+============================================================
+ENTITLEMENT MODEL
+============================================================
+
+BASE paid source:
+...
+
+BASE manual source:
+...
+
+BASE effective resolver:
+...
+
+X paid source:
+...
+
+X manual source:
+...
+
+X force-disable source:
+...
+
+X effective resolver:
+...
+
+============================================================
+PLAN MODEL
+============================================================
+
+Paid plan source:
+...
+
+Manual plan source:
+...
+
+Effective plan resolver:
+...
+
+Authoritative catalog:
+...
+
+Plan limits:
+x300=...
+x500=...
+x1000=...
+
+Old prices changed:
+NO
+
+New prices applied:
+NO
+
+============================================================
+MEMBER LIMIT
+============================================================
+
+Plan limit source:
+...
+
+Manual limit override:
+IMPLEMENTED / NOT NEEDED / BLOCKED
+
+Effective limit resolver:
+...
+
+Actual enforcement uses effective limit:
+PASS / FAIL
+
+Downgrade behavior:
+...
+
+============================================================
+FEATURE CONTROL
+============================================================
+
+MUST CONTROL:
+...
+
+READ ONLY:
+...
+
+LATER:
+...
+
+INTERNAL ONLY:
+...
+
+Implemented controls:
+...
+
+============================================================
+UI
+============================================================
+
+BASE Paid/Manual/Effective:
+PASS / FAIL
+
+X Paid/Manual/Force/Effective:
+PASS / FAIL
+
+Plan Paid/Manual/Effective:
+PASS / FAIL
+
+Force disable:
+PASS / FAIL
+
+Restore:
+PASS / FAIL
+
+Plan override:
+PASS / FAIL
+
+Limit override:
+PASS / FAIL / N/A
+
+Danger confirmations:
+PASS / FAIL
+
+Reason:
+PASS / FAIL
+
+Real refetch:
+PASS / FAIL
+
+============================================================
+TOYKIDS SAFETY
+============================================================
+
+BASE manual:
+PASS / FAIL
+
+X manual:
+PASS / FAIL
+
+Manual plan:
+PASS / FAIL
+
+Billing can remove BASE manual:
+NO / YES
+
+Billing can remove X manual:
+NO / YES
+
+Billing can overwrite manual plan:
+NO / YES
+
+Fully operable unpaid:
+YES / NO
+
+============================================================
+AUTH / SECURITY
+============================================================
+
+Super Admin:
+PASS / FAIL
+
+Pool Admin:
+BLOCKED / FAIL
+
+Teacher:
+BLOCKED / FAIL
+
+Parent:
+BLOCKED / FAIL
+
+Unauthenticated:
+BLOCKED / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+============================================================
+AUDIT
+============================================================
+
+BASE grant/revoke:
+PASS / FAIL
+
+X grant/revoke:
+PASS / FAIL
+
+Force disable/restore:
+PASS / FAIL
+
+Plan:
+PASS / FAIL
+
+Limit:
+PASS / FAIL / N/A
+
+Feature:
+PASS / FAIL / N/A
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0 / ...
+
+X 12/12 regression:
+PASS / FAIL
+
+WP1 regression:
+PASS / FAIL
+
+============================================================
+APP / OTA
+============================================================
+
+iOS APP/shared runtime modified:
+YES / NO
+
+If YES:
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group:
+...
+
+iOS Update:
+...
+
+Commit SHA:
+...
+
+Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+If NO:
+
+OTA:
+NOT REQUIRED
+
+============================================================
+DB
+============================================================
+
+Development migration:
+...
+
+Production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP2 complete:
+YES / NO
+
+Toykids protected:
+YES / NO
+
+Access/Plans production-ready:
+YES / NO
+
+Real-time effective state:
+PASS / FAIL
+
+Remaining blocker:
+...
+
+Recommended next WP:
+WP3 — CUSTOMER SUPPORT USERS
+
+DO NOT START WP3.
+WAIT FOR NEXT INSTRUCTION.
