@@ -5184,6 +5184,673 @@ router.post(
   },
 );
 
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/base — BASE SWIMNOTE manual entitlement grant/revoke
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Super Admin이 결제 없이 수영장에 BASE SWIMNOTE 이용권을 직접 부여/회수.
+// RevenueCat webhook은 base_manual_entitlement를 절대 수정하지 않음.
+// 모든 변경은 audit_logs에 기록됨.
+//
+router.patch(
+  "/super/operators/:id/base",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      base_manual_entitlement,
+      reason,
+    } = req.body as {
+      base_manual_entitlement?: boolean;
+      reason?: string;
+    };
+
+    if (base_manual_entitlement === undefined) {
+      res.status(400).json({ error: "base_manual_entitlement 필드 필요" });
+      return;
+    }
+    if (typeof base_manual_entitlement !== "boolean") {
+      res.status(400).json({ error: "base_manual_entitlement는 boolean이어야 함" });
+      return;
+    }
+
+    const actorId = req.user!.id;
+    try {
+      await superAdminDb.transaction(async (tx) => {
+        // Before
+        const beforeRes = await tx.execute(sql`
+          SELECT COALESCE(base_manual_entitlement, false) AS base_manual_entitlement
+          FROM swimming_pools WHERE id = ${poolId}
+        `);
+        if (!beforeRes.rows.length) {
+          res.status(404).json({ error: "수영장 없음" });
+          return;
+        }
+        const beforeData = {
+          base_manual_entitlement: Boolean((beforeRes.rows[0] as any).base_manual_entitlement),
+        };
+
+        // Update
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools
+          SET base_manual_entitlement = ${base_manual_entitlement}
+          WHERE id = ${poolId}
+          RETURNING id, COALESCE(base_manual_entitlement, false) AS base_manual_entitlement
+        `);
+        const updated = updatedRes.rows[0] as any;
+        const afterData = {
+          base_manual_entitlement: Boolean(updated.base_manual_entitlement),
+          source: "super_admin_manual",
+        };
+
+        // Audit
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_base_access', ${poolId}) AS v
+        `);
+        const version = (vRes.rows[0] as any).v;
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_base_access', ${poolId}, ${version},
+            'update', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify(beforeData)}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            ${reason ?? (base_manual_entitlement ? "Super Admin BASE grant" : "Super Admin BASE revoke")}
+          )
+        `);
+
+        res.json({
+          pool_id: poolId,
+          base_manual_entitlement: Boolean(updated.base_manual_entitlement),
+          action: base_manual_entitlement ? "granted" : "revoked",
+          source: "super_admin_manual",
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/base 오류:", e?.message);
+      res.status(500).json({ error: "BASE_GRANT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// SUPER ADMIN POOL CONTROL CENTER — Summary + Lazy Tab Endpoints
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /super/pools/:id/control-center/summary — 핵심 요약 (단일 진입 호출)
+router.get(
+  "/super/pools/:id/control-center/summary",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      // Pool + entitlement (single query)
+      const poolRes = await superAdminDb.execute(sql`
+        SELECT
+          sp.*,
+          COALESCE(sp.x_paid_entitlement, false) AS x_paid_entitlement,
+          COALESCE(sp.x_manual_entitlement, false) AS x_manual_entitlement,
+          COALESCE(sp.x_force_disabled, false) AS x_force_disabled,
+          COALESCE(sp.base_manual_entitlement, false) AS base_manual_entitlement
+        FROM swimming_pools sp
+        WHERE sp.id = ${poolId}
+        LIMIT 1
+      `);
+      if (!poolRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
+      const pool = poolRes.rows[0] as any;
+
+      // Counts + storage + recent errors (parallel)
+      const [countsRes, errorRes, aiRes, grRes, notifRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_members,
+            (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId}) AS total_members,
+            (SELECT COUNT(*) FROM users WHERE swimming_pool_id = ${poolId} AND role IN ('pool_admin', 'teacher')) AS teacher_count,
+            (SELECT COUNT(*) FROM parent_accounts WHERE swimming_pool_id = ${poolId}) AS parent_count,
+            (SELECT COUNT(*) FROM class_groups WHERE swimming_pool_id = ${poolId} AND active = true) AS active_class_count
+        `),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS cnt, MAX(created_at) AS last_at
+          FROM event_logs
+          WHERE pool_id = ${poolId} AND level IN ('error', 'critical')
+            AND created_at > NOW() - INTERVAL '7 days'
+        `).catch(() => ({ rows: [{ cnt: 0, last_at: null }] })),
+        superAdminDb.execute(sql`
+          SELECT diary_count, teacher_count AS ai_teacher_count, ai_call_count,
+                 year_month
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY year_month DESC LIMIT 1
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) FILTER (WHERE status = 'READY_TO_SEND') AS ready_count,
+                 COUNT(*) FILTER (WHERE status = 'FAILED') AS failed_count,
+                 COUNT(*) AS total_count
+          FROM growth_reports
+          WHERE swimming_pool_id = ${poolId}
+            AND batch_date >= CURRENT_DATE - INTERVAL '30 days'
+        `).catch(() => ({ rows: [{ ready_count: 0, failed_count: 0, total_count: 0 }] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS unread
+          FROM notifications
+          WHERE pool_id = ${poolId} AND is_read = false
+            AND created_at > NOW() - INTERVAL '7 days'
+        `).catch(() => ({ rows: [{ unread: 0 }] })),
+      ]);
+
+      const counts = countsRes.rows[0] as any;
+      const errors = errorRes.rows[0] as any;
+      const ai = aiRes.rows[0] as any ?? {};
+      const gr = grRes.rows[0] as any ?? {};
+      const notif = notifRes.rows[0] as any;
+
+      // Health score (rule-based)
+      const healthIssues: string[] = [];
+      if (pool.x_paid_entitlement && pool.x_force_disabled) healthIssues.push("X ENTITLEMENT CONFLICT");
+      if (Number(errors.cnt ?? 0) > 10) healthIssues.push("FREQUENT_ERRORS");
+      if (Number(gr.failed_count ?? 0) > 3) healthIssues.push("GROWTH_REPORT_FAILURES");
+      if (pool.upload_blocked) healthIssues.push("STORAGE_QUOTA");
+      const health: "GREEN" | "YELLOW" | "RED" =
+        healthIssues.length === 0 ? "GREEN" :
+        healthIssues.some((h) => h.includes("CONFLICT") || h.includes("STORAGE")) ? "RED" : "YELLOW";
+
+      const xPaid    = Boolean(pool.x_paid_entitlement);
+      const xManual  = Boolean(pool.x_manual_entitlement);
+      const xForce   = Boolean(pool.x_force_disabled);
+      const xEff     = (xPaid || xManual) && !xForce;
+      const basePaid = Boolean(pool.subscription_status === "active" && !pool.base_manual_entitlement);
+      const baseManual = Boolean(pool.base_manual_entitlement);
+      const baseEff  = basePaid || baseManual;
+
+      res.json({
+        pool_id:          pool.id,
+        name:             pool.name,
+        owner_name:       pool.owner_name,
+        approval_status:  pool.approval_status,
+        created_at:       pool.created_at,
+        updated_at:       pool.updated_at,
+        health,
+        health_issues:    healthIssues,
+        // BASE access
+        base_paid:        basePaid,
+        base_manual:      baseManual,
+        base_effective:   baseEff,
+        base_source:      baseManual ? "manual" : (basePaid ? "paid" : "none"),
+        subscription_status: pool.subscription_status,
+        subscription_tier:   pool.subscription_tier,
+        // X access
+        x_paid:           xPaid,
+        x_manual:         xManual,
+        x_force_disabled: xForce,
+        x_effective:      xEff,
+        x_source:         xManual ? "manual" : (xPaid ? "paid" : "none"),
+        x_plan_key:       pool.x_plan_key ?? null,
+        xmode_config_status: pool.xmode_config_status,
+        // Counts
+        active_members:   Number(counts.active_members ?? 0),
+        total_members:    Number(counts.total_members ?? 0),
+        teacher_count:    Number(counts.teacher_count ?? 0),
+        parent_count:     Number(counts.parent_count ?? 0),
+        active_class_count: Number(counts.active_class_count ?? 0),
+        // Storage
+        member_limit:     pool.member_limit,
+        used_storage_bytes: pool.used_storage_bytes,
+        upload_blocked:   pool.upload_blocked,
+        // AI
+        recent_ai_diary_count: Number(ai.diary_count ?? 0),
+        recent_ai_month:       ai.year_month ?? null,
+        // Growth Report (30d)
+        gr_ready_count:   Number(gr.ready_count ?? 0),
+        gr_failed_count:  Number(gr.failed_count ?? 0),
+        gr_total_count:   Number(gr.total_count ?? 0),
+        // Errors (7d)
+        recent_error_count: Number(errors.cnt ?? 0),
+        last_error_at:    errors.last_at ?? null,
+        // Notifications (7d unread)
+        unread_notifications: Number(notif.unread ?? 0),
+      });
+    } catch (e: any) {
+      console.error("[control-center] summary 오류:", e?.message);
+      res.status(500).json({ error: "SUMMARY_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/members
+router.get(
+  "/super/pools/:id/control-center/members",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { q = "", status = "", limit = "50", offset = "0" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT s.id, s.name, s.status, s.phone,
+               s.created_at, s.updated_at,
+               cg.name AS class_name,
+               u.name AS teacher_name,
+               (SELECT COUNT(*) FROM parent_students ps
+                  JOIN parent_accounts pa ON ps.parent_account_id = pa.id
+                  WHERE ps.student_id = s.id AND pa.approved_at IS NOT NULL) AS parent_count,
+               (SELECT MAX(created_at) FROM diary_entries WHERE student_id = s.id) AS last_diary_at
+        FROM students s
+        LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
+        LEFT JOIN class_groups cg ON cg.id = cgs.class_group_id AND cg.active = true
+        LEFT JOIN users u ON u.id = cg.teacher_id
+        WHERE s.swimming_pool_id = ${poolId}
+          AND (${q} = '' OR s.name ILIKE ${'%' + q + '%'} OR s.phone ILIKE ${'%' + q + '%'} OR s.id ILIKE ${'%' + q + '%'})
+          AND (${status} = '' OR s.status = ${status})
+        ORDER BY s.status ASC, s.name ASC
+        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+      `);
+      const total = await superAdminDb.execute(sql`
+        SELECT COUNT(*) AS cnt FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND (${q} = '' OR name ILIKE ${'%' + q + '%'})
+          AND (${status} = '' OR status = ${status})
+      `);
+      res.json({ members: rows.rows, total: Number((total.rows[0] as any).cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: "MEMBERS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/teachers
+router.get(
+  "/super/pools/:id/control-center/teachers",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT u.id, u.name, u.email, u.phone, u.role::text AS role,
+               u.created_at, u.last_login_at,
+               (SELECT COUNT(*) FROM class_groups cg WHERE cg.teacher_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.active = true) AS active_class_count
+        FROM users u
+        WHERE u.swimming_pool_id = ${poolId}
+          AND u.role IN ('pool_admin', 'teacher')
+        ORDER BY u.role ASC, u.name ASC
+      `);
+      res.json({ teachers: rows.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "TEACHERS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/parents
+router.get(
+  "/super/pools/:id/control-center/parents",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { q = "", limit = "50", offset = "0" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT pa.id, pa.name, pa.phone, pa.created_at, pa.approved_at,
+               pa.last_login_at,
+               (SELECT COUNT(*) FROM parent_students ps WHERE ps.parent_account_id = pa.id) AS linked_student_count
+        FROM parent_accounts pa
+        WHERE pa.swimming_pool_id = ${poolId}
+          AND (${q} = '' OR pa.name ILIKE ${'%' + q + '%'} OR pa.phone ILIKE ${'%' + q + '%'})
+        ORDER BY pa.created_at DESC
+        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+      `);
+      const total = await superAdminDb.execute(sql`
+        SELECT COUNT(*) AS cnt FROM parent_accounts
+        WHERE swimming_pool_id = ${poolId}
+          AND (${q} = '' OR name ILIKE ${'%' + q + '%'})
+      `);
+      res.json({ parents: rows.rows, total: Number((total.rows[0] as any).cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: "PARENTS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/classes
+router.get(
+  "/super/pools/:id/control-center/classes",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.active, cg.created_at, cg.updated_at,
+               u.name AS teacher_name,
+               (SELECT COUNT(*) FROM class_group_students cgs WHERE cgs.class_group_id = cg.id) AS student_count
+        FROM class_groups cg
+        LEFT JOIN users u ON u.id = cg.teacher_id
+        WHERE cg.swimming_pool_id = ${poolId}
+        ORDER BY cg.active DESC, cg.name ASC
+      `);
+      res.json({ classes: rows.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "CLASSES_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/curriculum
+router.get(
+  "/super/pools/:id/control-center/curriculum",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      const [submissions, packages] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT xs.id, xs.status, xs.submitted_at, xs.reviewed_at,
+                 xs.curriculum_file_key, xs.website_file_key,
+                 xs.curriculum_file_name, xs.website_file_name,
+                 xs.submission_version
+          FROM x_setup_submissions xs
+          WHERE xs.swimming_pool_id = ${poolId}
+          ORDER BY xs.submitted_at DESC
+          LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT xp.id, xp.package_version, xp.package_name, xp.generated_at,
+                 xp.source_submission_version
+          FROM x_packaged_profiles xp
+          WHERE xp.pool_id = ${poolId}
+          ORDER BY xp.generated_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+      res.json({ submissions: submissions.rows, packages: packages.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "CURRICULUM_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/curriculum/download — secure file download
+router.get(
+  "/super/pools/:id/control-center/curriculum/download",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { file_key, submission_id } = req.query as Record<string, string>;
+    if (!file_key || !submission_id) {
+      res.status(400).json({ error: "file_key, submission_id 필요" });
+      return;
+    }
+    try {
+      // Cross-pool check: verify submission belongs to this pool
+      const subRes = await superAdminDb.execute(sql`
+        SELECT id, swimming_pool_id, curriculum_file_key, website_file_key
+        FROM x_setup_submissions
+        WHERE id = ${submission_id} AND swimming_pool_id = ${poolId}
+        LIMIT 1
+      `);
+      if (!subRes.rows.length) {
+        res.status(403).json({ error: "CROSS_POOL_BLOCKED", message: "이 수영장의 파일이 아닙니다" });
+        return;
+      }
+      const sub = subRes.rows[0] as any;
+      const allowedKeys = [sub.curriculum_file_key, sub.website_file_key].filter(Boolean);
+      if (!allowedKeys.includes(file_key)) {
+        res.status(403).json({ error: "FILE_NOT_OWNED", message: "허가되지 않은 파일" });
+        return;
+      }
+
+      // Generate signed URL via R2 (S3 compatible)
+      const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+      const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+      const r2 = new S3Client({
+        region: "auto",
+        endpoint: `https://${process.env.CF_R2_ACCOUNT_ID ?? ""}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: process.env.CF_R2_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY!,
+        },
+      });
+      const bucket = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID!;
+      const signedUrl = await getSignedUrl(
+        r2,
+        new GetObjectCommand({ Bucket: bucket, Key: file_key }),
+        { expiresIn: 300 }, // 5 min
+      );
+      res.json({ url: signedUrl, expires_in: 300 });
+    } catch (e: any) {
+      console.error("[control-center] curriculum download 오류:", e?.message);
+      res.status(500).json({ error: "DOWNLOAD_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai
+router.get(
+  "/super/pools/:id/control-center/ai",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      const [snapshots, traces] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT year_month, diary_count, teacher_count, ai_call_count,
+                 parent_search_count, parent_search_users
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY year_month DESC LIMIT 12
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT id, feature, status, llm_model, total_tokens, latency_ms,
+                 created_at, request_id, trace_id
+          FROM ai_traces
+          WHERE pool_id = ${poolId}
+          ORDER BY created_at DESC LIMIT 20
+        `).catch(() => ({ rows: [] })),
+      ]);
+      res.json({ snapshots: snapshots.rows, recent_traces: traces.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth-reports
+router.get(
+  "/super/pools/:id/control-center/growth-reports",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "30", offset = "0" } = req.query as Record<string, string>;
+    try {
+      const [reports, jobs] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT gr.id, gr.student_id, gr.status, gr.batch_date,
+                 gr.created_at, gr.updated_at,
+                 gr.attempts, gr.locked_at, gr.next_attempt_at,
+                 gr.admin_push_sent_at,
+                 s.name AS student_name
+          FROM growth_reports gr
+          LEFT JOIN students s ON s.id = gr.student_id
+          WHERE gr.swimming_pool_id = ${poolId}
+          ORDER BY gr.batch_date DESC, gr.created_at DESC
+          LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT id, batch_date, status, triggered_by, started_at, completed_at,
+                 total_students, processed_count, failed_count, error_summary
+          FROM growth_report_batch_jobs
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY batch_date DESC LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+      res.json({ reports: reports.rows, batch_jobs: jobs.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "GROWTH_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/errors
+router.get(
+  "/super/pools/:id/control-center/errors",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "50", offset = "0", feature = "" } = req.query as Record<string, string>;
+    try {
+      const [events, incidents] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT id, feature, level, error_code, safe_message,
+                 user_id, user_type, request_id, trace_id,
+                 retry_count, current_status, created_at
+          FROM event_logs
+          WHERE pool_id = ${poolId}
+            AND level IN ('error', 'critical', 'warning')
+            AND (${feature} = '' OR feature = ${feature})
+          ORDER BY created_at DESC
+          LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT id, pool_id, title, severity, status,
+                 created_at, resolved_at, description
+          FROM incidents
+          WHERE pool_id = ${poolId}
+          ORDER BY created_at DESC LIMIT 10
+        `).catch(() => ({ rows: [] })),
+      ]);
+      res.json({ events: events.rows, incidents: incidents.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "ERRORS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/notifications
+router.get(
+  "/super/pools/:id/control-center/notifications",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "50", offset = "0" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT n.id, n.type, n.title, n.body, n.recipient_id, n.recipient_type,
+               n.ref_id, n.ref_type, n.is_read, n.created_at, n.deep_link
+        FROM notifications n
+        WHERE n.pool_id = ${poolId}
+        ORDER BY n.created_at DESC
+        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+      `);
+      const total = await superAdminDb.execute(sql`
+        SELECT COUNT(*) AS cnt FROM notifications WHERE pool_id = ${poolId}
+      `);
+      res.json({ notifications: rows.rows, total: Number((total.rows[0] as any).cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTIFICATIONS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/storage
+router.get(
+  "/super/pools/:id/control-center/storage",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      const pool = (await superAdminDb.execute(sql`
+        SELECT used_storage_bytes, upload_blocked, storage_warning_sent_at,
+               video_storage_limit_mb, base_storage_gb, extra_storage_gb
+        FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows[0] as any;
+      if (!pool) { res.status(404).json({ error: "수영장 없음" }); return; }
+
+      const [mediaCount, curriculumCount] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS total_bytes
+          FROM media_files WHERE swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [{ cnt: 0, total_bytes: 0 }] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS cnt
+          FROM x_setup_submissions WHERE swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [{ cnt: 0 }] })),
+      ]);
+
+      const media = mediaCount.rows[0] as any;
+      const curriculum = curriculumCount.rows[0] as any;
+      const quotaMb = (pool.base_storage_gb ?? 0) * 1024 + (pool.extra_storage_gb ?? 0) * 1024;
+
+      res.json({
+        used_storage_bytes:   Number(pool.used_storage_bytes ?? 0),
+        upload_blocked:       Boolean(pool.upload_blocked),
+        storage_warning_sent_at: pool.storage_warning_sent_at,
+        quota_mb:             quotaMb,
+        media_count:          Number(media.cnt ?? 0),
+        media_bytes:          Number(media.total_bytes ?? 0),
+        curriculum_submission_count: Number(curriculum.cnt ?? 0),
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "STORAGE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/audit
+router.get(
+  "/super/pools/:id/control-center/audit",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "50", offset = "0" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT id, entity_type, entity_id, entity_version,
+               action, actor_type, actor_id, pool_id,
+               before_data, after_data, reason, created_at
+        FROM audit_logs
+        WHERE pool_id = ${poolId}
+        ORDER BY created_at DESC
+        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+      `);
+      const total = await superAdminDb.execute(sql`
+        SELECT COUNT(*) AS cnt FROM audit_logs WHERE pool_id = ${poolId}
+      `);
+      res.json({ logs: rows.rows, total: Number((total.rows[0] as any).cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: "AUDIT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/support
+router.get(
+  "/super/pools/:id/control-center/support",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "30", offset = "0" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT id, pool_id, ticket_id, actor_role, mode, state,
+               escalation_reason, resolution_source,
+               turn_count, resolved_at, created_at
+        FROM support_cases
+        WHERE pool_id = ${poolId}
+        ORDER BY created_at DESC
+        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+      `);
+      const total = await superAdminDb.execute(sql`
+        SELECT COUNT(*) AS cnt FROM support_cases WHERE pool_id = ${poolId}
+      `);
+      res.json({ cases: rows.rows, total: Number((total.rows[0] as any).cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: "SUPPORT_FAILED", message: e?.message });
+    }
+  },
+);
+
 // ── GET /super/growth-report/push-index-status — 운영 DB push index 진단 (read-only) ─────
 //
 // uq_notifications_gr_published index 존재 + GROWTH_REPORT_PUBLISHED duplicate 확인.

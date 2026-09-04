@@ -86,6 +86,8 @@ export function computeMode(pool: {
   // Amendment A1 additive — optional for backward compat
   subscription_tier?: string | null;
   subscription_status?: string | null;
+  // BASE manual entitlement — optional for backward compat
+  base_manual_entitlement?: boolean | null;
 }): PoolMode {
   if (pool.x_force_disabled) return "normal";
   // WP2B CORRECTION: paid는 config 완료 전까지 x_pending (결제 직후 setup 필요)
@@ -109,6 +111,7 @@ export function computeMode(pool: {
   //   - subscription_tier = "swimnote" + status = "active" → normal (SWIMNOTE 기본플랜 활성)
   //   - legacy tiers (free / Coach / Premier) → 기존 behavior 유지 (normal)
   //   - trial lifecycle: trial 종료 후 subscription_required 아님 (Trial ≠ paid lifecycle)
+  //   - base_manual_entitlement = true → Super Admin 직접부여 = normal (결제 없음)
   //
   // BACKWARD COMPAT: subscription_tier/status 미전달 시 → existing behavior (normal)
   if (pool.subscription_tier && NEW_2_TIERS.has(pool.subscription_tier)) {
@@ -116,6 +119,8 @@ export function computeMode(pool: {
       // SWIMNOTE active OR X (should have been caught by x_paid_entitlement above) → normal
       return "normal";
     }
+    // BASE manual entitlement: Super Admin 직접부여 → subscription_required 건너뜀
+    if (pool.base_manual_entitlement) return "normal";
     // 2.0 paid tier + 비활성 → subscription_required
     return "subscription_required";
   }
@@ -137,10 +142,12 @@ export async function resolvePoolMode(
 ): Promise<PoolModeResult | null> {
   // WP2B: x_trial_* 컬럼 추가 SELECT (column이 없는 구 DB에서는 NULL 반환 — 안전)
   // Amendment A1: subscription_tier, subscription_status 추가 SELECT
+  // BASE manual: base_manual_entitlement 추가 SELECT
   const result = await superAdminDb.execute(sql`
     SELECT id, xmode_config_status,
            COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
            COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+           COALESCE(base_manual_entitlement, false) AS base_manual_entitlement,
            COALESCE(x_force_disabled,    false) AS x_force_disabled,
            x_trial_started_at,
            x_trial_ends_at,
@@ -173,15 +180,17 @@ export async function resolvePoolMode(
   return {
     pool_id: row.id,
     mode: computeMode({
-      x_paid_entitlement:   Boolean(row.x_paid_entitlement),
-      x_manual_entitlement: Boolean(row.x_manual_entitlement),
-      x_force_disabled:     Boolean(row.x_force_disabled),
-      xmode_config_status:  configStatus,
-      x_trial_started_at:   trialStartedAt,
-      x_trial_ends_at:      trialEndsAt,
+      x_paid_entitlement:      Boolean(row.x_paid_entitlement),
+      x_manual_entitlement:    Boolean(row.x_manual_entitlement),
+      x_force_disabled:        Boolean(row.x_force_disabled),
+      xmode_config_status:     configStatus,
+      x_trial_started_at:      trialStartedAt,
+      x_trial_ends_at:         trialEndsAt,
       // Amendment A1: subscription_required 판정용
-      subscription_tier:    row.subscription_tier  ? String(row.subscription_tier)  : null,
-      subscription_status:  row.subscription_status ? String(row.subscription_status) : null,
+      subscription_tier:       row.subscription_tier  ? String(row.subscription_tier)  : null,
+      subscription_status:     row.subscription_status ? String(row.subscription_status) : null,
+      // BASE manual: Super Admin 직접부여 → subscription_required 건너뜀
+      base_manual_entitlement: Boolean(row.base_manual_entitlement),
     }),
     xmode_entitlement: entitlement,   // backward compat: effective 값 반환
     xmode_config_status: configStatus,

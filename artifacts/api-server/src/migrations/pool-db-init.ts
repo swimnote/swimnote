@@ -17,6 +17,7 @@ import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { initXModeSchema } from "./pool-db-x-init.js";
 import { initXPaymentSchema } from "./pool-db-x-payment-init.js";
+import { runBaseManualMigration } from "./pool-db-base-manual-init.js";
 
 export async function initPoolDb(): Promise<void> {
   // 운영 DB (superAdminDb)에 모든 테이블 초기화
@@ -1424,6 +1425,14 @@ export async function initPoolDb(): Promise<void> {
     await initXPaymentSchema();
   } catch (err) {
     console.error("[SWIMNOTE X PAYMENT] X02-B1 Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
+  }
+
+  // ─── BASE SWIMNOTE manual entitlement ─────────────────────────────────────
+  // non-FATAL: 서버 기동 중단 없이 다음 재시작에서 재시도 (IF NOT EXISTS 멱등성).
+  try {
+    await runBaseManualMigration();
+  } catch (err) {
+    console.error("[BASE MANUAL] Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
   }
 
   // ─── 2.0.0 Pool-First: parent_accounts(swimming_pool_id, phone) unique ──────

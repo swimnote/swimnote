@@ -48,7 +48,7 @@ import SuperGuard from "@/components/super/SuperGuard";
 import SuperLayout from "@/components/super/SuperLayout";
 import SuperOverview  from "@/pages/super/SuperOverview";
 import SuperPools     from "@/pages/super/SuperPools";
-import SuperPoolDetail from "@/pages/super/SuperPoolDetail";
+import SuperPoolControlCenter from "@/pages/super/SuperPoolControlCenter";
 import SuperBilling   from "@/pages/super/SuperBilling";
 import SuperXMode     from "@/pages/super/SuperXMode";
 import SuperAI        from "@/pages/super/SuperAI";
@@ -119,7 +119,7 @@ function Router() {
       {/* ─── Super Admin 새 URL-based 구조 ─── */}
       {/* 주의: /super/pools/:poolId 가 /super/pools 보다 먼저 와야 함 */}
       <Route path="/super/pools/:poolId">
-        <SuperPage><SuperPoolDetail /></SuperPage>
+        <SuperPage><SuperPoolControlCenter /></SuperPage>
       </Route>
       <Route path="/super/pools">
         <SuperPage><SuperPools /></SuperPage>
