@@ -39,10 +39,11 @@ interface Summary {
 
 // X Plan display constants — fetched from /super/plan-catalog at runtime.
 // Fallback used only if API call fails before catalog is loaded.
+// 확정 가격표 (2026-09-05): X300=119,000 / X500=189,000 / X1000=349,000
 const X_PLANS_FALLBACK = [
-  { key: "x300",  label: "SWIMNOTE X300",  memberLimit: 300,  priceLabel: "₩129,000/월" },
-  { key: "x500",  label: "SWIMNOTE X500",  memberLimit: 500,  priceLabel: "₩199,000/월" },
-  { key: "x1000", label: "SWIMNOTE X1000", memberLimit: 1000, priceLabel: "₩359,000/월" },
+  { key: "x300",  label: "SWIMNOTE X300",  memberLimit: 300,  priceMonthlyKrw: 119000, priceLabel: "₩119,000/월" },
+  { key: "x500",  label: "SWIMNOTE X500",  memberLimit: 500,  priceMonthlyKrw: 189000, priceLabel: "₩189,000/월" },
+  { key: "x1000", label: "SWIMNOTE X1000", memberLimit: 1000, priceMonthlyKrw: 349000, priceLabel: "₩349,000/월" },
 ];
 type XPlanDef = { key: string; label: string; memberLimit: number; priceMonthlyKrw?: number; priceLabel: string };
 

@@ -3742,7 +3742,7 @@ router.patch(
 );
 
 // ════════════════════════════════════════════════════════════════════════════
-// GET /super/plan-catalog — X Plan Catalog (server-authoritative, no DB)
+// GET /super/plan-catalog — X Plan Catalog (backward-compat, X plans only)
 // ════════════════════════════════════════════════════════════════════════════
 router.get(
   "/super/plan-catalog",
@@ -3751,6 +3751,32 @@ router.get(
   async (_req: AuthRequest, res) => {
     const { X_PLAN_CATALOG } = await import("../lib/xPlanCatalog.js");
     res.json({ plans: X_PLAN_CATALOG });
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// GET /super/official-plan-catalog — 신규 공식 6개 플랜 전체 (서버 authoritative)
+//
+// 반환 구조:
+//   { catalog: OfficialPlanDef[], by_type: { base, x, data_addon } }
+//
+// Super Admin UI는 이 endpoint를 기준으로 구독 플랜 표시.
+// Legacy Coach/Premier는 active=false이므로 신규 selector에 표시 안 됨.
+// ════════════════════════════════════════════════════════════════════════════
+router.get(
+  "/super/official-plan-catalog",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    const { OFFICIAL_PLAN_CATALOG, getPlansByType } = await import("../lib/officialPlanCatalog.js");
+    res.json({
+      catalog:  OFFICIAL_PLAN_CATALOG,
+      by_type: {
+        base:       getPlansByType("base"),
+        x:          getPlansByType("x"),
+        data_addon: getPlansByType("data_addon"),
+      },
+    });
   },
 );
 
@@ -3854,6 +3880,15 @@ router.patch(
           newConfigStatus = before.xmode_config_status ?? null; // 불변
         }
 
+        // ── Catalog-authoritative member_limit ─────────────────────────
+        // 클라이언트 제공 member_limit는 절대 신뢰하지 않음.
+        // grant 시: X plan catalog 기준 member_limit 자동 설정.
+        // revoke 시: null로 초기화 (plan catalog 기본값 사용).
+        const { getXMemberLimit } = await import("../lib/xPlanCatalog.js");
+        const newMemberLimit: number | null = grant && newPlanKey
+          ? (getXMemberLimit(newPlanKey) ?? null)
+          : null;
+
         const updatedRes = await tx.execute(sql`
           UPDATE swimming_pools
           SET
@@ -3861,6 +3896,7 @@ router.patch(
             x_force_disabled     = ${newForce},
             x_plan_key           = ${newPlanKey},
             xmode_config_status  = ${newConfigStatus},
+            member_limit         = ${newMemberLimit},
             updated_at           = NOW()
           WHERE id = ${poolId}
           RETURNING
@@ -3868,7 +3904,8 @@ router.patch(
             COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
             COALESCE(x_force_disabled,    false) AS x_force_disabled,
             x_plan_key,
-            xmode_config_status
+            xmode_config_status,
+            member_limit
         `);
         const after = updatedRes.rows[0] as any;
 
@@ -3920,6 +3957,7 @@ router.patch(
           x_effective:          afterEff,
           x_source:             afterManual ? "manual" : (afterPaid ? "paid" : "none"),
           x_plan_key:           after.x_plan_key ?? null,
+          member_limit:         after.member_limit ?? null,
           xmode_config_status:  after.xmode_config_status ?? null,
           action:               grant ? "granted" : "revoked",
         });

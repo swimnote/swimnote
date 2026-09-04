@@ -7,12 +7,16 @@
  *   2. Set member_limit from x_plan_key (client value NOT trusted)
  *   3. Render UI display in Super Admin Control Center
  *
- * PRICE POLICY:
- *   Current prices are DEPRECATED candidates — do NOT change without separate approval.
- *   New pricing will be applied in a separate migration + RevenueCat product update.
+ * PRICE POLICY (확정 2026-09-05):
+ *   X300  → ₩119,000/월, 300명
+ *   X500  → ₩189,000/월, 500명
+ *   X1000 → ₩349,000/월, 1000명
  *
  * DO NOT import from swim-app or swimnote-web here.
  * Web/App clients reference their own display constants but MUST match these limits.
+ *
+ * NOTE: officialPlanCatalog.ts is the full 6-plan catalog (base + x + data_addon).
+ *       This file is kept for backward compatibility and X-specific utilities.
  */
 
 export interface XPlanDef {
@@ -22,15 +26,15 @@ export interface XPlanDef {
   label: string;
   /** Maximum member count enforced by the server */
   memberLimit: number;
-  /** Monthly price in KRW — DEPRECATED current value; do not change without approval */
+  /** Monthly price in KRW */
   priceMonthlyKrw: number;
   priceLabel: string;
 }
 
 export const X_PLAN_CATALOG: readonly XPlanDef[] = [
-  { key: "x300",  label: "SWIMNOTE X300",  memberLimit: 300,  priceMonthlyKrw: 129000, priceLabel: "₩129,000/월" },
-  { key: "x500",  label: "SWIMNOTE X500",  memberLimit: 500,  priceMonthlyKrw: 199000, priceLabel: "₩199,000/월" },
-  { key: "x1000", label: "SWIMNOTE X1000", memberLimit: 1000, priceMonthlyKrw: 359000, priceLabel: "₩359,000/월" },
+  { key: "x300",  label: "SWIMNOTE X300",  memberLimit: 300,  priceMonthlyKrw: 119000, priceLabel: "₩119,000/월" },
+  { key: "x500",  label: "SWIMNOTE X500",  memberLimit: 500,  priceMonthlyKrw: 189000, priceLabel: "₩189,000/월" },
+  { key: "x1000", label: "SWIMNOTE X1000", memberLimit: 1000, priceMonthlyKrw: 349000, priceLabel: "₩349,000/월" },
 ] as const;
 
 /** Authoritative member limits — server MUST use this, never client-supplied value */
