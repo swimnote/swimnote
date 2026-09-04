@@ -6266,69 +6266,675 @@ router.get(
   },
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WP5 — AI / GROWTH REPORT / JOB OPERATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** ISO month range helper — avoids LEFT(date,7) full-scan pattern */
+function monthRange(yearMonth: string): { from: string; to: string } | null {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth)) return null;
+  const [y, m] = yearMonth.split("-").map(Number);
+  const from = `${yearMonth}-01T00:00:00.000Z`;
+  const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  const to = `${nextMonth}-01T00:00:00.000Z`;
+  return { from, to };
+}
+
+/** Clamp pagination params */
+function clampPage(limitStr: string, offsetStr: string, max = 100) {
+  return {
+    lim: Math.min(Math.max(parseInt(limitStr) || 20, 1), max),
+    off: Math.max(parseInt(offsetStr) || 0, 0),
+  };
+}
+
 // GET /super/pools/:id/control-center/ai
+// Monthly snapshot summary (x_monthly_operational_snapshots — real columns)
 router.get(
   "/super/pools/:id/control-center/ai",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
+    const { month } = req.query as Record<string, string>;
+
     try {
-      const [snapshots, traces] = await Promise.all([
-        superAdminDb.execute(sql`
-          SELECT year_month, diary_count, teacher_count, ai_call_count,
-                 parent_search_count, parent_search_users
+      // 1. Monthly snapshot (up to 12 months; or single month if requested)
+      const snapshots = await superAdminDb.execute(month
+        ? sql`
+          SELECT year, month,
+                 ai_diary_count, ai_diary_teacher_count,
+                 parent_curriculum_search_count, parent_curriculum_user_count,
+                 growth_report_target_count, growth_report_generated_count,
+                 growth_report_failed_count, growth_report_sent_count
           FROM x_monthly_operational_snapshots
           WHERE swimming_pool_id = ${poolId}
-          ORDER BY year_month DESC LIMIT 12
-        `).catch(() => ({ rows: [] })),
+            AND year  = ${parseInt(month.slice(0, 4))}
+            AND month = ${parseInt(month.slice(5, 7))}
+          LIMIT 1
+        `
+        : sql`
+          SELECT year, month,
+                 ai_diary_count, ai_diary_teacher_count,
+                 parent_curriculum_search_count, parent_curriculum_user_count,
+                 growth_report_target_count, growth_report_generated_count,
+                 growth_report_failed_count, growth_report_sent_count
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY year DESC, month DESC LIMIT 12
+        `
+      ).catch(() => ({ rows: [] }));
+
+      // 2. Raw recount for selected/current month (snapshot consistency check)
+      const now = new Date();
+      const targetYear  = month ? parseInt(month.slice(0, 4)) : now.getUTCFullYear();
+      const targetMonth = month ? parseInt(month.slice(5, 7)) : now.getUTCMonth() + 1;
+      const ymStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+      const range = monthRange(ymStr)!;
+
+      const [rawDiary, rawCurriculum] = await Promise.all([
+        // AI Diary raw recount from class_diaries
         superAdminDb.execute(sql`
-          SELECT id, feature, status, llm_model, total_tokens, latency_ms,
-                 created_at, request_id, trace_id
-          FROM ai_traces
-          WHERE pool_id = ${poolId}
-          ORDER BY created_at DESC LIMIT 20
-        `).catch(() => ({ rows: [] })),
+          SELECT
+            COUNT(*) FILTER (WHERE ai_generated = TRUE)                  AS ai_diary_count,
+            COUNT(DISTINCT teacher_id) FILTER (WHERE ai_generated = TRUE) AS ai_diary_teacher_count
+          FROM class_diaries
+          WHERE swimming_pool_id = ${poolId}
+            AND created_at >= ${range.from}::timestamptz
+            AND created_at <  ${range.to}::timestamptz
+            AND is_deleted  IS NOT TRUE
+        `).catch(() => ({ rows: [{ ai_diary_count: null, ai_diary_teacher_count: null }] })),
+        // Parent curriculum search recount from event_logs
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)             AS search_count,
+            COUNT(DISTINCT actor_id) AS unique_parent_count
+          FROM event_logs
+          WHERE pool_id  = ${poolId}
+            AND category = 'AI'
+            AND metadata->>'feature' = 'parent_curriculum_search'
+            AND created_at >= ${range.from}::timestamptz
+            AND created_at <  ${range.to}::timestamptz
+        `).catch(() => ({ rows: [{ search_count: null, unique_parent_count: null }] })),
       ]);
-      res.json({ snapshots: snapshots.rows, recent_traces: traces.rows });
+
+      res.json({
+        snapshots: snapshots.rows,
+        selected_month: ymStr,
+        raw_recount: {
+          month:  ymStr,
+          ai_diary_count:           rawDiary.rows[0]?.ai_diary_count ?? null,
+          ai_diary_teacher_count:   rawDiary.rows[0]?.ai_diary_teacher_count ?? null,
+          curriculum_search_count:  rawCurriculum.rows[0]?.search_count ?? null,
+          curriculum_unique_parents: rawCurriculum.rows[0]?.unique_parent_count ?? null,
+        },
+      });
     } catch (e: any) {
       res.status(500).json({ error: "AI_FAILED", message: e?.message });
     }
   },
 );
 
-// GET /super/pools/:id/control-center/growth-reports
+// GET /super/pools/:id/control-center/ai/diary
+// Recent AI Diary requests — class_diaries (ai_generated=true) + event_logs correlation
+router.get(
+  "/super/pools/:id/control-center/ai/diary",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      let rangeClause = sql``;
+      if (month) {
+        const range = monthRange(month);
+        if (!range) return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        rangeClause = sql`AND cd.created_at >= ${range.from}::timestamptz AND cd.created_at < ${range.to}::timestamptz`;
+      }
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            cd.id, cd.ai_trace_id AS request_id, cd.class_group_id,
+            cd.teacher_id,
+            u.name AS teacher_name,
+            cg.name AS class_name,
+            cd.created_at,
+            el.metadata->>'status'     AS trace_status,
+            el.metadata->>'model'      AS model,
+            (el.metadata->>'latency_ms')::int AS latency_ms,
+            (el.metadata->>'total_tokens')::int AS total_tokens,
+            el.metadata->>'error_code' AS error_code,
+            el.metadata->>'pool_mode'  AS pool_mode
+          FROM class_diaries cd
+          LEFT JOIN users         u  ON u.id  = cd.teacher_id
+          LEFT JOIN class_groups  cg ON cg.id = cd.class_group_id
+          LEFT JOIN event_logs    el
+            ON  el.category    = 'AI'
+            AND el.pool_id     = ${poolId}
+            AND el.metadata->>'request_id' = cd.ai_trace_id
+          WHERE cd.swimming_pool_id = ${poolId}
+            AND cd.ai_generated = TRUE
+            AND cd.is_deleted IS NOT TRUE
+            ${rangeClause}
+          ORDER BY cd.created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM class_diaries
+          WHERE swimming_pool_id = ${poolId}
+            AND ai_generated = TRUE
+            AND is_deleted IS NOT TRUE
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_DIARY_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai/curriculum
+// Recent Parent Curriculum Search requests (event_logs, PII minimized)
+router.get(
+  "/super/pools/:id/control-center/ai/curriculum",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      let rangeClause = sql``;
+      if (month) {
+        const range = monthRange(month);
+        if (!range) return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        rangeClause = sql`AND el.created_at >= ${range.from}::timestamptz AND el.created_at < ${range.to}::timestamptz`;
+      }
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            el.id,
+            el.actor_id,
+            el.metadata->>'request_id'                 AS request_id,
+            el.metadata->>'status'                     AS status,
+            el.metadata->>'error_code'                 AS error_code,
+            el.metadata->>'feature'                    AS feature,
+            el.metadata->>'pool_mode'                  AS pool_mode,
+            (el.metadata->>'total_tokens')::int        AS total_tokens,
+            (el.metadata->>'latency_ms')::int          AS latency_ms,
+            el.metadata->>'model'                      AS model,
+            el.created_at
+          FROM event_logs el
+          WHERE el.pool_id  = ${poolId}
+            AND el.category = 'AI'
+            AND el.metadata->>'feature' = 'parent_curriculum_search'
+            ${rangeClause}
+          ORDER BY el.created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM event_logs
+          WHERE pool_id = ${poolId}
+            AND category = 'AI'
+            AND metadata->>'feature' = 'parent_curriculum_search'
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+        note: "query_text omitted for PII minimization",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_CURRICULUM_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai/traces
+// All AI traces for pool (event_logs category=AI, paginated)
+router.get(
+  "/super/pools/:id/control-center/ai/traces",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", feature = "", status = "", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      const conditions: import("drizzle-orm").SQL[] = [
+        sql`pool_id  = ${poolId}`,
+        sql`category = 'AI'`,
+      ];
+      if (feature) conditions.push(sql`metadata->>'feature' = ${feature}`);
+      if (status)  conditions.push(sql`metadata->>'status'  = ${status}`);
+      if (month) {
+        const range = monthRange(month);
+        if (!range) return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        conditions.push(sql`created_at >= ${range.from}::timestamptz`);
+        conditions.push(sql`created_at <  ${range.to}::timestamptz`);
+      }
+      const where = sql.join(conditions, sql` AND `);
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            id, actor_id,
+            metadata->>'request_id'       AS request_id,
+            metadata->>'feature'          AS feature,
+            metadata->>'status'           AS status,
+            metadata->>'pool_mode'        AS pool_mode,
+            metadata->>'generation_mode'  AS generation_mode,
+            metadata->>'model'            AS model,
+            (metadata->>'total_tokens')::int             AS total_tokens,
+            (metadata->'cost'->>'total_cost_usd')::float AS total_cost_usd,
+            (metadata->>'latency_ms')::int               AS latency_ms,
+            metadata->>'error_stage'      AS error_stage,
+            metadata->>'error_code'       AS error_code,
+            created_at
+          FROM event_logs
+          WHERE ${where}
+          ORDER BY created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`SELECT COUNT(*) AS total FROM event_logs WHERE ${where}`)
+          .catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_TRACES_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai/search?request_id=...
+// Exact request_id search across event_logs (AI category, pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/ai/search",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { request_id } = req.query as Record<string, string>;
+    if (!request_id?.trim()) {
+      return res.status(400).json({ error: "MISSING_PARAM", message: "request_id is required" });
+    }
+    try {
+      const [traceRes, diaryRes, reportRes] = await Promise.all([
+        // AI trace (event_logs, exact index match via metadata->>'request_id')
+        superAdminDb.execute(sql`
+          SELECT
+            id, actor_id,
+            metadata->>'request_id'      AS request_id,
+            metadata->>'feature'         AS feature,
+            metadata->>'status'          AS status,
+            metadata->>'model'           AS model,
+            (metadata->>'total_tokens')::int AS total_tokens,
+            (metadata->>'latency_ms')::int   AS latency_ms,
+            metadata->>'error_code'      AS error_code,
+            metadata->>'error_stage'     AS error_stage,
+            metadata->>'pool_mode'       AS pool_mode,
+            (metadata->'cost'->>'total_cost_usd')::float AS total_cost_usd,
+            created_at
+          FROM event_logs
+          WHERE pool_id  = ${poolId}
+            AND category = 'AI'
+            AND metadata->>'request_id' = ${request_id.trim()}
+          ORDER BY created_at DESC LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Correlated diary (ai_trace_id = request_id)
+        superAdminDb.execute(sql`
+          SELECT cd.id, cd.class_group_id, cd.teacher_id,
+                 u.name AS teacher_name, cg.name AS class_name,
+                 cd.created_at
+          FROM class_diaries cd
+          LEFT JOIN users        u  ON u.id  = cd.teacher_id
+          LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+          WHERE cd.swimming_pool_id = ${poolId}
+            AND cd.ai_trace_id = ${request_id.trim()}
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Correlated growth report (analysis_request_id = request_id)
+        superAdminDb.execute(sql`
+          SELECT gr.id, gr.student_id, gr.report_period, gr.product_status,
+                 gr.analysis_status, gr.created_at,
+                 s.name AS student_name
+          FROM growth_reports gr
+          LEFT JOIN students s ON s.id = gr.student_id
+          WHERE gr.swimming_pool_id    = ${poolId}
+            AND gr.analysis_request_id = ${request_id.trim()}
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+      res.json({
+        request_id:     request_id.trim(),
+        traces:         traceRes.rows,
+        linked_diaries: diaryRes.rows,
+        linked_reports: reportRes.rows,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_SEARCH_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth
+// Growth Report monthly summary (snapshot + raw recount + auto-batch status)
+router.get(
+  "/super/pools/:id/control-center/growth",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { month } = req.query as Record<string, string>;
+    const now = new Date();
+    const targetYear  = month ? parseInt(month.slice(0, 4)) : now.getUTCFullYear();
+    const targetMonth = month ? parseInt(month.slice(5, 7)) : now.getUTCMonth() + 1;
+    const ymStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+
+    if (month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+    }
+
+    try {
+      const [snapshot, rawCount, batchSummary] = await Promise.all([
+        // Snapshot KPI
+        superAdminDb.execute(sql`
+          SELECT year, month,
+                 growth_report_target_count,
+                 growth_report_generated_count,
+                 growth_report_failed_count,
+                 growth_report_sent_count
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+            AND year  = ${targetYear}
+            AND month = ${targetMonth}
+          LIMIT 1
+        `).catch(() => ({ rows: [] })),
+        // Raw logical report counts for the month
+        // "logical" = per student per report_period (latest version only)
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE product_status NOT IN ('NOT_OPEN','OPEN'))  AS total_targeted,
+            COUNT(*) FILTER (WHERE product_status IN ('APPROVED','PUBLISHED','PARTIAL'))
+                                                                                AS generated_count,
+            COUNT(*) FILTER (WHERE product_status = 'FAILED')                  AS failed_count,
+            COUNT(*) FILTER (WHERE product_status = 'PUBLISHED')               AS published_count,
+            COUNT(*) FILTER (WHERE admin_push_sent_at IS NOT NULL)             AS sent_count,
+            COUNT(*) FILTER (WHERE discarded_at IS NOT NULL)                   AS discarded_count,
+            COUNT(*) FILTER (WHERE product_status IN ('PREANALYZING','ANALYZING','REVIEW_REQUIRED'))
+                                                                                AS in_progress_count
+          FROM (
+            SELECT DISTINCT ON (student_id, report_period)
+              student_id, report_period, product_status, discarded_at,
+              admin_push_sent_at
+            FROM growth_reports
+            WHERE swimming_pool_id = ${poolId}
+              AND report_period    = ${ymStr}
+              AND deleted_at IS NULL
+            ORDER BY student_id, report_period, created_at DESC
+          ) latest
+        `).catch(() => ({ rows: [] })),
+        // Batch jobs for the month
+        superAdminDb.execute(sql`
+          SELECT id, job_type, status, attempts, target_count,
+                 completed_count, failed_count, created_at, updated_at,
+                 locked_at, next_attempt_at,
+                 CASE WHEN status = 'RUNNING'
+                        AND locked_at < NOW() - INTERVAL '10 minutes'
+                      THEN TRUE ELSE FALSE END AS is_stuck
+          FROM growth_report_batch_jobs
+          WHERE swimming_pool_id = ${poolId}
+            AND year  = ${targetYear}
+            AND month = ${targetMonth}
+          ORDER BY created_at DESC LIMIT 10
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        selected_month: ymStr,
+        snapshot:       snapshot.rows[0] ?? null,
+        raw_count:      rawCount.rows[0] ?? null,
+        batch_jobs:     batchSummary.rows,
+        auto_batch_enabled: process.env.GROWTH_REPORT_BATCH_AUTO_ENABLED === "true",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "GROWTH_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/reports
+// Growth report list — paginated, logical (latest version per student+period)
+router.get(
+  "/super/pools/:id/control-center/growth/reports",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month, status } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      const conditions: import("drizzle-orm").SQL[] = [
+        sql`gr.swimming_pool_id = ${poolId}`,
+        sql`gr.deleted_at IS NULL`,
+      ];
+      if (month) {
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
+          return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        conditions.push(sql`gr.report_period = ${month}`);
+      }
+      if (status) conditions.push(sql`gr.product_status = ${status}::gr_product_status_enum`);
+      const where = sql.join(conditions, sql` AND `);
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            gr.id, gr.student_id, gr.report_period,
+            gr.product_status, gr.analysis_status,
+            gr.analysis_retry_count, gr.teacher_reanalysis_count,
+            gr.teacher_review_action, gr.teacher_review_reason_code,
+            gr.cycle_id,
+            gr.published_at, gr.discarded_at,
+            gr.teacher_reviewed_at, gr.teacher_reviewed_by,
+            gr.created_at, gr.updated_at,
+            s.name AS student_name
+          FROM growth_reports gr
+          LEFT JOIN students s ON s.id = gr.student_id
+          WHERE ${where}
+          ORDER BY gr.report_period DESC, gr.created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM growth_reports gr WHERE ${where}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "GROWTH_REPORTS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/reports/:reportId
+// Report detail + version history (all versions for same student+period)
+router.get(
+  "/super/pools/:id/control-center/growth/reports/:reportId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, reportId } = req.params;
+    try {
+      const [reportRes, cycleRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            gr.id, gr.student_id, gr.report_period,
+            gr.product_status, gr.analysis_status, gr.analysis_request_id,
+            gr.analysis_retry_count, gr.teacher_reanalysis_count,
+            gr.teacher_review_action, gr.teacher_review_reason_code, gr.teacher_review_reason_code,
+            gr.teacher_reviewed_by, gr.teacher_reviewed_at,
+            gr.cycle_id, gr.report_type,
+            gr.published_at, gr.discarded_at,
+            gr.created_at, gr.updated_at, gr.deleted_at,
+            s.name AS student_name
+          FROM growth_reports gr
+          LEFT JOIN students s ON s.id = gr.student_id
+          WHERE gr.id = ${reportId}
+            AND gr.swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [] })),
+        // Batch jobs correlated by pool+period (approximate, no FK from report→job)
+        superAdminDb.execute(sql`
+          SELECT id, job_type, status, attempts, target_count, completed_count, failed_count,
+                 locked_at, next_attempt_at, started_at, completed_at, created_at,
+                 CASE WHEN status = 'RUNNING'
+                        AND locked_at < NOW() - INTERVAL '10 minutes'
+                      THEN TRUE ELSE FALSE END AS is_stuck
+          FROM growth_report_batch_jobs
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY created_at DESC LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      if (reportRes.rows.length === 0) {
+        return res.status(404).json({ error: "NOT_FOUND", message: "Report not found in this pool" });
+      }
+      const report = reportRes.rows[0] as any;
+
+      // Version history: all rows for same student_id + report_period
+      const versions = await superAdminDb.execute(sql`
+        SELECT id, product_status, analysis_status, created_at, published_at, discarded_at,
+               analysis_retry_count, teacher_reanalysis_count, deleted_at
+        FROM growth_reports
+        WHERE swimming_pool_id = ${poolId}
+          AND student_id       = ${report.student_id}
+          AND report_period    = ${report.report_period}
+        ORDER BY created_at ASC
+      `).catch(() => ({ rows: [] }));
+
+      // Cycle info if available
+      let cycle = null;
+      if (report.cycle_id) {
+        const cycleRow = await superAdminDb.execute(sql`
+          SELECT id, report_period, cycle_status, analysis_from, analysis_cutoff_at,
+                 parent_input_open_at, parent_input_close_at, created_at, updated_at
+          FROM growth_report_cycles
+          WHERE id = ${report.cycle_id}
+            AND swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [] }));
+        cycle = cycleRow.rows[0] ?? null;
+      }
+
+      res.json({
+        report,
+        version_history: versions.rows,
+        cycle,
+        related_batch_jobs: cycleRes.rows,
+        note: "report_content omitted; metadata/diagnostics only",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "GROWTH_REPORT_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/batch-jobs
+// Batch job list — paginated, actual columns
+router.get(
+  "/super/pools/:id/control-center/growth/batch-jobs",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      const conditions: import("drizzle-orm").SQL[] = [sql`swimming_pool_id = ${poolId}`];
+      if (month) {
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
+          return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        conditions.push(sql`year  = ${parseInt(month.slice(0, 4))}`);
+        conditions.push(sql`month = ${parseInt(month.slice(5, 7))}`);
+      }
+      const where = sql.join(conditions, sql` AND `);
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            id, year, month, job_type, status,
+            target_count, completed_count, failed_count,
+            attempts, worker_id, locked_at, next_attempt_at,
+            started_at, completed_at, admin_push_sent_at,
+            created_at, updated_at,
+            CASE WHEN status = 'RUNNING'
+                   AND locked_at < NOW() - INTERVAL '10 minutes'
+                 THEN TRUE ELSE FALSE END AS is_stuck
+          FROM growth_report_batch_jobs
+          WHERE ${where}
+          ORDER BY year DESC, month DESC, created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM growth_report_batch_jobs WHERE ${where}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+        stuck_threshold_minutes: 10,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "BATCH_JOBS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/cycles
+// Growth report cycles — paginated
+router.get(
+  "/super/pools/:id/control-center/growth/cycles",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "12", offset = "0" } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 50);
+    try {
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT id, report_period, cycle_status,
+                 analysis_from, analysis_cutoff_at,
+                 parent_input_open_at, parent_input_close_at,
+                 timezone, created_at, updated_at
+          FROM growth_report_cycles
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY report_period DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM growth_report_cycles WHERE swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "CYCLES_FAILED", message: e?.message });
+    }
+  },
+);
+
+// Legacy route kept for backward compat — redirects to new growth summary
 router.get(
   "/super/pools/:id/control-center/growth-reports",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
-    const { id: poolId } = req.params;
-    const { limit = "30", offset = "0" } = req.query as Record<string, string>;
-    try {
-      const [reports, jobs] = await Promise.all([
-        superAdminDb.execute(sql`
-          SELECT gr.id, gr.student_id, gr.status, gr.batch_date,
-                 gr.created_at, gr.updated_at,
-                 gr.attempts, gr.locked_at, gr.next_attempt_at,
-                 gr.admin_push_sent_at,
-                 s.name AS student_name
-          FROM growth_reports gr
-          LEFT JOIN students s ON s.id = gr.student_id
-          WHERE gr.swimming_pool_id = ${poolId}
-          ORDER BY gr.batch_date DESC, gr.created_at DESC
-          LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
-        `).catch(() => ({ rows: [] })),
-        superAdminDb.execute(sql`
-          SELECT id, batch_date, status, triggered_by, started_at, completed_at,
-                 total_students, processed_count, failed_count, error_summary
-          FROM growth_report_batch_jobs
-          WHERE swimming_pool_id = ${poolId}
-          ORDER BY batch_date DESC LIMIT 5
-        `).catch(() => ({ rows: [] })),
-      ]);
-      res.json({ reports: reports.rows, batch_jobs: jobs.rows });
-    } catch (e: any) {
-      res.status(500).json({ error: "GROWTH_FAILED", message: e?.message });
-    }
+    res.redirect(308, req.url.replace("/growth-reports", "/growth"));
   },
 );
 

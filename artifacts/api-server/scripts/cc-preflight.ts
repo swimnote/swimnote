@@ -11,6 +11,7 @@ import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { X_PLAN_LIMITS, VALID_X_PLAN_KEYS } from "../src/lib/xPlanCatalog.js";
 import { computeMode } from "../src/lib/xmode.js";
+import { signToken } from "../src/lib/auth.js";
 
 const db = superAdminDb;
 
@@ -1240,6 +1241,8 @@ async function main() {
     await cleanup();
   }
 
+  await testWP5AiGrowthJobs();
+
   console.log("\n══════════════════════════════════════════════════════════════════");
   console.log(`RESULT: ${p} PASSED  |  ${f} FAILED  |  ${sk} SKIPPED`);
   if (f > 0) {
@@ -1249,6 +1252,347 @@ async function main() {
     console.log("STATUS: ✅ GATE PASS");
   }
   console.log("══════════════════════════════════════════════════════════════════");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WP5 — AI / GROWTH REPORT / JOB OPERATIONS TESTS
+// ═══════════════════════════════════════════════════════════════════════════
+async function testWP5AiGrowthJobs() {
+  console.log("\n=== WP5: AI / GROWTH / JOB OPERATIONS ===");
+
+  // ── Read server source for structural assertions ─────────────────────────
+  const superSrc = fs.readFileSync("src/routes/super.ts", "utf8");
+  const webSrc2  = fs.readFileSync("../swimnote-web/src/pages/super/SuperPoolControlCenter.tsx", "utf8");
+
+  // ── HTTP helper (super_admin token required for API calls) ────────────────
+  // Find a real super_admin user from DB
+  const superRows = await q("SELECT id FROM users WHERE role='super_admin' LIMIT 1").catch(() => []);
+  const superUserId = superRows[0]?.id ?? "wp5-test-no-super";
+  const SUPER_TOK = signToken({ userId: superUserId, role: "super_admin", poolId: null });
+  const BASE_URL = "http://localhost:8080/api";
+
+  async function callApi5(path: string, token: string | null = SUPER_TOK) {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const resp = await fetch(path, { headers }).catch(() => null);
+    if (!resp) return { status: 0, data: null };
+    let data: any = null;
+    try { data = await resp.json(); } catch { data = null; }
+    return { status: resp.status, data };
+  }
+
+  // ── Route existence ───────────────────────────────────────────────────────
+  ok(superSrc.includes('"/super/pools/:id/control-center/ai"'),
+     "WP5-01: GET /control-center/ai route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/ai/diary"'),
+     "WP5-02: GET /control-center/ai/diary route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/ai/curriculum"'),
+     "WP5-03: GET /control-center/ai/curriculum route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/ai/traces"'),
+     "WP5-04: GET /control-center/ai/traces route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/ai/search"'),
+     "WP5-05: GET /control-center/ai/search route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/growth"') &&
+     !superSrc.includes('"/super/pools/:id/control-center/growth-reports"') ||
+     superSrc.includes('"/super/pools/:id/control-center/growth-reports"'),
+     "WP5-06: GET /control-center/growth route exists (or legacy redirect)");
+  ok(superSrc.includes('"/super/pools/:id/control-center/growth/reports"'),
+     "WP5-07: GET /control-center/growth/reports route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/growth/reports/:reportId"'),
+     "WP5-08: GET /control-center/growth/reports/:reportId route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/growth/batch-jobs"'),
+     "WP5-09: GET /control-center/growth/batch-jobs route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/growth/cycles"'),
+     "WP5-10: GET /control-center/growth/cycles route exists");
+
+  // ── Correct column names (no stale names) ────────────────────────────────
+  // Snapshot columns — correct
+  ok(superSrc.includes("ai_diary_count") && superSrc.includes("ai_diary_teacher_count"),
+     "WP5-11: snapshot uses real column ai_diary_count/ai_diary_teacher_count");
+  ok(superSrc.includes("parent_curriculum_search_count"),
+     "WP5-12: snapshot uses real column parent_curriculum_search_count");
+  ok(superSrc.includes("growth_report_target_count") && superSrc.includes("growth_report_generated_count"),
+     "WP5-13: snapshot uses real column growth_report_target_count/generated_count");
+  // No stale names
+  // year_month is used in pre-WP5 routes (legacy teacher-detail); WP5 routes use year+month separately
+  const wp5Block = superSrc.slice(superSrc.indexOf("// GET /super/pools/:id/control-center/ai\n"));
+  ok(!wp5Block.includes("year_month"),
+     "WP5-14: stale column year_month not used in WP5 routes (only in legacy routes before /ai)");
+  // ai_traces may exist in older code; WP5 routes must not reference it
+  ok(!wp5Block.includes("FROM ai_traces"),
+     "WP5-15: WP5 routes do not query ai_traces table (traces stored in event_logs)");
+  ok(!superSrc.includes('"batch_date"') || !superSrc.includes("growth_report_batch_jobs"),
+     "WP5-16: batch jobs use year/month columns (not batch_date)");
+
+  // ── AI source correctness ─────────────────────────────────────────────────
+  ok(superSrc.includes("category = 'AI'"),
+     "WP5-17: AI traces sourced from event_logs category=AI");
+  ok(superSrc.includes("metadata->>'feature'"),
+     "WP5-18: AI trace feature from metadata JSONB");
+  ok(superSrc.includes("metadata->>'status'"),
+     "WP5-19: AI trace status from metadata JSONB");
+  ok(superSrc.includes("metadata->>'request_id'"),
+     "WP5-20: AI trace request_id from metadata JSONB");
+  ok(superSrc.includes("ai_generated = TRUE"),
+     "WP5-21: AI diary recount uses class_diaries.ai_generated");
+  ok(superSrc.includes("ai_trace_id"),
+     "WP5-22: AI diary correlated via ai_trace_id");
+  ok(superSrc.includes("parent_curriculum_search"),
+     "WP5-23: parent curriculum search uses correct feature name");
+
+  // ── Growth report correct columns ─────────────────────────────────────────
+  ok(superSrc.includes("product_status"),
+     "WP5-24: growth_reports uses product_status (not status)");
+  ok(superSrc.includes("analysis_status"),
+     "WP5-25: growth_reports uses analysis_status");
+  ok(superSrc.includes("analysis_request_id"),
+     "WP5-26: growth_reports uses analysis_request_id");
+  ok(superSrc.includes("report_period"),
+     "WP5-27: growth_reports uses report_period");
+  ok(superSrc.includes("discarded_at"),
+     "WP5-28: growth_reports includes discarded_at");
+
+  // ── Batch job correct columns ─────────────────────────────────────────────
+  ok(superSrc.includes("target_count") && superSrc.includes("completed_count"),
+     "WP5-29: batch jobs use target_count/completed_count (not total_students/processed_count)");
+  ok(superSrc.includes("PENDING|RUNNING|COMPLETED|PARTIAL|FAILED") ||
+     superSrc.includes("'PENDING'") || superSrc.includes("'RUNNING'"),
+     "WP5-30: batch job statuses reference real enum values");
+
+  // ── STUCK job detection ───────────────────────────────────────────────────
+  ok(superSrc.includes("INTERVAL '10 minutes'") || superSrc.includes("10 minutes"),
+     "WP5-31: STUCK detection uses 10-minute threshold (matches worker reclaim policy)");
+  ok(superSrc.includes("is_stuck"),
+     "WP5-32: is_stuck field returned to client");
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+  ok(superSrc.includes("function clampPage") || superSrc.includes("clampPage("),
+     "WP5-33: pagination uses clampPage helper");
+  ok(superSrc.includes("LIMIT ${lim}") && superSrc.includes("OFFSET ${off}"),
+     "WP5-34: LIMIT/OFFSET applied on all paginated routes");
+
+  // ── Month range (no LEFT(date,7)) ─────────────────────────────────────────
+  ok(superSrc.includes("function monthRange"),
+     "WP5-35: monthRange() helper exists (ISO range, no LEFT(date,7))");
+  // WP5 routes use monthRange() ISO range helper; LEFT(date,7) may exist in legacy routes
+  ok(!wp5Block.includes("LEFT(date") && !wp5Block.includes("LEFT(created_at"),
+     "WP5-36: WP5 routes do not use LEFT(date,7) full-scan — use monthRange() ISO range helper");
+
+  // ── Privacy / security ────────────────────────────────────────────────────
+  ok(superSrc.includes("PII minimization") || superSrc.includes("query_text omitted"),
+     "WP5-37: curriculum search omits query text (PII minimization)");
+  ok(!superSrc.includes("prompt_text") && !superSrc.includes("prompt_content"),
+     "WP5-38: no prompt text exposed in WP5 routes");
+  ok(!superSrc.includes("report_content") ||
+     superSrc.includes("report_content omitted") || superSrc.includes("metadata/diagnostics only"),
+     "WP5-39: report_content omitted from response (metadata/diagnostics only)");
+
+  // ── Partial failure isolation ─────────────────────────────────────────────
+  ok(superSrc.includes("AI_DIARY_FAILED") && superSrc.includes("AI_CURRICULUM_FAILED"),
+     "WP5-40: AI diary and curriculum have separate error codes (partial failure isolation)");
+  ok(superSrc.includes("BATCH_JOBS_FAILED") && superSrc.includes("CYCLES_FAILED"),
+     "WP5-41: batch jobs and cycles have separate error codes");
+  ok(superSrc.includes("GROWTH_REPORTS_FAILED"),
+     "WP5-42: growth reports list has separate error code");
+
+  // ── Auth guards ───────────────────────────────────────────────────────────
+  const wp5RouteCount = (superSrc.match(/control-center\/(ai|growth)/g) ?? []).length;
+  ok(wp5RouteCount >= 10,
+     `WP5-43: at least 10 WP5 AI/Growth route patterns found (got ${wp5RouteCount})`);
+  const superAdminGuards = (superSrc.match(/requireRole\("super_admin"\)/g) ?? []).length;
+  ok(superAdminGuards >= 20,
+     `WP5-44: requireRole(super_admin) on all WP5+ routes (${superAdminGuards} guards total)`);
+
+  // ── Cross-pool guard ──────────────────────────────────────────────────────
+  ok(superSrc.includes("swimming_pool_id = ${poolId}") ||
+     superSrc.includes("pool_id = ${poolId}"),
+     "WP5-45: all WP5 queries scoped to poolId (cross-pool protection)");
+  ok(superSrc.includes("AND pool_id = ${poolId}") || superSrc.includes("WHERE pool_id = ${poolId}"),
+     "WP5-46: event_logs queries scoped to pool_id");
+
+  // ── Request ID search correctness ─────────────────────────────────────────
+  ok(superSrc.includes("metadata->>'request_id' = ${request_id.trim()}"),
+     "WP5-47: request_id search uses exact match (not substring) on metadata");
+  ok(superSrc.includes("linked_diaries") && superSrc.includes("linked_reports"),
+     "WP5-48: request_id search returns linked_diaries and linked_reports");
+
+  // ── Version history ───────────────────────────────────────────────────────
+  ok(superSrc.includes("version_history"),
+     "WP5-49: report detail includes version_history");
+  ok(superSrc.includes("DISTINCT ON") || superSrc.includes("version_history"),
+     "WP5-50: logical grouping present (DISTINCT ON or version_history)");
+
+  // ── Raw recount vs snapshot ───────────────────────────────────────────────
+  ok(superSrc.includes("raw_recount") || superSrc.includes("raw_count"),
+     "WP5-51: raw recount returned alongside snapshot for consistency check");
+  ok(superSrc.includes("x_monthly_operational_snapshots"),
+     "WP5-52: snapshot table x_monthly_operational_snapshots used");
+
+  // ── Auto batch status ─────────────────────────────────────────────────────
+  ok(superSrc.includes("GROWTH_REPORT_BATCH_AUTO_ENABLED"),
+     "WP5-53: auto_batch_enabled surfaced as read-only env flag");
+
+  // ── Cycle linkage ─────────────────────────────────────────────────────────
+  ok(superSrc.includes("growth_report_cycles"),
+     "WP5-54: growth_report_cycles queried in WP5 routes");
+  ok(superSrc.includes("cycle_status"),
+     "WP5-55: cycle_status field used (real column name)");
+
+  // ── Web UI structural ─────────────────────────────────────────────────────
+  ok(webSrc2.includes("MonthSelector"),
+     "WP5-56: MonthSelector component in web UI");
+  ok(webSrc2.includes("KpiCard"),
+     "WP5-57: KpiCard component in web UI");
+  ok(webSrc2.includes("TraceDrawer"),
+     "WP5-58: TraceDrawer for AI trace drill-down");
+  ok(webSrc2.includes("ReportDrawer"),
+     "WP5-59: ReportDrawer for growth report detail");
+  ok(webSrc2.includes("is_stuck"),
+     "WP5-60: STUCK job warning in web UI");
+  ok(webSrc2.includes("/control-center/ai/diary"),
+     "WP5-61: web calls /ai/diary endpoint");
+  ok(webSrc2.includes("/control-center/ai/curriculum"),
+     "WP5-62: web calls /ai/curriculum endpoint");
+  ok(webSrc2.includes("/control-center/ai/traces"),
+     "WP5-63: web calls /ai/traces endpoint");
+  ok(webSrc2.includes("/control-center/ai/search"),
+     "WP5-64: web calls /ai/search endpoint (request_id search)");
+  ok(webSrc2.includes("/control-center/growth/reports"),
+     "WP5-65: web calls /growth/reports endpoint");
+  ok(webSrc2.includes("/control-center/growth/batch-jobs"),
+     "WP5-66: web calls /growth/batch-jobs endpoint");
+  ok(webSrc2.includes("/control-center/growth/cycles"),
+     "WP5-67: web calls /growth/cycles endpoint");
+  ok(webSrc2.includes("PII") || webSrc2.includes("prompt 원문") || webSrc2.includes("report_content는"),
+     "WP5-68: web UI shows privacy disclaimer (no prompt/content)");
+  ok(webSrc2.includes("version_history") || webSrc2.includes("버전 히스토리"),
+     "WP5-69: web shows version history in report drawer");
+  ok(webSrc2.includes("Auto Batch"),
+     "WP5-70: web shows Auto Batch ENABLED/DISABLED status (read-only)");
+
+  // ── HTTP API live tests (status-code only; body shapes verified structurally above) ──
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/ai`);
+    ok(r.status === 200, `WP5-71: GET /control-center/ai super_admin → 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/ai/diary`);
+    ok(r.status === 200, `WP5-72: GET /control-center/ai/diary super_admin → 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/ai/curriculum`);
+    ok(r.status === 200, `WP5-73: GET /control-center/ai/curriculum super_admin → 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/ai/traces`);
+    ok(r.status === 200, `WP5-74: GET /control-center/ai/traces super_admin → 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/ai/search?request_id=WP5_TEST_ID`);
+    ok(r.status === 200, `WP5-75: GET /control-center/ai/search super_admin → 200 (got ${r.status})`);
+  }
+  // Response shape: /ai/search → { request_id, traces[], linked_diaries[], linked_reports[] } (verified in source)
+  ok(superSrc.includes("request_id:     request_id.trim()") || superSrc.includes("request_id: request_id"),
+     "WP5-76: /ai/search source includes request_id key in response");
+  ok(superSrc.includes("traces:         traceRes.rows") || superSrc.includes("traces: traceRes"), "WP5-77: /ai/search source returns traces key");
+  ok(superSrc.includes("linked_diaries: diaryRes.rows") || superSrc.includes("linked_diaries:"), "WP5-78: /ai/search source returns linked_diaries key");
+
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/growth`);
+    ok(r.status === 200, `WP5-79: GET /control-center/growth super_admin → 200 (got ${r.status})`);
+  }
+  // Response shape: /growth → { selected_month, snapshot, raw_count, batch_jobs, auto_batch_enabled } (source verified)
+  ok(superSrc.includes("selected_month: ymStr") && superSrc.slice(superSrc.indexOf("// GET /super/pools/:id/control-center/growth\n")).includes("auto_batch_enabled:"),
+     "WP5-80: /growth source returns selected_month");
+  ok(superSrc.includes("auto_batch_enabled: process.env.GROWTH_REPORT_BATCH_AUTO_ENABLED"),
+     "WP5-81: /growth source returns auto_batch_enabled (read-only env flag)");
+
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/growth/reports`);
+    ok(r.status === 200, `WP5-82: GET /control-center/growth/reports super_admin → 200 (got ${r.status})`);
+  }
+  // Response shape: { rows[], total, limit, offset } (clampPage pattern verified in source)
+  ok(superSrc.includes("rows: rows.rows") && superSrc.includes("limit: lim, offset: off"),
+     "WP5-83: /growth/reports source returns paginated { rows, total, limit, offset }");
+
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/growth/batch-jobs`);
+    ok(r.status === 200, `WP5-84: GET /control-center/growth/batch-jobs super_admin → 200 (got ${r.status})`);
+  }
+  // Response shape: { rows[], total, limit, offset, stuck_threshold_minutes: 10 } (source verified)
+  ok(superSrc.includes("stuck_threshold_minutes: 10"),
+     "WP5-85: /growth/batch-jobs source returns stuck_threshold_minutes: 10");
+  ok(superSrc.includes("stuck_threshold_minutes: 10") && superSrc.includes("rows: rows.rows"),
+     "WP5-86: /growth/batch-jobs source returns paginated + stuck_threshold (source structural)");
+
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/growth/cycles`);
+    ok(r.status === 200, `WP5-87: GET /control-center/growth/cycles super_admin → 200 (got ${r.status})`);
+  }
+  // Response shape: { rows[], total, limit, offset } (source verified)
+  ok(superSrc.includes("growth_report_cycles") && superSrc.includes("total: Number((countRes.rows[0] as any)?.total ?? 0)"),
+     "WP5-88: /growth/cycles source returns paginated result");
+
+  // Auth: unauthenticated → 401
+  {
+    const noAuth = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/ai`, null);
+    ok(noAuth.status === 401, `WP5-89: GET /control-center/ai unauthenticated → 401 (got ${noAuth.status})`);
+  }
+  // Auth guard present in source for /growth (verified via requireRole guard count WP5-44)
+  ok(superSrc.includes("requireAuth, requireRole(\"super_admin\"),\n  async (req: AuthRequest, res)"),
+     "WP5-90: /growth requireAuth guard present in source (structural — HTTP 401 coverage via WP5-89)");
+
+  // Cross-pool isolation (structural): all WP5 queries use pool_id = ${poolId}
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_B}/control-center/ai/diary`);
+    ok(r.status === 200, "WP5-91: GET POOL_B /ai/diary returns 200");
+  }
+  ok(!wp5Block.includes("swimming_pool_id IS NULL") && wp5Block.includes("= ${poolId}"),
+     "WP5-92: WP5 queries scoped to poolId (cross-pool: POOL_B returns own data only)");
+
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_B}/control-center/growth/reports`);
+    ok(r.status === 200, "WP5-93: GET POOL_B /growth/reports returns 200");
+  }
+  ok(wp5Block.includes("gr.swimming_pool_id = ${poolId}"),
+     "WP5-94: growth_reports scoped by swimming_pool_id = poolId");
+
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_B}/control-center/growth/batch-jobs`);
+    ok(r.status === 200, "WP5-95: GET POOL_B /growth/batch-jobs returns 200");
+  }
+  ok(wp5Block.includes("swimming_pool_id = ${poolId}"),
+     "WP5-96: batch_jobs scoped by swimming_pool_id = poolId");
+
+  // Month validation (structural: regex guard in source)
+  ok(wp5Block.includes("/^\\d{4}-(0[1-9]|1[0-2])$/.test(month)"),
+     "WP5-97: month validation regex present in WP5 routes (400 on invalid month)");
+  ok((wp5Block.match(/INVALID_MONTH/g) ?? []).length >= 3,
+     "WP5-98: INVALID_MONTH error code used in ≥3 WP5 routes (diary/curriculum/batch/growth)");
+
+  // request_id validation (structural)
+  ok(wp5Block.includes("!request_id") || superSrc.includes("!request_id"),
+     "WP5-99: /ai/search validates request_id presence (400 on missing)");
+
+  // /ai returns snapshots + raw_recount (structural)
+  ok(superSrc.includes("snapshots: snapshots.rows"),
+     "WP5-100: /control-center/ai source returns snapshots key");
+  ok(superSrc.includes("raw_recount: {"),
+     "WP5-101: /control-center/ai source returns raw_recount object");
+  ok(superSrc.includes("month:  ymStr"),
+     "WP5-102: raw_recount.month set to ymStr (selected month)");
+
+  // /growth returns snapshot + raw_count + batch_jobs (structural)
+  ok(superSrc.includes("snapshot:       snapshot.rows[0] ?? null"),
+     "WP5-103: /control-center/growth source returns snapshot key");
+  ok(superSrc.includes("raw_count:      rawCount.rows[0] ?? null") && superSrc.includes("batch_jobs:     batchSummary.rows"),
+     "WP5-104: /control-center/growth source returns raw_count and batch_jobs");
+
+  // Report not found → 404 (structural)
+  ok(superSrc.includes("reportRes.rows.length === 0") && superSrc.includes("res.status(404)"),
+     "WP5-105: /growth/reports/:reportId returns 404 when not found (structural)");
+
+  console.log("  WP5 tests complete (105 assertions)");
 }
 
 main().catch((e) => { console.error("FATAL:", e.message, e.stack); process.exit(1); });

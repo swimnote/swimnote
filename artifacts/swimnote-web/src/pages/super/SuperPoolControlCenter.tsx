@@ -1461,88 +1461,595 @@ function CurriculumTab({ poolId }: { poolId: string }) {
   );
 }
 
-function AiTab({ poolId }: { poolId: string }) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+// ─── WP5 helpers ─────────────────────────────────────────────────────────────
+
+/** YYYY-MM month selector — defaults to current month, lists up to 12 months back */
+function MonthSelector({ value, onChange }: { value: string; onChange: (m: string) => void }) {
+  const months: string[] = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[12px] font-medium"
+    >
+      {months.map((m) => <option key={m} value={m}>{m}</option>)}
+    </select>
+  );
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function statusBadgeColor(s: string | null | undefined) {
+  if (!s) return "gray";
+  const u = s.toUpperCase();
+  if (u === "SUCCESS" || u === "COMPLETE" || u === "COMPLETED" || u === "PUBLISHED" || u === "APPROVED") return "green";
+  if (u === "FAILED" || u === "FAIL" || u === "ERROR") return "red";
+  if (u === "RUNNING" || u === "ANALYZING" || u === "PREANALYZING") return "blue";
+  if (u === "PENDING" || u === "NOT_OPEN" || u === "OPEN") return "gray";
+  if (u === "PARTIAL") return "amber";
+  if (u === "REVIEW_REQUIRED") return "amber";
+  return "gray";
+}
+
+function KpiCard({ label, value, sub }: { label: string; value: string | number | null; sub?: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-[#e5e7eb] px-4 py-3 min-w-[110px]">
+      <div className="text-[11px] text-[#6b7280] mb-0.5">{label}</div>
+      <div className="text-[20px] font-bold text-[#111827]">{value ?? "—"}</div>
+      {sub && <div className="text-[10px] text-[#9ca3af] mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function TraceDrawer({ trace, onClose }: { trace: any; onClose: () => void }) {
+  if (!trace) return null;
+  const rows: [string, string][] = [
+    ["request_id",  trace.request_id ?? "—"],
+    ["feature",     trace.feature ?? "—"],
+    ["status",      trace.status ?? "—"],
+    ["model",       trace.model ?? "—"],
+    ["pool_mode",   trace.pool_mode ?? "—"],
+    ["total_tokens", trace.total_tokens != null ? String(trace.total_tokens) : "—"],
+    ["latency_ms",  trace.latency_ms != null ? `${trace.latency_ms}ms` : "—"],
+    ["cost (USD)",  trace.total_cost_usd != null ? `$${Number(trace.total_cost_usd).toFixed(6)}` : "NOT AVAILABLE"],
+    ["error_stage", trace.error_stage ?? "—"],
+    ["error_code",  trace.error_code ?? "—"],
+    ["actor_id",    trace.actor_id ?? "—"],
+    ["created_at",  trace.created_at?.slice?.(0, 19) ?? "—"],
+  ];
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-end">
+      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+      <div className="relative w-[420px] h-full bg-white shadow-2xl overflow-y-auto p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[14px] font-semibold text-[#111827]">AI Trace 상세</h3>
+          <button onClick={onClose} className="text-[#6b7280] text-[12px] hover:text-[#111]">✕ 닫기</button>
+        </div>
+        <dl className="space-y-2">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex gap-2 text-[12px]">
+              <dt className="w-[120px] text-[#6b7280] shrink-0">{k}</dt>
+              <dd className="text-[#111827] break-all font-mono">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-4 text-[10px] text-[#9ca3af]">※ prompt 원문·LLM 응답·민감 사용자 입력은 표시하지 않습니다.</p>
+      </div>
+    </div>
+  );
+}
+
+function ReportDrawer({ report, poolId, onClose }: { report: any; poolId: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<any>(null);
+  const [loadingDetail, setLoadingDetail] = useState(true);
   useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/ai`).then(setData).catch(() => {}).finally(() => setLoading(false));
-  }, [poolId]);
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <div className="space-y-4">
-      <Section title="월별 AI 사용량">
-        <Table
-          heads={["월", "일지 수", "교사 수", "AI 호출", "학부모 검색"]}
-          rows={data.snapshots ?? []}
-          render={(r, i) => (
-            <tr key={i} className="border-b border-[#f5f5f5]">
-              <td className="py-2 pr-3 font-medium">{r.year_month}</td>
-              <td className="py-2 pr-3">{r.diary_count ?? 0}</td>
-              <td className="py-2 pr-3">{r.teacher_count ?? 0}</td>
-              <td className="py-2 pr-3">{r.ai_call_count ?? 0}</td>
-              <td className="py-2">{r.parent_search_count ?? 0}</td>
-            </tr>
+    setLoadingDetail(true);
+    api.get<any>(`/super/pools/${poolId}/control-center/growth/reports/${report.id}`)
+      .then(setDetail).catch(() => {}).finally(() => setLoadingDetail(false));
+  }, [report.id, poolId]);
+
+  const ps = report.product_status ?? "";
+  const statusColor = statusBadgeColor(ps);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-end">
+      <div className="absolute inset-0 bg-black/20" onClick={onClose} />
+      <div className="relative w-[480px] h-full bg-white shadow-2xl overflow-y-auto p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[14px] font-semibold text-[#111827]">리포트 상세</h3>
+          <button onClick={onClose} className="text-[#6b7280] text-[12px] hover:text-[#111]">✕ 닫기</button>
+        </div>
+        {/* Summary */}
+        <div className="bg-[#f9fafb] rounded-xl p-4 mb-4 space-y-1.5 text-[12px]">
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">학생</span><span className="font-medium">{report.student_name ?? report.student_id?.slice(0, 12)}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">기간</span><span className="font-medium">{report.report_period ?? "—"}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">상태</span><Badge color={statusColor} text={ps || "—"} /></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">분석 상태</span><span>{report.analysis_status ?? "—"}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">재분석 수</span><span>{report.analysis_retry_count ?? 0}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">교사 검토</span><span>{report.teacher_review_action ?? "—"}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">발행</span><span>{report.published_at?.slice(0, 16) ?? "—"}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">폐기</span><span className={report.discarded_at ? "text-[#dc2626]" : ""}>{report.discarded_at?.slice(0, 16) ?? "—"}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">request_id</span><span className="font-mono text-[10px] break-all">{report.analysis_request_id ?? "—"}</span></div>
+          <div className="flex gap-2"><span className="text-[#6b7280] w-[110px]">생성</span><span>{report.created_at?.slice(0, 16) ?? "—"}</span></div>
+        </div>
+
+        {loadingDetail ? <Spinner /> : detail && (
+          <>
+            {/* Version History */}
+            {detail.version_history?.length > 1 && (
+              <div className="mb-4">
+                <p className="text-[12px] font-semibold mb-2 text-[#374151]">버전 히스토리 ({detail.version_history.length}건)</p>
+                <div className="space-y-1">
+                  {detail.version_history.map((v: any, i: number) => (
+                    <div key={v.id} className="flex items-center gap-2 text-[11px] bg-[#f9fafb] rounded px-3 py-1.5">
+                      <span className="text-[#6b7280] w-4">v{i + 1}</span>
+                      <Badge color={statusBadgeColor(v.product_status)} text={v.product_status ?? "—"} />
+                      <span className="text-[#6b7280]">{v.created_at?.slice(0, 10)}</span>
+                      {v.published_at && <span className="text-green-600">📤 발행</span>}
+                      {v.discarded_at && <span className="text-red-500">🗑 폐기</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Cycle */}
+            {detail.cycle && (
+              <div className="mb-4">
+                <p className="text-[12px] font-semibold mb-2 text-[#374151]">사이클</p>
+                <dl className="space-y-1 text-[11px]">
+                  {[
+                    ["기간", detail.cycle.report_period],
+                    ["상태", detail.cycle.cycle_status],
+                    ["분석 마감", detail.cycle.analysis_cutoff_at?.slice(0, 10)],
+                    ["학부모 입력 마감", detail.cycle.parent_input_close_at?.slice(0, 10)],
+                  ].map(([k, v]) => v && (
+                    <div key={k} className="flex gap-2">
+                      <dt className="w-[110px] text-[#6b7280]">{k}</dt>
+                      <dd>{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </>
+        )}
+        <p className="mt-4 text-[10px] text-[#9ca3af]">※ report_content는 표시하지 않습니다 (metadata/diagnostics only)</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── AiTab ───────────────────────────────────────────────────────────────────
+function AiTab({ poolId }: { poolId: string }) {
+  const [month, setMonth] = useState(currentMonth);
+  const [summary, setSummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [diaryData, setDiaryData] = useState<any>(null);
+  const [curriculumData, setCurriculumData] = useState<any>(null);
+  const [tracesData, setTracesData] = useState<any>(null);
+  const [subLoading, setSubLoading] = useState(false);
+  const [selectedTrace, setSelectedTrace] = useState<any>(null);
+  const [searchId, setSearchId] = useState("");
+  const [searchResult, setSearchResult] = useState<any>(null);
+  const [searching, setSearching] = useState(false);
+  const [diaryPage, setDiaryPage] = useState(0);
+  const [currPage, setCurrPage] = useState(0);
+  const [tracePage, setTracePage] = useState(0);
+  const PAGE = 20;
+
+  const loadSummary = useCallback(() => {
+    setSummaryLoading(true);
+    api.get<any>(`/super/pools/${poolId}/control-center/ai?month=${month}`)
+      .then(setSummary).catch(() => setSummary(null)).finally(() => setSummaryLoading(false));
+  }, [poolId, month]);
+
+  const loadSub = useCallback(async () => {
+    setSubLoading(true);
+    await Promise.all([
+      api.get<any>(`/super/pools/${poolId}/control-center/ai/diary?month=${month}&limit=${PAGE}&offset=${diaryPage * PAGE}`)
+        .then(setDiaryData).catch(() => setDiaryData(null)),
+      api.get<any>(`/super/pools/${poolId}/control-center/ai/curriculum?month=${month}&limit=${PAGE}&offset=${currPage * PAGE}`)
+        .then(setCurriculumData).catch(() => setCurriculumData(null)),
+      api.get<any>(`/super/pools/${poolId}/control-center/ai/traces?month=${month}&limit=${PAGE}&offset=${tracePage * PAGE}`)
+        .then(setTracesData).catch(() => setTracesData(null)),
+    ]);
+    setSubLoading(false);
+  }, [poolId, month, diaryPage, currPage, tracePage]);
+
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+  useEffect(() => { loadSub(); }, [loadSub]);
+
+  const snap = summary?.snapshots?.find((s: any) => s.year === parseInt(month.slice(0, 4)) && s.month === parseInt(month.slice(5, 7)));
+  const raw  = summary?.raw_recount;
+
+  const handleSearch = async () => {
+    if (!searchId.trim()) return;
+    setSearching(true);
+    try {
+      const r = await api.get<any>(`/super/pools/${poolId}/control-center/ai/search?request_id=${encodeURIComponent(searchId.trim())}`);
+      setSearchResult(r);
+    } catch { setSearchResult({ error: true }); }
+    setSearching(false);
+  };
+
+  return (
+    <div className="space-y-5">
+      {selectedTrace && <TraceDrawer trace={selectedTrace} onClose={() => setSelectedTrace(null)} />}
+
+      {/* Month selector */}
+      <div className="flex items-center gap-3">
+        <span className="text-[12px] text-[#6b7280] font-medium">조회 월:</span>
+        <MonthSelector value={month} onChange={(m) => { setMonth(m); setDiaryPage(0); setCurrPage(0); setTracePage(0); }} />
+        <button onClick={() => { loadSummary(); loadSub(); }} className="px-3 py-1.5 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium">새로고침</button>
+      </div>
+
+      {/* Summary KPIs */}
+      {summaryLoading ? <Spinner /> : (
+        <div>
+          <div className="flex flex-wrap gap-3 mb-3">
+            <KpiCard label="AI 일지 (Snap)" value={snap?.ai_diary_count ?? 0} sub="snapshot" />
+            <KpiCard label="AI 교사 수 (Snap)" value={snap?.ai_diary_teacher_count ?? 0} sub="snapshot" />
+            <KpiCard label="학부모 검색 (Snap)" value={snap?.parent_curriculum_search_count ?? 0} sub="snapshot" />
+            <KpiCard label="학부모 사용자 (Snap)" value={snap?.parent_curriculum_user_count ?? 0} sub="snapshot" />
+          </div>
+          {raw && (
+            <div className="text-[11px] text-[#6b7280] bg-[#f9fafb] rounded-lg px-3 py-2 flex flex-wrap gap-4">
+              <span>▶ Raw재집계 ({raw.month}): AI일지 <b>{raw.ai_diary_count ?? "—"}</b> / 교사 <b>{raw.ai_diary_teacher_count ?? "—"}</b> / 학부모검색 <b>{raw.curriculum_search_count ?? "—"}</b> / 학부모 <b>{raw.curriculum_unique_parents ?? "—"}</b></span>
+            </div>
           )}
-        />
+        </div>
+      )}
+
+      {/* Request ID Search */}
+      <Section title="Request ID 조회">
+        <div className="flex gap-2 mb-3">
+          <input
+            value={searchId}
+            onChange={(e) => setSearchId(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            placeholder="request_id (exact)"
+            className="flex-1 border border-[#e5e7eb] rounded-lg px-3 py-1.5 text-[12px] font-mono"
+          />
+          <button
+            onClick={handleSearch}
+            disabled={searching}
+            className="px-3 py-1.5 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium disabled:opacity-50"
+          >
+            {searching ? "검색중…" : "조회"}
+          </button>
+        </div>
+        {searchResult && (
+          <div className="text-[11px] space-y-2">
+            {searchResult.error ? <p className="text-red-500">조회 실패</p> : (
+              <>
+                <p className="text-[#6b7280]">traces: {searchResult.traces?.length ?? 0}건 / 연결 일지: {searchResult.linked_diaries?.length ?? 0}건 / 연결 리포트: {searchResult.linked_reports?.length ?? 0}건</p>
+                {searchResult.traces?.map((t: any) => (
+                  <div key={t.id} className="bg-[#f9fafb] rounded px-3 py-2 cursor-pointer hover:bg-[#f0f0f0]" onClick={() => setSelectedTrace(t)}>
+                    <span className="font-medium">{t.feature}</span>
+                    <Badge color={statusBadgeColor(t.status)} text={t.status ?? "—"} />
+                    <span className="text-[#6b7280] ml-2">{t.created_at?.slice(0, 16)}</span>
+                    <span className="text-[#6b7280] ml-2">{t.total_tokens != null ? `${t.total_tokens} tok` : ""}</span>
+                  </div>
+                ))}
+                {searchResult.linked_diaries?.map((d: any) => (
+                  <div key={d.id} className="bg-[#f0fdf4] rounded px-3 py-2 text-[11px]">
+                    📓 일지 — {d.class_name ?? "—"} / {d.teacher_name ?? "—"} / {d.created_at?.slice(0, 16)}
+                  </div>
+                ))}
+                {searchResult.linked_reports?.map((r: any) => (
+                  <div key={r.id} className="bg-[#eff6ff] rounded px-3 py-2 text-[11px]">
+                    📊 리포트 — {r.student_name ?? r.student_id?.slice(0, 8)} / {r.report_period} / <Badge color={statusBadgeColor(r.product_status)} text={r.product_status ?? "—"} />
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
       </Section>
-      <Section title="최근 AI 호출 (20건)">
-        <Table
-          heads={["기능", "상태", "모델", "토큰", "지연", "시각"]}
-          rows={data.recent_traces ?? []}
-          render={(r, i) => (
-            <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-              <td className="py-2 pr-3 font-medium">{r.feature}</td>
-              <td className="py-2 pr-3"><Badge color={r.status === "success" ? "green" : "red"} text={r.status} /></td>
-              <td className="py-2 pr-3">{r.llm_model ?? "—"}</td>
-              <td className="py-2 pr-3">{r.total_tokens ?? "—"}</td>
-              <td className="py-2 pr-3">{r.latency_ms ? `${r.latency_ms}ms` : "—"}</td>
-              <td className="py-2">{r.created_at?.slice(0, 16)}</td>
-            </tr>
-          )}
-        />
+
+      {/* AI Diary Recent */}
+      <Section title={`AI 일지 최근 요청 (${month})`}>
+        {subLoading ? <Spinner /> : !diaryData ? <Err msg="로드 실패" /> : diaryData.rows?.length === 0 ? (
+          <p className="text-[12px] text-[#6b7280] py-4 text-center">이 기간 AI 일지 없음</p>
+        ) : (
+          <>
+            <Table
+              heads={["시각", "교사", "수업", "Request ID", "상태", "모델", "토큰", "지연"]}
+              rows={diaryData.rows}
+              render={(r: any, i: number) => (
+                <tr key={r.id ?? i} className="border-b border-[#f5f5f5] cursor-pointer hover:bg-[#f9fafb]"
+                    onClick={() => r.trace_status && setSelectedTrace({ ...r, feature: "ai_diary", status: r.trace_status })}>
+                  <td className="py-2 pr-2 text-[11px]">{r.created_at?.slice(0, 16)}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.teacher_name ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.class_name ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[10px] font-mono text-[#6b7280]">{r.request_id ? r.request_id.slice(0, 12) + "…" : "—"}</td>
+                  <td className="py-2 pr-2"><Badge color={r.trace_status === "SUCCESS" ? "green" : r.trace_status ? "red" : "gray"} text={r.trace_status ?? "기록없음"} /></td>
+                  <td className="py-2 pr-2 text-[11px]">{r.model ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.total_tokens ?? "—"}</td>
+                  <td className="py-2 text-[11px]">{r.latency_ms != null ? `${r.latency_ms}ms` : "—"}</td>
+                </tr>
+              )}
+            />
+            <div className="flex justify-between items-center mt-2 text-[11px] text-[#6b7280]">
+              <span>총 {diaryData.total}건</span>
+              <div className="flex gap-2">
+                <button disabled={diaryPage === 0} onClick={() => setDiaryPage(p => p - 1)} className="px-2 py-1 rounded border disabled:opacity-40">◀</button>
+                <span>p.{diaryPage + 1}</span>
+                <button disabled={(diaryPage + 1) * PAGE >= diaryData.total} onClick={() => setDiaryPage(p => p + 1)} className="px-2 py-1 rounded border disabled:opacity-40">▶</button>
+              </div>
+            </div>
+          </>
+        )}
+      </Section>
+
+      {/* Parent Curriculum Recent */}
+      <Section title={`학부모 커리큘럼 검색 (${month})`}>
+        {subLoading ? <Spinner /> : !curriculumData ? <Err msg="로드 실패" /> : curriculumData.rows?.length === 0 ? (
+          <p className="text-[12px] text-[#6b7280] py-4 text-center">이 기간 검색 기록 없음</p>
+        ) : (
+          <>
+            <Table
+              heads={["시각", "학부모 ID", "Request ID", "상태", "토큰", "지연", "오류"]}
+              rows={curriculumData.rows}
+              render={(r: any, i: number) => (
+                <tr key={r.id ?? i} className="border-b border-[#f5f5f5] cursor-pointer hover:bg-[#f9fafb]"
+                    onClick={() => setSelectedTrace({ ...r, feature: r.feature ?? "parent_curriculum_search" })}>
+                  <td className="py-2 pr-2 text-[11px]">{(r.created_at ?? "").slice(0, 16)}</td>
+                  <td className="py-2 pr-2 text-[10px] font-mono text-[#6b7280]">{r.actor_id ? r.actor_id.slice(0, 12) + "…" : "—"}</td>
+                  <td className="py-2 pr-2 text-[10px] font-mono text-[#6b7280]">{r.request_id ? r.request_id.slice(0, 12) + "…" : "—"}</td>
+                  <td className="py-2 pr-2"><Badge color={statusBadgeColor(r.status)} text={r.status ?? "—"} /></td>
+                  <td className="py-2 pr-2 text-[11px]">{r.total_tokens ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.latency_ms != null ? `${r.latency_ms}ms` : "—"}</td>
+                  <td className="py-2 text-[11px] text-[#dc2626]">{r.error_code ?? ""}</td>
+                </tr>
+              )}
+            />
+            <div className="flex justify-between items-center mt-2 text-[11px] text-[#6b7280]">
+              <span>총 {curriculumData.total}건 (query 원문 미표시 — PII 최소화)</span>
+              <div className="flex gap-2">
+                <button disabled={currPage === 0} onClick={() => setCurrPage(p => p - 1)} className="px-2 py-1 rounded border disabled:opacity-40">◀</button>
+                <span>p.{currPage + 1}</span>
+                <button disabled={(currPage + 1) * PAGE >= curriculumData.total} onClick={() => setCurrPage(p => p + 1)} className="px-2 py-1 rounded border disabled:opacity-40">▶</button>
+              </div>
+            </div>
+          </>
+        )}
+      </Section>
+
+      {/* All AI Traces */}
+      <Section title={`AI Traces (${month}) — event_logs category=AI`}>
+        {subLoading ? <Spinner /> : !tracesData ? <Err msg="로드 실패" /> : tracesData.rows?.length === 0 ? (
+          <p className="text-[12px] text-[#6b7280] py-4 text-center">이 기간 AI 호출 기록 없음</p>
+        ) : (
+          <>
+            <Table
+              heads={["기능", "상태", "모델", "토큰", "지연", "오류", "시각"]}
+              rows={tracesData.rows}
+              render={(r: any, i: number) => (
+                <tr key={r.id ?? i} className="border-b border-[#f5f5f5] cursor-pointer hover:bg-[#f9fafb]"
+                    onClick={() => setSelectedTrace(r)}>
+                  <td className="py-2 pr-2 text-[11px] font-medium">{r.feature ?? "—"}</td>
+                  <td className="py-2 pr-2"><Badge color={statusBadgeColor(r.status)} text={r.status ?? "—"} /></td>
+                  <td className="py-2 pr-2 text-[11px]">{r.model ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.total_tokens ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.latency_ms != null ? `${r.latency_ms}ms` : "—"}</td>
+                  <td className="py-2 pr-2 text-[11px] text-[#dc2626]">{r.error_code ?? ""}</td>
+                  <td className="py-2 text-[11px]">{(r.created_at ?? "").slice(0, 16)}</td>
+                </tr>
+              )}
+            />
+            <div className="flex justify-between items-center mt-2 text-[11px] text-[#6b7280]">
+              <span>총 {tracesData.total}건 (prompt/응답 원문 미표시)</span>
+              <div className="flex gap-2">
+                <button disabled={tracePage === 0} onClick={() => setTracePage(p => p - 1)} className="px-2 py-1 rounded border disabled:opacity-40">◀</button>
+                <span>p.{tracePage + 1}</span>
+                <button disabled={(tracePage + 1) * PAGE >= tracesData.total} onClick={() => setTracePage(p => p + 1)} className="px-2 py-1 rounded border disabled:opacity-40">▶</button>
+              </div>
+            </div>
+          </>
+        )}
       </Section>
     </div>
   );
 }
 
+// ─── GrowthTab (replaces GrowthReportsTab) ────────────────────────────────────
 function GrowthReportsTab({ poolId }: { poolId: string }) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/growth-reports`).then(setData).catch(() => {}).finally(() => setLoading(false));
-  }, [poolId]);
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <div className="space-y-4">
-      <Section title="배치 작업 (최근 5건)">
-        <Table
-          heads={["날짜", "상태", "대상", "완료", "실패"]}
-          rows={data.batch_jobs ?? []}
-          render={(r, i) => (
-            <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-              <td className="py-2 pr-3 font-medium">{r.batch_date}</td>
-              <td className="py-2 pr-3"><Badge color={r.status === "completed" ? "green" : r.status === "failed" ? "red" : "amber"} text={r.status} /></td>
-              <td className="py-2 pr-3">{r.total_students ?? "—"}</td>
-              <td className="py-2 pr-3">{r.processed_count ?? "—"}</td>
-              <td className="py-2">{r.failed_count ?? 0}</td>
-            </tr>
+  const [month, setMonth] = useState(currentMonth);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [reportsData, setReportsData] = useState<any>(null);
+  const [batchData, setBatchData] = useState<any>(null);
+  const [cyclesData, setCyclesData] = useState<any>(null);
+  const [subLoading, setSubLoading] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [reportPage, setReportPage] = useState(0);
+  const [batchPage, setBatchPage] = useState(0);
+  const PAGE = 20;
+
+  const loadSummary = useCallback(() => {
+    setSummaryLoading(true);
+    api.get<any>(`/super/pools/${poolId}/control-center/growth?month=${month}`)
+      .then(setSummaryData).catch(() => setSummaryData(null)).finally(() => setSummaryLoading(false));
+  }, [poolId, month]);
+
+  const loadSub = useCallback(async () => {
+    setSubLoading(true);
+    await Promise.all([
+      api.get<any>(`/super/pools/${poolId}/control-center/growth/reports?month=${month}&limit=${PAGE}&offset=${reportPage * PAGE}`)
+        .then(setReportsData).catch(() => setReportsData(null)),
+      api.get<any>(`/super/pools/${poolId}/control-center/growth/batch-jobs?month=${month}&limit=${PAGE}&offset=${batchPage * PAGE}`)
+        .then(setBatchData).catch(() => setBatchData(null)),
+      api.get<any>(`/super/pools/${poolId}/control-center/growth/cycles?limit=12`)
+        .then(setCyclesData).catch(() => setCyclesData(null)),
+    ]);
+    setSubLoading(false);
+  }, [poolId, month, reportPage, batchPage]);
+
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+  useEffect(() => { loadSub(); }, [loadSub]);
+
+  const snap = summaryData?.snapshot;
+  const raw  = summaryData?.raw_count;
+  const jobs = summaryData?.batch_jobs ?? [];
+  const autoBatchEnabled: boolean | null = summaryData?.auto_batch_enabled ?? null;
+
+  return (
+    <div className="space-y-5">
+      {selectedReport && <ReportDrawer report={selectedReport} poolId={poolId} onClose={() => setSelectedReport(null)} />}
+
+      {/* Month selector */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-[12px] text-[#6b7280] font-medium">조회 월:</span>
+        <MonthSelector value={month} onChange={(m) => { setMonth(m); setReportPage(0); setBatchPage(0); }} />
+        {autoBatchEnabled != null && (
+          <span className={`text-[11px] px-2 py-1 rounded font-medium ${autoBatchEnabled ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+            Auto Batch: {autoBatchEnabled ? "ENABLED" : "DISABLED"} (Global)
+          </span>
+        )}
+        <button onClick={() => { loadSummary(); loadSub(); }} className="px-3 py-1.5 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium">새로고침</button>
+      </div>
+
+      {/* Summary KPIs */}
+      {summaryLoading ? <Spinner /> : (
+        <div>
+          <div className="flex flex-wrap gap-3 mb-3">
+            <KpiCard label="대상 (Raw)" value={raw?.total_targeted ?? snap?.growth_report_target_count ?? 0} />
+            <KpiCard label="생성됨 (Raw)" value={raw?.generated_count ?? snap?.growth_report_generated_count ?? 0} />
+            <KpiCard label="실패 (Raw)" value={raw?.failed_count ?? snap?.growth_report_failed_count ?? 0} />
+            <KpiCard label="발행 (Raw)" value={raw?.published_count ?? 0} />
+            <KpiCard label="발송 (Snap)" value={snap?.growth_report_sent_count ?? 0} sub="snapshot" />
+            <KpiCard label="폐기 (Raw)" value={raw?.discarded_count ?? 0} />
+            <KpiCard label="진행중 (Raw)" value={raw?.in_progress_count ?? 0} />
+          </div>
+          {raw && snap && (
+            <div className="text-[10px] text-[#9ca3af] bg-[#f9fafb] rounded-lg px-3 py-2">
+              ※ Raw재집계는 실제 DB 기준. Snapshot과 차이 발생 시 정기 UPSERT를 확인하세요.
+            </div>
           )}
-        />
+        </div>
+      )}
+
+      {/* Batch Job Quick Summary */}
+      {jobs.length > 0 && (
+        <div>
+          <p className="text-[12px] font-semibold text-[#374151] mb-2">{month} 배치 작업 ({jobs.length}건)</p>
+          <div className="flex flex-wrap gap-2">
+            {jobs.map((j: any) => (
+              <div key={j.id} className={`rounded-xl border px-3 py-2 text-[11px] min-w-[150px] ${j.is_stuck ? "border-red-400 bg-red-50" : "border-[#e5e7eb] bg-white"}`}>
+                <div className="flex items-center gap-1 mb-1">
+                  <Badge color={statusBadgeColor(j.status)} text={j.status} />
+                  {j.is_stuck && <span className="text-[10px] text-red-600 font-bold">⚠ STUCK</span>}
+                </div>
+                <div className="text-[#6b7280]">{j.job_type}</div>
+                <div>대상 {j.target_count ?? "—"} / 완료 {j.completed_count ?? 0} / 실패 {j.failed_count ?? 0}</div>
+                <div className="text-[#9ca3af]">시도 {j.attempts ?? 0}회</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reports List */}
+      <Section title={`리포트 목록 (${month}) — 행 클릭 시 상세`}>
+        {subLoading ? <Spinner /> : !reportsData ? <Err msg="로드 실패" /> : reportsData.rows?.length === 0 ? (
+          <p className="text-[12px] text-[#6b7280] py-4 text-center">이 기간 리포트 없음</p>
+        ) : (
+          <>
+            <Table
+              heads={["학생", "기간", "상태", "분석", "재분석", "발행", "생성일"]}
+              rows={reportsData.rows}
+              render={(r: any, i: number) => (
+                <tr key={r.id ?? i} className="border-b border-[#f5f5f5] cursor-pointer hover:bg-[#f9fafb]"
+                    onClick={() => setSelectedReport(r)}>
+                  <td className="py-2 pr-2 text-[11px] font-medium">{r.student_name ?? r.student_id?.slice(0, 8)}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.report_period ?? "—"}</td>
+                  <td className="py-2 pr-2">
+                    <Badge color={statusBadgeColor(r.product_status)} text={r.product_status ?? "—"} />
+                    {r.discarded_at && <span className="ml-1 text-[10px] text-red-500">🗑</span>}
+                  </td>
+                  <td className="py-2 pr-2 text-[10px] text-[#6b7280]">{r.analysis_status ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[11px] text-center">{r.analysis_retry_count ?? 0}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.published_at ? r.published_at.slice(0, 10) : "—"}</td>
+                  <td className="py-2 text-[11px]">{r.created_at?.slice(0, 10)}</td>
+                </tr>
+              )}
+            />
+            <div className="flex justify-between items-center mt-2 text-[11px] text-[#6b7280]">
+              <span>총 {reportsData.total}건</span>
+              <div className="flex gap-2">
+                <button disabled={reportPage === 0} onClick={() => setReportPage(p => p - 1)} className="px-2 py-1 rounded border disabled:opacity-40">◀</button>
+                <span>p.{reportPage + 1}</span>
+                <button disabled={(reportPage + 1) * PAGE >= reportsData.total} onClick={() => setReportPage(p => p + 1)} className="px-2 py-1 rounded border disabled:opacity-40">▶</button>
+              </div>
+            </div>
+          </>
+        )}
       </Section>
-      <Section title="리포트 목록">
-        <Table
-          heads={["학생", "날짜", "상태", "시도", "다음 시도"]}
-          rows={data.reports ?? []}
-          render={(r, i) => (
-            <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-              <td className="py-2 pr-3 font-medium">{r.student_name ?? r.student_id?.slice(0, 8)}</td>
-              <td className="py-2 pr-3">{r.batch_date}</td>
-              <td className="py-2 pr-3">
-                <Badge color={r.status === "PUBLISHED" ? "green" : r.status === "FAILED" ? "red" : r.status === "READY_TO_SEND" ? "blue" : "gray"} text={r.status} />
-              </td>
-              <td className="py-2 pr-3">{r.attempts ?? 0}</td>
-              <td className="py-2">{r.next_attempt_at ? r.next_attempt_at.slice(0, 16) : "—"}</td>
-            </tr>
-          )}
-        />
+
+      {/* Batch Jobs List */}
+      <Section title={`배치 작업 상세 (${month})`}>
+        {subLoading ? <Spinner /> : !batchData ? <Err msg="로드 실패" /> : batchData.rows?.length === 0 ? (
+          <p className="text-[12px] text-[#6b7280] py-4 text-center">이 기간 배치 작업 없음</p>
+        ) : (
+          <>
+            <Table
+              heads={["유형", "상태", "대상", "완료", "실패", "시도", "잠금", "생성"]}
+              rows={batchData.rows}
+              render={(r: any, i: number) => (
+                <tr key={r.id ?? i} className={`border-b border-[#f5f5f5] ${r.is_stuck ? "bg-red-50" : ""}`}>
+                  <td className="py-2 pr-2 text-[11px] font-medium">{r.job_type ?? "—"}</td>
+                  <td className="py-2 pr-2">
+                    <Badge color={statusBadgeColor(r.status)} text={r.status ?? "—"} />
+                    {r.is_stuck && <span className="ml-1 text-[10px] text-red-600 font-bold">STUCK</span>}
+                  </td>
+                  <td className="py-2 pr-2 text-[11px]">{r.target_count ?? "—"}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.completed_count ?? 0}</td>
+                  <td className="py-2 pr-2 text-[11px] text-[#dc2626]">{r.failed_count ?? 0}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.attempts ?? 0}</td>
+                  <td className="py-2 pr-2 text-[11px]">{r.locked_at ? r.locked_at.slice(0, 16) : "—"}</td>
+                  <td className="py-2 text-[11px]">{r.created_at?.slice(0, 10)}</td>
+                </tr>
+              )}
+            />
+            <div className="flex justify-between items-center mt-2 text-[11px] text-[#6b7280]">
+              <span>총 {batchData.total}건 (STUCK = RUNNING 10분 초과)</span>
+              <div className="flex gap-2">
+                <button disabled={batchPage === 0} onClick={() => setBatchPage(p => p - 1)} className="px-2 py-1 rounded border disabled:opacity-40">◀</button>
+                <span>p.{batchPage + 1}</span>
+                <button disabled={(batchPage + 1) * PAGE >= batchData.total} onClick={() => setBatchPage(p => p + 1)} className="px-2 py-1 rounded border disabled:opacity-40">▶</button>
+              </div>
+            </div>
+          </>
+        )}
+      </Section>
+
+      {/* Growth Cycles */}
+      <Section title="Growth 사이클">
+        {subLoading ? <Spinner /> : !cyclesData ? <Err msg="로드 실패" /> : cyclesData.rows?.length === 0 ? (
+          <p className="text-[12px] text-[#6b7280] py-4 text-center">사이클 없음</p>
+        ) : (
+          <Table
+            heads={["기간", "상태", "분석기준", "분석 마감", "학부모 마감"]}
+            rows={cyclesData.rows}
+            render={(r: any, i: number) => (
+              <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
+                <td className="py-2 pr-2 text-[11px] font-medium">{r.report_period}</td>
+                <td className="py-2 pr-2"><Badge color={statusBadgeColor(r.cycle_status)} text={r.cycle_status ?? "—"} /></td>
+                <td className="py-2 pr-2 text-[11px]">{r.analysis_from?.slice(0, 10) ?? "—"}</td>
+                <td className="py-2 pr-2 text-[11px]">{r.analysis_cutoff_at?.slice(0, 10) ?? "—"}</td>
+                <td className="py-2 text-[11px]">{r.parent_input_close_at?.slice(0, 10) ?? "—"}</td>
+              </tr>
+            )}
+          />
+        )}
       </Section>
     </div>
   );
