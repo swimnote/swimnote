@@ -1,0 +1,1555 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# SUPER ADMIN POOL CONTROL CENTER — FULL IMPLEMENTATION START
+# TOYKIDS PERMANENT MANUAL ACCESS FIRST
+# THEN TENANT OPERATIONS / SUPPORT / LOG / ENTITLEMENT CONTROL CENTER
+
+============================================================
+0. 이번 작업의 최우선 조건
+============================================================
+
+사용자 소유 수영장:
+
+토이키즈스윔클럽
+
+은 SWIMNOTE 본사/직영 운영 수영장이므로
+결제 여부와 무관하게 서비스를 전부 사용할 수 있어야 한다.
+
+따라서 다른 작업보다 먼저:
+
+1. 기본 SWIMNOTE 이용권
+2. SWIMNOTE X 이용권
+3. X 플랜
+4. 현재 존재하는 X 기능
+5. 향후 추가되는 X 기능
+
+을 Super Admin manual entitlement 방식으로
+결제 없이 사용할 수 있도록 보호한다.
+
+중요:
+
+토이키즈 이름을 코드에 하드코딩해서 예외처리하지 말 것.
+
+if pool.name === "토이키즈스윔클럽"
+
+같은 구현 절대 금지.
+
+일반화된:
+
+SUPER ADMIN MANUAL ENTITLEMENT
+
+기능으로 구현하고,
+그 기능을 나중에 Production Super Admin UI에서
+토이키즈에 적용할 수 있게 한다.
+
+============================================================
+1. CURRENT 기준
+============================================================
+
+Latest known V2 work:
+
+Super Admin X manual grant:
+4a948682
+
+Production lineage:
+90df1a56 / main
+
+Current development branch:
+release/v2.0.0 latest
+
+반드시 CURRENT LATEST HEAD에서 작업.
+
+4a948682 ancestor:
+YES 확인.
+
+DO NOT:
+
+- checkout old commit
+- reset
+- revert
+- force push
+- touch 1.6.3
+- Render production deploy
+- Production DB 직접 수정
+
+============================================================
+2. TOYKIDS PROTECTION — 가장 먼저 완료
+============================================================
+
+현재 X manual entitlement는 이미 존재:
+
+x_paid_entitlement
+x_manual_entitlement
+x_force_disabled
+
+Effective X:
+
+(paid OR manual)
+AND NOT force_disabled
+
+이 구조 유지.
+
+이번에 반드시 추가/완성:
+
+BASE SWIMNOTE manual entitlement.
+
+최종:
+
+effective_base_access =
+valid_paid_base
+OR
+valid_manual_base
+
+effective_x_access =
+(valid_paid_x OR valid_manual_x)
+AND NOT x_force_disabled
+
+============================================================
+3. BASE SWIMNOTE manual grant
+============================================================
+
+현재 기본 SWIMNOTE access source를
+실제 코드에서 먼저 확인하고
+기존 구조를 최대한 재사용.
+
+Super Admin에서:
+
+[기본 SWIMNOTE 직접 부여]
+
+[기본 SWIMNOTE 권한 회수]
+
+가능하게 구현.
+
+manual base가 ON이면:
+
+- 결제 없음
+- RevenueCat entitlement 없음
+- 구독 만료
+- 결제 실패
+- billing sync
+
+상태여도 기본 SWIMNOTE 사용 가능.
+
+RevenueCat sync는:
+
+paid field만 수정.
+
+manual field:
+절대 overwrite 금지.
+
+============================================================
+4. TOYKIDS 최종 목표
+============================================================
+
+향후 Production Super Admin에서
+토이키즈를 다음 상태로 만들 수 있어야 함.
+
+BASE SWIMNOTE:
+MANUAL = ON
+
+X MODE:
+MANUAL = ON
+
+X PLAN:
+Super Admin 지정
+
+Expiration:
+NONE
+
+Billing:
+NONE
+
+Payment required:
+NO
+
+RevenueCat purchase:
+NO
+
+App Store purchase:
+NO
+
+토이키즈는 가격/플랜 개편 도중에도
+절대 서비스가 잠기면 안 됨.
+
+============================================================
+5. X manual grant 기존 구현 유지/통합
+============================================================
+
+현재 구현된:
+
+- X 직접 부여
+- X 회수
+- X 플랜 변경
+- X member limit 적용
+- audit log
+
+을 새 Control Center의
+Entitlements 영역에 통합.
+
+기능을 또 새로 만들지 말 것.
+
+============================================================
+6. SUPER ADMIN POOL CONTROL CENTER 정의
+============================================================
+
+현재:
+
+Super Admin
+→ Pools
+→ 수영장 클릭
+→ Dashboard
+
+화면을
+
+SWIMNOTE POOL CONTROL CENTER
+
+로 확장.
+
+목표:
+
+사용자가 특정 수영장 문제를 문의했을 때
+
+수영장 선택
+→ 사용자/회원/교사/학부모 검색
+→ 상태 확인
+→ 오류 로그 확인
+→ 관련 설정 확인
+→ 허용된 운영조치 실행
+→ audit/support history 기록
+
+까지 한 곳에서 처리.
+
+============================================================
+7. 화면 정보 구조
+============================================================
+
+수영장 상세를 다음 탭 또는 섹션으로 구성.
+
+A.
+Overview
+
+B.
+Access / Plans
+
+C.
+Members
+
+D.
+Teachers
+
+E.
+Parents
+
+F.
+Classes
+
+G.
+Curriculum
+
+H.
+AI Operations
+
+I.
+Growth Reports
+
+J.
+Errors / Incidents
+
+K.
+Notifications
+
+L.
+Storage / Files
+
+M.
+Audit / Support
+
+모바일 앱이 아니라
+Super Admin Web 운영 콘솔 기준으로
+정보 밀도 높고 보기 쉽게 설계.
+
+============================================================
+8. OVERVIEW
+============================================================
+
+한 눈에 보여야 함:
+
+- 수영장명
+- pool ID
+- 운영상태
+- 생성일
+- 관리자
+- 기본 SWIMNOTE 권한
+- 권한 source: PAID / MANUAL / NONE
+- X 권한
+- X source: PAID / MANUAL / NONE
+- 현재 X plan
+- 회원 limit
+- 현재 회원 수
+- 교사 수
+- 연결 학부모 수
+- 반 수
+- 저장공간 사용량
+- 최근 접속/활동
+- AI 사용 현황
+- Growth report 현황
+- 최근 오류 수
+- 최근 중요 incident
+- 현재 기능 health
+
+============================================================
+9. ACCESS / PLANS
+============================================================
+
+Super Admin이 해당 pool에서:
+
+BASE:
+- manual grant
+- revoke
+
+X:
+- manual grant
+- revoke
+- force disable
+- force enable
+
+PLAN:
+- plan override
+- member limit
+- feature entitlement
+
+을 제어.
+
+Paid와 Manual을 절대 같은 필드로 덮지 말 것.
+
+예:
+
+BASE Paid:
+OFF
+
+BASE Manual:
+ON
+
+Effective:
+ON
+
+X Paid:
+OFF
+
+X Manual:
+ON
+
+Effective:
+ON
+
+처럼 source가 분명해야 함.
+
+============================================================
+10. 가격/플랜 구조
+============================================================
+
+기존 가격:
+
+x300 129,000
+x500 199,000
+x1000 359,000
+
+은 앞으로 폐기 예정.
+
+이번 작업에서:
+
+새 가격 임의 생성 금지.
+
+사용자가 새 가격을 아직 제공하지 않았으므로
+가격 숫자는 최종 확정하지 않는다.
+
+대신 현재 가격 source를 전수조사해서
+ONE PLAN CATALOG 구조로 정리.
+
+최종 catalog에서:
+
+plan_key
+display_name
+member_limit
+features
+billing_product_id
+display_price
+billing_price
+active
+deprecated
+
+관리 가능하게 준비.
+
+기존 price hardcoding 위치를 전부 제거/통합할 수 있으면
+안전하게 중앙화.
+
+단 새 가격 숫자는 사용자 승인 전 입력하지 말 것.
+
+============================================================
+11. PLANS와 MANUAL ACCESS 분리
+============================================================
+
+중요:
+
+PLAN
+≠
+PAYMENT
+
+Super Admin이:
+
+X500
+
+을 manual로 부여해도
+
+billing:
+NONE
+
+payment:
+0
+
+가능해야 함.
+
+plan은 기능 bundle.
+billing은 별도.
+
+============================================================
+12. MEMBERS
+============================================================
+
+Pool별 회원 목록.
+
+검색:
+
+- 이름
+- 상태
+- 반
+- 레벨
+- 전화번호 일부
+- student id
+
+표시:
+
+- 회원명
+- 상태
+- 재원/퇴원
+- 반
+- 담당교사
+- 레벨
+- 학부모 연결
+- 최근 활동
+- 최근 일지
+- 최근 오류 관련 여부
+- created_at
+
+고객센터 운영에 필요한 범위만.
+
+비밀번호:
+NO
+
+JWT:
+NO
+
+secret:
+NO
+
+============================================================
+13. MEMBER SUPPORT ACTIONS
+============================================================
+
+CURRENT API를 조사해서
+안전한 기존 기능만 연결.
+
+후보:
+
+- 회원 상태 확인
+- 반 배정 확인
+- 학부모 연결 확인
+- 잘못된 연결 복구
+- 초대 재전송
+- notification 확인
+- level/assignment 확인
+- 최근 diary/activity 확인
+
+새 destructive action은
+임의 추가 금지.
+
+위험한 변경은 confirm dialog + audit 필수.
+
+============================================================
+14. TEACHERS
+============================================================
+
+Pool별 교사:
+
+- 이름
+- 계정 상태
+- 역할
+- 담당반
+- 최근 로그인/활동
+- AI diary 사용량
+- 일지 작성 현황
+- 최근 오류
+- 권한 상태
+
+검색 가능.
+
+지원용 액션은
+현재 API 재사용.
+
+============================================================
+15. PARENTS
+============================================================
+
+학부모:
+
+- 이름
+- 계정상태
+- 연결학생
+- 승인상태
+- invite 상태
+- 최근 로그인/활동
+- notification 상태
+- 최근 오류
+
+parent/student 연결 문제를
+Super Admin이 바로 진단 가능하게.
+
+============================================================
+16. CLASSES
+============================================================
+
+- 반명
+- 담당교사
+- 학생수
+- schedule
+- curriculum assignment
+- current curriculum version
+- 활성/비활성
+
+============================================================
+17. CURRICULUM
+============================================================
+
+각 pool의:
+
+- 원본 업로드 파일명
+- 파일 크기
+- 업로드 시간
+- revision
+- processing 상태
+- AI 적용 여부
+- active curriculum version
+- 적용 학생 수
+- 미배정 학생 수
+- processing error
+
+표시.
+
+============================================================
+18. CURRICULUM ORIGINAL FILE DOWNLOAD
+============================================================
+
+사용자 요구 필수.
+
+Super Admin에서:
+
+[원본 커리큘럼 다운로드]
+
+가능하게 구현.
+
+현재 object storage/R2 구조 재사용.
+
+방법:
+
+secure signed URL
+또는 authenticated server proxy.
+
+public permanent URL:
+금지.
+
+다른 pool 파일 다운로드:
+P0 차단.
+
+============================================================
+19. AI OPERATIONS
+============================================================
+
+기존 monthly snapshot 재사용.
+
+표시:
+
+- AI diary count
+- AI diary teacher count
+- parent curriculum search count
+- parent curriculum users
+- AI call count
+- 최근 AI 실패
+- request_id
+- trace/correlation id
+- engine route/feature
+- status
+
+새 metric table 만들지 말 것.
+
+============================================================
+20. GROWTH REPORT OPERATIONS
+============================================================
+
+해당 pool:
+
+- 대상
+- 생성완료
+- 실패
+- 발송
+- READY_TO_SEND
+- DISCARDED
+- REGENERATING
+- PUBLISHED
+- batch job status
+- attempts
+- locked_at
+- next_attempt_at
+- admin_push_sent_at
+
+등 확인.
+
+Super Admin에서
+문제 report/student까지 drill-down 가능하게.
+
+이번 작업에서 임의 report publish/discard 기능을
+추가할 필요는 없음.
+
+현재 admin 기능이 있다면
+안전하게 링크/재사용.
+
+============================================================
+21. ERROR / INCIDENT CENTER
+============================================================
+
+매우 중요.
+
+목표:
+
+"수영장에 문제 생김"
+→ Super Admin
+→ 해당 pool
+→ Errors
+→ 원인 확인
+
+현재 전체 code에서 오류 source를 전수조사.
+
+분류:
+
+AUTH
+API
+AI
+DIARY
+CURRICULUM
+GROWTH_REPORT
+PUSH
+UPLOAD
+STORAGE
+BILLING
+SUBSCRIPTION
+BACKGROUND_JOB
+DB
+UNKNOWN
+
+============================================================
+22. ERROR SOURCE 전수조사
+============================================================
+
+반드시 조사:
+
+event_logs
+audit_logs
+notifications
+growth report job errors
+AI traces
+worker state
+storage errors
+upload processing
+RevenueCat webhook errors
+auth trace
+server errors
+
+각 source별:
+
+DB-backed:
+YES / NO
+
+pool_id:
+YES / NO
+
+user_id:
+YES / NO
+
+request_id:
+YES / NO
+
+trace_id:
+YES / NO
+
+error_code:
+YES / NO
+
+message:
+YES / NO
+
+timestamp:
+YES / NO
+
+============================================================
+23. CONSOLE-ONLY ERROR 개선
+============================================================
+
+운영상 중요한 오류인데
+현재 console.log/error에만 남아
+pool dashboard에서 찾을 수 없는 경우:
+
+기존 event/error logging architecture가 있으면
+그쪽으로 연결.
+
+새 로그 시스템을 중복으로 만들지 말 것.
+
+최소 필드:
+
+pool_id
+user_id nullable
+feature
+error_code
+safe_message
+request_id nullable
+created_at
+
+PII/secret 출력 금지.
+
+============================================================
+24. ERROR DETAIL
+============================================================
+
+Super Admin Error Center에서:
+
+- 발생시간
+- severity
+- feature
+- user type
+- user reference
+- request ID
+- trace ID
+- safe error message
+- retry 여부
+- current status
+
+표시.
+
+원문 stack trace는
+필요한 경우 접어서 표시 가능하나
+secret/PII redaction 필수.
+
+============================================================
+25. SUPPORT WORKFLOW
+============================================================
+
+고객센터 흐름:
+
+Pool
+→ Member/Teacher/Parent
+→ Recent Activity
+→ Related Errors
+→ Related Notifications
+→ Relevant Class/Assignment
+→ Allowed Support Action
+→ Audit
+
+한 곳에서 연결.
+
+============================================================
+26. SUPPORT CASE / NOTES
+============================================================
+
+현재 적절한 support table이 있으면 재사용.
+
+없으면 최소 support_cases 구조 검토/구현.
+
+필요 필드:
+
+id
+swimming_pool_id
+subject_type
+subject_id nullable
+category
+title
+note
+status
+created_by
+assigned_to nullable
+created_at
+updated_at
+resolved_at nullable
+
+목표:
+
+"9/4 회원 연결 오류 문의"
+"처리 완료"
+
+같은 고객센터 히스토리 기록.
+
+============================================================
+27. NOTIFICATIONS
+============================================================
+
+Pool별:
+
+- notification 최근 목록
+- recipient
+- type
+- ref_id
+- created_at
+- read status
+- push send status if available
+- retry state if available
+
+"푸시가 안 왔어요"
+
+문의에 대응 가능해야 함.
+
+============================================================
+28. STORAGE / FILES
+============================================================
+
+표시:
+
+- current used bytes
+- quota
+- media
+- curriculum files
+- report files
+- failed uploads
+- storage error
+
+파괴적 파일 삭제 기능은
+이번에 넣지 말 것.
+
+다운로드/조회 중심.
+
+============================================================
+29. AUDIT LOG
+============================================================
+
+모든 Super Admin 운영조치 기록.
+
+반드시 포함:
+
+actor
+target pool
+action
+target entity
+before
+after
+reason
+timestamp
+
+특히:
+
+BASE grant/revoke
+X grant/revoke
+plan override
+member limit
+support action
+curriculum admin action
+
+============================================================
+30. FEATURE FLAGS
+============================================================
+
+현재 pool-level flags 조사.
+
+Super Admin에 노출할 것은
+운영에 필요한 것만.
+
+internal/debug flag 전부 노출 금지.
+
+============================================================
+31. ACCOUNT HEALTH
+============================================================
+
+Overview에 health indicator 추가.
+
+예:
+
+GREEN
+정상
+
+YELLOW
+경고
+
+RED
+문제
+
+판단 source는
+실제 존재하는 상태만 사용.
+
+예:
+
+- subscription conflict
+- X entitlement conflict
+- batch failure
+- repeated AI errors
+- storage quota
+- failed curriculum processing
+- auth issue
+
+AI로 health 판단하지 말 것.
+
+rule based.
+
+============================================================
+32. 500 POOL 성능
+============================================================
+
+중요.
+
+Pool list에서
+500개 pool 각각 10개 query:
+금지.
+
+Control Center 진입:
+
+GET /super/pools/:id/control-center/summary
+
+한 번으로 핵심 summary.
+
+상세 탭:
+
+lazy loading.
+
+예:
+
+/members
+/teachers
+/parents
+/classes
+/curriculum
+/ai
+/errors
+/notifications
+/storage
+/audit
+/support
+
+필요할 때만 호출.
+
+============================================================
+33. SUPER ADMIN SECURITY
+============================================================
+
+모든 endpoint:
+
+SUPER ADMIN ONLY.
+
+pool admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+target pool ID:
+명시적 scope.
+
+Cross-pool 혼합:
+P0.
+
+============================================================
+34. IMPERSONATION
+============================================================
+
+사용자 계정으로 몰래 로그인하는
+full impersonation은 이번에 구현 금지.
+
+필요하면:
+
+read-only diagnostics
+
+우선.
+
+비밀번호 보기:
+절대 금지.
+
+JWT 보기:
+절대 금지.
+
+============================================================
+35. DESTRUCTIVE ACTION SAFEGUARDS
+============================================================
+
+삭제/권한회수/연결변경 등은:
+
+confirm
+reason
+audit
+
+필수.
+
+대량 destructive action:
+이번에 최소화.
+
+============================================================
+36. UI 원칙
+============================================================
+
+Super Admin Web.
+
+정보를 보기 쉽게:
+
+상단:
+Pool Header + Health + Entitlement
+
+아래:
+tab navigation
+
+각 탭:
+summary cards + searchable table
+
+과도한 modal:
+금지.
+
+상태 badge 일관.
+
+ERROR/EMPTY/LOADING 분리.
+
+============================================================
+37. IMPLEMENTATION ORDER
+============================================================
+
+반드시 순서대로.
+
+PHASE A:
+Toykids safety / Manual BASE entitlement
+
+PHASE B:
+Control Center shell + summary
+
+PHASE C:
+Entitlement / plan section
+
+PHASE D:
+Members / Teachers / Parents / Classes
+
+PHASE E:
+Curriculum + secure original download
+
+PHASE F:
+AI + Growth Report operations
+
+PHASE G:
+Error / Incident center
+
+PHASE H:
+Notifications / Storage
+
+PHASE I:
+Audit / Support case history
+
+각 phase마다 테스트 후 다음.
+
+중간에 architecture를 바꾸지 말 것.
+
+============================================================
+38. 가격 개편
+============================================================
+
+OLD PLAN PRICE:
+
+deprecated 대상으로만 관리.
+
+새 가격은 사용자 미확정.
+
+따라서 이번 작업에서:
+
+가격 숫자 최종 변경:
+NO
+
+new plan values:
+NO
+
+대신:
+
+plan catalog centralization:
+YES
+
+old hardcoded duplicates 제거:
+가능한 범위에서 YES
+
+다음 작업에서 사용자가
+새 가격/새 플랜을 주면
+catalog 한 곳에서 교체 가능해야 함.
+
+============================================================
+39. DB
+============================================================
+
+Development migration:
+허용.
+
+Production:
+NO.
+
+Additive only.
+
+DROP existing user data:
+NO
+
+DELETE existing data:
+NO
+
+기존 production compatibility 유지.
+
+============================================================
+40. APP / WEB / OTA
+============================================================
+
+Super Admin Web만 수정:
+iOS OTA 불필요.
+
+일반 iOS APP entitlement logic까지 수정되면:
+
+test
+→ commit
+→ iOS OTA immediate
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+============================================================
+41. SERVER
+============================================================
+
+Latest V2 server:
+
+test
+→ commit
+→ push release/v2.0.0
+
+Render production:
+NO
+
+사용자 수동 deploy.
+
+============================================================
+42. TOYKIDS Production 적용
+============================================================
+
+이번 DEV 작업 중
+Production Toykids row 직접 UPDATE 금지.
+
+구현 완료 후:
+
+Production migration
+→ Render
+→ Super Admin UI
+
+순서로 사용자가 직접:
+
+토이키즈
+→ BASE Manual ON
+→ X Manual ON
+→ X Plan 선택
+
+하도록 한다.
+
+이 과정을 정상 운영방식으로 만든다.
+
+============================================================
+43. TEST — ENTITLEMENT
+============================================================
+
+A.
+No payment + no manual
+→ existing policy
+
+B.
+No payment + manual BASE
+→ BASE ON
+
+C.
+No payment + manual X
+→ X ON
+
+D.
+manual BASE survives RevenueCat sync
+→ PASS
+
+E.
+manual X survives RevenueCat sync
+→ PASS
+
+F.
+manual plan
+→ limit/features 정상
+
+G.
+manual revoke + no paid
+→ OFF
+
+H.
+manual revoke + paid
+→ remains ON
+
+I.
+force disable
+→ expected policy
+
+J.
+pool admin override
+→ 403
+
+============================================================
+44. TEST — CONTROL CENTER
+============================================================
+
+Overview:
+PASS
+
+Members:
+PASS
+
+Teachers:
+PASS
+
+Parents:
+PASS
+
+Classes:
+PASS
+
+Curriculum:
+PASS
+
+Original file secure download:
+PASS
+
+AI:
+PASS
+
+Growth Reports:
+PASS
+
+Errors:
+PASS
+
+Notifications:
+PASS
+
+Storage:
+PASS
+
+Audit:
+PASS
+
+Support:
+PASS
+
+============================================================
+45. CROSS-POOL
+============================================================
+
+Pool A control center에서
+
+Pool B member:
+0
+
+Pool B teacher:
+0
+
+Pool B curriculum file:
+0
+
+Pool B errors:
+0
+
+Pool B notifications:
+0
+
+Pool B support case:
+0
+
+============================================================
+46. 완료보고
+============================================================
+
+# SUPER ADMIN POOL CONTROL CENTER IMPLEMENTATION REPORT
+
+Current Branch:
+...
+
+HEAD Before:
+...
+
+4a948682 ancestor:
+YES / NO
+
+HEAD After:
+...
+
+Commit(s):
+...
+
+============================================================
+TOYKIDS SAFETY
+============================================================
+
+Manual BASE implemented:
+YES / NO
+
+Manual X:
+YES
+
+Manual plan:
+YES
+
+Effective BASE:
+...
+
+Effective X:
+...
+
+RevenueCat can remove manual BASE:
+NO / YES
+
+RevenueCat can remove manual X:
+NO / YES
+
+Toykids can operate fully unpaid after production grant:
+YES / NO
+
+============================================================
+CONTROL CENTER
+============================================================
+
+Overview:
+PASS / FAIL
+
+Entitlements:
+PASS / FAIL
+
+Plans:
+PASS / FAIL
+
+Members:
+PASS / FAIL
+
+Teachers:
+PASS / FAIL
+
+Parents:
+PASS / FAIL
+
+Classes:
+PASS / FAIL
+
+Curriculum:
+PASS / FAIL
+
+AI Operations:
+PASS / FAIL
+
+Growth Reports:
+PASS / FAIL
+
+Errors:
+PASS / FAIL
+
+Notifications:
+PASS / FAIL
+
+Storage:
+PASS / FAIL
+
+Audit:
+PASS / FAIL
+
+Support:
+PASS / FAIL
+
+============================================================
+CURRICULUM
+============================================================
+
+Original file:
+...
+
+Secure download:
+PASS / FAIL
+
+Cross-pool:
+0 / ...
+
+============================================================
+ERROR CENTER
+============================================================
+
+DB-backed sources:
+...
+
+Console-only sources fixed:
+...
+
+Pool-scoped:
+PASS / FAIL
+
+Request/trace:
+PASS / FAIL
+
+PII redaction:
+PASS / FAIL
+
+============================================================
+PLAN CATALOG
+============================================================
+
+Old prices:
+DEPRECATED
+
+New prices:
+NOT APPLIED
+
+Single source catalog:
+YES / NO
+
+Hardcoded duplicates remaining:
+...
+
+RevenueCat mapping source:
+...
+
+============================================================
+500 POOLS
+============================================================
+
+Summary endpoint:
+...
+
+Lazy routes:
+...
+
+N+1:
+NO / YES
+
+Cross-pool:
+0 / ...
+
+============================================================
+SECURITY
+============================================================
+
+Super-admin only:
+PASS / FAIL
+
+Passwords exposed:
+NO
+
+JWT exposed:
+NO
+
+Secrets exposed:
+NO
+
+Audit on mutations:
+PASS / FAIL
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+============================================================
+APP / WEB
+============================================================
+
+Super Admin Web modified:
+YES
+
+iOS APP modified:
+YES / NO
+
+OTA:
+...
+
+============================================================
+SERVER
+============================================================
+
+Modified:
+YES
+
+Tests:
+PASS / FAIL
+
+Pushed:
+YES / NO
+
+Render:
+NO
+
+============================================================
+DB
+============================================================
+
+Migrations:
+...
+
+Development:
+YES / NO
+
+Production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+Toykids BASE unpaid:
+PASS / FAIL
+
+Toykids X unpaid:
+PASS / FAIL
+
+Manual plan:
+PASS / FAIL
+
+Pool Control Center:
+PASS / FAIL
+
+Customer support workflow:
+PASS / FAIL
+
+Error diagnostics:
+PASS / FAIL
+
+Secure curriculum download:
+PASS / FAIL
+
+Ready for new pricing:
+YES / NO
+
+FINAL STATUS:
+CONTROL CENTER COMPLETE / BLOCKED
