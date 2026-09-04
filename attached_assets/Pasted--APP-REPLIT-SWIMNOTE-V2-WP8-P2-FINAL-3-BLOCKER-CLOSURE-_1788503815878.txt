@@ -1,0 +1,692 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# WP8-P2 — FINAL 3-BLOCKER CLOSURE
+# NO NEW FEATURE
+# VERIFY ONLY + MINIMAL FIX IF NEEDED
+
+============================================================
+절대 기준
+============================================================
+
+PRODUCT:
+SWIMNOTE V2
+
+RUNTIME:
+2.1.0
+
+CURRENT LATEST WP8 HEAD:
+1f0fa702
+
+반드시 현재 최신 V2 HEAD에서 작업.
+
+1f0fa702 ancestor:
+MUST BE YES
+
+DO NOT:
+- checkout old commit
+- revert
+- reset
+- touch 1.6.3
+- redesign WP8
+- deploy Render production
+- apply Production DB migration
+- enable GROWTH_REPORT_BATCH_AUTO_ENABLED
+
+1.6.3:
+NO TOUCH
+
+============================================================
+현재 평가
+============================================================
+
+다음은 이미 PASS:
+
+- schema assumptions
+- pool admin recipient path
+- growth_report_cycles ON CONFLICT
+- durable batch
+- FOR UPDATE SKIP LOCKED
+- restart recovery
+- READY_TO_SEND
+- preview
+- discard
+- regeneration
+- version preservation
+- individual send
+- mixed-status bulk send
+- parent PUBLISHED-only visibility
+- monthly KPI
+- iOS OTA
+- SHA match
+
+남은 release blocker는 3개만 확인.
+
+============================================================
+BLOCKER 1 — SKIPPED TESTS
+============================================================
+
+현재 validate-wp8 결과:
+
+PASSED:
+71
+
+FAILED:
+0
+
+SKIPPED:
+2
+
+반드시 정확히 보고:
+
+Skipped Test 1:
+...
+
+Skipped Test 2:
+...
+
+왜 skip됐는지:
+...
+
+특히 multiple reissue:
+
+v1
+→ DISCARDED
+
+v2
+→ DISCARDED
+
+v3
+→ PUBLISHED
+
+이 시나리오가 실제 DB에서 실행됐는지 확인.
+
+"single-pool env"는
+이 동일 pool 내부 version chain 테스트를
+skip할 이유가 아님.
+
+cross-pool fixture가 필요한 테스트만
+별도 skip 가능.
+
+============================================================
+1A. 반드시 실제 실행
+============================================================
+
+동일 pool
+동일 student
+동일 report period
+
+에서:
+
+v1 generate
+→ READY_TO_SEND
+→ discard
+
+v2 regenerate
+→ READY_TO_SEND
+→ discard
+
+v3 regenerate
+→ READY_TO_SEND
+→ publish
+
+검증:
+
+version rows:
+3
+
+v1:
+DISCARDED
+
+v2:
+DISCARDED
+
+v3:
+PUBLISHED
+
+v1 physical delete:
+NO
+
+v2 physical delete:
+NO
+
+current/final version:
+v3 only
+
+parent visible:
+v3 only
+
+direct parent access v1:
+BLOCKED
+
+direct parent access v2:
+BLOCKED
+
+monthly generated logical count:
+1
+
+monthly sent logical count:
+1
+
+regeneration versions double-counted:
+NO
+
+이 테스트는 반드시 PASS 후 종료.
+
+============================================================
+BLOCKER 2 — AI ENGINE ENDPOINT CONTRACT
+============================================================
+
+현재 보고서에는:
+
+Growth report generation endpoint:
+POST /api/v1/teacher-diary/generate
+
+라고 적혀 있음.
+
+이게 매우 중요하므로
+CURRENT CODE에서 정확히 다시 추적.
+
+반드시 보고:
+
+A.
+Growth report generation을 실제로 호출하는
+SERVER 파일:
+...
+
+B.
+Function:
+...
+
+C.
+Actual HTTP endpoint:
+...
+
+D.
+Request payload:
+...
+
+E.
+Response payload:
+...
+
+F.
+Teacher Diary 생성 endpoint와
+정말 같은 endpoint를 공유:
+YES / NO
+
+============================================================
+2A. endpoint 공유라면
+============================================================
+
+정말 동일 endpoint라면:
+
+어떤 discriminator로
+teacher diary와 growth report를 구분하는지 보고.
+
+예:
+
+mode
+task
+feature
+report_type
+
+등 실제 값.
+
+Growth report 요청이
+teacher diary prompt/pipeline으로
+잘못 들어갈 가능성:
+0
+
+이어야 함.
+
+============================================================
+2B. 보고서 오기라면
+============================================================
+
+실제 growth report endpoint를
+정확히 보고서에 수정.
+
+코드가 정상이라면
+코드 수정 불필요.
+
+============================================================
+2C. 재발급도 같은 성장리포트 경로인지
+============================================================
+
+admin regenerate
+→ server job
+→ actual growth report generation
+
+경로가
+
+최초 생성과 동일한
+성장리포트 단건 생성 pipeline
+
+을 재사용하는지 확인.
+
+Teacher Diary 생성 pipeline으로
+우회하면 FAIL.
+
+============================================================
+BLOCKER 3 — PARENT PUSH DURABILITY
+============================================================
+
+관리자 준비완료 PUSH와 별개로
+
+학부모 리포트 발송 PUSH를
+실제 검증.
+
+필수 시나리오:
+
+READY_TO_SEND
+→ admin publish
+
+DB:
+PUBLISHED
+
+notification:
+enqueue
+
+============================================================
+3A. 정상 발송
+============================================================
+
+report PUBLISHED:
+PASS
+
+parent notification created:
+PASS
+
+correct parent:
+PASS
+
+cross-pool parent:
+0
+
+other student parent:
+0
+
+============================================================
+3B. PUSH failure
+============================================================
+
+push-service를 test/mock로 실패시켜 검증.
+
+expected:
+
+report status:
+PUBLISHED 유지
+
+DB publication rollback:
+NO
+
+notification state:
+retry 가능
+
+attempts:
+증가 또는 현재 queue convention에 맞는 기록
+
+============================================================
+3C. retry
+============================================================
+
+retry 후:
+
+push success:
+PASS
+
+report duplicate publish:
+NO
+
+notification duplicate:
+NO
+
+parent duplicate push:
+0
+
+============================================================
+3D. idempotency key
+============================================================
+
+현재 parent notification 중복 방지 기준:
+
+...
+
+예:
+
+event_type
+recipient
+report/version/entity
+
+실제 unique/idempotency mechanism 보고.
+
+in-memory only이면 FAIL.
+
+durable DB state여야 함.
+
+============================================================
+3E. 기존 notification 구조 재사용
+============================================================
+
+새 notification framework 만들지 말 것.
+
+현재 durable notification/queue/outbox 구조가 있으면
+그것을 그대로 사용.
+
+없고 현재 구현이 단순 direct push뿐이라면
+이번 blocker 해결에 필요한 최소 durable state만 보강.
+
+과설계 금지.
+
+============================================================
+APP / OTA
+============================================================
+
+이번 P2가 server-only verification이면:
+
+APP change:
+NO
+
+새 OTA:
+NOT REQUIRED
+
+현재 WP8 OTA:
+
+Commit:
+1f0fa702
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+기존 SHA MATCH:
+유지
+
+만약 예상 밖 APP 수정이 발생하면:
+
+test
+→ commit
+→ 즉시 iOS OTA
+→ SHA match
+
+Android:
+NOT PUBLISHED
+
+============================================================
+SERVER
+============================================================
+
+필요 최소 수정 후:
+
+test
+→ commit
+→ push
+
+Render production:
+NO
+
+사용자 수동배포.
+
+============================================================
+DB
+============================================================
+
+Development:
+test data only
+
+Production DB:
+NO
+
+새 migration:
+원칙적으로 NO
+
+실제 blocker 해결에 migration이 필요하면
+실행하지 말고 보고.
+
+============================================================
+AUTO GENERATION
+============================================================
+
+GROWTH_REPORT_BATCH_AUTO_ENABLED:
+FALSE 유지
+
+Production enable:
+NO
+
+============================================================
+완료보고
+============================================================
+
+# WP8-P2 FINAL CLOSURE REPORT
+
+Current Branch:
+...
+
+HEAD Before:
+...
+
+1f0fa702 ancestor:
+YES / NO
+
+HEAD After:
+...
+
+Commit:
+...
+
+============================================================
+SKIPPED TESTS
+============================================================
+
+Previous skipped count:
+2
+
+Skipped #1:
+...
+
+Reason:
+...
+
+Skipped #2:
+...
+
+Reason:
+...
+
+Remaining skipped critical tests:
+0 / ...
+
+============================================================
+MULTIPLE REISSUE
+============================================================
+
+v1 discard:
+PASS / FAIL
+
+v2 discard:
+PASS / FAIL
+
+v3 publish:
+PASS / FAIL
+
+Versions preserved:
+3 / ...
+
+Discarded versions:
+2 / ...
+
+Final published version:
+1 / ...
+
+Parent sees v3 only:
+PASS / FAIL
+
+Old direct access blocked:
+PASS / FAIL
+
+Generated KPI logical count:
+PASS / FAIL
+
+Sent KPI logical count:
+PASS / FAIL
+
+Regeneration double count:
+NO / YES
+
+============================================================
+AI ENGINE CONTRACT
+============================================================
+
+Growth report server caller:
+...
+
+Actual endpoint:
+...
+
+Teacher diary shares endpoint:
+YES / NO
+
+If YES discriminator:
+...
+
+Growth report pipeline:
+...
+
+Wrong diary pipeline risk:
+NONE / ...
+
+Initial generation:
+PASS / FAIL
+
+Regeneration uses same growth report pipeline:
+PASS / FAIL
+
+AI ENGINE CHANGE REQUIRED:
+YES / NO
+
+============================================================
+PARENT PUSH
+============================================================
+
+Publish DB transaction:
+PASS / FAIL
+
+Parent notification created:
+PASS / FAIL
+
+Durable notification source:
+...
+
+Idempotency key:
+...
+
+Push failure leaves PUBLISHED:
+PASS / FAIL
+
+Retry:
+PASS / FAIL
+
+Duplicate notification:
+0 / ...
+
+Duplicate parent push:
+0 / ...
+
+Cross-pool:
+0 / ...
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+Critical skipped:
+0 / ...
+
+============================================================
+SERVER
+============================================================
+
+Tests:
+PASS / FAIL
+
+Boot:
+PASS / FAIL
+
+Pushed:
+YES / NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+============================================================
+APP
+============================================================
+
+APP modified:
+YES / NO
+
+If NO:
+OTA:
+NOT REQUIRED
+
+If YES:
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group:
+...
+
+Update ID:
+...
+
+Commit SHA:
+...
+
+Export SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+============================================================
+FINAL
+============================================================
+
+Multiple reissue:
+PASS / FAIL
+
+Growth report AI contract:
+PASS / FAIL
+
+Parent push durability:
+PASS / FAIL
+
+Critical skipped tests:
+0 / ...
+
+FINAL STATUS:
+WP8 FULLY CLOSED / BLOCKED

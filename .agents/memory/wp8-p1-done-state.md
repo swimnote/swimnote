@@ -37,6 +37,13 @@ description: WP8-P1 Release Gate 완료 — schema fixes + 71TC + iOS OTA
 §15 ON CONFLICT real DB (5)
 §16 auto validation rules (4)
 
+## WP8-P2 완료 (6f138352)
+- SKIPPED 2→1 (§11 pool2 fix, §12 cross-pool = legitimate 1)
+- §11 pool1+2099-12 전용 period → 15 tests PASS
+- §17 parent push durability 9 tests PASS
+- 총 99/99 PASS (1 SKIP)
+- APP 수정 없음 → OTA 불필요 (WP8-P1 OTA 01a06b1f 유지)
+
 ## Outstanding (사용자 승인 필요)
 - Production DB migration (step-wp8-a-lifecycle + step-wp8-b-batch-jobs)
 - Render production deploy (manual: SHA 1f0fa702)
