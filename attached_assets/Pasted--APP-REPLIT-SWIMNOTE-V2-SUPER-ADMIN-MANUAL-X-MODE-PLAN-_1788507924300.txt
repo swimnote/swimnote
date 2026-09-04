@@ -1,0 +1,865 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# SUPER ADMIN — MANUAL X MODE / PLAN OVERRIDE AUDIT + FIX
+# TOYKIDS X MODE RESTORE PREPARATION
+# DO NOT CHARGE / DO NOT TOUCH REVENUECAT PURCHASES
+
+============================================================
+현재 문제
+============================================================
+
+Production V2 업데이트 후
+토이키즈스윔클럽의 X모드가 풀린 상태.
+
+사용자가 확인하고 싶은 최종 기능:
+
+SUPER ADMIN이 특정 수영장에 대해
+
+1. 결제 없이 X모드 직접 부여
+2. X모드 직접 회수
+3. X 플랜 직접 지정
+4. X 플랜 직접 변경
+5. RevenueCat/App Store 결제를 하지 않아도
+   manual grant가 유지
+6. 테스트/직영/제휴 수영장에
+   무료 또는 수동 플랜을 운영 가능
+
+해야 함.
+
+예:
+토이키즈스윔클럽
+→ SUPER ADMIN에서 X Mode ON
+→ X300 / X500 / X1000 등 플랜 선택
+→ 결제 없이 즉시 적용
+
+============================================================
+절대 기준
+============================================================
+
+PRODUCT:
+SWIMNOTE V2
+
+CURRENT PRODUCTION SERVER:
+main / 90df1a56 lineage
+
+CURRENT V2 RELEASE:
+release/v2.0.0 latest
+
+반드시 CURRENT LATEST HEAD에서 조사.
+
+DO NOT:
+
+- Production DB 직접 수정
+- RevenueCat 실제 구매 생성
+- App Store 결제
+- subscription receipt 위조
+- 기존 사용자 결제 데이터 삭제
+- 1.6.3 수정
+- Render deploy
+- Android OTA
+
+이번 작업은 우선 CURRENT CODE / DEV DB에서
+실제 구조 확인 후 필요한 최소 수정.
+
+============================================================
+1. 현재 X MODE source of truth 추적
+============================================================
+
+CURRENT HEAD에서
+X모드 활성 여부가 어디에서 결정되는지 정확히 조사.
+
+확인 대상:
+
+swimming_pools
+xmode_enabled
+xmode_*
+x_subscription_slots
+subscription
+entitlements
+RevenueCat
+plan_key
+member_limit
+status
+expires_at
+manual override
+admin override
+
+등 실제 schema/code.
+
+반드시 보고:
+
+A.
+APP에서 X모드 진입 가능 여부를 판단하는 조건:
+...
+
+B.
+SERVER에서 X모드 권한을 판단하는 조건:
+...
+
+C.
+DB source of truth:
+...
+
+D.
+RevenueCat entitlement와의 관계:
+...
+
+E.
+결제 취소/구독 만료 시
+X모드가 자동으로 OFF 되는 코드가 있는지:
+YES / NO
+
+F.
+이번 업데이트 후 토이키즈 X모드가 풀린
+가능한 실제 원인:
+...
+
+추측 금지.
+코드와 DB 기준으로 확인.
+
+============================================================
+2. SUPER ADMIN 현재 기능 확인
+============================================================
+
+현재 Super Admin UI/API에서
+수영장을 선택한 뒤 아래 기능이 이미 있는지 확인.
+
+- X Mode ON/OFF
+- X plan 변경
+- member limit 변경
+- subscription status 변경
+- entitlement override
+- 무료/manual grant
+- 만료일 지정
+- 영구 grant
+
+각각:
+
+EXISTS / NOT EXISTS
+
+로 보고.
+
+실제 APP 화면 경로:
+
+Super Admin
+→ ...
+→ ...
+
+실제 SERVER endpoint:
+...
+
+============================================================
+3. 토이키즈 현재 상태 READ ONLY 확인
+============================================================
+
+토이키즈스윔클럽 row를
+개인정보 없이 식별하여
+현재 X 관련 상태만 확인.
+
+보고:
+
+Pool:
+토이키즈스윔클럽
+
+X mode:
+ON / OFF
+
+Current plan:
+...
+
+Current member limit:
+...
+
+Subscription source:
+REVENUECAT / MANUAL / NONE / OTHER
+
+Subscription status:
+...
+
+Entitlement:
+...
+
+Expires:
+...
+
+왜 APP에서 X모드가 풀려 보이는지:
+...
+
+IMPORTANT:
+이번 단계에서 Production row UPDATE 금지.
+
+============================================================
+4. 우리가 필요한 최종 권한 모델
+============================================================
+
+최종적으로 다음 구조를 지원해야 함.
+
+NORMAL PAID:
+
+RevenueCat/subscription
+→ X entitlement
+
+MANUAL SUPER ADMIN:
+
+Super Admin manual grant
+→ X entitlement
+
+두 source를 구분.
+
+권장 논리:
+
+effective_x_access =
+valid_paid_entitlement
+OR
+valid_manual_grant
+
+중요:
+
+manual grant가 있는 수영장은
+RevenueCat webhook/status sync가 들어와도
+X모드가 임의 OFF 되면 안 됨.
+
+============================================================
+5. MANUAL GRANT source
+============================================================
+
+현재 이미 manual override 컬럼/테이블이 있으면
+반드시 그것을 재사용.
+
+없다면 최소 구조 검토.
+
+예시일 뿐이며
+실제 schema에 맞춰 결정:
+
+x_access_source:
+'PAID' | 'MANUAL'
+
+manual_x_enabled:
+BOOLEAN
+
+manual_x_plan_key:
+TEXT
+
+manual_x_member_limit:
+INTEGER
+
+manual_x_expires_at:
+TIMESTAMPTZ NULL
+
+manual_x_granted_by:
+TEXT
+
+manual_x_granted_at:
+TIMESTAMPTZ
+
+하지만 기존 구조가 있으면
+새 컬럼 생성 금지.
+
+중복 entitlement 구조 금지.
+
+============================================================
+6. SUPER ADMIN UX
+============================================================
+
+Super Admin의 수영장 상세에
+현재 기능이 없다면 최소 UI 추가.
+
+섹션:
+
+SWIMNOTE X 권한
+
+표시:
+
+현재 X 상태:
+활성 / 비활성
+
+권한 출처:
+결제 / 슈퍼관리자 직접부여
+
+현재 플랜:
+...
+
+회원 한도:
+...
+
+만료:
+없음 / 날짜
+
+액션:
+
+[X모드 직접 부여]
+
+[X 플랜 변경]
+
+[X모드 회수]
+
+============================================================
+7. 직접 부여 UX
+============================================================
+
+슈퍼관리자가:
+
+X모드 직접 부여
+
+선택하면:
+
+플랜 선택
+→ member limit 자동 반영
+→ 선택적 만료일
+→ 확인
+→ 적용
+
+결제 화면:
+NO
+
+RevenueCat:
+NO CALL
+
+App Store:
+NO CALL
+
+============================================================
+8. 플랜 선택
+============================================================
+
+현재 실제 X plan definitions를 조사.
+
+반드시 보고:
+
+Current plan keys:
+...
+
+Current prices:
+...
+
+Current member limits:
+...
+
+Current source file/table:
+...
+
+중요:
+
+사용자가 가격도 변경할 예정이므로
+이번 작업에서 가격값을 임의 변경하지 말 것.
+
+현재 가격/plan source만 정확히 보고.
+
+플랜 가격 변경은
+사용자가 새 가격을 확정한 후 별도 작업.
+
+============================================================
+9. manual plan과 가격 분리
+============================================================
+
+SUPER ADMIN manual grant에서는
+
+가격이 129,000원이든
+199,000원이든
+
+실제 청구는 발생하지 않아야 함.
+
+즉:
+
+plan_key:
+X500
+
+를 부여하더라도
+
+billing:
+₩0 / MANUAL
+
+가능해야 함.
+
+plan feature/member limit과
+payment transaction을 분리.
+
+============================================================
+10. RevenueCat sync 보호
+============================================================
+
+매우 중요.
+
+현재 RevenueCat webhook 또는
+subscription refresh가:
+
+X mode
+plan
+member_limit
+
+를 overwrite하는지 확인.
+
+Manual grant 상태에서:
+
+RevenueCat entitlement 없음
+→ manual X OFF
+
+가 발생하면 FAIL.
+
+최종:
+
+MANUAL source이면
+paid entitlement refresh가
+manual grant를 제거하지 않음.
+
+manual grant 회수는
+SUPER ADMIN만 수행.
+
+============================================================
+11. X MODE UI visibility
+============================================================
+
+manual grant 직후:
+
+관리자 APP 재진입/refresh 후
+
+- X Mode Hub
+- AI 학생리포트
+- AI 일지피드
+- AI 커리큘럼
+- SWIMNOTE X 운영현황
+- PC 대시보드 활성화
+
+등 현재 X 권한 화면이
+정상 노출되어야 함.
+
+앱 재설치나 결제 필요:
+NO
+
+============================================================
+12. 서버 권한 source
+============================================================
+
+중요:
+
+APP UI만 X모드를 ON으로 보이게 하는 방식 금지.
+
+SERVER requireXMode / equivalent도
+manual grant를 인정해야 함.
+
+즉:
+
+client:
+X access
+
+server:
+403
+
+상태가 되면 FAIL.
+
+manual grant 후 X route:
+AUTHORIZED
+
+============================================================
+13. SUPER ADMIN 권한
+============================================================
+
+manual grant / plan override endpoint는
+
+SUPER ADMIN ONLY.
+
+pool admin:
+금지
+
+teacher:
+금지
+
+parent:
+금지
+
+일반 admin이 request body를 조작해도:
+403
+
+============================================================
+14. AUDIT LOG
+============================================================
+
+기존 audit_logs가 있으면 재사용.
+
+기록:
+
+- super admin
+- target pool
+- 이전 X 상태
+- 새 X 상태
+- 이전 plan
+- 새 plan
+- action
+- timestamp
+
+새 audit table 만들지 말 것.
+
+============================================================
+15. 토이키즈 복구
+============================================================
+
+이번 개발 검증 단계에서는
+Production 토이키즈 row를 직접 수정하지 말 것.
+
+기능이 이미 존재한다면:
+
+사용자가 지금 Super Admin에서
+어디를 눌러 복구하면 되는지
+정확한 메뉴를 보고.
+
+기능이 없다면:
+
+DEV에서 구현/테스트 완료 후
+사용자가 Production에서
+Super Admin UI를 통해 직접 부여하게 할 것.
+
+DB 수동 UPDATE를
+정상 운영 방법으로 만들지 말 것.
+
+============================================================
+16. 테스트
+============================================================
+
+DEV에서 최소:
+
+A.
+No paid entitlement
++ no manual grant
+→ X OFF
+
+B.
+Paid entitlement valid
+→ X ON
+
+C.
+No paid entitlement
++ manual grant
+→ X ON
+
+D.
+Manual X300
+→ X300 limits/features
+
+E.
+Manual X500
+→ X500 limits/features
+
+F.
+Manual X1000
+→ X1000 limits/features
+
+G.
+manual grant 후 RevenueCat sync "no entitlement"
+→ X remains ON
+
+H.
+manual revoke
+→ paid entitlement 없으면 X OFF
+
+I.
+manual revoke
++ paid entitlement valid
+→ X remains ON via PAID
+
+J.
+pool admin attempts manual grant
+→ 403
+
+K.
+cross-pool manual grant
+→ blocked
+
+L.
+audit log:
+PASS
+
+============================================================
+17. APP / OTA
+============================================================
+
+CASE A:
+현재 Super Admin에 이미 기능이 있고
+코드 변경 없음
+
+→ APP OTA 없음
+
+CASE B:
+Super Admin UI를 수정/추가
+
+→ test
+→ commit
+→ iOS OTA immediately
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+SHA Match 필수.
+
+============================================================
+18. SERVER
+============================================================
+
+필요한 경우 최신 V2 server 수정:
+
+test
+→ commit
+→ push
+
+Render production:
+NO
+
+사용자 수동 배포.
+
+============================================================
+19. DB
+============================================================
+
+현재 schema에 필요한 manual grant 구조가
+이미 있으면 migration:
+NO
+
+없다면 필요한 최소 migration을
+DEVELOPMENT DB에서만 적용.
+
+Production DB:
+NO
+
+운영 적용은 사용자 별도 승인 후.
+
+============================================================
+완료보고
+============================================================
+
+# SUPER ADMIN X MANUAL GRANT REPORT
+
+Current Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+============================================================
+CURRENT X SOURCE
+============================================================
+
+APP X check:
+...
+
+SERVER X check:
+...
+
+DB source:
+...
+
+RevenueCat source:
+...
+
+Why Toykids X was lost:
+...
+
+============================================================
+TOYKIDS CURRENT
+============================================================
+
+X Mode:
+...
+
+Plan:
+...
+
+Member limit:
+...
+
+Access source:
+...
+
+Subscription:
+...
+
+============================================================
+CURRENT SUPER ADMIN
+============================================================
+
+Manual X grant exists:
+YES / NO
+
+Manual X revoke exists:
+YES / NO
+
+Manual plan change exists:
+YES / NO
+
+Manual member limit exists:
+YES / NO
+
+UI path:
+...
+
+API:
+...
+
+============================================================
+FINAL MANUAL MODEL
+============================================================
+
+Paid entitlement:
+...
+
+Manual entitlement:
+...
+
+Effective X condition:
+...
+
+RevenueCat cannot overwrite manual:
+PASS / FAIL
+
+============================================================
+PLAN
+============================================================
+
+Current plan keys:
+...
+
+Current prices:
+...
+
+Current limits:
+...
+
+Plan source:
+...
+
+Price changed this task:
+NO
+
+============================================================
+TESTS
+============================================================
+
+No entitlement:
+PASS / FAIL
+
+Paid:
+PASS / FAIL
+
+Manual:
+PASS / FAIL
+
+Manual survives RevenueCat sync:
+PASS / FAIL
+
+Manual revoke:
+PASS / FAIL
+
+Super-admin only:
+PASS / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+Audit:
+PASS / FAIL
+
+============================================================
+APP
+============================================================
+
+APP modified:
+YES / NO
+
+If YES:
+
+iOS OTA Group:
+...
+
+Update ID:
+...
+
+Commit SHA:
+...
+
+Export SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+============================================================
+SERVER
+============================================================
+
+Modified:
+YES / NO
+
+Tests:
+PASS / FAIL
+
+Pushed:
+YES / NO
+
+Render:
+NO
+
+============================================================
+DB
+============================================================
+
+Migration required:
+YES / NO
+
+Development applied:
+YES / NO
+
+Production applied:
+NO
+
+============================================================
+USER ACTION
+============================================================
+
+If feature already exists:
+
+Super Admin exact path:
+...
+
+Toykids restore steps:
+...
+
+If feature was implemented:
+
+Production deployment required:
+...
+
+Production migration required:
+...
+
+After deploy exact path:
+...
+
+============================================================
+FINAL
+============================================================
+
+Super Admin can grant X without payment:
+YES / NO
+
+Super Admin can change X plan without payment:
+YES / NO
+
+Manual X survives billing sync:
+YES / NO
+
+Toykids can be restored without purchase:
+YES / NO
