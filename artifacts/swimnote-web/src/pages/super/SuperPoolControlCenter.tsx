@@ -37,13 +37,14 @@ interface Summary {
   } | null;
 }
 
-// X Plan display constants — values MUST match server-side xPlanCatalog.ts
-// Server enforces member_limit; these are display-only. Do NOT change without updating xPlanCatalog.ts.
-const X_PLANS = [
-  { key: "x300",  label: "X300",  memberLimit: 300,  priceLabel: "₩129,000/월" },
-  { key: "x500",  label: "X500",  memberLimit: 500,  priceLabel: "₩199,000/월" },
-  { key: "x1000", label: "X1000", memberLimit: 1000, priceLabel: "₩359,000/월" },
+// X Plan display constants — fetched from /super/plan-catalog at runtime.
+// Fallback used only if API call fails before catalog is loaded.
+const X_PLANS_FALLBACK = [
+  { key: "x300",  label: "SWIMNOTE X300",  memberLimit: 300,  priceLabel: "₩129,000/월" },
+  { key: "x500",  label: "SWIMNOTE X500",  memberLimit: 500,  priceLabel: "₩199,000/월" },
+  { key: "x1000", label: "SWIMNOTE X1000", memberLimit: 1000, priceLabel: "₩359,000/월" },
 ];
+type XPlanDef = { key: string; label: string; memberLimit: number; priceMonthlyKrw?: number; priceLabel: string };
 
 // ─────────────────── Sub-components ────────────────────
 function Badge({ color, text }: { color: string; text: string }) {
@@ -121,18 +122,60 @@ function Msg({ ok, text, onClose }: { ok: boolean; text: string; onClose: () => 
   );
 }
 
-// ─────────────────── Modal ────────────────────
-function GrantXModal({ current_plan, onGrant, onClose, loading }: {
-  current_plan: string | null; onGrant: (plan: string) => void; onClose: () => void; loading: boolean;
+// ─────────────────── Modals ────────────────────
+
+/** 이유 입력 포함 위험 액션 확인 모달 */
+function ConfirmDangerModal({
+  title, description, confirmLabel, onConfirm, onClose, loading, requireReason = true,
+}: {
+  title: string; description: string; confirmLabel: string;
+  onConfirm: (reason: string) => void; onClose: () => void; loading: boolean; requireReason?: boolean;
 }) {
-  const [plan, setPlan] = useState(current_plan ?? "x300");
+  const [reason, setReason] = useState("");
+  const canConfirm = !requireReason || reason.trim().length > 0;
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-[340px]" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-[15px] font-bold mb-1">X모드 직접 부여</h3>
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-[360px]" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-[15px] font-bold mb-1 text-red-700">{title}</h3>
+        <p className="text-[12px] text-[#666] mb-4 whitespace-pre-wrap">{description}</p>
+        {requireReason && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-semibold text-[#555] mb-1">사유 (필수)</label>
+            <textarea
+              value={reason} onChange={(e) => setReason(e.target.value)} rows={2}
+              placeholder="변경 사유를 입력하세요 (감사 기록됩니다)"
+              className="w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px] outline-none focus:border-red-400 resize-none"
+            />
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={() => onConfirm(reason.trim())} disabled={loading || !canConfirm}
+            className="flex-1 py-2 text-[13px] font-semibold rounded-lg bg-red-600 text-white disabled:opacity-40"
+          >
+            {loading ? "처리 중..." : confirmLabel}
+          </button>
+          <button onClick={onClose} disabled={loading} className="px-4 py-2 text-[13px] rounded-lg border border-[#e5e7eb] text-[#555]">취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** X 플랜 부여/변경 모달 (서버 catalog 기반) */
+function GrantXModal({ current_plan, plans, onGrant, onClose, loading }: {
+  current_plan: string | null; plans: XPlanDef[];
+  onGrant: (plan: string, reason: string) => void; onClose: () => void; loading: boolean;
+}) {
+  const [plan, setPlan] = useState(current_plan ?? "x300");
+  const [reason, setReason] = useState("");
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-[360px]" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-[15px] font-bold mb-1">X모드 직접 부여 / 플랜 변경</h3>
         <p className="text-[12px] text-[#888] mb-4">결제 없이 즉시 적용. 슈퍼관리자 전용.</p>
         <div className="space-y-2 mb-4">
-          {X_PLANS.map((p) => (
+          {plans.map((p) => (
             <label key={p.key} className={`flex items-center justify-between px-3 py-2.5 rounded-lg border cursor-pointer ${plan === p.key ? "border-[#002F5F] bg-[#f0f4ff]" : "border-[#e5e7eb]"}`}>
               <div className="flex items-center gap-2">
                 <input type="radio" name="gp" value={p.key} checked={plan === p.key} onChange={() => setPlan(p.key)} className="accent-[#002F5F]" />
@@ -143,10 +186,77 @@ function GrantXModal({ current_plan, onGrant, onClose, loading }: {
             </label>
           ))}
         </div>
+        <div className="mb-4">
+          <label className="block text-[11px] font-semibold text-[#555] mb-1">사유 (필수)</label>
+          <textarea
+            value={reason} onChange={(e) => setReason(e.target.value)} rows={2}
+            placeholder="직접 부여 사유 (감사 기록됩니다)"
+            className="w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px] outline-none focus:border-[#002F5F] resize-none"
+          />
+        </div>
         <p className="text-[11px] text-amber-600 mb-4">⚠ 청구 없음. 슈퍼관리자 직접부여로 감사 기록됩니다.</p>
         <div className="flex gap-2">
-          <button onClick={() => onGrant(plan)} disabled={loading} className="flex-1 py-2 text-[13px] font-semibold rounded-lg bg-[#002F5F] text-white disabled:opacity-50">
+          <button
+            onClick={() => onGrant(plan, reason.trim())} disabled={loading || !reason.trim()}
+            className="flex-1 py-2 text-[13px] font-semibold rounded-lg bg-[#002F5F] text-white disabled:opacity-50"
+          >
             {loading ? "처리 중..." : "확인 — 즉시 적용"}
+          </button>
+          <button onClick={onClose} disabled={loading} className="px-4 py-2 text-[13px] rounded-lg border border-[#e5e7eb] text-[#555]">취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 회원 한도 Override 모달 */
+function MemberLimitModal({
+  currentLimit, planLimit, onSet, onClose, loading,
+}: {
+  currentLimit: number | null; planLimit: number | null;
+  onSet: (limit: number | null, reason: string) => void; onClose: () => void; loading: boolean;
+}) {
+  const [mode, setMode] = useState<"override" | "clear">(currentLimit !== null ? "override" : "override");
+  const [value, setValue] = useState(String(currentLimit ?? planLimit ?? ""));
+  const [reason, setReason] = useState("");
+  const numVal = Number(value);
+  const canSubmit = reason.trim().length > 0 && (mode === "clear" || (Number.isInteger(numVal) && numVal >= 1 && numVal <= 9998));
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-[360px]" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-[15px] font-bold mb-1">회원 한도 Override</h3>
+        <p className="text-[12px] text-[#888] mb-3">플랜 기본 한도: {planLimit?.toLocaleString() ?? "—"}명</p>
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setMode("override")} className={`flex-1 py-1.5 text-[12px] rounded-lg border ${mode === "override" ? "border-[#002F5F] bg-[#f0f4ff] font-semibold" : "border-[#e5e7eb] text-[#888]"}`}>한도 설정</button>
+          <button onClick={() => setMode("clear")} className={`flex-1 py-1.5 text-[12px] rounded-lg border ${mode === "clear" ? "border-orange-400 bg-orange-50 font-semibold text-orange-700" : "border-[#e5e7eb] text-[#888]"}`}>Override 해제</button>
+        </div>
+        {mode === "override" && (
+          <div className="mb-4">
+            <label className="block text-[11px] font-semibold text-[#555] mb-1">신규 한도 (1~9998)</label>
+            <input
+              type="number" value={value} onChange={(e) => setValue(e.target.value)} min={1} max={9998}
+              className="w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[13px] outline-none focus:border-[#002F5F]"
+            />
+          </div>
+        )}
+        {mode === "clear" && (
+          <p className="text-[12px] text-orange-600 mb-4">Override 해제 시 플랜 기본 한도({planLimit?.toLocaleString() ?? "—"}명)로 복원됩니다.</p>
+        )}
+        <div className="mb-4">
+          <label className="block text-[11px] font-semibold text-[#555] mb-1">사유 (필수)</label>
+          <textarea
+            value={reason} onChange={(e) => setReason(e.target.value)} rows={2}
+            placeholder="변경 사유 (감사 기록됩니다)"
+            className="w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px] outline-none focus:border-[#002F5F] resize-none"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onSet(mode === "override" ? numVal : null, reason.trim())}
+            disabled={loading || !canSubmit}
+            className="flex-1 py-2 text-[13px] font-semibold rounded-lg bg-[#002F5F] text-white disabled:opacity-40"
+          >
+            {loading ? "처리 중..." : "적용"}
           </button>
           <button onClick={onClose} disabled={loading} className="px-4 py-2 text-[13px] rounded-lg border border-[#e5e7eb] text-[#555]">취소</button>
         </div>
@@ -323,99 +433,307 @@ function OverviewTab({ s, onNavigate }: { s: Summary; onNavigate: (tab: TabKey) 
 
 function AccessTab({ s, poolId, onRefresh }: { s: Summary; poolId: string; onRefresh: () => void }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [plans, setPlans] = useState<XPlanDef[]>(X_PLANS_FALLBACK);
+
+  // Modal states
   const [grantXModal, setGrantXModal] = useState(false);
+  const [baseGrantModal, setBaseGrantModal] = useState(false);
+  const [baseRevokeModal, setBaseRevokeModal] = useState(false);
+  const [xRevokeModal, setXRevokeModal] = useState(false);
+  const [forceDisableModal, setForceDisableModal] = useState(false);
+  const [forceRestoreModal, setForceRestoreModal] = useState(false);
+  const [limitModal, setLimitModal] = useState(false);
+
+  // Loading states per action
   const [loadingBase, setLoadingBase] = useState(false);
   const [loadingX, setLoadingX] = useState(false);
-  const [loadingRevoke, setLoadingRevoke] = useState(false);
+  const [loadingForce, setLoadingForce] = useState(false);
+  const [loadingLimit, setLoadingLimit] = useState(false);
 
-  const grantBase = useCallback(async () => {
-    if (!window.confirm("BASE SWIMNOTE를 직접 부여합니다. 결제 없음.")) return;
+  // Fetch plan catalog from server (authoritative)
+  useEffect(() => {
+    api.get<{ plans: XPlanDef[] }>("/super/plan-catalog")
+      .then((r) => { if (r?.plans?.length) setPlans(r.plans); })
+      .catch(() => {}); // fallback to X_PLANS_FALLBACK
+  }, []);
+
+  const showMsg = (ok: boolean, text: string) => setMsg({ ok, text });
+
+  // ── BASE actions ──────────────────────────────────────────────
+  const grantBase = useCallback(async (reason: string) => {
     setLoadingBase(true); setMsg(null);
     try {
-      await api.patch(`/super/operators/${poolId}/base`, { base_manual_entitlement: true, reason: "Super Admin BASE grant" });
-      setMsg({ ok: true, text: "BASE SWIMNOTE 직접 부여 완료" }); onRefresh();
-    } catch (e: any) { setMsg({ ok: false, text: e?.data?.error || "부여 실패" }); }
+      await api.patch(`/super/operators/${poolId}/base`, { base_manual_entitlement: true, reason });
+      setBaseGrantModal(false); showMsg(true, "BASE SWIMNOTE 직접 부여 완료"); onRefresh();
+    } catch (e: any) { showMsg(false, e?.data?.error || "부여 실패"); }
     setLoadingBase(false);
   }, [poolId, onRefresh]);
 
-  const revokeBase = useCallback(async () => {
-    if (!window.confirm("BASE SWIMNOTE manual 권한을 회수합니다.")) return;
+  const revokeBase = useCallback(async (reason: string) => {
     setLoadingBase(true); setMsg(null);
     try {
-      await api.patch(`/super/operators/${poolId}/base`, { base_manual_entitlement: false, reason: "Super Admin BASE revoke" });
-      setMsg({ ok: true, text: "BASE SWIMNOTE 권한 회수 완료" }); onRefresh();
-    } catch (e: any) { setMsg({ ok: false, text: e?.data?.error || "회수 실패" }); }
+      await api.patch(`/super/operators/${poolId}/base`, { base_manual_entitlement: false, reason });
+      setBaseRevokeModal(false); showMsg(true, "BASE SWIMNOTE 권한 회수 완료"); onRefresh();
+    } catch (e: any) { showMsg(false, e?.data?.error || "회수 실패"); }
     setLoadingBase(false);
   }, [poolId, onRefresh]);
 
-  const grantX = useCallback(async (plan: string) => {
+  // ── X actions ─────────────────────────────────────────────────
+  const grantX = useCallback(async (plan: string, reason: string) => {
     setLoadingX(true); setMsg(null);
     try {
-      await api.patch(`/super/operators/${poolId}/xmode`, { xmode_entitlement: true, xmode_config_status: "READY", x_plan_key: plan, bypass_readiness_check: true, reason: `Super Admin X grant — ${plan}` });
-      setGrantXModal(false); setMsg({ ok: true, text: `X모드 직접 부여 완료 (${plan.toUpperCase()})` }); onRefresh();
-    } catch (e: any) { setMsg({ ok: false, text: e?.data?.error || "X 부여 실패" }); }
+      await api.patch(`/super/operators/${poolId}/xmode`, {
+        xmode_entitlement: true, xmode_config_status: "READY",
+        x_plan_key: plan, bypass_readiness_check: true,
+        reason: reason || `Super Admin X grant — ${plan}`,
+      });
+      setGrantXModal(false); showMsg(true, `X모드 직접 부여 완료 (${plan.toUpperCase()})`); onRefresh();
+    } catch (e: any) { showMsg(false, e?.data?.error || "X 부여 실패"); }
     setLoadingX(false);
   }, [poolId, onRefresh]);
 
-  const revokeX = useCallback(async () => {
-    if (!window.confirm("X모드 manual 권한을 회수합니다.")) return;
-    setLoadingRevoke(true); setMsg(null);
+  const revokeX = useCallback(async (reason: string) => {
+    setLoadingX(true); setMsg(null);
     try {
-      await api.patch(`/super/operators/${poolId}/xmode`, { xmode_entitlement: false, x_plan_key: null, reason: "Super Admin X revoke" });
-      setMsg({ ok: true, text: "X모드 회수 완료" }); onRefresh();
-    } catch (e: any) { setMsg({ ok: false, text: e?.data?.error || "회수 실패" }); }
-    setLoadingRevoke(false);
+      await api.patch(`/super/operators/${poolId}/xmode`, { xmode_entitlement: false, x_plan_key: null, reason });
+      setXRevokeModal(false); showMsg(true, "X모드 회수 완료"); onRefresh();
+    } catch (e: any) { showMsg(false, e?.data?.error || "회수 실패"); }
+    setLoadingX(false);
   }, [poolId, onRefresh]);
+
+  // ── Force Disable / Restore ───────────────────────────────────
+  const forceDisable = useCallback(async (reason: string) => {
+    setLoadingForce(true); setMsg(null);
+    try {
+      await api.patch(`/super/operators/${poolId}/force-disable`, { disabled: true, reason });
+      setForceDisableModal(false); showMsg(true, "X모드 강제 비활성화 완료"); onRefresh();
+    } catch (e: any) { showMsg(false, e?.data?.error || "강제 비활성화 실패"); }
+    setLoadingForce(false);
+  }, [poolId, onRefresh]);
+
+  const forceRestore = useCallback(async (reason: string) => {
+    setLoadingForce(true); setMsg(null);
+    try {
+      await api.patch(`/super/operators/${poolId}/force-disable`, { disabled: false, reason });
+      setForceRestoreModal(false); showMsg(true, "X모드 강제 비활성화 해제 완료"); onRefresh();
+    } catch (e: any) { showMsg(false, e?.data?.error || "해제 실패"); }
+    setLoadingForce(false);
+  }, [poolId, onRefresh]);
+
+  // ── Member Limit Override ─────────────────────────────────────
+  const setMemberLimit = useCallback(async (limit: number | null, reason: string) => {
+    setLoadingLimit(true); setMsg(null);
+    try {
+      await api.patch(`/super/operators/${poolId}/member-limit`, { member_limit: limit, reason });
+      setLimitModal(false); showMsg(true, limit === null ? "회원 한도 Override 해제 완료" : `회원 한도 ${limit}명으로 설정 완료`); onRefresh();
+    } catch (e: any) { showMsg(false, e?.data?.error || "설정 실패"); }
+    setLoadingLimit(false);
+  }, [poolId, onRefresh]);
+
+  // ── Plan catalog helpers ──────────────────────────────────────
+  const effectivePlan = s.x_plan_key ?? s.subscription_tier ?? null;
+  const planDef = plans.find((p) => p.key === effectivePlan);
+  const planMemberLimit = planDef?.memberLimit ?? null;
+
+  // ── Feature control data ──────────────────────────────────────
+  const features = [
+    { label: "X 모드 Setup", value: s.xmode_config_status, control: "READ_ONLY" },
+    { label: "AI 일지", value: s.x_effective ? "활성 (X 모드 기반)" : "비활성", control: "READ_ONLY" },
+    { label: "성장리포트", value: s.x_effective ? "활성" : "비활성", control: "READ_ONLY" },
+    { label: "스토리지 업로드", value: s.upload_blocked ? "차단됨 ⛔" : "정상", control: "READ_ONLY" },
+  ] as const;
+
+  const anyLoading = loadingBase || loadingX || loadingForce || loadingLimit;
 
   return (
     <div className="space-y-4">
       {msg && <Msg ok={msg.ok} text={msg.text} onClose={() => setMsg(null)} />}
 
-      {/* BASE SWIMNOTE */}
+      {/* ── 1. BASE SWIMNOTE ───────────────────────────────────── */}
       <Section title="BASE SWIMNOTE 이용권">
-        <Row label="현재 상태" value={s.base_effective ? "활성" : "비활성"} valueClass={s.base_effective ? "text-green-700 font-bold" : "text-[#bbb]"} />
-        <Row label="권한 출처" value={s.base_manual ? "슈퍼관리자 직접부여" : s.base_paid ? "결제" : "없음"} valueClass={s.base_manual ? "text-purple-700" : s.base_paid ? "text-green-700" : "text-[#bbb]"} />
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="bg-[#f9fafb] rounded-lg p-2 text-center">
+            <div className={`text-[11px] font-bold ${s.base_paid ? "text-green-700" : "text-[#ccc]"}`}>{s.base_paid ? "ON" : "OFF"}</div>
+            <div className="text-[10px] text-[#999] mt-0.5">Paid</div>
+          </div>
+          <div className="bg-[#f9fafb] rounded-lg p-2 text-center">
+            <div className={`text-[11px] font-bold ${s.base_manual ? "text-purple-700" : "text-[#ccc]"}`}>{s.base_manual ? "ON" : "OFF"}</div>
+            <div className="text-[10px] text-[#999] mt-0.5">Manual</div>
+          </div>
+          <div className="bg-[#f9fafb] rounded-lg p-2 text-center">
+            <div className={`text-[12px] font-bold ${s.base_effective ? "text-green-700" : "text-red-500"}`}>{s.base_effective ? "ON" : "OFF"}</div>
+            <div className="text-[10px] text-[#999] mt-0.5">Effective</div>
+          </div>
+        </div>
         <Row label="구독 상태" value={s.subscription_status} />
-        <Row label="구독 플랜" value={s.subscription_tier} />
-        <Row label="Paid 이용권" value={s.base_paid} valueClass={s.base_paid ? "text-green-700" : "text-[#bbb]"} />
-        <Row label="Manual 이용권" value={s.base_manual} valueClass={s.base_manual ? "text-purple-700 font-bold" : "text-[#bbb]"} />
+        <Row label="구독 플랜 (Billing)" value={s.subscription_tier ?? "—"} />
+        <Row label="권한 출처" value={s.base_manual ? "슈퍼관리자 직접부여" : s.base_paid ? "결제" : "없음"}
+          valueClass={s.base_manual ? "text-purple-700 font-bold" : s.base_paid ? "text-green-700" : "text-[#bbb]"} />
         <div className="mt-3 flex gap-2">
-          {!s.base_manual ? (
-            <button onClick={grantBase} disabled={loadingBase} className="px-3 py-1.5 text-[12px] font-semibold rounded bg-[#002F5F] text-white disabled:opacity-50">
-              {loadingBase ? "처리 중..." : "BASE 직접 부여"}
-            </button>
-          ) : (
-            <button onClick={revokeBase} disabled={loadingBase} className="px-3 py-1.5 text-[12px] font-semibold rounded border border-red-300 text-red-600 disabled:opacity-50">
-              {loadingBase ? "처리 중..." : "BASE 권한 회수"}
-            </button>
-          )}
+          <button onClick={() => setBaseGrantModal(true)} disabled={anyLoading || s.base_manual}
+            className="px-3 py-1.5 text-[12px] font-semibold rounded bg-[#002F5F] text-white disabled:opacity-40">
+            BASE 직접 부여
+          </button>
+          <button onClick={() => setBaseRevokeModal(true)} disabled={anyLoading || !s.base_manual}
+            className="px-3 py-1.5 text-[12px] font-semibold rounded border border-red-300 text-red-600 disabled:opacity-40">
+            BASE 권한 회수
+          </button>
         </div>
       </Section>
 
-      {/* X MODE */}
+      {/* ── 2. SWIMNOTE X ─────────────────────────────────────── */}
       <Section title="SWIMNOTE X 이용권">
-        <Row label="현재 X 상태" value={s.x_effective ? "활성" : "비활성"} valueClass={s.x_effective ? "text-green-700 font-bold" : "text-[#bbb]"} />
-        <Row label="권한 출처" value={s.x_manual ? "슈퍼관리자 직접부여" : s.x_paid ? "결제" : "없음"} valueClass={s.x_manual ? "text-purple-700" : s.x_paid ? "text-green-700" : "text-[#bbb]"} />
-        <Row label="현재 X 플랜" value={s.x_plan_key?.toUpperCase() ?? "—"} />
-        <Row label="회원 한도" value={s.member_limit} />
+        {s.x_force_disabled && (
+          <div className="mb-3 px-3 py-2 bg-red-50 rounded-lg border border-red-200 text-[11px] text-red-700 font-semibold">
+            ⛔ FORCE DISABLED — paid/manual entitlement 무관하게 X 모드 OFF
+          </div>
+        )}
+        <div className="grid grid-cols-4 gap-1.5 mb-3">
+          <div className="bg-[#f9fafb] rounded-lg p-2 text-center">
+            <div className={`text-[11px] font-bold ${s.x_paid ? "text-green-700" : "text-[#ccc]"}`}>{s.x_paid ? "ON" : "OFF"}</div>
+            <div className="text-[10px] text-[#999] mt-0.5">Paid</div>
+          </div>
+          <div className="bg-[#f9fafb] rounded-lg p-2 text-center">
+            <div className={`text-[11px] font-bold ${s.x_manual ? "text-purple-700" : "text-[#ccc]"}`}>{s.x_manual ? "ON" : "OFF"}</div>
+            <div className="text-[10px] text-[#999] mt-0.5">Manual</div>
+          </div>
+          <div className="bg-[#f9fafb] rounded-lg p-2 text-center">
+            <div className={`text-[11px] font-bold ${s.x_force_disabled ? "text-red-600" : "text-[#ccc]"}`}>{s.x_force_disabled ? "ON" : "OFF"}</div>
+            <div className="text-[10px] text-[#999] mt-0.5">Force Off</div>
+          </div>
+          <div className="bg-[#f9fafb] rounded-lg p-2 text-center">
+            <div className={`text-[12px] font-bold ${s.x_effective ? "text-green-700" : "text-red-500"}`}>{s.x_effective ? "ON" : "OFF"}</div>
+            <div className="text-[10px] text-[#999] mt-0.5">Effective</div>
+          </div>
+        </div>
+        <Row label="권한 출처" value={s.x_manual ? "슈퍼관리자 직접부여" : s.x_paid ? "결제" : "없음"}
+          valueClass={s.x_manual ? "text-purple-700 font-bold" : s.x_paid ? "text-green-700" : "text-[#bbb]"} />
         <Row label="Setup 상태" value={s.xmode_config_status} />
-        <Row label="X Paid 이용권" value={s.x_paid} valueClass={s.x_paid ? "text-green-700" : "text-[#bbb]"} />
-        <Row label="X Manual 이용권" value={s.x_manual} valueClass={s.x_manual ? "text-purple-700 font-bold" : "text-[#bbb]"} />
-        <Row label="Force Disabled" value={s.x_force_disabled} valueClass={s.x_force_disabled ? "text-red-600 font-bold" : "text-[#bbb]"} />
-        <div className="mt-3 flex gap-2">
-          <button onClick={() => setGrantXModal(true)} disabled={loadingX || loadingRevoke} className="px-3 py-1.5 text-[12px] font-semibold rounded bg-[#002F5F] text-white disabled:opacity-50">
-            {s.x_manual ? "X 플랜 변경" : "X모드 직접 부여"}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button onClick={() => setGrantXModal(true)} disabled={anyLoading}
+            className="px-3 py-1.5 text-[12px] font-semibold rounded bg-[#002F5F] text-white disabled:opacity-40">
+            {s.x_manual ? "플랜 변경" : "X모드 직접 부여"}
           </button>
           {s.x_manual && (
-            <button onClick={revokeX} disabled={loadingX || loadingRevoke} className="px-3 py-1.5 text-[12px] font-semibold rounded border border-red-300 text-red-600 disabled:opacity-50">
-              {loadingRevoke ? "처리 중..." : "X모드 회수"}
+            <button onClick={() => setXRevokeModal(true)} disabled={anyLoading}
+              className="px-3 py-1.5 text-[12px] font-semibold rounded border border-red-300 text-red-600 disabled:opacity-40">
+              X모드 회수
+            </button>
+          )}
+          {!s.x_force_disabled ? (
+            <button onClick={() => setForceDisableModal(true)} disabled={anyLoading}
+              className="px-3 py-1.5 text-[12px] font-semibold rounded border border-red-400 bg-red-50 text-red-700 disabled:opacity-40">
+              강제 비활성화
+            </button>
+          ) : (
+            <button onClick={() => setForceRestoreModal(true)} disabled={anyLoading}
+              className="px-3 py-1.5 text-[12px] font-semibold rounded border border-orange-400 bg-orange-50 text-orange-700 disabled:opacity-40">
+              강제 비활성화 해제
             </button>
           )}
         </div>
       </Section>
 
+      {/* ── 3. PLAN ───────────────────────────────────────────── */}
+      <Section title="플랜 (Plan)">
+        <Row label="Billing/Paid Plan" value={s.subscription_tier ?? "—"} />
+        <Row label="Manual Plan Override" value={s.x_plan_key ? s.x_plan_key.toUpperCase() : "없음 (Override 없음)"}
+          valueClass={s.x_plan_key ? "text-purple-700 font-bold" : "text-[#bbb]"} />
+        <Row label="Effective Plan" value={effectivePlan ? effectivePlan.toUpperCase() : "—"}
+          valueClass={effectivePlan ? "text-green-700 font-semibold" : "text-[#bbb]"} />
+        <Row label="Plan 기본 회원 한도" value={planMemberLimit ? `${planMemberLimit.toLocaleString()}명` : "—"} />
+        <div className="mt-3">
+          <button onClick={() => setGrantXModal(true)} disabled={anyLoading}
+            className="px-3 py-1.5 text-[12px] font-semibold rounded bg-[#002F5F] text-white disabled:opacity-40">
+            플랜 변경
+          </button>
+        </div>
+        <p className="text-[10px] text-[#bbb] mt-2">※ 플랜 변경 시 회원 한도도 catalog 기준으로 자동 갱신. 결제 없음.</p>
+      </Section>
+
+      {/* ── 4. MEMBER LIMIT ────────────────────────────────────── */}
+      <Section title="회원 한도">
+        <Row label="Plan 기본 한도" value={planMemberLimit ? `${planMemberLimit.toLocaleString()}명` : "—"} />
+        <Row label="현재 DB 값 (Effective)" value={s.member_limit ? `${Number(s.member_limit).toLocaleString()}명` : "—"}
+          valueClass={s.member_limit && s.member_limit !== planMemberLimit ? "text-purple-700 font-bold" : "text-[#111]"} />
+        {s.member_limit && s.member_limit !== planMemberLimit && (
+          <div className="text-[10px] text-purple-600 mt-1">🔵 Plan 기본값({planMemberLimit ?? "—"}명)과 다름 — Override 적용 중</div>
+        )}
+        <div className="mt-3 flex gap-2">
+          <button onClick={() => setLimitModal(true)} disabled={anyLoading}
+            className="px-3 py-1.5 text-[12px] font-semibold rounded bg-[#002F5F] text-white disabled:opacity-40">
+            한도 Override
+          </button>
+        </div>
+        <p className="text-[10px] text-[#bbb] mt-2">※ Override는 실제 회원등록 limit guard에 반영됩니다. UI 표시만 변경 아님.</p>
+      </Section>
+
+      {/* ── 5. FEATURE CONTROL ─────────────────────────────────── */}
+      <Section title="기능 상태 (Feature Control)">
+        <p className="text-[10px] text-[#aaa] mb-2">현재 WP: READ ONLY 표시. 제어 가능 기능은 추후 WP에서 연결됩니다.</p>
+        {features.map((f) => (
+          <div key={f.label} className="flex justify-between py-1.5 border-b border-[#f5f5f5] last:border-0">
+            <span className="text-[11px] text-[#888]">{f.label}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-[#111]">{f.value}</span>
+              <span className="text-[9px] px-1 py-0.5 rounded bg-[#f3f4f6] text-[#999]">READ ONLY</span>
+            </div>
+          </div>
+        ))}
+      </Section>
+
+      {/* ── Modals ─────────────────────────────────────────────── */}
+      {baseGrantModal && (
+        <ConfirmDangerModal
+          title="BASE SWIMNOTE 직접 부여"
+          description={`${s.name}에 BASE SWIMNOTE를 결제 없이 직접 부여합니다.\n감사 기록됩니다.`}
+          confirmLabel="부여 확인"
+          onConfirm={grantBase} onClose={() => setBaseGrantModal(false)} loading={loadingBase}
+        />
+      )}
+      {baseRevokeModal && (
+        <ConfirmDangerModal
+          title="BASE SWIMNOTE 권한 회수"
+          description={`${s.name}의 Manual BASE 이용권을 회수합니다.\nPaid 이용권이 유효하면 Effective BASE는 유지됩니다.`}
+          confirmLabel="회수 확인"
+          onConfirm={revokeBase} onClose={() => setBaseRevokeModal(false)} loading={loadingBase}
+        />
+      )}
+      {xRevokeModal && (
+        <ConfirmDangerModal
+          title="X모드 Manual 권한 회수"
+          description={`${s.name}의 Manual X 이용권을 회수합니다.\nPaid X가 유효하면 Effective X는 유지됩니다.`}
+          confirmLabel="회수 확인"
+          onConfirm={revokeX} onClose={() => setXRevokeModal(false)} loading={loadingX}
+        />
+      )}
+      {forceDisableModal && (
+        <ConfirmDangerModal
+          title="⛔ X모드 강제 비활성화"
+          description={`${s.name}의 X 모드를 강제 비활성화합니다.\nPaid/Manual 상태 무관하게 Effective X = OFF가 됩니다.\n실제 서비스에 즉시 영향을 미칩니다.`}
+          confirmLabel="강제 비활성화"
+          onConfirm={forceDisable} onClose={() => setForceDisableModal(false)} loading={loadingForce}
+        />
+      )}
+      {forceRestoreModal && (
+        <ConfirmDangerModal
+          title="X모드 강제 비활성화 해제"
+          description={`${s.name}의 강제 비활성화를 해제합니다.\nEntitlement(Paid/Manual) 기준으로 Effective X가 재계산됩니다.`}
+          confirmLabel="해제 확인"
+          onConfirm={forceRestore} onClose={() => setForceRestoreModal(false)} loading={loadingForce}
+        />
+      )}
       {grantXModal && (
-        <GrantXModal current_plan={s.x_plan_key} onGrant={grantX} onClose={() => setGrantXModal(false)} loading={loadingX} />
+        <GrantXModal
+          current_plan={s.x_plan_key} plans={plans}
+          onGrant={grantX} onClose={() => setGrantXModal(false)} loading={loadingX}
+        />
+      )}
+      {limitModal && (
+        <MemberLimitModal
+          currentLimit={s.member_limit} planLimit={planMemberLimit}
+          onSet={setMemberLimit} onClose={() => setLimitModal(false)} loading={loadingLimit}
+        />
       )}
     </div>
   );

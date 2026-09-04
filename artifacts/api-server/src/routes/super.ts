@@ -5277,6 +5277,180 @@ router.patch(
 );
 
 // ════════════════════════════════════════════════════════════════════════════
+// GET /super/plan-catalog — X Plan Catalog (server-authoritative, no DB)
+// ════════════════════════════════════════════════════════════════════════════
+router.get(
+  "/super/plan-catalog",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    const { X_PLAN_CATALOG } = await import("../lib/xPlanCatalog.js");
+    res.json({ plans: X_PLAN_CATALOG });
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/force-disable — X 강제 비활성화 / 해제
+// ════════════════════════════════════════════════════════════════════════════
+//
+// x_force_disabled = true  → paid/manual entitlement 무관하게 effective X OFF
+// x_force_disabled = false → entitlement 상태 기준으로 재계산
+// x_paid_entitlement / x_manual_entitlement 불변
+// 모든 변경 audit_logs 기록
+//
+router.patch(
+  "/super/operators/:id/force-disable",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { disabled, reason } = req.body as { disabled?: boolean; reason?: string };
+
+    if (typeof disabled !== "boolean") {
+      res.status(400).json({ error: "disabled (boolean) 필드 필요" });
+      return;
+    }
+    if (!reason?.trim()) {
+      res.status(400).json({ error: "reason 필수 (빈 문자열 불가)" });
+      return;
+    }
+
+    const actorId = req.user!.userId;
+    try {
+      await db.transaction(async (tx) => {
+        const beforeRes = await tx.execute(sql`
+          SELECT id,
+                 COALESCE(x_paid_entitlement,  false) AS x_paid,
+                 COALESCE(x_manual_entitlement, false) AS x_manual,
+                 COALESCE(x_force_disabled,     false) AS x_force
+          FROM swimming_pools WHERE id = ${poolId}
+          LIMIT 1 FOR UPDATE
+        `);
+        if (!beforeRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
+        const before = beforeRes.rows[0] as any;
+        const beforeForce = Boolean(before.x_force);
+        const xPaid = Boolean(before.x_paid);
+        const xManual = Boolean(before.x_manual);
+        const beforeEff = (xPaid || xManual) && !beforeForce;
+
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools SET x_force_disabled = ${disabled}
+          WHERE id = ${poolId}
+          RETURNING id, COALESCE(x_force_disabled, false) AS x_force_disabled
+        `);
+        const afterForce = Boolean((updatedRes.rows[0] as any).x_force_disabled);
+        const afterEff = (xPaid || xManual) && !afterForce;
+
+        const action = disabled ? "X_FORCE_DISABLE" : "X_FORCE_RESTORE";
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
+        `);
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_xmode', ${poolId}, ${(vRes.rows[0] as any).v},
+            ${action}, 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify({ x_force_disabled: beforeForce, x_effective: beforeEff })}::jsonb,
+            ${JSON.stringify({ x_force_disabled: afterForce, x_effective: afterEff })}::jsonb,
+            ${reason}
+          )
+        `);
+
+        res.json({
+          pool_id: poolId,
+          x_force_disabled: afterForce,
+          x_effective: afterEff,
+          action,
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/force-disable 오류:", e?.message);
+      res.status(500).json({ error: "FORCE_DISABLE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/member-limit — Member Limit Override
+// ════════════════════════════════════════════════════════════════════════════
+//
+// member_limit = N (1..9998) → pool-level override, plan catalog limit 무시
+// member_limit = null         → override 해제, plan catalog limit 사용
+// 클라이언트가 보낸 숫자 그대로 신뢰 금지 — 서버에서 범위 검증
+//
+router.patch(
+  "/super/operators/:id/member-limit",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { member_limit, reason } = req.body as {
+      member_limit?: number | null;
+      reason?: string;
+    };
+
+    // Validate
+    if (member_limit !== null && member_limit !== undefined) {
+      if (!Number.isInteger(member_limit) || member_limit < 1 || member_limit > 9998) {
+        res.status(400).json({ error: "member_limit은 1~9998 정수 또는 null(해제)이어야 함" });
+        return;
+      }
+    }
+    if (!reason?.trim()) {
+      res.status(400).json({ error: "reason 필수" });
+      return;
+    }
+
+    const actorId = req.user!.userId;
+    const newLimit = member_limit ?? null;
+
+    try {
+      await db.transaction(async (tx) => {
+        const beforeRes = await tx.execute(sql`
+          SELECT id, member_limit FROM swimming_pools WHERE id = ${poolId}
+          LIMIT 1 FOR UPDATE
+        `);
+        if (!beforeRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
+        const beforeLimit = (beforeRes.rows[0] as any).member_limit ?? null;
+
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools SET member_limit = ${newLimit}
+          WHERE id = ${poolId}
+          RETURNING id, member_limit
+        `);
+        const afterLimit = (updatedRes.rows[0] as any).member_limit ?? null;
+
+        const action = newLimit !== null ? "MEMBER_LIMIT_OVERRIDE" : "MEMBER_LIMIT_OVERRIDE_CLEAR";
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_member_limit', ${poolId}) AS v
+        `);
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_member_limit', ${poolId}, ${(vRes.rows[0] as any).v},
+            ${action}, 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify({ member_limit: beforeLimit })}::jsonb,
+            ${JSON.stringify({ member_limit: afterLimit })}::jsonb,
+            ${reason}
+          )
+        `);
+
+        res.json({ pool_id: poolId, member_limit: afterLimit, action });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/member-limit 오류:", e?.message);
+      res.status(500).json({ error: "MEMBER_LIMIT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
 // SUPER ADMIN POOL CONTROL CENTER — Summary + Lazy Tab Endpoints
 // ════════════════════════════════════════════════════════════════════════════
 

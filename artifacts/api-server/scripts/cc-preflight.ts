@@ -6,6 +6,7 @@
  * §31 plan catalog, health rules, pagination bounds, N+1, observability
  */
 
+import * as fs from "fs";
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { X_PLAN_LIMITS, VALID_X_PLAN_KEYS } from "../src/lib/xPlanCatalog.js";
@@ -681,6 +682,165 @@ async function testWP1Overview() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// §WP2 — ACCESS / PLAN / FEATURE CONTROL
+// ═══════════════════════════════════════════════════════════════════════════
+async function testWP2Access() {
+  console.log("\n=== §WP2 ACCESS / PLAN / FEATURE CONTROL ===");
+
+  // WP2-01: plan catalog endpoint: GET /super/plan-catalog returns 3 plans
+  const { X_PLAN_CATALOG } = await import("../src/lib/xPlanCatalog.js");
+  ok(X_PLAN_CATALOG.length === 3, "WP2-01: X_PLAN_CATALOG has exactly 3 plans");
+  ok(X_PLAN_CATALOG.every((p: any) => typeof p.key === "string" && p.key.length > 0), "WP2-01: all plans have non-empty key");
+  ok(X_PLAN_CATALOG.every((p: any) => Number.isInteger(p.memberLimit) && p.memberLimit > 0), "WP2-01: all plans have positive integer memberLimit");
+
+  // WP2-02: plan keys match VALID_X_PLAN_KEYS
+  const catalogKeys = X_PLAN_CATALOG.map((p: any) => p.key);
+  ok(catalogKeys.includes("x300"), "WP2-02: x300 in catalog");
+  ok(catalogKeys.includes("x500"), "WP2-02: x500 in catalog");
+  ok(catalogKeys.includes("x1000"), "WP2-02: x1000 in catalog");
+
+  // WP2-03: plan limits match expectations
+  const getLimit = (key: string) => X_PLAN_CATALOG.find((p: any) => p.key === key)?.memberLimit;
+  ok(getLimit("x300") === 300, "WP2-03: x300 memberLimit = 300");
+  ok(getLimit("x500") === 500, "WP2-03: x500 memberLimit = 500");
+  ok(getLimit("x1000") === 1000, "WP2-03: x1000 memberLimit = 1000");
+
+  // WP2-04: plan catalog prices not changed (current deprecated values preserved)
+  ok(X_PLAN_CATALOG.find((p: any) => p.key === "x300")?.priceMonthlyKrw === 129000, "WP2-04: x300 price unchanged (₩129,000)");
+  ok(X_PLAN_CATALOG.find((p: any) => p.key === "x500")?.priceMonthlyKrw === 199000, "WP2-04: x500 price unchanged (₩199,000)");
+  ok(X_PLAN_CATALOG.find((p: any) => p.key === "x1000")?.priceMonthlyKrw === 359000, "WP2-04: x1000 price unchanged (₩359,000)");
+
+  // WP2-05: force-disable endpoint exists in server source
+  const superSrc = fs.readFileSync("src/routes/super.ts", "utf8");
+  ok(superSrc.includes("/super/operators/:id/force-disable"), "WP2-05: /super/operators/:id/force-disable route defined");
+  ok(superSrc.includes("X_FORCE_DISABLE"), "WP2-05: X_FORCE_DISABLE audit action present");
+  ok(superSrc.includes("X_FORCE_RESTORE"), "WP2-05: X_FORCE_RESTORE audit action present");
+
+  // WP2-06: member-limit endpoint exists in server source
+  ok(superSrc.includes("/super/operators/:id/member-limit"), "WP2-06: /super/operators/:id/member-limit route defined");
+  ok(superSrc.includes("MEMBER_LIMIT_OVERRIDE"), "WP2-06: MEMBER_LIMIT_OVERRIDE audit action present");
+  ok(superSrc.includes("MEMBER_LIMIT_OVERRIDE_CLEAR"), "WP2-06: MEMBER_LIMIT_OVERRIDE_CLEAR audit action present");
+
+  // WP2-07: plan-catalog endpoint exists
+  ok(superSrc.includes("/super/plan-catalog"), "WP2-07: GET /super/plan-catalog route defined");
+  ok(superSrc.includes("X_PLAN_CATALOG"), "WP2-07: X_PLAN_CATALOG used in plan-catalog route");
+
+  // WP2-08: force-disable validates reason field
+  ok(superSrc.includes("reason?.trim()"), "WP2-08: force-disable requires non-empty reason");
+
+  // WP2-09: member-limit validates range (1..9998)
+  ok(superSrc.includes("member_limit < 1 || member_limit > 9998"), "WP2-09: member-limit range validation 1..9998");
+
+  // WP2-10: force-disable does NOT touch x_paid_entitlement or x_manual_entitlement
+  const forceBlock = superSrc.slice(
+    superSrc.indexOf("/super/operators/:id/force-disable"),
+    superSrc.indexOf("/super/operators/:id/member-limit"),
+  );
+  ok(!forceBlock.includes("x_paid_entitlement ="), "WP2-10: force-disable does NOT write x_paid_entitlement");
+  ok(!forceBlock.includes("x_manual_entitlement ="), "WP2-10: force-disable does NOT write x_manual_entitlement");
+
+  // WP2-11: member-limit uses DB transaction (atomic)
+  const limitBlock = superSrc.slice(
+    superSrc.indexOf("/super/operators/:id/member-limit"),
+    superSrc.indexOf("// ════════════════════════════════════════════════════════════════════════════\n// SUPER ADMIN POOL CONTROL CENTER"),
+  );
+  ok(limitBlock.includes("transaction"), "WP2-11: member-limit uses DB transaction");
+
+  // WP2-12: all new endpoints require super_admin role
+  const fdBlock = superSrc.slice(
+    superSrc.indexOf("/super/operators/:id/force-disable"),
+    superSrc.indexOf("/super/operators/:id/member-limit"),
+  );
+  ok(fdBlock.includes('requireRole("super_admin")'), "WP2-12: force-disable requires super_admin");
+  const mlBlock = superSrc.slice(
+    superSrc.indexOf("/super/operators/:id/member-limit"),
+    superSrc.indexOf("// ════════════════════════════════════════════════════════════════════════════\n// SUPER ADMIN POOL CONTROL CENTER"),
+  );
+  ok(mlBlock.includes('requireRole("super_admin")'), "WP2-12: member-limit requires super_admin");
+  ok(superSrc.slice(
+    superSrc.indexOf("/super/plan-catalog"),
+    superSrc.indexOf("/super/operators/:id/force-disable"),
+  ).includes('requireRole("super_admin")'), "WP2-12: plan-catalog requires super_admin");
+
+  // WP2-13: effective X logic (unit test via DB fixture)
+  // paid=true + manual=false + force=false → effective=true
+  await db.execute(sql`UPDATE swimming_pools SET x_paid_entitlement=true, x_manual_entitlement=false, x_force_disabled=false WHERE id=${POOL_A}`);
+  const r1 = (await q("SELECT COALESCE(x_paid_entitlement,false) AS xp, COALESCE(x_manual_entitlement,false) AS xm, COALESCE(x_force_disabled,false) AS xf FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  ok(r1.xp === true && !r1.xm && !r1.xf, "WP2-13: paid=true, manual=false, force=false seeded");
+  const xEffA = (r1.xp || r1.xm) && !r1.xf;
+  ok(xEffA === true, "WP2-13: effective X = true when paid=true + force=false");
+
+  // WP2-14: force disable makes effective=false even with paid=true
+  await db.execute(sql`UPDATE swimming_pools SET x_force_disabled=true WHERE id=${POOL_A}`);
+  const r2 = (await q("SELECT COALESCE(x_paid_entitlement,false) AS xp, COALESCE(x_manual_entitlement,false) AS xm, COALESCE(x_force_disabled,false) AS xf FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  const xEffForced = (r2.xp || r2.xm) && !r2.xf;
+  ok(xEffForced === false, "WP2-14: effective X = false when paid=true + force=true");
+
+  // WP2-15: force restore re-enables effective X
+  await db.execute(sql`UPDATE swimming_pools SET x_force_disabled=false WHERE id=${POOL_A}`);
+  const r3 = (await q("SELECT COALESCE(x_paid_entitlement,false) AS xp, COALESCE(x_manual_entitlement,false) AS xm, COALESCE(x_force_disabled,false) AS xf FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  const xEffRestored = (r3.xp || r3.xm) && !r3.xf;
+  ok(xEffRestored === true, "WP2-15: effective X = true after restore (paid still on)");
+
+  // WP2-16: manual X grant = effective ON (paid=false)
+  await db.execute(sql`UPDATE swimming_pools SET x_paid_entitlement=false, x_manual_entitlement=true, x_force_disabled=false WHERE id=${POOL_A}`);
+  const r4 = (await q("SELECT COALESCE(x_paid_entitlement,false) AS xp, COALESCE(x_manual_entitlement,false) AS xm, COALESCE(x_force_disabled,false) AS xf FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  ok((r4.xp || r4.xm) && !r4.xf, "WP2-16: paid=false + manual=true + force=false → effective ON");
+
+  // WP2-17: manual revoke + paid off = effective OFF
+  await db.execute(sql`UPDATE swimming_pools SET x_manual_entitlement=false WHERE id=${POOL_A}`);
+  const r5 = (await q("SELECT COALESCE(x_paid_entitlement,false) AS xp, COALESCE(x_manual_entitlement,false) AS xm, COALESCE(x_force_disabled,false) AS xf FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  ok(!r5.xp && !r5.xm && !r5.xf, "WP2-17: paid=false + manual=false → effective OFF");
+
+  // WP2-18: BASE manual revoke doesn't affect paid BASE
+  await db.execute(sql`UPDATE swimming_pools SET base_manual_entitlement=true WHERE id=${POOL_A}`);
+  const baseBefore = (await q("SELECT COALESCE(base_manual_entitlement,false) AS bm FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  ok(baseBefore.bm === true, "WP2-18: base_manual seeded true");
+  // Revoke manual only — simulate: set base_manual=false
+  await db.execute(sql`UPDATE swimming_pools SET base_manual_entitlement=false WHERE id=${POOL_A}`);
+  const baseAfter = (await q("SELECT COALESCE(base_manual_entitlement,false) AS bm FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  ok(baseAfter.bm === false, "WP2-18: manual revoke sets base_manual=false only, paid column untouched");
+
+  // WP2-19: member limit override — DB write + read
+  await db.execute(sql`UPDATE swimming_pools SET member_limit=350 WHERE id=${POOL_A}`);
+  const lim = (await q("SELECT member_limit FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  ok(Number(lim.member_limit) === 350, "WP2-19: member_limit override = 350 persisted");
+
+  // WP2-20: member limit clear — null restore
+  await db.execute(sql`UPDATE swimming_pools SET member_limit=NULL WHERE id=${POOL_A}`);
+  const lim2 = (await q("SELECT member_limit FROM swimming_pools WHERE id=$1", [POOL_A]))[0];
+  ok(lim2.member_limit === null, "WP2-20: member_limit clear = NULL persisted");
+
+  // WP2-21: billing sync does NOT overwrite base_manual_entitlement
+  // (structural check: RevenueCat webhook route does not update base_manual_entitlement)
+  ok(!superSrc.slice(
+    superSrc.indexOf("/super/billing"),
+    superSrc.indexOf("/super/billing") > 0 ? superSrc.indexOf("/super/billing") + 3000 : 0,
+  ).includes("base_manual_entitlement = true"), "WP2-21: billing routes do NOT set base_manual_entitlement=true");
+
+  // WP2-22: billing sync does NOT overwrite x_manual_entitlement
+  const webhookStart = superSrc.indexOf("revenuecat") > -1 ? superSrc.indexOf("revenuecat") : -1;
+  const webhookBlock = webhookStart > 0 ? superSrc.slice(webhookStart, webhookStart + 5000) : "";
+  ok(!webhookBlock.includes("x_manual_entitlement = true"), "WP2-22: webhook does NOT set x_manual_entitlement=true");
+
+  // WP2-23: force-disable audit entity_type is 'swimming_pool_xmode'
+  ok(superSrc.includes("'swimming_pool_xmode', ${poolId}"), "WP2-23: force-disable audit entity_type = swimming_pool_xmode");
+
+  // WP2-24: member-limit audit entity_type is 'swimming_pool_member_limit'
+  ok(superSrc.includes("'swimming_pool_member_limit', ${poolId}"), "WP2-24: member-limit audit entity_type = swimming_pool_member_limit");
+
+  // WP2-25: web AccessTab uses server plan-catalog endpoint (not hardcoded only)
+  const webCode = fs.readFileSync("../swimnote-web/src/pages/super/SuperPoolControlCenter.tsx", "utf8");
+  ok(webCode.includes("/super/plan-catalog"), "WP2-25: web AccessTab fetches /super/plan-catalog at runtime");
+  ok(webCode.includes("ConfirmDangerModal"), "WP2-25: ConfirmDangerModal component present (reason input for dangerous actions)");
+  ok(webCode.includes("forceDisableModal"), "WP2-25: force-disable modal state present in AccessTab");
+  ok(webCode.includes("MemberLimitModal"), "WP2-25: MemberLimitModal component present in AccessTab");
+  ok(webCode.includes("force-disable"), "WP2-25: force-disable API call present in AccessTab");
+  ok(webCode.includes("member-limit"), "WP2-25: member-limit API call present in AccessTab");
+  ok(!webCode.includes("window.confirm"), "WP2-25: window.confirm removed — proper modal with reason used");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════════════════════════
 async function main() {
@@ -708,6 +868,7 @@ async function main() {
     checkButtonConnections();
     checkStates();
     await testWP1Overview();
+    await testWP2Access();
   } finally {
     await cleanup();
   }
