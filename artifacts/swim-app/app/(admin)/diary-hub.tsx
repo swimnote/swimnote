@@ -1,15 +1,13 @@
 /**
  * (admin)/diary-hub.tsx — AI 일지피드
  *
- * PRE-CHECK 결과 (2026-08-27):
- *   C1: class_diaries row는 작성 시에만 생성 (B형) — 미작성 KPI 불가
- *   C2: ai_status 컬럼 없음 — AI KPI/필터 제외
- *   C3: GET /diaries/:id pool_admin 이미 허용; diary.tsx viewOnly=true 재사용
- *   C4: diary_reactions(reaction_type IN like/thanks) + diary_messages(diary_comment)
- *   C5: photo_assets_meta(journal_id, media_status=attached)
- *
- * KPI: 오늘 일지 (class_diaries count) + 학생 노트 (class_diary_student_notes count)
- * FILTER: 반 + 선생님 (AI/작성상태 제거)
+ * WP9 변경 (2026-09-04):
+ *   - class_diaries 기반 피드 (student notes가 0이어도 diary row 표시)
+ *   - ai_only=true 파라미터: AI 생성 일지만 조회
+ *   - sliders-horizontal → sliders (ICON_MAP 지원 이름 사용)
+ *   - 날짜 필터 버튼: height: 34 고정 (font 로딩 후 resize 없음)
+ *   - LOADING / EMPTY / ERROR 명확 구분 (동시 표시 금지)
+ *   - 검색: 내용 또는 선생님명
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -38,16 +36,16 @@ const C = Colors.light;
 type DateRange = "today" | "yesterday" | "week" | "custom";
 
 interface DiaryRow {
-  note_id: string;
   diary_id: string;
   lesson_date: string;
   teacher_id: string;
   teacher_name: string;
   class_group_id: string;
-  class_name: string;
-  schedule_time: string;
-  student_id: string;
-  student_name: string;
+  class_name: string | null;
+  schedule_time: string | null;
+  ai_generated: boolean;
+  content_preview: string | null;
+  student_note_count: number;
   reaction_count: number;
   comment_count: number;
   photo_count: number;
@@ -154,7 +152,8 @@ export default function DiaryHubScreen() {
       case "week":      date = today;         range = "week"; break;
       case "custom":    date = customDate;    range = "day";  break;
     }
-    const p = new URLSearchParams({ date, range, page: "1", limit: "30" });
+    // ai_only=true: AI 생성 일지만 조회
+    const p = new URLSearchParams({ date, range, page: "1", limit: "30", ai_only: "true" });
     if (filterGroupId)   p.set("class_group_id", filterGroupId);
     if (filterTeacherId) p.set("teacher_id",      filterTeacherId);
     if (debouncedQ)      p.set("q",               debouncedQ);
@@ -184,7 +183,7 @@ export default function DiaryHubScreen() {
       setTotal(data.pagination?.total ?? 0);
       setHasMore(data.pagination?.has_more ?? false);
     } catch (e: any) {
-      setError(e?.message || "일지 현황을 불러오지 못했습니다.");
+      setError(e?.message || "AI 일지 현황을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -255,20 +254,34 @@ export default function DiaryHubScreen() {
     });
   };
 
-  // ─── row 렌더 ───────────────────────────────────────────────────────────
+  // ─── row 렌더 (diary 기준 — student notes 없어도 표시) ──────────────────
   const renderRow = ({ item }: { item: DiaryRow }) => (
     <Pressable style={s.row} onPress={() => onRowPress(item)}>
       <View style={s.rowTop}>
         <Text style={s.rowTime}>
           {item.lesson_date} {item.schedule_time ? `· ${item.schedule_time.slice(0, 5)}` : ""}
         </Text>
-        <Text style={s.rowClass}>{item.class_name ?? "반 미정"}</Text>
+        <View style={s.rowTopRight}>
+          {item.ai_generated && (
+            <View style={s.aiChip}>
+              <Text style={s.aiChipText}>AI</Text>
+            </View>
+          )}
+          <Text style={s.rowClass}>{item.class_name ?? "반 미정"}</Text>
+        </View>
       </View>
+      {item.content_preview ? (
+        <Text style={s.rowContent} numberOfLines={2}>{item.content_preview}</Text>
+      ) : null}
       <View style={s.rowMid}>
         <LucideIcon name="user" size={13} color={C.textSecondary} />
-        <Text style={s.rowStudent}>{item.student_name}</Text>
-        <Text style={s.rowSep}>·</Text>
         <Text style={s.rowTeacher}>{item.teacher_name}</Text>
+        {item.student_note_count > 0 && (
+          <>
+            <Text style={s.rowSep}>·</Text>
+            <Text style={s.rowNoteCount}>학생 {item.student_note_count}명</Text>
+          </>
+        )}
       </View>
       <View style={s.rowStats}>
         {item.photo_count > 0 && (
@@ -302,8 +315,8 @@ export default function DiaryHubScreen() {
       {[1,2,3,4,5].map(i => (
         <View key={i} style={[s.row, { opacity: 0.4 }]}>
           <View style={{ height: 13, width: 160, backgroundColor: C.border, borderRadius: 6, marginBottom: 6 }} />
-          <View style={{ height: 11, width: 120, backgroundColor: C.border, borderRadius: 6, marginBottom: 6 }} />
-          <View style={{ height: 11, width: 80, backgroundColor: C.border, borderRadius: 6 }} />
+          <View style={{ height: 11, width: 220, backgroundColor: C.border, borderRadius: 6, marginBottom: 6 }} />
+          <View style={{ height: 11, width: 120, backgroundColor: C.border, borderRadius: 6 }} />
         </View>
       ))}
     </View>
@@ -318,7 +331,7 @@ export default function DiaryHubScreen() {
       <View style={s.kpiRow}>
         <View style={s.kpiCard}>
           <Text style={s.kpiValue}>{summary.total_diaries}</Text>
-          <Text style={s.kpiLabel}>일지</Text>
+          <Text style={s.kpiLabel}>AI 일지</Text>
         </View>
         <View style={[s.kpiCard, s.kpiCardRight]}>
           <Text style={s.kpiValue}>{summary.total_notes}</Text>
@@ -356,7 +369,7 @@ export default function DiaryHubScreen() {
             style={s.searchInput}
             value={searchText}
             onChangeText={setSearchText}
-            placeholder="학생명 검색"
+            placeholder="내용 또는 선생님 검색"
             placeholderTextColor={C.textSecondary}
             returnKeyType="search"
           />
@@ -366,8 +379,9 @@ export default function DiaryHubScreen() {
             </Pressable>
           )}
         </View>
+        {/* sliders (ICON_MAP에 존재하는 이름) */}
         <Pressable style={[s.filterBtn, activeFilterCount > 0 && s.filterBtnActive]} onPress={openFilter}>
-          <LucideIcon name="sliders-horizontal" size={14} color={activeFilterCount > 0 ? "#fff" : C.textSecondary} />
+          <LucideIcon name="sliders" size={14} color={activeFilterCount > 0 ? "#fff" : C.textSecondary} />
           {activeFilterCount > 0 && <Text style={s.filterCount}>{activeFilterCount}</Text>}
         </Pressable>
       </View>
@@ -377,7 +391,7 @@ export default function DiaryHubScreen() {
         <Text style={s.resultCount}>{total.toLocaleString()}건</Text>
       )}
 
-      {/* 메인 컨텐츠 */}
+      {/* 메인 컨텐츠 — LOADING / EMPTY / ERROR 명확 구분 (동시 표시 금지) */}
       {loading ? renderSkeleton() : error ? (
         <View style={s.centerBox}>
           <LucideIcon name="alert-circle" size={32} color={C.error} />
@@ -390,18 +404,18 @@ export default function DiaryHubScreen() {
         <View style={s.centerBox}>
           <LucideIcon name="book-open" size={36} color={C.border} />
           <Text style={s.emptyTitle}>
-            {debouncedQ || filterGroupId || filterTeacherId ? "필터 결과 없음" : "일지 없음"}
+            {debouncedQ || filterGroupId || filterTeacherId ? "필터 결과 없음" : "AI 일지 없음"}
           </Text>
           <Text style={s.emptyDesc}>
             {debouncedQ || filterGroupId || filterTeacherId
               ? "다른 조건으로 조회해 보세요."
-              : "해당 날짜에 작성된 일지가 없습니다."}
+              : "해당 날짜에 작성된 AI 일지가 없습니다."}
           </Text>
         </View>
       ) : (
         <FlatList
           data={diaries}
-          keyExtractor={item => item.note_id}
+          keyExtractor={item => item.diary_id}
           renderItem={renderRow}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 4 }}
           ItemSeparatorComponent={() => <View style={s.separator} />}
@@ -520,8 +534,9 @@ const s = StyleSheet.create({
   // Date index
   dateIndexBar: { marginBottom: 0 },
   dateBtn: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 12, paddingVertical: 7,
+    // height: 34 고정 — 폰트 로딩 전후 resize 없음 (WP9 bug fix)
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
+    height: 34, paddingHorizontal: 12,
     borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
   dateBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
@@ -557,16 +572,25 @@ const s = StyleSheet.create({
     marginLeft: 18, marginBottom: 4,
   },
 
-  // Row
+  // Row — diary 기준 (student note 없어도 표시)
   row: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14 },
   separator: { height: 8 },
-  rowTop: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
+  rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  rowTopRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   rowTime: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   rowClass: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.primary },
+  aiChip: {
+    backgroundColor: "#EFF6FF", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2,
+  },
+  aiChipText: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#3B82F6" },
+  rowContent: {
+    fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary,
+    marginBottom: 6, lineHeight: 18,
+  },
   rowMid: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
-  rowStudent: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
+  rowTeacher: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
   rowSep: { fontSize: 13, color: C.border },
-  rowTeacher: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  rowNoteCount: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   rowStats: { flexDirection: "row", gap: 10 },
   statChip: { flexDirection: "row", alignItems: "center", gap: 3 },
   statText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },

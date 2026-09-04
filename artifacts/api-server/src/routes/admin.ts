@@ -4107,6 +4107,10 @@ router.get(
         toDate   = date;
       }
 
+      const {
+        ai_only,
+      } = req.query as Record<string, string>;
+
       // ── pool isolation — client 전달값 사용 금지 ───────────────────────
       const poolFilter    = sql`AND cd.swimming_pool_id = ${poolId}`;
       const dateFilter    = fromDate === toDate
@@ -4114,53 +4118,74 @@ router.get(
         : sql`AND cd.lesson_date >= ${fromDate} AND cd.lesson_date <= ${toDate}`;
       const classFilter   = class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``;
       const teacherFilter = teacher_id     ? sql`AND cd.teacher_id = ${teacher_id}`          : sql``;
-      const nameFilter    = q              ? sql`AND s.name ILIKE ${'%' + q + '%'}`           : sql``;
+      // ai_only 피드: content + teacher 검색; 일반 피드: student name 검색
+      const nameFilter    = q && ai_only === "true"
+        ? sql`AND (cd.common_content ILIKE ${'%' + q + '%'} OR cd.teacher_name ILIKE ${'%' + q + '%'})`
+        : q
+          ? sql`AND (cd.teacher_name ILIKE ${'%' + q + '%'} OR cd.common_content ILIKE ${'%' + q + '%'})`
+          : sql``;
+      const aiFilter      = ai_only === "true" ? sql`AND cd.ai_generated = true` : sql``;
 
-      // ── KPI (date range, class/teacher filter 반영, 검색어 제외) ────────
+      // ── KPI (date range, class/teacher/ai filter 반영, 검색어 제외) ────
       const kpiRow = await db.execute(sql`
         SELECT
           COUNT(DISTINCT cd.id)::int AS total_diaries,
-          COALESCE(SUM((
-            SELECT COUNT(*)::int FROM class_diary_student_notes csn2
-            WHERE csn2.diary_id = cd.id AND csn2.is_deleted = false
-          )), 0)::int AS total_notes
+          COALESCE((
+            SELECT SUM(note_cnt) FROM (
+              SELECT COUNT(*)::int AS note_cnt
+              FROM class_diary_student_notes csn2
+              WHERE csn2.is_deleted = false
+                AND csn2.diary_id IN (
+                  SELECT id FROM class_diaries cd2
+                  WHERE cd2.is_deleted = false
+                    AND cd2.swimming_pool_id = ${poolId}
+                    ${dateFilter}
+                    ${classFilter}
+                    ${teacherFilter}
+                    ${aiFilter}
+                )
+            ) t
+          ), 0)::int AS total_notes
         FROM class_diaries cd
         WHERE cd.is_deleted = false
           ${poolFilter}
           ${dateFilter}
           ${classFilter}
           ${teacherFilter}
+          ${aiFilter}
       `);
       const kpi = (kpiRow.rows[0] as any) ?? {};
 
-      // ── pagination count (전체 student_notes 수, 검색어 포함) ──────────
+      // ── pagination count — class_diaries 기준 (ai_only=true 시 AI 일지만) ─
       const countRow = await db.execute(sql`
-        SELECT COUNT(csn.id)::int AS total
-        FROM class_diary_student_notes csn
-        JOIN class_diaries cd ON cd.id = csn.diary_id
-        JOIN students s       ON s.id  = csn.student_id
-        WHERE cd.is_deleted = false AND csn.is_deleted = false
+        SELECT COUNT(DISTINCT cd.id)::int AS total
+        FROM class_diaries cd
+        WHERE cd.is_deleted = false
           ${poolFilter}
           ${dateFilter}
           ${classFilter}
           ${teacherFilter}
           ${nameFilter}
+          ${aiFilter}
       `);
       const total = Number((countRow.rows[0] as any)?.total ?? 0);
 
-      // ── 목록 (student_notes × diaries JOIN) ───────────────────────────
+      // ── 목록 — class_diaries 기준 (student notes는 LEFT JOIN 집계) ────
+      // Main source: class_diaries
+      // student note가 0이어도 diary row 자체는 표시됨
       const listRows = await db.execute(sql`
         SELECT
-          csn.id             AS note_id,
           cd.id              AS diary_id,
           cd.lesson_date,
           cd.teacher_id,
           cd.teacher_name,
           cd.class_group_id,
+          cd.ai_generated,
+          LEFT(cd.common_content, 80) AS content_preview,
           cg.name            AS class_name,
           cg.schedule_time,
-          csn.student_id,
-          s.name             AS student_name,
+          (SELECT COUNT(*)::int FROM class_diary_student_notes csn
+           WHERE csn.diary_id = cd.id AND csn.is_deleted = false)              AS student_note_count,
           (SELECT COUNT(*)::int FROM diary_reactions dr
            WHERE dr.diary_id = cd.id
              AND dr.reaction_type IN ('like','thanks'))                        AS reaction_count,
@@ -4172,21 +4197,20 @@ router.get(
           (SELECT COUNT(*)::int FROM photo_assets_meta pam
            WHERE pam.journal_id = cd.id
              AND pam.media_status = 'attached')                                AS photo_count
-        FROM class_diary_student_notes csn
-        JOIN class_diaries cd  ON cd.id = csn.diary_id
-        JOIN students s        ON s.id  = csn.student_id
+        FROM class_diaries cd
         LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
-        WHERE cd.is_deleted = false AND csn.is_deleted = false
+        WHERE cd.is_deleted = false
           ${poolFilter}
           ${dateFilter}
           ${classFilter}
           ${teacherFilter}
           ${nameFilter}
-        ORDER BY cd.lesson_date DESC, cg.schedule_time ASC, s.name ASC
+          ${aiFilter}
+        ORDER BY cd.lesson_date DESC, cg.schedule_time ASC, cd.id DESC
         LIMIT ${limitNum} OFFSET ${offset}
       `);
 
-      // ── 필터 UI용 반·선생님 목록 (날짜 범위 기준) ─────────────────────
+      // ── 필터 UI용 반·선생님 목록 (날짜 범위 + ai 필터 기준) ──────────
       const groupsResult = await db.execute(sql`
         SELECT DISTINCT cd.class_group_id AS id, cg.name AS class_name,
                cd.teacher_id, cd.teacher_name
@@ -4195,6 +4219,7 @@ router.get(
         WHERE cd.is_deleted = false
           ${poolFilter}
           ${dateFilter}
+          ${aiFilter}
         ORDER BY cg.name
       `);
 
@@ -4203,7 +4228,7 @@ router.get(
           total_diaries: Number(kpi.total_diaries ?? 0),
           total_notes:   Number(kpi.total_notes   ?? 0),
         },
-        filters: { date, range, from_date: fromDate, to_date: toDate },
+        filters: { date, range, from_date: fromDate, to_date: toDate, ai_only: ai_only === "true" },
         diaries: listRows.rows,
         class_groups: (groupsResult.rows as any[]).map(r => ({
           id:           r.id,
@@ -4303,11 +4328,13 @@ router.get(
           ORDER BY xs.purchased_at DESC NULLS LAST
           LIMIT 1
         `)),
-        // 2. 월별 KPI snapshot — parent_curriculum WP10 연결, others NULL until each WP
+        // 2. 월별 KPI snapshot — parent_curriculum WP10 연결, ai_diary WP9 연결
         safeXMetric("monthly_snapshot", poolId, () => superAdminDb.execute(sql`
           SELECT
             parent_curriculum_search_count,
             parent_curriculum_user_count,
+            ai_diary_count,
+            ai_diary_teacher_count,
             growth_report_sent_count
           FROM x_monthly_operational_snapshots
           WHERE swimming_pool_id = ${poolId}
@@ -4490,9 +4517,9 @@ router.get(
           // parent_curriculum — WP10 snapshot 연결 완료
           parent_curriculum_search_count: snap ? Number(snap.parent_curriculum_search_count ?? 0) : null,
           parent_curriculum_user_count:   snap ? Number(snap.parent_curriculum_user_count   ?? 0) : null,
-          // AI 일지 — UNAVAILABLE_UNTIL_WP9 (class_diaries에 ai_generated 컬럼 없음)
-          ai_diary_count:         null,
-          ai_diary_teacher_count: null,
+          // AI 일지 — WP9 snapshot 연결 완료
+          ai_diary_count:         snap ? Number(snap.ai_diary_count         ?? 0) : null,
+          ai_diary_teacher_count: snap ? Number(snap.ai_diary_teacher_count ?? 0) : null,
           // 성장리포트
           growth_report_sent_count:    publishedMonthM.failed ? null : Number((publishedMonthM.value?.rows[0] as any)?.cnt ?? 0),
           growth_report_pending_count: reviewM.failed         ? null : Number((reviewM.value?.rows[0]          as any)?.cnt ?? 0),

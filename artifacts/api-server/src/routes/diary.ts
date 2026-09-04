@@ -15,7 +15,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db, superAdminDb } from "@workspace/db";
+import { db, superAdminDb, pool as pgPool } from "@workspace/db";
 import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -503,6 +503,70 @@ router.get("/diaries",
   }
 );
 
+// ── WP9: AI diary snapshot refresh ────────────────────────────────────────
+// WP10의 refreshCurriculumSearchSnapshot과 동일 패턴.
+// raw source(class_diaries) recount → UPSERT overwrite (ai_diary_count, ai_diary_teacher_count만).
+// 다른 KPI 컬럼 덮어쓰기 금지 — ON CONFLICT DO UPDATE 특정 컬럼만 지정.
+function _kpiHashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+    h = h | 0;
+  }
+  return h;
+}
+
+async function refreshAiDiarySnapshot(poolId: string): Promise<void> {
+  const kst   = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const year  = kst.getFullYear();
+  const month = kst.getMonth() + 1;
+
+  // lesson_date는 TEXT 'YYYY-MM-DD' — ISO 형식 보장 → lexicographic range query 사용
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const nextMonth  = month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+
+  // advisory lock key: pool+year / month 기반 int4 pair
+  // 동일 pool/month만 직렬화; 다른 pool은 독립 실행
+  const lockKey1 = Math.abs(_kpiHashStr(poolId + String(year))) % 2147483647;
+  const lockKey2 = Math.abs(_kpiHashStr(String(month)))         % 2147483647;
+
+  const client = await pgPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1::int, $2::int)", [lockKey1, lockKey2]);
+    await client.query(
+      `INSERT INTO x_monthly_operational_snapshots
+         (swimming_pool_id, year, month, ai_diary_count, ai_diary_teacher_count)
+       SELECT
+         $1, $2, $3,
+         COUNT(*)::int,
+         COUNT(DISTINCT teacher_id)::int
+       FROM class_diaries
+       WHERE swimming_pool_id = $1
+         AND ai_generated = TRUE
+         AND is_deleted   = FALSE
+         AND lesson_date  >= $4
+         AND lesson_date  <  $5
+       ON CONFLICT (swimming_pool_id, year, month) DO UPDATE SET
+         ai_diary_count         = EXCLUDED.ai_diary_count,
+         ai_diary_teacher_count = EXCLUDED.ai_diary_teacher_count,
+         updated_at             = NOW()`,
+      [poolId, year, month, monthStart, nextMonth],
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    console.error("[ai-diary-kpi] snapshot refresh failed", {
+      poolId, year, month, error: (err as Error).message,
+    });
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // ── POST /diaries ─────────────────────────────────────────────────────────
 // Body: { class_group_id, lesson_date?, common_content, student_notes?: [{student_id, note_content}] }
 router.post("/diaries",
@@ -513,7 +577,16 @@ router.post("/diaries",
       const {
         class_group_id, lesson_date, common_content,
         student_notes, curriculum_matches, ai_request_id,
+        ai_generated: clientAiGenerated,
       } = req.body;
+
+      // ai_generated: client marker (ai_request_id 존재 여부로 서버가 최종 판정)
+      // - AI flow: DiaryAIService가 ai_request_id를 항상 전송
+      // - 일반 저장: ai_request_id 없음
+      // 보안: client가 ai_generated=true를 직접 전송해도,
+      //   서버는 ai_request_id 존재 여부를 기준으로 판정 (client boolean 무시)
+      const isAiGenerated =
+        typeof ai_request_id === "string" && ai_request_id.trim().length > 0;
 
       const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
       if (!class_group_id || (!common_content?.trim() && !hasStudentNotes)) {
@@ -604,10 +677,12 @@ router.post("/diaries",
 
       // 트랜잭션: 일지 + 학생별 노트 원자적 생성
       await db.transaction(async (tx) => {
-        console.log(`[diary-create] INSERT class_diaries id=${diaryId} swimming_pool_id=${poolId} lesson_date=${dateStr} class_group_id=${class_group_id}`);
+        console.log(`[diary-create] INSERT class_diaries id=${diaryId} swimming_pool_id=${poolId} lesson_date=${dateStr} class_group_id=${class_group_id} ai_generated=${isAiGenerated}`);
+        const traceId: string | null = isAiGenerated && typeof ai_request_id === "string"
+          ? ai_request_id : null;
         await tx.execute(sql`
-          INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
-          VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
+          INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content, ai_generated, ai_trace_id)
+          VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()}, ${isAiGenerated}, ${traceId})
         `);
         console.log(`[diary-create] class_diaries INSERT done`);
 
@@ -644,6 +719,16 @@ router.post("/diaries",
         }
       });
       console.log(`[diary-create] TX committed. savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
+
+      // ── WP9: AI diary 월 KPI snapshot refresh (fire-and-forget) ────────────
+      // AI 일지 저장 시에만 refresh. 일반 일지는 ai_diary_count 변화 없음.
+      if (isAiGenerated) {
+        void refreshAiDiarySnapshot(poolId!).catch((kpiErr: unknown) => {
+          console.error("[ai-diary-kpi] fire-and-forget failed", {
+            poolId, diaryId, error: (kpiErr as Error)?.message ?? kpiErr,
+          });
+        });
+      }
 
       // ── GAUGE-04/05: CPO 매핑 → SCP 재계산 (TX 외부 — fail-safe) ──────────
       // X mode일 때만 실행. 일지 저장은 항상 성공; CPO/SCP는 eventually consistent.
@@ -981,7 +1066,7 @@ router.delete("/diaries/:id",
 
       // ── 삭제 대상 조회 ──
       const rows = await db.execute(sql`
-        SELECT id, is_deleted, teacher_id, class_group_id, common_content, swimming_pool_id
+        SELECT id, is_deleted, teacher_id, class_group_id, common_content, swimming_pool_id, ai_generated
         FROM class_diaries
         WHERE id = ${diaryId} AND swimming_pool_id = ${poolId}
       `);
@@ -1159,6 +1244,16 @@ router.delete("/diaries/:id",
         entity_id: diaryId, actor_id: userId,
         payload: { class_group_id: diary.class_group_id },
       }).catch(() => {});
+
+      // ── WP9: AI diary 삭제 시 월 KPI snapshot refresh (fire-and-forget) ───
+      // is_deleted=true 커밋 후 raw recount → snapshot 감소 반영
+      if (diary.ai_generated) {
+        void refreshAiDiarySnapshot(poolId!).catch((kpiErr: unknown) => {
+          console.error("[ai-diary-kpi] delete snapshot refresh failed", {
+            poolId, diaryId, error: (kpiErr as Error)?.message ?? kpiErr,
+          });
+        });
+      }
 
       console.log(`[DELETE /diaries] ◀ RESPONSE 200 — diaryId=${diaryId}`);
       res.json({
