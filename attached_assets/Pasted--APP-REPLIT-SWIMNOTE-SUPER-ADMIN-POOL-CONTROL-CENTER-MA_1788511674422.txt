@@ -1,0 +1,1345 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# ARCHITECTURE FREEZE + WP EXECUTION PLAN
+# CURRENT BASELINE: d283c9e5
+# DO NOT IMPLEMENT NEXT WP UNTIL THIS DESIGN IS REVIEWED
+
+============================================================
+0. 목적
+============================================================
+
+이번 문서는 앞으로 진행할
+SWIMNOTE Super Admin Pool Control Center의
+MASTER DESIGN v1.0이다.
+
+앞으로 임의 기능 추가/방향 변경을 반복하지 않고
+
+MASTER DESIGN
+→ Replit 기술검수
+→ WP0
+→ 검수
+→ WP1
+→ 검수
+→ ...
+→ 최종 Production Gate
+
+순서로만 진행한다.
+
+현재 이미 구현된 d283c9e5 코드는
+폐기하거나 다시 만드는 것이 아니라
+이 Master Design 기준으로 재분류하고
+부족한 부분만 보강한다.
+
+============================================================
+1. CURRENT BASELINE
+============================================================
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+d283c9e5
+
+Known completed foundation:
+
+- Manual BASE entitlement
+- Manual X entitlement
+- Manual X plan
+- BASE/X effective entitlement separation
+- RevenueCat/billing cannot remove manual grant
+- Control Center summary
+- Members
+- Teachers
+- Parents
+- Classes
+- Curriculum
+- AI
+- Growth Reports
+- Errors
+- Notifications
+- Storage
+- Audit
+- Support
+- Secure curriculum signed download
+- Cross-pool fixture verification
+- Super Admin role protection
+
+Do not rebuild these blindly.
+
+============================================================
+2. 가장 중요한 제품 목표
+============================================================
+
+Super Admin이 특정 수영장을 선택하면
+
+"그 수영장에서 발생하는 대부분의 운영 문제를
+DB 콘솔이나 서버에 직접 접속하지 않고
+Control Center 안에서 진단하고
+안전한 문제는 바로 처리할 수 있는 수준"
+
+까지 만든다.
+
+Control Center는 단순 Dashboard가 아니다.
+
+역할:
+
+- 운영본부
+- 고객센터
+- 권한관리
+- 플랜관리
+- 장애진단
+- AI 운영
+- 파일관리
+- 고객지원 이력
+- 감사 추적
+
+============================================================
+3. TOYKIDS 절대 보호 원칙
+============================================================
+
+토이키즈스윔클럽은 사용자의 직영 수영장이다.
+
+Production 적용 후 반드시:
+
+BASE SWIMNOTE:
+MANUAL ON
+
+X:
+MANUAL ON
+
+PLAN:
+MANUAL 지정
+
+Expiration:
+NONE
+
+Payment:
+NOT REQUIRED
+
+RevenueCat:
+NOT REQUIRED
+
+App Store purchase:
+NOT REQUIRED
+
+상태로 운영 가능해야 한다.
+
+절대:
+
+pool name 하드코딩 금지.
+
+반드시 일반화된 Super Admin manual entitlement 사용.
+
+향후:
+
+- 본사 테스트 수영장
+- 제휴
+- 무료
+- 프로모션
+- 영업 데모
+
+에도 동일 구조를 사용할 수 있어야 한다.
+
+============================================================
+4. 권한 구조 MASTER RULE
+============================================================
+
+BASE:
+
+effective_base =
+valid_paid_base
+OR
+valid_manual_base
+
+X:
+
+effective_x =
+(valid_paid_x OR valid_manual_x)
+AND NOT x_force_disabled
+
+PLAN:
+
+effective_plan =
+manual_plan_override
+OR
+valid_paid_plan
+OR
+default_plan
+
+중요:
+
+PLAN != PAYMENT
+
+manual plan을 부여해도
+결제는 발생하지 않는다.
+
+============================================================
+5. 실제 반영 원칙
+============================================================
+
+모든 운영 Mutation:
+
+UI
+→ Server
+→ DB transaction
+→ audit
+→ response
+→ refetch
+→ latest effective state
+
+순서.
+
+UI만 바뀌는 기능:
+FAIL
+
+mock:
+0
+
+placeholder:
+0
+
+TODO handler:
+0
+
+dead route:
+0
+
+============================================================
+6. Control Center 최종 IA
+============================================================
+
+각 수영장 상세:
+
+1. Overview
+2. Access / Plans
+3. Members
+4. Teachers
+5. Parents
+6. Classes
+7. Curriculum
+8. AI Operations
+9. Growth Reports / Jobs
+10. Errors / Incidents
+11. Notifications
+12. Storage / Files
+13. Audit
+14. Support
+
+현재 구현된 구조를 기본으로 유지.
+
+============================================================
+7. OVERVIEW MASTER REQUIREMENTS
+============================================================
+
+한 화면에서:
+
+Pool identity
+운영상태
+Health
+BASE entitlement
+X entitlement
+Effective plan
+Member limit
+회원 수
+교사 수
+학부모 수
+반 수
+Storage
+AI KPI
+Growth Report KPI
+최근 Error
+최근 중요 Warning
+최근 Support case
+
+확인.
+
+Health:
+
+HEALTHY
+WARNING
+CRITICAL
+
+Rule-based only.
+
+AI 판단 금지.
+
+Health issue 클릭:
+관련 상세 영역으로 이동 가능하게.
+
+============================================================
+8. ACCESS / PLAN MASTER REQUIREMENTS
+============================================================
+
+표시는 반드시 Source와 Effective를 구분.
+
+BASE:
+
+Paid:
+ON/OFF
+
+Manual:
+ON/OFF
+
+Effective:
+ON/OFF
+
+
+X:
+
+Paid:
+ON/OFF
+
+Manual:
+ON/OFF
+
+Force Disabled:
+ON/OFF
+
+Effective:
+ON/OFF
+
+
+PLAN:
+
+Billing Plan:
+...
+
+Manual Plan:
+...
+
+Effective Plan:
+...
+
+Limit:
+...
+
+Super Admin actions:
+
+- BASE manual grant
+- BASE manual revoke
+- X manual grant
+- X manual revoke
+- X force disable
+- X restore
+- plan override
+- limit override where policy allows
+
+모든 mutation audit.
+
+============================================================
+9. MEMBERS MASTER REQUIREMENTS
+============================================================
+
+검색:
+
+name
+ID
+phone partial
+status
+class
+
+표시:
+
+member
+status
+class
+teacher
+level
+parent link count
+recent diary
+recent activity
+recent error
+curriculum assignment
+growth report status
+
+지원 시 필요한 실제 데이터만.
+
+Password:
+NO
+
+JWT:
+NO
+
+secret:
+NO
+
+============================================================
+10. TEACHERS MASTER REQUIREMENTS
+============================================================
+
+표시:
+
+account state
+role
+classes
+student scope
+recent activity
+AI diary usage
+diary activity
+recent errors
+notification state where available
+
+고객센터에서
+teacher app 문제를 진단 가능해야 함.
+
+============================================================
+11. PARENTS MASTER REQUIREMENTS
+============================================================
+
+표시:
+
+account state
+linked children
+connection status
+approval
+invite
+recent activity
+notifications
+published report state
+recent errors
+
+학부모 연결 문제를
+Control Center 안에서 추적 가능하게.
+
+============================================================
+12. CLASSES MASTER REQUIREMENTS
+============================================================
+
+표시:
+
+class
+teacher
+student count
+active
+schedule
+curriculum assignment
+current curriculum version
+
+============================================================
+13. CURRICULUM MASTER REQUIREMENTS
+============================================================
+
+표시:
+
+source filename
+file size
+uploaded_at
+version
+processing status
+active version
+assignment
+unassigned
+processing error
+AI applied state
+
+Super Admin:
+
+secure original file download
+
+필수.
+
+Signed URL:
+short-lived.
+
+Permanent public URL:
+금지.
+
+Cross-pool:
+P0 block.
+
+============================================================
+14. AI OPERATIONS MASTER REQUIREMENTS
+============================================================
+
+기존 snapshot/traces 재사용.
+
+표시:
+
+AI diary count
+AI diary teacher count
+Parent Curriculum search
+Parent Curriculum users
+Growth Report metrics
+recent AI failures
+request_id
+trace_id
+feature
+status
+
+가능하면 reliable source가 있는 경우:
+
+token/cost/usage
+
+향후 추가 가능.
+
+가짜 비용 추정치 금지.
+
+============================================================
+15. GROWTH REPORT / JOB MASTER REQUIREMENTS
+============================================================
+
+표시:
+
+month
+target
+generated
+ready
+failed
+regenerating
+discarded
+published
+sent
+
+Batch:
+
+status
+attempts
+next_attempt_at
+locked_at
+last failure
+worker state where observable
+
+문제 student/report drill-down 가능.
+
+============================================================
+16. ERROR / INCIDENT MASTER REQUIREMENTS
+============================================================
+
+이 영역은 핵심 운영기능.
+
+카테고리:
+
+AUTH
+BILLING
+AI
+DIARY
+CURRICULUM
+GROWTH_REPORT
+PUSH
+UPLOAD
+STORAGE
+JOB
+DB
+API
+UNKNOWN
+
+표시:
+
+time
+severity
+feature
+endpoint/job
+subject/user
+request_id
+trace_id
+safe_message
+status
+
+Filter:
+
+time
+severity
+feature
+user
+request ID
+
+PII/secret redaction 필수.
+
+============================================================
+17. OBSERVABILITY GAP
+============================================================
+
+현재 검증에서 다음 일부가 console-only:
+
+- growth worker stderr
+- upload/storage per-error
+- notification push failure
+- RevenueCat sync error 일부
+
+이것들은 이후 Error/Observability WP에서
+실제 운영 중요도에 따라 보강한다.
+
+새 logging framework를 중복 생성하지 말 것.
+
+기존:
+
+event_logs
+audit_logs
+ai_traces
+growth_report_batch_jobs
+notifications
+incidents
+
+등을 우선 재사용.
+
+============================================================
+18. NOTIFICATIONS MASTER REQUIREMENTS
+============================================================
+
+표시:
+
+recipient
+type
+ref_id
+created_at
+read state
+push state if source exists
+retry/failure if source exists
+
+고객 문의:
+
+"알림이 안왔어요"
+
+를 진단 가능하게.
+
+없는 push state를 가짜로 만들지 말 것.
+
+============================================================
+19. STORAGE / FILES MASTER REQUIREMENTS
+============================================================
+
+표시:
+
+used
+quota
+blocked
+curriculum files
+report files
+upload state
+failed uploads where observable
+
+파일 삭제 기능은
+이번 핵심 범위 아님.
+
+조회/다운로드/진단 우선.
+
+============================================================
+20. AUDIT MASTER REQUIREMENTS
+============================================================
+
+중요 운영 Mutation은 모두:
+
+actor
+pool
+target type
+target id
+action
+before
+after
+reason
+request_id
+timestamp
+
+기록.
+
+특히:
+
+BASE
+X
+plan
+limit
+support mutation
+connection mutation
+curriculum admin action
+
+============================================================
+21. SUPPORT MASTER REQUIREMENTS
+============================================================
+
+수영장 단위 고객지원 이력.
+
+상태:
+
+OPEN
+IN_PROGRESS
+RESOLVED
+
+연결 가능 subject:
+
+pool
+member
+teacher
+parent
+class
+report
+other
+
+내용:
+
+title
+category
+note
+operator
+status
+timestamps
+resolution
+
+지원 기록 자체도
+cross-pool scope 필수.
+
+============================================================
+22. 운영에 필요한 대형 SaaS 기준
+============================================================
+
+SWIMNOTE에 필요한 기능은
+다음 기준으로 판단.
+
+MUST:
+출시/실제 고객지원에 반드시 필요
+
+SHOULD:
+운영 효율에 매우 중요하지만 출시 blocker는 아님
+
+LATER:
+확장 후 필요
+
+NOT NEEDED:
+SWIMNOTE 규모/위험도상 불필요
+
+검토 범위:
+
+tenant health
+access override
+billing diagnostics
+users
+roles
+usage/quota
+feature control
+audit
+incident timeline
+jobs/retries
+notification delivery
+storage/files
+support cases
+account suspension
+safe export
+destructive safeguard
+customer success metadata
+
+단순히 대형 SaaS에 존재한다는 이유로
+무조건 구현하지 말 것.
+
+============================================================
+23. 하지 않을 것
+============================================================
+
+이번 Control Center 핵심 범위에서:
+
+full impersonation:
+NO
+
+password viewing:
+NO
+
+JWT viewing:
+NO
+
+payment credential:
+NO
+
+secret access:
+NO
+
+production SQL console:
+NO
+
+dangerous bulk delete:
+NO
+
+============================================================
+24. 500 POOL ARCHITECTURE
+============================================================
+
+Pool list:
+
+500 pool 각각 detail query:
+금지
+
+Control Center entry:
+
+summary aggregate endpoint
+
+상세 tab:
+
+lazy load
+
+대량 데이터:
+
+pagination
+
+N+1:
+금지
+
+Pool scope:
+항상 explicit.
+
+============================================================
+25. OTA MASTER RULE
+============================================================
+
+매 WP에서 iOS APP/shared runtime 파일이
+하나라도 변경되면:
+
+test
+→ commit
+→ HEAD check
+→ iOS OTA
+→ source SHA check
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android OTA:
+NO
+
+보고:
+
+Group ID
+iOS Update ID
+Commit SHA
+Export Source SHA
+SHA Match
+
+Super Admin Web / Server만 변경:
+OTA NOT REQUIRED.
+
+그러나 반드시 실제 변경파일을 확인한 뒤 판단.
+
+============================================================
+26. PRODUCTION MASTER RULE
+============================================================
+
+각 WP에서:
+
+Development migration:
+허용
+
+Production migration:
+사용자 승인 전 NO
+
+Server push:
+YES after tests
+
+Render:
+사용자 수동
+
+main promotion:
+사용자 승인
+
+RevenueCat live connection:
+마지막 별도 승인 단계
+
+============================================================
+27. WP EXECUTION ROADMAP
+============================================================
+
+----------------------------------------
+WP0 — ENTITLEMENT FOUNDATION
+----------------------------------------
+
+목표:
+
+토이키즈를 포함한
+manual BASE/X/PLAN 구조 완전 확정.
+
+검증:
+
+BASE manual
+X manual
+manual plan
+force disable
+billing isolation
+audit
+server guards
+real-time refresh
+
+현재 d283c9e5 구현분 재사용.
+
+DONE 기준:
+
+토이키즈가 결제 없이
+BASE + X + manual plan으로
+운영 가능한 구조.
+
+----------------------------------------
+WP1 — CONTROL CENTER OVERVIEW / HEALTH
+----------------------------------------
+
+목표:
+
+Pool Summary를
+실제 운영본부용 Overview로 완성.
+
+포함:
+
+tenant health
+entitlement summary
+users
+storage
+AI
+reports
+errors
+support
+
+Health drill-down.
+
+----------------------------------------
+WP2 — ACCESS / PLAN / FEATURE CONTROL
+----------------------------------------
+
+목표:
+
+Super Admin이
+수영장 권한/플랜을 완전히 통제.
+
+포함:
+
+paid/manual/effective separation
+manual grant
+force disable
+plan override
+member limit
+feature controls
+
+Plan catalog authoritative source 정리.
+
+새 가격:
+아직 적용하지 않음.
+
+----------------------------------------
+WP3 — CUSTOMER SUPPORT USERS
+----------------------------------------
+
+목표:
+
+Members
+Teachers
+Parents
+Classes
+
+고객센터용 diagnostics 완성.
+
+검색
+관계
+최근 활동
+연관 오류
+연관 notification
+연관 curriculum/report
+
+기존 안전 mutation만 연결.
+
+----------------------------------------
+WP4 — CURRICULUM / STORAGE
+----------------------------------------
+
+목표:
+
+수영장 curriculum 및 파일 운영 완성.
+
+포함:
+
+source file
+versions
+processing
+assignment
+secure original download
+storage quota
+upload state
+
+실제 file test 필요.
+
+----------------------------------------
+WP5 — AI / GROWTH / JOB OPERATIONS
+----------------------------------------
+
+목표:
+
+AI 및 성장리포트 운영상태 추적.
+
+포함:
+
+AI diary
+parent curriculum
+growth reports
+batch jobs
+retry
+failure
+request/trace
+
+----------------------------------------
+WP6 — ERROR / INCIDENT / OBSERVABILITY
+----------------------------------------
+
+목표:
+
+문제 발생 시 Pool Error Center에서
+대부분 원인 확인 가능.
+
+특히 현재 console-only gap:
+
+growth worker
+storage/upload
+push
+billing sync error
+
+를 운영 중요도 기준으로 보강.
+
+----------------------------------------
+WP7 — NOTIFICATION DIAGNOSTICS
+----------------------------------------
+
+목표:
+
+알림/푸시 문제 진단 가능.
+
+notification
+recipient
+read
+delivery
+retry
+failure
+
+실제 source와 연결.
+
+----------------------------------------
+WP8 — AUDIT / SUPPORT CASE
+----------------------------------------
+
+목표:
+
+고객센터 운영 이력과
+Super Admin 조작 이력 완성.
+
+support case
+notes
+operator
+status
+resolution
+audit
+
+----------------------------------------
+WP9 — SECURITY / CROSS-POOL / PERFORMANCE GATE
+----------------------------------------
+
+목표:
+
+전체 Control Center 최종 기술검수.
+
+포함:
+
+all route auth
+cross-pool DB fixture
+pagination
+N+1
+index
+PII
+secret
+dead button
+mock
+TODO
+error states
+
+----------------------------------------
+WP10 — NEW PLAN / PRICE / REVENUECAT READY
+----------------------------------------
+
+Control Center가 모두 완료된 후 수행.
+
+목표:
+
+기존 가격 폐기
+새 플랜/가격 적용
+plan catalog 확정
+RevenueCat product mapping
+entitlement mapping
+결제 E2E 준비
+
+사용자가 새 가격을 제공한 뒤 진행.
+
+============================================================
+28. 각 WP 공통 PASS GATE
+============================================================
+
+각 WP 완료 조건:
+
+UI:
+PASS
+
+API:
+PASS
+
+DB:
+PASS
+
+AUTH:
+PASS
+
+POOL SCOPE:
+PASS
+
+REAL DATA:
+PASS
+
+MUTATION:
+PASS where applicable
+
+AUDIT:
+PASS where applicable
+
+LOADING:
+PASS
+
+EMPTY:
+PASS
+
+ERROR:
+PASS
+
+TEST:
+PASS
+
+APP changed면 OTA:
+PASS
+
+하나라도 실패하면
+WP 완료 선언 금지.
+
+============================================================
+29. 중간 변경 관리
+============================================================
+
+앞으로 임의로 Master Design을 변경하지 말 것.
+
+새 요구사항 발생 시:
+
+A.
+현재 WP 완료에 필수
+→ 현재 WP change note
+
+B.
+후속 기능
+→ backlog/LATER
+
+C.
+전체 architecture에 영향
+→ Master Design version update
+
+즉석에서 여러 WP scope를 뒤섞지 말 것.
+
+============================================================
+30. 이번 요청에서 Replit이 할 일
+============================================================
+
+중요:
+
+이번 메시지를 받고
+WP0 구현을 바로 시작하지 말 것.
+
+먼저 Master Design을
+CURRENT REPOSITORY 기준으로 기술검수.
+
+제출:
+
+1.
+Master Design과 현재 architecture 충돌 여부
+
+2.
+각 WP에서 재사용할:
+- table
+- API
+- service
+- component
+- logger
+- storage
+- job
+
+3.
+현재 d283c9e5에서 이미 DONE인 항목
+
+4.
+부분 구현 항목
+
+5.
+미구현 항목
+
+6.
+WP dependency 수정 필요 여부
+
+7.
+DB migration 예상
+
+8.
+iOS APP 영향 예상
+
+9.
+Production 위험요소
+
+10.
+추천 WP 순서
+
+단 Master Design의 제품 목표를
+임의 축소하지 말 것.
+
+============================================================
+31. 완료보고 형식
+============================================================
+
+# MASTER DESIGN v1.0 TECHNICAL REVIEW
+
+Current Branch:
+...
+
+HEAD:
+...
+
+Master Design compatible:
+YES / NO
+
+Architecture blockers:
+...
+
+============================================================
+REUSE MAP
+============================================================
+
+WP0:
+...
+
+WP1:
+...
+
+WP2:
+...
+
+WP3:
+...
+
+WP4:
+...
+
+WP5:
+...
+
+WP6:
+...
+
+WP7:
+...
+
+WP8:
+...
+
+WP9:
+...
+
+WP10:
+...
+
+============================================================
+CURRENT COMPLETION MAP
+============================================================
+
+Already complete:
+...
+
+Partial:
+...
+
+Missing:
+...
+
+============================================================
+DB
+============================================================
+
+Existing reusable tables:
+...
+
+New migrations likely:
+...
+
+Production changes now:
+NO
+
+============================================================
+API
+============================================================
+
+Existing reusable routes:
+...
+
+New routes likely:
+...
+
+============================================================
+OBSERVABILITY
+============================================================
+
+Existing:
+...
+
+Gaps:
+...
+
+============================================================
+SECURITY
+============================================================
+
+Current strengths:
+...
+
+Remaining risks:
+...
+
+============================================================
+PERFORMANCE
+============================================================
+
+Current:
+...
+
+Remaining risks:
+...
+
+============================================================
+APP / OTA
+============================================================
+
+Expected APP-impact WP:
+...
+
+Expected Web/Server-only WP:
+...
+
+============================================================
+DEPENDENCY REVIEW
+============================================================
+
+Original WP order valid:
+YES / NO
+
+If NO:
+
+Recommended order:
+...
+
+Reason:
+...
+
+============================================================
+FINAL
+============================================================
+
+Safe to execute WP roadmap:
+YES / NO
+
+Recommended first WP:
+...
+
+DO NOT IMPLEMENT WP YET.
+WAIT FOR USER/CHATGPT NEXT WP INSTRUCTION.
