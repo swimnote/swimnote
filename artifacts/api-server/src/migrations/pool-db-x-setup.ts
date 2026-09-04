@@ -9,8 +9,8 @@
  * All migrations are idempotent (IF NOT EXISTS / IF NOT EXISTS column).
  * X 구독 해지/만료 시 데이터 삭제 금지 — soft-delete 전용.
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 const SETUP_STATUSES = [
   "NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "UNDER_REVIEW",
@@ -23,9 +23,9 @@ const SECTION_STATUSES = [
 
 const FILE_TYPES = ["curriculum", "website", "logo", "photo"] as const;
 
-export async function runXSetupMigration(): Promise<void> {
+export async function runXSetupMigration(db: MigrationDb): Promise<void> {
   // ── x_setup_submissions — pool별 전체 + 섹션별 상태 ─────────────────────
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS x_setup_submissions (
       id                          TEXT PRIMARY KEY,
       pool_id                     TEXT NOT NULL UNIQUE REFERENCES swimming_pools(id),
@@ -44,7 +44,7 @@ export async function runXSetupMigration(): Promise<void> {
   `);
 
   // ── x_setup_files — 파일 버전 이력 ────────────────────────────────────────
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS x_setup_files (
       id                    TEXT PRIMARY KEY,
       pool_id               TEXT NOT NULL REFERENCES swimming_pools(id),
@@ -66,7 +66,7 @@ export async function runXSetupMigration(): Promise<void> {
   `);
 
   // ── x_setup_revision_requests — 수정요청 ──────────────────────────────────
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS x_setup_revision_requests (
       id            TEXT PRIMARY KEY,
       pool_id       TEXT NOT NULL REFERENCES swimming_pools(id),
@@ -80,12 +80,12 @@ export async function runXSetupMigration(): Promise<void> {
   `);
 
   // ── indexes ───────────────────────────────────────────────────────────────
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_x_setup_files_pool_type
       ON x_setup_files(pool_id, file_type)
       WHERE deleted_at IS NULL
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_x_setup_revision_pool
       ON x_setup_revision_requests(pool_id, status)
   `);

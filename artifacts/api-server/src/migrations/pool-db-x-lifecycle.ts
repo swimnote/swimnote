@@ -11,11 +11,11 @@
  *
  * idempotent: IF NOT EXISTS
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function runXLifecycleMigration(): Promise<void> {
-  await superAdminDb.execute(sql`
+export async function runXLifecycleMigration(db: MigrationDb): Promise<void> {
+  await db.execute(sql`
     ALTER TABLE swimming_pools
       ADD COLUMN IF NOT EXISTS x_auto_renew_cancelled boolean NOT NULL DEFAULT false;
   `);

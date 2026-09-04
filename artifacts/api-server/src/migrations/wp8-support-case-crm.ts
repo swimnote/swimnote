@@ -19,10 +19,10 @@
  *   재실행해도 안전하지만 Production에서는 사용자 승인 후에만 실행할 것.
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-async function run(): Promise<void> {
+export async function runMigration(db: MigrationDb): Promise<void> {
   console.log("[wp8-migration] 시작");
 
   // ── 1. support_cases: WP8 operational tracking columns ──────────────────
@@ -39,7 +39,7 @@ async function run(): Promise<void> {
 
   for (const [col, ddl] of sc_columns) {
     try {
-      await (superAdminDb as any).execute(sql.raw(ddl));
+      await (db as any).execute(sql.raw(ddl));
       console.log(`[wp8-migration] ✅ support_cases.${col} 추가 완료`);
     } catch (e: any) {
       console.error(`[wp8-migration] ❌ support_cases.${col}:`, e?.message);
@@ -49,7 +49,7 @@ async function run(): Promise<void> {
 
   // ── 2. support_case_notes: 신규 child table ──────────────────────────────
   try {
-    await (superAdminDb as any).execute(sql.raw(`
+    await (db as any).execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS support_case_notes (
         id              TEXT PRIMARY KEY,
         support_case_id TEXT NOT NULL,
@@ -82,7 +82,7 @@ async function run(): Promise<void> {
 
   for (const [name, ddl] of indexes) {
     try {
-      await (superAdminDb as any).execute(sql.raw(ddl));
+      await (db as any).execute(sql.raw(ddl));
       console.log(`[wp8-migration] ✅ index ${name} 생성 완료`);
     } catch (e: any) {
       console.error(`[wp8-migration] ❌ index ${name}:`, e?.message);
@@ -93,7 +93,7 @@ async function run(): Promise<void> {
   console.log("[wp8-migration] ✅ 완료");
 }
 
-run().catch((e) => {
-  console.error("[wp8-migration] FATAL:", e);
-  process.exit(1);
-});
+if (import.meta.url === String(new URL(process.argv[1], "file:"))) {
+  const { runWithMigrationDb } = await import("../lib/migration-db.js");
+  runWithMigrationDb("wp8-support-case-crm", runMigration).catch(e => { console.error(e); process.exit(1); });
+}

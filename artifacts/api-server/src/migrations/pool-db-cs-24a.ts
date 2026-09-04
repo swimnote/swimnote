@@ -17,17 +17,17 @@
  *   - additive only — 기존 테이블 변경 없음
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runCs24aMigration(): Promise<void> {
+export async function runCs24aMigration(db: MigrationDb): Promise<void> {
   if (ran) return;
   ran = true;
 
   // ── support_query_log ──────────────────────────────────────────────────────
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS support_query_log (
       id                  TEXT PRIMARY KEY,
       case_id             TEXT NOT NULL,
@@ -51,15 +51,15 @@ export async function runCs24aMigration(): Promise<void> {
   `));
 
   // 인덱스: Candidate Engine이 normalized_query 그루핑 쿼리에 사용
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_sql_normalized_query
       ON support_query_log (normalized_query)
   `));
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_sql_resolution_source
       ON support_query_log (resolution_source)
   `));
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_sql_created_at
       ON support_query_log (created_at DESC)
   `));

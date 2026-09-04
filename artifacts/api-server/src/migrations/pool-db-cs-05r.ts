@@ -17,12 +17,12 @@
  *       Super Admin 승인 후에만 active — AI 자동 승인 금지.
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runCs05rMigration() {
+export async function runCs05rMigration(db: MigrationDb) {
   if (ran) return;
   ran = true;
 
@@ -39,7 +39,7 @@ export async function runCs05rMigration() {
       `ALTER TABLE support_knowledge_items ADD COLUMN IF NOT EXISTS affected_modes     TEXT[]`,
     ];
     for (const stmt of alterCols) {
-      try { await superAdminDb.execute(sql.raw(stmt)); } catch { /* already exists */ }
+      try { await db.execute(sql.raw(stmt)); } catch { /* already exists */ }
     }
 
     // ── 2. 인덱스 ────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ export async function runCs05rMigration() {
       `CREATE INDEX IF NOT EXISTS support_knowledge_source_type_idx    ON support_knowledge_items(source_type)`,
     ];
     for (const stmt of indexes) {
-      try { await superAdminDb.execute(sql.raw(stmt)); } catch { /* already exists */ }
+      try { await db.execute(sql.raw(stmt)); } catch { /* already exists */ }
     }
 
     // ── 3. 초기 Global Knowledge Seed (status=pending, revision=1) ───────────
@@ -434,7 +434,7 @@ export async function runCs05rMigration() {
           ? `ARRAY[${seed.affected_modes.map((m) => `'${m}'`).join(",")}]::text[]`
           : "NULL";
 
-        await superAdminDb.execute(sql.raw(`
+        await db.execute(sql.raw(`
           INSERT INTO support_knowledge_items (
             id, item_type, scope, category, feature,
             title, content, question, answer,

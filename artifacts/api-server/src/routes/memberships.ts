@@ -30,7 +30,7 @@ function err(res: any, status: number, message: string) {
 router.get("/me/memberships", requireAuth, async (req: AuthRequest, res) => {
   try {
     const accountId = req.user!.userId;
-    const memberships = await getMemberships(accountId);
+    const memberships = await getMemberships(superAdminDb, accountId);
     return res.json({ success: true, memberships });
   } catch (e) {
     console.error("[memberships] GET /me/memberships 오류:", e);
@@ -73,7 +73,7 @@ router.post("/auth/switch-pool", requireAuth, async (req: AuthRequest, res) => {
 
     // ── DB에서 membership 존재 확인 (cross-pool 보안 검증) ────────────────
     // checkMembership 내부에서 role 화이트리스트 재검증 + drizzle 파라미터 바인딩
-    const hasMembership = await checkMembership({
+    const hasMembership = await checkMembership(superAdminDb, {
       accountId,
       poolId: pool_id,
       role,
@@ -95,7 +95,7 @@ router.post("/auth/switch-pool", requireAuth, async (req: AuthRequest, res) => {
             : [row.primary_role];
           if (userRoles.includes(role)) {
             // backfill 누락 → 지금 생성 (upsertMembership 내부에서 role 화이트리스트 검증)
-            await upsertMembership({ accountId, accountType: "user", poolId: pool_id, role }).catch(() => {});
+            await upsertMembership(superAdminDb, { accountId, accountType: "user", poolId: pool_id, role }).catch(() => {});
           } else {
             return err(res, 403, "해당 수영장에서 해당 역할 권한이 없습니다.");
           }
@@ -109,7 +109,7 @@ router.post("/auth/switch-pool", requireAuth, async (req: AuthRequest, res) => {
         `);
         const pa = paRow.rows[0] as any;
         if (pa && pa.swimming_pool_id === pool_id && role === "parent_account") {
-          await upsertMembership({ accountId, accountType: "parent", poolId: pool_id, role: "parent_account" }).catch(() => {});
+          await upsertMembership(superAdminDb, { accountId, accountType: "parent", poolId: pool_id, role: "parent_account" }).catch(() => {});
         } else {
           return err(res, 403, "해당 수영장에 대한 접근 권한이 없습니다.");
         }

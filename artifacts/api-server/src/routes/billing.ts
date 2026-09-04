@@ -981,12 +981,18 @@ async function startupCleanupRevenueLogs() {
 
 // X02-C: revenuecat_webhook_events 테이블 보장 (startup migration)
 import("../migrations/pool-db-x-billing-contract.js")
-  .then(({ runXBillingContractMigration }) => runXBillingContractMigration())
+  .then(async ({ runXBillingContractMigration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runXBillingContractMigration(superAdminDb);
+  })
   .catch((e: any) => console.error("[x-billing-init] migration failed:", e?.message));
 
 // X02-D2: x_auto_renew_cancelled 컬럼 보장 (startup migration)
 import("../migrations/pool-db-x-lifecycle.js")
-  .then(({ runXLifecycleMigration }) => runXLifecycleMigration())
+  .then(async ({ runXLifecycleMigration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runXLifecycleMigration(superAdminDb);
+  })
   .catch((e: any) => console.error("[x-lifecycle-init] migration failed:", e?.message));
 
 // ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────

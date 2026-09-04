@@ -14,25 +14,25 @@
  *   - TEST_ 접두어 fixture는 Production canonical answer로 사용 금지
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runCs23aMigration(): Promise<void> {
+export async function runCs23aMigration(db: MigrationDb): Promise<void> {
   if (ran) return;
   ran = true;
 
   // ── 1. support_knowledge_items 컬럼 추가 ──────────────────────────────────
   // intent_id: 같은 질문 intent를 가리키는 canonical grouping key
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     ALTER TABLE support_knowledge_items
       ADD COLUMN IF NOT EXISTS intent_id TEXT
   `));
 
   // answer_mode: DIRECT_DB|GROUNDED_GPT|HUMAN_ONLY
   // null = 기존 동작(기존 resolver chain으로 처리) → GROUNDED_GPT와 동일하게 동작
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     ALTER TABLE support_knowledge_items
       ADD COLUMN IF NOT EXISTS answer_mode TEXT
         CHECK (answer_mode IS NULL
@@ -40,14 +40,14 @@ export async function runCs23aMigration(): Promise<void> {
   `));
 
   // intent_id 인덱스
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_ski_intent_id
       ON support_knowledge_items (intent_id)
       WHERE intent_id IS NOT NULL
   `));
 
   // ── 2. support_intent_utterances 신규 테이블 ──────────────────────────────
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS support_intent_utterances (
       id                   TEXT PRIMARY KEY,
       intent_id            TEXT NOT NULL,
@@ -65,17 +65,17 @@ export async function runCs23aMigration(): Promise<void> {
   `));
 
   // 검색 인덱스 (exact match + intent/knowledge lookup)
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_siu_normalized_utterance
       ON support_intent_utterances (normalized_utterance)
       WHERE status = 'active'
   `));
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_siu_intent_id
       ON support_intent_utterances (intent_id)
       WHERE status = 'active'
   `));
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_siu_knowledge_id
       ON support_intent_utterances (knowledge_id)
   `));
@@ -88,7 +88,7 @@ export async function runCs23aMigration(): Promise<void> {
   //   - test:        vitest 실행 시 자동으로 NODE_ENV=test 설정
   //   - production / undefined: Render 배포 → fixture 삽입 금지
   // TEST_ fixture는 vitest(NODE_ENV=test)에서만 삽입.
-  // 로컬 dev(NODE_ENV=development)도 superAdminDb=운영 DB에 연결되므로 절대 삽입 금지.
+  // 로컬 dev(NODE_ENV=development)도 운영 DB에 연결되므로 절대 삽입 금지.
   // Render production(NODE_ENV=production or undefined)도 동일하게 금지.
   // 필요 시 SEED_TEST_FIXTURES=1 환경변수로 명시 허용 가능.
   const env = process.env.NODE_ENV;
@@ -147,7 +147,7 @@ export async function runCs23aMigration(): Promise<void> {
 
   for (const f of fixtures) {
     // Upsert knowledge item (ignore if already exists)
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       INSERT INTO support_knowledge_items
         (id, item_type, scope, category, feature,
          affected_roles, affected_modes,
@@ -178,7 +178,7 @@ export async function runCs23aMigration(): Promise<void> {
     id: string, intentId: string, knowledgeId: string,
     utterance: string, normalizedUtterance: string, weight = 100
   ) {
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       INSERT INTO support_intent_utterances
         (id, intent_id, knowledge_id, utterance, normalized_utterance, weight, status)
       VALUES

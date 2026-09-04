@@ -117,7 +117,10 @@ async function persistAuditLog(record: ReturnType<typeof buildApprovalAuditRecor
 // ── Migration boot ────────────────────────────────────────────────────────────
 
 import("../migrations/pool-db-cs-16.js")
-  .then(({ runCs16Migration }) => runCs16Migration())
+  .then(async ({ runCs16Migration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runCs16Migration(superAdminDb);
+  })
   .catch((e: any) => console.error("[cs-16-init]", e?.message));
 
 // ── GET /super/support/candidates ─────────────────────────────────────────────

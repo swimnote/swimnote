@@ -15,18 +15,18 @@
  *   - 기존 rows 변경 없음
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runGr1bMigration(): Promise<void> {
+export async function runGr1bMigration(db: MigrationDb): Promise<void> {
   if (ran) return;
   ran = true;
 
   // ALTER TYPE … ADD VALUE IF NOT EXISTS는 트랜잭션 외부에서 실행해야 함.
   // Drizzle execute()는 autocommit 모드로 실행 — 안전.
-  await superAdminDb.execute(
+  await db.execute(
     sql.raw(
       `ALTER TYPE gr_analysis_status_enum ADD VALUE IF NOT EXISTS 'DATA_ACCUMULATING'`,
     ),

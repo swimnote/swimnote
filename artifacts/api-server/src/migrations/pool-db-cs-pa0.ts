@@ -11,14 +11,14 @@
  *   (ticket_id → support_tickets 참조, pool_id만 직접 저장)
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function runCsPa0Migration(): Promise<void> {
+export async function runCsPa0Migration(db: MigrationDb): Promise<void> {
   // ── 1. support_cases ────────────────────────────────────────────────────────
   // AI 고객센터 케이스 상태 추적. support_tickets와 1:1 연결 가능.
   // 원문/이름 저장 금지 — ticket_id FK로 기존 테이블 참조.
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS support_cases (
       id               TEXT PRIMARY KEY,
       pool_id          TEXT REFERENCES swimming_pools(id),
@@ -38,20 +38,20 @@ export async function runCsPa0Migration(): Promise<void> {
     )
   `);
 
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS support_cases_pool_id_idx  ON support_cases(pool_id)
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS support_cases_state_idx    ON support_cases(state)
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS support_cases_created_idx  ON support_cases(created_at DESC)
   `);
 
   // ── 2. support_knowledge_items ───────────────────────────────────────────────
   // FAQ / 규칙 / Known Issue / Solution DB 공통 테이블.
   // Super Admin 검토 후 활성화. AI가 자동 production 승인 금지.
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS support_knowledge_items (
       id               TEXT PRIMARY KEY,
       item_type        TEXT NOT NULL,    -- FAQ / RULE / KNOWN_ISSUE / SOLUTION
@@ -77,23 +77,23 @@ export async function runCsPa0Migration(): Promise<void> {
     )
   `);
 
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS support_knowledge_type_idx   ON support_knowledge_items(item_type)
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS support_knowledge_scope_idx  ON support_knowledge_items(scope, pool_id)
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS support_knowledge_feature_idx ON support_knowledge_items(feature)
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS support_knowledge_status_idx ON support_knowledge_items(status)
   `);
 
   // ── 3. partner_analytics_snapshots ──────────────────────────────────────────
   // Partner 제출 시점의 지표를 불변 기록으로 보존.
   // 생성 후 과거 snapshot 자동 갱신 금지 (append-only).
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS partner_analytics_snapshots (
       id           TEXT PRIMARY KEY,
       period_start DATE NOT NULL,
@@ -105,7 +105,7 @@ export async function runCsPa0Migration(): Promise<void> {
     )
   `);
 
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS partner_snapshots_period_idx ON partner_analytics_snapshots(period_end DESC)
   `);
 

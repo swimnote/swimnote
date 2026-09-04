@@ -18,14 +18,14 @@
  * PRODUCTION DB: NO (개발 DB 전용)
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function up(): Promise<void> {
+export async function up(db: MigrationDb): Promise<void> {
   // ── A. gr_product_status_enum: 신규 값 추가 ──────────────────────────────
   // ALTER TYPE ADD VALUE는 트랜잭션 없이 auto-commit 필요
   // drizzle execute는 각 호출이 독립 auto-commit
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     DO $$ BEGIN
       ALTER TYPE gr_product_status_enum ADD VALUE 'READY_TO_SEND';
     EXCEPTION WHEN duplicate_object THEN NULL;
@@ -33,7 +33,7 @@ export async function up(): Promise<void> {
   `));
   console.log("[WP8-A] READY_TO_SEND added");
 
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     DO $$ BEGIN
       ALTER TYPE gr_product_status_enum ADD VALUE 'DISCARDED';
     EXCEPTION WHEN duplicate_object THEN NULL;
@@ -41,7 +41,7 @@ export async function up(): Promise<void> {
   `));
   console.log("[WP8-A] DISCARDED added");
 
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     DO $$ BEGIN
       ALTER TYPE gr_product_status_enum ADD VALUE 'REGENERATING';
     EXCEPTION WHEN duplicate_object THEN NULL;
@@ -50,7 +50,7 @@ export async function up(): Promise<void> {
   console.log("[WP8-A] REGENERATING added");
 
   // ── B. growth_reports 컬럼 추가 ──────────────────────────────────────────
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     ALTER TABLE growth_reports
       ADD COLUMN IF NOT EXISTS version_number   INT          NOT NULL DEFAULT 1,
       ADD COLUMN IF NOT EXISTS discarded_at     TIMESTAMPTZ,
@@ -62,7 +62,7 @@ export async function up(): Promise<void> {
 
   // ── C. Unique constraint 교체 ─────────────────────────────────────────────
   // 기존 uq_growth_reports_student_cycle 제거
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     DROP INDEX IF EXISTS uq_growth_reports_student_cycle;
   `));
   console.log("[WP8-A] old unique index dropped");
@@ -70,7 +70,7 @@ export async function up(): Promise<void> {
   // 신규: DISCARDED 제외한 partial unique
   // NOTE: ALTER TYPE ADD VALUE 후 새 enum 값이 반영되려면 이전 execute가 commit된 후여야 함
   //       drizzle execute auto-commit이므로 순차 execute OK
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_reports_student_cycle_v2
       ON growth_reports (student_id, cycle_id)
       WHERE cycle_id IS NOT NULL
@@ -80,13 +80,13 @@ export async function up(): Promise<void> {
   console.log("[WP8-A] uq_growth_reports_student_cycle_v2 created");
 
   // 추가 인덱스
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_growth_reports_batch_job_id
       ON growth_reports (batch_job_id)
       WHERE batch_job_id IS NOT NULL AND deleted_at IS NULL;
   `));
 
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_growth_reports_ready_to_send
       ON growth_reports (swimming_pool_id, product_status)
       WHERE product_status = 'READY_TO_SEND'::gr_product_status_enum AND deleted_at IS NULL;
@@ -96,13 +96,13 @@ export async function up(): Promise<void> {
   console.log("[WP8-A] ✅ ALL COMPLETE");
 }
 
-export async function down(): Promise<void> {
-  await superAdminDb.execute(sql.raw(`
+export async function down(db: MigrationDb): Promise<void> {
+  await db.execute(sql.raw(`
     DROP INDEX IF EXISTS idx_growth_reports_ready_to_send;
     DROP INDEX IF EXISTS idx_growth_reports_batch_job_id;
     DROP INDEX IF EXISTS uq_growth_reports_student_cycle_v2;
   `));
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     ALTER TABLE growth_reports
       DROP COLUMN IF EXISTS batch_job_id,
       DROP COLUMN IF EXISTS discard_reason,
@@ -115,6 +115,7 @@ export async function down(): Promise<void> {
 }
 
 // ── standalone 실행 ──────────────────────────────────────────────────────────
-if (import.meta.url === `file://${process.argv[1]}`) {
-  up().catch(e => { console.error(e); process.exit(1); });
+if (import.meta.url === String(new URL(process.argv[1], "file:"))) {
+  const { runWithMigrationDb } = await import("../lib/migration-db.js");
+  runWithMigrationDb("step-wp8-a-lifecycle", up).catch(e => { console.error(e); process.exit(1); });
 }

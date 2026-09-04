@@ -25,12 +25,12 @@
  * Total candidates: 21 (FAQ×11, SOLUTION×10)
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runCs12Migration() {
+export async function runCs12Migration(db: MigrationDb) {
   if (ran) return;
   ran = true;
 
@@ -727,7 +727,7 @@ export async function runCs12Migration() {
           ? `'${JSON.stringify(seed.solution_steps).replace(/'/g, "''")}'::jsonb`
           : "NULL";
 
-        await superAdminDb.execute(sql.raw(`
+        await db.execute(sql.raw(`
           INSERT INTO support_knowledge_items (
             id, item_type, scope, category, feature,
             title, content, question, answer,

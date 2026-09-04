@@ -13,17 +13,21 @@
  * - 실패 시 throw → initPoolDb 전체 실패 → index.ts catch에서 로그
  * - ⚠️  프로덕션 Migration 실행은 별도 승인 후 진행
  */
-import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 import { initXModeSchema } from "./pool-db-x-init.js";
 import { initXPaymentSchema } from "./pool-db-x-payment-init.js";
 import { runBaseManualMigration } from "./pool-db-base-manual-init.js";
 
-export async function initPoolDb(): Promise<void> {
-  // 운영 DB (superAdminDb)에 모든 테이블 초기화
-  const db = superAdminDb;
-  // 백업 DB가 분리되어 있으면 동일 스키마를 백업 DB에도 초기화
-  const backupDb = isDbSeparated ? getBackupDb() : null;
+export async function initPoolDb(db: MigrationDb): Promise<void> {
+  // db는 외부에서 주입됨 (migration context: staging, runtime: superAdminDb wrapper)
+  // 백업 DB: migration context에서는 항상 skip (null)
+  // backupDb: migration context에서는 사용하지 않음 (null).
+  // `as unknown as MigrationDb` cast prevents TypeScript from narrowing to `never`
+  // inside the if (backupDb) block — that block is dead code here but kept for
+  // production runtime compatibility reference.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const backupDb = null as any as (MigrationDb | null);
 
   // ─── ENUM 타입 (중복 시 무시) ────────────────────────────────────────────
   await db.execute(sql.raw(`
@@ -1027,7 +1031,7 @@ export async function initPoolDb(): Promise<void> {
     );
   `));
 
-  console.log("[pool-db-init] superAdminDb 운영 테이블 초기화 완료");
+  console.log("[pool-db-init] 운영 테이블 초기화 완료");
 
   // 백업 DB가 분리되어 있으면 동일 스키마 초기화 (에러 무시)
   // [HOTFIX] preflight ping 3초 → ENOTFOUND/timeout 시 즉시 skip
@@ -1412,7 +1416,7 @@ export async function initPoolDb(): Promise<void> {
   // ⚠️  현재 index.ts(54)는 .catch()로 오류를 삼키므로 서버 기동이 중단되지 않음.
   //     완전한 "서버 기동 중단" 보장이 필요하면 index.ts 호출부를 .catch() 없이 변경 필요.
   // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
-  await initXModeSchema();
+  await initXModeSchema(db);
 
   // ─── SWIMNOTE X02-B1 Payment DB Foundation Migration ──────────────────────
   //
@@ -1422,7 +1426,7 @@ export async function initPoolDb(): Promise<void> {
   //    실패해도 서버 기동을 중단하지 않음. 다음 재시작에서 재시도 (IF NOT EXISTS 멱등성).
   //    X02-B2 코드에서 새 컬럼 사용 전 반드시 migration 완료 확인 필요.
   try {
-    await initXPaymentSchema();
+    await initXPaymentSchema(db);
   } catch (err) {
     console.error("[SWIMNOTE X PAYMENT] X02-B1 Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
   }
@@ -1430,7 +1434,7 @@ export async function initPoolDb(): Promise<void> {
   // ─── BASE SWIMNOTE manual entitlement ─────────────────────────────────────
   // non-FATAL: 서버 기동 중단 없이 다음 재시작에서 재시도 (IF NOT EXISTS 멱등성).
   try {
-    await runBaseManualMigration();
+    await runBaseManualMigration(db);
   } catch (err) {
     console.error("[BASE MANUAL] Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
   }

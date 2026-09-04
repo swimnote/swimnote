@@ -11,9 +11,9 @@
  */
 
 import { sql } from "drizzle-orm";
-import { superAdminDb as db } from "@workspace/db";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function runBaseManualMigration() {
+export async function runBaseManualMigration(db: MigrationDb) {
   // Group BM-1: base_manual_entitlement column
   await db.execute(sql`
     ALTER TABLE swimming_pools

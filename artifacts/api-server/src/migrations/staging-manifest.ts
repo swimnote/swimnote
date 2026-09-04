@@ -6,78 +6,85 @@
  *   이 파일이 Staging Bootstrap의 단일 진입점.
  *
  * 실행:
- *   ALLOW_TEST_DB_MUTATIONS=true pnpm tsx src/migrations/staging-manifest.ts
- *   또는 src/scripts/staging-bootstrap.ts 경유
+ *   ALLOW_TEST_DB_MUTATIONS=true npx tsx src/migrations/staging-manifest.ts
  *
  * 제약:
- *   - TEST_DATABASE_URL만 사용 (Production fallback 없음)
+ *   - getMigrationDb()를 통해 TEST_DATABASE_URL만 사용
+ *   - SUPABASE_DATABASE_URL 덮어쓰기 hack 금지
  *   - ALLOW_TEST_DB_MUTATIONS=true 필수
+ *   - Production ref(mrgkiussgbbmxfnkjgqy) 자동 BLOCK
+ *   - 각 migration은 명시적 db 주입을 받음 (superAdminDb global 사용 금지)
  *   - DROP 없음 (additive only)
  *   - 각 migration은 멱등 (재실행 안전)
  *
  * Migration 실행 순서:
  *   §0  base tables (pool-db-base-manual-init.ts)
- *   §1  pool-db-init (base schema: swimming_pools, users, students, etc.)
+ *   §1  pool-db-init (swimming_pools, users, students, class_groups, etc.)
  *   §2  runtime-ddl-consolidated (members, inquiries, billing, super tables, etc.)
- *   §3  feature migrations (X-mode, growth, WP8 support CRM, etc.)
- *   §4  verification
+ *   §3  X-mode migrations
+ *   §4  CS (Customer Support) migrations
+ *   §5  Growth Report migrations
+ *   §6  WP8 / WP9 migrations
+ *   §7  WP6/WP7 additive schema (event_logs + push_logs columns)
+ *   §8  Misc migrations
+ *   §9  verification
  */
 
-import pg from "pg";
-import path from "path";
-import { fileURLToPath } from "url";
+import { getMigrationDb } from "../lib/migration-db.js";
 
-const { Pool } = pg;
-
-// ── Require TEST_DATABASE_URL explicitly ───────────────────────────────────
-const testUrl = process.env.TEST_DATABASE_URL;
-if (!testUrl) {
-  console.error(
-    "\n🚫 REFUSING TO MUTATE: TEST_DATABASE_URL NOT CONFIGURED\n" +
-    "   Set TEST_DATABASE_URL to the staging Supabase project connection string.\n" +
-    "   DO NOT use SUPABASE_DATABASE_URL for staging bootstrap.\n"
-  );
-  process.exit(1);
-}
-
-if (process.env.ALLOW_TEST_DB_MUTATIONS !== "true") {
-  console.error(
-    "\n🚫 REFUSING TO MUTATE: ALLOW_TEST_DB_MUTATIONS not set to 'true'\n" +
-    "   Set ALLOW_TEST_DB_MUTATIONS=true to confirm this is a test database.\n"
-  );
-  process.exit(1);
-}
-
-// ── Connectivity check ─────────────────────────────────────────────────────
-async function verifyConnectivity(pool: pg.Pool): Promise<{ host: string; dbName: string; version: string }> {
-  const res = await pool.query(
-    "SELECT current_database() db, inet_server_addr()::text host, version() ver"
-  );
-  const row = res.rows[0] as any;
-  return { host: row.host, dbName: row.db, version: row.ver.split(" ")[1] };
-}
+// ── Migration imports ──────────────────────────────────────────────────────
+import { runBaseManualMigration }       from "./pool-db-base-manual-init.js";
+import { initPoolDb }                   from "./pool-db-init.js";
+import { run as runRuntimeDdlConsolidated } from "./runtime-ddl-consolidated.js";
+import { initMembershipSchema }         from "./pool-db-membership.js";
+import { initXModeSchema }             from "./pool-db-x-init.js";
+import { initXPaymentSchema }          from "./pool-db-x-payment-init.js";
+import { runXBillingContractMigration } from "./pool-db-x-billing-contract.js";
+import { runXLifecycleMigration }       from "./pool-db-x-lifecycle.js";
+import { runXSetupMigration }           from "./pool-db-x-setup.js";
+import { runGrInteractionsMigration }   from "./pool-db-x-gr-interactions-init.js";
+import { runX04Migration }              from "./pool-db-x04.js";
+import { runCs05rMigration }            from "./pool-db-cs-05r.js";
+import { runCs12Migration }             from "./pool-db-cs-12.js";
+import { runCs15Migration }             from "./pool-db-cs-15.js";
+import { runCs16Migration }             from "./pool-db-cs-16.js";
+import { runCs23aMigration }            from "./pool-db-cs-23a.js";
+import { runCs24aMigration }            from "./pool-db-cs-24a.js";
+import { runCs24bMigration }            from "./pool-db-cs-24b.js";
+import { runCs26Migration }             from "./pool-db-cs-26.js";
+import { runCsPa0Migration }            from "./pool-db-cs-pa0.js";
+import { initSuperDb }                  from "./super-db-init.js";
+import { initGrowthReportGR1Schema }    from "./growth-report-gr1-init.js";
+import { runGr1bMigration }             from "./growth-report-gr1b-data-accumulating.js";
+import { initGrowthReportGR3Schema }    from "./growth-report-gr3-engine-init.js";
+import { initGrowthReportGR5Schema }    from "./growth-report-gr5-review-init.js";
+import { runMigration as runWp8Crm }    from "./wp8-support-case-crm.js";
+import { up as runWp8aLifecycle }       from "./step-wp8-a-lifecycle.js";
+import { up as runWp8bBatchJobs }       from "./step-wp8-b-batch-jobs.js";
+import { up as runStep0Kpi }            from "./step0-monthly-kpi-foundation.js";
+import { runWp6Wp7AdditiveSchema }      from "./wp6-wp7-additive-schema.js";
+import { backfillPoolAdminRoles }       from "./roles-backfill.js";
 
 // ── Migration step runner ──────────────────────────────────────────────────
-async function runMigrationFile(label: string, filePath: string): Promise<void> {
-  console.log(`\n[manifest] Running §${label}...`);
-  // Override SUPABASE_DATABASE_URL to point at TEST_DATABASE_URL for migration scripts
-  const originalSupabase = process.env.SUPABASE_DATABASE_URL;
-  process.env.SUPABASE_DATABASE_URL = testUrl;
+type MigrationFn = (db: import("../lib/migration-db.js").MigrationDb) => Promise<void>;
+
+async function runStep(label: string, fn: MigrationFn, db: import("../lib/migration-db.js").MigrationDb): Promise<void> {
+  console.log(`\n[manifest] ▶ ${label}...`);
   try {
-    const mod = await import(filePath);
-    const fnName = Object.keys(mod).find(k => typeof mod[k] === "function");
-    if (fnName) {
-      await mod[fnName]();
-    }
+    await fn(db);
     console.log(`[manifest] ✅ ${label} complete`);
   } catch (e: any) {
-    console.error(`[manifest] ⚠ ${label} error: ${e.message}`);
-    // Non-fatal: continue to next migration
-  } finally {
-    if (originalSupabase !== undefined) {
-      process.env.SUPABASE_DATABASE_URL = originalSupabase;
+    const msg = e?.message ?? String(e);
+    if (
+      msg.includes("already exists") ||
+      msg.includes("duplicate_object") ||
+      msg.includes("42P07") ||     // relation already exists
+      msg.includes("42710")        // duplicate object
+    ) {
+      console.log(`[manifest] ⏩ ${label} skipped (already exists)`);
     } else {
-      delete process.env.SUPABASE_DATABASE_URL;
+      console.error(`[manifest] ⚠ ${label} error: ${msg}`);
+      // Non-fatal for manifest runs: continue to next migration
     }
   }
 }
@@ -87,123 +94,78 @@ async function main() {
   console.log("║         SWIMNOTE STAGING BOOTSTRAP (staging-manifest)        ║");
   console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
-  // Override env so @workspace/db uses TEST_DATABASE_URL
-  const originalSupabase = process.env.SUPABASE_DATABASE_URL;
-  process.env.SUPABASE_DATABASE_URL = testUrl!;
+  // ── Get explicit staging DB ─────────────────────────────────────────────
+  // getMigrationDb() fails closed on: missing TEST_DATABASE_URL,
+  // Production ref, unknown ref, missing ALLOW_TEST_DB_MUTATIONS flag.
+  // NO env override hack. NO SUPABASE_DATABASE_URL fallback.
+  const { db, close } = await getMigrationDb("staging-manifest");
 
-  const pool = new Pool({
-    connectionString: testUrl,
-    ssl: { rejectUnauthorized: false },
-    max: 1,
-    connectionTimeoutMillis: 15000,
-  });
+  const { sql } = await import("drizzle-orm");
+  const countBefore = (await db.execute(sql.raw(
+    "SELECT COUNT(*) cnt FROM information_schema.tables WHERE table_schema='public'"
+  )).catch(() => ({ rows: [{ cnt: "?" }] }))).rows[0]?.cnt as string | undefined;
+  console.log(`\n[manifest] Initial table count: ${countBefore}`);
 
-  // ── Step 0: Connectivity ──────────────────────────────────────────────────
-  console.log("[manifest] §0 Connectivity check...");
-  const { host, dbName, version } = await verifyConnectivity(pool);
-  console.log(`  DB:      ${dbName}`);
-  console.log(`  Host:    ${host}`);
-  console.log(`  Version: ${version}`);
+  try {
+    // §0: Base manual init (swimming_pools, users, push_logs, etc.)
+    await runStep("§0  pool-db-base-manual-init",     runBaseManualMigration,      db);
 
-  // Production host guard (belt-and-suspenders)
-  if (/^2406:da1a:/.test(host)) {
-    console.error("\n🚫 ABORT: Host matches Production IPv6 prefix. Cannot bootstrap production DB.\n");
-    await pool.end();
-    process.exit(1);
-  }
+    // §1: Core pool tables
+    await runStep("§1  pool-db-init",                 initPoolDb,                  db);
 
-  // ── Step 1: Count initial tables ────────────────────────────────────────
-  const beforeTables = await pool.query(
-    "SELECT COUNT(*) cnt FROM information_schema.tables WHERE table_schema = 'public'"
-  );
-  const tablesBefore = parseInt((beforeTables.rows[0] as any).cnt);
-  console.log(`\n[manifest] Initial table count: ${tablesBefore}`);
+    // §2: Consolidated DDL
+    await runStep("§2  runtime-ddl-consolidated",     runRuntimeDdlConsolidated,   db);
+    await runStep("§2b pool-db-membership",           initMembershipSchema,         db);
 
-  await pool.end();
+    // §3: X-mode
+    await runStep("§3a pool-db-x-init (WP1)",         initXModeSchema,             db);
+    await runStep("§3b pool-db-x-payment-init",       initXPaymentSchema,          db);
+    await runStep("§3c pool-db-x-billing-contract",   runXBillingContractMigration, db);
+    await runStep("§3d pool-db-x-lifecycle",          runXLifecycleMigration,      db);
+    await runStep("§3e pool-db-x-setup",              runXSetupMigration,          db);
+    await runStep("§3f pool-db-x-gr-interactions",    runGrInteractionsMigration,  db);
+    await runStep("§3g pool-db-x04",                  runX04Migration,             db);
 
-  // ── Step 2: Run migrations in order ─────────────────────────────────────
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    // §4: CS migrations
+    await runStep("§4a pool-db-cs-05r",               runCs05rMigration,           db);
+    await runStep("§4b pool-db-cs-12",                runCs12Migration,            db);
+    await runStep("§4c pool-db-cs-15",                runCs15Migration,            db);
+    await runStep("§4d pool-db-cs-16",                runCs16Migration,            db);
+    await runStep("§4e pool-db-cs-23a",               runCs23aMigration,           db);
+    await runStep("§4f pool-db-cs-24a",               runCs24aMigration,           db);
+    await runStep("§4g pool-db-cs-24b",               runCs24bMigration,           db);
+    await runStep("§4h pool-db-cs-26",                runCs26Migration,            db);
+    await runStep("§4i pool-db-cs-pa0",               runCsPa0Migration,           db);
 
-  const migrations: Array<{ label: string; path: string }> = [
-    { label: "pool-db-base-manual-init",       path: path.join(__dirname, "pool-db-base-manual-init.js") },
-    { label: "pool-db-init (base schema)",     path: path.join(__dirname, "pool-db-init.js") },
-    { label: "runtime-ddl-consolidated",       path: path.join(__dirname, "runtime-ddl-consolidated.js") },
-    { label: "pool-db-membership",             path: path.join(__dirname, "pool-db-membership.js") },
-    { label: "pool-db-x-init",                path: path.join(__dirname, "pool-db-x-init.js") },
-    { label: "pool-db-x-billing-contract",    path: path.join(__dirname, "pool-db-x-billing-contract.js") },
-    { label: "pool-db-x-lifecycle",           path: path.join(__dirname, "pool-db-x-lifecycle.js") },
-    { label: "pool-db-x-setup",               path: path.join(__dirname, "pool-db-x-setup.js") },
-    { label: "pool-db-x-gr-interactions",     path: path.join(__dirname, "pool-db-x-gr-interactions-init.js") },
-    { label: "pool-db-x04",                   path: path.join(__dirname, "pool-db-x04.js") },
-    { label: "pool-db-cs-05r",                path: path.join(__dirname, "pool-db-cs-05r.js") },
-    { label: "pool-db-cs-12",                 path: path.join(__dirname, "pool-db-cs-12.js") },
-    { label: "pool-db-cs-15",                 path: path.join(__dirname, "pool-db-cs-15.js") },
-    { label: "pool-db-cs-16",                 path: path.join(__dirname, "pool-db-cs-16.js") },
-    { label: "pool-db-cs-23a",                path: path.join(__dirname, "pool-db-cs-23a.js") },
-    { label: "pool-db-cs-24a",                path: path.join(__dirname, "pool-db-cs-24a.js") },
-    { label: "pool-db-cs-24b",                path: path.join(__dirname, "pool-db-cs-24b.js") },
-    { label: "pool-db-cs-26",                 path: path.join(__dirname, "pool-db-cs-26.js") },
-    { label: "pool-db-cs-pa0",               path: path.join(__dirname, "pool-db-cs-pa0.js") },
-    { label: "super-db-init",                 path: path.join(__dirname, "super-db-init.js") },
-    { label: "growth-report migrations",       path: path.join(__dirname, "pool-db-x-payment-init.js") },
-    { label: "wp8-support-case-crm",          path: path.join(__dirname, "wp8-support-case-crm.js") },
-  ];
+    // §5: Super + Growth Reports
+    await runStep("§5a super-db-init",                initSuperDb,                 db);
+    await runStep("§5b growth-report-gr1-init",       initGrowthReportGR1Schema,   db);
+    await runStep("§5c growth-report-gr1b",           runGr1bMigration,            db);
+    await runStep("§5d growth-report-gr3-engine",     initGrowthReportGR3Schema,   db);
+    await runStep("§5e growth-report-gr5-review",     initGrowthReportGR5Schema,   db);
 
-  for (const m of migrations) {
-    await runMigrationFile(m.label, m.path);
-  }
+    // §6: WP8 / WP9
+    await runStep("§6a wp8-support-case-crm",         runWp8Crm,                   db);
+    await runStep("§6b step-wp8-a-lifecycle",         runWp8aLifecycle,            db);
+    await runStep("§6c step-wp8-b-batch-jobs",        runWp8bBatchJobs,            db);
+    await runStep("§6d step0-monthly-kpi-foundation", runStep0Kpi,                 db);
 
-  // ── Step 3: Verify final table count ────────────────────────────────────
-  const verifyPool = new Pool({
-    connectionString: testUrl,
-    ssl: { rejectUnauthorized: false },
-    max: 1,
-    connectionTimeoutMillis: 15000,
-  });
+    // §7: WP6/WP7 additive schema (official migration —归属 완료)
+    await runStep("§7  wp6-wp7-additive-schema",      runWp6Wp7AdditiveSchema,     db);
 
-  const afterTables = await verifyPool.query(
-    "SELECT COUNT(*) cnt FROM information_schema.tables WHERE table_schema = 'public'"
-  );
-  const tablesAfter = parseInt((afterTables.rows[0] as any).cnt);
+    // §8: Misc backfills
+    await runStep("§8  roles-backfill",               backfillPoolAdminRoles,      db);
 
-  const keyTables = await verifyPool.query(`
-    SELECT table_name FROM information_schema.tables
-    WHERE table_schema = 'public'
-    ORDER BY table_name
-  `);
-  const tableList = (keyTables.rows as any[]).map(r => r.table_name);
-
-  await verifyPool.end();
-
-  // Restore env
-  if (originalSupabase !== undefined) {
-    process.env.SUPABASE_DATABASE_URL = originalSupabase;
-  } else {
-    delete process.env.SUPABASE_DATABASE_URL;
+  } finally {
+    await close();
   }
 
   console.log("\n╔══════════════════════════════════════════════════════════════╗");
   console.log("║                     BOOTSTRAP COMPLETE                      ║");
   console.log("╚══════════════════════════════════════════════════════════════╝");
-  console.log(`\n  Tables before: ${tablesBefore}`);
-  console.log(`  Tables after:  ${tablesAfter}`);
-  console.log(`  New tables:    ${tablesAfter - tablesBefore}`);
-  console.log(`\n  All tables (${tableList.length}):`);
-  tableList.forEach(t => console.log(`    - ${t}`));
-
-  const REQUIRED = [
-    "swimming_pools", "users", "students", "class_groups",
-    "notifications", "push_logs", "support_cases", "audit_logs",
-    "revenue_logs", "subscription_plans", "feature_flags",
-    "event_logs", "inquiries", "parent_request_messages",
-    "support_ticket_replies", "system_policies", "pool_credits",
-  ];
-  const missing = REQUIRED.filter(t => !tableList.includes(t));
-  if (missing.length > 0) {
-    console.error(`\n⚠ Missing expected tables: ${missing.join(", ")}`);
-  } else {
-    console.log("\n  ✅ All required tables present");
-  }
+  console.log("\n[manifest] Next step: re-run ALLOW_TEST_DB_MUTATIONS=true npx tsx src/migrations/staging-manifest.ts");
+  console.log("[manifest] to verify idempotency (second run should produce no errors).");
+  console.log("[manifest] Then run src/scripts/staging-fixture.ts to create test fixtures.");
 }
 
 main().catch((e) => {

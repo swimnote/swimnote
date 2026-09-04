@@ -22,11 +22,9 @@
  */
 
 import { sql } from "drizzle-orm";
-import { superAdminDb } from "@workspace/db";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-const db = superAdminDb;
-
-export async function up(): Promise<void> {
+export async function up(db: MigrationDb): Promise<void> {
   console.log("[wp2a-migration] Starting UP...");
 
   // ── 1. Insert new 2.0 subscription plans ──────────────────────────────
@@ -80,7 +78,7 @@ export async function up(): Promise<void> {
   console.log("[wp2a-migration] UP complete.");
 }
 
-export async function down(): Promise<void> {
+export async function down(db: MigrationDb): Promise<void> {
   console.log("[wp2a-migration] Starting DOWN (rollback)...");
 
   // Remove new plan rows only — legacy rows untouched

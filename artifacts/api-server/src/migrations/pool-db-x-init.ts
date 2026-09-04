@@ -26,10 +26,10 @@
  *   M-H → M-H2 (parent_ai_daily_usage 먼저)
  * ──────────────────────────────────────────────────────────────────
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-type Db = typeof superAdminDb;
+type Db = MigrationDb;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Group 1: ENUM 타입 + swimming_pools X모드 컬럼
@@ -1071,8 +1071,7 @@ async function runGroup8_ParentAiUsageFeatureIsolation(db: Db): Promise<void> {
  *   - 사전 검증(M-E)은 기존 데이터가 0행 이상이면 throw
  *   - x_global 행이 생긴 이후에는 검증 조건이 자연스럽게 통과됨
  */
-export async function initXModeSchema(): Promise<void> {
-  const db = superAdminDb;
+export async function initXModeSchema(db: MigrationDb): Promise<void> {
 
   // Group 1: ENUM + swimming_pools
   try {
@@ -1155,8 +1154,7 @@ export async function initXModeSchema(): Promise<void> {
  *
  * 금지: pool-db-init.ts / index.ts / Worker / Route에서 호출 금지
  */
-export async function initXModePart2Schema(): Promise<void> {
-  const db = superAdminDb;
+export async function initXModePart2Schema(db: MigrationDb): Promise<void> {
 
   // Group 4: Parent AI 사용량 추적
   try {

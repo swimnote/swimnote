@@ -12,17 +12,17 @@
  *   - additive only — 기존 테이블 변경 없음
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runCs24bMigration(): Promise<void> {
+export async function runCs24bMigration(db: MigrationDb): Promise<void> {
   if (ran) return;
   ran = true;
 
   // ── support_knowledge_candidates ──────────────────────────────────────────
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS support_knowledge_candidates (
       id                    TEXT PRIMARY KEY,
 
@@ -79,16 +79,16 @@ export async function runCs24bMigration(): Promise<void> {
   `));
 
   // 인덱스: Review Console 정렬 + Candidate Engine 그루핑
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_skc_normalized_query
       ON support_knowledge_candidates (normalized_query)
       WHERE status = 'PENDING'
   `));
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_skc_status
       ON support_knowledge_candidates (status)
   `));
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_skc_occurrence
       ON support_knowledge_candidates (occurrence_count DESC, human_request_count DESC)
       WHERE status = 'PENDING'

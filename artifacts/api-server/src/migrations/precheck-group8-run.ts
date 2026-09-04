@@ -2,12 +2,12 @@
  * READ-ONLY precheck for group8 migration.
  * Run: node_modules/.bin/tsx src/migrations/precheck-group8-run.ts
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-async function main() {
+export async function main(db: MigrationDb) {
   // 1. row counts
-  const counts = await superAdminDb.execute(sql`
+  const counts = await db.execute(sql`
     SELECT
       (SELECT COUNT(*) FROM parent_curriculum_conversations) AS conv_count,
       (SELECT COUNT(*) FROM parent_curriculum_messages)      AS msg_count
@@ -16,7 +16,7 @@ async function main() {
   console.log(JSON.stringify((counts as any).rows[0]));
 
   // 2. columns
-  const cols = await superAdminDb.execute(sql`
+  const cols = await db.execute(sql`
     SELECT column_name, data_type, is_nullable
     FROM information_schema.columns
     WHERE table_name = 'parent_curriculum_conversations'
@@ -26,7 +26,7 @@ async function main() {
   console.log(JSON.stringify((cols as any).rows, null, 2));
 
   // 3. UNIQUE + PK constraints
-  const constraints = await superAdminDb.execute(sql`
+  const constraints = await db.execute(sql`
     SELECT c.conname, c.contype,
            array_agg(a.attname ORDER BY a.attnum) AS cols
     FROM pg_constraint c
@@ -39,7 +39,7 @@ async function main() {
   console.log(JSON.stringify((constraints as any).rows, null, 2));
 
   // 4. indexes
-  const indexes = await superAdminDb.execute(sql`
+  const indexes = await db.execute(sql`
     SELECT indexname, indexdef
     FROM pg_indexes
     WHERE tablename = 'parent_curriculum_conversations'
@@ -48,7 +48,7 @@ async function main() {
   console.log(JSON.stringify((indexes as any).rows, null, 2));
 
   // 5. FK on messages
-  const fks = await superAdminDb.execute(sql`
+  const fks = await db.execute(sql`
     SELECT
       tc.constraint_name,
       kcu.column_name,
@@ -71,7 +71,12 @@ async function main() {
   console.log("\n=== MESSAGES FK ===");
   console.log(JSON.stringify((fks as any).rows, null, 2));
 
-  process.exit(0);
 }
 
-main().catch(e => { console.error("PRECHECK ERROR:", e.message); process.exit(1); });
+if (import.meta.url === String(new URL(process.argv[1], "file:"))) {
+  const { runWithMigrationDb } = await import("../lib/migration-db.js");
+  runWithMigrationDb("precheck-group8-run", main).catch(e => {
+    console.error(e);
+    process.exit(1);
+  });
+}

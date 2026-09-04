@@ -44,10 +44,10 @@ function requireSuperAdmin(req: Request, res: Response, next: Function) {
 
 // Migration — lazy on first request
 import("../migrations/pool-db-cs-24a.js")
-  .then(m => m.runCs24aMigration())
+  .then(async m => { const { superAdminDb } = await import("@workspace/db"); return m.runCs24aMigration(superAdminDb); })
   .catch(e => console.error("[cs24a] lazy migration 오류:", e.message));
 import("../migrations/pool-db-cs-24b.js")
-  .then(m => m.runCs24bMigration())
+  .then(async m => { const { superAdminDb } = await import("@workspace/db"); return m.runCs24bMigration(superAdminDb); })
   .catch(e => console.error("[cs24b] lazy migration 오류:", e.message));
 
 // ── GET /super/support/knowledge-candidates ────────────────────────────────

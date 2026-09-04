@@ -18,7 +18,17 @@ import { getTestDb, closeTestDb } from "../lib/test-db.js";
 // WP8-P2: use TEST_DATABASE_URL exclusively (Production fallback forbidden)
 const superAdminDb = await getTestDb("wp8-preflight");
 
-const BASE = "http://localhost:8080/api";
+const BASE = (() => {
+  const url = process.env.WP8_TEST_API_BASE_URL;
+  if (!url) {
+    if (process.env.ALLOW_TEST_DB_MUTATIONS === "true") {
+      console.error("\n🚫 WP8 E2E BLOCKED: WP8_TEST_API_BASE_URL is not set.\n   Set WP8_TEST_API_BASE_URL=http://localhost:PORT/api to point at the staging API server.\n   Do NOT run WP8 HTTP assertions against Production.\n");
+      process.exit(1);
+    }
+    return "http://localhost:8080/api"; // non-staging fallback (schema-only tests)
+  }
+  return url;
+})();
 
 let PASS = 0, FAIL = 0, SKIP = 0;
 function pass(m: string) { PASS++; console.log(`  ✅ ${m}`); }

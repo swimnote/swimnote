@@ -6,7 +6,7 @@
  *   명시적 idempotent migration으로 통합.
  *
  * 적용 대상 DB:
- *   superAdminDb (SUPABASE_DATABASE_URL) — 모든 운영 테이블
+ *   MigrationDb — 모든 운영 테이블
  *
  * 실행:
  *   pnpm tsx src/migrations/runtime-ddl-consolidated.ts
@@ -18,27 +18,13 @@
  *   - Production에 적용 시 별도 승인 필요
  */
 
-import pg from "pg";
+import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-const { Pool } = pg;
-
-const DB_URL = process.env.SUPABASE_DATABASE_URL ?? process.env.TEST_DATABASE_URL;
-if (!DB_URL) {
-  console.error("ERROR: SUPABASE_DATABASE_URL or TEST_DATABASE_URL must be set");
-  process.exit(1);
-}
-
-async function run() {
-  const pool = new Pool({
-    connectionString: DB_URL,
-    ssl: { rejectUnauthorized: false },
-    max: 1,
-    connectionTimeoutMillis: 15000,
-  });
-
-  const exec = async (label: string, sql: string) => {
+export async function run(db: MigrationDb) {
+  const exec = async (label: string, statement: string) => {
     try {
-      await pool.query(sql);
+      await db.execute(sql.raw(statement));
       console.log(`  ✓ ${label}`);
     } catch (e: any) {
       console.warn(`  ⚠ ${label}: ${e.message}`);
@@ -494,11 +480,13 @@ async function run() {
   await exec("parent_v2_pending.pending_reason",        `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS pending_reason text`);
   await exec("parent_v2_pending.rejection_reason",      `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS rejection_reason text`);
 
-  await pool.end();
   console.log("\n[runtime-ddl-consolidated] ✅ Complete\n");
 }
 
-run().catch((e) => {
-  console.error("[runtime-ddl-consolidated] FATAL:", e.message);
-  process.exit(1);
-});
+if (import.meta.url === String(new URL(process.argv[1], "file:"))) {
+  const { runWithMigrationDb } = await import("../lib/migration-db.js");
+  runWithMigrationDb("runtime-ddl-consolidated", run).catch(e => {
+    console.error(e);
+    process.exit(1);
+  });
+}

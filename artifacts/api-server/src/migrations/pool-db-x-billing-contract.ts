@@ -10,12 +10,12 @@
  * 파괴적 변경 금지: DROP / TRUNCATE / ALTER ... DROP COLUMN 없음
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function runXBillingContractMigration(): Promise<void> {
+export async function runXBillingContractMigration(db: MigrationDb): Promise<void> {
   // revenuecat_webhook_events — X webhook event dedup 테이블
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS revenuecat_webhook_events (
       id           bigserial    PRIMARY KEY,
       event_id     text         NOT NULL,
@@ -29,13 +29,13 @@ export async function runXBillingContractMigration(): Promise<void> {
   `));
 
   // event_id UNIQUE — dedup의 핵심
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE UNIQUE INDEX IF NOT EXISTS uniq_rc_webhook_events_event_id
       ON revenuecat_webhook_events(event_id);
   `));
 
   // 조회 최적화: app_user_id + event_type
-  await superAdminDb.execute(sql.raw(`
+  await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_rc_webhook_events_user_type
       ON revenuecat_webhook_events(app_user_id, event_type);
   `));

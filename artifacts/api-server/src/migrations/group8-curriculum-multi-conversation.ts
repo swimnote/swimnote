@@ -22,14 +22,14 @@
  *   기존 conversation 삭제로 UNIQUE 맞추는 방식 금지.
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function runGroup8CurriculumMultiConversationMigration(): Promise<void> {
+export async function runGroup8CurriculumMultiConversationMigration(db: MigrationDb): Promise<void> {
   console.log("[group8-curriculum-multi-conversation] START");
 
   // ── 사전 검증 ──────────────────────────────────────────────────────────────
-  const preMigrationCounts = await superAdminDb.execute(sql`
+  const preMigrationCounts = await db.execute(sql`
     SELECT
       (SELECT COUNT(*) FROM parent_curriculum_conversations) AS conv_count,
       (SELECT COUNT(*) FROM parent_curriculum_messages)      AS msg_count
@@ -38,7 +38,7 @@ export async function runGroup8CurriculumMultiConversationMigration(): Promise<v
   console.log(`[group8] PRE: conversations=${preCounts.conv_count}, messages=${preCounts.msg_count}`);
 
   // ── 실제 UNIQUE constraint 이름 조회 ──────────────────────────────────────
-  const constraintResult = await superAdminDb.execute(sql`
+  const constraintResult = await db.execute(sql`
     SELECT conname
     FROM pg_constraint
     WHERE conrelid  = 'parent_curriculum_conversations'::regclass
@@ -57,14 +57,14 @@ export async function runGroup8CurriculumMultiConversationMigration(): Promise<v
     const constraintName: string = row.conname;
     console.log(`[group8] Dropping UNIQUE constraint: ${constraintName}`);
     // Dynamic constraint name — safe because it comes from pg_constraint (not user input)
-    await superAdminDb.execute(
+    await db.execute(
       sql.raw(`ALTER TABLE parent_curriculum_conversations DROP CONSTRAINT IF EXISTS "${constraintName}"`)
     );
     console.log(`[group8] Dropped: ${constraintName}`);
   }
 
   // ── title 컬럼 추가 ────────────────────────────────────────────────────────
-  const titleExists = await superAdminDb.execute(sql`
+  const titleExists = await db.execute(sql`
     SELECT 1 FROM information_schema.columns
     WHERE table_name  = 'parent_curriculum_conversations'
       AND column_name = 'title'
@@ -73,7 +73,7 @@ export async function runGroup8CurriculumMultiConversationMigration(): Promise<v
 
   if ((titleExists as any).rows.length === 0) {
     console.log("[group8] Adding title column...");
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       ALTER TABLE parent_curriculum_conversations
         ADD COLUMN title TEXT NULL
     `);
@@ -83,7 +83,7 @@ export async function runGroup8CurriculumMultiConversationMigration(): Promise<v
   }
 
   // ── 대화 목록 정렬 index 추가 ──────────────────────────────────────────────
-  const indexExists = await superAdminDb.execute(sql`
+  const indexExists = await db.execute(sql`
     SELECT 1 FROM pg_indexes
     WHERE tablename  = 'parent_curriculum_conversations'
       AND indexname  = 'idx_pcc_parent_student_updated'
@@ -92,7 +92,7 @@ export async function runGroup8CurriculumMultiConversationMigration(): Promise<v
 
   if ((indexExists as any).rows.length === 0) {
     console.log("[group8] Creating idx_pcc_parent_student_updated...");
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE INDEX idx_pcc_parent_student_updated
         ON parent_curriculum_conversations (parent_account_id, student_id, updated_at DESC)
     `);
@@ -102,7 +102,7 @@ export async function runGroup8CurriculumMultiConversationMigration(): Promise<v
   }
 
   // ── 사후 검증 ──────────────────────────────────────────────────────────────
-  const postMigrationCounts = await superAdminDb.execute(sql`
+  const postMigrationCounts = await db.execute(sql`
     SELECT
       (SELECT COUNT(*) FROM parent_curriculum_conversations) AS conv_count,
       (SELECT COUNT(*) FROM parent_curriculum_messages)      AS msg_count
