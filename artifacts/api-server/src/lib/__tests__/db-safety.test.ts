@@ -15,15 +15,15 @@ import {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-const STAGING_REF = "mrgkiussgbbmxfnkjgqy";
+// swimnote-staging (ap-northeast-2, Seoul) — the ONLY allowed staging ref
+const STAGING_REF = "lspmacdbyvpzysnrjsww";
 
-// Known staging URL (Shared Transaction Pooler)
+// Known staging URL (Shared Transaction Pooler, Seoul)
 const STAGING_TX_URL =
   `postgresql://postgres.${STAGING_REF}:REDACTED@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres`;
 
-// Production URL (Shared Session Pooler) — same ref as staging in this test,
-// but in real deployment PRODUCTION_REF != STAGING_REF
-const PRODUCTION_REF = "aaaaaaaabbbbbbbbcccc"; // hypothetical distinct production ref
+// Production URL (Shared Session Pooler, Mumbai) — must be BLOCKED
+const PRODUCTION_REF = "mrgkiussgbbmxfnkjgqy"; // real production ref (swimnote production)
 const PRODUCTION_URL =
   `postgresql://postgres.${PRODUCTION_REF}:REDACTED@aws-1-ap-south-1.pooler.supabase.com:5432/postgres`;
 

@@ -34,10 +34,12 @@
 //                Production과 동일한 ref를 추가하면 보호가 무의미해짐.
 //
 // Current known staging:
-//   swimnote-staging: mrgkiussgbbmxfnkjgqy (ap-northeast-2, Seoul)
+//   swimnote-staging: lspmacdbyvpzysnrjsww (ap-northeast-2, Seoul)
+//
+// Production ref (mrgkiussgbbmxfnkjgqy) is intentionally NOT in this list.
 //
 const KNOWN_STAGING_PROJECT_REFS = new Set<string>([
-  "mrgkiussgbbmxfnkjgqy", // swimnote-staging (ap-northeast-2)
+  "lspmacdbyvpzysnrjsww", // swimnote-staging (ap-northeast-2, Seoul)
 ]);
 
 // ── Project ref extraction ────────────────────────────────────────────────────
