@@ -484,13 +484,12 @@ export async function notifyBatchComplete(params: {
 }): Promise<void> {
   const { poolId, message } = params;
   try {
-    // pool_admin/teacher 역할 보유자에게 발송
+    // pool_admin 역할 보유자에게 발송 (users 테이블 기준, same pool only)
     const admins = (await db.execute(sql`
-      SELECT DISTINCT user_id
-      FROM pool_memberships
+      SELECT DISTINCT id AS user_id
+      FROM users
       WHERE swimming_pool_id = ${poolId}
-        AND role IN ('pool_admin','teacher')
-        AND status = 'active'
+        AND role = 'pool_admin'
     `)).rows as any[];
 
     const title = "AI 성장리포트 발송 준비 완료";

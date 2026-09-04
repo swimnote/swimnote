@@ -198,16 +198,16 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
       0
     ).toISOString().slice(0, 10);
 
+    // growth_report_cycles 실제 컬럼: analysis_cutoff_at, parent_input_open/close_at
+    // period_start/period_end/report_type 컬럼 없음
     const newCycle = await db.execute(sql`
       INSERT INTO growth_report_cycles (
-        swimming_pool_id, report_period, period_start, period_end,
-        cycle_status, parent_input_open_at, parent_input_close_at,
-        report_type, created_at, updated_at
+        swimming_pool_id, report_period,
+        analysis_cutoff_at, parent_input_open_at, parent_input_close_at
       )
       VALUES (
-        ${poolId}, ${reportPeriod}, ${periodStart}::date, ${periodEnd}::date,
-        'ACTIVE', NOW(), NOW(),
-        'MONTHLY_X', NOW(), NOW()
+        ${poolId}, ${reportPeriod},
+        NOW() + INTERVAL '7 days', NOW(), NOW() + INTERVAL '30 days'
       )
       ON CONFLICT (swimming_pool_id, report_period) DO NOTHING
       RETURNING id
