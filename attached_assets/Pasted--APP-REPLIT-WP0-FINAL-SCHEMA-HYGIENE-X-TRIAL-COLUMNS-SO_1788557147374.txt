@@ -1,0 +1,380 @@
+[보낼 곳: APP REPLIT]
+
+# WP0 FINAL SCHEMA HYGIENE — X TRIAL COLUMNS SOURCE-OF-TRUTH
+# 목적:
+# Toykids X Mode 장애는 Production DB 직접 패치로 해결되었고 Live API mode=x까지 PASS했다.
+# 이제 동일 장애가 새로운 DB / Staging 재구축 / 향후 migration에서 다시 발생하지 않도록
+# x_trial_* 3개 컬럼을 canonical migration 체계에 정확히 고정하고 WP0를 최종 종료한다.
+#
+# IMPORTANT:
+# Production DB는 이미 수정 완료됨.
+# Production DB 추가 변경 금지.
+# Staging DB 추가 변경 금지 unless read-only verification.
+# Runtime boot/request DDL 추가 금지.
+# Render 배포 금지.
+# OTA 금지.
+# 기능 코드 변경 금지.
+#
+# 이번 작업은 SCHEMA SOURCE-OF-TRUTH 정리만 수행.
+
+============================================================
+KNOWN LIVE PASS
+============================================================
+
+Production:
+
+GET /api/pools/x-mode
+→ HTTP 200
+→ mode = x
+
+Toykids:
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+x_management_override = true
+x_plan_key = x1000
+member_limit = 1000
+xmode_config_status = CURRICULUM_PENDING
+
+Live X mode:
+PASS
+
+따라서 resolver/X 기능을 다시 수정하지 말 것.
+
+============================================================
+1. GIT STATE 정확히 정리
+============================================================
+
+현재 보고서에 다음 값이 혼재함:
+
+release/v2.0.0 HEAD before:
+3775e2ce
+
+release/v2.0.0 HEAD after:
+0a5105aa
+
+migration commit:
+d10b2f87
+
+main deployed:
+674e8fdb
+
+실제 git을 확인하여 정확히 보고:
+
+local release/v2.0.0 HEAD:
+...
+
+origin/release/v2.0.0 HEAD:
+...
+
+local main HEAD:
+...
+
+origin/main HEAD:
+...
+
+migration file commit SHA:
+...
+
+migration commit이 포함된 branches:
+...
+
+반드시 ancestry로 확인.
+
+추측 금지.
+
+============================================================
+2. CANONICAL MIGRATION 확인
+============================================================
+
+필수 schema:
+
+swimming_pools.x_trial_started_at TIMESTAMPTZ
+swimming_pools.x_trial_ends_at    TIMESTAMPTZ
+swimming_pools.x_trial_used_at    TIMESTAMPTZ
+
+index:
+
+idx_swimming_pools_x_trial_ends_at
+또는 현재 canonical naming convention과 동일한 index.
+
+현재 생성된 파일:
+
+artifacts/api-server/migrations/2026-09-05-x-trial-columns.sql
+
+확인:
+
+A. 이 파일이 git tracked인가?
+B. release/v2.0.0에 포함되는가?
+C. canonical migration runner/tool이 이 migration directory를 실제 사용하는가?
+D. fresh Staging DB migration 시 이 컬럼들이 생성되는가?
+E. 기존 wp2b-x-trial.ts와 중복/충돌하지 않는가?
+
+============================================================
+3. RUNTIME DDL 금지 확인
+============================================================
+
+보고서에:
+
+"서버 시작 시 자동 실행되는 TypeScript migration sequence"
+
+가 언급됨.
+
+SWIMNOTE 개발 헌법:
+
+Production runtime boot/request에서
+CREATE TABLE / ALTER TABLE / CREATE INDEX 등
+runtime DDL 금지.
+
+따라서 확인:
+
+현재 Production server boot에서
+schema migration/ALTER TABLE을 자동 실행하는 코드가 존재하는가?
+
+YES이면:
+이번 작업에서는 대규모 리팩터링하지 말고
+정확한 파일/경로/실행조건만 보고.
+
+단 x_trial 컬럼을 다시 runtime migration sequence에 추가하는 방식으로
+해결하지 말 것.
+
+canonical SQL migration이 source-of-truth여야 함.
+
+============================================================
+4. FRESH MIGRATION SAFETY
+============================================================
+
+Production에는 실행하지 말 것.
+
+안전한 TEST/STAGING migration validation만 사용하여:
+
+fresh schema 또는 migration-compatible validation 환경에서
+
+canonical migrations 적용 후:
+
+x_trial_started_at EXISTS
+x_trial_ends_at EXISTS
+x_trial_used_at EXISTS
+required index EXISTS
+
+확인.
+
+Second run:
+
+idempotent PASS
+
+기존 데이터 손실:
+0
+
+============================================================
+5. DUPLICATE MIGRATION 확인
+============================================================
+
+wp2b-x-trial.ts와
+2026-09-05-x-trial-columns.sql이
+같은 schema를 서로 다른 체계에서 중복 생성한다면
+
+둘 중 어느 것이 canonical인지 확정.
+
+원칙:
+
+- Production runtime TypeScript auto-DDL을 canonical로 삼지 않음.
+- migration file 기반 schema가 authoritative.
+- 이미 적용된 DB에서는 IF NOT EXISTS 등으로 안전.
+- historical migration artifact를 함부로 삭제하지 않음.
+
+필요한 최소 정리만 수행.
+
+============================================================
+6. CODE CHANGE RULE
+============================================================
+
+Migration file이 이미 canonical 위치/branch에 정상 포함되어 있으면:
+
+코드 변경 0.
+
+추가 commit 불필요.
+
+단 migration file이 release branch에 없거나
+canonical migration manifest/index에 등록이 필요한 구조라면:
+
+migration plumbing만 최소 수정.
+
+기능 코드 수정 금지.
+
+수정 시 반드시:
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Push:
+YES
+
+============================================================
+7. PRODUCTION READ-ONLY VERIFY
+============================================================
+
+Production read-only:
+
+x_trial_started_at exists:
+YES
+
+x_trial_ends_at exists:
+YES
+
+x_trial_used_at exists:
+YES
+
+index exists:
+YES
+
+Toykids:
+
+GET /api/pools/x-mode:
+HTTP 200
+
+mode:
+x
+
+이 상태 유지 확인.
+
+Production ALTER/UPDATE:
+0
+
+============================================================
+8. FINAL REPORT
+============================================================
+
+# WP0 FINAL SCHEMA HYGIENE REPORT
+
+Git:
+
+release local HEAD:
+...
+
+release remote HEAD:
+...
+
+main local HEAD:
+...
+
+main remote HEAD:
+...
+
+Migration commit SHA:
+...
+
+Migration commit branches:
+...
+
+--------------------------------
+
+Canonical migration:
+
+File:
+...
+
+Tracked:
+YES / NO
+
+Canonical migration system includes it:
+YES / NO
+
+Fresh migration creates x_trial columns:
+YES / NO
+
+Second-run idempotent:
+YES / NO
+
+--------------------------------
+
+Runtime DDL:
+
+Production boot/runtime DDL exists:
+YES / NO
+
+If YES:
+file/path:
+...
+
+x_trial fix depends on runtime DDL:
+NO required
+
+--------------------------------
+
+Production READ ONLY:
+
+x_trial_started_at:
+EXISTS / MISSING
+
+x_trial_ends_at:
+EXISTS / MISSING
+
+x_trial_used_at:
+EXISTS / MISSING
+
+index:
+EXISTS / MISSING
+
+Toykids /api/pools/x-mode:
+HTTP ...
+
+mode:
+...
+
+--------------------------------
+
+Changes:
+
+Code changes:
+...
+
+DB changes:
+0
+
+Production data changes:
+0
+
+Render:
+NO
+
+OTA:
+NO
+
+Commit SHA if changed:
+...
+
+Push:
+...
+
+--------------------------------
+
+FINAL:
+
+Toykids Full X Mode:
+PASS / FAIL
+
+Canonical schema source-of-truth:
+PASS / FAIL
+
+Same missing-column incident prevented on fresh migration:
+YES / NO
+
+WP0 READY TO CLOSE:
+YES / NO
+
+If NO:
+exact blocker:
+...
+
+STOP AFTER REPORT.
