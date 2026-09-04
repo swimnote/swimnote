@@ -156,3 +156,4 @@
 - [WP5 AI/Growth 완료](wp5-ai-growth-done-state.md) — SHA 55fc9c27; 10 GET routes+Web(MonthSelector/KpiCard/TraceDrawer/ReportDrawer); 461TC; Render/OTA 없음
 - [WP6 완료 상태](wp6-done-state.md) — SHA fa425272; logOperationalError+additive migration+errors route 재작성+ErrorsTab; 561TC; Render/OTA 없음
 - [WP7 완료 상태](wp7-done-state.md) — SHA d790b420; Notification Diagnostics(LATERAL+heuristic); 41TC+602TC; Render/OTA 없음
+- [APP TS Hotfix 완료](app-ts-hotfix-done.md) — SHA 6ed60ce1; 21→0 errors; RC.identifier/apiRequest.json()/expo-file-system/legacy; OTA 01a06c53
