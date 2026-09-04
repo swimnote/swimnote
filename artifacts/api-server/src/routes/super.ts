@@ -3949,22 +3949,136 @@ router.patch(
         `);
 
         // ── Response: effective resolver 기준 ───────────────────────────
+        const afterOverride = Boolean(after.x_management_override);
         res.json({
-          pool_id:              poolId,
-          x_manual_entitlement: afterManual,
-          x_paid_entitlement:   afterPaid,
-          x_force_disabled:     afterForce,
-          x_effective:          afterEff,
-          x_source:             afterManual ? "manual" : (afterPaid ? "paid" : "none"),
-          x_plan_key:           after.x_plan_key ?? null,
-          member_limit:         after.member_limit ?? null,
-          xmode_config_status:  after.xmode_config_status ?? null,
-          action:               grant ? "granted" : "revoked",
+          pool_id:                poolId,
+          x_manual_entitlement:   afterManual,
+          x_paid_entitlement:     afterPaid,
+          x_force_disabled:       afterForce,
+          x_management_override:  afterOverride,
+          x_effective:            afterEff,
+          x_source:               afterOverride ? "management_override"
+                                  : (afterManual ? "manual" : (afterPaid ? "paid" : "none")),
+          x_plan_key:             after.x_plan_key ?? null,
+          member_limit:           after.member_limit ?? null,
+          xmode_config_status:    after.xmode_config_status ?? null,
+          action:                 grant ? "granted" : "revoked",
         });
       });
     } catch (e: any) {
       console.error("[super] PATCH operators/:id/xmode 오류:", e?.message);
       res.status(500).json({ error: "X_ENTITLEMENT_UPDATE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/management-override — 본사 관리용 X override 설정/해제
+// ════════════════════════════════════════════════════════════════════════════
+//
+// 목적: 특정 pool을 일반 X 진입 조건(paid/config/curriculum/force_disabled)과
+//       완전히 분리하여 영구 X 테넌트로 고정.
+//
+// 권한: Super Admin 전용. 클라이언트에서 activate 불가.
+// 우선순위: computeMode() 최우선 — force_disabled보다 우선.
+// override=true  → 즉시 mode="x", plan=x_plan_key, source="management_override"
+// override=false → 일반 entitlement/config resolver로 복귀
+//
+// 변경 audit_logs 기록.
+//
+router.patch(
+  "/super/operators/:id/management-override",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { override, reason } = req.body as {
+      override?: boolean;
+      reason?: string;
+    };
+
+    if (typeof override !== "boolean") {
+      res.status(400).json({ error: "override (boolean) 필드 필요" });
+      return;
+    }
+
+    const actorId = req.user!.id;
+
+    try {
+      await superAdminDb.transaction(async (tx) => {
+        // ── Before state ────────────────────────────────────────────────
+        const beforeRes = await tx.execute(sql`
+          SELECT id,
+                 COALESCE(x_management_override, false) AS x_management_override,
+                 COALESCE(x_manual_entitlement,  false) AS x_manual_entitlement,
+                 COALESCE(x_paid_entitlement,    false) AS x_paid_entitlement,
+                 COALESCE(x_force_disabled,      false) AS x_force_disabled,
+                 x_plan_key, xmode_config_status, member_limit
+          FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `);
+        if (!beforeRes.rows.length) {
+          res.status(404).json({ error: "수영장 없음" });
+          return;
+        }
+        const before = beforeRes.rows[0] as any;
+        const beforeOverride = Boolean(before.x_management_override);
+
+        // ── UPDATE ──────────────────────────────────────────────────────
+        const version = Date.now();
+        await tx.execute(sql`
+          UPDATE swimming_pools
+          SET x_management_override = ${override}
+          WHERE id = ${poolId}
+        `);
+
+        // ── After state ─────────────────────────────────────────────────
+        const afterRes = await tx.execute(sql`
+          SELECT COALESCE(x_management_override, false) AS x_management_override,
+                 COALESCE(x_manual_entitlement,  false) AS x_manual_entitlement,
+                 COALESCE(x_paid_entitlement,    false) AS x_paid_entitlement,
+                 COALESCE(x_force_disabled,      false) AS x_force_disabled,
+                 x_plan_key, xmode_config_status, member_limit
+          FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `);
+        const after = afterRes.rows[0] as any;
+        const afterOverride = Boolean(after.x_management_override);
+
+        // ── Audit log ───────────────────────────────────────────────────
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_management_override', ${poolId}, ${version},
+            'update', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify({ x_management_override: beforeOverride })}::jsonb,
+            ${JSON.stringify({ x_management_override: afterOverride })}::jsonb,
+            ${reason ?? (override ? "Super Admin management override 활성" : "Super Admin management override 해제")}
+          )
+        `);
+
+        // ── Response ─────────────────────────────────────────────────────
+        const afterManual = Boolean(after.x_manual_entitlement);
+        const afterPaid   = Boolean(after.x_paid_entitlement);
+        res.json({
+          pool_id:               poolId,
+          x_management_override: afterOverride,
+          x_manual_entitlement:  afterManual,
+          x_paid_entitlement:    afterPaid,
+          x_force_disabled:      Boolean(after.x_force_disabled),
+          x_effective:           afterOverride || ((afterManual || afterPaid) && !after.x_force_disabled),
+          x_source:              afterOverride ? "management_override"
+                                 : (afterManual ? "manual" : (afterPaid ? "paid" : "none")),
+          x_plan_key:            after.x_plan_key ?? null,
+          member_limit:          after.member_limit ?? null,
+          xmode_config_status:   after.xmode_config_status ?? null,
+          action:                override ? "override_enabled" : "override_disabled",
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/management-override 오류:", e?.message);
+      res.status(500).json({ error: "MANAGEMENT_OVERRIDE_UPDATE_FAILED", message: e?.message });
     }
   },
 );

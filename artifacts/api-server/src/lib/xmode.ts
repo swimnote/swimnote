@@ -48,6 +48,13 @@ export interface PoolModeResult {
   x_trial_started_at: string | null;
   x_trial_ends_at: string | null;
   x_trial_used: boolean;
+  /**
+   * Super Admin management override.
+   * true → 모든 일반 X 진입 조건(paid/config/curriculum)을 무시하고 즉시 mode="x".
+   * DB 단일 컬럼(swimming_pools.x_management_override)이 권위 소스.
+   * Super Admin 전용 — 클라이언트에서 활성화 불가.
+   */
+  x_management_override: boolean;
 }
 
 // ── effective entitlement 계산 (단일 source of truth) ─────────────────────
@@ -88,7 +95,19 @@ export function computeMode(pool: {
   subscription_status?: string | null;
   // BASE manual entitlement — optional for backward compat
   base_manual_entitlement?: boolean | null;
+  /**
+   * Super Admin management override (최우선 — 모든 일반 조건 우선).
+   * true → 즉시 "x" 반환. x_force_disabled / config / curriculum 상태 무시.
+   * DB swimming_pools.x_management_override 컬럼이 권위 소스.
+   * optional: 기존 호출부 backward compat 유지.
+   */
+  x_management_override?: boolean | null;
 }): PoolMode {
+  // ── 최우선: Super Admin management override ─────────────────────────────
+  // 일반 X 진입 조건 전체(force_disabled / config / curriculum / paid / manual)를
+  // 우선하여 즉시 x 모드 반환. DB 컬럼만 권위 소스 (클라이언트 입력 절대 신뢰 금지).
+  if (pool.x_management_override) return "x";
+
   if (pool.x_force_disabled) return "normal";
   // WP2B CORRECTION: paid는 config 완료 전까지 x_pending (결제 직후 setup 필요)
   // paid와 manual 모두 동일 규칙: READY → x / 그 외 → x_pending
@@ -145,10 +164,11 @@ export async function resolvePoolMode(
   // BASE manual: base_manual_entitlement 추가 SELECT
   const result = await superAdminDb.execute(sql`
     SELECT id, xmode_config_status,
-           COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
-           COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+           COALESCE(x_paid_entitlement,     false) AS x_paid_entitlement,
+           COALESCE(x_manual_entitlement,   false) AS x_manual_entitlement,
            COALESCE(base_manual_entitlement, false) AS base_manual_entitlement,
-           COALESCE(x_force_disabled,    false) AS x_force_disabled,
+           COALESCE(x_force_disabled,       false) AS x_force_disabled,
+           COALESCE(x_management_override,  false) AS x_management_override,
            x_trial_started_at,
            x_trial_ends_at,
            x_trial_used_at,
@@ -161,11 +181,14 @@ export async function resolvePoolMode(
   if (!result.rows.length) return null;
 
   const row = result.rows[0] as any;
-  const entitlement = resolveEffectiveXEntitlement({
-    x_paid_entitlement:  Boolean(row.x_paid_entitlement),
-    x_manual_entitlement: Boolean(row.x_manual_entitlement),
-    x_force_disabled:    Boolean(row.x_force_disabled),
-  });
+  const managementOverride = Boolean(row.x_management_override);
+  const entitlement = managementOverride
+    ? true  // override 활성 시 effective entitlement = true (backward compat)
+    : resolveEffectiveXEntitlement({
+        x_paid_entitlement:  Boolean(row.x_paid_entitlement),
+        x_manual_entitlement: Boolean(row.x_manual_entitlement),
+        x_force_disabled:    Boolean(row.x_force_disabled),
+      });
   const configStatus = row.xmode_config_status as XModeStatus;
 
   // WP2B: trial active 계산 (lazy expiration)
@@ -191,6 +214,8 @@ export async function resolvePoolMode(
       subscription_status:     row.subscription_status ? String(row.subscription_status) : null,
       // BASE manual: Super Admin 직접부여 → subscription_required 건너뜀
       base_manual_entitlement: Boolean(row.base_manual_entitlement),
+      // Management override (최우선 — computeMode 최상단 분기)
+      x_management_override:   managementOverride,
     }),
     xmode_entitlement: entitlement,   // backward compat: effective 값 반환
     xmode_config_status: configStatus,
@@ -199,5 +224,7 @@ export async function resolvePoolMode(
     x_trial_started_at: trialStartedAt,
     x_trial_ends_at:    trialEndsAt,
     x_trial_used:       trialUsedAt !== null,
+    // Management override
+    x_management_override: managementOverride,
   };
 }

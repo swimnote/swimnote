@@ -361,10 +361,17 @@ function OverviewTab({ s, onNavigate }: { s: Summary; onNavigate: (tab: TabKey) 
           value={s.base_effective ? `ON (${s.base_source})` : "OFF"}
           valueClass={s.base_effective ? "text-green-700 font-semibold" : "text-[#aaa]"}
         />
+        {s.x_management_override && (
+          <Row
+            label="⚑ Management Override"
+            value="ON — 본사 관리용 X 강제 활성"
+            valueClass="text-purple-700 font-bold"
+          />
+        )}
         <Row
           label="X Effective"
           value={s.x_effective
-            ? `ON (${s.x_source})${s.x_plan_key ? ` · ${s.x_plan_key.toUpperCase()}` : ""}`
+            ? `ON (${s.x_management_override ? "SUPER_ADMIN_OVERRIDE" : s.x_source})${s.x_plan_key ? ` · ${s.x_plan_key.toUpperCase()}` : ""}`
             : "OFF"}
           valueClass={s.x_effective ? "text-[#002F5F] font-bold" : "text-[#aaa]"}
         />
@@ -375,7 +382,13 @@ function OverviewTab({ s, onNavigate }: { s: Summary; onNavigate: (tab: TabKey) 
         />
         <Row label="Member Limit" value={s.member_limit ?? "무제한"} />
         <Row label="Subscription" value={`${s.subscription_status}${s.subscription_tier ? ` / ${s.subscription_tier}` : ""}`} />
-        <Row label="X Config Status" value={s.xmode_config_status} />
+        <Row
+          label="X Config Status"
+          value={s.x_management_override
+            ? `${s.xmode_config_status ?? "—"} (override로 activation 무관)`
+            : (s.xmode_config_status ?? "—")}
+          valueClass={s.x_management_override ? "text-[#aaa]" : undefined}
+        />
       </Section>
 
       {/* ── 3. 핵심 인원 ── */}
