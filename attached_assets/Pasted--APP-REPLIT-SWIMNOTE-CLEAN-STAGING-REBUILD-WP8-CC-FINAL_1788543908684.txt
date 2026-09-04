@@ -1,0 +1,1000 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE CLEAN STAGING REBUILD + WP8/CC FINAL REHEARSAL
+# USER APPROVED STAGING RESET
+# BRANCH: release/v2.0.0
+# CURRENT BASELINE: latest actual HEAD after migration architecture repair
+# GOAL: contaminated Staging을 비우고 공식 migration chain만으로 완전 재현 검증
+# DO NOT TOUCH PRODUCTION
+# DO NOT START WP9
+# DO NOT DEPLOY RENDER
+
+============================================================
+0. 목적
+============================================================
+
+현재 swimnote-staging은 이전 테스트 중 manual/raw SQL patch가 섞여 있어
+공식 migration 기준 검증 DB로 사용할 수 없음.
+
+이번 작업에서는 사용자 승인에 따라:
+
+1. Staging public schema reset
+2. official staging-manifest 1차 실행
+3. schema completeness 검증
+4. official staging-manifest 2차 실행
+5. idempotency 검증
+6. synthetic fixture 생성
+7. staging-only API process 실행
+8. WP8 preflight
+9. CC preflight
+10. support workflow / cross-pool regression
+
+까지 완료한다.
+
+============================================================
+1. 절대 금지
+============================================================
+
+Production DB:
+DDL 0
+INSERT 0
+UPDATE 0
+DELETE 0
+
+Production R2:
+0
+
+Production Supabase reset:
+NO
+
+Render deploy:
+NO
+
+main:
+NO
+
+RevenueCat live:
+NO
+
+Push actual send:
+NO
+
+OpenAI paid production call:
+NO
+
+WP9:
+NO
+
+============================================================
+2. GIT PRECHECK
+============================================================
+
+실행:
+
+git status --porcelain
+git branch --show-current
+git rev-parse HEAD
+git log --oneline -10
+
+branch:
+release/v2.0.0 필수
+
+migration architecture repair commit이
+현재 HEAD/ancestor에 포함되어 있는지 확인.
+
+변경사항이 uncommitted이면
+정확히 분류하고,
+Staging reset 전에 product code 상태를 확정.
+
+============================================================
+3. STAGING IDENTITY HARD GATE
+============================================================
+
+Target project ref:
+
+lspmacdbyvpzysnrjsww
+
+Production ref:
+
+mrgkiussgbbmxfnkjgqy
+
+TEST_DATABASE_URL parse 후:
+
+project ref:
+lspmacdbyvpzysnrjsww
+
+host:
+aws-0-ap-northeast-2.pooler.supabase.com
+
+port:
+6543
+
+Production == Staging:
+NO
+
+하나라도 다르면 즉시 STOP.
+
+============================================================
+4. SAFETY GATE
+============================================================
+
+다음 모두 확인:
+
+ALLOW_TEST_DB_MUTATIONS=true
+
+Production ref:
+BLOCK
+
+Unknown ref:
+BLOCK
+
+Staging without mutation flag:
+BLOCK
+
+Staging with flag:
+ALLOW
+
+SUPABASE_DATABASE_URL fallback:
+0
+
+TEST_DATABASE_URL missing:
+BLOCK
+
+password/secret 전체 출력:
+금지
+
+============================================================
+5. RESET 범위
+============================================================
+
+Reset 대상:
+
+swimnote-staging
+project ref:
+lspmacdbyvpzysnrjsww
+
+public schema only.
+
+Production:
+절대 아님.
+
+Reset 전 read-only inventory 저장:
+
+table count
+view count
+sequence count
+enum/type count
+index count
+
+이번 Staging은 synthetic/manual patch only 검증 DB이므로
+사용자 실제 운영 데이터 보존 대상 없음.
+
+============================================================
+6. STAGING PUBLIC SCHEMA RESET
+============================================================
+
+명시적으로 Staging connection에서만 실행.
+
+목표:
+
+public schema를 clean state로 초기화.
+
+권장 방식은 repository/tooling 기준 안전한 표준 방법 사용.
+
+예:
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+
+필요한 권한/extension/schema grants가 있으면
+기존 staging project 기준으로 복원.
+
+중요:
+
+Production connection으로는 해당 SQL 실행 자체가
+safety gate에서 불가능해야 함.
+
+Reset 후:
+
+public table count:
+0 또는 expected system-only count
+
+확인.
+
+============================================================
+7. OFFICIAL MANIFEST FIRST RUN
+============================================================
+
+오직:
+
+ALLOW_TEST_DB_MUTATIONS=true
+npx tsx src/migrations/staging-manifest.ts
+
+또는 현재 repository의 정확한 공식 명령.
+
+manual raw SQL helper 금지.
+
+다음 파일 사용 금지:
+
+staging-create-core-tables.ts
+staging-init-missing.ts
+
+이 둘이 아직 존재하면
+official manifest에서 절대 import하지 말 것.
+
+각 migration:
+
+order
+name
+status
+duration
+
+기록.
+
+첫 실패 시:
+임의 patch하지 말고 STOP하고 원인 보고.
+
+============================================================
+8. FIRST RUN SCHEMA VERIFY
+============================================================
+
+1차 manifest PASS 후
+공식 expected schema와 비교.
+
+필수 핵심:
+
+swimming_pools
+users
+students
+members
+class_groups
+notifications
+push_logs
+support_cases
+support_case_notes
+audit_logs
+event_logs
+ai_traces
+growth_reports
+growth_report_cycles
+growth_report_batch_jobs
+x_monthly_operational_snapshots
+x_setup_submissions
+x_setup_files
+x_curriculum_class_assignments
+revenue_logs
+diary_entries
+parent_accounts
+curriculum_items
+class_diaries
+inquiries
+inquiry_replies
+parent_request_messages
+support_ticket_replies
+subscription_plans
+pool_subscriptions
+system_policies
+pool_credits
+parent_v2_pending
+
+그리고 이번에 공식 귀속한:
+
+swimming_pools.x_paid_entitlement
+swimming_pools.x_manual_entitlement
+swimming_pools.x_force_disabled
+swimming_pools.x_entitlement_source
+swimming_pools.x_entitlement_updated_at
+swimming_pools.x_plan_key
+swimming_pools.x_plan_member_limit
+
+event_logs.feature
+event_logs.level
+event_logs.error_code
+event_logs.safe_message
+event_logs.request_id
+
+push_logs.pool_id
+push_logs.error_message
+push_logs.recipient_count
+push_logs.notification_id
+
+indexes:
+
+idx_event_logs_pool_level
+idx_push_logs_pool_status
+idx_push_logs_notification_id
+
+전부 존재 확인.
+
+Missing:
+0 목표.
+
+============================================================
+9. OFFICIAL MANIFEST SECOND RUN
+============================================================
+
+동일 manifest 재실행.
+
+목표:
+
+duplicate relation:
+0
+
+duplicate column:
+0
+
+duplicate index:
+0
+
+unexpected failure:
+0
+
+destructive action:
+0
+
+Second run:
+PASS
+
+============================================================
+10. REPRODUCIBILITY 판정
+============================================================
+
+빈 DB에서:
+
+official manifest only
+→ complete schema
+
+가 실제로 성립했는지 판정.
+
+manual table:
+0
+
+manual column:
+0
+
+manual index:
+0
+
+raw patch:
+0
+
+STAGING SCHEMA REPRODUCIBLE FROM EMPTY DB:
+YES 필수.
+
+============================================================
+11. SYNTHETIC FIXTURE
+============================================================
+
+공식 schema PASS 후에만 fixture 생성.
+
+Pool A
+Pool B
+
+Super Admin
+Pool Admin A/B
+Teacher A/B
+Parent A/B
+Student A/B
+Class A/B
+
+prefix:
+stg_
+
+실제 고객 데이터:
+0
+
+실제 이메일:
+0
+
+실제 전화번호:
+0
+
+Production data copy:
+0
+
+============================================================
+12. STAGING-ONLY API PROCESS
+============================================================
+
+Production localhost API를 사용하지 말 것.
+
+새 staging API bootstrap 사용.
+
+필수:
+
+STAGING_API_TEST_MODE=true
+ALLOW_TEST_DB_MUTATIONS=true
+TEST_DATABASE_URL=Staging
+
+startup safety:
+
+Production ref:
+BLOCK
+
+Unknown ref:
+BLOCK
+
+Staging:
+ALLOW
+
+API process가 실제로
+Staging DB를 보는지 read-only identity로 확인.
+
+보고:
+
+API DB project ref:
+lspmacdbyvpzysnrjsww
+
+Production:
+NO
+
+============================================================
+13. WP8 PREFLIGHT
+============================================================
+
+WP8_TEST_API_BASE_URL을
+staging-only API process로 지정.
+
+DB assertions:
+Staging
+
+HTTP assertions:
+Staging
+
+mixed DB environment:
+0
+
+실행.
+
+보고:
+
+Passed
+Failed
+Skipped
+P0 skipped
+
+목표:
+
+Failed:
+0
+
+P0 skipped:
+0
+
+============================================================
+14. CC PREFLIGHT
+============================================================
+
+동일 staging API + 동일 fixture 사용.
+
+보고:
+
+Passed
+Failed
+Skipped
+P0 skipped
+
+목표:
+
+Failed:
+0
+
+P0 skipped:
+0
+
+============================================================
+15. SUPPORT WORKFLOW
+============================================================
+
+Staging only:
+
+Pool A
+→ support case create
+→ note
+→ IN_PROGRESS
+→ note
+→ RESOLVED
+→ audit
+→ refetch
+
+Pool B leakage:
+0
+
+============================================================
+16. CROSS-POOL
+============================================================
+
+검증:
+
+Pool A admin → Pool B:
+BLOCK
+
+Teacher A → Pool B:
+BLOCK
+
+Parent A → Pool B:
+BLOCK
+
+URL ID tampering:
+BLOCK
+
+Tenant source:
+JWT/server context
+→ swimming_pool_id
+
+client pool_id trust:
+0
+
+============================================================
+17. RUNTIME DDL
+============================================================
+
+staging API boot:
+
+CREATE:
+0
+
+ALTER:
+0
+
+DROP:
+0
+
+CREATE INDEX:
+0
+
+request-time:
+
+CREATE:
+0
+
+ALTER:
+0
+
+DROP:
+0
+
+CREATE INDEX:
+0
+
+DDL은 migration에서만 허용.
+
+============================================================
+18. EXTERNAL SIDE EFFECT
+============================================================
+
+Actual RevenueCat:
+0
+
+Actual Push:
+0
+
+Actual SMS:
+0
+
+Actual Email:
+0
+
+Production R2:
+0
+
+OpenAI paid production call:
+0
+
+============================================================
+19. TYPECHECK
+============================================================
+
+APP:
+
+pnpm run typecheck
+
+Expected:
+0 errors
+
+API:
+
+new errors:
+0
+
+existing:
+정확한 공식 command 기준 보고
+
+Web:
+
+new errors:
+0
+
+existing:
+정확한 공식 command 기준 보고
+
+============================================================
+20. PRODUCTION AUDIT
+============================================================
+
+이번 작업 동안:
+
+Production DB connection:
+가능하면 0
+
+Production DDL:
+0
+
+Production INSERT:
+0
+
+Production UPDATE:
+0
+
+Production DELETE:
+0
+
+기존 과거 incident의
+Production mutation UNKNOWN 상태는
+이번 작업 결과와 섞지 말 것.
+
+이번 작업 범위만 따로 보고.
+
+============================================================
+21. COMMIT
+============================================================
+
+이번 clean rebuild에서
+코드 수정이 필요 없고 검증만 했다면:
+
+NO NEW COMMIT
+
+검증 중 공식 migration defect가 발견되면:
+
+manual patch 금지
+정식 코드 수정
+typecheck/test
+commit
+
+추천 message:
+
+fix(db): complete reproducible staging migration chain
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+22. OTA
+============================================================
+
+APP/shared runtime 변경 없으면:
+
+OTA NOT REQUIRED
+
+APP runtime 변경이 생긴 경우:
+임의 OTA 금지.
+먼저 보고.
+
+============================================================
+23. FINAL EXIT GATE
+============================================================
+
+다음 전부 필요:
+
+Staging reset:
+PASS
+
+Manifest first run:
+PASS
+
+Schema missing:
+0
+
+Manifest second run:
+PASS
+
+Manual schema patch:
+0
+
+Fixture:
+PASS
+
+Staging API:
+PASS
+
+WP8:
+PASS
+
+CC:
+PASS
+
+Cross-pool:
+PASS
+
+Runtime DDL:
+0
+
+Production mutation:
+0 during this task
+
+APP typecheck:
+0
+
+============================================================
+24. 완료보고
+============================================================
+
+# CLEAN STAGING REBUILD / WP8 FINAL REPORT
+
+GIT
+Branch:
+HEAD Before:
+HEAD After:
+Commit:
+Push:
+
+--------------------------------
+
+STAGING IDENTITY
+
+Project ref:
+lspmacdbyvpzysnrjsww
+
+Production ref:
+mrgkiussgbbmxfnkjgqy
+
+Production == Staging:
+NO
+
+--------------------------------
+
+RESET
+
+Before tables:
+...
+
+After reset tables:
+...
+
+Reset target:
+STAGING ONLY
+
+Production reset:
+NO
+
+--------------------------------
+
+MANIFEST FIRST RUN
+
+Migration count:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Duration:
+...
+
+Manual patch:
+0
+
+--------------------------------
+
+SCHEMA VERIFY
+
+Final table count:
+...
+
+Missing tables:
+...
+
+Missing columns:
+...
+
+Missing indexes:
+...
+
+Official schema complete:
+YES/NO
+
+--------------------------------
+
+MANIFEST SECOND RUN
+
+PASS/FAIL:
+
+Duplicate relation:
+0/...
+
+Duplicate column:
+0/...
+
+Duplicate index:
+0/...
+
+Unexpected error:
+0/...
+
+--------------------------------
+
+REPRODUCIBILITY
+
+Official migration only:
+YES/NO
+
+Raw SQL helper used:
+NO/YES
+
+Manual schema changes:
+0/...
+
+Schema reproducible from empty DB:
+YES/NO
+
+--------------------------------
+
+FIXTURE
+
+Pool A:
+...
+
+Pool B:
+...
+
+Synthetic users:
+...
+
+Synthetic students:
+...
+
+Synthetic classes:
+...
+
+Real PII:
+0
+
+--------------------------------
+
+STAGING API
+
+Started:
+YES/NO
+
+API DB project ref:
+...
+
+Production DB:
+NO
+
+Mixed DB environment:
+0
+
+--------------------------------
+
+WP8
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+Final:
+PASS/FAIL
+
+--------------------------------
+
+CONTROL CENTER
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+Final:
+PASS/FAIL
+
+--------------------------------
+
+CROSS-POOL
+
+Pool A → Pool B:
+BLOCK/PASS
+
+Teacher:
+PASS/FAIL
+
+Parent:
+PASS/FAIL
+
+Tampered ID:
+BLOCK/PASS
+
+--------------------------------
+
+RUNTIME DDL
+
+Boot DDL:
+0/...
+
+Request DDL:
+0/...
+
+--------------------------------
+
+TYPECHECK
+
+APP:
+...
+
+API new:
+...
+
+API existing:
+...
+
+Web new:
+...
+
+Web existing:
+...
+
+--------------------------------
+
+PRODUCTION
+
+DDL:
+0
+
+INSERT:
+0
+
+UPDATE:
+0
+
+DELETE:
+0
+
+Render:
+NO
+
+--------------------------------
+
+FINAL
+
+Staging clean rebuild:
+PASS/FAIL
+
+Migration reproducible:
+YES/NO
+
+WP8 fully closed:
+YES/NO
+
+CC preflight valid:
+YES/NO
+
+Safe to proceed to WP9:
+YES/NO
+
+Remaining blocker:
+...
+
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.
