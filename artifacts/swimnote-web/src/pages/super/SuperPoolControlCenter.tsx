@@ -33,9 +33,11 @@ interface Summary {
   unread_notifications: number;
 }
 
+// X Plan display constants — values MUST match server-side xPlanCatalog.ts
+// Server enforces member_limit; these are display-only. Do NOT change without updating xPlanCatalog.ts.
 const X_PLANS = [
-  { key: "x300", label: "X300", memberLimit: 300, priceLabel: "₩129,000/월" },
-  { key: "x500", label: "X500", memberLimit: 500, priceLabel: "₩199,000/월" },
+  { key: "x300",  label: "X300",  memberLimit: 300,  priceLabel: "₩129,000/월" },
+  { key: "x500",  label: "X500",  memberLimit: 500,  priceLabel: "₩199,000/월" },
   { key: "x1000", label: "X1000", memberLimit: 1000, priceLabel: "₩359,000/월" },
 ];
 

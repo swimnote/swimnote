@@ -2080,8 +2080,7 @@ router.patch(
     };
 
     // Super Admin manual grant: x_plan_key → member_limit 자동 반영
-    const X_PLAN_LIMITS: Record<string, number> = { x300: 300, x500: 500, x1000: 1000 };
-    const VALID_X_PLAN_KEYS = new Set(["x300", "x500", "x1000"]);
+    const { X_PLAN_LIMITS, VALID_X_PLAN_KEYS } = await import("../lib/xPlanCatalog.js");
 
     // ── Transaction 밖: 입력 검증 ────────────────────────────────
     // X02-B2: xmode_entitlement 입력 → x_manual_entitlement 쓰기 (backward compat body key 유지)
