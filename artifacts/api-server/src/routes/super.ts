@@ -6053,12 +6053,17 @@ router.get(
 // ──────────────────────────────────────────────────────────────────
 // R2 signed URL helper (shared, no raw key returned to client)
 // ──────────────────────────────────────────────────────────────────
+// CF_ACCOUNT_ID matches objectStorage.ts (photo client) — curriculum files use photo bucket
+const _CF_ACCOUNT_ID  = process.env.CF_ACCOUNT_ID  ?? "53dff4976d55c17ec94ebe6306d0cffc";
+const _PHOTO_BUCKET   = process.env.CF_R2_BUCKET_NAME ?? "swimnotepicture";
+const _R2_ENDPOINT    = `https://${_CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
 async function generateR2SignedUrl(r2Key: string, expiresIn = 300): Promise<string> {
   const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
   const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
   const r2 = new S3Client({
     region: "auto",
-    endpoint: `https://${process.env.CF_R2_ACCOUNT_ID ?? ""}.r2.cloudflarestorage.com`,
+    endpoint: _R2_ENDPOINT,
     credentials: {
       accessKeyId:     process.env.CF_R2_ACCESS_KEY_ID!,
       secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY!,
@@ -6066,7 +6071,7 @@ async function generateR2SignedUrl(r2Key: string, expiresIn = 300): Promise<stri
   });
   return getSignedUrl(
     r2,
-    new GetObjectCommand({ Bucket: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID!, Key: r2Key }),
+    new GetObjectCommand({ Bucket: _PHOTO_BUCKET, Key: r2Key }),
     { expiresIn },
   );
 }

@@ -1,0 +1,662 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# WP4-P1 — REAL CURRICULUM FILE DOWNLOAD VERIFICATION
+# BASELINE: 2d15cd31
+# DO NOT START WP5
+
+============================================================
+0. 목적
+============================================================
+
+WP4 대부분 구현 완료.
+
+남은 유일한 blocker:
+
+실제 DEV/Test curriculum object를 사용한
+secure signed download E2E 검증.
+
+현재 보고:
+
+Actual GET/HEAD:
+STRUCTURAL ONLY
+
+Actual file:
+DEV fixture 없음
+
+따라서 WP4 완료 선언은 아직 금지.
+
+이번 P1에서는
+새 기능 확장 없이
+실제 파일 다운로드 검증만 닫는다.
+
+============================================================
+1. CURRENT
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+2d15cd31
+
+먼저 확인:
+
+git status
+git rev-parse HEAD
+
+2d15cd31 ancestor:
+YES
+
+============================================================
+2. 절대 금지
+============================================================
+
+DO NOT:
+
+- Production DB 사용
+- Production customer curriculum 사용
+- Production R2 object 수정
+- Render deploy
+- main merge
+- WP5 시작
+- unrelated refactor
+- 기존 curriculum 기능 재작성
+
+============================================================
+3. DEV/TEST FIXTURE 준비
+============================================================
+
+실제 다운로드를 검증할 수 있도록
+안전한 DEV/Test curriculum fixture를 준비.
+
+우선순위:
+
+A.
+현재 Development/Test R2 bucket에
+이미 사용 가능한 안전한 object가 있으면 재사용.
+
+B.
+없으면 작은 테스트 파일을
+Development/Test storage에 생성.
+
+예:
+
+curriculum-download-test.txt
+또는 작은 PDF/문서 fixture.
+
+중요:
+
+Production bucket/object 사용 금지.
+
+fixture에는 개인정보 금지.
+
+============================================================
+4. DB FIXTURE
+============================================================
+
+DEV DB에 테스트용:
+
+POOL_A
+submission/file row
+
+를 정상 schema를 사용해 생성/연결.
+
+반드시 실제 application schema 사용:
+
+x_setup_submissions
+x_setup_files
+
+등 현재 구현 source.
+
+필요 필드:
+
+pool scope
+file id
+original filename
+r2_key
+size
+uploaded_at
+current/version fields
+
+현재 NOT NULL/schema 기준에 맞춰 생성.
+
+테스트 후 fixture cleanup 가능하면 수행.
+
+Production:
+NO.
+
+============================================================
+5. ACTUAL SIGNED URL
+============================================================
+
+실제 Super Admin auth/test context로:
+
+GET
+/super/pools/:poolA/control-center/curriculum/download?file_id=<fixture>
+
+호출.
+
+검증:
+
+HTTP 200
+
+response:
+signed URL 존재
+
+expiry:
+300 seconds
+
+URL:
+R2 signed GET
+
+============================================================
+6. ACTUAL FILE GET
+============================================================
+
+반드시 signed URL로
+실제 HTTP GET 수행.
+
+검증:
+
+HTTP:
+200
+
+response bytes:
+> 0
+
+가능하면 expected fixture bytes와
+실제 bytes/content 비교.
+
+예:
+
+fixture content hash
+==
+download content hash
+
+PASS.
+
+단순 URL 문자열 생성:
+PASS 처리 금지.
+
+============================================================
+7. HEAD
+============================================================
+
+R2 signed URL HEAD가 지원되면:
+
+HEAD:
+200
+
+지원되지 않는 구조라면
+GET 성공으로 충분.
+
+HEAD 미지원은 FAIL 아님.
+
+그러나 GET:
+반드시 실제 성공.
+
+============================================================
+8. FILE METADATA
+============================================================
+
+검증 가능한 경우:
+
+original filename:
+DB fixture와 일치
+
+content-type:
+fixture와 일치
+
+content-length:
+>0
+
+DB file_size_bytes와
+실제 object size 비교.
+
+차이가 있으면 원인 보고.
+
+============================================================
+9. WRONG POOL — REAL TEST
+============================================================
+
+동일 file_id로:
+
+POOL_B URL에서 요청
+
+→ BLOCKED / 404
+
+signed URL 발급:
+NO
+
+실제 object 접근:
+NO
+
+============================================================
+10. WRONG FILE
+============================================================
+
+없는 file_id:
+
+→ 404 FILE_NOT_FOUND
+
+signed URL:
+NO
+
+============================================================
+11. ROLE TEST
+============================================================
+
+같은 fixture를 대상으로:
+
+super_admin:
+200
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+============================================================
+12. OBJECT KEY INJECTION
+============================================================
+
+client request에서:
+
+r2_key
+object_key
+bucket
+url
+
+등 임의 값을 추가해도
+서버가 무시/거부하고
+DB의 file_id → r2_key만 사용해야 함.
+
+POOL_B object key를 임의 주입:
+
+접근:
+BLOCKED
+
+============================================================
+13. EXPIRY
+============================================================
+
+signed URL signing config에서:
+
+expiresIn:
+300
+
+확인.
+
+가능하면 signing metadata/URL 기준으로
+5분 expiry 확인.
+
+테스트 때문에 5분 실제 대기할 필요는 없음.
+
+============================================================
+14. SECRET
+============================================================
+
+검증:
+
+API response에:
+
+R2_ACCESS_KEY:
+NO
+
+R2_SECRET:
+NO
+
+bucket credential:
+NO
+
+raw object key:
+가능하면 NO
+
+audit log에:
+
+signed URL:
+NO
+
+signature:
+NO
+
+secret:
+NO
+
+============================================================
+15. DOWNLOAD AUDIT
+============================================================
+
+실제 successful download URL 발급 요청 후:
+
+CURRICULUM_SOURCE_DOWNLOAD
+
+event/audit row 확인.
+
+검증:
+
+actor
+pool
+file/submission reference
+timestamp
+
+signed URL:
+not stored
+
+r2 secret:
+not stored
+
+============================================================
+16. CLEANUP
+============================================================
+
+테스트 fixture를
+안전하게 정리 가능한 경우:
+
+DEV DB fixture:
+cleanup
+
+DEV R2 fixture:
+cleanup
+
+단 기존 공유 fixture면 삭제 금지.
+
+cleanup 결과 보고.
+
+============================================================
+17. AUTOMATED TEST
+============================================================
+
+cc-preflight 또는
+별도 WP4 real-file test에
+
+실제:
+
+fixture object
+→ signed URL
+→ GET
+→ bytes >0
+
+검증을 추가.
+
+P0 skipped:
+0
+
+Actual file download skipped:
+NO
+
+============================================================
+18. CODE CHANGE
+============================================================
+
+실제 테스트에서 버그가 발견되지 않으면:
+
+product code 변경:
+NO 가능.
+
+테스트/fixture script만 변경 가능.
+
+버그 발견 시:
+최소 수정.
+
+============================================================
+19. APP / OTA
+============================================================
+
+APP/shared runtime 변경 여부
+git diff로 확인.
+
+NO:
+OTA NOT REQUIRED
+
+YES:
+test
+commit
+iOS OTA immediately
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+============================================================
+20. SERVER / PRODUCTION
+============================================================
+
+테스트 또는 server 수정 발생 시:
+
+commit
+push release/v2.0.0
+
+Main:
+NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+============================================================
+21. 완료보고
+============================================================
+
+# WP4-P1 REAL FILE DOWNLOAD REPORT
+
+Branch:
+...
+
+HEAD Before:
+2d15cd31
+
+HEAD After:
+...
+
+Commit:
+...
+
+============================================================
+FIXTURE
+============================================================
+
+Storage environment:
+DEV / TEST
+
+Production used:
+NO
+
+Fixture filename:
+...
+
+Fixture bytes:
+...
+
+Fixture DB row:
+...
+
+============================================================
+SIGNED URL
+============================================================
+
+Route:
+...
+
+API HTTP:
+...
+
+Expiry:
+...
+
+Signed URL generated:
+PASS / FAIL
+
+============================================================
+ACTUAL GET
+============================================================
+
+HTTP:
+...
+
+Downloaded bytes:
+...
+
+Expected bytes/hash:
+...
+
+Actual bytes/hash:
+...
+
+Content match:
+PASS / FAIL
+
+Actual file download skipped:
+NO
+
+============================================================
+SECURITY
+============================================================
+
+Wrong pool:
+BLOCKED / FAIL
+
+Wrong file:
+404 / FAIL
+
+Pool Admin:
+403 / FAIL
+
+Teacher:
+403 / FAIL
+
+Parent:
+403 / FAIL
+
+Unauthenticated:
+401 / FAIL
+
+Object-key injection:
+BLOCKED / FAIL
+
+Secret exposure:
+NO / YES
+
+============================================================
+AUDIT
+============================================================
+
+Download audit:
+PASS / FAIL
+
+Signed URL stored:
+NO / YES
+
+Secret stored:
+NO / YES
+
+============================================================
+CLEANUP
+============================================================
+
+DEV DB fixture:
+REMOVED / RETAINED WITH REASON
+
+DEV object:
+REMOVED / RETAINED WITH REASON
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0
+
+WP1 regression:
+PASS / FAIL
+
+WP2 regression:
+PASS / FAIL
+
+WP3 regression:
+PASS / FAIL
+
+WP4 regression:
+PASS / FAIL
+
+============================================================
+APP / OTA
+============================================================
+
+iOS APP/shared modified:
+YES / NO
+
+If NO:
+OTA NOT REQUIRED
+
+If YES:
+
+Runtime:
+2.1.0
+Channel:
+production-v2
+Group:
+...
+iOS Update:
+...
+Commit SHA:
+...
+Export Source SHA:
+...
+SHA Match:
+PASS / FAIL
+Android:
+NOT PUBLISHED
+
+============================================================
+FINAL
+============================================================
+
+Actual R2 file verified:
+YES / NO
+
+Secure download E2E:
+PASS / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+WP4 complete:
+YES / NO
+
+Remaining blocker:
+...
+
+Recommended next WP:
+WP5 — AI / GROWTH / JOB OPERATIONS
+
+DO NOT START WP5.
+WAIT FOR NEXT INSTRUCTION.
