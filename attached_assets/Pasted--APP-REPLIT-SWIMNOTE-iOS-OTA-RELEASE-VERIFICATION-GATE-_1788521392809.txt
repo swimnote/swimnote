@@ -1,0 +1,873 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE iOS OTA RELEASE VERIFICATION GATE
+# CURRENT BASELINE: d790b420
+# 목적: 실제 OTA 검증 + Production iOS OTA 배포
+# Android OTA 절대 금지
+# Render / Production DB 변경 금지
+
+============================================================
+0. 이번 작업 목적
+============================================================
+
+현재 Super Admin 개발이 계속 진행되었고
+최근 WP7까지 완료 보고됨.
+
+기존 보고에서는 APP/shared runtime 변경이 없어
+OTA NOT REQUIRED로 처리했지만,
+
+이번에는 사용자가 실제 검증을 원한다.
+
+목표:
+
+현재 repository HEAD 기준으로
+
+1. Git 상태 확인
+2. iOS APP 실제 source 확인
+3. APP production export 검증
+4. runtime/channel/config 검증
+5. APP 기존 기능 regression 검증
+6. 실제 iOS OTA publish
+7. EAS 서버에서 실제 update 존재 확인
+8. Git SHA / export source / OTA source 검증
+9. Android 미배포 확인
+
+까지 수행한다.
+
+단순 "OTA 성공" 보고 금지.
+
+============================================================
+1. CURRENT GIT
+============================================================
+
+Expected branch:
+
+release/v2.0.0
+
+Expected HEAD:
+
+d790b420
+
+실행:
+
+git status
+git branch --show-current
+git rev-parse HEAD
+git log --oneline -10
+
+필수:
+
+Branch == release/v2.0.0
+HEAD == d790b420
+
+확인.
+
+working tree에
+의도하지 않은 수정이 있으면
+OTA 진행 중단하고 보고.
+
+============================================================
+2. COMMIT CHAIN 검증
+============================================================
+
+다음 주요 완료 commit이
+현재 HEAD ancestor인지 확인.
+
+최소:
+
+5c8f8f4e
+55fc9c27 (존재하는 경우 실제 확인)
+d790b420
+
+그리고 이전 WP commit들도
+release/v2.0.0 history에서 누락되지 않았는지 확인.
+
+git merge-base --is-ancestor 사용 가능.
+
+History 이상:
+OTA 중단.
+
+============================================================
+3. APP SOURCE 변경 여부 재검증
+============================================================
+
+최근 OTA 기준 commit 이후
+다음 범위를 실제 git diff로 조사:
+
+artifacts/swim-app
+또는 현재 실제 iOS APP repository path
+
+그리고 shared runtime으로
+APP bundle에 포함되는 package/module.
+
+반드시 보고:
+
+APP runtime changed since previous OTA:
+YES / NO
+
+Shared runtime changed:
+YES / NO
+
+단순 Super Admin Web/server 파일을
+APP 변경으로 분류하지 말 것.
+
+============================================================
+4. OTA를 이번에는 강제로 검증 배포
+============================================================
+
+중요:
+
+이번 작업에서는
+APP runtime 변경 여부가 NO라도
+
+사용자 요청에 따라
+현재 검증된 APP bundle을
+iOS Production OTA로 실제 publish한다.
+
+단, 아래 모든 preflight가 PASS일 때만.
+
+============================================================
+5. RUNTIME VERSION
+============================================================
+
+현재 SWIMNOTE APP:
+
+Runtime:
+2.1.0
+
+확인.
+
+현재 app config / eas config / Expo config에서
+실제 runtimeVersion이 2.1.0인지 확인.
+
+다른 runtime이면:
+
+임의 수정하지 말고
+OTA 중단 후 보고.
+
+============================================================
+6. TARGET CHANNEL
+============================================================
+
+OTA target:
+
+production-v2
+
+확인.
+
+다른 channel/branch에
+잘못 publish 금지.
+
+Android:
+절대 publish 금지.
+
+============================================================
+7. EXPO / EAS CONFIG 검증
+============================================================
+
+현재 실제 config에서:
+
+project ID
+owner
+runtime
+update URL
+channel/branch mapping
+environment
+
+검증.
+
+localhost
+Replit dev URL
+staging URL
+임시 API URL
+
+등이 production APP bundle에
+하드코딩되어 있지 않은지 확인.
+
+secret 출력 금지.
+
+============================================================
+8. APP TYPESCRIPT / STATIC TEST
+============================================================
+
+현재 APP에서 사용하는
+실제 package manager / script 기준으로 실행.
+
+최소:
+
+TypeScript
+lint 또는 현재 project static check
+Expo config validation
+route/module resolution
+
+FAIL 있으면 OTA 금지.
+
+============================================================
+9. APP EXPORT 검증
+============================================================
+
+실제 iOS production export 수행.
+
+Expo/EAS 현재 project 방식에 맞는
+정상 production export 사용.
+
+목표:
+
+iOS JS bundle 생성:
+PASS
+
+assets resolution:
+PASS
+
+module resolution:
+PASS
+
+Metro:
+PASS
+
+fatal warning/error:
+0
+
+export 완료 전에 OTA publish 금지.
+
+============================================================
+10. EXPORT ARTIFACT 검사
+============================================================
+
+export 결과에서:
+
+bundle 존재
+manifest 존재
+필수 assets 존재
+
+확인.
+
+0-byte bundle:
+FAIL
+
+missing asset:
+FAIL
+
+module resolution failure:
+FAIL
+
+============================================================
+11. PRODUCTION API CONFIG
+============================================================
+
+export된 APP가
+실제 production API config를 사용하는지
+현재 설정 구조로 검증.
+
+중요:
+
+Render production deploy 자체는
+이번 작업에서 하지 않는다.
+
+API URL 확인만 수행.
+
+localhost/dev/staging target이면
+OTA 중단.
+
+============================================================
+12. APP CORE REGRESSION
+============================================================
+
+OTA 전 현재 가능한 자동 검증 수행.
+
+최소:
+
+Authentication bootstrap
+ModeContext
+BASE entitlement
+X entitlement
+Admin routes compile
+Teacher routes compile
+Parent routes compile
+Notifications route compile
+Growth Report related APP route compile
+Curriculum related APP route compile
+
+APP에 자동 테스트가 존재하면 실행.
+
+없는 테스트를
+가짜 PASS 처리하지 말 것.
+
+============================================================
+13. OTA PRE-PUBLISH GATE
+============================================================
+
+다음 모두 PASS일 때만 publish:
+
+Git:
+PASS
+
+Branch:
+PASS
+
+HEAD:
+d790b420
+
+Working Tree:
+CLEAN
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+TypeScript:
+PASS
+
+APP export:
+PASS
+
+Production config:
+PASS
+
+Core regression:
+PASS
+
+Android target:
+NO
+
+하나라도 FAIL:
+OTA publish 금지.
+
+============================================================
+14. iOS OTA PUBLISH
+============================================================
+
+Preflight PASS 후:
+
+iOS OTA만 실제 publish.
+
+Runtime:
+2.1.0
+
+Channel/branch:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+현재 프로젝트의 기존
+정상 OTA publish 방식 그대로 사용.
+
+새 EAS project 생성:
+금지.
+
+새 channel 생성:
+금지.
+
+============================================================
+15. OTA MESSAGE
+============================================================
+
+OTA message에는
+현재 상태를 식별할 수 있게:
+
+SWIMNOTE 2.1.0 - Control Center verified - d790b420
+
+와 같이 commit을 포함.
+
+현재 project convention이 있으면
+그 convention 우선.
+
+============================================================
+16. 실제 EAS SERVER 검증
+============================================================
+
+publish 명령의 stdout만 믿지 말 것.
+
+publish 이후
+EAS update 조회를 수행해서
+
+실제로 production-v2에
+새 update가 존재하는지 확인.
+
+보고:
+
+Group ID
+iOS Update ID
+Created At
+Runtime
+Channel/Branch
+Platform
+
+============================================================
+17. PLATFORM 검증
+============================================================
+
+새 update의 platform:
+
+iOS:
+존재
+
+Android:
+이번 작업으로 신규 update 생성되지 않음
+
+반드시 확인.
+
+Android update까지 생성되었으면
+FAIL로 보고.
+
+============================================================
+18. SOURCE SHA 검증
+============================================================
+
+가장 중요.
+
+다음 3개를 비교:
+
+A.
+Git HEAD
+
+B.
+OTA publish 직전 source commit
+
+C.
+EAS update/export source identifier
+
+Expected:
+
+d790b420
+==
+publish source
+==
+reported source SHA
+
+현재 EAS metadata가
+Git SHA를 직접 제공하지 않는 구조라면
+
+publish 직전:
+
+git rev-parse HEAD
+
+값을 release metadata/message에 기록하고
+
+export/publish 사이에
+git diff/status 변화가 없음을 확인.
+
+SHA Match를
+근거 없이 PASS 처리 금지.
+
+============================================================
+19. EXPORT → PUBLISH 사이 무결성
+============================================================
+
+export 완료 후 publish 직전과
+publish 직후:
+
+git status
+git rev-parse HEAD
+
+재확인.
+
+Expected:
+
+HEAD remains d790b420
+
+Working tree:
+동일/CLEAN
+
+export 후 몰래 source 수정:
+0
+
+============================================================
+20. OTA 결과 조회
+============================================================
+
+실제 EAS update detail을 조회해:
+
+runtime = 2.1.0
+
+platform = ios
+
+update status 정상
+
+확인.
+
+가능하면 update URL/detail reference도
+내부 보고에 포함.
+
+Secret:
+NO.
+
+============================================================
+21. DEVICE COMPATIBILITY 위험 점검
+============================================================
+
+이번 OTA에 native binary 변경이 필요한
+dependency/config change가 포함되어 있는지
+package/config diff로 검토.
+
+예:
+
+native module 추가
+Expo SDK native dependency 변경
+Info.plist native setting 변경
+entitlement 변경
+
+이런 변경이 있으면 OTA 부적합.
+
+발견 시:
+publish 중단.
+
+단 최근 APP runtime 변경이 없다는 보고가
+실제로 맞다면 이 단계는 PASS여야 함.
+
+============================================================
+22. OTA 이후 코드 변경 금지
+============================================================
+
+OTA publish 후:
+
+이번 검증 때문에
+새 product code 수정하지 말 것.
+
+테스트 script 수정 등이 필요했다면
+publish source SHA와
+commit 관계를 정확히 보고.
+
+가능하면 current HEAD 그대로
+검증/publish.
+
+============================================================
+23. RENDER / DB
+============================================================
+
+이번 작업:
+
+Render deploy:
+NO
+
+Production DB:
+NO
+
+Main merge:
+NO
+
+RevenueCat:
+NO
+
+============================================================
+24. WP7 자체 검증
+============================================================
+
+OTA와 별개로
+현재 HEAD d790b420의 WP7 보고가
+실제 repository와 일치하는지도 재확인.
+
+확인:
+
+notifications endpoint
+notifications/summary
+notifications/:notifId
+push_logs migration
+NotificationTab
+NotificationDetailDrawer
+
+그리고:
+
+push retry NOT_IMPLEMENTED
+platform UNKNOWN
+DELIVERED 사용 안 함
+ACCEPTED_BY_PROVIDER 의미
+
+가 실제 코드와 일치하는지 확인.
+
+보고서 문구만 믿지 말고
+repository 코드 확인.
+
+============================================================
+25. WP7 TEST 재실행
+============================================================
+
+보고된:
+
+602 PASSED
+0 FAILED
+3 SKIPPED
+
+를 실제 현재 HEAD에서 다시 실행.
+
+결과가 다르면
+기존 보고와 차이를 명시.
+
+P0 skipped:
+0 이어야 함.
+
+============================================================
+26. 구라/허위 보고 방지 검증
+============================================================
+
+완료보고에서는
+명령을 실행했다고만 쓰지 말고
+실제 결과를 근거로 적는다.
+
+특히 다음은 실제 값 필수:
+
+git HEAD
+git clean 상태
+test count
+export 결과
+runtime
+channel
+Group ID
+iOS Update ID
+platform
+EAS 조회 결과
+publish source SHA
+
+"PASS"만 적고 값 누락 금지.
+
+============================================================
+27. 완료보고 형식
+============================================================
+
+# SWIMNOTE iOS OTA RELEASE VERIFICATION REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+Expected HEAD:
+d790b420
+
+Actual HEAD:
+...
+
+Working tree:
+CLEAN / DIRTY
+
+Commit chain:
+PASS / FAIL
+
+============================================================
+WP7 RE-VERIFICATION
+============================================================
+
+Reported HEAD:
+d790b420
+
+Actual implementation matches report:
+YES / NO
+
+Notifications endpoints:
+PASS / FAIL
+
+Migration:
+PASS / FAIL
+
+UI:
+PASS / FAIL
+
+DELIVERED falsely used:
+NO / YES
+
+Push retry falsely claimed:
+NO / YES
+
+Platform falsely claimed:
+NO / YES
+
+WP7 gate rerun:
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+============================================================
+APP SOURCE
+============================================================
+
+APP changed since prior OTA:
+YES / NO
+
+Shared runtime changed:
+YES / NO
+
+Native-incompatible change:
+YES / NO
+
+============================================================
+PREFLIGHT
+============================================================
+
+Runtime:
+...
+
+Expected:
+2.1.0
+
+Channel:
+...
+
+Expected:
+production-v2
+
+TypeScript:
+PASS / FAIL
+
+Expo config:
+PASS / FAIL
+
+Production API:
+PASS / FAIL
+
+Core regression:
+PASS / FAIL
+
+============================================================
+EXPORT
+============================================================
+
+iOS export:
+PASS / FAIL
+
+Bundle generated:
+YES / NO
+
+Assets:
+PASS / FAIL
+
+Metro:
+PASS / FAIL
+
+Export source HEAD:
+...
+
+============================================================
+OTA PUBLISH
+============================================================
+
+Published:
+YES / NO
+
+Platform:
+iOS / ...
+
+Runtime:
+...
+
+Channel/Branch:
+...
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Created At:
+...
+
+Android published:
+NO / YES
+
+============================================================
+SOURCE INTEGRITY
+============================================================
+
+Git HEAD:
+...
+
+Pre-export SHA:
+...
+
+Pre-publish SHA:
+...
+
+Post-publish SHA:
+...
+
+EAS/source identifier:
+...
+
+SHA Match:
+PASS / FAIL
+
+Working tree unchanged:
+YES / NO
+
+============================================================
+EAS SERVER VERIFICATION
+============================================================
+
+Update exists remotely:
+YES / NO
+
+Runtime correct:
+YES / NO
+
+Platform correct:
+YES / NO
+
+Channel correct:
+YES / NO
+
+============================================================
+PRODUCTION SAFETY
+============================================================
+
+Render deploy:
+NO
+
+Production DB:
+NO
+
+Main merge:
+NO
+
+RevenueCat:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP7 report truthful against repository:
+YES / NO
+
+Current iOS source verified:
+YES / NO
+
+OTA actually published:
+YES / NO
+
+OTA remotely verified:
+YES / NO
+
+Runtime 2.1.0:
+PASS / FAIL
+
+production-v2:
+PASS / FAIL
+
+Android untouched:
+PASS / FAIL
+
+SHA integrity:
+PASS / FAIL
+
+Safe to continue Control Center roadmap:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT START NEXT WP.
+WAIT FOR NEXT INSTRUCTION.
