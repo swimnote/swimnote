@@ -155,3 +155,4 @@
 - [WP8-P1 완료 상태](wp8-p1-done-state.md) — SHA 1f0fa702; pool_memberships없음→users; cycle INSERT 컬럼 수정; 71TC; iOS OTA 01a06b1f; Render 미배포
 - [WP5 AI/Growth 완료](wp5-ai-growth-done-state.md) — SHA 55fc9c27; 10 GET routes+Web(MonthSelector/KpiCard/TraceDrawer/ReportDrawer); 461TC; Render/OTA 없음
 - [WP6 완료 상태](wp6-done-state.md) — SHA fa425272; logOperationalError+additive migration+errors route 재작성+ErrorsTab; 561TC; Render/OTA 없음
+- [WP7 완료 상태](wp7-done-state.md) — SHA d790b420; Notification Diagnostics(LATERAL+heuristic); 41TC+602TC; Render/OTA 없음
