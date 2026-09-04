@@ -43,10 +43,12 @@ ON CONFLICT (tier) DO UPDATE SET
   is_active       = true;
 
 -- ── 3. DATA ADD-ON 플랜 upsert ─────────────────────────────────────────────
+-- storage 필드는 NOT NULL 제약이 있으므로 column default(5120/5/'') 사용.
+-- DATA 플랜의 실제 storage 한도는 추후 별도 명세 시 업데이트.
 INSERT INTO subscription_plans (tier, plan_id, name, price_per_month, member_limit, storage_gb, storage_mb, display_storage, is_active)
 VALUES
-  ('data100', 'data100', 'DATA100', 7900,  999999, NULL, NULL, NULL, true),
-  ('data300', 'data300', 'DATA300', 22900, 999999, NULL, NULL, NULL, true)
+  ('data100', 'data100', 'DATA100', 7900,  999999, 5,    5120, '', true),
+  ('data300', 'data300', 'DATA300', 22900, 999999, 5,    5120, '', true)
 ON CONFLICT (tier) DO UPDATE SET
   name            = EXCLUDED.name,
   price_per_month = EXCLUDED.price_per_month,
