@@ -1,0 +1,251 @@
+[보낼 곳: APP REPLIT]
+
+# TOYKIDS — FORCE MANUAL X1000 ASSIGNMENT
+# PRODUCTION DATA CHANGE APPROVED FOR THIS EXACT POOL ONLY
+# 목적:
+# Super Admin UI 문제와 별개로 토이키즈스윔클럽을 실제 Production에서
+# 신규 공식 X1000 manual entitlement 상태로 고정한다.
+#
+# 코드 하드코딩 금지.
+# Pool 이름 기반 분기 금지.
+# 정확한 pool_id 1건만 DB 수정.
+# Render deploy 불필요.
+# OTA 불필요.
+
+============================================================
+TARGET POOL
+============================================================
+
+pool_id:
+
+pool_1780849364252_l9k44rbk3
+
+반드시 exact match 1 row 확인.
+
+0 row 또는 2 row 이상이면 STOP.
+
+============================================================
+CURRENT EXPECTED STATE
+============================================================
+
+현재 예상:
+
+x_manual_entitlement = true
+x_paid_entitlement = false
+x_force_disabled = false
+x_plan_key = null
+effective X = true
+source = MANUAL
+
+공식 catalog의 X1000:
+
+plan_key = x1000
+member_limit = 1000
+price = 349000
+
+반드시 Production official plan catalog에서
+x1000 active row를 다시 확인 후 사용.
+
+============================================================
+CHANGE
+============================================================
+
+Production DB에서 exact pool 1건만:
+
+x_manual_entitlement = true
+x_paid_entitlement = false 유지
+x_force_disabled = false
+x_plan_key = 'x1000'
+x_plan_member_limit = 1000
+
+기존 effective resolver:
+
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+기준으로 effective X = true 유지.
+
+RevenueCat purchase row 생성 금지.
+
+paid entitlement 생성 금지.
+
+subscription purchase history 생성 금지.
+
+============================================================
+IMPORTANT
+============================================================
+
+subscription_tier
+legacy xmode_entitlement
+xmode_purchased_at
+xmode_subscription_end_at
+
+등 legacy/historical field는
+이번 작업에서 건드리지 않는다.
+
+공식 신규 X 상태는:
+
+x_manual_entitlement
+x_paid_entitlement
+x_force_disabled
+x_plan_key
+x_plan_member_limit
+
+기준.
+
+============================================================
+TRANSACTION SAFETY
+============================================================
+
+변경 전 snapshot 저장.
+
+Transaction 사용.
+
+UPDATE affected rows:
+
+정확히 1
+
+아니면 ROLLBACK.
+
+다른 pool:
+
+0 changes
+
+회원/반/일지:
+
+0 changes
+
+============================================================
+POST VERIFY
+============================================================
+
+Toykids 최종:
+
+x_manual_entitlement = true
+
+x_paid_entitlement = false
+
+x_force_disabled = false
+
+x_plan_key = x1000
+
+x_plan_member_limit = 1000
+
+effective X = true
+
+source = MANUAL
+
+selected plan = X1000
+
+price reference = 349000
+
+============================================================
+RUNTIME/API READ VERIFY
+============================================================
+
+Production resolver 기준으로 확인:
+
+effective X:
+true
+
+source:
+MANUAL
+
+x_plan_key:
+x1000
+
+member_limit:
+1000
+
+mode는 xmode_config_status에 따라
+x 또는 x_pending일 수 있음.
+
+중요:
+entitlement ACTIVE와 setup state를 구분해서 보고.
+
+============================================================
+NO CODE HACK
+============================================================
+
+금지:
+
+if pool.name === "토이키즈스윔클럽"
+→ X1000
+
+if pool_id === ...
+→ runtime hardcoded X
+
+environment-specific hardcoding
+
+이번 작업은 DB의 공식 entitlement fields를
+정상적으로 설정하는 것만 허용.
+
+============================================================
+REPORT
+============================================================
+
+# TOYKIDS MANUAL X1000 ASSIGNMENT REPORT
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+Before:
+x_manual_entitlement:
+x_paid_entitlement:
+x_force_disabled:
+x_plan_key:
+x_plan_member_limit:
+effective:
+
+Official X1000 catalog:
+active:
+price:
+member_limit:
+
+Change executed:
+YES / NO
+
+Affected rows:
+...
+
+After:
+x_manual_entitlement:
+x_paid_entitlement:
+x_force_disabled:
+x_plan_key:
+x_plan_member_limit:
+effective:
+source:
+mode:
+
+Other pools changed:
+0 / ...
+
+Members changed:
+0 / ...
+
+Classes changed:
+0 / ...
+
+Diaries changed:
+0 / ...
+
+RevenueCat rows created:
+0 / ...
+
+Runtime hardcoding added:
+NO
+
+FINAL:
+
+Toykids X1000 active:
+YES / NO
+
+Manual entitlement:
+YES / NO
+
+Paid entitlement:
+NO
+
+Safe to continue remaining development:
+YES / NO

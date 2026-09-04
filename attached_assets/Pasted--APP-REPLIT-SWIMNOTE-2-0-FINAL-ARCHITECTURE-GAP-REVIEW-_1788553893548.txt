@@ -1,0 +1,304 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 FINAL ARCHITECTURE GAP REVIEW
+# 목적: 구현 금지. 최종 설계 확정 전 repository 기준 검수만 수행.
+#
+# 지금까지 DB/migration 구조가 안정화되었으므로,
+# 현재 실제 release/v2.0.0 repository를 기준으로
+# 아래 최종 로드맵에서 누락/중복/위험한 부분이 있는지 검토하십시오.
+#
+# 이번 작업에서는 코드 수정/DB 변경/Render deploy/OTA 금지.
+
+============================================================
+검토 목표
+============================================================
+
+SWIMNOTE가 향후:
+
+- 500개 이상 수영장
+- 최대 약 100,000 사용자
+- BASE / X / DATA subscription
+- 관리자 / 선생님 / 학부모
+- AI Diary
+- Growth Report
+- Push / Notice
+- Super Admin
+- RevenueCat
+
+를 운영한다는 전제에서 검토.
+
+============================================================
+A. 현재 repository에 이미 구현된 기능
+============================================================
+
+아래 항목별로:
+
+IMPLEMENTED
+PARTIAL
+MISSING
+LEGACY/REPLACE
+
+분류.
+
+1. Plan/member-limit enforcement
+2. Global notices/banner
+3. Push targeting
+4. Member CRM/timeline
+5. Member tags/notes
+6. Enrollment/re-enrollment state
+7. Duplicate member detection
+8. Super Admin health
+9. System monitoring
+10. Error alerting
+11. Job queue
+12. Retry/dead-letter
+13. Backup/recovery support
+14. RevenueCat webhook idempotency
+15. RevenueCat reconciliation
+16. Cross-pool isolation
+17. Pagination/performance
+18. Data integrity checker
+19. Audit log
+20. Support tools
+21. Campaign/marketing targeting
+22. Campaign metrics
+23. Growth Report scheduling
+24. R2 integrity
+25. Rate limiting
+
+각 항목:
+
+STATUS
+FILES
+CURRENT ARCHITECTURE
+GAP
+
+보고.
+
+============================================================
+B. 100K USER SCALE REVIEW
+============================================================
+
+현재 architecture에서
+100,000명 수준으로 성장할 경우 예상되는 위험을 찾으십시오.
+
+특히:
+
+- DB connection
+- slow query
+- missing indexes
+- list endpoints without pagination
+- N+1
+- 500-pool loops
+- synchronous heavy jobs
+- Push fan-out
+- Growth Report monthly batch
+- AI concurrency
+- R2 upload
+- RevenueCat webhook burst
+- memory usage
+- worker backlog
+
+각 위험:
+
+SEVERITY:
+P0 / P1 / P2
+
+CURRENT:
+...
+
+RECOMMENDED:
+...
+
+구체적으로 보고.
+
+============================================================
+C. INCIDENT DETECTION / RECOVERY
+============================================================
+
+현재 시스템이 아래 장애를
+자동으로 감지할 수 있는지 확인.
+
+API 5xx spike
+API latency
+DB connection exhaustion
+DB outage
+worker failure
+queue backlog
+AI Engine failure
+RevenueCat webhook failure
+Push failure
+R2 failure
+Growth Report batch failure
+
+그리고:
+
+현재 감지 가능 여부
+현재 로그
+현재 alert
+복구 방법
+
+을 보고.
+
+추가로 반드시 필요하다고 판단되는
+운영 안전장치가 있으면 제안.
+
+============================================================
+D. MEMBER MANAGEMENT GAP
+============================================================
+
+현재 회원관리 기능을 실제 repository 기준으로 검토.
+
+다음이 이미 있는지 확인:
+
+member lifecycle
+consultation/trial/enrollment
+pause/withdrawal
+payment state
+member timeline
+admin notes
+tags
+re-enrollment tracking
+absence risk
+duplicate detection
+merge
+guardian relationship
+class history
+
+수영장 관리자가
+300~1000명의 회원을 운영할 때
+현재 기능에서 실무적으로 부족한 부분을 제안.
+
+단 기능을 무작정 늘리지 말고
+실제 운영효과가 큰 것만 PRIORITY 순으로 제안.
+
+============================================================
+E. SUPER ADMIN MARKETING GAP
+============================================================
+
+현재 Super Admin에서 가능한:
+
+- notice
+- push
+- pool targeting
+- role targeting
+- subscription targeting
+- campaign
+- deep link
+- analytics
+
+확인.
+
+SWIMNOTE 본사가:
+
+신규 기능 홍보
+X 업그레이드 유도
+미사용 수영장 활성화
+결제 문제 안내
+서비스 정책 공지
+
+를 운영하기 위해 필요한 최소 기능을 제안.
+
+============================================================
+F. NOTICE FINAL POLICY
+============================================================
+
+최종 정책:
+
+공지함:
+
+1. SWIMNOTE 공지
+2. 우리 수영장 공지
+
+Banner:
+
+앱 실행/로그인 후 1회 표시.
+
+사용자:
+
+확인
+다시 보지 않기
+
+다시 보지 않기 이후
+배너 재노출 금지.
+
+공지는 공지함에 계속 남음.
+
+공지 작성:
+
+title
+message
+image
+push 여부
+banner 여부
+target roles
+target pools
+start/end
+
+Super Admin:
+전체/특정/복수 pool
+ADMIN/TEACHER/PARENT 복수 역할
+
+Pool Admin:
+자기 pool의 TEACHER/PARENT만
+
+이 구조에 보안/성능/데이터 측면의 문제가 있는지 검토.
+
+============================================================
+G. FINAL QUESTIONS TO REPLIT
+============================================================
+
+마지막에 반드시 답변:
+
+1. 현재 최종 로드맵에서 빠진 필수 운영 기능이 있는가?
+2. 현재 계획 중 이미 구현되어 중복되는 작업은 무엇인가?
+3. 100K 사용자 전에 반드시 먼저 바꿔야 할 architecture가 있는가?
+4. 출시 전에 P0로 반드시 끝내야 하는 항목은 무엇인가?
+5. 출시 후로 미뤄도 되는 항목은 무엇인가?
+6. 현재 설계보다 더 단순하고 안전한 방법이 있는 영역은 무엇인가?
+7. Replit 입장에서 SWIMNOTE 2.0을 실제 Production에서 장기간 운영한다면 추가하고 싶은 작업이 있는가?
+
+============================================================
+FINAL REPORT
+============================================================
+
+# SWIMNOTE 2.0 FINAL ARCHITECTURE GAP REVIEW
+
+CURRENT IMPLEMENTATION SUMMARY
+...
+
+P0 GAPS
+...
+
+P1 GAPS
+...
+
+P2 / POST-LAUNCH
+...
+
+100K SCALE RISKS
+...
+
+MEMBER MANAGEMENT GAPS
+...
+
+SUPER ADMIN / MARKETING GAPS
+...
+
+INCIDENT / RECOVERY GAPS
+...
+
+DUPLICATE WORK TO REMOVE
+...
+
+RECOMMENDED FINAL ROADMAP CHANGES
+...
+
+FINAL ANSWERS 1~7
+...
+
+NO CODE CHANGES.
+NO DB CHANGES.
+NO RENDER.
+NO OTA.
+STOP AFTER REPORT.
