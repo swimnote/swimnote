@@ -5,13 +5,20 @@
  * 사용법:
  *   const scrollRef = useTabScrollReset("classes");
  *   <ScrollView ref={scrollRef} ...>
+ *
+ * KeyboardAwareScrollView 사용 시:
+ *   const scrollRef = useTabScrollReset<KeyboardAwareScrollViewRef>("revenue");
  */
 import { useEffect, useRef } from "react";
 import { ScrollView } from "react-native";
 import { addTabResetListener } from "@/utils/tabReset";
 
-export function useTabScrollReset(tabName: string) {
-  const scrollRef = useRef<ScrollView>(null);
+interface Scrollable {
+  scrollTo: (options?: { x?: number; y?: number; animated?: boolean }) => void;
+}
+
+export function useTabScrollReset<T extends Scrollable = ScrollView>(tabName: string) {
+  const scrollRef = useRef<T>(null);
 
   useEffect(() => {
     const unsub = addTabResetListener(tabName, () => {

@@ -15,7 +15,7 @@ import {
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import Colors from "@/constants/colors";

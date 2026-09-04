@@ -15,7 +15,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView, KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -85,7 +85,7 @@ export default function AdminRevenueScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
-  const scrollRef = useTabScrollReset("admin-revenue");
+  const scrollRef = useTabScrollReset<KeyboardAwareScrollViewRef>("admin-revenue");
 
   const [month, setMonth]       = useState(curMonthStr());
   const [loading, setLoading]   = useState(true);

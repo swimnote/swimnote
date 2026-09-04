@@ -51,6 +51,9 @@ interface StudentDetail {
   level: string | null;
   parent_name?: string | null;
   parent_phone?: string | null;
+  parent_phone2?: string | null;
+  parent_phone3?: string | null;
+  parent_phone4?: string | null;
 }
 
 interface ParentDetail {

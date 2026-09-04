@@ -67,7 +67,8 @@ export default function KakaoLinkScreen() {
       let endpoint: string;
       let body: Record<string, any>;
 
-      const isTeacherRole = role === "admin" || role === "teacher";
+      // admin은 handleLink() 상단에서 이미 early return → 여기서 role은 "teacher"|"parent"
+      const isTeacherRole = role === "teacher";
 
       if (isApple) {
         endpoint = isTeacherRole ? "/auth/apple-link-teacher" : "/auth/apple-link-account";
@@ -98,15 +99,7 @@ export default function KakaoLinkScreen() {
           return;
         }
         if (data.error_code === "phone_not_registered" || res.status === 404) {
-          if (role === "admin") {
-            router.replace({
-              pathname: "/register",
-              params: isApple
-                ? { appleId: kakaoId, phone: cleanPhone }
-                : { kakaoId, phone: cleanPhone },
-            } as any);
-            return;
-          }
+          // admin은 handleLink() 상단 early return으로 여기 도달 불가 — teacher/parent만 처리
           if (role === "teacher") {
             router.replace({
               pathname: "/(auth)/teacher-signup",
