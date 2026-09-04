@@ -1,0 +1,679 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE WP8 PRODUCTION SAFETY INCIDENT VERIFICATION
+# BASELINE: b728e007
+# DO NOT START WP9
+# DO NOT TRIGGER NEW RENDER DEPLOY
+# DO NOT CHANGE PRODUCTION DB
+# READ-ONLY VERIFICATION FIRST
+
+============================================================
+0. 상황
+============================================================
+
+WP8 완료보고에 다음 내용이 있음:
+
+- HEAD/commit: b728e007
+- release/v2.0.0 push
+- Render 자동 배포 트리거됨
+- server에 ensureWp8Schema() 추가
+- support_cases 컬럼 8개 추가
+- support_case_notes table 추가
+- index 8개 추가
+
+기존 프로젝트 운영 규칙:
+
+Render production deploy:
+사용자 수동 승인 전 금지
+
+Production DB migration:
+사용자 승인 전 금지
+
+따라서 현재는 WP9로 진행하지 말고
+Production에 실제로 무엇이 반영됐는지
+READ-ONLY로 확인한다.
+
+============================================================
+1. 절대 금지
+============================================================
+
+이번 검증에서:
+
+Render deploy:
+NO
+
+Render redeploy:
+NO
+
+Production DB mutation:
+NO
+
+ALTER:
+NO
+
+CREATE:
+NO
+
+DROP:
+NO
+
+UPDATE:
+NO
+
+INSERT:
+NO
+
+DELETE:
+NO
+
+migration 실행:
+NO
+
+ensureWp8Schema 수동 호출:
+NO
+
+WP9:
+NO
+
+OTA:
+NO
+
+============================================================
+2. GIT 확인
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected product commit:
+b728e007
+
+확인:
+
+git status
+git rev-parse HEAD
+git log --oneline -10
+
+b728e007 ancestor 여부 보고.
+
+memory/attached_assets 등
+product와 무관한 commit이 위에 있으면
+전체 diff로 분리 보고.
+
+============================================================
+3. RENDER SERVICE 실제 상태 확인
+============================================================
+
+현재 Production Render service의
+실제 정보를 조회.
+
+확인:
+
+service name
+service id
+repo
+branch
+autoDeploy setting
+latest deploy id
+latest deploy status
+latest deploy commit SHA
+deploy created_at
+deploy finished_at
+currently active commit SHA
+
+중요:
+
+"자동 배포 트리거됨"이
+실제 production deploy 완료인지
+단순 build 시작/취소인지
+정확히 구분.
+
+============================================================
+4. PRODUCTION SHA 판정
+============================================================
+
+다음 중 정확히 하나로 보고:
+
+A.
+Production still previous SHA
+→ b728e007 not deployed
+
+B.
+Production active SHA == b728e007
+→ WP8 production deployed
+
+C.
+Production active SHA is another commit
+→ exact SHA report
+
+추측 금지.
+
+============================================================
+5. AUTO DEPLOY 원인
+============================================================
+
+현재 Render autoDeploy 설정을
+실제 API/dashboard config로 확인.
+
+보고:
+
+autoDeploy:
+YES / NO
+
+branch:
+...
+
+왜 release/v2.0.0 push가
+production deploy를 트리거했는지 설명.
+
+과거 production은
+main + manual deploy 원칙이었으므로
+현재 branch/config가 바뀌었는지도 확인.
+
+설정 변경:
+이번 검증에서 하지 말 것.
+
+============================================================
+6. ensureWp8Schema() 코드 조사
+============================================================
+
+정확히 조사:
+
+- 어디에서 호출되는가
+- server boot 때 호출되는가
+- request 때 호출되는가
+- 몇 번 호출될 수 있는가
+- migration lock/idempotency 존재 여부
+- IF NOT EXISTS 사용 여부
+- transaction 여부
+- failure behavior
+- boot blocking 여부
+
+완료보고에
+실제 호출 경로를 명시.
+
+============================================================
+7. PRODUCTION DB READ-ONLY SCHEMA 확인
+============================================================
+
+Production DB에 READ-ONLY metadata query만 수행.
+
+확인:
+
+support_cases 컬럼
+
+WP8 신규 8개 컬럼 존재 여부
+
+support_case_notes table 존재 여부
+
+신규 8개 index 존재 여부
+
+각 항목:
+
+BEFORE/OLD schema인지
+WP8 schema인지
+
+판정.
+
+중요:
+
+DDL 실행 금지.
+
+information_schema
+pg_catalog
+
+등 READ-ONLY 조회만.
+
+============================================================
+8. PRODUCTION MIGRATION 실제 발생 여부
+============================================================
+
+다음 근거를 종합:
+
+- Render active SHA
+- deploy logs
+- DB schema metadata
+- migration/boot logs
+
+판정:
+
+WP8 Production schema migration executed:
+YES / NO / UNCONFIRMED
+
+"컬럼이 있다"만으로
+이번 deploy가 만들었다고 단정하지 말 것.
+
+기존에 존재했을 가능성도 확인.
+
+============================================================
+9. DEPLOY LOG 검증
+============================================================
+
+해당 Render deploy 로그에서
+다음 검색:
+
+ensureWp8Schema
+ALTER TABLE
+CREATE TABLE
+CREATE INDEX
+support_case_notes
+support_cases
+migration
+schema
+error
+fatal
+rollback
+duplicate column
+duplicate relation
+
+secret 출력 금지.
+
+필요한 line만 요약.
+
+============================================================
+10. 기존 데이터 안전성
+============================================================
+
+Production DB에서 READ-ONLY로:
+
+support_cases row count
+support_case_notes row count
+null/default distribution for new columns
+기존 row 수/상태
+
+확인.
+
+기존 support case 데이터가
+삭제/변형된 흔적이 없는지 판정.
+
+UPDATE/repair:
+금지.
+
+============================================================
+11. BOOT-TIME AUTO MIGRATION 위험평가
+============================================================
+
+ensureWp8Schema가
+server boot 때마다 실행된다면
+Production 운영 방식으로 적절한지 평가.
+
+원칙:
+
+Production schema migration은
+명시적 release step이어야 함.
+
+boot-time DDL은
+가능하면 제거 대상.
+
+다만 이번 검증에서는
+바로 코드 수정하지 말고 먼저 판정.
+
+분류:
+
+SAFE TEMPORARY
+SHOULD REMOVE BEFORE NEXT DEPLOY
+P0 REMOVE REQUIRED
+
+근거 보고.
+
+============================================================
+12. WP8 기능 생산 반영 여부
+============================================================
+
+만약 b728e007이 production에 배포됐다면
+다음 route들이 실제 production에 존재하는지
+비파괴 auth smoke만 가능.
+
+Unauthenticated:
+401
+
+또는 expected guard response.
+
+실제 case create/status mutation:
+NO
+
+실제 production support case 생성:
+NO
+
+============================================================
+13. PRODUCTION HEALTH
+============================================================
+
+현재 production:
+
+/api/healthz
+
+확인.
+
+그리고 logs에서:
+
+boot fatal
+uncaught exception
+missing relation
+missing column
+migration failure
+schema error
+
+없는지 확인.
+
+============================================================
+14. APP / OTA
+============================================================
+
+WP8 APP/shared runtime 변경:
+
+보고상 NO.
+
+git diff로 재확인.
+
+NO:
+OTA NOT REQUIRED
+
+새 OTA:
+절대 publish 금지.
+
+============================================================
+15. WP8 테스트 자체
+============================================================
+
+WP8 preflight:
+
+76 PASS
+0 FAIL
+2 SKIP
+
+재실행 가능하면 수행.
+
+단 SKIP 2건:
+
+diary_entries missing
+
+이 정확히 WP8 비관련인지
+assertion name/path 기준으로 확인.
+
+P0 skip:
+0 이어야 함.
+
+============================================================
+16. WP8 PASS 판정 기준
+============================================================
+
+WP8를 PASS로 닫으려면
+최소 다음이 명확해야 함.
+
+A.
+Production deploy 실제 여부 확인
+
+B.
+Production DB 변경 실제 여부 확인
+
+C.
+기존 데이터 손상 없음
+
+D.
+Render 현재 auto deploy 설정 확인
+
+E.
+ensureWp8Schema 운영 위험 판정
+
+F.
+APP 미변경 재확인
+
+G.
+WP8 테스트 0 fail
+
+============================================================
+17. 만약 Production에 이미 배포되었다면
+============================================================
+
+롤백/재배포를 임의로 하지 말 것.
+
+먼저 현재 상태만 보고.
+
+다음 결정을 사용자/ChatGPT가 내린다.
+
+============================================================
+18. 만약 Production DB가 이미 변경되었다면
+============================================================
+
+되돌리기 금지.
+
+DROP COLUMN:
+NO
+
+DROP TABLE:
+NO
+
+DROP INDEX:
+NO
+
+데이터 보존.
+
+현재 schema만 보고하고
+후속 release hygiene에서 처리.
+
+============================================================
+19. 완료보고 형식
+============================================================
+
+# WP8 PRODUCTION SAFETY INCIDENT REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+Current HEAD:
+...
+
+b728e007 ancestor:
+YES / NO
+
+Product diff after b728e007:
+...
+
+============================================================
+RENDER
+============================================================
+
+Service:
+...
+
+Service ID:
+...
+
+Configured branch:
+...
+
+autoDeploy:
+YES / NO
+
+Latest deploy:
+...
+
+Latest deploy status:
+...
+
+Latest deploy SHA:
+...
+
+Active production SHA:
+...
+
+b728e007 actually deployed:
+YES / NO
+
+============================================================
+AUTO DEPLOY CAUSE
+============================================================
+
+Reason:
+...
+
+Config changed from previous manual model:
+YES / NO / UNKNOWN
+
+============================================================
+ensureWp8Schema
+============================================================
+
+Defined:
+...
+
+Called from:
+...
+
+Call timing:
+BOOT / REQUEST / OTHER
+
+Idempotent:
+YES / NO
+
+IF NOT EXISTS:
+YES / NO
+
+Transaction:
+YES / NO
+
+Runs every boot:
+YES / NO
+
+Risk:
+SAFE TEMPORARY / SHOULD REMOVE / P0 REMOVE
+
+Reason:
+...
+
+============================================================
+PRODUCTION DB — READ ONLY
+============================================================
+
+WP8 new support_cases columns present:
+YES / NO
+
+support_case_notes present:
+YES / NO
+
+WP8 indexes present:
+YES / NO
+
+Schema migration actually executed by this deploy:
+YES / NO / UNCONFIRMED
+
+Evidence:
+...
+
+============================================================
+DATA SAFETY
+============================================================
+
+Existing support_cases:
+...
+
+Existing support_case_notes:
+...
+
+Existing data loss:
+NO / YES / UNKNOWN
+
+Unexpected mutation:
+NO / YES
+
+============================================================
+DEPLOY LOGS
+============================================================
+
+Migration log seen:
+YES / NO
+
+Schema error:
+NO / YES
+
+Boot fatal:
+NO / YES
+
+Relevant findings:
+...
+
+============================================================
+PRODUCTION HEALTH
+============================================================
+
+/api/healthz:
+...
+
+WP8 unauth route guards:
+...
+
+No production mutation performed:
+YES
+
+============================================================
+WP8 TEST
+============================================================
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+Skip reason valid:
+YES / NO
+
+============================================================
+APP / OTA
+============================================================
+
+APP/shared changed:
+YES / NO
+
+OTA required:
+YES / NO
+
+OTA published during this verification:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP8 implementation complete:
+YES / NO
+
+Production deploy occurred unexpectedly:
+YES / NO
+
+Production DB changed unexpectedly:
+YES / NO
+
+Existing production data safe:
+YES / NO / UNKNOWN
+
+Render auto-deploy risk remains:
+YES / NO
+
+ensureWp8Schema acceptable for production:
+YES / NO
+
+WP8 can be closed:
+YES / NO
+
+Safe to start WP9:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT DEPLOY.
+DO NOT MIGRATE.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.
