@@ -21,12 +21,28 @@
 
 import { sql } from "drizzle-orm";
 
-// ── Production DB fingerprints (host MD5 or partial host pattern) ──────────
-// Supabase production: IPv6 prefix 2406:da1a:6b0: (확인된 production host)
+// ── Production DB fingerprints ────────────────────────────────────────────────
+//
+// Strategy: block by IPv6 prefix (returned by inet_server_addr() at runtime).
+//
+// Production Supabase MAIN:
+//   IPv6 prefix: 2406:da1a:6b0: (confirmed ap-south-1 Mumbai)
+//   pooler host:  aws-1-ap-south-1.pooler.supabase.com
+//
+// Production Supabase POOL/Backup:
+//   pooler host:  aws-1-ap-northeast-2.pooler.supabase.com (Seoul)
+//   IPv6 prefix:  2406:da1a:* (same Supabase data center family — block broadly)
+//
+// Staging (swimnote-staging):
+//   project ref: lspmacdbyvpzysnrjsww (ap-northeast-2 / Seoul)
+//   IPv6 prefix:  NOT YET CONFIRMED (pending pooler URL connectivity fix)
+//   ALLOW: any non-production host when ALLOW_TEST_DB_MUTATIONS=true
+//
+// IMPORTANT: Do NOT use \.supabase\.co$ — that would block staging too.
+//   Block by IPv6 prefix ONLY. Staging will have a DIFFERENT IPv6 prefix.
+//
 const PRODUCTION_HOST_PATTERNS: RegExp[] = [
-  /^2406:da1a:6b0:/,          // Supabase production IPv6 range (confirmed)
-  /\.supabase\.co$/,           // Supabase hostname pattern
-  /db\.[a-z]+\.supabase\.co/,  // Supabase project DB hostnames
+  /^2406:da1a:/,   // Supabase production IPv6 range — covers both MAIN (ap-south-1) and POOL (ap-northeast-2)
 ];
 
 export type DbSafetyResult =

@@ -7,14 +7,14 @@
  */
 
 import * as fs from "fs";
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { X_PLAN_LIMITS, VALID_X_PLAN_KEYS } from "../src/lib/xPlanCatalog.js";
 import { computeMode } from "../src/lib/xmode.js";
 import { signToken } from "../src/lib/auth.js";
-import { assertSafeMutationDatabase } from "../src/lib/db-safety.js";
+import { getTestDb } from "../src/lib/test-db.js";
 
-const db = superAdminDb;
+// WP8-P2: use TEST_DATABASE_URL exclusively (Production fallback forbidden)
+const db = await getTestDb("cc-preflight");
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 let p = 0, f = 0, sk = 0;
@@ -1216,9 +1216,7 @@ async function main() {
   console.log("Target: d283c9e5+ on release/v2.0.0");
   console.log("══════════════════════════════════════════════════════════════════");
 
-  // DB Safety: fail-closed guard before any mutation
-  await assertSafeMutationDatabase(db, "cc-preflight");
-
+  // NOTE: DB safety already verified in getTestDb() call at module top
   await setup();
   try {
     await checkSchema();

@@ -11,10 +11,12 @@
  *   Production DB 연결 시 즉시 BLOCKED됩니다.
  *   ALLOW_TEST_DB_MUTATIONS=true 설정 없이는 실행되지 않습니다.
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { signToken } from "../lib/auth.js";
-import { assertSafeMutationDatabase } from "../lib/db-safety.js";
+import { getTestDb, closeTestDb } from "../lib/test-db.js";
+
+// WP8-P2: use TEST_DATABASE_URL exclusively (Production fallback forbidden)
+const superAdminDb = await getTestDb("wp8-preflight");
 
 const BASE = "http://localhost:8080/api";
 
@@ -48,10 +50,7 @@ async function main() {
   console.log("WP8 PREFLIGHT — Audit / Support Case");
   console.log("═".repeat(64));
 
-  // ── DB Safety Check — must pass before any mutation ──────────
-  console.log("\n[SAFETY] DB mutation guard check...");
-  await assertSafeMutationDatabase(superAdminDb, "wp8-preflight");
-
+  // NOTE: DB safety already verified in getTestDb() call at module top
   // ── Setup: find test pool + super_admin user ─────────────────
   const [superUser] = (await superAdminDb.execute(sql`
     SELECT id FROM users WHERE role = 'super_admin' LIMIT 1

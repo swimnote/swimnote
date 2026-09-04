@@ -27,24 +27,13 @@ function generateInviteCode(): string {
 }
 
 // ─── parent_request_messages 테이블 자동 생성 ─────────────────────────────
-let _messagesTableReady = false;
+/**
+ * ensureMessagesTable — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §3
+ * Run that migration before deploying. This function is kept for call-site compatibility.
+ */
 async function ensureMessagesTable() {
-  if (_messagesTableReady) return;
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS parent_request_messages (
-      id TEXT PRIMARY KEY DEFAULT (gen_random_uuid()::text),
-      request_id TEXT NOT NULL,
-      swimming_pool_id TEXT NOT NULL,
-      sender_type TEXT NOT NULL,
-      sender_id TEXT,
-      message_type TEXT NOT NULL DEFAULT 'message',
-      content TEXT NOT NULL,
-      is_read_by_teacher BOOLEAN DEFAULT false,
-      is_read_by_parent BOOLEAN DEFAULT false,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).catch(() => {});
-  _messagesTableReady = true;
+  // NO-OP: schema is guaranteed by explicit migration
 }
 
 const REQUEST_TYPE_NAMES: Record<string, string> = {
@@ -301,13 +290,7 @@ router.get("/teacher/parent-requests", requireAuth, requireRole("teacher", "pool
         .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      // is_read_by_teacher 컬럼 없으면 자동 추가
-      await db.execute(sql`
-        ALTER TABLE parent_student_requests
-        ADD COLUMN IF NOT EXISTS is_read_by_teacher BOOLEAN DEFAULT false
-      `).catch(() => {});
-
-      await ensureMessagesTable();
+      await ensureMessagesTable(); // schema guaranteed by migration
       const rows = await db.execute(sql`
         SELECT
           psr.*,
@@ -448,12 +431,6 @@ router.patch("/parent-requests/:id", requireAuth, requireRole("pool_admin", "sub
         WHERE id = ${req.params.id} AND swimming_pool_id = ${me.swimming_pool_id}
         LIMIT 1
       `).then(r => r.rows as any[]);
-
-      // 컬럼 보장 (GET보다 PATCH가 먼저 호출될 경우 대비)
-      await db.execute(sql`
-        ALTER TABLE parent_student_requests
-        ADD COLUMN IF NOT EXISTS is_read_by_teacher BOOLEAN DEFAULT false
-      `).catch(() => {});
 
       // 상태 변경 시 읽음 처리도 함께
       await db.execute(sql`

@@ -34,7 +34,7 @@ import { SUPPORT_CASE_STATE, SUPPORT_EVENT_TYPE } from "../lib/ai-feature-enum.j
 const router = Router();
 
 // Startup idempotent migration
-ensureCs01rSchema().catch(console.error);
+// Schema guaranteed by explicit migration (WP8-P2). See src/migrations/runtime-ddl-consolidated.ts §5
 
 const SUPER = requireRole("super_admin");
 

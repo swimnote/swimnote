@@ -20,40 +20,14 @@ const router = Router();
 const SUPER_ROLES = new Set(["super_admin", "platform_admin"]);
 const ADMIN_ROLES = new Set(["pool_admin", "sub_admin"]);
 
-let _tablesDone = false;
+/**
+ * ensureTables — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §2
+ * Run that migration before deploying. This function is kept for call-site compatibility.
+ */
 async function ensureTables() {
-  if (_tablesDone) return;
-  _tablesDone = true;
-  await db.execute(sql.raw(`
-    CREATE TABLE IF NOT EXISTS inquiries (
-      id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      sender_uuid TEXT NOT NULL,
-      sender_role TEXT NOT NULL,
-      sender_name TEXT NOT NULL DEFAULT '',
-      pool_id     TEXT,
-      pool_name   TEXT,
-      target      TEXT NOT NULL DEFAULT 'super',
-      title       TEXT NOT NULL,
-      content     TEXT NOT NULL,
-      status      TEXT NOT NULL DEFAULT 'unread',
-      created_at  TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)).catch(console.error);
-
-  await db.execute(sql.raw(`
-    CREATE TABLE IF NOT EXISTS inquiry_replies (
-      id           TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      inquiry_id   TEXT NOT NULL,
-      replier_uuid TEXT NOT NULL,
-      replier_role TEXT NOT NULL,
-      replier_name TEXT,
-      content      TEXT NOT NULL,
-      is_read      BOOLEAN DEFAULT FALSE,
-      created_at   TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)).catch(console.error);
+  // NO-OP: schema is guaranteed by explicit migration
 }
-ensureTables().catch(console.error);
 
 async function getSenderInfo(userId: string, role?: string) {
   // parent_account → parent_accounts 테이블 + 연결 학생의 수영장 정보
