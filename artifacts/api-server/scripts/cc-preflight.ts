@@ -12,6 +12,7 @@ import { sql } from "drizzle-orm";
 import { X_PLAN_LIMITS, VALID_X_PLAN_KEYS } from "../src/lib/xPlanCatalog.js";
 import { computeMode } from "../src/lib/xmode.js";
 import { signToken } from "../src/lib/auth.js";
+import { assertSafeMutationDatabase } from "../src/lib/db-safety.js";
 
 const db = superAdminDb;
 
@@ -1214,6 +1215,9 @@ async function main() {
   console.log("POOL CONTROL CENTER PRODUCTION GATE VERIFICATION");
   console.log("Target: d283c9e5+ on release/v2.0.0");
   console.log("══════════════════════════════════════════════════════════════════");
+
+  // DB Safety: fail-closed guard before any mutation
+  await assertSafeMutationDatabase(db, "cc-preflight");
 
   await setup();
   try {

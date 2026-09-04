@@ -7648,54 +7648,11 @@ router.get(
 // Super Admin Pool Control Center
 // ════════════════════════════════════════════════════════════════
 
-// ── WP8 Schema migration (idempotent, startup) ──────────────────
-let _wp8SchemaDone = false;
-async function ensureWp8Schema(): Promise<void> {
-  if (_wp8SchemaDone) return;
-  _wp8SchemaDone = true;
-  // support_cases: add operational tracking columns
-  for (const ddl of [
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS title TEXT`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS category TEXT`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS subject_type TEXT`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS subject_id TEXT`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS assigned_operator TEXT`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS resolution TEXT`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS ops_status TEXT DEFAULT 'OPEN'`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS created_by_admin TEXT`,
-  ]) {
-    await (superAdminDb as any).execute(sql.raw(ddl)).catch((e: any) =>
-      console.error(`[wp8-migrate] DDL fail: ${ddl.slice(0, 60)}`, e?.message));
-  }
-  // support_case_notes: new child table
-  await (superAdminDb as any).execute(sql.raw(`
-    CREATE TABLE IF NOT EXISTS support_case_notes (
-      id              TEXT PRIMARY KEY,
-      support_case_id TEXT NOT NULL,
-      pool_id         TEXT NOT NULL,
-      actor_id        TEXT NOT NULL,
-      event_type      TEXT NOT NULL,
-      note            TEXT,
-      before_state    TEXT,
-      after_state     TEXT,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `)).catch((e: any) => console.error("[wp8-migrate] CREATE support_case_notes:", e?.message));
-  // Indexes
-  for (const ddl of [
-    `CREATE INDEX IF NOT EXISTS sc_pool_status_idx  ON support_cases(pool_id, ops_status)`,
-    `CREATE INDEX IF NOT EXISTS sc_pool_created_idx ON support_cases(pool_id, created_at DESC)`,
-    `CREATE INDEX IF NOT EXISTS sc_ticket_idx       ON support_cases(ticket_id)`,
-    `CREATE INDEX IF NOT EXISTS sc_subject_idx      ON support_cases(subject_type, subject_id)`,
-    `CREATE INDEX IF NOT EXISTS scn_case_id_idx     ON support_case_notes(support_case_id, created_at)`,
-    `CREATE INDEX IF NOT EXISTS al_pool_created_idx ON audit_logs(pool_id, created_at DESC)`,
-    `CREATE INDEX IF NOT EXISTS al_actor_created_idx ON audit_logs(actor_id, created_at DESC)`,
-    `CREATE INDEX IF NOT EXISTS al_entity_idx       ON audit_logs(entity_type, entity_id)`,
-  ]) {
-    await (superAdminDb as any).execute(sql.raw(ddl)).catch(() => {});
-  }
-}
-void ensureWp8Schema();
+// ── WP8 Schema note ─────────────────────────────────────────────
+// Runtime DDL (ensureWp8Schema) is REMOVED.
+// Schema is applied via explicit migration:
+//   src/migrations/wp8-support-case-crm.ts
+// Server boot must NOT execute any DDL.
 
 // ── Helpers ─────────────────────────────────────────────────────
 const WP8_CATEGORIES = new Set([
@@ -7876,7 +7833,7 @@ router.get(
     const limit  = Math.min(Math.max(parseInt(limitStr,  10), 1), 100);
     const offset = Math.max(parseInt(offsetStr, 10), 0);
     try {
-      await ensureWp8Schema();
+
       const conds: string[] = [`pool_id = '${poolId.replace(/'/g,"''")}'`];
       if (ops_status && WP8_OPS_STATUSES.has(ops_status))
         conds.push(`ops_status = '${ops_status}'`);
@@ -7948,7 +7905,7 @@ router.post(
       if (!sv.ok) { res.status(400).json({ error: sv.error }); return; }
     }
     try {
-      await ensureWp8Schema();
+
       const caseId   = wp8Id("sc");
       const ticketId = wp8TicketId();
       await (superAdminDb as any).execute(sql`
@@ -7994,7 +7951,7 @@ router.get(
   async (req: AuthRequest, res) => {
     const { id: poolId, caseId } = req.params;
     try {
-      await ensureWp8Schema();
+
       const [caseRes, notesRes] = await Promise.all([
         (superAdminDb as any).execute(sql`
           SELECT sc.*, sp.name AS pool_name
@@ -8030,7 +7987,7 @@ router.patch(
       res.status(400).json({ error: "ops_status는 OPEN/IN_PROGRESS/RESOLVED 중 하나" }); return;
     }
     try {
-      await ensureWp8Schema();
+
       const cur = await (superAdminDb as any).execute(sql`
         SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
       `);
@@ -8077,7 +8034,7 @@ router.post(
     if (!note?.trim()) { res.status(400).json({ error: "note 필수" }); return; }
     if (note.trim().length > 4000) { res.status(400).json({ error: "note 최대 4000자" }); return; }
     try {
-      await ensureWp8Schema();
+
       const exists = await (superAdminDb as any).execute(sql`
         SELECT id FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
       `);
@@ -8108,7 +8065,7 @@ router.patch(
     const { assigned_operator } = req.body ?? {};
     // assigned_operator may be null (unassign)
     try {
-      await ensureWp8Schema();
+
       const exists = await (superAdminDb as any).execute(sql`
         SELECT id FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
       `);
@@ -8148,7 +8105,7 @@ router.post(
     const { resolution, note } = req.body ?? {};
     if (!resolution?.trim()) { res.status(400).json({ error: "resolution 필수" }); return; }
     try {
-      await ensureWp8Schema();
+
       const cur = await (superAdminDb as any).execute(sql`
         SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
       `);
@@ -8195,7 +8152,7 @@ router.post(
     const { reason } = req.body ?? {};
     if (!reason?.trim()) { res.status(400).json({ error: "reason 필수" }); return; }
     try {
-      await ensureWp8Schema();
+
       const cur = await (superAdminDb as any).execute(sql`
         SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
       `);

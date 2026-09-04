@@ -5,10 +5,16 @@
  * 실행: cd artifacts/api-server && npx tsx src/scripts/wp8-preflight.ts
  *
  * Gate: ALL_PASS >= 1 and FAIL == 0 and P0_SKIPPED == 0
+ *
+ * DB Safety:
+ *   이 스크립트는 DB mutation을 수행합니다 (support_cases/notes INSERT).
+ *   Production DB 연결 시 즉시 BLOCKED됩니다.
+ *   ALLOW_TEST_DB_MUTATIONS=true 설정 없이는 실행되지 않습니다.
  */
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { signToken } from "../lib/auth.js";
+import { assertSafeMutationDatabase } from "../lib/db-safety.js";
 
 const BASE = "http://localhost:8080/api";
 
@@ -42,6 +48,10 @@ async function main() {
   console.log("WP8 PREFLIGHT — Audit / Support Case");
   console.log("═".repeat(64));
 
+  // ── DB Safety Check — must pass before any mutation ──────────
+  console.log("\n[SAFETY] DB mutation guard check...");
+  await assertSafeMutationDatabase(superAdminDb, "wp8-preflight");
+
   // ── Setup: find test pool + super_admin user ─────────────────
   const [superUser] = (await superAdminDb.execute(sql`
     SELECT id FROM users WHERE role = 'super_admin' LIMIT 1
@@ -69,13 +79,12 @@ async function main() {
   let   caseId2    = "";
 
   // ────────────────────────────────────────────────────────────────
-  // WP8-01 ~ 08: WP8 Schema migration (schema column checks)
+  // WP8-01 ~ 08: WP8 Schema presence checks (READ-ONLY)
+  // NOTE: Migration is no longer triggered at runtime.
+  //       Schema must be pre-applied via src/migrations/wp8-support-case-crm.ts
   // ────────────────────────────────────────────────────────────────
   console.log(`\n${"─".repeat(60)}`);
-  console.log("[GROUP A] WP8 Schema Migration");
-
-  // Trigger migration by hitting an endpoint
-  await req("GET", `/super/pools/${poolId}/control-center/support`, superToken);
+  console.log("[GROUP A] WP8 Schema Presence (read-only check)");
 
   const scCols = (await superAdminDb.execute(sql`
     SELECT column_name FROM information_schema.columns
