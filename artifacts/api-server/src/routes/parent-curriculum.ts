@@ -44,7 +44,7 @@
  */
 
 import { Router }         from "express";
-import { superAdminDb }   from "@workspace/db";
+import { superAdminDb, pool as pgPool } from "@workspace/db";
 import { sql }            from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { resolvePoolMode }               from "../lib/xmode.js";
@@ -94,39 +94,76 @@ import { buildGroundedPackage, type GroundedPackage } from "../lib/curriculum-an
 
 const router = Router();
 
-// ── WP10: Monthly KPI Snapshot Refresh ─────────────────────────────────────────
-// 성공한 parent curriculum search 후 호출. fire-and-forget.
-// raw source(event_logs)에서 현재 KST 월 값을 재계산해 UPSERT.
-// idempotent: retry / restart 시 동일 결과.
+// ── WP10-P1: Monthly KPI Snapshot Refresh (concurrency-safe) ───────────────────
+// 성공한 parent curriculum search 후 fire-and-forget으로 호출.
+// advisory lock: 동일 pool+year+month 재계산만 직렬화, 다른 pool은 block 안 함.
+// raw source(event_logs) COUNT recount → UPSERT overwrite. +1 누적 방식 아님.
+// idempotent: retry / restart 시 동일 결과 (race-safe, no stale overwrite).
+
+/** djb2 hash for string → int32 (parent-curriculum-conversation.ts와 동일 구현) */
+function kpiHashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+    h = h | 0;
+  }
+  return h;
+}
+
 async function refreshCurriculumSearchSnapshot(poolId: string): Promise<void> {
-  const kst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const kst   = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
   const year  = kst.getFullYear();
   const month = kst.getMonth() + 1;
 
-  // KST 월 경계 (ISO 문자열 기준)
+  // KST 월 경계 — TIMESTAMPTZ range (LEFT(...)금지)
   const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
-  const nextMonth  = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const nextMonth  = month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, "0")}-01`;
 
-  await superAdminDb.execute(sql`
-    INSERT INTO x_monthly_operational_snapshots
-      (swimming_pool_id, year, month, parent_curriculum_search_count, parent_curriculum_user_count)
-    SELECT
-      ${poolId},
-      ${year},
-      ${month},
-      COUNT(*)::int,
-      COUNT(DISTINCT actor_id)::int
-    FROM event_logs
-    WHERE pool_id   = ${poolId}
-      AND category  = 'AI'
-      AND metadata->>'feature' = 'parent_curriculum_search'
-      AND created_at >= ${monthStart}::timestamptz
-      AND created_at <  ${nextMonth}::timestamptz
-    ON CONFLICT (swimming_pool_id, year, month) DO UPDATE SET
-      parent_curriculum_search_count = EXCLUDED.parent_curriculum_search_count,
-      parent_curriculum_user_count   = EXCLUDED.parent_curriculum_user_count,
-      updated_at                     = NOW()
-  `);
+  // advisory lock key: poolId + year + month 기반 int4 pair
+  // 동일 pool/month만 직렬화; Pool B는 독립 키 → 서로 block 없음
+  const lockKey1 = Math.abs(kpiHashStr(poolId + String(year))) % 2147483647;
+  const lockKey2 = Math.abs(kpiHashStr(String(month)))         % 2147483647;
+
+  const client = await pgPool.connect();
+  try {
+    await client.query("BEGIN");
+    // pool+month 단위 advisory lock: SELECT COUNT 완료 후 UPSERT까지 단일 txn 보호
+    // → 동시 recount가 stale 값으로 뒤늦게 덮어쓸 수 없음
+    await client.query("SELECT pg_advisory_xact_lock($1::int, $2::int)", [lockKey1, lockKey2]);
+    await client.query(
+      `INSERT INTO x_monthly_operational_snapshots
+         (swimming_pool_id, year, month, parent_curriculum_search_count, parent_curriculum_user_count)
+       SELECT
+         $1,
+         $2,
+         $3,
+         COUNT(*)::int,
+         COUNT(DISTINCT actor_id)::int
+       FROM event_logs
+       WHERE pool_id   = $1
+         AND category  = 'AI'
+         AND metadata->>'feature' = 'parent_curriculum_search'
+         AND created_at >= $4::timestamptz
+         AND created_at <  $5::timestamptz
+       ON CONFLICT (swimming_pool_id, year, month) DO UPDATE SET
+         parent_curriculum_search_count = EXCLUDED.parent_curriculum_search_count,
+         parent_curriculum_user_count   = EXCLUDED.parent_curriculum_user_count,
+         updated_at                     = NOW()`,
+      [poolId, year, month, monthStart, nextMonth],
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    // 검색 결과 자체는 이미 반환됨. KPI 갱신 실패만 기록.
+    console.error("[curriculum-kpi] snapshot refresh failed", {
+      poolId, year, month, error: (err as Error).message,
+    });
+    throw err; // caller의 .catch(() => {})가 삼킴
+  } finally {
+    client.release();
+  }
 }
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
