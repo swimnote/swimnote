@@ -3755,6 +3755,183 @@ router.get(
 );
 
 // ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/xmode — X Manual Entitlement Grant / Revoke
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Super Admin이 결제 없이 수영장에 X 이용권을 직접 부여/회수.
+// 쓰는 DB 필드: x_manual_entitlement (± x_force_disabled, x_plan_key, xmode_config_status)
+// 절대 수정하지 않는 필드: x_paid_entitlement, xmode_entitlement (legacy)
+// RevenueCat 상태 조작 금지.
+//
+// Body:
+//   xmode_entitlement: boolean  — true=부여, false=회수  (UI backward-compat key)
+//   x_plan_key?:       string | null
+//   bypass_readiness_check?: boolean  — true 시 xmode_config_status → READY
+//   reason?: string
+//
+// 부여 시:
+//   x_manual_entitlement = true
+//   x_force_disabled     = false  (강제 비활성화 해제)
+//   x_plan_key           = provided value (optional)
+//   xmode_config_status  = bypass_readiness_check ? 'READY' : 기존값 유지
+//
+// 회수 시:
+//   x_manual_entitlement = false
+//   x_plan_key           = null
+//   (x_paid_entitlement, xmode_config_status 불변)
+//
+// Response: effective resolver 기준 상태 반환.
+// Audit: audit_logs 기록.
+//
+router.patch(
+  "/super/operators/:id/xmode",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      xmode_entitlement,
+      x_plan_key,
+      bypass_readiness_check,
+      reason,
+    } = req.body as {
+      xmode_entitlement?: boolean;
+      x_plan_key?: string | null;
+      bypass_readiness_check?: boolean;
+      reason?: string;
+    };
+
+    if (typeof xmode_entitlement !== "boolean") {
+      res.status(400).json({ error: "xmode_entitlement (boolean) 필드 필요" });
+      return;
+    }
+
+    const actorId = req.user!.id;
+    const grant = xmode_entitlement; // true=부여, false=회수
+
+    try {
+      await superAdminDb.transaction(async (tx) => {
+        // ── Before state ───────────────────────────────────────────────
+        const beforeRes = await tx.execute(sql`
+          SELECT
+            id,
+            COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+            COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+            COALESCE(x_force_disabled,    false) AS x_force_disabled,
+            x_plan_key,
+            xmode_config_status
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `);
+        if (!beforeRes.rows.length) {
+          res.status(404).json({ error: "수영장 없음" });
+          return;
+        }
+        const before = beforeRes.rows[0] as any;
+
+        const beforePaid   = Boolean(before.x_paid_entitlement);
+        const beforeManual = Boolean(before.x_manual_entitlement);
+        const beforeForce  = Boolean(before.x_force_disabled);
+
+        // ── Build UPDATE ────────────────────────────────────────────────
+        let newManual: boolean;
+        let newForce:  boolean;
+        let newPlanKey: string | null;
+        let newConfigStatus: string | null;
+
+        if (grant) {
+          newManual     = true;
+          newForce      = false; // 강제 비활성화 해제
+          newPlanKey    = x_plan_key ?? (before.x_plan_key ?? null);
+          newConfigStatus = bypass_readiness_check
+            ? "READY"
+            : (before.xmode_config_status ?? null);
+        } else {
+          newManual     = false;
+          newForce      = beforeForce; // force는 건드리지 않음
+          newPlanKey    = null;
+          newConfigStatus = before.xmode_config_status ?? null; // 불변
+        }
+
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools
+          SET
+            x_manual_entitlement = ${newManual},
+            x_force_disabled     = ${newForce},
+            x_plan_key           = ${newPlanKey},
+            xmode_config_status  = ${newConfigStatus},
+            updated_at           = NOW()
+          WHERE id = ${poolId}
+          RETURNING
+            COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+            COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+            COALESCE(x_force_disabled,    false) AS x_force_disabled,
+            x_plan_key,
+            xmode_config_status
+        `);
+        const after = updatedRes.rows[0] as any;
+
+        const afterPaid   = Boolean(after.x_paid_entitlement);
+        const afterManual = Boolean(after.x_manual_entitlement);
+        const afterForce  = Boolean(after.x_force_disabled);
+        const afterEff    = (afterPaid || afterManual) && !afterForce;
+
+        // ── Audit ───────────────────────────────────────────────────────
+        const beforeEff = (beforePaid || beforeManual) && !beforeForce;
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
+        `);
+        const version = (vRes.rows[0] as any).v;
+        const beforeData = {
+          x_paid_entitlement:   beforePaid,
+          x_manual_entitlement: beforeManual,
+          x_force_disabled:     beforeForce,
+          xmode_entitlement:    beforeEff,
+        };
+        const afterData = {
+          x_paid_entitlement:   afterPaid,
+          x_manual_entitlement: afterManual,
+          x_force_disabled:     afterForce,
+          xmode_entitlement:    afterEff,
+          source:               "super_admin_manual",
+          action:               grant ? "grant" : "revoke",
+        };
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_xmode', ${poolId}, ${version},
+            'update', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify(beforeData)}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            ${reason ?? (grant ? "Super Admin X grant" : "Super Admin X revoke")}
+          )
+        `);
+
+        // ── Response: effective resolver 기준 ───────────────────────────
+        res.json({
+          pool_id:              poolId,
+          x_manual_entitlement: afterManual,
+          x_paid_entitlement:   afterPaid,
+          x_force_disabled:     afterForce,
+          x_effective:          afterEff,
+          x_source:             afterManual ? "manual" : (afterPaid ? "paid" : "none"),
+          x_plan_key:           after.x_plan_key ?? null,
+          xmode_config_status:  after.xmode_config_status ?? null,
+          action:               grant ? "granted" : "revoked",
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/xmode 오류:", e?.message);
+      res.status(500).json({ error: "X_ENTITLEMENT_UPDATE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
 // PATCH /super/operators/:id/force-disable — X 강제 비활성화 / 해제
 // ════════════════════════════════════════════════════════════════════════════
 //
