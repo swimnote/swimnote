@@ -31,6 +31,10 @@ interface Summary {
   gr_ready_count: number; gr_failed_count: number; gr_total_count: number;
   recent_error_count: number; last_error_at: string | null;
   unread_notifications: number;
+  recent_support: {
+    id: string; ticket_id: string | null; state: string;
+    actor_role: string | null; created_at: string; updated_at: string;
+  } | null;
 }
 
 // X Plan display constants — values MUST match server-side xPlanCatalog.ts
@@ -151,36 +155,168 @@ function GrantXModal({ current_plan, onGrant, onClose, loading }: {
   );
 }
 
+// ─────────────────── Health Issue → Tab mapping ────────────────────
+// Source of truth: server-side healthIssues computation in super.ts
+// Issue codes pushed: "X ENTITLEMENT CONFLICT" | "FREQUENT_ERRORS" | "GROWTH_REPORT_FAILURES" | "STORAGE_QUOTA"
+const HEALTH_ISSUE_MAP: Record<string, { label: string; severity: "critical" | "warning"; tabKey: TabKey | null }> = {
+  "X ENTITLEMENT CONFLICT": {
+    label: "X 엔타이틀먼트 충돌 — paid 상태이나 force disabled가 켜져 있음",
+    severity: "critical",
+    tabKey: "access",
+  },
+  "FREQUENT_ERRORS": {
+    label: "최근 7일 오류 10건 초과",
+    severity: "warning",
+    tabKey: "errors",
+  },
+  "GROWTH_REPORT_FAILURES": {
+    label: "성장리포트 실패 3건 초과",
+    severity: "warning",
+    tabKey: "growth-reports",
+  },
+  "STORAGE_QUOTA": {
+    label: "스토리지 초과 — 업로드 차단됨",
+    severity: "critical",
+    tabKey: "storage",
+  },
+};
+
 // ─────────────────── Tab Panels ────────────────────
 
-function OverviewTab({ s }: { s: Summary }) {
-  const fmtBytes = (b: number) => b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(0)} MB` : `${(b / 1e3).toFixed(0)} KB`;
+function OverviewTab({ s, onNavigate }: { s: Summary; onNavigate: (tab: TabKey) => void }) {
+  const fmtBytes = (b: number) =>
+    b > 1e9 ? `${(b / 1e9).toFixed(1)} GB`
+    : b > 1e6 ? `${(b / 1e6).toFixed(0)} MB`
+    : `${(b / 1e3).toFixed(0)} KB`;
+
+  const healthLabel = { GREEN: "정상", YELLOW: "경고", RED: "심각" }[s.health] ?? s.health;
+  const healthTitleCls = s.health === "RED" ? "text-red-700" : s.health === "YELLOW" ? "text-amber-700" : "text-green-700";
+
   return (
     <div className="space-y-4">
-      {s.health_issues.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <div className="text-[12px] font-semibold text-red-700 mb-1">⚠ Health Issues</div>
-          {s.health_issues.map((h) => <div key={h} className="text-[11px] text-red-600">• {h}</div>)}
-        </div>
-      )}
+
+      {/* ── 1. Health ── */}
+      <Section title={`Health — ${healthLabel}`}>
+        {s.health_issues.length === 0 ? (
+          <div className="text-[12px] text-green-700 py-1">✓ 현재 감지된 주요 운영 이상 없음</div>
+        ) : (
+          <div className="space-y-2">
+            {s.health_issues.map((code) => {
+              const info = HEALTH_ISSUE_MAP[code];
+              const severity = info?.severity ?? "warning";
+              const tabKey = info?.tabKey ?? null;
+              const tabLabel = tabKey ? TABS.find((t) => t.key === tabKey)?.label : null;
+              return (
+                <div
+                  key={code}
+                  onClick={() => tabKey && onNavigate(tabKey)}
+                  className={[
+                    "flex items-center justify-between px-3 py-2.5 rounded-lg border",
+                    severity === "critical"
+                      ? "border-red-200 bg-red-50"
+                      : "border-amber-200 bg-amber-50",
+                    tabKey ? "cursor-pointer hover:opacity-75 transition-opacity" : "",
+                  ].join(" ")}
+                >
+                  <div>
+                    <div className={`text-[11px] font-bold ${severity === "critical" ? "text-red-700" : "text-amber-700"}`}>
+                      {code}
+                    </div>
+                    {info && (
+                      <div className="text-[10px] text-[#666] mt-0.5">{info.label}</div>
+                    )}
+                    {/* Show relevant count if available */}
+                    {code === "FREQUENT_ERRORS" && (
+                      <div className="text-[10px] text-[#888] mt-0.5">7일 오류 {s.recent_error_count}건</div>
+                    )}
+                    {code === "GROWTH_REPORT_FAILURES" && (
+                      <div className="text-[10px] text-[#888] mt-0.5">실패 {s.gr_failed_count}건 / 전체 {s.gr_total_count}건</div>
+                    )}
+                  </div>
+                  {tabLabel && (
+                    <span className="text-[11px] text-[#aaa] shrink-0 ml-3">→ {tabLabel}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
+
+      {/* ── 2. Access / X / Plan ── */}
+      <Section title="Access / Plan">
+        <Row
+          label="BASE Effective"
+          value={s.base_effective ? `ON (${s.base_source})` : "OFF"}
+          valueClass={s.base_effective ? "text-green-700 font-semibold" : "text-[#aaa]"}
+        />
+        <Row
+          label="X Effective"
+          value={s.x_effective
+            ? `ON (${s.x_source})${s.x_plan_key ? ` · ${s.x_plan_key.toUpperCase()}` : ""}`
+            : "OFF"}
+          valueClass={s.x_effective ? "text-[#002F5F] font-bold" : "text-[#aaa]"}
+        />
+        <Row
+          label="Force Disabled"
+          value={s.x_force_disabled}
+          valueClass={s.x_force_disabled ? "text-red-600 font-bold" : "text-[#aaa]"}
+        />
+        <Row label="Member Limit" value={s.member_limit ?? "무제한"} />
+        <Row label="Subscription" value={`${s.subscription_status}${s.subscription_tier ? ` / ${s.subscription_tier}` : ""}`} />
+        <Row label="X Config Status" value={s.xmode_config_status} />
+      </Section>
+
+      {/* ── 3. 핵심 인원 ── */}
       <div className="grid grid-cols-3 gap-2">
         <StatCard label="활성 회원" value={s.active_members} sub={`전체 ${s.total_members}명`} color="navy" />
         <StatCard label="교사" value={s.teacher_count} color="gray" />
         <StatCard label="학부모" value={s.parent_count} color="gray" />
         <StatCard label="활성반" value={s.active_class_count} color="gray" />
-        <StatCard label="최근 오류 (7d)" value={s.recent_error_count} color={s.recent_error_count > 5 ? "red" : "gray"} />
-        <StatCard label="미읽은 알림" value={s.unread_notifications} color="gray" />
-        <StatCard label="GR 준비" value={s.gr_ready_count} sub={`실패 ${s.gr_failed_count}`} color={s.gr_failed_count > 0 ? "amber" : "gray"} />
         <StatCard label="AI 일지 (이번달)" value={s.recent_ai_diary_count} sub={s.recent_ai_month ?? ""} color="gray" />
-        <StatCard label="저장 사용" value={fmtBytes(s.used_storage_bytes)} color={s.upload_blocked ? "red" : "gray"} />
+        <StatCard label="GR 준비" value={s.gr_ready_count} sub={`실패 ${s.gr_failed_count}`} color={s.gr_failed_count > 0 ? "amber" : "gray"} />
       </div>
+
+      {/* ── 4. Storage ── */}
+      <Section title="Storage">
+        <Row label="사용량" value={fmtBytes(s.used_storage_bytes)} />
+        <Row
+          label="업로드 차단"
+          value={s.upload_blocked ? "차단됨 ⚠" : "정상"}
+          valueClass={s.upload_blocked ? "text-red-600 font-bold" : "text-green-700"}
+        />
+        <Row label="미읽은 알림 (7d)" value={s.unread_notifications} valueClass={s.unread_notifications > 0 ? "text-amber-600" : "text-[#aaa]"} />
+        <Row label="최근 오류 (7d)" value={s.recent_error_count} valueClass={s.recent_error_count > 5 ? "text-red-600" : "text-[#aaa]"} />
+      </Section>
+
+      {/* ── 5. 최근 지원 요청 ── */}
+      <Section title="최근 지원 요청">
+        {s.recent_support ? (
+          <div
+            onClick={() => onNavigate("support")}
+            className="cursor-pointer hover:bg-[#f9fafb] -mx-2 px-2 py-1 rounded-lg transition-colors"
+          >
+            <Row label="Ticket ID" value={s.recent_support.ticket_id ?? s.recent_support.id.slice(0, 8)} />
+            <Row label="상태" value={s.recent_support.state} valueClass="font-semibold" />
+            <Row label="역할" value={s.recent_support.actor_role ?? "—"} />
+            <Row label="생성일시" value={s.recent_support.created_at?.slice(0, 16).replace("T", " ")} />
+            <div className="text-[10px] text-[#aaa] mt-1.5 text-right">클릭 → Support 탭</div>
+          </div>
+        ) : (
+          <Empty text="최근 지원 요청 없음" />
+        )}
+      </Section>
+
+      {/* ── 6. Pool 기본 식별 정보 ── */}
       <Section title="기본 정보">
         <Row label="pool_id" value={s.pool_id} />
         <Row label="수영장명" value={s.name} />
         <Row label="운영자" value={s.owner_name} />
         <Row label="승인 상태" value={s.approval_status} />
         <Row label="생성일" value={s.created_at?.slice(0, 10)} />
+        <Row label="최근 업데이트" value={s.updated_at?.slice(0, 10)} />
       </Section>
+
     </div>
   );
 }
@@ -851,7 +987,7 @@ export default function SuperPoolControlCenter() {
 
       {/* ── Tab Content ── */}
       <div>
-        {tab === "overview"       && <OverviewTab s={summary} />}
+        {tab === "overview"       && <OverviewTab s={summary} onNavigate={setTab} />}
         {tab === "access"         && <AccessTab s={summary} poolId={poolId!} onRefresh={loadSummary} />}
         {tab === "members"        && <MembersTab poolId={poolId!} />}
         {tab === "teachers"       && <TeachersTab poolId={poolId!} />}

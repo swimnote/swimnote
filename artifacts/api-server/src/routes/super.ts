@@ -5304,7 +5304,7 @@ router.get(
       const pool = poolRes.rows[0] as any;
 
       // Counts + storage + recent errors (parallel)
-      const [countsRes, errorRes, aiRes, grRes, notifRes] = await Promise.all([
+      const [countsRes, errorRes, aiRes, grRes, notifRes, supportRes] = await Promise.all([
         superAdminDb.execute(sql`
           SELECT
             (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_members,
@@ -5340,6 +5340,13 @@ router.get(
           WHERE pool_id = ${poolId} AND is_read = false
             AND created_at > NOW() - INTERVAL '7 days'
         `).catch(() => ({ rows: [{ unread: 0 }] })),
+        superAdminDb.execute(sql`
+          SELECT id, ticket_id, state, created_at, updated_at, actor_role
+          FROM support_cases
+          WHERE pool_id = ${poolId}
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).catch(() => ({ rows: [] })),
       ]);
 
       const counts = countsRes.rows[0] as any;
@@ -5347,6 +5354,7 @@ router.get(
       const ai = aiRes.rows[0] as any ?? {};
       const gr = grRes.rows[0] as any ?? {};
       const notif = notifRes.rows[0] as any;
+      const recentSupport = (supportRes.rows[0] as any) ?? null;
 
       // Health score (rule-based)
       const healthIssues: string[] = [];
@@ -5412,6 +5420,15 @@ router.get(
         last_error_at:    errors.last_at ?? null,
         // Notifications (7d unread)
         unread_notifications: Number(notif.unread ?? 0),
+        // Recent support case (latest 1, pool-scoped)
+        recent_support: recentSupport ? {
+          id:         recentSupport.id,
+          ticket_id:  recentSupport.ticket_id,
+          state:      recentSupport.state,
+          actor_role: recentSupport.actor_role,
+          created_at: recentSupport.created_at,
+          updated_at: recentSupport.updated_at,
+        } : null,
       });
     } catch (e: any) {
       console.error("[control-center] summary 오류:", e?.message);
