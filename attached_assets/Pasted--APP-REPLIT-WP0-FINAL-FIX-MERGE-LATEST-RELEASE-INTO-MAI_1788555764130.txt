@@ -1,0 +1,186 @@
+[보낼 곳: APP REPLIT]
+
+# WP0 FINAL FIX — MERGE LATEST RELEASE INTO MAIN
+# 목적:
+# Render Production의 main이 최신 release/v2.0.0 commit 3775e2ce를 포함하도록
+# 안전하게 merge 준비/검증한다.
+#
+# 코드 수정 금지.
+# DB 변경 금지.
+# Migration 금지.
+# OTA 금지.
+# Render 자동배포 금지.
+
+============================================================
+CURRENT FACTS
+============================================================
+
+Current Render deployed SHA:
+90df1a5
+
+Required override commit:
+3775e2ce
+
+Ancestry result:
+3775e2ce contained in 90df1a5 = NO
+
+Therefore Production Live API:
+Toykids mode = x_pending
+
+DB already:
+x_management_override = true
+
+Required fix:
+release/v2.0.0 latest
+→ main merge
+→ user manually redeploy Render
+
+============================================================
+1. VERIFY BRANCH HEADS
+============================================================
+
+반드시 보고:
+
+release/v2.0.0 HEAD:
+...
+
+origin/release/v2.0.0 HEAD:
+...
+
+main HEAD:
+...
+
+origin/main HEAD:
+...
+
+Required commit:
+3775e2ce
+
+3775e2ce contained in origin/release/v2.0.0:
+YES / NO
+
+============================================================
+2. MERGE PREP
+============================================================
+
+release/v2.0.0 최신 HEAD가
+3775e2ce를 포함하는지 확인.
+
+그 후:
+
+release/v2.0.0
+→ main
+
+정상 merge 수행.
+
+금지:
+
+force push
+reset --hard
+history rewrite
+cherry-pick 남발
+unrelated code changes
+
+가능하면 정상 merge commit 사용.
+
+============================================================
+3. PUSH MAIN
+============================================================
+
+main merge 완료 후:
+
+origin/main push.
+
+반드시 보고:
+
+New main merge commit SHA:
+...
+
+3775e2ce contained in new main SHA:
+YES / NO
+
+검증 예:
+
+git merge-base --is-ancestor 3775e2ce <NEW_MAIN_SHA>
+
+YES여야 함.
+
+============================================================
+4. SAFETY
+============================================================
+
+Code changes:
+0
+
+DB changes:
+0
+
+Migration:
+0
+
+Production data changes:
+0
+
+OTA:
+NO
+
+Render auto deploy:
+NO
+
+사용자가 Render Dashboard에서 수동 배포할 예정.
+
+============================================================
+5. REPORT
+============================================================
+
+# WP0 MAIN MERGE REPORT
+
+release/v2.0.0 HEAD:
+...
+
+origin/release/v2.0.0 HEAD:
+...
+
+main before:
+...
+
+New main merge SHA:
+...
+
+Required commit:
+3775e2ce
+
+3775e2ce contained in new main:
+YES / NO
+
+Merge conflicts:
+NONE / ...
+
+Unexpected code changes:
+0 / ...
+
+Push origin/main:
+YES / NO
+
+DB changes:
+0
+
+Migration:
+0
+
+OTA:
+NO
+
+Render:
+USER MANUAL DEPLOY REQUIRED
+
+FINAL:
+
+SAFE TO DEPLOY NEW MAIN ON RENDER:
+YES / NO
+
+If NO:
+exact blocker:
+...
+
+STOP AFTER REPORT.
