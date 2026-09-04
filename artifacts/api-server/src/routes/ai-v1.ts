@@ -73,6 +73,7 @@ import { searchCurriculumCandidates }                                           
 import { createMatchToken, newTokenId, MatchTokenError, type MatchTokenPayload }     from '../lib/match-token.js';
 import { DEFAULT_CONFIDENCE_CONFIG_V1 }                                              from '../config/growth-confidence-config.js';
 import { saveAiTrace, type AiTraceStage }                                            from '../lib/ai-trace-service.js';
+import { registerAiOrigin }                                                           from '../lib/ai-origin-registry.js';
 import { AI_MODEL }                                                                  from '../config/ai-model-config.js';
 
 const router = Router();
@@ -615,6 +616,11 @@ router.post(
           },
         };
 
+        // WP9-P1: 응답 직전 in-memory registry 동기 등록 (race condition 방지)
+        // - saveAiTrace는 void(fire-and-forget)로 응답 후 비동기 → registry가 선점
+        // - diary save(POST /diaries)가 즉시 도달해도 registry에서 검증 가능
+        registerAiOrigin(externalRequestId, poolId, req.user?.id ?? null);
+
         console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.0`);
         res.status(200).json(responseBody);
         // WP10: trace 저장 (응답 후 비동기 — 응답 지연 없음)
@@ -666,6 +672,9 @@ router.post(
         },
         curriculum_matches: curriculumMatches,  // [] | null
       };
+
+      // WP9-P1: 응답 직전 in-memory registry 동기 등록 (contract 1.3 경로)
+      registerAiOrigin(externalRequestId, poolId, req.user?.id ?? null);
 
       console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.3 pool_mode=${poolMode} curriculum_matches=${curriculumMatches?.length ?? 'null'}`);
       res.status(200).json(responseBody13);

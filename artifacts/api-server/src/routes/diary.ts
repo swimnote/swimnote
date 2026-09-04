@@ -16,6 +16,7 @@ import { Router } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
 import { db, superAdminDb, pool as pgPool } from "@workspace/db";
+import { lookupAiOrigin }                   from "../lib/ai-origin-registry.js";
 import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -503,6 +504,57 @@ router.get("/diaries",
   }
 );
 
+// ── WP9-P1: AI origin verification ────────────────────────────────────────
+// request_id가 실제 이 pool의 teacher AI diary generation에서 생성된 것인지
+// 서버 측에서 검증.
+//
+// 검증 순서:
+//   1. in-memory registry (registerAiOrigin이 res.json() 직전 동기 등록)
+//      → race condition 없음; pool_id 매칭으로 cross-pool 차단
+//   2. event_logs fallback (프로세스 재시작, 멀티인스턴스, 오래된 요청)
+//      → target = request_id, pool_id = pool_id, category='AI', feature='teacher_diary', status='SUCCESS'
+//
+// 검증 실패 시: ai_generated=FALSE, ai_trace_id=NULL (KPI 오염 방지)
+async function verifyAiOrigin(
+  requestId: string,
+  poolId:    string,
+  _actorId:  string,         // 향후 actor 검증 확장용 — 현재 미사용 (pool 검증으로 충분)
+): Promise<boolean> {
+  // 1. in-memory registry (fast path, no DB round-trip)
+  const entry = lookupAiOrigin(requestId);
+  if (entry !== null) {
+    const poolMatch = entry.poolId === poolId;
+    console.log(`[ai-origin-verify] registry hit request_id=${requestId.slice(0, 8)}... pool_match=${poolMatch}`);
+    return poolMatch;
+  }
+
+  // 2. event_logs fallback
+  //    대상: 프로세스 재시작 후 / 멀티인스턴스 / TTL 만료 후 오래된 요청
+  //    조건: target=requestId AND pool_id=poolId AND feature=teacher_diary AND status=SUCCESS
+  //    보안 주의: category='AI' + feature='teacher_diary' + status='SUCCESS' 모두 필요
+  try {
+    const result = await superAdminDb.execute(sql`
+      SELECT 1 FROM event_logs
+      WHERE target    = ${requestId}
+        AND pool_id   = ${poolId}
+        AND category  = 'AI'
+        AND metadata->>'feature' = 'teacher_diary'
+        AND metadata->>'status'  = 'SUCCESS'
+      LIMIT 1
+    `);
+    const verified = result.rows.length > 0;
+    console.log(`[ai-origin-verify] event_logs fallback request_id=${requestId.slice(0, 8)}... verified=${verified}`);
+    return verified;
+  } catch (err) {
+    // event_logs 조회 실패 → 보안 우선 원칙: FALSE 반환 (KPI 오염 방지)
+    console.error("[ai-origin-verify] event_logs fallback failed", {
+      requestId: requestId.slice(0, 8) + "...", poolId,
+      error: (err as Error)?.message ?? err,
+    });
+    return false;
+  }
+}
+
 // ── WP9: AI diary snapshot refresh ────────────────────────────────────────
 // WP10의 refreshCurriculumSearchSnapshot과 동일 패턴.
 // raw source(class_diaries) recount → UPSERT overwrite (ai_diary_count, ai_diary_teacher_count만).
@@ -580,13 +632,17 @@ router.post("/diaries",
         ai_generated: clientAiGenerated,
       } = req.body;
 
-      // ai_generated: client marker (ai_request_id 존재 여부로 서버가 최종 판정)
-      // - AI flow: DiaryAIService가 ai_request_id를 항상 전송
-      // - 일반 저장: ai_request_id 없음
-      // 보안: client가 ai_generated=true를 직접 전송해도,
-      //   서버는 ai_request_id 존재 여부를 기준으로 판정 (client boolean 무시)
-      const isAiGenerated =
-        typeof ai_request_id === "string" && ai_request_id.trim().length > 0;
+      // WP9-P1: AI origin server verification
+      // - client가 보낸 ai_request_id를 서버가 in-memory registry + event_logs로 검증
+      // - fake "fake-id" → registry miss + event_logs miss → FALSE
+      // - cross-pool valid id → pool_id mismatch → FALSE
+      // - 정상 AI flow → registry hit (res.json() 직전 등록) → TRUE
+      // - 일반 저장(ai_request_id 없음) → FALSE
+      const candidateRequestId = typeof ai_request_id === "string" ? ai_request_id.trim() : "";
+      const isAiGenerated = candidateRequestId.length > 0
+        ? await verifyAiOrigin(candidateRequestId, poolId!, userId)
+        : false;
+      console.log(`[diary-create] ai_origin_verify request_id=${candidateRequestId ? candidateRequestId.slice(0,8)+"..." : "(none)"} pool=${poolId} verified=${isAiGenerated}`);
 
       const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
       if (!class_group_id || (!common_content?.trim() && !hasStudentNotes)) {
