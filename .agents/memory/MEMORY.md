@@ -152,3 +152,4 @@
 - [WP9 완료 상태](wp9-done-state.md) — SHA 1913680c; ai_generated/ai_trace_id+snapshot+diary-based feed+diary-hub.tsx; 36TC; OTA iOS 01a06ae3; Render 미배포
 - [WP9-P1 완료 상태](wp9-p1-done-state.md) — SHA ec91382a; ai-origin-registry+verifyAiOrigin; SERVER VERIFIED YES; 36TC; OTA 없음; Render 미배포
 - [WP3 완료 상태](wp3-done-state.md) — subscription.tsx 2.0 플랜+Trial UX+Storage+DATA Pack; x-subscription X_TRIAL_ACTIVE; 80TC; SHA 75431ceb; Render/OTA 없음
+- [WP8-P1 완료 상태](wp8-p1-done-state.md) — SHA 1f0fa702; pool_memberships없음→users; cycle INSERT 컬럼 수정; 71TC; iOS OTA 01a06b1f; Render 미배포

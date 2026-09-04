@@ -1,0 +1,1153 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# WP8-P1 — FINAL RELEASE-GATE VALIDATION
+# SCHEMA ASSUMPTION CHECK + REQUIRED IOS OTA
+# NO PRODUCTION DEPLOY
+# NO NEW FEATURE DESIGN
+
+============================================================
+절대 작업 기준
+============================================================
+
+PROJECT:
+SWIMNOTE
+
+PRODUCT:
+SWIMNOTE V2
+
+APP RUNTIME:
+2.1.0
+
+CURRENT WP8 COMMIT:
+f1afac08
+
+PREVIOUS CLOSED HEAD:
+ec91382a
+
+반드시 CURRENT LATEST V2 HEAD에서 작업.
+
+f1afac08 ancestor:
+MUST BE YES
+
+DO NOT:
+- checkout old commit
+- revert
+- reset
+- touch 1.6.3
+- redesign WP8
+- deploy Render production
+- apply Production DB migration
+
+1.6.3:
+NO TOUCH
+
+============================================================
+현재 평가
+============================================================
+
+WP8 implementation commit:
+
+f1afac08
+
+Development migrations:
+applied
+
+validate-wp8.ts:
+53/53 PASS
+
+하지만 WP8을 CLOSED 하기 전에
+다음 release blockers를 제거해야 한다.
+
+BLOCKER 1:
+APP changed but iOS OTA not published
+
+BLOCKER 2:
+pool_memberships.user_id existence / notifyBatchComplete path unresolved
+
+BLOCKER 3:
+growth_report_cycles UNIQUE constraint vs ON CONFLICT target unresolved
+
+추가로
+53 tests가 실제 WP8 출시 필수 흐름을 모두 검증했는지
+테스트 목록을 제출해야 한다.
+
+============================================================
+1. CURRENT HEAD / lineage
+============================================================
+
+확인:
+
+Current Branch:
+...
+
+Current HEAD:
+...
+
+f1afac08 ancestor:
+YES / NO
+
+ec91382a ancestor:
+YES / NO
+
+old commit checkout:
+NO
+
+============================================================
+2. pool_memberships 실제 schema 확인
+============================================================
+
+추측 금지.
+
+DEVELOPMENT DB와 현재 schema/init/migration 모두 확인.
+
+반드시 보고:
+
+pool_memberships table exists:
+YES / NO
+
+Columns:
+...
+
+user_id exists:
+YES / NO
+
+swimming_pool_id exists:
+YES / NO
+
+role/status 관련 실제 columns:
+...
+
+notifyBatchComplete가
+현재 어떤 SQL로 관리자 recipient를 찾는지:
+...
+
+============================================================
+3. notifyBatchComplete 실제 검증
+============================================================
+
+현재 pool_memberships schema와
+notifyBatchComplete query가 정확히 맞는지 확인.
+
+만약 user_id가 없거나
+컬럼명이 다르면:
+
+현재 실제 schema에 맞게 최소 수정.
+
+새 membership architecture 생성 금지.
+
+관리자 대상은
+현재 SWIMNOTE의 실제 admin membership/account 구조를 사용.
+
+반드시 development에서:
+
+Pool A monthly batch complete
+→ Pool A admin recipient만 선택
+
+Pool B admin:
+0
+
+teacher:
+관리자 PUSH 대상이 아니라면 0
+
+parent:
+0
+
+cross-pool:
+0
+
+확인.
+
+============================================================
+4. Admin ready push 실제 테스트
+============================================================
+
+조건:
+
+한 pool/month 대상 report들이
+terminal 상태가 됨.
+
+expected:
+
+admin ready notification:
+1회
+
+같은 completion check 재실행:
+추가 notification 0
+
+server restart/recheck:
+추가 notification 0
+
+일부 FAILED 존재 시:
+정상 READY_TO_SEND 학생은 검수/발송 가능
+
+admin notification text:
+현재 구현 문구 보고
+
+============================================================
+5. growth_report_cycles actual constraint 확인
+============================================================
+
+DEVELOPMENT DB 실제 catalog에서 확인.
+
+반드시 보고:
+
+Table:
+growth_report_cycles
+
+Actual unique constraints:
+...
+
+Actual unique indexes:
+...
+
+Expected logical uniqueness:
+swimming_pool_id + report_period
+또는 현재 실제 모델
+
+현재 INSERT ... ON CONFLICT:
+...
+
+ON CONFLICT target이
+실제 UNIQUE/EXCLUSION constraint와 정확히 일치:
+YES / NO
+
+============================================================
+6. ON CONFLICT는 배포 전에 검증
+============================================================
+
+"첫 production 배포 후 확인" 금지.
+
+development DB에서 실제 동일 SQL 실행.
+
+테스트:
+
+same pool + same period
+첫 insert:
+PASS
+
+same pool + same period
+두 번째 job creation:
+duplicate row 생성 0
+
+ON CONFLICT:
+정상 처리
+
+different pool + same period:
+별도 row 가능
+
+same pool + different period:
+별도 row 가능
+
+SQL runtime error:
+0
+
+============================================================
+7. durable batch job 검증
+============================================================
+
+현재 WP8 implementation의
+batch persistence 실제 구조 보고.
+
+반드시:
+
+Batch table:
+...
+
+Unique:
+...
+
+Claim method:
+...
+
+Retry:
+...
+
+Stale RUNNING recovery:
+...
+
+Multi-instance protection:
+...
+
+Concurrency:
+...
+
+AUTO_ENABLED=false 상태에서도
+manual/test execution path로
+동작 검증 가능해야 함.
+
+============================================================
+8. GROWTH_REPORT_BATCH_AUTO_ENABLED
+============================================================
+
+현재:
+
+GROWTH_REPORT_BATCH_AUTO_ENABLED=false/default
+
+fail-closed 유지.
+
+이번 P1에서 true로 변경하지 말 것.
+
+Development에서도
+월 스케줄이 임의로 대량 AI 호출하지 않게 유지.
+
+반드시 보고:
+
+flag false:
+cron does not enqueue automatic monthly generation
+
+flag true:
+어떤 scheduler가 언제 실행되는지
+
+Timezone:
+KST 명확히
+
+Production enable:
+USER APPROVAL LATER
+
+============================================================
+9. 53/53 TEST COVERAGE 제출
+============================================================
+
+validate-wp8.ts의
+실제 53개 테스트를
+기능 그룹별로 정리해서 보고.
+
+최소 아래 출시 필수 테스트가
+실제로 포함되어야 한다.
+
+A. VERSION / REVIEW
+
+1.
+v1 generate
+→ READY_TO_SEND
+
+2.
+admin preview
+
+3.
+v1 discard
+→ DISCARDED
+
+4.
+discard reason/history stored
+
+5.
+v1 parent invisible
+
+6.
+regenerate
+→ v2
+
+7.
+v1 remains in history
+
+8.
+v2 READY_TO_SEND
+
+9.
+v2 preview again
+
+10.
+v2 publish
+
+11.
+parent sees v2 only
+
+12.
+parent direct access to v1 blocked
+
+------------------------------------------------------------
+B. MULTIPLE REISSUE
+
+v1 discard
+→ v2 discard
+→ v3 publish
+
+expected:
+
+versions:
+3
+
+discarded:
+2
+
+published final:
+1
+
+old content overwritten:
+NO
+
+------------------------------------------------------------
+C. BULK SEND
+
+same pool/month:
+
+A READY_TO_SEND
+B DISCARDED
+C FAILED
+D REGENERATING
+E READY_TO_SEND
+
+bulk result:
+
+A PUBLISHED
+E PUBLISHED
+
+B unchanged
+C unchanged
+D unchanged
+
+cross-pool update:
+0
+
+------------------------------------------------------------
+D. INDIVIDUAL SEND
+
+READY_TO_SEND:
+publish possible
+
+DISCARDED:
+blocked
+
+FAILED:
+blocked
+
+REGENERATING:
+blocked
+
+already PUBLISHED:
+duplicate publish/push blocked
+
+------------------------------------------------------------
+E. PARENT VISIBILITY
+
+READY_TO_SEND:
+NO
+
+DISCARDED:
+NO
+
+FAILED:
+NO
+
+REGENERATING:
+NO
+
+PUBLISHED current final:
+YES
+
+old discarded direct ID:
+NO
+
+other student:
+NO
+
+other pool:
+NO
+
+------------------------------------------------------------
+F. AUTO VALIDATION
+
+empty/malformed result:
+READY_TO_SEND 금지
+
+wrong period/student mismatch:
+READY_TO_SEND 금지 if current validator supports
+
+actual validator rules:
+보고
+
+------------------------------------------------------------
+G. JOB / RESTART
+
+duplicate monthly enqueue:
+0
+
+duplicate student active generation:
+0
+
+stale RUNNING recovery:
+PASS
+
+multi-worker claim:
+1 worker only
+
+retry:
+PASS
+
+------------------------------------------------------------
+H. ADMIN PUSH
+
+batch completion:
+1
+
+duplicate callback:
+0 extra
+
+cross-pool admin:
+0
+
+------------------------------------------------------------
+I. PARENT PUSH
+
+publish:
+notification created
+
+push failure:
+report remains PUBLISHED
+
+retry possible:
+YES
+
+duplicate notification:
+0
+
+------------------------------------------------------------
+J. MONTHLY KPI
+
+logical target:
+correct
+
+generated:
+logical student/report count
+
+failed:
+final failure only
+
+sent:
+logical published report count
+
+regeneration versions:
+do not multiply KPI
+
+WP9 ai diary columns:
+preserved
+
+WP10 curriculum columns:
+preserved
+
+============================================================
+10. Preview 실제 source 확인
+============================================================
+
+관리자 preview가
+실제 parent가 받는 report content와
+동일한 report/version source인지 확인.
+
+Preview source:
+...
+
+Parent source:
+...
+
+Same content/version:
+YES / NO
+
+별도 AI generation:
+NO
+
+preview 때문에 AI 재호출:
+NO
+
+============================================================
+11. 폐기 / 재발급 source 확인
+============================================================
+
+반드시 실제 API 보고:
+
+Discard endpoint:
+...
+
+Regenerate endpoint:
+...
+
+Discard authorization:
+admin + same pool
+
+Regenerate authorization:
+admin + same pool
+
+double tap regeneration:
+duplicate version 0
+
+discarded version physical delete:
+NO
+
+history retained:
+YES
+
+============================================================
+12. Parent final-only authorization
+============================================================
+
+직접 report ID 접근 포함 검증.
+
+조건:
+
+approved parent/student relation
++
+same pool/student
++
+PUBLISHED
++
+final/current published version
+
+을 현재 API가 어떻게 강제하는지 보고.
+
+Cross-pool report ID:
+blocked
+
+Old discarded version ID:
+blocked
+
+============================================================
+13. Production DB 절대 금지
+============================================================
+
+이번 작업:
+
+Development DB:
+verification/minimal fix allowed
+
+Production DB:
+NO
+
+step-wp8-a-lifecycle:
+PRODUCTION NOT APPLIED
+
+step-wp8-b-batch-jobs:
+PRODUCTION NOT APPLIED
+
+Production migration은
+사용자 별도 승인 후 진행.
+
+============================================================
+14. Render
+============================================================
+
+Render production deploy:
+DO NOT TRIGGER
+
+"자동 빌드가 시작됨"이라고 추측하지 말 것.
+
+현재 사용자 규칙:
+
+Render production deployment:
+USER MANUAL
+
+Replit은:
+
+commit/push/test까지만.
+
+============================================================
+15. iOS OTA — 이번에는 필수
+============================================================
+
+WP8에서:
+
+report-hub.tsx
+
+APP 코드 변경됨.
+
+따라서 현재 사용자 규칙상
+OTA를 지금 즉시 publish해야 한다.
+
+순서:
+
+1.
+모든 P1 검증/필요 최소 수정 완료
+
+2.
+tests PASS
+
+3.
+최종 commit
+
+4.
+HEAD 확인
+
+5.
+iOS OTA publish
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+반드시:
+
+FINAL WP8 Commit SHA
+=
+OTA Export Source SHA
+
+동일해야 PASS.
+
+기존 f1afac08에서
+server-only P1 수정만 발생하더라도
+APP export source가 최종 HEAD를 기준으로 생성되도록 확인.
+
+============================================================
+16. AI ENGINE
+============================================================
+
+이번 보고서에 빠진 항목.
+
+반드시 확인:
+
+AI ENGINE CHANGE REQUIRED:
+YES / NO
+
+현재 growth report 단건 endpoint:
+...
+
+Reissue가 동일 endpoint 사용:
+YES / NO
+
+SERVER owns scheduling:
+YES / NO
+
+AI ENGINE batch scheduling:
+NO
+
+APP REPLIT이 AI ENGINE 수정:
+NO
+
+============================================================
+17. Server / monthly generation
+============================================================
+
+실제 현재 구현 보고:
+
+Monthly cron exists:
+YES / NO
+
+Schedule:
+...
+
+Timezone:
+...
+
+Eligibility source:
+...
+
+중요:
+
+eligibility logic은
+기존 SWIMNOTE 성장리포트 대상 기준을 재사용해야 함.
+
+이번 P1에서 대상 정책 새로 변경 금지.
+
+============================================================
+18. 최종 완료 조건
+============================================================
+
+다음 전부 PASS여야
+WP8 FULLY CLOSED:
+
+- preview
+- discard
+- reissue
+- re-preview
+- version history
+- individual send
+- bulk send
+- final-only parent visibility
+- durable jobs
+- restart recovery
+- admin push dedupe
+- parent push retry/idempotency
+- monthly KPI
+- pool isolation
+- schema assumptions resolved
+- ON CONFLICT real DB verification
+- AI ENGINE contract confirmed
+- iOS OTA published
+- SHA match
+
+============================================================
+완료보고
+============================================================
+
+# WP8-P1 FINAL RELEASE-GATE REPORT
+
+Current Branch:
+...
+
+HEAD Before:
+...
+
+f1afac08 ancestor:
+YES / NO
+
+HEAD After:
+...
+
+Commit:
+...
+
+1.6.3 touched:
+NO
+
+============================================================
+SCHEMA ASSUMPTIONS
+============================================================
+
+pool_memberships columns:
+...
+
+user_id exists:
+YES / NO
+
+notifyBatchComplete actual recipient query:
+...
+
+Admin recipient test:
+PASS / FAIL
+
+Cross-pool recipient:
+0 / ...
+
+growth_report_cycles unique constraints:
+...
+
+ON CONFLICT target:
+...
+
+Real DB conflict test:
+PASS / FAIL
+
+============================================================
+ADMIN REVIEW
+============================================================
+
+Preview:
+PASS / FAIL
+
+Preview same parent source:
+YES / NO
+
+Discard:
+PASS / FAIL
+
+Discard history retained:
+YES / NO
+
+Discard reason:
+PASS / FAIL
+
+Reissue:
+PASS / FAIL
+
+New version:
+PASS / FAIL
+
+Old version preserved:
+PASS / FAIL
+
+Re-preview:
+PASS / FAIL
+
+============================================================
+VERSION TEST
+============================================================
+
+v1 discard → v2 publish:
+PASS / FAIL
+
+v1 discard → v2 discard → v3 publish:
+PASS / FAIL
+
+Final version unique:
+PASS / FAIL
+
+Old version overwritten:
+NO / YES
+
+============================================================
+SEND
+============================================================
+
+Individual:
+PASS / FAIL
+
+Bulk mixed statuses:
+PASS / FAIL
+
+Discarded excluded:
+PASS / FAIL
+
+Failed excluded:
+PASS / FAIL
+
+Regenerating excluded:
+PASS / FAIL
+
+Already published duplicate:
+BLOCKED / FAIL
+
+Cross-pool bulk update:
+0 / ...
+
+============================================================
+PARENT
+============================================================
+
+READY_TO_SEND visible:
+NO / YES
+
+DISCARDED visible:
+NO / YES
+
+FAILED visible:
+NO / YES
+
+REGENERATING visible:
+NO / YES
+
+PUBLISHED final visible:
+YES / NO
+
+Old discarded direct access:
+BLOCKED / FAIL
+
+Other student:
+BLOCKED / FAIL
+
+Cross-pool:
+BLOCKED / FAIL
+
+============================================================
+BATCH
+============================================================
+
+Table:
+...
+
+Unique:
+...
+
+Claim:
+...
+
+Retry:
+...
+
+Restart recovery:
+PASS / FAIL
+
+Multi-worker:
+PASS / FAIL
+
+Auto-enabled currently:
+NO
+
+Environment flag:
+GROWTH_REPORT_BATCH_AUTO_ENABLED
+
+============================================================
+ADMIN PUSH
+============================================================
+
+Recipient schema:
+PASS / FAIL
+
+Ready push:
+PASS / FAIL
+
+Duplicate completion:
+0 / ...
+
+Cross-pool push:
+0 / ...
+
+============================================================
+PARENT PUSH
+============================================================
+
+Durable state:
+...
+
+Publish commit survives push failure:
+PASS / FAIL
+
+Retry:
+PASS / FAIL
+
+Duplicate prevention:
+PASS / FAIL
+
+============================================================
+MONTHLY KPI
+============================================================
+
+Target:
+PASS / FAIL
+
+Generated logical count:
+PASS / FAIL
+
+Failed final count:
+PASS / FAIL
+
+Sent logical count:
+PASS / FAIL
+
+Regeneration double-count:
+NO / YES
+
+WP9 columns preserved:
+PASS / FAIL
+
+WP10 columns preserved:
+PASS / FAIL
+
+Super-admin path:
+PASS / FAIL
+
+============================================================
+TEST COVERAGE
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Version/reissue:
+PASS / FAIL
+
+Bulk send:
+PASS / FAIL
+
+Parent visibility:
+PASS / FAIL
+
+Batch/restart:
+PASS / FAIL
+
+Push:
+PASS / FAIL
+
+KPI:
+PASS / FAIL
+
+Pool isolation:
+PASS / FAIL
+
+============================================================
+AI ENGINE
+============================================================
+
+AI ENGINE CHANGE REQUIRED:
+YES / NO
+
+Generation endpoint:
+...
+
+Reissue endpoint reuse:
+YES / NO
+
+Server owns orchestration:
+YES / NO
+
+AI ENGINE modified:
+NO
+
+============================================================
+SERVER
+============================================================
+
+Tests:
+PASS / FAIL
+
+Boot:
+PASS / FAIL
+
+Pushed:
+YES / NO
+
+Render production:
+NO
+
+Production DB migration:
+NO
+
+============================================================
+OTA
+============================================================
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+Final WP8 Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+============================================================
+FINAL
+============================================================
+
+Schema assumptions:
+PASS / FAIL
+
+Admin review:
+PASS / FAIL
+
+Discard/reissue:
+PASS / FAIL
+
+Version history:
+PASS / FAIL
+
+Send:
+PASS / FAIL
+
+Parent final-only:
+PASS / FAIL
+
+Durable batch:
+PASS / FAIL
+
+Push:
+PASS / FAIL
+
+Monthly KPI:
+PASS / FAIL
+
+500-pool architecture:
+PASS / FAIL
+
+FINAL STATUS:
+WP8 FULLY CLOSED / BLOCKED
