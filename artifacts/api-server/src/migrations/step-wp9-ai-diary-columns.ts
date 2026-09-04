@@ -30,39 +30,39 @@
  * DOWN: DROP INDEX → DROP COLUMN × 2
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function up(): Promise<void> {
+export async function up(db: MigrationDb): Promise<void> {
   // ai_generated: AI flow에서 저장된 일지 마킹
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     ALTER TABLE class_diaries
       ADD COLUMN IF NOT EXISTS ai_generated BOOLEAN NOT NULL DEFAULT FALSE
   `);
 
   // ai_trace_id: AI generation request_id 보관 (correlation key, NOT FK)
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     ALTER TABLE class_diaries
       ADD COLUMN IF NOT EXISTS ai_trace_id TEXT
   `);
 
   // partial composite index: AI 일지피드 + KPI recount 전용
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_class_diaries_ai_pool_date
       ON class_diaries (swimming_pool_id, lesson_date)
       WHERE ai_generated = TRUE AND is_deleted = FALSE
   `);
 }
 
-export async function down(): Promise<void> {
-  await superAdminDb.execute(sql`
+export async function down(db: MigrationDb): Promise<void> {
+  await db.execute(sql`
     DROP INDEX IF EXISTS idx_class_diaries_ai_pool_date
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     ALTER TABLE class_diaries
       DROP COLUMN IF EXISTS ai_trace_id
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     ALTER TABLE class_diaries
       DROP COLUMN IF EXISTS ai_generated
   `);

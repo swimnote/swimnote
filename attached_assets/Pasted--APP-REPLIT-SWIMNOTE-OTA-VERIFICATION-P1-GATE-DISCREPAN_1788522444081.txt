@@ -1,0 +1,566 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE OTA VERIFICATION P1 — GATE DISCREPANCY AUDIT
+# CURRENT PUBLISHED UPDATE:
+# Group ID: 8b52a35b-c22c-4c21-9b94-7316f627a443
+# iOS Update ID: 01a06c34-b5a3-7433-95f1-455ca1bd410f
+# DO NOT PUBLISH ANOTHER OTA
+# DO NOT START NEXT WP
+
+============================================================
+0. 목적
+============================================================
+
+직전 OTA는 실제 EAS production-v2 / iOS / runtime 2.1.0에
+배포 및 원격 확인까지 완료됨.
+
+그러나 OTA verification gate 보고에
+두 가지 discrepancy가 존재함.
+
+1.
+Expected HEAD d790b420
+Actual HEAD ade972fe
+
+2.
+Preflight TypeScript가 PASS가 아니라
+"pre-existing 21 errors"라고 보고됨.
+
+이번 작업은 새 OTA 배포가 아니라
+위 두 항목을 정확히 검증하여
+현재 OTA의 안전성을 최종 판정하는 AUDIT이다.
+
+새 OTA:
+NO
+
+제품 코드 수정:
+원칙적으로 NO
+
+============================================================
+1. GIT SOURCE TRUTH
+============================================================
+
+실행:
+
+git status --porcelain=v1
+git rev-parse HEAD
+git show --stat --oneline ade972fe
+git diff --stat d790b420 ade972fe
+git diff d790b420 ade972fe -- artifacts/swim-app
+git diff d790b420 ade972fe -- packages
+
+보고:
+
+ade972fe에서 변경된 파일 전체 목록.
+
+반드시 확인:
+
+product code changed:
+YES / NO
+
+APP code changed:
+YES / NO
+
+shared runtime changed:
+YES / NO
+
+server code changed:
+YES / NO
+
+web product code changed:
+YES / NO
+
+memory-only:
+YES / NO
+
+"memory-only"라고 추정하지 말고
+실제 commit diff 전체로 증명.
+
+============================================================
+2. ASTERISK / DIRTY SOURCE 원인
+============================================================
+
+EAS Commit:
+ade972fe*
+
+별표가 붙은 정확한 이유 확인.
+
+현재 git status에서
+untracked attachment txt가 실제로
+EAS dirty marker 원인인지 확인.
+
+파일명/path 보고.
+
+그 파일이:
+
+APP bundle input:
+YES / NO
+
+Metro source:
+YES / NO
+
+Expo asset:
+YES / NO
+
+OTA export에 포함될 가능성:
+YES / NO
+
+증거 기반으로 보고.
+
+============================================================
+3. UNTRACKED FILE 안전성
+============================================================
+
+untracked 파일이
+단순 conversation attachment / 작업용 txt라면
+
+APP source tree 밖인지 확인.
+
+APP export에 포함:
+NO
+
+이면 현재 OTA bundle 영향 없음으로 판정 가능.
+
+파일을 임의 삭제할 필요는 없음.
+
+단 source tree 내부이고 Metro가 읽을 가능성이 있으면
+즉시 blocker로 보고.
+
+============================================================
+4. TYPESCRIPT 21 ERRORS — P0 조사
+============================================================
+
+가장 중요.
+
+직전 보고:
+
+TypeScript:
+pre-existing 21개
+
+이는 Gate의 TypeScript PASS와 불일치.
+
+먼저 당시 실행한 정확한 명령을 보고.
+
+예:
+
+npm run typecheck
+npx tsc --noEmit
+expo ...
+workspace root tsc
+
+어떤 명령에서 21개가 나왔는지 명시.
+
+============================================================
+5. 21개 오류 전체 분류
+============================================================
+
+21개 오류를 전부 inventory.
+
+각 오류:
+
+file
+line
+TS error code
+message
+APP runtime file 여부
+현재 OTA bundle 포함 여부
+pre-existing 증거
+severity
+
+분류:
+
+A.
+APP runtime compile/type error
+
+B.
+test-only
+
+C.
+script/tooling-only
+
+D.
+dead/unreferenced legacy
+
+E.
+wrong tsconfig/workspace invocation artifact
+
+F.
+other
+
+21개를 "pre-existing" 한 문장으로 넘기지 말 것.
+
+============================================================
+6. BASELINE 증명
+============================================================
+
+"pre-existing"이라면 실제로 증명.
+
+가능하면 이전 OTA source commit 또는
+d790b420 이전 known-good commit에서
+동일 typecheck command 실행.
+
+비교:
+
+Previous:
+error count ...
+
+Current:
+error count 21
+
+New errors:
+0
+
+단 이전 commit checkout 때문에
+working tree/product code를 변경하거나
+새 commit 만들지 말 것.
+
+git worktree 또는 safe detached check 가능.
+
+============================================================
+7. 실제 APP TYPECHECK 정의
+============================================================
+
+현재 swim-app에
+공식 typecheck script가 존재하는지 확인.
+
+package.json
+tsconfig
+Expo configuration
+workspace scripts
+
+기준으로
+
+"이 프로젝트에서 실제 APP TypeScript gate가 무엇인지"
+명확히 확정.
+
+잘못된 monorepo root tsc 때문에
+관계없는 오류가 섞인 경우
+그 사실을 증명.
+
+반대로 실제 APP typecheck에서 21 errors면
+그대로 FAIL.
+
+============================================================
+8. OTA BUNDLE 안전성
+============================================================
+
+현재 이미 publish된 OTA가
+
+Metro export:
+PASS
+
+bundle:
+generated
+
+인 것은 확인됨.
+
+추가로 21 TypeScript errors가
+runtime crash 가능성이 있는 종류인지 분석.
+
+예:
+
+type-only mismatch:
+runtime 영향 낮음
+
+missing module / undefined import:
+위험
+
+route import failure:
+위험
+
+native mismatch:
+위험
+
+실제 21개를 보고 판정.
+
+============================================================
+9. CURRENT OTA REMOTE RECHECK
+============================================================
+
+새 publish 금지.
+
+기존 update만 다시 조회:
+
+Group:
+8b52a35b-c22c-4c21-9b94-7316f627a443
+
+iOS Update:
+01a06c34-b5a3-7433-95f1-455ca1bd410f
+
+확인:
+
+exists:
+YES
+
+runtime:
+2.1.0
+
+branch:
+production-v2
+
+platform:
+ios
+
+Android sibling update:
+NO
+
+============================================================
+10. OTA SOURCE 판정
+============================================================
+
+정확한 표현 사용.
+
+다음 중 하나로 판정:
+
+A.
+OTA Git source == d790b420
+또는
+
+B.
+OTA Git source == ade972fe,
+but product/runtime source tree identical to d790b420
+
+현재 보고상 예상은 B지만
+실제 diff로 확인 후 결정.
+
+d790b420이라고 거짓 표기 금지.
+
+============================================================
+11. 재배포 판단
+============================================================
+
+이번 작업에서 새 OTA는 올리지 말 것.
+
+최종 분석 후 다음 기준으로만 추천:
+
+NO REPUBLISH NEEDED
+- ade972fe가 product/runtime diff 0
+- untracked file bundle 영향 0
+- TypeScript 21 errors가 신규 0
+- runtime-critical 오류 없음
+- export/remote OTA 정상
+
+REPUBLISH REQUIRED
+- OTA bundle에 다른 product source 포함
+- runtime-critical TS 문제
+- wrong config
+- dirty file가 bundle 영향
+- source integrity 불명확
+
+실제 재배포는 사용자 별도 승인 후.
+
+============================================================
+12. WP7 검증 상태
+============================================================
+
+WP7 자체:
+
+602 PASS
+0 FAIL
+3 SKIPPED
+P0 skip 0
+
+이 결과는 그대로 재확인만.
+
+WP8 시작:
+NO.
+
+============================================================
+13. PRODUCT CODE 수정 금지
+============================================================
+
+이번 Audit에서
+코드 오류가 발견되어도
+바로 수정하지 말 것.
+
+먼저 보고.
+
+사용자/ChatGPT가
+별도 fix instruction을 내린 뒤 수정.
+
+============================================================
+14. 완료보고 형식
+============================================================
+
+# OTA VERIFICATION P1 DISCREPANCY REPORT
+
+============================================================
+GIT
+============================================================
+
+Current HEAD:
+...
+
+ade972fe files changed:
+...
+
+Product code diff vs d790b420:
+...
+
+APP diff:
+...
+
+Shared runtime diff:
+...
+
+Server diff:
+...
+
+Web diff:
+...
+
+Memory-only proven:
+YES / NO
+
+============================================================
+DIRTY / ASTERISK
+============================================================
+
+EAS asterisk cause:
+...
+
+Untracked files:
+...
+
+Inside APP source:
+YES / NO
+
+Included by Metro/export:
+YES / NO
+
+OTA impact:
+YES / NO
+
+============================================================
+TYPESCRIPT
+============================================================
+
+Exact command:
+...
+
+Current errors:
+21 / ...
+
+Official APP typecheck command:
+...
+
+Official APP typecheck result:
+PASS / FAIL
+
+21-error inventory:
+...
+
+APP runtime errors:
+...
+
+Test/tooling errors:
+...
+
+Legacy/dead errors:
+...
+
+Wrong-config errors:
+...
+
+Previous baseline errors:
+...
+
+New errors introduced:
+...
+
+Pre-existing proven:
+YES / NO
+
+============================================================
+RUNTIME RISK
+============================================================
+
+Runtime-critical TS errors:
+0 / ...
+
+Missing module errors:
+0 / ...
+
+Route import errors:
+0 / ...
+
+Native compatibility issue:
+NO / YES
+
+Current OTA runtime risk:
+LOW / MEDIUM / HIGH
+
+Reason:
+...
+
+============================================================
+OTA REMOTE
+============================================================
+
+Group:
+8b52a35b-c22c-4c21-9b94-7316f627a443
+
+Update:
+01a06c34-b5a3-7433-95f1-455ca1bd410f
+
+Exists:
+YES / NO
+
+Runtime:
+...
+
+Branch:
+...
+
+Platform:
+...
+
+Android sibling:
+...
+
+============================================================
+SOURCE TRUTH
+============================================================
+
+Actual OTA Git source:
+...
+
+Product/runtime source equivalent to d790b420:
+YES / NO
+
+Exact statement:
+...
+
+============================================================
+FINAL
+============================================================
+
+WP7 truthful:
+YES / NO
+
+OTA real:
+YES / NO
+
+OTA remotely verified:
+YES / NO
+
+Source discrepancy explained:
+YES / NO
+
+TypeScript discrepancy explained:
+YES / NO
+
+Current OTA safe:
+YES / NO
+
+Republish needed:
+YES / NO
+
+Safe to continue to WP8:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT REPUBLISH OTA.
+DO NOT START WP8.
+WAIT FOR NEXT INSTRUCTION.

@@ -122,7 +122,6 @@ export default function AdditionalGuardiansScreen() {
       <ParentScreenHeader
         title="추가 보호자 관리"
         onBack={() => router.back()}
-        insets={insets}
       />
 
       {loading ? (

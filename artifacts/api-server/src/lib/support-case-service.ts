@@ -24,79 +24,13 @@ import { SUPPORT_EVENT_TYPE } from "./ai-feature-enum.js";
 
 // ── Schema migration (idempotent) ─────────────────────────────────────────────
 
-let _cs01rDone = false;
+/**
+ * ensureCs01rSchema — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §5
+ * Run that migration before deploying. This function is kept for call-site compatibility.
+ */
 export async function ensureCs01rSchema(): Promise<void> {
-  if (_cs01rDone) return;
-  _cs01rDone = true;
-
-  // support_cases 컬럼 확장 (superAdminDb)
-  for (const ddl of [
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS waiting_for  TEXT`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS context_json JSONB`,
-    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS actor_id     TEXT`,
-  ]) {
-    await (superAdminDb as any).execute(sql.raw(ddl)).catch(() => {});
-  }
-
-  // support_cases: actor_id index
-  await (superAdminDb as any)
-    .execute(sql.raw(`CREATE INDEX IF NOT EXISTS support_cases_actor_id_idx ON support_cases(actor_id)`))
-    .catch(() => {});
-
-  // ── HARDEN: support_ticket_replies 테이블 보장 + 스키마 확장 ─────────────────
-  //
-  // NOTE: `db` = `superAdminDb` = SUPABASE_DATABASE_URL (primary app DB).
-  //       POOL_DATABASE_URL은 백업 전용 — 이 마이그레이션과 무관.
-  //
-  // DEFECT (2026-08-17): support_ticket_replies 테이블이 Supabase에 없으면
-  //   ALTER TABLE이 silent fail → INSERT/SELECT 전부 실패 → 답변이 앱에 미표시.
-  //
-  // FIX: CREATE TABLE IF NOT EXISTS로 테이블을 먼저 보장한 뒤 ALTER TABLE 적용.
-  //
-  // CS-01R 스키마:
-  //   ticket_id NULLABLE  — AI-only case는 ticket 없음
-  //   case_id TEXT        — 케이스 기반 스레드 식별자 (CS-01R 핵심)
-  //   message_type TEXT   — content 유형 구분
-  //
-  // Thread 조회:
-  //   WHERE case_id = $caseId (case messages)
-  //   WHERE ticket_id = $ticketId AND case_id IS NULL (legacy ticket only)
-  await (db as any).execute(sql.raw(`
-    CREATE TABLE IF NOT EXISTS support_ticket_replies (
-      id              TEXT PRIMARY KEY,
-      ticket_id       TEXT,
-      case_id         TEXT,
-      author_user_id  TEXT,
-      author_name     TEXT NOT NULL DEFAULT '',
-      author_role     TEXT NOT NULL DEFAULT 'user',
-      message_type    TEXT,
-      content         TEXT NOT NULL DEFAULT '',
-      image_urls      TEXT[] DEFAULT '{}',
-      created_at      TIMESTAMPTZ DEFAULT NOW()
-    )
-  `)).catch((e: any) => console.error("[cs-01r] CREATE TABLE support_ticket_replies 실패:", e?.message ?? e));
-
-  for (const ddl of [
-    // 기존 테이블이 ticket_id NOT NULL로 생성된 경우 nullable로 변경
-    `ALTER TABLE support_ticket_replies ALTER COLUMN ticket_id DROP NOT NULL`,
-    // author_user_id: AI 메시지는 authorId=null → NOT NULL 위반 방지
-    // (기존 support-tickets.ts CREATE TABLE: author_user_id TEXT NOT NULL DEFAULT '')
-    `ALTER TABLE support_ticket_replies ALTER COLUMN author_user_id DROP NOT NULL`,
-    // case_id 컬럼: 케이스 기반 메시지 스레드 식별 (신규 테이블에는 이미 포함)
-    `ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS case_id TEXT`,
-    // message_type: content 유형 구분 (신규 테이블에는 이미 포함)
-    `ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS message_type TEXT`,
-  ]) {
-    await (db as any).execute(sql.raw(ddl))
-      .catch((e: any) => console.error(`[cs-01r] DDL 실패 — ${ddl.slice(0, 60)}:`, e?.message ?? e));
-  }
-
-  // case_id 인덱스: 케이스 기반 메시지 조회 성능
-  await (db as any)
-    .execute(sql.raw(`CREATE INDEX IF NOT EXISTS support_ticket_replies_case_id_idx ON support_ticket_replies(case_id)`))
-    .catch((e: any) => console.error("[cs-01r] INDEX 생성 실패:", e?.message ?? e));
-
-  console.log("[cs-01r] schema migration complete (CREATE TABLE + HARDEN applied)");
+  // NO-OP: schema is guaranteed by explicit migration
 }
 
 // ── State machine ─────────────────────────────────────────────────────────────

@@ -1,0 +1,895 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE APP TYPE SAFETY HOTFIX
+# OTA VERIFICATION FOLLOW-UP
+# CURRENT PRODUCT BASELINE: d790b420
+# CURRENT REPOSITORY HEAD: 현재 실제 HEAD 확인
+# DO NOT START WP8
+# 목적: APP 공식 TypeScript gate 21 errors → 0 + iOS OTA 재배포
+
+============================================================
+0. 배경
+============================================================
+
+OTA Verification P1에서 다음이 확인됨.
+
+- 실제 OTA 존재
+- runtime 2.1.0
+- production-v2
+- iOS only
+- product/runtime source는 d790b420과 동일
+- 신규 TS error는 0
+
+그러나 공식 APP typecheck:
+
+pnpm run typecheck
+
+결과:
+
+21 ERRORS
+
+그리고 21개 전부 APP runtime source에 존재.
+
+특히 다음 runtime 위험이 확인됨:
+
+1.
+app/(admin)/subscription.tsx
+X_ENTITLEMENT 선언/import 누락
+
+2.
+app/(parent)/photos.tsx
+useLocalSearchParams import 누락
+
+3.
+components/common/MessengerScreen.tsx
+expo-file-system API compatibility 문제
+
+4.
+기타 runtime TypeScript errors
+
+"pre-existing"이라는 이유로
+안전 PASS 처리 금지.
+
+이번 Hotfix 목표:
+
+공식 APP typecheck:
+
+21 → 0
+
+그리고 실제 export/OTA 검증까지 완료.
+
+============================================================
+1. GIT PRECHECK
+============================================================
+
+먼저:
+
+git status --porcelain
+git branch --show-current
+git rev-parse HEAD
+git log --oneline -10
+
+보고.
+
+현재 memory/attached_assets commit이
+product code와 무관한 경우 유지 가능.
+
+단 product 변경은
+이번 Hotfix commit 하나로 명확히 분리.
+
+============================================================
+2. 21 ERRORS 전부 수정
+============================================================
+
+OTA P1에서 보고된 21개 오류를
+전부 실제 코드 기준으로 수정.
+
+단:
+
+- 기능 임의 변경 금지
+- 화면 디자인 변경 금지
+- API contract 변경 금지
+- DB 변경 금지
+- business logic 재설계 금지
+
+목표는:
+
+현재 의도된 동작을 유지하면서
+잘못된 import / type / API usage를
+현재 dependency 버전에 맞게 고치는 것.
+
+============================================================
+3. ADMIN REVENUE
+============================================================
+
+파일:
+
+app/(admin)/admin-revenue.tsx
+
+문제:
+
+ScrollView ref
+vs
+KeyboardAwareScrollViewRef 타입 불일치.
+
+현재 실제 component/ref API 확인 후
+정확한 ref type 사용.
+
+any 캐스팅으로 덮지 말 것.
+
+============================================================
+4. PARENTS LIST
+============================================================
+
+파일:
+
+app/(admin)/parents-list.tsx
+
+문제:
+
+parent_phone2
+parent_phone3
+parent_phone4
+
+가 현재 type/schema에 없음.
+
+먼저 실제 API response/schema 확인.
+
+A.
+서버에서 실제로 오는 필드인데
+frontend type만 누락
+→ type 수정
+
+B.
+실제 API에 없는 legacy field
+→ 잘못된 접근 제거/현재 실제 필드 사용
+
+임의 optional property 추가로
+가짜 데이터 모델 만들지 말 것.
+
+============================================================
+5. ADMIN SUBSCRIPTION — P0
+============================================================
+
+파일:
+
+app/(admin)/subscription.tsx
+
+문제:
+
+X_ENTITLEMENT 선언/import 누락 ×3
+
+반드시 현재 실제 RevenueCat/X entitlement
+constant/source 확인.
+
+같은 의미의 기존 constant가 있으면 재사용.
+
+새 임의 문자열 hardcode 금지.
+
+또한:
+
+null index 문제
+productIdentifier API mismatch
+
+현재 설치된 RevenueCat SDK 타입/API 기준으로 수정.
+
+구 API property를
+any cast로 억지 유지 금지.
+
+============================================================
+6. KAKAO LINK
+============================================================
+
+파일:
+
+app/(auth)/kakao-link.tsx
+
+문제:
+
+teacher | parent 타입에서
+admin 비교가 항상 false.
+
+실제 허용 role contract 확인.
+
+A.
+admin도 실제 가능한 flow
+→ type/flow 수정
+
+B.
+admin이 불가능
+→ dead comparison 제거
+
+실제 behavior 기준으로 수정.
+
+============================================================
+7. ADDITIONAL GUARDIANS
+============================================================
+
+파일:
+
+app/(parent)/additional-guardians.tsx
+
+문제:
+
+지원하지 않는 insets prop.
+
+현재 component API 확인.
+
+필요한 spacing/safe-area behavior를
+지원되는 방식으로 유지.
+
+단순 any cast 금지.
+
+============================================================
+8. GROWTH REPORT HISTORY
+============================================================
+
+파일:
+
+app/(parent)/growth-report-history.tsx
+
+Response → HistoryResponse unsafe cast.
+
+실제 API helper가
+.json()을 반환하는지 Response wrapper인지 확인.
+
+실제 runtime shape에 맞춰
+정확한 parsing/type 수정.
+
+============================================================
+9. PARENT PHOTOS — P0
+============================================================
+
+파일:
+
+app/(parent)/photos.tsx
+
+문제:
+
+useLocalSearchParams import 누락.
+
+현재 Expo Router 버전 기준
+정확한 import 추가/수정.
+
+부모 앨범 route를
+실제로 import/render 가능한지 테스트.
+
+ReferenceError 가능성:
+0
+
+============================================================
+10. TEACHER REVENUE
+============================================================
+
+파일:
+
+app/(teacher)/revenue.tsx
+
+admin-revenue와 동일 계열
+ref type mismatch.
+
+실제 ref contract에 맞춰 수정.
+
+============================================================
+11. MESSENGER SCREEN — P0
+============================================================
+
+파일:
+
+components/common/MessengerScreen.tsx
+
+문제:
+
+FileSystem.cacheDirectory
+FileSystem.EncodingType
+
+현재 설치된 expo-file-system 버전에서
+API 변경됨.
+
+먼저 package.json / Expo SDK 버전 확인.
+
+현재 공식 API 또는
+프로젝트에서 이미 사용하는
+호환 import pattern 재사용.
+
+예전 API가 legacy import로만 제공되는 경우
+현재 프로젝트 정책에 맞는 정상 migration 적용.
+
+중요:
+
+사진/파일 공유 실제 기능을
+깨뜨리지 말 것.
+
+any cast:
+금지.
+
+undefined property 그대로 사용:
+금지.
+
+============================================================
+12. TYPECHECK TARGET
+============================================================
+
+수정 후 반드시:
+
+cd 실제 swim-app 위치
+
+pnpm run typecheck
+
+결과:
+
+0 ERRORS
+
+필수.
+
+"신규 오류 0":
+불충분.
+
+"pre-existing":
+불충분.
+
+공식 typecheck 전체:
+0
+
+이어야 완료.
+
+============================================================
+13. TYPE SAFETY
+============================================================
+
+다음 편법 금지:
+
+@ts-ignore 남발
+@ts-expect-error 남발
+any 대량 캐스팅
+unknown as X 무조건 캐스팅
+tsconfig strict 완화
+exclude 추가
+skipLibCheck 변경으로 숨기기
+파일을 typecheck 대상에서 제외
+
+실제 오류를 수정.
+
+============================================================
+14. RUNTIME SMOKE
+============================================================
+
+최소 다음 route/module을 실제 검증:
+
+Admin:
+- subscription
+- admin-revenue
+- parents-list
+
+Parent:
+- photos
+- additional-guardians
+- growth-report-history
+
+Teacher:
+- revenue
+
+Common:
+- MessengerScreen
+
+가능한 자동/component/runtime smoke 수행.
+
+특히:
+
+subscription import/render
+photos import/render
+Messenger file/photo path
+
+검증.
+
+============================================================
+15. REVENUECAT SAFETY
+============================================================
+
+subscription.tsx 수정 때문에
+실제 구매 실행 금지.
+
+테스트:
+
+type/API contract
+render
+safe mocked/test purchase response
+
+까지만.
+
+실제 RevenueCat transaction:
+NO.
+
+============================================================
+16. FILESYSTEM SAFETY
+============================================================
+
+Messenger 수정 후
+실제 DEV/local test fixture를 이용해
+
+cache/write/read/share 준비 경로가
+현재 Expo FileSystem API와 맞는지 검증.
+
+실 사용자 파일:
+NO
+
+Production side effect:
+NO.
+
+============================================================
+17. REGRESSION
+============================================================
+
+기존 Control Center WP 테스트도
+제품 코드와 독립적이지만
+현재 HEAD 건강성 확인 차원에서
+기존 gate 재실행.
+
+최소:
+
+WP7 gate:
+PASS
+
+APP typecheck:
+0
+
+Expo export:
+PASS
+
+============================================================
+18. EXPORT
+============================================================
+
+iOS production export 수행.
+
+검증:
+
+Metro:
+PASS
+
+bundle:
+생성
+
+assets:
+PASS
+
+missing import:
+0
+
+runtime module resolution:
+PASS
+
+Fatal:
+0
+
+============================================================
+19. NATIVE COMPATIBILITY
+============================================================
+
+이번 수정이 JS/TS만인지 확인.
+
+native dependency 추가:
+NO
+
+Expo native module version 변경:
+NO
+
+Info.plist:
+NO
+
+entitlements:
+NO
+
+Pod/native build required:
+NO
+
+native 변경이 생기면
+OTA 중단하고 보고.
+
+============================================================
+20. COMMIT
+============================================================
+
+모든 테스트 PASS 후:
+
+product Hotfix commit 생성.
+
+예:
+
+fix(app): clear runtime TypeScript errors before OTA
+
+commit SHA 보고.
+
+push:
+
+release/v2.0.0
+
+============================================================
+21. iOS OTA
+============================================================
+
+이번 Hotfix는 APP runtime 코드 변경이므로
+OTA 필수.
+
+조건:
+
+pnpm run typecheck:
+0 ERRORS
+
+export:
+PASS
+
+runtime:
+2.1.0
+
+channel:
+production-v2
+
+iOS only.
+
+Android:
+NOT PUBLISHED
+
+============================================================
+22. OTA MESSAGE
+============================================================
+
+message:
+
+SWIMNOTE 2.1.0 - App type safety hotfix - <SHORT_SHA>
+
+실제 commit SHA 포함.
+
+============================================================
+23. OTA SOURCE INTEGRITY
+============================================================
+
+이번에는 반드시
+publish 전 working tree를 깨끗하게 관리.
+
+attached_assets / memory 파일 때문에
+EAS `*` marker가 붙지 않게
+가능한 안전한 방법으로 publish source 정리.
+
+중요:
+
+사용자 파일 임의 삭제 금지.
+
+필요하면 해당 untracked 파일이
+Git working tree dirty marker에 영향을 주지 않는
+기존 프로젝트 방식 사용.
+
+publish 직전:
+
+git status --porcelain
+
+product tree:
+CLEAN
+
+git rev-parse HEAD:
+Hotfix commit
+
+확인.
+
+============================================================
+24. EAS REMOTE VERIFY
+============================================================
+
+publish 후 실제 EAS 조회.
+
+보고:
+
+Group ID
+iOS Update ID
+Created At
+Runtime
+Branch
+Platform
+Commit/source
+Message
+
+Android sibling:
+없음
+
+============================================================
+25. PRODUCTION SAFETY
+============================================================
+
+이번 작업:
+
+Render:
+NO
+
+Production DB:
+NO
+
+Main:
+NO
+
+RevenueCat live purchase:
+NO
+
+Android OTA:
+NO
+
+============================================================
+26. TEST GATE
+============================================================
+
+필수:
+
+Official APP typecheck:
+0 errors
+
+21 original errors remaining:
+0
+
+Runtime-critical defects:
+0
+
+Metro:
+PASS
+
+iOS export:
+PASS
+
+WP7 regression:
+PASS
+
+P0 skipped:
+0
+
+============================================================
+27. 완료보고
+============================================================
+
+# SWIMNOTE APP TYPE SAFETY HOTFIX REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Hotfix commit:
+...
+
+Push:
+YES / NO
+
+============================================================
+21 ERROR RESOLUTION
+============================================================
+
+Original errors:
+21
+
+Remaining:
+...
+
+admin-revenue:
+PASS / FAIL
+
+parents-list:
+PASS / FAIL
+
+subscription:
+PASS / FAIL
+
+kakao-link:
+PASS / FAIL
+
+additional-guardians:
+PASS / FAIL
+
+growth-report-history:
+PASS / FAIL
+
+photos:
+PASS / FAIL
+
+teacher revenue:
+PASS / FAIL
+
+MessengerScreen:
+PASS / FAIL
+
+============================================================
+TYPECHECK
+============================================================
+
+Command:
+pnpm run typecheck
+
+Errors:
+...
+
+Result:
+PASS / FAIL
+
+ts-ignore added:
+0 / ...
+
+any workaround added:
+0 / ...
+
+============================================================
+RUNTIME CRITICAL
+============================================================
+
+X_ENTITLEMENT defect:
+FIXED / FAIL
+
+useLocalSearchParams defect:
+FIXED / FAIL
+
+FileSystem defect:
+FIXED / FAIL
+
+Missing imports:
+0 / ...
+
+Runtime-critical TS defects:
+0 / ...
+
+============================================================
+RUNTIME TEST
+============================================================
+
+Admin subscription:
+PASS / FAIL
+
+Parent photos:
+PASS / FAIL
+
+Messenger file/photo:
+PASS / FAIL
+
+Other affected screens:
+PASS / FAIL
+
+============================================================
+EXPORT
+============================================================
+
+iOS export:
+PASS / FAIL
+
+Metro:
+PASS / FAIL
+
+Bundle:
+...
+
+Assets:
+...
+
+Fatal errors:
+...
+
+============================================================
+NATIVE
+============================================================
+
+Native changes:
+NO / YES
+
+OTA compatible:
+YES / NO
+
+============================================================
+OTA
+============================================================
+
+Published:
+YES / NO
+
+Runtime:
+2.1.0
+
+Branch:
+production-v2
+
+Platform:
+ios
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Created At:
+...
+
+Message:
+...
+
+Android published:
+NO / YES
+
+============================================================
+SOURCE INTEGRITY
+============================================================
+
+Publish Git HEAD:
+...
+
+Working tree product source:
+CLEAN / DIRTY
+
+EAS source:
+...
+
+SHA match:
+PASS / FAIL
+
+Asterisk dirty marker:
+NO / YES
+
+============================================================
+REGRESSION
+============================================================
+
+WP7 gate:
+...
+
+Failed:
+...
+
+P0 skipped:
+...
+
+============================================================
+PRODUCTION
+============================================================
+
+Render:
+NO
+
+Production DB:
+NO
+
+Main:
+NO
+
+RevenueCat live:
+NO
+
+============================================================
+FINAL
+============================================================
+
+Original 21 TS errors:
+0 / ...
+
+Official APP typecheck:
+PASS / FAIL
+
+Runtime-critical defects:
+0 / ...
+
+Current iOS OTA safe:
+YES / NO
+
+OTA remotely verified:
+YES / NO
+
+Android untouched:
+PASS / FAIL
+
+Safe to continue WP8:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT START WP8.
+WAIT FOR NEXT INSTRUCTION.

@@ -5,20 +5,20 @@
  * records the final autonomous path without copying a message or callback PII.
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runCs26Migration(): Promise<void> {
+export async function runCs26Migration(db: MigrationDb): Promise<void> {
   if (ran) return;
   ran = true;
 
-  await (superAdminDb as any).execute(sql.raw(`
+  await (db as any).execute(sql.raw(`
     ALTER TABLE support_query_log
       ADD COLUMN IF NOT EXISTS autonomous_outcome TEXT
   `));
-  await (superAdminDb as any).execute(sql.raw(`
+  await (db as any).execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_sql_autonomous_outcome
       ON support_query_log (autonomous_outcome)
   `));

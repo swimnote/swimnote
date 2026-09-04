@@ -642,7 +642,10 @@ router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, re
 
 // ── Startup: DB migration + DOCX 템플릿 초기화 ──────────────────────────────
 import("../migrations/pool-db-x-setup.js")
-  .then(({ runXSetupMigration }) => runXSetupMigration())
+  .then(async ({ runXSetupMigration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runXSetupMigration(superAdminDb);
+  })
   .catch((e: any) => console.error("[x-setup-init] migration failed:", e?.message));
 
 import("../lib/xSetupTemplates.js")

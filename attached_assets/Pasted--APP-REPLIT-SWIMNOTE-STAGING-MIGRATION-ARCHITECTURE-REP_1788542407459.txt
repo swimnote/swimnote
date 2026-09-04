@@ -1,0 +1,811 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE STAGING MIGRATION ARCHITECTURE REPAIR
+# BASELINE HEAD: 4cf5d4c9
+# BRANCH: release/v2.0.0
+# GOAL: 공식 migration chain이 명시적으로 TEST_DATABASE_URL/Staging을 사용하도록 구조 수정
+# DO NOT RESET STAGING YET
+# DO NOT RUN FULL MIGRATION YET
+# DO NOT TOUCH PRODUCTION
+# DO NOT START WP9
+# DO NOT DEPLOY
+
+============================================================
+0. 현재 감사 결과
+============================================================
+
+확정:
+
+STAGING CONNECTION:
+PASS
+
+MIGRATION CHAIN CLEAN:
+NO
+
+STAGING SCHEMA REPRODUCIBLE FROM EMPTY DB:
+NO
+
+API FULLY POINTED TO STAGING:
+NO
+
+WP8 E2E VALID:
+NO
+
+CC PREFLIGHT VALID:
+NO
+
+PRODUCTION MUTATION:
+UNKNOWN
+
+SAFE TO CONTINUE:
+NO
+
+현재 Staging은 수동 raw SQL patch가 섞인 오염된 검증 DB로 취급한다.
+
+이번 작업에서는 이 DB를 reset하지 않는다.
+
+============================================================
+1. 절대 금지
+============================================================
+
+Production DB:
+DDL 0
+INSERT 0
+UPDATE 0
+DELETE 0
+
+Production R2:
+0
+
+Staging schema 추가 patch:
+0
+
+Staging DROP/reset:
+NO
+
+manual raw SQL table creation:
+NO
+
+manual ADD COLUMN:
+NO
+
+manual CREATE INDEX:
+NO
+
+Render deploy:
+NO
+
+main:
+NO
+
+WP9:
+NO
+
+============================================================
+2. UNTRACKED TEMP FILE
+============================================================
+
+현재:
+
+artifacts/api-server/src/migrations/staging-create-core-tables.ts
+artifacts/api-server/src/migrations/staging-init-missing.ts
+artifacts/api-server/src/scripts/staging-fixture.ts
+
+중 첫 2개는 manual/raw SQL 우회용이므로
+정식 migration source로 승격하지 않는다.
+
+내용을 감사한 뒤:
+
+- 어떤 공식 migration/schema가 빠졌는지 참고 자료로만 사용
+- raw SQL 우회 logic은 최종 product code에 남기지 않는다
+
+staging-fixture.ts는 synthetic fixture 전용으로 재사용 가치가 있으면
+별도 검토 가능.
+
+============================================================
+3. 핵심 설계 변경
+============================================================
+
+현재 문제:
+
+migration 파일이
+
+import { superAdminDb } from "@workspace/db"
+
+를 직접 사용하고,
+@workspace/db가 module load 시
+
+SUPABASE_DATABASE_URL
+
+로 Pool을 생성한다.
+
+이 구조를 migration에서는 사용하지 않는다.
+
+목표 구조:
+
+staging-manifest
+    ↓
+explicit migration DB
+    ↓
+TEST_DATABASE_URL
+    ↓
+Staging only
+
+Production runtime DB와 migration DB를
+완전히 분리한다.
+
+============================================================
+4. MIGRATION DB FACTORY
+============================================================
+
+migration 전용 DB factory/helper를 만든다.
+
+예시 개념:
+
+getMigrationDb()
+
+또는 repository naming에 맞는 이름.
+
+필수 규칙:
+
+1.
+TEST_DATABASE_URL만 사용
+
+2.
+SUPABASE_DATABASE_URL fallback 금지
+
+3.
+TEST_DATABASE_URL missing:
+FAIL CLOSED
+
+4.
+Staging project ref:
+lspmacdbyvpzysnrjsww
+
+외에는 mutation 차단
+
+5.
+ALLOW_TEST_DB_MUTATIONS=true 필수
+
+6.
+Production ref:
+mrgkiussgbbmxfnkjgqy
+
+무조건 BLOCK
+
+7.
+unknown ref:
+BLOCK
+
+8.
+connection string/password 로그 출력 금지
+
+9.
+module import 시 자동 연결 금지
+
+10.
+호출 시점에 명시적으로 client 생성
+
+============================================================
+5. MIGRATION FUNCTION CONTRACT
+============================================================
+
+아래 migration들이
+superAdminDb global import에 의존하지 않도록 변경.
+
+확인된 대상:
+
+pool-db-init.ts
+pool-db-cs-pa0.ts
+pool-db-x-init.ts
+pool-db-x-setup.ts
+pool-db-x-payment-init.ts
+pool-db-base-manual-init.ts
+wp8-support-case-crm.ts
+step-wp8-b-batch-jobs.ts
+step0-monthly-kpi-foundation.ts
+growth-report-gr1-init.ts
+runtime-ddl-consolidated.ts
+
+repository 전체 검색해서
+누락 대상도 추가.
+
+권장 contract:
+
+export async function runMigration(db) { ... }
+
+또는 equivalent.
+
+중요:
+
+migration business SQL 자체는 최대한 변경하지 말고
+DB dependency injection만 한다.
+
+============================================================
+6. SELF-EXECUTING MIGRATION 제거
+============================================================
+
+특히:
+
+wp8-support-case-crm.ts
+
+처럼 import 시 바로 실행되는 migration은 금지.
+
+모든 migration은:
+
+import
+→ side effect 0
+
+명시적:
+
+runMigration(db)
+
+호출에서만 실행.
+
+CLI 실행이 필요하면:
+
+if direct execution
+→ migration DB resolver
+→ safety gate
+→ runMigration(db)
+
+구조로 분리.
+
+============================================================
+7. staging-manifest.ts 수정
+============================================================
+
+현재 방식:
+
+process.env.SUPABASE_DATABASE_URL = testUrl
+→ dynamic import
+→ @workspace/db가 Production Pool 사용 가능
+
+이 방식 제거.
+
+staging-manifest는:
+
+const db = await getMigrationDb()
+
+한 번 생성 후
+
+각 migration에
+동일 explicit Staging DB client/context 전달.
+
+환경변수를 덮어써서
+Production client를 속이는 방식 금지.
+
+============================================================
+8. 공식 SCHEMA 누락 복구
+============================================================
+
+이번 manual patch에서 발견된 schema를
+정식 migration chain에 귀속시킨다.
+
+특히:
+
+swimming_pools.x_paid_entitlement
+swimming_pools.x_manual_entitlement
+swimming_pools.x_force_disabled
+swimming_pools.x_entitlement_source
+swimming_pools.x_entitlement_updated_at
+swimming_pools.x_plan_key
+swimming_pools.x_plan_member_limit
+
+event_logs.feature
+event_logs.level
+event_logs.error_code
+event_logs.safe_message
+event_logs.request_id
+
+push_logs.pool_id
+push_logs.error_message
+push_logs.recipient_count
+push_logs.notification_id
+
+idx_event_logs_pool_level
+idx_push_logs_pool_status
+idx_push_logs_notification_id
+
+이 항목들이 어느 WP/기능에서 도입된 schema인지 추적.
+
+새 arbitrary catch-all migration 하나로 몰아넣지 말고,
+가능하면 원래 기능 migration에 귀속.
+
+이미 Production schema에 존재하지만
+migration source가 없는 경우:
+
+명시적인 compatibility migration을 추가하고
+왜 필요한지 주석/문서화.
+
+============================================================
+9. RAW SQL로 추론 생성했던 19 TABLE 감사
+============================================================
+
+manual 생성됐던:
+
+swimming_pools
+users
+push_logs
+audit_logs
+ai_traces
+support_cases
+support_case_notes
+diary_entries
+curriculum_items
+growth_report_cycles
+growth_report_batch_jobs
+x_monthly_operational_snapshots
+x_setup_submissions
+x_setup_files
+x_curriculum_class_assignments
+audit_entity_versions
+curriculum_versions
+student_curriculum_assignments
+support_knowledge_items
+
+각각에 대해:
+
+A.
+Drizzle schema source 존재
+
+B.
+official migration 존재
+
+C.
+둘 다 존재
+
+D.
+둘 다 없음
+
+판정.
+
+D이면:
+정식 migration 추가가 필요.
+
+"manual script에서 추론한 schema"를
+그대로 정답으로 간주하지 말 것.
+
+repository source/schema/API usage를 기준으로 확정.
+
+============================================================
+10. API STAGING TEST MODE 설계
+============================================================
+
+WP8/CC E2E를 위해
+localhost API가 Production DB를 보는 문제를 해결.
+
+목표:
+
+Production server 설정 변경 없이
+
+Staging test 전용 one-shot/local API process를
+TEST_DATABASE_URL 기반으로 실행 가능해야 함.
+
+중요:
+
+기존 Production runtime server DB config를
+TEST_DATABASE_URL로 자동 fallback시키지 않는다.
+
+권장:
+
+explicit test server bootstrap
+또는
+dependency-injected DB context.
+
+조건:
+
+STAGING_API_TEST_MODE=true
++
+ALLOW_TEST_DB_MUTATIONS=true
++
+TEST_DATABASE_URL
++
+staging allowlist
+
+모두 있어야 실행 가능.
+
+Production URL이면 startup 자체 BLOCK.
+
+============================================================
+11. wp8-preflight BASE URL
+============================================================
+
+현재 hardcode:
+
+http://localhost:8080/api
+
+제거 또는 테스트 설정화.
+
+예:
+
+WP8_TEST_API_BASE_URL
+
+missing 시
+Production-like default로 자동 실행하지 말고
+Staging E2E mode에서는 FAIL CLOSED.
+
+WP8 E2E가
+Staging DB를 보는 test API만 호출하도록 한다.
+
+============================================================
+12. CC PREFLIGHT
+============================================================
+
+CC preflight도 동일 원칙.
+
+DB assertions:
+Staging
+
+HTTP assertions:
+Staging API
+
+둘이 동일 tenant fixture를 보도록 만든다.
+
+DB Staging + HTTP Production 혼합은
+테스트 실패가 아니라
+INVALID TEST ENVIRONMENT로 처리.
+
+============================================================
+13. PRODUCTION MUTATION 방지 회귀
+============================================================
+
+migration helper/runner 테스트:
+
+Production ref:
+BLOCK
+
+Unknown ref:
+BLOCK
+
+Staging + mutation flag missing:
+BLOCK
+
+Staging + mutation flag true:
+ALLOW
+
+TEST_DATABASE_URL missing:
+BLOCK
+
+SUPABASE_DATABASE_URL only:
+BLOCK
+
+Production fallback:
+0
+
+============================================================
+14. CURRENT STAGING
+============================================================
+
+현재 109-table Staging은
+manual patch가 섞여 있으므로
+이번 작업에서 테스트 기준으로 사용하지 않는다.
+
+DO NOT DROP YET.
+
+코드 수리가 끝난 뒤
+다음 보고에서:
+
+"Staging public schema reset 후
+official manifest first run/second run을 다시 수행해도 안전한지"
+
+판정만 제출.
+
+실제 reset은 사용자 승인 후 수행.
+
+============================================================
+15. PRODUCTION MUTATION UNKNOWN
+============================================================
+
+현재 Production credential auth가 실패하므로
+이번 단계에서 억지로 Production 접속하지 않는다.
+
+pool-db-init이 과거 실행 중
+Production ALTER를 시도했을 가능성은
+incident note로 유지.
+
+Production password reset 요구 금지.
+
+Production 연결 정상화는
+별도 승인 작업으로 둔다.
+
+============================================================
+16. TYPECHECK / TEST
+============================================================
+
+APP runtime 변경 예상:
+NO
+
+API migration/test infrastructure만 변경.
+
+필수:
+
+migration safety tests
+staging runner unit tests
+import-side-effect tests
+DB URL fail-closed tests
+
+APP:
+
+pnpm run typecheck
+Expected 0
+
+API/Web:
+new errors 0
+
+기존 errors는 정확한 공식 command 기준으로 보고.
+
+============================================================
+17. GIT
+============================================================
+
+현재 HEAD:
+
+4cf5d4c9
+
+branch:
+release/v2.0.0
+
+먼저 확인:
+
+git status
+git log --oneline -10
+git rev-parse HEAD
+
+이번 세션 이전의
+origin보다 앞선 2개 commit이 무엇인지 정확히 보고.
+
+기존 commit rewrite/rebase 금지.
+
+작업 완료 시 하나의 명확한 commit 권장:
+
+fix(db): make staging migrations explicitly database-scoped
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+18. OTA
+============================================================
+
+APP/shared runtime 변경 없으면:
+
+OTA NOT REQUIRED
+
+APP runtime 변경이 생겼다면
+왜 필요한지 먼저 보고하고
+임의 OTA 금지.
+
+============================================================
+19. 완료 조건
+============================================================
+
+이번 작업은 DB를 다시 만드는 작업이 아니다.
+
+다음 조건만 충족:
+
+Migration global superAdminDb dependency:
+0 또는 명시적 예외 0
+
+Import-time migration execution:
+0
+
+Migration Production fallback:
+0
+
+TEST_DATABASE_URL explicit:
+YES
+
+Staging allowlist:
+PASS
+
+Missing official schema:
+정식 migration에 귀속 완료
+
+Staging test API design/implementation:
+READY
+
+WP8/CC mixed DB environment:
+차단됨
+
+Production mutation:
+0 during this task
+
+============================================================
+20. 완료보고
+============================================================
+
+# STAGING MIGRATION ARCHITECTURE REPAIR REPORT
+
+GIT
+Branch:
+HEAD Before:
+HEAD After:
+Commit:
+Push:
+
+Ahead-of-origin commits before work:
+1.
+2.
+
+--------------------------------
+
+MIGRATION DB FACTORY
+
+File:
+Function:
+URL source:
+Production fallback:
+Staging allowlist:
+Mutation flag:
+PASS/FAIL:
+
+--------------------------------
+
+SUPERADMINDB REMOVAL
+
+Files inspected:
+...
+
+Files refactored:
+...
+
+Remaining migration superAdminDb imports:
+...
+
+Import-time side effects:
+...
+
+--------------------------------
+
+OFFICIAL SCHEMA RECOVERY
+
+Tables audited:
+19
+
+Official source found:
+...
+
+New official migrations:
+...
+
+Columns recovered:
+...
+
+Indexes recovered:
+...
+
+Unresolved schema:
+...
+
+--------------------------------
+
+STAGING MANIFEST
+
+Explicit DB injection:
+YES/NO
+
+SUPABASE_DATABASE_URL overwrite hack removed:
+YES/NO
+
+Production fallback:
+0/...
+
+--------------------------------
+
+STAGING API
+
+Test API bootstrap:
+...
+
+DB source:
+...
+
+Production URL blocked:
+YES/NO
+
+WP8 test BASE configurable:
+YES/NO
+
+Mixed Production/Staging environment blocked:
+YES/NO
+
+--------------------------------
+
+SAFETY TESTS
+
+Production ref:
+BLOCK/PASS
+
+Unknown ref:
+BLOCK/PASS
+
+Staging no flag:
+BLOCK/PASS
+
+Staging flag true:
+ALLOW/PASS
+
+Missing TEST_DATABASE_URL:
+BLOCK/PASS
+
+--------------------------------
+
+TYPECHECK
+
+APP:
+...
+
+API new:
+...
+
+Web new:
+...
+
+--------------------------------
+
+CURRENT STAGING
+
+Existing contaminated staging preserved:
+YES/NO
+
+Reset performed:
+NO
+
+Safe to reset and rerun official migration from empty DB:
+YES/NO
+
+--------------------------------
+
+PRODUCTION
+
+Production DDL:
+0
+
+Production INSERT:
+0
+
+Production UPDATE:
+0
+
+Production DELETE:
+0
+
+Production connection attempted:
+NO unless strictly required
+
+--------------------------------
+
+FINAL
+
+Migration chain architecture repaired:
+YES/NO
+
+Official schema complete:
+YES/NO
+
+Staging API isolation ready:
+YES/NO
+
+Safe for clean staging reset:
+YES/NO
+
+Ready for migration rehearsal:
+YES/NO
+
+WP8 fully closed:
+NO
+
+WP9 started:
+NO
+
+DO NOT RESET STAGING.
+DO NOT RUN FULL MIGRATION.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.

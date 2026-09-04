@@ -29,10 +29,10 @@
  *   - initXModePart2Schema()가 먼저 실행되어야 growth_reports 테이블이 존재함.
  *     본 migration은 그 이후에 실행해야 함.
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-type Db = typeof superAdminDb;
+type Db = MigrationDb;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Group GR1-A: ENUM 타입
@@ -412,9 +412,7 @@ async function runGroupF_Answers(db: Db): Promise<void> {
  *   pool-db-init.ts 또는 별도 admin script에서 호출.
  *   Production에서는 별도 승인 후 실행.
  */
-export async function initGrowthReportGR1Schema(): Promise<void> {
-  const db = superAdminDb;
-
+export async function initGrowthReportGR1Schema(db: MigrationDb): Promise<void> {
   const groups: { name: string; fn: (db: Db) => Promise<void> }[] = [
     { name: "GR1-A: ENUM 타입",              fn: runGroupA_Enums },
     { name: "GR1-B: growth_report_cycles",  fn: runGroupB_Cycles },

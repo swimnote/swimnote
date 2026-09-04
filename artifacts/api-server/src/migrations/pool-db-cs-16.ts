@@ -16,12 +16,12 @@
  *   - Production DB write = NO (미배포).
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runCs16Migration(): Promise<void> {
+export async function runCs16Migration(db: MigrationDb): Promise<void> {
   if (ran) return;
   ran = true;
 
@@ -29,7 +29,7 @@ export async function runCs16Migration(): Promise<void> {
     // ── 1. knowledge_approval_log 테이블 ──────────────────────────────────────
     // 모든 승인/거절/수정/rollback 결정을 기록.
     // reviewer_id/role은 JWT actor 기준 (client body 신뢰 금지 §9).
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS knowledge_approval_log (
         id                      TEXT PRIMARY KEY,
         candidate_id            TEXT        NOT NULL,
@@ -55,15 +55,15 @@ export async function runCs16Migration(): Promise<void> {
     `));
 
     // 검색 인덱스
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS idx_approval_log_candidate_id
         ON knowledge_approval_log (candidate_id)
     `));
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS idx_approval_log_reviewer_id
         ON knowledge_approval_log (reviewer_id)
     `));
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS idx_approval_log_reviewed_at
         ON knowledge_approval_log (reviewed_at DESC)
     `));
@@ -71,7 +71,7 @@ export async function runCs16Migration(): Promise<void> {
     // ── 2. support_knowledge_items 컬럼 확장 (IF NOT EXISTS — 멱등) ─────────
 
     // §11: 거절 이유 (REJECT_REASONS enum)
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       ALTER TABLE support_knowledge_items
         ADD COLUMN IF NOT EXISTS reject_reason TEXT
           CHECK (reject_reason IS NULL OR reject_reason IN (
@@ -81,27 +81,27 @@ export async function runCs16Migration(): Promise<void> {
     `));
 
     // §10: 수정 요청 메모
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       ALTER TABLE support_knowledge_items
         ADD COLUMN IF NOT EXISTS edit_note TEXT
     `));
 
     // §20: 승인 추적 (내부 audit; HTTP response에는 reviewer 정보 노출 안 함)
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       ALTER TABLE support_knowledge_items
         ADD COLUMN IF NOT EXISTS approved_by TEXT
     `));
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       ALTER TABLE support_knowledge_items
         ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ
     `));
 
     // 거절 추적
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       ALTER TABLE support_knowledge_items
         ADD COLUMN IF NOT EXISTS rejected_by TEXT
     `));
-    await superAdminDb.execute(sql.raw(`
+    await db.execute(sql.raw(`
       ALTER TABLE support_knowledge_items
         ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ
     `));

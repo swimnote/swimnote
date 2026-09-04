@@ -18,11 +18,11 @@
  */
 
 import { sql } from "drizzle-orm";
-import { superAdminDb as db } from "@workspace/db";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 // ─── Group GR5-A: Teacher Review 컬럼 ─────────────────────────────────────────
 
-async function runGroupA_TeacherReviewColumns(): Promise<void> {
+async function runGroupA_TeacherReviewColumns(db: MigrationDb): Promise<void> {
   const addCols: { col: string; definition: string }[] = [
     // Review action: APPROVE | REQUEST_REANALYSIS (결과 보존)
     { col: "teacher_review_action",      definition: "text" },
@@ -45,16 +45,16 @@ async function runGroupA_TeacherReviewColumns(): Promise<void> {
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
-export async function initGrowthReportGR5Schema(): Promise<void> {
+export async function initGrowthReportGR5Schema(db: MigrationDb): Promise<void> {
   console.log("[GR5-init] Starting GR5 Teacher Review schema migration…");
 
-  const groups: { name: string; fn: () => Promise<void> }[] = [
+  const groups: { name: string; fn: (db: MigrationDb) => Promise<void> }[] = [
     { name: "GR5-A: teacher review 컬럼", fn: runGroupA_TeacherReviewColumns },
   ];
 
   for (const g of groups) {
     try {
-      await g.fn();
+      await g.fn(db);
       console.log(`[GR5-init] ✅ ${g.name} 완료`);
     } catch (err: any) {
       console.error(`[GR5-init] ❌ ${g.name} 실패:`, err.message);
@@ -66,8 +66,7 @@ export async function initGrowthReportGR5Schema(): Promise<void> {
 }
 
 // Allow direct execution
-if (process.argv[1]?.endsWith("growth-report-gr5-review-init.ts")) {
-  initGrowthReportGR5Schema()
-    .then(() => process.exit(0))
-    .catch((e) => { console.error(e); process.exit(1); });
+if (import.meta.url === String(new URL(process.argv[1], "file:"))) {
+  const { runWithMigrationDb } = await import("../lib/migration-db.js");
+  runWithMigrationDb("growth-report-gr5-review-init", initGrowthReportGR5Schema).catch(e => { console.error(e); process.exit(1); });
 }

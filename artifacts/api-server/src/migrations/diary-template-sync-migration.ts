@@ -11,16 +11,16 @@
  * idempotent: IF NOT EXISTS / ADD COLUMN IF NOT EXISTS 사용.
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql }          from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-async function run(): Promise<void> {
+export async function run(db: MigrationDb): Promise<void> {
   console.log("[diary-template-sync-migration] 시작");
 
   // ── 1. source_template_id 컬럼 추가 (nullable) ───────────────────────────
   //    기존 curriculum_items rows에 영향 없음 (NULL default).
   try {
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       ALTER TABLE curriculum_items
         ADD COLUMN IF NOT EXISTS source_template_id text
     `);
@@ -45,7 +45,7 @@ async function run(): Promise<void> {
   //
   //    IF NOT EXISTS: PostgreSQL 9.5+ 지원.
   try {
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_curriculum_items_pool_source_uniq
         ON curriculum_items (swimming_pool_id, source_template_id)
         WHERE source_template_id IS NOT NULL
@@ -59,7 +59,10 @@ async function run(): Promise<void> {
   console.log("[diary-template-sync-migration] 완료 — source_template_id 컬럼 + partial unique index 준비됨");
 }
 
-run().catch((e) => {
-  console.error("[diary-template-sync-migration] FATAL:", e);
-  process.exit(1);
-});
+if (import.meta.url === String(new URL(process.argv[1], "file:"))) {
+  const { runWithMigrationDb } = await import("../lib/migration-db.js");
+  runWithMigrationDb("diary-template-sync-migration", run).catch(e => {
+    console.error(e);
+    process.exit(1);
+  });
+}

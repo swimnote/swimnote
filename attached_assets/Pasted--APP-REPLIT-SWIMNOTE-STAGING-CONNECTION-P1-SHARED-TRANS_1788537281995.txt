@@ -1,0 +1,627 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE STAGING CONNECTION P1
+# SHARED TRANSACTION POOLER VERIFY + DB SAFETY FINGERPRINT FIX
+# BASELINE: a2650312
+# DO NOT RUN MIGRATIONS UNTIL CONNECTION + SAFETY BOTH PASS
+# DO NOT START WP9
+# DO NOT MUTATE PRODUCTION
+# DO NOT DEPLOY
+
+============================================================
+0. 중요 정정
+============================================================
+
+이전 보고서의 다음 판정은 잘못됨:
+
+db.<project-ref>.supabase.co:6543
+= SESSION POOLER
+
+정정:
+
+Supabase 공식 구조:
+
+Direct:
+db.<project-ref>.supabase.co:5432
+
+Dedicated Transaction Pooler:
+db.<project-ref>.supabase.co:6543
+→ 현재 프로젝트에서는 IPv6
+→ Replit에서 사용 불가
+
+Shared Session Pooler / Supavisor:
+aws-...pooler.supabase.com:5432
+→ IPv4
+
+Shared Transaction Pooler / Supavisor:
+aws-...pooler.supabase.com:6543
+→ IPv4
+
+사용자가 TEST_DATABASE_URL을
+Shared Transaction Pooler 형식으로 변경 완료.
+
+예상 host:
+
+aws-0-ap-northeast-2.pooler.supabase.com
+
+port:
+6543
+
+username shape:
+postgres.<project-ref>
+
+project ref:
+mrgkiussgbbmxfnkjgqy
+
+실제 Secret 전체/password 출력 금지.
+
+============================================================
+1. 절대 금지
+============================================================
+
+연결 + safety 검증 완료 전:
+
+Staging migration:
+NO
+
+Staging fixture:
+NO
+
+Production INSERT:
+NO
+
+Production UPDATE:
+NO
+
+Production DELETE:
+NO
+
+Production DDL:
+NO
+
+Render:
+NO
+
+main:
+NO
+
+OTA:
+NO
+
+WP9:
+NO
+
+============================================================
+2. GIT
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected baseline:
+a2650312
+
+확인:
+
+git status --porcelain
+git rev-parse HEAD
+git log --oneline -10
+
+a2650312 ancestor:
+YES
+
+============================================================
+3. TEST_DATABASE_URL PARSE
+============================================================
+
+Secret 전체 출력 금지.
+
+보고:
+
+scheme:
+...
+
+host:
+...
+
+port:
+...
+
+database:
+...
+
+username shape:
+...
+
+project ref:
+...
+
+Expected:
+
+host contains:
+pooler.supabase.com
+
+port:
+6543
+
+project ref:
+mrgkiussgbbmxfnkjgqy
+
+============================================================
+4. CONNECTION TYPE
+============================================================
+
+hostname/port를 실제 Supabase 연결 방식에 맞게 판정.
+
+Expected:
+
+SHARED TRANSACTION POOLER / SUPAVISOR
+
+중요:
+
+db.<ref>.supabase.co:6543을
+Session Pooler라고 다시 오분류하지 말 것.
+
+============================================================
+5. NETWORK
+============================================================
+
+Shared pooler host:
+
+DNS IPv4:
+PASS
+
+TCP 6543:
+PASS
+
+Postgres handshake:
+PASS
+
+실패하면 exact error 보고 후 STOP.
+
+============================================================
+6. READ-ONLY DB IDENTITY
+============================================================
+
+연결 성공 후 READ ONLY:
+
+SELECT current_database();
+SELECT current_user;
+SELECT version();
+SELECT current_schema();
+SELECT inet_server_addr();
+SELECT inet_server_port();
+
+추가 가능한 안전한 identity query만.
+
+DDL/DML:
+0
+
+============================================================
+7. PRODUCTION과 물리적 분리 확인
+============================================================
+
+Production:
+
+SUPABASE_DATABASE_URL
+
+Staging:
+
+TEST_DATABASE_URL
+
+secret 출력 없이 비교.
+
+확인 가능한 identity:
+
+Production connection host
+Production pooler identity
+Staging pooler identity
+Staging project ref
+
+Staging project ref:
+mrgkiussgbbmxfnkjgqy
+
+Production == Staging:
+NO 필수.
+
+같거나 불명확:
+STOP.
+
+============================================================
+8. DB-SAFETY 기존 결함
+============================================================
+
+현재:
+
+production deny pattern
+/^2406:da1a:/
+
+는 제거/폐기 대상.
+
+이유:
+
+Supabase 여러 프로젝트가
+동일 IPv6 provider prefix를 공유할 수 있으므로
+
+IP prefix != Production identity
+
+이다.
+
+Production 여부를
+cloud provider IP range만으로 판단:
+금지.
+
+============================================================
+9. DB-SAFETY 최종 모델
+============================================================
+
+src/lib/db-safety.ts를
+fail-closed fingerprint 방식으로 수정.
+
+원칙:
+
+A. TEST_DATABASE_URL required
+
+B. TEST_DATABASE_URL에서
+expected staging project ref 추출 가능
+
+C. explicit staging project ref:
+mrgkiussgbbmxfnkjgqy
+
+D. mutation 허용 조건:
+
+TEST_DATABASE_URL exists
+AND
+project ref == mrgkiussgbbmxfnkjgqy
+AND
+ALLOW_TEST_DB_MUTATIONS=true
+
+세 조건 모두 필요.
+
+E. 다음은 모두 DENY:
+
+TEST_DATABASE_URL missing
+unknown project ref
+production project
+unparseable URL
+ALLOW_TEST_DB_MUTATIONS missing/false
+
+============================================================
+10. PROJECT REF EXTRACTION
+============================================================
+
+Shared Supavisor URL의 경우:
+
+username:
+
+postgres.mrgkiussgbbmxfnkjgqy
+
+에서 project ref 추출 가능.
+
+필요하면 host/user/url parser를
+공통 helper로 구현.
+
+password를 로그에 출력하지 말 것.
+
+============================================================
+11. PRODUCTION PROJECT REF
+============================================================
+
+Production pooler URI에서
+project ref를 안전하게 추출 가능하면
+explicit production deny fingerprint로 기록.
+
+단:
+
+secret/username/password 전체 출력 금지.
+
+Production ref를
+source code에 박아야 하는지 먼저 판단.
+
+더 안전한 방식:
+
+environment variable
+
+PRODUCTION_DB_PROJECT_REF
+STAGING_DB_PROJECT_REF
+
+같은 명시적 fingerprint contract를 검토.
+
+현재 architecture에서
+환경변수 없이도 안전하게 Production을 deny할 수 있으면
+불필요하게 secret/config를 늘리지 말 것.
+
+핵심:
+known staging 외 모두 deny.
+
+따라서 production ref를 몰라도
+mutation test 안전성은 확보 가능.
+
+============================================================
+12. ALLOWLIST 우선
+============================================================
+
+테스트 mutation 안전성의 최종 원칙:
+
+"Production을 알아내서 차단"
+
+보다
+
+"정확히 승인된 Staging만 허용"
+
+방식 사용.
+
+즉:
+
+Known Staging:
+ALLOW
+
+Everything else:
+DENY
+
+이게 source-of-truth.
+
+============================================================
+13. TEST
+============================================================
+
+다음 unit/safety 테스트 필수.
+
+CASE 1:
+TEST_DATABASE_URL 없음
+→ BLOCK
+
+CASE 2:
+Production URL
++ ALLOW_TEST_DB_MUTATIONS=true
+→ BLOCK
+
+CASE 3:
+Unknown Supabase project URL
++ ALLOW_TEST_DB_MUTATIONS=true
+→ BLOCK
+
+CASE 4:
+Known Staging URL
++ flag missing
+→ BLOCK
+
+CASE 5:
+Known Staging URL
++ ALLOW_TEST_DB_MUTATIONS=true
+→ ALLOW
+
+CASE 6:
+Malformed URL
+→ BLOCK
+
+============================================================
+14. CONNECTION 성공 후
+============================================================
+
+Connection PASS
++
+DB safety tests PASS
+
+해도 이번 지시에서는
+migration을 아직 실행하지 않는다.
+
+먼저 완료보고.
+
+============================================================
+15. CODE CHANGE
+============================================================
+
+db-safety.ts 수정 필요.
+
+관련 safety unit test 추가 가능.
+
+APP/shared:
+NO.
+
+Web:
+NO.
+
+Server/test safety only.
+
+============================================================
+16. TYPECHECK
+============================================================
+
+변경 범위 typecheck/test.
+
+신규 TS errors:
+0
+
+APP typecheck도 기존 0 유지 확인 가능.
+
+============================================================
+17. COMMIT
+============================================================
+
+Safety 수정 후:
+
+commit
+
+추천:
+
+fix(db): identify staging by explicit project fingerprint
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+18. 완료보고
+============================================================
+
+# STAGING CONNECTION P1 REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+a2650312
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+============================================================
+CONNECTION
+============================================================
+
+TEST_DATABASE_URL:
+SET
+
+Host:
+...
+
+Port:
+...
+
+Project ref:
+...
+
+Connection type:
+...
+
+DNS IPv4:
+PASS / FAIL
+
+TCP 6543:
+PASS / FAIL
+
+Postgres:
+PASS / FAIL
+
+============================================================
+IDENTITY
+============================================================
+
+Database:
+...
+
+User shape:
+...
+
+PG version:
+...
+
+Staging project ref:
+...
+
+Production == Staging:
+YES / NO
+
+============================================================
+DB SAFETY
+============================================================
+
+Old IPv6-prefix deny removed:
+YES / NO
+
+Known staging allowlist:
+PASS / FAIL
+
+TEST_DATABASE_URL missing:
+BLOCKED / FAIL
+
+Production:
+BLOCKED / FAIL
+
+Unknown project:
+BLOCKED / FAIL
+
+Staging without flag:
+BLOCKED / FAIL
+
+Staging + explicit flag:
+ALLOWED / FAIL
+
+Malformed:
+BLOCKED / FAIL
+
+Production fallback:
+0
+
+============================================================
+MUTATION
+============================================================
+
+Production INSERT:
+0
+
+Production UPDATE:
+0
+
+Production DELETE:
+0
+
+Production DDL:
+0
+
+Staging INSERT:
+0
+
+Staging UPDATE:
+0
+
+Staging DELETE:
+0
+
+Staging DDL:
+0
+
+Migration:
+NOT RUN
+
+============================================================
+TYPECHECK / TEST
+============================================================
+
+Safety tests:
+...
+
+Failed:
+...
+
+New TS errors:
+0 / ...
+
+============================================================
+FINAL
+============================================================
+
+Shared Transaction Pooler working:
+YES / NO
+
+Staging physical isolation:
+PASS / FAIL
+
+DB safety fingerprint:
+PASS / FAIL
+
+Ready for Staging migration rehearsal:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT RUN MIGRATIONS.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.

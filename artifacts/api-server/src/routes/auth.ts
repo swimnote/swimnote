@@ -581,14 +581,14 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
         pool_name = pool?.name ?? null;
       }
       // Multi-Pool Membership 목록 (backward-compatible)
-      const memberships = await getMemberships(req.user!.userId).catch(() => []);
+      const memberships = await getMemberships(superAdminDb, req.user!.userId).catch(() => []);
       return res.json({ ...pa, pool_name, memberships });
     }
     const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
     const { password_hash: _, ...safeUser } = user;
     // Multi-Pool Membership 목록 (backward-compatible)
-    const memberships = await getMemberships(req.user!.userId).catch(() => []);
+    const memberships = await getMemberships(superAdminDb, req.user!.userId).catch(() => []);
     res.json({ ...safeUser, memberships });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });

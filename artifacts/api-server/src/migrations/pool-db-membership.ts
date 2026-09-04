@@ -23,16 +23,15 @@
  *           sql.raw는 DDL/backfill(외부 입력 없음)에만 사용.
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 // 허용되는 role 목록 (화이트리스트)
 const VALID_ROLES = new Set(["pool_admin", "teacher", "sub_admin", "parent_account"]);
 const VALID_STATUS = new Set(["active", "inactive", "pending"]);
 const VALID_ACCOUNT_TYPE = new Set(["user", "parent"]);
 
-export async function initMembershipSchema(): Promise<void> {
-  const db = superAdminDb;
+export async function initMembershipSchema(db: MigrationDb): Promise<void> {
 
   // ─── 1. user_pool_memberships 테이블 생성 ──────────────────────────────
   // DDL: 외부 입력 없음, sql.raw 안전 사용
@@ -111,13 +110,12 @@ export async function initMembershipSchema(): Promise<void> {
  * accountId: JWT에서 추출된 신뢰할 수 있는 값
  * SECURITY: drizzle sql 템플릿 파라미터 바인딩 사용
  */
-export async function getMemberships(accountId: string): Promise<Array<{
+export async function getMemberships(db: MigrationDb, accountId: string): Promise<Array<{
   pool_id: string;
   pool_name: string;
   role: string;
   status: string;
 }>> {
-  const db = superAdminDb;
   // drizzle sql 템플릿: ${accountId}는 prepared statement 파라미터로 바인딩됨
   const result = await db.execute(sql`
     SELECT
@@ -139,7 +137,7 @@ export async function getMemberships(accountId: string): Promise<Array<{
  * SECURITY: 모든 파라미터 drizzle sql 템플릿 바인딩.
  *           role/accountType/status는 화이트리스트 검증 후 사용.
  */
-export async function upsertMembership(opts: {
+export async function upsertMembership(db: MigrationDb, opts: {
   accountId: string;
   accountType: "user" | "parent";
   poolId: string;
@@ -153,7 +151,6 @@ export async function upsertMembership(opts: {
   if (!VALID_STATUS.has(status)) throw new Error(`유효하지 않은 status: ${status}`);
   if (!VALID_ACCOUNT_TYPE.has(accountType)) throw new Error(`유효하지 않은 accountType: ${accountType}`);
 
-  const db = superAdminDb;
   // drizzle sql 템플릿: 모든 변수는 prepared statement 파라미터로 바인딩
   await db.execute(sql`
     INSERT INTO user_pool_memberships (id, account_id, account_type, pool_id, role, status, created_at, updated_at)
@@ -169,7 +166,7 @@ export async function upsertMembership(opts: {
  *           role은 화이트리스트 검증.
  * 반환: true면 유효 membership 존재
  */
-export async function checkMembership(opts: {
+export async function checkMembership(db: MigrationDb, opts: {
   accountId: string;
   poolId: string;
   role: string;
@@ -179,7 +176,6 @@ export async function checkMembership(opts: {
   // role 화이트리스트 검증 — 허용되지 않는 role은 즉시 false
   if (!VALID_ROLES.has(role)) return false;
 
-  const db = superAdminDb;
   // drizzle sql 템플릿: 모든 변수 prepared statement 파라미터
   const result = await db.execute(sql`
     SELECT 1 FROM user_pool_memberships
@@ -202,14 +198,13 @@ export async function checkMembership(opts: {
  *
  * SECURITY: DDL/집계 쿼리 — 외부 입력 없음, sql.raw 안전 사용
  */
-export async function validateMigration(): Promise<{
+export async function validateMigration(db: MigrationDb): Promise<{
   usersMissing: number;
   parentsMissing: number;
   duplicates: number;
   invalid: number;
   totalMemberships: number;
 }> {
-  const db = superAdminDb;
 
   const [usersMissingRes, parentsMissingRes, dupRes, invalidRes, totalRes] = await Promise.all([
     // A. users_missing: anti-join — expected membership이 없는 (account_id, pool_id, role) 조합

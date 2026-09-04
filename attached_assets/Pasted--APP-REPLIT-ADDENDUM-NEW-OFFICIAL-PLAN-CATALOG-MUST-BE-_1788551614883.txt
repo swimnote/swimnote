@@ -1,0 +1,237 @@
+[보낼 곳: APP REPLIT]
+
+# ADDENDUM — NEW OFFICIAL PLAN CATALOG MUST BE CREATED NOW
+# 기존 진행 작업은 중지하지 말고 이 요구사항을 현재 작업 범위에 즉시 포함
+# UI 땜질 금지
+# 실제 DB/API/Super Admin 기준 신규 플랜으로 교체
+
+현재 진행 중인 "legacy plan → new plan architecture replacement" 작업에
+아래 확정 가격표를 반드시 실제 신규 구독 플랜 catalog로 생성/적용하십시오.
+
+============================================================
+1. 확정 신규 가격표
+============================================================
+
+SWIMNOTE
+- 월 9,900원
+- BASE PLAN
+
+X300
+- 월 119,000원
+- 회원 한도 300
+- X PLAN
+
+X500
+- 월 189,000원
+- 회원 한도 500
+- X PLAN
+
+X1000
+- 월 349,000원
+- 회원 한도 1000
+- X PLAN
+
+DATA100
+- 월 7,900원
+- DATA/STORAGE ADD-ON
+
+DATA300
+- 월 22,900원
+- DATA/STORAGE ADD-ON
+
+이 가격은 확정값.
+다른 가격 사용 금지.
+
+============================================================
+2. 실제 신규 plan catalog 생성
+============================================================
+
+단순히 Super Admin 버튼 텍스트만 바꾸지 말 것.
+
+실제로 canonical plan catalog에 신규 플랜을 생성:
+
+SWIMNOTE
+X300
+X500
+X1000
+DATA100
+DATA300
+
+가능한 공식 source:
+
+subscription_plans
+또는 현재 repository의 canonical plan catalog.
+
+각 플랜 최소:
+
+plan_key
+display_name
+plan_type
+monthly_price_krw
+member_limit
+active
+sort_order
+
+RevenueCat product ID가 아직 확정되지 않았다면
+임의 생성 금지.
+NULL/미연결 상태 허용.
+
+============================================================
+3. legacy Coach/Premier 신규 선택 금지
+============================================================
+
+기존:
+
+Free
+Coach30
+Coach50
+Coach100
+Premier200
+Premier300
+Premier500
+Premier1000
+
+은 신규 가입/변경용 selector에서 제거.
+
+과거 subscription/history 데이터는 삭제하지 않음.
+
+즉:
+
+historical data = 보존
+new authoritative plan catalog = 신규 6개
+
+============================================================
+4. Super Admin 구조
+============================================================
+
+구독·결제 화면을 실제로 다음 구조로 변경:
+
+[기본 플랜]
+SWIMNOTE — 9,900원
+
+[X 모드 플랜]
+없음
+X300 — 119,000원 / 300명
+X500 — 189,000원 / 500명
+X1000 — 349,000원 / 1000명
+
+[데이터 추가]
+DATA100 — 7,900원
+DATA300 — 22,900원
+
+가격과 회원 한도는
+canonical catalog에서 읽어올 것.
+
+UI 하드코딩 금지.
+
+============================================================
+5. Super Admin 결제 없는 직접부여
+============================================================
+
+Super Admin은 특정 수영장에
+X300 / X500 / X1000 중 하나를
+결제 없이 직접 부여할 수 있어야 함.
+
+직접부여 시:
+
+x_manual_entitlement = true
+x_force_disabled = false
+x_plan_key = 선택한 X plan key
+x_plan_member_limit = 해당 plan member limit
+
+x_paid_entitlement:
+변경하지 않음
+
+RevenueCat fake purchase:
+생성 금지
+
+Effective X:
+
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+============================================================
+6. Toykids는 신규 플랜 기준 tenant
+============================================================
+
+Toykids:
+
+pool_1780849364252_l9k44rbk3
+
+현재:
+
+x_manual_entitlement = true
+x_paid_entitlement = false
+x_force_disabled = false
+
+이 수영장을 신규 플랜 테스트 기준으로 사용.
+
+기존 Premier1000을 authoritative plan으로 보지 말 것.
+
+Super Admin에서 Toykids에
+X300 / X500 / X1000 중 하나를 실제 선택할 수 있어야 함.
+
+단 사용자가 아직 어떤 X plan을 최종 부여할지 정하지 않았으므로
+임의로 X300/X500/X1000 중 하나를 자동 선택하지 말 것.
+
+현재는 selector 구현 + 저장 기능까지 완료.
+
+============================================================
+7. 기존 진행 작업과 통합
+============================================================
+
+현재 이미 진행 중인:
+
+- Production X write route 검증
+- canonical X manual entitlement
+- legacy plan inventory
+- Super Admin selector replacement
+
+작업은 유지.
+
+단 최종 architecture는 반드시
+이번 신규 6개 plan catalog를 source of truth로 사용.
+
+중간에 임시 legacy mapping을 최종 구조로 남기지 말 것.
+
+============================================================
+8. 완료보고 추가 항목
+============================================================
+
+최종 보고서에 반드시 추가:
+
+NEW OFFICIAL PLAN CATALOG
+
+plan_key | display_name | type | price | member_limit | active
+
+6개 전부 표시.
+
+그리고:
+
+Canonical catalog actually created:
+YES / NO
+
+Legacy Coach/Premier selectable:
+YES / NO
+
+Super Admin uses canonical catalog:
+YES / NO
+
+X300 selectable:
+YES / NO
+
+X500 selectable:
+YES / NO
+
+X1000 selectable:
+YES / NO
+
+Manual X assignment without payment:
+PASS / FAIL
+
+Toykids ready for new X plan selection:
+YES / NO
+
+IMPORTANT:
+현재 작업을 새로 처음부터 시작하지 말고,
+지금 진행 중인 작업에 위 내용을 통합하여 마무리하십시오.

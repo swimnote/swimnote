@@ -704,7 +704,10 @@ router.get(
 
 // ── Startup migration ─────────────────────────────────────────────────────────
 import("../migrations/pool-db-x04.js")
-  .then(({ runX04Migration }) => runX04Migration())
+  .then(async ({ runX04Migration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runX04Migration(superAdminDb);
+  })
   .catch((e: any) => console.error("[x04-init] migration failed:", e?.message));
 
 export default router;

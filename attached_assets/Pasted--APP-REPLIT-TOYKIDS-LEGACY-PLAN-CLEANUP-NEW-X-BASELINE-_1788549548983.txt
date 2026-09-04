@@ -1,0 +1,439 @@
+[보낼 곳: APP REPLIT]
+
+# TOYKIDS LEGACY PLAN CLEANUP / NEW X BASELINE NORMALIZATION
+# PRIORITY BEFORE NEW PLAN DEVELOPMENT
+# TARGET: Toykids ONLY
+# GOAL: Toykids를 신규 X manual entitlement 기준의 깨끗한 기준 tenant로 정리
+# DO NOT MODIFY OTHER POOLS
+# DO NOT START NEW PLAN IMPLEMENTATION UNTIL THIS IS COMPLETE
+# DO NOT DEPLOY RENDER
+
+============================================================
+0. 현재 확정 상태
+============================================================
+
+Toykids pool_id:
+pool_1780849364252_l9k44rbk3
+
+현재 Production 감사 결과:
+
+x_manual_entitlement = true
+x_force_disabled = false
+x_paid_entitlement = true   ← stale
+xmode_subscription_end_at = 2026-08-19
+x_subscriptions rows = 0
+subscription_source = manual
+subscription_tier = max
+legacy xmode_entitlement = false
+
+신규 resolver:
+
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+현재 effective X는 manual=true로 정상 활성.
+
+이번 목표:
+
+Toykids를
+"신규 manual X entitlement만으로 X가 열리는 기준 수영장"
+으로 정리.
+
+============================================================
+1. 절대 금지
+============================================================
+
+다른 pool UPDATE:
+0
+
+Production schema migration:
+NO
+
+RevenueCat history 삭제:
+NO
+
+회원/반/일지 변경:
+NO
+
+1.6.3 수정:
+NO
+
+Growth report 작업:
+NO
+
+WP9:
+NO
+
+Render deploy:
+NO
+
+============================================================
+2. 변경 전 SNAPSHOT
+============================================================
+
+Toykids 1개 pool의 다음 상태를 다시 READ ONLY 확인:
+
+x_paid_entitlement
+x_manual_entitlement
+x_force_disabled
+x_entitlement_source
+x_plan_key
+x_plan_member_limit
+subscription_tier
+subscription_status
+subscription_source
+xmode_subscription_end_at
+x_auto_renew_cancelled
+x_slot_id
+legacy xmode_entitlement
+
+관련 subscription tables도 조회.
+
+다른 pool과 혼동되지 않도록 exact pool_id 사용.
+
+============================================================
+3. LEGACY / NEW FIELD 분류
+============================================================
+
+각 필드를 아래로 분류:
+
+A. 신규 authoritative X field
+B. 신규 plan field
+C. legacy compatibility field
+D. historical subscription metadata
+E. 현재 runtime에서 실제 사용되지 않는 stale field
+
+실제 repository usage 검색 기준으로 판정.
+
+추측 금지.
+
+============================================================
+4. TOYKIDS TARGET BASELINE
+============================================================
+
+Toykids 최종 기준:
+
+x_manual_entitlement = true
+x_force_disabled = false
+x_paid_entitlement = false
+
+effective X = true
+
+X source:
+MANUAL
+
+구형 만료 paid entitlement가
+effective X에 영향을 주지 않도록 제거.
+
+중요:
+manual X는 반드시 유지.
+
+============================================================
+5. LEGACY PLAN 처리
+============================================================
+
+subscription_tier=max
+subscription_status=active
+subscription_source=manual
+xmode_subscription_end_at=expired
+x_slot_id
+기타 legacy plan 값이
+
+현재 신규 plan resolver / Super Admin / X entitlement에
+실제로 영향을 주는지 확인.
+
+영향이 없다면:
+historical metadata로 유지 가능.
+
+영향이 있다면:
+신규 plan 개발 전에 비권위 상태로 정규화.
+
+삭제는 최소화.
+
+history 삭제 금지.
+
+============================================================
+6. EXACT CHANGE PLAN
+============================================================
+
+실제 UPDATE 전에 반드시 정확한 diff 제출.
+
+예:
+
+x_paid_entitlement:
+true → false
+
+그 외 변경이 필요하면 각각:
+
+CURRENT → TARGET
+WHY
+RUNTIME IMPACT
+
+예상 affected pool:
+1
+
+다른 pool:
+0
+
+============================================================
+7. USER APPROVAL 범위
+============================================================
+
+사용자가 Toykids의 구형 plan 흔적을 정리하고
+신규 X 기준 tenant로 바꾸는 것을 명시적으로 승인함.
+
+따라서:
+
+- exact Toykids pool 1개
+- schema 변경 없음
+- 다른 pool 영향 0
+- 신규 manual X 유지
+
+조건을 만족하면
+필요한 데이터 정합성 UPDATE 실행 가능.
+
+============================================================
+8. ATOMIC UPDATE
+============================================================
+
+Transaction 사용.
+
+BEGIN
+
+최소 필수:
+
+UPDATE swimming_pools
+SET
+  x_paid_entitlement = false,
+  x_entitlement_source = repository 기준 MANUAL 값,
+  x_entitlement_updated_at = NOW()
+WHERE id = 'pool_1780849364252_l9k44rbk3';
+
+단:
+실제 schema/enum/value 확인 후 정확한 field만 사용.
+
+affected rows = 1 필수.
+
+0 또는 >1:
+ROLLBACK.
+
+추가 legacy normalization이 필요하면
+같은 transaction에서 Toykids 관련 row만 처리.
+
+COMMIT.
+
+============================================================
+9. POST-UPDATE VERIFY
+============================================================
+
+반드시 재조회:
+
+x_manual_entitlement = true
+x_paid_entitlement = false
+x_force_disabled = false
+
+effective X = true
+
+source = MANUAL
+
+다른 pool changed = 0
+
+회원/반/일지 count 변화 = 0
+
+============================================================
+10. SUPER ADMIN 기준 상태
+============================================================
+
+정리 후 Toykids는 Super Admin에서 최소:
+
+Effective X:
+ON
+
+Manual X:
+ON
+
+Paid X:
+OFF
+
+Force Disabled:
+OFF
+
+Source:
+MANUAL
+
+로 보여야 함.
+
+현재 UI가 이를 정확히 표시하지 않으면
+UI bug로 별도 기록.
+
+이번 데이터 cleanup과 UI bug를 섞지 말 것.
+
+============================================================
+11. NEW PLAN TEST BASELINE
+============================================================
+
+정리 후 Toykids를 신규 plan 개발의 기준 tenant로 사용 가능 여부 판정.
+
+필수:
+
+Legacy paid entitlement authoritative:
+NO
+
+Manual X authoritative:
+YES
+
+Stale paid state:
+NO
+
+RevenueCat row:
+0 또는 의도된 상태
+
+New plan assignment test contamination:
+NO
+
+============================================================
+12. 완료보고
+============================================================
+
+# TOYKIDS LEGACY PLAN CLEANUP REPORT
+
+Pool ID:
+...
+
+--------------------------------
+
+BEFORE
+
+x_paid_entitlement:
+...
+
+x_manual_entitlement:
+...
+
+x_force_disabled:
+...
+
+x_entitlement_source:
+...
+
+subscription_tier:
+...
+
+subscription_status:
+...
+
+subscription_source:
+...
+
+xmode_subscription_end_at:
+...
+
+legacy xmode_entitlement:
+...
+
+--------------------------------
+
+FIELD CLASSIFICATION
+
+Authoritative new fields:
+...
+
+Legacy fields:
+...
+
+Historical fields:
+...
+
+Stale fields:
+...
+
+--------------------------------
+
+CHANGE
+
+Production UPDATE executed:
+YES / NO
+
+Changed fields:
+...
+
+Affected pool rows:
+...
+
+Other pool rows:
+0 / ...
+
+Transaction:
+COMMIT / ROLLBACK
+
+--------------------------------
+
+AFTER
+
+x_paid_entitlement:
+FALSE / ...
+
+x_manual_entitlement:
+TRUE / ...
+
+x_force_disabled:
+FALSE / ...
+
+Effective X:
+TRUE / ...
+
+Source:
+MANUAL / ...
+
+--------------------------------
+
+DATA SAFETY
+
+Members changed:
+0
+
+Classes changed:
+0
+
+Diary changed:
+0
+
+Other pools changed:
+0
+
+RevenueCat history deleted:
+0
+
+--------------------------------
+
+SUPER ADMIN
+
+Expected display:
+Effective X ON
+Manual X ON
+Paid X OFF
+Source MANUAL
+
+Actual display:
+...
+
+UI mismatch:
+YES / NO
+
+--------------------------------
+
+FINAL
+
+Toykids legacy paid state removed:
+YES / NO
+
+Toykids manual X authoritative:
+YES / NO
+
+Toykids clean baseline for NEW PLAN testing:
+YES / NO
+
+Safe to start new plan implementation:
+YES / NO
+
+STOP AFTER REPORT.

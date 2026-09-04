@@ -25,10 +25,10 @@
  *   4. Evidence null → UNVERIFIED → is_gauge_eligible=false (fail-closed)
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-type Db = typeof superAdminDb;
+type Db = MigrationDb;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Group GAUGE-01-A: curriculum_progress_observations (CPO)
@@ -356,8 +356,7 @@ async function runGroupB_StudentCurriculumProgress(db: Db): Promise<void> {
  *   Production에서는 사용자 승인 후 별도 실행.
  *   startup migration (pool-db-init.ts 등) 연결 금지.
  */
-export async function initGauge01Schema(): Promise<void> {
-  const db = superAdminDb;
+export async function initGauge01Schema(db: MigrationDb): Promise<void> {
 
   const groups: { name: string; fn: (db: Db) => Promise<void> }[] = [
     {

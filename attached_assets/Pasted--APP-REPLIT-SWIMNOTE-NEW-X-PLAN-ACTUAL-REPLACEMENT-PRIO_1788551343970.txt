@@ -1,0 +1,459 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE — NEW X PLAN ACTUAL REPLACEMENT
+# PRIORITY
+# GOAL:
+# 구형 Coach/Premier 플랜 체계를 실제 신규 X모드 플랜 체계로 교체하고,
+# Super Admin이 결제 없이 신규 X 플랜을 직접 부여할 수 있게 한다.
+#
+# 이번 작업은 UI만 바꾸는 임시 땜질이 아니다.
+# DB / SERVER / SUPER ADMIN 모두 신규 플랜을 실제 source of truth로 사용해야 한다.
+#
+# DO NOT TOUCH 1.6.3
+# DO NOT WORK ON GROWTH REPORT
+# DO NOT START WP9
+# DO NOT AUTO DEPLOY RENDER
+# DO NOT INVENT PRICES
+
+============================================================
+1. 현재 문제
+============================================================
+
+현재 Super Admin > 구독·결제 > 구독 직접 조정에는
+구형 플랜이 남아 있음:
+
+Free
+Coach30
+Coach50
+Coach100
+Premier200
+Premier300
+Premier500
+Premier1000
+무료 체험
+
+이 구형 플랜 구조를 신규 가입/변경용 authoritative plan으로 더 이상 사용하지 않는다.
+
+목표:
+
+- 신규 공식 BASE 플랜
+- 신규 공식 X 플랜
+
+으로 실제 교체.
+
+============================================================
+2. 먼저 현재 신규 플랜 정의 찾기
+============================================================
+
+repository / DB에서 우리가 이미 만들어둔 신규 플랜 정의를 찾는다.
+
+조사:
+
+subscription_plans
+pool_subscriptions
+x_plan_key
+x_plan_member_limit
+RevenueCat product mapping
+plan constants/config
+pricing config
+Super Admin plan API
+
+가격/회원한도/plan key를 임의로 만들지 말 것.
+
+현재 프로젝트에 확정된 신규 가격표가 있으면 그대로 사용.
+
+없거나 충돌하면 수정하지 말고 먼저 보고.
+
+============================================================
+3. 구형 플랜을 신규 선택 UI에서 제거
+============================================================
+
+Super Admin 신규 플랜 selector에서:
+
+Free
+Coach30
+Coach50
+Coach100
+Premier200
+Premier300
+Premier500
+Premier1000
+
+을 더 이상 신규 부여/변경 선택지로 사용하지 않는다.
+
+기존 historical data 삭제 금지.
+
+기존 사용자의 과거 구독 기록은 보존.
+
+단 신규 부여의 source of truth에서는 제외.
+
+============================================================
+4. 신규 플랜 구조
+============================================================
+
+Super Admin 화면을 실제 신규 구조로 변경.
+
+구조:
+
+[기본 플랜]
+- 신규 공식 BASE plan 목록
+
+[X 모드 플랜]
+- 신규 공식 X plan 목록
+- 없음
+
+각 플랜 표시:
+
+- 플랜명
+- 월 가격
+- 회원 한도
+- plan_key
+
+가격/회원한도는 canonical plan source에서 가져온다.
+
+UI component에 가격을 직접 하드코딩하지 않는다.
+
+============================================================
+5. Super Admin 직접 부여
+============================================================
+
+Super Admin은 결제 없이 특정 수영장에
+신규 X 플랜을 직접 부여할 수 있어야 한다.
+
+예:
+
+Super Admin
+→ 수영장
+→ 구독·결제
+→ X 플랜 선택
+→ 저장
+
+이 경우:
+
+RevenueCat 결제:
+필요 없음
+
+x_manual_entitlement:
+true
+
+x_paid_entitlement:
+변경하지 않음
+
+x_force_disabled:
+false
+
+x_plan_key:
+선택한 신규 X plan key
+
+x_plan_member_limit:
+선택한 신규 X plan의 공식 회원 한도
+
+effective X:
+true
+
+Source:
+MANUAL
+
+즉:
+
+"결제 플랜을 가짜 paid로 만드는 방식" 금지.
+
+Super Admin 직접 부여는 반드시 MANUAL entitlement로 처리.
+
+============================================================
+6. 직접 부여와 유료 결제 분리
+============================================================
+
+Paid X:
+
+RevenueCat / 실제 결제
+→ x_paid_entitlement
+
+Manual X:
+
+Super Admin 직접부여
+→ x_manual_entitlement
+
+둘은 독립.
+
+Effective X:
+
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+현재 resolver 유지.
+
+============================================================
+7. TOYKIDS 적용
+============================================================
+
+Toykids:
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+현재:
+
+x_manual_entitlement=true
+x_paid_entitlement=false
+x_force_disabled=false
+
+Toykids에 신규 X 플랜을 실제 선택/부여해서
+새 구조의 기준 tenant로 만든다.
+
+구형 Premier1000은 authoritative plan으로 사용하지 않는다.
+
+Toykids 최종:
+
+Manual X:
+ON
+
+Paid X:
+OFF
+
+Effective X:
+ON
+
+X Plan:
+신규 공식 X plan 중 사용자가 선택한 값
+
+Source:
+MANUAL
+
+============================================================
+8. 신규 플랜 저장 API
+============================================================
+
+Super Admin 저장 API에서 실제로:
+
+BASE plan
+X plan
+Manual entitlement
+
+을 구분하여 저장.
+
+구형 subscription_tier 하나에 전부 압축하지 않는다.
+
+필요 필드:
+
+base plan 관련 공식 field
+x_plan_key
+x_plan_member_limit
+x_manual_entitlement
+x_paid_entitlement
+x_force_disabled
+
+실제 repository schema 기준 사용.
+
+============================================================
+9. 기존 X 직접부여 endpoint 정리
+============================================================
+
+현재:
+
+PATCH /super/operators/:id/xmode
+
+가 있다면
+신규 X plan selector와 일관되게 연결.
+
+직접 부여 시:
+
+manual=true
+selected x_plan_key 저장
+
+직접 회수 시:
+
+manual=false
+
+paid 상태는 건드리지 않는다.
+
+============================================================
+10. 테스트
+============================================================
+
+필수:
+
+A.
+구형 Coach/Premier가 신규 selector에서 사라짐
+
+B.
+신규 BASE 플랜 목록 정상 표시
+
+C.
+신규 X 플랜 목록 정상 표시
+
+D.
+Super Admin이 결제 없이 X plan 직접 부여 가능
+
+E.
+직접 부여 후:
+manual=true
+paid=false 유지
+effective=true
+
+F.
+회수 후:
+manual=false
+
+G.
+paid=true인 수영장은 manual 회수해도 effective=true
+
+H.
+force_disabled=true면 effective=false
+
+I.
+Toykids 신규 X plan 부여 성공
+
+J.
+Toykids 구형 Premier1000이 authoritative가 아님
+
+K.
+다른 pool 영향 0
+
+============================================================
+11. Production 정책
+============================================================
+
+이번 작업은 코드 수정/테스트까지만.
+
+Render 자동 deploy:
+NO
+
+Production DB 임의 migration:
+NO
+
+작업 완료 후 exact target SHA 보고.
+
+사용자가 수동 Render deploy 후
+Toykids 실운영 확인.
+
+============================================================
+12. 완료보고
+============================================================
+
+# NEW X PLAN REPLACEMENT REPORT
+
+GIT
+Branch:
+HEAD Before:
+HEAD After:
+Commit:
+Push:
+
+--------------------------------
+
+OLD PLAN
+
+Legacy Coach/Premier selectable:
+YES / NO
+
+Historical data preserved:
+YES / NO
+
+--------------------------------
+
+NEW PLAN CATALOG
+
+Canonical source:
+...
+
+BASE plans:
+
+plan_key | name | price | member_limit
+...
+
+X plans:
+
+plan_key | name | price | member_limit
+...
+
+--------------------------------
+
+SUPER ADMIN
+
+New BASE selector:
+PASS / FAIL
+
+New X selector:
+PASS / FAIL
+
+Manual X assignment without payment:
+PASS / FAIL
+
+Manual X revoke:
+PASS / FAIL
+
+--------------------------------
+
+TOYKIDS
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+Legacy Premier authoritative:
+YES / NO
+
+New X plan:
+...
+
+Manual:
+ON/OFF
+
+Paid:
+ON/OFF
+
+Effective:
+ON/OFF
+
+Source:
+...
+
+--------------------------------
+
+TESTS
+
+Legacy selector removed:
+PASS / FAIL
+
+New plan save:
+PASS / FAIL
+
+Manual X:
+PASS / FAIL
+
+Paid X separation:
+PASS / FAIL
+
+Resolver:
+PASS / FAIL
+
+Toykids:
+PASS / FAIL
+
+Other pools:
+PASS / FAIL
+
+--------------------------------
+
+FINAL
+
+Legacy plan architecture replaced:
+YES / NO
+
+New X plans actually used:
+YES / NO
+
+Super Admin can grant X without payment:
+YES / NO
+
+Toykids moved to new X plan:
+YES / NO
+
+Ready for manual Render deploy:
+YES / NO
+
+Target SHA:
+...
+
+DO NOT AUTO DEPLOY.
+WAIT FOR USER MANUAL RENDER DEPLOY.

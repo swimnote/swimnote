@@ -19,7 +19,7 @@ import { initMembershipSchema } from "./migrations/pool-db-membership.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
-import { isDbSeparated, isProtectDbConfigured, pool } from "@workspace/db";
+import { isDbSeparated, isProtectDbConfigured, pool, superAdminDb } from "@workspace/db";
 import { getRecentAvgResponseMs } from "./lib/responseTracker.js";
 import { createOpsAlert } from "./lib/opsAlerts.js";
 import { sendPushToSuperAdmins } from "./lib/push-service.js";
@@ -76,9 +76,9 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
 // 핵심 2개 완료 시 헬스체크를 200으로 전환 (Render 헬스체크 실패 방지)
 // 헌법 원칙: 필수 DB Migration 실패 시 setServerReady() 미호출 + 프로세스 종료
 Promise.all([
-  initPoolDb(),
-  initSuperDb(),
-  runGrInteractionsMigration(),
+  initPoolDb(superAdminDb),
+  initSuperDb(superAdminDb),
+  runGrInteractionsMigration(superAdminDb),
 ])
   .then(() => {
     setServerReady();
@@ -89,28 +89,28 @@ Promise.all([
     process.exit(1);
   });
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
-backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
+backfillPoolAdminRoles(superAdminDb).catch((e) => console.error("[roles-backfill] 오류:", e.message));
 // Multi-Pool Membership: 테이블 생성 + 기존 사용자 backfill (멱등, ON CONFLICT DO NOTHING)
-initMembershipSchema().catch((e) => console.error("[membership] 초기화 오류:", e.message));
+initMembershipSchema(superAdminDb).catch((e) => console.error("[membership] 초기화 오류:", e.message));
 // 일회성: diary_templates에서 "오늘은 " 접두사 제거
 import("./migrations/strip-oneulun.js")
-  .then(m => m.stripOneulun())
+  .then(m => m.stripOneulun(superAdminDb))
   .catch((e) => console.error("[strip-oneulun] 오류:", e.message));
 // CS23A: Direct DB Answer Engine — support_intent_utterances + intent_id/answer_mode
 import("./migrations/pool-db-cs-23a.js")
-  .then(m => m.runCs23aMigration())
+  .then(m => m.runCs23aMigration(superAdminDb))
   .catch((e) => console.error("[cs23a] migration 오류:", e.message));
 // CS24A: Support Query Log
 import("./migrations/pool-db-cs-24a.js")
-  .then(m => m.runCs24aMigration())
+  .then(m => m.runCs24aMigration(superAdminDb))
   .catch((e) => console.error("[cs24a] migration 오류:", e.message));
 // CS24B: Support Knowledge Candidates
 import("./migrations/pool-db-cs-24b.js")
-  .then(m => m.runCs24bMigration())
+  .then(m => m.runCs24bMigration(superAdminDb))
   .catch((e) => console.error("[cs24b] migration 오류:", e.message));
 // CS26: autonomous escalation outcomes (normalized queries only; no PII)
 import("./migrations/pool-db-cs-26.js")
-  .then(m => m.runCs26Migration())
+  .then(m => m.runCs26Migration(superAdminDb))
   .catch((e) => console.error("[cs26] migration 오류:", e.message));
 // Curriculum APP MASTER: import_status/source_r2_key/import_meta 컬럼 + drills/relations 테이블
 import("./migrations/curriculum-app-master-init.js")

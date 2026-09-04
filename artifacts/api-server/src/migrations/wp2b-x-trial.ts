@@ -12,11 +12,11 @@
  *
  * Production 실행 금지 (WP2B scope).
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function up(): Promise<void> {
-  await superAdminDb.execute(sql`
+export async function up(db: MigrationDb): Promise<void> {
+  await db.execute(sql`
     ALTER TABLE swimming_pools
       ADD COLUMN IF NOT EXISTS x_trial_started_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS x_trial_ends_at    TIMESTAMPTZ,
@@ -24,18 +24,18 @@ export async function up(): Promise<void> {
   `);
 
   // cleanup job / 만료 스캔 최적화 인덱스 (실제 quota 판단은 lazy expiration으로 처리)
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_swimming_pools_x_trial_ends_at
       ON swimming_pools (x_trial_ends_at)
       WHERE x_trial_ends_at IS NOT NULL
   `);
 }
 
-export async function down(): Promise<void> {
-  await superAdminDb.execute(sql`
+export async function down(db: MigrationDb): Promise<void> {
+  await db.execute(sql`
     DROP INDEX IF EXISTS idx_swimming_pools_x_trial_ends_at
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     ALTER TABLE swimming_pools
       DROP COLUMN IF EXISTS x_trial_started_at,
       DROP COLUMN IF EXISTS x_trial_ends_at,

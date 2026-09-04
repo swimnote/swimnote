@@ -30,30 +30,12 @@ function phoneMask(p: string): string {
   return p.length > 6 ? p.slice(0, 3) + "****" + p.slice(-4) : "****";
 }
 
-// ── parent_v2_pending 테이블 초기화 (서버 시작 시 1회, 멱등) ──────────
+// ── parent_v2_pending 테이블 초기화 (no-op) ────────────────────────────
+// WP8-P3: DDL moved to src/migrations/runtime-ddl-consolidated.ts §11
+// schema must be pre-applied via staging-manifest / production migration
 export async function initV2PendingTable(): Promise<void> {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS parent_v2_pending (
-      id                      text PRIMARY KEY,
-      parent_id               text NOT NULL,
-      pool_id                 text NOT NULL,
-      child_name_raw          text NOT NULL,
-      child_name_normalized   text NOT NULL,
-      parent_phone_normalized text NOT NULL,
-      status                  text NOT NULL DEFAULT 'pending',
-      matched_student_id      text,
-      matched_at              timestamp,
-      retry_count             int NOT NULL DEFAULT 0,
-      last_retry_at           timestamp,
-      created_at              timestamp NOT NULL DEFAULT NOW()
-    )
-  `);
-  await db.execute(sql`ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending'`);
-  await db.execute(sql`ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS matched_student_id text`);
-  await db.execute(sql`ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS matched_at timestamp`);
-  await db.execute(sql`ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS pending_reason text`);
-  await db.execute(sql`ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS rejection_reason text`);
-  console.log("[v2-init] parent_v2_pending 테이블 준비 완료");
+  // no-op: schema is applied via explicit migration (runtime-ddl-consolidated §11)
+  console.log("[v2-init] parent_v2_pending schema pre-applied via migration");
 }
 
 // ── pending 레코드 UPSERT (1 학부모 = 1 활성 pending, 중복 방지) ──────

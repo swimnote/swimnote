@@ -1,7 +1,7 @@
-import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function stripOneulun() {
+export async function stripOneulun(db: MigrationDb) {
   try {
     const result = await db.execute(sql`
       UPDATE diary_templates

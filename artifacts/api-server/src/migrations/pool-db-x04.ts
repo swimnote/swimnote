@@ -5,8 +5,8 @@
  * 이 migration은 STRUCTURED 계층 DB를 생성한다.
  * 원본 파일(x_setup_files)은 절대 수정하지 않는다.
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 // Structuring pipeline statuses
 export const STRUCTURING_STATUS = {
@@ -18,10 +18,10 @@ export const STRUCTURING_STATUS = {
   FAILED:           "FAILED",
 } as const;
 
-export async function runX04Migration(): Promise<void> {
+export async function runX04Migration(db: MigrationDb): Promise<void> {
   try {
     // ── x_curriculum_profiles ─────────────────────────────────────────────────
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS x_curriculum_profiles (
         id                 UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
         pool_id            TEXT        NOT NULL REFERENCES swimming_pools(id),
@@ -45,7 +45,7 @@ export async function runX04Migration(): Promise<void> {
     `);
 
     // ── x_curriculum_levels ───────────────────────────────────────────────────
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS x_curriculum_levels (
         id                 UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
         profile_id         UUID        NOT NULL REFERENCES x_curriculum_profiles(id) ON DELETE CASCADE,
@@ -73,7 +73,7 @@ export async function runX04Migration(): Promise<void> {
     `);
 
     // ── x_website_profiles ────────────────────────────────────────────────────
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS x_website_profiles (
         id                    UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
         pool_id               TEXT        NOT NULL REFERENCES swimming_pools(id),
@@ -112,7 +112,7 @@ export async function runX04Migration(): Promise<void> {
     `);
 
     // ── x_website_packages ────────────────────────────────────────────────────
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS x_website_packages (
         id                       UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
         pool_id                  TEXT        NOT NULL REFERENCES swimming_pools(id),
@@ -128,16 +128,16 @@ export async function runX04Migration(): Promise<void> {
     `);
 
     // Indexes
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_x_curriculum_profiles_pool ON x_curriculum_profiles(pool_id)
     `);
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_x_curriculum_levels_profile ON x_curriculum_levels(profile_id, level_order)
     `);
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_x_website_profiles_pool ON x_website_profiles(pool_id)
     `);
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_x_website_packages_pool ON x_website_packages(pool_id, generated_at DESC)
     `);
 

@@ -1,0 +1,557 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE PRODUCTION DEPLOY + TOYKIDS X MODE VERIFY
+# BRANCH: release/v2.0.0
+# TARGET: latest actual HEAD
+# GOAL:
+# 1. Production deploy readiness 확인
+# 2. USER가 Render에서 수동 deploy
+# 3. deploy 후 Toykids 신규 X 상태 실운영 검증
+# DO NOT AUTO-DEPLOY RENDER
+# NO OTA EXPECTED
+
+============================================================
+0. 현재 기준
+============================================================
+
+최근 중요 commit:
+
+567de52d
+fix(superadmin): add PATCH /super/operators/:id/xmode handler
+
+이후 Toykids Production DB cleanup 완료:
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+현재 기대 상태:
+
+x_manual_entitlement = true
+x_paid_entitlement = false
+x_force_disabled = false
+
+Effective X = true
+Source = MANUAL
+
+xmode_config_status = CURRICULUM_PENDING
+따라서 mode 예상 = x_pending
+
+============================================================
+1. GIT PRECHECK
+============================================================
+
+확인:
+
+git branch --show-current
+git rev-parse HEAD
+git status --porcelain
+git log --oneline -10
+
+branch:
+release/v2.0.0
+
+567de52d가 current HEAD ancestor인지 확인.
+
+최근 Toykids cleanup은 DB data change이므로
+추가 코드 commit이 없는 것이 정상일 수 있음.
+
+보고:
+
+HEAD:
+...
+
+567de52d ancestor:
+YES / NO
+
+Uncommitted product code:
+0 / ...
+
+============================================================
+2. SERVER PREDEPLOY TEST
+============================================================
+
+Production deploy 전 최소 회귀:
+
+- Super Admin X summary read
+- PATCH /super/operators/:id/xmode handler
+- assign
+- assign idempotent
+- revoke
+- paid fallback
+- force disabled
+- role guard
+- cross-pool
+
+기존 테스트 재실행.
+
+목표:
+
+X entitlement tests:
+21/21 PASS
+
+API new type errors:
+0
+
+APP:
+
+pnpm run typecheck
+
+Expected:
+0
+
+============================================================
+3. MIGRATION / SCHEMA CHECK
+============================================================
+
+이번 Production deploy에
+새 Production DB migration이 필요한지 확인.
+
+중요:
+
+최근 migration/Staging 작업이 많았지만
+이번 deploy에서 Production schema migration을
+임의 실행하지 말 것.
+
+보고:
+
+Production migration required for runtime:
+YES / NO
+
+만약 YES이면:
+DEPLOY STOP.
+필요 migration을 정확히 보고하고 사용자 승인 대기.
+
+NO이면:
+계속.
+
+============================================================
+4. DEPLOY SHA 결정
+============================================================
+
+Render에 올려야 하는 exact SHA를 확정.
+
+보고:
+
+DEPLOY SHA:
+...
+
+이 SHA에는 최소:
+
+567de52d
+Super Admin X PATCH handler
+
+가 포함되어야 함.
+
+release/v2.0.0의
+아무 후속 commit이나 무조건 배포하지 말고
+현재 HEAD의 변경 범위가 Production deploy에 안전한지 확인.
+
+특히:
+
+mockup-sandbox only asset
+staging-only scripts
+migration test infrastructure
+
+등이 Production runtime에 부작용 없는지 확인.
+
+============================================================
+5. RENDER 현재 상태 READ ONLY
+============================================================
+
+Render Production service 확인.
+
+보고:
+
+Service:
+swimnote-api
+
+Current deployed SHA:
+...
+
+Target SHA:
+...
+
+Auto deploy:
+NO 확인
+
+현재 Target과 다르면:
+DEPLOY NEEDED
+
+같으면:
+ALREADY DEPLOYED
+
+============================================================
+6. 여기서 USER MANUAL DEPLOY 대기
+============================================================
+
+Replit은 Render Production Deploy를 실행하지 않는다.
+
+다음 형식으로 사용자에게 보고 후 WAIT:
+
+READY FOR MANUAL RENDER DEPLOY
+
+Current Render SHA:
+...
+
+Target SHA:
+...
+
+Migration required:
+NO
+
+Predeploy tests:
+PASS
+
+APP OTA required:
+NO
+
+USER ACTION:
+Render에서 target SHA를 수동 배포하십시오.
+
+STOP.
+
+============================================================
+7. USER가 배포 완료했다고 한 뒤에만 실행
+============================================================
+
+Render deployment 완료 후:
+
+Production health 확인.
+
+- API health
+- deployed SHA
+- startup error
+- DB connection
+- runtime DDL 발생 여부
+
+목표:
+
+Health:
+PASS
+
+Deployed SHA:
+Target SHA와 일치
+
+Startup DDL:
+0
+
+============================================================
+8. TOYKIDS PRODUCTION X READ VERIFY
+============================================================
+
+Production READ ONLY.
+
+Toykids:
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+확인:
+
+x_manual_entitlement
+x_paid_entitlement
+x_force_disabled
+xmode_config_status
+
+Expected:
+
+manual:
+true
+
+paid:
+false
+
+force:
+false
+
+config:
+CURRICULUM_PENDING
+
+resolver 호출:
+
+resolvePoolMode()
+
+Expected:
+
+effective:
+true
+
+source:
+MANUAL
+
+mode:
+x_pending
+
+============================================================
+9. PRODUCTION API VERIFY
+============================================================
+
+실제 Production API에서 Toykids 기준 확인.
+
+GET /pools/x-mode
+또는 현재 공식 endpoint.
+
+Expected normalized response:
+
+xmode_entitlement:
+true
+
+effective X:
+true
+
+mode:
+x_pending
+
+신규 Super Admin summary도 확인:
+
+Effective X:
+ON
+
+Manual X:
+ON
+
+Paid X:
+OFF
+
+Force Disabled:
+OFF
+
+Source:
+MANUAL
+
+============================================================
+10. SUPER ADMIN MUTATION ENDPOINT VERIFY
+============================================================
+
+주의:
+Toykids entitlement를 실제로 껐다 켜서
+운영 상태를 흔들지 않는다.
+
+Production에서는 우선 endpoint 존재/권한만
+비파괴적으로 확인.
+
+확인:
+
+PATCH /super/operators/:id/xmode
+route exists:
+YES
+
+404:
+NO
+
+Super Admin auth guard:
+ACTIVE
+
+실제 revoke/grant mutation:
+이번 검증에서는 하지 않음.
+
+필요하면 이후 별도 승인.
+
+============================================================
+11. X MODE FUNCTIONAL STATE
+============================================================
+
+현재 Toykids:
+
+Effective entitlement:
+TRUE
+
+Mode:
+
+CURRICULUM_PENDING이면
+x_pending이 정상.
+
+즉:
+
+"X 권한이 없음"
+과
+"X 설정 완료 전"
+
+을 구분.
+
+보고:
+
+ENTITLEMENT:
+ACTIVE / INACTIVE
+
+SETUP:
+READY / CURRICULUM_PENDING / ...
+
+FINAL MODE:
+x / x_pending / normal
+
+============================================================
+12. OTA
+============================================================
+
+이번 변경은:
+
+server / superadmin API
+
+이므로 APP runtime 변경이 없다면:
+
+OTA:
+NOT REQUIRED
+
+iOS OTA:
+NO
+
+Android OTA:
+NO
+
+============================================================
+13. 완료보고
+============================================================
+
+# PRODUCTION DEPLOY / TOYKIDS X VERIFY REPORT
+
+GIT
+Branch:
+HEAD:
+Deploy SHA:
+
+--------------------------------
+
+PREDEPLOY
+
+X tests:
+...
+
+APP typecheck:
+...
+
+API new errors:
+...
+
+Production migration required:
+YES / NO
+
+--------------------------------
+
+RENDER
+
+Previous SHA:
+...
+
+Deployed SHA:
+...
+
+SHA Match:
+YES / NO
+
+Health:
+PASS / FAIL
+
+Startup DDL:
+0 / ...
+
+--------------------------------
+
+TOYKIDS DB
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+x_manual_entitlement:
+...
+
+x_paid_entitlement:
+...
+
+x_force_disabled:
+...
+
+xmode_config_status:
+...
+
+--------------------------------
+
+RESOLVER
+
+Effective X:
+TRUE / FALSE
+
+Source:
+...
+
+Mode:
+...
+
+--------------------------------
+
+PRODUCTION API
+
+GET X mode:
+PASS / FAIL
+
+xmode_entitlement:
+...
+
+Super Admin summary:
+PASS / FAIL
+
+Effective:
+...
+
+Manual:
+...
+
+Paid:
+...
+
+Force:
+...
+
+Source:
+...
+
+--------------------------------
+
+SUPER ADMIN PATCH
+
+Route exists:
+YES / NO
+
+404:
+YES / NO
+
+Auth guard:
+PASS / FAIL
+
+Production mutation test performed:
+NO
+
+--------------------------------
+
+OTA
+
+Required:
+NO / YES
+
+iOS OTA:
+NO unless required
+
+Android OTA:
+NO
+
+--------------------------------
+
+FINAL
+
+Render Production deployed:
+YES / NO
+
+Toykids new X entitlement active:
+YES / NO
+
+Toykids source:
+MANUAL / ...
+
+Toykids mode:
+x / x_pending / normal
+
+Super Admin X controls deployed:
+YES / NO
+
+Ready to continue X/Super Admin development:
+YES / NO

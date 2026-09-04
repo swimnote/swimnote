@@ -47,11 +47,11 @@
  * Additive only — 기존 테이블/컬럼/enum 변경 없음.
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function up(): Promise<void> {
-  await superAdminDb.execute(sql`
+export async function up(db: MigrationDb): Promise<void> {
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS x_monthly_operational_snapshots (
       id                              UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
       swimming_pool_id                TEXT        NOT NULL REFERENCES swimming_pools(id),
@@ -87,17 +87,17 @@ export async function up(): Promise<void> {
     )
   `);
 
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_xmos_period
       ON x_monthly_operational_snapshots (year, month)
   `);
 }
 
-export async function down(): Promise<void> {
-  await superAdminDb.execute(sql`
+export async function down(db: MigrationDb): Promise<void> {
+  await db.execute(sql`
     DROP INDEX IF EXISTS idx_xmos_period
   `);
-  await superAdminDb.execute(sql`
+  await db.execute(sql`
     DROP TABLE IF EXISTS x_monthly_operational_snapshots
   `);
 }

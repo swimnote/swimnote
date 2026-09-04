@@ -1,0 +1,11 @@
+import pg from "pg";
+const pool = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 1 });
+const q = async (sql: string) => (await pool.query(sql)).rows;
+const label = process.argv[2] ?? "snap";
+const idxs = await q("SELECT tablename||'.'||indexname AS n FROM pg_indexes WHERE schemaname='public' ORDER BY n");
+const cols = await q("SELECT table_name||'.'||column_name AS n FROM information_schema.columns WHERE table_schema='public' ORDER BY n");
+const consts = await q("SELECT table_name||'.'||constraint_name AS n FROM information_schema.table_constraints WHERE constraint_schema='public' ORDER BY n");
+for (const r of idxs as any[]) console.log(`IDX:${r.n}`);
+for (const r of cols as any[]) console.log(`COL:${r.n}`);
+for (const r of consts as any[]) console.log(`CON:${r.n}`);
+await pool.end();

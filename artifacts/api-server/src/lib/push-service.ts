@@ -12,6 +12,7 @@
  */
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { logOperationalError } from "./event-logger.js";
 
 // ── Expo Push API ────────────────────────────────────────────────────
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -42,7 +43,8 @@ export async function sendRawPush(
   title: string,
   body: string,
   data: Record<string, unknown> = {},
-  options: PushOptions = {}
+  options: PushOptions = {},
+  poolId?: string   // WP6: optional for failure logging
 ): Promise<void> {
   if (!tokens.length) return;
   const messages: PushMessage[] = tokens.map(to => ({
@@ -58,8 +60,20 @@ export async function sendRawPush(
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(messages),
     });
-  } catch (e) {
+  } catch (e: any) {
     console.error("[push-service] Expo API 오류:", e);
+    // WP6: MUST DB-observable for PUSH failures when pool context is known
+    if (poolId) {
+      void logOperationalError({
+        pool_id: poolId,
+        feature: "PUSH",
+        level: "ERROR",
+        error_code: "PUSH_EXPO_API_FAILED",
+        safe_message: `Expo Push API 호출 실패: ${(e?.message ?? "unknown").slice(0, 200)}`,
+        entity_type: "push_batch",
+        metadata: { token_count: tokens.length },
+      });
+    }
   }
 }
 
@@ -114,13 +128,16 @@ async function logPush(
   type: string,
   status: "sent" | "skipped" | "failed",
   message: string,
-  triggeredBy?: string
+  triggeredBy?: string,
+  poolId?: string,          // WP6: additive
+  recipientCount?: number,  // WP6: additive
+  errorMessage?: string,    // WP6: additive
 ): Promise<void> {
   try {
     const id = `pl_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     await superAdminDb.execute(sql`
-      INSERT INTO push_logs (id, target_user_id, role, type, status, message, triggered_by, created_at)
-      VALUES (${id}, ${targetUserId}, ${role}, ${type}, ${status}, ${message}, ${triggeredBy || null}, now())
+      INSERT INTO push_logs (id, target_user_id, role, type, status, message, triggered_by, created_at, pool_id, recipient_count, error_message)
+      VALUES (${id}, ${targetUserId}, ${role}, ${type}, ${status}, ${message}, ${triggeredBy || null}, now(), ${poolId ?? null}, ${recipientCount ?? 1}, ${errorMessage ?? null})
       ON CONFLICT DO NOTHING
     `);
   } catch { /* 로그 실패는 무시 */ }

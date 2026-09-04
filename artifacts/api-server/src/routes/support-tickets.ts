@@ -16,34 +16,14 @@ const router = Router();
 
 const SUPER_ROLES = new Set(["super_admin", "platform_admin", "super_manager"]);
 
-let _tableDone = false;
+/**
+ * ensureTicketTables — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §4
+ * Run that migration before deploying. This function is kept for call-site compatibility.
+ */
 async function ensureTicketTables() {
-  if (_tableDone) return;
-  _tableDone = true;
-
-  for (const ddl of [
-    `ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS image_urls TEXT[] DEFAULT '{}'`,
-    `ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS consultation_requested BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS submitter_user_id TEXT`,
-  ]) {
-    await db.execute(sql.raw(ddl)).catch(() => {});
-  }
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS support_ticket_replies (
-      id          TEXT PRIMARY KEY,
-      ticket_id   TEXT NOT NULL,
-      author_user_id TEXT NOT NULL,
-      author_name TEXT,
-      author_role TEXT NOT NULL DEFAULT 'user',
-      content     TEXT NOT NULL,
-      image_urls  TEXT[] DEFAULT '{}',
-      created_at  TIMESTAMPTZ DEFAULT NOW()
-    )
-  `).catch(() => {});
+  // NO-OP: schema is guaranteed by explicit migration
 }
-
-ensureTicketTables().catch(console.error);
 
 // ─── POST /support/tickets — 문의 생성 ─────────────────────────────────────
 router.post("/support/tickets", requireAuth, async (req: AuthRequest, res) => {

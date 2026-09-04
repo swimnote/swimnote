@@ -53,6 +53,31 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          // vendor: react core
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) {
+            return "vendor-react";
+          }
+          // vendor: UI libraries
+          if (id.includes("node_modules/@radix-ui/") || id.includes("node_modules/lucide-react")) {
+            return "vendor-ui";
+          }
+          // vendor: tanstack query + router
+          if (id.includes("node_modules/@tanstack/") || id.includes("node_modules/wouter")) {
+            return "vendor-query";
+          }
+          // admin chunk
+          if (id.includes("/pages/admin/")) return "chunk-admin";
+          // super chunk
+          if (id.includes("/pages/super/")) return "chunk-super";
+        },
+      },
+    },
+  },
+  optimizeDeps: {
+    include: ["react", "react-dom", "wouter", "@tanstack/react-query"],
   },
   server: {
     port,

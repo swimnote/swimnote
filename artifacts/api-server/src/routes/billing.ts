@@ -15,7 +15,7 @@ import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { getPaymentProvider } from "../payment/index.js";
-import { logEvent } from "../lib/event-logger.js";
+import { logEvent, logOperationalError } from "../lib/event-logger.js";
 import { billingEnabled } from "../config/billing.js";
 import { isFeatureEnabled } from "../lib/featureFlags.js";
 import {
@@ -478,6 +478,17 @@ router.post("/revenuecat-webhook", async (req, res) => {
     res.json({ received: true });
   } catch (err: any) {
     console.error("[rc-webhook] 처리 오류:", err);
+    // WP6: MUST DB-observable — RevenueCat webhook processing failure
+    // pool_id may not be known here if the error occurred before user lookup
+    void logOperationalError({
+      pool_id: "global",
+      feature: "BILLING",
+      level: "ERROR",
+      error_code: "RC_WEBHOOK_PROCESSING_FAILED",
+      safe_message: `RevenueCat webhook 처리 오류: ${(err?.message ?? "unknown").slice(0, 200)}`,
+      entity_type: "webhook",
+      metadata: { event_type: req.body?.event?.type ?? "unknown" },
+    });
     res.status(500).json({ error: err?.message ?? "webhook 처리 오류" });
   }
 });
@@ -931,53 +942,13 @@ router.use((_req, res, next) => {
   next();
 });
 
-// ── 테이블 보장 (서버 시작 시 1회 실행) ──────────────────────────────
+// Schema guaranteed by explicit migration (WP8-P2). See src/migrations/runtime-ddl-consolidated.ts §6
+/**
+ * ensureBillingTables — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §6
+ */
 async function ensureBillingTables() {
-  // revenue_logs: 정산용 이벤트 로그 (지시서 §8 요구사항 반영)
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS revenue_logs (
-      id                      TEXT PRIMARY KEY,
-      pool_id                 TEXT NOT NULL,
-      pool_name               TEXT,
-      plan_id                 TEXT NOT NULL,
-      plan_name               TEXT,
-      event_type              TEXT NOT NULL DEFAULT 'new_subscription',
-      gross_amount            INTEGER NOT NULL DEFAULT 0,
-      intro_discount_amount   INTEGER NOT NULL DEFAULT 0,
-      charged_amount          INTEGER NOT NULL DEFAULT 0,
-      refunded_amount         INTEGER NOT NULL DEFAULT 0,
-      store_fee               INTEGER NOT NULL DEFAULT 0,
-      net_revenue             INTEGER NOT NULL DEFAULT 0,
-      payment_provider        TEXT NOT NULL DEFAULT 'store',
-      provider_transaction_id TEXT,
-      occurred_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).catch(() => {});
-  // 기존 테이블에 누락된 컬럼 추가 (하위 호환)
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS pool_name TEXT`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS plan_name TEXT`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT 'new_subscription'`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS gross_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS intro_discount_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS charged_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'store'`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS store_fee INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS net_revenue INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS is_sandbox BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
-  // 다운그레이드 예약 컬럼 추가
-  await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS pending_tier TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS downgrade_at DATE`).catch(() => {});
-  // subscription_plans 확장 컬럼
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT ''`).catch(() => {});
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage TEXT NOT NULL DEFAULT ''`).catch(() => {});
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
-  // swimming_pools 최초 할인 컬럼
-  await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
+  // NO-OP: schema is guaranteed by explicit migration
 }
 // 서버 기동 시 revenue_logs 자동 정리
 // 전체 건수 ≤ 20 인 경우 sandbox/null-date 우선 삭제,
@@ -1006,16 +977,22 @@ async function startupCleanupRevenueLogs() {
     console.error("[billing-cleanup] 자동 정리 오류:", err);
   }
 }
-startupCleanupRevenueLogs().catch(console.error);
+// startupCleanupRevenueLogs() boot call removed (WP8-P2) — run as maintenance script only
 
 // X02-C: revenuecat_webhook_events 테이블 보장 (startup migration)
 import("../migrations/pool-db-x-billing-contract.js")
-  .then(({ runXBillingContractMigration }) => runXBillingContractMigration())
+  .then(async ({ runXBillingContractMigration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runXBillingContractMigration(superAdminDb);
+  })
   .catch((e: any) => console.error("[x-billing-init] migration failed:", e?.message));
 
 // X02-D2: x_auto_renew_cancelled 컬럼 보장 (startup migration)
 import("../migrations/pool-db-x-lifecycle.js")
-  .then(({ runXLifecycleMigration }) => runXLifecycleMigration())
+  .then(async ({ runXLifecycleMigration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runXLifecycleMigration(superAdminDb);
+  })
   .catch((e: any) => console.error("[x-lifecycle-init] migration failed:", e?.message));
 
 // ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────

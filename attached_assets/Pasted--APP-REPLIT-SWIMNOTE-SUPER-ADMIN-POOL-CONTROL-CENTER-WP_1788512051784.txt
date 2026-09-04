@@ -1,0 +1,461 @@
+[보낼 곳: APP REPLIT]
+
+작업명:
+SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+WP1 — OVERVIEW / HEALTH DRILL-DOWN COMPLETION
+
+현재 기준선:
+- Branch: release/v2.0.0
+- Baseline HEAD: d283c9e5
+- WP0 / Control Center foundation 완료 상태를 절대 훼손하지 말 것.
+- Main merge 금지.
+- Render production deploy 금지.
+- Production DB migration 금지.
+- iOS APP runtime 변경 금지.
+- 이번 WP는 Super Admin Web + 필요 최소 Server 보강만 허용.
+
+목표:
+현재 존재하는 Control Center Overview/Health를 실제 운영용 진단 허브로 완성한다.
+
+핵심 원칙:
+1. 기존 GET /super/pools/:id/control-center/summary 재사용.
+2. 새로운 KPI 시스템이나 health framework를 만들지 말 것.
+3. 기존 health / healthIssues 계산 규칙을 source of truth로 유지.
+4. 가짜 데이터, placeholder, 임의 추정값 금지.
+5. Overview에서 문제를 발견하면 관련 상세 탭으로 즉시 이동 가능해야 한다.
+6. 모든 데이터는 선택된 pool 기준으로만 표시한다.
+7. super_admin guard 및 기존 cross-pool isolation을 절대 약화하지 말 것.
+8. 500개 pool 운영을 전제로 불필요한 전체 pool 반복조회 금지.
+9. 기존 14탭 lazy-load 구조 유지.
+10. SuperPoolDetail.tsx 같은 legacy 파일은 실제 import/route 사용 여부를 먼저 확인한 뒤, 확실히 dead code일 때만 제거할 것.
+
+────────────────────
+A. OVERVIEW SUMMARY 완결
+────────────────────
+
+현재 SuperPoolControlCenter.tsx의 OverviewTab을 기준으로 작업한다.
+
+Overview 상단에서 최소 다음을 한 화면에 확인 가능하게 구성:
+
+- Pool 기본 식별 정보
+  - pool name
+  - pool id
+  - 현재 BASE entitlement 상태
+  - 현재 X effective 상태
+  - 현재 X plan
+  - member limit
+  - force-disabled 여부
+- 회원 수
+- 선생님 수
+- 학부모 수
+- 반 수
+- Storage 사용량 / quota / blocked 여부
+- AI 주요 KPI
+- Growth Report 주요 KPI
+- 전체 Health 상태
+  - HEALTHY
+  - WARNING
+  - CRITICAL
+
+기존 summary endpoint가 이미 반환하는 값을 최우선 재사용.
+없는 값을 만들기 위해 새로운 heavy query를 추가하지 말 것.
+
+────────────────────
+B. RECENT WARNING / HEALTH ISSUE
+────────────────────
+
+현재 summary에 존재하는 healthIssues 배열을 UI에 명확히 노출한다.
+
+각 issue는 최소:
+- issue code/type
+- 사람이 읽을 수 있는 짧은 설명
+- severity
+- 관련 수치가 실제 응답에 존재하면 해당 실제 수치
+- 이동 대상 탭
+
+가짜 detail 생성 금지.
+
+Health issue가 0개이면:
+- “현재 감지된 주요 운영 이상 없음” 수준의 정상 상태 표시.
+
+최근 Warning/Issue 영역은 Overview에서 별도 카드 또는 섹션으로 보이게 한다.
+
+────────────────────
+C. HEALTH ISSUE → DETAIL TAB DRILL-DOWN
+────────────────────
+
+가장 중요한 WP1 작업.
+
+Health issue 클릭 시 해당 문제와 연관된 Control Center 탭으로 이동시킨다.
+
+기본 매핑 예:
+
+- FREQUENT_ERRORS
+  → Errors 탭
+
+- GR_FAILURES
+  → Growth Reports 탭
+
+- STORAGE_QUOTA
+  → Storage 탭
+
+- entitlement / paid + force-disabled conflict
+  → Access / Plan 탭
+
+- AI 관련 failure
+  → AI 탭
+
+- Notification / Push 관련 문제
+  → Notifications 탭
+
+- Curriculum processing 문제
+  → Curriculum 탭
+
+실제 존재하는 issue code 목록을 코드에서 먼저 확인하고
+그 목록을 기준으로 deterministic mapping을 작성할 것.
+
+절대 문자열 감으로 임의 추론하지 말 것.
+
+매핑되지 않은 issue는:
+- Overview에 표시하되
+- 잘못된 탭으로 이동시키지 말 것.
+
+탭 이동 방식:
+- 기존 SuperPoolControlCenter의 active tab state / routing 구조 재사용.
+- 새 페이지 push를 남발하지 말 것.
+- 같은 Control Center 내부에서 탭 전환.
+- 가능하면 URL/query/hash 등의 기존 상태 구조가 있으면 그것을 유지.
+- 브라우저 뒤로가기 동작을 망가뜨리지 말 것.
+
+────────────────────
+D. RECENT SUPPORT CASE
+────────────────────
+
+summary 응답 또는 기존 support endpoint를 확인해서
+Overview에 “최근 Support Case 1건”을 표시할 수 있는지 확인한다.
+
+우선순위:
+
+1순위:
+summary에 이미 recentSupport가 있으면 그대로 사용.
+
+2순위:
+summary에서 기존 support_cases를 LIMIT 1로 읽는 것이
+query 구조상 자연스럽고 추가 비용이 낮다면 summary에 포함.
+
+금지:
+Overview가 로드될 때 support 전체 목록 endpoint를 별도 호출해서
+불필요한 중복 fetch를 만드는 것.
+
+표시 가능한 실제 필드만 사용:
+- ticket id
+- state
+- created_at / updated_at
+- category/title 등이 실제 DB source에 있을 때만 표시
+
+없는 title/category를 가짜로 만들지 말 것.
+
+클릭 시:
+→ Support 탭 이동.
+
+support case가 없으면:
+→ “최근 지원 요청 없음” 정도로 표시.
+
+────────────────────
+E. HEALTH STATUS VISUAL LOGIC
+────────────────────
+
+기존 deterministic health rule을 변경하지 말 것.
+
+현재 확인된 기준 예:
+- error > 10 → FREQUENT_ERRORS
+- growth report failed > 3 → GR_FAILURES
+- upload_blocked → STORAGE_QUOTA
+- paid + force_disabled → CONFLICT
+
+실제 코드의 현재 규칙이 source of truth다.
+
+이번 WP에서:
+- threshold 변경 금지
+- health algorithm 재설계 금지
+- 새로운 임의 점수 계산 금지
+
+UI가 기존 서버 판단을 정확히 표시하도록만 한다.
+
+────────────────────
+F. SERVER
+────────────────────
+
+가능하면 기존:
+GET /super/pools/:id/control-center/summary
+
+하나만 확장해서 해결.
+
+추가 query가 필요한 경우:
+- 반드시 pool scope
+- parameterized SQL
+- LIMIT 적용
+- N+1 금지
+- 기존 Promise.all 병렬 aggregate 구조를 훼손하지 말 것
+
+새 endpoint는 정말 필요할 때만 생성.
+
+모든 Control Center route:
+requireRole('super_admin')
+유지.
+
+────────────────────
+G. LEGACY SuperPoolDetail.tsx
+────────────────────
+
+기술검수에서:
+SuperPoolDetail.tsx 약 1,072 lines
+현재 미사용/import 없음 가능성이 보고됨.
+
+삭제 전 반드시:
+- 전체 import 검색
+- route 검색
+- lazy import 검색
+- dynamic import 검색
+- 테스트/스크립트 참조 검색
+
+완전히 dead code가 확실할 때만 삭제 가능.
+
+조금이라도 사용 중이면 삭제 금지.
+
+삭제 여부와 근거를 최종 보고서에 명시.
+
+────────────────────
+H. SECURITY
+────────────────────
+
+반드시 재검증:
+
+1. super_admin → 정상 접근
+2. pool admin → 403
+3. teacher → 403
+4. parent → 403
+5. unauthenticated → 401
+
+Cross-pool:
+Pool A Control Center에서 Pool B 데이터가
+Overview/recentSupport/healthIssues 어디에도 섞이지 않는지
+DEV real DB fixture로 검증.
+
+Client가 전달하는 임의 pool identity를 신뢰하지 말 것.
+기존 super_admin route의 pool target 방식은 유지하되
+모든 SQL scope를 검증.
+
+────────────────────
+I. PERFORMANCE
+────────────────────
+
+확인:
+
+- Overview load에서 N+1 = 0
+- pool 전체 loop = 0
+- unbounded SELECT = 0
+- Support 최근 1건 조회 시 LIMIT 1
+- 기존 summary Promise.all 병렬 구조 유지 여부
+- Detail tabs는 기존 lazy load 유지
+- Overview를 열었다고 14개 detail endpoint를 전부 fetch하지 않을 것
+
+────────────────────
+J. UI
+────────────────────
+
+목표:
+“전국 수영장 하나를 선택하면 운영 상태를 10초 안에 판단”
+
+따라서 Overview는:
+
+1. Health
+2. Access/X 상태
+3. 핵심 인원
+4. AI/Growth
+5. Storage
+6. 최근 Warning
+7. 최근 Support
+
+순으로 한눈에 보이게 정리.
+
+과도한 장식 금지.
+모바일 앱 UI 수정 금지.
+Super Admin Web만 수정.
+
+Health issue와 Recent Support는
+클릭 가능한 경우 클릭 가능하다는 것이 명확해야 한다.
+
+────────────────────
+K. TEST
+────────────────────
+
+기존 테스트를 반드시 재사용:
+
+- scripts/cc-preflight.ts
+- scripts/validate-manual-x-grant.ts
+
+WP1 테스트를 추가하여 최소 다음 검증:
+
+[Overview]
+- summary endpoint 200
+- real DB values only
+- fake/mock = 0
+- health status deterministic
+- issue list deterministic
+
+[Drill-down]
+- FREQUENT_ERRORS → Errors
+- GR_FAILURES → Growth
+- STORAGE_QUOTA → Storage
+- entitlement conflict → Access
+- Support item → Support
+- unmapped issue → 잘못된 이동 없음
+
+[Auth]
+- super_admin PASS
+- pool admin 403
+- teacher 403
+- parent 403
+- unauthenticated 401
+
+[Cross-pool]
+- Pool A summary contains Pool B data = 0
+- Pool A recent support contains Pool B data = 0
+- Pool A health computation contamination = 0
+
+[Performance]
+- N+1 = 0
+- unbounded query = 0
+- lazy detail loading 유지
+
+[Regression]
+- BASE manual grant/revoke
+- X manual grant/revoke
+- paid entitlement
+- force_disabled 기존 effective logic
+- plan catalog
+- curriculum signed URL
+- 기존 14 Control Center endpoints
+
+P0 skipped = 0 필수.
+
+────────────────────
+L. TYPESCRIPT / BUILD
+────────────────────
+
+반드시:
+- api-server TypeScript 0 error
+- swimnote-web TypeScript 0 error
+- Super Admin Web build PASS
+
+iOS/shared APP 파일 변경 여부 확인.
+
+APP 파일 변경 0이면:
+OTA NOT REQUIRED.
+
+만약 실수로 APP 파일이 수정되었다면:
+즉시 원복하고 이번 WP에서는 OTA를 만들지 말 것.
+
+────────────────────
+M. COMMIT / PUSH
+────────────────────
+
+완료 후:
+- release/v2.0.0에만 commit
+- origin/release/v2.0.0 push
+- main merge 금지
+- Render deploy 금지
+- Production DB 변경 금지
+
+Commit message 예:
+feat(super): complete control center overview health drilldown
+
+────────────────────
+N. 최종 보고 형식
+────────────────────
+
+# WP1 CONTROL CENTER OVERVIEW / HEALTH REPORT
+
+## GIT
+- Branch
+- HEAD Before
+- HEAD After
+- Commit SHA
+- Push
+- Main merge: NO
+- Render deploy: NO
+
+## FILES CHANGED
+- Server
+- Super Admin Web
+- APP
+- Migration
+
+## OVERVIEW
+- displayed fields
+- data source
+- fake/mock count
+
+## HEALTH
+- existing rule list
+- issue codes found
+- issue → target tab mapping
+- unmapped behavior
+
+## RECENT WARNING
+- implementation
+- source
+
+## RECENT SUPPORT
+- implementation
+- source
+- LIMIT/query method
+
+## DRILL-DOWN
+- issue별 target tab
+- actual UI test result
+
+## SECURITY
+- role matrix
+- cross-pool result
+
+## PERFORMANCE
+- query count structure
+- N+1
+- unbounded query
+- lazy load
+
+## LEGACY FILE
+- SuperPoolDetail.tsx used/not used
+- deleted or retained
+- evidence
+
+## TESTS
+- cc-preflight 결과
+- validate-manual-x-grant 결과
+- WP1 tests
+- P0 skipped
+
+## TYPESCRIPT / BUILD
+- api-server
+- swimnote-web
+- build
+
+## APP / OTA
+- APP modified YES/NO
+- OTA required YES/NO
+
+## DB
+- Development migration
+- Production migration: NO
+
+## FINAL
+- WP1 complete YES/NO
+- Overview production-ready YES/NO
+- Remaining blocker
+- Recommended next WP
+
+중요:
+이번 WP 완료 후 다음 WP를 임의로 시작하지 말 것.
+완료 보고만 하고 대기.

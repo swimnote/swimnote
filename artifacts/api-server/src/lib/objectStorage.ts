@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { logOperationalError } from "./event-logger.js";
 import {
   saveExternalUsage,
   EXTERNAL_USAGE_CATEGORY,
@@ -106,6 +107,20 @@ export async function uploadToR2(
     putErr    = e;
     errorType = e.message?.slice(0, 120);
     console.error(`[R2 upload] 실패 key=${key} bucket=${type}:`, e.message);
+    // WP6: MUST DB-observable for R2 PUT failures when pool context available
+    if (_usage?.poolId) {
+      void logOperationalError({
+        pool_id: _usage.poolId,
+        feature: "STORAGE",
+        level: "ERROR",
+        error_code: "R2_PUT_FAILED",
+        safe_message: `R2 PUT 실패 bucket=${type}: ${(e?.message ?? "").slice(0, 200)}`,
+        entity_type: "file",
+        entity_id: _usage?.requestId,
+        actor_id: _usage?.actorId ?? undefined,
+        metadata: { bucket: type, error_type: errorType },
+      });
+    }
     return { ok: false, error: e.message };
   } finally {
     // actual_call_count: 1 on success; on failure only if HTTP response confirmed

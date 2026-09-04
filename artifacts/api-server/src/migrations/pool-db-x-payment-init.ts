@@ -35,10 +35,10 @@
  * ⚠️  Production 실행 전 반드시 별도 승인 필요.
  * ⚠️  AI ENGINE Neon DB에 적용 금지. APP Production DB 전용.
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-type Db = typeof superAdminDb;
+type Db = MigrationDb;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Group P1: x_slot_seq SEQUENCE + x_subscription_slots TABLE + INDEXES
@@ -282,9 +282,7 @@ async function runGroupP3_LegacyBackfill(db: Db): Promise<void> {
 // Export: initXPaymentSchema
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function initXPaymentSchema(): Promise<void> {
-  const db = superAdminDb;
-
+export async function initXPaymentSchema(db: MigrationDb): Promise<void> {
   console.log("[SWIMNOTE X PAYMENT] X02-B1 Migration 시작...");
 
   // Group P1: SEQUENCE + x_subscription_slots
@@ -311,6 +309,18 @@ export async function initXPaymentSchema(): Promise<void> {
     console.log("[SWIMNOTE X PAYMENT] Group P3 완료: legacy backfill");
   } catch (err) {
     console.error("[SWIMNOTE X PAYMENT] Group P3 실패 — 이후 Migration 중단:", err);
+    throw err;
+  }
+
+  // ── Group P4: x_plan_key (Super Admin manual plan 기록용) ────────────────
+  try {
+    await db.execute(sql`
+      ALTER TABLE swimming_pools
+        ADD COLUMN IF NOT EXISTS x_plan_key TEXT;
+    `);
+    console.log("[SWIMNOTE X PAYMENT] Group P4 완료: swimming_pools.x_plan_key OK");
+  } catch (err) {
+    console.error("[SWIMNOTE X PAYMENT] Group P4 실패:", err);
     throw err;
   }
 

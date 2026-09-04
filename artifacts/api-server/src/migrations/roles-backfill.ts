@@ -6,12 +6,12 @@
  * - 기존 계정: 이 마이그레이션으로 1회 보완
  * - 멱등(idempotent): 이미 "teacher"가 있으면 변경하지 않음
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function backfillPoolAdminRoles(): Promise<void> {
+export async function backfillPoolAdminRoles(db: MigrationDb): Promise<void> {
   try {
-    const result = await superAdminDb.execute(sql`
+    const result = await db.execute(sql`
       UPDATE users
       SET roles = CASE
         WHEN roles IS NULL OR array_length(roles, 1) = 0 OR roles = '{}'::TEXT[]

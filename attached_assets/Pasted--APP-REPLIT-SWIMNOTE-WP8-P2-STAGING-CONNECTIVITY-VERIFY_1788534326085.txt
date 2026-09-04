@@ -1,0 +1,1323 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE WP8-P2
+# STAGING CONNECTIVITY VERIFY + RUNTIME DDL HYGIENE + MIGRATION REHEARSAL
+# BASELINE: ea59e9da
+# STAGING TEST_DATABASE_URL CONFIGURED
+# DO NOT START WP9
+# DO NOT DEPLOY RENDER
+# DO NOT MUTATE PRODUCTION
+# DO NOT DELETE PRODUCTION TEST DATA
+
+============================================================
+0. 목적
+============================================================
+
+현재 완료 상태:
+
+- 별도 Supabase project 생성 완료
+  name: swimnote-staging
+  region: ap-northeast-2 / Seoul
+
+- Replit Secret:
+  TEST_DATABASE_URL
+  설정 완료
+
+- Production MAIN:
+  SUPABASE_DATABASE_URL
+  기존 값 유지
+
+- Production Backup:
+  POOL_DATABASE_URL
+  기존 값 유지
+
+이번 WP8-P2 목표:
+
+1.
+TEST_DATABASE_URL이 실제 Staging DB인지 검증
+
+2.
+Production / Staging fingerprint 완전 분리 확인
+
+3.
+남아 있는 boot-time / request-time DDL 전부 제거
+
+4.
+DDL을 explicit migration으로 전환
+
+5.
+Staging empty DB에서 migration rehearsal 수행
+
+6.
+Staging에 synthetic fixture만 생성
+
+7.
+WP8 regression을 Staging에서 실제 실행
+
+8.
+향후 WP9 real fixture gate가 가능한 상태로 만들기
+
+============================================================
+1. 절대 금지
+============================================================
+
+Production DB:
+
+INSERT:
+NO
+
+UPDATE:
+NO
+
+DELETE:
+NO
+
+DDL:
+NO
+
+migration:
+NO
+
+fixture:
+NO
+
+cleanup:
+NO
+
+Render:
+NO
+
+main:
+NO
+
+RevenueCat live:
+NO
+
+Production R2 mutation:
+NO
+
+WP9:
+NO
+
+============================================================
+2. GIT PRECHECK
+============================================================
+
+확인:
+
+git status --porcelain
+git branch --show-current
+git rev-parse HEAD
+git log --oneline -15
+
+Expected branch:
+release/v2.0.0
+
+ea59e9da ancestor:
+YES
+
+product diff after ea59e9da:
+정확히 보고.
+
+memory / attached_assets:
+product diff와 분리.
+
+============================================================
+3. DATABASE IDENTITY — 최우선
+============================================================
+
+secret 값을 출력하지 말고
+다음 DB identity를 각각 확인.
+
+A.
+SUPABASE_DATABASE_URL
+→ Production MAIN
+
+B.
+TEST_DATABASE_URL
+→ Staging MAIN
+
+각각 READ ONLY:
+
+SELECT current_database()
+SELECT version()
+SELECT current_user
+host/project fingerprint
+
+가능하면
+Supabase project ref 또는 connection identity도 추출.
+
+보고:
+
+Production fingerprint:
+...
+
+Staging fingerprint:
+...
+
+Production == Staging:
+NO 필수
+
+같으면:
+즉시 STOP.
+
+============================================================
+4. STAGING SAFETY ASSERTION
+============================================================
+
+src/lib/db-safety.ts를
+최종 구조로 정리.
+
+목표:
+
+Production fingerprint:
+ALWAYS DENY mutation test
+
+Known Staging fingerprint:
+ALLOW only when
+ALLOW_TEST_DB_MUTATIONS=true
+
+Unknown DB:
+DENY
+
+TEST_DATABASE_URL missing:
+DENY
+
+Production fallback:
+0
+
+============================================================
+5. TEST DATABASE CONTRACT
+============================================================
+
+모든 mutation integration/preflight는
+반드시 TEST_DATABASE_URL 사용.
+
+금지:
+
+TEST_DATABASE_URL
+??
+SUPABASE_DATABASE_URL
+
+형태 fallback.
+
+즉:
+
+TEST_DATABASE_URL 없으면
+
+REFUSING TO MUTATE: TEST_DATABASE_URL NOT CONFIGURED
+
+로 종료.
+
+============================================================
+6. TEST CLIENT 분리
+============================================================
+
+필요하면 공통 test DB client helper 생성.
+
+예:
+
+getTestDb()
+
+특징:
+
+- TEST_DATABASE_URL만 읽음
+- Production fallback 없음
+- assertSafeMutationDatabase 통과 필수
+- 일반 runtime db import와 분리
+
+테스트 script마다
+connection 생성 로직 중복 금지.
+
+============================================================
+7. RUNTIME DDL INVENTORY
+============================================================
+
+repository 전체 재조사.
+
+분류:
+
+BOOT-TIME DDL
+REQUEST-TIME DDL
+EXPLICIT MIGRATION
+DEV/TEST ONLY
+MAINTENANCE
+UNKNOWN
+
+최소 조사:
+
+support-case-service.ts
+auto-link-v2.ts
+members.ts
+billing.ts
+inquiries.ts
+parent-requests.ts
+push-service.ts
+backup-target.ts
+
+그리고 grep으로 추가 발견.
+
+============================================================
+8. 목표
+============================================================
+
+Production API runtime에서:
+
+server boot:
+DDL 0
+
+module import:
+DDL 0
+
+first request:
+DDL 0
+
+normal request:
+DDL 0
+
+CREATE:
+0
+
+ALTER:
+0
+
+DROP:
+0
+
+CREATE INDEX:
+0
+
+Schema 변경은
+explicit migration script에서만.
+
+============================================================
+9. SUPPORT CASE LEGACY
+============================================================
+
+support-case-service.ts
+ensureCs01rSchema()
+
+runtime 호출 제거.
+
+필요 DDL:
+explicit migration으로 이동.
+
+WP8 support migration과
+중복 schema 있으면 정리.
+
+Business behavior:
+변경 금지.
+
+============================================================
+10. AUTO-LINK-V2
+============================================================
+
+parent_v2_pending 등
+module-level DDL 제거.
+
+explicit migration으로 이동.
+
+runtime은 schema 존재 전제.
+
+schema missing:
+명확한 deployment prerequisite error.
+
+auto create:
+NO.
+
+============================================================
+11. MEMBERS
+============================================================
+
+members.ts module-level ALTER 제거.
+
+필요 column/index:
+migration으로 이동.
+
+route import:
+DDL 0.
+
+============================================================
+12. BILLING
+============================================================
+
+revenue_logs CREATE/ALTER 제거.
+
+RevenueCat behavior:
+변경 금지.
+
+explicit migration 준비.
+
+실제 live billing call:
+NO.
+
+============================================================
+13. INQUIRIES
+============================================================
+
+request-time CREATE TABLE 제거.
+
+inquiries
+inquiry_replies
+
+explicit migration으로 이동.
+
+request가 schema를 만들지 않게.
+
+============================================================
+14. PARENT REQUESTS
+============================================================
+
+parent_request_messages 등
+request-time DDL 제거.
+
+migration으로 이동.
+
+============================================================
+15. PUSH SERVICE
+============================================================
+
+push_settings 등 schema ensure 제거.
+
+push send behavior 변경 금지.
+
+explicit migration으로 전환.
+
+실제 push 발송:
+NO.
+
+============================================================
+16. BACKUP TARGET
+============================================================
+
+backup-target.ts가
+maintenance-only라면
+runtime blocker 제외 가능.
+
+단 실제 API startup/import path에서
+자동 실행되는지 확인.
+
+maintenance-only이면
+분류만 하고 수정하지 않아도 됨.
+
+============================================================
+17. MIGRATION FILES
+============================================================
+
+현재 project migration convention을 사용.
+
+각 기능별 explicit migration:
+
+예:
+
+cs01r-runtime-schema.ts
+auto-link-v2-schema.ts
+members-schema.ts
+billing-revenue-schema.ts
+inquiries-schema.ts
+parent-request-messages-schema.ts
+push-schema.ts
+
+실제 naming convention에 맞게.
+
+모든 migration:
+
+idempotent
+additive
+safe rerun
+
+DROP:
+NO.
+
+============================================================
+18. MIGRATION MANIFEST / ORDER
+============================================================
+
+현재 migrations 30+개에
+명확한 실행 순서가 없음.
+
+이번 WP에서 최소한
+Staging bootstrap용 migration order를 정의.
+
+예:
+
+src/migrations/staging-manifest.ts
+또는
+STAGING_MIGRATION_ORDER.md
+
+중 하나.
+
+목표:
+
+empty staging DB
+→ 재현 가능한 schema
+
+거대한 framework는 만들지 말 것.
+
+============================================================
+19. STAGING BOOTSTRAP
+============================================================
+
+runtime DDL 정리 완료 후에만
+Staging DB migration 실행.
+
+대상:
+TEST_DATABASE_URL ONLY
+
+Production:
+NO.
+
+순서:
+
+1.
+base schema
+2.
+feature migrations
+3.
+WP8 schema
+4.
+indexes
+5.
+verification
+
+============================================================
+20. MIGRATION BEFORE/AFTER
+============================================================
+
+Staging 초기 상태를
+READ ONLY metadata로 확인.
+
+migration 실행 후:
+
+expected tables
+columns
+indexes
+
+검증.
+
+Production metadata와 비교 가능하나
+Production에는 write 금지.
+
+============================================================
+21. PRODUCTION SATISFIED CHECK
+============================================================
+
+각 migration이 Production schema에서
+이미 만족되는지
+information_schema / pg_catalog으로 READ ONLY 확인.
+
+판정:
+
+SATISFIED
+PARTIAL
+MISSING
+
+이번 WP에서 Production 적용:
+NO.
+
+============================================================
+22. SYNTHETIC FIXTURE
+============================================================
+
+Staging migration 완료 후
+synthetic fixture 생성 허용.
+
+Production 데이터 복사:
+NO.
+
+예:
+
+POOL_A
+POOL_B
+
+SUPER_ADMIN_TEST
+POOL_ADMIN_A
+POOL_ADMIN_B
+TEACHER_A
+TEACHER_B
+PARENT_A
+PARENT_B
+STUDENT_A
+STUDENT_B
+CLASS_A
+CLASS_B
+
+실제 고객 이름/전화번호:
+NO.
+
+============================================================
+23. FIXTURE MARKER
+============================================================
+
+모든 synthetic data는
+명확한 prefix 사용.
+
+예:
+
+stg_
+test_
+wp9_
+
+cleanup 가능하게.
+
+실제 production-style ID와
+혼동되지 않도록.
+
+============================================================
+24. WP8 REGRESSION — STAGING
+============================================================
+
+wp8-preflight.ts를
+TEST_DATABASE_URL 기반으로 실제 실행.
+
+필수:
+
+assertSafeMutationDatabase:
+PASS
+
+Production fingerprint:
+DENY
+
+Staging fingerprint:
+ALLOW
+
+Result:
+
+76 PASS 기준 유지 또는 개선.
+
+기존 diary_entries missing skip가
+Staging migration으로 해결되면
+skip 0 목표.
+
+============================================================
+25. CC PREFLIGHT — STAGING
+============================================================
+
+cc-preflight도
+TEST_DATABASE_URL 기반 실제 실행.
+
+Production:
+절대 사용 금지.
+
+Cross-pool fixture:
+Staging에서만.
+
+============================================================
+26. OTHER MUTATING SCRIPTS
+============================================================
+
+다음 포함하여
+mutation script 전부 guard 적용:
+
+wp8-preflight
+cc-preflight
+prod-wp8-preflight
+wp4p1-real-download-test
+integration-test
+delete-test-accounts
+manual entitlement tests
+growth tests
+기타 fixture scripts
+
+각각 분류:
+
+DB MUTATION
+R2 MUTATION
+EXTERNAL SIDE EFFECT
+
+============================================================
+27. PROD-NAMED TEST SCRIPT
+============================================================
+
+scripts/prod-wp8-preflight.ts처럼
+이름에 prod가 들어간 mutation script는 위험.
+
+실제 Production mutation 가능성이 있다면:
+
+- remove mutation behavior
+- convert read-only
+또는
+- hard block Production
+
+중 안전한 방식 적용.
+
+Production fixture:
+0.
+
+============================================================
+28. R2
+============================================================
+
+현재 별도 Staging R2 bucket 없음.
+
+이번 WP에서는
+Production bucket mutation 금지.
+
+R2 mutation test는:
+
+별도 staging bucket 없으면
+BLOCKED.
+
+기존 cc-test/ prefix 방식으로
+새 object 생성/삭제:
+이번 WP에서는 하지 말 것.
+
+R2 safety helper는
+준비 가능.
+
+============================================================
+29. DEV SERVER 전환
+============================================================
+
+중요:
+
+이번 WP8-P2 완료 전까지
+SUPABASE_DATABASE_URL은 Production 유지.
+
+모든 runtime DDL 제거
++
+Staging schema ready
++
+WP8 regression PASS
+
+후에만
+Replit DEV server의
+SUPABASE_DATABASE_URL을 Staging으로 전환할지 판단.
+
+이번 WP에서
+임의 변경하지 말고
+최종 보고에서 READY 여부 제출.
+
+============================================================
+30. STAGING APP AUTH 영향
+============================================================
+
+SWIMNOTE 자체 JWT를 쓰므로
+DB 전환 시 테스트 계정만 synthetic.
+
+Production users/auth data 복사:
+NO.
+
+============================================================
+31. REVENUECAT
+============================================================
+
+Staging DB에서
+RevenueCat live webhook을 테스트하지 말 것.
+
+현재 Render Production webhook:
+그대로.
+
+Replit dev:
+RevenueCat side effect 차단 여부 확인.
+
+live purchase:
+NO.
+
+============================================================
+32. PUSH
+============================================================
+
+Staging fixture가
+실제 NAVER SENS push를 보내지 못하게.
+
+notification DB row test:
+가능
+
+actual provider send:
+NO.
+
+============================================================
+33. AI
+============================================================
+
+OpenAI real API 호출은
+WP8-P2 migration hygiene에 불필요.
+
+가능하면 mock/stub.
+
+실제 비용 발생 call:
+NO.
+
+============================================================
+34. BOOT DDL TEST
+============================================================
+
+runtime schema mutation 제거를
+자동 검증.
+
+예:
+
+API server boot/import path에서
+DDL query spy
+또는
+runtime source AST/static test
+
+결과:
+
+BOOT DDL:
+0
+
+migration files 내 DDL은
+정상 허용.
+
+============================================================
+35. REQUEST DDL TEST
+============================================================
+
+대상 route/service 실행 시:
+
+CREATE:
+0
+ALTER:
+0
+DROP:
+0
+
+확인.
+
+============================================================
+36. NO AUTO HEAL
+============================================================
+
+schema missing 환경에서:
+
+server auto CREATE:
+NO
+
+expected:
+clear migration prerequisite error
+
+PASS.
+
+============================================================
+37. TYPESCRIPT
+============================================================
+
+APP:
+
+pnpm run typecheck
+→ 0 errors
+
+API:
+official typecheck
+→ 0 new errors
+가능하면 total 0
+
+Web:
+기존 2 pre-existing errors 확인.
+
+AdminSidebar/motion의
+단순 typing/import 문제라면 수정해서
+0 목표.
+
+ts-ignore:
+0
+
+broad any workaround:
+0
+
+============================================================
+38. WP8-P1 CLEANUP DATA
+============================================================
+
+Production confirmed test data:
+
+support_cases:
+15
+
+support_case_notes:
+70
+
+이번 WP에서도:
+
+DELETE:
+NO.
+
+기존 exact-ID cleanup plan 유지.
+
+관련 audit_logs만
+READ ONLY inventory 가능.
+
+============================================================
+39. PROD DATA CLEANUP
+============================================================
+
+cleanup script:
+prepare/update only
+
+execute:
+NO
+
+사용자 승인 전:
+절대 삭제 금지.
+
+============================================================
+40. STAGING CLEANUP
+============================================================
+
+Staging fixture는
+테스트 종료 후 유지 가능.
+
+WP9에서 재사용할 수 있게
+seed manifest 남기는 것 권장.
+
+============================================================
+41. PERFORMANCE
+============================================================
+
+migration rehearsal에서:
+
+table/index 생성 시간
+major failure
+lock issue
+
+정도 기록.
+
+Production 성능 테스트:
+NO.
+
+============================================================
+42. RENDER
+============================================================
+
+branch:
+main
+
+autoDeploy:
+NO
+
+변경:
+NO
+
+deploy:
+NO
+
+============================================================
+43. APP / OTA
+============================================================
+
+이번 WP는
+Server/Test/Migration/Web 중심.
+
+APP/shared diff:
+NO 예상.
+
+실제 APP/shared 변경 없음:
+OTA NOT REQUIRED
+
+있으면:
+typecheck 0
+export
+iOS OTA
+runtime 2.1.0
+production-v2
+Android NO
+
+============================================================
+44. COMMIT
+============================================================
+
+코드 변경 후 commit.
+
+추천:
+
+fix(db): isolate staging tests and remove runtime schema DDL
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+45. WP8-P2 EXIT GATE
+============================================================
+
+다음 모두 필요:
+
+Production != Staging:
+PASS
+
+TEST_DATABASE_URL:
+PASS
+
+Production fallback:
+0
+
+Runtime boot DDL:
+0
+
+Runtime request DDL:
+0
+
+Explicit migrations:
+READY
+
+Staging migration rehearsal:
+PASS
+
+Synthetic fixture:
+PASS
+
+WP8 regression:
+PASS
+
+Production mutation:
+0
+
+APP typecheck:
+0
+
+============================================================
+46. WP9 READINESS
+============================================================
+
+최종 구분:
+
+WP9 CODE REVIEW READY:
+YES / NO
+
+WP9 REAL FIXTURE READY:
+YES / NO
+
+Staging DB 준비와
+synthetic fixture까지 정상 완료되면
+둘 다 YES 가능.
+
+R2 별도 staging bucket이 없어도
+WP9 DB/security gate는 가능.
+
+단 R2 mutation-specific test는
+BLOCKED 또는 후속 별도 bucket 필요.
+
+============================================================
+47. 완료보고 형식
+============================================================
+
+# WP8-P2 STAGING / RUNTIME DDL REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+============================================================
+DATABASE IDENTITY
+============================================================
+
+Production fingerprint:
+...
+
+Staging fingerprint:
+...
+
+Production == Staging:
+YES / NO
+
+TEST_DATABASE_URL:
+CONNECTED / FAIL
+
+============================================================
+DB SAFETY
+============================================================
+
+Production mutation guard:
+PASS / FAIL
+
+Staging allow guard:
+PASS / FAIL
+
+Unknown DB:
+BLOCKED / FAIL
+
+TEST_DATABASE_URL missing:
+BLOCKED / FAIL
+
+Production fallback:
+0 / ...
+
+============================================================
+RUNTIME DDL
+============================================================
+
+BOOT-TIME before:
+...
+
+BOOT-TIME after:
+...
+
+REQUEST-TIME before:
+...
+
+REQUEST-TIME after:
+...
+
+API boot DDL remaining:
+0 / ...
+
+API request DDL remaining:
+0 / ...
+
+============================================================
+MIGRATIONS
+============================================================
+
+New migrations:
+...
+
+Migration order:
+...
+
+Idempotent:
+PASS / FAIL
+
+Production executed:
+NO
+
+============================================================
+STAGING MIGRATION REHEARSAL
+============================================================
+
+Initial schema:
+...
+
+Migrations executed:
+...
+
+Tables:
+...
+
+Columns:
+...
+
+Indexes:
+...
+
+Errors:
+...
+
+Result:
+PASS / FAIL
+
+============================================================
+PRODUCTION SCHEMA READ ONLY
+============================================================
+
+Satisfied:
+...
+
+Partial:
+...
+
+Missing:
+...
+
+Production DDL:
+0
+
+============================================================
+SYNTHETIC FIXTURE
+============================================================
+
+Pool A:
+...
+
+Pool B:
+...
+
+Users:
+...
+
+Students:
+...
+
+Classes:
+...
+
+Real production data copied:
+NO
+
+============================================================
+TESTS
+============================================================
+
+WP8:
+...
+
+CC preflight:
+...
+
+Boot DDL test:
+PASS / FAIL
+
+Request DDL test:
+PASS / FAIL
+
+Production guard:
+PASS / FAIL
+
+Staging mutation:
+PASS / FAIL
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+============================================================
+R2
+============================================================
+
+Separate staging bucket:
+YES / NO
+
+Production bucket mutation:
+0
+
+R2 mutation test:
+PASS / BLOCKED
+
+============================================================
+TYPECHECK
+============================================================
+
+APP:
+...
+
+API:
+...
+
+Web:
+...
+
+ts-ignore added:
+0
+
+any workaround:
+0
+
+============================================================
+DEV SERVER
+============================================================
+
+Current SUPABASE_DATABASE_URL:
+PRODUCTION
+
+Safe to switch Replit DEV to Staging:
+YES / NO
+
+Reason:
+...
+
+============================================================
+PRODUCTION TEST DATA
+============================================================
+
+Confirmed cases:
+15
+
+Confirmed notes:
+70
+
+Confirmed audit rows:
+...
+
+Cleanup executed:
+NO
+
+============================================================
+APP / OTA
+============================================================
+
+APP/shared modified:
+YES / NO
+
+OTA:
+NOT REQUIRED / PUBLISHED
+
+If published:
+Group:
+...
+iOS Update:
+...
+SHA:
+...
+Android:
+NO
+
+============================================================
+PRODUCTION
+============================================================
+
+Render deploy:
+NO
+
+Production INSERT:
+0
+
+Production UPDATE:
+0
+
+Production DELETE:
+0
+
+Production DDL:
+0
+
+============================================================
+FINAL
+============================================================
+
+Staging isolation:
+PASS / FAIL
+
+Runtime schema mutation eliminated:
+YES / NO
+
+Migration hygiene:
+PASS / FAIL
+
+Staging migration rehearsal:
+PASS / FAIL
+
+WP8 fully closed:
+YES / NO
+
+WP9 code-review ready:
+YES / NO
+
+WP9 real-fixture ready:
+YES / NO
+
+Safe to switch Replit DEV to Staging:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT DELETE PRODUCTION DATA.
+DO NOT DEPLOY.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.

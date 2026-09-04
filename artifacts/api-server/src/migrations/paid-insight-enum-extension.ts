@@ -17,8 +17,8 @@
  * Destructive: NO
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 /**
  * initPaidInsightEnumExtension
@@ -30,8 +30,7 @@ import { sql } from "drizzle-orm";
  *       versions. This migration runs outside of a transaction context.
  *       On PostgreSQL ≥ 12, IF NOT EXISTS is supported.
  */
-export async function initPaidInsightEnumExtension(): Promise<void> {
-  const db = superAdminDb;
+export async function initPaidInsightEnumExtension(db: MigrationDb): Promise<void> {
 
   // Add SCALE if not already present
   await db.execute(sql.raw(`

@@ -1,0 +1,1030 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE STAGING AUTH FINAL VERIFY
+# CORRECT SHARED TRANSACTION POOLER URL CONFIRMED BY USER
+# BASELINE: d780f854
+# GOAL: CONNECTION PASS 후 STAGING BOOTSTRAP / WP8 FINAL까지 실행
+# DO NOT START WP9
+# DO NOT MUTATE PRODUCTION
+# DO NOT DEPLOY RENDER
+# DO NOT DELETE PRODUCTION TEST DATA
+
+============================================================
+0. 현재 확정 상태
+============================================================
+
+Production project ref:
+mrgkiussgbbmxfnkjgqy
+
+Staging project ref:
+lspmacdbyvpzysnrjsww
+
+User가 Replit Secret TEST_DATABASE_URL을
+Supabase Connect 화면의
+
+Transaction pooler
++
+Use IPv4 connection = ON
++
+URI
+
+에서 복사한 Shared Transaction Pooler 주소로 교체 완료.
+
+Expected structure:
+
+postgresql://postgres.lspmacdbyvpzysnrjsww:<PASSWORD>@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres
+
+실제 password 전체 출력 금지.
+
+KNOWN_STAGING_PROJECT_REFS:
+lspmacdbyvpzysnrjsww ONLY
+
+Runtime boot/request DDL:
+0 상태 유지.
+
+============================================================
+1. 절대 금지
+============================================================
+
+Production DB:
+
+INSERT:
+0
+
+UPDATE:
+0
+
+DELETE:
+0
+
+DDL:
+0
+
+Migration:
+0
+
+Fixture:
+0
+
+Cleanup:
+0
+
+Production R2 mutation:
+0
+
+Render:
+NO
+
+Main:
+NO
+
+RevenueCat live:
+NO
+
+Actual push send:
+NO
+
+WP9:
+NO
+
+============================================================
+2. GIT PRECHECK
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected baseline:
+d780f854
+
+실행:
+
+git status --porcelain
+git branch --show-current
+git rev-parse HEAD
+git log --oneline -10
+
+d780f854 ancestor:
+YES
+
+product code diff가 있으면 정확히 보고.
+
+memory / attached_assets:
+product diff와 분리.
+
+============================================================
+3. TEST_DATABASE_URL STRUCTURE VERIFY
+============================================================
+
+Secret 전체/password 출력 금지.
+
+Parse:
+
+scheme
+username shape
+host
+port
+database
+project ref
+
+Expected:
+
+username:
+postgres.lspmacdbyvpzysnrjsww
+
+host:
+aws-0-ap-northeast-2.pooler.supabase.com
+
+port:
+6543
+
+database:
+postgres
+
+project ref:
+lspmacdbyvpzysnrjsww
+
+하나라도 다르면:
+즉시 STOP.
+
+============================================================
+4. CONNECTION FIRST GATE
+============================================================
+
+순서:
+
+DNS IPv4
+→ TCP 6543
+→ Postgres handshake
+
+Expected:
+
+DNS:
+PASS
+
+TCP:
+PASS
+
+Postgres:
+PASS
+
+28P01이면:
+STOP하고 auth username/password parse만 보고.
+
+tenant not found이면:
+STOP하고 ref/region mismatch 보고.
+
+============================================================
+5. READ-ONLY IDENTITY
+============================================================
+
+Handshake PASS 후 READ ONLY:
+
+SELECT current_database();
+SELECT current_user;
+SELECT version();
+SELECT current_schema();
+SELECT inet_server_addr();
+SELECT inet_server_port();
+
+보고:
+
+Database
+User shape
+PG version
+Server address
+Server port
+
+Production과 비교:
+
+Production ref:
+mrgkiussgbbmxfnkjgqy
+
+Staging ref:
+lspmacdbyvpzysnrjsww
+
+Production == Staging:
+NO 필수
+
+불명확하면:
+STOP.
+
+============================================================
+6. DB SAFETY FINAL GATE
+============================================================
+
+다음 재확인:
+
+Production ref + flag=true
+→ BLOCK
+
+Unknown ref + flag=true
+→ BLOCK
+
+Staging + flag missing
+→ BLOCK
+
+Staging + flag=true
+→ ALLOW
+
+Malformed URL
+→ BLOCK
+
+TEST_DATABASE_URL missing
+→ BLOCK
+
+Production fallback:
+0
+
+모두 PASS한 경우에만
+Staging mutation 시작.
+
+============================================================
+7. STAGING INITIAL INVENTORY
+============================================================
+
+Migration 전 READ ONLY metadata 확인.
+
+보고:
+
+initial table count
+existing app tables
+existing indexes
+
+신규 Staging인데
+실제 SWIMNOTE 운영 데이터가 보이면:
+즉시 STOP.
+
+Production data copied:
+반드시 NO.
+
+============================================================
+8. MIGRATION REHEARSAL
+============================================================
+
+Connection + identity + safety 모두 PASS 후 실행.
+
+Target:
+TEST_DATABASE_URL ONLY
+
+Environment:
+
+ALLOW_TEST_DB_MUTATIONS=true
+
+Runner:
+src/migrations/staging-manifest.ts
+
+Production URL 사용:
+0
+
+각 migration마다:
+
+order
+name
+start
+success/fail
+duration
+
+기록.
+
+첫 실패 시:
+STOP.
+
+============================================================
+9. IDEMPOTENCY SECOND RUN
+============================================================
+
+1차 manifest 전체 PASS 후
+동일 manifest 2차 실행.
+
+목표:
+
+duplicate relation:
+0
+
+duplicate column:
+0
+
+unexpected failure:
+0
+
+destructive action:
+0
+
+Second run:
+PASS
+
+============================================================
+10. FINAL SCHEMA VERIFY
+============================================================
+
+Staging에서 실제 존재 확인.
+
+최소:
+
+swimming_pools
+users
+students
+members
+class_groups
+notifications
+push_logs
+support_cases
+support_case_notes
+audit_logs
+event_logs
+ai_traces
+growth_reports
+growth_report_cycles
+growth_report_batch_jobs
+x_monthly_operational_snapshots
+x_setup_submissions
+x_setup_files
+x_curriculum_class_assignments
+revenue_logs
+diary_entries
+parent_accounts
+curriculum_items
+class_diaries
+inquiries
+inquiry_replies
+parent_request_messages
+support_ticket_replies
+subscription_plans
+pool_subscriptions
+system_policies
+pool_credits
+parent_v2_pending
+
+실제 repository 기준으로
+manifest expected schema 전부 검증.
+
+Missing:
+0 목표.
+
+============================================================
+11. PRODUCTION SCHEMA
+============================================================
+
+Production은 READ ONLY metadata만 비교.
+
+DDL:
+0
+
+DML:
+0
+
+Staging operational schema가
+Production과 필요한 수준에서 compatible한지 판정.
+
+============================================================
+12. SYNTHETIC FIXTURE
+============================================================
+
+Migration PASS 후
+Staging에만 synthetic fixture 생성.
+
+Prefix:
+stg_
+
+최소:
+
+Pool A
+Pool B
+
+Super Admin
+Pool Admin A/B
+Teacher A/B
+Parent A/B
+Student A/B
+Class A/B
+
+실제 고객 데이터:
+0
+
+실제 전화번호:
+0
+
+실제 이메일:
+0
+
+Production data copy:
+NO.
+
+============================================================
+13. CROSS-POOL FIXTURE
+============================================================
+
+Pool A와 Pool B가
+완전히 별도 tenant인지 확인.
+
+IDs 명확히 구분.
+
+향후 WP9에서 재사용 가능한
+deterministic marker 유지.
+
+============================================================
+14. WP8 REGRESSION
+============================================================
+
+wp8-preflight.ts를
+TEST_DATABASE_URL 기반으로 실제 실행.
+
+Production:
+NO.
+
+목표:
+
+기존 76 PASS 이상.
+
+기존 diary_entries skip이
+Staging migration으로 해결되면
+skip 0 목표.
+
+보고:
+
+Passed
+Failed
+Skipped
+P0 skipped
+
+============================================================
+15. CONTROL CENTER PREFLIGHT
+============================================================
+
+cc-preflight를
+Staging Pool A/B fixture 기반으로 실행.
+
+Cross-pool:
+PASS
+
+Production connection:
+0
+
+P0 skipped:
+0
+
+============================================================
+16. SUPPORT WORKFLOW
+============================================================
+
+Staging에서만 실제 DB flow:
+
+Pool A member
+→ support case create
+→ note
+→ IN_PROGRESS
+→ second note
+→ RESOLVED
+→ audit
+→ refetch
+
+Pool B leakage:
+0
+
+============================================================
+17. AUTH / CROSS-POOL
+============================================================
+
+Staging synthetic fixture 기준:
+
+Super Admin:
+PASS
+
+Pool Admin:
+restricted
+
+Teacher:
+restricted
+
+Parent:
+restricted
+
+Pool A subject → Pool B:
+BLOCK
+
+URL ID tampering:
+BLOCK
+
+P0 skipped:
+0
+
+============================================================
+18. RUNTIME DDL REGRESSION
+============================================================
+
+API boot:
+
+CREATE:
+0
+
+ALTER:
+0
+
+DROP:
+0
+
+CREATE INDEX:
+0
+
+Request-time:
+
+CREATE:
+0
+
+ALTER:
+0
+
+DROP:
+0
+
+CREATE INDEX:
+0
+
+Migration files에서만 DDL 허용.
+
+============================================================
+19. EXTERNAL SIDE EFFECT
+============================================================
+
+Staging test 중:
+
+RevenueCat live:
+0
+
+NAVER SENS actual push:
+0
+
+OpenAI paid call:
+0
+
+Production R2:
+0
+
+Email/SMS:
+0
+
+============================================================
+20. R2
+============================================================
+
+Separate staging R2 bucket:
+아직 없음.
+
+따라서:
+
+R2 mutation test:
+BLOCKED
+
+Production bucket writes:
+0
+
+이번 단계에서는
+DB/WP8 gate와 분리.
+
+============================================================
+21. TYPECHECK
+============================================================
+
+APP:
+
+pnpm run typecheck
+
+Expected:
+0 errors
+
+API:
+
+new errors:
+0
+
+existing errors:
+정확히 보고
+
+Web:
+
+new errors:
+0
+
+existing:
+정확히 보고
+
+ts-ignore added:
+0
+
+broad any workaround:
+0
+
+============================================================
+22. REPLIT DEV SWITCH READINESS
+============================================================
+
+다음 모두 PASS 후:
+
+connection
+migration 1차
+migration 2차
+fixture
+WP8
+CC preflight
+
+Replit DEV의
+SUPABASE_DATABASE_URL을
+Staging으로 바꿔도 되는지 판정.
+
+이번 지시에서는
+실제 Secret 변경하지 말 것.
+
+보고만:
+
+SAFE TO SWITCH:
+YES / NO
+
+============================================================
+23. PRODUCTION TEST DATA
+============================================================
+
+기존 Production 잔재:
+
+support_cases:
+15
+
+support_case_notes:
+70
+
+이번 작업:
+
+DELETE:
+NO
+
+UPDATE:
+NO
+
+cleanup:
+NO
+
+그대로 유지.
+
+============================================================
+24. COMMIT
+============================================================
+
+실제 코드/test 수정이 생긴 경우만 commit.
+
+추천:
+
+test(db): complete staging bootstrap and WP8 regression
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+25. OTA
+============================================================
+
+APP/shared runtime 변경:
+
+NO 예상.
+
+NO:
+OTA NOT REQUIRED.
+
+YES:
+APP typecheck 0
+export
+commit
+iOS OTA
+runtime 2.1.0
+production-v2
+Android NO
+
+============================================================
+26. EXIT GATE
+============================================================
+
+필수:
+
+Postgres auth:
+PASS
+
+Production != Staging:
+PASS
+
+Safety:
+PASS
+
+Migration first:
+PASS
+
+Migration second:
+PASS
+
+Synthetic fixture:
+PASS
+
+WP8 regression:
+PASS
+
+CC preflight:
+PASS
+
+Support workflow:
+PASS
+
+Cross-pool:
+PASS
+
+Runtime boot DDL:
+0
+
+Runtime request DDL:
+0
+
+Production mutation:
+0
+
+APP typecheck:
+0
+
+============================================================
+27. 완료보고
+============================================================
+
+# STAGING BOOTSTRAP / WP8 FINAL REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+d780f854
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+============================================================
+CONNECTION
+============================================================
+
+Host:
+...
+
+Port:
+...
+
+Project ref:
+...
+
+Username shape:
+...
+
+DNS:
+PASS / FAIL
+
+TCP:
+PASS / FAIL
+
+Postgres:
+PASS / FAIL
+
+Database:
+...
+
+PG version:
+...
+
+Production == Staging:
+YES / NO
+
+============================================================
+SAFETY
+============================================================
+
+Production:
+BLOCKED / FAIL
+
+Unknown:
+BLOCKED / FAIL
+
+Staging without flag:
+BLOCKED / FAIL
+
+Staging + flag:
+ALLOWED / FAIL
+
+Production fallback:
+0 / ...
+
+============================================================
+STAGING BEFORE
+============================================================
+
+Initial tables:
+...
+
+Unexpected production data:
+NO / YES
+
+============================================================
+MIGRATION
+============================================================
+
+Manifest count:
+...
+
+First run:
+PASS / FAIL
+
+Second run:
+PASS / FAIL
+
+Failed migration:
+...
+
+Duplicate errors:
+0 / ...
+
+Destructive actions:
+0 / ...
+
+============================================================
+SCHEMA
+============================================================
+
+Expected:
+...
+
+Missing:
+...
+
+Production compatibility:
+PASS / FAIL
+
+============================================================
+FIXTURE
+============================================================
+
+Pool A:
+...
+
+Pool B:
+...
+
+Users:
+...
+
+Students:
+...
+
+Classes:
+...
+
+Real PII:
+0
+
+Production data copied:
+NO
+
+============================================================
+WP8
+============================================================
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+Support workflow:
+PASS / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+============================================================
+CONTROL CENTER
+============================================================
+
+CC preflight:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+============================================================
+RUNTIME DDL
+============================================================
+
+Boot DDL:
+0 / ...
+
+Request DDL:
+0 / ...
+
+============================================================
+TYPECHECK
+============================================================
+
+APP:
+...
+
+API new:
+...
+
+API existing:
+...
+
+Web new:
+...
+
+Web existing:
+...
+
+============================================================
+DEV SERVER
+============================================================
+
+Safe to switch Replit DEV SUPABASE_DATABASE_URL to Staging:
+YES / NO
+
+Reason:
+...
+
+============================================================
+PRODUCTION
+============================================================
+
+Render:
+NO
+
+Production INSERT:
+0
+
+Production UPDATE:
+0
+
+Production DELETE:
+0
+
+Production DDL:
+0
+
+Production cleanup:
+NO
+
+============================================================
+FINAL
+============================================================
+
+Staging infrastructure operational:
+YES / NO
+
+Migration rehearsal:
+PASS / FAIL
+
+WP8 fully closed:
+YES / NO
+
+WP9 code-review ready:
+YES / NO
+
+WP9 real-fixture ready:
+YES / NO
+
+Safe to switch Replit DEV to Staging:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT DELETE PRODUCTION DATA.
+DO NOT DEPLOY.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.

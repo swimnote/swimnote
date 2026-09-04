@@ -15,11 +15,11 @@
  */
 
 import { sql } from "drizzle-orm";
-import { superAdminDb as db } from "@workspace/db";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 // ─── Group GR3-A: analysis_retry_count column ─────────────────────────────────
 
-async function runGroupA_RetryCount(): Promise<void> {
+async function runGroupA_RetryCount(db: MigrationDb): Promise<void> {
   // analysis_retry_count — tracks how many retryable ENGINE failures occurred
   // for this report. When it reaches GROWTH_REPORT_MAX_RETRY_COUNT the worker
   // stops retrying (prevents infinite loop on persistent retryable errors).
@@ -32,15 +32,15 @@ async function runGroupA_RetryCount(): Promise<void> {
 
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
-export async function initGrowthReportGR3Schema(): Promise<void> {
+export async function initGrowthReportGR3Schema(db: MigrationDb): Promise<void> {
   console.log("[GR3-init] Starting GR3 ENGINE integration schema migration…");
-  const groups: { name: string; fn: () => Promise<void> }[] = [
+  const groups: { name: string; fn: (db: MigrationDb) => Promise<void> }[] = [
     { name: "GR3-A: analysis_retry_count", fn: runGroupA_RetryCount },
   ];
 
   for (const g of groups) {
     try {
-      await g.fn();
+      await g.fn(db);
     } catch (err: any) {
       console.error(`[GR3-init] FAILED: ${g.name}:`, err.message);
       throw err;
@@ -50,8 +50,7 @@ export async function initGrowthReportGR3Schema(): Promise<void> {
 }
 
 // Allow direct execution: `pnpm tsx src/migrations/growth-report-gr3-engine-init.ts`
-if (process.argv[1]?.endsWith("growth-report-gr3-engine-init.ts")) {
-  initGrowthReportGR3Schema()
-    .then(() => process.exit(0))
-    .catch((e) => { console.error(e); process.exit(1); });
+if (import.meta.url === String(new URL(process.argv[1], "file:"))) {
+  const { runWithMigrationDb } = await import("../lib/migration-db.js");
+  runWithMigrationDb("growth-report-gr3-engine-init", initGrowthReportGR3Schema).catch(e => { console.error(e); process.exit(1); });
 }

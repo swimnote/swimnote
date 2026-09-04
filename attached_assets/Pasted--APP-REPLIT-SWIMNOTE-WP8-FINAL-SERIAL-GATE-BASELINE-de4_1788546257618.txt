@@ -1,0 +1,560 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE WP8 FINAL SERIAL GATE
+# BASELINE: de41f79c
+# BRANCH: release/v2.0.0
+# 목적: First-run 재현성 확인 + OOM 없이 WP8/CC E2E 최종 종료
+# 이번 작업은 짧은 FINAL VERIFICATION이다.
+# 대규모 리팩터링 금지.
+# 병렬 subagent / concurrent tsx 실행 금지.
+# WP9 시작 금지.
+# Production 접근/변경 금지.
+
+============================================================
+0. 현재 확정 상태
+============================================================
+
+Commit:
+de41f79c
+
+Clean Staging rebuild 결과:
+
+- Staging reset 성공
+- 공식 migration chain 정비 완료
+- schema 127 tables
+- manual schema patch 0
+- fixture 생성 성공
+- WP8 GROUP A 9/9 PASS
+- WP8 GROUP B+는 Replit concurrent tsx OOM으로 BLOCKED
+- 신규 typecheck errors 0
+
+이번 작업에서는 코드 구조를 다시 뜯지 않는다.
+
+============================================================
+1. 절대 금지
+============================================================
+
+Production DB:
+DDL 0
+INSERT 0
+UPDATE 0
+DELETE 0
+
+Production R2:
+0
+
+Render deploy:
+NO
+
+main:
+NO
+
+OTA:
+NO
+
+RevenueCat live:
+NO
+
+Push actual send:
+NO
+
+WP9:
+NO
+
+병렬 subagent:
+NO
+
+동시 다중 tsx process:
+NO
+
+manual raw SQL schema patch:
+NO
+
+============================================================
+2. FIRST-RUN NO-OP 의미부터 확인
+============================================================
+
+이전 보고:
+
+§7 First Run
+§1 / §3a = Group8 no-op ⚠
+2회차에서 ✅
+
+이 의미를 정확히 판정한다.
+
+질문:
+
+A.
+1차에서 해당 migration이 실제 schema를 모두 생성했고,
+"no-op"은 단순 로그/Group8 optional step 의미인가?
+
+또는
+
+B.
+1차에서는 일부 schema가 생성되지 않았고,
+2차 실행에서 처음 생성된 것인가?
+
+반드시 실제 DB object creation log / migration code 기준으로 판정.
+
+B이면:
+Idempotency FAIL.
+즉시 STOP.
+
+A이면:
+계속 진행.
+
+보고:
+
+FIRST_RUN_COMPLETE:
+YES / NO
+
+SECOND_RUN_CREATED_NEW_SCHEMA:
+0 / 숫자
+
+============================================================
+3. CLEAN FIRST-RUN 재현성 최종 확인
+============================================================
+
+FIRST_RUN_COMPLETE 의미가 불명확하거나
+2회차에서 신규 schema가 생긴 흔적이 있으면:
+
+Staging public schema를 다시 reset하고
+official manifest를 딱 1회만 실행한다.
+
+Target:
+lspmacdbyvpzysnrjsww ONLY
+
+그 직후 바로 schema verify.
+
+필수:
+
+expected tables:
+all present
+
+expected columns:
+all present
+
+expected indexes:
+all present
+
+Missing:
+0
+
+이 검증이 PASS해야만 2회차 실행.
+
+1차 이후 missing이 있으면:
+manual patch 금지
+STOP.
+
+============================================================
+4. IDEMPOTENCY 정의
+============================================================
+
+2차 manifest 실행에서는:
+
+NEW TABLE created:
+0
+
+NEW COLUMN created:
+0
+
+NEW INDEX created:
+0
+
+NEW TYPE created:
+0
+
+NEW CONSTRAINT created:
+0
+
+duplicate errors:
+0
+
+unexpected errors:
+0
+
+즉 2차는 "누락 보완"이 아니라
+완전한 idempotent no-op이어야 한다.
+
+============================================================
+5. FIXTURE
+============================================================
+
+clean reset을 다시 했다면
+기존 공식 staging-fixture로 synthetic fixture 재생성.
+
+기존 DB 유지라면
+fixture 중복 없이 현재 fixture 사용.
+
+Pool A/B
+Users
+Students
+Classes
+Support case
+
+전부 synthetic.
+
+Real PII:
+0
+
+============================================================
+6. STAGING API — 단일 프로세스만
+============================================================
+
+Replit OOM 방지를 위해:
+
+- 다른 tsx/test process 모두 종료
+- staging API process 하나만 실행
+- subagent 병렬 실행 금지
+
+환경:
+
+STAGING_API_TEST_MODE=true
+ALLOW_TEST_DB_MUTATIONS=true
+TEST_DATABASE_URL=Staging
+
+API DB identity 확인:
+
+project ref:
+lspmacdbyvpzysnrjsww
+
+Production:
+NO
+
+Production ref가 감지되면 startup BLOCK 필수.
+
+============================================================
+7. WP8 PREFLIGHT — SERIAL
+============================================================
+
+staging API가 정상 기동된 뒤
+WP8 preflight 하나만 실행.
+
+다른 검사 동시 실행 금지.
+
+DB:
+Staging
+
+HTTP:
+same Staging API
+
+결과:
+
+Passed
+Failed
+Skipped
+P0 skipped
+
+목표:
+
+Failed 0
+P0 skipped 0
+
+OOM 발생 시:
+코드 수정하지 말고
+메모리/프로세스 상태만 보고 STOP.
+
+============================================================
+8. CC PREFLIGHT — SERIAL
+============================================================
+
+WP8 완전 PASS 후에만 실행.
+
+동일 staging API 사용.
+
+결과:
+
+Passed
+Failed
+Skipped
+P0 skipped
+
+목표:
+
+Failed 0
+P0 skipped 0
+
+============================================================
+9. SUPPORT / CROSS-POOL
+============================================================
+
+기존 테스트에 포함되지 않은 경우만 실행.
+
+Pool A → Pool B:
+BLOCK
+
+Teacher A → Pool B:
+BLOCK
+
+Parent A → Pool B:
+BLOCK
+
+tampered resource ID:
+BLOCK
+
+Support workflow:
+
+create
+→ note
+→ IN_PROGRESS
+→ note
+→ RESOLVED
+→ audit/refetch
+
+PASS 확인.
+
+============================================================
+10. RUNTIME DDL
+============================================================
+
+Staging API boot:
+
+CREATE 0
+ALTER 0
+DROP 0
+CREATE INDEX 0
+
+Request-time:
+
+CREATE 0
+ALTER 0
+DROP 0
+CREATE INDEX 0
+
+============================================================
+11. CODE CHANGE 정책
+============================================================
+
+이번 작업은 검증 우선.
+
+테스트 자체의 작은 defect가 아니면
+새 구조 리팩터링 금지.
+
+만약 코드 수정이 필요하면:
+
+- 원인 명시
+- 최소 수정
+- manual schema patch 금지
+- typecheck
+- commit
+
+대규모 파일 변경이 필요해 보이면
+즉시 STOP하고 보고.
+
+============================================================
+12. TYPECHECK
+============================================================
+
+APP:
+
+pnpm run typecheck
+
+Expected:
+0
+
+API/Web:
+
+new errors:
+0
+
+pre-existing count는 기존 공식 command 기준으로 보고.
+
+============================================================
+13. 완료보고
+============================================================
+
+# WP8 FINAL SERIAL GATE REPORT
+
+GIT
+Branch:
+HEAD Before:
+HEAD After:
+Commit:
+Push:
+
+--------------------------------
+
+FIRST RUN
+
+Previous Group8 no-op meaning:
+...
+
+FIRST_RUN_COMPLETE:
+YES / NO
+
+Second run created new schema:
+0 / ...
+
+Clean reset repeated:
+YES / NO
+
+First-run tables:
+...
+
+First-run missing tables:
+...
+
+First-run missing columns:
+...
+
+First-run missing indexes:
+...
+
+--------------------------------
+
+IDEMPOTENCY
+
+Second run:
+PASS / FAIL
+
+New tables:
+0 / ...
+
+New columns:
+0 / ...
+
+New indexes:
+0 / ...
+
+New constraints/types:
+0 / ...
+
+--------------------------------
+
+STAGING API
+
+Started:
+YES / NO
+
+Project ref:
+...
+
+Production DB:
+NO
+
+OOM:
+NO / YES
+
+--------------------------------
+
+WP8
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+FINAL:
+PASS / FAIL
+
+--------------------------------
+
+CC PREFLIGHT
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+FINAL:
+PASS / FAIL
+
+--------------------------------
+
+CROSS-POOL
+
+Pool A -> Pool B:
+BLOCK / FAIL
+
+Teacher:
+PASS / FAIL
+
+Parent:
+PASS / FAIL
+
+Tampered ID:
+BLOCK / FAIL
+
+Support workflow:
+PASS / FAIL
+
+--------------------------------
+
+RUNTIME DDL
+
+Boot:
+0 / ...
+
+Request:
+0 / ...
+
+--------------------------------
+
+TYPECHECK
+
+APP:
+...
+
+API new:
+...
+
+Web new:
+...
+
+--------------------------------
+
+PRODUCTION
+
+DDL:
+0
+
+INSERT:
+0
+
+UPDATE:
+0
+
+DELETE:
+0
+
+Render:
+NO
+
+--------------------------------
+
+FINAL
+
+Official manifest reproduces complete schema on FIRST RUN:
+YES / NO
+
+Idempotency:
+PASS / FAIL
+
+WP8 fully closed:
+YES / NO
+
+CC fully valid:
+YES / NO
+
+Safe to proceed to WP9:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.

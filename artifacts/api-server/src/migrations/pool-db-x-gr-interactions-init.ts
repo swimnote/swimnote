@@ -8,16 +8,14 @@
  * 멱등: CREATE TABLE IF NOT EXISTS / CREATE UNIQUE INDEX IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
  */
 
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
 let ran = false;
 
-export async function runGrInteractionsMigration(): Promise<void> {
+export async function runGrInteractionsMigration(db: MigrationDb): Promise<void> {
   if (ran) return;
   ran = true;
-
-  const db = superAdminDb;
 
   // ── growth_report_reactions ────────────────────────────────────────────────
   // 기존 diary_reactions와 동일한 컬럼 타입/naming convention 사용.

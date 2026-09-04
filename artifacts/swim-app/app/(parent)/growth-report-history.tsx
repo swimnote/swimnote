@@ -85,10 +85,11 @@ export default function GrowthReportHistoryScreen() {
   const fetchPage = useCallback(async (pageOffset: number) => {
     if (!token || !studentId) return;
     try {
-      const res = await apiRequest(
+      const rawRes = await apiRequest(
         token,
         `/parent/students/${encodeURIComponent(studentId)}/growth-reports?limit=${LIMIT}&offset=${pageOffset}`,
-      ) as HistoryResponse;
+      );
+      const res = await rawRes.json() as HistoryResponse;
       if (res.success) {
         setItems(prev => pageOffset === 0 ? res.items : [...prev, ...res.items]);
         setHasMore(res.has_more);

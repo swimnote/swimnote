@@ -621,7 +621,10 @@ router.patch(
 
 // ── Startup migration ─────────────────────────────────────────────────────────
 import("../migrations/pool-db-cs-pa0.js")
-  .then(({ runCsPa0Migration }) => runCsPa0Migration())
+  .then(async ({ runCsPa0Migration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runCsPa0Migration(superAdminDb);
+  })
   .catch((e: any) => console.error("[cs-pa0-init] migration failed:", e?.message));
 
 export default router;

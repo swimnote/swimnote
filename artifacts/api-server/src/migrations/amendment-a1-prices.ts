@@ -14,10 +14,10 @@
  * PRODUCTION 금지 — 이 파일은 코드 기록용 미래 실행 예정 마이그레이션.
  * 실제 실행은 WP5-PRE + WP5 + WP7 승인 이후.
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function runAmendmentA1Prices() {
+export async function runAmendmentA1Prices(db: MigrationDb) {
   console.log("[Amendment A1] X 플랜 가격 수정 시작...");
 
   const PRICE_UPDATES: Array<{ tier: string; old_price: number; new_price: number }> = [
@@ -28,7 +28,7 @@ export async function runAmendmentA1Prices() {
 
   for (const { tier, old_price, new_price } of PRICE_UPDATES) {
     // 검증: 현재 값이 예상값인지 확인 후 업데이트
-    const [row] = (await superAdminDb.execute(sql`
+    const [row] = (await db.execute(sql`
       SELECT tier, price_per_month FROM subscription_plans
       WHERE tier = ${tier}
       LIMIT 1
@@ -49,7 +49,7 @@ export async function runAmendmentA1Prices() {
       console.warn(`[Amendment A1] ${tier}: 예상가 ${old_price} 불일치 (현재: ${currentPrice}) — 강제 적용`);
     }
 
-    await superAdminDb.execute(sql`
+    await db.execute(sql`
       UPDATE subscription_plans
       SET price_per_month = ${new_price},
           updated_at = now()

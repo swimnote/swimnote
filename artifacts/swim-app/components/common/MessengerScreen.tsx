@@ -35,7 +35,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
@@ -400,7 +400,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   }, [noticeInput, sending, poolId, isAdmin, token, myUserId]);
 
   /* ── 내 메시지 삭제 ── */
-  const handleDeleteMessage = useCallback((messageId: number) => {
+  const handleDeleteMessage = useCallback((messageId: number | string) => {
     Alert.alert(
       "메시지 삭제",
       "이 메시지를 삭제하시겠습니까?",

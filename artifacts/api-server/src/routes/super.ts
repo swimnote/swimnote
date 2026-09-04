@@ -23,7 +23,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { computeMode, type XModeStatus, type PoolModeResult } from "../lib/xmode.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { logEvent } from "../lib/event-logger.js";
+import { logEvent, logOperationalError } from "../lib/event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
 import { resolveSubscription, applySubscriptionState, normalizeTier, backfillPoolSubscriptionFields } from "../lib/subscriptionService.js";
@@ -1032,1520 +1032,22 @@ router.put(
 
 // ── DB 초기화: 컬럼 + 테이블 (앱 시작 시 즉시 실행) ──────────────────
 let _ensureDone = false;
+/**
+ * ensureExtraTables — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §7
+ * Run that migration before deploying. This function is kept for call-site compatibility.
+ */
 async function ensureExtraTables() {
-  if (_ensureDone) return;
-  // swimming_pools 필수 컬럼 추가
-  for (const ddl of [
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS pool_type TEXT DEFAULT 'swimming_pool'`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS used_storage_bytes BIGINT DEFAULT 0`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS base_storage_gb FLOAT8 DEFAULT 5`,
-    `ALTER TABLE swimming_pools ALTER COLUMN base_storage_gb TYPE FLOAT8 USING base_storage_gb::FLOAT8`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS extra_storage_gb FLOAT8 DEFAULT 0`,
-    `ALTER TABLE swimming_pools ALTER COLUMN extra_storage_gb TYPE FLOAT8 USING extra_storage_gb::FLOAT8`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS credit_balance INTEGER DEFAULT 0`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS is_readonly BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS upload_blocked BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS readonly_reason TEXT`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS rejection_reason TEXT`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_end_at TIMESTAMPTZ`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS trial_end_at TIMESTAMPTZ`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_tier TEXT DEFAULT 'free'`,
-    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS subscription_status TEXT DEFAULT 'trial'`,
-  ]) {
-    await db.execute(sql.raw(ddl)).catch(() => {});
-  }
-  // users 컬럼
-  await superAdminDb.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`).catch(() => {});
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS support_tickets (
-      id          TEXT PRIMARY KEY,
-      ticket_type TEXT NOT NULL DEFAULT 'other',
-      requester_type TEXT NOT NULL DEFAULT 'operator',
-      requester_name TEXT,
-      pool_id     TEXT,
-      subject     TEXT NOT NULL,
-      description TEXT,
-      status      TEXT NOT NULL DEFAULT 'open',
-      assignee    TEXT,
-      sla_hours   INTEGER DEFAULT 24,
-      created_at  TIMESTAMPTZ DEFAULT NOW(),
-      updated_at  TIMESTAMPTZ DEFAULT NOW(),
-      resolved_at TIMESTAMPTZ
-    )
-  `);
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS policy_versions (
-      id          TEXT PRIMARY KEY,
-      policy_key  TEXT NOT NULL,
-      version     TEXT NOT NULL,
-      value       TEXT NOT NULL,
-      is_active   BOOLEAN DEFAULT FALSE,
-      created_at  TIMESTAMPTZ DEFAULT NOW(),
-      created_by  TEXT
-    )
-  `);
-  // is_active 컬럼 마이그레이션 (기존 테이블 보완)
-  await db.execute(sql`ALTER TABLE policy_versions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE`).catch(() => {});
-  // DB 레벨 제약: policy_key 당 is_active=TRUE 는 최대 1개 (Partial Unique Index)
-  await db.execute(sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS uidx_policy_versions_active_key
-    ON policy_versions (policy_key)
-    WHERE is_active = TRUE
-  `).catch(() => {});
-  // 각 policy_key 중 최신 버전을 is_active=TRUE로 설정
-  await db.execute(sql`
-    UPDATE policy_versions pv
-    SET is_active = TRUE
-    WHERE is_active = FALSE
-      AND id = (
-        SELECT id FROM policy_versions pv2
-        WHERE pv2.policy_key = pv.policy_key
-        ORDER BY created_at DESC LIMIT 1
-      )
-  `).catch(() => {});
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS policy_consents (
-      id          TEXT PRIMARY KEY,
-      pool_id     TEXT NOT NULL,
-      policy_key  TEXT NOT NULL,
-      version     TEXT NOT NULL,
-      agreed_at   TIMESTAMPTZ DEFAULT NOW(),
-      ip_address  TEXT,
-      UNIQUE(pool_id, policy_key, version)
-    )
-  `);
-  // 기능 플래그
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS feature_flags (
-      key         TEXT PRIMARY KEY,
-      name        TEXT NOT NULL,
-      description TEXT,
-      category    TEXT DEFAULT 'general',
-      global_enabled BOOLEAN DEFAULT FALSE,
-      updated_at  TIMESTAMPTZ DEFAULT NOW(),
-      updated_by  TEXT,
-      reason      TEXT
-    )
-  `);
-  await superAdminDb.execute(sql`
-    ALTER TABLE feature_flags ADD COLUMN IF NOT EXISTS reason TEXT
-  `).catch(() => {});
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS feature_flag_overrides (
-      id          TEXT PRIMARY KEY,
-      flag_key    TEXT NOT NULL,
-      pool_id     TEXT NOT NULL,
-      enabled     BOOLEAN DEFAULT FALSE,
-      reason      TEXT,
-      created_at  TIMESTAMPTZ DEFAULT NOW(),
-      updated_by  TEXT,
-      UNIQUE(flag_key, pool_id)
-    )
-  `);
-  // 기본 기능 플래그 시드
-  for (const [key, name, desc, cat] of [
-    ["new_scheduler",          "새 스케줄러",          "개선된 수업 스케줄러 엔진 사용", "기능"],
-    ["new_subscription_policy","새 구독 정책",         "구독 정책 v2 적용",              "구독"],
-    ["auto_deletion_policy",   "자동 삭제 정책",       "구독 해지 후 24h 자동 삭제",     "데이터"],
-    ["support_center",         "고객센터 기능",         "고객센터 티켓 시스템 활성화",    "기능"],
-    ["new_upload_structure",   "새 업로드 구조",        "업로드 파이프라인 v2 사용",      "저장공간"],
-    ["readonly_auto_trigger",  "읽기전용 자동 전환",    "구독 만료 시 자동 읽기전용 전환","구독"],
-    ["credit_auto_apply",      "크레딧 자동 차감",      "다음 결제 시 크레딧 자동 차감",  "구독"],
-    ["upload_spike_detection", "업로드 급증 탐지",      "24h 급증 운영자 자동 감지",      "저장공간"],
-  ] as const) {
-    await superAdminDb.execute(sql`
-      INSERT INTO feature_flags (key, name, description, category)
-      VALUES (${key}, ${name}, ${desc}, ${cat})
-      ON CONFLICT (key) DO NOTHING
-    `).catch(() => {});
-  }
-  // event_logs — 운영 감사 로그 (로그인·보안·결제·권한 등 모든 이벤트)
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS event_logs (
-      id          TEXT PRIMARY KEY,
-      pool_id     TEXT,
-      category    TEXT NOT NULL DEFAULT '시스템',
-      actor_id    TEXT,
-      actor_name  TEXT,
-      target      TEXT,
-      description TEXT NOT NULL DEFAULT '',
-      metadata    JSONB NOT NULL DEFAULT '{}',
-      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).catch(() => {});
-  await db.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_event_logs_created_at  ON event_logs (created_at DESC)
-  `).catch(() => {});
-  await db.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_event_logs_category    ON event_logs (category)
-  `).catch(() => {});
-  await db.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_event_logs_pool_id     ON event_logs (pool_id)
-  `).catch(() => {});
-
-  // SA0-B: super_incidents 테이블
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS super_incidents (
-      id               TEXT PRIMARY KEY,
-      title            TEXT NOT NULL,
-      severity         TEXT NOT NULL CHECK (severity IN ('SEV1','SEV2','SEV3','SEV4')),
-      status           TEXT NOT NULL CHECK (status IN ('OPEN','INVESTIGATING','MITIGATED','RESOLVED')),
-      service          TEXT,
-      description      TEXT,
-      root_cause       TEXT,
-      action_taken     TEXT,
-      started_at       TIMESTAMPTZ,
-      detected_at      TIMESTAMPTZ,
-      resolved_at      TIMESTAMPTZ,
-      affected_pool_ids TEXT[] NOT NULL DEFAULT '{}',
-      affected_users_count INTEGER DEFAULT 0,
-      request_id       TEXT,
-      trace_id         TEXT,
-      reference        TEXT,
-      created_by       TEXT,
-      updated_by       TEXT,
-      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).catch(() => {});
-  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_status   ON super_incidents (status)`).catch(() => {});
-  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_severity ON super_incidents (severity)`).catch(() => {});
-  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_created  ON super_incidents (created_at DESC)`).catch(() => {});
-
-  // WP15.5-C: ad_creatives 테이블
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS ad_creatives (
-      id              TEXT PRIMARY KEY,
-      placement       TEXT NOT NULL DEFAULT 'PARENT_HOME_BANNER',
-      creative_type   TEXT NOT NULL DEFAULT 'IMAGE_WITH_TEXT',
-      headline        TEXT,
-      body_text       TEXT,
-      image_url       TEXT,
-      destination_url TEXT,
-      effect_type     TEXT NOT NULL DEFAULT 'NONE',
-      display_order   INTEGER NOT NULL DEFAULT 0,
-      is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-      target_region   TEXT[] NOT NULL DEFAULT '{}',
-      target_age_band TEXT[] NOT NULL DEFAULT '{}',
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).catch(() => {});
-  await superAdminDb.execute(sql`
-    CREATE INDEX IF NOT EXISTS idx_ad_creatives_placement_active
-    ON ad_creatives (placement, is_active, display_order)
-  `).catch(() => {});
-
-  _ensureDone = true;
+  // NO-OP: schema is guaranteed by explicit migration
 }
 
-// ════════════════════════════════════════════════════════════════
-// GET /super/risk-center — 장애·리스크 센터 통합 데이터
-// ════════════════════════════════════════════════════════════════
-router.get(
-  "/super/risk-center",
-  requireAuth,
-  requireRole("super_admin"),
-  async (_req: AuthRequest, res) => {
-    try {
-      const [payFailed, storageDanger, deletionPending, uploadSpike, openTickets, lastBackup] =
-        await Promise.all([
-          // 결제 실패
-          superAdminDb.execute(sql`
-            SELECT id, name, owner_name, subscription_status, subscription_end_at
-            FROM swimming_pools
-            WHERE approval_status = 'approved'
-              AND subscription_status IN ('expired','suspended','cancelled')
-            ORDER BY subscription_end_at ASC NULLS LAST LIMIT 20
-          `),
-          // 저장 95% 초과
-          superAdminDb.execute(sql`
-            SELECT id, name, COALESCE(owner_name,'') AS owner_name,
-                   COALESCE(used_storage_bytes,0) AS used_storage_bytes,
-                   COALESCE(storage_mb,512) AS storage_mb,
-                   COALESCE(display_storage,'500MB') AS display_storage,
-                   LEAST(ROUND(
-                     COALESCE(used_storage_bytes,0)::numeric /
-                     NULLIF(COALESCE(storage_mb,512)::bigint * 1048576, 0) * 100
-                   )::int, 100) AS usage_pct
-            FROM swimming_pools
-            WHERE approval_status = 'approved'
-              AND COALESCE(used_storage_bytes,0)::float /
-                  NULLIF(COALESCE(storage_mb,512)::bigint * 1048576, 0) >= 0.95
-            ORDER BY usage_pct DESC LIMIT 20
-          `),
-          // 자동삭제 예정 (48h)
-          superAdminDb.execute(sql`
-            SELECT id, name, owner_name, subscription_end_at,
-                   EXTRACT(EPOCH FROM (subscription_end_at - NOW())) / 3600 AS hours_left
-            FROM swimming_pools
-            WHERE subscription_end_at IS NOT NULL
-              AND subscription_end_at > NOW()
-              AND subscription_end_at <= NOW() + INTERVAL '48 hours'
-            ORDER BY subscription_end_at ASC LIMIT 20
-          `),
-          // 업로드 급증 (24h 내 저장공간 이벤트 많은 운영자)
-          superAdminDb.execute(sql`
-            SELECT el.pool_id, sp.name, sp.owner_name, COUNT(*)::int AS event_count
-            FROM event_logs el
-            JOIN swimming_pools sp ON sp.id = el.pool_id
-            WHERE el.category = '저장공간'
-              AND el.created_at >= NOW() - INTERVAL '24 hours'
-            GROUP BY el.pool_id, sp.name, sp.owner_name
-            HAVING COUNT(*) >= 5
-            ORDER BY event_count DESC LIMIT 10
-          `),
-          // 미처리 고객센터 티켓
-          db.execute(sql`
-            SELECT COUNT(*)::int AS open_count,
-                   COUNT(*) FILTER (WHERE created_at <= NOW() - (sla_hours || ' hours')::interval)::int AS overdue_count
-            FROM support_tickets
-            WHERE status IN ('open','in_progress')
-          `).catch(() => ({ rows: [{ open_count: 0, overdue_count: 0 }] })),
-          // 마지막 백업 시간
-          db.execute(sql`
-            SELECT MAX(created_at) AS last_at FROM event_logs
-            WHERE description ILIKE '%백업%' OR category = '백업'
-          `).catch(() => ({ rows: [{ last_at: null }] })),
-        ]);
-
-      res.json({
-        payment_failed:   payFailed.rows,
-        storage_danger:   storageDanger.rows,
-        deletion_pending: deletionPending.rows,
-        upload_spike:     uploadSpike.rows,
-        support: (openTickets.rows[0] as any) ?? { open_count: 0, overdue_count: 0 },
-        backup: { last_at: (lastBackup.rows[0] as any)?.last_at ?? null },
-        external_services: [
-          { name: "데이터베이스", status: "normal" },
-          { name: "오브젝트 스토리지", status: "normal" },
-          { name: "API 서버", status: "normal" },
-          { name: "Expo 빌드", status: "normal" },
-        ],
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "서버 오류" });
-    }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// GET /super/support-tickets
-// ════════════════════════════════════════════════════════════════
-router.get(
-  "/super/support-tickets",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { status, ticket_type, limit = "50", offset = "0" } = req.query as any;
-      const conds: string[] = [];
-      if (status && status !== "all") conds.push(`st.status = '${status.replace(/'/g,"''")}'`);
-      if (ticket_type && ticket_type !== "all") conds.push(`st.ticket_type = '${ticket_type.replace(/'/g,"''")}'`);
-      const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
-      const rows = (await db.execute(sql.raw(`
-        SELECT st.*, sp.name AS pool_name
-        FROM support_tickets st
-        LEFT JOIN swimming_pools sp ON sp.id = st.pool_id
-        ${where}
-        ORDER BY st.created_at DESC
-        LIMIT ${Number(limit)} OFFSET ${Number(offset)}
-      `))).rows;
-      res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// POST /super/support-tickets
-// ════════════════════════════════════════════════════════════════
-router.post(
-  "/super/support-tickets",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { ticket_type, requester_type, requester_name, pool_id, subject, description, sla_hours } = req.body as any;
-      if (!subject) { res.status(400).json({ error: "제목을 입력해주세요." }); return; }
-      const id = `tkt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO support_tickets (id, ticket_type, requester_type, requester_name, pool_id, subject, description, sla_hours)
-        VALUES (${id}, ${ticket_type ?? "other"}, ${requester_type ?? "operator"}, ${requester_name ?? null},
-                ${pool_id ?? null}, ${subject}, ${description ?? null}, ${sla_hours ?? 24})
-      `);
-      res.json({ ok: true, id });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// PATCH /super/support-tickets/:id
-// ════════════════════════════════════════════════════════════════
-router.patch(
-  "/super/support-tickets/:id",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { id } = req.params;
-      const { status, assignee, description } = req.body as any;
-      if (status === "resolved") {
-        await db.execute(sql`
-          UPDATE support_tickets SET status = ${status}, assignee = ${assignee ?? null},
-            description = COALESCE(${description ?? null}, description),
-            updated_at = NOW(), resolved_at = NOW() WHERE id = ${id}
-        `);
-      } else {
-        await db.execute(sql`
-          UPDATE support_tickets SET status = COALESCE(${status ?? null}, status),
-            assignee = COALESCE(${assignee ?? null}, assignee),
-            description = COALESCE(${description ?? null}, description),
-            updated_at = NOW() WHERE id = ${id}
-        `);
-      }
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// GET /super/policy-versions/:key — 정책 버전 목록
-// POST /super/policy-versions/:key — 새 버전 저장
-// ════════════════════════════════════════════════════════════════
-router.get(
-  "/super/policy-versions/:key",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const rows = (await db.execute(sql`
-        SELECT id, policy_key, version, created_at, created_by,
-               LEFT(value, 120) AS preview
-        FROM policy_versions
-        WHERE policy_key = ${req.params.key}
-        ORDER BY created_at DESC LIMIT 20
-      `)).rows;
-      res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-router.post(
-  "/super/policy-versions/:key",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { key } = req.params;
-      const { version, value } = req.body as any;
-      if (!version || !value) { res.status(400).json({ error: "버전·내용을 입력해주세요." }); return; }
-      const id = `pv_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      const actorName = req.user?.name ?? "슈퍼관리자";
-      // 기존 활성 버전 비활성화
-      await db.execute(sql`UPDATE policy_versions SET is_active = FALSE WHERE policy_key = ${key}`);
-      // 새 버전 is_active=TRUE로 삽입
-      await db.execute(sql`
-        INSERT INTO policy_versions (id, policy_key, version, value, is_active, created_by)
-        VALUES (${id}, ${key}, ${version}, ${value}, TRUE, ${actorName})
-      `);
-      res.json({ ok: true, id });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// GET /super/policy-consents — 정책 미동의 운영자 목록
-// ════════════════════════════════════════════════════════════════
-router.get(
-  "/super/policy-consents",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { policy_key } = req.query as any;
-      // 승인된 운영자 중 해당 정책에 동의하지 않은 목록
-      const rows = (await superAdminDb.execute(sql`
-        SELECT sp.id, sp.name, sp.owner_name, sp.approval_status, sp.created_at
-        FROM swimming_pools sp
-        WHERE sp.approval_status = 'approved'
-          AND NOT EXISTS (
-            SELECT 1 FROM policy_consents pc
-            WHERE pc.pool_id = sp.id
-              AND pc.policy_key = ${policy_key ?? "refund_policy"}
-          )
-        ORDER BY sp.created_at DESC
-        LIMIT 50
-      `)).rows;
-      res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// GET /super/kill-switch-logs — 킬스위치 실행 로그
-// ════════════════════════════════════════════════════════════════
-router.get(
-  "/super/kill-switch-logs",
-  requireAuth,
-  requireRole("super_admin"),
-  async (_req: AuthRequest, res) => {
-    try {
-      const rows = (await superAdminDb.execute(sql`
-        SELECT el.id, el.pool_id, el.actor_name, el.description, el.metadata, el.created_at,
-               sp.name AS pool_name
-        FROM event_logs el
-        LEFT JOIN swimming_pools sp ON sp.id = el.pool_id
-        WHERE el.category = '삭제'
-        ORDER BY el.created_at DESC LIMIT 50
-      `)).rows;
-      res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// POST /super/operators/:id/defer-deletion — 삭제 유예 (종료 기간 연장)
-// Body: { hours: number }
-// ════════════════════════════════════════════════════════════════
-router.post(
-  "/super/operators/:id/defer-deletion",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      const { id } = req.params;
-      const { hours = 48 } = req.body as any;
-      await superAdminDb.execute(sql`
-        UPDATE swimming_pools
-        SET subscription_end_at = subscription_end_at + (${hours} || ' hours')::interval
-        WHERE id = ${id} AND subscription_end_at IS NOT NULL
-      `);
-      const actorName = req.user?.name ?? "슈퍼관리자";
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, ${id}, '삭제', ${req.user!.userId}, ${actorName}, ${id},
-                ${'삭제 유예 ' + hours + '시간'}, '{}'::jsonb)
-      `).catch(() => {});
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// POST /super/operators/:id/cancel-deletion — 자동삭제 예약 취소
-// subscription_end_at을 NULL로 초기화하고 subscription_status를 active로 복구
-// ════════════════════════════════════════════════════════════════
-router.post(
-  "/super/operators/:id/cancel-deletion",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      const { id } = req.params;
-      await superAdminDb.execute(sql`
-        UPDATE swimming_pools
-        SET subscription_end_at = NULL,
-            subscription_status = 'active'
-        WHERE id = ${id}
-      `);
-      const actorName = req.user?.name ?? "슈퍼관리자";
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, ${id}, '삭제', ${req.user!.userId}, ${actorName}, ${id},
-                '자동삭제 예약 취소', '{}'::jsonb)
-      `).catch(() => {});
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// POST /super/operators/:id/purge — 운영자 데이터 영구 삭제 (슈퍼관리자 전용)
-// Body: {
-//   mode: "full" | "period" | "item",
-//   fromDate?: string,  // YYYY-MM-DD (period 모드)
-//   toDate?: string,    // YYYY-MM-DD (period 모드)
-//   items?: string[],   // ["수업 영상","사진","일지","출석 기록","결제 기록"] (item 모드)
-//   deletionReason: "operator_terminated"|"manual_by_admin"|"policy_violation",
-//   reasonDetail: string,
-//   password: string,
-// }
-// ════════════════════════════════════════════════════════════════
-router.post(
-  "/super/operators/:id/purge",
-  requireAuth,
-  requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      const { id: poolId } = req.params;
-      const {
-        mode, fromDate, toDate, items = [],
-        deletionReason, reasonDetail, password,
-      } = req.body as {
-        mode: "full" | "period" | "item";
-        fromDate?: string; toDate?: string; items?: string[];
-        deletionReason: string; reasonDetail: string; password: string;
-      };
-
-      if (!mode || !["full","period","item"].includes(mode)) {
-        res.status(400).json({ error: "삭제 방식을 선택해주세요." }); return;
-      }
-      if (!deletionReason) {
-        res.status(400).json({ error: "삭제 사유를 선택해주세요." }); return;
-      }
-      if (!reasonDetail || reasonDetail.trim().length < 5) {
-        res.status(400).json({ error: "상세 사유를 5자 이상 입력해주세요." }); return;
-      }
-      if (!password) {
-        res.status(400).json({ error: "비밀번호를 입력해주세요." }); return;
-      }
-      if (mode === "period" && (!fromDate || !toDate)) {
-        res.status(400).json({ error: "기간 지정 삭제는 시작일/종료일이 필요합니다." }); return;
-      }
-      if (mode === "item" && items.length === 0) {
-        res.status(400).json({ error: "항목별 삭제는 최소 1개 항목을 선택해야 합니다." }); return;
-      }
-
-      const userId = req.user!.userId;
-
-      // ── 슈퍼관리자 비밀번호 검증 ────────────────────────────
-      const [userRow] = (await superAdminDb.execute(sql`
-        SELECT password_hash, name FROM users WHERE id = ${userId} LIMIT 1
-      `)).rows as any[];
-      if (!userRow) { res.status(403).json({ error: "사용자 정보 없음" }); return; }
-
-      const { comparePassword: cmpPwd } = await import("../lib/auth.js");
-      const valid = await cmpPwd(password, userRow.password_hash);
-      if (!valid) {
-        res.status(401).json({ error: "비밀번호가 일치하지 않습니다." }); return;
-      }
-
-      const actorName = userRow.name || "슈퍼관리자";
-
-      // ── 수영장 존재 확인 ─────────────────────────────────────
-      const [poolRow] = (await superAdminDb.execute(sql`
-        SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
-      `)).rows as any[];
-      if (!poolRow) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
-
-      const deleted = {
-        videos: 0, photos: 0, class_records: 0,
-        attendance: 0, payment_logs: 0, members: 0,
-      };
-
-      // ── 날짜 범위 조건 결정 ──────────────────────────────────
-      let dateCondition = "";
-      if (mode === "period" && fromDate && toDate) {
-        dateCondition = `AND created_at >= '${fromDate}'::date AND created_at < ('${toDate}'::date + INTERVAL '1 day')`;
-      }
-
-      const shouldDelete = (itemLabel: string) =>
-        mode === "full" ||
-        mode === "period" ||
-        (mode === "item" && items.includes(itemLabel));
-
-      // ── 영상 삭제 ────────────────────────────────────────────
-      if (shouldDelete("수업 영상")) {
-        const [r] = (await db.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM student_videos
-          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `))).rows as any[];
-        await db.execute(sql.raw(`
-          DELETE FROM student_videos
-          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `));
-        deleted.videos = Number(r?.cnt ?? 0);
-      }
-
-      // ── 사진 삭제 ────────────────────────────────────────────
-      if (shouldDelete("사진")) {
-        const [r] = (await db.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM student_photos
-          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `))).rows as any[];
-        await db.execute(sql.raw(`
-          DELETE FROM student_photos
-          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `));
-        deleted.photos = Number(r?.cnt ?? 0);
-      }
-
-      // ── 수업기록/일지 삭제 ──────────────────────────────────
-      if (shouldDelete("일지")) {
-        const [cd] = (await db.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM class_diaries
-          WHERE swimming_pool_id = '${poolId}' AND is_deleted = false ${dateCondition}
-        `))).rows as any[];
-        const diaries = (await db.execute(sql.raw(`
-          SELECT id FROM class_diaries
-          WHERE swimming_pool_id = '${poolId}' AND is_deleted = false ${dateCondition}
-        `))).rows as any[];
-        if (diaries.length > 0) {
-          const ids = diaries.map((d: any) => `'${d.id}'`).join(",");
-          await db.execute(sql.raw(`DELETE FROM class_diary_student_notes WHERE diary_id IN (${ids})`));
-          await db.execute(sql.raw(`DELETE FROM class_diaries WHERE id IN (${ids})`));
-        }
-        const [sd] = (await db.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM swim_diary
-          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `))).rows as any[];
-        await db.execute(sql.raw(`
-          DELETE FROM swim_diary WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `));
-        const [tm] = (await db.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM teacher_daily_memos
-          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `))).rows as any[];
-        await db.execute(sql.raw(`
-          DELETE FROM teacher_daily_memos WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `));
-        deleted.class_records = Number(cd?.cnt ?? 0) + Number(sd?.cnt ?? 0) + Number(tm?.cnt ?? 0);
-      }
-
-      // ── 출석 기록 삭제 ──────────────────────────────────────
-      if (shouldDelete("출석 기록")) {
-        const [r] = (await db.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM attendances
-          WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `))).rows as any[];
-        await db.execute(sql.raw(`
-          DELETE FROM attendances WHERE swimming_pool_id = '${poolId}' ${dateCondition}
-        `));
-        deleted.attendance = Number(r?.cnt ?? 0);
-      }
-
-      // ── 결제 기록 삭제 ──────────────────────────────────────
-      if (shouldDelete("결제 기록")) {
-        const [r] = (await superAdminDb.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM payment_logs
-          WHERE pool_id = '${poolId}' ${dateCondition.replace(/created_at/g, 'paid_at')}
-        `))).rows as any[];
-        await superAdminDb.execute(sql.raw(`
-          DELETE FROM payment_logs WHERE pool_id = '${poolId}'
-          ${dateCondition.replace(/created_at/g, 'paid_at')}
-        `));
-        deleted.payment_logs = Number(r?.cnt ?? 0);
-      }
-
-      // ── 전체 삭제 전용: 회원 정보, 일정, 기타 ──────────────
-      if (mode === "full") {
-        const [mr] = (await db.execute(sql.raw(`
-          SELECT COUNT(*)::int AS cnt FROM students
-          WHERE swimming_pool_id = '${poolId}'
-        `))).rows as any[];
-        // 회원 연관 데이터 순서대로 삭제
-        await db.execute(sql.raw(`
-          DELETE FROM student_tag_assignments WHERE swimming_pool_id = '${poolId}'
-        `)).catch(() => {});
-        await db.execute(sql.raw(`
-          DELETE FROM student_lesson_count WHERE student_id IN (
-            SELECT id FROM students WHERE swimming_pool_id = '${poolId}'
-          )
-        `)).catch(() => {});
-        await db.execute(sql.raw(`
-          DELETE FROM students WHERE swimming_pool_id = '${poolId}'
-        `)).catch(() => {});
-        deleted.members = Number(mr?.cnt ?? 0);
-
-        // 수영장 자체 상태 업데이트
-        await superAdminDb.execute(sql.raw(`
-          UPDATE swimming_pools
-          SET subscription_status = 'cancelled',
-              subscription_end_at = NOW(),
-              is_readonly = true,
-              upload_blocked = true,
-              used_storage_bytes = 0
-          WHERE id = '${poolId}'
-        `));
-      }
-
-      const totalDeleted =
-        deleted.videos + deleted.photos + deleted.class_records +
-        deleted.attendance + deleted.payment_logs + deleted.members;
-
-      const modeLabel = mode === "full" ? "전체 삭제" :
-                        mode === "period" ? `기간 삭제 (${fromDate}~${toDate})` :
-                        `항목별 삭제 (${items.join(", ")})`;
-
-      const reasonLabel = deletionReason === "operator_terminated" ? "운영자 해지 확정" :
-                          deletionReason === "manual_by_admin" ? "슈퍼관리자 수동 삭제" : "정책 위반";
-
-      // ── 감사 이벤트 로그 ────────────────────────────────────
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await superAdminDb.execute(sql.raw(`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (
-          '${logId}',
-          '${poolId}',
-          '삭제',
-          '${userId}',
-          '${actorName}',
-          '${poolRow.name.replace(/'/g, "''")}',
-          '[킬스위치] ${modeLabel} — ${reasonLabel} — 총 ${totalDeleted}건 영구삭제',
-          '${JSON.stringify({
-            mode, deletionReason, reasonDetail,
-            fromDate: fromDate ?? null, toDate: toDate ?? null, items,
-            deleted, poolName: poolRow.name,
-          }).replace(/'/g, "''")}'::jsonb
-        )
-      `)).catch(() => {});
-
-      res.json({
-        ok: true,
-        pool_id: poolId,
-        pool_name: poolRow.name,
-        mode,
-        deleted,
-        total_deleted: totalDeleted,
-        message: `${poolRow.name} — ${totalDeleted}건 영구 삭제 완료`,
-      });
-    } catch (err) {
-      console.error("[purge]", err);
-      res.status(500).json({ error: "서버 오류" });
-    }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// PATCH /super/operators/:id/subscription — 구독 전체 필드 수동 동기화
-// Body: {
-//   subscription_status?,   subscription_tier?,      credit_amount?,
-//   is_readonly?,           upload_blocked?,          subscription_end_at?,
-//   member_limit?,          trial_ends_at?,           subscription_started_at?,
-//   member_limit_reset?     (true이면 pool 개별 override 제거)
-// }
-// ════════════════════════════════════════════════════════════════
-router.patch(
-  "/super/operators/:id/subscription",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { id } = req.params;
-      const {
-        subscription_status,
-        subscription_tier: rawTier,
-        credit_amount,
-        is_readonly,
-        upload_blocked,
-        subscription_end_at,
-        member_limit,
-        member_limit_reset,
-        trial_ends_at,
-        subscription_started_at,
-      } = req.body as any;
-
-      const actorName = req.user?.name ?? "슈퍼관리자";
-      const updates: string[] = [];
-
-      // ── 현재 tier / status 조회 (applySubscriptionState에 필요) ──────
-      const [curPool] = (await superAdminDb.execute(sql`
-        SELECT subscription_tier, subscription_status FROM swimming_pools WHERE id = ${id} LIMIT 1
-      `)).rows as any[];
-
-      const effectiveTier   = rawTier ? normalizeTier(rawTier) : (curPool?.subscription_tier ?? "free");
-      const effectiveStatus = subscription_status ?? (rawTier ? "active" : (curPool?.subscription_status ?? "active"));
-
-      const memberLimitOpt =
-        member_limit_reset === true ? null :
-        (member_limit != null && !isNaN(Number(member_limit)) ? Number(member_limit) : undefined);
-
-      const endAtOpt   = subscription_end_at   !== undefined ? (subscription_end_at   === "null" ? null : subscription_end_at)   : undefined;
-      const trialAtOpt = trial_ends_at         !== undefined ? (trial_ends_at         === "null" ? null : trial_ends_at)         : undefined;
-      const startAtOpt = subscription_started_at !== undefined ? (subscription_started_at === "null" ? null : subscription_started_at) : undefined;
-
-      // ── 단일 applySubscriptionState 호출 ──────────────────────────
-      if (rawTier || subscription_status || subscription_end_at !== undefined ||
-          trial_ends_at !== undefined || subscription_started_at !== undefined ||
-          memberLimitOpt !== undefined) {
-        await applySubscriptionState(id, effectiveTier, "manual", effectiveStatus as any, {
-          endsAt:              endAtOpt,
-          trialEndsAt:         trialAtOpt,
-          startsAt:            startAtOpt,
-          memberLimitOverride: memberLimitOpt,
-          resetReadonly:       effectiveStatus === "active",
-        });
-        if (rawTier)             updates.push(`구독티어 → ${effectiveTier} (파생값 자동 동기화)`);
-        if (subscription_status) updates.push(`구독상태 → ${effectiveStatus}`);
-        if (endAtOpt !== undefined)   updates.push(endAtOpt   ? `구독만료일 → ${endAtOpt}`   : "구독만료일 제거");
-        if (trialAtOpt !== undefined) updates.push(trialAtOpt ? `체험만료일 → ${trialAtOpt}` : "체험만료일 제거");
-        if (startAtOpt !== undefined) updates.push(startAtOpt ? `구독시작일 → ${startAtOpt}` : "구독시작일 제거");
-        if (memberLimitOpt === null)        updates.push("회원한도 override 해제 (플랜 기본값 복귀)");
-        else if (memberLimitOpt !== undefined) updates.push(`회원한도 → ${memberLimitOpt}명 (개별 override)`);
-      }
-
-      // ── 크레딧 ────────────────────────────────────────────────────
-      if (credit_amount != null && !isNaN(Number(credit_amount))) {
-        const amt = Number(credit_amount);
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET credit_balance = ${amt} WHERE id = ${id}
-        `);
-        updates.push(`크레딧 → ${amt.toLocaleString()}원`);
-      }
-
-      // ── 읽기전용 / 업로드 차단 ────────────────────────────────────
-      if (typeof is_readonly === "boolean") {
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET is_readonly = ${is_readonly} WHERE id = ${id}
-        `);
-        updates.push(`읽기전용 → ${is_readonly}`);
-      }
-      if (typeof upload_blocked === "boolean") {
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET upload_blocked = ${upload_blocked} WHERE id = ${id}
-        `);
-        updates.push(`업로드차단 → ${upload_blocked}`);
-      }
-
-      if (updates.length === 0) { res.status(400).json({ error: "변경 항목이 없습니다." }); return; }
-
-      // 변경 후 최신 resolver 결과 반환 (응답 전 DB 반영 완료 보장)
-      const resolved = await resolveSubscription(id).catch(() => null);
-
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, ${id}, '구독', ${req.user!.userId}, ${actorName}, ${id},
-                ${updates.join(" / ")}, '{}'::jsonb)
-      `).catch(() => {});
-
-      // 명시적 snake_case 필드로 응답 (앱/프론트엔드 즉시 상태 갱신용)
-      res.json({
-        ok: true,
-        updates,
-        resolved,
-        // 앱이 즉시 읽을 수 있도록 최상위에 snake_case 필드 병렬 노출
-        subscription_tier:       resolved?.planCode       ?? null,
-        subscription_status:     resolved?.status         ?? null,
-        subscription_source:     resolved?.source         ?? null,
-        member_limit:            resolved?.memberLimit     ?? 10,
-        storage_mb:              resolved?.storageMb        ?? 512,
-        display_storage:         resolved?.displayStorage   ?? "500MB",
-        video_storage_limit_mb:  resolved?.videoStorageLimitMb ?? 0,
-        white_label_enabled:     resolved?.whiteLabelEnabled ?? false,
-        plan_name:               resolved?.planName         ?? null,
-        price_per_month:         resolved?.pricePerMonth    ?? 0,
-        next_billing_at:         resolved?.nextBillingAt    ?? null,
-        pending_tier:            resolved?.pendingTier      ?? null,
-        pending_plan_name:       resolved?.pendingPlanName  ?? null,
-        downgrade_at:            resolved?.downgradeAt      ?? null,
-      });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// POST /super/billing/apply-pending-downgrades
-// 만료된 다운그레이드 예약을 즉시 적용 (수동 크론 트리거)
-// ════════════════════════════════════════════════════════════════
-router.post(
-  "/super/billing/apply-pending-downgrades",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      const { pool_id } = req.body as any;
-      const condition = pool_id
-        ? sql`WHERE pending_tier IS NOT NULL AND downgrade_at IS NOT NULL AND swimming_pool_id = ${pool_id}`
-        : sql`WHERE pending_tier IS NOT NULL AND downgrade_at IS NOT NULL`;
-
-      const pending = (await db.execute(sql`
-        SELECT swimming_pool_id, pending_tier, downgrade_at FROM pool_subscriptions ${condition}
-      `)).rows as any[];
-
-      const results: any[] = [];
-      for (const row of pending) {
-        try {
-          await applySubscriptionState(row.swimming_pool_id, row.pending_tier, "revenuecat", "active", {
-            nextBillingAt: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
-            resetReadonly: true,
-          });
-          await db.execute(sql`
-            UPDATE pool_subscriptions
-            SET pending_tier = NULL, downgrade_at = NULL, updated_at = now()
-            WHERE swimming_pool_id = ${row.swimming_pool_id}
-          `);
-          const resolved = await resolveSubscription(row.swimming_pool_id).catch(() => null);
-          results.push({ pool_id: row.swimming_pool_id, applied: row.pending_tier, ok: true, resolved });
-          console.log(`[super/apply-pending] 다운그레이드 적용: ${row.swimming_pool_id} → ${row.pending_tier}`);
-        } catch (e: any) {
-          results.push({ pool_id: row.swimming_pool_id, ok: false, error: e.message });
-        }
-      }
-      res.json({ applied: results.length, results });
-    } catch (err: any) {
-      console.error("[super/apply-pending-downgrades]", err);
-      res.status(500).json({ error: err?.message ?? "서버 오류" });
-    }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// PATCH /super/operators/:id/readonly — 읽기전용 전환
-// ════════════════════════════════════════════════════════════════
-router.patch(
-  "/super/operators/:id/readonly",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { id } = req.params;
-      const { enabled, reason } = req.body as any;
-      await superAdminDb.execute(sql`
-        UPDATE swimming_pools SET is_readonly = ${!!enabled},
-          readonly_reason = ${reason ?? null}
-        WHERE id = ${id}
-      `);
-      const desc = enabled ? `읽기전용 전환: ${reason ?? ""}` : "읽기전용 해제";
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, ${id}, '읽기전용 전환', ${req.user!.userId}, ${req.user?.name ?? "슈퍼관리자"},
-                ${id}, ${desc}, '{}'::jsonb)
-      `).catch(() => {});
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// PATCH /super/operators/:id/block-upload — 업로드 차단 토글
-// ════════════════════════════════════════════════════════════════
-router.patch(
-  "/super/operators/:id/block-upload",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { id } = req.params;
-      const { enabled } = req.body as any;
-      await superAdminDb.execute(sql`UPDATE swimming_pools SET upload_blocked = ${!!enabled} WHERE id = ${id}`);
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, ${id}, '저장공간', ${req.user!.userId}, ${req.user?.name ?? "슈퍼관리자"},
-                ${id}, ${enabled ? "업로드 차단" : "업로드 차단 해제"}, '{}'::jsonb)
-      `).catch(() => {});
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// PATCH /super/operators/:id/xmode — X 모드 상태 변경 (super_admin 전용)
-//
-// :id = swimming_pool_id
-// Transaction 순서:
-//   1. SELECT FOR UPDATE (pool 확인 + beforeData 확보)
-//   2. pool 미존재 → throw isPoolNotFound
-//   3. UPDATE RETURNING → afterData 확보
-//   4. SELECT next_audit_version('swimming_pool_xmode', :id)
-//   5. INSERT INTO audit_logs
-//   6. Commit
-// audit INSERT 실패 시 Transaction Rollback으로 UPDATE도 함께 취소된다.
-//
-// READY 전환 guard (validateXModeReadiness):
-//   Transaction 전 실행 — x_pool_setups + curriculum + entitlement 검증
-//   검증 실패 → 409 READY_PREREQUISITES_NOT_MET
-// ════════════════════════════════════════════════════════════════
-router.patch(
-  "/super/operators/:id/xmode",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    const { id: poolId } = req.params;
-    const {
-      xmode_entitlement,
-      xmode_config_status,
-      xmode_purchased_at,
-      xmode_subscription_end_at,
-      reason,
-    } = req.body as {
-      xmode_entitlement?: boolean;
-      xmode_config_status?: XModeStatus;
-      xmode_purchased_at?: string | null;
-      xmode_subscription_end_at?: string | null;
-      reason?: string;
-    };
-
-    // ── Transaction 밖: 입력 검증 ────────────────────────────────
-    // X02-B2: xmode_entitlement 입력 → x_manual_entitlement 쓰기 (backward compat body key 유지)
-    const hasEntitlement      = xmode_entitlement      !== undefined;
-    const hasConfigStatus     = xmode_config_status    !== undefined;
-    const hasPurchasedAt      = xmode_purchased_at     !== undefined;
-    const hasSubscriptionEnd  = xmode_subscription_end_at !== undefined;
-
-    if (!hasEntitlement && !hasConfigStatus && !hasPurchasedAt && !hasSubscriptionEnd) {
-      res.status(400).json({ error: "변경 항목이 없습니다." }); return;
-    }
-    if (hasEntitlement && typeof xmode_entitlement !== "boolean") {
-      res.status(400).json({ error: "xmode_entitlement는 boolean이어야 합니다." }); return;
-    }
-    const validStatuses: XModeStatus[] = ["NOT_CONFIGURED", "CURRICULUM_PENDING", "READY"];
-    if (hasConfigStatus && !validStatuses.includes(xmode_config_status!)) {
-      res.status(400).json({ error: "xmode_config_status가 올바르지 않습니다." }); return;
-    }
-    if (hasPurchasedAt && xmode_purchased_at !== null) {
-      if (typeof xmode_purchased_at !== "string") {
-        res.status(400).json({ error: "xmode_purchased_at은 문자열 또는 null이어야 합니다." }); return;
-      }
-      if (isNaN(new Date(xmode_purchased_at).getTime())) {
-        res.status(400).json({ error: "xmode_purchased_at이 올바른 날짜가 아닙니다." }); return;
-      }
-    }
-    if (hasSubscriptionEnd && xmode_subscription_end_at !== null) {
-      if (typeof xmode_subscription_end_at !== "string") {
-        res.status(400).json({ error: "xmode_subscription_end_at은 문자열 또는 null이어야 합니다." }); return;
-      }
-      if (isNaN(new Date(xmode_subscription_end_at).getTime())) {
-        res.status(400).json({ error: "xmode_subscription_end_at이 올바른 날짜가 아닙니다." }); return;
-      }
-    }
-
-    // ── READY Transition Guard (Transaction 전 실행) ──────────────
-    // x_setup_submissions + curriculum 파일 + entitlement 확인.
-    // 검증 실패 → 409 READY_PREREQUISITES_NOT_MET (DB write 없음).
-    if (hasConfigStatus && xmode_config_status === "READY") {
-      try {
-        const readiness = await validateXModeReadiness(poolId, superAdminDb);
-        if (!readiness.ready) {
-          res.status(409).json({
-            error:    "READY_PREREQUISITES_NOT_MET",
-            message:  "READY 전환 조건이 충족되지 않았습니다.",
-            missing:  readiness.missing,
-            blockers: readiness.blockers,
-          });
-          return;
-        }
-      } catch (e: any) {
-        console.error("[PATCH /super/operators/:id/xmode] readiness check 오류:", e.message);
-        res.status(500).json({ error: "READINESS_CHECK_FAILED", message: e.message });
-        return;
-      }
-    }
-
-    const actorId = req.user!.userId;
-    let responseResult: PoolModeResult;
-
-    // ── Transaction ────────────────────────────────────────────────
-    try {
-      await db.transaction(async (tx) => {
-        // 1. SELECT FOR UPDATE — pool 확인 + row lock + beforeData 확보
-        // X02-B2: x_paid / x_manual / x_force 포함하여 effective 계산
-        const poolRows = await tx.execute(sql`
-          SELECT id, xmode_config_status,
-                 xmode_purchased_at, xmode_subscription_end_at,
-                 COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
-                 COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
-                 COALESCE(x_force_disabled,    false) AS x_force_disabled
-          FROM swimming_pools
-          WHERE id = ${poolId}
-          LIMIT 1
-          FOR UPDATE
-        `);
-        if (!poolRows.rows.length) {
-          const err: any = new Error("POOL_NOT_FOUND");
-          err.isPoolNotFound = true;
-          throw err;
-        }
-        const pool = poolRows.rows[0] as any;
-        const beforePaid   = Boolean(pool.x_paid_entitlement);
-        const beforeManual = Boolean(pool.x_manual_entitlement);
-        const beforeForce  = Boolean(pool.x_force_disabled);
-        const beforeEffective = (beforePaid || beforeManual) && !beforeForce;
-
-        // 2. beforeData 구성 (X02-B2: source 구분 포함)
-        const beforeData = {
-          xmode_entitlement:         beforeEffective,   // effective
-          x_paid_entitlement:        beforePaid,
-          x_manual_entitlement:      beforeManual,
-          x_force_disabled:          beforeForce,
-          xmode_config_status:       pool.xmode_config_status as XModeStatus,
-          xmode_purchased_at:        pool.xmode_purchased_at
-            ? new Date(pool.xmode_purchased_at).toISOString() : null,
-          xmode_subscription_end_at: pool.xmode_subscription_end_at
-            ? new Date(pool.xmode_subscription_end_at).toISOString() : null,
-        };
-
-        // 3. UPDATE — X02-B2: xmode_entitlement 입력값 → x_manual_entitlement 쓰기
-        //    x_paid_entitlement / x_force_disabled 수정 금지
-        const manualFrag = hasEntitlement
-          ? sql`x_manual_entitlement = ${xmode_entitlement}`
-          : sql`x_manual_entitlement = x_manual_entitlement`;
-        const configStatusFrag = hasConfigStatus
-          ? sql`xmode_config_status = ${xmode_config_status}`
-          : sql`xmode_config_status = xmode_config_status`;
-        const purchasedAtFrag = hasPurchasedAt
-          ? sql`xmode_purchased_at = ${xmode_purchased_at ?? null}`
-          : sql`xmode_purchased_at = xmode_purchased_at`;
-        const subscriptionEndFrag = hasSubscriptionEnd
-          ? sql`xmode_subscription_end_at = ${xmode_subscription_end_at ?? null}`
-          : sql`xmode_subscription_end_at = xmode_subscription_end_at`;
-
-        const updatedRows = await tx.execute(sql`
-          UPDATE swimming_pools SET
-            ${manualFrag},
-            ${configStatusFrag},
-            ${purchasedAtFrag},
-            ${subscriptionEndFrag}
-          WHERE id = ${poolId}
-          RETURNING id, xmode_config_status,
-                    xmode_purchased_at, xmode_subscription_end_at,
-                    COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
-                    COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
-                    COALESCE(x_force_disabled,    false) AS x_force_disabled
-        `);
-        const updated = updatedRows.rows[0] as any;
-        const newManual    = Boolean(updated.x_manual_entitlement);
-        const newPaid      = Boolean(updated.x_paid_entitlement);
-        const newForce     = Boolean(updated.x_force_disabled);
-        const afterEffective = (newPaid || newManual) && !newForce;
-
-        // 4. afterData 구성 (X02-B2: source 명시)
-        const afterData = {
-          xmode_entitlement:         afterEffective,    // effective
-          x_paid_entitlement:        newPaid,
-          x_manual_entitlement:      newManual,
-          x_force_disabled:          newForce,
-          xmode_config_status:       updated.xmode_config_status as XModeStatus,
-          xmode_purchased_at:        updated.xmode_purchased_at
-            ? new Date(updated.xmode_purchased_at).toISOString() : null,
-          xmode_subscription_end_at: updated.xmode_subscription_end_at
-            ? new Date(updated.xmode_subscription_end_at).toISOString() : null,
-          source: "super_admin_manual",   // X02-B2: paid / manual 구분
-        };
-
-        // 5. next_audit_version 발급
-        const versionResult = await tx.execute(sql`
-          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
-        `);
-        const entityVersion = (versionResult.rows[0] as any).v;
-
-        // 6. audit_logs INSERT
-        // (audit INSERT 실패 시 Transaction Rollback으로 UPDATE도 함께 취소된다)
-        await tx.execute(sql`
-          INSERT INTO audit_logs (
-            entity_type, entity_id, entity_version,
-            action, actor_type, actor_id, pool_id,
-            before_data, after_data, reason,
-            request_id, correlation_id, ip_hash
-          ) VALUES (
-            'swimming_pool_xmode', ${poolId}, ${entityVersion},
-            'update', 'super_admin', ${actorId}, ${poolId},
-            ${JSON.stringify(beforeData)}::jsonb,
-            ${JSON.stringify(afterData)}::jsonb,
-            ${reason ?? null},
-            NULL, NULL, NULL
-          )
-        `);
-
-        // 7. PoolModeResult 구성 (P0: paid→x 즉시, manual→config 기반)
-        const mode = computeMode({
-          x_paid_entitlement:   newPaid,
-          x_manual_entitlement: newManual,
-          x_force_disabled:     newForce,
-          xmode_config_status:  updated.xmode_config_status as XModeStatus,
-        });
-        responseResult = {
-          pool_id:             updated.id,
-          mode,
-          xmode_entitlement:   afterEffective,  // effective 값 (backward compat 필드명 유지)
-          xmode_config_status: updated.xmode_config_status as XModeStatus,
-        };
-      });
-    } catch (e: any) {
-      if (e.isPoolNotFound) {
-        res.status(404).json({ error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." }); return;
-      }
-      console.error("[PATCH /super/operators/:id/xmode]", e);
-      res.status(500).json({ error: "서버 오류" }); return;
-    }
-
-    res.json({ ok: true, ...responseResult! });
-
-    // ── READY 전환 후 당월 cycle 즉시 보충 (non-blocking) ─────────
-    // READY로 전환된 경우에만 실행.
-    // 25일 이후라면 당월 cycle + report row를 idempotent하게 생성.
-    if (hasConfigStatus && xmode_config_status === "READY") {
-      setImmediate(async () => {
-        try {
-          const { ensureCurrentMonthGrowthReportCycle } = await import("../jobs/growth-report-scheduler.js");
-          const r = await ensureCurrentMonthGrowthReportCycle(poolId, superAdminDb);
-          console.log(`[xmode-patch] ensureCurrentMonthGrowthReportCycle: pool=${poolId}`, r);
-        } catch (e: any) {
-          // non-fatal: 일별 스케줄러가 복구함
-          console.error(`[xmode-patch] ensureCurrentMonthGrowthReportCycle 실패 (non-fatal): pool=${poolId}`, e.message);
-        }
-      });
-    }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// POST /super/operators/:id/policy-reminder — 정책 재알림
-// ════════════════════════════════════════════════════════════════
-router.post(
-  "/super/operators/:id/policy-reminder",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      const { id } = req.params;
-      const { policy_key = "refund_policy" } = req.body as any;
-      const logId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
-        VALUES (${logId}, ${id}, '정책', ${req.user!.userId}, ${req.user?.name ?? "슈퍼관리자"},
-                ${id}, ${"정책 재알림 발송: " + policy_key}, '{}'::jsonb)
-      `).catch(() => {});
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// GET  /super/feature-flags       — 전체 기능 플래그 목록 (+오버라이드 수)
-// PATCH /super/feature-flags/:key — 글로벌 토글
-// GET  /super/feature-flags/:key/overrides — 운영자별 오버라이드 목록
-// POST /super/feature-flags/:key/overrides — 오버라이드 추가/수정
-// DELETE /super/feature-flags/:key/overrides/:poolId
-// ════════════════════════════════════════════════════════════════
-router.get(
-  "/super/feature-flags",
-  requireAuth, requireRole("super_admin"),
-  async (_req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const rows = (await superAdminDb.execute(sql`
-        SELECT ff.*,
-          (SELECT COUNT(*)::int FROM feature_flag_overrides ffo WHERE ffo.flag_key = ff.key) AS override_count
-        FROM feature_flags ff ORDER BY ff.category, ff.name
-      `)).rows;
-      res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-router.patch(
-  "/super/feature-flags/:key",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { key } = req.params;
-      const { global_enabled, reason } = req.body as any;
-      const actorName = req.user?.name ?? "슈퍼관리자";
-      await superAdminDb.execute(sql`
-        UPDATE feature_flags SET global_enabled = ${!!global_enabled},
-          updated_at = NOW(), updated_by = ${actorName},
-          reason = ${reason ?? null}
-        WHERE key = ${key}
-      `);
-      const { invalidateFlagCache } = await import("../lib/featureFlags.js");
-      invalidateFlagCache(key);
-
-      await logEvent({
-        pool_id:    "system",
-        category:   "기능 플래그",
-        actor_id:   req.user?.userId,
-        actor_name: actorName,
-        target:     key,
-        description: `기능 플래그 ${global_enabled ? "활성화" : "비활성화"}: ${key}${reason ? ` — ${reason}` : ""}`,
-        metadata:   { flag_key: key, enabled: !!global_enabled, reason: reason ?? null },
-      }).catch(() => {});
-
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-router.get(
-  "/super/feature-flags/:key/overrides",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const rows = (await superAdminDb.execute(sql`
-        SELECT ffo.*, sp.name AS pool_name, sp.owner_name
-        FROM feature_flag_overrides ffo
-        LEFT JOIN swimming_pools sp ON sp.id = ffo.pool_id
-        WHERE ffo.flag_key = ${req.params.key}
-        ORDER BY ffo.created_at DESC
-      `)).rows;
-      res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-router.post(
-  "/super/feature-flags/:key/overrides",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      const { key } = req.params;
-      const { pool_id, enabled, reason } = req.body as any;
-      if (!pool_id) { res.status(400).json({ error: "pool_id 필요" }); return; }
-      const id = `ffo_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-      await db.execute(sql`
-        INSERT INTO feature_flag_overrides (id, flag_key, pool_id, enabled, reason, updated_by)
-        VALUES (${id}, ${key}, ${pool_id}, ${!!enabled}, ${reason ?? null}, ${req.user?.name ?? "슈퍼관리자"})
-        ON CONFLICT (flag_key, pool_id) DO UPDATE
-          SET enabled = EXCLUDED.enabled, reason = EXCLUDED.reason,
-              updated_by = EXCLUDED.updated_by
-      `);
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-router.delete(
-  "/super/feature-flags/:key/overrides/:poolId",
-  requireAuth, requireRole("super_admin"),
-  async (req: AuthRequest, res) => {
-    try {
-      await ensureExtraTables();
-      await db.execute(sql`
-        DELETE FROM feature_flag_overrides
-        WHERE flag_key = ${req.params.key} AND pool_id = ${req.params.poolId}
-      `);
-      res.json({ ok: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════
-// 구독 상품 테이블 보장
-// ════════════════════════════════════════════════════════════════
+/**
+ * ensurePlansTables — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §8
+ * Run that migration before deploying. This function is kept for call-site compatibility.
+ */
 async function ensurePlansTables() {
-  // subscription_plans: 최종 확정 스키마
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS subscription_plans (
-      tier             TEXT PRIMARY KEY,
-      plan_id          TEXT NOT NULL DEFAULT '',
-      name             TEXT NOT NULL,
-      price_per_month  INTEGER NOT NULL DEFAULT 0,
-      member_limit     INTEGER NOT NULL DEFAULT 9999,
-      storage_gb       NUMERIC NOT NULL DEFAULT 5,
-      storage_mb       INTEGER NOT NULL DEFAULT 5120,
-      display_storage  TEXT NOT NULL DEFAULT '',
-      is_active        BOOLEAN NOT NULL DEFAULT TRUE
-    )
-  `).catch(() => {});
-  // 기존 테이블에 누락된 컬럼 추가 (안전)
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT ''`).catch(() => {});
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_mb INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS storage_gb NUMERIC NOT NULL DEFAULT 5`).catch(() => {});
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS display_storage TEXT NOT NULL DEFAULT ''`).catch(() => {});
-  await db.execute(sql`ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`).catch(() => {});
-
-  // revenue_logs 테이블 (billing.ts와 동일 — 누가 먼저 실행해도 안전)
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS revenue_logs (
-      id                      TEXT PRIMARY KEY,
-      pool_id                 TEXT NOT NULL,
-      pool_name               TEXT,
-      plan_id                 TEXT NOT NULL,
-      plan_name               TEXT,
-      event_type              TEXT NOT NULL DEFAULT 'new_subscription',
-      gross_amount            INTEGER NOT NULL DEFAULT 0,
-      intro_discount_amount   INTEGER NOT NULL DEFAULT 0,
-      charged_amount          INTEGER NOT NULL DEFAULT 0,
-      refunded_amount         INTEGER NOT NULL DEFAULT 0,
-      store_fee               INTEGER NOT NULL DEFAULT 0,
-      net_revenue             INTEGER NOT NULL DEFAULT 0,
-      payment_provider        TEXT NOT NULL DEFAULT 'store',
-      provider_transaction_id TEXT,
-      occurred_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).catch(() => {});
-  // 기존 revenue_logs에 누락된 컬럼 추가 (하위 호환)
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS pool_name TEXT`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS plan_name TEXT`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS event_type TEXT NOT NULL DEFAULT 'new_subscription'`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS gross_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS intro_discount_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS charged_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS refunded_amount INTEGER NOT NULL DEFAULT 0`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS payment_provider TEXT NOT NULL DEFAULT 'store'`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS provider_transaction_id TEXT`).catch(() => {});
-  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
-  // 기존 amount 컬럼은 charged_amount와 동일 — 하위 호환 유지
-
-  // growth → advance 티어 이름 마이그레이션 (기존 DB 데이터 정리)
-  await superAdminDb.execute(sql`
-    UPDATE subscription_plans SET tier = 'advance', plan_id = 'swimnote_300'
-    WHERE tier = 'growth'
-  `).catch(err => console.error('[super] growth→advance 마이그레이션 오류:', err?.message));
-
-  // ★ 플랜 시드는 pool-db-init.ts가 단일 관리 (서버 시작 시 자동 실행)
-  // 여기서는 스키마 DDL만 처리한다.
-
-  // 백업 테이블
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS platform_backups (
-      id              TEXT PRIMARY KEY,
-      operator_id     TEXT,
-      operator_name   TEXT,
-      backup_type     TEXT NOT NULL DEFAULT 'operator',
-      status          TEXT NOT NULL DEFAULT 'pending',
-      is_snapshot     BOOLEAN NOT NULL DEFAULT FALSE,
-      size_bytes      BIGINT,
-      note            TEXT,
-      created_by      TEXT,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      completed_at    TIMESTAMPTZ
-    )
-  `).catch(() => {});
-  // 백업 테이블 컬럼 보완 (파일 경로, 저장 방식, 백업 데이터)
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS file_path    TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS file_name    TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS storage_type TEXT DEFAULT 'database'`).catch(() => {});
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS backup_type_v2 TEXT DEFAULT 'manual'`).catch(() => {});
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS backup_data  TEXT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS super_db_tables INT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS pool_db_tables  INT`).catch(() => {});
-  await db.execute(sql`ALTER TABLE platform_backups ADD COLUMN IF NOT EXISTS total_tables    INT`).catch(() => {});
-
-  // 자동 백업 설정 테이블
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS backup_settings (
-      id              TEXT PRIMARY KEY DEFAULT 'default',
-      auto_enabled    BOOLEAN NOT NULL DEFAULT true,
-      schedule_type   TEXT NOT NULL DEFAULT 'daily',
-      run_hour        INT NOT NULL DEFAULT 3,
-      run_minute      INT NOT NULL DEFAULT 0,
-      retention_days  INT NOT NULL DEFAULT 7,
-      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_by      TEXT
-    )
-  `).catch(() => {});
-  // 기본 설정 행 삽입 (없으면)
-  await db.execute(sql`
-    INSERT INTO backup_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING
-  `).catch(() => {});
-
-  // 읽기전용 제어 로그 테이블
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS readonly_control_logs (
-      id              TEXT PRIMARY KEY,
-      scope           TEXT NOT NULL DEFAULT 'operator',
-      target_id       TEXT,
-      target_name     TEXT,
-      feature_key     TEXT,
-      enabled         BOOLEAN NOT NULL DEFAULT FALSE,
-      reason          TEXT,
-      actor_name      TEXT,
-      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `).catch(() => {});
+  // NO-OP: schema is guaranteed by explicit migration
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -3200,14 +1702,12 @@ router.get(
 // GET  /super/pools/:id/credits — 수영장 크레딧 잔액 조회
 // POST /super/pools/:id/credits — 크레딧 추가/설정 (슈퍼관리자)
 // ════════════════════════════════════════════════════════════════
+/**
+ * ensureCreditTable — NO-OP (WP8-P2)
+ * DDL moved to src/migrations/runtime-ddl-consolidated.ts §10
+ */
 async function ensureCreditTable() {
-  await superAdminDb.execute(sql`
-    CREATE TABLE IF NOT EXISTS pool_credits (
-      pool_id    TEXT PRIMARY KEY,
-      balance    INTEGER NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `).catch(() => {});
+  // NO-OP: schema is guaranteed by explicit migration
 }
 
 router.get("/super/pools/:id/credits", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
@@ -3302,8 +1802,8 @@ router.delete("/super/revenue-logs/purge-all", requireAuth, requireRole("super_a
 });
 
 // 앱 시작 시 비동기로 테이블/컬럼 보장
-ensureExtraTables().catch(err => console.error("[super] ensureExtraTables 오류:", err));
-ensurePlansTables().catch(err => console.error("[super] ensurePlansTables 오류:", err));
+// ensureExtraTables() boot call removed (WP8-P2) — schema via explicit migration
+// ensurePlansTables() boot call removed (WP8-P2) — schema via explicit migration
 
 // ════════════════════════════════════════════════════════════════
 // WP4A — Global Template Set Management (super_admin only)
@@ -5144,6 +3644,3301 @@ router.post(
     } catch (err: any) {
       console.error("[super] growth-reports/mark-review-required 오류:", err.message);
       res.status(500).json({ error: "MARK_REVIEW_REQUIRED_FAILED", message: err.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/base — BASE SWIMNOTE manual entitlement grant/revoke
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Super Admin이 결제 없이 수영장에 BASE SWIMNOTE 이용권을 직접 부여/회수.
+// RevenueCat webhook은 base_manual_entitlement를 절대 수정하지 않음.
+// 모든 변경은 audit_logs에 기록됨.
+//
+router.patch(
+  "/super/operators/:id/base",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      base_manual_entitlement,
+      reason,
+    } = req.body as {
+      base_manual_entitlement?: boolean;
+      reason?: string;
+    };
+
+    if (base_manual_entitlement === undefined) {
+      res.status(400).json({ error: "base_manual_entitlement 필드 필요" });
+      return;
+    }
+    if (typeof base_manual_entitlement !== "boolean") {
+      res.status(400).json({ error: "base_manual_entitlement는 boolean이어야 함" });
+      return;
+    }
+
+    const actorId = req.user!.id;
+    try {
+      await superAdminDb.transaction(async (tx) => {
+        // Before
+        const beforeRes = await tx.execute(sql`
+          SELECT COALESCE(base_manual_entitlement, false) AS base_manual_entitlement
+          FROM swimming_pools WHERE id = ${poolId}
+        `);
+        if (!beforeRes.rows.length) {
+          res.status(404).json({ error: "수영장 없음" });
+          return;
+        }
+        const beforeData = {
+          base_manual_entitlement: Boolean((beforeRes.rows[0] as any).base_manual_entitlement),
+        };
+
+        // Update
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools
+          SET base_manual_entitlement = ${base_manual_entitlement}
+          WHERE id = ${poolId}
+          RETURNING id, COALESCE(base_manual_entitlement, false) AS base_manual_entitlement
+        `);
+        const updated = updatedRes.rows[0] as any;
+        const afterData = {
+          base_manual_entitlement: Boolean(updated.base_manual_entitlement),
+          source: "super_admin_manual",
+        };
+
+        // Audit
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_base_access', ${poolId}) AS v
+        `);
+        const version = (vRes.rows[0] as any).v;
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_base_access', ${poolId}, ${version},
+            'update', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify(beforeData)}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            ${reason ?? (base_manual_entitlement ? "Super Admin BASE grant" : "Super Admin BASE revoke")}
+          )
+        `);
+
+        res.json({
+          pool_id: poolId,
+          base_manual_entitlement: Boolean(updated.base_manual_entitlement),
+          action: base_manual_entitlement ? "granted" : "revoked",
+          source: "super_admin_manual",
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/base 오류:", e?.message);
+      res.status(500).json({ error: "BASE_GRANT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// GET /super/plan-catalog — X Plan Catalog (backward-compat, X plans only)
+// ════════════════════════════════════════════════════════════════════════════
+router.get(
+  "/super/plan-catalog",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    const { X_PLAN_CATALOG } = await import("../lib/xPlanCatalog.js");
+    res.json({ plans: X_PLAN_CATALOG });
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// GET /super/official-plan-catalog — 신규 공식 6개 플랜 전체 (서버 authoritative)
+//
+// 반환 구조:
+//   { catalog: OfficialPlanDef[], by_type: { base, x, data_addon } }
+//
+// Super Admin UI는 이 endpoint를 기준으로 구독 플랜 표시.
+// Legacy Coach/Premier는 active=false이므로 신규 selector에 표시 안 됨.
+// ════════════════════════════════════════════════════════════════════════════
+router.get(
+  "/super/official-plan-catalog",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    const { OFFICIAL_PLAN_CATALOG, getPlansByType } = await import("../lib/officialPlanCatalog.js");
+    res.json({
+      catalog:  OFFICIAL_PLAN_CATALOG,
+      by_type: {
+        base:       getPlansByType("base"),
+        x:          getPlansByType("x"),
+        data_addon: getPlansByType("data_addon"),
+      },
+    });
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/xmode — X Manual Entitlement Grant / Revoke
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Super Admin이 결제 없이 수영장에 X 이용권을 직접 부여/회수.
+// 쓰는 DB 필드: x_manual_entitlement (± x_force_disabled, x_plan_key, xmode_config_status)
+// 절대 수정하지 않는 필드: x_paid_entitlement, xmode_entitlement (legacy)
+// RevenueCat 상태 조작 금지.
+//
+// Body:
+//   xmode_entitlement: boolean  — true=부여, false=회수  (UI backward-compat key)
+//   x_plan_key?:       string | null
+//   bypass_readiness_check?: boolean  — true 시 xmode_config_status → READY
+//   reason?: string
+//
+// 부여 시:
+//   x_manual_entitlement = true
+//   x_force_disabled     = false  (강제 비활성화 해제)
+//   x_plan_key           = provided value (optional)
+//   xmode_config_status  = bypass_readiness_check ? 'READY' : 기존값 유지
+//
+// 회수 시:
+//   x_manual_entitlement = false
+//   x_plan_key           = null
+//   (x_paid_entitlement, xmode_config_status 불변)
+//
+// Response: effective resolver 기준 상태 반환.
+// Audit: audit_logs 기록.
+//
+router.patch(
+  "/super/operators/:id/xmode",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      xmode_entitlement,
+      x_plan_key,
+      bypass_readiness_check,
+      reason,
+    } = req.body as {
+      xmode_entitlement?: boolean;
+      x_plan_key?: string | null;
+      bypass_readiness_check?: boolean;
+      reason?: string;
+    };
+
+    if (typeof xmode_entitlement !== "boolean") {
+      res.status(400).json({ error: "xmode_entitlement (boolean) 필드 필요" });
+      return;
+    }
+
+    const actorId = req.user!.id;
+    const grant = xmode_entitlement; // true=부여, false=회수
+
+    try {
+      await superAdminDb.transaction(async (tx) => {
+        // ── Before state ───────────────────────────────────────────────
+        const beforeRes = await tx.execute(sql`
+          SELECT
+            id,
+            COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+            COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+            COALESCE(x_force_disabled,    false) AS x_force_disabled,
+            x_plan_key,
+            xmode_config_status
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `);
+        if (!beforeRes.rows.length) {
+          res.status(404).json({ error: "수영장 없음" });
+          return;
+        }
+        const before = beforeRes.rows[0] as any;
+
+        const beforePaid   = Boolean(before.x_paid_entitlement);
+        const beforeManual = Boolean(before.x_manual_entitlement);
+        const beforeForce  = Boolean(before.x_force_disabled);
+
+        // ── Build UPDATE ────────────────────────────────────────────────
+        let newManual: boolean;
+        let newForce:  boolean;
+        let newPlanKey: string | null;
+        let newConfigStatus: string | null;
+
+        if (grant) {
+          newManual     = true;
+          newForce      = false; // 강제 비활성화 해제
+          newPlanKey    = x_plan_key ?? (before.x_plan_key ?? null);
+          newConfigStatus = bypass_readiness_check
+            ? "READY"
+            : (before.xmode_config_status ?? null);
+        } else {
+          newManual     = false;
+          newForce      = beforeForce; // force는 건드리지 않음
+          newPlanKey    = null;
+          newConfigStatus = before.xmode_config_status ?? null; // 불변
+        }
+
+        // ── Catalog-authoritative member_limit ─────────────────────────
+        // 클라이언트 제공 member_limit는 절대 신뢰하지 않음.
+        // grant 시: X plan catalog 기준 member_limit 자동 설정.
+        // revoke 시: null로 초기화 (plan catalog 기본값 사용).
+        const { getXMemberLimit } = await import("../lib/xPlanCatalog.js");
+        const newMemberLimit: number | null = grant && newPlanKey
+          ? (getXMemberLimit(newPlanKey) ?? null)
+          : null;
+
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools
+          SET
+            x_manual_entitlement = ${newManual},
+            x_force_disabled     = ${newForce},
+            x_plan_key           = ${newPlanKey},
+            xmode_config_status  = ${newConfigStatus},
+            member_limit         = ${newMemberLimit},
+            updated_at           = NOW()
+          WHERE id = ${poolId}
+          RETURNING
+            COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+            COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+            COALESCE(x_force_disabled,    false) AS x_force_disabled,
+            x_plan_key,
+            xmode_config_status,
+            member_limit
+        `);
+        const after = updatedRes.rows[0] as any;
+
+        const afterPaid   = Boolean(after.x_paid_entitlement);
+        const afterManual = Boolean(after.x_manual_entitlement);
+        const afterForce  = Boolean(after.x_force_disabled);
+        const afterEff    = (afterPaid || afterManual) && !afterForce;
+
+        // ── Audit ───────────────────────────────────────────────────────
+        const beforeEff = (beforePaid || beforeManual) && !beforeForce;
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
+        `);
+        const version = (vRes.rows[0] as any).v;
+        const beforeData = {
+          x_paid_entitlement:   beforePaid,
+          x_manual_entitlement: beforeManual,
+          x_force_disabled:     beforeForce,
+          xmode_entitlement:    beforeEff,
+        };
+        const afterData = {
+          x_paid_entitlement:   afterPaid,
+          x_manual_entitlement: afterManual,
+          x_force_disabled:     afterForce,
+          xmode_entitlement:    afterEff,
+          source:               "super_admin_manual",
+          action:               grant ? "grant" : "revoke",
+        };
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_xmode', ${poolId}, ${version},
+            'update', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify(beforeData)}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            ${reason ?? (grant ? "Super Admin X grant" : "Super Admin X revoke")}
+          )
+        `);
+
+        // ── Response: effective resolver 기준 ───────────────────────────
+        const afterOverride = Boolean(after.x_management_override);
+        res.json({
+          pool_id:                poolId,
+          x_manual_entitlement:   afterManual,
+          x_paid_entitlement:     afterPaid,
+          x_force_disabled:       afterForce,
+          x_management_override:  afterOverride,
+          x_effective:            afterEff,
+          x_source:               afterOverride ? "management_override"
+                                  : (afterManual ? "manual" : (afterPaid ? "paid" : "none")),
+          x_plan_key:             after.x_plan_key ?? null,
+          member_limit:           after.member_limit ?? null,
+          xmode_config_status:    after.xmode_config_status ?? null,
+          action:                 grant ? "granted" : "revoked",
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/xmode 오류:", e?.message);
+      res.status(500).json({ error: "X_ENTITLEMENT_UPDATE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/management-override — 본사 관리용 X override 설정/해제
+// ════════════════════════════════════════════════════════════════════════════
+//
+// 목적: 특정 pool을 일반 X 진입 조건(paid/config/curriculum/force_disabled)과
+//       완전히 분리하여 영구 X 테넌트로 고정.
+//
+// 권한: Super Admin 전용. 클라이언트에서 activate 불가.
+// 우선순위: computeMode() 최우선 — force_disabled보다 우선.
+// override=true  → 즉시 mode="x", plan=x_plan_key, source="management_override"
+// override=false → 일반 entitlement/config resolver로 복귀
+//
+// 변경 audit_logs 기록.
+//
+router.patch(
+  "/super/operators/:id/management-override",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { override, reason } = req.body as {
+      override?: boolean;
+      reason?: string;
+    };
+
+    if (typeof override !== "boolean") {
+      res.status(400).json({ error: "override (boolean) 필드 필요" });
+      return;
+    }
+
+    const actorId = req.user!.id;
+
+    try {
+      await superAdminDb.transaction(async (tx) => {
+        // ── Before state ────────────────────────────────────────────────
+        const beforeRes = await tx.execute(sql`
+          SELECT id,
+                 COALESCE(x_management_override, false) AS x_management_override,
+                 COALESCE(x_manual_entitlement,  false) AS x_manual_entitlement,
+                 COALESCE(x_paid_entitlement,    false) AS x_paid_entitlement,
+                 COALESCE(x_force_disabled,      false) AS x_force_disabled,
+                 x_plan_key, xmode_config_status, member_limit
+          FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `);
+        if (!beforeRes.rows.length) {
+          res.status(404).json({ error: "수영장 없음" });
+          return;
+        }
+        const before = beforeRes.rows[0] as any;
+        const beforeOverride = Boolean(before.x_management_override);
+
+        // ── UPDATE ──────────────────────────────────────────────────────
+        const version = Date.now();
+        await tx.execute(sql`
+          UPDATE swimming_pools
+          SET x_management_override = ${override}
+          WHERE id = ${poolId}
+        `);
+
+        // ── After state ─────────────────────────────────────────────────
+        const afterRes = await tx.execute(sql`
+          SELECT COALESCE(x_management_override, false) AS x_management_override,
+                 COALESCE(x_manual_entitlement,  false) AS x_manual_entitlement,
+                 COALESCE(x_paid_entitlement,    false) AS x_paid_entitlement,
+                 COALESCE(x_force_disabled,      false) AS x_force_disabled,
+                 x_plan_key, xmode_config_status, member_limit
+          FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `);
+        const after = afterRes.rows[0] as any;
+        const afterOverride = Boolean(after.x_management_override);
+
+        // ── Audit log ───────────────────────────────────────────────────
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_management_override', ${poolId}, ${version},
+            'update', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify({ x_management_override: beforeOverride })}::jsonb,
+            ${JSON.stringify({ x_management_override: afterOverride })}::jsonb,
+            ${reason ?? (override ? "Super Admin management override 활성" : "Super Admin management override 해제")}
+          )
+        `);
+
+        // ── Response ─────────────────────────────────────────────────────
+        const afterManual = Boolean(after.x_manual_entitlement);
+        const afterPaid   = Boolean(after.x_paid_entitlement);
+        res.json({
+          pool_id:               poolId,
+          x_management_override: afterOverride,
+          x_manual_entitlement:  afterManual,
+          x_paid_entitlement:    afterPaid,
+          x_force_disabled:      Boolean(after.x_force_disabled),
+          x_effective:           afterOverride || ((afterManual || afterPaid) && !after.x_force_disabled),
+          x_source:              afterOverride ? "management_override"
+                                 : (afterManual ? "manual" : (afterPaid ? "paid" : "none")),
+          x_plan_key:            after.x_plan_key ?? null,
+          member_limit:          after.member_limit ?? null,
+          xmode_config_status:   after.xmode_config_status ?? null,
+          action:                override ? "override_enabled" : "override_disabled",
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/management-override 오류:", e?.message);
+      res.status(500).json({ error: "MANAGEMENT_OVERRIDE_UPDATE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/force-disable — X 강제 비활성화 / 해제
+// ════════════════════════════════════════════════════════════════════════════
+//
+// x_force_disabled = true  → paid/manual entitlement 무관하게 effective X OFF
+// x_force_disabled = false → entitlement 상태 기준으로 재계산
+// x_paid_entitlement / x_manual_entitlement 불변
+// 모든 변경 audit_logs 기록
+//
+router.patch(
+  "/super/operators/:id/force-disable",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { disabled, reason } = req.body as { disabled?: boolean; reason?: string };
+
+    if (typeof disabled !== "boolean") {
+      res.status(400).json({ error: "disabled (boolean) 필드 필요" });
+      return;
+    }
+    if (!reason?.trim()) {
+      res.status(400).json({ error: "reason 필수 (빈 문자열 불가)" });
+      return;
+    }
+
+    const actorId = req.user!.userId;
+    try {
+      await db.transaction(async (tx) => {
+        const beforeRes = await tx.execute(sql`
+          SELECT id,
+                 COALESCE(x_paid_entitlement,  false) AS x_paid,
+                 COALESCE(x_manual_entitlement, false) AS x_manual,
+                 COALESCE(x_force_disabled,     false) AS x_force
+          FROM swimming_pools WHERE id = ${poolId}
+          LIMIT 1 FOR UPDATE
+        `);
+        if (!beforeRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
+        const before = beforeRes.rows[0] as any;
+        const beforeForce = Boolean(before.x_force);
+        const xPaid = Boolean(before.x_paid);
+        const xManual = Boolean(before.x_manual);
+        const beforeEff = (xPaid || xManual) && !beforeForce;
+
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools SET x_force_disabled = ${disabled}
+          WHERE id = ${poolId}
+          RETURNING id, COALESCE(x_force_disabled, false) AS x_force_disabled
+        `);
+        const afterForce = Boolean((updatedRes.rows[0] as any).x_force_disabled);
+        const afterEff = (xPaid || xManual) && !afterForce;
+
+        const action = disabled ? "X_FORCE_DISABLE" : "X_FORCE_RESTORE";
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
+        `);
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_xmode', ${poolId}, ${(vRes.rows[0] as any).v},
+            ${action}, 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify({ x_force_disabled: beforeForce, x_effective: beforeEff })}::jsonb,
+            ${JSON.stringify({ x_force_disabled: afterForce, x_effective: afterEff })}::jsonb,
+            ${reason}
+          )
+        `);
+
+        res.json({
+          pool_id: poolId,
+          x_force_disabled: afterForce,
+          x_effective: afterEff,
+          action,
+        });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/force-disable 오류:", e?.message);
+      res.status(500).json({ error: "FORCE_DISABLE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/member-limit — Member Limit Override
+// ════════════════════════════════════════════════════════════════════════════
+//
+// member_limit = N (1..9998) → pool-level override, plan catalog limit 무시
+// member_limit = null         → override 해제, plan catalog limit 사용
+// 클라이언트가 보낸 숫자 그대로 신뢰 금지 — 서버에서 범위 검증
+//
+router.patch(
+  "/super/operators/:id/member-limit",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { member_limit, reason } = req.body as {
+      member_limit?: number | null;
+      reason?: string;
+    };
+
+    // Validate
+    if (member_limit !== null && member_limit !== undefined) {
+      if (!Number.isInteger(member_limit) || member_limit < 1 || member_limit > 9998) {
+        res.status(400).json({ error: "member_limit은 1~9998 정수 또는 null(해제)이어야 함" });
+        return;
+      }
+    }
+    if (!reason?.trim()) {
+      res.status(400).json({ error: "reason 필수" });
+      return;
+    }
+
+    const actorId = req.user!.userId;
+    const newLimit = member_limit ?? null;
+
+    try {
+      await db.transaction(async (tx) => {
+        const beforeRes = await tx.execute(sql`
+          SELECT id, member_limit FROM swimming_pools WHERE id = ${poolId}
+          LIMIT 1 FOR UPDATE
+        `);
+        if (!beforeRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
+        const beforeLimit = (beforeRes.rows[0] as any).member_limit ?? null;
+
+        const updatedRes = await tx.execute(sql`
+          UPDATE swimming_pools SET member_limit = ${newLimit}
+          WHERE id = ${poolId}
+          RETURNING id, member_limit
+        `);
+        const afterLimit = (updatedRes.rows[0] as any).member_limit ?? null;
+
+        const action = newLimit !== null ? "MEMBER_LIMIT_OVERRIDE" : "MEMBER_LIMIT_OVERRIDE_CLEAR";
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_member_limit', ${poolId}) AS v
+        `);
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_member_limit', ${poolId}, ${(vRes.rows[0] as any).v},
+            ${action}, 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify({ member_limit: beforeLimit })}::jsonb,
+            ${JSON.stringify({ member_limit: afterLimit })}::jsonb,
+            ${reason}
+          )
+        `);
+
+        res.json({ pool_id: poolId, member_limit: afterLimit, action });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/member-limit 오류:", e?.message);
+      res.status(500).json({ error: "MEMBER_LIMIT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// SUPER ADMIN POOL CONTROL CENTER — Summary + Lazy Tab Endpoints
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /super/pools/:id/control-center/summary — 핵심 요약 (단일 진입 호출)
+router.get(
+  "/super/pools/:id/control-center/summary",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      // Pool + entitlement (single query)
+      const poolRes = await superAdminDb.execute(sql`
+        SELECT
+          sp.*,
+          COALESCE(sp.x_paid_entitlement, false) AS x_paid_entitlement,
+          COALESCE(sp.x_manual_entitlement, false) AS x_manual_entitlement,
+          COALESCE(sp.x_force_disabled, false) AS x_force_disabled,
+          COALESCE(sp.base_manual_entitlement, false) AS base_manual_entitlement
+        FROM swimming_pools sp
+        WHERE sp.id = ${poolId}
+        LIMIT 1
+      `);
+      if (!poolRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
+      const pool = poolRes.rows[0] as any;
+
+      // Counts + storage + recent errors (parallel)
+      const [countsRes, errorRes, aiRes, grRes, notifRes, supportRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_members,
+            (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId}) AS total_members,
+            (SELECT COUNT(*) FROM users WHERE swimming_pool_id = ${poolId} AND role IN ('pool_admin', 'teacher')) AS teacher_count,
+            (SELECT COUNT(*) FROM parent_accounts WHERE swimming_pool_id = ${poolId}) AS parent_count,
+            (SELECT COUNT(*) FROM class_groups WHERE swimming_pool_id = ${poolId} AND active = true) AS active_class_count
+        `),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS cnt, MAX(created_at) AS last_at
+          FROM event_logs
+          WHERE pool_id = ${poolId} AND level IN ('error', 'critical')
+            AND created_at > NOW() - INTERVAL '7 days'
+        `).catch(() => ({ rows: [{ cnt: 0, last_at: null }] })),
+        superAdminDb.execute(sql`
+          SELECT diary_count, teacher_count AS ai_teacher_count, ai_call_count,
+                 year_month
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY year_month DESC LIMIT 1
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) FILTER (WHERE status = 'READY_TO_SEND') AS ready_count,
+                 COUNT(*) FILTER (WHERE status = 'FAILED') AS failed_count,
+                 COUNT(*) AS total_count
+          FROM growth_reports
+          WHERE swimming_pool_id = ${poolId}
+            AND batch_date >= CURRENT_DATE - INTERVAL '30 days'
+        `).catch(() => ({ rows: [{ ready_count: 0, failed_count: 0, total_count: 0 }] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS unread
+          FROM notifications
+          WHERE pool_id = ${poolId} AND is_read = false
+            AND created_at > NOW() - INTERVAL '7 days'
+        `).catch(() => ({ rows: [{ unread: 0 }] })),
+        superAdminDb.execute(sql`
+          SELECT id, ticket_id, state, created_at, updated_at, actor_role
+          FROM support_cases
+          WHERE pool_id = ${poolId}
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      const counts = countsRes.rows[0] as any;
+      const errors = errorRes.rows[0] as any;
+      const ai = aiRes.rows[0] as any ?? {};
+      const gr = grRes.rows[0] as any ?? {};
+      const notif = notifRes.rows[0] as any;
+      const recentSupport = (supportRes.rows[0] as any) ?? null;
+
+      // Health score (rule-based)
+      const healthIssues: string[] = [];
+      if (pool.x_paid_entitlement && pool.x_force_disabled) healthIssues.push("X ENTITLEMENT CONFLICT");
+      if (Number(errors.cnt ?? 0) > 10) healthIssues.push("FREQUENT_ERRORS");
+      if (Number(gr.failed_count ?? 0) > 3) healthIssues.push("GROWTH_REPORT_FAILURES");
+      if (pool.upload_blocked) healthIssues.push("STORAGE_QUOTA");
+      const health: "GREEN" | "YELLOW" | "RED" =
+        healthIssues.length === 0 ? "GREEN" :
+        healthIssues.some((h) => h.includes("CONFLICT") || h.includes("STORAGE")) ? "RED" : "YELLOW";
+
+      const xPaid    = Boolean(pool.x_paid_entitlement);
+      const xManual  = Boolean(pool.x_manual_entitlement);
+      const xForce   = Boolean(pool.x_force_disabled);
+      const xEff     = (xPaid || xManual) && !xForce;
+      const basePaid = Boolean(pool.subscription_status === "active" && !pool.base_manual_entitlement);
+      const baseManual = Boolean(pool.base_manual_entitlement);
+      const baseEff  = basePaid || baseManual;
+
+      res.json({
+        pool_id:          pool.id,
+        name:             pool.name,
+        owner_name:       pool.owner_name,
+        approval_status:  pool.approval_status,
+        created_at:       pool.created_at,
+        updated_at:       pool.updated_at,
+        health,
+        health_issues:    healthIssues,
+        // BASE access
+        base_paid:        basePaid,
+        base_manual:      baseManual,
+        base_effective:   baseEff,
+        base_source:      baseManual ? "manual" : (basePaid ? "paid" : "none"),
+        subscription_status: pool.subscription_status,
+        subscription_tier:   pool.subscription_tier,
+        // X access
+        x_paid:           xPaid,
+        x_manual:         xManual,
+        x_force_disabled: xForce,
+        x_effective:      xEff,
+        x_source:         xManual ? "manual" : (xPaid ? "paid" : "none"),
+        x_plan_key:       pool.x_plan_key ?? null,
+        xmode_config_status: pool.xmode_config_status,
+        // Counts
+        active_members:   Number(counts.active_members ?? 0),
+        total_members:    Number(counts.total_members ?? 0),
+        teacher_count:    Number(counts.teacher_count ?? 0),
+        parent_count:     Number(counts.parent_count ?? 0),
+        active_class_count: Number(counts.active_class_count ?? 0),
+        // Storage
+        member_limit:     pool.member_limit,
+        used_storage_bytes: pool.used_storage_bytes,
+        upload_blocked:   pool.upload_blocked,
+        // AI
+        recent_ai_diary_count: Number(ai.diary_count ?? 0),
+        recent_ai_month:       ai.year_month ?? null,
+        // Growth Report (30d)
+        gr_ready_count:   Number(gr.ready_count ?? 0),
+        gr_failed_count:  Number(gr.failed_count ?? 0),
+        gr_total_count:   Number(gr.total_count ?? 0),
+        // Errors (7d)
+        recent_error_count: Number(errors.cnt ?? 0),
+        last_error_at:    errors.last_at ?? null,
+        // Notifications (7d unread)
+        unread_notifications: Number(notif.unread ?? 0),
+        // Recent support case (latest 1, pool-scoped)
+        recent_support: recentSupport ? {
+          id:         recentSupport.id,
+          ticket_id:  recentSupport.ticket_id,
+          state:      recentSupport.state,
+          actor_role: recentSupport.actor_role,
+          created_at: recentSupport.created_at,
+          updated_at: recentSupport.updated_at,
+        } : null,
+      });
+    } catch (e: any) {
+      console.error("[control-center] summary 오류:", e?.message);
+      res.status(500).json({ error: "SUMMARY_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/members
+router.get(
+  "/super/pools/:id/control-center/members",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const rawLimit = Math.min(parseInt((req.query.limit as string) ?? "50", 10), 100);
+    const rawOffset = Math.max(parseInt((req.query.offset as string) ?? "0", 10), 0);
+    const { q = "", status = "" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT s.id, s.name, s.status, s.phone,
+               s.created_at, s.updated_at,
+               s.current_level_order,
+               cg.id AS class_id, cg.name AS class_name,
+               u.name AS teacher_name,
+               (SELECT COUNT(*) FROM parent_students ps
+                  JOIN parent_accounts pa ON ps.parent_account_id = pa.id
+                  WHERE ps.student_id = s.id AND pa.approved_at IS NOT NULL) AS parent_count,
+               (SELECT MAX(created_at) FROM diary_entries WHERE student_id = s.id) AS last_diary_at
+        FROM students s
+        LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
+        LEFT JOIN class_groups cg ON cg.id = cgs.class_group_id AND cg.active = true
+        LEFT JOIN users u ON u.id = cg.teacher_id
+        WHERE s.swimming_pool_id = ${poolId}
+          AND (${q} = '' OR s.name ILIKE ${'%' + q + '%'} OR s.phone ILIKE ${'%' + q + '%'} OR s.id ILIKE ${'%' + q + '%'})
+          AND (${status} = '' OR s.status = ${status})
+        ORDER BY s.status ASC, s.name ASC
+        LIMIT ${rawLimit} OFFSET ${rawOffset}
+      `);
+      const total = await superAdminDb.execute(sql`
+        SELECT COUNT(*) AS cnt FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND (${q} = '' OR name ILIKE ${'%' + q + '%'})
+          AND (${status} = '' OR status = ${status})
+      `);
+      res.json({ members: rows.rows, total: Number((total.rows[0] as any).cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: "MEMBERS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/members/:memberId — Member detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/members/:memberId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, memberId } = req.params;
+    try {
+      // 1. Identity (pool-scoped: both swimming_pool_id AND id must match)
+      const memberRes = await superAdminDb.execute(sql`
+        SELECT s.id, s.name, s.status, s.phone, s.current_level_order,
+               s.created_at, s.updated_at
+        FROM students s
+        WHERE s.swimming_pool_id = ${poolId} AND s.id = ${memberId}
+        LIMIT 1
+      `);
+      if (!memberRes.rows.length) { res.status(404).json({ error: "MEMBER_NOT_FOUND" }); return; }
+      const member = memberRes.rows[0] as any;
+
+      const levelOrder = member.current_level_order;
+      const [levelRes, classRes, parentRes, diaryRes, notifRes, errorRes] = await Promise.all([
+        // Level name
+        levelOrder !== null && levelOrder !== undefined
+          ? superAdminDb.execute(sql`
+              SELECT level_order, level_name FROM pool_levels
+              WHERE pool_id = ${poolId} AND level_order = ${levelOrder}
+              LIMIT 1
+            `).catch(() => ({ rows: [] }))
+          : Promise.resolve({ rows: [] }),
+        // Current class + teacher
+        superAdminDb.execute(sql`
+          SELECT cg.id, cg.name AS class_name, cg.active,
+                 u.id AS teacher_id, u.name AS teacher_name, u.email AS teacher_email
+          FROM class_group_students cgs
+          JOIN class_groups cg ON cg.id = cgs.class_group_id
+          LEFT JOIN users u ON u.id = cg.teacher_id
+          WHERE cgs.student_id = ${memberId} AND cg.swimming_pool_id = ${poolId}
+          ORDER BY cg.active DESC, cg.name ASC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Linked parents (pool-scoped via students.swimming_pool_id)
+        superAdminDb.execute(sql`
+          SELECT pa.id, pa.name, pa.phone, pa.approved_at, pa.last_login_at,
+                 ps.created_at AS linked_at
+          FROM parent_students ps
+          JOIN parent_accounts pa ON pa.id = ps.parent_account_id
+          WHERE ps.student_id = ${memberId} AND pa.swimming_pool_id = ${poolId}
+          ORDER BY pa.approved_at DESC NULLS LAST
+          LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        // Recent diaries (5)
+        superAdminDb.execute(sql`
+          SELECT id, created_at, title, ai_generated
+          FROM diary_entries
+          WHERE student_id = ${memberId}
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent notifications (5) — by ref_id (student) or pool
+        superAdminDb.execute(sql`
+          SELECT id, type, title, body, is_read, created_at
+          FROM notifications
+          WHERE pool_id = ${poolId}
+            AND (ref_id = ${memberId} OR ref_type = 'student')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent errors (5) from event_logs — by pool + actor_id or metadata reference
+        superAdminDb.execute(sql`
+          SELECT id, category, description, level, created_at, actor_id
+          FROM event_logs
+          WHERE pool_id = ${poolId}
+            AND actor_id = ${memberId}
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      const levelRow = (levelRes.rows[0] as any) ?? null;
+      res.json({
+        identity: {
+          ...member,
+          level_name: levelRow?.level_name ?? null,
+        },
+        classes: classRes.rows,
+        parents: parentRes.rows,
+        recent_diaries: diaryRes.rows,
+        recent_notifications: notifRes.rows,
+        recent_errors: errorRes.rows,
+      });
+    } catch (e: any) {
+      console.error("[super] member detail 오류:", e?.message);
+      res.status(500).json({ error: "MEMBER_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/teachers
+router.get(
+  "/super/pools/:id/control-center/teachers",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { q = "" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT u.id, u.name, u.email, u.phone, u.role::text AS role,
+               u.created_at, u.last_login_at,
+               (SELECT COUNT(*) FROM class_groups cg
+                WHERE cg.teacher_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.active = true
+               ) AS active_class_count,
+               (SELECT COUNT(*) FROM ai_traces at2
+                WHERE at2.pool_id = ${poolId} AND at2.actor_id = u.id
+                  AND at2.created_at > NOW() - INTERVAL '30 days'
+               ) AS recent_ai_count
+        FROM users u
+        WHERE u.swimming_pool_id = ${poolId}
+          AND u.role IN ('pool_admin', 'teacher')
+          AND (${q} = '' OR u.name ILIKE ${'%' + q + '%'} OR u.email ILIKE ${'%' + q + '%'} OR u.id ILIKE ${'%' + q + '%'})
+        ORDER BY u.role ASC, u.name ASC
+      `);
+      res.json({ teachers: rows.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "TEACHERS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/teachers/:teacherId — Teacher detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/teachers/:teacherId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, teacherId } = req.params;
+    try {
+      const teacherRes = await superAdminDb.execute(sql`
+        SELECT id, name, email, phone, role::text AS role, created_at, last_login_at, updated_at
+        FROM users
+        WHERE swimming_pool_id = ${poolId} AND id = ${teacherId}
+          AND role IN ('pool_admin', 'teacher')
+        LIMIT 1
+      `);
+      if (!teacherRes.rows.length) { res.status(404).json({ error: "TEACHER_NOT_FOUND" }); return; }
+      const teacher = teacherRes.rows[0];
+
+      const [classRes, aiRes, errorRes, notifRes] = await Promise.all([
+        // Assigned classes (pool-scoped)
+        superAdminDb.execute(sql`
+          SELECT cg.id, cg.name, cg.active, cg.created_at,
+                 (SELECT COUNT(*) FROM class_group_students cgs WHERE cgs.class_group_id = cg.id) AS student_count
+          FROM class_groups cg
+          WHERE cg.teacher_id = ${teacherId} AND cg.swimming_pool_id = ${poolId}
+          ORDER BY cg.active DESC, cg.name ASC
+          LIMIT 20
+        `).catch(() => ({ rows: [] })),
+        // Recent AI diary traces (30d)
+        superAdminDb.execute(sql`
+          SELECT id, feature, status, llm_model, total_tokens, latency_ms, created_at
+          FROM ai_traces
+          WHERE pool_id = ${poolId} AND actor_id = ${teacherId}
+          ORDER BY created_at DESC
+          LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        // Recent errors from event_logs (by actor_id + pool)
+        superAdminDb.execute(sql`
+          SELECT id, category, description, level, created_at
+          FROM event_logs
+          WHERE pool_id = ${poolId} AND actor_id = ${teacherId}
+            AND level IN ('error', 'critical')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent notifications sent by/to this pool for this teacher (actor reference)
+        superAdminDb.execute(sql`
+          SELECT id, type, title, is_read, created_at
+          FROM notifications
+          WHERE pool_id = ${poolId} AND recipient_id = ${teacherId}
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        identity: teacher,
+        classes: classRes.rows,
+        recent_ai_traces: aiRes.rows,
+        recent_errors: errorRes.rows,
+        recent_notifications: notifRes.rows,
+      });
+    } catch (e: any) {
+      console.error("[super] teacher detail 오류:", e?.message);
+      res.status(500).json({ error: "TEACHER_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/parents
+router.get(
+  "/super/pools/:id/control-center/parents",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const rawLimit = Math.min(parseInt((req.query.limit as string) ?? "50", 10), 100);
+    const rawOffset = Math.max(parseInt((req.query.offset as string) ?? "0", 10), 0);
+    const { q = "" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT pa.id, pa.name, pa.phone, pa.created_at, pa.approved_at,
+               pa.last_login_at,
+               (SELECT COUNT(*) FROM parent_students ps WHERE ps.parent_account_id = pa.id) AS linked_student_count
+        FROM parent_accounts pa
+        WHERE pa.swimming_pool_id = ${poolId}
+          AND (${q} = '' OR pa.name ILIKE ${'%' + q + '%'} OR pa.phone ILIKE ${'%' + q + '%'})
+        ORDER BY pa.created_at DESC
+        LIMIT ${rawLimit} OFFSET ${rawOffset}
+      `);
+      const total = await superAdminDb.execute(sql`
+        SELECT COUNT(*) AS cnt FROM parent_accounts
+        WHERE swimming_pool_id = ${poolId}
+          AND (${q} = '' OR name ILIKE ${'%' + q + '%'})
+      `);
+      res.json({ parents: rows.rows, total: Number((total.rows[0] as any).cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: "PARENTS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/parents/:parentId — Parent detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/parents/:parentId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, parentId } = req.params;
+    try {
+      const parentRes = await superAdminDb.execute(sql`
+        SELECT id, name, phone, created_at, approved_at, last_login_at
+        FROM parent_accounts
+        WHERE swimming_pool_id = ${poolId} AND id = ${parentId}
+        LIMIT 1
+      `);
+      if (!parentRes.rows.length) { res.status(404).json({ error: "PARENT_NOT_FOUND" }); return; }
+
+      const [childrenRes, notifRes, errorRes] = await Promise.all([
+        // Linked students (pool-scoped)
+        superAdminDb.execute(sql`
+          SELECT s.id, s.name, s.status, s.current_level_order,
+                 ps.created_at AS linked_at,
+                 cg.name AS class_name
+          FROM parent_students ps
+          JOIN students s ON s.id = ps.student_id
+          LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
+          LEFT JOIN class_groups cg ON cg.id = cgs.class_group_id AND cg.active = true
+          WHERE ps.parent_account_id = ${parentId}
+            AND s.swimming_pool_id = ${poolId}
+          ORDER BY s.status ASC, s.name ASC
+          LIMIT 20
+        `).catch(() => ({ rows: [] })),
+        // Recent notifications
+        superAdminDb.execute(sql`
+          SELECT id, type, title, body, is_read, created_at
+          FROM notifications
+          WHERE pool_id = ${poolId}
+            AND (recipient_id = ${parentId} OR ref_type = 'parent_account')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent errors (by actor_id)
+        superAdminDb.execute(sql`
+          SELECT id, category, description, level, created_at
+          FROM event_logs
+          WHERE pool_id = ${poolId} AND actor_id = ${parentId}
+            AND level IN ('error', 'critical')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        identity: parentRes.rows[0],
+        children: childrenRes.rows,
+        recent_notifications: notifRes.rows,
+        recent_errors: errorRes.rows,
+        // Connection diagnostics
+        connection_states: {
+          total_linked: childrenRes.rows.length,
+          approved_at: (parentRes.rows[0] as any).approved_at,
+          approved: !!(parentRes.rows[0] as any).approved_at,
+        },
+      });
+    } catch (e: any) {
+      console.error("[super] parent detail 오류:", e?.message);
+      res.status(500).json({ error: "PARENT_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/classes
+router.get(
+  "/super/pools/:id/control-center/classes",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const rawLimit = Math.min(parseInt((req.query.limit as string) ?? "100", 10), 200);
+    const { q = "" } = req.query as Record<string, string>;
+    try {
+      const rows = await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.active, cg.created_at, cg.updated_at,
+               u.id AS teacher_id, u.name AS teacher_name,
+               (SELECT COUNT(*) FROM class_group_students cgs WHERE cgs.class_group_id = cg.id) AS student_count
+        FROM class_groups cg
+        LEFT JOIN users u ON u.id = cg.teacher_id
+        WHERE cg.swimming_pool_id = ${poolId}
+          AND (${q} = '' OR cg.name ILIKE ${'%' + q + '%'})
+        ORDER BY cg.active DESC, cg.name ASC
+        LIMIT ${rawLimit}
+      `);
+      res.json({ classes: rows.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "CLASSES_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/classes/:classId — Class detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/classes/:classId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, classId } = req.params;
+    try {
+      const classRes = await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.active, cg.created_at, cg.updated_at,
+               u.id AS teacher_id, u.name AS teacher_name, u.email AS teacher_email
+        FROM class_groups cg
+        LEFT JOIN users u ON u.id = cg.teacher_id
+        WHERE cg.swimming_pool_id = ${poolId} AND cg.id = ${classId}
+        LIMIT 1
+      `);
+      if (!classRes.rows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
+
+      const [studentsRes, diaryRes, scheduleRes, curriculumRes] = await Promise.all([
+        // Students in this class
+        superAdminDb.execute(sql`
+          SELECT s.id, s.name, s.status, s.current_level_order,
+                 cgs.created_at AS joined_at
+          FROM class_group_students cgs
+          JOIN students s ON s.id = cgs.student_id
+          WHERE cgs.class_group_id = ${classId}
+            AND s.swimming_pool_id = ${poolId}
+          ORDER BY s.status ASC, s.name ASC
+          LIMIT 100
+        `).catch(() => ({ rows: [] })),
+        // Recent diary entries in this class
+        superAdminDb.execute(sql`
+          SELECT de.id, de.student_id, s.name AS student_name, de.created_at, de.ai_generated
+          FROM diary_entries de
+          JOIN students s ON s.id = de.student_id
+          WHERE de.class_group_id = ${classId}
+          ORDER BY de.created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Schedules (if class_schedules exists)
+        superAdminDb.execute(sql`
+          SELECT id, day_of_week, start_time, end_time, room
+          FROM class_schedules
+          WHERE class_group_id = ${classId}
+          ORDER BY day_of_week ASC, start_time ASC
+          LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        // Curriculum assignment (if x_curriculum_class_assignments exists)
+        superAdminDb.execute(sql`
+          SELECT xca.id, xca.class_group_id,
+                 xp.package_name, xp.package_version, xp.status AS package_status
+          FROM x_curriculum_class_assignments xca
+          JOIN x_curriculum_packages xp ON xp.id = xca.package_id
+          WHERE xca.class_group_id = ${classId}
+            AND xca.swimming_pool_id = ${poolId}
+          ORDER BY xp.generated_at DESC
+          LIMIT 1
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        identity: classRes.rows[0],
+        students: studentsRes.rows,
+        recent_diaries: diaryRes.rows,
+        schedules: scheduleRes.rows,
+        curriculum: curriculumRes.rows[0] ?? null,
+      });
+    } catch (e: any) {
+      console.error("[super] class detail 오류:", e?.message);
+      res.status(500).json({ error: "CLASS_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ──────────────────────────────────────────────────────────────────
+// R2 signed URL helper (shared, no raw key returned to client)
+// ──────────────────────────────────────────────────────────────────
+// CF_ACCOUNT_ID matches objectStorage.ts (photo client) — curriculum files use photo bucket
+const _CF_ACCOUNT_ID  = process.env.CF_ACCOUNT_ID  ?? "53dff4976d55c17ec94ebe6306d0cffc";
+const _PHOTO_BUCKET   = process.env.CF_R2_BUCKET_NAME ?? "swimnotepicture";
+const _R2_ENDPOINT    = `https://${_CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+async function generateR2SignedUrl(r2Key: string, expiresIn = 300): Promise<string> {
+  const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+  const r2 = new S3Client({
+    region: "auto",
+    endpoint: _R2_ENDPOINT,
+    credentials: {
+      accessKeyId:     process.env.CF_R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY!,
+    },
+  });
+  return getSignedUrl(
+    r2,
+    new GetObjectCommand({ Bucket: _PHOTO_BUCKET, Key: r2Key }),
+    { expiresIn },
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// GET /super/pools/:id/control-center/curriculum
+// Sources: x_setup_submissions (status), x_setup_files (files+versions),
+//          x_packaged_profiles (packages), x_curriculum_class_assignments (assignment agg)
+// ──────────────────────────────────────────────────────────────────
+router.get(
+  "/super/pools/:id/control-center/curriculum",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      const [submissionRes, filesRes, packagesRes, assignRes] = await Promise.all([
+        // Submission state (1:1 per pool — pool_id column in this table)
+        superAdminDb.execute(sql`
+          SELECT id, pool_id, setup_status, curriculum_status, website_status,
+                 logo_status, photos_status, submitted_at, submitted_by,
+                 created_at, updated_at
+          FROM x_setup_submissions
+          WHERE pool_id = ${poolId}
+          LIMIT 1
+        `).catch(() => ({ rows: [] })),
+        // File version history (curriculum + website types only)
+        superAdminDb.execute(sql`
+          SELECT id, pool_id, file_type, original_filename, mime_type,
+                 file_size_bytes, submission_version, is_current,
+                 template_version, uploaded_by, uploaded_at, deleted_at
+          FROM x_setup_files
+          WHERE pool_id = ${poolId}
+            AND file_type IN ('curriculum', 'website')
+            AND deleted_at IS NULL
+          ORDER BY uploaded_at DESC
+          LIMIT 20
+        `).catch(() => ({ rows: [] })),
+        // Packages (x_packaged_profiles)
+        superAdminDb.execute(sql`
+          SELECT id, package_version, package_name, generated_at, source_submission_version
+          FROM x_packaged_profiles
+          WHERE pool_id = ${poolId}
+          ORDER BY generated_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Assignment aggregate: classes assigned + student count
+        superAdminDb.execute(sql`
+          SELECT COUNT(DISTINCT xca.class_group_id) AS assigned_class_count,
+                 COALESCE(SUM(cgs_cnt.student_count), 0) AS assigned_student_count
+          FROM x_curriculum_class_assignments xca
+          JOIN x_curriculum_packages xp ON xp.id = xca.package_id
+          LEFT JOIN (
+            SELECT class_group_id, COUNT(*) AS student_count
+            FROM class_group_students
+            GROUP BY class_group_id
+          ) cgs_cnt ON cgs_cnt.class_group_id = xca.class_group_id
+          WHERE xca.swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      const submission = submissionRes.rows[0] as any ?? null;
+      const files      = filesRes.rows as any[];
+      const packages   = packagesRes.rows as any[];
+      const assign     = (assignRes.rows[0] as any) ?? { assigned_class_count: 0, assigned_student_count: 0 };
+
+      // Derive active/current versions per file_type
+      const currentFiles: Record<string, any> = {};
+      for (const f of files) {
+        if (f.is_current && !currentFiles[f.file_type]) {
+          currentFiles[f.file_type] = f;
+        }
+      }
+
+      // Normalized UI status from curriculum_status field
+      const normalizeStatus = (raw: string | null | undefined): string => {
+        if (!raw) return "NOT_SUBMITTED";
+        if (["APPROVED", "READY"].includes(raw)) return "ACTIVE";
+        if (raw === "SUBMITTED" || raw === "UNDER_REVIEW") return "PROCESSING";
+        if (raw === "REVISION_REQUESTED") return "REVISION_REQUESTED";
+        if (raw === "IN_PROGRESS") return "UPLOADED";
+        return raw; // preserve original if unknown
+      };
+
+      res.json({
+        submission: submission ? {
+          id:                 submission.id,
+          setup_status:       submission.setup_status,
+          curriculum_status:  submission.curriculum_status,
+          website_status:     submission.website_status,
+          curriculum_ui_status: normalizeStatus(submission.curriculum_status),
+          submitted_at:       submission.submitted_at,
+          updated_at:         submission.updated_at,
+        } : null,
+        files,
+        current_files: currentFiles, // { curriculum: file, website: file }
+        packages,
+        assignment: {
+          assigned_class_count:   Number(assign.assigned_class_count   ?? 0),
+          assigned_student_count: Number(assign.assigned_student_count ?? 0),
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "CURRICULUM_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ──────────────────────────────────────────────────────────────────
+// GET /super/pools/:id/control-center/curriculum/download
+// Security: client provides file_id only (x_setup_files.id)
+//           server resolves r2_key from DB — no client-supplied key
+//           audit log written on success
+// ──────────────────────────────────────────────────────────────────
+router.get(
+  "/super/pools/:id/control-center/curriculum/download",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { file_id } = req.query as Record<string, string>;
+    if (!file_id) {
+      res.status(400).json({ error: "MISSING_PARAMS", message: "file_id 필요" });
+      return;
+    }
+    try {
+      // 1. Resolve file record — pool-scoped, no client-supplied key
+      const fileRes = await superAdminDb.execute(sql`
+        SELECT id, pool_id, file_type, r2_key, original_filename, mime_type, file_size_bytes,
+               submission_version, is_current, deleted_at
+        FROM x_setup_files
+        WHERE id = ${file_id} AND pool_id = ${poolId} AND deleted_at IS NULL
+        LIMIT 1
+      `);
+      if (!fileRes.rows.length) {
+        res.status(404).json({ error: "FILE_NOT_FOUND", message: "원본 파일을 찾을 수 없습니다." });
+        return;
+      }
+      const file = fileRes.rows[0] as any;
+
+      // 2. Guard: r2_key must exist
+      if (!file.r2_key) {
+        res.status(404).json({ error: "SOURCE_MISSING", message: "원본 파일을 찾을 수 없습니다." });
+        return;
+      }
+
+      // 3. CRLF-safe filename for Content-Disposition (DB source only — §29)
+      const safeFilename = (file.original_filename ?? "curriculum.docx")
+        .replace(/[\r\n\t"\\]/g, "_")
+        .replace(/[^\x20-\x7E가-힣]/g, "_")
+        .trim() || "curriculum.docx";
+
+      // 4. Generate signed URL (server-resolved r2_key — §28)
+      const signedUrl = await generateR2SignedUrl(file.r2_key, 300);
+
+      // 5. Audit log — CURRICULUM_SOURCE_DOWNLOAD (no signed URL, no r2_key stored — §11/§38)
+      const actorName = (req.user as any)?.name ?? "슈퍼관리자";
+      const logId = `evt_csd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (
+          ${logId}, ${poolId}, '커리큘럼',
+          ${req.user!.userId}, ${actorName},
+          ${file_id},
+          ${`커리큘럼 원본 파일 다운로드: ${safeFilename} (v${file.submission_version})`},
+          ${JSON.stringify({
+            action:       "CURRICULUM_SOURCE_DOWNLOAD",
+            file_type:    file.file_type,
+            file_id:      file.id,
+            filename:     safeFilename,
+            version:      file.submission_version,
+            is_current:   file.is_current,
+            // r2_key and signed URL are NOT stored
+          })}::jsonb
+        )
+      `).catch((err: any) => {
+        console.error("[super] curriculum download audit 실패:", err?.message);
+      });
+
+      res.json({
+        url:         signedUrl,
+        expires_in:  300,
+        filename:    safeFilename,
+        mime_type:   file.mime_type ?? null,
+        file_size_bytes: Number(file.file_size_bytes ?? 0),
+        file_type:   file.file_type,
+        version:     file.submission_version,
+        is_current:  file.is_current,
+      });
+    } catch (e: any) {
+      console.error("[super] curriculum download 오류:", e?.message);
+      res.status(500).json({ error: "DOWNLOAD_FAILED", message: "다운로드 처리 중 오류가 발생했습니다." });
+    }
+  },
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WP5 — AI / GROWTH REPORT / JOB OPERATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** ISO month range helper — avoids LEFT(date,7) full-scan pattern */
+function monthRange(yearMonth: string): { from: string; to: string } | null {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth)) return null;
+  const [y, m] = yearMonth.split("-").map(Number);
+  const from = `${yearMonth}-01T00:00:00.000Z`;
+  const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  const to = `${nextMonth}-01T00:00:00.000Z`;
+  return { from, to };
+}
+
+/** Clamp pagination params */
+function clampPage(limitStr: string, offsetStr: string, max = 100) {
+  return {
+    lim: Math.min(Math.max(parseInt(limitStr) || 20, 1), max),
+    off: Math.max(parseInt(offsetStr) || 0, 0),
+  };
+}
+
+// GET /super/pools/:id/control-center/ai
+// Monthly snapshot summary (x_monthly_operational_snapshots — real columns)
+router.get(
+  "/super/pools/:id/control-center/ai",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { month } = req.query as Record<string, string>;
+
+    try {
+      // 1. Monthly snapshot (up to 12 months; or single month if requested)
+      const snapshots = await superAdminDb.execute(month
+        ? sql`
+          SELECT year, month,
+                 ai_diary_count, ai_diary_teacher_count,
+                 parent_curriculum_search_count, parent_curriculum_user_count,
+                 growth_report_target_count, growth_report_generated_count,
+                 growth_report_failed_count, growth_report_sent_count
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+            AND year  = ${parseInt(month.slice(0, 4))}
+            AND month = ${parseInt(month.slice(5, 7))}
+          LIMIT 1
+        `
+        : sql`
+          SELECT year, month,
+                 ai_diary_count, ai_diary_teacher_count,
+                 parent_curriculum_search_count, parent_curriculum_user_count,
+                 growth_report_target_count, growth_report_generated_count,
+                 growth_report_failed_count, growth_report_sent_count
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY year DESC, month DESC LIMIT 12
+        `
+      ).catch(() => ({ rows: [] }));
+
+      // 2. Raw recount for selected/current month (snapshot consistency check)
+      const now = new Date();
+      const targetYear  = month ? parseInt(month.slice(0, 4)) : now.getUTCFullYear();
+      const targetMonth = month ? parseInt(month.slice(5, 7)) : now.getUTCMonth() + 1;
+      const ymStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+      const range = monthRange(ymStr)!;
+
+      const [rawDiary, rawCurriculum] = await Promise.all([
+        // AI Diary raw recount from class_diaries
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE ai_generated = TRUE)                  AS ai_diary_count,
+            COUNT(DISTINCT teacher_id) FILTER (WHERE ai_generated = TRUE) AS ai_diary_teacher_count
+          FROM class_diaries
+          WHERE swimming_pool_id = ${poolId}
+            AND created_at >= ${range.from}::timestamptz
+            AND created_at <  ${range.to}::timestamptz
+            AND is_deleted  IS NOT TRUE
+        `).catch(() => ({ rows: [{ ai_diary_count: null, ai_diary_teacher_count: null }] })),
+        // Parent curriculum search recount from event_logs
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)             AS search_count,
+            COUNT(DISTINCT actor_id) AS unique_parent_count
+          FROM event_logs
+          WHERE pool_id  = ${poolId}
+            AND category = 'AI'
+            AND metadata->>'feature' = 'parent_curriculum_search'
+            AND created_at >= ${range.from}::timestamptz
+            AND created_at <  ${range.to}::timestamptz
+        `).catch(() => ({ rows: [{ search_count: null, unique_parent_count: null }] })),
+      ]);
+
+      res.json({
+        snapshots: snapshots.rows,
+        selected_month: ymStr,
+        raw_recount: {
+          month:  ymStr,
+          ai_diary_count:           rawDiary.rows[0]?.ai_diary_count ?? null,
+          ai_diary_teacher_count:   rawDiary.rows[0]?.ai_diary_teacher_count ?? null,
+          curriculum_search_count:  rawCurriculum.rows[0]?.search_count ?? null,
+          curriculum_unique_parents: rawCurriculum.rows[0]?.unique_parent_count ?? null,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai/diary
+// Recent AI Diary requests — class_diaries (ai_generated=true) + event_logs correlation
+router.get(
+  "/super/pools/:id/control-center/ai/diary",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      let rangeClause = sql``;
+      if (month) {
+        const range = monthRange(month);
+        if (!range) return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        rangeClause = sql`AND cd.created_at >= ${range.from}::timestamptz AND cd.created_at < ${range.to}::timestamptz`;
+      }
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            cd.id, cd.ai_trace_id AS request_id, cd.class_group_id,
+            cd.teacher_id,
+            u.name AS teacher_name,
+            cg.name AS class_name,
+            cd.created_at,
+            el.metadata->>'status'     AS trace_status,
+            el.metadata->>'model'      AS model,
+            (el.metadata->>'latency_ms')::int AS latency_ms,
+            (el.metadata->>'total_tokens')::int AS total_tokens,
+            el.metadata->>'error_code' AS error_code,
+            el.metadata->>'pool_mode'  AS pool_mode
+          FROM class_diaries cd
+          LEFT JOIN users         u  ON u.id  = cd.teacher_id
+          LEFT JOIN class_groups  cg ON cg.id = cd.class_group_id
+          LEFT JOIN event_logs    el
+            ON  el.category    = 'AI'
+            AND el.pool_id     = ${poolId}
+            AND el.metadata->>'request_id' = cd.ai_trace_id
+          WHERE cd.swimming_pool_id = ${poolId}
+            AND cd.ai_generated = TRUE
+            AND cd.is_deleted IS NOT TRUE
+            ${rangeClause}
+          ORDER BY cd.created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM class_diaries
+          WHERE swimming_pool_id = ${poolId}
+            AND ai_generated = TRUE
+            AND is_deleted IS NOT TRUE
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_DIARY_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai/curriculum
+// Recent Parent Curriculum Search requests (event_logs, PII minimized)
+router.get(
+  "/super/pools/:id/control-center/ai/curriculum",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      let rangeClause = sql``;
+      if (month) {
+        const range = monthRange(month);
+        if (!range) return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        rangeClause = sql`AND el.created_at >= ${range.from}::timestamptz AND el.created_at < ${range.to}::timestamptz`;
+      }
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            el.id,
+            el.actor_id,
+            el.metadata->>'request_id'                 AS request_id,
+            el.metadata->>'status'                     AS status,
+            el.metadata->>'error_code'                 AS error_code,
+            el.metadata->>'feature'                    AS feature,
+            el.metadata->>'pool_mode'                  AS pool_mode,
+            (el.metadata->>'total_tokens')::int        AS total_tokens,
+            (el.metadata->>'latency_ms')::int          AS latency_ms,
+            el.metadata->>'model'                      AS model,
+            el.created_at
+          FROM event_logs el
+          WHERE el.pool_id  = ${poolId}
+            AND el.category = 'AI'
+            AND el.metadata->>'feature' = 'parent_curriculum_search'
+            ${rangeClause}
+          ORDER BY el.created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM event_logs
+          WHERE pool_id = ${poolId}
+            AND category = 'AI'
+            AND metadata->>'feature' = 'parent_curriculum_search'
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+        note: "query_text omitted for PII minimization",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_CURRICULUM_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai/traces
+// All AI traces for pool (event_logs category=AI, paginated)
+router.get(
+  "/super/pools/:id/control-center/ai/traces",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", feature = "", status = "", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      const conditions: import("drizzle-orm").SQL[] = [
+        sql`pool_id  = ${poolId}`,
+        sql`category = 'AI'`,
+      ];
+      if (feature) conditions.push(sql`metadata->>'feature' = ${feature}`);
+      if (status)  conditions.push(sql`metadata->>'status'  = ${status}`);
+      if (month) {
+        const range = monthRange(month);
+        if (!range) return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        conditions.push(sql`created_at >= ${range.from}::timestamptz`);
+        conditions.push(sql`created_at <  ${range.to}::timestamptz`);
+      }
+      const where = sql.join(conditions, sql` AND `);
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            id, actor_id,
+            metadata->>'request_id'       AS request_id,
+            metadata->>'feature'          AS feature,
+            metadata->>'status'           AS status,
+            metadata->>'pool_mode'        AS pool_mode,
+            metadata->>'generation_mode'  AS generation_mode,
+            metadata->>'model'            AS model,
+            (metadata->>'total_tokens')::int             AS total_tokens,
+            (metadata->'cost'->>'total_cost_usd')::float AS total_cost_usd,
+            (metadata->>'latency_ms')::int               AS latency_ms,
+            metadata->>'error_stage'      AS error_stage,
+            metadata->>'error_code'       AS error_code,
+            created_at
+          FROM event_logs
+          WHERE ${where}
+          ORDER BY created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`SELECT COUNT(*) AS total FROM event_logs WHERE ${where}`)
+          .catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_TRACES_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/ai/search?request_id=...
+// Exact request_id search across event_logs (AI category, pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/ai/search",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { request_id } = req.query as Record<string, string>;
+    if (!request_id?.trim()) {
+      return res.status(400).json({ error: "MISSING_PARAM", message: "request_id is required" });
+    }
+    try {
+      const [traceRes, diaryRes, reportRes] = await Promise.all([
+        // AI trace (event_logs, exact index match via metadata->>'request_id')
+        superAdminDb.execute(sql`
+          SELECT
+            id, actor_id,
+            metadata->>'request_id'      AS request_id,
+            metadata->>'feature'         AS feature,
+            metadata->>'status'          AS status,
+            metadata->>'model'           AS model,
+            (metadata->>'total_tokens')::int AS total_tokens,
+            (metadata->>'latency_ms')::int   AS latency_ms,
+            metadata->>'error_code'      AS error_code,
+            metadata->>'error_stage'     AS error_stage,
+            metadata->>'pool_mode'       AS pool_mode,
+            (metadata->'cost'->>'total_cost_usd')::float AS total_cost_usd,
+            created_at
+          FROM event_logs
+          WHERE pool_id  = ${poolId}
+            AND category = 'AI'
+            AND metadata->>'request_id' = ${request_id.trim()}
+          ORDER BY created_at DESC LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Correlated diary (ai_trace_id = request_id)
+        superAdminDb.execute(sql`
+          SELECT cd.id, cd.class_group_id, cd.teacher_id,
+                 u.name AS teacher_name, cg.name AS class_name,
+                 cd.created_at
+          FROM class_diaries cd
+          LEFT JOIN users        u  ON u.id  = cd.teacher_id
+          LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+          WHERE cd.swimming_pool_id = ${poolId}
+            AND cd.ai_trace_id = ${request_id.trim()}
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Correlated growth report (analysis_request_id = request_id)
+        superAdminDb.execute(sql`
+          SELECT gr.id, gr.student_id, gr.report_period, gr.product_status,
+                 gr.analysis_status, gr.created_at,
+                 s.name AS student_name
+          FROM growth_reports gr
+          LEFT JOIN students s ON s.id = gr.student_id
+          WHERE gr.swimming_pool_id    = ${poolId}
+            AND gr.analysis_request_id = ${request_id.trim()}
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+      res.json({
+        request_id:     request_id.trim(),
+        traces:         traceRes.rows,
+        linked_diaries: diaryRes.rows,
+        linked_reports: reportRes.rows,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AI_SEARCH_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth
+// Growth Report monthly summary (snapshot + raw recount + auto-batch status)
+router.get(
+  "/super/pools/:id/control-center/growth",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { month } = req.query as Record<string, string>;
+    const now = new Date();
+    const targetYear  = month ? parseInt(month.slice(0, 4)) : now.getUTCFullYear();
+    const targetMonth = month ? parseInt(month.slice(5, 7)) : now.getUTCMonth() + 1;
+    const ymStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+
+    if (month && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+    }
+
+    try {
+      const [snapshot, rawCount, batchSummary] = await Promise.all([
+        // Snapshot KPI
+        superAdminDb.execute(sql`
+          SELECT year, month,
+                 growth_report_target_count,
+                 growth_report_generated_count,
+                 growth_report_failed_count,
+                 growth_report_sent_count
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+            AND year  = ${targetYear}
+            AND month = ${targetMonth}
+          LIMIT 1
+        `).catch(() => ({ rows: [] })),
+        // Raw logical report counts for the month
+        // "logical" = per student per report_period (latest version only)
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE product_status NOT IN ('NOT_OPEN','OPEN'))  AS total_targeted,
+            COUNT(*) FILTER (WHERE product_status IN ('APPROVED','PUBLISHED','PARTIAL'))
+                                                                                AS generated_count,
+            COUNT(*) FILTER (WHERE product_status = 'FAILED')                  AS failed_count,
+            COUNT(*) FILTER (WHERE product_status = 'PUBLISHED')               AS published_count,
+            COUNT(*) FILTER (WHERE admin_push_sent_at IS NOT NULL)             AS sent_count,
+            COUNT(*) FILTER (WHERE discarded_at IS NOT NULL)                   AS discarded_count,
+            COUNT(*) FILTER (WHERE product_status IN ('PREANALYZING','ANALYZING','REVIEW_REQUIRED'))
+                                                                                AS in_progress_count
+          FROM (
+            SELECT DISTINCT ON (student_id, report_period)
+              student_id, report_period, product_status, discarded_at,
+              admin_push_sent_at
+            FROM growth_reports
+            WHERE swimming_pool_id = ${poolId}
+              AND report_period    = ${ymStr}
+              AND deleted_at IS NULL
+            ORDER BY student_id, report_period, created_at DESC
+          ) latest
+        `).catch(() => ({ rows: [] })),
+        // Batch jobs for the month
+        superAdminDb.execute(sql`
+          SELECT id, job_type, status, attempts, target_count,
+                 completed_count, failed_count, created_at, updated_at,
+                 locked_at, next_attempt_at,
+                 CASE WHEN status = 'RUNNING'
+                        AND locked_at < NOW() - INTERVAL '10 minutes'
+                      THEN TRUE ELSE FALSE END AS is_stuck
+          FROM growth_report_batch_jobs
+          WHERE swimming_pool_id = ${poolId}
+            AND year  = ${targetYear}
+            AND month = ${targetMonth}
+          ORDER BY created_at DESC LIMIT 10
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        selected_month: ymStr,
+        snapshot:       snapshot.rows[0] ?? null,
+        raw_count:      rawCount.rows[0] ?? null,
+        batch_jobs:     batchSummary.rows,
+        auto_batch_enabled: process.env.GROWTH_REPORT_BATCH_AUTO_ENABLED === "true",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "GROWTH_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/reports
+// Growth report list — paginated, logical (latest version per student+period)
+router.get(
+  "/super/pools/:id/control-center/growth/reports",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month, status } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      const conditions: import("drizzle-orm").SQL[] = [
+        sql`gr.swimming_pool_id = ${poolId}`,
+        sql`gr.deleted_at IS NULL`,
+      ];
+      if (month) {
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
+          return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        conditions.push(sql`gr.report_period = ${month}`);
+      }
+      if (status) conditions.push(sql`gr.product_status = ${status}::gr_product_status_enum`);
+      const where = sql.join(conditions, sql` AND `);
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            gr.id, gr.student_id, gr.report_period,
+            gr.product_status, gr.analysis_status,
+            gr.analysis_retry_count, gr.teacher_reanalysis_count,
+            gr.teacher_review_action, gr.teacher_review_reason_code,
+            gr.cycle_id,
+            gr.published_at, gr.discarded_at,
+            gr.teacher_reviewed_at, gr.teacher_reviewed_by,
+            gr.created_at, gr.updated_at,
+            s.name AS student_name
+          FROM growth_reports gr
+          LEFT JOIN students s ON s.id = gr.student_id
+          WHERE ${where}
+          ORDER BY gr.report_period DESC, gr.created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM growth_reports gr WHERE ${where}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "GROWTH_REPORTS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/reports/:reportId
+// Report detail + version history (all versions for same student+period)
+router.get(
+  "/super/pools/:id/control-center/growth/reports/:reportId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, reportId } = req.params;
+    try {
+      const [reportRes, cycleRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            gr.id, gr.student_id, gr.report_period,
+            gr.product_status, gr.analysis_status, gr.analysis_request_id,
+            gr.analysis_retry_count, gr.teacher_reanalysis_count,
+            gr.teacher_review_action, gr.teacher_review_reason_code, gr.teacher_review_reason_code,
+            gr.teacher_reviewed_by, gr.teacher_reviewed_at,
+            gr.cycle_id, gr.report_type,
+            gr.published_at, gr.discarded_at,
+            gr.created_at, gr.updated_at, gr.deleted_at,
+            s.name AS student_name
+          FROM growth_reports gr
+          LEFT JOIN students s ON s.id = gr.student_id
+          WHERE gr.id = ${reportId}
+            AND gr.swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [] })),
+        // Batch jobs correlated by pool+period (approximate, no FK from report→job)
+        superAdminDb.execute(sql`
+          SELECT id, job_type, status, attempts, target_count, completed_count, failed_count,
+                 locked_at, next_attempt_at, started_at, completed_at, created_at,
+                 CASE WHEN status = 'RUNNING'
+                        AND locked_at < NOW() - INTERVAL '10 minutes'
+                      THEN TRUE ELSE FALSE END AS is_stuck
+          FROM growth_report_batch_jobs
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY created_at DESC LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      if (reportRes.rows.length === 0) {
+        return res.status(404).json({ error: "NOT_FOUND", message: "Report not found in this pool" });
+      }
+      const report = reportRes.rows[0] as any;
+
+      // Version history: all rows for same student_id + report_period
+      const versions = await superAdminDb.execute(sql`
+        SELECT id, product_status, analysis_status, created_at, published_at, discarded_at,
+               analysis_retry_count, teacher_reanalysis_count, deleted_at
+        FROM growth_reports
+        WHERE swimming_pool_id = ${poolId}
+          AND student_id       = ${report.student_id}
+          AND report_period    = ${report.report_period}
+        ORDER BY created_at ASC
+      `).catch(() => ({ rows: [] }));
+
+      // Cycle info if available
+      let cycle = null;
+      if (report.cycle_id) {
+        const cycleRow = await superAdminDb.execute(sql`
+          SELECT id, report_period, cycle_status, analysis_from, analysis_cutoff_at,
+                 parent_input_open_at, parent_input_close_at, created_at, updated_at
+          FROM growth_report_cycles
+          WHERE id = ${report.cycle_id}
+            AND swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [] }));
+        cycle = cycleRow.rows[0] ?? null;
+      }
+
+      res.json({
+        report,
+        version_history: versions.rows,
+        cycle,
+        related_batch_jobs: cycleRes.rows,
+        note: "report_content omitted; metadata/diagnostics only",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "GROWTH_REPORT_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/batch-jobs
+// Batch job list — paginated, actual columns
+router.get(
+  "/super/pools/:id/control-center/growth/batch-jobs",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "20", offset = "0", month } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 100);
+    try {
+      const conditions: import("drizzle-orm").SQL[] = [sql`swimming_pool_id = ${poolId}`];
+      if (month) {
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
+          return res.status(400).json({ error: "INVALID_MONTH", message: "month must be YYYY-MM" });
+        conditions.push(sql`year  = ${parseInt(month.slice(0, 4))}`);
+        conditions.push(sql`month = ${parseInt(month.slice(5, 7))}`);
+      }
+      const where = sql.join(conditions, sql` AND `);
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            id, year, month, job_type, status,
+            target_count, completed_count, failed_count,
+            attempts, worker_id, locked_at, next_attempt_at,
+            started_at, completed_at, admin_push_sent_at,
+            created_at, updated_at,
+            CASE WHEN status = 'RUNNING'
+                   AND locked_at < NOW() - INTERVAL '10 minutes'
+                 THEN TRUE ELSE FALSE END AS is_stuck
+          FROM growth_report_batch_jobs
+          WHERE ${where}
+          ORDER BY year DESC, month DESC, created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM growth_report_batch_jobs WHERE ${where}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+        stuck_threshold_minutes: 10,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "BATCH_JOBS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/growth/cycles
+// Growth report cycles — paginated
+router.get(
+  "/super/pools/:id/control-center/growth/cycles",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { limit = "12", offset = "0" } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 50);
+    try {
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT id, report_period, cycle_status,
+                 analysis_from, analysis_cutoff_at,
+                 parent_input_open_at, parent_input_close_at,
+                 timezone, created_at, updated_at
+          FROM growth_report_cycles
+          WHERE swimming_pool_id = ${poolId}
+          ORDER BY report_period DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM growth_report_cycles WHERE swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+      ]);
+      res.json({
+        rows: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit: lim, offset: off,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "CYCLES_FAILED", message: e?.message });
+    }
+  },
+);
+
+// Legacy route kept for backward compat — redirects to new growth summary
+router.get(
+  "/super/pools/:id/control-center/growth-reports",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    res.redirect(308, req.url.replace("/growth-reports", "/growth"));
+  },
+);
+
+// ── WP6 helper: parse time-range filter ──────────────────────────────────────
+function parseTimeRange(rangeStr: string): { from: string; to: string } {
+  const now = new Date();
+  const to = now.toISOString();
+  switch (rangeStr) {
+    case "24h": return { from: new Date(Date.now() - 86_400_000).toISOString(), to };
+    case "7d":  return { from: new Date(Date.now() - 7 * 86_400_000).toISOString(), to };
+    case "30d": return { from: new Date(Date.now() - 30 * 86_400_000).toISOString(), to };
+    default:    return { from: new Date(Date.now() - 7 * 86_400_000).toISOString(), to };
+  }
+}
+
+// GET /super/pools/:id/control-center/errors
+// WP6 REWRITE — real columns, multi-source, filters, summary
+router.get(
+  "/super/pools/:id/control-center/errors",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      limit = "50", offset = "0",
+      range = "7d",        // 24h | 7d | 30d
+      feature = "",        // OpErrorFeature filter
+      level = "",          // ERROR | CRITICAL | WARNING
+      category = "",       // event_logs category filter
+      request_id = "",     // exact request_id search
+      trace_id = "",       // exact trace_id search
+    } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 200);
+    const { from, to } = parseTimeRange(range);
+
+    try {
+      // ── 1. event_logs (operational errors + audit events with warning/error level) ──
+      const evtConditions: import("drizzle-orm").SQL[] = [
+        sql`pool_id = ${poolId}`,
+        sql`created_at >= ${from}::timestamptz`,
+        sql`created_at <  ${to}::timestamptz`,
+      ];
+      // Level filter: if WP6 columns exist → use level; also include 보안/AI/시스템 category events
+      if (level) {
+        evtConditions.push(sql`(level = ${level} OR (level IS NULL AND category IN ('보안','시스템')))`);
+      } else {
+        // Default: show WARNING/ERROR/CRITICAL + legacy security/system events
+        evtConditions.push(sql`(level IN ('WARNING','ERROR','CRITICAL') OR (level IS NULL AND category IN ('보안')))`);
+      }
+      if (feature) evtConditions.push(sql`feature = ${feature}`);
+      if (category) evtConditions.push(sql`category = ${category}`);
+      if (request_id) evtConditions.push(sql`request_id = ${request_id.trim()}`);
+      if (trace_id)   evtConditions.push(sql`trace_id = ${trace_id.trim()}`);
+      const evtWhere = sql.join(evtConditions, sql` AND `);
+
+      // ── 2. push_logs failures (pool-scoped if pool_id column exists) ──
+      // WP6: push_logs.pool_id added via additive migration
+      const pushFailed = superAdminDb.execute(sql`
+        SELECT id, 'PUSH'::text AS source_type, pool_id,
+               target_user_id AS actor_id, type AS feature_detail,
+               status, message AS safe_message, NULL::text AS error_code,
+               'ERROR'::text AS level, created_at
+        FROM push_logs
+        WHERE pool_id = ${poolId}
+          AND status = 'failed'
+          AND created_at >= ${from}::timestamptz
+          AND created_at <  ${to}::timestamptz
+        ORDER BY created_at DESC
+        LIMIT 50
+      `).catch(() => ({ rows: [] }));
+
+      // ── 3. growth batch job failures ──
+      const growthFailed = superAdminDb.execute(sql`
+        SELECT id, 'JOB'::text AS source_type,
+               swimming_pool_id AS pool_id,
+               'GROWTH'::text AS feature_detail,
+               status, 'GROWTH_JOB_FAILED'::text AS error_code,
+               CONCAT('배치 잡 실패: ', job_type, ' (시도 ', attempts, '회)') AS safe_message,
+               'ERROR'::text AS level,
+               updated_at AS created_at
+        FROM growth_report_batch_jobs
+        WHERE swimming_pool_id = ${poolId}
+          AND status = 'FAILED'
+          AND updated_at >= ${from}::timestamptz
+          AND updated_at <  ${to}::timestamptz
+        ORDER BY updated_at DESC
+        LIMIT 20
+      `).catch(() => ({ rows: [] }));
+
+      // ── 4. super_incidents (pool may be in affected_pool_ids) ──
+      const incidents = superAdminDb.execute(sql`
+        SELECT id, title, severity, status,
+               created_at, resolved_at, description,
+               service, request_id, trace_id,
+               'INCIDENT'::text AS source_type
+        FROM super_incidents
+        WHERE ${poolId} = ANY(affected_pool_ids)
+          AND created_at >= ${from}::timestamptz
+          AND created_at <  ${to}::timestamptz
+        ORDER BY created_at DESC LIMIT 10
+      `).catch(() => ({ rows: [] }));
+
+      // ── 5. Main event_logs query ──
+      const [evtRows, evtCount, pushRes, growthRes, incidentRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT id, 'EVENT'::text AS source_type,
+                 pool_id, category,
+                 COALESCE(feature, category) AS feature_detail,
+                 COALESCE(level, 'WARNING') AS level,
+                 error_code, safe_message,
+                 actor_id, target,
+                 COALESCE(description, safe_message, '') AS display_message,
+                 request_id, trace_id,
+                 entity_type, entity_id,
+                 metadata, created_at
+          FROM event_logs
+          WHERE ${evtWhere}
+          ORDER BY created_at DESC
+          LIMIT ${lim} OFFSET ${off}
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS total FROM event_logs WHERE ${evtWhere}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+        pushFailed,
+        growthFailed,
+        incidents,
+      ]);
+
+      // ── 6. Summary (24h + 7d counts by level) ──
+      const summary24h = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE level IN ('ERROR','CRITICAL') OR (level IS NULL AND category='보안')) AS error_count,
+          COUNT(*) FILTER (WHERE level = 'WARNING') AS warning_count,
+          COUNT(*) FILTER (WHERE level = 'CRITICAL') AS critical_count
+        FROM event_logs
+        WHERE pool_id = ${poolId}
+          AND created_at >= NOW() - INTERVAL '24 hours'
+          AND (level IN ('WARNING','ERROR','CRITICAL') OR (level IS NULL AND category = '보안'))
+      `).catch(() => ({ rows: [{ error_count: 0, warning_count: 0, critical_count: 0 }] }));
+
+      const summary7d = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE level IN ('ERROR','CRITICAL') OR (level IS NULL AND category='보안')) AS error_count,
+          COUNT(*) FILTER (WHERE level = 'WARNING') AS warning_count,
+          COUNT(*) FILTER (WHERE level = 'CRITICAL') AS critical_count,
+          feature,
+          COUNT(*) AS feature_count
+        FROM event_logs
+        WHERE pool_id = ${poolId}
+          AND created_at >= NOW() - INTERVAL '7 days'
+          AND (level IN ('WARNING','ERROR','CRITICAL') OR (level IS NULL AND category = '보안'))
+        GROUP BY feature
+        ORDER BY feature_count DESC LIMIT 10
+      `).catch(() => ({ rows: [] }));
+
+      const [sum24hRes, sum7dRes] = await Promise.all([summary24h, summary7d]);
+
+      res.json({
+        // Paginated event_logs
+        events:      evtRows.rows,
+        total:       Number((evtCount.rows[0] as any)?.total ?? 0),
+        limit:       lim, offset: off,
+        // Supplementary sources
+        push_failures:   pushRes.rows,
+        growth_failures: growthRes.rows,
+        incidents:       incidentRes.rows,
+        // Filters applied
+        applied_filters: { range, from, to, feature, level, category, request_id, trace_id },
+        // Summary
+        summary: {
+          h24: sum24hRes.rows[0] ?? null,
+          d7:  sum7dRes.rows,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "ERRORS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WP7 — NOTIFICATION / PUSH DELIVERY DIAGNOSTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// push_logs.status enum: 'sent' | 'skipped' | 'failed'
+// Canonical delivery states for Super Admin UI:
+//   NOT_ATTEMPTED  — no push_logs row correlated (heuristic proximity search found nothing)
+//   ACCEPTED_BY_PROVIDER — push_logs.status = 'sent'
+//   FAILED         — push_logs.status = 'failed'
+//   SKIPPED        — push_logs.status = 'skipped' (e.g. duplicate suppression)
+// Correlation method: heuristic time-proximity (target_user_id + pool_id + ±60s window)
+//   since push_logs does not store notification_id FK.
+//   WP7 additive: notification_id / ref_id columns added to push_logs for future forward-linking.
+//
+// Push token privacy: raw token NEVER returned. Only has_push_token (bool) + token_updated_at.
+// Push retry: NOT IMPLEMENTED in current codebase.
+
+function normalizePushState(status: string | null | undefined): string {
+  if (!status) return "NOT_ATTEMPTED";
+  if (status === "sent") return "ACCEPTED_BY_PROVIDER";
+  if (status === "failed") return "FAILED";
+  if (status === "skipped") return "SKIPPED";
+  return "UNKNOWN";
+}
+
+function safePushError(errorMsg: string | null | undefined): string | null {
+  if (!errorMsg) return null;
+  const m = (errorMsg ?? "").toLowerCase();
+  if (m.includes("invalid") || m.includes("unregistered") || m.includes("devicenotregistered"))
+    return "invalid_or_unregistered_token";
+  if (m.includes("network") || m.includes("etimedout") || m.includes("econnrefused"))
+    return "network_failure";
+  if (m.includes("rate") || m.includes("429")) return "rate_limit";
+  if (m.includes("payload") || m.includes("400")) return "payload_rejected";
+  if (m.includes("500") || m.includes("502") || m.includes("503")) return "provider_api_error";
+  return "unknown";
+}
+
+function notifTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    GROWTH_REPORT_PUBLISHED: "성장리포트 발행",
+    GROWTH_REPORT_BATCH_READY: "성장리포트 일괄 완료",
+    growth_report_like: "성장리포트 좋아요",
+    growth_report_comment: "성장리포트 댓글",
+    growth_report_comment_reply: "성장리포트 댓글 답글",
+    diary_upload: "일지 업로드",
+    photo_upload: "사진 업로드",
+    photo_comment: "사진 댓글",
+    diary_comment: "일지 댓글",
+    storage_warning: "저장공간 경고",
+    parent_request: "학부모 요청",
+  };
+  return labels[type] ?? type;
+}
+
+// GET /super/pools/:id/control-center/notifications
+// WP7 REWRITE — push delivery diagnostics, recipient info, device status, filters, pagination
+// N+1 prevention: single query with LATERAL JOINs for push_log and device token
+router.get(
+  "/super/pools/:id/control-center/notifications",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      limit = "50", offset = "0",
+      period = "",           // 24h | 7d | 30d
+      type = "",             // exact notification type
+      role = "",             // parent | teacher | pool_admin | admin
+      read_state = "",       // read | unread
+      push_state = "",       // attempted | sent | failed | skipped | not_attempted
+      q = "",                // search: recipient_id prefix or ref_id exact
+    } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 200);
+
+    const { from, to } = period
+      ? parseTimeRange(period)
+      : { from: new Date(0).toISOString(), to: new Date(Date.now() + 86400000).toISOString() };
+
+    // WHERE conditions for outer query (applied after LATERAL JOINs)
+    const whereConds: import("drizzle-orm").SQL[] = [
+      sql`n.pool_id = ${poolId}`,
+      sql`n.created_at >= ${from}::timestamptz`,
+      sql`n.created_at <  ${to}::timestamptz`,
+    ];
+    if (type) whereConds.push(sql`n.type = ${type}`);
+    if (role) whereConds.push(sql`n.recipient_type = ${role}`);
+    if (read_state === "read") whereConds.push(sql`n.is_read = true`);
+    if (read_state === "unread") whereConds.push(sql`n.is_read = false`);
+    if (q) whereConds.push(sql`(n.recipient_id LIKE ${q + "%"} OR n.ref_id = ${q})`);
+    const whereClause = sql.join(whereConds, sql` AND `);
+
+    // push_state filter is applied as a HAVING-like condition after LATERAL JOIN
+    // We use a subquery approach: wrap in CTE
+    const pushStateFilter: import("drizzle-orm").SQL | null = (() => {
+      if (!push_state || push_state === "all") return null;
+      if (push_state === "not_attempted") return sql`push_corr_id IS NULL`;
+      if (push_state === "attempted")     return sql`push_corr_id IS NOT NULL`;
+      if (push_state === "sent")          return sql`push_corr_status = 'sent'`;
+      if (push_state === "failed")        return sql`push_corr_status = 'failed'`;
+      if (push_state === "skipped")       return sql`push_corr_status = 'skipped'`;
+      return null;
+    })();
+
+    try {
+      // ── Main list query (N+1-free via LATERAL) ────────────────────────────
+      const listSql = sql`
+        WITH base AS (
+          SELECT
+            n.id, n.type, n.title, n.body, n.recipient_id, n.recipient_type,
+            n.ref_id, n.ref_type, n.is_read, n.created_at, n.deep_link,
+            COALESCE(u.name, pa.name) AS recipient_name,
+            -- WP7: push correlation (heuristic: target_user_id + pool_id + ±60s window)
+            -- Raw push token is NEVER included. has_push_token = bool only.
+            push_corr.id     AS push_corr_id,
+            push_corr.status AS push_corr_status,
+            push_corr.created_at AS push_corr_at,
+            push_corr.recipient_count AS push_corr_count,
+            push_corr.error_message   AS push_corr_error,
+            (device.has_token IS TRUE) AS has_push_token,
+            device.token_updated_at
+          FROM notifications n
+          LEFT JOIN users u ON u.id = n.recipient_id
+          LEFT JOIN parent_accounts pa ON pa.id = n.recipient_id
+          LEFT JOIN LATERAL (
+            SELECT pl.id, pl.status, pl.created_at, pl.recipient_count, pl.error_message
+            FROM push_logs pl
+            WHERE pl.pool_id = ${poolId}
+              AND pl.target_user_id = n.recipient_id
+              AND ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at))) < 60
+            ORDER BY ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at)))
+            LIMIT 1
+          ) push_corr ON true
+          LEFT JOIN LATERAL (
+            SELECT TRUE AS has_token, updated_at AS token_updated_at
+            FROM push_tokens
+            WHERE user_id = n.recipient_id OR parent_account_id = n.recipient_id
+            ORDER BY updated_at DESC
+            LIMIT 1
+          ) device ON true
+          WHERE ${whereClause}
+        )
+        SELECT * FROM base
+        ${pushStateFilter ? sql`WHERE ${pushStateFilter}` : sql``}
+        ORDER BY created_at DESC
+        LIMIT ${lim} OFFSET ${off}
+      `;
+
+      const countSql = sql`
+        WITH base AS (
+          SELECT
+            n.id,
+            push_corr.id     AS push_corr_id,
+            push_corr.status AS push_corr_status
+          FROM notifications n
+          LEFT JOIN LATERAL (
+            SELECT pl.id, pl.status
+            FROM push_logs pl
+            WHERE pl.pool_id = ${poolId}
+              AND pl.target_user_id = n.recipient_id
+              AND ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at))) < 60
+            ORDER BY ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at)))
+            LIMIT 1
+          ) push_corr ON true
+          WHERE ${whereClause}
+        )
+        SELECT COUNT(*) AS cnt FROM base
+        ${pushStateFilter ? sql`WHERE ${pushStateFilter}` : sql``}
+      `;
+
+      // ── Summary (24h, unread, push stats) — from notifications + push_logs ──
+      const now24h = new Date(Date.now() - 86400000).toISOString();
+      const summarySql = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*)                                                         AS notif_24h,
+          COUNT(*) FILTER (WHERE is_read = false)                         AS unread_total,
+          COUNT(*) FILTER (WHERE created_at >= ${now24h}::timestamptz AND is_read = false) AS unread_24h
+        FROM notifications
+        WHERE pool_id = ${poolId}
+      `).catch(() => ({ rows: [{ notif_24h: 0, unread_total: 0, unread_24h: 0 }] }));
+
+      const pushSummarySql = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*)                                               AS push_attempted_24h,
+          COUNT(*) FILTER (WHERE status = 'failed')             AS push_failed_24h,
+          COUNT(*) FILTER (WHERE status = 'sent')               AS push_sent_24h
+        FROM push_logs
+        WHERE pool_id = ${poolId}
+          AND created_at >= ${now24h}::timestamptz
+      `).catch(() => ({ rows: [{ push_attempted_24h: 0, push_failed_24h: 0, push_sent_24h: 0 }] }));
+
+      const [listRes, countRes, summaryRes, pushSummRes] = await Promise.all([
+        superAdminDb.execute(listSql),
+        superAdminDb.execute(countSql),
+        summarySql,
+        pushSummarySql,
+      ]);
+
+      const notifications = listRes.rows.map((r: any) => ({
+        id: r.id,
+        type: r.type,
+        type_label: notifTypeLabel(r.type),
+        title: r.title,
+        recipient_id: r.recipient_id,
+        recipient_type: r.recipient_type,
+        recipient_name: r.recipient_name ?? null,
+        ref_id: r.ref_id,
+        ref_type: r.ref_type,
+        is_read: r.is_read,
+        created_at: r.created_at,
+        deep_link: r.deep_link,
+        // Push delivery diagnostic — state derived from heuristic correlation
+        push_state: normalizePushState(r.push_corr_status),
+        push_log_id: r.push_corr_id ?? null,
+        push_attempted_at: r.push_corr_at ?? null,
+        push_recipient_count: r.push_corr_count ?? null,
+        push_safe_error: safePushError(r.push_corr_error),
+        push_correlation: r.push_corr_id ? "heuristic_time_proximity" : "none",
+        // Device — token existence only (raw token NEVER returned per §27)
+        has_push_token: r.has_push_token === true || r.has_push_token === "true",
+        token_updated_at: r.token_updated_at ?? null,
+      }));
+
+      const s0 = (summaryRes.rows[0] as any) ?? {};
+      const p0 = (pushSummRes.rows[0] as any) ?? {};
+
+      res.json({
+        notifications,
+        total: Number((countRes.rows[0] as any)?.cnt ?? 0),
+        summary: {
+          notif_24h:        Number(s0.notif_24h ?? 0),
+          unread_total:     Number(s0.unread_total ?? 0),
+          unread_24h:       Number(s0.unread_24h ?? 0),
+          push_attempted_24h: Number(p0.push_attempted_24h ?? 0),
+          push_failed_24h:    Number(p0.push_failed_24h ?? 0),
+          push_sent_24h:      Number(p0.push_sent_24h ?? 0),
+        },
+        // Diagnostic metadata
+        push_retry: "NOT_IMPLEMENTED",
+        push_correlation_method: "heuristic_time_proximity",
+        token_platform: "UNKNOWN",  // push_tokens has no platform column
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTIFICATIONS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/notifications/summary
+// WP7: KPI-only endpoint for fast top-bar stats
+router.get(
+  "/super/pools/:id/control-center/notifications/summary",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const now24h = new Date(Date.now() - 86400000).toISOString();
+    try {
+      const [notifSumm, pushSumm] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)                                                          AS notif_total,
+            COUNT(*) FILTER (WHERE created_at >= ${now24h}::timestamptz)     AS notif_24h,
+            COUNT(*) FILTER (WHERE is_read = false)                          AS unread_total,
+            COUNT(*) FILTER (WHERE is_read = false AND created_at >= ${now24h}::timestamptz) AS unread_24h
+          FROM notifications WHERE pool_id = ${poolId}
+        `),
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)                                               AS push_attempted_24h,
+            COUNT(*) FILTER (WHERE status = 'sent')               AS push_sent_24h,
+            COUNT(*) FILTER (WHERE status = 'failed')             AS push_failed_24h,
+            COUNT(*) FILTER (WHERE status = 'skipped')            AS push_skipped_24h
+          FROM push_logs
+          WHERE pool_id = ${poolId}
+            AND created_at >= ${now24h}::timestamptz
+        `).catch(() => ({ rows: [{}] })),
+      ]);
+      const n = (notifSumm.rows[0] as any) ?? {};
+      const p = (pushSumm.rows[0] as any) ?? {};
+      res.json({
+        notif_total:       Number(n.notif_total ?? 0),
+        notif_24h:         Number(n.notif_24h ?? 0),
+        unread_total:      Number(n.unread_total ?? 0),
+        unread_24h:        Number(n.unread_24h ?? 0),
+        push_attempted_24h: Number(p.push_attempted_24h ?? 0),
+        push_sent_24h:      Number(p.push_sent_24h ?? 0),
+        push_failed_24h:    Number(p.push_failed_24h ?? 0),
+        push_skipped_24h:   Number(p.push_skipped_24h ?? 0),
+        push_retry:        "NOT_IMPLEMENTED",
+        token_platform:    "UNKNOWN",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTIFICATIONS_SUMMARY_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/notifications/:notifId
+// WP7: per-notification detail with full push diagnostic, recipient, related entity
+// Cross-pool guard: notif.pool_id must match :id
+router.get(
+  "/super/pools/:id/control-center/notifications/:notifId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, notifId } = req.params;
+    try {
+      // 1. Notification row — verify pool scope (cross-pool guard §36)
+      const notifRes = await superAdminDb.execute(sql`
+        SELECT id, type, title, body, recipient_id, recipient_type,
+               ref_id, ref_type, pool_id, is_read, created_at, deep_link
+        FROM notifications
+        WHERE id = ${notifId} AND pool_id = ${poolId}
+        LIMIT 1
+      `);
+      if (!notifRes.rows.length) {
+        res.status(404).json({ error: "NOTIFICATION_NOT_FOUND" });
+        return;
+      }
+      const n = notifRes.rows[0] as any;
+
+      // 2. Recipient info + device token (token existence only — no raw token per §27)
+      const [recipientRes, deviceRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT id, name, role, phone, email
+          FROM users WHERE id = ${n.recipient_id} LIMIT 1
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT updated_at FROM push_tokens
+          WHERE user_id = ${n.recipient_id} OR parent_account_id = ${n.recipient_id}
+          ORDER BY updated_at DESC LIMIT 1
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      // Try parent_accounts if not found in users
+      let recipientRow = (recipientRes.rows[0] as any) ?? null;
+      if (!recipientRow) {
+        const paRes = await superAdminDb.execute(sql`
+          SELECT id, name, 'parent_account'::text AS role, phone, null AS email
+          FROM parent_accounts WHERE id = ${n.recipient_id} LIMIT 1
+        `).catch(() => ({ rows: [] }));
+        recipientRow = (paRes.rows[0] as any) ?? null;
+      }
+      const deviceRow = (deviceRes.rows[0] as any) ?? null;
+
+      // 3. Push correlation (heuristic: target_user_id + pool_id + ±60s)
+      const pushRes = await superAdminDb.execute(sql`
+        SELECT id, status, created_at AS attempted_at,
+               recipient_count, error_message, triggered_by
+        FROM push_logs
+        WHERE pool_id = ${poolId}
+          AND target_user_id = ${n.recipient_id}
+          AND ABS(EXTRACT(EPOCH FROM (created_at - ${n.created_at}::timestamptz))) < 60
+        ORDER BY ABS(EXTRACT(EPOCH FROM (created_at - ${n.created_at}::timestamptz)))
+        LIMIT 3
+      `).catch(() => ({ rows: [] }));
+
+      const primaryPush = (pushRes.rows[0] as any) ?? null;
+
+      // 4. Push settings — is user opted in for this type?
+      const settingRes = await superAdminDb.execute(sql`
+        SELECT is_enabled FROM push_settings
+        WHERE (user_id = ${n.recipient_id} OR parent_account_id = ${n.recipient_id})
+          AND notification_type = ${n.type}
+        LIMIT 1
+      `).catch(() => ({ rows: [] }));
+      const pushEnabled = (settingRes.rows[0] as any)?.is_enabled ?? null;
+
+      res.json({
+        notification: {
+          id: n.id,
+          type: n.type,
+          type_label: notifTypeLabel(n.type),
+          title: n.title,
+          body: n.body,
+          ref_id: n.ref_id,
+          ref_type: n.ref_type,
+          is_read: n.is_read,
+          created_at: n.created_at,
+          deep_link: n.deep_link,
+        },
+        recipient: {
+          id: n.recipient_id,
+          role: recipientRow?.role ?? n.recipient_type,
+          name: recipientRow?.name ?? null,
+          // No email/phone here — PII minimised per §28; go to WP3 for full detail
+          has_push_token: !!deviceRow,
+          token_updated_at: deviceRow?.updated_at ?? null,
+          token_platform: "UNKNOWN",  // push_tokens has no platform column
+          push_opted_in: pushEnabled,
+        },
+        push: {
+          attempted: !!primaryPush,
+          provider_status: normalizePushState(primaryPush?.status),
+          push_log_id: primaryPush?.id ?? null,
+          attempted_at: primaryPush?.attempted_at ?? null,
+          recipient_count: primaryPush?.recipient_count ?? null,
+          safe_error: safePushError(primaryPush?.error_message),
+          retry: "NOT_IMPLEMENTED",
+          // All correlated attempts (bounded to 3)
+          all_attempts: pushRes.rows.map((p: any) => ({
+            id: p.id,
+            status: p.status,
+            attempted_at: p.attempted_at,
+            recipient_count: p.recipient_count,
+            safe_error: safePushError(p.error_message),
+          })),
+          correlation_method: primaryPush ? "heuristic_time_proximity" : "none",
+          // Raw push token: NEVER returned (§27)
+        },
+        related: {
+          ref_id: n.ref_id,
+          ref_type: n.ref_type,
+          deep_link: n.deep_link,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTIFICATION_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/storage
+// Usage source: swimming_pools.used_storage_bytes (DB-cached aggregate, updated by billing.ts)
+// Quota source:  (base_storage_gb + extra_storage_gb) * 1024 MB
+// upload_blocked: swimming_pools.upload_blocked — same field used by billing.ts upload guard
+router.get(
+  "/super/pools/:id/control-center/storage",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    try {
+      const pool = (await superAdminDb.execute(sql`
+        SELECT used_storage_bytes, upload_blocked, storage_warning_sent_at,
+               video_storage_limit_mb, base_storage_gb, extra_storage_gb,
+               is_readonly
+        FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows[0] as any;
+      if (!pool) { res.status(404).json({ error: "수영장 없음" }); return; }
+
+      const [mediaRes, curriculumFileRes] = await Promise.all([
+        // media_files: aggregate — NO per-row scan (§30)
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS total_bytes
+          FROM media_files WHERE swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [{ cnt: 0, total_bytes: 0 }] })),
+        // curriculum file count from x_setup_files — aggregate
+        superAdminDb.execute(sql`
+          SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size_bytes), 0) AS total_bytes
+          FROM x_setup_files
+          WHERE pool_id = ${poolId} AND deleted_at IS NULL
+        `).catch(() => ({ rows: [{ cnt: 0, total_bytes: 0 }] })),
+      ]);
+
+      const media      = mediaRes.rows[0] as any;
+      const curriculum = curriculumFileRes.rows[0] as any;
+
+      // Quota — null/0 means unlimited (§13)
+      const baseGb  = Number(pool.base_storage_gb  ?? 0);
+      const extraGb = Number(pool.extra_storage_gb ?? 0);
+      const totalGb = baseGb + extraGb;
+      const quotaMb = totalGb > 0 ? totalGb * 1024 : null; // null = unlimited
+
+      const usedBytes = Number(pool.used_storage_bytes ?? 0);
+      const quotaBytes = quotaMb !== null ? quotaMb * 1024 * 1024 : null;
+
+      // Safe percentage — no division by zero (§13)
+      const usedPct = (quotaBytes !== null && quotaBytes > 0)
+        ? Math.min(Math.round((usedBytes / quotaBytes) * 1000) / 10, 100)
+        : null;
+      const remainingBytes = (quotaBytes !== null) ? Math.max(quotaBytes - usedBytes, 0) : null;
+
+      res.json({
+        // Usage
+        used_storage_bytes:      usedBytes,
+        upload_blocked:          Boolean(pool.upload_blocked),
+        is_readonly:             Boolean(pool.is_readonly),
+        storage_warning_sent_at: pool.storage_warning_sent_at,
+
+        // Quota (null = unlimited)
+        quota_mb:                quotaMb,
+        quota_bytes:             quotaBytes,
+        remaining_bytes:         remainingBytes,
+        used_pct:                usedPct,
+
+        // Quota source info
+        quota_source:            totalGb > 0 ? `base ${baseGb}GB + extra ${extraGb}GB` : "unlimited",
+        base_storage_gb:         baseGb,
+        extra_storage_gb:        extraGb,
+        video_storage_limit_mb:  Number(pool.video_storage_limit_mb ?? 0),
+
+        // File breakdown (aggregate, no object storage call)
+        media_count:             Number(media.cnt ?? 0),
+        media_bytes:             Number(media.total_bytes ?? 0),
+        curriculum_file_count:   Number(curriculum.cnt ?? 0),
+        curriculum_file_bytes:   Number(curriculum.total_bytes ?? 0),
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "STORAGE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════
+// WP8 — Audit / Support Case / Customer Service History
+// Super Admin Pool Control Center
+// ════════════════════════════════════════════════════════════════
+
+// ── WP8 Schema note ─────────────────────────────────────────────
+// Runtime DDL (ensureWp8Schema) is REMOVED.
+// Schema is applied via explicit migration:
+//   src/migrations/wp8-support-case-crm.ts
+// Server boot must NOT execute any DDL.
+
+// ── Helpers ─────────────────────────────────────────────────────
+const WP8_CATEGORIES = new Set([
+  "ACCOUNT","MEMBER","TEACHER","PARENT","CLASS","ENTITLEMENT",
+  "BILLING","CURRICULUM","AI","GROWTH_REPORT","NOTIFICATION","STORAGE","ERROR","OTHER",
+]);
+const WP8_OPS_STATUSES = new Set(["OPEN","IN_PROGRESS","RESOLVED"]);
+const WP8_SUBJECT_TYPES = new Set([
+  "POOL","MEMBER","TEACHER","PARENT","CLASS","REPORT","CURRICULUM","NOTIFICATION","OTHER",
+]);
+const WP8_NOTE_EVENTS = new Set([
+  "CREATED","NOTE_ADDED","STATUS_CHANGED","ASSIGNED","RESOLVED","REOPENED",
+]);
+
+function wp8Id(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function wp8TicketId(): string {
+  const d = new Date();
+  const date = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `SUPP-${date}-${suffix}`;
+}
+
+async function wp8InsertNote(params: {
+  caseId: string; poolId: string; actorId: string;
+  eventType: string; note?: string | null;
+  beforeState?: string | null; afterState?: string | null;
+}): Promise<void> {
+  const id = wp8Id("scn");
+  await (superAdminDb as any).execute(sql`
+    INSERT INTO support_case_notes
+      (id, support_case_id, pool_id, actor_id, event_type, note, before_state, after_state)
+    VALUES (${id}, ${params.caseId}, ${params.poolId}, ${params.actorId},
+            ${params.eventType}, ${params.note ?? null},
+            ${params.beforeState ?? null}, ${params.afterState ?? null})
+  `);
+}
+
+// ── Validate pool ownership of subject ──────────────────────────
+async function wp8ValidateSubject(
+  poolId: string, subjectType: string | null, subjectId: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  if (!subjectType || !subjectId) return { ok: true };
+  if (!WP8_SUBJECT_TYPES.has(subjectType)) return { ok: false, error: "유효하지 않은 subject_type" };
+  try {
+    let countRes: any = null;
+    switch (subjectType) {
+      case "MEMBER":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM students WHERE id = ${subjectId} AND swimming_pool_id = ${poolId} LIMIT 1
+        `);
+        break;
+      case "TEACHER":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM users WHERE id = ${subjectId} AND swimming_pool_id = ${poolId}
+            AND role IN ('teacher','pool_admin') LIMIT 1
+        `);
+        break;
+      case "PARENT":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM parent_accounts WHERE id = ${subjectId} AND swimming_pool_id = ${poolId} LIMIT 1
+        `);
+        break;
+      case "CLASS":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${subjectId} AND swimming_pool_id = ${poolId} LIMIT 1
+        `);
+        break;
+      case "POOL":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM swimming_pools WHERE id = ${subjectId} AND id = ${poolId} LIMIT 1
+        `);
+        break;
+      default:
+        return { ok: true }; // REPORT/CURRICULUM/NOTIFICATION/OTHER — soft check
+    }
+    if (!countRes?.rows?.length) {
+      return { ok: false, error: `subject ${subjectType}:${subjectId}이 pool ${poolId}에 속하지 않습니다.` };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: true }; // fail-open for soft checks
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// AUDIT ROUTES (enhanced)
+// ════════════════════════════════════════════════════════════════
+
+// GET /super/pools/:id/control-center/audit — enhanced with filters + pagination
+router.get(
+  "/super/pools/:id/control-center/audit",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      limit: limitStr = "50", offset: offsetStr = "0",
+      action, entity_type, actor_id, from: fromDate, to: toDate,
+    } = req.query as Record<string, string>;
+    const limit  = Math.min(Math.max(parseInt(limitStr,  10), 1), 100);
+    const offset = Math.max(parseInt(offsetStr, 10), 0);
+    try {
+      const conds: string[] = [`pool_id = '${poolId.replace(/'/g,"''")}'`];
+      if (action)      conds.push(`action = '${action.replace(/'/g,"''")}'`);
+      if (entity_type) conds.push(`entity_type = '${entity_type.replace(/'/g,"''")}'`);
+      if (actor_id)    conds.push(`actor_id = '${actor_id.replace(/'/g,"''")}'`);
+      if (fromDate)    conds.push(`created_at >= '${fromDate.replace(/'/g,"''")}'::timestamptz`);
+      if (toDate)      conds.push(`created_at <= '${toDate.replace(/'/g,"''")}'::timestamptz`);
+      const where = conds.join(" AND ");
+      const [rows, countRes] = await Promise.all([
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT id, entity_type, entity_id, entity_version,
+                 action, actor_type, actor_id, pool_id,
+                 reason, request_id, created_at
+          FROM audit_logs WHERE ${where}
+          ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
+        `)),
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT COUNT(*)::int AS total FROM audit_logs WHERE ${where}
+        `)),
+      ]);
+      res.json({
+        logs: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit, offset,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AUDIT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/audit/:logId — detail with redaction
+router.get(
+  "/super/pools/:id/control-center/audit/:logId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, logId } = req.params;
+    if (!logId || logId.length > 80) { res.status(400).json({ error: "invalid logId" }); return; }
+    try {
+      const result = await (superAdminDb as any).execute(sql`
+        SELECT al.*, sp.name AS pool_name
+        FROM audit_logs al
+        LEFT JOIN swimming_pools sp ON sp.id = al.pool_id
+        WHERE al.id = ${logId} AND al.pool_id = ${poolId} LIMIT 1
+      `);
+      const row = result?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "감사 로그를 찾을 수 없습니다." }); return; }
+      res.json({
+        log: {
+          ...row,
+          before_data: maskSensitive(row.before_data),
+          after_data:  maskSensitive(row.after_data),
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AUDIT_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════
+// SUPPORT CASE ROUTES
+// ════════════════════════════════════════════════════════════════
+
+// GET /super/pools/:id/control-center/support — enhanced list with filters
+router.get(
+  "/super/pools/:id/control-center/support",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const {
+      limit: limitStr = "30", offset: offsetStr = "0",
+      ops_status, category, subject_type, q,
+      from: fromDate, to: toDate,
+    } = req.query as Record<string, string>;
+    const limit  = Math.min(Math.max(parseInt(limitStr,  10), 1), 100);
+    const offset = Math.max(parseInt(offsetStr, 10), 0);
+    try {
+
+      const conds: string[] = [`pool_id = '${poolId.replace(/'/g,"''")}'`];
+      if (ops_status && WP8_OPS_STATUSES.has(ops_status))
+        conds.push(`ops_status = '${ops_status}'`);
+      if (category && WP8_CATEGORIES.has(category))
+        conds.push(`category = '${category}'`);
+      if (subject_type && WP8_SUBJECT_TYPES.has(subject_type))
+        conds.push(`subject_type = '${subject_type}'`);
+      if (fromDate) conds.push(`created_at >= '${fromDate.replace(/'/g,"''")}'::timestamptz`);
+      if (toDate)   conds.push(`created_at <= '${toDate.replace(/'/g,"''")}'::timestamptz`);
+      if (q) {
+        const safe = q.slice(0, 100).replace(/'/g, "''");
+        conds.push(`(ticket_id ILIKE '${safe}%' OR title ILIKE '%${safe}%')`);
+      }
+      const where = conds.join(" AND ");
+      const [rows, countRes, summaryRes] = await Promise.all([
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT id, pool_id, ticket_id, title, category, ops_status,
+                 subject_type, subject_id, actor_role, state,
+                 assigned_operator, resolution, resolved_at,
+                 created_by_admin, created_at, updated_at
+          FROM support_cases WHERE ${where}
+          ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
+        `)),
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT COUNT(*)::int AS total FROM support_cases WHERE ${where}
+        `)),
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT ops_status, COUNT(*)::int AS cnt
+          FROM support_cases WHERE pool_id = '${poolId.replace(/'/g,"''")}'
+          GROUP BY ops_status
+        `)),
+      ]);
+      const summary: Record<string, number> = { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0 };
+      for (const r of (summaryRes.rows as any[])) {
+        if (r.ops_status in summary) summary[r.ops_status] = Number(r.cnt);
+      }
+      res.json({
+        cases: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        summary, limit, offset,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "SUPPORT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases — create
+router.post(
+  "/super/pools/:id/control-center/support/cases",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { title, category, subject_type, subject_id, note, assigned_operator } = req.body ?? {};
+    // Validation
+    if (!title?.trim()) { res.status(400).json({ error: "title 필수" }); return; }
+    if (!category || !WP8_CATEGORIES.has(category)) {
+      res.status(400).json({ error: `category는 ${[...WP8_CATEGORIES].join("/")} 중 하나여야 합니다.` }); return;
+    }
+    // Pool existence check
+    const poolCheck = await (superAdminDb as any).execute(sql`
+      SELECT id FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `).catch(() => ({ rows: [] }));
+    if (!poolCheck?.rows?.length) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
+    // Cross-pool subject validation
+    if (subject_type && subject_id) {
+      const sv = await wp8ValidateSubject(poolId, subject_type, subject_id);
+      if (!sv.ok) { res.status(400).json({ error: sv.error }); return; }
+    }
+    try {
+
+      const caseId   = wp8Id("sc");
+      const ticketId = wp8TicketId();
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO support_cases
+          (id, pool_id, ticket_id, title, category, ops_status,
+           subject_type, subject_id, assigned_operator,
+           actor_role, state, created_by_admin, created_at, updated_at)
+        VALUES (
+          ${caseId}, ${poolId}, ${ticketId}, ${title.trim()}, ${category}, ${"OPEN"},
+          ${subject_type ?? null}, ${subject_id ?? null}, ${assigned_operator ?? null},
+          ${"super_admin"}, ${"NEW"}, ${actorId}, NOW(), NOW()
+        )
+      `);
+      // Initial note/event
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "CREATED",
+        note: note?.trim() ?? `케이스 생성: ${title.trim()}`,
+        afterState: "OPEN",
+      });
+      // Audit
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO audit_logs
+          (id, entity_type, entity_id, entity_version, action,
+           actor_type, actor_id, pool_id, after_data, reason, created_at)
+        VALUES (
+          ${wp8Id("al")}, ${"SUPPORT_CASE"}, ${caseId}, ${1}, ${"create"},
+          ${"super_admin"}, ${actorId}, ${poolId},
+          ${JSON.stringify({ title: title.trim(), category, ops_status: "OPEN" })}::jsonb,
+          ${"케이스 생성"}, NOW()
+        )
+      `).catch(() => {});
+      res.status(201).json({ case_id: caseId, ticket_id: ticketId, ops_status: "OPEN" });
+    } catch (e: any) {
+      res.status(500).json({ error: "CASE_CREATE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/support/cases/:caseId — detail
+router.get(
+  "/super/pools/:id/control-center/support/cases/:caseId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    try {
+
+      const [caseRes, notesRes] = await Promise.all([
+        (superAdminDb as any).execute(sql`
+          SELECT sc.*, sp.name AS pool_name
+          FROM support_cases sc
+          LEFT JOIN swimming_pools sp ON sp.id = sc.pool_id
+          WHERE sc.id = ${caseId} AND sc.pool_id = ${poolId} LIMIT 1
+        `),
+        (superAdminDb as any).execute(sql`
+          SELECT id, event_type, note, before_state, after_state, actor_id, created_at
+          FROM support_case_notes
+          WHERE support_case_id = ${caseId}
+          ORDER BY created_at ASC LIMIT 200
+        `),
+      ]);
+      const kase = caseRes?.rows?.[0] as any;
+      if (!kase) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      res.json({ case: kase, notes: notesRes.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "CASE_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// PATCH /super/pools/:id/control-center/support/cases/:caseId/status
+router.patch(
+  "/super/pools/:id/control-center/support/cases/:caseId/status",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { ops_status, note } = req.body ?? {};
+    if (!ops_status || !WP8_OPS_STATUSES.has(ops_status)) {
+      res.status(400).json({ error: "ops_status는 OPEN/IN_PROGRESS/RESOLVED 중 하나" }); return;
+    }
+    try {
+
+      const cur = await (superAdminDb as any).execute(sql`
+        SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      const row = cur?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      const prevStatus = row.ops_status ?? "OPEN";
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET ops_status = ${ops_status}, updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "STATUS_CHANGED",
+        note: note?.trim() ?? null,
+        beforeState: prevStatus, afterState: ops_status,
+      });
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO audit_logs
+          (id, entity_type, entity_id, entity_version, action,
+           actor_type, actor_id, pool_id, before_data, after_data, reason, created_at)
+        VALUES (
+          ${wp8Id("al")}, ${"SUPPORT_CASE"}, ${caseId}, ${1}, ${"update"},
+          ${"super_admin"}, ${actorId}, ${poolId},
+          ${JSON.stringify({ ops_status: prevStatus })}::jsonb,
+          ${JSON.stringify({ ops_status })}::jsonb,
+          ${note?.trim() ?? "상태 변경"}, NOW()
+        )
+      `).catch(() => {});
+      res.json({ ok: true, ops_status });
+    } catch (e: any) {
+      res.status(500).json({ error: "STATUS_CHANGE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases/:caseId/notes
+router.post(
+  "/super/pools/:id/control-center/support/cases/:caseId/notes",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { note } = req.body ?? {};
+    if (!note?.trim()) { res.status(400).json({ error: "note 필수" }); return; }
+    if (note.trim().length > 4000) { res.status(400).json({ error: "note 최대 4000자" }); return; }
+    try {
+
+      const exists = await (superAdminDb as any).execute(sql`
+        SELECT id FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      if (!exists?.rows?.length) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      const noteId = wp8Id("scn");
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO support_case_notes
+          (id, support_case_id, pool_id, actor_id, event_type, note)
+        VALUES (${noteId}, ${caseId}, ${poolId}, ${actorId}, ${"NOTE_ADDED"}, ${note.trim()})
+      `);
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases SET updated_at = NOW() WHERE id = ${caseId}
+      `);
+      res.status(201).json({ note_id: noteId, ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTE_ADD_FAILED", message: e?.message });
+    }
+  },
+);
+
+// PATCH /super/pools/:id/control-center/support/cases/:caseId/assign
+router.patch(
+  "/super/pools/:id/control-center/support/cases/:caseId/assign",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { assigned_operator } = req.body ?? {};
+    // assigned_operator may be null (unassign)
+    try {
+
+      const exists = await (superAdminDb as any).execute(sql`
+        SELECT id FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      if (!exists?.rows?.length) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      if (assigned_operator) {
+        // Validate operator is a super_admin user
+        const opCheck = await (superAdminDb as any).execute(sql`
+          SELECT id FROM users WHERE id = ${assigned_operator} AND role = 'super_admin' LIMIT 1
+        `).catch(() => ({ rows: [] }));
+        if (!opCheck?.rows?.length) {
+          res.status(400).json({ error: "유효한 super_admin 운영자가 아닙니다." }); return;
+        }
+      }
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET assigned_operator = ${assigned_operator ?? null}, updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "ASSIGNED",
+        note: assigned_operator ? `담당자 지정: ${assigned_operator}` : "담당자 해제",
+      });
+      res.json({ ok: true, assigned_operator: assigned_operator ?? null });
+    } catch (e: any) {
+      res.status(500).json({ error: "ASSIGN_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases/:caseId/resolve
+router.post(
+  "/super/pools/:id/control-center/support/cases/:caseId/resolve",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { resolution, note } = req.body ?? {};
+    if (!resolution?.trim()) { res.status(400).json({ error: "resolution 필수" }); return; }
+    try {
+
+      const cur = await (superAdminDb as any).execute(sql`
+        SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      const row = cur?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      const prev = row.ops_status ?? "OPEN";
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET ops_status = ${"RESOLVED"}, resolution = ${resolution.trim()},
+            resolved_at = NOW(), updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "RESOLVED",
+        note: note?.trim() ?? resolution.trim(),
+        beforeState: prev, afterState: "RESOLVED",
+      });
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO audit_logs
+          (id, entity_type, entity_id, entity_version, action,
+           actor_type, actor_id, pool_id, before_data, after_data, reason, created_at)
+        VALUES (
+          ${wp8Id("al")}, ${"SUPPORT_CASE"}, ${caseId}, ${1}, ${"update"},
+          ${"super_admin"}, ${actorId}, ${poolId},
+          ${JSON.stringify({ ops_status: prev })}::jsonb,
+          ${JSON.stringify({ ops_status: "RESOLVED", resolution: resolution.trim() })}::jsonb,
+          ${"케이스 해결"}, NOW()
+        )
+      `).catch(() => {});
+      res.json({ ok: true, ops_status: "RESOLVED" });
+    } catch (e: any) {
+      res.status(500).json({ error: "RESOLVE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases/:caseId/reopen
+router.post(
+  "/super/pools/:id/control-center/support/cases/:caseId/reopen",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { reason } = req.body ?? {};
+    if (!reason?.trim()) { res.status(400).json({ error: "reason 필수" }); return; }
+    try {
+
+      const cur = await (superAdminDb as any).execute(sql`
+        SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      const row = cur?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      if (row.ops_status !== "RESOLVED") {
+        res.status(422).json({ error: "RESOLVED 상태인 케이스만 Reopen 가능합니다." }); return;
+      }
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET ops_status = ${"IN_PROGRESS"}, resolved_at = NULL, updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "REOPENED",
+        note: reason.trim(), beforeState: "RESOLVED", afterState: "IN_PROGRESS",
+      });
+      res.json({ ok: true, ops_status: "IN_PROGRESS" });
+    } catch (e: any) {
+      res.status(500).json({ error: "REOPEN_FAILED", message: e?.message });
     }
   },
 );

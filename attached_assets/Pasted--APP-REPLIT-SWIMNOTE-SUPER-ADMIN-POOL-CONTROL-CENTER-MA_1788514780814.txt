@@ -1,0 +1,1416 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# WP4 — CURRICULUM / STORAGE / SECURE FILE OPERATIONS
+# BASELINE: b5b727cc
+# DO NOT START WP5
+
+============================================================
+0. WP4 목적
+============================================================
+
+WP3 Customer Support Users 완료.
+
+이번 WP4 목표:
+
+각 수영장의
+
+- 커리큘럼 원본 파일
+- 제출/처리 상태
+- 버전
+- 적용 상태
+- 학생/반 배정 상태
+- 파일 저장 위치
+- Storage 사용량
+- quota
+- upload blocked 상태
+- 업로드/처리 오류
+
+를 Super Admin Pool Control Center에서
+실제 운영 가능한 수준으로 확인하게 한다.
+
+특히:
+
+"수영장에서 업로드한 커리큘럼 원본을
+Super Admin이 안전하게 내려받아 확인"
+
+할 수 있어야 한다.
+
+이번 WP에서
+AI/Growth/Jobs WP5로 확장 금지.
+
+============================================================
+1. CURRENT BASELINE
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+b5b727cc
+
+먼저:
+
+git status
+git rev-parse HEAD
+git log --oneline -10
+
+확인.
+
+b5b727cc ancestor:
+YES
+
+기존 구현 재사용:
+
+GET /super/pools/:id/control-center/curriculum
+GET /super/pools/:id/control-center/curriculum/download
+GET /super/pools/:id/control-center/storage
+
+기존 R2/S3 abstraction
+기존 curriculum submission/version tables
+기존 storage usage/quota source
+
+새 파일 시스템 만들지 말 것.
+
+============================================================
+2. 완료 기준
+============================================================
+
+WP4 완료는 단순 목록 표시가 아님.
+
+반드시:
+
+UI
+→ API
+→ DB
+→ object storage
+→ signed download
+→ pool validation
+→ expiry
+→ actual file retrieval
+
+까지 실제 연결.
+
+Mock:
+0
+
+Placeholder:
+0
+
+Fake file:
+0
+
+Permanent public URL:
+0
+
+Cross-pool leak:
+0
+
+============================================================
+3. CURRICULUM INVENTORY
+============================================================
+
+CURRENT repository / schema에서
+커리큘럼 관련 실제 source를 전수 확인.
+
+최소:
+
+submission table
+version table
+template/version relation
+source filename
+object key/storage reference
+file size
+mime type if available
+upload timestamp
+processing status
+processing error
+active/current version
+assignment
+applied state
+
+보고서에서
+정확한 table/field를 명시.
+
+============================================================
+4. CURRICULUM LIST
+============================================================
+
+Pool Control Center
+→ Curriculum
+
+에서 최소 표시:
+
+- submission ID
+- 원본 파일명
+- 파일 크기
+- 업로드 시각
+- revision/version
+- processing status
+- processing 완료 여부
+- active/current 여부
+- 적용 version
+- 적용 반/학생 수 where reliable
+- 미배정 수 where reliable
+- 오류 상태
+- source 존재 여부
+
+실제 DB에 없는 필드:
+임의 생성 금지.
+
+============================================================
+5. STATUS NORMALIZATION
+============================================================
+
+현재 curriculum 처리 상태가
+여러 field/enum으로 나뉘어 있으면
+
+UI 표시용 normalized status를
+서버에서 명확히 정의.
+
+단 원본 상태를 잃지 말 것.
+
+예:
+
+UPLOADED
+PROCESSING
+READY
+ACTIVE
+FAILED
+
+같은 이름을 새로 만들 수 있는 것은
+실제 state를 안전하게 매핑할 수 있을 때만.
+
+기존 enum이 있으면 우선 사용.
+
+============================================================
+6. ACTIVE / CURRENT VERSION
+============================================================
+
+현재 pool에서 실제 사용 중인
+curriculum version을 명확히 표시.
+
+중요:
+
+"가장 최신 업로드"
+≠
+"현재 적용 버전"
+
+일 수 있으므로 분리.
+
+표시:
+
+Latest submission:
+...
+
+Current active version:
+...
+
+Applied:
+YES / NO
+
+============================================================
+7. ASSIGNMENT
+============================================================
+
+가능한 실제 source를 사용해:
+
+assigned classes
+assigned students
+unassigned students
+
+등을 보여준다.
+
+중요:
+
+수치를 만들기 위해
+pool 전체를 row-by-row loop 금지.
+
+aggregate query 사용.
+
+N+1:
+NO.
+
+============================================================
+8. SECURE ORIGINAL DOWNLOAD — P0
+============================================================
+
+필수.
+
+Super Admin:
+
+Curriculum
+→ submission 선택
+→ [원본 파일 다운로드]
+
+가능.
+
+기존 R2/S3 storage client 재사용.
+
+보안:
+
+Super Admin only.
+
+요청:
+
+poolId
+submissionId
+
+서버:
+
+1. super_admin auth
+2. submission 존재 확인
+3. submission.swimming_pool_id == target pool
+4. object key 확인
+5. signed GET URL 생성
+6. short expiry
+7. 반환
+
+============================================================
+9. SIGNED URL POLICY
+============================================================
+
+기본 expiry:
+
+300 seconds
+
+현재 구조가 이미 5분이면 유지.
+
+금지:
+
+permanent URL
+public object URL
+R2 credential 반환
+raw access key 반환
+bucket secret 노출
+storage endpoint secret 노출
+
+============================================================
+10. ACTUAL FILE DOWNLOAD TEST — 필수
+============================================================
+
+이전 Production Gate에서
+실제 curriculum file fixture가 없어
+실 파일 다운로드 검증이 skip된 적 있음.
+
+WP4에서는 이 항목을 닫는다.
+
+Development/Test 환경에서
+실제 안전한 object fixture를 준비하거나
+이미 존재하는 DEV curriculum object를 사용.
+
+검증:
+
+A.
+signed URL 생성
+→ PASS
+
+B.
+실제 HEAD 또는 GET
+→ HTTP success
+
+C.
+실제 bytes > 0
+→ PASS
+
+D.
+파일명/content-type
+source와 일치 where available
+
+E.
+expiry 전 접근
+→ PASS
+
+F.
+wrong pool
+→ BLOCKED
+
+G.
+wrong submission
+→ 404
+
+H.
+non-super-admin
+→ 403
+
+I.
+unauthenticated
+→ 401
+
+J.
+tampered object key/submission
+→ BLOCKED
+
+P0 skipped:
+0
+
+실 파일 검증을
+code review만으로 PASS 처리 금지.
+
+============================================================
+11. DOWNLOAD AUDIT
+============================================================
+
+원본 curriculum 파일 다운로드는
+민감 운영 action.
+
+기존 audit_logs 구조가
+read/download action 기록을 지원한다면
+
+CURRICULUM_SOURCE_DOWNLOAD
+
+또는 기존 naming convention에 맞춰 기록.
+
+최소:
+
+actor
+pool
+submission
+file/object reference safe form
+timestamp
+
+signed URL 자체:
+audit에 저장 금지.
+
+secret/query signature:
+저장 금지.
+
+현재 audit architecture상
+download audit가 부적절하면
+그 이유 보고.
+
+============================================================
+12. STORAGE INVENTORY
+============================================================
+
+현재 pool별 storage source 확인.
+
+최소:
+
+used_bytes
+quota_bytes
+upload_blocked
+storage plan/limit source
+media/file count where reliable
+curriculum storage
+report/file storage where reliable
+
+실제 source만 사용.
+
+============================================================
+13. STORAGE OVERVIEW
+============================================================
+
+Pool Control Center
+→ Storage
+
+에서:
+
+Used:
+...
+
+Quota:
+...
+
+Percent:
+...
+
+Remaining:
+...
+
+Upload Blocked:
+YES / NO
+
+표시.
+
+단 quota unlimited/null 정책이 존재하면
+정확히 처리.
+
+0으로 나누기:
+NO.
+
+============================================================
+14. STORAGE USAGE SOURCE
+============================================================
+
+storage 사용량이:
+
+DB cached aggregate인지
+object storage recount인지
+별도 usage table인지
+
+정확히 보고.
+
+Control Center 진입 때
+R2 bucket 전체를 매번 scan:
+금지.
+
+기존 aggregate/cached source 우선.
+
+============================================================
+15. QUOTA SOURCE
+============================================================
+
+quota가:
+
+subscription plan
+member plan
+pool override
+storage-specific config
+
+중 어디에서 결정되는지 확인.
+
+Super Admin UI에서
+현재 effective quota와 source를 표시.
+
+이번 WP에서
+새 quota override 기능을
+임의 추가하지 말 것.
+
+필요하면 LATER로 분류.
+
+============================================================
+16. UPLOAD BLOCKED
+============================================================
+
+현재 upload_blocked 또는 동등 상태가
+실제 업로드 guard와 연결되는지 검증.
+
+UI badge만 blocked:
+FAIL.
+
+실제 upload service/route에서도
+동일 source 사용해야 함.
+
+이번 WP에서는:
+
+read-only 표시
++
+실제 source 연결 검증
+
+우선.
+
+============================================================
+17. STORAGE ERROR
+============================================================
+
+현재 운영상 중요한:
+
+upload failure
+R2 failure
+signed URL failure
+object missing
+quota exceeded
+processing failure
+
+가 어디에 기록되는지 조사.
+
+각각:
+
+DB-backed
+CONSOLE-only
+NOT OBSERVABLE
+
+로 분류.
+
+WP6 Error/Observability에서
+최종 보강할 항목은
+이번 WP 보고서에 넘긴다.
+
+WP4에서 새 logging framework 만들지 말 것.
+
+============================================================
+18. CURRICULUM PROCESSING ERROR
+============================================================
+
+submission에:
+
+status=failed
+error_message
+processing_error
+last_error
+
+등 실제 field가 있으면
+Super Admin에 safe version 표시.
+
+원문 stack trace:
+NO
+
+secret:
+NO
+
+PII:
+필요 최소.
+
+============================================================
+19. FILE EXISTENCE CHECK
+============================================================
+
+DB에는 source object가 있는데
+storage object가 실제로 없는 경우를
+진단 가능하게 할 수 있는지 검토.
+
+목록마다 HEAD 요청:
+금지.
+
+Detail/download 시점에만
+object not found를 안전하게 처리.
+
+필요하면:
+
+SOURCE_MISSING
+
+같은 UI error state를 표시하되
+DB enum으로 임의 저장하지 말 것.
+
+============================================================
+20. DOWNLOAD FAILURE UX
+============================================================
+
+signed URL 생성 실패:
+
+UI에서 명확한 오류.
+
+파일 없음:
+"원본 파일을 찾을 수 없습니다."
+
+권한 오류:
+일반적인 접근 권한 오류.
+
+내부 bucket/key/secret:
+사용자에게 표시 금지.
+
+============================================================
+21. CURRICULUM DETAIL
+============================================================
+
+submission row 클릭 시
+detail drawer 또는 panel에서:
+
+SOURCE
+- filename
+- size
+- uploaded_at
+- object status
+
+PROCESSING
+- status
+- processing timestamps
+- safe error
+
+VERSION
+- submission version
+- active version
+- current flag
+
+ASSIGNMENT
+- assigned classes
+- assigned students
+- unassigned where available
+
+FILE
+- secure download
+
+표시.
+
+============================================================
+22. VERSION HISTORY
+============================================================
+
+여러 curriculum upload/version이 존재할 경우
+시간순 history 표시.
+
+최신:
+명확히 표시.
+
+현재 적용:
+별도 표시.
+
+FAILED old version:
+삭제하지 말 것.
+
+history 보존.
+
+============================================================
+23. FILE DELETION
+============================================================
+
+이번 WP에서:
+
+Delete curriculum source:
+NO
+
+Delete media:
+NO
+
+Purge storage:
+NO
+
+위험한 file mutation은
+이번 범위 제외.
+
+============================================================
+24. RE-UPLOAD / RETRY
+============================================================
+
+현재 검증된 curriculum processing retry/re-upload API가
+이미 존재하는지 조사.
+
+있으면:
+
+SAFE TO EXPOSE
+READ ONLY
+LATER
+DO NOT EXPOSE
+
+분류.
+
+이번 WP에서
+검증되지 않은 retry engine 새로 만들지 말 것.
+
+============================================================
+25. STORAGE FILE BROWSER
+============================================================
+
+대형 SaaS에는 file browser가 있을 수 있으나
+이번 WP에서 전체 R2 browser 구현 금지.
+
+Super Admin에게 필요한 것:
+
+- curriculum source
+- quota/usage
+- operational file references
+
+우선.
+
+전체 bucket explorer:
+NOT NEEDED / LATER 판단.
+
+============================================================
+26. CROSS-POOL — P0
+============================================================
+
+DEV POOL_A / POOL_B fixture.
+
+POOL_A request에서:
+
+POOL_B curriculum list:
+0
+
+POOL_B active version:
+0
+
+POOL_B assignment:
+0
+
+POOL_B file metadata:
+0
+
+POOL_B download:
+BLOCKED
+
+POOL_B storage:
+0
+
+object key를 직접 조작하여
+POOL_B file 접근:
+BLOCKED
+
+============================================================
+27. AUTH
+============================================================
+
+모든 WP4 Control Center route:
+
+super_admin:
+PASS
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+============================================================
+28. PATH / OBJECT KEY SECURITY
+============================================================
+
+client가 object key를 직접 보내게 하지 말 것.
+
+client:
+submission ID만 제공
+
+server:
+DB에서 object key resolve
+
+금지:
+
+../ traversal
+arbitrary key
+arbitrary URL
+arbitrary bucket
+client-supplied storage hostname
+
+============================================================
+29. MIME / FILE NAME
+============================================================
+
+signed download에
+Content-Disposition 또는 filename 제어가 있다면
+
+DB의 검증된 source filename 사용.
+
+CRLF/header injection 방어.
+
+mime type도
+DB 또는 안전한 server source 사용.
+
+client-provided filename 신뢰 금지.
+
+============================================================
+30. PERFORMANCE
+============================================================
+
+Curriculum list:
+bounded/paginated if unbounded 가능성 있음.
+
+Version history:
+bounded.
+
+Assignments:
+aggregate.
+
+Storage:
+aggregate source.
+
+Overview 진입 시
+object storage call:
+0 목표.
+
+Signed URL:
+download action 시에만.
+
+============================================================
+31. INDEX REVIEW
+============================================================
+
+자주 쓰는 조건:
+
+swimming_pool_id
+submission status
+created_at
+version/current
+assignment pool/version
+
+기존 index 확인.
+
+명백한 full scan 위험만 보완.
+
+Development migration만.
+
+과도한 index:
+NO.
+
+============================================================
+32. FAILURE ISOLATION
+============================================================
+
+예:
+
+storage usage query 실패
+
+때문에 curriculum list 전체가 blank:
+NO.
+
+가능하면 각 탭/section 자체 오류 처리.
+
+Authorization/pool validation failure:
+전체 실패.
+
+============================================================
+33. APP IMPACT
+============================================================
+
+WP4는 원칙적으로:
+
+Super Admin Web
++
+Server
+
+작업.
+
+iOS APP/shared runtime 변경 필요 없어야 함.
+
+단 실제 shared storage/curriculum resolver 수정으로
+APP runtime 파일이 변경되면:
+
+test
+commit
+OTA immediate.
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+============================================================
+34. OTA
+============================================================
+
+git diff 기준 판정.
+
+APP/shared runtime modified:
+YES
+
+→ OTA 필수.
+
+NO
+
+→ OTA NOT REQUIRED.
+
+============================================================
+35. TEST MATRIX — CURRICULUM
+============================================================
+
+List:
+PASS
+
+History:
+PASS
+
+Status:
+PASS
+
+Active version:
+PASS
+
+Latest vs Active:
+PASS
+
+Assignment:
+PASS
+
+Processing error:
+PASS
+
+Detail:
+PASS
+
+Empty:
+PASS
+
+Cross-pool:
+0
+
+============================================================
+36. TEST MATRIX — DOWNLOAD
+============================================================
+
+Signed URL:
+PASS
+
+Actual HEAD/GET:
+PASS
+
+Bytes:
+>0
+
+Expiry:
+300 sec or documented exact value
+
+Wrong pool:
+BLOCKED
+
+Wrong submission:
+404
+
+Non-super:
+403
+
+Unauthenticated:
+401
+
+Object-key injection:
+BLOCKED
+
+Permanent public:
+NO
+
+Secret exposure:
+NO
+
+============================================================
+37. TEST MATRIX — STORAGE
+============================================================
+
+Used:
+raw source match
+
+Quota:
+raw source match
+
+Remaining:
+correct
+
+Percentage:
+correct
+
+Upload blocked:
+actual guard source
+
+Unlimited/null:
+correct
+
+Cross-pool:
+0
+
+N+1:
+0
+
+============================================================
+38. PRIVACY / SECURITY
+============================================================
+
+Password:
+NO
+
+JWT:
+NO
+
+Storage credentials:
+NO
+
+Signed URL persisted:
+NO
+
+Signed URL in audit:
+NO
+
+Secret:
+NO
+
+Cross-pool:
+PASS
+
+============================================================
+39. REGRESSION
+============================================================
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+WP3:
+PASS
+
+BASE manual:
+PASS
+
+X manual:
+PASS
+
+Plan:
+PASS
+
+Member limit:
+PASS
+
+Members:
+PASS
+
+Teachers:
+PASS
+
+Parents:
+PASS
+
+Classes:
+PASS
+
+============================================================
+40. DB
+============================================================
+
+기존 schema로 충분하면:
+migration NO
+
+필요한 경우:
+Development additive only.
+
+Production:
+NO
+
+============================================================
+41. SERVER
+============================================================
+
+test
+TS
+commit
+push release/v2.0.0
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+42. 완료보고
+============================================================
+
+# WP4 CURRICULUM / STORAGE REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+b5b727cc
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+FILES CHANGED
+============================================================
+
+Server:
+...
+
+Web:
+...
+
+APP/shared:
+...
+
+Migration:
+...
+
+Tests:
+...
+
+============================================================
+CURRICULUM SOURCE
+============================================================
+
+Submission table:
+...
+
+Version source:
+...
+
+Active version source:
+...
+
+Object key source:
+...
+
+Filename source:
+...
+
+Size source:
+...
+
+Processing state source:
+...
+
+Assignment source:
+...
+
+============================================================
+CURRICULUM UI
+============================================================
+
+List:
+PASS / FAIL
+
+Detail:
+PASS / FAIL
+
+History:
+PASS / FAIL
+
+Latest vs Active:
+PASS / FAIL
+
+Processing:
+PASS / FAIL
+
+Assignment:
+PASS / FAIL
+
+Safe error:
+PASS / FAIL
+
+============================================================
+SECURE DOWNLOAD
+============================================================
+
+Route:
+...
+
+Storage:
+...
+
+Signed URL:
+PASS / FAIL
+
+Actual GET/HEAD:
+PASS / FAIL
+
+Actual bytes:
+...
+
+Expiry:
+...
+
+Wrong pool:
+BLOCKED / FAIL
+
+Wrong submission:
+404 / FAIL
+
+Object-key injection:
+BLOCKED / FAIL
+
+Non-super:
+BLOCKED / FAIL
+
+Unauthenticated:
+BLOCKED / FAIL
+
+Permanent public URL:
+NO / YES
+
+Secret exposure:
+NO / YES
+
+Download audit:
+PASS / N/A / FAIL
+
+============================================================
+STORAGE
+============================================================
+
+Usage source:
+...
+
+Quota source:
+...
+
+Used bytes:
+PASS / FAIL
+
+Quota:
+PASS / FAIL
+
+Remaining:
+PASS / FAIL
+
+Percentage:
+PASS / FAIL
+
+Upload blocked:
+PASS / FAIL
+
+Actual upload guard uses same source:
+PASS / FAIL
+
+============================================================
+ERROR OBSERVABILITY
+============================================================
+
+Curriculum processing:
+DB / CONSOLE / NONE
+
+Upload:
+DB / CONSOLE / NONE
+
+R2/object:
+DB / CONSOLE / NONE
+
+Signed URL:
+DB / CONSOLE / NONE
+
+WP6 gaps:
+...
+
+============================================================
+SECURITY
+============================================================
+
+Super Admin:
+PASS / FAIL
+
+Pool Admin:
+BLOCKED / FAIL
+
+Teacher:
+BLOCKED / FAIL
+
+Parent:
+BLOCKED / FAIL
+
+Unauthenticated:
+BLOCKED / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+Object key client controlled:
+NO / YES
+
+============================================================
+PERFORMANCE
+============================================================
+
+N+1:
+0 / ...
+
+Unbounded queries:
+0 / ...
+
+Object storage calls on list:
+...
+
+Indexes:
+...
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0 / ...
+
+Actual file download test skipped:
+NO / YES
+
+WP1 regression:
+PASS / FAIL
+
+WP2 regression:
+PASS / FAIL
+
+WP3 regression:
+PASS / FAIL
+
+============================================================
+APP / OTA
+============================================================
+
+iOS APP/shared runtime modified:
+YES / NO
+
+If YES:
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group:
+...
+
+iOS Update:
+...
+
+Commit SHA:
+...
+
+Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+If NO:
+
+OTA:
+NOT REQUIRED
+
+============================================================
+DB
+============================================================
+
+Development migration:
+...
+
+Production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP4 complete:
+YES / NO
+
+Curriculum support-ready:
+YES / NO
+
+Original source downloadable:
+YES / NO
+
+Actual file verified:
+YES / NO
+
+Storage support-ready:
+YES / NO
+
+Cross-pool:
+PASS / FAIL
+
+Remaining blocker:
+...
+
+Recommended next WP:
+WP5 — AI / GROWTH / JOB OPERATIONS
+
+DO NOT START WP5.
+WAIT FOR NEXT INSTRUCTION.

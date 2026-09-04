@@ -1,0 +1,1829 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# WP8 — AUDIT / SUPPORT CASE / CUSTOMER SERVICE HISTORY
+# BASELINE: 6ed60ce1
+# DO NOT START WP9
+
+============================================================
+0. WP8 목적
+============================================================
+
+WP7 Notification Diagnostics 완료.
+APP Type Safety Hotfix 완료.
+
+이번 WP8 목표:
+
+Super Admin이 특정 수영장의
+
+- 고객문의
+- 장애문의
+- 회원/교사/학부모 지원
+- 권한/플랜 지원
+- 커리큘럼/AI/알림 관련 지원
+- 처리 이력
+- 해결 여부
+- Super Admin 조작 이력
+
+을 Pool Control Center 안에서
+지속적으로 기록하고 검색하고 추적할 수 있도록 한다.
+
+최종 목표:
+
+"어제 누가 어떤 문제로 연락했고
+누가 어떤 조치를 했고
+현재 해결됐는지"
+
+를 DB를 직접 보지 않고
+Control Center에서 바로 확인 가능.
+
+============================================================
+1. CURRENT BASELINE
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+6ed60ce1
+
+먼저:
+
+git status
+git rev-parse HEAD
+git log --oneline -10
+
+6ed60ce1 ancestor:
+YES
+
+기존 구조 재사용:
+
+support_cases
+audit_logs
+event_logs
+기존 Super Admin mutation audit
+기존 Control Center Support tab
+기존 Audit tab
+WP3 Members/Teachers/Parents/Classes detail
+WP4 Curriculum
+WP5 AI/Growth
+WP6 Errors
+WP7 Notifications
+
+새 CRM 시스템을 중복 생성하지 말 것.
+
+============================================================
+2. WP8 완료 기준
+============================================================
+
+단순 support list 표시가 완료가 아니다.
+
+반드시:
+
+Support case create
+→ DB persist
+→ pool scope
+→ subject linkage
+→ note/history
+→ status change
+→ operator
+→ audit
+→ refetch
+→ timeline/history
+
+까지 실제 연결.
+
+Mock:
+0
+
+Placeholder:
+0
+
+Dead action:
+0
+
+Fake support history:
+0
+
+============================================================
+3. SUPPORT CASE MODEL 조사
+============================================================
+
+현재 support_cases schema를 먼저 전수 조사.
+
+보고:
+
+table:
+...
+
+primary key:
+...
+
+ticket_id:
+...
+
+pool_id:
+...
+
+state/status:
+...
+
+actor/operator:
+...
+
+subject fields:
+...
+
+note/message fields:
+...
+
+created_at:
+...
+
+updated_at:
+...
+
+resolution:
+...
+
+현재 실제 컬럼만 사용.
+
+============================================================
+4. 기존 SUPPORT CASE 부족분 분석
+============================================================
+
+현재 support_cases가
+pool-level 최소 구조만 가지고 있고
+
+subject_type
+subject_id
+title
+category
+resolution
+
+등 운영에 필수 필드가 없다면
+이번 WP에서 최소 additive schema 확장 가능.
+
+단:
+
+대형 CRM처럼 과도하게 만들지 말 것.
+
+필수 운영정보만.
+
+============================================================
+5. 최소 SUPPORT CASE 구조
+============================================================
+
+최종적으로 case 하나가 최소 다음을 표현할 수 있어야 함.
+
+pool_id
+
+ticket_id
+
+title
+
+category
+
+status
+
+subject_type nullable
+
+subject_id nullable
+
+created_by
+
+assigned_operator nullable
+
+created_at
+
+updated_at
+
+resolved_at nullable
+
+resolution nullable
+
+현재 schema와 맞춰 최소 변경.
+
+============================================================
+6. STATUS
+============================================================
+
+기본:
+
+OPEN
+IN_PROGRESS
+RESOLVED
+
+현재 기존 state가 있으면 재사용/매핑.
+
+없는 상태 임의 추가 최소화.
+
+CLOSED 등 별도 상태가 필요하지 않으면 만들지 말 것.
+
+============================================================
+7. CATEGORY
+============================================================
+
+고객지원 검색에 필요한 category.
+
+권장 범위:
+
+ACCOUNT
+MEMBER
+TEACHER
+PARENT
+CLASS
+ENTITLEMENT
+BILLING
+CURRICULUM
+AI
+GROWTH_REPORT
+NOTIFICATION
+STORAGE
+ERROR
+OTHER
+
+현재 제품에서 실제 의미 있는 항목만.
+
+DB enum 대신 TEXT + server validation이
+현재 architecture에 적절하면 그 방식 사용 가능.
+
+============================================================
+8. SUBJECT LINK
+============================================================
+
+case를 다음 subject에 연결 가능:
+
+POOL
+MEMBER
+TEACHER
+PARENT
+CLASS
+REPORT
+CURRICULUM
+NOTIFICATION
+OTHER
+
+실제 subject_id가 있을 때만 연결.
+
+중요:
+
+subject_id만 보고 조회 금지.
+
+항상:
+
+subject belongs to pool
+
+검증.
+
+Cross-pool subject link:
+P0 BLOCK.
+
+============================================================
+9. MEMBER SUPPORT LINK
+============================================================
+
+WP3 Member detail에서:
+
+[지원 케이스 보기]
+[지원 케이스 생성]
+
+가능하게 검토.
+
+새 case 생성 시:
+
+subject_type=MEMBER
+subject_id=student/member id
+pool_id=current pool
+
+자동 prefill.
+
+============================================================
+10. TEACHER SUPPORT LINK
+============================================================
+
+Teacher detail에서도 동일.
+
+subject_type=TEACHER
+
+cross-pool validation 필수.
+
+============================================================
+11. PARENT SUPPORT LINK
+============================================================
+
+Parent detail:
+
+subject_type=PARENT
+
+고객센터 문의 가능성이 높으므로
+관련 support history 즉시 확인 가능하게.
+
+============================================================
+12. CLASS SUPPORT LINK
+============================================================
+
+Class detail:
+
+subject_type=CLASS
+
+단순히 support tab으로 이동하는 것보다
+subject filter/prefill 가능하면 구현.
+
+============================================================
+13. REPORT / CURRICULUM / NOTIFICATION LINK
+============================================================
+
+가능하면 WP5/WP4/WP7 detail에서
+
+[지원 케이스 생성]
+
+또는
+[관련 지원 케이스]
+
+연결.
+
+단 실제 subject key가 명확한 것만.
+
+새 복잡한 polymorphic framework를
+필요 이상 만들지 말 것.
+
+============================================================
+14. SUPPORT CASE CREATE
+============================================================
+
+Super Admin만 생성.
+
+필수 입력:
+
+title
+category
+subject optional
+initial note 또는 description
+reason/context
+
+서버:
+
+auth
+pool validation
+subject validation
+insert
+audit
+response
+
+UI success:
+DB insert 후 refetch.
+
+============================================================
+15. TICKET ID
+============================================================
+
+사람이 읽을 수 있는 ticket_id가
+현재 이미 존재하면 재사용.
+
+없으면 기존 naming convention 조사.
+
+예:
+
+SUP-20260904-000123
+
+같은 방식 가능하나
+임의 충돌 구조 금지.
+
+DB primary key와
+ticket display ID 분리 가능.
+
+동시성 안전성 필수.
+
+============================================================
+16. CASE DETAIL
+============================================================
+
+Support case row 클릭:
+
+CASE
+- ticket_id
+- title
+- category
+- status
+- pool
+- subject
+
+CUSTOMER / SUBJECT
+- linked member/teacher/parent/class/etc.
+
+TIMELINE
+- created
+- notes
+- status changes
+- operator changes
+- resolution
+
+RELATED
+- errors
+- notifications
+- audit
+- AI/report link where relevant
+
+표시.
+
+============================================================
+17. CASE NOTE / HISTORY
+============================================================
+
+지원 과정에서
+여러 메모를 누적할 수 있어야 한다.
+
+기존 support_cases 하나의 note 필드만 있다면
+
+support_case_events
+support_case_notes
+
+같은 additive child table을 검토.
+
+목표:
+
+기존 내용 덮어쓰기:
+NO
+
+history append:
+YES
+
+============================================================
+18. SUPPORT EVENT MODEL
+============================================================
+
+필요한 경우 최소:
+
+id
+support_case_id
+pool_id
+event_type
+actor_id
+note nullable
+before_data nullable
+after_data nullable
+created_at
+
+event_type 예:
+
+CREATED
+NOTE_ADDED
+STATUS_CHANGED
+ASSIGNED
+RESOLVED
+REOPENED
+
+현재 실제 필요 범위만.
+
+============================================================
+19. NOTE 안전성
+============================================================
+
+고객지원 note에는
+사람이 입력한 자유 텍스트가 들어갈 수 있음.
+
+금지:
+
+password
+JWT
+API key
+payment credential
+secret
+
+UI에도 안내:
+
+"비밀번호/토큰/결제정보 입력 금지"
+
+가능.
+
+서버에서 모든 자연어 secret을
+완벽히 탐지한다고 가정하지 말 것.
+
+============================================================
+20. CASE STATUS CHANGE
+============================================================
+
+OPEN
+→ IN_PROGRESS
+→ RESOLVED
+
+지원.
+
+필수:
+
+reason/note
+actor
+timestamp
+audit/history
+
+RESOLVED 시:
+
+resolved_at
+resolution
+
+가능하면 필수.
+
+============================================================
+21. REOPEN
+============================================================
+
+RESOLVED case를
+OPEN 또는 IN_PROGRESS로 reopen 가능 여부 검토.
+
+고객지원 운영상 유용.
+
+구현 시:
+
+reason
+history
+audit
+
+필수.
+
+resolved_at 처리 semantics 명확히.
+
+============================================================
+22. ASSIGNEE
+============================================================
+
+현재 Super Admin 운영자가 여러 명일 가능성을 고려.
+
+assigned_operator 지원이
+현재 users/roles 구조로 안전하게 가능하면 구현.
+
+한 명 운영이어도 nullable 가능.
+
+임의 external agent table 만들지 말 것.
+
+============================================================
+23. SUPPORT LIST
+============================================================
+
+Pool Control Center
+→ Support
+
+표시:
+
+ticket
+title
+category
+status
+subject
+assigned operator
+created
+updated
+resolved
+
+필터:
+
+status
+category
+subject type
+operator
+period
+search
+
+pagination 필수.
+
+============================================================
+24. GLOBAL SUPPORT SEARCH 여부
+============================================================
+
+이번 WP 기본 scope는
+Pool Control Center per-pool.
+
+전체 500 pool support inbox는
+운영에 실제 유용할 수 있음.
+
+현재 Super Admin shell에
+global support screen이 이미 있거나
+쉽게 재사용 가능하면 SHOULD.
+
+없으면:
+LATER.
+
+이번 WP 때문에 전체 CRM routing 대공사 금지.
+
+============================================================
+25. SUPPORT SEARCH
+============================================================
+
+검색:
+
+ticket_id exact/prefix
+title
+subject name if safe
+note full-text는 이번 WP에서 무리하지 말 것.
+
+SQL injection 방어.
+
+server max limit.
+
+============================================================
+26. AUDIT TAB 목적
+============================================================
+
+Audit은:
+
+"누가 어떤 설정/상태를 변경했는가"
+
+를 보는 곳.
+
+Support는:
+
+"고객 문의를 어떻게 처리했는가"
+
+둘을 혼동하지 말 것.
+
+============================================================
+27. AUDIT SOURCE
+============================================================
+
+현재 audit_logs schema를 조사.
+
+기존 WP2 등에서:
+
+BASE grant/revoke
+X grant/revoke
+force disable
+plan
+member limit
+
+등 audit이 실제 저장됨.
+
+WP8에서 이 audit을
+운영자가 보기 쉽게 완성.
+
+============================================================
+28. AUDIT LIST
+============================================================
+
+표시:
+
+timestamp
+actor
+action
+entity_type
+entity_id
+pool
+reason
+summary before→after
+
+raw JSON 전체를 목록에 노출:
+NO.
+
+detail drawer에서 safe formatting.
+
+============================================================
+29. AUDIT FILTER
+============================================================
+
+필터:
+
+period
+actor
+action
+entity_type
+subject/entity ID
+
+pagination.
+
+request_id가 있으면 exact search 가능.
+
+============================================================
+30. AUDIT DETAIL
+============================================================
+
+row 클릭:
+
+actor
+action
+pool
+entity
+reason
+request_id
+before
+after
+timestamp
+
+safe diff view.
+
+금지:
+
+secret
+token
+signed URL
+raw credential
+
+============================================================
+31. AUDIT REDACTION
+============================================================
+
+before_data / after_data에
+PII/secret이 섞일 가능성 조사.
+
+서버 response에서 safe redaction.
+
+password
+JWT
+Authorization
+token
+secret
+API key
+signed URL query
+
+절대 노출 금지.
+
+============================================================
+32. SUPPORT ACTION AUDIT
+============================================================
+
+이번 WP mutation:
+
+CASE_CREATE
+CASE_NOTE_ADD
+CASE_STATUS_CHANGE
+CASE_ASSIGN
+CASE_RESOLVE
+CASE_REOPEN
+
+해당 실제 action 모두 audit 또는
+support event timeline에 반드시 추적.
+
+중복 audit이 과도하면:
+
+support event = case history
+audit = operator mutation proof
+
+역할 정리.
+
+============================================================
+33. SUPPORT + AUDIT LINK
+============================================================
+
+case detail에서
+관련 Super Admin audit 표시 가능.
+
+예:
+
+고객이 X모드 문제 문의
+→ support case
+→ X manual grant audit
+
+연결 기준:
+
+pool
+time
+subject/entity
+case reference if 추가 가능
+
+가능하면 case_id/request_id를
+audit metadata에 연결.
+
+============================================================
+34. ERROR LINK
+============================================================
+
+Support case에서
+WP6 error를 연결할 수 있는지 검토.
+
+case 생성 시:
+
+related_error_id
+request_id
+trace_id
+
+중 실제 source가 있으면 저장/연결 가능.
+
+대규모 many-to-many framework는
+필요 없으면 만들지 말 것.
+
+============================================================
+35. NOTIFICATION LINK
+============================================================
+
+WP7 notification 문의인 경우
+notification_id/ref_id를 subject/related ref로 연결 가능.
+
+"알림 안 옴" 문의
+→ 해당 notification detail
+→ support case
+
+흐름 가능하면 구현.
+
+============================================================
+36. CUSTOMER SUPPORT WORKFLOW TEST
+============================================================
+
+실제 DEV fixture:
+
+Pool A
+
+1.
+Member A 선택
+
+2.
+Support case 생성
+
+3.
+Initial note 작성
+
+4.
+status IN_PROGRESS
+
+5.
+추가 note
+
+6.
+related audit/action 확인
+
+7.
+RESOLVED + resolution 작성
+
+8.
+Support list refetch
+
+9.
+Member detail에서 history 확인
+
+10.
+Audit tab에서 mutation 확인
+
+전부 실제 DB.
+
+============================================================
+37. CROSS-POOL P0
+============================================================
+
+POOL_A case에서:
+
+POOL_B member subject:
+BLOCK
+
+POOL_B teacher:
+BLOCK
+
+POOL_B parent:
+BLOCK
+
+POOL_B class:
+BLOCK
+
+POOL_B notification:
+BLOCK
+
+POOL_B report:
+BLOCK
+
+POOL_B case:
+0
+
+POOL_B audit:
+0
+
+URL ID 조작:
+BLOCK.
+
+============================================================
+38. AUTH
+============================================================
+
+Support/Audit endpoints:
+
+super_admin:
+PASS
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+============================================================
+39. MUTATION SAFETY
+============================================================
+
+모든 case mutation:
+
+validation
+transaction where needed
+history
+audit
+response
+refetch
+
+부분 성공:
+NO.
+
+예:
+
+status 변경 성공
+history insert 실패
+
+→ transaction rollback 검토.
+
+============================================================
+40. CONCURRENCY
+============================================================
+
+두 operator가 동시에
+same case status/note 변경 가능성.
+
+note:
+append-safe.
+
+status:
+last write 문제 최소화.
+
+가능하면 updated_at/version
+또는 transaction row lock 검토.
+
+과도한 optimistic-lock framework는
+필요 없으면 만들지 말 것.
+
+============================================================
+41. DELETE
+============================================================
+
+Support case hard delete:
+NO
+
+Support note delete:
+NO
+
+Audit delete:
+NO
+
+잘못 작성된 note 수정 기능도
+이번 WP 기본은 NO.
+
+필요하면 correction note 추가.
+
+history 보존 우선.
+
+============================================================
+42. EDIT HISTORY
+============================================================
+
+title/category를 수정 가능하게 할지 검토.
+
+필요하면:
+
+before
+after
+history
+audit
+
+필수.
+
+불필요하면 read-only after create 가능.
+
+============================================================
+43. PII
+============================================================
+
+Support detail에서
+subject 정보를 보여줄 때
+필요 최소.
+
+회원/학부모 phone:
+detail에서 고객지원 목적이면 일부 가능.
+
+목록:
+최소화.
+
+password/token:
+절대 NO.
+
+============================================================
+44. PERFORMANCE
+============================================================
+
+Support list:
+pagination.
+
+Audit:
+pagination.
+
+Support event:
+case detail에서 bounded history.
+
+N+1:
+0.
+
+Subject summary:
+JOIN/batched query.
+
+500 pool 전체 loop:
+0.
+
+============================================================
+45. INDEX REVIEW
+============================================================
+
+검토:
+
+support_cases(pool_id, created_at)
+support_cases(pool_id, status)
+support_cases(ticket_id)
+support_cases(subject_type, subject_id)
+support events(case_id, created_at)
+
+audit_logs(pool_id, created_at)
+audit_logs(actor_id, created_at)
+audit_logs(entity_type/entity_id)
+request_id if used
+
+필요한 것만 additive dev index.
+
+============================================================
+46. SUPPORT CASE RETENTION
+============================================================
+
+Support history는 운영 자산.
+
+이번 WP에서 purge:
+NO.
+
+보존 정책은 LATER.
+
+============================================================
+47. EXPORT
+============================================================
+
+Support CSV export:
+이번 WP 필수 아님.
+
+Audit export:
+필수 아님.
+
+LATER.
+
+============================================================
+48. IMPERSONATION
+============================================================
+
+이번 WP에서도:
+
+NO.
+
+Support case 있다고
+사용자 계정으로 로그인 기능 만들지 말 것.
+
+============================================================
+49. UI — SUPPORT TAB
+============================================================
+
+상단:
+
+[지원 케이스 생성]
+
+filters:
+status
+category
+subject
+period
+
+summary:
+OPEN
+IN_PROGRESS
+RESOLVED
+
+list/table.
+
+row click:
+SupportCaseDrawer.
+
+============================================================
+50. SUPPORT CASE DRAWER
+============================================================
+
+섹션:
+
+Case
+Subject
+Timeline
+Related diagnostics
+Actions
+
+Actions:
+
+Add note
+Change status
+Assign
+Resolve
+Reopen
+
+실제 구현된 것만.
+
+============================================================
+51. UI — AUDIT TAB
+============================================================
+
+filters:
+
+period
+action
+entity
+actor
+
+timeline/table
+
+row:
+AuditDetailDrawer
+
+before/after:
+safe diff.
+
+============================================================
+52. OVERVIEW 연동
+============================================================
+
+WP1 recent support가
+support_cases latest row를 사용 중.
+
+WP8 schema/status 변경 후에도
+Overview recent support가 정상인지 회귀검증.
+
+가능하면:
+
+open case count
+recent support
+
+summary가 실제 source와 일치.
+
+Health threshold에
+support count를 새로 넣지 말 것.
+
+============================================================
+53. APP IMPACT
+============================================================
+
+WP8 원칙:
+
+Super Admin Web + Server.
+
+iOS APP/shared runtime:
+변경 없어야 함.
+
+하지만 shared component/service를
+실제로 수정하면:
+
+APP typecheck
+export
+OTA immediate.
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NO.
+
+============================================================
+54. APP TYPECHECK REGRESSION
+============================================================
+
+이번부터 APP 공식 gate:
+
+pnpm run typecheck
+
+0 ERRORS
+
+유지.
+
+WP8이 APP를 안 건드려도
+최종 gate에서 한 번 확인.
+
+다시 21개 같은 오류 생기면:
+FAIL.
+
+============================================================
+55. TEST MATRIX — SUPPORT
+============================================================
+
+Create:
+PASS
+
+List:
+PASS
+
+Detail:
+PASS
+
+Status:
+PASS
+
+Note:
+PASS
+
+Resolve:
+PASS
+
+Reopen:
+PASS if implemented
+
+Assignee:
+PASS if implemented
+
+Subject link:
+PASS
+
+Member link:
+PASS
+
+Teacher link:
+PASS
+
+Parent link:
+PASS
+
+Class link:
+PASS
+
+Notification/report link:
+PASS where implemented
+
+History:
+PASS
+
+Pagination:
+PASS
+
+============================================================
+56. TEST MATRIX — AUDIT
+============================================================
+
+List:
+PASS
+
+Detail:
+PASS
+
+Filters:
+PASS
+
+Before/after:
+PASS
+
+Reason:
+PASS
+
+Actor:
+PASS
+
+Entity:
+PASS
+
+Request ID:
+PASS if exists
+
+Redaction:
+PASS
+
+Cross-pool:
+0
+
+============================================================
+57. TEST MATRIX — SECURITY
+============================================================
+
+Password:
+NO
+
+JWT:
+NO
+
+Authorization:
+NO
+
+API key:
+NO
+
+Signed URL:
+NO
+
+Payment credential:
+NO
+
+Cross-pool:
+PASS
+
+============================================================
+58. TEST MATRIX — AUTH
+============================================================
+
+Every WP8 route:
+
+Super Admin:
+PASS
+
+Pool Admin:
+403
+
+Teacher:
+403
+
+Parent:
+403
+
+Unauthenticated:
+401
+
+============================================================
+59. TEST MATRIX — WORKFLOW E2E
+============================================================
+
+Real DEV DB fixture:
+
+case create
+→ note
+→ IN_PROGRESS
+→ note
+→ RESOLVED
+→ history
+→ audit
+→ refetch
+
+PASS.
+
+P0 skipped:
+0.
+
+============================================================
+60. REGRESSION
+============================================================
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+WP3:
+PASS
+
+WP4:
+PASS
+
+WP5:
+PASS
+
+WP6:
+PASS
+
+WP7:
+PASS
+
+APP official typecheck:
+0
+
+Curriculum download:
+PASS
+
+Notifications:
+PASS
+
+Errors:
+PASS
+
+============================================================
+61. DB
+============================================================
+
+필수 support schema 부족 시:
+
+Development additive migration:
+허용.
+
+Production:
+NO.
+
+DROP:
+NO.
+
+기존 support_cases data:
+보존.
+
+============================================================
+62. SERVER
+============================================================
+
+test
+TS
+commit
+push release/v2.0.0
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+63. OTA RULE
+============================================================
+
+git diff로 실제 판정.
+
+APP/shared runtime modified:
+YES
+
+→ 공식 APP typecheck 0
+→ export
+→ commit
+→ iOS OTA
+→ runtime 2.1.0
+→ production-v2
+→ SHA 검증
+
+Android:
+NO.
+
+APP/shared unchanged:
+OTA NOT REQUIRED.
+
+============================================================
+64. 완료보고
+============================================================
+
+# WP8 AUDIT / SUPPORT CASE REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+6ed60ce1
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+FILES CHANGED
+============================================================
+
+Server:
+...
+
+Web:
+...
+
+APP/shared:
+...
+
+Migration:
+...
+
+Tests:
+...
+
+============================================================
+SUPPORT SCHEMA
+============================================================
+
+support_cases:
+...
+
+support event/history:
+...
+
+New columns/tables:
+...
+
+Ticket ID:
+...
+
+Status:
+...
+
+Category:
+...
+
+Subject model:
+...
+
+============================================================
+SUPPORT UI
+============================================================
+
+Create:
+PASS / FAIL
+
+List:
+PASS / FAIL
+
+Detail:
+PASS / FAIL
+
+Filters:
+PASS / FAIL
+
+Notes:
+PASS / FAIL
+
+Status:
+PASS / FAIL
+
+Resolve:
+PASS / FAIL
+
+Reopen:
+PASS / FAIL / N/A
+
+Assignee:
+PASS / FAIL / N/A
+
+Timeline:
+PASS / FAIL
+
+============================================================
+SUBJECT LINKS
+============================================================
+
+Member:
+PASS / FAIL
+
+Teacher:
+PASS / FAIL
+
+Parent:
+PASS / FAIL
+
+Class:
+PASS / FAIL
+
+Report:
+PASS / FAIL / N/A
+
+Curriculum:
+PASS / FAIL / N/A
+
+Notification:
+PASS / FAIL / N/A
+
+Cross-pool:
+PASS / FAIL
+
+============================================================
+AUDIT
+============================================================
+
+List:
+PASS / FAIL
+
+Detail:
+PASS / FAIL
+
+Filters:
+PASS / FAIL
+
+Before/after:
+PASS / FAIL
+
+Reason:
+PASS / FAIL
+
+Actor:
+PASS / FAIL
+
+Redaction:
+PASS / FAIL
+
+============================================================
+WORKFLOW E2E
+============================================================
+
+DEV fixture:
+...
+
+Create:
+PASS / FAIL
+
+Add note:
+PASS / FAIL
+
+IN_PROGRESS:
+PASS / FAIL
+
+Second note:
+PASS / FAIL
+
+Resolve:
+PASS / FAIL
+
+History:
+PASS / FAIL
+
+Audit:
+PASS / FAIL
+
+Refetch:
+PASS / FAIL
+
+============================================================
+AUTH
+============================================================
+
+Super Admin:
+PASS / FAIL
+
+Pool Admin:
+BLOCKED / FAIL
+
+Teacher:
+BLOCKED / FAIL
+
+Parent:
+BLOCKED / FAIL
+
+Unauthenticated:
+BLOCKED / FAIL
+
+============================================================
+PRIVACY
+============================================================
+
+Password exposed:
+NO / YES
+
+JWT:
+NO / YES
+
+Authorization:
+NO / YES
+
+API key:
+NO / YES
+
+Signed URL:
+NO / YES
+
+Payment credential:
+NO / YES
+
+============================================================
+PERFORMANCE
+============================================================
+
+Support N+1:
+0 / ...
+
+Audit N+1:
+0 / ...
+
+Unbounded:
+0 / ...
+
+Indexes added:
+...
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0 / ...
+
+WP1 regression:
+PASS / FAIL
+
+WP2 regression:
+PASS / FAIL
+
+WP3 regression:
+PASS / FAIL
+
+WP4 regression:
+PASS / FAIL
+
+WP5 regression:
+PASS / FAIL
+
+WP6 regression:
+PASS / FAIL
+
+WP7 regression:
+PASS / FAIL
+
+APP typecheck:
+0 / ...
+
+============================================================
+APP / OTA
+============================================================
+
+iOS APP/shared runtime modified:
+YES / NO
+
+If YES:
+
+Typecheck:
+0
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group:
+...
+
+iOS Update:
+...
+
+Commit SHA:
+...
+
+EAS Source:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+If NO:
+
+OTA:
+NOT REQUIRED
+
+============================================================
+DB
+============================================================
+
+Development migration:
+...
+
+Production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP8 complete:
+YES / NO
+
+Support workflow production-ready:
+YES / NO
+
+Audit production-ready:
+YES / NO
+
+Cross-pool:
+PASS / FAIL
+
+Privacy:
+PASS / FAIL
+
+APP typecheck remains clean:
+YES / NO
+
+Remaining blocker:
+...
+
+Recommended next WP:
+WP9 — SECURITY / CROSS-POOL / PERFORMANCE GATE
+
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.

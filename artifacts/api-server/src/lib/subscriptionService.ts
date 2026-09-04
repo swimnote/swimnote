@@ -151,7 +151,8 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const [pool] = (await db.execute(sql`
     SELECT subscription_tier, subscription_status, subscription_source,
            subscription_start_at, subscription_end_at, trial_end_at,
-           white_label_enabled, video_storage_limit_mb, member_limit
+           white_label_enabled, video_storage_limit_mb, member_limit,
+           COALESCE(base_manual_entitlement, false) AS base_manual_entitlement
     FROM swimming_pools WHERE id = ${poolId} LIMIT 1
   `)).rows as any[];
 
@@ -175,6 +176,15 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     source = "free_default"; effectiveReason = "no_paid_subscription";
   }
 
+  // ── BASE SWIMNOTE manual entitlement (Super Admin 직접 부여) ──
+  // RevenueCat webhook은 이 필드를 절대 수정하지 않음.
+  // manual = true 이면 결제/만료 상태와 무관하게 effective access ON.
+  const baseManual = Boolean(pool?.base_manual_entitlement);
+  if (baseManual) {
+    source = "manual";
+    effectiveReason = "super_admin_base_manual";
+  }
+
   // ── status (만료 자동 판정 포함) ──
   const now = Date.now();
   const endsDate  = pool?.subscription_end_at ? new Date(pool.subscription_end_at) : null;
@@ -185,6 +195,10 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     effectiveStatus = "expired"; effectiveReason += "+past_end_date";
   } else if (trialDate && trialDate.getTime() < now && rawStatus === "trial") {
     effectiveStatus = "expired"; effectiveReason += "+trial_expired";
+  }
+  // BASE manual override: 만료/미결제여도 active로 처리
+  if (baseManual) {
+    effectiveStatus = "active";
   }
 
   // ── member_limit (pool override > plan default; 9999 = legacy unlimited → use plan) ──

@@ -4,11 +4,10 @@
  * users 테이블에 schema에 없지만 routes에서 사용하는 컬럼 추가
  * backup_logs 테이블 생성 (백업 상태 기록 시스템)
  */
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import type { MigrationDb } from "../lib/migration-db.js";
 
-export async function initSuperDb(): Promise<void> {
-  const db = superAdminDb;
+export async function initSuperDb(db: MigrationDb): Promise<void> {
 
   // users 테이블 — 누락 컬럼 보완
   await db.execute(sql.raw(`

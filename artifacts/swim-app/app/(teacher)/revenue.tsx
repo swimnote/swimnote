@@ -9,7 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView, KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -60,7 +60,7 @@ export default function RevenueScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
-  const scrollRef = useTabScrollReset("revenue");
+  const scrollRef = useTabScrollReset<KeyboardAwareScrollViewRef>("revenue");
   const [month, setMonth] = useState(monthStr());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

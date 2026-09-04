@@ -1,9 +1,9 @@
 /**
  * PHASE 2 execution wrapper for group8-curriculum-multi-conversation migration.
- * Run: node_modules/.bin/tsx src/migrations/run-group8.ts
+ * Run: ALLOW_TEST_DB_MUTATIONS=true npx tsx src/migrations/run-group8.ts
  */
 import { runGroup8CurriculumMultiConversationMigration } from "./group8-curriculum-multi-conversation.js";
+import { runWithMigrationDb } from "../lib/migration-db.js";
 
-runGroup8CurriculumMultiConversationMigration()
-  .then(() => { console.log("Migration COMPLETE"); process.exit(0); })
+runWithMigrationDb("run-group8", runGroup8CurriculumMultiConversationMigration)
   .catch(e => { console.error("Migration FAILED:", e.message); process.exit(1); });

@@ -43,15 +43,24 @@ const router = Router();
 
 // ── Migration boot ────────────────────────────────────────────────────────────
 import("../migrations/pool-db-cs-05r.js")
-  .then(({ runCs05rMigration }) => runCs05rMigration())
+  .then(async ({ runCs05rMigration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runCs05rMigration(superAdminDb);
+  })
   .catch((e: any) => console.error("[cs-05r-init]", e?.message));
 
 import("../migrations/pool-db-cs-12.js")
-  .then(({ runCs12Migration }) => runCs12Migration())
+  .then(async ({ runCs12Migration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runCs12Migration(superAdminDb);
+  })
   .catch((e: any) => console.error("[cs-12-init]", e?.message));
 
 import("../migrations/pool-db-cs-15.js")
-  .then(({ runCs15Migration }) => runCs15Migration())
+  .then(async ({ runCs15Migration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runCs15Migration(superAdminDb);
+  })
   .catch((e: any) => console.error("[cs-15-init]", e?.message));
 
 // ── Types ─────────────────────────────────────────────────────────────────────

@@ -1,0 +1,639 @@
+[보낼 곳: APP REPLIT]
+
+# SUPER ADMIN X ENTITLEMENT ASSIGNMENT BUG FIX
+# BASELINE: latest actual HEAD
+# BRANCH: release/v2.0.0
+# TARGET ISSUE:
+# Super Admin에서 Toykids에 X모드 부여를 눌러도 부여되지 않거나 UI에 반영되지 않음
+# GOAL:
+# Super Admin의 X entitlement read/write를 신규 resolver 기준으로 완전히 정렬
+# DO NOT TOUCH 1.6.3
+# DO NOT WORK ON GROWTH REPORT
+# DO NOT START WP9 YET
+# DO NOT DEPLOY RENDER
+
+============================================================
+0. 현재 확정 상태
+============================================================
+
+Toykids:
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+현재 Production raw state 감사 결과:
+
+x_manual_entitlement = true
+x_paid_entitlement = true (stale)
+x_force_disabled = false
+legacy xmode_entitlement = false
+effective X = true
+
+공식 resolver:
+
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+따라서 서버 기준 Toykids는 이미 effective X=true.
+
+문제:
+
+Super Admin에서 X모드 부여 액션을 해도
+부여가 안 된 것처럼 보이거나 실제 update가 정상 동작하지 않음.
+
+============================================================
+1. 절대 금지
+============================================================
+
+1.6.3 수정:
+NO
+
+Growth report:
+NO
+
+AI Engine:
+NO
+
+WP9:
+NO
+
+Production schema migration:
+NO
+
+다른 pool entitlement 변경:
+NO
+
+Render deploy:
+NO
+
+main:
+NO
+
+============================================================
+2. SUPER ADMIN X UI 조사
+============================================================
+
+Super Admin의 pool 상세 / entitlement 관리 화면에서:
+
+X 상태 표시 component
+X 부여 버튼
+X 해제 버튼
+plan/entitlement section
+
+실제 파일과 함수 확인.
+
+보고:
+
+UI file:
+...
+
+state source:
+...
+
+GET endpoint:
+...
+
+mutation endpoint:
+...
+
+refetch/invalidate:
+...
+
+============================================================
+3. READ PATH 확인
+============================================================
+
+Super Admin UI가 X 상태를 무엇으로 판단하는지 확인.
+
+반드시 비교:
+
+legacy:
+xmode_entitlement
+
+new:
+x_manual_entitlement
+x_paid_entitlement
+x_force_disabled
+effectiveX
+mode
+
+현재 UI가 legacy DB column을 직접 보고 있다면:
+BUG.
+
+현재 서버 resolver 결과를 받아야 함.
+
+============================================================
+4. WRITE PATH 확인
+============================================================
+
+Super Admin에서 "X모드 부여" 클릭 시
+실제 어떤 API가 호출되는지 확인.
+
+보고:
+
+endpoint:
+...
+
+method:
+...
+
+payload:
+...
+
+server handler:
+...
+
+DB fields updated:
+...
+
+expected:
+x_manual_entitlement = true
+x_force_disabled = false
+
+금지:
+
+legacy xmode_entitlement만 true로 변경
+
+paid entitlement를 수동 부여에 사용
+
+subscription row를 가짜로 생성
+
+RevenueCat 상태를 조작
+
+============================================================
+5. TOYKIDS 현재 케이스 재현
+============================================================
+
+Toykids는 이미:
+
+x_manual_entitlement=true
+
+이므로 UI에서 정상 상태는:
+
+"X모드 부여됨"
+또는 repository의 공식 ACTIVE/MANUAL 표시
+
+이어야 함.
+
+현재 UI가 "미부여"로 표시된다면
+READ PATH bug로 판정.
+
+버튼을 눌렀을 때
+같은 true→true update라면
+idempotent success로 처리해야 함.
+
+============================================================
+6. ASSIGN ENDPOINT CONTRACT
+============================================================
+
+신규 X manual entitlement 부여 contract를 하나로 확정.
+
+예시 개념:
+
+POST/PATCH /super-admin/pools/:poolId/x-entitlement
+
+body:
+{
+  manual_entitlement: true
+}
+
+또는 현재 repository naming 유지.
+
+Server가 해야 할 일:
+
+1. Super Admin auth
+2. exact pool_id 검증
+3. x_manual_entitlement=true
+4. x_force_disabled=false
+5. x_entitlement_source=MANUAL 계열 공식 값
+6. x_entitlement_updated_at=NOW
+7. effective resolver 재계산
+8. normalized response 반환
+
+paid entitlement:
+건드리지 않음
+
+legacy xmode_entitlement DB column:
+authoritative source로 사용하지 않음
+
+============================================================
+7. REVOKE CONTRACT
+============================================================
+
+Super Admin에서 manual X 해제 시:
+
+x_manual_entitlement=false
+
+단:
+
+x_paid_entitlement=true인 경우
+effective X는 계속 true일 수 있음.
+
+따라서 UI에:
+
+Manual X:
+OFF
+
+Effective X:
+ON (Paid)
+
+처럼 source를 구분해서 표시해야 함.
+
+단순 toggle 하나로
+effective X와 manual X를 혼동하지 말 것.
+
+============================================================
+8. SUPER ADMIN DISPLAY 모델
+============================================================
+
+Super Admin에서 최소 표시:
+
+Effective X:
+ON/OFF
+
+Source:
+MANUAL / PAID / BOTH / NONE
+
+Manual entitlement:
+ON/OFF
+
+Paid entitlement:
+ON/OFF
+
+Force disabled:
+ON/OFF
+
+Mode:
+normal / x_pending / x
+
+Toykids 현재 기대:
+
+Effective X:
+ON
+
+Source:
+BOTH 또는 repository equivalent
+(현재 stale paid=true이므로)
+
+Manual:
+ON
+
+Paid:
+ON
+
+Force disabled:
+OFF
+
+Mode:
+x_pending
+(CURRICULUM_PENDING 상태이므로)
+
+============================================================
+9. STALE PAID 데이터
+============================================================
+
+Toykids:
+
+x_paid_entitlement=true
+xmode_subscription_end_at expired
+
+이 상태는 이번 UI bug 수정과 분리.
+
+이번 작업에서 Production의
+x_paid_entitlement를 임의 false로 변경하지 말 것.
+
+Super Admin에는 raw source를 정확히 표시.
+
+housekeeping은 별도 승인 후.
+
+============================================================
+10. CACHE / REFETCH
+============================================================
+
+mutation 성공 후:
+
+query cache invalidate
+또는
+explicit refetch
+
+필수.
+
+부여 클릭 후 화면이 즉시 실제 resolver 상태를 표시해야 함.
+
+낙관적 UI만 바꾸고 서버 상태 확인 안 하는 방식 금지.
+
+============================================================
+11. ERROR HANDLING
+============================================================
+
+mutation 실패 시:
+
+성공처럼 toggle 변경 금지.
+
+표준 오류 표시.
+
+보고:
+
+HTTP status
+error code
+safe message
+
+민감정보 출력 금지.
+
+============================================================
+12. 권한
+============================================================
+
+X entitlement 변경 endpoint는
+Super Admin ONLY.
+
+Pool Admin:
+403
+
+Teacher:
+403
+
+Parent:
+403
+
+Tenant admin이 다른 pool X 부여:
+BLOCK
+
+============================================================
+13. 테스트
+============================================================
+
+Staging synthetic Pool A/B 기준 테스트.
+
+A.
+manual=false, paid=false
+→ assign
+→ manual=true
+→ effective=true
+
+B.
+assign again
+→ idempotent success
+→ duplicate side effect 0
+
+C.
+manual=true, paid=false
+→ revoke
+→ effective=false
+
+D.
+manual=true, paid=true
+→ revoke manual
+→ effective=true
+→ source=PAID
+
+E.
+force_disabled=true
+→ manual=true여도 effective=false
+
+F.
+Pool A admin이 Pool B entitlement 변경
+→ BLOCK
+
+G.
+Super Admin
+→ allowed
+
+H.
+mutation 후 refetch
+→ UI 즉시 일치
+
+============================================================
+14. TOYKIDS READ VERIFY
+============================================================
+
+Production은 이번 작업에서 READ ONLY.
+
+수정 후 코드 기준으로 Toykids를 조회했을 때
+Super Admin UI expected state를 보고:
+
+Effective X:
+ON
+
+Manual:
+ON
+
+Paid:
+ON
+
+Force Disabled:
+OFF
+
+Mode:
+x_pending
+
+버튼:
+"부여"가 아니라
+"수동 X 해제" 또는 equivalent 상태여야 함.
+
+============================================================
+15. CODE CHANGE 범위
+============================================================
+
+허용:
+
+Super Admin UI
+Super Admin API
+X entitlement resolver adapter
+query/refetch
+tests
+
+금지:
+
+1.6.3
+Diary
+Growth report
+AI
+unrelated dashboard sections
+large refactor
+
+============================================================
+16. TYPECHECK / TEST
+============================================================
+
+APP:
+pnpm run typecheck
+Expected 0
+
+API:
+new errors 0
+
+Web/Super Admin:
+new errors 0
+
+테스트:
+X entitlement assignment/revoke tests PASS
+
+============================================================
+17. COMMIT
+============================================================
+
+추천:
+
+fix(superadmin): align X entitlement controls with effective resolver
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+18. 완료보고
+============================================================
+
+# SUPER ADMIN X ENTITLEMENT BUG REPORT
+
+GIT
+Branch:
+HEAD Before:
+HEAD After:
+Commit:
+Push:
+
+--------------------------------
+
+ROOT CAUSE
+
+UI read source:
+...
+
+Mutation endpoint:
+...
+
+Fields previously written:
+...
+
+Why Toykids appeared unassigned:
+...
+
+--------------------------------
+
+FIX
+
+Read path:
+...
+
+Write path:
+...
+
+Manual entitlement field:
+...
+
+Effective resolver:
+...
+
+Refetch/invalidate:
+...
+
+--------------------------------
+
+TOYKIDS EXPECTED STATE
+
+Effective X:
+ON/OFF
+
+Manual:
+ON/OFF
+
+Paid:
+ON/OFF
+
+Force disabled:
+ON/OFF
+
+Mode:
+...
+
+Super Admin display:
+...
+
+--------------------------------
+
+TESTS
+
+Assign:
+PASS/FAIL
+
+Assign idempotent:
+PASS/FAIL
+
+Revoke:
+PASS/FAIL
+
+Paid-only fallback:
+PASS/FAIL
+
+Force-disabled:
+PASS/FAIL
+
+Cross-pool:
+PASS/FAIL
+
+Super Admin auth:
+PASS/FAIL
+
+UI refetch:
+PASS/FAIL
+
+--------------------------------
+
+TYPECHECK
+
+APP:
+...
+
+API new:
+...
+
+Web new:
+...
+
+--------------------------------
+
+PRODUCTION
+
+DDL:
+0
+
+INSERT:
+0
+
+UPDATE:
+0
+
+DELETE:
+0
+
+Render:
+NO
+
+--------------------------------
+
+FINAL
+
+Super Admin X assignment works:
+YES/NO
+
+Super Admin X revoke works:
+YES/NO
+
+UI reflects effective resolver:
+YES/NO
+
+Toykids shown correctly:
+YES/NO
+
+Ready for Production deploy:
+YES/NO
+
+DO NOT DEPLOY.
+WAIT FOR NEXT INSTRUCTION.

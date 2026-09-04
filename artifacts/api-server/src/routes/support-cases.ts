@@ -55,7 +55,7 @@ import {
 const router = Router();
 
 // Startup schema migration (idempotent)
-ensureCs01rSchema().catch(console.error);
+// Schema guaranteed by explicit migration (WP8-P2). See src/migrations/runtime-ddl-consolidated.ts §5
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
