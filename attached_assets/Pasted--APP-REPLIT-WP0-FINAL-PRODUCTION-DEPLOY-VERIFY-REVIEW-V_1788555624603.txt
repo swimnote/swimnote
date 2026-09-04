@@ -1,0 +1,208 @@
+[보낼 곳: APP REPLIT]
+
+# WP0 FINAL PRODUCTION DEPLOY VERIFY
+# REVIEW/VERIFY ONLY
+# 코드 수정 금지
+# DB 변경 금지
+# Migration 금지
+# Render 재배포 금지
+# OTA 금지
+
+============================================================
+CURRENT RENDER DEPLOY
+============================================================
+
+Render Production deployed SHA:
+
+90df1a5
+
+Render status:
+
+Deploy succeeded / Live
+
+Render deploy title:
+
+Merge release/v2.0.0 into main — promote V2 production deploy source
+
+Required Toykids override commit:
+
+3775e2ce
+feat(xmode): Super Admin management override for permanent X tenant
+
+============================================================
+1. GIT ANCESTRY VERIFY
+============================================================
+
+확인:
+
+90df1a5가 3775e2ce를 포함하는 main merge commit인지 검증.
+
+예:
+
+git merge-base --is-ancestor 3775e2ce 90df1a5
+
+또는 동일하게 신뢰 가능한 git ancestry 확인.
+
+반드시 보고:
+
+Render SHA:
+90df1a5
+
+Required commit:
+3775e2ce
+
+3775e2ce contained in 90df1a5:
+YES / NO
+
+YES면 SHA가 다른 것은 정상.
+
+NO면 STOP.
+코드 수정하지 말고 원인만 보고.
+
+============================================================
+2. PRODUCTION LIVE VERIFY
+============================================================
+
+Production API가 현재 새 resolver를 실제 사용 중인지 확인.
+
+Toykids exact pool:
+
+pool_1780849364252_l9k44rbk3
+
+Production authoritative 상태:
+
+x_management_override = true
+
+x_plan_key = x1000
+
+member_limit = 1000
+
+x_paid_entitlement = false
+
+x_manual_entitlement = true
+
+xmode_config_status = CURRICULUM_PENDING
+
+그리고 실제 canonical mode resolver 결과:
+
+effective X = true
+
+source = SUPER_ADMIN_OVERRIDE
+
+resolved mode = x
+
+중요:
+
+CURRICULUM_PENDING이어도
+resolved mode는 반드시 x.
+
+============================================================
+3. GENERAL POOL SAFETY
+============================================================
+
+일반 pool 최소 1개 확인:
+
+x_management_override = false/default
+
+기존 resolver 사용.
+
+일반 pool이 management override 때문에
+강제로 X가 되지 않았는지 확인.
+
+Other pools override=true:
+0
+
+============================================================
+4. SUPER ADMIN LIVE VERIFY
+============================================================
+
+Production Super Admin read 기준 Toykids:
+
+Management Override:
+ON
+
+Effective:
+ON
+
+Source:
+SUPER_ADMIN_OVERRIDE
+
+Plan:
+X1000
+
+Member Limit:
+1000
+
+Config:
+CURRICULUM_PENDING
+(activation blocker 아님)
+
+가능한 Production API/read 기준으로 확인.
+
+============================================================
+5. REPORT
+============================================================
+
+# WP0 FINAL PRODUCTION VERIFY REPORT
+
+Render deployed SHA:
+90df1a5
+
+Required override commit:
+3775e2ce
+
+Commit contained:
+YES / NO
+
+Production startup:
+PASS / FAIL
+
+Toykids management override:
+ON / OFF
+
+Toykids effective X:
+true / false
+
+Toykids source:
+...
+
+Toykids resolved mode:
+...
+
+Toykids plan:
+...
+
+Toykids member limit:
+...
+
+Toykids config status:
+...
+
+Other pools override=true:
+...
+
+General X flow unchanged:
+YES / NO
+
+Code changes:
+0
+
+DB changes:
+0
+
+Render:
+NO
+
+OTA:
+NO
+
+FINAL:
+
+WP0 READY TO CLOSE:
+YES / NO
+
+If NO:
+exact blocker:
+...
+
+STOP AFTER REPORT.
