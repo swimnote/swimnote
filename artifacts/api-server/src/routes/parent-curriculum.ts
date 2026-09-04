@@ -145,6 +145,7 @@ async function refreshCurriculumSearchSnapshot(poolId: string): Promise<void> {
        WHERE pool_id   = $1
          AND category  = 'AI'
          AND metadata->>'feature' = 'parent_curriculum_search'
+         AND metadata->>'status'  = 'SUCCESS'
          AND created_at >= $4::timestamptz
          AND created_at <  $5::timestamptz
        ON CONFLICT (swimming_pool_id, year, month) DO UPDATE SET
