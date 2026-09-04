@@ -145,18 +145,14 @@ export default function Intro() {
               transition={{ duration: 1, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
               className="relative"
             >
-              {/* 뒤편 글로우 – 숨쉬듯 펄스 */}
-              <motion.div
+              {/* 뒤편 글로우 */}
+              <div
                 className="absolute -inset-6 rounded-[48px] blur-3xl -z-10"
-                style={{ background: "linear-gradient(135deg, rgba(1,178,241,0.35) 0%, rgba(103,242,242,0.22) 100%)" }}
-                animate={{ opacity: [0.35, 0.65, 0.35], scale: [1, 1.04, 1] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                style={{ background: "linear-gradient(135deg, rgba(1,178,241,0.28) 0%, rgba(103,242,242,0.16) 100%)" }}
               />
               {/* 브랜드 개요 이미지 */}
               <motion.div
-                animate={{ y: [0, -10, 0] }}
-                transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-                whileHover={{ scale: 1.025, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } }}
+                whileHover={{ scale: 1.015, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } }}
                 className="rounded-3xl overflow-hidden cursor-default"
                 style={{ boxShadow: "0 28px 64px rgba(1,178,241,0.18), 0 8px 24px rgba(0,47,95,0.10)" }}
               >

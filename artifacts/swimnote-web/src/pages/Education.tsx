@@ -181,21 +181,16 @@ export default function Education() {
                 <div className={`flex flex-col gap-4 ${i % 2 === 1 ? "lg:order-1" : ""}`}>
                   {(s as any).image ? (
                     <div className="relative">
-                      <motion.div
+                      <div
                         className="absolute -inset-6 rounded-[44px] blur-3xl -z-10"
-                        style={{ background: "linear-gradient(135deg, rgba(1,178,241,0.28) 0%, rgba(103,242,242,0.18) 100%)" }}
-                        animate={{ opacity: [0.3, 0.58, 0.3], scale: [1, 1.03, 1] }}
-                        transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+                        style={{ background: "linear-gradient(135deg, rgba(1,178,241,0.22) 0%, rgba(103,242,242,0.14) 100%)" }}
                       />
-                      <motion.div
-                        animate={{ y: [0, -8, 0] }}
-                        transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-                        whileHover={{ scale: 1.02, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] } }}
+                      <div
                         className="rounded-3xl overflow-hidden cursor-default"
                         style={{ boxShadow: "0 24px 60px rgba(1,178,241,0.16), 0 8px 24px rgba(0,47,95,0.09)" }}
                       >
                         <img src={`${import.meta.env.BASE_URL}${(s as any).image.slice(1)}`} alt={s.title} className="w-full h-auto" />
-                      </motion.div>
+                      </div>
                     </div>
                   ) : (
                   <div className="rounded-3xl aspect-[4/3] relative overflow-hidden">
