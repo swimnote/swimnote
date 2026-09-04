@@ -1,0 +1,423 @@
+[보낼 곳: APP REPLIT]
+
+# OFFICIAL PLAN CATALOG — DATA ADD-ON SCHEMA CORRECTION
+# PRIORITY: PRODUCTION MIGRATION BLOCKER
+# BRANCH: release/v2.0.0
+# BASELINE: fa10ef7b
+#
+# 현재 신규 플랜 구현 대부분 PASS.
+# 단 DATA100 / DATA300을 member_limit=999999 및 기존 storage default로
+# 억지 삽입한 구조는 임시 sentinel/hack이므로 Production 적용 금지.
+#
+# 목표:
+# DATA ADD-ON을 실제 의미에 맞는 데이터 모델로 정리한 후
+# migration을 다시 Staging 검증한다.
+#
+# DO NOT MODIFY PRODUCTION.
+# DO NOT DEPLOY RENDER.
+# DO NOT OTA.
+
+============================================================
+1. 현재 문제
+============================================================
+
+현재 migration 예상:
+
+data100
+price=7900
+member_limit=999999
+
+data300
+price=22900
+member_limit=999999
+
+그리고:
+
+storage_mb
+storage_gb
+display_storage
+
+NOT NULL 때문에 기존 column default 사용.
+
+이 방식 금지.
+
+DATA100 / DATA300은 회원 플랜이 아니므로:
+
+member_limit=999999
+
+같은 sentinel value를 authoritative data로 저장하지 않는다.
+
+또한 storage 관련 값도
+상품 의미와 무관한 default를 임의 사용하지 않는다.
+
+============================================================
+2. 먼저 기존 schema 실제 의미 조사
+============================================================
+
+subscription_plans schema 전체 확인:
+
+tier / plan_key
+price
+member_limit
+storage_mb
+storage_gb
+display_storage
+plan_type 관련 field
+기타 NOT NULL field
+
+그리고 각 field의 실제 runtime 사용처 검색:
+
+member limit enforcement
+storage quota
+subscription API
+Super Admin
+RevenueCat mapping
+plan display
+analytics
+
+보고:
+
+COLUMN
+NULLABLE
+DEFAULT
+RUNTIME MEANING
+RUNTIME USERS
+
+============================================================
+3. DATA100 / DATA300 정확한 상품 의미 확인
+============================================================
+
+현재 확정 가격:
+
+DATA100 = 7,900원
+DATA300 = 22,900원
+
+단 "100 / 300"이 실제로 무엇을 의미하는지
+repository / 기존 설계에서 확인.
+
+예:
+
+100GB / 300GB인지
+기타 storage unit인지
+
+추측 금지.
+
+이미 확정된 저장공간 용량 정의가 있으면
+그 값으로 정확하게 저장.
+
+확정 정의가 없으면:
+
+임의로 100GB / 300GB라고 가정하지 말고
+STOP하여 보고.
+
+============================================================
+4. 올바른 schema 방식
+============================================================
+
+가장 우선:
+
+BASE/X PLAN과
+DATA ADD-ON이 동일 table을 사용해도
+각 타입에 맞지 않는 field는 NULL 허용이 가능하도록 설계.
+
+예:
+
+plan_type=base/x
+→ member_limit 사용
+
+plan_type=data_addon
+→ member_limit=NULL
+
+plan_type=data_addon
+→ storage quota 관련 실제 field 사용
+
+단 현재 architecture를 조사하여
+더 적절한 existing add-on table/entity가 이미 있으면 그것을 사용.
+
+999999 / -1 / 0 등
+의미 없는 sentinel 값으로 해결 금지.
+
+============================================================
+5. 필요하면 정식 additive schema migration
+============================================================
+
+member_limit 또는 storage field의 NOT NULL 제약이
+구형 단일-tier 구조 때문에 존재하고
+신규 BASE/X/DATA architecture와 충돌한다면:
+
+정식 migration으로 schema를 교정.
+
+예:
+
+member_limit nullable 전환
+
+또는
+
+plan_type에 맞는 별도 quota field/table 사용.
+
+정확한 선택은 repository usage audit 후 결정.
+
+runtime boot DDL 금지.
+
+Production 실행 금지.
+
+============================================================
+6. 신규 6개 catalog 최종 의미
+============================================================
+
+최종적으로 DB에서 의미가 명확해야 함.
+
+SWIMNOTE:
+type=base
+price=9900
+
+X300:
+type=x
+price=119000
+member_limit=300
+
+X500:
+type=x
+price=189000
+member_limit=500
+
+X1000:
+type=x
+price=349000
+member_limit=1000
+
+DATA100:
+type=data_addon
+price=7900
+member_limit=NULL
+storage quota=확정된 실제 값
+
+DATA300:
+type=data_addon
+price=22900
+member_limit=NULL
+storage quota=확정된 실제 값
+
+DATA 상품 저장공간 정의가 아직 확정되지 않았다면
+그 부분은 사용자 확인 전 임의 구현 금지.
+
+============================================================
+7. legacy 처리 유지
+============================================================
+
+legacy 8개:
+
+free
+starter
+basic
+standard
+center_200
+advance
+pro
+max
+
+is_active=false 유지.
+
+삭제:
+0
+
+historical billing:
+보존.
+
+============================================================
+8. Staging 재검증
+============================================================
+
+수정 migration을 clean/idempotent하게 Staging 실행.
+
+반드시 확인:
+
+migration 1회 PASS
+migration 2회 PASS
+
+duplicate:
+0
+
+unexpected row:
+0
+
+999999 sentinel:
+0
+
+bogus storage default:
+0
+
+============================================================
+9. runtime consistency
+============================================================
+
+다음이 동일한 의미를 가져야 함:
+
+DB subscription_plans
+officialPlanCatalog.ts
+GET /super/official-plan-catalog
+Super Admin UI
+
+가격:
+
+SWIMNOTE 9900
+X300 119000
+X500 189000
+X1000 349000
+DATA100 7900
+DATA300 22900
+
+불일치:
+0
+
+============================================================
+10. Production 예상 DIFF 다시 작성
+============================================================
+
+Production 변경은 실행하지 말고 READ ONLY.
+
+새 migration 적용 시:
+
+INSERT
+UPDATE
+ALTER CONSTRAINT/DDL
+legacy deactivate
+
+정확히 보고.
+
+특히:
+
+DATA100 member_limit:
+NULL이어야 함
+
+DATA300 member_limit:
+NULL이어야 함
+
+fake sentinel:
+0
+
+============================================================
+11. 완료보고
+============================================================
+
+# DATA ADD-ON SCHEMA CORRECTION REPORT
+
+GIT
+
+Branch:
+HEAD Before:
+HEAD After:
+Commit:
+Push:
+
+--------------------------------
+
+ROOT CAUSE
+
+Why member_limit=999999 was required:
+...
+
+Why storage defaults were required:
+...
+
+Schema legacy constraint:
+...
+
+--------------------------------
+
+FINAL DATA MODEL
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+price:
+member_limit:
+storage quota:
+plan_type:
+
+DATA300:
+price:
+member_limit:
+storage quota:
+plan_type:
+
+--------------------------------
+
+SENTINEL CHECK
+
+member_limit=999999:
+0 / ...
+
+Other fake sentinel values:
+0 / ...
+
+Bogus/default storage values:
+0 / ...
+
+--------------------------------
+
+STAGING
+
+Migration first run:
+PASS / FAIL
+
+Second run/idempotency:
+PASS / FAIL
+
+DB/API/catalog consistency:
+PASS / FAIL
+
+Legacy inactive:
+PASS / FAIL
+
+Historical rows deleted:
+0 / ...
+
+--------------------------------
+
+PRODUCTION EXPECTED DIFF
+
+INSERT:
+...
+
+UPDATE:
+...
+
+DDL:
+...
+
+DELETE:
+0
+
+--------------------------------
+
+FINAL
+
+DATA add-on modeled semantically correctly:
+YES / NO
+
+No sentinel workaround remains:
+YES / NO
+
+New six-plan catalog clean:
+YES / NO
+
+Safe for Production migration:
+YES / NO
+
+Target SHA:
+...
+
+STOP.
+DO NOT MODIFY PRODUCTION.
+DO NOT DEPLOY RENDER.
