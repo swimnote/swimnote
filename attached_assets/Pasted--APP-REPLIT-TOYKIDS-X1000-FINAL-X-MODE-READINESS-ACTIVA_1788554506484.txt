@@ -1,0 +1,269 @@
+[보낼 곳: APP REPLIT]
+
+# TOYKIDS X1000 — FINAL X MODE READINESS / ACTIVATE
+# PRIORITY
+# 현재 entitlement는 정상 활성화됨.
+# 목표는 Toykids가 실제 앱에서 완전한 X MODE로 진입하지 못하게 하는
+# xmode_config_status=CURRICULUM_PENDING 원인을 확인하고 정상 완료하는 것.
+#
+# 임의로 READY 값을 강제 세팅하지 말 것.
+# 먼저 실제 X 설정 prerequisite를 검증.
+# Production 변경은 Toykids exact pool만 허용.
+# Render deploy / OTA는 이번 조사 결과에 따라 별도 판단.
+
+============================================================
+TARGET
+============================================================
+
+pool_id:
+
+pool_1780849364252_l9k44rbk3
+
+현재 확정:
+
+x_manual_entitlement=true
+x_paid_entitlement=false
+x_force_disabled=false
+x_plan_key=x1000
+member_limit=1000
+effective X=true
+source=MANUAL
+
+문제:
+
+xmode_config_status=CURRICULUM_PENDING
+
+============================================================
+1. X MODE 상태 결정 로직 확인
+============================================================
+
+실제 repository에서:
+
+resolvePoolMode()
+computeMode()
+GET /pools/x-mode
+ModeContext
+
+등을 조사하여
+
+effective entitlement=true 상태에서
+xmode_config_status가 어떤 값이어야
+실제 mode='x'가 되는지 확인.
+
+보고:
+
+Current effective:
+true
+
+Current config status:
+CURRICULUM_PENDING
+
+Current resolved mode:
+...
+
+Required config status for full X:
+...
+
+============================================================
+2. CURRICULUM_PENDING의 실제 prerequisite 조사
+============================================================
+
+CURRICULUM_PENDING → READY 전환 조건을
+코드/DB 기준으로 정확히 찾는다.
+
+예:
+
+- X curriculum 존재 여부
+- curriculum assignment
+- template set
+- required configuration
+- X onboarding/config completion
+- 기타 필수 데이터
+
+추측 금지.
+
+각 조건:
+
+REQUIRED:
+YES / NO
+
+TOYKIDS CURRENT:
+PASS / FAIL
+
+보고.
+
+============================================================
+3. TOYKIDS 실제 X 데이터 확인
+============================================================
+
+Production READ ONLY로 Toykids의:
+
+- X curriculum
+- curriculum/template assignment
+- xmode config
+- 필요한 global/x_global template
+- 관련 required setup
+
+확인.
+
+누락값이 있으면 정확히 무엇인지 보고.
+
+============================================================
+4. READY 가능 여부 판정
+============================================================
+
+CASE A:
+
+모든 prerequisite가 이미 충족되어 있는데
+status만 CURRICULUM_PENDING으로 stale 상태라면:
+
+→ official transition logic을 사용하여
+Toykids exact pool 한 건만 READY로 정상화.
+
+CASE B:
+
+실제 prerequisite가 누락되어 있다면:
+
+→ READY 강제 세팅 금지.
+→ 부족한 설정을 정확히 보고.
+→ 필요한 최소 설정만 정상 생성/연결하는 방법 제안.
+
+============================================================
+5. Production 변경 안전성
+============================================================
+
+변경이 필요한 경우:
+
+exact pool:
+pool_1780849364252_l9k44rbk3
+
+1 row guard.
+
+다른 pool:
+0 changes
+
+회원:
+0
+
+반:
+0
+
+일지:
+0
+
+RevenueCat:
+0
+
+runtime hardcoding:
+NO
+
+============================================================
+6. POST VERIFY
+============================================================
+
+최종 목표:
+
+x_manual_entitlement=true
+x_paid_entitlement=false
+x_force_disabled=false
+x_plan_key=x1000
+member_limit=1000
+effective=true
+source=MANUAL
+
+그리고:
+
+xmode_config_status=READY
+
+resolved mode=x
+
+GET /pools/x-mode:
+full X active
+
+단 실제 prerequisite가 충족될 때만 READY 허용.
+
+============================================================
+7. X1000 PRICE RECHECK
+============================================================
+
+Production canonical catalog에서 최종 재확인:
+
+x1000:
+price=349000
+member_limit=1000
+active=true
+
+359000이 authoritative read에서 다시 나오면
+DB read source / pooler / cache 문제를 조사.
+
+최종 authoritative 값은 반드시 349000이어야 함.
+
+============================================================
+8. REPORT
+============================================================
+
+# TOYKIDS FINAL X MODE ACTIVATION REPORT
+
+Entitlement:
+PASS / FAIL
+
+Current config:
+...
+
+Current resolved mode:
+...
+
+Required READY prerequisites:
+...
+
+Toykids prerequisite status:
+...
+
+Stale config only:
+YES / NO
+
+Production change executed:
+YES / NO
+
+Final:
+
+x_plan_key:
+x1000
+
+manual:
+true
+
+paid:
+false
+
+effective:
+true
+
+config_status:
+...
+
+resolved mode:
+...
+
+GET /pools/x-mode:
+...
+
+X1000 authoritative price:
+...
+
+Other pools changed:
+0 / ...
+
+Runtime hardcoding:
+NO
+
+FINAL:
+
+Toykids full X MODE active:
+YES / NO
+
+If NO:
+exact remaining blocker:
+...
+
+STOP AFTER REPORT.
