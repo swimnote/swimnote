@@ -464,6 +464,36 @@ async function run() {
     )
   `);
 
+  // ════════════════════════════════════════════════════════════════
+  // 11. parent_v2_pending (initV2PendingTable)
+  // Source: src/lib/auto-link-v2.ts initV2PendingTable() — called at boot
+  // WP8-P3: moved here; initV2PendingTable() is now a no-op
+  // ════════════════════════════════════════════════════════════════
+  console.log("§11 parent_v2_pending");
+  await exec("CREATE parent_v2_pending", `
+    CREATE TABLE IF NOT EXISTS parent_v2_pending (
+      id                      TEXT PRIMARY KEY,
+      parent_id               TEXT NOT NULL,
+      pool_id                 TEXT NOT NULL,
+      child_name_raw          TEXT NOT NULL,
+      child_name_normalized   TEXT NOT NULL,
+      parent_phone_normalized TEXT NOT NULL,
+      status                  TEXT NOT NULL DEFAULT 'pending',
+      matched_student_id      TEXT,
+      matched_at              TIMESTAMP,
+      retry_count             INT NOT NULL DEFAULT 0,
+      last_retry_at           TIMESTAMP,
+      pending_reason          TEXT,
+      rejection_reason        TEXT,
+      created_at              TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await exec("parent_v2_pending.status column",         `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending'`);
+  await exec("parent_v2_pending.matched_student_id",    `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS matched_student_id text`);
+  await exec("parent_v2_pending.matched_at",            `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS matched_at timestamp`);
+  await exec("parent_v2_pending.pending_reason",        `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS pending_reason text`);
+  await exec("parent_v2_pending.rejection_reason",      `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS rejection_reason text`);
+
   await pool.end();
   console.log("\n[runtime-ddl-consolidated] ✅ Complete\n");
 }
