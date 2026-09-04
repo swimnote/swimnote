@@ -1,0 +1,419 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE STAGING CONNECTION P2
+# CORRECT STAGING PROJECT REF VERIFY
+# BASELINE: f50b1efa
+# DO NOT RUN MIGRATIONS UNTIL ALL CHECKS PASS
+# DO NOT START WP9
+# DO NOT MUTATE PRODUCTION
+# DO NOT DEPLOY
+
+============================================================
+0. 현재 정정사항
+============================================================
+
+사용자가 Replit Secret:
+
+TEST_DATABASE_URL
+
+을 실제 Staging project 기준으로 수정 완료.
+
+Expected Staging:
+
+project ref:
+lspmacdbyvpzysnrjsww
+
+region:
+ap-northeast-2 / Seoul
+
+expected shared transaction pooler:
+
+aws-0-ap-northeast-2.pooler.supabase.com
+
+port:
+6543
+
+username shape:
+postgres.lspmacdbyvpzysnrjsww
+
+Production project ref:
+
+mrgkiussgbbmxfnkjgqy
+
+Staging과 Production은 반드시 달라야 함.
+
+============================================================
+1. 절대 금지
+============================================================
+
+검증 완료 전:
+
+Migration:
+NO
+
+Fixture:
+NO
+
+Production INSERT:
+NO
+
+Production UPDATE:
+NO
+
+Production DELETE:
+NO
+
+Production DDL:
+NO
+
+Staging mutation:
+NO
+
+Render:
+NO
+
+main:
+NO
+
+OTA:
+NO
+
+WP9:
+NO
+
+============================================================
+2. GIT
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected baseline:
+f50b1efa
+
+확인:
+
+git status --porcelain
+git rev-parse HEAD
+git log --oneline -10
+
+f50b1efa ancestor:
+YES
+
+============================================================
+3. TEST_DATABASE_URL PARSE
+============================================================
+
+Secret 전체/password 출력 금지.
+
+보고:
+
+scheme:
+...
+
+host:
+...
+
+port:
+...
+
+database:
+...
+
+username shape:
+...
+
+project ref:
+...
+
+Expected:
+
+project ref:
+lspmacdbyvpzysnrjsww
+
+host:
+aws-0-ap-northeast-2.pooler.supabase.com
+
+port:
+6543
+
+============================================================
+4. PRODUCTION REF 비교
+============================================================
+
+Production:
+
+SUPABASE_DATABASE_URL
+
+project ref:
+mrgkiussgbbmxfnkjgqy
+
+Staging:
+
+TEST_DATABASE_URL
+
+project ref:
+lspmacdbyvpzysnrjsww
+
+판정:
+
+Production == Staging:
+NO 필수
+
+같으면:
+즉시 STOP.
+
+============================================================
+5. NETWORK
+============================================================
+
+Staging shared transaction pooler:
+
+DNS IPv4:
+PASS
+
+TCP 6543:
+PASS
+
+Postgres handshake:
+PASS
+
+실패하면 exact error 보고 후 STOP.
+
+============================================================
+6. READ-ONLY IDENTITY
+============================================================
+
+Postgres handshake 성공 후
+READ ONLY만 실행:
+
+SELECT current_database();
+SELECT current_user;
+SELECT version();
+SELECT current_schema();
+SELECT inet_server_addr();
+SELECT inet_server_port();
+
+DDL/DML:
+0
+
+============================================================
+7. DB SAFETY ALLOWLIST FIX
+============================================================
+
+현재 KNOWN_STAGING_PROJECT_REFS에
+Production ref:
+
+mrgkiussgbbmxfnkjgqy
+
+가 잘못 들어가 있음.
+
+반드시 제거.
+
+정확한 Staging ref:
+
+lspmacdbyvpzysnrjsww
+
+로 교체.
+
+최종:
+
+KNOWN_STAGING_PROJECT_REFS:
+lspmacdbyvpzysnrjsww only
+
+Production ref:
+NOT ALLOWED
+
+============================================================
+8. SAFETY TEST
+============================================================
+
+다음 필수:
+
+CASE 1
+Production ref
++ ALLOW_TEST_DB_MUTATIONS=true
+→ BLOCK
+
+CASE 2
+Staging ref
++ flag 없음
+→ BLOCK
+
+CASE 3
+Staging ref
++ ALLOW_TEST_DB_MUTATIONS=true
+→ ALLOW
+
+CASE 4
+Unknown ref
+→ BLOCK
+
+CASE 5
+Malformed URL
+→ BLOCK
+
+CASE 6
+TEST_DATABASE_URL missing
+→ BLOCK
+
+============================================================
+9. CONNECTION + SAFETY 모두 PASS 후
+============================================================
+
+이번 지시에서는 아직 migration 실행 금지.
+
+다음만 준비 상태 판정:
+
+Ready for staging migration rehearsal:
+YES / NO
+
+============================================================
+10. COMMIT
+============================================================
+
+allowlist 수정이 있으면:
+
+commit
+
+추천:
+
+fix(db): correct staging project fingerprint
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+11. 완료보고
+============================================================
+
+# STAGING CONNECTION P2 REPORT
+
+GIT
+Branch:
+...
+HEAD Before:
+f50b1efa
+HEAD After:
+...
+Commit:
+...
+Push:
+YES / NO
+
+CONNECTION
+TEST_DATABASE_URL:
+SET
+
+Host:
+...
+
+Port:
+...
+
+Project ref:
+...
+
+DNS IPv4:
+PASS / FAIL
+
+TCP:
+PASS / FAIL
+
+Postgres:
+PASS / FAIL
+
+IDENTITY
+Database:
+...
+
+User:
+...
+
+PG version:
+...
+
+Production ref:
+mrgkiussgbbmxfnkjgqy
+
+Staging ref:
+lspmacdbyvpzysnrjsww
+
+Production == Staging:
+YES / NO
+
+DB SAFETY
+Production ref:
+BLOCKED / FAIL
+
+Staging without flag:
+BLOCKED / FAIL
+
+Staging + flag:
+ALLOWED / FAIL
+
+Unknown:
+BLOCKED / FAIL
+
+Malformed:
+BLOCKED / FAIL
+
+Missing TEST_DATABASE_URL:
+BLOCKED / FAIL
+
+KNOWN_STAGING_PROJECT_REFS:
+...
+
+MUTATION
+Production INSERT:
+0
+
+Production UPDATE:
+0
+
+Production DELETE:
+0
+
+Production DDL:
+0
+
+Staging INSERT:
+0
+
+Staging UPDATE:
+0
+
+Staging DELETE:
+0
+
+Staging DDL:
+0
+
+Migration:
+NOT RUN
+
+FINAL
+Staging physical isolation:
+PASS / FAIL
+
+Correct staging project connected:
+YES / NO
+
+DB safety allowlist:
+PASS / FAIL
+
+Ready for staging migration rehearsal:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT RUN MIGRATIONS.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.
