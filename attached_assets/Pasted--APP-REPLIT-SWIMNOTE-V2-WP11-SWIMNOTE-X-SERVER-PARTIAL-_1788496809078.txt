@@ -1,0 +1,1251 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# WP11 — SWIMNOTE X 운영현황
+# SERVER PARTIAL-FAILURE HARDENING
+# MONTHLY KPI DASHBOARD
+# APP + SERVER IMPLEMENTATION
+# IOS OTA REQUIRED IF APP CHANGED
+
+============================================================
+절대 작업 기준
+============================================================
+
+PROJECT:
+SWIMNOTE
+
+PRODUCT:
+SWIMNOTE V2
+
+APP RUNTIME:
+2.1.0
+
+CURRENT V2 LINE:
+release/v2.0.0 최신 HEAD
+
+Latest confirmed commit:
+67441bcd
+
+STEP 0:
+3fea9f6a
+
+반드시 CURRENT LATEST V2 HEAD에서 작업.
+
+67441bcd ancestor:
+MUST BE YES
+
+브랜치 이름만 보고
+과거 버전으로 이동하지 말 것.
+
+DO NOT:
+- checkout old commit
+- revert
+- reset
+- touch 1.6.3
+- redesign unrelated architecture
+
+1.6.3:
+NO TOUCH
+
+============================================================
+500개 수영장 / 슈퍼관리자 원칙
+============================================================
+
+이번 구조는 향후:
+
+500개 swimming_pool
++
+수만~수십만 운영 이벤트
++
+super_admin 전체 집계
+
+를 전제로 한다.
+
+두 가지를 동시에 만족:
+
+A.
+각 pool 완전 격리
+
+B.
+super_admin에서 전체 pool KPI를
+N+1 없이 깔끔하게 집계
+
+pool source of truth:
+
+authenticated JWT
+→ server user context
+→ swimming_pool_id
+→ SQL pool scope
+
+Client supplied pool_id:
+SOURCE OF TRUTH 금지
+
+Cross-pool 노출 1건:
+P0 FAIL
+
+============================================================
+월별 KPI foundation
+============================================================
+
+이미 존재:
+
+x_monthly_operational_snapshots
+
+UNIQUE:
+(swimming_pool_id, year, month)
+
+super-admin index:
+(year, month)
+
+이번 WP11은
+월별 운영 KPI를 가능하면 여기서 읽는다.
+
+새 monthly KPI table:
+금지
+
+새 metric framework:
+금지
+
+새 event table:
+금지
+
+============================================================
+현재 WP11 문제
+============================================================
+
+현재 관리자:
+
+SWIMNOTE X 관리
+
+화면의 API:
+
+GET /api/admin/x-hub/summary
+
+에서 여러 query를 Promise.all로 실행.
+
+현재 구조:
+
+query 1 실패
+→ Promise.all 전체 reject
+→ HTTP 500
+→ 화면 전체 오류
+
+이 구조를 제거.
+
+단순히 safeQuery만 씌우고
+14개 live query를 계속 유지하는 것이 최종 목표가 아니다.
+
+이번 WP의 목표:
+
+1.
+전체 500 방지
+
+2.
+월별 KPI는 snapshot에서 읽기
+
+3.
+진짜 실시간 값만 live query
+
+4.
+각 live metric 독립 failure isolation
+
+5.
+APP에서 partial response 표현
+
+============================================================
+1. 실제 현재 route 확인
+============================================================
+
+APP:
+
+app/(admin)/x-hub.tsx
+
+실제 Expo route:
+...
+
+SERVER:
+
+GET /api/admin/x-hub/summary
+
+실제 위치:
+...
+
+현재 화면 타이틀:
+...
+
+실제 CURRENT HEAD 기준 확인.
+
+============================================================
+2. 화면 이름 변경
+============================================================
+
+기존:
+
+SWIMNOTE X 관리
+
+최종:
+
+SWIMNOTE X 운영현황
+
+으로 변경.
+
+설정 화면처럼 보이면 안 됨.
+
+이 화면은:
+
+X모드 사용 현황
++
+운영 KPI
+
+대시보드.
+
+============================================================
+3. KPI 구성
+============================================================
+
+최종 핵심 지표:
+
+A.
+이번 달 AI 일지 작성 수
+
+B.
+이번 달 AI 일지 사용 선생님 수
+
+C.
+이번 달 학부모 AI 커리큘럼 검색 수
+
+D.
+이번 달 AI 커리큘럼 이용 학부모 수
+
+E.
+성장리포트 발송 대기 수
+
+F.
+이번 달 성장리포트 발송 완료 수
+
+G.
+현재 활성 학생 수
+
+H.
+현재 활성 선생님 수
+
+I.
+현재 연결 학부모 수
+
+J.
+현재 X 플랜
+
+K.
+현재 X 플랜 회원 한도
+
+필요 시:
+
+AI calls 이번 달
+
+단 실제 source가 명확할 때만.
+
+============================================================
+4. 표시하지 말 것
+============================================================
+
+이번 화면에 넣지 말 것:
+
+- 홈페이지 제작자료
+- 커리큘럼 업로드 설정
+- PIN 설정
+- raw entitlement
+- raw product_status
+- internal tier key 그대로
+- technical config
+- setup progress
+- migration/debug 정보
+
+설정 복제 금지.
+
+============================================================
+5. Instagram 공유 KPI
+============================================================
+
+현재 실제 tracking event가 없음.
+
+따라서:
+
+Instagram 공유 0회
+
+처럼 표시 금지.
+
+아직 측정하지 않는 데이터를
+0으로 보여주면 안 됨.
+
+이번 WP에서는:
+
+Instagram metric:
+NOT DISPLAYED
+
+향후 실제 share event logging 추가 후
+월별 KPI에 연결.
+
+============================================================
+6. 월별 snapshot 우선 조회
+============================================================
+
+가능하면 아래는:
+
+x_monthly_operational_snapshots
+
+에서 읽기.
+
+- ai_diary_count
+- ai_diary_teacher_count
+- parent_curriculum_search_count
+- parent_curriculum_user_count
+- growth_report_sent_count
+- monthly active snapshot 값
+- x plan snapshot 값
+
+단:
+
+현재 월 snapshot 값이 아직
+실시간 최신값이 아닐 수 있는 KPI는
+현재 source와 정책을 확인.
+
+임의로 stale 값을
+"현재"라고 표시하지 말 것.
+
+============================================================
+7. LIVE ONLY metric
+============================================================
+
+진짜 실시간 성격이 강한 값만
+live query 사용.
+
+대표:
+
+growth_report_pending_send_count
+
+향후 WP8 READY_TO_SEND 적용 전에는
+현재 실제 lifecycle 기준으로 계산.
+
+현재 status model에서
+정확히 어떤 상태가
+발송 대기인지 확인.
+
+아직 READY_TO_SEND migration 전이라면
+미래 enum을 지금 참조 금지.
+
+현재 실제 status 기준으로만 동작.
+
+============================================================
+8. active students / teachers / parents
+============================================================
+
+현재 활성 학생/선생님/학부모 수는
+운영 대시보드에서는
+현재값이 중요.
+
+따라서 현재 snapshot보다
+live query가 더 정확하면 live 사용 가능.
+
+단 각 source 정확히 기록.
+
+예:
+
+active students:
+...
+
+active teachers:
+...
+
+connected parents:
+...
+
+같은 KPI를 다른 화면과
+서로 다른 정의로 계산하지 않는지 확인.
+
+============================================================
+9. Promise.all 전체 500 제거
+============================================================
+
+현재:
+
+Promise.all([
+  q1,
+  q2,
+  ...
+])
+
+중 하나 실패 → 전체 500
+
+금지.
+
+통계성 조회만:
+
+safeQuery / safeMetric
+
+형태로 독립 격리.
+
+예:
+
+metric A success
+metric B fail
+metric C success
+
+→ HTTP 200 partial response
+
+A/C 표시
+B unavailable
+
+============================================================
+10. 하지만 live query 수 자체를 줄일 것
+============================================================
+
+중요.
+
+safeQuery를 14개에 그대로 씌우는 것으로
+끝내지 말 것.
+
+먼저 현재 14개 query를 분류:
+
+1.
+snapshot으로 대체 가능
+
+2.
+live 유지 필요
+
+3.
+화면에서 제거 가능
+
+4.
+중복 query
+
+보고.
+
+최종 목표:
+
+snapshot 1회 조회
++
+소수 live query
+
+형태.
+
+500 pool에서
+14×500 식 fan-out 구조를
+굳이 유지하지 말 것.
+
+============================================================
+11. 추천 서버 구조
+============================================================
+
+예:
+
+A.
+monthly snapshot query 1개
+
+SELECT ...
+FROM x_monthly_operational_snapshots
+WHERE swimming_pool_id = $poolId
+AND year = $year
+AND month = $month
+
+B.
+live active counts
+
+C.
+live pending reports
+
+D.
+current X subscription/plan
+
+각 query는
+독립 safe wrapper.
+
+총 query 수를
+현재 14개보다 의미 있게 줄이는 방향.
+
+============================================================
+12. partial response contract
+============================================================
+
+현재 API convention을 확인 후
+가장 호환성 높은 방식 사용.
+
+권장 예:
+
+{
+  data: {
+    monthly: {...},
+    live: {...},
+    plan: {...}
+  },
+  unavailable: [
+    "connected_parents"
+  ],
+  period: {
+    year: 2026,
+    month: 9
+  },
+  as_of: "..."
+}
+
+단 기존 APP contract를
+불필요하게 크게 깨지 말 것.
+
+기존 flat contract를 유지하면서
+null/unavailable만 추가하는 것이 더 안전하면
+그 방향 사용.
+
+============================================================
+13. HTTP status 정책
+============================================================
+
+모든 metric 실패:
+→ ERROR 가능
+
+일부 metric 성공:
+→ HTTP 200 partial
+
+정상 데이터 0:
+→ EMPTY metric / 0
+
+SQL exception:
+→ unavailable
+
+0과 실패를 구분.
+
+============================================================
+14. APP 상태 표현
+============================================================
+
+APP에서:
+
+LOADING
+SUCCESS
+PARTIAL
+ERROR
+
+구분.
+
+개별 metric query 실패:
+
+해당 카드:
+"—"
+
+또는 기존 디자인에 맞는
+"정보를 불러오지 못했습니다"
+
+표현.
+
+화면 전체:
+
+"서버 오류가 발생했습니다"
+
+로 죽이지 말 것.
+
+============================================================
+15. EMPTY vs ERROR
+============================================================
+
+예:
+
+AI diary count = 0
+
+은 정상 숫자 0.
+
+API fail:
+
+"—"
+
+둘을 같은 0으로 처리 금지.
+
+============================================================
+16. 월별 KPI 현재 연결 상태 확인
+============================================================
+
+STEP 0 테이블은 만들어졌지만
+모든 KPI가 자동 갱신되는 것은 아님.
+
+현재 확실히 연결 완료:
+
+WP10:
+parent_curriculum_search_count
+parent_curriculum_user_count
+
+확인.
+
+아직 연결되지 않은:
+
+ai_diary_count
+ai_diary_teacher_count
+growth_report counts
+active snapshots
+plan snapshots
+
+에 대해서는
+값이 NULL/0인 이유를 구분.
+
+이번 WP에서
+억지로 모든 snapshot writer를 만들지 말 것.
+
+각 source가 현재 명확하고
+안전하게 recount 가능한 것은
+minimal helper로 연결 가능.
+
+하지만 WP9/WP8 전용 migration이 필요한 값은
+해당 WP까지 기다릴 것.
+
+============================================================
+17. AI diary KPI
+============================================================
+
+현재 class_diaries에는
+ai_generated 식별 컬럼이 아직 없음.
+
+따라서:
+
+AI diary count
+
+를 일반 class_diaries 전체 COUNT로
+AI 사용량처럼 표시 금지.
+
+WP9 전까지:
+
+정확한 AI diary 식별이 불가능하면
+"—"
+또는 준비중/unavailable 처리.
+
+가짜 숫자 금지.
+
+============================================================
+18. growth report KPI
+============================================================
+
+현재 growth_reports의 실제 lifecycle로
+계산 가능한 항목만 사용.
+
+발송 완료:
+PUBLISHED 기반 가능
+
+발송 대기:
+현재 실제 상태 의미 확인
+
+WP8에서 lifecycle 바뀔 예정이지만
+이번 WP11에서 미래 상태를 선반영하지 말 것.
+
+WP8 완료 후
+READY_TO_SEND 기준으로 재연결 예정.
+
+============================================================
+19. X plan 표시
+============================================================
+
+현재 실제 source:
+
+x_subscription_slots
+swimming_pools entitlement 관련 컬럼
+
+등을 확인.
+
+사용자-facing 표시:
+
+현재 플랜:
+한글/정상 상품명
+
+회원 한도:
+숫자
+
+구독 상태:
+필요 시 사람이 이해 가능한 표현
+
+raw tier_key:
+사용자에게 그대로 노출 금지.
+
+============================================================
+20. super_admin 미래 경로
+============================================================
+
+이번 WP에서
+super_admin UI/API 구현 금지.
+
+하지만 월별 KPI는:
+
+x_monthly_operational_snapshots
+
+에서 전체 pool:
+
+SUM(...)
+GROUP BY year/month
+
+가능해야 함.
+
+Pool admin dashboard와
+super_admin dashboard가
+서로 다른 KPI 정의를 쓰지 않게 한다.
+
+============================================================
+21. 서버 경로 단순성
+============================================================
+
+목표 데이터 흐름:
+
+RAW SOURCE
+↓
+MONTHLY SNAPSHOT
+↓
+POOL ADMIN DASHBOARD
+↓
+SUPER ADMIN AGGREGATE
+
+live-only metric:
+RAW SOURCE
+↓
+POOL ADMIN LIVE
+
+복잡한 chain:
+
+route A → service B → route C → aggregate D
+
+같이 만들지 말 것.
+
+새 abstraction은
+현재 코드에서 정말 필요할 때만.
+
+============================================================
+22. failure logging
+============================================================
+
+각 metric query 실패 시
+로그 남김.
+
+최소:
+
+feature:
+x_hub_summary
+
+metric:
+...
+
+swimming_pool_id:
+...
+
+error:
+...
+
+민감정보:
+NO
+
+empty catch:
+NO
+
+============================================================
+23. timeout
+============================================================
+
+현재 DB helper/driver가
+statement timeout 지원하는지 확인.
+
+통계 query 하나가
+무한정 오래 걸리지 않도록
+기존 프로젝트 timeout 방식이 있으면 사용.
+
+새 custom timeout framework
+임의 생성 금지.
+
+============================================================
+24. index 검토
+============================================================
+
+STEP 0:
+
+(year, month) index 있음.
+
+pool + year/month:
+UNIQUE로 커버.
+
+live query sources에 필요한
+현재 index 확인.
+
+새 index 필요하면:
+
+PROPOSE ONLY
+
+이번 WP migration:
+NO
+
+실측 없이 index 남발 금지.
+
+============================================================
+25. multi-tenant 테스트
+============================================================
+
+반드시:
+
+Pool A
+Pool B
+
+서로 다른 snapshot/live 데이터로 테스트.
+
+Pool A 요청:
+
+Pool B 데이터:
+0
+
+super admin future aggregate:
+A+B 가능
+
+pool admin:
+자기 것만.
+
+============================================================
+26. APP 디자인
+============================================================
+
+기존 X UI 스타일 유지.
+
+새로운 과한 dashboard redesign 금지.
+
+카드는 보기 쉽게 구성.
+
+추천 grouping:
+
+[이번 달 AI 활용]
+- AI 일지
+- 커리큘럼 검색
+- 성장리포트 발송
+
+[현재 운영]
+- 학생
+- 선생님
+- 연결 학부모
+
+[현재 플랜]
+- X 플랜
+- 회원 한도
+
+실제 화면 크기 보고
+기존 디자인에 맞게 조정.
+
+============================================================
+27. X Global / Setup 정보 제거 여부
+============================================================
+
+현재 x-hub에
+setup_completion 등
+과거 홈페이지/logo/photos 값이 response에 남아 있어도
+
+APP 운영현황 화면에서
+더 이상 쓰지 않으면 표시 금지.
+
+SERVER response에서도
+이번 route의 운영현황 목적과 무관하고
+안전하게 제거 가능한 legacy field라면
+최소 정리 가능.
+
+단 다른 APP이 사용하는 field인지
+검색 후 판단.
+
+무조건 삭제 금지.
+
+============================================================
+28. 테스트
+============================================================
+
+최소:
+
+A.
+snapshot 존재 pool
+→ monthly KPI 정상
+
+B.
+snapshot 없는 pool
+→ 500 아님
+
+C.
+curriculum KPI = 0
+→ 0 정상 표시
+
+D.
+metric query 하나 의도적 실패
+→ 다른 metric 정상 표시
+
+E.
+모든 query 정상
+→ full success
+
+F.
+teacher/parent data 없음
+→ 500 아님
+
+G.
+subscription row 없음
+→ 500 아님
+
+H.
+trial/manual entitlement
+→ plan 표시 정상
+
+I.
+Pool A
+→ Pool B 데이터 0
+
+J.
+API response partial
+→ APP 전체 화면 살아 있음
+
+K.
+ERROR/EMPTY 구분
+
+L.
+server boot
+
+============================================================
+29. APP OTA 규칙
+============================================================
+
+이번 WP는
+APP x-hub 화면 변경 가능성이 매우 높음.
+
+APP 수정 발생 시 반드시:
+
+1. test
+2. commit
+3. HEAD 확인
+4. 즉시 iOS OTA
+5. OTA export source SHA 확인
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android OTA:
+NOT PUBLISHED
+
+반드시:
+
+APP Fix Commit SHA
+=
+Current Final HEAD
+=
+OTA Export Source SHA
+
+PASS.
+
+============================================================
+30. SERVER 배포 규칙
+============================================================
+
+SERVER:
+
+current latest V2
+→ test
+→ commit
+→ push
+
+Render production deploy:
+NO
+
+사용자가 직접 수동 배포.
+
+============================================================
+31. DB
+============================================================
+
+Migration:
+NO
+
+STEP 0 table:
+USE EXISTING
+
+Production DB:
+NO CHANGE
+
+DROP:
+NO
+
+DELETE:
+NO
+
+RENAME:
+NO
+
+============================================================
+32. 완료보고
+============================================================
+
+# WP11 SWIMNOTE X OPERATIONS REPORT
+
+Current APP Branch:
+...
+
+Current APP HEAD Before:
+...
+
+Current SERVER Branch:
+...
+
+Current SERVER HEAD Before:
+...
+
+67441bcd ancestor:
+YES / NO
+
+1.6.3 touched:
+NO
+
+============================================================
+ACTUAL ROUTES
+============================================================
+
+APP:
+...
+
+SERVER:
+...
+
+Screen title before:
+...
+
+Screen title after:
+...
+
+============================================================
+QUERY AUDIT
+============================================================
+
+Queries before:
+...
+
+Snapshot queries after:
+...
+
+Live queries after:
+...
+
+Removed duplicate queries:
+...
+
+Final total query count:
+...
+
+============================================================
+MONTHLY SNAPSHOT
+============================================================
+
+parent_curriculum_search_count:
+...
+
+parent_curriculum_user_count:
+...
+
+ai_diary_count:
+AVAILABLE / UNAVAILABLE UNTIL WP9
+
+ai_diary_teacher_count:
+AVAILABLE / UNAVAILABLE UNTIL WP9
+
+growth_report_sent_count:
+...
+
+============================================================
+LIVE KPI
+============================================================
+
+Growth report pending:
+...
+
+Active students:
+...
+
+Active teachers:
+...
+
+Connected parents:
+...
+
+Current X plan:
+...
+
+Plan member limit:
+...
+
+============================================================
+PARTIAL FAILURE
+============================================================
+
+Single metric failure:
+PASS / FAIL
+
+Whole API 500:
+NO / YES
+
+Unavailable contract:
+...
+
+0 vs unavailable:
+PASS / FAIL
+
+Failure logs:
+PASS / FAIL
+
+============================================================
+MULTI TENANT
+============================================================
+
+Pool scope:
+PASS / FAIL
+
+Pool A/B isolation:
+PASS / FAIL
+
+Cross-pool:
+0 / ...
+
+============================================================
+SUPER ADMIN FUTURE
+============================================================
+
+Monthly source:
+x_monthly_operational_snapshots
+
+Single-query aggregate:
+PASS / FAIL
+
+N+1:
+NO / YES
+
+Same KPI definition:
+PASS / FAIL
+
+============================================================
+APP UI
+============================================================
+
+Title:
+SWIMNOTE X 운영현황 / ...
+
+Monthly AI section:
+PASS / FAIL
+
+Current operations section:
+PASS / FAIL
+
+Plan section:
+PASS / FAIL
+
+Instagram metric shown:
+NO / YES
+
+Loading:
+PASS / FAIL
+
+Partial:
+PASS / FAIL
+
+Error:
+PASS / FAIL
+
+============================================================
+SERVER
+============================================================
+
+Tests:
+PASS / FAIL
+
+Boot:
+PASS / FAIL
+
+Migration:
+NO
+
+Render:
+NO
+
+============================================================
+FILES CHANGED
+============================================================
+
+SERVER:
+...
+
+APP:
+...
+
+============================================================
+COMMIT
+============================================================
+
+SERVER commit:
+...
+
+APP commit:
+...
+
+Final HEAD:
+...
+
+Pushed:
+YES / NO
+
+============================================================
+OTA
+============================================================
+
+APP changed:
+YES / NO
+
+If YES:
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+Fix Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+If APP changed NO:
+
+iOS OTA:
+NOT REQUIRED
+
+============================================================
+FINAL
+============================================================
+
+X Hub server 500:
+FIXED / NOT FIXED
+
+Partial failure isolation:
+PASS / FAIL
+
+Monthly KPI path:
+PASS / FAIL
+
+Pool isolation:
+PASS / FAIL
+
+Super-admin future path:
+PASS / FAIL
+
+FINAL STATUS:
+WP11 COMPLETE / BLOCKED

@@ -1,60 +1,45 @@
 ---
 name: WP11 완료 상태
-description: WP11 Background Worker (job_queue + reservation expiry) + 격리 fix 완료
+description: x-hub/summary partial-failure hardening + monthly KPI + APP 운영현황 UI
 ---
 
-## WP11 — Background Worker ✅ CLOSED
+## SHA
+67515a67 (pushed to origin/release/v2.0.0)
 
-### SHA / Deploy 현황
+## 변경 파일
+- artifacts/api-server/src/routes/admin.ts (GET /x-hub/summary 전면 재작성)
+- artifacts/swim-app/app/(admin)/x-hub.tsx (전면 재작성)
 
-| 서비스 | SHA | Deploy ID | 상태 |
-|---|---|---|---|
-| API (swimnote-api) | `09b7126a` | `dep-d9uc11ujsl0c73845o2g` | live ✅ |
-| Worker (swimnote-worker) | `09b7126a` | `dep-d9ucbc942hec73f1v1d0` | live ✅ |
+## 핵심 변경사항
 
-- Branch: `deploy-photo-clone`
-- Worker Render SVC ID: `srv-d9uc5hnlk1mc73efmnu0`
-- API Render SVC ID: `srv-d7bn4gogjchc73dp1ci0`
+### Server
+- safeXMetric<T>(name, poolId, fn) helper: 실패 시 structured console.error + null 반환, never throws
+- Promise.all(14 queries) → Promise.all(13 safeXMetric wraps): setupRow 제거, snapshotM 추가
+- x_monthly_operational_snapshots에서 parent_curriculum_search_count/user_count 읽기 (WP10 연결)
+- AI 일지 monthly.ai_diary_count = null (UNAVAILABLE_UNTIL_WP9, class_diaries에 ai_generated 컬럼 없음)
+- X_TIER_LABEL: tier1→Standard, tier2→Plus, tier3→Pro
+- Response 구조: plan / monthly / live / storage / period / unavailable[]
+- HTTP 200 partial response — unavailable[]에 실패 metric 목록 명시
 
-### 구현 파일
+### APP
+- 화면 제목: "SWIMNOTE X 관리" → "SWIMNOTE X 운영현황" (SCREEN_TITLE 상수화)
+- 섹션 재편: 오늘확인할것 / 이번달AI활용 / 현재운영현황 / 현재X플랜 / 저장공간 / 빠른관리
+- setup_completion 섹션 제거 (운영 대시보드 범위 외)
+- fmtNum(): null → "—", number → 천단위 포맷
+- partial 배너: unavailable.length > 0 시 노란 안내
+- KpiRow 컴포넌트: onPress 있으면 Pressable, 없으면 View
 
-| 파일 | 내용 |
-|---|---|
-| `jobs/queue-worker.ts` (신규) | `runRetryQueue()` + `runMakeupExpiry()` + `startQueueWorker()` |
-| `index.ts` (수정) | WORKER_MODE=true 블록에만 `startQueueWorker()` 등록; API mode 제거 |
-| `routes/__tests__/wp11-queue-worker.test.ts` | 17 TC (WORKER_MODE 격리 4개 포함) |
+## OTA 배포
+- Platform: iOS
+- Branch: production
+- Runtime: 2.1.0
+- Update ID: 01a06ac2-41b2-739f-b036-8e922e10633e
+- Android: 미배포
 
-### 설계 결정
+## Render 배포
+- 사용자 수동 배포 필요 (GitHub push → Render.com 자동 빌드)
 
-- **job_queue = event_retry_queue**: processRetryQueue() 5분 주기
-- **reservation = makeup_sessions**: expire_at 기준 1시간 주기, LIMIT 50 서브쿼리 IN
-- **Pending 48h**: 이번 WP11에서 제외
-- **API mode 격리**: startQueueWorker() API mode 완전 제거 → API는 HTTP/API 역할만
-- **Worker mode**: WORKER_MODE=true 환경변수로 스케줄러 전용 실행
-- **acquireLock**: scheduler_locks 테이블 기반, DB init에서 자동 생성됨
-
-### Render Background Worker 빌드 문제 & 해결
-
-- `npm install -g pnpm@10` → background_worker 환경에서 global install 실패
-- 해결: `npx pnpm@10 install --no-frozen-lockfile && npx pnpm@10 --filter @workspace/api-server run build`
-- plan: standard 필요 (starter 동일하게 실패)
-- Worker buildCommand는 API service와 달리 `npx` 방식 사용 ← 재발 방지
-
-### Runtime 검증 (2026-08-12)
-
-```
-API 재시작 후 로그 검사:
-  [queue-worker] 시작 로그 없음 ✅ (격리 확인)
-  [deactivation-cleanup], [readonly-trigger], [standby-sync], [video-expiry] 정상
-
-Worker events:
-  deploy_ended: dep-d9ucbc942hec73f1v1d0 succeeded ✅
-  server_available 확인 ✅
-
-/api/health → ok ✅
-/api/healthz → {"status":"ok"} ✅
-```
-
-**테스트**: WP11 17/17 + 전체 322/322
-
-**WP12 auto-start 금지** — 명시적 승인 후에만 시작.
+## 미완성 항목 (다음 WP)
+- monthly.ai_diary_count: WP9에서 class_diaries.ai_generated 컬럼 추가 후 연결
+- monthly.growth_report_sent_count: snapshot 미연결 (live 쿼리 fallback 사용 중)
+- x_monthly_operational_snapshots: 운영 DB에 아직 없음 (Render 재배포 시 startup 마이그레이션으로 생성)
