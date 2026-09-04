@@ -1,0 +1,1029 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE WP8-P1 — DATABASE SAFETY / MIGRATION HYGIENE
+# BASELINE PRODUCT COMMIT: b728e007
+# CURRENT LOCAL HEAD: 실제 확인
+# DO NOT START WP9
+# DO NOT DELETE PRODUCTION TEST DATA
+# DO NOT DEPLOY RENDER
+# DO NOT RUN PRODUCTION DDL
+
+============================================================
+0. 목적
+============================================================
+
+WP8 기능 구현은 완료되었으나
+Production Safety Incident 검증에서 다음이 확인됨.
+
+1.
+Replit development api-server가
+Production Supabase DB와 동일한
+SUPABASE_DATABASE_URL을 사용하고 있음.
+
+2.
+ensureWp8Schema()가 runtime boot 시 실행되어
+Replit dev server restart만으로
+Production DB DDL이 실행됨.
+
+3.
+WP8 preflight 테스트가
+Production DB에 테스트 support_cases / notes를 삽입함.
+
+기존 데이터 손상은 없지만
+개발/테스트와 Production DB 격리가 깨져 있음.
+
+이번 WP8-P1 목표:
+
+A.
+runtime boot DDL 제거
+
+B.
+WP8 schema를 explicit migration 방식으로 전환
+
+C.
+dev/test가 Production DB를 자동 mutate하지 못하게 fail-closed guard 추가
+
+D.
+기존 Production 테스트 데이터 정확히 inventory
+
+E.
+삭제는 하지 않고 cleanup plan만 작성
+
+F.
+WP8 기능 regression PASS
+
+완료 후에만 WP9 시작 가능.
+
+============================================================
+1. 절대 금지
+============================================================
+
+이번 작업:
+
+Production DELETE:
+NO
+
+Production UPDATE:
+NO
+
+Production INSERT:
+NO
+
+Production ALTER:
+NO
+
+Production CREATE:
+NO
+
+Production DROP:
+NO
+
+Production migration execute:
+NO
+
+Render deploy:
+NO
+
+main merge:
+NO
+
+WP9:
+NO
+
+OTA:
+APP 변경 없으면 NO
+
+============================================================
+2. GIT PRECHECK
+============================================================
+
+확인:
+
+git status --porcelain
+git branch --show-current
+git rev-parse HEAD
+git log --oneline -10
+
+b728e007 ancestor:
+YES 이어야 함.
+
+b728e007 이후 product code 변경이 있으면
+정확히 보고.
+
+memory / attached_assets만 있으면
+product diff와 분리.
+
+============================================================
+3. ensureWp8Schema() 제거
+============================================================
+
+현재:
+
+routes/super.ts
+
+에 존재하는:
+
+- module-level void ensureWp8Schema()
+- route handler 내부 await ensureWp8Schema()
+- _wp8SchemaDone runtime flag
+
+구조를 제거.
+
+목표:
+
+API server process가 boot/request 중
+DB schema DDL을 절대 실행하지 않음.
+
+서버 runtime에서:
+
+ALTER TABLE
+CREATE TABLE
+CREATE INDEX
+
+WP8 schema용 실행:
+0
+
+============================================================
+4. EXPLICIT MIGRATION으로 전환
+============================================================
+
+WP8 schema를
+명시적인 migration script/file로 분리.
+
+현재 프로젝트 migration convention을 먼저 조사하고
+그 convention을 따름.
+
+Migration 내용:
+
+support_cases 신규 8개 컬럼
+support_case_notes table
+필요 index 8개
+
+현재 Production schema에는 이미 존재하므로
+migration은 반드시 idempotent.
+
+예:
+
+IF NOT EXISTS
+
+유지 가능.
+
+중요:
+
+migration file이 존재하는 것과
+Production에 실행하는 것은 별개.
+
+이번 작업에서는:
+
+Development/Test safe DB:
+필요 시 실행 가능
+
+Production:
+절대 실행 금지
+
+============================================================
+5. SERVER STARTUP DDL GATE
+============================================================
+
+repository 전체 조사:
+
+api-server startup/import 경로에서
+schema DDL을 자동 실행하는 패턴이
+WP8 외에도 존재하는지 검색.
+
+검색:
+
+ALTER TABLE
+CREATE TABLE
+CREATE INDEX
+ensure*Schema
+init*Schema
+migration on boot
+pool-db-init
+boot migration
+
+각 항목을 분류:
+
+SAFE EXPLICIT MIGRATION
+BOOT-TIME DDL
+REQUEST-TIME DDL
+DEV-ONLY
+UNKNOWN
+
+이번 WP8-P1에서
+WP8 외 다른 구조를 무작정 대수술하지 말 것.
+
+하지만 Production DB를
+server boot가 자동 변경하는 다른 P0 경로가 있으면
+보고서에 blocker로 명시.
+
+============================================================
+6. DB ENVIRONMENT IDENTITY
+============================================================
+
+현재 api-server가 사용하는 DB URL을
+secret 노출 없이 fingerprint.
+
+절대 실제 connection string 출력 금지.
+
+예:
+
+host
+database name
+project identifier
+hash/fingerprint
+
+정도로:
+
+CURRENT REPLIT DEV DB
+CURRENT TEST DB
+KNOWN PRODUCTION DB
+
+가 같은지 다른지 판정.
+
+보고:
+
+Replit DEV == Production:
+YES / NO
+
+Test == Production:
+YES / NO
+
+============================================================
+7. SAFE DATABASE CLASSIFIER
+============================================================
+
+테스트/마이그레이션 script에서 사용할
+공통 fail-closed DB safety helper를 구현.
+
+목표:
+
+"이 DB가 테스트용임을 명확히 증명하지 못하면
+mutation test 실행 금지."
+
+권장 조건:
+
+NODE_ENV
+explicit TEST_DATABASE_URL
+DB host/project fingerprint
+explicit ALLOW_TEST_DB_MUTATIONS=true
+production fingerprint denylist
+
+현재 환경 구조에 맞게 설계.
+
+중요:
+
+단순 NODE_ENV=development만 믿지 말 것.
+
+현재 Replit dev가 실제 Production DB를 사용했기 때문.
+
+============================================================
+8. TEST DATABASE MUTATION GUARD
+============================================================
+
+WP8 preflight 및
+향후 Control Center DB mutation 테스트에서
+
+실제 INSERT/UPDATE/DELETE/DDL 전에
+safe DB assertion 실행.
+
+예:
+
+assertSafeMutationDatabase()
+
+조건 불충족:
+
+즉시 종료
+
+message:
+
+REFUSING TO MUTATE NON-TEST DATABASE
+
+테스트를 skip 처리하지 말고
+명확한 FAIL/BLOCKED로 처리.
+
+============================================================
+9. PRODUCTION DB DETECTION — P0
+============================================================
+
+현재 실제 Production DB fingerprint를
+secret 없이 안전하게 등록/판별.
+
+테스트 runner가 Production DB를 바라보면:
+
+test mutation:
+0
+
+fixture creation:
+0
+
+DDL:
+0
+
+cleanup:
+0
+
+반드시 fail before mutation.
+
+============================================================
+10. TEST DATABASE가 없다면
+============================================================
+
+현재 별도 DEV/Test DB가 없다면
+Production을 계속 테스트 DB처럼 쓰지 말 것.
+
+완료보고에서:
+
+SEPARATE TEST DB:
+AVAILABLE / NOT AVAILABLE
+
+보고.
+
+NOT AVAILABLE이면:
+
+mutation integration test는
+BLOCKED로 명시.
+
+사용자 승인 없이
+새 Supabase project 생성 같은 외부 인프라 작업은 하지 말 것.
+
+대신:
+
+- pure/unit test
+- mocked adapter
+- transactionless code validation
+
+만 수행.
+
+별도 DB 준비는 후속 인프라 action으로 보고.
+
+============================================================
+11. WP8 PREFLIGHT 수정
+============================================================
+
+wp8-preflight.ts가
+Production DB에서 fixture를 생성할 수 없게 수정.
+
+실행 순서:
+
+1.
+DB fingerprint
+2.
+safe test DB assertion
+3.
+PASS일 때만 fixture mutation
+
+Production이면:
+
+즉시 FAIL/BLOCKED
+
+fixture insert:
+0
+
+============================================================
+12. 다른 PREFLIGHT 조사
+============================================================
+
+다음 기존 테스트 script도
+DB mutation 여부 조사:
+
+cc-preflight
+WP4 real file test
+WP5
+WP6
+WP7
+manual entitlement tests
+growth tests
+기타 control-center scripts
+
+각각:
+
+READ ONLY
+MUTATES DB
+MUTATES STORAGE
+EXTERNAL SIDE EFFECT
+
+분류.
+
+Production DB mutation 가능성이 있는 script에는
+공통 safety guard 적용.
+
+단 test behavior를 무작정 깨지 말 것.
+
+============================================================
+13. STORAGE SAFETY
+============================================================
+
+WP4-P1처럼 DEV R2 fixture를 만드는 테스트도
+Production bucket 사용 가능성 조사.
+
+현재:
+
+swimnotepicture
+cc-test/
+
+가 실제 Production bucket과 동일한지 확인.
+
+prefix isolation만으로 충분한지 평가.
+
+이번 WP8-P1에서 object 삭제/생성하지 말 것.
+
+보고:
+
+Test R2 == Production bucket:
+YES / NO
+
+별도 test bucket 필요:
+YES / NO
+
+============================================================
+14. PRODUCTION TEST DATA INVENTORY
+============================================================
+
+Production DB READ-ONLY.
+
+WP8 테스트가 삽입한 것으로
+확실하게 식별 가능한 행만 inventory.
+
+support_cases:
+
+id
+ticket_id
+title
+category
+subject_type
+created_at
+created_by_admin
+명확한 test marker
+
+support_case_notes:
+
+id
+support_case_id
+created_at
+test marker
+
+event/audit row가 관련되면
+그것도 식별.
+
+중요:
+
+"WP8 이후 생성됨"만으로
+테스트 데이터라고 단정 금지.
+
+fixture naming / known pool ids /
+known test prefixes /
+test script generated values로
+증명 가능한 행만 TEST로 분류.
+
+============================================================
+15. CLEANUP CLASSIFICATION
+============================================================
+
+각 Production 의심 행을:
+
+A.
+CONFIRMED_TEST_DATA
+
+B.
+LIKELY_TEST_DATA
+
+C.
+REAL_OR_UNKNOWN
+
+으로 분류.
+
+삭제 후보:
+
+A만.
+
+B/C:
+삭제 계획에 넣지 말 것.
+
+============================================================
+16. CLEANUP SCRIPT 작성
+============================================================
+
+실행하지 않는 cleanup script 작성 가능.
+
+조건:
+
+explicit IDs only
+
+예:
+
+DELETE FROM support_case_notes
+WHERE id IN (...)
+
+DELETE FROM support_cases
+WHERE id IN (...)
+
+같이 정확한 ID 기반.
+
+절대:
+
+DELETE WHERE title LIKE '%test%'
+
+같은 광범위 조건 금지.
+
+cleanup script에는:
+
+-- DO NOT RUN WITHOUT EXPLICIT PRODUCTION APPROVAL
+
+명시.
+
+이번 작업에서 실행:
+NO.
+
+============================================================
+17. EXISTING REAL DATA 보존
+============================================================
+
+기존 117 support_cases 포함
+실제/미확인 데이터:
+
+수정:
+NO
+
+삭제:
+NO
+
+status rewrite:
+NO
+
+title backfill:
+NO
+
+============================================================
+18. ops_status DEFAULT 영향 확인
+============================================================
+
+WP8 migration으로
+기존 행에 ops_status='OPEN'이 적용된 상태.
+
+이것이 실제 기존 support_cases semantics를
+깨뜨리는지 READ-ONLY로 조사.
+
+기존 state 컬럼과 비교.
+
+예:
+
+old state vs ops_status
+
+불일치가 있다면
+바로 UPDATE하지 말고 보고.
+
+============================================================
+19. SUPPORT NOTES 70행 확인
+============================================================
+
+70행 전부 테스트라고
+자동 단정 금지.
+
+각 note의:
+
+support_case_id
+created_at
+actor
+content marker
+fixture parent case
+
+를 확인해
+CONFIRMED_TEST_DATA만 분리.
+
+============================================================
+20. RUNTIME REGRESSION
+============================================================
+
+ensureWp8Schema 제거 후
+WP8 routes가
+schema가 이미 존재하는 환경에서
+정상 작동하는지 테스트.
+
+목표:
+
+route request가 DDL 없이 정상.
+
+Create/list/detail/status/note:
+safe test DB가 있을 때 integration.
+
+없으면:
+DB-mutating integration BLOCKED,
+read/compile/unit 검증 수행.
+
+Production:
+절대 사용 금지.
+
+============================================================
+21. MIGRATION ABSENT FAILURE
+============================================================
+
+schema가 없는 DB에서
+server가 몰래 schema를 만들지 않아야 함.
+
+즉:
+
+WP8 schema 미적용 환경
+→ 명확한 missing-schema error / deploy prerequisite
+
+가 정상.
+
+server가 자동 DDL:
+FAIL.
+
+============================================================
+22. APP TYPECHECK
+============================================================
+
+최근 Hotfix 기준:
+
+pnpm run typecheck
+
+0 ERRORS 유지.
+
+이번 WP8-P1에서 APP 미수정이어도
+최종 확인.
+
+============================================================
+23. WEB/SERVER TYPECHECK
+============================================================
+
+api-server TS:
+0
+
+swimnote-web TS:
+0
+
+필수.
+
+============================================================
+24. RENDER
+============================================================
+
+현재:
+
+branch=main
+autoDeploy=NO
+
+재확인.
+
+설정 변경:
+NO
+
+deploy:
+NO
+
+============================================================
+25. PRODUCTION DB
+============================================================
+
+이번 작업에서
+Production은 READ-ONLY 조회만.
+
+query log/report에:
+
+INSERT:
+0
+
+UPDATE:
+0
+
+DELETE:
+0
+
+DDL:
+0
+
+명시.
+
+============================================================
+26. COMMIT
+============================================================
+
+코드 변경 후:
+
+commit
+
+예:
+
+fix(db): remove runtime WP8 schema mutation and guard test databases
+
+push:
+
+release/v2.0.0
+
+Render:
+NO
+
+main:
+NO
+
+============================================================
+27. OTA
+============================================================
+
+APP/shared runtime 변경 여부
+실제 git diff 확인.
+
+NO:
+OTA NOT REQUIRED.
+
+YES:
+APP typecheck 0
+export
+iOS OTA
+runtime 2.1.0
+production-v2
+Android NO
+
+이번 작업은 원칙적으로
+Server/Test code만 수정해야 함.
+
+============================================================
+28. WP8 종료 기준
+============================================================
+
+다음 모두 만족해야
+WP8 완전 종료:
+
+ensureWp8Schema runtime DDL:
+REMOVED
+
+Explicit migration:
+READY
+
+Production mutation test guard:
+PASS
+
+Production DB accidental fixture:
+BLOCKED
+
+Production test-data inventory:
+COMPLETE
+
+Cleanup:
+PLAN ONLY
+
+Existing data:
+SAFE
+
+APP typecheck:
+0
+
+Server/Web TS:
+0
+
+============================================================
+29. 완료보고
+============================================================
+
+# WP8-P1 DATABASE SAFETY REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+============================================================
+RUNTIME MIGRATION
+============================================================
+
+ensureWp8Schema removed:
+YES / NO
+
+Boot-time WP8 DDL:
+0 / ...
+
+Request-time WP8 DDL:
+0 / ...
+
+Explicit migration file:
+...
+
+Idempotent:
+YES / NO
+
+Production migration executed:
+NO
+
+============================================================
+DB ENVIRONMENT
+============================================================
+
+Replit DEV DB fingerprint:
+...
+
+Production DB fingerprint:
+...
+
+DEV == Production:
+YES / NO
+
+Separate TEST DB:
+AVAILABLE / NOT AVAILABLE
+
+Test DB fingerprint:
+...
+
+TEST == Production:
+YES / NO
+
+============================================================
+MUTATION GUARD
+============================================================
+
+Shared guard:
+...
+
+WP8 preflight protected:
+PASS / FAIL
+
+cc-preflight protected:
+PASS / N/A / FAIL
+
+Other mutating scripts protected:
+...
+
+Production DB test mutation attempt:
+BLOCKED / FAIL
+
+Failure occurs before mutation:
+YES / NO
+
+============================================================
+STORAGE TEST SAFETY
+============================================================
+
+Test R2 bucket:
+...
+
+Production R2 bucket:
+...
+
+Same bucket:
+YES / NO
+
+Safety:
+...
+
+Follow-up needed:
+YES / NO
+
+============================================================
+PRODUCTION TEST DATA — READ ONLY
+============================================================
+
+Confirmed test support_cases:
+...
+
+Confirmed test support_case_notes:
+...
+
+Confirmed related audit/events:
+...
+
+Likely but unconfirmed:
+...
+
+Real/unknown:
+...
+
+============================================================
+CLEANUP PLAN
+============================================================
+
+Cleanup script prepared:
+YES / NO
+
+Explicit IDs only:
+YES / NO
+
+Executed:
+NO
+
+Requires user approval:
+YES
+
+============================================================
+EXISTING DATA
+============================================================
+
+Existing support data loss:
+NO / YES
+
+ops_status compatibility:
+PASS / RISK
+
+Findings:
+...
+
+============================================================
+TESTS
+============================================================
+
+WP8:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+...
+
+APP typecheck:
+0 / ...
+
+API server TS:
+0 / ...
+
+Web TS:
+0 / ...
+
+============================================================
+APP / OTA
+============================================================
+
+APP/shared modified:
+YES / NO
+
+OTA:
+NOT REQUIRED / PUBLISHED
+
+If published:
+Group:
+...
+iOS Update:
+...
+SHA:
+...
+Android:
+NO
+
+============================================================
+PRODUCTION SAFETY
+============================================================
+
+Render deploy:
+NO
+
+Production INSERT:
+0
+
+Production UPDATE:
+0
+
+Production DELETE:
+0
+
+Production DDL:
+0
+
+============================================================
+FINAL
+============================================================
+
+WP8 implementation:
+PASS / FAIL
+
+Runtime schema mutation eliminated:
+YES / NO
+
+Production test mutation blocked:
+YES / NO
+
+Production test-data cleanup pending:
+YES / NO
+
+Existing production data safe:
+YES / NO
+
+Safe to close WP8:
+YES / NO
+
+Safe to start WP9:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT DELETE PRODUCTION DATA.
+DO NOT DEPLOY.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.
