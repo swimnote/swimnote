@@ -1,0 +1,343 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# PRODUCTION RELEASE STEP 1
+# WP8 PRODUCTION DB MIGRATION PREFLIGHT ONLY
+# READ-ONLY — DO NOT APPLY MIGRATION
+
+============================================================
+절대 기준
+============================================================
+
+PROJECT:
+SWIMNOTE
+
+CURRENT RELEASE HEAD:
+6f138352
+
+BRANCH:
+release/v2.0.0
+
+반드시 현재 최신 HEAD에서 확인.
+
+6f138352 ancestor:
+MUST BE YES
+
+1.6.3:
+NO TOUCH
+
+============================================================
+이번 작업 목적
+============================================================
+
+WP8 Production DB migration 적용 직전
+운영 DB 구조를 READ-ONLY로 확인한다.
+
+이번 단계에서는 절대:
+
+- ALTER TABLE
+- CREATE TABLE
+- CREATE INDEX
+- DROP
+- DELETE
+- UPDATE
+- INSERT
+- migration runner 실행
+- Render deploy
+
+하지 말 것.
+
+PRODUCTION DB:
+READ ONLY
+
+============================================================
+적용 예정 migration
+============================================================
+
+1.
+step-wp8-a-lifecycle
+
+2.
+step-wp8-b-batch-jobs
+
+실제 migration 파일명을 CURRENT HEAD에서 확인하여 보고.
+
+============================================================
+1. 운영 DB 현재 schema 확인
+============================================================
+
+Production DB에 대해 READ ONLY 확인.
+
+반드시 확인:
+
+growth_reports:
+- 현재 product_status enum/constraint
+- WP8 신규 lifecycle 컬럼 존재 여부
+- version 관련 컬럼
+- discard 관련 컬럼
+- published 관련 컬럼
+
+growth_report_cycles:
+- 실제 columns
+- UNIQUE(swimming_pool_id, report_period)
+- index/constraint 이름
+
+growth_report_batch_jobs:
+- 존재 여부
+
+notifications:
+- GROWTH_REPORT_PUBLISHED idempotency index 존재 여부
+
+x_monthly_operational_snapshots:
+- 존재 여부
+- growth_report_target_count
+- growth_report_generated_count
+- growth_report_failed_count
+- growth_report_sent_count
+존재 여부
+
+============================================================
+2. Migration A 분석
+============================================================
+
+step-wp8-a-lifecycle이
+운영 DB에서 실제로 수행할 SQL을 정리.
+
+각 statement별:
+
+- 신규 컬럼
+- 신규 enum/status
+- 신규 index
+- constraint 변경
+
+보고.
+
+기존 데이터 삭제:
+NO 여야 함.
+
+DROP:
+NO 여야 함.
+
+RENAME:
+NO 여야 함.
+
+기존 PUBLISHED report 보존:
+YES 여야 함.
+
+============================================================
+3. Migration B 분석
+============================================================
+
+step-wp8-b-batch-jobs가
+운영 DB에서 실제로 수행할 SQL을 정리.
+
+확인:
+
+growth_report_batch_jobs
+
+UNIQUE:
+(swimming_pool_id, year, month, job_type)
+
+worker claim에 필요한 columns/index 존재.
+
+기존 데이터에 영향:
+NONE
+
+============================================================
+4. 이미 적용된 항목 충돌 확인
+============================================================
+
+운영 DB에 일부 WP8 schema가 이미 존재하는지 확인.
+
+각 항목:
+
+ABSENT
+ALREADY EXISTS
+CONFLICT
+
+로 분류.
+
+migration 재실행 시:
+
+duplicate column
+duplicate enum value
+duplicate index
+constraint conflict
+
+발생 가능성 확인.
+
+============================================================
+5. 운영 DB 데이터 보존 확인
+============================================================
+
+현재 운영 DB에서 READ ONLY COUNT만 확인.
+
+growth_reports total:
+...
+
+PUBLISHED:
+...
+
+APPROVED:
+...
+
+REVIEW_REQUIRED:
+...
+
+기타 status:
+...
+
+migration 후 이 기존 row들이
+그대로 유지될 수 있는지 분석.
+
+실제 row content 출력 불필요.
+
+개인정보 출력 금지.
+
+============================================================
+6. Production migration 실행 준비 판정
+============================================================
+
+최종적으로:
+
+Migration A safe:
+YES / NO
+
+Migration B safe:
+YES / NO
+
+Existing data preservation:
+PASS / FAIL
+
+Schema conflict:
+NONE / ...
+
+Manual intervention required:
+YES / NO
+
+============================================================
+7. 절대 실행 금지
+============================================================
+
+이번 단계에서:
+
+Production DB migration applied:
+NO
+
+Render production deployed:
+NO
+
+GROWTH_REPORT_BATCH_AUTO_ENABLED:
+변경 금지
+
+현재 false/default 유지.
+
+============================================================
+완료보고
+============================================================
+
+# WP8 PRODUCTION DB PREFLIGHT REPORT
+
+Current Branch:
+...
+
+Current HEAD:
+...
+
+6f138352 ancestor:
+YES / NO
+
+============================================================
+PRODUCTION CURRENT SCHEMA
+============================================================
+
+growth_reports:
+...
+
+growth_report_cycles:
+...
+
+growth_report_batch_jobs:
+...
+
+notifications:
+...
+
+x_monthly_operational_snapshots:
+...
+
+============================================================
+MIGRATION A
+============================================================
+
+File:
+...
+
+Statements:
+...
+
+Existing conflicts:
+...
+
+Safe:
+YES / NO
+
+============================================================
+MIGRATION B
+============================================================
+
+File:
+...
+
+Statements:
+...
+
+Existing conflicts:
+...
+
+Safe:
+YES / NO
+
+============================================================
+DATA PRESERVATION
+============================================================
+
+Existing growth_reports:
+...
+
+Existing PUBLISHED:
+...
+
+Existing APPROVED:
+...
+
+Existing REVIEW_REQUIRED:
+...
+
+Delete existing data:
+NO
+
+Existing data preserved:
+PASS / FAIL
+
+============================================================
+FINAL
+============================================================
+
+Migration A ready:
+YES / NO
+
+Migration B ready:
+YES / NO
+
+Schema conflict:
+NONE / ...
+
+Production migration applied:
+NO
+
+Render deployed:
+NO
+
+FINAL STATUS:
+READY FOR USER APPROVAL / BLOCKED
