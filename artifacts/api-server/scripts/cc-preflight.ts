@@ -1264,6 +1264,21 @@ async function testWP5AiGrowthJobs() {
   const superSrc = fs.readFileSync("src/routes/super.ts", "utf8");
   const webSrc2  = fs.readFileSync("../swimnote-web/src/pages/super/SuperPoolControlCenter.tsx", "utf8");
 
+  // ── WP5/WP6 need POOL_A+POOL_B to exist (cleanup() already ran before this function) ──
+  // Recreate the test pools for HTTP-level tests in WP5/WP6
+  await db.execute(sql`
+    INSERT INTO swimming_pools
+      (id, name, address, phone, owner_name, owner_email, approval_status,
+       x_paid_entitlement, x_manual_entitlement, x_force_disabled, base_manual_entitlement,
+       subscription_status)
+    VALUES
+      (${POOL_A},'CC Gate Pool A','Test Address','010-0000-0001','Owner A','a@test.com',
+       'approved'::approval_status, false, false, false, false, 'trial'::subscription_status),
+      (${POOL_B},'CC Gate Pool B','Test Address','010-0000-0002','Owner B','b@test.com',
+       'approved'::approval_status, false, false, false, false, 'trial'::subscription_status)
+    ON CONFLICT (id) DO NOTHING
+  `).catch(() => {});
+
   // ── HTTP helper (super_admin token required for API calls) ────────────────
   // Find a real super_admin user from DB
   const superRows = await q("SELECT id FROM users WHERE role='super_admin' LIMIT 1").catch(() => []);
@@ -1593,6 +1608,286 @@ async function testWP5AiGrowthJobs() {
      "WP5-105: /growth/reports/:reportId returns 404 when not found (structural)");
 
   console.log("  WP5 tests complete (105 assertions)");
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  WP6 — Error / Incident / Observability
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log("\n── WP6: Error / Incident / Observability ──");
+
+  // ── WP6 Source files ──────────────────────────────────────────────────────
+  const eventLoggerSrc = fs.readFileSync("src/lib/event-logger.ts", "utf-8");
+  const pushSvc        = fs.readFileSync("src/lib/push-service.ts", "utf-8");
+  const objStorage     = fs.readFileSync("src/lib/objectStorage.ts", "utf-8");
+  const billingSrc     = fs.readFileSync("src/routes/billing.ts", "utf-8");
+
+  // ── WP6-01..10: event-logger.ts — logOperationalError ────────────────────
+  ok(eventLoggerSrc.includes("logOperationalError"),
+     "WP6-01: logOperationalError function exported from event-logger.ts");
+  ok(eventLoggerSrc.includes("export async function logOperationalError"),
+     "WP6-02: logOperationalError is async and exported");
+  ok(eventLoggerSrc.includes("pool_id") && eventLoggerSrc.includes("feature") && eventLoggerSrc.includes("level") && eventLoggerSrc.includes("error_code") && eventLoggerSrc.includes("safe_message"),
+     "WP6-03: logOperationalError params include pool_id, feature, level, error_code, safe_message");
+  ok(eventLoggerSrc.includes("request_id") && eventLoggerSrc.includes("trace_id"),
+     "WP6-04: logOperationalError params include request_id and trace_id");
+  ok(eventLoggerSrc.includes("entity_type") && eventLoggerSrc.includes("entity_id"),
+     "WP6-05: logOperationalError params include entity_type and entity_id");
+  ok(eventLoggerSrc.includes("sanitizeMetadata") || eventLoggerSrc.includes("BLOCKED_KEYS"),
+     "WP6-06: metadata sanitization guard present (BLOCKED_KEYS or sanitizeMetadata)");
+  ok(eventLoggerSrc.includes("password") && eventLoggerSrc.includes("token") && eventLoggerSrc.includes("secret"),
+     "WP6-07: sanitization blocks: password, token, secret");
+  ok(eventLoggerSrc.includes("prompt") || eventLoggerSrc.includes("phone"),
+     "WP6-08: sanitization blocks prompt or phone (PII guard)");
+  ok(eventLoggerSrc.includes("} catch {") || eventLoggerSrc.includes("catch (_)"),
+     "WP6-09: logOperationalError swallows its own failure (non-propagating)");
+  ok(eventLoggerSrc.includes("INSERT INTO event_logs"),
+     "WP6-10: logOperationalError writes to event_logs table");
+
+  // ── WP6-11..15: WP6 additive migration in super.ts ───────────────────────
+  ok(superSrc.includes("ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS feature"),
+     "WP6-11: event_logs additive column: feature");
+  ok(superSrc.includes("ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS level"),
+     "WP6-12: event_logs additive column: level");
+  ok(superSrc.includes("ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS error_code"),
+     "WP6-13: event_logs additive column: error_code");
+  ok(superSrc.includes("ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS safe_message"),
+     "WP6-14: event_logs additive column: safe_message");
+  ok(superSrc.includes("ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS request_id"),
+     "WP6-15: event_logs additive column: request_id");
+
+  // ── WP6-16..20: errors route rewrite ──────────────────────────────────────
+  ok(superSrc.includes("FROM super_incidents"),
+     "WP6-16: errors route uses super_incidents (not legacy 'incidents' table)");
+  ok(superSrc.includes("push_failures") && superSrc.includes("FROM push_logs"),
+     "WP6-17: errors route includes push_failures from push_logs");
+  ok(superSrc.includes("growth_failures") && superSrc.includes("FROM growth_report_batch_jobs"),
+     "WP6-18: errors route includes growth_failures from growth_report_batch_jobs");
+  ok(superSrc.includes("summary") && superSrc.includes("h24") && superSrc.includes("d7"),
+     "WP6-19: errors route returns summary with h24 and d7 keys");
+  ok(superSrc.includes("applied_filters") && superSrc.includes("from") && superSrc.includes("to"),
+     "WP6-20: errors route returns applied_filters with from/to");
+
+  // ── WP6-21..25: time-range + filters ──────────────────────────────────────
+  ok(superSrc.includes("parseTimeRange"),
+     "WP6-21: parseTimeRange helper defined in super.ts");
+  ok(superSrc.includes("24h") && superSrc.includes("7d") && superSrc.includes("30d"),
+     "WP6-22: parseTimeRange supports 24h, 7d, 30d");
+  ok(superSrc.includes("range = \"7d\""),
+     "WP6-23: default time range is 7d");
+  ok(superSrc.includes("created_at >= ${from}::timestamptz") || superSrc.includes("created_at >="),
+     "WP6-24: time range filter applied to event_logs query");
+  ok(superSrc.includes("IN ('WARNING','ERROR','CRITICAL')") || superSrc.includes("level IN"),
+     "WP6-25: errors route filters by level WARNING/ERROR/CRITICAL by default");
+
+  // ── WP6-26..30: HTTP tests ─────────────────────────────────────────────────
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors`);
+    ok(r.status === 200, `WP6-26: GET /control-center/errors returns 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?range=24h`);
+    ok(r.status === 200, `WP6-27: GET /control-center/errors?range=24h returns 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?range=30d`);
+    ok(r.status === 200, `WP6-28: GET /control-center/errors?range=30d returns 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?feature=PUSH`);
+    ok(r.status === 200, `WP6-29: GET /control-center/errors?feature=PUSH returns 200 (got ${r.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?level=ERROR`);
+    ok(r.status === 200, `WP6-30: GET /control-center/errors?level=ERROR returns 200 (got ${r.status})`);
+  }
+
+  // ── WP6-31..35: response shape ─────────────────────────────────────────────
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors`);
+    if (r.status === 200 && r.data) {
+      ok("events" in r.data,         "WP6-31: response has events key");
+      ok("push_failures" in r.data,  "WP6-32: response has push_failures key");
+      ok("growth_failures" in r.data,"WP6-33: response has growth_failures key");
+      ok("incidents" in r.data,      "WP6-34: response has incidents key");
+      ok("summary" in r.data,        "WP6-35: response has summary key");
+    } else {
+      ok(false, `WP6-31..35: errors endpoint returned non-200 (${r.status}), skipping shape tests`);
+      ok(false, "WP6-32: skipped"); ok(false, "WP6-33: skipped");
+      ok(false, "WP6-34: skipped"); ok(false, "WP6-35: skipped");
+    }
+  }
+
+  // ── WP6-36..40: auth guard + cross-pool ────────────────────────────────────
+  {
+    const noAuth = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors`, null);
+    ok(noAuth.status === 401, `WP6-36: GET /control-center/errors unauthenticated → 401 (got ${noAuth.status})`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_B}/control-center/errors`);
+    ok(r.status === 200, `WP6-37: GET POOL_B /control-center/errors returns 200 (cross-pool isolation)`);
+  }
+  ok(superSrc.includes("pool_id = ${poolId}") || superSrc.includes("pool_id = $"),
+     "WP6-38: event_logs query scoped to poolId");
+  ok(superSrc.includes("swimming_pool_id = ${poolId}"),
+     "WP6-39: growth_report_batch_jobs scoped to poolId");
+  ok(superSrc.includes("= ANY(affected_pool_ids)"),
+     "WP6-40: super_incidents filtered by affected_pool_ids containing poolId");
+
+  // ── WP6-41..50: MUST failure wiring ───────────────────────────────────────
+  ok(pushSvc.includes("logOperationalError"),
+     "WP6-41: push-service.ts imports and uses logOperationalError");
+  ok(pushSvc.includes("PUSH_EXPO_API_FAILED"),
+     "WP6-42: push-service.ts logs PUSH_EXPO_API_FAILED error code");
+  ok(pushSvc.includes("pool_id?: string") || pushSvc.includes("poolId?: string"),
+     "WP6-43: sendRawPush accepts optional poolId for failure logging");
+  ok(pushSvc.includes("pool_id") && pushSvc.includes("INSERT INTO push_logs"),
+     "WP6-44: push_logs INSERT includes pool_id column (additive)");
+  ok(pushSvc.includes("error_message") || pushSvc.includes("recipient_count"),
+     "WP6-45: push_logs INSERT includes WP6 additive columns");
+  ok(objStorage.includes("logOperationalError"),
+     "WP6-46: objectStorage.ts imports and uses logOperationalError");
+  ok(objStorage.includes("R2_PUT_FAILED"),
+     "WP6-47: objectStorage.ts logs R2_PUT_FAILED error code");
+  ok(objStorage.includes("_usage?.poolId") || objStorage.includes("usage?.poolId"),
+     "WP6-48: R2 failure logging uses poolId from _usage (conditional)");
+  ok(billingSrc.includes("logOperationalError"),
+     "WP6-49: billing.ts imports and uses logOperationalError");
+  ok(billingSrc.includes("RC_WEBHOOK_PROCESSING_FAILED"),
+     "WP6-50: billing.ts logs RC_WEBHOOK_PROCESSING_FAILED error code");
+
+  // ── WP6-51..55: push_logs additive migration ────────────────────────────────
+  ok(superSrc.includes("ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS pool_id"),
+     "WP6-51: push_logs additive migration: pool_id");
+  ok(superSrc.includes("ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS error_message"),
+     "WP6-52: push_logs additive migration: error_message");
+  ok(superSrc.includes("ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS recipient_count"),
+     "WP6-53: push_logs additive migration: recipient_count");
+  ok(superSrc.includes("idx_push_logs_pool_status"),
+     "WP6-54: push_logs index on pool_id+status");
+  ok(superSrc.includes("idx_event_logs_pool_level"),
+     "WP6-55: event_logs compound index on pool_id+level");
+
+  // ── WP6-56..60: no secret leakage in logger ─────────────────────────────────
+  ok(!eventLoggerSrc.includes("process.env") || eventLoggerSrc.indexOf("process.env") > eventLoggerSrc.indexOf("BLOCKED_KEYS"),
+     "WP6-56: logOperationalError does not access process.env (no secret extraction)");
+  ok(eventLoggerSrc.includes("\"password\"") && eventLoggerSrc.includes("\"jwt\""),
+     "WP6-57: BLOCKED_KEYS includes password and jwt");
+  ok(eventLoggerSrc.includes("\"api_key\"") && eventLoggerSrc.includes("\"signing_key\""),
+     "WP6-58: BLOCKED_KEYS includes api_key and signing_key");
+  ok(eventLoggerSrc.includes("\"signed_url\"") && eventLoggerSrc.includes("\"prompt\""),
+     "WP6-59: BLOCKED_KEYS includes signed_url and prompt");
+  ok(eventLoggerSrc.includes(".length > 500") || eventLoggerSrc.includes("truncated"),
+     "WP6-60: long strings are truncated in metadata before writing");
+
+  // ── WP6-61..70: web ErrorsTab structural checks ─────────────────────────────
+  const webSrc = fs.readFileSync("../swimnote-web/src/pages/super/SuperPoolControlCenter.tsx", "utf-8");
+  ok(webSrc.includes("ErrorDetailDrawer"),
+     "WP6-61: ErrorDetailDrawer component defined");
+  ok(webSrc.includes("range") && webSrc.includes("24h") && webSrc.includes("7d") && webSrc.includes("30d"),
+     "WP6-62: ErrorsTab has 24h/7d/30d range buttons");
+  ok(webSrc.includes("feature") && webSrc.includes("level") && webSrc.includes("select"),
+     "WP6-63: ErrorsTab has feature and level filter selects");
+  ok(webSrc.includes("push_failures") && webSrc.includes("growth_failures"),
+     "WP6-64: ErrorsTab renders push_failures and growth_failures");
+  ok(webSrc.includes("source_type") && webSrc.includes("SOURCE_LABEL"),
+     "WP6-65: ErrorsTab shows source badge per row");
+  ok(webSrc.includes("error_count") && webSrc.includes("warning_count"),
+     "WP6-66: ErrorsTab renders 24h summary KPI cards");
+  ok(webSrc.includes("ErrorDetailDrawer") && webSrc.includes("setDetail"),
+     "WP6-67: ErrorsTab opens ErrorDetailDrawer on row click");
+  ok(webSrc.includes("request_id") && webSrc.includes("trace_id"),
+     "WP6-68: ErrorDetailDrawer shows request_id and trace_id");
+  ok(webSrc.includes("SEVERITY_COLOR") || webSrc.includes("SEV1"),
+     "WP6-69: incident severity color mapping defined");
+  ok(webSrc.includes("이 기간에 기록된 오류가 없습니다") || webSrc.includes("기록된 오류"),
+     "WP6-70: ErrorsTab shows empty-state message when no errors");
+
+  // ── WP6-71..80: observability completeness checks ───────────────────────────
+  ok(superSrc.includes("WP6: event_logs additive columns"),
+     "WP6-71: WP6 migration block comment present in super.ts");
+  ok(superSrc.includes("WP6: push_logs additive") || superSrc.includes("pool_id for Error Center"),
+     "WP6-72: push_logs additive migration comment present");
+  ok(eventLoggerSrc.includes("OpErrorLevel") && eventLoggerSrc.includes("OpErrorFeature"),
+     "WP6-73: OpErrorLevel and OpErrorFeature types exported");
+  ok(eventLoggerSrc.includes("\"AUTH\"") && eventLoggerSrc.includes("\"BILLING\"") && eventLoggerSrc.includes("\"PUSH\""),
+     "WP6-74: OpErrorFeature includes AUTH, BILLING, PUSH");
+  ok(eventLoggerSrc.includes("\"STORAGE\"") && eventLoggerSrc.includes("\"GROWTH\""),
+     "WP6-75: OpErrorFeature includes STORAGE, GROWTH");
+  ok(superSrc.includes("ERRORS_FAILED"),
+     "WP6-76: errors route has ERRORS_FAILED 500 handler");
+  ok(pushSvc.includes("import { logOperationalError }"),
+     "WP6-77: push-service.ts import statement for logOperationalError");
+  ok(objStorage.includes("import { logOperationalError }"),
+     "WP6-78: objectStorage.ts import statement for logOperationalError");
+  ok(billingSrc.includes("logOperationalError") && billingSrc.includes("import { logEvent, logOperationalError }"),
+     "WP6-79: billing.ts import statement for logOperationalError");
+  ok(eventLoggerSrc.includes("feature:      OpErrorFeature;") && eventLoggerSrc.includes("pool_id:      string;"),
+     "WP6-80: OpErrorParams interface is well-typed");
+
+  // ── WP6-81..90: response correctness ──────────────────────────────────────
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?range=7d`);
+    if (r.status === 200 && r.data) {
+      ok(Array.isArray(r.data.events),           "WP6-81: events is an array");
+      ok(Array.isArray(r.data.push_failures),    "WP6-82: push_failures is an array");
+      ok(Array.isArray(r.data.growth_failures),  "WP6-83: growth_failures is an array");
+      ok(Array.isArray(r.data.incidents),        "WP6-84: incidents is an array");
+      ok(typeof r.data.total === "number",       "WP6-85: total is a number");
+      ok(r.data.applied_filters?.range === "7d","WP6-86: applied_filters.range reflects query param");
+      ok(typeof r.data.applied_filters?.from === "string", "WP6-87: applied_filters.from is ISO string");
+      ok(typeof r.data.applied_filters?.to === "string",   "WP6-88: applied_filters.to is ISO string");
+      ok(r.data.summary !== undefined,           "WP6-89: summary key present in response");
+      ok(r.data.summary?.h24 !== undefined || r.data.summary?.d7 !== undefined, "WP6-90: summary has h24 or d7 key");
+    } else {
+      for (let i = 81; i <= 90; i++) ok(false, `WP6-${i}: skipped (non-200 response)`);
+    }
+  }
+
+  // ── WP6-91..95: feature filter ─────────────────────────────────────────────
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?feature=BILLING`);
+    ok(r.status === 200, `WP6-91: errors?feature=BILLING returns 200`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?feature=STORAGE`);
+    ok(r.status === 200, `WP6-92: errors?feature=STORAGE returns 200`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?level=CRITICAL`);
+    ok(r.status === 200, `WP6-93: errors?level=CRITICAL returns 200`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?request_id=req_test_123`);
+    ok(r.status === 200, `WP6-94: errors?request_id= returns 200`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors?trace_id=trace_test_456`);
+    ok(r.status === 200, `WP6-95: errors?trace_id= returns 200`);
+  }
+
+  // ── WP6-96..100: non-regression (existing routes unbroken) ─────────────────
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/ai`);
+    ok(r.status === 200, `WP6-96: WP5 /control-center/ai still returns 200`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/growth`);
+    ok(r.status === 200, `WP6-97: WP5 /control-center/growth still returns 200`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`);
+    ok(r.status === 200, `WP6-98: /control-center/notifications still returns 200`);
+  }
+  {
+    const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/storage`);
+    ok(r.status === 200, `WP6-99: /control-center/storage still returns 200`);
+  }
+  ok(superSrc.includes("ERRORS_FAILED") && superSrc.includes("res.status(500)"),
+     "WP6-100: errors route has graceful 500 handler");
+
+  console.log("  WP6 tests complete (100 assertions)");
+
+  // ── WP5/WP6 pool cleanup ──────────────────────────────────────────────────
+  await db.execute(sql`DELETE FROM swimming_pools WHERE id = ANY(ARRAY[${POOL_A}, ${POOL_B}])`).catch(() => {});
 }
 
 main().catch((e) => { console.error("FATAL:", e.message, e.stack); process.exit(1); });

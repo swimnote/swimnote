@@ -15,7 +15,7 @@ import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { getPaymentProvider } from "../payment/index.js";
-import { logEvent } from "../lib/event-logger.js";
+import { logEvent, logOperationalError } from "../lib/event-logger.js";
 import { billingEnabled } from "../config/billing.js";
 import { isFeatureEnabled } from "../lib/featureFlags.js";
 import {
@@ -478,6 +478,17 @@ router.post("/revenuecat-webhook", async (req, res) => {
     res.json({ received: true });
   } catch (err: any) {
     console.error("[rc-webhook] 처리 오류:", err);
+    // WP6: MUST DB-observable — RevenueCat webhook processing failure
+    // pool_id may not be known here if the error occurred before user lookup
+    void logOperationalError({
+      pool_id: "global",
+      feature: "BILLING",
+      level: "ERROR",
+      error_code: "RC_WEBHOOK_PROCESSING_FAILED",
+      safe_message: `RevenueCat webhook 처리 오류: ${(err?.message ?? "unknown").slice(0, 200)}`,
+      entity_type: "webhook",
+      metadata: { event_type: req.body?.event?.type ?? "unknown" },
+    });
     res.status(500).json({ error: err?.message ?? "webhook 처리 오류" });
   }
 });

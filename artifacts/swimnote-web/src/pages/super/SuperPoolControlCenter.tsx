@@ -2055,60 +2055,250 @@ function GrowthReportsTab({ poolId }: { poolId: string }) {
   );
 }
 
+// ── WP6 ErrorsTab ─────────────────────────────────────────────────────────────
+
+const LEVEL_COLOR: Record<string, "red" | "amber" | "gray" | "blue" | "green"> = {
+  CRITICAL: "red", ERROR: "red", WARNING: "amber", INFO: "blue",
+};
+const SEVERITY_COLOR: Record<string, "red" | "amber" | "gray" | "blue" | "green"> = {
+  SEV1: "red", SEV2: "red", SEV3: "amber", SEV4: "amber",
+};
+const SOURCE_LABEL: Record<string, string> = {
+  EVENT: "이벤트", PUSH: "푸시", JOB: "잡", INCIDENT: "인시던트", SYSTEM: "시스템",
+};
+
+function LevelBadge({ level }: { level?: string }) {
+  const l = (level ?? "INFO").toUpperCase();
+  return <Badge color={LEVEL_COLOR[l] ?? "gray"} text={l} />;
+}
+
+function ErrorDetailDrawer({ row, onClose }: { row: any; onClose: () => void }) {
+  const src = row.source_type ?? "EVENT";
+  return (
+    <div className="fixed inset-0 z-50 flex" onClick={onClose}>
+      <div className="flex-1 bg-black/30" />
+      <div
+        className="w-[420px] bg-white h-full overflow-y-auto shadow-xl p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-[15px]">오류 상세</span>
+          <button onClick={onClose} className="text-[#888] hover:text-[#333] text-[18px] leading-none">×</button>
+        </div>
+
+        <div className="space-y-2 text-[12px]">
+          <div className="flex gap-2">
+            <Badge color={LEVEL_COLOR[(row.level ?? "").toUpperCase()] ?? "gray"} text={row.level ?? "-"} />
+            <Badge color="blue" text={SOURCE_LABEL[src] ?? src} />
+            {row.feature_detail && <Badge color="gray" text={row.feature_detail} />}
+          </div>
+
+          {row.error_code && (
+            <div className="bg-[#fef3f2] border border-[#fecdca] rounded-lg px-3 py-2">
+              <div className="font-mono font-semibold text-[11px] text-red-700">{row.error_code}</div>
+              {row.safe_message && <div className="text-[#b91c1c] mt-1 text-[11px]">{row.safe_message}</div>}
+            </div>
+          )}
+
+          {row.display_message && !row.error_code && (
+            <div className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg px-3 py-2 text-[#374151]">
+              {row.display_message}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-[#f3f4f6] pt-2 mt-2">
+            {[
+              ["발생시각", row.created_at?.replace("T", " ").slice(0, 19)],
+              ["카테고리", row.category],
+              ["기능", row.feature ?? row.feature_detail],
+              ["풀 ID", row.pool_id?.slice(0, 12)],
+              ["행위자", row.actor_id?.slice(0, 16)],
+              ["대상", row.target],
+              ["엔티티 타입", row.entity_type],
+              ["엔티티 ID", row.entity_id?.slice(0, 20)],
+              ["Request ID", row.request_id?.slice(0, 24)],
+              ["Trace ID", row.trace_id?.slice(0, 24)],
+            ].filter(([, v]) => v).map(([label, val]) => (
+              <div key={label as string}>
+                <div className="text-[10px] text-[#9ca3af]">{label}</div>
+                <div className="font-mono text-[11px] text-[#374151] break-all">{val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Incident specific */}
+          {src === "INCIDENT" && (
+            <div className="border-t border-[#f3f4f6] pt-2 space-y-1">
+              <div className="font-semibold text-[12px]">인시던트 정보</div>
+              <div className="text-[11px] text-[#6b7280]">심각도: <Badge color={SEVERITY_COLOR[row.severity] ?? "amber"} text={row.severity ?? "-"} /></div>
+              <div className="text-[11px] text-[#6b7280]">상태: <Badge color={row.status === "RESOLVED" ? "green" : "red"} text={row.status ?? "-"} /></div>
+              {row.description && <div className="text-[11px] text-[#374151]">{row.description}</div>}
+              {row.service && <div className="text-[11px] text-[#6b7280]">서비스: {row.service}</div>}
+              {row.resolved_at && <div className="text-[11px] text-[#6b7280]">해결: {row.resolved_at.slice(0, 19)}</div>}
+            </div>
+          )}
+
+          {/* JOB specific */}
+          {src === "JOB" && (
+            <div className="border-t border-[#f3f4f6] pt-2 space-y-1">
+              <div className="font-semibold text-[12px]">배치 잡 정보</div>
+              <div className="text-[11px] text-[#374151]">{row.safe_message}</div>
+            </div>
+          )}
+
+          {row.metadata && Object.keys(row.metadata).length > 0 && (
+            <div className="border-t border-[#f3f4f6] pt-2">
+              <div className="font-semibold text-[11px] mb-1 text-[#6b7280]">메타데이터</div>
+              <pre className="text-[10px] bg-[#f9fafb] rounded p-2 overflow-auto max-h-[160px]">
+                {JSON.stringify(row.metadata, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ErrorsTab({ poolId }: { poolId: string }) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [feature, setFeature] = useState("");
+  const [level, setLevel]     = useState("");
+  const [range, setRange]     = useState("7d");
+  const [detail, setDetail]   = useState<any>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
-    try { setData(await api.get<any>(`/super/pools/${poolId}/control-center/errors?feature=${feature}`)); } catch (_) {}
+    try {
+      const qs = new URLSearchParams({ range });
+      if (feature) qs.set("feature", feature);
+      if (level)   qs.set("level", level);
+      setData(await api.get<any>(`/super/pools/${poolId}/control-center/errors?${qs.toString()}`));
+    } catch (_) {}
     setLoading(false);
-  }, [poolId, feature]);
+  }, [poolId, feature, level, range]);
   useEffect(() => { load(); }, [load]);
-  const FEATURES = ["AUTH", "API", "AI", "DIARY", "CURRICULUM", "GROWTH_REPORT", "PUSH", "UPLOAD", "STORAGE", "BILLING", "DB"];
+
+  const FEATURES = ["AUTH","API","AI","DIARY","CURRICULUM","GROWTH","JOB","PUSH","UPLOAD","STORAGE","BILLING","SUBSCRIPTION","DATABASE","SYSTEM"];
+  const LEVELS   = ["ERROR","CRITICAL","WARNING","INFO"];
+  const RANGES   = [{ v: "24h", l: "24시간" }, { v: "7d", l: "7일" }, { v: "30d", l: "30일" }];
+
+  // Combine all events for unified timeline
+  const allEvents = data ? [
+    ...(data.events ?? []).map((r: any) => ({ ...r, source_type: r.source_type ?? "EVENT" })),
+    ...(data.push_failures ?? []).map((r: any) => ({ ...r, source_type: "PUSH" })),
+    ...(data.growth_failures ?? []).map((r: any) => ({ ...r, source_type: "JOB" })),
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) : [];
+
+  const incidents: any[] = data?.incidents ?? [];
+  const sum24h = data?.summary?.h24 ?? null;
+
   return (
     <div>
-      <div className="flex gap-2 mb-3">
-        <select value={feature} onChange={(e) => setFeature(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[12px]">
+      {/* Summary KPIs */}
+      {sum24h && (
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[
+            { label: "24h 치명/오류", value: Number(sum24h.error_count ?? 0), color: "text-red-600" },
+            { label: "24h 경고", value: Number(sum24h.warning_count ?? 0), color: "text-amber-600" },
+            { label: "활성 인시던트", value: incidents.filter((i: any) => i.status !== "RESOLVED").length, color: "text-purple-600" },
+          ].map((kpi) => (
+            <div key={kpi.label} className="bg-[#f9fafb] border border-[#e5e7eb] rounded-lg px-3 py-2.5">
+              <div className={`text-[22px] font-bold ${kpi.color}`}>{kpi.value}</div>
+              <div className="text-[10px] text-[#6b7280] mt-0.5">{kpi.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex gap-1">
+          {RANGES.map((r) => (
+            <button
+              key={r.v}
+              onClick={() => setRange(r.v)}
+              className={`px-2.5 py-1 text-[11px] rounded-lg border transition-colors ${range === r.v ? "bg-[#002F5F] text-white border-[#002F5F]" : "border-[#e5e7eb] text-[#374151] hover:border-[#002F5F]"}`}
+            >{r.l}</button>
+          ))}
+        </div>
+        <select value={feature} onChange={(e) => setFeature(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1 text-[11px]">
           <option value="">전체 기능</option>
           {FEATURES.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
-        <button onClick={load} className="px-3 py-1.5 text-[12px] rounded-lg bg-[#002F5F] text-white font-medium">새로고침</button>
+        <select value={level} onChange={(e) => setLevel(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1 text-[11px]">
+          <option value="">전체 레벨</option>
+          {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <button onClick={load} className="px-3 py-1 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium ml-auto">새로고침</button>
       </div>
+
       {loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
         <div className="space-y-4">
-          <Section title="최근 오류 이벤트">
-            <Table
-              heads={["기능", "코드", "메시지", "시각"]}
-              rows={data.events ?? []}
-              render={(r, i) => (
-                <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-                  <td className="py-2 pr-3 font-medium">{r.feature}</td>
-                  <td className="py-2 pr-3"><Badge color={r.level === "critical" ? "red" : "amber"} text={r.error_code ?? r.level} /></td>
-                  <td className="py-2 pr-3 max-w-[200px] truncate">{r.safe_message}</td>
-                  <td className="py-2">{r.created_at?.slice(0, 16)}</td>
-                </tr>
-              )}
-            />
-          </Section>
-          {(data.incidents ?? []).length > 0 && (
-            <Section title="Incidents">
+          {/* Incidents */}
+          {incidents.length > 0 && (
+            <Section title={`인시던트 (${incidents.length})`}>
               <Table
-                heads={["제목", "심각도", "상태", "발생시각"]}
-                rows={data.incidents ?? []}
+                heads={["제목", "심각도", "상태", "서비스", "발생시각"]}
+                rows={incidents}
                 render={(r, i) => (
-                  <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-                    <td className="py-2 pr-3 font-medium">{r.title}</td>
-                    <td className="py-2 pr-3"><Badge color={r.severity === "critical" ? "red" : "amber"} text={r.severity} /></td>
-                    <td className="py-2 pr-3"><Badge color={r.status === "resolved" ? "green" : "red"} text={r.status} /></td>
-                    <td className="py-2">{r.created_at?.slice(0, 16)}</td>
+                  <tr key={r.id ?? i} className="border-b border-[#f5f5f5] hover:bg-[#f9fafb] cursor-pointer" onClick={() => setDetail(r)}>
+                    <td className="py-2 pr-3 font-medium text-[12px]">{r.title}</td>
+                    <td className="py-2 pr-3"><Badge color={SEVERITY_COLOR[r.severity] ?? "amber"} text={r.severity ?? "-"} /></td>
+                    <td className="py-2 pr-3"><Badge color={r.status === "RESOLVED" ? "green" : r.status === "MITIGATED" ? "amber" : "red"} text={r.status ?? "-"} /></td>
+                    <td className="py-2 pr-3 text-[11px] text-[#6b7280]">{r.service ?? "-"}</td>
+                    <td className="py-2 text-[11px] text-[#6b7280]">{r.created_at?.slice(0, 16)}</td>
                   </tr>
                 )}
               />
             </Section>
           )}
+
+          {/* Unified error timeline */}
+          <Section title={`오류 타임라인 (${allEvents.length}건 / 전체 ${data.total + (data.push_failures?.length ?? 0) + (data.growth_failures?.length ?? 0)})`}>
+            {allEvents.length === 0 ? (
+              <div className="text-center py-8 text-[#9ca3af] text-[12px]">
+                이 기간에 기록된 오류가 없습니다.<br />
+                <span className="text-[10px]">오류가 발생하면 이곳에 표시됩니다.</span>
+              </div>
+            ) : (
+              <Table
+                heads={["출처", "기능", "레벨/코드", "메시지", "시각"]}
+                rows={allEvents}
+                render={(r, i) => (
+                  <tr
+                    key={r.id ?? i}
+                    className="border-b border-[#f5f5f5] hover:bg-[#f9fafb] cursor-pointer"
+                    onClick={() => setDetail(r)}
+                  >
+                    <td className="py-1.5 pr-2">
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-[#f3f4f6] text-[#6b7280]">
+                        {SOURCE_LABEL[r.source_type] ?? r.source_type}
+                      </span>
+                    </td>
+                    <td className="py-1.5 pr-2 text-[11px] font-medium text-[#374151]">
+                      {r.feature_detail ?? r.feature ?? r.category ?? "-"}
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <LevelBadge level={r.level} />
+                      {r.error_code && <span className="ml-1 text-[9px] font-mono text-[#6b7280]">{r.error_code}</span>}
+                    </td>
+                    <td className="py-1.5 pr-2 max-w-[200px] truncate text-[11px] text-[#6b7280]">
+                      {r.safe_message ?? r.display_message ?? r.message ?? "-"}
+                    </td>
+                    <td className="py-1.5 text-[10px] text-[#9ca3af] whitespace-nowrap">
+                      {r.created_at?.slice(0, 16)?.replace("T", " ")}
+                    </td>
+                  </tr>
+                )}
+              />
+            )}
+          </Section>
         </div>
       )}
+
+      {detail && <ErrorDetailDrawer row={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }

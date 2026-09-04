@@ -23,7 +23,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { computeMode, type XModeStatus, type PoolModeResult } from "../lib/xmode.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
-import { logEvent } from "../lib/event-logger.js";
+import { logEvent, logOperationalError } from "../lib/event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
 import { resolveSubscription, applySubscriptionState, normalizeTier, backfillPoolSubscriptionFields } from "../lib/subscriptionService.js";
@@ -1211,6 +1211,26 @@ async function ensureExtraTables() {
   await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_status   ON super_incidents (status)`).catch(() => {});
   await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_severity ON super_incidents (severity)`).catch(() => {});
   await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_created  ON super_incidents (created_at DESC)`).catch(() => {});
+
+  // WP6: event_logs additive columns — operational error observability
+  // Development only; Production: NO (per spec §54)
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS feature TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS level TEXT DEFAULT 'INFO'`).catch(() => {});
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS error_code TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS safe_message TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS request_id TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS trace_id TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS entity_type TEXT`).catch(() => {});
+  await db.execute(sql`ALTER TABLE event_logs ADD COLUMN IF NOT EXISTS entity_id TEXT`).catch(() => {});
+  // WP6: additive indexes
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_event_logs_pool_level ON event_logs (pool_id, level, created_at DESC) WHERE level IS NOT NULL`).catch(() => {});
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_event_logs_request_id ON event_logs (request_id) WHERE request_id IS NOT NULL`).catch(() => {});
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_event_logs_feature ON event_logs (pool_id, feature, created_at DESC) WHERE feature IS NOT NULL`).catch(() => {});
+  // WP6: push_logs additive — pool_id for Error Center cross-referencing
+  await superAdminDb.execute(sql`ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS pool_id TEXT`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS error_message TEXT`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS recipient_count INTEGER DEFAULT 1`).catch(() => {});
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_push_logs_pool_status ON push_logs (pool_id, status, created_at DESC) WHERE pool_id IS NOT NULL`).catch(() => {});
 
   // WP15.5-C: ad_creatives 테이블
   await superAdminDb.execute(sql`
@@ -6938,35 +6958,176 @@ router.get(
   },
 );
 
+// ── WP6 helper: parse time-range filter ──────────────────────────────────────
+function parseTimeRange(rangeStr: string): { from: string; to: string } {
+  const now = new Date();
+  const to = now.toISOString();
+  switch (rangeStr) {
+    case "24h": return { from: new Date(Date.now() - 86_400_000).toISOString(), to };
+    case "7d":  return { from: new Date(Date.now() - 7 * 86_400_000).toISOString(), to };
+    case "30d": return { from: new Date(Date.now() - 30 * 86_400_000).toISOString(), to };
+    default:    return { from: new Date(Date.now() - 7 * 86_400_000).toISOString(), to };
+  }
+}
+
 // GET /super/pools/:id/control-center/errors
+// WP6 REWRITE — real columns, multi-source, filters, summary
 router.get(
   "/super/pools/:id/control-center/errors",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
-    const { limit = "50", offset = "0", feature = "" } = req.query as Record<string, string>;
+    const {
+      limit = "50", offset = "0",
+      range = "7d",        // 24h | 7d | 30d
+      feature = "",        // OpErrorFeature filter
+      level = "",          // ERROR | CRITICAL | WARNING
+      category = "",       // event_logs category filter
+      request_id = "",     // exact request_id search
+      trace_id = "",       // exact trace_id search
+    } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 200);
+    const { from, to } = parseTimeRange(range);
+
     try {
-      const [events, incidents] = await Promise.all([
+      // ── 1. event_logs (operational errors + audit events with warning/error level) ──
+      const evtConditions: import("drizzle-orm").SQL[] = [
+        sql`pool_id = ${poolId}`,
+        sql`created_at >= ${from}::timestamptz`,
+        sql`created_at <  ${to}::timestamptz`,
+      ];
+      // Level filter: if WP6 columns exist → use level; also include 보안/AI/시스템 category events
+      if (level) {
+        evtConditions.push(sql`(level = ${level} OR (level IS NULL AND category IN ('보안','시스템')))`);
+      } else {
+        // Default: show WARNING/ERROR/CRITICAL + legacy security/system events
+        evtConditions.push(sql`(level IN ('WARNING','ERROR','CRITICAL') OR (level IS NULL AND category IN ('보안')))`);
+      }
+      if (feature) evtConditions.push(sql`feature = ${feature}`);
+      if (category) evtConditions.push(sql`category = ${category}`);
+      if (request_id) evtConditions.push(sql`request_id = ${request_id.trim()}`);
+      if (trace_id)   evtConditions.push(sql`trace_id = ${trace_id.trim()}`);
+      const evtWhere = sql.join(evtConditions, sql` AND `);
+
+      // ── 2. push_logs failures (pool-scoped if pool_id column exists) ──
+      // WP6: push_logs.pool_id added via additive migration
+      const pushFailed = superAdminDb.execute(sql`
+        SELECT id, 'PUSH'::text AS source_type, pool_id,
+               target_user_id AS actor_id, type AS feature_detail,
+               status, message AS safe_message, NULL::text AS error_code,
+               'ERROR'::text AS level, created_at
+        FROM push_logs
+        WHERE pool_id = ${poolId}
+          AND status = 'failed'
+          AND created_at >= ${from}::timestamptz
+          AND created_at <  ${to}::timestamptz
+        ORDER BY created_at DESC
+        LIMIT 50
+      `).catch(() => ({ rows: [] }));
+
+      // ── 3. growth batch job failures ──
+      const growthFailed = superAdminDb.execute(sql`
+        SELECT id, 'JOB'::text AS source_type,
+               swimming_pool_id AS pool_id,
+               'GROWTH'::text AS feature_detail,
+               status, 'GROWTH_JOB_FAILED'::text AS error_code,
+               CONCAT('배치 잡 실패: ', job_type, ' (시도 ', attempts, '회)') AS safe_message,
+               'ERROR'::text AS level,
+               updated_at AS created_at
+        FROM growth_report_batch_jobs
+        WHERE swimming_pool_id = ${poolId}
+          AND status = 'FAILED'
+          AND updated_at >= ${from}::timestamptz
+          AND updated_at <  ${to}::timestamptz
+        ORDER BY updated_at DESC
+        LIMIT 20
+      `).catch(() => ({ rows: [] }));
+
+      // ── 4. super_incidents (pool may be in affected_pool_ids) ──
+      const incidents = superAdminDb.execute(sql`
+        SELECT id, title, severity, status,
+               created_at, resolved_at, description,
+               service, request_id, trace_id,
+               'INCIDENT'::text AS source_type
+        FROM super_incidents
+        WHERE ${poolId} = ANY(affected_pool_ids)
+          AND created_at >= ${from}::timestamptz
+          AND created_at <  ${to}::timestamptz
+        ORDER BY created_at DESC LIMIT 10
+      `).catch(() => ({ rows: [] }));
+
+      // ── 5. Main event_logs query ──
+      const [evtRows, evtCount, pushRes, growthRes, incidentRes] = await Promise.all([
         superAdminDb.execute(sql`
-          SELECT id, feature, level, error_code, safe_message,
-                 user_id, user_type, request_id, trace_id,
-                 retry_count, current_status, created_at
+          SELECT id, 'EVENT'::text AS source_type,
+                 pool_id, category,
+                 COALESCE(feature, category) AS feature_detail,
+                 COALESCE(level, 'WARNING') AS level,
+                 error_code, safe_message,
+                 actor_id, target,
+                 COALESCE(description, safe_message, '') AS display_message,
+                 request_id, trace_id,
+                 entity_type, entity_id,
+                 metadata, created_at
           FROM event_logs
-          WHERE pool_id = ${poolId}
-            AND level IN ('error', 'critical', 'warning')
-            AND (${feature} = '' OR feature = ${feature})
+          WHERE ${evtWhere}
           ORDER BY created_at DESC
-          LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+          LIMIT ${lim} OFFSET ${off}
         `).catch(() => ({ rows: [] })),
         superAdminDb.execute(sql`
-          SELECT id, pool_id, title, severity, status,
-                 created_at, resolved_at, description
-          FROM incidents
-          WHERE pool_id = ${poolId}
-          ORDER BY created_at DESC LIMIT 10
-        `).catch(() => ({ rows: [] })),
+          SELECT COUNT(*) AS total FROM event_logs WHERE ${evtWhere}
+        `).catch(() => ({ rows: [{ total: 0 }] })),
+        pushFailed,
+        growthFailed,
+        incidents,
       ]);
-      res.json({ events: events.rows, incidents: incidents.rows });
+
+      // ── 6. Summary (24h + 7d counts by level) ──
+      const summary24h = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE level IN ('ERROR','CRITICAL') OR (level IS NULL AND category='보안')) AS error_count,
+          COUNT(*) FILTER (WHERE level = 'WARNING') AS warning_count,
+          COUNT(*) FILTER (WHERE level = 'CRITICAL') AS critical_count
+        FROM event_logs
+        WHERE pool_id = ${poolId}
+          AND created_at >= NOW() - INTERVAL '24 hours'
+          AND (level IN ('WARNING','ERROR','CRITICAL') OR (level IS NULL AND category = '보안'))
+      `).catch(() => ({ rows: [{ error_count: 0, warning_count: 0, critical_count: 0 }] }));
+
+      const summary7d = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE level IN ('ERROR','CRITICAL') OR (level IS NULL AND category='보안')) AS error_count,
+          COUNT(*) FILTER (WHERE level = 'WARNING') AS warning_count,
+          COUNT(*) FILTER (WHERE level = 'CRITICAL') AS critical_count,
+          feature,
+          COUNT(*) AS feature_count
+        FROM event_logs
+        WHERE pool_id = ${poolId}
+          AND created_at >= NOW() - INTERVAL '7 days'
+          AND (level IN ('WARNING','ERROR','CRITICAL') OR (level IS NULL AND category = '보안'))
+        GROUP BY feature
+        ORDER BY feature_count DESC LIMIT 10
+      `).catch(() => ({ rows: [] }));
+
+      const [sum24hRes, sum7dRes] = await Promise.all([summary24h, summary7d]);
+
+      res.json({
+        // Paginated event_logs
+        events:      evtRows.rows,
+        total:       Number((evtCount.rows[0] as any)?.total ?? 0),
+        limit:       lim, offset: off,
+        // Supplementary sources
+        push_failures:   pushRes.rows,
+        growth_failures: growthRes.rows,
+        incidents:       incidentRes.rows,
+        // Filters applied
+        applied_filters: { range, from, to, feature, level, category, request_id, trace_id },
+        // Summary
+        summary: {
+          h24: sum24hRes.rows[0] ?? null,
+          d7:  sum7dRes.rows,
+        },
+      });
     } catch (e: any) {
       res.status(500).json({ error: "ERRORS_FAILED", message: e?.message });
     }

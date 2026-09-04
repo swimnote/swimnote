@@ -1,0 +1,1714 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# WP6 — ERROR / INCIDENT / OBSERVABILITY
+# BASELINE: 55fc9c27
+# DO NOT START WP7
+
+============================================================
+0. WP6 목적
+============================================================
+
+WP5 AI / Growth / Job Operations 완료.
+
+이번 WP6 목표:
+
+실제 운영 중 문제가 발생했을 때
+
+Super Admin
+→ 해당 수영장
+→ Errors / Incidents
+
+에서
+
+- 어떤 기능
+- 어떤 사용자/주체
+- 어떤 요청
+- 어떤 job
+- 언제
+- 어떤 오류
+- severity
+- request_id
+- trace_id
+- 재시도/복구 여부
+
+를 확인할 수 있도록
+Pool-scoped observability를 완성한다.
+
+최종 목표:
+
+"고객이 앱이 안된다고 문의했을 때
+서버 콘솔을 직접 뒤지지 않고
+해당 수영장 Control Center에서
+대부분 원인을 찾을 수 있는 수준."
+
+============================================================
+1. CURRENT BASELINE
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+55fc9c27
+
+먼저:
+
+git status
+git rev-parse HEAD
+git log --oneline -10
+
+55fc9c27 ancestor:
+YES
+
+기존 source 재사용:
+
+event_logs
+audit_logs
+ai_traces
+incidents
+growth_report_batch_jobs
+growth_reports
+notifications
+x_setup_submissions
+기존 request_id / trace_id
+기존 event logger
+
+새 observability framework를
+중복으로 만들지 말 것.
+
+============================================================
+2. 기존 확인된 OBSERVABILITY GAP
+============================================================
+
+이전 WP에서 확인된 console-only 영역:
+
+1.
+Growth worker stderr / runtime failure 일부
+
+2.
+Upload/storage per-error
+
+3.
+R2/object failure
+
+4.
+Signed URL failure
+
+5.
+Notification push failure
+
+6.
+RevenueCat/billing sync error 일부
+
+이번 WP에서 전수조사하여
+
+MUST DB-OBSERVABLE
+SHOULD
+CONSOLE ACCEPTABLE
+
+로 분류.
+
+실제 고객센터 진단에 필요한 MUST는
+이번 WP에서 DB-backed observability로 연결.
+
+============================================================
+3. ERROR SOURCE INVENTORY
+============================================================
+
+현재 전체 server code에서
+운영 오류 source를 전수조사.
+
+분류:
+
+AUTH
+API
+AI
+DIARY
+CURRICULUM
+GROWTH_REPORT
+JOB
+PUSH
+NOTIFICATION
+UPLOAD
+STORAGE
+BILLING
+SUBSCRIPTION
+DATABASE
+UNKNOWN
+
+각 영역별:
+
+logger/service
+DB backed
+console only
+pool_id
+user_id
+request_id
+trace_id
+error code
+severity
+timestamp
+
+를 보고.
+
+============================================================
+4. 중요한 원칙 — 오류는 POOL에 귀속
+============================================================
+
+가능한 모든 tenant 운영 오류는:
+
+swimming_pool_id / pool_id
+
+를 가져야 한다.
+
+사용자 연관 시:
+
+user_id / actor_id / subject_id
+
+가능한 경우 저장.
+
+Pool 정보가 실제 context에서 존재하지 않는
+global boot/system error는
+억지로 pool에 귀속하지 말 것.
+
+============================================================
+5. 기존 EVENT LOGGING 재사용
+============================================================
+
+운영 오류 기록을 위해
+기존 event_logs 또는
+현재 프로젝트의 표준 event logger가 충분하다면
+반드시 재사용.
+
+새 errors 테이블을
+무조건 만들지 말 것.
+
+기존 incidents table이
+운영 incident 목적에 적합하면 역할 분석.
+
+중복 source 생성 금지.
+
+============================================================
+6. STANDARD SAFE ERROR PAYLOAD
+============================================================
+
+운영 로그에 필요한 최소 구조를
+기존 schema 범위 내에서 표준화.
+
+개념:
+
+pool_id
+actor/user nullable
+feature
+category
+severity
+error_code
+safe_message
+request_id nullable
+trace_id nullable
+entity_type nullable
+entity_id nullable
+metadata safe subset
+created_at
+
+기존 event_logs schema에 맞게 구현.
+
+새 컬럼은 정말 필요할 때만 additive.
+
+============================================================
+7. 절대 로그 금지
+============================================================
+
+절대 기록/노출 금지:
+
+password
+password_hash
+JWT
+refresh token
+access token
+API key
+OpenAI key
+RevenueCat secret
+R2 secret
+signed URL signature
+payment credential
+full Authorization header
+
+또한:
+
+full prompt
+full LLM response
+학부모 검색 원문 전체
+
+기본 기록 금지.
+
+============================================================
+8. PII REDACTION
+============================================================
+
+오류 metadata에 사용자 데이터가 들어갈 경우
+safe whitelist 방식 선호.
+
+예:
+
+user_id:
+가능
+
+student_id:
+가능
+
+class_id:
+가능
+
+request_id:
+가능
+
+전화번호 전체:
+기본 NO
+
+이메일:
+필요 시 최소화
+
+이름:
+진단에 꼭 필요하지 않으면 ID 사용.
+
+============================================================
+9. ERROR SEVERITY
+============================================================
+
+현재 기존 severity가 있으면 재사용.
+
+없으면 UI normalization만 검토:
+
+INFO
+WARNING
+ERROR
+CRITICAL
+
+단 DB enum 새로 만들 필요가 없으면 만들지 말 것.
+
+CRITICAL 예시는
+실제 운영 영향이 큰 경우만:
+
+cross-pool/security
+repeated worker fatal
+storage write impossible
+subscription system corruption
+
+일반 validation 400을 CRITICAL로 만들지 말 것.
+
+============================================================
+10. AUTH OBSERVABILITY
+============================================================
+
+조사:
+
+login failure
+token invalid
+role forbidden
+account state
+pool mismatch
+
+현재 event_logs 등에 얼마나 남는지 확인.
+
+고객센터에서 필요한 항목:
+
+time
+user reference
+reason category
+request_id
+safe message
+
+Password:
+NO
+
+entered password:
+NO
+
+token:
+NO
+
+============================================================
+11. API ERROR OBSERVABILITY
+============================================================
+
+5xx 중심으로
+pool context가 있는 API failure가
+DB 관찰 가능한지 확인.
+
+모든 4xx를 DB에 쌓아서
+로그 폭증시키지 말 것.
+
+추천:
+
+unexpected 5xx:
+MUST
+
+business 409/422 중 운영진단 중요:
+선별
+
+normal validation 400:
+기본 console/request log 정도
+
+실제 architecture에 맞춰 결정.
+
+============================================================
+12. AI ERROR OBSERVABILITY
+============================================================
+
+WP5 ai_traces 재사용.
+
+AI error를 event_logs에
+중복 기록할 필요가 있는지 검토.
+
+목표:
+
+Error Center에서 AI failure를 보되
+source duplication으로 같은 오류가 2~3개
+중복 노출되지 않게.
+
+Canonical source 정의.
+
+============================================================
+13. DIARY ERROR
+============================================================
+
+조사:
+
+AI Diary generation
+Diary save
+Diary DB transaction
+AI verification/request correlation
+
+운영상 중요 실패가
+request_id와 pool에 연결되는지 확인.
+
+필요한 gap만 보강.
+
+============================================================
+14. GROWTH WORKER — 중요
+============================================================
+
+기존 console-only gap.
+
+확인:
+
+worker claim
+AI call
+validation
+report persistence
+notification
+retry scheduling
+stale reclaim
+
+각 failure가
+growth_report_batch_jobs.last_error/status 등으로
+충분히 남는지 확인.
+
+이미 job row에
+안전한 오류가 남는 경우:
+중복 event 생성 금지.
+
+console에만 있고
+job row에서 원인 확인 불가능한 MUST 오류만
+DB-backed 연결.
+
+============================================================
+15. STUCK / RECOVERY EVENTS
+============================================================
+
+WP5에서 10분 stale rule 사용.
+
+Error Center에서:
+
+FAILED
+STUCK
+RECOVERED/RECLAIMED
+
+를 실제 source가 있으면 보여준다.
+
+복구 이벤트가 현재 기록되지 않는다면
+필요성을 평가.
+
+무조건 신규 state 추가 금지.
+
+============================================================
+16. CURRICULUM PROCESSING
+============================================================
+
+x_setup_submissions 등의
+processing failure가 이미 DB status로 존재.
+
+Error Center에서
+canonical source로 연결.
+
+같은 failure를
+새 event_log로 중복 저장할 필요 없는지 검토.
+
+============================================================
+17. UPLOAD FAILURE — MUST 검토
+============================================================
+
+현재 per-upload failure가 console-only.
+
+실제 운영에서 고객 문의 가능성이 높으므로
+DB observability가 필요한 실패를 선정.
+
+예:
+
+R2 PUT 실패
+quota blocked
+invalid upload
+DB metadata persist 실패
+
+normal client validation은
+로그 폭증 방지.
+
+서버/스토리지 failure:
+MUST observable.
+
+============================================================
+18. R2 / STORAGE FAILURE
+============================================================
+
+WP4에서 확인:
+
+upload/R2/signed URL 일부 console-only.
+
+다음은 운영진단 가능하게:
+
+R2 GET/PUT/delete failure
+signed URL generation failure
+object missing during expected download
+storage service unavailable
+
+단:
+
+object key 전체
+signed URL
+secret
+
+로그 금지.
+
+safe object reference:
+file_id/submission_id 정도.
+
+============================================================
+19. CURRICULUM DOWNLOAD FAILURE
+============================================================
+
+정상:
+
+wrong pool 404
+wrong file 404
+
+는 보안상 정상 behavior라
+ERROR DB log를 남길 필요 없음.
+
+반면:
+
+known DB file exists
+but signing fails
+
+→ operational error
+
+R2 service error
+→ operational error
+
+이런 것만 기록.
+
+============================================================
+20. PUSH / NOTIFICATION FAILURE — 중요
+============================================================
+
+현재 push-service.ts 발송 실패가
+console-only였음.
+
+고객센터에서:
+
+"알림이 안 왔다"
+
+를 WP7에서 진단하려면
+이번 WP6에서 최소 delivery failure source가
+필요할 수 있음.
+
+조사:
+
+notifications row
+push send
+provider response
+retry
+failure
+
+현재 구조 기준으로
+최소 안전한 실패 기록 구현.
+
+============================================================
+21. PUSH LOGGING PRINCIPLE
+============================================================
+
+각 개별 성공 push를
+event_logs에 무한 적재할 필요 없음.
+
+기본:
+
+failure:
+DB observable
+
+success:
+existing notification state가 있으면 재사용
+
+대량 push에서
+1000명 실패 → event 1000개가 적절한지
+현재 규모 기준 검토.
+
+필요하면 aggregate + recipient-level source 구분.
+
+WP7이 사용할 수 있는 구조로 준비.
+
+============================================================
+22. BILLING / REVENUECAT ERROR
+============================================================
+
+RevenueCat live 연결은 아직 마지막 단계지만
+현재 webhook/sync infrastructure 조사.
+
+결제 상태 변화 자체:
+audit/status source
+
+webhook processing failure:
+운영 error
+
+signature/auth rejection:
+security-safe log
+
+raw webhook body:
+로그 금지
+
+payment data:
+로그 금지
+
+현재 live 미연결이어도
+향후 WP10을 위해 error path 준비 가능.
+
+============================================================
+23. DATABASE ERROR
+============================================================
+
+모든 SQL error를 DB에 다시 기록하려 하면
+DB 장애 시 recursive failure 발생 가능.
+
+따라서:
+
+DB 자체 장애:
+console/platform log가 canonical일 수 있음.
+
+DB connection failure를
+같은 DB event_logs에 반드시 기록하려 하지 말 것.
+
+Error Center에서 볼 수 있는 범위와
+platform-level 운영 로그 범위를 구분.
+
+============================================================
+24. INCIDENTS TABLE 역할 확인
+============================================================
+
+현재 incidents table이 존재/optional했던 이력 있음.
+
+정확히 조사:
+
+schema
+purpose
+writers
+readers
+production 존재 여부
+migration
+
+만약 사실상 unused/optional이면
+Error Center의 핵심 source로 의존하지 말 것.
+
+실제 canonical source를 선정.
+
+============================================================
+25. ERROR CENTER API
+============================================================
+
+현재:
+
+GET /super/pools/:id/control-center/errors
+
+를 확장/재사용.
+
+필요한 filters:
+
+from/to
+category/feature
+severity
+user/subject
+request_id
+trace_id
+status/source
+
+실제 가능한 필드만.
+
+Pagination:
+필수.
+
+============================================================
+26. UNIFIED ERROR VIEW
+============================================================
+
+여러 source:
+
+event_logs
+ai_traces
+growth jobs
+curriculum status
+incidents
+notifications
+
+를 UI에서 한 Timeline처럼 볼 수 있게 하되
+
+서버에서 거대한 UNION이 비효율적이면
+source별 lazy sections + normalized view 사용 가능.
+
+성능과 정확성 우선.
+
+============================================================
+27. DUPLICATE ERROR POLICY
+============================================================
+
+같은 request_id/error가:
+
+ai_traces
+event_logs
+job
+
+에 동시에 존재할 수 있음.
+
+중복 제거 정책 정의.
+
+예:
+
+AI execution failure:
+canonical ai_trace
+
+Job orchestration failure:
+job
+
+Generic API/server failure:
+event_log
+
+UI에서 related source link.
+
+무조건 timestamp만 보고 dedupe 금지.
+
+============================================================
+28. ERROR DETAIL DRAWER
+============================================================
+
+row 클릭:
+
+Time
+Severity
+Category
+Feature
+Source
+Pool
+Actor/subject
+Request ID
+Trace ID
+Entity
+Safe message
+Retry/job status
+Related records
+
+표시.
+
+Raw secret metadata:
+NO.
+
+============================================================
+29. RELATED LINKS
+============================================================
+
+가능하면 기존 WP와 연결:
+
+member error
+→ WP3 Member detail
+
+teacher error
+→ WP3 Teacher detail
+
+parent error
+→ WP3 Parent detail
+
+AI request
+→ WP5 Trace drawer
+
+growth job
+→ WP5 Job/Report
+
+curriculum
+→ WP4 Curriculum
+
+notification
+→ WP7 이후 연결 예정
+
+실제 ID 있을 때만.
+
+============================================================
+30. REQUEST ID SEARCH
+============================================================
+
+WP5 search와 중복 route를 새로 만들지 말 것.
+
+Error Center request_id search는
+기존 WP5 correlation/search service를 재사용하거나
+공통 helper로 정리.
+
+Business logic 중복 금지.
+
+============================================================
+31. TIME RANGE
+============================================================
+
+기본:
+
+최근 7일 또는 합리적인 bounded range.
+
+UI filter:
+
+24h
+7d
+30d
+custom where supported
+
+무제한 전체 history 기본 fetch:
+금지.
+
+============================================================
+32. LIVE REFRESH
+============================================================
+
+Error Center에 진입할 때
+최신 DB state fetch.
+
+자동 실시간 websocket까지
+이번 WP에서 만들 필요 없음.
+
+필요하면:
+
+[새로고침]
+
+으로 latest fetch.
+
+"실시간 반영"은
+DB 기록 후 다음 fetch에서 즉시 보이는 수준이면 충분.
+
+============================================================
+33. ERROR HEALTH 연동
+============================================================
+
+WP1 Overview의:
+
+recent_error_count
+FREQUENT_ERRORS
+
+가 Error Center canonical source와
+일치하는지 확인.
+
+Overview count와
+Errors filter 결과가 다른 source를 써서
+숫자가 틀어지면 수정.
+
+============================================================
+34. HEALTH THRESHOLD 유지
+============================================================
+
+WP1 확정 rule을
+WP6에서 임의 변경 금지.
+
+error > 10:
+FREQUENT_ERRORS
+
+등 기존 threshold 유지.
+
+변경 필요성이 발견되면
+보고만 하고 Master Design change로 넘김.
+
+============================================================
+35. EVENT VOLUME
+============================================================
+
+운영 로그가 지나치게 증가하지 않게 검토.
+
+특히:
+
+auth 401
+normal 404
+validation 400
+push bulk
+search failures
+
+noise를 줄인다.
+
+MUST operational failures 중심.
+
+============================================================
+36. RETENTION
+============================================================
+
+현재 event_logs/trace retention 정책이 있는지 조사.
+
+없으면 이번 WP에서
+무조건 purge worker 만들지 말 것.
+
+500 pool 운영 시 예상 volume만 보고.
+
+필요 시:
+LATER.
+
+============================================================
+37. INDEX REVIEW
+============================================================
+
+주요 조회:
+
+pool_id + created_at
+pool_id + category/feature
+request_id
+trace_id
+severity/status where DB field exists
+
+EXPLAIN/schema inspection.
+
+명백한 병목만 additive index.
+
+Production:
+NO.
+
+============================================================
+38. CROSS-POOL P0
+============================================================
+
+DEV POOL_A / POOL_B fixture.
+
+POOL_A Error Center에서:
+
+POOL_B event:
+0
+
+POOL_B AI trace:
+0
+
+POOL_B growth error:
+0
+
+POOL_B curriculum failure:
+0
+
+POOL_B notification failure:
+0
+
+request_id search with POOL_B id:
+0
+
+trace_id with POOL_B:
+0
+
+related subject:
+0
+
+============================================================
+39. AUTH
+============================================================
+
+모든 WP6 Super Admin endpoint:
+
+super_admin:
+PASS
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+============================================================
+40. SAFE ERROR WRITE TEST
+============================================================
+
+Development에서 실제 안전한 failure fixture를 사용해
+
+예:
+
+R2 simulated failure
+push simulated failure
+growth job simulated failure
+
+중 구현된 MUST source는
+
+failure
+→ DB error record
+→ Pool Error API
+→ Web UI
+
+까지 실제 검증.
+
+console inspection만으로 PASS 금지.
+
+============================================================
+41. NO REAL EXTERNAL SIDE EFFECT
+============================================================
+
+테스트에서:
+
+실제 parent push:
+NO
+
+실제 RevenueCat transaction:
+NO
+
+실제 AI 유료 호출:
+NO
+
+실제 production R2:
+NO
+
+mock/fake external adapter failure를
+DEV에서 주입하거나
+안전한 fixture 사용.
+
+Mock UI data는 금지지만
+failure adapter test double은 테스트에서 허용.
+
+============================================================
+42. PII TEST
+============================================================
+
+의도적으로 test error metadata에:
+
+password
+authorization
+token
+phone
+email
+prompt
+
+같은 값을 넣어
+redaction/whitelist가 실제로 제거하는지 테스트.
+
+response에서도:
+NO.
+
+DB stored payload에서도:
+NO where logger controls storage.
+
+============================================================
+43. ERROR WRITE FAILURE
+============================================================
+
+logging 자체가 실패하더라도
+원래 business response가 이상하게 뒤집히지 않게.
+
+예:
+
+push 실패
++
+event logger 실패
+
+→ logger가 infinite recursion / crash 만들지 않음.
+
+best-effort logging이 적절한 영역과
+transactional logging이 필요한 영역 구분.
+
+============================================================
+44. AUDIT vs ERROR
+============================================================
+
+Audit:
+누가 무엇을 변경했는가
+
+Error:
+무엇이 실패했는가
+
+역할 분리.
+
+같은 action에
+audit failure record를 error로 오해하지 말 것.
+
+============================================================
+45. UI
+============================================================
+
+Errors / Incidents 탭:
+
+상단:
+기간
+severity
+category
+feature
+request_id
+
+Summary:
+24h errors
+7d errors
+critical
+warning
+top failing feature where reliable
+
+아래:
+timeline/table
+
+row:
+detail drawer.
+
+============================================================
+46. EMPTY STATE
+============================================================
+
+오류 없음:
+"최근 오류가 없습니다"
+
+정상 healthy state.
+
+Error Center 자체 error:
+별도 표시.
+
+============================================================
+47. SOURCE BADGE
+============================================================
+
+각 오류에 source 표시 가능:
+
+EVENT
+AI TRACE
+JOB
+CURRICULUM
+PUSH
+INCIDENT
+
+운영자가 어디에서 온 기록인지 알 수 있게.
+
+============================================================
+48. CONSOLE-ONLY FINAL GATE
+============================================================
+
+WP6 완료 시
+다음 각 항목을 보고:
+
+AUTH:
+DB / CONSOLE / PLATFORM
+
+API:
+...
+
+AI:
+...
+
+DIARY:
+...
+
+GROWTH:
+...
+
+CURRICULUM:
+...
+
+UPLOAD:
+...
+
+R2:
+...
+
+PUSH:
+...
+
+BILLING:
+...
+
+DB:
+...
+
+MUST인데 console-only로 남은 항목:
+0
+
+이 목표.
+
+============================================================
+49. APP IMPACT
+============================================================
+
+원칙적으로:
+
+Server + Super Admin Web.
+
+일반 iOS APP 수정 없어야 함.
+
+하지만 request_id/pool context가
+APP에서 누락되어 관측 자체가 불가능한
+P0 문제가 실제 발견될 경우
+
+최소 APP 수정 허용.
+
+APP/shared 변경 시:
+
+test
+commit
+iOS OTA immediate.
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED.
+
+============================================================
+50. OTA
+============================================================
+
+git diff 실제 확인.
+
+APP/shared runtime changed:
+YES
+
+→ OTA 필수.
+
+NO
+→ OTA NOT REQUIRED.
+
+============================================================
+51. TEST MATRIX
+============================================================
+
+Inventory:
+PASS
+
+Error normalization:
+PASS
+
+Pool scope:
+PASS
+
+Time filters:
+PASS
+
+Severity:
+PASS
+
+Category:
+PASS
+
+Request search:
+PASS
+
+Trace search:
+PASS where source exists
+
+Pagination:
+PASS
+
+Detail:
+PASS
+
+Related links:
+PASS where ID exists
+
+Overview count consistency:
+PASS
+
+PII redaction:
+PASS
+
+No secret:
+PASS
+
+Duplicate policy:
+PASS
+
+============================================================
+52. FAILURE SOURCE TESTS
+============================================================
+
+각 이번 WP에서 새로 DB-observable로 만든
+MUST failure에 대해:
+
+failure injected:
+PASS
+
+DB row:
+PASS
+
+pool_id:
+PASS
+
+safe_message:
+PASS
+
+request/trace:
+PASS where available
+
+Error API:
+PASS
+
+Web:
+PASS
+
+cross-pool:
+0
+
+============================================================
+53. REGRESSION
+============================================================
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+WP3:
+PASS
+
+WP4:
+PASS
+
+WP4-P1:
+PASS
+
+WP5:
+PASS
+
+BASE:
+PASS
+
+X:
+PASS
+
+Curriculum download:
+PASS
+
+AI:
+PASS
+
+Growth:
+PASS
+
+Jobs:
+PASS
+
+============================================================
+54. DB
+============================================================
+
+기존 event_logs/schema로 충분:
+migration NO.
+
+필수 field/index 필요:
+Development additive only.
+
+Production:
+NO.
+
+============================================================
+55. SERVER
+============================================================
+
+test
+TS
+commit
+push release/v2.0.0
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+56. 완료보고
+============================================================
+
+# WP6 ERROR / INCIDENT / OBSERVABILITY REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+55fc9c27
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+FILES CHANGED
+============================================================
+
+Server:
+...
+
+Web:
+...
+
+APP/shared:
+...
+
+Migration:
+...
+
+Tests:
+...
+
+============================================================
+SOURCE INVENTORY
+============================================================
+
+AUTH:
+...
+
+API:
+...
+
+AI:
+...
+
+DIARY:
+...
+
+GROWTH:
+...
+
+CURRICULUM:
+...
+
+UPLOAD:
+...
+
+R2/STORAGE:
+...
+
+PUSH:
+...
+
+BILLING:
+...
+
+DATABASE:
+...
+
+============================================================
+CANONICAL SOURCES
+============================================================
+
+Generic operational error:
+...
+
+AI execution error:
+...
+
+Growth job error:
+...
+
+Curriculum failure:
+...
+
+Push failure:
+...
+
+Storage failure:
+...
+
+============================================================
+NEW DB OBSERVABILITY
+============================================================
+
+Newly instrumented:
+...
+
+Existing reused:
+...
+
+MUST console-only remaining:
+...
+
+============================================================
+ERROR CENTER
+============================================================
+
+Summary:
+PASS / FAIL
+
+Timeline:
+PASS / FAIL
+
+Time filter:
+PASS / FAIL
+
+Severity:
+PASS / FAIL
+
+Category:
+PASS / FAIL
+
+Feature:
+PASS / FAIL
+
+Request search:
+PASS / FAIL
+
+Trace search:
+PASS / FAIL / N/A
+
+Detail drawer:
+PASS / FAIL
+
+Related links:
+PASS / FAIL
+
+Pagination:
+PASS / FAIL
+
+============================================================
+OVERVIEW CONSISTENCY
+============================================================
+
+WP1 recent_error_count:
+PASS / FAIL
+
+FREQUENT_ERRORS:
+PASS / FAIL
+
+Error Center same canonical source:
+YES / NO
+
+============================================================
+PII / SECURITY
+============================================================
+
+Password:
+NO / YES
+
+JWT:
+NO / YES
+
+Authorization:
+NO / YES
+
+API key:
+NO / YES
+
+Phone:
+...
+
+Email:
+...
+
+Prompt:
+NO / YES
+
+LLM response:
+NO / YES
+
+Signed URL:
+NO / YES
+
+============================================================
+AUTH / CROSS-POOL
+============================================================
+
+Super Admin:
+PASS / FAIL
+
+Pool Admin:
+BLOCKED / FAIL
+
+Teacher:
+BLOCKED / FAIL
+
+Parent:
+BLOCKED / FAIL
+
+Unauthenticated:
+BLOCKED / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+============================================================
+FAILURE E2E
+============================================================
+
+Upload/storage failure:
+PASS / N/A / FAIL
+
+R2 failure:
+PASS / N/A / FAIL
+
+Signed URL failure:
+PASS / N/A / FAIL
+
+Push failure:
+PASS / N/A / FAIL
+
+Growth worker failure:
+PASS / N/A / FAIL
+
+Billing failure:
+PASS / N/A / FAIL
+
+All MUST E2E verified:
+YES / NO
+
+============================================================
+PERFORMANCE
+============================================================
+
+N+1:
+0 / ...
+
+Unbounded:
+0 / ...
+
+Indexes added:
+...
+
+Retention:
+...
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0 / ...
+
+WP1 regression:
+PASS / FAIL
+
+WP2 regression:
+PASS / FAIL
+
+WP3 regression:
+PASS / FAIL
+
+WP4 regression:
+PASS / FAIL
+
+WP5 regression:
+PASS / FAIL
+
+============================================================
+APP / OTA
+============================================================
+
+iOS APP/shared runtime modified:
+YES / NO
+
+If YES:
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group:
+...
+
+iOS Update:
+...
+
+Commit SHA:
+...
+
+Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+If NO:
+
+OTA:
+NOT REQUIRED
+
+============================================================
+DB
+============================================================
+
+Development migration:
+...
+
+Production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP6 complete:
+YES / NO
+
+Error Center support-ready:
+YES / NO
+
+MUST operational failures observable:
+YES / NO
+
+Cross-pool:
+PASS / FAIL
+
+PII redaction:
+PASS / FAIL
+
+Remaining blocker:
+...
+
+Recommended next WP:
+WP7 — NOTIFICATION DIAGNOSTICS
+
+DO NOT START WP7.
+WAIT FOR NEXT INSTRUCTION.
