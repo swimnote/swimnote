@@ -30,6 +30,14 @@ export interface OfficialPlanDef {
   price_label: string;
   /** Member limit — null for base/data plans with no hard cap */
   member_limit: number | null;
+  /**
+   * Additive storage quota in GB added to swimming_pools.extra_storage_gb
+   * when this data_addon plan is activated.
+   * null for base/x plans (those carry their own storage_gb in subscription_plans).
+   *
+   * Quota formula: total_gb = base_plan_storage_gb + extra_storage_gb (accumulated add-ons)
+   */
+  storage_add_gb: number | null;
   /** Whether this plan is selectable for new grants */
   active: boolean;
   /** Display sort order */
@@ -49,6 +57,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     monthly_price_krw:     9900,
     price_label:           "₩9,900/월",
     member_limit:          null,
+    storage_add_gb:        null,
     active:                true,
     sort_order:            10,
     revenuecat_product_id: null,
@@ -62,6 +71,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     monthly_price_krw:     119000,
     price_label:           "₩119,000/월",
     member_limit:          300,
+    storage_add_gb:        null,
     active:                true,
     sort_order:            20,
     revenuecat_product_id: null,
@@ -73,6 +83,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     monthly_price_krw:     189000,
     price_label:           "₩189,000/월",
     member_limit:          500,
+    storage_add_gb:        null,
     active:                true,
     sort_order:            21,
     revenuecat_product_id: null,
@@ -84,12 +95,16 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     monthly_price_krw:     349000,
     price_label:           "₩349,000/월",
     member_limit:          1000,
+    storage_add_gb:        null,
     active:                true,
     sort_order:            22,
     revenuecat_product_id: null,
   },
 
   // ─ DATA ADD-ON ───────────────────────────────────────────────────────────
+  // storage_add_gb: 확정 (2026-09-05) — additive, BASE/X plan quota에 가산
+  // 중복 add-on 정책: 기존 /billing/storage-addon 라우트 = additive 누적 허용
+  // RevenueCat 경로 중복 구매 정책: repo 미정의 (미구현 상태 유지, 별도 WP에서 정의)
   {
     plan_key:              "data100",
     display_name:          "DATA100",
@@ -97,6 +112,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     monthly_price_krw:     7900,
     price_label:           "₩7,900/월",
     member_limit:          null,
+    storage_add_gb:        100,
     active:                true,
     sort_order:            30,
     revenuecat_product_id: null,
@@ -108,6 +124,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     monthly_price_krw:     22900,
     price_label:           "₩22,900/월",
     member_limit:          null,
+    storage_add_gb:        300,
     active:                true,
     sort_order:            31,
     revenuecat_product_id: null,
@@ -141,6 +158,17 @@ export function getXPlanMemberLimit(key: string): number | null {
   const plan = getOfficialPlan(key);
   if (!plan || plan.plan_type !== "x") return null;
   return plan.member_limit;
+}
+
+/**
+ * DATA add-on 플랜의 additive storage quota (GB).
+ * 이 값이 pool의 extra_storage_gb에 가산됨.
+ * BASE/X 플랜 key 입력 시 null 반환.
+ */
+export function getDataAddonStorageGb(key: string): number | null {
+  const plan = getOfficialPlan(key);
+  if (!plan || plan.plan_type !== "data_addon") return null;
+  return plan.storage_add_gb;
 }
 
 /** 유효한 X plan key 집합 */
