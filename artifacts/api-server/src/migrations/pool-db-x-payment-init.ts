@@ -314,6 +314,18 @@ export async function initXPaymentSchema(): Promise<void> {
     throw err;
   }
 
+  // ── Group P4: x_plan_key (Super Admin manual plan 기록용) ────────────────
+  try {
+    await db.execute(sql`
+      ALTER TABLE swimming_pools
+        ADD COLUMN IF NOT EXISTS x_plan_key TEXT;
+    `);
+    console.log("[SWIMNOTE X PAYMENT] Group P4 완료: swimming_pools.x_plan_key OK");
+  } catch (err) {
+    console.error("[SWIMNOTE X PAYMENT] Group P4 실패:", err);
+    throw err;
+  }
+
   console.log("[SWIMNOTE X PAYMENT] ✅ X02-B1 Migration 완료");
 }
 

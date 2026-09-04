@@ -2066,14 +2066,22 @@ router.patch(
       xmode_config_status,
       xmode_purchased_at,
       xmode_subscription_end_at,
+      x_plan_key,
+      bypass_readiness_check,
       reason,
     } = req.body as {
       xmode_entitlement?: boolean;
       xmode_config_status?: XModeStatus;
       xmode_purchased_at?: string | null;
       xmode_subscription_end_at?: string | null;
+      x_plan_key?: string | null;          // Super Admin manual plan (x300/x500/x1000)
+      bypass_readiness_check?: boolean;    // Super Admin manual grant — READY 검증 우회
       reason?: string;
     };
+
+    // Super Admin manual grant: x_plan_key → member_limit 자동 반영
+    const X_PLAN_LIMITS: Record<string, number> = { x300: 300, x500: 500, x1000: 1000 };
+    const VALID_X_PLAN_KEYS = new Set(["x300", "x500", "x1000"]);
 
     // ── Transaction 밖: 입력 검증 ────────────────────────────────
     // X02-B2: xmode_entitlement 입력 → x_manual_entitlement 쓰기 (backward compat body key 유지)
@@ -2081,9 +2089,15 @@ router.patch(
     const hasConfigStatus     = xmode_config_status    !== undefined;
     const hasPurchasedAt      = xmode_purchased_at     !== undefined;
     const hasSubscriptionEnd  = xmode_subscription_end_at !== undefined;
+    const hasPlanKey          = x_plan_key             !== undefined;
 
-    if (!hasEntitlement && !hasConfigStatus && !hasPurchasedAt && !hasSubscriptionEnd) {
+    if (!hasEntitlement && !hasConfigStatus && !hasPurchasedAt && !hasSubscriptionEnd && !hasPlanKey) {
       res.status(400).json({ error: "변경 항목이 없습니다." }); return;
+    }
+
+    // x_plan_key 검증: null이거나 유효한 plan key여야 함
+    if (hasPlanKey && x_plan_key !== null && !VALID_X_PLAN_KEYS.has(x_plan_key!)) {
+      res.status(400).json({ error: "x_plan_key는 x300, x500, x1000 또는 null이어야 합니다." }); return;
     }
     if (hasEntitlement && typeof xmode_entitlement !== "boolean") {
       res.status(400).json({ error: "xmode_entitlement는 boolean이어야 합니다." }); return;
@@ -2111,8 +2125,9 @@ router.patch(
 
     // ── READY Transition Guard (Transaction 전 실행) ──────────────
     // x_setup_submissions + curriculum 파일 + entitlement 확인.
+    // bypass_readiness_check=true: Super Admin manual grant 시 우회 허용.
     // 검증 실패 → 409 READY_PREREQUISITES_NOT_MET (DB write 없음).
-    if (hasConfigStatus && xmode_config_status === "READY") {
+    if (hasConfigStatus && xmode_config_status === "READY" && !bypass_readiness_check) {
       try {
         const readiness = await validateXModeReadiness(poolId, superAdminDb);
         if (!readiness.ready) {
@@ -2188,16 +2203,28 @@ router.patch(
         const subscriptionEndFrag = hasSubscriptionEnd
           ? sql`xmode_subscription_end_at = ${xmode_subscription_end_at ?? null}`
           : sql`xmode_subscription_end_at = xmode_subscription_end_at`;
+        // Manual plan key — Super Admin only. x_plan_key null = revoke/clear
+        const planKeyFrag = hasPlanKey
+          ? sql`x_plan_key = ${x_plan_key ?? null}`
+          : sql`x_plan_key = x_plan_key`;
+        // Auto-set member_limit from plan key when granting a plan
+        const resolvedLimit = (hasPlanKey && x_plan_key) ? (X_PLAN_LIMITS[x_plan_key] ?? null) : null;
+        const memberLimitFrag = resolvedLimit !== null
+          ? sql`member_limit = ${resolvedLimit}`
+          : sql`member_limit = member_limit`;
 
         const updatedRows = await tx.execute(sql`
           UPDATE swimming_pools SET
             ${manualFrag},
             ${configStatusFrag},
             ${purchasedAtFrag},
-            ${subscriptionEndFrag}
+            ${subscriptionEndFrag},
+            ${planKeyFrag},
+            ${memberLimitFrag}
           WHERE id = ${poolId}
           RETURNING id, xmode_config_status,
                     xmode_purchased_at, xmode_subscription_end_at,
+                    x_plan_key, member_limit,
                     COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
                     COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
                     COALESCE(x_force_disabled,    false) AS x_force_disabled
@@ -2206,6 +2233,8 @@ router.patch(
         const newManual    = Boolean(updated.x_manual_entitlement);
         const newPaid      = Boolean(updated.x_paid_entitlement);
         const newForce     = Boolean(updated.x_force_disabled);
+        const newPlanKey   = updated.x_plan_key as string | null;
+        const newMemberLimit = updated.member_limit as number | null;
         const afterEffective = (newPaid || newManual) && !newForce;
 
         // 4. afterData 구성 (X02-B2: source 명시)
@@ -2214,12 +2243,15 @@ router.patch(
           x_paid_entitlement:        newPaid,
           x_manual_entitlement:      newManual,
           x_force_disabled:          newForce,
+          x_plan_key:                newPlanKey,
+          member_limit:              newMemberLimit,
           xmode_config_status:       updated.xmode_config_status as XModeStatus,
           xmode_purchased_at:        updated.xmode_purchased_at
             ? new Date(updated.xmode_purchased_at).toISOString() : null,
           xmode_subscription_end_at: updated.xmode_subscription_end_at
             ? new Date(updated.xmode_subscription_end_at).toISOString() : null,
           source: "super_admin_manual",   // X02-B2: paid / manual 구분
+          bypass_readiness_check:    bypass_readiness_check ?? false,
         };
 
         // 5. next_audit_version 발급
@@ -2254,11 +2286,15 @@ router.patch(
           xmode_config_status:  updated.xmode_config_status as XModeStatus,
         });
         responseResult = {
-          pool_id:             updated.id,
+          pool_id:              updated.id,
           mode,
-          xmode_entitlement:   afterEffective,  // effective 값 (backward compat 필드명 유지)
-          xmode_config_status: updated.xmode_config_status as XModeStatus,
-        };
+          xmode_entitlement:    afterEffective,  // effective 값 (backward compat 필드명 유지)
+          xmode_config_status:  updated.xmode_config_status as XModeStatus,
+          x_manual_entitlement: newManual,
+          x_paid_entitlement:   newPaid,
+          x_plan_key:           newPlanKey,
+          member_limit:         newMemberLimit,
+        } as any;
       });
     } catch (e: any) {
       if (e.isPoolNotFound) {

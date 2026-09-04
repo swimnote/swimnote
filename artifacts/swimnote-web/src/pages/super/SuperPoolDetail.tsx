@@ -24,7 +24,7 @@ interface PoolDetail {
   homepage_slug?: string | null; homepage_enabled?: boolean | null;
   xmode_entitlement?: boolean | null; xmode_config_status?: string | null;
   x_paid_entitlement?: boolean | null; x_manual_entitlement?: boolean | null;
-  x_force_disabled?: boolean | null;
+  x_force_disabled?: boolean | null; x_plan_key?: string | null;
   x_submission_submitted_at?: string | null;
   x_submission_reviewed_at?: string | null;
   x_submission_status?: string | null;
@@ -700,6 +700,13 @@ function X04Section({ poolId }: { poolId: string }) {
   );
 }
 
+// ──────────────────── X Plan defs ────────────────────
+const X_PLANS = [
+  { key: "x300",  label: "X300",  memberLimit: 300,  priceLabel: "₩129,000/월" },
+  { key: "x500",  label: "X500",  memberLimit: 500,  priceLabel: "₩199,000/월" },
+  { key: "x1000", label: "X1000", memberLimit: 1000, priceLabel: "₩359,000/월" },
+];
+
 // ──────────────────── Component ────────────────────
 export default function SuperPoolDetail() {
   const [, params] = useRoute("/super/pools/:poolId");
@@ -711,17 +718,69 @@ export default function SuperPoolDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // X manual grant/revoke UI state
+  const [grantModal, setGrantModal]   = useState(false);
+  const [grantPlan, setGrantPlan]     = useState("x300");
+  const [grantLoading, setGrantLoading] = useState(false);
+  const [revokeLoading, setRevokeLoading] = useState(false);
+  const [xMsg, setXMsg]               = useState<{ ok: boolean; text: string } | null>(null);
+
   const [aiTraces, setAiTraces] = useState<AiTrace[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
 
-  useEffect(() => {
+  const loadPool = useCallback(() => {
     if (!poolId) return;
-    setLoading(true); setError("");
-
     api.get<{ pool: PoolDetail; support: Support }>(`/super/operators/${poolId}`)
       .then((d) => { setPool(d.pool); setSupport(d.support ?? null); })
       .catch((e) => setError(e?.data?.error || "수영장 정보를 불러올 수 없습니다."))
       .finally(() => setLoading(false));
+  }, [poolId]);
+
+  // X manual grant handler
+  const handleGrant = useCallback(async () => {
+    if (!poolId) return;
+    setGrantLoading(true); setXMsg(null);
+    try {
+      await api.patch(`/super/operators/${poolId}/xmode`, {
+        xmode_entitlement: true,
+        xmode_config_status: "READY",
+        x_plan_key: grantPlan,
+        bypass_readiness_check: true,
+        reason: `Super Admin manual grant — ${grantPlan}`,
+      });
+      setGrantModal(false);
+      setXMsg({ ok: true, text: `X모드 직접 부여 완료 (${grantPlan})` });
+      loadPool();
+    } catch (e: any) {
+      setXMsg({ ok: false, text: e?.data?.error || "부여 실패" });
+    } finally {
+      setGrantLoading(false);
+    }
+  }, [poolId, grantPlan, loadPool]);
+
+  // X manual revoke handler
+  const handleRevoke = useCallback(async () => {
+    if (!poolId || !window.confirm(`${pool?.name}의 X모드 manual 권한을 회수합니다. 계속하시겠습니까?`)) return;
+    setRevokeLoading(true); setXMsg(null);
+    try {
+      await api.patch(`/super/operators/${poolId}/xmode`, {
+        xmode_entitlement: false,
+        x_plan_key: null,
+        reason: "Super Admin manual revoke",
+      });
+      setXMsg({ ok: true, text: "X모드 manual 권한 회수 완료" });
+      loadPool();
+    } catch (e: any) {
+      setXMsg({ ok: false, text: e?.data?.error || "회수 실패" });
+    } finally {
+      setRevokeLoading(false);
+    }
+  }, [poolId, pool?.name, loadPool]);
+
+  useEffect(() => {
+    if (!poolId) return;
+    setLoading(true); setError("");
+    loadPool();
 
     api.get<{ traces: AiTrace[] }>(`/super/ai-traces?pool_id=${poolId}&limit=5`)
       .then((r) => setAiTraces(r.traces ?? [])).catch(() => setAiTraces([]));
@@ -777,12 +836,99 @@ export default function SuperPoolDetail() {
 
         {/* ── C. X 구독 ── */}
         <SectionCard
-          title="C. X 구독"
+          title="C. SWIMNOTE X 권한"
           badge={xActive ? <span className="px-1.5 py-0.5 text-[10px] font-bold bg-[#002F5F] text-white rounded">X ACTIVE</span> : undefined}
         >
+          {/* Status rows */}
+          <Row label="현재 X 상태" value={xActive ? "활성" : "비활성"} valueClass={xActive ? "text-green-700 font-bold" : "text-[#bbb]"} />
+          <Row label="권한 출처"
+            value={pool.x_paid_entitlement ? "결제" : pool.x_manual_entitlement ? "슈퍼관리자 직접부여" : "없음"}
+            valueClass={pool.x_manual_entitlement ? "text-[#7c3aed]" : pool.x_paid_entitlement ? "text-green-700" : "text-[#bbb]"}
+          />
+          <Row label="현재 플랜" value={pool.x_plan_key?.toUpperCase() ?? "—"} />
+          <Row label="회원 한도" value={pool.member_limit} />
           <Row label="Paid entitlement" value={pool.x_paid_entitlement} valueClass={pool.x_paid_entitlement ? "text-green-700" : "text-[#bbb]"} />
           <Row label="Manual entitlement" value={pool.x_manual_entitlement} valueClass={pool.x_manual_entitlement ? "text-green-700" : "text-[#bbb]"} />
           <Row label="Force disabled" value={pool.x_force_disabled} valueClass={pool.x_force_disabled ? "text-red-600" : "text-[#bbb]"} />
+
+          {/* Feedback */}
+          {xMsg && (
+            <div className={`mt-3 px-3 py-2 rounded text-[12px] font-medium ${xMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+              {xMsg.text}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="mt-4 flex gap-2 flex-wrap">
+            {/* Grant / Change plan */}
+            <button
+              onClick={() => { setGrantModal(true); setXMsg(null); setGrantPlan(pool.x_plan_key ?? "x300"); }}
+              disabled={grantLoading || revokeLoading}
+              className="px-3 py-1.5 text-[12px] font-semibold rounded bg-[#002F5F] text-white hover:bg-[#00214a] disabled:opacity-50"
+            >
+              {pool.x_manual_entitlement ? "X 플랜 변경" : "X모드 직접 부여"}
+            </button>
+
+            {/* Revoke — only shown when manual is active */}
+            {pool.x_manual_entitlement && (
+              <button
+                onClick={handleRevoke}
+                disabled={grantLoading || revokeLoading}
+                className="px-3 py-1.5 text-[12px] font-semibold rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                {revokeLoading ? "처리 중..." : "X모드 회수"}
+              </button>
+            )}
+          </div>
+
+          {/* Grant Modal */}
+          {grantModal && (
+            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setGrantModal(false)}>
+              <div className="bg-white rounded-xl shadow-2xl p-6 w-[340px]" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-[15px] font-bold text-[#111] mb-1">X모드 직접 부여</h3>
+                <p className="text-[12px] text-[#888] mb-4">결제 없이 즉시 적용. 슈퍼관리자 전용.</p>
+
+                {/* Plan selector */}
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold text-[#555] mb-2">플랜 선택</p>
+                  <div className="space-y-2">
+                    {X_PLANS.map((plan) => (
+                      <label key={plan.key}
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          grantPlan === plan.key ? "border-[#002F5F] bg-[#f0f4ff]" : "border-[#e5e7eb] hover:border-[#002F5F]/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio" name="grantPlan" value={plan.key}
+                            checked={grantPlan === plan.key}
+                            onChange={() => setGrantPlan(plan.key)}
+                            className="accent-[#002F5F]"
+                          />
+                          <span className="text-[13px] font-semibold text-[#111]">{plan.label}</span>
+                          <span className="text-[11px] text-[#888]">최대 {plan.memberLimit.toLocaleString()}명</span>
+                        </div>
+                        <span className="text-[11px] text-[#6b7280]">{plan.priceLabel}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-amber-600 mb-4">⚠ 청구 없음. 슈퍼관리자 직접부여로 감사 기록됩니다.</p>
+
+                <div className="flex gap-2">
+                  <button onClick={handleGrant} disabled={grantLoading}
+                    className="flex-1 py-2 text-[13px] font-semibold rounded-lg bg-[#002F5F] text-white hover:bg-[#00214a] disabled:opacity-50">
+                    {grantLoading ? "처리 중..." : "확인 — 즉시 적용"}
+                  </button>
+                  <button onClick={() => setGrantModal(false)} disabled={grantLoading}
+                    className="px-4 py-2 text-[13px] rounded-lg border border-[#e5e7eb] text-[#555] hover:bg-[#f5f5f5]">
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </SectionCard>
 
         {/* ── D. X Setup ── */}
