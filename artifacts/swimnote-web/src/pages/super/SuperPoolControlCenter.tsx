@@ -2303,29 +2303,361 @@ function ErrorsTab({ poolId }: { poolId: string }) {
   );
 }
 
+// ─── WP7: Notification Diagnostics ────────────────────────────────────────
+const PUSH_STATE_LABEL: Record<string, { text: string; color: "green" | "red" | "gray" | "yellow" }> = {
+  ACCEPTED_BY_PROVIDER: { text: "전송됨", color: "green" },
+  FAILED:               { text: "실패",   color: "red" },
+  SKIPPED:              { text: "건너뜀", color: "yellow" },
+  NOT_ATTEMPTED:        { text: "미전송", color: "gray" },
+  UNKNOWN:              { text: "불명",   color: "gray" },
+};
+
+const NOTIF_PERIOD_OPTIONS = [
+  { value: "",    label: "전체" },
+  { value: "24h", label: "24시간" },
+  { value: "7d",  label: "7일" },
+  { value: "30d", label: "30일" },
+];
+
+const PUSH_STATE_OPTIONS = [
+  { value: "",                  label: "모든 전송 상태" },
+  { value: "attempted",         label: "전송 시도됨" },
+  { value: "sent",              label: "전송됨 (Provider 수락)" },
+  { value: "failed",            label: "실패" },
+  { value: "skipped",           label: "건너뜀" },
+  { value: "not_attempted",     label: "전송 미시도" },
+];
+
+const READ_STATE_OPTIONS = [
+  { value: "",       label: "모든 읽음 상태" },
+  { value: "unread", label: "미읽" },
+  { value: "read",   label: "읽음" },
+];
+
+function NotificationDetailDrawer({
+  poolId, notifId, onClose,
+}: { poolId: string; notifId: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get<any>(`/super/pools/${poolId}/control-center/notifications/${notifId}`)
+      .then(setDetail).catch(() => setDetail(null)).finally(() => setLoading(false));
+  }, [poolId, notifId]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl border-l border-[#e5e7eb] p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="font-semibold text-[14px] text-[#111]">알림 상세</div>
+          <button onClick={onClose} className="text-[#aaa] hover:text-[#333] text-[18px] leading-none">×</button>
+        </div>
+        {loading ? <Spinner /> : !detail ? (
+          <div className="text-[12px] text-[#aaa] text-center py-10">데이터 로드 실패</div>
+        ) : (
+          <div className="space-y-5">
+            {/* Notification section */}
+            <Section title="알림">
+              <Row label="ID"         value={detail.notification?.id} mono />
+              <Row label="타입"       value={detail.notification?.type_label} />
+              <Row label="원본 타입"  value={detail.notification?.type} mono />
+              {detail.notification?.title && <Row label="제목" value={detail.notification.title} />}
+              {detail.notification?.ref_id && <Row label="ref_id" value={detail.notification.ref_id} mono />}
+              {detail.notification?.ref_type && <Row label="ref_type" value={detail.notification.ref_type} />}
+              <Row
+                label="인앱 읽음"
+                value={detail.notification?.is_read ? "읽음 (READ)" : "미읽 (UNREAD)"}
+                valueClass={detail.notification?.is_read ? "text-green-600" : "text-[#888]"}
+              />
+              <Row label="생성 시각"  value={detail.notification?.created_at?.slice(0, 19)?.replace("T", " ")} />
+            </Section>
+
+            {/* Recipient section */}
+            <Section title="수신자">
+              <Row label="ID"       value={detail.recipient?.id} mono />
+              <Row label="이름"     value={detail.recipient?.name ?? "—"} />
+              <Row label="역할"     value={detail.recipient?.role ?? "—"} />
+              <Row
+                label="디바이스 토큰"
+                value={detail.recipient?.has_push_token ? "등록됨 (YES)" : "미등록 (NO)"}
+                valueClass={detail.recipient?.has_push_token ? "text-green-600" : "text-red-500"}
+              />
+              {detail.recipient?.token_updated_at && (
+                <Row label="토큰 갱신"  value={detail.recipient.token_updated_at?.slice(0, 10)} />
+              )}
+              <Row label="플랫폼"   value={detail.recipient?.token_platform ?? "UNKNOWN"} valueClass="text-[#aaa]" />
+              {detail.recipient?.push_opted_in !== null && detail.recipient?.push_opted_in !== undefined && (
+                <Row
+                  label="Push 수신 설정"
+                  value={detail.recipient.push_opted_in ? "ON" : "OFF"}
+                  valueClass={detail.recipient.push_opted_in ? "text-green-600" : "text-[#aaa]"}
+                />
+              )}
+            </Section>
+
+            {/* Push Delivery section */}
+            <Section title="Push 전송">
+              {(() => {
+                const p = detail.push;
+                if (!p) return <div className="text-[11px] text-[#aaa]">Push 데이터 없음</div>;
+                const st = PUSH_STATE_LABEL[p.provider_status ?? "NOT_ATTEMPTED"] ?? PUSH_STATE_LABEL.UNKNOWN;
+                return (
+                  <>
+                    <div className="mb-2">
+                      <Badge color={st.color} text={st.text} />
+                    </div>
+                    <Row
+                      label="Provider 상태"
+                      value={p.provider_status ?? "NOT_ATTEMPTED"}
+                      valueClass={p.provider_status === "ACCEPTED_BY_PROVIDER" ? "text-green-600" : p.provider_status === "FAILED" ? "text-red-500" : "text-[#888]"}
+                    />
+                    {p.attempted && <>
+                      <Row label="시도 시각"    value={p.attempted_at?.slice(0, 19)?.replace("T", " ")} />
+                      <Row label="수신자 수"    value={p.recipient_count != null ? `${p.recipient_count}명` : "—"} />
+                      <Row label="Push Log ID"  value={p.push_log_id} mono />
+                    </>}
+                    {p.safe_error && (
+                      <Row label="오류 유형" value={p.safe_error} valueClass="text-red-500" />
+                    )}
+                    <Row label="Retry" value={p.retry ?? "NOT_IMPLEMENTED"} valueClass="text-[#aaa]" />
+                    <Row
+                      label="연결 방식"
+                      value={p.correlation_method === "heuristic_time_proximity"
+                        ? "시간 근접 휴리스틱 (±60s)"
+                        : "연결 없음"}
+                      valueClass="text-[#aaa]"
+                    />
+                    {/* Note: "Accepted by Provider" ≠ "Delivered to device" */}
+                    {p.provider_status === "ACCEPTED_BY_PROVIDER" && (
+                      <div className="mt-2 text-[10px] text-[#aaa] bg-[#f9fafb] rounded p-2">
+                        Provider 수락은 기기 실제 표시를 보장하지 않습니다.
+                        실제 전달 영수증은 현재 추적하지 않습니다.
+                      </div>
+                    )}
+                    {/* All correlated attempts */}
+                    {p.all_attempts?.length > 1 && (
+                      <div className="mt-3">
+                        <div className="text-[10px] text-[#aaa] mb-1">연관된 모든 시도 (최대 3건)</div>
+                        {p.all_attempts.map((a: any) => (
+                          <div key={a.id} className="text-[10px] text-[#555] py-1 border-b border-[#f5f5f5] flex gap-2">
+                            <Badge color={PUSH_STATE_LABEL[normalizePushStateWeb(a.status)]?.color ?? "gray"} text={a.status} />
+                            <span>{a.attempted_at?.slice(0, 16)?.replace("T", " ")}</span>
+                            {a.safe_error && <span className="text-red-400">{a.safe_error}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </Section>
+
+            {/* Related Entity section */}
+            {(detail.related?.ref_id || detail.related?.ref_type) && (
+              <Section title="관련 엔티티">
+                {detail.related.ref_type && <Row label="타입"   value={detail.related.ref_type} />}
+                {detail.related.ref_id   && <Row label="ref_id" value={detail.related.ref_id} mono />}
+                {detail.related.deep_link && (
+                  <Row label="Deep Link" value={detail.related.deep_link} mono />
+                )}
+              </Section>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function normalizePushStateWeb(status: string | null | undefined): string {
+  if (!status) return "NOT_ATTEMPTED";
+  if (status === "sent") return "ACCEPTED_BY_PROVIDER";
+  if (status === "failed") return "FAILED";
+  if (status === "skipped") return "SKIPPED";
+  return "UNKNOWN";
+}
+
 function NotificationsTab({ poolId }: { poolId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/notifications`).then(setData).catch(() => {}).finally(() => setLoading(false));
-  }, [poolId]);
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <>
-      <div className="text-[11px] text-[#888] mb-2">전체 {data.total}건</div>
-      <Table
-        heads={["타입", "제목", "수신자", "읽음", "시각"]}
-        rows={data.notifications ?? []}
-        render={(r, i) => (
-          <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-            <td className="py-2 pr-3 font-medium text-[10px]">{r.type}</td>
-            <td className="py-2 pr-3">{r.title}</td>
-            <td className="py-2 pr-3">{r.recipient_id?.slice(0, 8)}</td>
-            <td className="py-2 pr-3"><Badge color={r.is_read ? "green" : "gray"} text={r.is_read ? "읽음" : "미읽"} /></td>
-            <td className="py-2">{r.created_at?.slice(0, 16)}</td>
-          </tr>
+  const [period, setPeriod]       = useState("");
+  const [typeFilter, setTypeFilter]   = useState("");
+  const [pushFilter, setPushFilter]   = useState("");
+  const [readFilter, setReadFilter]   = useState("");
+  const [selectedId, setSelectedId]   = useState<string | null>(null);
+
+  const fetchData = (p = period, t = typeFilter, push = pushFilter, r = readFilter) => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: "50", offset: "0" });
+    if (p)    params.set("period",     p);
+    if (t)    params.set("type",       t);
+    if (push) params.set("push_state", push);
+    if (r)    params.set("read_state", r);
+    api.get<any>(`/super/pools/${poolId}/control-center/notifications?${params}`)
+      .then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchData(); }, [poolId]); // eslint-disable-line
+
+  const s = data?.summary;
+
+  const kpiCards = s ? [
+    { label: "24h 알림",        value: s.notif_24h ?? 0 },
+    { label: "미읽 (전체)",     value: s.unread_total ?? 0 },
+    { label: "24h Push 시도",   value: s.push_attempted_24h ?? 0 },
+    { label: "24h Push 실패",   value: s.push_failed_24h ?? 0,  red: (s.push_failed_24h ?? 0) > 0 },
+  ] : [];
+
+  return (
+    <div className="space-y-4">
+      {selectedId && (
+        <NotificationDetailDrawer
+          poolId={poolId}
+          notifId={selectedId}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+
+      {/* KPI */}
+      {s && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {kpiCards.map(({ label, value, red }) => (
+            <div key={label} className={`bg-white border rounded-xl p-3 ${red ? "border-red-300 bg-red-50" : "border-[#e5e7eb]"}`}>
+              <div className="text-[10px] text-[#aaa] uppercase tracking-wide">{label}</div>
+              <div className={`text-[18px] font-bold mt-0.5 ${red ? "text-red-600" : "text-[#111]"}`}>{value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Push delivery semantics note */}
+      <div className="text-[10px] text-[#aaa] bg-[#f9fafb] rounded-lg px-3 py-2 leading-relaxed">
+        <strong className="text-[#888]">전송 상태 정의:</strong>{" "}
+        <span className="text-green-600 font-medium">전송됨</span> = Provider(Expo) 수락 (기기 실제 표시 미보장) ·{" "}
+        <span className="text-red-500 font-medium">실패</span> = Provider 거부 ·{" "}
+        <span className="text-[#555] font-medium">미전송</span> = Push 시도 기록 없음 ·{" "}
+        인앱 알림 읽음과 Push 전송은 독립적입니다.
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <select
+          className="text-[11px] border border-[#e5e7eb] rounded-lg px-2 py-1.5 bg-white"
+          value={period} onChange={(e) => { setPeriod(e.target.value); fetchData(e.target.value, typeFilter, pushFilter, readFilter); }}
+        >
+          {NOTIF_PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select
+          className="text-[11px] border border-[#e5e7eb] rounded-lg px-2 py-1.5 bg-white"
+          value={pushFilter} onChange={(e) => { setPushFilter(e.target.value); fetchData(period, typeFilter, e.target.value, readFilter); }}
+        >
+          {PUSH_STATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select
+          className="text-[11px] border border-[#e5e7eb] rounded-lg px-2 py-1.5 bg-white"
+          value={readFilter} onChange={(e) => { setReadFilter(e.target.value); fetchData(period, typeFilter, pushFilter, e.target.value); }}
+        >
+          {READ_STATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {typeFilter && (
+          <button
+            className="text-[10px] text-[#aaa] border border-[#e5e7eb] rounded-lg px-2 py-1 hover:bg-[#f5f5f5]"
+            onClick={() => { setTypeFilter(""); fetchData(period, "", pushFilter, readFilter); }}
+          >
+            타입 필터 초기화
+          </button>
         )}
-      />
-    </>
+        <button
+          className="text-[11px] text-[#002F5F] border border-[#002F5F] rounded-lg px-2 py-1.5 hover:bg-[#f0f4ff]"
+          onClick={() => fetchData()}
+        >
+          새로고침
+        </button>
+      </div>
+
+      {/* List */}
+      {loading ? <Spinner /> : !data ? (
+        <Err msg="데이터 로드 실패" />
+      ) : (
+        <>
+          <div className="text-[11px] text-[#888]">전체 {data.total}건</div>
+          {data.notifications?.length === 0 ? (
+            <div className="text-center py-12 text-[12px] text-[#aaa]">알림 없음</div>
+          ) : (
+            <div className="space-y-0 border border-[#e5e7eb] rounded-xl overflow-hidden">
+              {data.notifications.map((n: any) => {
+                const ps = PUSH_STATE_LABEL[n.push_state ?? "NOT_ATTEMPTED"] ?? PUSH_STATE_LABEL.UNKNOWN;
+                return (
+                  <div
+                    key={n.id}
+                    className="flex items-start gap-3 px-4 py-3 border-b border-[#f5f5f5] last:border-0 hover:bg-[#fafafa] cursor-pointer"
+                    onClick={() => setSelectedId(n.id)}
+                  >
+                    {/* Type badge + read dot */}
+                    <div className="flex-shrink-0 pt-0.5">
+                      {!n.is_read && (
+                        <div className="w-2 h-2 rounded-full bg-[#002F5F] mb-1" title="미읽" />
+                      )}
+                      <div
+                        className="text-[9px] font-semibold text-[#002F5F] bg-[#f0f4ff] rounded px-1.5 py-0.5 cursor-pointer hover:bg-[#dbeafe]"
+                        onClick={(e) => { e.stopPropagation(); setTypeFilter(n.type); fetchData(period, n.type, pushFilter, readFilter); }}
+                        title={`타입 "${n.type}"으로 필터`}
+                      >
+                        {n.type_label ?? n.type}
+                      </div>
+                    </div>
+
+                    {/* Main content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[12px] font-medium text-[#111] truncate max-w-[180px]">
+                          {n.title || n.type_label || n.type}
+                        </span>
+                        <Badge
+                          color={n.is_read ? "green" : "gray"}
+                          text={n.is_read ? "읽음" : "미읽"}
+                        />
+                      </div>
+                      <div className="text-[10px] text-[#aaa] mt-0.5">
+                        {n.recipient_name ? `${n.recipient_name} (${n.recipient_type})` : `${n.recipient_id?.slice(0, 8)} · ${n.recipient_type}`}
+                        {n.has_push_token === false && (
+                          <span className="ml-2 text-red-400 font-medium">• 토큰 없음</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-[#bbb] mt-0.5">
+                        {n.created_at?.slice(0, 16)?.replace("T", " ")}
+                        {n.ref_id && <span className="ml-2">ref: {n.ref_id.slice(0, 10)}</span>}
+                      </div>
+                    </div>
+
+                    {/* Push state */}
+                    <div className="flex-shrink-0 text-right">
+                      <Badge color={ps.color} text={ps.text} />
+                      {n.push_state === "FAILED" && n.push_safe_error && (
+                        <div className="text-[9px] text-red-400 mt-0.5">{n.push_safe_error}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Push diagnostics note when push_logs unavailable (partial failure) */}
+          {data.push_correlation_method && (
+            <div className="text-[10px] text-[#bbb] text-right">
+              Push 연결: {data.push_correlation_method === "heuristic_time_proximity"
+                ? "시간 근접 휴리스틱 (±60s) · 완전한 FK 연결 미구현"
+                : data.push_correlation_method}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 

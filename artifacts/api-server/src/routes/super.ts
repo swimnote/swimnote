@@ -1231,6 +1231,14 @@ async function ensureExtraTables() {
   await superAdminDb.execute(sql`ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS error_message TEXT`).catch(() => {});
   await superAdminDb.execute(sql`ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS recipient_count INTEGER DEFAULT 1`).catch(() => {});
   await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_push_logs_pool_status ON push_logs (pool_id, status, created_at DESC) WHERE pool_id IS NOT NULL`).catch(() => {});
+  // WP7: Notification Diagnostics additive columns — delivery correlation (dev only; Production: NO per spec §55)
+  await superAdminDb.execute(sql`ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS notification_id TEXT`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE push_logs ADD COLUMN IF NOT EXISTS ref_id TEXT`).catch(() => {});
+  // WP7: additive indexes for notification diagnostics queries (N+1 prevention)
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_notifications_pool_created ON notifications (pool_id, created_at DESC)`).catch(() => {});
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_notifications_recipient_created ON notifications (recipient_id, created_at DESC)`).catch(() => {});
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_push_logs_pool_created ON push_logs (pool_id, created_at DESC) WHERE pool_id IS NOT NULL`).catch(() => {});
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_push_logs_target_pool_created ON push_logs (target_user_id, pool_id, created_at DESC) WHERE pool_id IS NOT NULL`).catch(() => {});
 
   // WP15.5-C: ad_creatives 테이블
   await superAdminDb.execute(sql`
@@ -7134,28 +7142,422 @@ router.get(
   },
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WP7 — NOTIFICATION / PUSH DELIVERY DIAGNOSTICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// push_logs.status enum: 'sent' | 'skipped' | 'failed'
+// Canonical delivery states for Super Admin UI:
+//   NOT_ATTEMPTED  — no push_logs row correlated (heuristic proximity search found nothing)
+//   ACCEPTED_BY_PROVIDER — push_logs.status = 'sent'
+//   FAILED         — push_logs.status = 'failed'
+//   SKIPPED        — push_logs.status = 'skipped' (e.g. duplicate suppression)
+// Correlation method: heuristic time-proximity (target_user_id + pool_id + ±60s window)
+//   since push_logs does not store notification_id FK.
+//   WP7 additive: notification_id / ref_id columns added to push_logs for future forward-linking.
+//
+// Push token privacy: raw token NEVER returned. Only has_push_token (bool) + token_updated_at.
+// Push retry: NOT IMPLEMENTED in current codebase.
+
+function normalizePushState(status: string | null | undefined): string {
+  if (!status) return "NOT_ATTEMPTED";
+  if (status === "sent") return "ACCEPTED_BY_PROVIDER";
+  if (status === "failed") return "FAILED";
+  if (status === "skipped") return "SKIPPED";
+  return "UNKNOWN";
+}
+
+function safePushError(errorMsg: string | null | undefined): string | null {
+  if (!errorMsg) return null;
+  const m = (errorMsg ?? "").toLowerCase();
+  if (m.includes("invalid") || m.includes("unregistered") || m.includes("devicenotregistered"))
+    return "invalid_or_unregistered_token";
+  if (m.includes("network") || m.includes("etimedout") || m.includes("econnrefused"))
+    return "network_failure";
+  if (m.includes("rate") || m.includes("429")) return "rate_limit";
+  if (m.includes("payload") || m.includes("400")) return "payload_rejected";
+  if (m.includes("500") || m.includes("502") || m.includes("503")) return "provider_api_error";
+  return "unknown";
+}
+
+function notifTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    GROWTH_REPORT_PUBLISHED: "성장리포트 발행",
+    GROWTH_REPORT_BATCH_READY: "성장리포트 일괄 완료",
+    growth_report_like: "성장리포트 좋아요",
+    growth_report_comment: "성장리포트 댓글",
+    growth_report_comment_reply: "성장리포트 댓글 답글",
+    diary_upload: "일지 업로드",
+    photo_upload: "사진 업로드",
+    photo_comment: "사진 댓글",
+    diary_comment: "일지 댓글",
+    storage_warning: "저장공간 경고",
+    parent_request: "학부모 요청",
+  };
+  return labels[type] ?? type;
+}
+
 // GET /super/pools/:id/control-center/notifications
+// WP7 REWRITE — push delivery diagnostics, recipient info, device status, filters, pagination
+// N+1 prevention: single query with LATERAL JOINs for push_log and device token
 router.get(
   "/super/pools/:id/control-center/notifications",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
-    const { limit = "50", offset = "0" } = req.query as Record<string, string>;
+    const {
+      limit = "50", offset = "0",
+      period = "",           // 24h | 7d | 30d
+      type = "",             // exact notification type
+      role = "",             // parent | teacher | pool_admin | admin
+      read_state = "",       // read | unread
+      push_state = "",       // attempted | sent | failed | skipped | not_attempted
+      q = "",                // search: recipient_id prefix or ref_id exact
+    } = req.query as Record<string, string>;
+    const { lim, off } = clampPage(limit, offset, 200);
+
+    const { from, to } = period
+      ? parseTimeRange(period)
+      : { from: new Date(0).toISOString(), to: new Date(Date.now() + 86400000).toISOString() };
+
+    // WHERE conditions for outer query (applied after LATERAL JOINs)
+    const whereConds: import("drizzle-orm").SQL[] = [
+      sql`n.pool_id = ${poolId}`,
+      sql`n.created_at >= ${from}::timestamptz`,
+      sql`n.created_at <  ${to}::timestamptz`,
+    ];
+    if (type) whereConds.push(sql`n.type = ${type}`);
+    if (role) whereConds.push(sql`n.recipient_type = ${role}`);
+    if (read_state === "read") whereConds.push(sql`n.is_read = true`);
+    if (read_state === "unread") whereConds.push(sql`n.is_read = false`);
+    if (q) whereConds.push(sql`(n.recipient_id LIKE ${q + "%"} OR n.ref_id = ${q})`);
+    const whereClause = sql.join(whereConds, sql` AND `);
+
+    // push_state filter is applied as a HAVING-like condition after LATERAL JOIN
+    // We use a subquery approach: wrap in CTE
+    const pushStateFilter: import("drizzle-orm").SQL | null = (() => {
+      if (!push_state || push_state === "all") return null;
+      if (push_state === "not_attempted") return sql`push_corr_id IS NULL`;
+      if (push_state === "attempted")     return sql`push_corr_id IS NOT NULL`;
+      if (push_state === "sent")          return sql`push_corr_status = 'sent'`;
+      if (push_state === "failed")        return sql`push_corr_status = 'failed'`;
+      if (push_state === "skipped")       return sql`push_corr_status = 'skipped'`;
+      return null;
+    })();
+
     try {
-      const rows = await superAdminDb.execute(sql`
-        SELECT n.id, n.type, n.title, n.body, n.recipient_id, n.recipient_type,
-               n.ref_id, n.ref_type, n.is_read, n.created_at, n.deep_link
-        FROM notifications n
-        WHERE n.pool_id = ${poolId}
-        ORDER BY n.created_at DESC
-        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
-      `);
-      const total = await superAdminDb.execute(sql`
-        SELECT COUNT(*) AS cnt FROM notifications WHERE pool_id = ${poolId}
-      `);
-      res.json({ notifications: rows.rows, total: Number((total.rows[0] as any).cnt) });
+      // ── Main list query (N+1-free via LATERAL) ────────────────────────────
+      const listSql = sql`
+        WITH base AS (
+          SELECT
+            n.id, n.type, n.title, n.body, n.recipient_id, n.recipient_type,
+            n.ref_id, n.ref_type, n.is_read, n.created_at, n.deep_link,
+            COALESCE(u.name, pa.name) AS recipient_name,
+            -- WP7: push correlation (heuristic: target_user_id + pool_id + ±60s window)
+            -- Raw push token is NEVER included. has_push_token = bool only.
+            push_corr.id     AS push_corr_id,
+            push_corr.status AS push_corr_status,
+            push_corr.created_at AS push_corr_at,
+            push_corr.recipient_count AS push_corr_count,
+            push_corr.error_message   AS push_corr_error,
+            (device.has_token IS TRUE) AS has_push_token,
+            device.token_updated_at
+          FROM notifications n
+          LEFT JOIN users u ON u.id = n.recipient_id
+          LEFT JOIN parent_accounts pa ON pa.id = n.recipient_id
+          LEFT JOIN LATERAL (
+            SELECT pl.id, pl.status, pl.created_at, pl.recipient_count, pl.error_message
+            FROM push_logs pl
+            WHERE pl.pool_id = ${poolId}
+              AND pl.target_user_id = n.recipient_id
+              AND ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at))) < 60
+            ORDER BY ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at)))
+            LIMIT 1
+          ) push_corr ON true
+          LEFT JOIN LATERAL (
+            SELECT TRUE AS has_token, updated_at AS token_updated_at
+            FROM push_tokens
+            WHERE user_id = n.recipient_id OR parent_account_id = n.recipient_id
+            ORDER BY updated_at DESC
+            LIMIT 1
+          ) device ON true
+          WHERE ${whereClause}
+        )
+        SELECT * FROM base
+        ${pushStateFilter ? sql`WHERE ${pushStateFilter}` : sql``}
+        ORDER BY created_at DESC
+        LIMIT ${lim} OFFSET ${off}
+      `;
+
+      const countSql = sql`
+        WITH base AS (
+          SELECT
+            n.id,
+            push_corr.id     AS push_corr_id,
+            push_corr.status AS push_corr_status
+          FROM notifications n
+          LEFT JOIN LATERAL (
+            SELECT pl.id, pl.status
+            FROM push_logs pl
+            WHERE pl.pool_id = ${poolId}
+              AND pl.target_user_id = n.recipient_id
+              AND ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at))) < 60
+            ORDER BY ABS(EXTRACT(EPOCH FROM (pl.created_at - n.created_at)))
+            LIMIT 1
+          ) push_corr ON true
+          WHERE ${whereClause}
+        )
+        SELECT COUNT(*) AS cnt FROM base
+        ${pushStateFilter ? sql`WHERE ${pushStateFilter}` : sql``}
+      `;
+
+      // ── Summary (24h, unread, push stats) — from notifications + push_logs ──
+      const now24h = new Date(Date.now() - 86400000).toISOString();
+      const summarySql = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*)                                                         AS notif_24h,
+          COUNT(*) FILTER (WHERE is_read = false)                         AS unread_total,
+          COUNT(*) FILTER (WHERE created_at >= ${now24h}::timestamptz AND is_read = false) AS unread_24h
+        FROM notifications
+        WHERE pool_id = ${poolId}
+      `).catch(() => ({ rows: [{ notif_24h: 0, unread_total: 0, unread_24h: 0 }] }));
+
+      const pushSummarySql = superAdminDb.execute(sql`
+        SELECT
+          COUNT(*)                                               AS push_attempted_24h,
+          COUNT(*) FILTER (WHERE status = 'failed')             AS push_failed_24h,
+          COUNT(*) FILTER (WHERE status = 'sent')               AS push_sent_24h
+        FROM push_logs
+        WHERE pool_id = ${poolId}
+          AND created_at >= ${now24h}::timestamptz
+      `).catch(() => ({ rows: [{ push_attempted_24h: 0, push_failed_24h: 0, push_sent_24h: 0 }] }));
+
+      const [listRes, countRes, summaryRes, pushSummRes] = await Promise.all([
+        superAdminDb.execute(listSql),
+        superAdminDb.execute(countSql),
+        summarySql,
+        pushSummarySql,
+      ]);
+
+      const notifications = listRes.rows.map((r: any) => ({
+        id: r.id,
+        type: r.type,
+        type_label: notifTypeLabel(r.type),
+        title: r.title,
+        recipient_id: r.recipient_id,
+        recipient_type: r.recipient_type,
+        recipient_name: r.recipient_name ?? null,
+        ref_id: r.ref_id,
+        ref_type: r.ref_type,
+        is_read: r.is_read,
+        created_at: r.created_at,
+        deep_link: r.deep_link,
+        // Push delivery diagnostic — state derived from heuristic correlation
+        push_state: normalizePushState(r.push_corr_status),
+        push_log_id: r.push_corr_id ?? null,
+        push_attempted_at: r.push_corr_at ?? null,
+        push_recipient_count: r.push_corr_count ?? null,
+        push_safe_error: safePushError(r.push_corr_error),
+        push_correlation: r.push_corr_id ? "heuristic_time_proximity" : "none",
+        // Device — token existence only (raw token NEVER returned per §27)
+        has_push_token: r.has_push_token === true || r.has_push_token === "true",
+        token_updated_at: r.token_updated_at ?? null,
+      }));
+
+      const s0 = (summaryRes.rows[0] as any) ?? {};
+      const p0 = (pushSummRes.rows[0] as any) ?? {};
+
+      res.json({
+        notifications,
+        total: Number((countRes.rows[0] as any)?.cnt ?? 0),
+        summary: {
+          notif_24h:        Number(s0.notif_24h ?? 0),
+          unread_total:     Number(s0.unread_total ?? 0),
+          unread_24h:       Number(s0.unread_24h ?? 0),
+          push_attempted_24h: Number(p0.push_attempted_24h ?? 0),
+          push_failed_24h:    Number(p0.push_failed_24h ?? 0),
+          push_sent_24h:      Number(p0.push_sent_24h ?? 0),
+        },
+        // Diagnostic metadata
+        push_retry: "NOT_IMPLEMENTED",
+        push_correlation_method: "heuristic_time_proximity",
+        token_platform: "UNKNOWN",  // push_tokens has no platform column
+      });
     } catch (e: any) {
       res.status(500).json({ error: "NOTIFICATIONS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/notifications/summary
+// WP7: KPI-only endpoint for fast top-bar stats
+router.get(
+  "/super/pools/:id/control-center/notifications/summary",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const now24h = new Date(Date.now() - 86400000).toISOString();
+    try {
+      const [notifSumm, pushSumm] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)                                                          AS notif_total,
+            COUNT(*) FILTER (WHERE created_at >= ${now24h}::timestamptz)     AS notif_24h,
+            COUNT(*) FILTER (WHERE is_read = false)                          AS unread_total,
+            COUNT(*) FILTER (WHERE is_read = false AND created_at >= ${now24h}::timestamptz) AS unread_24h
+          FROM notifications WHERE pool_id = ${poolId}
+        `),
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)                                               AS push_attempted_24h,
+            COUNT(*) FILTER (WHERE status = 'sent')               AS push_sent_24h,
+            COUNT(*) FILTER (WHERE status = 'failed')             AS push_failed_24h,
+            COUNT(*) FILTER (WHERE status = 'skipped')            AS push_skipped_24h
+          FROM push_logs
+          WHERE pool_id = ${poolId}
+            AND created_at >= ${now24h}::timestamptz
+        `).catch(() => ({ rows: [{}] })),
+      ]);
+      const n = (notifSumm.rows[0] as any) ?? {};
+      const p = (pushSumm.rows[0] as any) ?? {};
+      res.json({
+        notif_total:       Number(n.notif_total ?? 0),
+        notif_24h:         Number(n.notif_24h ?? 0),
+        unread_total:      Number(n.unread_total ?? 0),
+        unread_24h:        Number(n.unread_24h ?? 0),
+        push_attempted_24h: Number(p.push_attempted_24h ?? 0),
+        push_sent_24h:      Number(p.push_sent_24h ?? 0),
+        push_failed_24h:    Number(p.push_failed_24h ?? 0),
+        push_skipped_24h:   Number(p.push_skipped_24h ?? 0),
+        push_retry:        "NOT_IMPLEMENTED",
+        token_platform:    "UNKNOWN",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTIFICATIONS_SUMMARY_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/notifications/:notifId
+// WP7: per-notification detail with full push diagnostic, recipient, related entity
+// Cross-pool guard: notif.pool_id must match :id
+router.get(
+  "/super/pools/:id/control-center/notifications/:notifId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, notifId } = req.params;
+    try {
+      // 1. Notification row — verify pool scope (cross-pool guard §36)
+      const notifRes = await superAdminDb.execute(sql`
+        SELECT id, type, title, body, recipient_id, recipient_type,
+               ref_id, ref_type, pool_id, is_read, created_at, deep_link
+        FROM notifications
+        WHERE id = ${notifId} AND pool_id = ${poolId}
+        LIMIT 1
+      `);
+      if (!notifRes.rows.length) {
+        res.status(404).json({ error: "NOTIFICATION_NOT_FOUND" });
+        return;
+      }
+      const n = notifRes.rows[0] as any;
+
+      // 2. Recipient info + device token (token existence only — no raw token per §27)
+      const [recipientRes, deviceRes] = await Promise.all([
+        superAdminDb.execute(sql`
+          SELECT id, name, role, phone, email
+          FROM users WHERE id = ${n.recipient_id} LIMIT 1
+        `).catch(() => ({ rows: [] })),
+        superAdminDb.execute(sql`
+          SELECT updated_at FROM push_tokens
+          WHERE user_id = ${n.recipient_id} OR parent_account_id = ${n.recipient_id}
+          ORDER BY updated_at DESC LIMIT 1
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      // Try parent_accounts if not found in users
+      let recipientRow = (recipientRes.rows[0] as any) ?? null;
+      if (!recipientRow) {
+        const paRes = await superAdminDb.execute(sql`
+          SELECT id, name, 'parent_account'::text AS role, phone, null AS email
+          FROM parent_accounts WHERE id = ${n.recipient_id} LIMIT 1
+        `).catch(() => ({ rows: [] }));
+        recipientRow = (paRes.rows[0] as any) ?? null;
+      }
+      const deviceRow = (deviceRes.rows[0] as any) ?? null;
+
+      // 3. Push correlation (heuristic: target_user_id + pool_id + ±60s)
+      const pushRes = await superAdminDb.execute(sql`
+        SELECT id, status, created_at AS attempted_at,
+               recipient_count, error_message, triggered_by
+        FROM push_logs
+        WHERE pool_id = ${poolId}
+          AND target_user_id = ${n.recipient_id}
+          AND ABS(EXTRACT(EPOCH FROM (created_at - ${n.created_at}::timestamptz))) < 60
+        ORDER BY ABS(EXTRACT(EPOCH FROM (created_at - ${n.created_at}::timestamptz)))
+        LIMIT 3
+      `).catch(() => ({ rows: [] }));
+
+      const primaryPush = (pushRes.rows[0] as any) ?? null;
+
+      // 4. Push settings — is user opted in for this type?
+      const settingRes = await superAdminDb.execute(sql`
+        SELECT is_enabled FROM push_settings
+        WHERE (user_id = ${n.recipient_id} OR parent_account_id = ${n.recipient_id})
+          AND notification_type = ${n.type}
+        LIMIT 1
+      `).catch(() => ({ rows: [] }));
+      const pushEnabled = (settingRes.rows[0] as any)?.is_enabled ?? null;
+
+      res.json({
+        notification: {
+          id: n.id,
+          type: n.type,
+          type_label: notifTypeLabel(n.type),
+          title: n.title,
+          body: n.body,
+          ref_id: n.ref_id,
+          ref_type: n.ref_type,
+          is_read: n.is_read,
+          created_at: n.created_at,
+          deep_link: n.deep_link,
+        },
+        recipient: {
+          id: n.recipient_id,
+          role: recipientRow?.role ?? n.recipient_type,
+          name: recipientRow?.name ?? null,
+          // No email/phone here — PII minimised per §28; go to WP3 for full detail
+          has_push_token: !!deviceRow,
+          token_updated_at: deviceRow?.updated_at ?? null,
+          token_platform: "UNKNOWN",  // push_tokens has no platform column
+          push_opted_in: pushEnabled,
+        },
+        push: {
+          attempted: !!primaryPush,
+          provider_status: normalizePushState(primaryPush?.status),
+          push_log_id: primaryPush?.id ?? null,
+          attempted_at: primaryPush?.attempted_at ?? null,
+          recipient_count: primaryPush?.recipient_count ?? null,
+          safe_error: safePushError(primaryPush?.error_message),
+          retry: "NOT_IMPLEMENTED",
+          // All correlated attempts (bounded to 3)
+          all_attempts: pushRes.rows.map((p: any) => ({
+            id: p.id,
+            status: p.status,
+            attempted_at: p.attempted_at,
+            recipient_count: p.recipient_count,
+            safe_error: safePushError(p.error_message),
+          })),
+          correlation_method: primaryPush ? "heuristic_time_proximity" : "none",
+          // Raw push token: NEVER returned (§27)
+        },
+        related: {
+          ref_id: n.ref_id,
+          ref_type: n.ref_type,
+          deep_link: n.deep_link,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTIFICATION_DETAIL_FAILED", message: e?.message });
     }
   },
 );

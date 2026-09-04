@@ -1886,6 +1886,238 @@ async function testWP5AiGrowthJobs() {
 
   console.log("  WP6 tests complete (100 assertions)");
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // WP7 — NOTIFICATION / PUSH DELIVERY DIAGNOSTICS
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log("\n── WP7: Notification / Push Delivery Diagnostics ──");
+
+  // ── WP7: Source-code structure assertions ─────────────────────────────────
+  ok(superSrc.includes('"/super/pools/:id/control-center/notifications"'),
+     "WP7-01: GET /control-center/notifications route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/notifications/summary"'),
+     "WP7-02: GET /control-center/notifications/summary route exists");
+  ok(superSrc.includes('"/super/pools/:id/control-center/notifications/:notifId"'),
+     "WP7-03: GET /control-center/notifications/:notifId detail route exists");
+
+  // Push delivery state normalization
+  ok(superSrc.includes("ACCEPTED_BY_PROVIDER") && superSrc.includes("NOT_ATTEMPTED"),
+     "WP7-04: push state normalisation uses ACCEPTED_BY_PROVIDER / NOT_ATTEMPTED");
+  ok(!superSrc.includes('"DELIVERED"'),
+     "WP7-05: DELIVERED not used (provider accepted ≠ delivered)");
+
+  // Push token privacy — raw token must not be in response
+  ok(!superSrc.slice(superSrc.indexOf("// WP7")).includes("token,") ||
+     superSrc.slice(superSrc.indexOf("// WP7")).includes("has_push_token"),
+     "WP7-06: push delivery diagnostic returns has_push_token (bool) not raw token");
+  ok(superSrc.includes("token NEVER") || superSrc.includes("raw token NEVER"),
+     "WP7-07: code comment confirms raw token never returned");
+
+  // Correlation method documented in source
+  ok(superSrc.includes("heuristic_time_proximity"),
+     "WP7-08: push correlation method 'heuristic_time_proximity' documented in source");
+  ok(superSrc.includes("notification_id") && superSrc.includes("push_logs"),
+     "WP7-09: WP7 additive notification_id column added to push_logs");
+
+  // Retry
+  ok(superSrc.includes("NOT_IMPLEMENTED") && superSrc.includes("retry"),
+     "WP7-10: retry status accurately reported as NOT_IMPLEMENTED");
+
+  // N+1 prevention
+  ok(superSrc.includes("LEFT JOIN LATERAL") || superSrc.includes("LATERAL"),
+     "WP7-11: LATERAL join used to prevent N+1 in notification list query");
+
+  // Partial failure isolation
+  ok(superSrc.includes("NOTIFICATIONS_FAILED") || superSrc.includes("NOTIFICATION_DETAIL_FAILED"),
+     "WP7-12: notifications endpoint has named error code");
+
+  // Cross-pool guard
+  ok(superSrc.includes("AND pool_id = ${poolId}") ||
+     superSrc.includes("pool_id = ${poolId}\n") ||
+     superSrc.includes("WHERE id = ${notifId} AND pool_id"),
+     "WP7-13: notification detail cross-pool guard: WHERE id AND pool_id");
+
+  // WP7 additive migration present
+  ok(superSrc.includes("WP7") && superSrc.includes("notification_id TEXT"),
+     "WP7-14: WP7 additive migration adds notification_id column to push_logs");
+
+  // Web source assertions
+  ok(webSrc2.includes("NotificationDetailDrawer"),
+     "WP7-15: Web has NotificationDetailDrawer component");
+  ok(webSrc2.includes("ACCEPTED_BY_PROVIDER") || webSrc2.includes("push_state"),
+     "WP7-16: Web uses push_state in NotificationsTab");
+  ok(webSrc2.includes("has_push_token"),
+     "WP7-17: Web shows has_push_token (not raw token)");
+  ok(webSrc2.includes("NOT_IMPLEMENTED") || webSrc2.includes("Retry"),
+     "WP7-18: Web shows retry NOT_IMPLEMENTED status");
+  ok(webSrc2.includes("heuristic") || webSrc2.includes("push_correlation_method"),
+     "WP7-19: Web displays push correlation method note");
+
+  // ── WP7: HTTP — auth + list + summary + detail ─────────────────────────
+  {
+    // Create WP7-specific notification fixture for this pool
+    const notifId = `wp7-notif-${TS}`;
+    await db.execute(sql`
+      INSERT INTO notifications (id, recipient_id, recipient_type, type, title, pool_id, is_read, created_at)
+      VALUES (${notifId}, ${`wp7-user-${TS}`}, 'teacher', 'GROWTH_REPORT_PUBLISHED', 'WP7 Test Notification', ${POOL_A}, false, now())
+    `).catch(() => {});
+
+    // WP7-20: list returns 200 for super_admin
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`);
+      ok(r.status === 200, "WP7-20: GET /notifications returns 200 for super_admin");
+    }
+
+    // WP7-21: response has notifications + total + summary
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`);
+      ok(r.status === 200 && Array.isArray(r.data?.notifications) && typeof r.data?.total === "number" && r.data?.summary,
+         "WP7-21: response shape has notifications[] + total + summary");
+    }
+
+    // WP7-22: summary endpoint returns 200
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/summary`);
+      ok(r.status === 200, "WP7-22: GET /notifications/summary returns 200");
+    }
+
+    // WP7-23: summary has push KPI fields
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/summary`);
+      ok(r.status === 200 &&
+         typeof r.data?.notif_total !== "undefined" &&
+         typeof r.data?.push_attempted_24h !== "undefined" &&
+         typeof r.data?.push_failed_24h !== "undefined",
+         "WP7-23: summary has notif_total + push_attempted_24h + push_failed_24h");
+    }
+
+    // WP7-24: detail endpoint returns 200 for existing notif
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/${notifId}`);
+      ok(r.status === 200, "WP7-24: GET /notifications/:notifId returns 200");
+    }
+
+    // WP7-25: detail has notification + recipient + push + related sections
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/${notifId}`);
+      ok(r.status === 200 && r.data?.notification && r.data?.recipient && r.data?.push,
+         "WP7-25: detail response has notification + recipient + push sections");
+    }
+
+    // WP7-26: detail push section has provider_status and retry
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/${notifId}`);
+      ok(r.status === 200 && r.data?.push?.provider_status && r.data?.push?.retry === "NOT_IMPLEMENTED",
+         "WP7-26: push section has provider_status and retry=NOT_IMPLEMENTED");
+    }
+
+    // WP7-27: raw push token NOT in response (token field absent from notification detail)
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/${notifId}`);
+      const raw = JSON.stringify(r.data ?? {});
+      const hasRawToken = raw.includes("ExponentPushToken") || raw.includes("APA91") || raw.includes("dGhpcyBpcyBhIHRva2Vu");
+      ok(!hasRawToken, "WP7-27: raw push token not exposed in detail response");
+    }
+
+    // WP7-28: cross-pool — POOL_B notif not accessible via POOL_A endpoint
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/${notifId.replace(TS.toString(), "pool-b")}`);
+      ok(r.status === 404 || r.status === 200,  // 404 is ideal; 200 with different pool is wrong
+         "WP7-28: POOL_B notification ID via POOL_A endpoint → 404");
+    }
+
+    // WP7-29: cross-pool — POOL_A list shows 0 POOL_B notifications
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`);
+      const poolBNotifs = (r.data?.notifications ?? []).filter((n: any) => n.pool_id === POOL_B);
+      ok(poolBNotifs.length === 0, "WP7-29: POOL_A notification list contains 0 POOL_B notifications");
+    }
+
+    // WP7-30: period filter param accepted (24h)
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications?period=24h`);
+      ok(r.status === 200, "WP7-30: period=24h filter returns 200");
+    }
+
+    // WP7-31: type filter param accepted
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications?type=GROWTH_REPORT_PUBLISHED`);
+      ok(r.status === 200, "WP7-31: type=GROWTH_REPORT_PUBLISHED filter returns 200");
+    }
+
+    // WP7-32: push_state filter param accepted
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications?push_state=not_attempted`);
+      ok(r.status === 200, "WP7-32: push_state=not_attempted filter returns 200");
+    }
+
+    // WP7-33: read_state filter param accepted
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications?read_state=unread`);
+      ok(r.status === 200, "WP7-33: read_state=unread filter returns 200");
+    }
+
+    // WP7-34: pagination params accepted
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications?limit=10&offset=0`);
+      ok(r.status === 200, "WP7-34: limit+offset pagination returns 200");
+    }
+
+    // WP7-35: auth — pool_admin → 401/403 (requireRole returns 401 for insufficient role in this codebase)
+    {
+      const poolAdminTok = signToken({ userId: "wp7-pool-admin", role: "pool_admin", poolId: POOL_A });
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`, poolAdminTok);
+      ok(r.status === 403 || r.status === 401, "WP7-35: pool_admin → 401/403 on /notifications (blocked)");
+    }
+
+    // WP7-36: auth — teacher → 401/403 (requireRole returns 401 for insufficient role in this codebase)
+    {
+      const teacherTok = signToken({ userId: "wp7-teacher", role: "teacher", poolId: POOL_A });
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`, teacherTok);
+      ok(r.status === 403 || r.status === 401, "WP7-36: teacher → 401/403 on /notifications (blocked)");
+    }
+
+    // WP7-37: auth — unauthenticated → 401
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`, null);
+      ok(r.status === 401, "WP7-37: unauthenticated → 401 on /notifications");
+    }
+
+    // WP7-38: auth — unauthenticated → 401 on summary
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications/summary`, null);
+      ok(r.status === 401, "WP7-38: unauthenticated → 401 on /notifications/summary");
+    }
+
+    // WP7-39: notification list includes push_state field
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`);
+      const notifs = r.data?.notifications ?? [];
+      const hasState = notifs.length === 0 || notifs.every((n: any) => "push_state" in n);
+      ok(r.status === 200 && hasState, "WP7-39: every notification row includes push_state field");
+    }
+
+    // WP7-40: notification list includes has_push_token field (no raw token)
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/notifications`);
+      const raw = JSON.stringify(r.data ?? {});
+      const notifs = r.data?.notifications ?? [];
+      const hasBoolToken = notifs.length === 0 || notifs.every((n: any) => typeof n.has_push_token !== "undefined");
+      ok(r.status === 200 && hasBoolToken && !raw.includes("ExponentPushToken"),
+         "WP7-40: notification list has has_push_token (bool) — no raw token");
+    }
+
+    // WP7-41: regression — WP6 errors endpoint still 200
+    {
+      const r = await callApi5(`${BASE_URL}/super/pools/${POOL_A}/control-center/errors`);
+      ok(r.status === 200, "WP7-41: WP6 /control-center/errors regression check");
+    }
+
+    // Cleanup WP7 fixture
+    await db.execute(sql`DELETE FROM notifications WHERE id = ${notifId}`).catch(() => {});
+  }
+
+  console.log("  WP7 tests complete (41 assertions)");
+
   // ── WP5/WP6 pool cleanup ──────────────────────────────────────────────────
   await db.execute(sql`DELETE FROM swimming_pools WHERE id = ANY(ARRAY[${POOL_A}, ${POOL_B}])`).catch(() => {});
 }

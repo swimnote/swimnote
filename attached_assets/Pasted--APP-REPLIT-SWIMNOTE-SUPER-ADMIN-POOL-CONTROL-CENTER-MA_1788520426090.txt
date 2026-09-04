@@ -1,0 +1,1639 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE SUPER ADMIN POOL CONTROL CENTER
+# MASTER DESIGN v1.0
+# WP7 — NOTIFICATION / PUSH DELIVERY DIAGNOSTICS
+# BASELINE: fa425272
+# DO NOT START WP8
+
+============================================================
+0. WP7 목적
+============================================================
+
+WP6 Error / Incident / Observability 완료.
+
+이번 WP7 목표:
+
+Super Admin이 특정 수영장의
+
+"알림이 안 왔어요"
+"성장리포트 푸시가 안 왔어요"
+"초대 알림이 안 왔어요"
+
+같은 문의를 받았을 때
+
+Pool Control Center
+→ Notifications
+
+에서
+
+- 알림 row 생성 여부
+- 수신자
+- 알림 type
+- ref_id
+- 생성시간
+- 읽음 상태
+- push 전송 여부
+- provider 응답
+- 실패 여부
+- 실패 사유
+- recipient/device 상태
+- retry 상태
+- 관련 request/job/report
+
+까지 실제 source로 진단 가능하게 한다.
+
+이번 WP는
+WP8 Audit / Support Case로 확장 금지.
+
+============================================================
+1. CURRENT BASELINE
+============================================================
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+fa425272
+
+먼저:
+
+git status
+git rev-parse HEAD
+git log --oneline -10
+
+fa425272 ancestor:
+YES
+
+기존 source 재사용:
+
+notifications
+push_logs
+event_logs
+push-service.ts
+growth report publish notification
+invite notification
+request/ref_id
+recipient_id
+pool_id
+WP6 operational error logging
+
+새 notification system 만들지 말 것.
+
+============================================================
+2. 완료 기준
+============================================================
+
+단순 notification 목록:
+불충분.
+
+완료는 다음 연결까지 포함:
+
+Notification record
+→ recipient
+→ push attempt
+→ provider result
+→ failure/retry
+→ final observable state
+→ related entity
+
+Mock:
+0
+
+Fake delivery state:
+0
+
+미연결 push badge:
+0
+
+============================================================
+3. NOTIFICATION SOURCE INVENTORY
+============================================================
+
+CURRENT repository 전체에서
+notification/push source 조사.
+
+최소:
+
+notifications
+push_logs
+push token/device table
+Expo push provider call
+Growth Report published push
+teacher/admin invite
+parent invite
+request notification
+일반 공지/push
+기타 실제 notification type
+
+각 source별:
+
+table/service
+pool scope
+recipient
+type
+ref_id
+created_at
+read status
+delivery status
+provider response
+failure
+retry
+device token
+request id
+
+를 정확히 보고.
+
+============================================================
+4. CANONICAL MODEL
+============================================================
+
+반드시 다음 개념을 분리.
+
+A.
+Notification created
+
+B.
+Push attempted
+
+C.
+Push delivered/provider accepted
+
+D.
+Push failed
+
+E.
+In-app notification read
+
+"In-app notification 생성"
+≠
+"Push 성공"
+
+"Push provider accepted"
+≠
+"기기 실제 표시 보장"
+
+UI에서 혼동 금지.
+
+============================================================
+5. NOTIFICATION LIST
+============================================================
+
+Pool Control Center
+→ Notifications
+
+목록 최소 필드:
+
+- created_at
+- recipient
+- recipient role
+- type
+- ref_id
+- title or safe summary where available
+- in-app state
+- read/unread
+- push attempted
+- push state
+- failure badge
+- related entity
+
+Pagination 필수.
+
+============================================================
+6. PUSH STATUS NORMALIZATION
+============================================================
+
+실제 source 기반으로
+표시 상태를 정리.
+
+예:
+
+NOT_ATTEMPTED
+ACCEPTED
+FAILED
+UNKNOWN
+
+또는 현재 실제 status enum.
+
+없는 상태 창작 금지.
+
+특히 provider accepted를
+DELIVERED로 과장하지 말 것.
+
+가능하면:
+
+ACCEPTED_BY_PROVIDER
+
+처럼 의미 명확히.
+
+============================================================
+7. PUSH_LOGS 구조 검증
+============================================================
+
+WP6에서 추가된:
+
+push_logs.pool_id
+push_logs.error_message
+push_logs.recipient_count
+
+포함해 실제 schema 조사.
+
+보고:
+
+push_logs fields:
+...
+
+notification_id link:
+YES / NO
+
+recipient_id link:
+YES / NO
+
+batch/group link:
+YES / NO
+
+provider ticket id:
+YES / NO
+
+status:
+...
+
+created_at:
+...
+
+============================================================
+8. NOTIFICATION ↔ PUSH CORRELATION
+============================================================
+
+중요.
+
+notification row와 push attempt를
+어떻게 연결할 수 있는지 조사.
+
+우선순위:
+
+notification_id
+ref_id
+recipient_id
+request_id
+batch id
+metadata correlation
+
+명확한 키 없이
+timestamp 근접값만으로 강제 연결 금지.
+
+필요한 correlation field가
+현재 구조에 없고 운영진단에 필수면
+최소 additive schema 검토.
+
+============================================================
+9. RECIPIENT / DEVICE
+============================================================
+
+Push 문제를 진단하려면:
+
+recipient user
+role
+device/push token existence
+token status
+last registered/updated
+platform
+
+등 현재 실제 source 확인.
+
+절대 노출 금지:
+
+full push token
+
+UI에는:
+
+Push token registered:
+YES / NO
+
+Platform:
+iOS / Android if available
+
+Last token update:
+...
+
+정도로 표시.
+
+raw token:
+NO.
+
+============================================================
+10. RECIPIENT DETAIL
+============================================================
+
+Notification row 클릭 시
+drawer/detail에서:
+
+Notification
+- id
+- type
+- ref_id
+- created_at
+- read_at/status
+
+Recipient
+- user id
+- role
+- safe display name
+- device registered state
+
+Push
+- attempted
+- provider status
+- attempt time
+- recipient count
+- safe error
+- retry state
+
+Related
+- growth report
+- member
+- parent
+- teacher
+- invite/request
+
+실제 ID 있을 때만 링크.
+
+============================================================
+11. GROWTH REPORT PUSH
+============================================================
+
+WP8 Growth Report 구조 재사용.
+
+검증:
+
+PUBLISHED report
+→ notifications row
+→ push attempt
+
+상태를 연결.
+
+중요:
+
+push 실패해도
+report PUBLISHED는 유지되는 기존 정책 보존.
+
+UI:
+
+Report Published:
+YES
+
+Notification Created:
+YES
+
+Push:
+FAILED
+
+처럼 분리 표시.
+
+============================================================
+12. GROWTH PUSH IDEMPOTENCY
+============================================================
+
+기존:
+
+GROWTH_REPORT_PUBLISHED
+partial unique index
+ON CONFLICT DO NOTHING
+
+정책 유지.
+
+Super Admin에서
+같은 report에 notification row가 중복 생성됐는지
+진단 가능하게.
+
+중복 수:
+0 기대.
+
+============================================================
+13. INVITE NOTIFICATIONS
+============================================================
+
+현재 실제 invite flow에서
+notification/push가 존재하는지 조사.
+
+예:
+
+teacher invite
+parent invite
+connection invite
+
+존재하면:
+
+notification created
+push attempted
+recipient
+failure
+
+확인 가능하게.
+
+없으면 UI에 억지로 만들지 말 것.
+
+============================================================
+14. GENERAL NOTIFICATIONS
+============================================================
+
+현재:
+
+공지
+요청
+앨범
+일지
+보강
+기타
+
+push type가 있다면
+실제 type 기준으로 filter 가능하게.
+
+전체 앱 feature type를
+새 enum으로 재정의하지 말 것.
+
+============================================================
+15. FILTERS
+============================================================
+
+Notifications 탭 필터:
+
+기간:
+24h / 7d / 30d / custom if easy
+
+type
+recipient role
+read/unread
+push success/failure/not-attempted
+recipient/user search
+ref_id exact search
+
+Pagination 필수.
+
+============================================================
+16. SEARCH
+============================================================
+
+검색 가능 후보:
+
+recipient name
+recipient id
+notification id
+ref_id
+
+phone/email 전체검색은
+필요성 낮으면 넣지 말 것.
+
+request_id가 존재하면 exact.
+
+============================================================
+17. PUSH FAILURE — WP6 REUSE
+============================================================
+
+WP6에서:
+
+PUSH_EXPO_API_FAILED
+→ event_logs
+
+이미 기록.
+
+이번 WP7에서는
+같은 push failure를 새 logger로 또 기록하지 말 것.
+
+Error Center:
+operational failure source
+
+Notification tab:
+delivery diagnostic source
+
+서로 역할 분리.
+
+============================================================
+18. FAILURE DETAIL
+============================================================
+
+safe error 예:
+
+provider API error
+invalid token
+network failure
+payload rejected
+rate limit
+unknown
+
+실제 provider/error code를
+safe하게 normalize 가능한 경우만 표시.
+
+raw provider payload 전체:
+NO.
+
+============================================================
+19. DEVICE TOKEN INVALID
+============================================================
+
+Expo/provider에서
+invalid/unregistered token을
+현재 감지하고 있는지 조사.
+
+감지 가능하면:
+
+Device Token:
+INVALID / UNREGISTERED
+
+같은 진단 상태 표시.
+
+자동 token 삭제/비활성화 logic이 이미 존재하면
+그 결과도 표시.
+
+새 token cleanup worker:
+이번 WP에서 임의 생성 금지.
+
+============================================================
+20. RETRY
+============================================================
+
+현재 push retry 구조가 실제 존재하는지 조사.
+
+있으면:
+
+attempt count
+last attempt
+next retry
+final failure
+
+표시.
+
+없으면:
+
+Retry:
+NOT IMPLEMENTED
+
+정확히 표시.
+
+가짜 retry 상태:
+NO.
+
+============================================================
+21. PUSH RESEND ACTION
+============================================================
+
+"재전송" 버튼은
+이번 WP에서 기본적으로 만들지 말 것.
+
+현재 검증된 push resend API가
+이미 존재하는 경우만:
+
+SAFE TO EXPOSE
+LATER
+DO NOT EXPOSE
+
+분류.
+
+실수로 중복 알림을 보내는 기능 생성 금지.
+
+============================================================
+22. SUPPORT ACTION INVENTORY
+============================================================
+
+다음 후보 조사:
+
+resend push
+resend invite
+recreate notification
+retry failed batch push
+refresh device token
+
+각각:
+
+SAFE TO EXPOSE
+READ ONLY
+LATER
+DO NOT EXPOSE
+
+이번 WP 기본:
+READ-ONLY diagnostics 우선.
+
+============================================================
+23. NOTIFICATION READ STATE
+============================================================
+
+read/unread가
+in-app notification 상태인지 명확히 표시.
+
+Push delivery와 섞지 말 것.
+
+예:
+
+In-app:
+READ
+
+Push:
+FAILED
+
+가능.
+
+============================================================
+24. UNREAD COUNT
+============================================================
+
+WP1 Overview:
+
+unread notification count
+
+와 Notification tab의
+동일 canonical source가 일치하는지 검증.
+
+Overview count
+≠
+push failure count.
+
+개념 분리.
+
+============================================================
+25. DELIVERY SUMMARY
+============================================================
+
+상단 KPI 추천:
+
+Notifications 24h
+Unread
+Push Attempts
+Push Failed
+No Device Token
+
+실제 reliable source 있는 것만.
+
+"No Device Token"이
+push attempt source와 연결 가능할 때만 표시.
+
+============================================================
+26. PROVIDER ACCEPTANCE
+============================================================
+
+Expo API가 ticket receipt를 반환하는 경우
+
+provider accepted:
+YES
+
+receipt final delivery:
+현재 추적하지 않으면 UNKNOWN
+
+으로 분리.
+
+"DELIVERED" 단어는
+실제 delivery receipt 확인 시에만 사용.
+
+============================================================
+27. PUSH TOKEN PRIVACY
+============================================================
+
+UI/API response에:
+
+Expo Push Token full string:
+NO
+
+APNs token:
+NO
+
+FCM token:
+NO
+
+마스킹도 필요 없으면 아예 존재 여부만.
+
+Logs에도 raw token 노출 금지.
+
+============================================================
+28. PII
+============================================================
+
+목록:
+
+recipient display name
+role
+notification type
+
+정도.
+
+detail에서 필요한 이메일/전화:
+기본 숨김.
+
+고객지원에 필요하면
+WP3 detail로 이동.
+
+Notification 화면에서
+개인정보를 중복 노출하지 말 것.
+
+============================================================
+29. RELATED LINKS
+============================================================
+
+가능하면:
+
+recipient
+→ WP3 user detail
+
+Growth Report
+→ WP5 report detail
+
+request/ref
+→ 관련 기능
+
+error
+→ WP6 Error detail
+
+실제 ID 있을 때만.
+
+============================================================
+30. PARTIAL FAILURE
+============================================================
+
+push_logs query 실패한다고
+notifications 목록 전체 blank:
+NO.
+
+Notification:
+표시
+
+Push diagnostics:
+UNAVAILABLE
+
+가능하게.
+
+auth/pool validation 실패:
+전체 실패.
+
+============================================================
+31. MULTI-RECIPIENT PUSH
+============================================================
+
+하나의 push log가
+recipient_count >1일 수 있음.
+
+이 경우:
+
+개별 notification과
+bulk push log를 1:1로 잘못 연결하지 말 것.
+
+batch/group correlation이 있으면 사용.
+
+없으면:
+
+Bulk Push Attempt
+
+으로 별도 표시.
+
+============================================================
+32. BULK FAILURE
+============================================================
+
+bulk push가 실패하면
+event log 1000건 복제 대신
+현재 WP6 정책에 맞는 aggregate event 유지.
+
+Notification tab에서는
+recipient_count 표시.
+
+개별 recipient success/failure가
+실제로 없으면 추측 금지.
+
+============================================================
+33. NOTIFICATION TYPE MAPPING
+============================================================
+
+UI 표시명만 friendly label 가능.
+
+예:
+
+GROWTH_REPORT_PUBLISHED
+→ 성장리포트 발행
+
+단 API/DB original type도
+detail에서 확인 가능하게.
+
+새 DB enum:
+NO.
+
+============================================================
+34. TIMEZONE
+============================================================
+
+DB timestamp는
+원본 UTC라면 그대로 저장.
+
+Super Admin Web 표시:
+KST/local display convention
+현재 Web 공통 방식 재사용.
+
+임의 date parsing:
+금지.
+
+============================================================
+35. AUTH
+============================================================
+
+모든 WP7 endpoint:
+
+super_admin:
+PASS
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+============================================================
+36. CROSS-POOL P0
+============================================================
+
+POOL_A Notification Center에서:
+
+POOL_B notification:
+0
+
+POOL_B push_log:
+0
+
+POOL_B user/device:
+0
+
+POOL_B ref_id search:
+0
+
+POOL_B notification id:
+404
+
+POOL_B recipient:
+0
+
+============================================================
+37. REAL DELIVERY FAILURE E2E
+============================================================
+
+WP6에서 만든 safe failure adapter/test를
+재사용 가능하면 사용.
+
+DEV에서:
+
+notification fixture
+→ push attempt simulated failure
+→ push_logs/event_logs
+→ notification diagnostics endpoint
+→ Web
+
+실제 연결 검증.
+
+실제 사용자 push:
+NO.
+
+실제 Expo production send:
+NO.
+
+============================================================
+38. SUCCESS PATH E2E
+============================================================
+
+외부 provider 실제 전송 없이
+safe test adapter를 통해:
+
+notification row
+→ simulated provider accepted
+→ push log
+→ UI state
+
+검증 가능하게.
+
+Fake UI data는 금지지만
+test adapter는 허용.
+
+============================================================
+39. NO DEVICE TOKEN E2E
+============================================================
+
+DEV fixture:
+
+recipient:
+notification exists
+
+push token:
+none
+
+결과:
+
+Notification:
+created
+
+Push:
+NOT_ATTEMPTED / NO_DEVICE
+현재 실제 policy에 맞게
+
+진단 가능해야 함.
+
+============================================================
+40. READ STATE E2E
+============================================================
+
+DEV fixture:
+
+unread
+→ API/UI unread
+
+read
+→ API/UI read
+
+Push 상태와 독립.
+
+============================================================
+41. PAGINATION
+============================================================
+
+notification list:
+mandatory.
+
+push attempts:
+bounded.
+
+server max limit.
+
+client limit=100000:
+clamp/reject.
+
+unbounded:
+0.
+
+============================================================
+42. PERFORMANCE
+============================================================
+
+Notification list에서
+각 row마다:
+
+user query
+push log query
+device query
+
+N+1 금지.
+
+JOIN/aggregate/subquery 중심.
+
+Detail:
+bounded.
+
+============================================================
+43. INDEX REVIEW
+============================================================
+
+검토:
+
+notifications(pool_id, created_at)
+notifications(recipient_id, created_at)
+notifications(type, ref_id)
+push_logs(pool_id, created_at)
+push_logs(status, created_at)
+push_logs(notification/correlation field if any)
+
+명백한 병목만 additive index.
+
+Development only.
+
+============================================================
+44. LOG VOLUME
+============================================================
+
+성공 push 전부를
+event_logs에 중복 기록 금지.
+
+push_logs가 delivery source면
+success는 push_logs.
+
+event_logs:
+운영 error 중심.
+
+============================================================
+45. RETENTION
+============================================================
+
+push_logs/notifications retention 확인.
+
+없으면 이번 WP에서 purge worker 만들지 말 것.
+
+예상 운영 volume 보고만.
+
+============================================================
+46. UI 구조
+============================================================
+
+Notifications Tab:
+
+상단:
+KPI
+
+필터:
+기간
+type
+role
+read state
+push state
+
+목록:
+notification timeline/table
+
+row click:
+NotificationDetailDrawer
+
+drawer sections:
+
+Notification
+Recipient
+Push Delivery
+Related Entity
+Error
+
+============================================================
+47. EMPTY STATE
+============================================================
+
+알림 없음:
+정상 empty.
+
+push attempt 없음:
+"No push attempt"
+
+push diagnostics unavailable:
+별도 unavailable.
+
+============================================================
+48. ERROR CENTER LINK
+============================================================
+
+Push FAILED row에서
+
+[관련 오류 보기]
+
+→ WP6 Error Center
+
+가능하면 request/ref 기준으로 연결.
+
+============================================================
+49. APP IMPACT
+============================================================
+
+원칙:
+
+Server
++
+Super Admin Web
+
+APP/shared runtime:
+NO.
+
+단 push correlation 자체가
+앱 생성 payload에서 누락돼
+운영 추적이 불가능한 P0 문제가 발견되면
+최소 수정 가능.
+
+APP changed:
+YES
+
+→ OTA immediate.
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED.
+
+============================================================
+50. TEST MATRIX
+============================================================
+
+List:
+PASS
+
+Pagination:
+PASS
+
+Type filter:
+PASS
+
+Recipient:
+PASS
+
+Read state:
+PASS
+
+Push attempted:
+PASS
+
+Push accepted:
+PASS where supported
+
+Push failed:
+PASS
+
+No token:
+PASS
+
+Bulk:
+PASS
+
+Related entity:
+PASS
+
+Detail:
+PASS
+
+Partial unavailable:
+PASS
+
+============================================================
+51. AUTH / CROSS-POOL TEST
+============================================================
+
+Super Admin:
+PASS
+
+Pool Admin:
+403
+
+Teacher:
+403
+
+Parent:
+403
+
+Unauthenticated:
+401
+
+Cross-pool:
+0
+
+============================================================
+52. PRIVACY TEST
+============================================================
+
+Push token exposed:
+NO
+
+JWT:
+NO
+
+Password:
+NO
+
+Provider secret:
+NO
+
+Raw provider body:
+NO
+
+Sensitive notification body:
+필요 최소
+
+============================================================
+53. E2E TEST
+============================================================
+
+Failure path:
+PASS
+
+Provider accepted path:
+PASS
+
+No device path:
+PASS
+
+Read/unread:
+PASS
+
+Growth report notification correlation:
+PASS if fixture possible
+
+No real external push:
+PASS
+
+============================================================
+54. REGRESSION
+============================================================
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+WP3:
+PASS
+
+WP4:
+PASS
+
+WP5:
+PASS
+
+WP6:
+PASS
+
+BASE:
+PASS
+
+X:
+PASS
+
+Errors:
+PASS
+
+============================================================
+55. DB
+============================================================
+
+기존 schema 충분:
+NO migration.
+
+Correlation field/index 필수:
+Development additive only.
+
+Production:
+NO.
+
+============================================================
+56. SERVER
+============================================================
+
+tests
+TS
+commit
+push release/v2.0.0
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+57. OTA
+============================================================
+
+APP/shared diff 실제 확인.
+
+YES:
+test
+commit
+OTA
+SHA Match
+
+NO:
+OTA NOT REQUIRED.
+
+============================================================
+58. 완료보고
+============================================================
+
+# WP7 NOTIFICATION DIAGNOSTICS REPORT
+
+============================================================
+GIT
+============================================================
+
+Branch:
+...
+
+HEAD Before:
+fa425272
+
+HEAD After:
+...
+
+Commit:
+...
+
+Push:
+YES / NO
+
+Main:
+NO
+
+Render:
+NO
+
+============================================================
+FILES CHANGED
+============================================================
+
+Server:
+...
+
+Web:
+...
+
+APP/shared:
+...
+
+Migration:
+...
+
+Tests:
+...
+
+============================================================
+SOURCE INVENTORY
+============================================================
+
+notifications:
+...
+
+push_logs:
+...
+
+device/push token:
+...
+
+push service:
+...
+
+Growth Report:
+...
+
+Invite:
+...
+
+Other notification types:
+...
+
+============================================================
+CORRELATION
+============================================================
+
+Notification ↔ push:
+...
+
+Recipient ↔ device:
+...
+
+Notification ↔ related entity:
+...
+
+Growth Report:
+PASS / FAIL / N/A
+
+============================================================
+DIAGNOSTICS
+============================================================
+
+Notification created:
+PASS / FAIL
+
+Read state:
+PASS / FAIL
+
+Push attempted:
+PASS / FAIL
+
+Provider accepted:
+PASS / FAIL / N/A
+
+Push failed:
+PASS / FAIL
+
+No device:
+PASS / FAIL
+
+Retry:
+PASS / N/A / FAIL
+
+Bulk:
+PASS / FAIL
+
+============================================================
+UI
+============================================================
+
+KPI:
+PASS / FAIL
+
+Filters:
+PASS / FAIL
+
+List:
+PASS / FAIL
+
+Detail drawer:
+PASS / FAIL
+
+Related links:
+PASS / FAIL
+
+Partial unavailable:
+PASS / FAIL
+
+============================================================
+AUTH / CROSS-POOL
+============================================================
+
+Super Admin:
+PASS / FAIL
+
+Pool Admin:
+BLOCKED / FAIL
+
+Teacher:
+BLOCKED / FAIL
+
+Parent:
+BLOCKED / FAIL
+
+Unauthenticated:
+BLOCKED / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+============================================================
+PRIVACY
+============================================================
+
+Raw push token exposed:
+NO / YES
+
+JWT:
+NO / YES
+
+Password:
+NO / YES
+
+Provider secret:
+NO / YES
+
+============================================================
+PERFORMANCE
+============================================================
+
+N+1:
+0 / ...
+
+Unbounded:
+0 / ...
+
+Indexes added:
+...
+
+============================================================
+E2E
+============================================================
+
+Failure:
+PASS / FAIL
+
+Accepted:
+PASS / FAIL / N/A
+
+No device:
+PASS / FAIL
+
+Read/unread:
+PASS / FAIL
+
+Real external push sent:
+NO
+
+============================================================
+SUPPORT ACTION INVENTORY
+============================================================
+
+SAFE TO EXPOSE:
+...
+
+READ ONLY:
+...
+
+LATER:
+...
+
+DO NOT EXPOSE:
+...
+
+Actual mutations exposed:
+...
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0 / ...
+
+WP1 regression:
+PASS / FAIL
+
+WP2 regression:
+PASS / FAIL
+
+WP3 regression:
+PASS / FAIL
+
+WP4 regression:
+PASS / FAIL
+
+WP5 regression:
+PASS / FAIL
+
+WP6 regression:
+PASS / FAIL
+
+============================================================
+APP / OTA
+============================================================
+
+iOS APP/shared runtime modified:
+YES / NO
+
+If YES:
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group:
+...
+
+iOS Update:
+...
+
+Commit SHA:
+...
+
+Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+If NO:
+
+OTA:
+NOT REQUIRED
+
+============================================================
+DB
+============================================================
+
+Development migration:
+...
+
+Production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP7 complete:
+YES / NO
+
+Notification diagnostics support-ready:
+YES / NO
+
+Push failure traceable:
+YES / NO
+
+Growth report notification traceable:
+YES / NO
+
+Cross-pool:
+PASS / FAIL
+
+Remaining blocker:
+...
+
+Recommended next WP:
+WP8 — AUDIT / SUPPORT CASE
+
+DO NOT START WP8.
+WAIT FOR NEXT INSTRUCTION.
