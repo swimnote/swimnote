@@ -1,0 +1,1592 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# SUPER ADMIN POOL CONTROL CENTER
+# PRODUCTION GATE — FULL TECHNICAL VERIFICATION + HARDENING
+# CURRENT TARGET: 5bf26741
+# DO NOT DEPLOY PRODUCTION YET
+
+============================================================
+현재 상태
+============================================================
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+5bf26741
+
+Ancestor:
+4a948682
+
+이번에 구현된 것으로 보고됨:
+
+- Manual BASE entitlement
+- Existing Manual X entitlement
+- Manual X plan
+- Pool Control Center Overview
+- Access / Plans
+- Members
+- Teachers
+- Parents
+- Classes
+- Curriculum
+- AI Operations
+- Growth Reports
+- Errors
+- Notifications
+- Storage
+- Audit
+- Support
+- Secure curriculum original download
+- Pool scoped queries
+
+하지만 Production 배포 전
+대규모 변경에 대한 실제 통합 검증이 부족함.
+
+이번 작업은 새 기능 확장이 아니라
+
+"5bf26741에서 구현했다고 보고된 모든 기능이
+실제로 연결되어 있고 Production에 올려도 되는지
+전수 검증 + 필요한 최소 hardening"
+
+이다.
+
+============================================================
+0. 절대 금지
+============================================================
+
+DO NOT:
+
+- Render production deploy
+- Production DB migration
+- Production DB mutation
+- RevenueCat 실제 구매
+- App Store 결제
+- real push 발송
+- real report 생성
+- real report publish
+- production customer data 수정
+- 1.6.3 touch
+- broad unrelated refactor
+
+검증 중 문제 발견 시
+CURRENT V2에서 최소 수정 후 테스트.
+
+============================================================
+1. GIT / CHANGESET 검증
+============================================================
+
+먼저:
+
+git status
+git log
+git diff 4a948682..5bf26741 --stat
+git diff --name-only 4a948682..5bf26741
+
+확인.
+
+보고:
+
+5bf26741에서 실제 변경 파일 전체.
+
+분류:
+
+SERVER
+SUPER ADMIN WEB
+iOS APP/shared app
+DB/migration
+tests
+
+특히:
+
+일반 iOS APP runtime에 포함되는 파일이
+실제로 변경됐는지 정확히 확인.
+
+단순 "Web UI니까 OTA 없음" 추정 금지.
+
+결과:
+
+iOS APP runtime files changed:
+YES / NO
+
+============================================================
+2. BASE MANUAL ENTITLEMENT — P0 통합검증
+============================================================
+
+이번 배포에서 가장 중요한 신규 기능.
+
+실제 DEV DB fixture로 아래를 전부 테스트.
+
+A.
+paid base inactive
+manual base false
+→ effective base = inactive/current policy
+
+B.
+paid base inactive
+manual base true
+→ effective base = active
+
+C.
+subscription expired
+manual base true
+→ effective base = active
+
+D.
+subscription cancelled/inactive
+manual base true
+→ effective base = active
+
+E.
+manual base revoke
+paid inactive
+→ effective base = inactive/current policy
+
+F.
+manual base revoke
+paid active
+→ effective base = active via paid
+
+G.
+manual base grant 후
+billing/subscription sync simulation
+→ manual base remains true
+
+H.
+server-side base-protected route
+manual base=true
+→ authorized
+
+I.
+manual base=false + unpaid
+→ protected behavior matches existing product policy
+
+중요:
+
+UI badge만 ON이 아니라
+실제 SERVER access guard까지 확인.
+
+============================================================
+3. BASE MUTATION AUTH
+============================================================
+
+BASE grant/revoke endpoint에 대해:
+
+super_admin:
+200
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+request body에서
+target pool/user 조작:
+blocked
+
+없는 pool:
+404 or defined safe error
+
+============================================================
+4. BASE AUDIT
+============================================================
+
+실제 DEV DB에서:
+
+BASE grant
+
+→ audit_logs row 생성 확인
+
+BASE revoke
+
+→ audit_logs row 생성 확인
+
+검증:
+
+actor
+target pool
+action
+before
+after
+timestamp
+
+reason이 contract상 필요한 경우 reason도 확인.
+
+중복 audit:
+NO
+
+mutation 실패 시 false-success audit:
+NO
+
+============================================================
+5. X MANUAL 회귀검증
+============================================================
+
+기존 12/12만 재실행했다고 끝내지 말고
+새 Control Center UI/API와 실제 연결까지 확인.
+
+Super Admin Control Center:
+
+X direct grant
+→ DB x_manual_entitlement=true
+→ effective X ON
+
+plan x300
+→ x_plan_key=x300
+→ effective limit 300
+
+x500
+→ 500
+
+x1000
+→ 1000
+
+revoke
+→ paid 없으면 OFF
+
+paid=true + manual revoke
+→ remains ON via paid
+
+force_disabled=true
+→ effective OFF
+
+RevenueCat sync simulation
+→ manual X untouched
+
+============================================================
+6. ACCESS / PLAN REAL-TIME REFRESH
+============================================================
+
+Mutation 이후:
+
+SERVER response success
+→ DB value
+→ Control Center refetch
+→ effective state
+
+까지 검증.
+
+다음 금지:
+
+optimistic UI만 바뀜
+새로고침 후 원복
+DB 반영됐는데 화면 stale
+plan만 바뀌고 member limit stale
+
+각 mutation 후 actual refetch/assert.
+
+============================================================
+7. CONTROL CENTER ROUTE INVENTORY
+============================================================
+
+실제 코드 기준으로
+Control Center 관련 모든 endpoint 목록 작성.
+
+예:
+
+summary
+members
+teachers
+parents
+classes
+curriculum
+ai
+growth reports
+errors
+notifications
+storage
+audit
+support
+secure download
+entitlement mutation
+
+각 endpoint별 보고:
+
+METHOD
+PATH
+AUTH
+POOL SCOPE
+PAGINATION
+MUTATION/READ
+
+추측 금지.
+
+============================================================
+8. SUPER-ADMIN AUTH 전수검증
+============================================================
+
+Control Center 모든 endpoint에 대해:
+
+super_admin:
+expected success
+
+pool_admin:
+403
+
+teacher:
+403
+
+parent:
+403
+
+unauthenticated:
+401
+
+최소 automated route test로 작성.
+
+단순 middleware가 붙어 있다는
+소스 검사만으로 PASS 금지.
+
+============================================================
+9. CROSS-POOL REAL DB TEST
+============================================================
+
+반드시 서로 다른 DEV fixture:
+
+POOL_A
+POOL_B
+
+를 사용.
+
+POOL_A Control Center에서:
+
+POOL_B member:
+0
+
+POOL_B teacher:
+0
+
+POOL_B parent:
+0
+
+POOL_B class:
+0
+
+POOL_B curriculum:
+0
+
+POOL_B AI trace:
+0
+
+POOL_B growth report:
+0
+
+POOL_B error:
+0
+
+POOL_B notification:
+0
+
+POOL_B audit:
+0
+
+POOL_B support case:
+0
+
+POOL_B storage file:
+0
+
+secure curriculum download with
+POOL_B submission while requesting POOL_A:
+blocked
+
+실제 DB row로 검증.
+
+구조적 코드 리뷰만으로
+cross-pool PASS 금지.
+
+============================================================
+10. OVERVIEW SUMMARY 실제 검증
+============================================================
+
+GET control-center/summary
+
+실제 DEV fixture에서:
+
+HTTP 200
+
+검증:
+
+pool identity
+effective BASE
+effective X
+plan
+member limit
+member count
+teacher count
+parent count
+class count
+storage
+AI KPI
+error count
+health
+
+각 값이 실제 raw DB recount와
+일치하는지 비교.
+
+임의 placeholder:
+0
+
+hardcoded demo:
+0
+
+undefined → fake zero:
+금지
+
+데이터 unavailable이면
+명확히 unavailable/null 처리.
+
+============================================================
+11. HEALTH RULE 검증
+============================================================
+
+GREEN/YELLOW/RED가
+실제 deterministic rule인지 확인.
+
+보고:
+
+각 health rule
+source
+threshold
+priority
+
+테스트:
+
+normal → GREEN
+
+one warning source → YELLOW
+
+critical source → RED
+
+없는 데이터를 오류로 오판:
+NO
+
+AI generated judgment:
+NO
+
+============================================================
+12. MEMBERS
+============================================================
+
+실제 테스트:
+
+pagination
+search by name
+search by phone partial/masked policy
+search by ID
+status filter
+
+검증:
+
+반
+교사
+parent count
+recent diary
+
+가 cross-pool 없이 정상.
+
+대량 row에서도
+N+1 query 발생하지 않는지 확인.
+
+회원 비밀번호:
+never selected
+
+JWT/token:
+never selected
+
+============================================================
+13. TEACHERS
+============================================================
+
+검증:
+
+pagination
+search
+role
+email
+last activity/login source
+assigned class count
+
+raw DB와 비교.
+
+N+1:
+NO
+
+cross-pool:
+0
+
+============================================================
+14. PARENTS
+============================================================
+
+검증:
+
+pagination
+search
+approval/link state
+connected student count
+
+raw DB와 비교.
+
+cross-pool:
+0
+
+============================================================
+15. CLASSES
+============================================================
+
+검증:
+
+teacher
+student count
+active state
+curriculum assignment
+
+raw DB와 비교.
+
+N+1:
+NO
+
+============================================================
+16. CURRICULUM
+============================================================
+
+실제 DEV DB + storage fixture로:
+
+submission list:
+PASS
+
+filename:
+PASS
+
+size:
+PASS if source exists
+
+uploaded_at:
+PASS
+
+version:
+PASS
+
+processing status:
+PASS
+
+active/current:
+PASS
+
+error state:
+PASS
+
+============================================================
+17. SECURE ORIGINAL DOWNLOAD — P0
+============================================================
+
+실제 storage fixture 또는 안전한
+DEV object를 사용해 검증.
+
+Super Admin:
+download request success
+
+signed URL expiry:
+approximately 5 min as designed
+
+wrong pool submission:
+blocked
+
+non-super-admin:
+403
+
+unauthenticated:
+401
+
+not found:
+404
+
+permanent public URL:
+NO
+
+signed URL에 secret 노출:
+NO
+
+다른 pool path injection:
+blocked
+
+가능하면 실제 HEAD/GET까지
+DEV에서 검증.
+
+============================================================
+18. AI OPERATIONS
+============================================================
+
+실제 snapshot/raw source 비교.
+
+검증:
+
+AI diary count
+AI diary teacher count
+parent curriculum search count
+parent curriculum users
+
+최근 AI trace:
+
+pool scope
+status
+feature
+request id
+trace/correlation id
+
+PII/secret:
+NO
+
+없는 metric을 fake zero:
+NO
+
+============================================================
+19. GROWTH REPORT OPERATIONS
+============================================================
+
+read-only 검증.
+
+실제 fixture:
+
+report statuses
+batch jobs
+attempts
+next attempt
+last error where safe
+
+READY_TO_SEND
+DISCARDED
+REGENERATING
+PUBLISHED
+
+조회에서 오류 없음.
+
+이번 테스트에서:
+
+generate:
+NO
+
+publish:
+NO
+
+push:
+NO
+
+============================================================
+20. ERROR / INCIDENT CENTER
+============================================================
+
+실제 fixture를 생성 가능한 DEV에서만 사용.
+
+검증:
+
+ERROR
+WARNING
+
+feature filter
+severity filter
+time filter
+pagination
+
+pool scope:
+PASS
+
+safe_message only:
+PASS
+
+password/token/secret:
+NO
+
+request_id:
+correct when source exists
+
+trace_id:
+correct when source exists
+
+event_logs + incidents 중복표시 정책:
+명확히 보고.
+
+============================================================
+21. CONSOLE-ONLY LOG 확인
+============================================================
+
+보고서에서는
+DB-backed error center가 구현됐다고 했음.
+
+하지만 실제 운영상 중요한 오류가
+여전히 console-only인지 재조사.
+
+특히:
+
+auth
+billing webhook
+AI request
+growth worker
+curriculum processing
+upload/storage
+notification push
+
+각 영역:
+
+DB observable:
+YES / NO
+
+NO이면:
+
+이번 Control Center에서 반드시 필요한
+P0/P1 오류만 기존 logging source에
+최소 연결.
+
+새 logging framework 생성 금지.
+
+============================================================
+22. NOTIFICATIONS
+============================================================
+
+실제 pool scoped read 검증.
+
+recipient
+type
+created_at
+read status
+
+push status는
+실제 source가 있을 때만 표시.
+
+source가 없는데
+"성공/실패" 가짜 상태 생성 금지.
+
+pagination:
+PASS
+
+cross-pool:
+0
+
+============================================================
+23. STORAGE
+============================================================
+
+used bytes
+quota
+blocked state
+
+실제 source와 비교.
+
+파일 삭제:
+NO
+
+cross-pool:
+0
+
+============================================================
+24. AUDIT
+============================================================
+
+pool-scoped pagination/search 확인.
+
+Super Admin mutation:
+
+BASE
+X
+plan
+
+각각 실제 audit 생성 확인.
+
+다른 pool audit:
+0
+
+============================================================
+25. SUPPORT
+============================================================
+
+support_cases가 실제 기존 table인지
+이번에 추가된 table인지 정확히 보고.
+
+schema:
+...
+
+migration:
+...
+
+실제 DEV에서:
+
+create case
+read case
+update status
+add note/update note current design
+resolve
+
+지원되는 contract 범위에서 테스트.
+
+각 mutation:
+audit 또는 support history
+
+cross-pool:
+blocked
+
+non-super:
+403
+
+존재하지 않는 UI 버튼:
+0
+
+미연결 버튼:
+0
+
+============================================================
+26. UI ROUTE / BUTTON CONNECTION
+============================================================
+
+Super Admin Web의 모든 Control Center 탭과
+버튼을 source 기준으로 매핑.
+
+각 버튼:
+
+UI component
+→ API client
+→ HTTP route
+→ service/query
+→ DB/storage
+
+연결표 작성.
+
+반드시 확인:
+
+placeholder button:
+0
+
+TODO handler:
+0
+
+console-only click:
+0
+
+fake mock:
+0
+
+disabled forever:
+0
+
+dead route:
+0
+
+============================================================
+27. EMPTY / LOADING / ERROR STATE
+============================================================
+
+13개 탭 각각:
+
+loading
+empty
+error
+success
+
+상태 확인.
+
+한 탭 오류 때문에
+전체 Control Center blank:
+NO
+
+summary error 처리:
+명확한 fallback
+
+detail tab error:
+해당 탭만 오류
+
+============================================================
+28. PAGINATION
+============================================================
+
+다음 대량 목록은
+pagination 필수:
+
+members
+teachers
+parents
+errors
+notifications
+audit
+support
+growth reports if unbounded
+
+현재 구현 확인.
+
+unbounded SELECT *:
+FAIL
+
+필요 시 최소 수정.
+
+============================================================
+29. N+1 / PERFORMANCE
+============================================================
+
+실제 query code 검토.
+
+Summary에서 Promise.all을 쓴다는 이유만으로
+N+1 PASS 처리 금지.
+
+각 promise 내부에서
+row별 추가 query 없는지 확인.
+
+Members/Teachers/Parents/Class 목록도 동일.
+
+보고:
+
+summary SQL/query count
+members query count
+teachers query count
+parents query count
+
+500 pool list는
+pool별 Control Center summary 호출 금지.
+
+============================================================
+30. INDEX REVIEW
+============================================================
+
+새 Control Center 쿼리에서
+자주 사용하는 조건:
+
+pool_id
+status
+created_at
+user/member id
+feature
+severity
+
+에 필요한 기존 index가 있는지 확인.
+
+EXPLAIN 또는 schema inspection으로
+명백한 full-scan 위험만 보완.
+
+과도한 index 추가 금지.
+
+Development migration만 허용.
+
+============================================================
+31. PLAN CATALOG
+============================================================
+
+현재 보고:
+
+subscriptionPlans.ts
+single source라고 했지만
+
+동시에:
+
+super.ts X_PLAN_LIMITS
+SuperPoolControlCenter X_PLANS
+
+중복이 남아 있다고 보고됨.
+
+즉 실제로는 single source가 아님.
+
+이번 검증에서 정확히 정리.
+
+목표:
+
+plan key / member limit / display metadata는
+가능하면 하나의 authoritative catalog.
+
+단:
+
+새 가격 숫자 적용:
+NO
+
+RevenueCat product mapping:
+아직 최종 연결 NO
+
+기존 가격:
+유지하되 deprecated 준비
+
+중복 limit source 때문에
+서버와 Web이 서로 다른 값이 될 가능성:
+제거.
+
+SERVER에서 authoritative validation 필요.
+
+클라이언트 값을 신뢰해서
+member_limit 결정 금지.
+
+============================================================
+32. iOS OTA 판정
+============================================================
+
+이번 hardening에서
+일반 iOS APP/shared runtime 코드가 변경되면:
+
+test
+→ commit
+→ HEAD verify
+→ iOS OTA
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+보고:
+
+OTA Group ID
+iOS Update ID
+Commit SHA
+Export Source SHA
+SHA Match
+
+반대로:
+
+Super Admin Web + Server만 변경되고
+iOS runtime 파일 0이면
+
+OTA:
+NOT REQUIRED
+
+라고 명시.
+
+빈 OTA 발행 금지.
+
+============================================================
+33. TEST SUITE
+============================================================
+
+최종 Production Gate에는
+최소 다음 category의 automated tests 포함:
+
+BASE entitlement
+X entitlement
+super-admin auth
+cross-pool
+summary
+members
+teachers
+parents
+classes
+curriculum
+secure download
+AI read
+growth report read
+errors
+notifications
+storage
+audit
+support
+pagination
+
+실행 불가능한 테스트는
+SKIPPED로 숨기지 말고 이유 보고.
+
+P0 test skipped:
+0
+
+============================================================
+34. 수정 발생 시
+============================================================
+
+문제 발견하면 CURRENT HEAD에서
+최소 수정.
+
+test
+→ commit
+→ push release/v2.0.0
+
+Render:
+NO
+
+Production DB:
+NO
+
+============================================================
+35. MAIN 승격 금지
+============================================================
+
+이번 검증이 PASS하기 전에는:
+
+main merge:
+NO
+
+Render deploy:
+NO
+
+완료보고를 받은 뒤
+별도 production promotion을 진행.
+
+============================================================
+36. 완료보고
+============================================================
+
+# POOL CONTROL CENTER PRODUCTION GATE REPORT
+
+Branch:
+...
+
+HEAD Before:
+5bf26741
+
+HEAD After:
+...
+
+Commit(s):
+...
+
+5bf26741 ancestor:
+YES / NO
+
+============================================================
+CHANGESET
+============================================================
+
+Server files:
+...
+
+Super Admin Web files:
+...
+
+iOS/shared runtime files:
+...
+
+DB migrations:
+...
+
+Test files:
+...
+
+iOS runtime changed:
+YES / NO
+
+============================================================
+BASE ENTITLEMENT
+============================================================
+
+A:
+PASS / FAIL
+
+B:
+PASS / FAIL
+
+C:
+PASS / FAIL
+
+D:
+PASS / FAIL
+
+E:
+PASS / FAIL
+
+F:
+PASS / FAIL
+
+G:
+PASS / FAIL
+
+H:
+PASS / FAIL
+
+I:
+PASS / FAIL
+
+Server guard real test:
+PASS / FAIL
+
+Revenue/billing sync survives:
+PASS / FAIL
+
+Audit:
+PASS / FAIL
+
+============================================================
+X ENTITLEMENT
+============================================================
+
+Manual grant:
+PASS / FAIL
+
+Plan x300:
+PASS / FAIL
+
+Plan x500:
+PASS / FAIL
+
+Plan x1000:
+PASS / FAIL
+
+Revoke:
+PASS / FAIL
+
+Paid + revoke:
+PASS / FAIL
+
+Force disabled:
+PASS / FAIL
+
+Billing sync:
+PASS / FAIL
+
+============================================================
+ROUTES
+============================================================
+
+모든 Control Center route를
+METHOD / PATH / AUTH / SCOPE / PAGINATION
+표로 제출.
+
+============================================================
+AUTH
+============================================================
+
+Super Admin:
+PASS / FAIL
+
+Pool Admin blocked:
+PASS / FAIL
+
+Teacher blocked:
+PASS / FAIL
+
+Parent blocked:
+PASS / FAIL
+
+Unauthenticated blocked:
+PASS / FAIL
+
+============================================================
+CROSS-POOL REAL DB
+============================================================
+
+Members:
+0 / FAIL
+
+Teachers:
+0 / FAIL
+
+Parents:
+0 / FAIL
+
+Classes:
+0 / FAIL
+
+Curriculum:
+0 / FAIL
+
+AI:
+0 / FAIL
+
+Growth:
+0 / FAIL
+
+Errors:
+0 / FAIL
+
+Notifications:
+0 / FAIL
+
+Audit:
+0 / FAIL
+
+Support:
+0 / FAIL
+
+Files:
+0 / FAIL
+
+============================================================
+SUMMARY
+============================================================
+
+Raw DB comparison:
+PASS / FAIL
+
+Fake/mock values:
+0 / ...
+
+Health rules:
+PASS / FAIL
+
+============================================================
+DETAIL TABS
+============================================================
+
+Members:
+PASS / FAIL
+
+Teachers:
+PASS / FAIL
+
+Parents:
+PASS / FAIL
+
+Classes:
+PASS / FAIL
+
+Curriculum:
+PASS / FAIL
+
+AI:
+PASS / FAIL
+
+Growth:
+PASS / FAIL
+
+Errors:
+PASS / FAIL
+
+Notifications:
+PASS / FAIL
+
+Storage:
+PASS / FAIL
+
+Audit:
+PASS / FAIL
+
+Support:
+PASS / FAIL
+
+============================================================
+CURRICULUM DOWNLOAD
+============================================================
+
+Actual signed URL:
+PASS / FAIL
+
+Expiry:
+...
+
+Wrong pool:
+BLOCKED / FAIL
+
+Non-super:
+BLOCKED / FAIL
+
+Permanent public URL:
+NO / YES
+
+============================================================
+ERROR OBSERVABILITY
+============================================================
+
+Auth:
+...
+
+Billing:
+...
+
+AI:
+...
+
+Growth worker:
+...
+
+Curriculum:
+...
+
+Upload/storage:
+...
+
+Notification:
+...
+
+Critical console-only remaining:
+...
+
+============================================================
+BUTTON CONNECTION
+============================================================
+
+Placeholder buttons:
+0 / ...
+
+TODO handlers:
+0 / ...
+
+Mock data:
+0 / ...
+
+Dead routes:
+0 / ...
+
+All mutations real:
+PASS / FAIL
+
+============================================================
+PAGINATION
+============================================================
+
+Members:
+PASS / FAIL
+
+Teachers:
+PASS / FAIL
+
+Parents:
+PASS / FAIL
+
+Errors:
+PASS / FAIL
+
+Notifications:
+PASS / FAIL
+
+Audit:
+PASS / FAIL
+
+Support:
+PASS / FAIL
+
+============================================================
+PERFORMANCE
+============================================================
+
+N+1:
+NO / YES
+
+Unbounded queries:
+0 / ...
+
+Indexes added:
+...
+
+============================================================
+PLAN CATALOG
+============================================================
+
+Authoritative source:
+...
+
+Server validation source:
+...
+
+Web source:
+...
+
+Duplicate plan limits remaining:
+0 / ...
+
+New prices applied:
+NO
+
+============================================================
+TESTS
+============================================================
+
+Total:
+...
+
+Passed:
+...
+
+Failed:
+...
+
+Skipped:
+...
+
+P0 skipped:
+0 / ...
+
+============================================================
+OTA
+============================================================
+
+iOS APP modified:
+YES / NO
+
+If YES:
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Group:
+...
+
+iOS Update:
+...
+
+Commit SHA:
+...
+
+Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android:
+NOT PUBLISHED
+
+If NO:
+
+OTA:
+NOT REQUIRED
+
+============================================================
+SERVER
+============================================================
+
+Tests:
+PASS / FAIL
+
+Pushed:
+YES / NO
+
+Render:
+NO
+
+============================================================
+DB
+============================================================
+
+Development migration:
+...
+
+Production migration:
+NO
+
+============================================================
+FINAL
+============================================================
+
+Toykids BASE unpaid ready:
+YES / NO
+
+Toykids X unpaid ready:
+YES / NO
+
+Control Center real-data connected:
+YES / NO
+
+All operating mutations connected:
+YES / NO
+
+Cross-pool:
+PASS / FAIL
+
+Security:
+PASS / FAIL
+
+Observability:
+PASS / FAIL
+
+Customer-support usable:
+YES / NO
+
+Safe for main promotion:
+YES / NO
+
+FINAL STATUS:
+PRODUCTION GATE PASS / BLOCKED
