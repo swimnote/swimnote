@@ -69,3 +69,4 @@
 - [WP8 완료 상태](wp8-done-state.md) — SHA b728e007; Audit+SupportCase CRM; ensureWp8Schema+10 routes+AuditTab+SupportTab; 76TC; Render 트리거; OTA 없음
 - [WP2 Member Limit Enforcement 완료](wp2-member-limit-done.md) — SHA b17df141; lib/member-limit.ts+advisory lock; 6경로 bypass 수정; 25TC
 - [WP11 Admin Notes MVP 완료](wp11-admin-notes-done-state.md) — SHA e2d4ac0f; admin_member_notes+CRUD+audit+SectionG; Staging PASS; 30TC
+- [WP12 Marketing MVP 완료](wp12-marketing-done-state.md) — SHA dc768326; marketing-audience.ts+super.ts 3routes+scheduler+App UI; 36TC
