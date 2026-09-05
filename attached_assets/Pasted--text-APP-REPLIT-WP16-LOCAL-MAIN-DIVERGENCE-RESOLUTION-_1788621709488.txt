@@ -1,0 +1,288 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP16 — LOCAL MAIN DIVERGENCE RESOLUTION
+# 선택: OPTION 1
+# local main의 3개 커밋 보존 후 release merge
+
+사용자 결정:
+
+OPTION 1로 진행합니다.
+
+local main의 아래 3개 커밋은 reset/delete하지 않습니다.
+
+55cabf21  Add new project documentation and source text for Swimnote 2.0
+425e9a68  Import emergency SwimNote recovery data
+31dba592  Add schema hygiene definition file
+
+단 merge 전에 이 3개가 실제 runtime 코드/config/schema 실행 경로를 변경하지 않는지
+최소 diff 검증 후 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 3개 Commit Safety Check
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 commit마다 확인:
+
+git show --stat <sha>
+git show --name-status <sha>
+
+필요 시 실제 diff 최소 확인.
+
+보고 기준:
+
+- source runtime code 변경 여부
+- app.json/eas.json/package.json 변경 여부
+- migrations executable code 변경 여부
+- API/server/app runtime import 경로 변경 여부
+- Production schema/runtime behavior 변경 여부
+
+문서/text/definition-only이고
+runtime effect 0이면 계속 진행.
+
+실제 runtime 영향 파일이 하나라도 있으면
+merge하지 말고 STOP + exact file 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Reset 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+git reset --hard origin/main
+force push
+history rewrite
+3개 commit 삭제
+
+현재 local main history를 보존합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Origin 최신화
+━━━━━━━━━━━━━━━━━━━━━━
+
+git fetch origin
+
+다시 확인:
+
+origin/main latest SHA:
+...
+
+origin/release/v2.0.0:
+aff68b8a
+
+origin/main이 기존 8aef7060 이후 변경됐다면
+그 새 SHA 기준으로 conflict precheck.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Release Merge
+━━━━━━━━━━━━━━━━━━━━━━
+
+local main에 이미 존재하는 3개 커밋을 유지한 상태에서:
+
+release/v2.0.0
+→ main
+
+일반 merge 수행.
+
+권장:
+
+git merge --no-ff origin/release/v2.0.0
+
+squash 금지.
+cherry-pick 개별 적용 금지.
+
+실제 conflict 발생 시 임의 해결 금지.
+STOP + conflict files 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Merge 후 Ancestry
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+aff68b8a ancestor of main:
+YES
+
+8aef7060 ancestor of main:
+YES
+
+55cabf21 ancestor of main:
+YES
+
+425e9a68 ancestor of main:
+YES
+
+31dba592 ancestor of main:
+YES
+
+즉:
+
+기존 origin/main
++
+local 3 commits
++
+release/v2.0.0
+
+모두 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Version Freeze
+━━━━━━━━━━━━━━━━━━━━━━
+
+merge 후 확인:
+
+version:
+2.0.1
+
+runtimeVersion:
+2.1.0 explicit
+
+iOS buildNumber:
+256
+
+Android versionCode:
+240
+
+production channel:
+production-v2
+
+변경/수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 PASS 후:
+
+git push origin main
+
+force push 금지.
+
+push 후:
+
+origin/main SHA:
+...
+
+aff68b8a ancestor of origin/main:
+YES
+
+local 3 commits ancestor of origin/main:
+YES
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Render
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render deploy:
+NO
+
+이번 단계에서는 사용자가 직접 수동 Render 재배포합니다.
+
+Production DB 변경:
+0
+
+OTA:
+NO
+
+Store build:
+NO
+
+WP16 E2E:
+아직 NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 RELEASE→MAIN MERGE REPORT
+
+Local-only commits verified:
+
+55cabf21:
+runtime effect:
+YES / NO
+files:
+...
+
+425e9a68:
+runtime effect:
+YES / NO
+files:
+...
+
+31dba592:
+runtime effect:
+YES / NO
+files:
+...
+
+Safe to retain:
+YES / NO
+
+origin/main before:
+...
+
+local main before:
+...
+
+release:
+aff68b8a
+
+Merge:
+PASS / FAIL
+
+Conflict:
+YES / NO
+
+main after:
+...
+
+origin/main after:
+...
+
+Merge commit:
+...
+
+aff68b8a ancestor of origin/main:
+YES / NO
+
+8aef7060 ancestor of origin/main:
+YES / NO
+
+55cabf21 ancestor:
+YES / NO
+
+425e9a68 ancestor:
+YES / NO
+
+31dba592 ancestor:
+YES / NO
+
+Version freeze:
+PASS / FAIL
+
+Production DB changes:
+0
+
+Render deployed:
+NO
+
+OTA published:
+NO
+
+Next required action:
+USER MANUAL RENDER DEPLOY
+
+Render should deploy:
+<origin/main SHA or descendant>
+
+Final:
+PASS_FOR_RENDER_DEPLOY / HOLD
+
+중요:
+
+3개 커밋은 보존합니다.
+reset/history rewrite 금지.
+
+단 실제 runtime 영향이 발견되면 merge 전에 STOP하십시오.
+```
