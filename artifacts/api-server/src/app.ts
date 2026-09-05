@@ -10,6 +10,7 @@ import { startPushScheduler } from "./jobs/push-scheduler.js";
 import { startPushFanoutWorker } from "./jobs/push-fanout-worker.js";
 import { recordResponseTime } from "./lib/responseTracker.js";
 import { requireNotDeactivated } from "./lib/deactivationGuard.js";
+import { errorTrackingMiddleware } from "./middlewares/error-tracking.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +75,9 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use("/api/store-assets", express.static(path.join(__dirname, "../public/store-assets")));
+
+// ── WP9: 5xx 응답 추적 (event_logs → 모니터 쿼리 대상) ─────────────────────
+app.use("/api", errorTrackingMiddleware);
 
 // ── 구독 취소 후 90일 비활성화 수영장 전면 차단 ────────────────────────────
 app.use("/api", requireNotDeactivated);
