@@ -1,0 +1,233 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 FINAL — iOS PRODUCTION OTA
+# 사용자 승인 완료
+# iOS ONLY
+# Android OTA 금지
+# WP17 선행 금지
+
+사용자가 Production OTA를 명시적으로 승인했습니다.
+
+공식 release branch:
+
+release/v2.0.0
+
+현재 release HEAD:
+
+5006e596eb09d0a455029dc8c4eaafac9ebc5f43
+
+Teacher Diary final Engine URL:
+
+https://swimnote-professional-engine.onrender.com
+
+Final endpoint:
+
+https://swimnote-professional-engine.onrender.com/api/v1/teacher-diary/generate
+
+Version:
+
+2.0.1
+
+RuntimeVersion:
+
+2.1.0
+
+iOS buildNumber:
+
+256
+
+Android versionCode:
+
+240
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA는:
+
+Platform:
+iOS ONLY
+
+Production channel:
+production-v2
+
+Android OTA:
+NO
+
+새 코드 수정 금지.
+DB 변경 금지.
+Render deploy 금지.
+WP17 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 배포 전 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+현재 branch:
+release/v2.0.0
+
+HEAD:
+5006e596eb09d0a455029dc8c4eaafac9ebc5f43
+
+TeacherDiaryAIClient production base:
+https://swimnote-professional-engine.onrender.com
+
+runtimeVersion:
+2.1.0
+
+native-incompatible change:
+NO
+
+이번 변경은 JS/TS 1줄 URL 변경이므로
+iOS OTA compatible인지 확인.
+
+NO이면 STOP/HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. iOS Production OTA 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 프로젝트의 정확한 EAS production-v2 OTA 방식 사용.
+
+중요:
+
+- iOS only
+- production-v2 channel
+- Android 포함 금지
+- --branch production 같은 다른 배포선 사용 금지
+- 새 runtimeVersion 생성 금지
+- native build 금지
+
+기존 EAS 설정과 현재 project config를 기준으로
+production-v2에 연결되는 정확한 update command 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 배포 후 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+Branch:
+release/v2.0.0
+
+HEAD:
+5006e596eb09d0a455029dc8c4eaafac9ebc5f43
+
+RuntimeVersion:
+2.1.0
+
+App Version:
+2.0.1
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+EAS Update Group ID:
+...
+
+iOS Update ID:
+...
+
+Published:
+YES / NO
+
+Publish timestamp:
+...
+
+SHA/content match:
+YES / NO
+
+Android OTA:
+NO
+
+Native changes:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실기기 확인 준비
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA publish 후
+실제 iOS 앱에서 다음만 확인할 수 있도록 준비:
+
+AI Diary 실행
+→ TeacherDiaryAIClient
+→ swimnote-professional-engine.onrender.com
+→ GroundedPipelineRunner
+
+확인 목표:
+
+pipeline_mode=grounded_v1
+unexpected 5xx=0
+fallback_used=false
+
+실제 고객 일지 저장 강제 금지.
+
+사용자가 실기기에서 직접 확인할 수 있으면
+그 확인 결과를 기다리십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# APP IOS OTA REPORT
+
+Branch:
+release/v2.0.0
+
+HEAD:
+5006e596eb09d0a455029dc8c4eaafac9ebc5f43
+
+Fix Commit SHA:
+5006e596eb09d0a455029dc8c4eaafac9ebc5f43
+
+RuntimeVersion:
+2.1.0
+
+App Version:
+2.0.1
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Published:
+YES / NO
+
+Publish timestamp:
+...
+
+SHA Match:
+YES / NO
+
+Android OTA:
+NO
+
+Native changes:
+NO
+
+Teacher Diary Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+Remaining blocker:
+USER REAL DEVICE VERIFY / NONE
+
+Final:
+PASS / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
