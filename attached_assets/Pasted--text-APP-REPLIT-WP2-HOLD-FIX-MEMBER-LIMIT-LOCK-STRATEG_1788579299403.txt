@@ -1,0 +1,314 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP2 — HOLD FIX
+# MEMBER LIMIT LOCK STRATEGY + ACTIVE LIFECYCLE VERIFICATION
+# FINAL MASTER WP FREEZE — 계획 변경 금지
+
+현재 WP2 구현 commit:
+
+b17df141
+origin/release/v2.0.0
+
+현재 보고된 대부분의 WP2 구현은 유지합니다.
+
+이번 작업은 WP2의 두 가지 HOLD 항목만 수정/검증합니다.
+
+절대 WP3 이후 작업을 시작하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. HOLD 사유 1 — LOCK 방식이 확정 설계와 다름
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP2에서 사전에 확정한 canonical race-safe 방식은:
+
+BEGIN
+→ 대상 swimming_pools row SELECT ... FOR UPDATE
+→ active member count
+→ plan limit check
+→ INSERT / active transition
+→ COMMIT
+
+입니다.
+
+그런데 현재 구현은:
+
+pg_advisory_xact_lock(hashtext(poolId))
+
+으로 변경되었습니다.
+
+이번 프로젝트 최상위 규칙은:
+
+"확정된 WP 계획을 구현 도중 임의 변경하지 않는다."
+
+입니다.
+
+따라서 advisory lock을 임의 채택한 상태로 완료처리하지 않습니다.
+
+이번 보정에서는 기존 canonical helper 구조는 유지하되
+pool 단위 serialization을 확정 설계대로:
+
+SELECT ... FROM swimming_pools
+WHERE id = ?
+FOR UPDATE
+
+형태의 실제 row lock으로 변경하십시오.
+
+현재 ORM/transaction API에 맞게 구현하십시오.
+
+중요:
+
+- route마다 lock 복붙 금지
+- canonical member-limit helper 내부에서 처리
+- transaction 밖에서 count 금지
+- count와 INSERT/restore 사이 lock 유지
+- 같은 pool 증가 경로가 동일 row lock 사용
+- advisory lock과 row lock을 이중으로 겹쳐 넣지 마십시오.
+- 특별한 실제 기술적 blocker가 없다면 SELECT FOR UPDATE 기준을 그대로 따르십시오.
+
+만약 현재 DB/schema/transaction 구조상
+SELECT FOR UPDATE가 실제로 불가능한 명확한 blocker가 있다면:
+
+코드를 다른 방식으로 또 변경하지 말고
+정확한 evidence만 보고하고 STOP하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. HOLD 사유 2 — withdrawn lifecycle 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 완료보고에:
+
+restore 경로:
+"deleted→active 경로에만 추가 (withdrawn은 이미 카운트 포함)"
+
+이라고 되어 있습니다.
+
+우리가 확정한 정책은:
+
+active member count =
+현재 repository의 "공식 회원 lifecycle 기준"
+
+입니다.
+
+따라서 최소 범위로 확인하십시오.
+
+확인할 것:
+
+- canonical active-member count query/helper
+- student/member status 공식 lifecycle
+- withdrawn 상태가 실제로 active limit에 포함되는 것이 현재 제품 정책인지
+- deleted/archive/inactive/withdrawn 등 각 상태가 count에 들어가는지
+
+새 lifecycle을 만들지 마십시오.
+
+현재 repository에서 이미 사용하는 공식 active-member 정의를 찾아
+member-limit helper가 정확히 동일하게 사용하고 있는지만 확인하십시오.
+
+보고:
+
+status | counted as active YES/NO | 근거 파일/조건
+
+특히 withdrawn이 count되는 이유를 명확히 제출하십시오.
+
+만약 현재 WP2 helper가 기존 공식 active definition과 다르면
+그 차이만 수정하십시오.
+
+관련 없는 회원 lifecycle 리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 WP2 구현 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 다시 만들지 마십시오.
+
+- canonical member-limit helper 구조
+- MemberLimitError
+- PLAN_MEMBER_LIMIT_REACHED
+- 이미 적용한 6개 member increase path
+- 기존 관련 tests
+
+필요한 최소 수정만 하십시오.
+
+WP2 전체를 재구현하거나 repo-wide audit하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+기존 WP2 테스트를 재사용하고
+이번 변경에 필요한 테스트만 보완하십시오.
+
+필수:
+
+A. X300 active=299 상태에서 동시 2건 생성
+→ success 1
+→ reject 1
+→ final 300
+
+B. 서로 다른 Pool A/B 동시 생성
+→ 불필요하게 서로 block하지 않음
+
+C. same pool lock이 실제 swimming_pools row FOR UPDATE로 수행됨
+
+D. parent signup path 정상
+
+E. archive restore 정상
+
+F. 공식 inactive 상태가 count에서 정확히 제외/포함
+
+G. withdrawn 처리 결과가 공식 lifecycle과 일치
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP3 RevenueCat
+- WP5 Push
+- WP4 Notice
+- WP6 Security Audit
+- WP7 Manual Grant
+- DB schema 변경
+- Migration
+- Production DB 변경
+- member lifecycle 재설계
+- unrelated refactor
+- advisory-lock architecture 논쟁/재설계
+- 다른 WP 선행 구현
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 코드 수정이면:
+
+Render required:
+YES
+
+단 Production Render deploy 하지 마십시오.
+
+OTA:
+NO
+
+Native:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP2 HOLD FIX COMPLETION REPORT
+
+Branch:
+...
+
+HEAD before:
+b17df141
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+Canonical helper:
+...
+
+Lock before:
+pg_advisory_xact_lock / ...
+
+Lock after:
+SELECT swimming_pools ... FOR UPDATE
+YES / NO
+
+Exact row-lock implementation:
+...
+
+Transaction boundary:
+...
+
+Active-member canonical source:
+...
+
+Status table:
+
+active:
+counted YES/NO
+evidence: ...
+
+deleted:
+counted YES/NO
+evidence: ...
+
+archived:
+counted YES/NO
+evidence: ...
+
+withdrawn:
+counted YES/NO
+evidence: ...
+
+other relevant statuses:
+...
+
+Withdrawn behavior matches existing official lifecycle:
+PASS / FAIL
+
+Protected 6 paths still intact:
+PASS / FAIL
+
+Concurrent same-pool test:
+starting count:
+attempts:
+success:
+rejected:
+final:
+overflow:
+
+Different-pool concurrency:
+PASS / FAIL
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+DB changes:
+NO / ...
+
+Migration:
+NO / ...
+
+Production data changes:
+NO / ...
+
+Render required:
+YES / NO
+
+OTA required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / FAIL
+
+중요:
+
+이번 작업은 WP2 HOLD 항목만 보정합니다.
+
+FINAL MASTER WP는 Freeze 상태입니다.
+확정 설계를 임의로 다른 방식으로 교체하지 마십시오.
+
+위 완료조건 충족 후 즉시 STOP하십시오.
+WP3를 시작하지 마십시오.
+```
