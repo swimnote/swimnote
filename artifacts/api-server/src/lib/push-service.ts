@@ -65,13 +65,14 @@ export interface PushOptions {
 
 /** WP5: result summary returned by sendRawPush */
 export interface PushResult {
-  totalTokens:      number;
-  uniqueTokens:     number;
-  chunks:           number;
-  successCount:     number;
-  failureCount:     number;
-  invalidTokenCount: number;
-  retryCount:       number;
+  totalTokens:        number;
+  uniqueTokens:       number;
+  chunks:             number;
+  successCount:       number;
+  failureCount:       number;
+  invalidTokenCount:  number;
+  configFailureCount: number;  // InvalidCredentials — APNs/FCM credential issue, token NOT deleted
+  retryCount:         number;
 }
 
 // ── WP5 internal helpers ──────────────────────────────────────────────────────
@@ -103,8 +104,15 @@ export async function runBounded<T>(
   return results;
 }
 
-/** Expo ticket error codes that mean the token is permanently invalid */
-const INVALID_TOKEN_ERRORS = new Set(["DeviceNotRegistered", "InvalidCredentials"]);
+/** Expo ticket error: device token is permanently invalid → delete token */
+const DEVICE_NOT_REGISTERED_ERRORS = new Set(["DeviceNotRegistered"]);
+
+/**
+ * Expo ticket error: APNs/FCM push credential configuration problem.
+ * This is NOT a device token issue — token must NOT be deleted.
+ * Log as configuration failure for ops visibility.
+ */
+const CONFIG_FAILURE_ERRORS = new Set(["InvalidCredentials"]);
 
 /** Delete a single bad token from push_tokens — exact token only */
 async function cleanupInvalidToken(token: string): Promise<void> {
@@ -169,7 +177,8 @@ async function sendChunkWithRetry(
 
     let success = 0;
     let failure = 0;
-    const invalidTokens: string[] = [];
+    const invalidTokens: string[] = [];      // DeviceNotRegistered → token cleanup
+    const configFailureTokens: string[] = []; // InvalidCredentials → log only, NO cleanup
 
     for (let i = 0; i < chunk.length; i++) {
       const ticket = tickets[i];
@@ -178,15 +187,24 @@ async function sendChunkWithRetry(
       } else {
         failure++;
         const errCode = ticket.details?.error ?? "";
-        if (INVALID_TOKEN_ERRORS.has(errCode)) {
+        if (DEVICE_NOT_REGISTERED_ERRORS.has(errCode)) {
+          // Device token is permanently invalid — safe to delete
           invalidTokens.push(chunk[i].to);
+        } else if (CONFIG_FAILURE_ERRORS.has(errCode)) {
+          // APNs/FCM credential misconfiguration — NOT a device token issue
+          // Token must NOT be deleted; log for ops awareness
+          configFailureTokens.push(chunk[i].to);
+          console.error(
+            `[push-service] InvalidCredentials for token ${chunk[i].to.slice(0, 12)}... ` +
+            `— APNs/FCM credential problem (token retained, check push credentials)`,
+          );
         }
       }
     }
     // If Expo returned empty tickets (edge case), assume all sent
     if (!tickets.length && resp.ok) success = chunk.length;
 
-    return { success, failure, invalidTokens, retries: 0 };
+    return { success, failure, invalidTokens, configFailures: configFailureTokens.length, retries: 0 };
 
   } catch (err: any) {
     // Network / timeout errors
@@ -197,7 +215,7 @@ async function sendChunkWithRetry(
       return { ...sub, retries: sub.retries + 1 };
     }
     console.error(`[push-service] chunk send failed (attempt ${attempt + 1}):`, err?.message);
-    return { success: 0, failure: chunk.length, invalidTokens: [], retries: attempt };
+    return { success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0, retries: attempt };
   }
 }
 
@@ -242,7 +260,7 @@ export async function sendRawPushWithResult(
   const totalTokens = tokens.length;
 
   if (!totalTokens) {
-    return { totalTokens: 0, uniqueTokens: 0, chunks: 0, successCount: 0, failureCount: 0, invalidTokenCount: 0, retryCount: 0 };
+    return { totalTokens: 0, uniqueTokens: 0, chunks: 0, successCount: 0, failureCount: 0, invalidTokenCount: 0, configFailureCount: 0, retryCount: 0 };
   }
 
   // ── 1. Token deduplication ─────────────────────────────────────────
@@ -275,19 +293,22 @@ export async function sendRawPushWithResult(
   let successCount = 0;
   let failureCount = 0;
   let invalidTokenCount = 0;
+  let configFailureCount = 0;
   let retryCount = 0;
   const allInvalidTokens: string[] = [];
 
   for (const r of chunkResults) {
-    successCount += r.success;
-    failureCount += r.failure;
-    retryCount   += r.retries;
+    successCount    += r.success;
+    failureCount    += r.failure;
+    retryCount      += r.retries;
+    configFailureCount += r.configFailures;
     allInvalidTokens.push(...r.invalidTokens);
   }
   invalidTokenCount = allInvalidTokens.length;
 
-  // ── 6. Invalid token cleanup ──────────────────────────────────────
-  // Exact token only — no user-wide or pool-wide side effects
+  // ── 6. Invalid token cleanup (DeviceNotRegistered only) ──────────
+  // Exact token only — no user-wide or pool-wide side effects.
+  // InvalidCredentials tokens are NOT cleaned up (credential config problem, not device).
   if (allInvalidTokens.length > 0) {
     await Promise.all(allInvalidTokens.map(cleanupInvalidToken));
   }
@@ -298,7 +319,7 @@ export async function sendRawPushWithResult(
   console.log(
     `[push-service] done job=${jobRef ?? "?"} total=${totalTokens} unique=${uniqueTokens}` +
     ` chunks=${numChunks} success=${successCount} fail=${failureCount}` +
-    ` invalid=${invalidTokenCount} retries=${retryCount} latency=${latencyMs}ms`,
+    ` invalid=${invalidTokenCount} configFail=${configFailureCount} retries=${retryCount} latency=${latencyMs}ms`,
   );
 
   // WP6: operational error log when poolId known and there are failures
@@ -308,13 +329,13 @@ export async function sendRawPushWithResult(
       feature: "PUSH",
       level: "ERROR",
       error_code: "PUSH_PARTIAL_FAILURE",
-      safe_message: `Push partial failure: ${failureCount}/${uniqueTokens} failed, ${invalidTokenCount} invalid`,
+      safe_message: `Push partial failure: ${failureCount}/${uniqueTokens} failed, ${invalidTokenCount} invalid, ${configFailureCount} credential`,
       entity_type: "push_batch",
-      metadata: { total: totalTokens, unique: uniqueTokens, chunks: numChunks, success: successCount, failure: failureCount, invalid: invalidTokenCount, retries: retryCount },
+      metadata: { total: totalTokens, unique: uniqueTokens, chunks: numChunks, success: successCount, failure: failureCount, invalid: invalidTokenCount, configFail: configFailureCount, retries: retryCount },
     });
   }
 
-  const result: PushResult = { totalTokens, uniqueTokens, chunks: numChunks, successCount, failureCount, invalidTokenCount, retryCount };
+  const result: PushResult = { totalTokens, uniqueTokens, chunks: numChunks, successCount, failureCount, invalidTokenCount, configFailureCount, retryCount };
   return result;
 }
 

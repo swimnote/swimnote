@@ -357,14 +357,16 @@ describe("WP5-I: invalid token cleanup", async () => {
     expect(deletedTokens).not.toContain(goodToken);
   });
 
-  it("InvalidCredentials → token deleted", async () => {
+  it("InvalidCredentials → token NOT deleted, configFailureCount=1", async () => {
     const badToken = "ExponentPushToken[invalid_cred]";
     const tickets: MockTicket[] = [
       { status: "error", details: { error: "InvalidCredentials" } },
     ];
     const { result } = await sendWithMock([badToken], [tickets]);
-    expect(result.invalidTokenCount).toBe(1);
-    expect(deletedTokens).toContain(badToken);
+    // InvalidCredentials = APNs/FCM credential problem, NOT a device token issue
+    expect(result.invalidTokenCount).toBe(0);      // token NOT in cleanup set
+    expect(result.configFailureCount).toBe(1);     // counted as credential failure
+    expect(deletedTokens).not.toContain(badToken); // token must NOT be deleted
   });
 
   it("non-invalid error → token NOT deleted", async () => {
