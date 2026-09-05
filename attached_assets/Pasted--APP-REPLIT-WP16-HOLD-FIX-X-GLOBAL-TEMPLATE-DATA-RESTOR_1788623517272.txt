@@ -1,0 +1,282 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 HOLD FIX — X GLOBAL TEMPLATE DATA RESTORE INVESTIGATION ONLY
+# CODE CHANGE 금지
+# PRODUCTION WRITE 금지
+# WP17 선행 금지
+
+현재 확정사항:
+
+- checkXPrerequisite 버그 아님
+- X runtime resolver 버그 아님
+- Toykids hardcode 필요 없음
+- 실제 문제는 Production X runtime data gap
+
+현재 Production:
+
+global_template_sets ACTIVE = 0
+scope='x_global' active template = 1
+Toykids pool-specific scope='global' = 350
+Toykids pool-specific scope='teacher' = 13
+
+X runtime:
+
+searchXGlobalTemplates()
+→ ACTIVE global_template_set 필요
+→ ACTIVE set 없음
+→ NOT_CONFIGURED
+→ INPUT_ONLY fallback
+
+따라서 이번 작업에서는
+코드 수정하지 말고
+"원래 존재해야 하는 X global template data가 왜 없는지"
+만 추적하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- 코드 수정
+- Toykids hardcode
+- 350개 global template을 x_global로 임의 복제
+- 아무 global_template_set을 ACTIVE로 강제 변경
+- 새 global_template_set 생성
+- Production UPDATE/INSERT/DELETE
+- management_override 변경
+- xmode_config_status 변경
+- WP17 선행
+
+이번 작업은 READ-ONLY 조사만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. global_template_sets 2개 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production의 global_template_sets 전체 2개를 READ-ONLY 확인.
+
+각 set마다 보고:
+
+id:
+name/title:
+status:
+created_at:
+updated_at:
+version:
+source:
+metadata:
+template count:
+x_global template count:
+linked diary_templates:
+created by / origin evidence if available:
+
+특히:
+
+왜 두 세트가 ARCHIVED인지
+audit_logs / migration / commit / test setup에서 확인.
+
+"WP4 테스트 셋"이라는 판단의 정확한 근거 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. x_global template 1개 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 존재하는 유일한:
+
+scope='x_global'
+swimming_pool_id IS NULL
+is_active=true
+
+template를 확인.
+
+보고:
+
+template id:
+global_template_set_id:
+linked set 존재 여부:
+linked set status:
+stroke/category:
+content summary:
+created_at:
+source evidence:
+
+이 1개가 실제 운영 데이터인지,
+테스트용 fixture인지,
+고립된 데이터인지 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 과거 X Global 데이터 흔적 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+Git/history/migrations/audit에서
+다음만 최소 확인:
+
+- global_template_sets 생성/활성화 코드
+- X curriculum ingestion
+- x_global template 생성 코드
+- global_template_set_id 연결 코드
+- ARCHIVED transition 코드
+- WP4 테스트가 Production data를 건드린 evidence가 있는지
+
+repo 전체 재감사 금지.
+
+목표는:
+
+"원래 X global data가 있었는데 사라진 것인지"
+vs
+"아직 Production에 한 번도 제대로 적재되지 않은 것인지"
+
+구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Toykids Engine-Seeded Data 관계
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids의 기존 350개 scope='global' template이
+
+A.
+원래 X global template set을 만들기 위한 source였는지
+
+B.
+Normal AI Diary 전용으로만 만든 별도 data인지
+
+C.
+과거 migration/transform 대상이었는데 transform이 빠졌는지
+
+코드/history evidence로 구분.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나로 확정:
+
+CASE A — EXISTING X SET ACCIDENTALLY ARCHIVED
+
+원래 운영용 ACTIVE set이 있었고
+현재 ARCHIVED로 잘못 바뀐 증거가 있음.
+
+→ 필요한 복구는
+기존 정상 set 재활성화.
+
+단 이번 작업에서는 실행 금지.
+정확한 target set과 검증 절차만 보고.
+
+
+CASE B — X GLOBAL DATA NEVER LOADED
+
+Production에 실제 X global template set이
+한 번도 정상 적재되지 않음.
+
+→ 필요한 것은
+기존 canonical ingestion/import 절차 실행.
+
+새 구조 금지.
+기존 loader/importer만 사용.
+
+
+CASE C — ENGINE-SEEDED DATA SHOULD HAVE BEEN TRANSFORMED
+
+Toykids 350개 engine-seeded data가
+원래 x_global canonical set으로 변환되어야 했는데
+그 단계가 빠진 evidence가 있음.
+
+→ 기존 transform/import path 확인.
+새 변환 로직 작성 금지.
+
+
+CASE D — TEST DATA ONLY
+
+현재 2개 archived sets + x_global 1개가
+전부 test fixture이고,
+운영용 X global data가 Production에 전혀 없음.
+
+→ 운영용 canonical data import가 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# X GLOBAL TEMPLATE DATA ROOT CAUSE REPORT
+
+Production global_template_sets:
+
+Set 1:
+id:
+status:
+purpose:
+template count:
+x_global count:
+origin:
+
+Set 2:
+id:
+status:
+purpose:
+template count:
+x_global count:
+origin:
+
+Why archived:
+...
+
+Evidence:
+...
+
+Current x_global template:
+
+id:
+global_template_set_id:
+linked set:
+linked set status:
+production or test:
+...
+
+Toykids 350 global templates:
+
+Normal-only:
+YES / NO
+
+Source for X import:
+YES / NO / UNKNOWN
+
+Historical X global data existed:
+YES / NO
+
+Canonical X data loader/importer:
+...
+
+Production X data ever loaded correctly:
+YES / NO / UNKNOWN
+
+Root cause classification:
+CASE A / CASE B / CASE C / CASE D
+
+Code bug:
+NO
+
+Code changes required:
+NO
+
+Exact data recovery required:
+...
+
+Exact recovery target:
+...
+
+Production writes:
+0
+
+Recommended next action:
+...
+
+Final:
+READY_FOR_DATA_RECOVERY_APPROVAL / HOLD
+
+완료 후 STOP.
+
+이번에는 코드 수정하지 마십시오.
+Production data도 수정하지 마십시오.
