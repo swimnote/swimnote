@@ -1,0 +1,441 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP16 HOLD FIX — RUNTIME DDL DEPENDENCY FINAL CHECK ONLY
+# FINAL MASTER WP FREEZE
+# READ-ONLY CODE/GIT INSPECTION ONLY
+# PRODUCTION DB WRITE / MIGRATION / MERGE / DEPLOY 금지
+
+현재 Production schema gate 결과:
+
+MISSING standalone migrations:
+- WP4 notice unified schema
+- WP5 push fanout queue
+- WP8 pagination indexes
+- WP11 admin_member_notes
+
+추가로 Production에서 MISSING:
+
+- operational_errors
+- marketing_audience_logs
+- x_billing_events
+- x_pools
+
+이 4개에 대해 이전 보고서는
+"Render 재배포 후 inline CREATE TABLE로 자동 생성 예상"
+이라고 했습니다.
+
+"예상"으로 Production deploy할 수 없습니다.
+
+이번 작업에서는 이 4개만 실제 runtime code evidence로 확정하십시오.
+
+WP17 선행 금지.
+Production mutation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 확인할 테이블
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+operational_errors
+
+B.
+marketing_audience_logs
+
+C.
+x_billing_events
+
+D.
+x_pools
+
+각 테이블을 개별적으로 추적하십시오.
+
+repo 전체 schema audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 각 테이블별 필수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 table마다 반드시 아래를 확인:
+
+1. CREATE TABLE 정의가 실제 어디에 있는가
+
+file:
+function:
+line/section:
+
+2. CREATE 함수가 application startup에서 실제 호출되는가
+
+startup chain:
+
+index.ts
+→ ...
+→ initializer
+→ CREATE function
+
+처럼 exact call chain 제출.
+
+3. 실행 순서
+
+HTTP listen 전인지
+listen 후 background인지
+
+4. failure semantics
+
+CREATE TABLE 실패 시:
+
+- process startup FAIL?
+- error log 후 계속 실행?
+- 해당 route만 fail?
+
+5. current release code에서 이 table을 실제 read/write하는 consumer
+
+route/service/worker:
+...
+
+6. table이 Production deploy 직후 반드시 존재해야 하는가
+
+REQUIRED
+OPTIONAL
+LEGACY_UNUSED
+
+중 하나.
+
+7. standalone migration이 정말 없는지 재확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 중요한 판단
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 table은 아래 세 가지 중 하나로 확정하십시오.
+
+CASE A — ACTIVE BOOTSTRAP TABLE
+
+- current release가 실제 사용
+- canonical existing boot initializer가 CREATE TABLE IF NOT EXISTS 수행
+- startup call chain 명확
+- deploy 시 자동 생성되는 것이 현재 repository의 실제 동작
+
+→ 기존 legacy runtime DDL이므로 이번 WP에서는 제거/재설계하지 않음.
+→ Render deploy 후 생성 검증 대상으로 분류.
+
+
+CASE B — REQUIRED BUT NO RELIABLE BOOTSTRAP
+
+- current release가 실제 사용
+- Production에 없음
+- startup에서 확실히 생성되지 않음
+
+→ P0 deploy blocker.
+
+새 migration을 이번 작업에서 만들지 말고
+HOLD 보고.
+
+
+CASE C — UNUSED / LEGACY
+
+- current release runtime consumer 없음
+
+→ Production에 없어도 deploy blocker 아님.
+→ 생성할 필요 없음.
+
+이름만 보고 판단 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. x_pools 특히 주의
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical Pool entity가:
+
+swimming_pools
+
+입니다.
+
+따라서 `x_pools`라는 이름만으로
+X 기능의 필수 table이라고 가정하지 마십시오.
+
+확인:
+
+- current X entitlement resolver가 x_pools를 읽는가
+- current X routes/workers가 x_pools를 사용하는가
+- legacy artifact인지
+
+실제 consumer 0이면
+MISSING을 blocker로 잡지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. operational_errors 특히 주의
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP9는 보고상:
+
+event_logs
+ops_alerts
+scheduler_heartbeat
+
+를 재사용했습니다.
+
+따라서 operational_errors가
+WP9의 실제 필수 table인지 다시 확인.
+
+현재 production runtime consumer가 없다면
+WP9 필요 schema라고 오판하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. marketing_audience_logs 특히 주의
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP12 공식 설계는:
+
+- notices 재사용
+- campaign table 신규 생성 금지
+- audit_logs 재사용
+
+입니다.
+
+따라서 marketing_audience_logs가
+실제 WP12 production dependency인지 강하게 확인.
+
+consumer가 없으면
+MISSING은 blocker 아님.
+
+새 Marketing schema를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. x_billing_events
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP3 canonical RevenueCat path는:
+
+revenuecat_webhook_events
+
+를 재사용했습니다.
+
+x_billing_events가:
+
+- current active billing runtime dependency인지
+- legacy X billing table인지
+- optional compatibility path인지
+
+정확히 구분.
+
+Historical billing table은 삭제하지 않지만
+Production에 존재하지 않는 legacy table을
+새로 만들 필요도 없습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Production DB
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 Production DB는 추가 query조차
+필요하지 않으면 하지 마십시오.
+
+이미 MISSING 확인은 끝났습니다.
+
+절대:
+
+CREATE
+ALTER
+INSERT
+UPDATE
+DELETE
+
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 Deploy Prerequisite Matrix
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 release aff68b8a 배포 전
+필수 Production DB 변경 목록을 확정하십시오.
+
+예:
+
+REQUIRED BEFORE DEPLOY:
+
+1. WP4 migration
+2. WP5 migration
+3. WP8 index migration
+4. WP11 migration
+
+BOOTSTRAP ON DEPLOY:
+
+5. ...
+
+NOT REQUIRED / LEGACY:
+
+6. ...
+
+형태.
+
+"예상" 표현 금지.
+
+모두 code evidence 기반.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Merge/Deploy
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서:
+
+release→main merge:
+NO
+
+main push:
+NO
+
+Render deploy:
+NO
+
+Production migrations:
+NO
+
+WP16 E2E:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 RUNTIME DDL DEPENDENCY FINAL REPORT
+
+Release HEAD:
+aff68b8a
+
+operational_errors:
+
+CREATE definition:
+...
+
+Startup call chain:
+...
+
+Called in current production startup:
+YES / NO
+
+Consumers:
+...
+
+Failure behavior:
+...
+
+Classification:
+ACTIVE_BOOTSTRAP / REQUIRED_NO_BOOTSTRAP / LEGACY_UNUSED
+
+Deploy blocker before Render:
+YES / NO
+
+marketing_audience_logs:
+
+CREATE definition:
+...
+
+Startup call chain:
+...
+
+Called in current production startup:
+YES / NO
+
+Consumers:
+...
+
+Failure behavior:
+...
+
+Classification:
+...
+
+Deploy blocker before Render:
+YES / NO
+
+x_billing_events:
+
+CREATE definition:
+...
+
+Startup call chain:
+...
+
+Called in current production startup:
+YES / NO
+
+Consumers:
+...
+
+Failure behavior:
+...
+
+Classification:
+...
+
+Deploy blocker before Render:
+YES / NO
+
+x_pools:
+
+CREATE definition:
+...
+
+Startup call chain:
+...
+
+Called in current production startup:
+YES / NO
+
+Consumers:
+...
+
+Canonical swimming_pools relationship:
+...
+
+Failure behavior:
+...
+
+Classification:
+...
+
+Deploy blocker before Render:
+YES / NO
+
+FINAL REQUIRED BEFORE DEPLOY MIGRATIONS:
+
+1. ...
+2. ...
+3. ...
+4. ...
+
+BOOTSTRAP-ON-DEPLOY TABLES:
+...
+
+NOT REQUIRED / LEGACY TABLES:
+...
+
+Any REQUIRED_NO_BOOTSTRAP table:
+NONE / ...
+
+Production DB writes:
+0
+
+Production DDL:
+0
+
+release→main merge:
+NO
+
+Render deploy:
+NO
+
+Final deploy gate:
+READY_FOR_PRODUCTION_MIGRATION_APPROVAL / HOLD
+
+중요:
+
+이번 작업은 네 테이블의 runtime dependency를
+코드 evidence로 확정하는 작업뿐입니다.
+
+새 migration 작성 금지.
+Production 변경 금지.
+WP17 선행 금지.
+
+완료 후 STOP.
+```
