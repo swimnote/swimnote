@@ -1,0 +1,248 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — CORRECTED iOS PRODUCTION OTA
+# 사용자 승인
+# 배포 회귀 방지 규칙 영구 적용
+# iOS ONLY
+# Android OTA 절대 금지
+# WP17 선행 금지
+
+현재 공식 Production APP release:
+
+Branch:
+release/v2.0.0
+
+Exact HEAD:
+00b646c6
+
+현재 release에 포함된 필수 상태:
+
+APP_CONTRACT_VERSION = "1.0"
+
+Teacher Diary Engine:
+https://swimnote-professional-engine.onrender.com
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Media immediate preview:
+INCLUDED
+
+Parent swim-diary focus refetch:
+INCLUDED
+
+Diary notification routing fix:
+INCLUDED
+
+Native changes:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. PERMANENT PRODUCTION OTA RULE
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 SWIMNOTE Production OTA는 반드시:
+
+source branch:
+release/v2.0.0
+
+에서만 수행.
+
+다음에서 Production OTA 절대 금지:
+
+main
+local main
+detached HEAD
+feature branch
+uncommitted working tree
+
+production-v2 OTA 실행 전
+아래 Preflight가 전부 PASS하지 않으면 STOP.
+
+1.
+git branch --show-current
+= release/v2.0.0
+
+2.
+git status
+= clean
+
+3.
+HEAD
+= origin/release/v2.0.0
+
+4.
+APP_CONTRACT_VERSION
+= "1.0"
+
+5.
+Teacher Diary Engine URL
+= https://swimnote-professional-engine.onrender.com
+
+6.
+App Version
+= 2.0.1
+
+7.
+RuntimeVersion
+= 2.1.0
+
+하나라도 불일치:
+OTA 실행 금지 + HOLD 보고.
+
+이 규칙을 이후 모든 production-v2 OTA 작업의
+상시 배포 규칙으로 취급하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Source 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+git fetch origin
+
+checkout:
+release/v2.0.0
+
+HEAD 확인:
+00b646c6
+
+origin/release/v2.0.0과 동일 여부:
+YES 필수
+
+working tree clean:
+YES 필수
+
+절대 main checkout 상태에서 OTA 실행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 필수 코드값 Preflight
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드에서 확인:
+
+APP_CONTRACT_VERSION:
+1.0
+
+Teacher Diary Base URL:
+https://swimnote-professional-engine.onrender.com
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Media preview:
+present
+
+Parent swim-diary focus refetch:
+present
+
+Diary notification route fix:
+present
+
+Native incompatible change:
+NO
+
+모두 PASS일 때만 OTA 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. iOS Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Platform:
+iOS ONLY
+
+Channel:
+production-v2
+
+Android:
+NO
+
+기존 프로젝트의 정확한
+production-v2 EAS Update 방식 사용.
+
+금지:
+
+- main에서 OTA
+- --branch production 임의 사용
+- Android 포함
+- runtimeVersion 변경
+- native build
+- 코드 수정
+- DB 변경
+- Render deploy
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 후 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 CORRECTED OTA REPORT
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+00b646c6...
+
+origin/release SHA match:
+YES / NO
+
+Working tree clean:
+YES / NO
+
+APP_CONTRACT_VERSION:
+1.0
+
+Teacher Diary Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Media preview included:
+YES / NO
+
+Parent feed refetch included:
+YES / NO
+
+Diary notification routing fix included:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Published:
+YES / NO
+
+Android OTA:
+NO
+
+Native changes:
+NO
+
+Production OTA source was main:
+NO
+
+Remaining blocker:
+USER REAL DEVICE VERIFY
+
+Final:
+PASS / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
