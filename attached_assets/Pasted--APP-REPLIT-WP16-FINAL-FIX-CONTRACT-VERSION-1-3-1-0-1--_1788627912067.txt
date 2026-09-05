@@ -1,0 +1,229 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 FINAL FIX — CONTRACT VERSION 1.3 → 1.0
+# 원인 확정 완료
+# 최소 1줄 수정
+# 새 기능 금지
+# DB 변경 금지
+# WP17 선행 금지
+
+현재 Root Cause 및 AI ENGINE 검증 완료.
+
+확정:
+
+APP:
+contract_version = "1.3"
+
+AI ENGINE 공식 contract:
+contract_version = "1.0"
+
+ENGINE 검증:
+
+Normal 1.0:
+PASS
+
+X 1.0:
+PASS
+
+X mode depends on contract_version:
+NO
+
+Grounded Engine 자체 X path:
+YES
+
+Legacy APP 1.3 required:
+NO
+
+따라서 이번 작업은 APP contract_version 한 줄만 수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/components/ai/services/DiaryAIService.ts
+
+현재:
+
+APP_CONTRACT_VERSION = '1.3'
+
+변경:
+
+APP_CONTRACT_VERSION = '1.0'
+
+그 외 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- TeacherDiaryAIClient URL 수정 금지
+- AI ENGINE 수정 금지
+- ai-v1.ts 수정 금지
+- x_global 수정 금지
+- Toykids template 수정 금지
+- UI 수정 금지
+- request/response contract 다른 필드 수정 금지
+- DB 변경 금지
+- broad refactor 금지
+- Android OTA 금지
+- WP17 선행 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만.
+
+확인:
+
+1.
+APP generated request:
+contract_version = "1.0"
+
+2.
+Teacher Diary endpoint:
+https://swimnote-professional-engine.onrender.com/api/v1/teacher-diary/generate
+
+3.
+Authorization Bearer 유지
+
+4.
+request_id 유지
+
+5.
+schema_version = "1.0" 유지
+
+6.
+student_refs / students contract 유지
+
+7.
+response normalize 유지
+
+가능하면 safe test account로 실제 Engine smoke 1회:
+
+HTTP 200
+
+pipeline_mode = grounded_v1
+
+fallback_used = false
+
+unexpected_5xx = 0
+
+실제 고객 일지 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Git
+━━━━━━━━━━━━━━━━━━━━━━
+
+공식 branch:
+
+release/v2.0.0
+
+현재 release HEAD 기준에서 작업.
+
+변경 1줄만 commit/push.
+
+force push 금지.
+
+보고:
+
+HEAD before
+HEAD after
+Commit SHA
+Files changed
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는 OTA 실행 금지.
+
+코드 수정/테스트/commit/push까지만.
+
+사용자 승인 후:
+
+iOS ONLY
+production-v2
+
+Android OTA:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 CONTRACT FIX REPORT
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+APP_CONTRACT_VERSION before:
+1.3
+
+APP_CONTRACT_VERSION after:
+1.0
+
+Teacher Diary Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+Request contract other fields changed:
+NO
+
+UI changed:
+NO
+
+DB changed:
+NO
+
+AI ENGINE changed:
+NO
+
+Tests:
+...
+
+Actual Engine smoke:
+PASS / NOT_RUN
+
+HTTP:
+...
+
+pipeline_mode:
+...
+
+fallback_used:
+...
+
+unexpected_5xx:
+...
+
+Production OTA performed:
+NO
+
+Android OTA:
+NO
+
+Ready for iOS production-v2 OTA:
+YES / NO
+
+Remaining blocker:
+USER APPROVAL FOR IOS OTA / ...
+
+Final:
+PASS_FOR_IOS_OTA / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
