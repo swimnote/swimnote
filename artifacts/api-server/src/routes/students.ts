@@ -9,6 +9,11 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import {
+  assertMemberLimitInTx,
+  MemberLimitError,
+  sendMemberLimitResponse,
+} from "../lib/member-limit.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logChange } from "../utils/change-logger.js";
 import {
@@ -159,18 +164,29 @@ router.post("/teacher-request", requireAuth, requireRole("teacher", "pool_admin"
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await db.execute(sql`
-      INSERT INTO students (
-        id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
-        weekly_count, status, registration_path, invite_code, created_at, updated_at
-      ) VALUES (
-        ${id}, ${poolId}, ${name.trim()},
-        ${birth_year || null}, ${parent_name || null},
-        ${parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null},
-        ${weekly_count}, 'pending_approval', 'teacher_request',
-        NULL, NOW(), NOW()
-      )
-    `);
+
+    // [WP2] Race-safe 회원 한도 검사 + INSERT 원자적 실행
+    try {
+      await db.transaction(async (tx) => {
+        await assertMemberLimitInTx(tx, poolId);
+        await tx.execute(sql`
+          INSERT INTO students (
+            id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
+            weekly_count, status, registration_path, invite_code, created_at, updated_at
+          ) VALUES (
+            ${id}, ${poolId}, ${name.trim()},
+            ${birth_year || null}, ${parent_name || null},
+            ${parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null},
+            ${weekly_count}, 'pending_approval', 'teacher_request',
+            NULL, NOW(), NOW()
+          )
+        `);
+      });
+    } catch (e) {
+      if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+      throw e;
+    }
+
     await logChange({ tenantId: req.user!.userId, tableName: "students", recordId: id, changeType: "create", payload: {
       name: name.trim(), status: "pending_approval", registration_path: "teacher_request",
     } });
@@ -249,109 +265,131 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
-    // 회원 수 한도 체크 (배치 전체)
-    // effective_member_limit = p.member_limit(개별 override) 우선, 없으면 sp.member_limit(플랜 기본값)
-    const [planRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit,
-             p.member_limit AS pool_override,
-             sp.member_limit AS plan_default
-      FROM swimming_pools p
-      LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
-      WHERE p.id = ${poolId} LIMIT 1
-    `)).rows as any[];
-    const [cntRow] = (await db.execute(sql`
-      SELECT COUNT(*) AS cnt FROM students
-      WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
-    `)).rows as any[];
-    const limit   = Number(planRow?.effective_member_limit ?? 5);
-    const current = Number(cntRow?.cnt ?? 0);
-    const available = Math.max(0, limit - current);
-    console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
+    // [WP2] batch: 부모 계정 매칭은 트랜잭션 밖에서 (read-only), INSERT는 트랜잭션 안에서 race-safe 처리
+    // 1단계: 각 학생의 부모 계정 사전 매칭
+    type PreResolved = { s: typeof items[0]; normPhone: string | null; resolvedParentUserId: string | null };
+    const preResolved: PreResolved[] = [];
+    const preInvalid: Array<{ name: string; reason: string }> = [];
 
-    const succeeded: string[] = [];
-    const failed: Array<{ name: string; reason: string; code?: string }> = [];
-
-    let registeredCount = 0;
     for (const s of items) {
-      if (!s.name?.trim()) {
-        failed.push({ name: "(이름없음)", reason: "이름 누락" });
-        continue;
+      if (!s.name?.trim()) { preInvalid.push({ name: "(이름없음)", reason: "이름 누락" }); continue; }
+      const normPhone = s.parent_phone ? s.parent_phone.replace(/[^0-9]/g, "") : null;
+      const normPName = s.parent_name  ? s.parent_name.replace(/\s+/g, "").toLowerCase() : null;
+      let resolvedParentUserId: string | null = null;
+      if (normPhone) {
+        const matched = await db.execute(sql`
+          SELECT id FROM parent_accounts
+          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
+            AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+          ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
+          LIMIT 1
+        `);
+        if ((matched.rows as any[]).length > 0) resolvedParentUserId = (matched.rows[0] as any).id;
       }
-      // 한도 초과 시 개별 실패 처리 (전체 차단 대신)
-      if (registeredCount >= available) {
-        failed.push({ name: s.name.trim(), reason: `회원 수 한도 초과 (플랜 최대 ${limit}명)`, code: "MEMBER_LIMIT_EXCEEDED" });
-        continue;
+      if (!resolvedParentUserId && normPName) {
+        const matched2 = await db.execute(sql`
+          SELECT id FROM parent_accounts
+          WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normPName}
+            AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
+          ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
+          LIMIT 1
+        `);
+        if ((matched2.rows as any[]).length > 0) resolvedParentUserId = (matched2.rows[0] as any).id;
       }
-      try {
-        const normPhone     = s.parent_phone ? s.parent_phone.replace(/[^0-9]/g, "") : null;
-        const normPName     = s.parent_name  ? s.parent_name.replace(/\s+/g, "").toLowerCase() : null;
-        let resolvedParentUserId: string | null = null;
-        if (normPhone) {
-          const matched = await db.execute(sql`
-            SELECT id FROM parent_accounts
-            WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${normPhone}
-              AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
-            ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
-            LIMIT 1
-          `);
-          if ((matched.rows as any[]).length > 0)
-            resolvedParentUserId = (matched.rows[0] as any).id;
-        }
-        if (!resolvedParentUserId && normPName) {
-          const matched2 = await db.execute(sql`
-            SELECT id FROM parent_accounts
-            WHERE REPLACE(LOWER(COALESCE(name,'')),' ','') = ${normPName}
-              AND (swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL)
-            ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
-            LIMIT 1
-          `);
-          if ((matched2.rows as any[]).length > 0)
-            resolvedParentUserId = (matched2.rows[0] as any).id;
-        }
-
-        const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const invite_code = generateInviteCode();
-        await db.insert(studentsTable).values({
-          id,
-          swimming_pool_id: poolId,
-          name: s.name.trim(),
-          birth_year: s.birth_year || null,
-          parent_name: s.parent_name || null,
-          parent_phone: normPhone ? normPhone : null,
-          parent_user_id: resolvedParentUserId,
-          memo: s.memo || null,
-          status: resolvedParentUserId ? "active" : "unregistered",
-          registration_path: "admin_created",
-          weekly_count: Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1,
-          invite_code,
-          assigned_class_ids: [],
-          schedule_labels: null,
-          class_group_id: null,
-          phone: null,
-          birth_date: null,
-        });
-
-        if (resolvedParentUserId) {
-          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await db.execute(sql`
-            INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
-            VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
-            ON CONFLICT DO NOTHING
-          `);
-        }
-
-        logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: { name: s.name.trim() } }).catch(() => {});
-        // V2 자동연결 트리거 (batch 신규 등록)
-        triggerAutoLinkOnStudentV2(id, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
-          console.error("[v2-admin-trigger] batch 트리거 오류:", e?.message)
-        );
-        succeeded.push(s.name.trim());
-        registeredCount++;
-      } catch (innerErr: any) {
-        failed.push({ name: s.name.trim(), reason: innerErr?.message ?? "오류" });
-      }
+      preResolved.push({ s, normPhone, resolvedParentUserId });
     }
 
+    const succeeded: string[] = [];
+    const failed: Array<{ name: string; reason: string; code?: string }> = [...preInvalid];
+    const newStudentIds: string[] = [];
+    let limit = 5, current = 0;
+
+    // 2단계: advisory lock + INSERT — 전체를 트랜잭션으로 묶어 race-safe 처리
+    await db.transaction(async (tx) => {
+      // Advisory lock으로 pool 단위 직렬화
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${poolId}))`);
+
+      // 유효 한도 & 현재 카운트 (lock 취득 후 읽기)
+      const [planRow] = (await tx.execute(sql`
+        SELECT
+          sp2.x_plan_key, sp2.x_paid_entitlement, sp2.x_manual_entitlement,
+          sp2.x_management_override, sp2.x_force_disabled,
+          sp2.member_limit AS pool_override_limit, sp2.subscription_tier,
+          COALESCE(spl.member_limit, 5) AS plan_limit
+        FROM swimming_pools sp2
+        LEFT JOIN subscription_plans spl ON spl.tier = sp2.subscription_tier
+        WHERE sp2.id = ${poolId} LIMIT 1
+      `)).rows as any[];
+
+      if (planRow) {
+        const isX = (
+          Boolean(planRow.x_management_override) ||
+          Boolean(planRow.x_paid_entitlement) ||
+          Boolean(planRow.x_manual_entitlement)
+        ) && !Boolean(planRow.x_force_disabled);
+        const X_LIMITS: Record<string, number> = { x300: 300, x500: 500, x1000: 1000 };
+        if (isX && planRow.x_plan_key && X_LIMITS[planRow.x_plan_key]) {
+          limit = X_LIMITS[planRow.x_plan_key];
+        } else {
+          limit = planRow.pool_override_limit != null
+            ? Number(planRow.pool_override_limit) : Number(planRow.plan_limit);
+        }
+      }
+      const [cntRow] = (await tx.execute(sql`
+        SELECT COUNT(*) AS cnt FROM students
+        WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+      `)).rows as any[];
+      current = Number(cntRow?.cnt ?? 0);
+      let available = Math.max(0, limit - current);
+      console.log(`[member-limit][batch] poolId=${poolId} limit=${limit} current=${current} available=${available}`);
+
+      for (const { s, normPhone, resolvedParentUserId } of preResolved) {
+        if (available <= 0) {
+          failed.push({ name: s.name.trim(), reason: `회원 수 한도 초과 (최대 ${limit}명)`, code: "PLAN_MEMBER_LIMIT_REACHED" });
+          continue;
+        }
+        try {
+          const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const invite_code = generateInviteCode();
+          await tx.execute(sql`
+            INSERT INTO students (
+              id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
+              parent_user_id, memo, status, registration_path, weekly_count,
+              invite_code, assigned_class_ids, schedule_labels, class_group_id,
+              phone, birth_date, created_at, updated_at
+            ) VALUES (
+              ${id}, ${poolId}, ${s.name.trim()}, ${s.birth_year || null},
+              ${s.parent_name || null}, ${normPhone || null},
+              ${resolvedParentUserId}, ${s.memo || null},
+              ${resolvedParentUserId ? 'active' : 'unregistered'}, 'admin_created',
+              ${Number(s.weekly_count) > 0 ? Number(s.weekly_count) : 1},
+              ${invite_code}, '[]'::jsonb, NULL, NULL, NULL, NULL, NOW(), NOW()
+            )
+          `);
+          if (resolvedParentUserId) {
+            const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            await tx.execute(sql`
+              INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+              VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
+              ON CONFLICT DO NOTHING
+            `);
+          }
+          succeeded.push(s.name.trim());
+          newStudentIds.push(id);
+          available--;
+        } catch (innerErr: any) {
+          failed.push({ name: s.name.trim(), reason: innerErr?.message ?? "오류" });
+        }
+      }
+    });
+
+    // 트랜잭션 밖: 이벤트 로그 & V2 자동연결 (fire-and-forget)
+    for (const id of newStudentIds) {
+      logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: {} }).catch(() => {});
+      triggerAutoLinkOnStudentV2(id, ["parent_phone", "name", "swimming_pool_id"]).catch(() => {});
+    }
+
+    const available = Math.max(0, limit - current);
     return res.json({ success: true, succeeded: succeeded.length, failed, available, limit, current });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -370,37 +408,8 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
 
-    // ── 회원 수 한도 체크 ─────────────────────────────────────────────
-    // effective_member_limit = p.member_limit(개별 override) 우선, 없으면 sp.member_limit(플랜 기본값)
-    {
-      const [planRow] = (await superAdminDb.execute(sql`
-        SELECT COALESCE(p.member_limit, sp.member_limit) AS effective_member_limit,
-               p.member_limit AS pool_override,
-               sp.member_limit AS plan_default
-        FROM swimming_pools p
-        LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
-        WHERE p.id = ${poolId} LIMIT 1
-      `)).rows as any[];
-      const [cntRow] = (await db.execute(sql`
-        SELECT COUNT(*) AS cnt FROM students
-        WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
-      `)).rows as any[];
-      const limit = Number(planRow?.effective_member_limit ?? 5);
-      const current = Number(cntRow?.cnt ?? 0);
-      console.log(`[members] poolId=${poolId} limit=${limit} (override=${planRow?.pool_override ?? 'none'}, plan=${planRow?.plan_default}) current=${current}`);
-      if (current >= limit) {
-        return res.status(403).json({
-          success: false,
-          error: `회원 수 제한 초과: 현재 ${current}명 / 최대 ${limit}명 (${planRow?.pool_override != null ? '개별 설정' : '플랜 기본값'})`,
-          code: "MEMBER_LIMIT_EXCEEDED",
-          current,
-          limit,
-          override_active: planRow?.pool_override != null,
-        });
-      }
-    }
-
     // ── 학부모 전화번호/이름으로 기존 계정 찾기 (자동 연결용) ─────────
+    // [WP2] 회원 한도 체크는 아래 INSERT를 감싸는 transaction 안에서 race-safe하게 처리
     // 같은 수영장 우선, 없으면 수영장 미선택(NULL) 학부모도 매칭
     const normParentPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
     const normParentName  = parent_name  ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
@@ -496,38 +505,52 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     const status = resolvedParentUserId ? "active" : "unregistered";
 
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [student] = await db.insert(studentsTable).values({
-      id,
-      swimming_pool_id: poolId,
-      name: name.trim(),
-      phone: phone || null,
-      birth_date: birth_date || null,
-      birth_year: birth_year || null,
-      parent_name: parent_name || null,
-      parent_phone: normParentPhone || null,
-      parent_user_id: resolvedParentUserId,
-      class_group_id: class_group_id || null,
-      memo: memo || null,
-      status,
-      registration_path,
-      weekly_count: Number(weekly_count) || 1,
-      invite_code,
-      assigned_class_ids: [],
-      schedule_labels: null,
-    }).returning();
 
-    // ── 학부모 계정 자동 연결 ──────────────────────────────────────
-    if (resolvedParentUserId) {
-      const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.execute(sql`
-        INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
-        VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
-        ON CONFLICT DO NOTHING
-      `);
-      await db.execute(sql`
-        UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
-        WHERE id = ${resolvedParentUserId} AND swimming_pool_id IS NULL
-      `);
+    // [WP2] Race-safe 회원 한도 검사 + INSERT 원자적 실행
+    // 부모 lookup & 중복 체크는 위에서 read-only로 처리했으므로 여기서는 lock + count + insert만
+    let student: any;
+    try {
+      await db.transaction(async (tx) => {
+        await assertMemberLimitInTx(tx, poolId!);
+
+        const [inserted] = await tx.insert(studentsTable).values({
+          id,
+          swimming_pool_id: poolId!,
+          name: name.trim(),
+          phone: phone || null,
+          birth_date: birth_date || null,
+          birth_year: birth_year || null,
+          parent_name: parent_name || null,
+          parent_phone: normParentPhone || null,
+          parent_user_id: resolvedParentUserId,
+          class_group_id: class_group_id || null,
+          memo: memo || null,
+          status,
+          registration_path,
+          weekly_count: Number(weekly_count) || 1,
+          invite_code,
+          assigned_class_ids: [],
+          schedule_labels: null,
+        }).returning();
+        student = inserted;
+
+        // ── 학부모 계정 자동 연결 (같은 tx 안에서) ───────────────────
+        if (resolvedParentUserId) {
+          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await tx.execute(sql`
+            INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+            VALUES (${psId}, ${resolvedParentUserId}, ${id}, ${poolId}, 'approved', NOW())
+            ON CONFLICT DO NOTHING
+          `);
+          await tx.execute(sql`
+            UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
+            WHERE id = ${resolvedParentUserId} AND swimming_pool_id IS NULL
+          `);
+        }
+      });
+    } catch (e) {
+      if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+      throw e;
     }
 
     // V2 자동연결 트리거 (단일 학생 등록)

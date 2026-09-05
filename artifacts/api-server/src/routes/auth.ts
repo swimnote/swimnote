@@ -11,6 +11,7 @@ import {
   upsertParentV2Pending,
 } from "../lib/auto-link-v2.js";
 import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSession } from "../lib/auth.js";
+import { assertMemberLimitInTx, MemberLimitError, sendMemberLimitResponse } from "../lib/member-limit.js";
 import { requireAuth, requireDbRoleCheck, type AuthRequest } from "../middlewares/auth.js";
 import {
   loginLimiter,
@@ -948,20 +949,33 @@ router.post("/simple-parent-register", signupLimiter, async (req, res) => {
           continue;
         }
 
+        // [WP2] Race-safe 회원 한도 검사 + INSERT 원자적 실행
         const sId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await db.execute(sql`
-          INSERT INTO students (id, swimming_pool_id, name, name_korean, parent_name, parent_phone, parent_user_id,
-            status, registration_path, weekly_count, assigned_class_ids, created_at, updated_at)
-          VALUES (${sId}, ${resolvedPoolId}, ${cName}, ${cName.replace(/[^가-힣]/g, "")}, ${name}, ${ph}, ${parentId},
-            'unregistered', 'parent_signup', 1, '[]'::jsonb, NOW(), NOW())
-          ON CONFLICT DO NOTHING
-        `);
-        const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await db.execute(sql`
-          INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
-          VALUES (${psId}, ${parentId}, ${sId}, ${resolvedPoolId}, 'approved', NOW())
-          ON CONFLICT DO NOTHING
-        `);
+        let limitBlocked = false;
+        try {
+          await db.transaction(async (tx) => {
+            await assertMemberLimitInTx(tx, resolvedPoolId!);
+            await tx.execute(sql`
+              INSERT INTO students (id, swimming_pool_id, name, name_korean, parent_name, parent_phone, parent_user_id,
+                status, registration_path, weekly_count, assigned_class_ids, created_at, updated_at)
+              VALUES (${sId}, ${resolvedPoolId}, ${cName}, ${cName.replace(/[^가-힣]/g, "")}, ${name}, ${ph}, ${parentId},
+                'unregistered', 'parent_signup', 1, '[]'::jsonb, NOW(), NOW())
+              ON CONFLICT DO NOTHING
+            `);
+            const psId2 = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            await tx.execute(sql`
+              INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+              VALUES (${psId2}, ${parentId}, ${sId}, ${resolvedPoolId}, 'approved', NOW())
+              ON CONFLICT DO NOTHING
+            `);
+          });
+        } catch (limitErr) {
+          if (limitErr instanceof MemberLimitError) {
+            console.log(`[simple-parent-register] 회원 한도 도달 (pool=${resolvedPoolId}) — placeholder 생성 스킵: ${cName}`);
+            limitBlocked = true;
+          } else { throw limitErr; }
+        }
+        if (limitBlocked) continue;
         matched.push({ id: sId, swimming_pool_id: resolvedPoolId });
       }
       console.log(`[simple-parent-register] placeholder 처리 완료: ${unmatchedNames.join(", ")}`);

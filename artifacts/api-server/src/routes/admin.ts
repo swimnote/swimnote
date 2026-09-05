@@ -3,6 +3,7 @@ import { db, superAdminDb } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
+import { assertMemberLimitInTx, MemberLimitError, sendMemberLimitResponse } from "../lib/member-limit.js";
 import { requireAuth, requireRole, requirePermission, requireXMode, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
@@ -1301,11 +1302,29 @@ router.post("/students/:id/restore", requireAuth, requireRole("super_admin", "po
       const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       const actorName = actor?.name || req.user!.userId;
 
-      await db.execute(sql`
-        UPDATE students SET status = 'active', withdrawn_at = NULL, deleted_at = NULL,
-          archived_reason = NULL, updated_at = NOW()
-        WHERE id = ${req.params.id}
-      `);
+      // [WP2] deleted → active: 카운트가 증가하므로 회원 한도 검사 필요
+      // withdrawn → active: withdrawn은 이미 카운트에 포함되므로 한도 영향 없음
+      if (student.status === "deleted") {
+        try {
+          await db.transaction(async (tx) => {
+            await assertMemberLimitInTx(tx, poolId!);
+            await tx.execute(sql`
+              UPDATE students SET status = 'active', withdrawn_at = NULL, deleted_at = NULL,
+                archived_reason = NULL, updated_at = NOW()
+              WHERE id = ${req.params.id}
+            `);
+          });
+        } catch (e) {
+          if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+          throw e;
+        }
+      } else {
+        await db.execute(sql`
+          UPDATE students SET status = 'active', withdrawn_at = NULL, deleted_at = NULL,
+            archived_reason = NULL, updated_at = NOW()
+          WHERE id = ${req.params.id}
+        `);
+      }
 
       await writeActivityLog({
         poolId, studentId: req.params.id, targetName: student.name,
@@ -1408,12 +1427,23 @@ router.post("/students/:id/restore-archive", requireAuth, requireRole("super_adm
       if (student.status !== "archived") {
         return res.status(400).json({ error: "아카이브 상태 회원만 복원할 수 있습니다." });
       }
-      await db.execute(sql`
-        UPDATE students SET
-          status = 'active', archived_reason = NULL,
-          withdrawn_at = NULL, deleted_at = NULL, updated_at = NOW()
-        WHERE id = ${req.params.id}
-      `);
+
+      // [WP2] archived → active: archived는 카운트 제외 대상이므로 복원 시 카운트 증가 → 한도 검사 필요
+      try {
+        await db.transaction(async (tx) => {
+          await assertMemberLimitInTx(tx, poolId!);
+          await tx.execute(sql`
+            UPDATE students SET
+              status = 'active', archived_reason = NULL,
+              withdrawn_at = NULL, deleted_at = NULL, updated_at = NOW()
+            WHERE id = ${req.params.id}
+          `);
+        });
+      } catch (e) {
+        if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+        throw e;
+      }
+
       const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       await writeActivityLog({
         poolId, studentId: req.params.id, targetName: student.name,
