@@ -1,0 +1,305 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 FINAL INTEGRATION — APP → AI ENGINE SWITCH
+# 최소 수정만
+# 새 기능 금지
+# DB 변경 금지
+# Production deploy는 사용자 수동
+# WP17 선행 금지
+
+현재 확정:
+
+AI ENGINE Production:
+https://swimnote-professional-engine.onrender.com
+
+Teacher Diary endpoint:
+POST https://swimnote-professional-engine.onrender.com/api/v1/teacher-diary/generate
+
+AI ENGINE:
+GroundedPipelineRunner
+30/30 PASS
+Render 배포 완료
+
+JWT:
+ENGINE JWT_SECRET = APP JWT_SECRET
+사용자가 수동으로 동일하게 맞춤 완료.
+
+현재 APP은 아직:
+
+TeacherDiaryAIClient
+→ https://swimnote-api.onrender.com/api/v1/teacher-diary/generate
+
+를 사용 중.
+
+이번 작업은 APP의 Teacher Diary Production target을
+AI ENGINE 별도 Render 서비스로 교체하는 최소 작업입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 목표 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종:
+
+App
+→ TeacherDiaryAIClient
+→ https://swimnote-professional-engine.onrender.com
+→ /api/v1/teacher-diary/generate
+→ GroundedPipelineRunner
+→ Response
+
+정상 운영 경로는 이것 하나만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+TeacherDiaryAIClient에서
+Production grounded base URL을:
+
+기존:
+https://swimnote-api.onrender.com
+
+변경:
+https://swimnote-professional-engine.onrender.com
+
+으로 교체.
+
+가능하면 이미 존재하는:
+
+EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL
+EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH
+
+config를 실제 사용하도록 정리.
+
+단 이번 WP에서 복잡한 config refactor 금지.
+
+가장 작은 안전한 변경 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- UI 수정 금지
+- Hook 수정 금지
+- Diary core 수정 금지
+- ai-v1.ts 수정 금지
+- GroundedPipelineRunner 수정 금지
+- DB 변경 금지
+- x_global 데이터 생성 금지
+- Toykids 350 templates 수정 금지
+- legacy fallback 자동화 금지
+- 새로운 AI route 생성 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Auth
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 APP JWT 그대로:
+
+Authorization: Bearer <APP JWT>
+
+사용.
+
+별도 토큰 생성 금지.
+
+JWT 원문 로그 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Contract 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Request/Response Contract 변경 금지.
+
+확인:
+
+request_id roundtrip
+student_refs
+students[{ref,name}]
+pool_id
+class_id
+lesson_date
+schema_version
+contract_version
+
+기존 normalize logic 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만.
+
+1.
+TeacherDiaryAIClient endpoint resolves to:
+https://swimnote-professional-engine.onrender.com/api/v1/teacher-diary/generate
+
+2.
+legacy APP endpoint가 normal grounded path에서 사용되지 않음
+
+3.
+Authorization header 유지
+
+4.
+timeout 유지
+
+5.
+response normalize PASS
+
+6.
+unknown student_ref guard 유지
+
+7.
+request_id roundtrip 유지
+
+전체 suite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실제 Engine smoke
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production customer data 쓰지 말 것.
+
+가능한 안전한 기존 test/demo account가 있으면
+READ/AI generation smoke 1회.
+
+없으면
+safe non-customer fixture/dev account 사용.
+
+확인:
+
+HTTP:
+2xx
+
+meta.pipeline_mode:
+grounded_v1
+
+engine_build:
+존재
+
+grounding_validation:
+존재
+
+template_ids / knowledge_ids:
+응답 contract에 존재
+
+fallback_used:
+false expected
+
+unexpected 5xx:
+0
+
+실제 고객 일지 저장 금지.
+생성 결과 DB 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Git
+━━━━━━━━━━━━━━━━━━━━━━
+
+release/v2.0.0 또는 현재 작업 branch 기준
+기존 정책에 맞게 최소 commit.
+
+force push 금지.
+
+보고:
+
+HEAD before
+HEAD after
+Commit SHA
+Files changed
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Production deploy
+━━━━━━━━━━━━━━━━━━━━━━
+
+Replit이 Render deploy 하지 마십시오.
+
+코드 수정/테스트/commit/push까지만.
+
+Production 배포는 사용자 수동.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 APP → AI ENGINE INTEGRATION REPORT
+
+Branch:
+...
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+Old Teacher Diary Base URL:
+https://swimnote-api.onrender.com
+
+New Teacher Diary Base URL:
+https://swimnote-professional-engine.onrender.com
+
+Final endpoint:
+https://swimnote-professional-engine.onrender.com/api/v1/teacher-diary/generate
+
+APP JWT reused:
+YES / NO
+
+Request contract changed:
+NO
+
+Response contract changed:
+NO
+
+UI changed:
+NO
+
+Hook changed:
+NO
+
+DB changes:
+NO
+
+ai-v1.ts changed:
+NO
+
+Tests:
+...
+
+Actual Engine smoke:
+PASS / NOT_RUN
+
+pipeline_mode:
+grounded_v1 / UNKNOWN
+
+engine_build:
+...
+
+grounding_validation:
+...
+
+fallback_used:
+...
+
+Unexpected 5xx:
+...
+
+Production deploy performed by Replit:
+NO
+
+Render required:
+YES
+
+Remaining blocker:
+USER MANUAL APP RENDER/OTA/BUILD DEPLOY / NONE
+
+Final:
+PASS / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
