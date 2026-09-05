@@ -223,9 +223,15 @@ export default function ParentNotificationsScreen() {
         router.push(`/(parent)/growth-report-detail?reportId=${n.ref_id}` as any);
       }
       setTimeout(() => { navigatingRef.current = false; }, 1000);
-    } else if (n.ref_type === "diary" || n.type === "diary_upload") {
+    } else if (n.ref_type === "class_diary" || n.type === "diary_upload") {
       navigatingRef.current = true;
-      router.push("/(parent)/children?backTo=notifications" as any);
+      // deep_link: notifications INSERT 시 저장된 /(parent)/swim-diary?id={studentId}
+      // 없으면(과거 알림 또는 multi-child) 홈으로 안전 fallback
+      if ((n as any).deep_link) {
+        router.push((n as any).deep_link as any);
+      } else {
+        router.push("/(parent)/home" as any);
+      }
       setTimeout(() => { navigatingRef.current = false; }, 1000);
     } else if (n.ref_type === "student" || n.type === "photo_upload") {
       navigatingRef.current = true;
