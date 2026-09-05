@@ -1,0 +1,1084 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — DIARY PRODUCTION FAILURE TRACE + REPAIR
+# 기존 WP16 DIARY PASS 전부 무효
+# 실기기 결과가 최종 truth
+# Diary 라인 하나를 동일 diaryId 기준으로 처음부터 끝까지 추적
+# 코드 존재만으로 PASS 금지
+# 같은 조사 반복 금지
+# 관련 없는 repo audit 금지
+# 수정 완료 시 APP client는 iOS production-v2 OTA까지 자동 완료
+# Render Production deploy는 절대 수행 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. USER REAL-DEVICE RESULT — 이것이 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 결과:
+
+1. Teacher 새 일지 저장 후 복귀
+→ PASS
+
+2. Teacher 수정 저장 후 복귀
+→ PASS
+
+3. 사진/영상 즉시 preview
+→ FAIL
+
+4. AI 일지
+→ FAIL
+→ 선생님이 입력한 내용만 들어감
+→ 실제 AI Engine 호출 또는 Engine 결과 적용이 안 되는 것으로 의심
+
+5. Parent Feed 전달
+→ FAIL
+→ Teacher가 Diary를 작성해도 Parent에게 아무것도 나타나지 않음
+
+6. Diary notification/deep-link
+→ FAIL
+→ 5번 자체가 실패하므로 정상 검증 불가
+
+7. 예약 notification
+→ FAIL
+
+8. Admin 작성일지 목록/상세
+→ FAIL
+→ "서버 오류가 발생했습니다"
+
+따라서 현재 WP16 상태:
+
+FAIL
+
+기존:
+DIARY_E2E_PASS
+코드상 PASS
+설계상 PASS
+
+전부 무효.
+
+이번 조사에서는
+USER REAL DEVICE RESULT가 코드 추론보다 우선합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 이번 작업의 핵심 방식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새로운 Diary 하나를 기준으로
+동일한 diaryId를 처음부터 끝까지 추적하십시오.
+
+Teacher
+→ AI request
+→ AI response
+→ save payload
+→ POST /diaries
+→ DB diary row
+→ student relation
+→ Parent API
+→ Parent unified feed
+→ Notification recipient
+→ notification row
+→ Admin API
+→ Admin list/detail
+
+각 단계에서 동일 diaryId가
+실제로 존재하는지 확인.
+
+"코드상 그렇게 되어 있음" 금지.
+
+반드시 실제 request/response 또는
+DB/API 결과로 확인.
+
+개인정보와 Diary 전문은 마스킹.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 기존 PASS 항목 재조사 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 이미 실제 기기에서 PASS:
+
+- Create 저장 후 navigation
+- Edit 저장 후 navigation
+
+이 둘은 regression test만 하고
+다시 설계/리팩터링하지 마십시오.
+
+크레딧 낭비 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. DEPLOYED SERVER SHA 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고:
+
+server main =
+cb906a11
+
+RENDER_DEPLOY_REQUIRED = YES
+
+였음.
+
+현재 Production swimnote-api가
+실제로 어떤 server SHA를 실행 중인지
+기존 health/version/build metadata로 확인 가능한 경우 확인.
+
+불가능하면 억지 조사 금지하고:
+
+PRODUCTION_SERVER_SHA = UNKNOWN
+
+으로 기록.
+
+중요:
+
+cb906a11 미배포 여부를
+Parent Feed/Admin 오류 전체의 원인이라고
+추측하지 마십시오.
+
+cb906a11은 보고상
+push-scheduler notification INSERT 수정이므로
+다른 실패는 별도로 실제 추적해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. ISSUE A — MEDIA PREVIEW 실제 FAIL 원인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 "placeholder append / ExpoImage 있음" 보고 금지.
+
+실제 Teacher write screen에서:
+
+PHOTO 선택
+VIDEO 선택
+
+각각 다음을 추적:
+
+picker callback 실행:
+YES / NO
+
+picker returned asset:
+YES / NO
+
+asset.uri:
+present / absent
+
+media state append:
+YES / NO
+
+state append 직후 array length:
+...
+
+렌더 component가 실제 같은 state를 참조:
+YES / NO
+
+preview JSX condition:
+true / false
+
+layout에 실제 mount:
+YES / NO
+
+width/height:
+...
+
+opacity/display:
+...
+
+ScrollView clipping:
+YES / NO
+
+upload 시작 후 state replacement:
+YES / NO
+
+local uri 소실:
+YES / NO
+
+반드시 exact root cause 하나 이상 확정.
+
+예:
+- picker 결과는 A state인데 UI는 B state 렌더
+- component prop 미전달
+- condition false
+- local placeholder가 upload 시작 직후 제거
+- 렌더 영역 height 0
+- 잘못된 subview component 수정
+등
+
+원인 확정 후 최소 수정.
+
+정상:
+
+사진 선택 즉시
+→ 화면에 실제 썸네일
+
+영상 선택 즉시
+→ 화면에 실제 video preview card
+
+공통/학생별 모두.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. ISSUE B — AI DIARY 실제 호출 여부부터 증명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 실기기 증상:
+
+AI 일지 결과가
+선생님이 입력한 문장 그대로 들어감.
+
+이번에는 코드 연결만 보고 PASS 금지.
+
+실제 AI button 한 번 실행 기준으로 추적:
+
+A.
+handle AI generate invoked:
+YES / NO
+
+B.
+TeacherDiaryAIClient invoked:
+YES / NO
+
+C.
+Actual request URL:
+https://swimnote-professional-engine.onrender.com/api/v1/teacher-diary/generate
+YES / NO
+
+D.
+contract_version:
+1.0
+
+E.
+HTTP request actually sent:
+YES / NO
+
+F.
+HTTP status:
+...
+
+G.
+response pipeline_mode:
+...
+
+H.
+fallback_used:
+...
+
+I.
+response common generated text:
+present / absent
+
+J.
+response student generated text:
+present / absent
+
+K.
+template_ids count:
+...
+
+L.
+knowledge_ids count:
+...
+
+M.
+raw input length:
+...
+
+N.
+generated output length:
+...
+
+O.
+generated output === raw input:
+YES / NO
+
+P.
+APP state after response:
+generated result / raw input
+
+Q.
+Save payload:
+generated result / raw input
+
+R.
+Persisted Diary:
+generated result / raw input
+
+실제 전문 text는 출력 금지.
+length/hash/source classification만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. AI 실패 CASE를 정확히 분류
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 중 하나로 확정:
+
+AI-1
+AI button이 Engine 호출 자체를 안 함
+
+AI-2
+잘못된 legacy/local path 실행
+
+AI-3
+Engine request가 전송되지만 오류
+
+AI-4
+Engine response는 정상 풍성한데
+APP mapping에서 raw input으로 덮음
+
+AI-5
+APP UI에는 generated인데
+save payload가 raw input
+
+AI-6
+save payload는 generated인데
+server가 raw input 저장
+
+AI-7
+Engine response 자체가 raw input 수준
+
+AI-8
+기타 — exact evidence 필요
+
+AI-1~6:
+APP repo에서 이번에 즉시 수정.
+
+AI-7:
+APP에서 지식 생성 금지.
+AI_ENGINE_CHANGE_REQUIRED = YES
+라고 증거와 함께 보고.
+
+AI Engine 문제여도
+나머지 Diary APP/server 문제는 계속 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. RAW INPUT FALLBACK 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diary AI 실패 시
+teacher raw input을 조용히 성공 결과처럼
+사용하는 fallback/shortcut이 있는지 확인.
+
+검색 범위:
+
+useDiaryAI
+DiaryAIService
+TeacherDiaryAIClient
+Diary write handler
+response normalization
+insert handler
+
+실제 AI 실패인데 raw input을
+AI 결과처럼 보여주는 로직이 있다면:
+
+silent fallback 금지.
+
+AI 실패는 실패로 표시하고
+원문을 자동으로 "AI 생성 완료"처럼 저장하지 않도록
+기존 UX 범위에서 최소 수정.
+
+단 수동 일지 기능은 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. ISSUE C — PARENT DELIVERY 실제 diaryId 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새 Diary 하나를 저장하고
+그 exact diaryId 기준으로 확인.
+
+STEP 1
+Teacher save response:
+HTTP ...
+diaryId ...
+
+STEP 2
+DB:
+diary row exists
+YES / NO
+
+STEP 3
+student relation:
+student IDs ...
+
+STEP 4
+lesson_date 기준 class history:
+eligible
+YES / NO
+
+STEP 5
+parent_students relation:
+eligible parent exists
+YES / NO
+
+STEP 6
+해당 Parent API:
+
+/parent/students/{studentId}/diary
+
+HTTP:
+...
+
+response 안에 exact diaryId:
+YES / NO
+
+여기서 반드시 갈라라.
+
+CASE P1
+API response 자체에 Diary 없음
+→ SERVER query bug
+
+CASE P2
+API에는 Diary 있음
+→ Parent client merge/render/cache bug
+
+CASE P3
+DB relation부터 잘못됨
+→ save/student association bug
+
+CASE P4
+lesson_date/class-history 조건이 잘못되어 제외
+
+CASE P5
+다른 원인
+
+"쿼리가 코드상 맞다" 금지.
+
+실제 diaryId 존재 여부로 판단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. PARENT UNIFIED FEED 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent API에 exact diaryId가 존재하면:
+
+home.tsx loadEntries
+→ normalize
+→ diary+GR merge
+→ dedupe
+→ sort
+→ state
+→ FlatList/render
+
+단계마다 exact diaryId가
+사라지는 지점을 확인.
+
+확인:
+
+API response:
+YES
+
+normalized:
+YES / NO
+
+merged:
+YES / NO
+
+deduped:
+YES / NO
+
+state:
+YES / NO
+
+rendered:
+YES / NO
+
+Growth Report와 key collision 여부 확인.
+
+Diary key가 GR key와
+충돌하면 수정.
+
+focus refetch 코드 "존재"만으로 PASS 금지.
+focus 때 실제 request가 실행되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. ISSUE D — NOTIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Delivery가 정상화된 후
+같은 diaryId 기준으로 확인.
+
+Diary save
+→ notification recipient generation
+→ notification DB row
+→ push payload
+→ notification list
+→ tap
+
+각 단계:
+
+notification DB row exists:
+YES / NO
+
+type:
+...
+
+diaryId:
+...
+
+studentId:
+...
+
+deep_link:
+...
+
+push queued/sent:
+...
+
+새 알림:
+Parent 앱에 나타남:
+YES / NO
+
+tap:
+correct student diary:
+YES / NO
+
+Parent Feed에 없는 Diary에
+알림만 생성되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 예약 notification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 server commit cb906a11의
+실제 목적:
+
+push-scheduler queue에서
+in-app notification INSERT 보장.
+
+Production server가 cb906a11 미배포면:
+
+이 부분은
+RENDER_DEPLOY_REQUIRED = YES
+
+로 남겨도 됨.
+
+그러나 server 코드 자체는 테스트:
+
+queued diary push
+→ in-app notification row
+→ push
+→ studentId/deep_link
+
+PASS 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. ISSUE E — ADMIN "서버 오류"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 실제 증상:
+
+Admin
+→ 작성된 일지 확인
+→ "서버 오류가 발생했습니다"
+
+이것은 코드상 auth 있다고 PASS 처리 금지.
+
+실제 Admin Diary request 확인:
+
+route:
+...
+
+HTTP status:
+...
+
+response:
+error code/message only
+민감정보 제외
+
+server log stack/error:
+...
+
+실패 query:
+...
+
+exact root cause:
+...
+
+확인 범위:
+
+- pool_id
+- admin membership/role
+- diary query
+- join
+- column mismatch
+- null field
+- student/common diary relation
+- media join
+- pagination
+- response serialization
+
+같은 pool Admin:
+200 + Diary list
+
+다른 pool Admin:
+403/404 등 안전 차단
+
+반드시 실제 요청 결과로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. ADMIN 동일 diaryId 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher가 생성한
+동일 exact diaryId가
+
+Admin list response에 존재:
+YES / NO
+
+Admin detail:
+YES / NO
+
+Teacher/class/student/date:
+정상
+
+media:
+정상
+
+Admin에서 조회 실패하면
+actual server root cause 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. SERVER 변경 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Feed / Notification / Admin 중
+server bug가 확인되면
+이번 작업에서 즉시 최소 수정.
+
+server main에 commit/push.
+
+Render Production deploy는 절대 금지.
+
+완료보고에 반드시:
+
+SERVER_CHANGED = YES
+SERVER_SHA = ...
+RENDER_DEPLOY_REQUIRED = YES
+
+라고 표시.
+
+사용자가 Render에서 직접 배포할 예정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. CLIENT 변경 정책 + OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Media / AI mapping / Parent UI 등
+client 변경 발생 시:
+
+반드시
+release/v2.0.0
+에 반영.
+
+수정/테스트 완료 후
+안전 preflight가 PASS하면
+사용자 추가 승인 없이
+iOS production-v2 OTA까지 수행.
+
+영구 OTA Preflight:
+
+branch:
+release/v2.0.0
+
+working tree:
+clean
+
+HEAD:
+origin/release/v2.0.0 동일
+
+APP_CONTRACT_VERSION:
+1.0
+
+Teacher Diary Engine:
+https://swimnote-professional-engine.onrender.com
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Native incompatible changes:
+NO
+
+Android:
+NO
+
+하나라도 FAIL:
+OTA 금지.
+
+main에서 production-v2 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 이번 작업에서 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- 이미 PASS한 create navigation 재설계
+- 이미 PASS한 edit navigation 재설계
+- RevenueCat
+- X mode
+- x_global
+- Growth Report engine
+- 전체 Push architecture
+- 전체 Admin architecture
+- unrelated UI
+- DB 대규모 migration
+- AI Engine 전문지식 APP 복제
+- contract 1.0 변경
+- Engine URL 변경
+- Android OTA
+- Render Production deploy
+- Production DB 직접 mutation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 실패는:
+
+1회 trace
+→ root cause
+→ 최소 수정
+→ 관련 test
+→ 다음 단계
+
+동일 파일/route를 반복적으로
+"재조사"하지 마십시오.
+
+한 번 확인한 사실은
+WORKING NOTES에 유지하고 재검색 금지.
+
+같은 테스트를 이유 없이 반복 실행 금지.
+
+repo-wide test suite는
+최종 regression 시 1회만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. FINAL E2E GATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에 PASS라고 부를 수 있는 조건:
+
+A.
+PHOTO 실제 preview render evidence
+
+B.
+VIDEO 실제 preview render evidence
+
+C.
+AI request 실제 HTTP 증거
+
+D.
+AI generated result source chain:
+Engine
+→ APP
+→ save payload
+→ DB
+
+E.
+동일 diaryId:
+Teacher DB
+→ Parent API
+→ Parent Feed
+
+F.
+동일 diaryId:
+Notification
+
+G.
+동일 diaryId:
+Admin API
+
+하나라도 실제 evidence가 없으면
+PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 DIARY PRODUCTION FAILURE TRACE + REPAIR REPORT
+
+BASE
+APP release before:
+APP release after:
+Client commit:
+
+SERVER main before:
+SERVER main after:
+Server commit:
+
+Production server SHA verified:
+YES / NO / UNKNOWN
+
+━━━━━━━━━━
+REAL ROOT CAUSES
+━━━━━━━━━━
+
+Media:
+...
+
+AI:
+...
+
+Parent delivery:
+...
+
+Notification:
+...
+
+Admin:
+...
+
+━━━━━━━━━━
+MEDIA
+━━━━━━━━━━
+
+Photo picker:
+PASS / FAIL
+
+Photo state:
+PASS / FAIL
+
+Photo actually rendered:
+PASS / FAIL
+
+Video picker:
+PASS / FAIL
+
+Video state:
+PASS / FAIL
+
+Video actually rendered:
+PASS / FAIL
+
+Exact previous preview failure:
+...
+
+━━━━━━━━━━
+AI
+━━━━━━━━━━
+
+AI handler invoked:
+YES / NO
+
+Actual Engine HTTP sent:
+YES / NO
+
+URL correct:
+YES / NO
+
+contract:
+1.0
+
+HTTP status:
+...
+
+pipeline_mode:
+...
+
+fallback_used:
+...
+
+template_ids count:
+...
+
+knowledge_ids count:
+...
+
+Raw length:
+...
+
+Generated length:
+...
+
+Generated === raw:
+YES / NO
+
+APP state source:
+GENERATED / RAW
+
+Save payload source:
+GENERATED / RAW
+
+Persisted DB source:
+GENERATED / RAW
+
+AI failure classification:
+AI-1 / AI-2 / AI-3 / AI-4 / AI-5 / AI-6 / AI-7 / AI-8
+
+AI_ENGINE_CHANGE_REQUIRED:
+YES / NO
+
+━━━━━━━━━━
+PARENT
+━━━━━━━━━━
+
+Test diaryId:
+masked-id
+
+Diary DB:
+YES / NO
+
+Student relation:
+YES / NO
+
+Class history eligible:
+YES / NO
+
+Parent relation:
+YES / NO
+
+Parent API HTTP:
+...
+
+Exact diaryId in API:
+YES / NO
+
+Normalized:
+YES / NO
+
+Merged:
+YES / NO
+
+State:
+YES / NO
+
+Rendered:
+YES / NO
+
+Parent failure classification:
+P1 / P2 / P3 / P4 / P5
+
+━━━━━━━━━━
+NOTIFICATION
+━━━━━━━━━━
+
+Notification DB:
+YES / NO
+
+studentId:
+YES / NO
+
+diaryId:
+YES / NO
+
+deep_link:
+YES / NO
+
+Immediate notification:
+PASS / FAIL
+
+Scheduled notification code:
+PASS / FAIL
+
+Production scheduled notification:
+BLOCKED_BY_RENDER / PASS / FAIL
+
+━━━━━━━━━━
+ADMIN
+━━━━━━━━━━
+
+Admin route:
+...
+
+HTTP before:
+...
+
+Exact server error:
+...
+
+Root cause:
+...
+
+HTTP after:
+...
+
+Same-pool diary list:
+PASS / FAIL
+
+Exact diaryId present:
+YES / NO
+
+Detail:
+PASS / FAIL
+
+Cross-pool blocked:
+PASS / FAIL
+
+━━━━━━━━━━
+SERVER
+━━━━━━━━━━
+
+SERVER_CHANGED:
+YES / NO
+
+SERVER_SHA:
+...
+
+RENDER_DEPLOY_REQUIRED:
+YES / NO
+
+Render deploy performed:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+CLIENT_CHANGED:
+YES / NO
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+Update ID:
+...
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Create navigation regression:
+PASS
+
+Edit navigation regression:
+PASS
+
+Remaining actual Diary defects:
+...
+
+User real-device retest required:
+YES / NO
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+HOLD_RENDER_DEPLOY
+/
+HOLD_AI_ENGINE
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
