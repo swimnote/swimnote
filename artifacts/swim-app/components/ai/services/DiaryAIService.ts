@@ -64,7 +64,7 @@ const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = false;
 //   contract 1.3이어야 서버에서 Phase 0(resolvePoolMode)가 실행되고
 //   X pool에서 x_global template search / curriculum candidate search가 활성화됩니다.
 //   contract 1.0은 poolMode 조회를 건너뛰므로 X mode가 미활성화됩니다.
-export const APP_CONTRACT_VERSION = '1.3' as const;
+export const APP_CONTRACT_VERSION = '1.0' as const;
 
 /**
  * 앱이 수락하는 버전 집합.
