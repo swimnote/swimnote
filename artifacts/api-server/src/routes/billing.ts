@@ -130,6 +130,79 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
 
 // RC_PRODUCT_TIER_MAP은 subscriptionService에서 import
 
+// ── [WP3] DATA Add-on Webhook 처리 헬퍼 ─────────────────────────────────────
+//
+// DATA100 / DATA300 구독 이벤트 처리.
+//
+// 원칙:
+//   - INITIAL_PURCHASE 시 extra_storage_gb += N (idempotency는 호출 전 global dedup으로 보장)
+//   - RENEWAL: log-only (storage는 purchase 시 1회 grant, 매 cycle 중복 추가 안 함)
+//   - CANCELLATION / EXPIRATION: USER DECISION REQUIRED — 저장된 데이터 유지, quota 정책 미정
+//   - manual/management override: 수정 금지
+//
+// 중요:
+//   이 함수가 호출될 때 이미 event_id dedup이 통과된 상태.
+//   DATA addon은 extra_storage_gb 누적 (additive) — expiry 시 감소 금지 (정책 미확정).
+//
+async function processDataWebhookEvent(params: {
+  eventType: string;
+  poolId:    string;
+  productId: string;
+  tier:      string; // "data100" | "data300"
+  isSandbox: boolean;
+}): Promise<void> {
+  const { eventType, poolId, productId, tier } = params;
+  const { getDataAddonStorageGb } = await import("../lib/officialPlanCatalog.js");
+
+  switch (eventType) {
+    case "INITIAL_PURCHASE": {
+      // 최초 구매 시에만 extra_storage_gb 가산 (idempotency: global dedup 보장)
+      const addGb = getDataAddonStorageGb(tier) ?? 0;
+      if (addGb > 0) {
+        await db.execute(sql`
+          UPDATE swimming_pools
+          SET extra_storage_gb = COALESCE(extra_storage_gb, 0) + ${addGb},
+              updated_at       = NOW()
+          WHERE id = ${poolId}
+        `);
+        console.log(`[data-addon] INITIAL_PURCHASE: pool=${poolId} tier=${tier} +${addGb}GB`);
+      }
+      break;
+    }
+
+    case "RENEWAL":
+      // 매 청구 주기 갱신 — storage grant는 최초 구매 시 1회만
+      // extra_storage_gb 추가 없음
+      console.log(`[data-addon] RENEWAL: pool=${poolId} tier=${tier} — log only (no additional storage)`);
+      break;
+
+    case "UNCANCELLATION":
+      // 취소 철회 — 재구독, storage 재grant 없음 (이미 grant됨)
+      console.log(`[data-addon] UNCANCELLATION: pool=${poolId} tier=${tier} — log only`);
+      break;
+
+    case "CANCELLATION":
+    case "EXPIRATION":
+      // [USER DECISION REQUIRED] — quota 정책 미확정
+      // 확정: 저장 데이터 자동 삭제 없음
+      // 미확정: 신규 업로드 차단 여부, grace period, quota 감소 여부
+      // 현재: log만 기록, extra_storage_gb 변경 없음
+      console.log(
+        `[data-addon] ${eventType}: pool=${poolId} tier=${tier} product=${productId}` +
+        ` — quota policy USER DECISION REQUIRED. extra_storage_gb unchanged.`,
+      );
+      break;
+
+    case "BILLING_ISSUE":
+      // grace period 동안 storage 유지 — 변경 없음
+      console.log(`[data-addon] BILLING_ISSUE: pool=${poolId} tier=${tier} — log only`);
+      break;
+
+    default:
+      console.log(`[data-addon] ${eventType}: pool=${poolId} tier=${tier} — unhandled, log only`);
+  }
+}
+
 // ── RevenueCat Webhook (billingEnabled 무관) ──────────────────────────
 // 보안: REVENUECAT_WEBHOOK_SECRET 미설정 시 fail-closed (요청 거절)
 router.post("/revenuecat-webhook", async (req, res) => {
@@ -204,6 +277,32 @@ router.post("/revenuecat-webhook", async (req, res) => {
         originalTransactionId: (event.original_transaction_id as string | null) ?? null,
         latestTransactionId: (event.transaction_id as string | null) ?? null,
       });
+      res.json({ received: true });
+      return;
+    }
+
+    // ── [WP3] 非X 이벤트 event_id 기반 dedup ──────────────────────────────
+    // X 이벤트는 processXWebhookEvent 내부에서 자체 dedup 처리
+    // 非X(SWIMNOTE/legacy/DATA): revenuecat_webhook_events 공유 테이블에 INSERT ON CONFLICT
+    if (event.id) {
+      const dedupResult = await db.execute(sql`
+        INSERT INTO revenuecat_webhook_events
+          (event_id, event_type, app_user_id, product_id, environment, processed_at, created_at)
+        VALUES
+          (${event.id as string}, ${eventType}, ${appUserId}, ${productId ?? ""}, ${isSandbox ? "SANDBOX" : "PRODUCTION"}, NOW(), NOW())
+        ON CONFLICT (event_id) DO NOTHING
+      `);
+      if (Number((dedupResult as any).rowCount ?? 0) === 0) {
+        console.log(`[rc-webhook] 중복 이벤트 무시 (non-X): id=${event.id} type=${eventType} product=${productId}`);
+        res.json({ received: true });
+        return;
+      }
+    }
+
+    // ── [WP3] DATA 상품 처리 (DATA100 / DATA300) ──────────────────────────
+    // RC_PRODUCT_TIER_MAP이 "data100" 또는 "data300"으로 매핑하는 product → DATA 전용 handler
+    if (tier === "data100" || tier === "data300") {
+      await processDataWebhookEvent({ eventType, poolId, productId, tier, isSandbox });
       res.json({ received: true });
       return;
     }
