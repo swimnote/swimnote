@@ -1,0 +1,805 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP5 — FINAL DURABLE FAN-OUT FIX
+# DB-BASED MINIMAL QUEUE + DELIVERY IDEMPOTENCY
+# FINAL MASTER WP FREEZE — 계획 변경 금지
+
+현재 기준 commit:
+
+95185e44
+origin/release/v2.0.0
+
+현재 WP5의 다음 구현은 이미 PASS 상태이며 다시 열지 않습니다.
+
+- Expo chunk <=100
+- MAX_CONCURRENT_CHUNKS=5
+- bounded concurrency
+- retry/backoff
+- partial failure
+- DeviceNotRegistered cleanup
+- InvalidCredentials token 유지
+- token dedupe
+- payload/deep link preservation
+
+현재 남은 WP5 blocker는 딱 두 가지입니다.
+
+1. detached in-process Promise라 process restart 시 fan-out job 유실 가능
+2. 실제 durable logical idempotency key가 없음
+
+이번 작업은 이 두 blocker만 해결합니다.
+
+WP4 이후 작업 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 작업은 WP5의 기존 계획을 변경하는 것이 아닙니다.
+
+기존 WP5 완료조건에 포함되어 있던:
+
+- durable/background fan-out
+- logical delivery idempotency
+
+를 완결하는 작업입니다.
+
+금지:
+
+- pg-boss
+- BullMQ
+- Redis
+- 신규 외부 queue provider
+- Push provider 변경
+- 전체 worker architecture 재설계
+- WP4 Notice 구현
+- WP6 이후 선행작업
+- 관련 없는 리팩터링
+
+작업 방식:
+
+현재 DB/worker convention 최소 확인
+→ canonical migration 작성
+→ Staging 적용
+→ 최소 worker/enqueue 구현
+→ 실제 restart/retry/idempotency 테스트
+→ 완료보고
+→ STOP
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+95185e44
+
+시작 전:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- 95185e44 ancestry
+
+만 확인하십시오.
+
+WP1~WP3/WP5 기존 작업 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최소 durable 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 방향:
+
+DB-backed durable fan-out queue.
+
+최소 두 개의 논리 구조를 사용하십시오.
+
+A. push_fanout_jobs
+
+역할:
+
+- logical push job
+- enqueue 중복 방지
+- job lifecycle
+- restart 후 재발견
+
+핵심:
+
+job_ref PRIMARY KEY 또는 UNIQUE
+
+즉 별도의 push_job_dedup 테이블을 추가로 만들지 마십시오.
+
+push_fanout_jobs.job_ref 자체가
+job-level idempotency source가 되어야 합니다.
+
+
+B. push_fanout_deliveries
+
+역할:
+
+한 logical job 안에서
+실제 recipient/device delivery 상태를 durable하게 관리.
+
+핵심 uniqueness:
+
+(job_ref, push_token_id)
+
+또는 repository의 실제 push_tokens PK 구조에 맞는
+동등한 canonical UNIQUE key.
+
+raw Expo token을 PK로 새로 복제하는 것보다
+가능하면 기존 push_tokens row identifier를 참조하십시오.
+
+실제 schema를 먼저 확인한 뒤
+현재 repository convention에 맞게 exact 컬럼을 정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. push_fanout_jobs 최소 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 schema convention에 맞춰 최소한 다음 의미가 있어야 합니다.
+
+- job_ref
+- job type / target type
+- payload/reference
+- status
+- created_at
+- started_at optional
+- completed_at optional
+- attempt/error summary optional
+
+status 예:
+
+PENDING
+PROCESSING
+COMPLETED
+PARTIAL_FAILED
+FAILED
+
+정확한 문자열은 repository convention 우선.
+
+중요:
+
+같은 job_ref를 두 번 enqueue하면
+두 번째 logical job이 생성되지 않아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. push_fanout_deliveries 최소 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 device delivery를 durable하게 관리하십시오.
+
+최소 의미:
+
+- job_ref
+- push_token_id 또는 canonical token reference
+- status
+- attempt_count
+- last_error
+- created_at
+- sent_at optional
+
+UNIQUE:
+
+(job_ref, push_token_id)
+
+같은 job을 재-enqueue하거나 worker가 재시작해도
+동일 recipient/device delivery row가 두 개 생기면 안 됩니다.
+
+multi-device 사용자는:
+
+서로 다른 push_token_id이므로
+각 device에 정상 발송 가능해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Enqueue transaction
+━━━━━━━━━━━━━━━━━━━━━━
+
+대량 Push route:
+
+sendPushToPoolParents
+sendPushToAllUsers
+
+등 대량 fan-out entry는 더 이상:
+
+void _doSend...
+
+형태의 detached Promise를 durable delivery source로 사용하지 않습니다.
+
+목표:
+
+HTTP request
+→ durable job INSERT
+→ recipient/token snapshot 또는 delivery rows 생성
+→ COMMIT
+→ 빠른 response
+
+동일 job_ref 재요청:
+
+→ existing job 감지
+→ duplicate enqueue 0
+
+가능하면 job + delivery creation을
+하나의 transaction으로 처리하십시오.
+
+중간 실패로:
+
+job만 있고 deliveries 없음
+또는
+deliveries 일부만 있음
+
+같은 불완전 상태를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Recipient snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+job 실행 때마다 recipient를 새로 다시 계산해서
+retry마다 대상이 달라지지 않도록 하십시오.
+
+enqueue 시점의 대상 token들을
+push_fanout_deliveries에 durable하게 고정하는 방향을 우선합니다.
+
+즉:
+
+enqueue
+→ 현재 대상 token resolve
+→ token dedupe
+→ delivery rows INSERT
+→ commit
+
+worker는 delivery table을 기준으로 발송.
+
+이렇게 해야:
+
+- 재시작
+- retry
+- 같은 jobRef 재실행
+
+시 대상이 흔들리지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Worker
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 외부 worker platform을 만들지 않습니다.
+
+현재 API server의 기존:
+
+- cron
+- interval
+- DB polling
+
+convention 중
+가장 작은 기존 패턴을 재사용하십시오.
+
+새 worker 파일 하나 정도는 허용합니다.
+
+예:
+
+push-fanout-worker.ts
+
+단 기존 worker framework 전체를 재작성하지 마십시오.
+
+Worker:
+
+PENDING job/delivery 확인
+→ bounded claim
+→ Expo <=100 chunk
+→ MAX concurrency 5
+→ 기존 send/retry logic 재사용
+→ result에 따라 delivery status update
+→ job aggregate status update
+
+기존 WP5 send logic을 복제하지 말고 재사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Concurrent worker 안전
+━━━━━━━━━━━━━━━━━━━━━━
+
+동시에 두 worker tick이 실행되어도
+같은 delivery를 동시에 발송하지 않도록 하십시오.
+
+현재 PostgreSQL 구조에서 적절하다면:
+
+SELECT ... FOR UPDATE SKIP LOCKED
+
+등 repository convention에 맞는
+DB row claim 방식을 사용하십시오.
+
+단 새로운 architecture를 만들지 마십시오.
+
+목표:
+
+같은 pending delivery가
+두 worker에서 동시에 claim되지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Retry / restart
+━━━━━━━━━━━━━━━━━━━━━━
+
+Worker/process restart 후:
+
+PENDING 또는 안전하게 retry 가능한 delivery는
+DB에 남아 있어야 합니다.
+
+restart 후 worker가 다시 읽어서 이어서 처리.
+
+COMPLETED/SENT delivery는 재발송 금지.
+
+Permanent failure는 무한 retry 금지.
+
+기존 WP5:
+
+MAX_RETRY_ATTEMPTS=3
+backoff
+
+정책 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Exactly-once 과장 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Expo HTTP request가 외부에서 성공했지만
+서버가 DB sent 상태를 저장하기 직전에 죽는 극단적인 경우까지
+완전한 mathematically exact-once delivery를 보장한다고 주장하지 마십시오.
+
+이번 WP에서 요구하는 idempotency는:
+
+- duplicate enqueue 방지
+- duplicate worker claim 방지
+- 이미 DB상 SENT/COMPLETED인 delivery 재발송 방지
+- partial failure 시 성공한 delivery 재발송 방지
+- process restart 후 pending delivery 복구
+
+입니다.
+
+provider acknowledgement와 DB commit 사이의
+극단적 crash window는 완료보고에 residual risk로 정확히 적어도 됩니다.
+
+그 문제를 해결하려고
+새 외부 messaging infrastructure를 도입하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 runtime DDL 절대 금지.
+
+canonical migration file을 작성하십시오.
+
+대상:
+
+push_fanout_jobs
+push_fanout_deliveries
+
+또는 실제 repository convention상 동일 목적의 이름.
+
+반드시:
+
+1. migration SQL 작성
+2. Target STAGING exact 확인
+3. Staging 적용
+4. schema verify
+5. index/constraint verify
+6. second-run/idempotency 검증
+7. 기존 데이터 보존 확인
+8. Production 적용하지 않음
+
+Staging:
+
+lspmacdbyvpzysnrjsww
+
+TEST/STAGING 전용 migration connection 사용.
+
+Staging env가 없다고 Production DATABASE_URL fallback 금지.
+
+Production:
+
+mrgkiussgbbmxfnkjgqy
+
+이번 작업에서 migration 실행 금지.
+
+Production migration required:
+YES
+
+라고만 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 필수 constraint
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+push_fanout_jobs:
+
+PRIMARY KEY / UNIQUE(job_ref)
+
+push_fanout_deliveries:
+
+UNIQUE(job_ref, push_token_id)
+
+필요 index:
+
+status/processing query에 필요한 최소 index만.
+
+과도한 index 추가 금지.
+
+push_logs.triggered_by에 UNIQUE를 추가하지 마십시오.
+
+기존 push_logs fan-out logging 구조를 깨뜨리면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 push_logs
+━━━━━━━━━━━━━━━━━━━━━━
+
+push_logs는 logging 용도로 유지.
+
+job idempotency source로 사용하지 않습니다.
+
+기존:
+
+triggered_by
+
+는 trace/reference 목적으로 계속 사용할 수 있음.
+
+하지만 dedup source는:
+
+push_fanout_jobs.job_ref
+
+delivery dedup source는:
+
+push_fanout_deliveries unique key
+
+로 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+이번 blocker 관련 integration test 중심.
+
+A. Same job_ref enqueue 2회
+
+Expected:
+push_fanout_jobs row = 1
+delivery duplicate = 0
+
+
+B. 100 recipient job
+
+Expected:
+100 unique delivery rows
+Expo chunk = 1
+
+
+C. 101 recipient job
+
+Expected:
+101 delivery rows
+Expo chunk = 2
+
+
+D. duplicate token input
+
+Expected:
+delivery row = 1 per same push_token_id
+
+
+E. worker restart simulation
+
+1. job enqueue
+2. 일부 delivery 처리
+3. worker/process execution 중단 시뮬레이션
+4. worker 재시작
+5. 이미 SENT delivery 재발송 0
+6. remaining pending delivery 처리
+
+
+F. two worker concurrent claim
+
+Expected:
+same delivery double claim = 0
+
+
+G. partial failure
+
+success delivery:
+SENT/COMPLETED
+
+failed retryable:
+retryable state
+
+worker retry 후:
+success delivery resend = 0
+
+
+H. DeviceNotRegistered
+
+해당 token cleanup
+delivery permanent status
+
+
+I. InvalidCredentials
+
+token 유지
+config failure
+무한 retry 없음
+
+
+J. 10,000 recipient dry/mock simulation
+
+delivery rows:
+10,000
+
+chunk:
+100
+
+chunks:
+100
+
+max concurrent:
+5
+
+HTTP route:
+job durable enqueue 후 response
+
+giant request:
+NO
+
+
+K. Staging migration second-run
+
+PASS
+
+Production user Push:
+0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. DB 안전
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서:
+
+Production DB mutation:
+NO
+
+Production migration:
+NO
+
+Staging만 사용.
+
+Migration report:
+
+Target
+DB ref
+Before
+Migration
+Affected/schema
+Second-run
+After
+Unexpected
+Other production impact
+
+명확히 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP4 Notice schema
+- notice_dismissals
+- WP6 security audit
+- WP7 Manual X Grant
+- RevenueCat
+- Growth
+- Pagination
+- CRM
+- Marketing
+- Version/runtime
+- pg-boss
+- BullMQ
+- Redis
+- external queue
+- Push provider 변경
+- existing Growth worker 변경
+- Production DB migration
+- runtime DDL 추가
+- unrelated cleanup
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5 최종 PASS:
+
+1. <=100 Expo chunk 유지
+2. bounded concurrency 유지
+3. InvalidCredentials token 삭제 안 함
+4. large fan-out durable enqueue
+5. process restart 후 job 유실 없음
+6. job_ref UNIQUE
+7. recipient/device delivery UNIQUE
+8. duplicate enqueue 0
+9. duplicate worker claim 0
+10. completed delivery retry 재발송 0
+11. partial failure 안전
+12. invalid token cleanup
+13. bounded retry
+14. payload contract 유지
+15. canonical migration
+16. Staging migration PASS
+17. Production migration 미실행
+18. 관련 test PASS
+19. Commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP5 DURABLE FANOUT FINAL REPORT
+
+Branch:
+...
+
+HEAD before:
+95185e44
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Migration file:
+...
+
+Staging DB:
+...
+
+Staging migration:
+PASS / FAIL
+
+Second-run/idempotency:
+PASS / FAIL
+
+Production migration:
+NOT RUN
+
+push_fanout_jobs:
+...
+
+job_ref UNIQUE:
+YES / NO
+
+push_fanout_deliveries:
+...
+
+Delivery unique key:
+...
+
+Recipient snapshot at enqueue:
+YES / NO
+
+HTTP route waits for full fanout:
+YES / NO
+
+Durable enqueue:
+PASS / FAIL
+
+Worker:
+...
+
+Worker polling/trigger:
+...
+
+Concurrent worker claim protection:
+...
+
+Same job_ref enqueue twice:
+job rows:
+...
+duplicate deliveries:
+...
+
+Process restart simulation:
+...
+
+Already completed deliveries resent:
+YES / NO
+
+Pending deliveries resumed:
+YES / NO
+
+Partial failure:
+PASS / FAIL
+
+DeviceNotRegistered:
+...
+
+InvalidCredentials:
+...
+
+10K simulation:
+
+jobs:
+...
+
+deliveries:
+...
+
+chunk size:
+...
+
+chunks:
+...
+
+max concurrency:
+...
+
+giant request:
+YES / NO
+
+Production Push sent:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+DB schema changes:
+YES
+
+Production DB changes:
+NO
+
+Render required:
+YES / NO
+
+OTA required:
+NO
+
+Residual crash-window risk:
+...
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 작업은 WP5 blocker만 해결합니다.
+
+WP4 선행 구현 금지.
+
+Staging 검증 완료 후
+Production migration은 실행하지 말고 STOP하십시오.
+
+완료조건 충족 후 추가 architecture 개선 없이 즉시 STOP하십시오.
+```
