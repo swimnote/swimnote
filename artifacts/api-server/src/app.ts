@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import router from "./routes";
 import { initPushTables } from "./lib/push-service.js";
 import { startPushScheduler } from "./jobs/push-scheduler.js";
+import { startPushFanoutWorker } from "./jobs/push-fanout-worker.js";
 import { recordResponseTime } from "./lib/responseTracker.js";
 import { requireNotDeactivated } from "./lib/deactivationGuard.js";
 
@@ -382,6 +383,7 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 initPushTables()
   .then(() => {
     startPushScheduler();
+    startPushFanoutWorker();   // WP5: durable fan-out worker (30s poll)
     console.log("[app] 푸시 알림 시스템 초기화 완료");
   })
   .catch(e => console.error("[app] 푸시 초기화 오류:", e));
