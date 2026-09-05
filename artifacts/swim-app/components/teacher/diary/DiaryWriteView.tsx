@@ -45,6 +45,7 @@ export default function DiaryWriteView({
   onOpenGroupMyAlbum, onOpenStudentMyAlbum, videoEnabled,
   poolId, teacherId, onAIInsert,
   onRetryGroupPhotoItem, onRetryStudentPhotoItem,
+  onRemoveGroupMediaItem, onRemoveStudentMediaItem,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
 
@@ -96,6 +97,10 @@ export default function DiaryWriteView({
   onRetryGroupPhotoItem?: (clientId: string) => void;
   /** Retry a failed direct-upload photo item (student) */
   onRetryStudentPhotoItem?: (studentId: string, clientId: string) => void;
+  /** Remove a group media item (by clientId or uri) */
+  onRemoveGroupMediaItem?: (clientIdOrUri: string) => void;
+  /** Remove a student media item (by clientId or uri) */
+  onRemoveStudentMediaItem?: (studentId: string, clientIdOrUri: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -151,33 +156,50 @@ export default function DiaryWriteView({
             </Pressable>
           </View>
           {groupMedia.length > 0 && (
-            <View style={s.mediaPreviewRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.mediaPreviewRow} alwaysBounceHorizontal={false}>
               {groupMedia.map((m, i) => (
-                <View key={m.clientId ?? i} style={[s.mediaThumbWrap]}>
+                <View key={m.clientId ?? i} style={s.mediaThumbWrap}>
                   <View style={s.mediaThumb}>
+                    {/* local URI 즉시 preview */}
                     {m.kind === "photo" ? (
-                      m.uploaded ? (
-                        <LucideIcon name="check-circle" size={20} color={C.success} />
-                      ) : m.error ? (
-                        <LucideIcon name="alert-circle" size={20} color="#D96C6C" />
-                      ) : (
-                        <LucideIcon name="image" size={20} color="#E4A93A" />
-                      )
+                      <ExpoImage source={{ uri: m.uri }}
+                        style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
                     ) : (
-                      m.uploaded ? (
-                        <LucideIcon name="check-circle" size={20} color={C.success} />
-                      ) : m.error ? (
-                        <LucideIcon name="alert-circle" size={20} color="#D96C6C" />
-                      ) : (
-                        <LucideIcon name="video" size={20} color={C.brandStrong} />
-                      )
+                      <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                        <LucideIcon name="play" size={16} color="#94A3B8" />
+                      </View>
                     )}
-                    {m.uploading && <ActivityIndicator size="small" color={C.brandStrong} style={{ position: "absolute" }} />}
+                    {/* uploading spinner overlay */}
+                    {m.uploading && (
+                      <View style={s.mediaOverlay}>
+                        <ActivityIndicator size="small" color="#fff" />
+                      </View>
+                    )}
+                    {/* success check overlay */}
+                    {m.uploaded && !m.uploading && (
+                      <View style={s.mediaOverlayTint}>
+                        <LucideIcon name="check-circle" size={14} color="#fff" />
+                      </View>
+                    )}
+                    {/* error overlay */}
+                    {!!m.error && (
+                      <View style={s.mediaOverlayError}>
+                        <LucideIcon name="alert-circle" size={14} color="#fff" />
+                      </View>
+                    )}
+                    {/* remove button */}
+                    {onRemoveGroupMediaItem && (
+                      <Pressable style={s.mediaThumbRemove}
+                        onPress={() => onRemoveGroupMediaItem(m.clientId ?? m.uri)} hitSlop={4}>
+                        <LucideIcon name="x-circle" size={14} color="#fff" fill="#374151" />
+                      </Pressable>
+                    )}
                   </View>
                   {m.kind === "photo" && m.uploading && typeof m.progress === "number" && (
                     <Text style={s.mediaProgressText}>{m.progress}%</Text>
                   )}
-                  {m.kind === "photo" && m.error && (
+                  {!!m.error && (
                     <Text style={s.mediaErrorText} numberOfLines={1}>실패</Text>
                   )}
                   {m.kind === "photo" && m.error && m.clientId && onRetryGroupPhotoItem && (
@@ -187,7 +209,7 @@ export default function DiaryWriteView({
                   )}
                 </View>
               ))}
-            </View>
+            </ScrollView>
           )}
           {(selectedAlbumPhotos.length > 0 || selectedAlbumVideos.length > 0) && (
             <View style={{ gap: 10 }}>
@@ -276,28 +298,46 @@ export default function DiaryWriteView({
                     </Pressable>
                   </View>
                   {stMedia.length > 0 && (
-                    <View style={s.mediaPreviewRow}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={s.mediaPreviewRow} alwaysBounceHorizontal={false}>
                       {stMedia.map((m, i) => (
                         <View key={m.clientId ?? i} style={s.mediaThumbWrap}>
                           <View style={s.mediaThumb}>
+                            {/* local URI 즉시 preview */}
                             {m.kind === "photo" ? (
-                              m.uploaded ? (
-                                <LucideIcon name="check-circle" size={16} color={C.success} />
-                              ) : m.error ? (
-                                <LucideIcon name="alert-circle" size={16} color="#D96C6C" />
-                              ) : (
-                                <LucideIcon name="image" size={16} color="#7C3AED" />
-                              )
+                              <ExpoImage source={{ uri: m.uri }}
+                                style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
                             ) : (
-                              <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={16}
-                                color={m.uploaded ? C.success : m.error ? "#D96C6C" : "#7C3AED"} />
+                              <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                                <LucideIcon name="play" size={14} color="#94A3B8" />
+                              </View>
                             )}
-                            {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
+                            {m.uploading && (
+                              <View style={s.mediaOverlay}>
+                                <ActivityIndicator size="small" color="#fff" />
+                              </View>
+                            )}
+                            {m.uploaded && !m.uploading && (
+                              <View style={s.mediaOverlayTint}>
+                                <LucideIcon name="check-circle" size={12} color="#fff" />
+                              </View>
+                            )}
+                            {!!m.error && (
+                              <View style={s.mediaOverlayError}>
+                                <LucideIcon name="alert-circle" size={12} color="#fff" />
+                              </View>
+                            )}
+                            {onRemoveStudentMediaItem && (
+                              <Pressable style={s.mediaThumbRemove}
+                                onPress={() => onRemoveStudentMediaItem(note.student_id, m.clientId ?? m.uri)} hitSlop={4}>
+                                <LucideIcon name="x-circle" size={14} color="#fff" fill="#374151" />
+                              </Pressable>
+                            )}
                           </View>
                           {m.kind === "photo" && m.uploading && typeof m.progress === "number" && (
                             <Text style={s.mediaProgressText}>{m.progress}%</Text>
                           )}
-                          {m.kind === "photo" && m.error && (
+                          {!!m.error && (
                             <Text style={s.mediaErrorText} numberOfLines={1}>실패</Text>
                           )}
                           {m.kind === "photo" && m.error && m.clientId && onRetryStudentPhotoItem && (
@@ -307,7 +347,7 @@ export default function DiaryWriteView({
                           )}
                         </View>
                       ))}
-                    </View>
+                    </ScrollView>
                   )}
                 </View>
               </View>
@@ -511,7 +551,11 @@ export const s = StyleSheet.create({
   mediaBtnText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
   mediaThumbWrap:{ alignItems: "center", gap: 2 },
-  mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
+  mediaThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center" },
+  mediaOverlay:  { position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  mediaOverlayTint: { position: "absolute", bottom: 3, right: 3, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
+  mediaOverlayError: { position: "absolute", bottom: 3, right: 3, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(220,38,38,0.75)", alignItems: "center", justifyContent: "center" },
+  mediaThumbRemove: { position: "absolute", top: 2, right: 2 },
   mediaProgressText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   mediaErrorText:{ fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   mediaRetryText:{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong, textDecorationLine: "underline" as const },
