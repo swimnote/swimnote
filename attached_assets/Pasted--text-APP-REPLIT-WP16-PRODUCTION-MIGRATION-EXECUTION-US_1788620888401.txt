@@ -1,0 +1,539 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP16 — PRODUCTION MIGRATION EXECUTION
+# USER APPROVED
+# ONLY THE 4 VERIFIED MIGRATIONS
+# RELEASE→MAIN MERGE / RENDER DEPLOY 금지
+
+사용자가 아래 Production migration 4건의 실행을 승인합니다.
+
+Production DB:
+
+mrgkiussgbbmxfnkjgqy
+
+이번 작업은
+Production schema/index migration 4건 적용 + 검증만 수행합니다.
+
+절대 범위 확대 금지.
+
+실행 허용:
+
+1. WP4 Notice Unified Schema
+2. WP5 Push Fanout Queue
+3. WP8 Pagination Indexes
+4. WP11 Admin Member Notes
+
+그 외 Production DDL/Data mutation 금지.
+
+release→main merge 금지.
+main push 금지.
+Render deploy 금지.
+OTA 금지.
+WP16 E2E 선행 금지.
+WP17 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production Identity Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행 직전 DB identity를 다시 확인하십시오.
+
+Expected:
+
+Production Supabase ref:
+mrgkiussgbbmxfnkjgqy
+
+connection user / hostname / DB metadata가
+Production임을 확실히 확인.
+
+Staging:
+
+lspmacdbyvpzysnrjsww
+
+와 혼동 금지.
+
+Production identity가 확실하지 않으면
+DDL 실행하지 말고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실행 전 Backup / Rollback 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 새로운 backup system을 만들지 마십시오.
+
+다만 각 migration 실행 전:
+
+- migration 내용 확인
+- additive 여부
+- rollback/containment 방법
+- destructive statement 유무
+
+를 확인.
+
+금지:
+
+DROP TABLE
+DROP COLUMN
+TRUNCATE
+DELETE
+UPDATE business data
+
+이번 4건은 additive schema/index migration만 허용.
+
+예상치 못한 destructive SQL이 있으면 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Migration #1 — WP4
+━━━━━━━━━━━━━━━━━━━━━━
+
+File:
+
+artifacts/api-server/migrations/2026-09-05-notice-unified-schema.sql
+
+Production에 적용.
+
+Expected:
+
+notices additive columns:
+
+- show_banner
+- send_push
+- target_roles
+- target_pools
+- starts_at
+- ends_at
+- deep_link
+- target_plan_types
+
+그리고:
+
+notice_dismissals
+
+필수 indexes/constraints.
+
+실행 후 즉시 READ-ONLY verify:
+
+8/8 columns PRESENT
+
+notice_dismissals PRESENT
+
+indexes/constraints PRESENT
+
+기존 notices row count 및 핵심 historical row 보존.
+
+기존 notice 내용 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Migration #2 — WP5
+━━━━━━━━━━━━━━━━━━━━━━
+
+File:
+
+artifacts/api-server/migrations/2026-09-05-push-fanout-queue.sql
+
+Production에 적용.
+
+Expected:
+
+push_fanout_jobs
+
+push_fanout_deliveries
+
+필수:
+
+push_fanout_jobs job_ref uniqueness / PK semantics
+
+push_fanout_deliveries
+UNIQUE(job_ref, push_token_id)
+
+release worker가 참조하는 모든 필수 columns.
+
+실행 후 verify.
+
+Synthetic push job 생성 금지.
+실제 Push 발송 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Migration #3 — WP8
+━━━━━━━━━━━━━━━━━━━━━━
+
+File:
+
+artifacts/api-server/src/migrations/step-wp8-pagination-indexes.ts
+
+Production DB 대상으로 실행.
+
+필수 index:
+
+1.
+idx_class_diaries_pool_cursor
+
+2.
+idx_notifications_user_cursor
+
+3.
+idx_diary_messages_diary_cursor
+
+4.
+idx_members_pool_status_cursor
+
+Expected:
+4/4 PRESENT
+
+CREATE INDEX CONCURRENTLY semantics 유지.
+
+기존 equivalent index가 생겨 있더라도
+migration의 IF NOT EXISTS/idempotent 동작 유지.
+
+Production business data 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Migration #4 — WP11
+━━━━━━━━━━━━━━━━━━━━━━
+
+File:
+
+artifacts/api-server/src/migrations/wp11-admin-member-notes.ts
+
+Production에 적용.
+
+Expected:
+
+admin_member_notes
+
+필수 columns:
+
+- id
+- swimming_pool_id
+- canonical student/member reference
+- author_user_id
+- category
+- content
+- created_at
+- updated_at
+- deleted_at
+
+그리고 migration에 정의된 2 indexes.
+
+기존 student/member data 변경 금지.
+
+테스트 note row 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실행 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 순서로 수행:
+
+1. WP4
+2. verify WP4
+3. WP5
+4. verify WP5
+5. WP8
+6. verify WP8
+7. WP11
+8. verify WP11
+9. 전체 schema gate 재확인
+
+한 migration이 FAIL하면
+다음 migration으로 무조건 진행하지 마십시오.
+
+실패 원인 확인 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Idempotency
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 migration의 second-run safety를
+현재 migration 구현에 맞게 검증.
+
+실제 Production에서 second-run이 안전하고
+migration이 IF NOT EXISTS/additive로 설계돼 있으면
+동일 migration 재실행하여 idempotency 검증 가능.
+
+단:
+
+CREATE INDEX CONCURRENTLY 등
+migration runner 특성상 second-run이 불필요/위험하면
+metadata 기반 idempotency evidence로 대체.
+
+무조건 반복 실행하지 마십시오.
+
+완료보고에 방식 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Data Preservation
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 migration 전/후 최소 확인:
+
+WP4:
+notices existing row count
+
+WP5:
+new tables only
+
+WP8:
+row count 변화 없음
+
+WP11:
+students/member row count 변화 없음
+
+전체 Production DB COUNT audit 금지.
+
+관련 테이블만 최소 확인.
+
+Expected:
+
+business row mutation:
+0
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Runtime DDL False Positives
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 생성하지 마십시오:
+
+operational_errors
+marketing_audience_logs
+x_billing_events
+x_pools
+
+최종 조사 결과:
+
+LEGACY_UNUSED / NON-TABLE ALIAS
+
+이며 deploy prerequisite가 아닙니다.
+
+새 CREATE TABLE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Migration 완료 후 Final Schema Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 READ-ONLY 재확인:
+
+WP4:
+
+notice unified columns:
+8/8 PRESENT
+
+notice_dismissals:
+PRESENT
+
+WP5:
+
+push_fanout_jobs:
+PRESENT
+
+push_fanout_deliveries:
+PRESENT
+
+delivery uniqueness:
+PRESENT
+
+WP8:
+
+pagination indexes:
+4/4 PRESENT
+
+WP11:
+
+admin_member_notes:
+PRESENT
+
+required indexes:
+PRESENT
+
+Missing required migration:
+NONE
+
+이 상태가 되어야 다음 단계 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 작업에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 하지 마십시오:
+
+- release/v2.0.0 → main merge
+- main push
+- Render deploy
+- server restart
+- OTA publish
+- Store build
+- actual push send
+- RevenueCat fake event
+- Growth batch
+- Toykids entitlement 변경
+- marketing send
+- integrity repair
+- arbitrary Production write
+
+이번 단계는 migration만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PRODUCTION MIGRATION REPORT
+
+Production DB ref:
+mrgkiussgbbmxfnkjgqy
+
+Confirmed Production:
+YES / NO
+
+WP4:
+
+Migration file:
+...
+
+Execution:
+PASS / FAIL
+
+notice unified columns:
+.../8 PRESENT
+
+notice_dismissals:
+PRESENT / MISSING
+
+Indexes/constraints:
+PASS / FAIL
+
+Existing notices preserved:
+PASS / FAIL
+
+WP5:
+
+Migration file:
+...
+
+Execution:
+PASS / FAIL
+
+push_fanout_jobs:
+PRESENT / MISSING
+
+push_fanout_deliveries:
+PRESENT / MISSING
+
+job_ref uniqueness:
+PASS / FAIL
+
+delivery UNIQUE(job_ref,push_token_id):
+PASS / FAIL
+
+Production Push sent:
+NO
+
+WP8:
+
+Migration file:
+...
+
+Execution:
+PASS / FAIL
+
+idx_class_diaries_pool_cursor:
+PRESENT / MISSING
+
+idx_notifications_user_cursor:
+PRESENT / MISSING
+
+idx_diary_messages_diary_cursor:
+PRESENT / MISSING
+
+idx_members_pool_status_cursor:
+PRESENT / MISSING
+
+Count:
+.../4 PRESENT
+
+WP11:
+
+Migration file:
+...
+
+Execution:
+PASS / FAIL
+
+admin_member_notes:
+PRESENT / MISSING
+
+Required columns:
+PASS / FAIL
+
+Required indexes:
+PASS / FAIL
+
+Test note inserted:
+NO
+
+Data preservation:
+
+Production business rows changed:
+0 / ...
+
+Unexpected data mutation:
+0 / ...
+
+Idempotency verification:
+...
+
+Final required schema:
+
+WP4:
+PASS / FAIL
+
+WP5:
+PASS / FAIL
+
+WP8:
+PASS / FAIL
+
+WP11:
+PASS / FAIL
+
+Missing required migrations:
+NONE / ...
+
+operational_errors created:
+NO
+
+marketing_audience_logs created:
+NO
+
+x_billing_events created:
+NO
+
+x_pools table created:
+NO
+
+release→main merge:
+NO
+
+main pushed:
+NO
+
+Render deployed:
+NO
+
+OTA published:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS_FOR_RELEASE_MERGE / HOLD
+
+중요:
+
+사용자가 승인한 것은 위 4개 Production migration뿐입니다.
+
+그 외 Production DDL/data mutation은 승인하지 않았습니다.
+
+4개 migration + 검증 완료 후 즉시 STOP하십시오.
+```
