@@ -1,0 +1,277 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — REAL DEVICE 400 ROOT CAUSE
+# 실제 iOS production-v2 실기기에서 AI Diary 요청이 400 발생
+# 새 기능 금지
+# broad refactor 금지
+# DB 변경 금지
+# OTA 추가 배포 금지
+# WP17 선행 금지
+
+현재 확정:
+
+iOS production-v2 OTA 완료
+release/v2.0.0
+HEAD:
+5006e596eb09d0a455029dc8c4eaafac9ebc5f43
+
+Teacher Diary endpoint:
+POST https://swimnote-professional-engine.onrender.com/api/v1/teacher-diary/generate
+
+Engine smoke:
+HTTP 200
+pipeline_mode=grounded_v1
+grounding_validation=PASS
+fallback_used=false
+
+하지만 실제 iPhone에서 AI Diary 실행 시:
+
+"요청 처리 실패"
+HTTP 400
+
+발생.
+
+이번 작업은 이 400의 정확한 원인만 찾습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- URL 재변경 금지
+- AI Engine architecture 변경 금지
+- GroundedPipelineRunner 수정 금지
+- DB 수정 금지
+- x_global/Toykids 수정 금지
+- legacy fallback 활성화 금지
+- UI 개편 금지
+- 전체 repo audit 금지
+- 전체 test suite 금지
+- Production OTA 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 APP 요청 캡처
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기와 동일 code path에서
+TeacherDiaryAIClient가 보내는 request를 확인.
+
+민감정보는 반드시 마스킹.
+
+확인:
+
+endpoint
+method
+headers 존재 여부
+Authorization Bearer 존재 여부
+Content-Type
+
+body 구조:
+
+request_id
+schema_version
+contract_version
+feature
+locale
+
+input.text
+
+context.pool_id
+context.class_id
+context.lesson_date
+context.student_refs
+context.students[{ref,name}]
+
+실제 값 전체 출력 금지.
+타입/존재 여부/길이/개수만 보고.
+
+예:
+
+pool_id present: YES
+class_id present: YES
+student_refs count: 5
+students count: 5
+input.text length: 42
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Engine 400 response body 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+현재 앱이 "요청 처리 실패"로 뭉개지 말고
+개발 검증에서 실제 Engine response의:
+
+HTTP status
+error.code
+error.message
+request_id
+
+를 확인.
+
+Production 사용자 화면 변경 금지.
+
+서버 로그 또는 안전한 debug/test 방식으로 확인.
+
+400이 발생한 exact error code를 반드시 보고.
+
+예:
+
+INVALID_REQUEST
+STUDENT_CONTEXT_INVALID
+CONTRACT_VERSION_UNSUPPORTED
+...
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. APP request vs ENGINE schema exact diff
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE의 현재 deployed route:
+
+POST /api/v1/teacher-diary/generate
+
+의 실제 validator/schema와
+APP request를 field-by-field 비교.
+
+다음만 보고:
+
+FIELD
+APP SENT
+ENGINE EXPECTED
+MATCH
+
+특히 확인:
+
+schema_version
+contract_version
+feature
+locale
+input.text
+context.pool_id
+context.class_id
+context.lesson_date
+context.student_refs
+context.students.ref
+context.students.name
+
+camelCase/snake_case 차이 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Auth 400/401 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+JWT 문제라면 보통 401/403이어야 하므로
+현재 400이 auth 이후 request validation인지 확인.
+
+보고:
+
+Auth passed before 400:
+YES / NO / UNKNOWN
+
+JWT user role:
+TEACHER / ADMIN / ...
+
+pool access validation passed:
+YES / NO / UNKNOWN
+
+JWT 원문 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 재현
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 고객 데이터 write 금지.
+
+실기기와 동일 payload shape로
+safe test account / fixture에서 재현.
+
+A.
+APP 실제 payload 그대로
+→ status ?
+
+B.
+Engine test에서 통과한 known-good payload
+→ status ?
+
+둘의 차이만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 수정 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인이 100% 특정되기 전 수정 금지.
+
+원인이 APP contract mismatch라면:
+
+TeacherDiaryAIClient 또는 DiaryAIService의
+최소 field 수정만 허용.
+
+원인이 Engine validator가
+이미 합의된 공식 contract와 다르게 구현된 경우:
+
+수정하지 말고 HOLD 보고.
+APP/ENGINE 중 어느 쪽이 공식 contract 기준인지 먼저 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 REAL DEVICE 400 RCA REPORT
+
+Branch:
+...
+
+HEAD:
+...
+
+Real device status:
+400
+
+Engine error.code:
+...
+
+Engine error.message:
+...
+
+Auth passed:
+YES / NO / UNKNOWN
+
+APP request shape:
+...
+
+Engine expected shape:
+...
+
+Exact mismatch:
+...
+
+Root cause:
+...
+
+Affected file:
+...
+
+Fix required:
+APP / ENGINE / CONFIG / NONE
+
+Minimal fix:
+...
+
+Production DB changes required:
+NO
+
+Toykids/x_global changes required:
+NO
+
+Additional architecture work required:
+NO
+
+Code changes performed:
+NO
+
+Final:
+ROOT_CAUSE_CONFIRMED / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
