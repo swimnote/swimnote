@@ -1,0 +1,395 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP16 — RELEASE → MAIN MERGE ONLY
+# FINAL MASTER WP FREEZE
+# USER APPROVED
+# RENDER DEPLOY 금지
+# OTA 금지
+# WP17 선행 금지
+
+현재 상태:
+
+release/v2.0.0 HEAD:
+aff68b8a
+
+origin/release/v2.0.0:
+aff68b8a
+
+main HEAD:
+8aef7060
+
+origin/main:
+8aef7060
+
+Production required migrations:
+WP4 PASS
+WP5 PASS
+WP8 PASS
+WP11 PASS
+
+Missing required migrations:
+NONE
+
+따라서 이제 release/v2.0.0을 main으로 병합합니다.
+
+이번 작업 범위:
+
+1. main 최신화
+2. release/v2.0.0 → main merge
+3. merge 결과 검증
+4. origin/main push
+5. ancestry 확인
+6. STOP
+
+Render deploy 금지.
+Production DB 변경 금지.
+OTA publish 금지.
+Store build 금지.
+WP16 E2E 선행 금지.
+WP17 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Pre-Merge Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 확인:
+
+git status clean
+
+git fetch origin
+
+origin/release/v2.0.0:
+aff68b8a
+
+origin/main:
+현재 latest SHA 확인
+
+중요:
+
+origin/main이 이전 확인 이후 새로 변경됐다면
+그 SHA를 기준으로 다시 merge conflict precheck.
+
+force push 금지.
+reset --hard 금지.
+history rewrite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Main Checkout / Update
+━━━━━━━━━━━━━━━━━━━━━━
+
+main checkout.
+
+origin/main 최신 상태와 맞춤.
+
+일반 fast-forward/pull만 허용.
+
+local-only divergent commit이 있으면
+임의 reset하지 말고 STOP + 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Merge
+━━━━━━━━━━━━━━━━━━━━━━
+
+release/v2.0.0을 main에 일반 merge.
+
+예:
+
+git merge --no-ff origin/release/v2.0.0
+
+기존 repository merge convention이 있으면 재사용.
+
+중요:
+
+squash merge 금지.
+cherry-pick 30개 개별 금지.
+history rewrite 금지.
+
+release history 전체를 ancestry로 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Conflict
+━━━━━━━━━━━━━━━━━━━━━━
+
+예상 conflict:
+NONE
+
+하지만 실제 conflict 발생 시:
+
+임의 대규모 conflict resolution 금지.
+
+각 conflict file과 양쪽 diff를 보고하고 STOP.
+
+특히:
+
+migration
+billing
+X entitlement
+app.json
+eas.json
+
+은 임의 선택 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Merge 후 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+main HEAD:
+...
+
+git merge-base --is-ancestor aff68b8a main
+
+Expected:
+YES
+
+또한:
+
+git merge-base --is-ancestor 8aef7060 main
+
+Expected:
+YES
+
+즉 기존 main history와 release history 둘 다 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Version Freeze Verify
+━━━━━━━━━━━━━━━━━━━━━━
+
+merge 후 app.json만 최소 확인:
+
+version:
+2.0.1
+
+runtimeVersion:
+2.1.0 explicit
+
+ios.buildNumber:
+256
+
+android.versionCode:
+240
+
+Production channel:
+production-v2
+
+WP15 값이 merge 과정에서 깨지지 않았는지만 확인.
+
+새 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Core Commit Presence
+━━━━━━━━━━━━━━━━━━━━━━
+
+main ancestry에 최소 다음 commit이 포함되는지 확인:
+
+00ab5863
+f51eaee7
+ef8a6262
+6b6d806a
+64cae1f1
+823ff644
+60cd5a82
+08b5b9a9
+f3ffc9d2
+e2d4ac0f
+dc768326
+96295ec3
+c03446bd
+aff68b8a
+
+각각:
+
+git merge-base --is-ancestor <sha> main
+
+Expected:
+YES
+
+전체 suite 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+merge 검증 PASS 후:
+
+git push origin main
+
+force push 절대 금지.
+
+push 후:
+
+origin/main SHA 확인.
+
+Expected:
+merge commit 또는 fast-forward 결과 SHA.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Final Ancestry
+━━━━━━━━━━━━━━━━━━━━━━
+
+push 후 반드시 확인:
+
+aff68b8a ancestor of origin/main:
+YES
+
+8aef7060 ancestor of origin/main:
+YES
+
+release branch 자체는 변경하지 마십시오.
+
+origin/release/v2.0.0:
+aff68b8a 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Render
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 deploy하지 마십시오.
+
+이번 단계에서:
+
+Render deploy:
+NO
+
+사용자가 Render를 수동 재배포합니다.
+
+단 완료보고에:
+
+new origin/main SHA:
+...
+
+Render should deploy this SHA or descendant:
+...
+
+라고 적으십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Production
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서:
+
+Production DB DDL:
+0
+
+Production data write:
+0
+
+Production migration:
+0
+
+Production Push:
+0
+
+Toykids entitlement:
+unchanged
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 RELEASE→MAIN MERGE REPORT
+
+release HEAD:
+aff68b8a
+
+origin/release:
+...
+
+main before:
+...
+
+origin/main before:
+...
+
+Merge method:
+...
+
+Merge conflict:
+YES / NO
+
+Conflict files:
+...
+
+main after:
+...
+
+origin/main after:
+...
+
+Merge commit SHA:
+...
+
+aff68b8a ancestor of main:
+YES / NO
+
+aff68b8a ancestor of origin/main:
+YES / NO
+
+old main 8aef7060 ancestor of new main:
+YES / NO
+
+Core WP commits present:
+PASS / FAIL
+
+Version:
+...
+
+runtimeVersion:
+...
+
+iOS buildNumber:
+...
+
+Android versionCode:
+...
+
+Production channel:
+...
+
+Version freeze preserved:
+PASS / FAIL
+
+release branch changed:
+NO
+
+Production DB changes:
+0
+
+Production migrations:
+0
+
+Render deployed:
+NO
+
+OTA published:
+NO
+
+Store build:
+NO
+
+Next required action:
+USER MANUAL RENDER DEPLOY
+
+Render should deploy:
+<new origin/main SHA or descendant>
+
+Remaining blocker:
+Render not yet redeployed
+
+Final:
+PASS_FOR_RENDER_DEPLOY / HOLD
+
+중요:
+
+이번 작업은 merge + origin/main push까지만.
+
+Render deploy 금지.
+Production DB 변경 금지.
+WP16 E2E 재시작 금지.
+WP17 선행 금지.
+
+완료 후 즉시 STOP.
+```
