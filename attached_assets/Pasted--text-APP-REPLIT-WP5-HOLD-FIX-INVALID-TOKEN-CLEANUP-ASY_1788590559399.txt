@@ -1,0 +1,343 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP5 — HOLD FIX
+# INVALID TOKEN CLEANUP + ASYNC DURABILITY + IDEMPOTENCY EVIDENCE ONLY
+# FINAL MASTER WP FREEZE — 계획 변경 금지
+
+현재 WP5 commit:
+
+cd3a15ac
+origin/release/v2.0.0
+
+현재 WP5 구현 전체를 다시 열지 마십시오.
+
+이번 HOLD는 아래 3개 항목만 수정/확인합니다.
+
+WP4 이후 작업 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. HOLD 1 — InvalidCredentials token 삭제 오류
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+DeviceNotRegistered
+OR
+InvalidCredentials
+
+→ DELETE FROM push_tokens WHERE token = ?
+
+이 처리는 수정해야 합니다.
+
+Expo 의미 기준:
+
+DeviceNotRegistered:
+해당 Expo Push Token이 더 이상 등록된 수신자가 아님.
+→ 해당 token 비활성/삭제 가능.
+
+InvalidCredentials:
+앱의 APNs/FCM push credential 문제.
+→ user/device token 자체의 invalid 의미가 아님.
+→ token 삭제 금지.
+
+따라서:
+
+DeviceNotRegistered
+→ exact failed token cleanup
+
+InvalidCredentials
+→ token 유지
+→ permanent/configuration failure로 기록
+→ retry 정책상 무한 retry 금지
+
+형태로 최소 수정하십시오.
+
+다른 error semantics를 이번 작업에서 전면 재설계하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. HOLD 2 — 대량 발송 background durability 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+sendPushToPoolParents / sendPushToAllUsers
+→ void _doSendPush...
+→ API request blocking NO
+
+확인할 것은 딱 하나입니다.
+
+이 구조가:
+
+A. 기존 durable job / DB queue / scheduled work를 enqueue하고
+   HTTP request와 분리된 것인지
+
+또는
+
+B. API process 내부에서 단순 detached Promise만 실행하는 것인지
+
+정확히 보고하십시오.
+
+만약 A:
+기존 durable 구조의 exact 파일/함수와
+job이 process restart 이후에도 남는 근거를 제출하면 됩니다.
+새 수정 불필요.
+
+만약 B:
+"HTTP response를 안 기다린다"는 것은 맞지만
+process restart/deploy/crash 시 10K push 작업이 유실될 수 있습니다.
+
+이 경우 repository에 이미 존재하는
+가장 작은 durable DB job/queue 구조를 먼저 확인하십시오.
+
+기존 구조가 있으면 재사용하여:
+API request
+→ durable enqueue
+→ background processing
+
+으로 최소 보완하십시오.
+
+금지:
+
+- pg-boss
+- BullMQ
+- Redis
+- 신규 worker platform
+- worker architecture 전체 재설계
+
+기존 durable structure가 전혀 없고
+이번 WP 범위를 크게 넘는 schema/architecture가 필요하면
+임의 구현하지 말고 exact blocker만 보고하고 STOP하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. HOLD 3 — logical idempotency 실제 constraint 증명
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+sendRawPush(jobRef)
+→ push_logs.triggered_by
+→ ON CONFLICT DO NOTHING
+
+으로 logical delivery idempotency라고 했습니다.
+
+반드시 확인:
+
+push_logs에서
+jobRef / triggered_by 또는 실제 conflict target을
+중복으로 만들 수 없게 하는 DB UNIQUE constraint/index가
+실제로 존재하는가?
+
+보고:
+
+table:
+...
+
+column/key:
+...
+
+UNIQUE constraint/index:
+...
+
+exact migration/schema source:
+...
+
+ON CONFLICT target:
+...
+
+중요:
+
+UNIQUE constraint가 없다면
+ON CONFLICT DO NOTHING만으로 logical idempotency가 성립한다고
+판정하지 마십시오.
+
+이미 적절한 UNIQUE key가 있으면:
+수정 없이 evidence만 제출.
+
+없으면:
+현재 existing schema/notification/job identifier를 이용해
+schema 변경 없이 중복 방지가 가능한지 최소 검토.
+
+새 DB schema가 실제 필수라면:
+runtime DDL 금지.
+
+canonical migration 필요사항만 보고하고 STOP하십시오.
+Production DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 WP5 구현 재오픈 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 다시 만들지 마십시오.
+
+- chunk size 100
+- MAX_CONCURRENT_CHUNKS=5
+- bounded concurrency
+- retry/backoff
+- token Set dedupe
+- payload preservation
+- 10K simulation
+- partial failure handling
+- 기존 small push path
+
+이번 HOLD와 무관한 테스트/리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+필수만:
+
+A.
+DeviceNotRegistered
+→ exact token cleanup PASS
+
+B.
+InvalidCredentials
+→ token remains
+→ cleanup 0
+→ failure 기록 PASS
+
+C.
+기존 valid token
+→ 영향 없음
+
+D.
+background path:
+durable enqueue인지 여부 증명
+
+E.
+동일 jobRef 2회 실행
+→ 실제 duplicate delivery 방지 PASS
+
+F.
+idempotency가 DB constraint 기반이면
+duplicate insert/conflict 실제 테스트
+
+기존 WP5 나머지 테스트는
+필요한 경우 관련 regression만 실행.
+
+10K simulation 전체를 이유 없이 다시 반복하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP4 Notice
+- WP6 Security
+- WP7 Manual Grant
+- Push provider 변경
+- queue platform 신규 도입
+- unrelated refactor
+- RevenueCat 수정
+- Pagination
+- Growth
+- Version/runtime
+- Production DB 변경
+- 신규 runtime DDL
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP5 HOLD FIX COMPLETION REPORT
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+cd3a15ac
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+DeviceNotRegistered cleanup:
+PASS / FAIL
+
+InvalidCredentials token deleted:
+YES / NO
+
+InvalidCredentials handling:
+...
+
+Async implementation type:
+DURABLE JOB / DETACHED IN-PROCESS PROMISE / OTHER
+
+Existing durable job structure reused:
+YES / NO
+
+Exact async/enqueue path:
+...
+
+Process restart delivery-loss protection:
+PASS / FAIL / BLOCKER
+
+Idempotency table:
+...
+
+Idempotency key:
+...
+
+UNIQUE constraint/index:
+...
+
+Schema/migration evidence:
+...
+
+ON CONFLICT behavior:
+...
+
+Same jobRef executed twice:
+...
+
+Duplicate delivery:
+0 / ...
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+DB schema changes:
+YES / NO
+
+Migration:
+YES / NO
+
+Production DB changes:
+NO
+
+Render required:
+YES / NO
+
+OTA required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 작업은 위 3개 HOLD 항목만 처리합니다.
+WP5 전체 재개발 금지.
+WP4 선행 구현 금지.
+
+완료하면 즉시 STOP하십시오.
+```
