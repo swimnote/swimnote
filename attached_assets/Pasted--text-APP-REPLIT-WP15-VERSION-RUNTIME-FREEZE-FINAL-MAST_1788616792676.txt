@@ -1,0 +1,758 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP15 — VERSION / RUNTIME FREEZE
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 중간 계획 변경 금지
+
+목적:
+
+2.0.1 Store Release 전에
+앱의 marketing version / runtimeVersion / iOS build / Android versionCode / OTA compatibility를
+최종 동결합니다.
+
+이번 WP 핵심:
+
+1. Store app version = 2.0.1
+2. runtimeVersion은 native compatibility를 기준으로 정확히 결정
+3. iOS/Android build number 충돌 방지
+4. production channel/branch 확인
+5. OTA 가능/불가 범위 명확화
+6. native change 여부 최종 audit
+
+이번 작업은 WP15만 수행합니다.
+
+WP16 이후 작업 절대 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP에서:
+
+- feature 추가
+- UI 수정
+- API 수정
+- DB 수정
+- dependency upgrade
+- Expo/RN upgrade
+
+금지.
+
+오직 version/runtime/build/release compatibility만 다룹니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+c03446bd
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- c03446bd ancestry 포함
+
+WP1~WP14 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이전 검수에서 확인된 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 Replit review evidence:
+
+app.json:
+
+version:
+2.1.0
+
+runtimeVersion:
+{ policy: "appVersion" }
+
+iOS buildNumber:
+255
+
+Android versionCode:
+239
+
+Target Store marketing version:
+
+2.0.1
+
+중요:
+
+현재 runtimeVersion policy가 appVersion이면
+version을 2.0.1로 변경하는 순간 runtime도 2.0.1로 바뀝니다.
+
+이를 무심코 수행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 핵심 판단 — Runtime Compatibility
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 현재 release/v2.0.0에서
+마지막 Store binary/native baseline 이후
+
+native runtime compatibility를 깨는 변경이 있었는지 최소 audit하십시오.
+
+확인 대상:
+
+- app.json native config
+- plugins
+- permissions
+- entitlements
+- native modules
+- package native dependencies
+- Expo SDK / RN version
+- iOS config
+- Android config
+- config plugin output affecting native project
+
+이번 WP 전 feature 코드 전체 재감사 금지.
+
+native compatibility에 직접 관련된 diff만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Runtime 결정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 결과는 두 가지입니다.
+
+CASE A:
+현재 JS/TS release가 기존 runtime 2.1.0 binary와 native-compatible
+
+→ Store marketing version:
+2.0.1
+
+→ runtimeVersion:
+explicit "2.1.0"
+
+로 고정하는 방향.
+
+즉 appVersion policy 제거 후
+runtimeVersion을 명시값으로 고정.
+
+이 경우 2.0.1 Store binary도
+runtime 2.1.0으로 빌드.
+
+
+CASE B:
+실제 native-incompatible change가 존재
+
+→ runtime 2.1.0을 그대로 재사용하면 안 됨.
+
+이 경우:
+
+- exact incompatible change
+- 왜 native rebuild/new runtime 필요
+- 현재 proposed runtime
+
+을 evidence로 보고하고 STOP.
+
+임의 runtime 번호를 새로 발명하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대:
+
+version = 2.0.1
+runtimeVersion = { policy: "appVersion" }
+
+로 그대로 두고
+
+runtime을 2.0.1로 의도치 않게 downgrade하지 마십시오.
+
+runtimeVersion은
+Store marketing version과 별개의 compatibility identifier입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Store Marketing Version
+━━━━━━━━━━━━━━━━━━━━━━
+
+공식 Store release target:
+
+2.0.1
+
+따라서 native compatibility audit가 PASS하면:
+
+app version / marketing version:
+2.0.1
+
+로 동결.
+
+UI 내부에 별도 hardcoded version string이 있다면
+실제 canonical config를 따라가는지 최소 확인.
+
+대형 version display refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. iOS Build Number
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 알려진 기준:
+
+255
+
+실제 App Store Connect/TestFlight에
+이미 255 build가 올라갔을 가능성을 고려.
+
+repository/CI/EAS history에서 확인 가능한 범위만 확인.
+
+새 Store binary를 만들려면
+기존 사용된 buildNumber보다 반드시 증가해야 함.
+
+예:
+
+256
+
+단 실제 latest uploaded build number를 확인할 수 없다면
+추측해서 확정하지 마십시오.
+
+보고:
+
+current repo:
+255
+
+known latest uploaded:
+...
+
+proposed next:
+...
+
+exact evidence:
+...
+
+EAS autoIncrement convention이 있으면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Android versionCode
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 알려진 기준:
+
+239
+
+Google Play에 이미 사용된 versionCode와 충돌하면 안 됨.
+
+확인 가능한 release/build config 기준으로
+다음 값 결정.
+
+예:
+240
+
+단 latest uploaded versionCode를 모르면
+근거 없이 확정하지 마십시오.
+
+EAS autoIncrement가 canonical이면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. iOS / Android Runtime
+━━━━━━━━━━━━━━━━━━━━━━
+
+runtimeVersion이 platform별로 따로 설정되어 있는지 확인.
+
+가능하면 동일 compatibility runtime 사용.
+
+단 현재 config에 platform-specific runtime이 존재하면
+기존 convention 유지.
+
+새 복잡한 runtime strategy 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Production EAS Channel
+━━━━━━━━━━━━━━━━━━━━━━
+
+확정 production channel:
+
+production-v2
+
+확인:
+
+- eas.json production profile
+- updates.channel
+- branch/channel mapping
+- runtime compatibility
+
+Production build가
+다른 dev/staging channel을 보지 않아야 함.
+
+새 channel 이름 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. OTA 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+공식:
+
+iOS:
+native-compatible JS/TS만 OTA 가능.
+
+Android:
+이번 프로젝트에서는 OTA 금지
+unless user separately instructs.
+
+따라서 보고에서:
+
+iOS OTA:
+allowed only if runtime-compatible
+
+Android OTA:
+NO
+
+Native/config/dependency change:
+new binary required.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 현재 누적 변경의 Native 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP1~WP14에서 실제 변경된 것 중:
+
+- server only
+- app JS/TS only
+- schema only
+
+와
+
+native/config change
+
+를 구분.
+
+예:
+
+WP11 Admin Notes UI
+WP12 Marketing UI
+WP13 Integrity UI
+WP14 layout cleanup
+
+등 JS/TS라면
+runtime-compatible일 가능성이 높음.
+
+하지만 추측하지 말고 native dependency/config diff 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Native Dependency Audit
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+package.json / lockfile에서
+마지막 native baseline 이후
+
+- expo
+- react-native
+- react-native-* native module
+- expo-* native module
+- config plugin
+
+version 변화.
+
+없으면:
+native dependency change = NO
+
+있으면:
+exact package/version 보고.
+
+이번 WP에서 package version 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. app.json / eas.json Audit
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- version
+- runtimeVersion
+- ios.buildNumber
+- android.versionCode
+- updates.url/channel if applicable
+- EAS production profile
+- autoIncrement
+- bundleIdentifier
+- package name
+
+bundleIdentifier/package name 변경 금지.
+
+permissions/plugins 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Runtime Explicit Freeze
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A라면 최종 목표 예:
+
+{
+  "version": "2.0.1",
+  "runtimeVersion": "2.1.0"
+}
+
+정확한 app.json syntax는
+현재 Expo config convention에 맞게.
+
+policy object와 explicit string을 동시에 두지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Native Build Number Update
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 build number를 이번 WP에서 수정할지 여부는
+현재 EAS autoIncrement 정책 확인 후 결정.
+
+A.
+autoIncrement가 production canonical이면
+config에 숫자 hardcode 변경 불필요할 수 있음.
+
+B.
+manual buildNumber/versionCode 방식이면
+collision 없는 next value로 최소 수정.
+
+완료보고에 이유 명확히.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. EAS Config Validation
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면:
+
+npx expo config
+또는 equivalent safe config inspection
+
+으로 최종 resolved config 확인.
+
+확인:
+
+version
+runtimeVersion
+ios.buildNumber
+android.versionCode
+channel
+
+실제 build/upload는 아직 하지 마십시오.
+
+WP19 범위.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Runtime Compatibility Test
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 JS bundle이
+결정된 runtime에서 정상 동작하는지
+config-level / existing test 수준 확인.
+
+이번 WP에서 실제 OTA publish 금지.
+
+TestFlight/App Store build 생성도 금지.
+
+WP16/WP17/WP19에서 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Version Freeze 이후 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP15 PASS 이후:
+
+version
+runtimeVersion
+build numbers
+native config
+
+은 WP19 release 필요 외에는
+임의 변경 금지.
+
+새 native change가 생기면
+Release Candidate 깨짐.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Git 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+version/runtime 변경이 실제 필요하면
+release/v2.0.0에 commit.
+
+Commit SHA 보고.
+
+변경 불필요하면
+same SHA 가능.
+
+단 최종 resolved config evidence 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. Required Tests / Evidence
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+필수:
+
+A.
+Store version resolved = 2.0.1
+
+B.
+runtimeVersion resolved explicitly
+
+C.
+appVersion policy 제거/유지 이유 정확
+
+D.
+native-incompatible change:
+0 또는 exact evidence
+
+E.
+production channel = production-v2
+
+F.
+iOS bundleIdentifier unchanged
+
+G.
+Android package unchanged
+
+H.
+plugins/permissions unexpected change 0
+
+I.
+iOS build number collision risk 확인
+
+J.
+Android versionCode collision risk 확인
+
+K.
+resolved Expo config valid
+
+L.
+Android OTA = NO
+
+M.
+No build/upload executed
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP16 Production E2E
+- WP17 RC/full regression
+- WP18 DR
+- WP19 Store build/upload
+- feature code
+- API
+- DB
+- dependencies
+- permissions
+- native modules
+- UI
+- Push
+- Growth
+- Marketing
+- Integrity
+- Admin Notes
+- AI Engine
+- unrelated cleanup
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. PASS 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP15 PASS:
+
+1. Store version 2.0.1
+2. runtime compatibility audited
+3. accidental runtime downgrade 없음
+4. explicit runtime freeze if compatible
+5. build number/versionCode strategy safe
+6. production-v2 channel verified
+7. bundle/package ID unchanged
+8. native config unexpected change 0
+9. Android OTA NO
+10. no build/upload
+11. resolved config evidence
+12. Commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP15 VERSION / RUNTIME FREEZE REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+c03446bd
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+Current before:
+
+version:
+...
+
+runtimeVersion:
+...
+
+iOS buildNumber:
+...
+
+Android versionCode:
+...
+
+Production channel:
+...
+
+Native compatibility audit:
+
+Expo SDK changed since native baseline:
+YES / NO
+
+React Native changed:
+YES / NO
+
+Native module/dependency changes:
+...
+
+Plugins changed:
+YES / NO
+
+Permissions changed:
+YES / NO
+
+Native config changed:
+YES / NO
+
+Native-incompatible change found:
+YES / NO
+
+Evidence:
+...
+
+Final resolved:
+
+Store marketing version:
+2.0.1 / ...
+
+runtimeVersion:
+...
+
+runtime strategy:
+EXPLICIT / APP_VERSION_POLICY / OTHER
+
+Reason:
+...
+
+Accidental runtime downgrade:
+NO / FAIL
+
+iOS build number:
+
+repo/current:
+...
+
+known latest uploaded:
+...
+
+strategy:
+AUTO_INCREMENT / MANUAL
+
+proposed next:
+...
+
+Android versionCode:
+
+repo/current:
+...
+
+known latest uploaded:
+...
+
+strategy:
+AUTO_INCREMENT / MANUAL
+
+proposed next:
+...
+
+Production EAS channel:
+...
+
+production-v2 verified:
+PASS / FAIL
+
+Bundle identifier unchanged:
+PASS / FAIL
+
+Android package unchanged:
+PASS / FAIL
+
+Resolved Expo config:
+...
+
+Config validation:
+PASS / FAIL
+
+iOS OTA compatibility:
+...
+
+Android OTA:
+NO
+
+Native binary required for WP1-WP14 changes:
+YES / NO
+
+Build executed:
+NO
+
+Upload executed:
+NO
+
+DB changes:
+NO
+
+Production data changes:
+NO
+
+Tests/evidence:
+...
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP에서 build/upload 금지.
+
+Store version과 runtimeVersion을 혼동하지 마십시오.
+
+version 2.0.1로 변경하면서
+runtimeVersion appVersion policy를 그대로 두어
+runtime 2.0.1로 떨어뜨리는 실수를 하지 마십시오.
+
+WP16 이후 작업 선행 금지.
+
+완료 후 즉시 STOP하십시오.
+```
