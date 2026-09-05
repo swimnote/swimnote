@@ -7292,6 +7292,289 @@ router.get(
   },
 );
 
+// ════════════════════════════════════════════════════════════════════════════
+// WP12 MARKETING — Super Admin marketing message routes
+// ════════════════════════════════════════════════════════════════════════════
+
+import {
+  VALID_PLAN_TYPES,
+  VALID_TARGET_ROLES,
+  type MarketingCriteria,
+  resolveAudiencePreview,
+  resolveTargetPoolIds,
+  enqueueMarketingFanoutJob,
+} from "../lib/marketing-audience.js";
+
+const SUPER_ROLES_MARKETING = new Set(["super_admin", "platform_admin"]);
+
+function requireMarketingRole(req: any, res: any, next: any) {
+  if (!req.user || !SUPER_ROLES_MARKETING.has(req.user.role)) {
+    return res.status(403).json({ error: "FORBIDDEN", message: "슈퍼관리자 전용 기능입니다." });
+  }
+  next();
+}
+
+/** Validate + build MarketingCriteria from request body.
+ * Returns { criteria, error } — error is non-null on validation failure. */
+function parseMarketingCriteria(body: any): { criteria: MarketingCriteria | null; error: string | null } {
+  const { pool_ids, plan_types, roles } = body;
+
+  // pool_ids: string[] | null
+  if (pool_ids !== null && pool_ids !== undefined) {
+    if (!Array.isArray(pool_ids)) return { criteria: null, error: "pool_ids는 배열 또는 null이어야 합니다." };
+    for (const id of pool_ids) {
+      if (typeof id !== "string" || !id.trim()) return { criteria: null, error: "pool_ids 요소는 non-empty string이어야 합니다." };
+    }
+  }
+
+  // plan_types: string[] | null
+  if (plan_types !== null && plan_types !== undefined) {
+    if (!Array.isArray(plan_types)) return { criteria: null, error: "plan_types는 배열 또는 null이어야 합니다." };
+    for (const p of plan_types) {
+      if (!(VALID_PLAN_TYPES as readonly string[]).includes(p)) {
+        return { criteria: null, error: `plan_types에 유효하지 않은 값: ${p}. 허용값: ${VALID_PLAN_TYPES.join(", ")}` };
+      }
+    }
+  }
+
+  // roles: string[] | null
+  if (roles !== null && roles !== undefined) {
+    if (!Array.isArray(roles)) return { criteria: null, error: "roles는 배열 또는 null이어야 합니다." };
+    for (const r of roles) {
+      if (!(VALID_TARGET_ROLES as readonly string[]).includes(r)) {
+        return { criteria: null, error: `roles에 유효하지 않은 값: ${r}. 허용값: ${VALID_TARGET_ROLES.join(", ")}` };
+      }
+    }
+  }
+
+  const criteria: MarketingCriteria = {
+    poolIds:   (pool_ids   ?? null) as string[] | null,
+    planTypes: (plan_types ?? null) as any,
+    roles:     (roles      ?? null) as any,
+  };
+
+  return { criteria, error: null };
+}
+
+/**
+ * POST /super/marketing/notices/preview
+ * §7: audience count preview — pool_count, user_count, role breakdown, push_token_count
+ */
+router.post(
+  "/super/marketing/notices/preview",
+  requireMarketingRole,
+  async (req, res) => {
+    try {
+      const { criteria, error } = parseMarketingCriteria(req.body);
+      if (error || !criteria) return res.status(400).json({ error: "INVALID_CRITERIA", message: error });
+
+      const preview = await resolveAudiencePreview(criteria);
+      return res.json(preview);
+    } catch (e: any) {
+      console.error("[WP12] /super/marketing/notices/preview 오류:", e?.message);
+      return res.status(500).json({ error: "PREVIEW_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * POST /super/marketing/notices
+ * §9: create notice + conditionally enqueue push (respecting starts_at).
+ * §12: accidental global send protection — 빈 targeting은 전부-선택으로 해석하되
+ *      모든 것이 null인 경우 명시적 target_all=true 필요.
+ */
+router.post(
+  "/super/marketing/notices",
+  requireMarketingRole,
+  async (req, res) => {
+    try {
+      const {
+        title, content,
+        pool_ids, plan_types, roles,
+        send_push, show_banner,
+        starts_at, ends_at,
+        deep_link,
+        target_all,
+      } = req.body as any;
+
+      // ── Required fields ──────────────────────────────────────────────────
+      if (!title || typeof title !== "string" || !title.trim()) {
+        return res.status(400).json({ error: "MISSING_FIELD", message: "title은 필수입니다." });
+      }
+      if (!content || typeof content !== "string" || !content.trim()) {
+        return res.status(400).json({ error: "MISSING_FIELD", message: "content는 필수입니다." });
+      }
+
+      // ── Accidental global send protection (§12) ───────────────────────────
+      const allNull = (pool_ids == null || (Array.isArray(pool_ids) && pool_ids.length === 0))
+                   && (plan_types == null || (Array.isArray(plan_types) && plan_types.length === 0))
+                   && (roles == null || (Array.isArray(roles) && roles.length === 0));
+      if (allNull && !target_all) {
+        return res.status(400).json({
+          error: "ACCIDENTAL_GLOBAL_SEND",
+          message: "모든 필터가 비어있으면 전체 발송이 됩니다. target_all=true로 명시적으로 확인하세요.",
+        });
+      }
+
+      // ── Criteria validation ───────────────────────────────────────────────
+      const { criteria, error: criteriaError } = parseMarketingCriteria({ pool_ids, plan_types, roles });
+      if (criteriaError || !criteria) {
+        return res.status(400).json({ error: "INVALID_CRITERIA", message: criteriaError });
+      }
+
+      // ── starts_at / ends_at ───────────────────────────────────────────────
+      let startsAtDate: Date | null = null;
+      if (starts_at) {
+        startsAtDate = new Date(starts_at);
+        if (isNaN(startsAtDate.getTime())) {
+          return res.status(400).json({ error: "INVALID_STARTS_AT", message: "starts_at 형식이 유효하지 않습니다." });
+        }
+      }
+      let endsAtDate: Date | null = null;
+      if (ends_at) {
+        endsAtDate = new Date(ends_at);
+        if (isNaN(endsAtDate.getTime())) {
+          return res.status(400).json({ error: "INVALID_ENDS_AT", message: "ends_at 형식이 유효하지 않습니다." });
+        }
+      }
+
+      const nowDate = new Date();
+      const isFuture = startsAtDate !== null && startsAtDate > nowDate;
+
+      // ── Resolve target pool IDs for storage ──────────────────────────────
+      const targetPoolIds = await resolveTargetPoolIds(criteria);
+
+      // ── Create notice ─────────────────────────────────────────────────────
+      const noticeResult = await superAdminDb.execute(sql`
+        INSERT INTO notices
+          (id, title, content, notice_type, audience_scope,
+           target_roles, target_pools, target_plan_types,
+           send_push, show_banner, starts_at, ends_at, deep_link,
+           author_user_id, created_at, updated_at)
+        VALUES
+          (gen_random_uuid()::text,
+           ${title.trim()}, ${content.trim()}, 'general', 'global',
+           ${criteria.roles ? JSON.stringify(criteria.roles) : null}::jsonb,
+           ${targetPoolIds.length > 0 ? JSON.stringify(targetPoolIds) : null}::jsonb,
+           ${criteria.planTypes ? JSON.stringify(criteria.planTypes) : null}::text[],
+           ${send_push !== false},
+           ${show_banner !== false},
+           ${startsAtDate ? startsAtDate.toISOString() : null}::timestamptz,
+           ${endsAtDate  ? endsAtDate.toISOString()  : null}::timestamptz,
+           ${deep_link ?? null},
+           ${req.user!.userId},
+           NOW(), NOW())
+        RETURNING id, title, created_at
+      `);
+
+      const notice = (noticeResult.rows as any[])[0];
+      if (!notice) throw new Error("공지 INSERT 실패");
+
+      // ── Audit log ─────────────────────────────────────────────────────────
+      await superAdminDb.execute(sql`
+        INSERT INTO audit_logs
+          (id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+        VALUES
+          (gen_random_uuid()::text, ${req.user!.userId},
+           'MARKETING_NOTICE_CREATE', 'notice', ${notice.id},
+           ${JSON.stringify({
+             title: notice.title,
+             pool_count: targetPoolIds.length,
+             plan_types: criteria.planTypes,
+             roles: criteria.roles,
+             send_push: send_push !== false,
+             starts_at: starts_at ?? null,
+             is_future: isFuture,
+           })}::jsonb,
+           NOW())
+      `);
+
+      // ── Enqueue push (only if not future-scheduled) ───────────────────────
+      let pushResult: { duplicate: boolean; deliveriesAdded: number } | null = null;
+      if (send_push !== false && !isFuture) {
+        const jobRef = `notice:${notice.id}:send`;
+        pushResult = await enqueueMarketingFanoutJob({
+          jobRef,
+          noticeId:      notice.id,
+          title:         title.trim(),
+          body:          content.trim().slice(0, 255),
+          deepLink:      deep_link ?? null,
+          targetPoolIds,
+          roles:         criteria.roles,
+        });
+
+        // Mark push_sent_at
+        await superAdminDb.execute(sql`
+          UPDATE notices SET push_sent_at = NOW(), updated_at = NOW()
+          WHERE id = ${notice.id}
+        `);
+
+        // Audit: MARKETING_NOTICE_SEND
+        await superAdminDb.execute(sql`
+          INSERT INTO audit_logs
+            (id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+          VALUES
+            (gen_random_uuid()::text, ${req.user!.userId},
+             'MARKETING_NOTICE_SEND', 'notice', ${notice.id},
+             ${JSON.stringify({
+               job_ref: `notice:${notice.id}:send`,
+               deliveries_added: pushResult?.deliveriesAdded ?? 0,
+               duplicate: pushResult?.duplicate ?? false,
+             })}::jsonb,
+             NOW())
+        `);
+      }
+
+      return res.status(201).json({
+        id:              notice.id,
+        title:           notice.title,
+        created_at:      notice.created_at,
+        push_scheduled:  isFuture,
+        push_enqueued:   !isFuture && send_push !== false,
+        push_deliveries: pushResult?.deliveriesAdded ?? null,
+        target_pool_count: targetPoolIds.length,
+      });
+    } catch (e: any) {
+      console.error("[WP12] /super/marketing/notices 오류:", e?.message);
+      return res.status(500).json({ error: "CREATE_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * GET /super/marketing/notices
+ * §11: Marketing notice list (audience_scope='global', super admin only).
+ */
+router.get(
+  "/super/marketing/notices",
+  requireMarketingRole,
+  async (req, res) => {
+    try {
+      const limit  = Math.min(Number(req.query.limit  ?? 50), 100);
+      const offset = Number(req.query.offset ?? 0);
+
+      const rows = (await superAdminDb.execute(sql`
+        SELECT
+          n.id, n.title, n.content, n.notice_type,
+          n.audience_scope, n.target_roles, n.target_pools, n.target_plan_types,
+          n.send_push, n.show_banner, n.starts_at, n.ends_at, n.deep_link,
+          n.push_sent_at, n.created_at, n.updated_at,
+          u.name AS author_name
+        FROM notices n
+        LEFT JOIN users u ON n.author_user_id = u.id
+        WHERE n.audience_scope = 'global'
+        ORDER BY n.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `)).rows;
+
+      return res.json({ notices: rows, limit, offset });
+    } catch (e: any) {
+      console.error("[WP12] GET /super/marketing/notices 오류:", e?.message);
+      return res.status(500).json({ error: "LIST_FAILED", message: e?.message });
+    }
+  }
+);
+
 export default router;
 
 
