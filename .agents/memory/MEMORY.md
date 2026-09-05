@@ -70,3 +70,4 @@
 - [WP2 Member Limit Enforcement 완료](wp2-member-limit-done.md) — SHA b17df141; lib/member-limit.ts+advisory lock; 6경로 bypass 수정; 25TC
 - [WP11 Admin Notes MVP 완료](wp11-admin-notes-done-state.md) — SHA e2d4ac0f; admin_member_notes+CRUD+audit+SectionG; Staging PASS; 30TC
 - [WP12 Marketing MVP 완료](wp12-marketing-done-state.md) — SHA dc768326; marketing-audience.ts+super.ts 3routes+scheduler+App UI; 36TC
+- [WP13 Data Integrity Checker 완료](wp13-integrity-done-state.md) — SHA 96295ec3; integrity-checker.ts 22 checks+super.ts 3routes+App UI; 36TC
