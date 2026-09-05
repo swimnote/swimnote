@@ -545,10 +545,22 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       if (!ok) { res.status(403).json({ success: false, message: "담당 반이 아닙니다." }); return; }
     }
 
+    // WP6 P0 FIX: verify student belongs to authenticated user's pool before any write
+    const [studentCheck] = await db.select({ swimming_pool_id: studentsTable.swimming_pool_id })
+      .from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
+    if (!studentCheck) { res.status(404).json({ success: false, message: "학생을 찾을 수 없습니다." }); return; }
+    if (studentCheck.swimming_pool_id !== poolId) {
+      res.status(403).json({ success: false, message: "접근 권한이 없습니다." }); return;
+    }
+
     const [existing] = await db.select().from(attendanceTable)
       .where(and(eq(attendanceTable.student_id, student_id), eq(attendanceTable.date, date))).limit(1);
 
     if (existing) {
+      // Double-check: existing record must also belong to same pool (defense-in-depth)
+      if (existing.swimming_pool_id !== poolId) {
+        res.status(403).json({ success: false, message: "접근 권한이 없습니다." }); return;
+      }
       const prevStatus = existing.status;
       const [updated] = await db.update(attendanceTable)
         .set({ status, class_group_id: class_group_id || existing.class_group_id })

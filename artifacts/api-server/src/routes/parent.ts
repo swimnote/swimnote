@@ -1760,6 +1760,18 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
 
+    // WP6 P0 FIX: block pool switch if parent already has an approved child link in a DIFFERENT pool
+    if (pa.swimming_pool_id && pa.swimming_pool_id !== swimming_pool_id) {
+      const existingLink = await db.execute(sql`
+        SELECT id FROM parent_students
+        WHERE parent_id = ${pa.id} AND status = 'approved'
+        LIMIT 1
+      `);
+      if ((existingLink.rows as any[]).length > 0) {
+        res.status(403).json({ error: "이미 연결된 수영장이 있습니다. 변경이 필요하면 수영장에 문의하세요." }); return;
+      }
+    }
+
     // 수영장 존재 확인
     const [pool] = await superAdminDb.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
@@ -1837,6 +1849,20 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
     res.status(400).json({ success: false, message: "수영장과 자녀 이름을 입력해주세요." }); return;
   }
   try {
+    // WP6 P0 FIX: block pool switch if parent already has an approved child link in a DIFFERENT pool
+    const [paCheck] = await db.select({ swimming_pool_id: parentAccountsTable.swimming_pool_id })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
+    if (paCheck?.swimming_pool_id && paCheck.swimming_pool_id !== swimming_pool_id) {
+      const existingLink = await db.execute(sql`
+        SELECT id FROM parent_students
+        WHERE parent_id = ${parentId} AND status = 'approved'
+        LIMIT 1
+      `);
+      if ((existingLink.rows as any[]).length > 0) {
+        res.status(403).json({ success: false, message: "이미 연결된 수영장이 있습니다. 변경이 필요하면 수영장에 문의하세요." }); return;
+      }
+    }
+
     // 수영장 존재 확인
     const [pool] = await superAdminDb.select().from(swimmingPoolsTable)
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
