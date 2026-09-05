@@ -72,5 +72,5 @@
 - [WP12 Marketing MVP 완료](wp12-marketing-done-state.md) — SHA dc768326; marketing-audience.ts+super.ts 3routes+scheduler+App UI; 36TC
 - [WP13 Data Integrity Checker 완료](wp13-integrity-done-state.md) — SHA 96295ec3; integrity-checker.ts 22 checks+super.ts 3routes+App UI; 36TC
 - [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA c03446bd; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
-- [WP16 AI ENGINE OTA 완료](wp16-ai-engine-ota-done.md) — SHA 5006e596; TeacherDiaryAIClient GROUNDED_BASE→professional-engine; OTA iOS production-v2 01a07275
+- [WP16 AI ENGINE OTA 완료](wp16-ai-engine-ota-done.md) — SHA 5deba2f8; GROUNDED_BASE+contract_version 1.0 fix; OTA iOS production-v2 01a07292
 - [WP15 Version/Runtime Freeze 완료](wp15-version-freeze-done-state.md) — SHA aff68b8a; v2.0.1 Store/runtime 2.1.0 explicit/build256/vCode240; 15TC

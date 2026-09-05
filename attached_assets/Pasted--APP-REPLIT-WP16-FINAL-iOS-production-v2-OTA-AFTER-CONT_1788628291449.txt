@@ -1,0 +1,243 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 FINAL — iOS production-v2 OTA AFTER CONTRACT FIX
+# 사용자 승인 완료
+# iOS ONLY
+# Android OTA 금지
+# WP17 선행 금지
+
+현재 공식 release:
+
+Branch:
+release/v2.0.0
+
+HEAD:
+5deba2f8a4562554791cbaab0b5a125f9507a732
+
+변경 내용:
+DiaryAIService.ts
+APP_CONTRACT_VERSION
+1.3 → 1.0
+
+AI ENGINE 검증:
+
+Normal 1.0:
+PASS
+
+X 1.0:
+PASS
+
+Actual Engine smoke:
+HTTP 200
+pipeline_mode=grounded_v1
+fallback_used=false
+unexpected_5xx=0
+
+Teacher Diary Engine:
+https://swimnote-professional-engine.onrender.com
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+현재 branch:
+release/v2.0.0
+
+현재 HEAD:
+5deba2f8a4562554791cbaab0b5a125f9507a732
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+TeacherDiaryAIClient Base URL:
+https://swimnote-professional-engine.onrender.com
+
+APP_CONTRACT_VERSION:
+1.0
+
+이번 변경이 JS/TS only이며
+native-incompatible change가 없는지 확인.
+
+native incompatible이면 STOP/HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. OTA 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production OTA:
+
+Platform:
+iOS ONLY
+
+Channel:
+production-v2
+
+Android OTA:
+절대 금지
+
+기존 프로젝트의 production-v2에 연결되는
+정확한 EAS Update 방식 사용.
+
+금지:
+
+- Android 포함
+- 다른 channel/branch 사용
+- --branch production 임의 사용
+- runtimeVersion 변경
+- native build
+- 추가 코드 수정
+- Render deploy
+- DB 변경
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 후 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+Branch:
+release/v2.0.0
+
+HEAD:
+5deba2f8a4562554791cbaab0b5a125f9507a732
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Published:
+YES / NO
+
+Publish timestamp:
+...
+
+SHA/content match:
+YES / NO
+
+Android OTA:
+NO
+
+Native changes:
+NO
+
+Teacher Diary Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+Contract Version:
+1.0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실기기 검증 대기
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA publish 후
+사용자가 실제 iPhone에서 확인합니다.
+
+확인 목표:
+
+AI Diary 실행
+→ HTTP 200
+→ 정상 생성
+
+서버 로그/response meta 기준:
+
+engine host =
+swimnote-professional-engine.onrender.com
+
+pipeline_mode =
+grounded_v1
+
+fallback_used =
+false
+
+grounding_validation =
+PASS 또는 정상 상태
+
+unexpected_5xx =
+0
+
+APP UI 기준:
+
+- 요청 처리 실패 400 없음
+- AI 생성 정상
+- 결과 표시 정상
+- 학생 매핑 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 FINAL OTA REPORT
+
+Branch:
+release/v2.0.0
+
+HEAD:
+5deba2f8a4562554791cbaab0b5a125f9507a732
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Published:
+YES / NO
+
+Publish timestamp:
+...
+
+SHA Match:
+YES / NO
+
+Android OTA:
+NO
+
+Native changes:
+NO
+
+Teacher Diary Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+Contract Version:
+1.0
+
+Remaining blocker:
+USER REAL DEVICE VERIFY / ...
+
+Final:
+PASS / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
