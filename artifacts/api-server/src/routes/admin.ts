@@ -4830,5 +4830,271 @@ router.get(
 
 export { checkRefundPolicyAgreed };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// WP11 — ADMIN NOTES MVP
+// ══════════════════════════════════════════════════════════════════════════════
+
+import { parseLimit } from "../lib/pagination.js";
+
+const NOTE_CATEGORIES = ["general", "consultation", "payment", "class", "vehicle", "caution"] as const;
+type NoteCategory = typeof NOTE_CATEGORIES[number];
+
+const NOTE_MAX_LENGTH = 3000; // §7: 합리적인 값 (2,000~5,000 사이)
+
+/** audit_logs에 note 이벤트를 기록. 실패해도 메인 흐름 차단하지 않음 */
+async function insertNoteAuditLog(opts: {
+  action: "CREATE_NOTE" | "UPDATE_NOTE" | "DELETE_NOTE";
+  actorId: string;
+  actorType: "pool_admin" | "super_admin";
+  poolId: string;
+  studentId: string;
+  noteId: string;
+  category: string;
+  contentSummary?: string; // 전문이 아닌 앞 100자 요약
+}): Promise<void> {
+  try {
+    const afterData = {
+      note_id:        opts.noteId,
+      category:       opts.category,
+      student_id:     opts.studentId,
+      content_chars:  opts.contentSummary !== undefined ? opts.contentSummary.length : undefined,
+    };
+    await db.execute(sql`
+      INSERT INTO audit_logs (
+        entity_type, entity_id, entity_version,
+        action, actor_type, actor_id, pool_id,
+        before_data, after_data, reason,
+        request_id, correlation_id, ip_hash, created_at
+      ) VALUES (
+        'admin_member_note', ${opts.noteId}, 1,
+        ${opts.action}, ${opts.actorType}, ${opts.actorId}, ${opts.poolId},
+        NULL::jsonb,
+        ${JSON.stringify(afterData)}::jsonb,
+        NULL, NULL, NULL, NULL, now()
+      )
+    `);
+  } catch (e: any) {
+    console.error("[wp11-audit] audit_logs 기록 실패:", e?.message);
+  }
+}
+
+// ── GET /admin/students/:id/notes ─────────────────────────────────────────────
+// §14: 회원별 관리 메모 목록 조회 (pool_admin / super_admin)
+// §15: bounded, default 50 / max 100, created_at DESC + id DESC stable
+// §21: author JOIN — N+1 없음
+router.get(
+  "/students/:id/notes",
+  requireAuth,
+  requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      const studentId = req.params.id;
+      const limit     = parseLimit(req.query.limit, 50, 100);
+
+      // §5 cross-pool: 학생이 이 pool 소속인지 검증
+      const [student] = (await db.execute(sql`
+        SELECT id FROM students WHERE id = ${studentId} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows;
+      if (!student) return res.status(404).json({ error: "회원을 찾을 수 없습니다." });
+
+      // 노트 + 작성자 JOIN — 1 query, N+1 없음
+      const rows = (await db.execute(sql`
+        SELECT
+          n.id, n.category, n.content, n.created_at, n.updated_at,
+          u.name AS author_name
+        FROM admin_member_notes n
+        LEFT JOIN users u ON u.id = n.author_user_id
+        WHERE n.student_id = ${studentId}
+          AND n.swimming_pool_id = ${poolId}
+          AND n.deleted_at IS NULL
+        ORDER BY n.created_at DESC, n.id DESC
+        LIMIT ${limit}
+      `)).rows as any[];
+
+      return res.json({ notes: rows, limit });
+    } catch (e) {
+      console.error("[admin/notes/list]", e);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  },
+);
+
+// ── POST /admin/students/:id/notes ────────────────────────────────────────────
+// §14: 메모 생성 (pool_admin / super_admin)
+// §6: author는 항상 authenticated user
+// §5: cross-pool — student ownership 검증
+router.post(
+  "/students/:id/notes",
+  requireAuth,
+  requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      const studentId   = req.params.id;
+      const actorId     = req.user!.userId;
+      const actorType   = req.user!.role as "pool_admin" | "super_admin";
+      const { category, content } = req.body as { category?: string; content?: string };
+
+      // §7: content 검증
+      const trimmed = (content ?? "").trim();
+      if (!trimmed) return res.status(400).json({ error: "EMPTY_CONTENT", message: "내용을 입력해 주세요." });
+      if (trimmed.length > NOTE_MAX_LENGTH) {
+        return res.status(400).json({ error: "CONTENT_TOO_LONG", message: `내용은 ${NOTE_MAX_LENGTH}자 이하여야 합니다.` });
+      }
+
+      // §2: 카테고리 검증
+      if (!category || !(NOTE_CATEGORIES as readonly string[]).includes(category)) {
+        return res.status(400).json({ error: "INVALID_CATEGORY", message: "유효하지 않은 카테고리입니다." });
+      }
+
+      // §5 cross-pool: 학생이 이 pool 소속인지 검증
+      const [student] = (await db.execute(sql`
+        SELECT id FROM students WHERE id = ${studentId} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows;
+      if (!student) return res.status(404).json({ error: "회원을 찾을 수 없습니다." });
+
+      // §6: author = authenticated user (body의 author_id 무시)
+      const [note] = (await db.execute(sql`
+        INSERT INTO admin_member_notes (swimming_pool_id, student_id, author_user_id, category, content)
+        VALUES (${poolId}, ${studentId}, ${actorId}, ${category}, ${trimmed})
+        RETURNING id, category, content, created_at, updated_at
+      `)).rows as any[];
+
+      // §10: audit
+      await insertNoteAuditLog({
+        action: "CREATE_NOTE", actorId, actorType, poolId,
+        studentId, noteId: note.id, category: note.category,
+        contentSummary: trimmed.slice(0, 100),
+      });
+
+      return res.status(201).json(note);
+    } catch (e) {
+      console.error("[admin/notes/create]", e);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  },
+);
+
+// ── PATCH /admin/students/:id/notes/:noteId ───────────────────────────────────
+// §8: category / content 수정, updated_at 갱신, author_user_id 원 작성자 유지
+// §5: IDOR 차단 — note의 pool + student 검증
+router.patch(
+  "/students/:id/notes/:noteId",
+  requireAuth,
+  requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId    = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      const studentId = req.params.id;
+      const noteId    = req.params.noteId;
+      const actorId   = req.user!.userId;
+      const actorType = req.user!.role as "pool_admin" | "super_admin";
+      const { category, content } = req.body as { category?: string; content?: string };
+
+      // §7: content 검증
+      const trimmed = (content ?? "").trim();
+      if (!trimmed) return res.status(400).json({ error: "EMPTY_CONTENT", message: "내용을 입력해 주세요." });
+      if (trimmed.length > NOTE_MAX_LENGTH) {
+        return res.status(400).json({ error: "CONTENT_TOO_LONG", message: `내용은 ${NOTE_MAX_LENGTH}자 이하여야 합니다.` });
+      }
+
+      // §2: 카테고리 검증
+      if (!category || !(NOTE_CATEGORIES as readonly string[]).includes(category)) {
+        return res.status(400).json({ error: "INVALID_CATEGORY", message: "유효하지 않은 카테고리입니다." });
+      }
+
+      // §5 IDOR 차단: note가 이 pool + student 소속인지 검증
+      const [existing] = (await db.execute(sql`
+        SELECT id, author_user_id, category
+        FROM admin_member_notes
+        WHERE id = ${noteId}
+          AND swimming_pool_id = ${poolId}
+          AND student_id = ${studentId}
+          AND deleted_at IS NULL
+        LIMIT 1
+      `)).rows as any[];
+      if (!existing) return res.status(404).json({ error: "메모를 찾을 수 없습니다." });
+
+      // §8: author_user_id는 원 작성자 그대로 유지
+      const [updated] = (await db.execute(sql`
+        UPDATE admin_member_notes
+        SET category   = ${category},
+            content    = ${trimmed},
+            updated_at = now()
+        WHERE id = ${noteId}
+        RETURNING id, category, content, author_user_id, created_at, updated_at
+      `)).rows as any[];
+
+      // §10: audit
+      await insertNoteAuditLog({
+        action: "UPDATE_NOTE", actorId, actorType, poolId,
+        studentId, noteId, category,
+        contentSummary: trimmed.slice(0, 100),
+      });
+
+      return res.json(updated);
+    } catch (e) {
+      console.error("[admin/notes/update]", e);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  },
+);
+
+// ── DELETE /admin/students/:id/notes/:noteId ──────────────────────────────────
+// §9: soft delete (deleted_at = now()), audit_logs에 기록
+// §5: IDOR 차단
+router.delete(
+  "/students/:id/notes/:noteId",
+  requireAuth,
+  requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId    = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      const studentId = req.params.id;
+      const noteId    = req.params.noteId;
+      const actorId   = req.user!.userId;
+      const actorType = req.user!.role as "pool_admin" | "super_admin";
+
+      // §5 IDOR 차단
+      const [existing] = (await db.execute(sql`
+        SELECT id, category FROM admin_member_notes
+        WHERE id = ${noteId}
+          AND swimming_pool_id = ${poolId}
+          AND student_id = ${studentId}
+          AND deleted_at IS NULL
+        LIMIT 1
+      `)).rows as any[];
+      if (!existing) return res.status(404).json({ error: "메모를 찾을 수 없습니다." });
+
+      // soft delete
+      await db.execute(sql`
+        UPDATE admin_member_notes SET deleted_at = now() WHERE id = ${noteId}
+      `);
+
+      // §10: audit (원문 전체 payload 저장 금지 — §9; note_id + category만)
+      await insertNoteAuditLog({
+        action: "DELETE_NOTE", actorId, actorType, poolId,
+        studentId, noteId, category: existing.category,
+      });
+
+      return res.status(204).send();
+    } catch (e) {
+      console.error("[admin/notes/delete]", e);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  },
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+
 export default router;
 
