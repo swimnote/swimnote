@@ -4,8 +4,8 @@
  * 변경: 보강 반 일지 표시(is_makeup_diary), 공통/개인 사진 표시
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View, useWindowDimensions,
@@ -284,7 +284,8 @@ export default function SwimDiaryScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }
 
-  useEffect(() => { fetchEntries(); }, [id]);
+  // 화면 포커스(재진입 포함)마다 최신 Diary fetch — useEffect([id]) 중복 제거
+  useFocusEffect(useCallback(() => { fetchEntries(); }, [id]));
 
   const grouped: { weekKey: string; weekLabel: string; items: DiaryEntry[] }[] = [];
   for (const entry of entries) {
