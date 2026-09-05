@@ -460,7 +460,11 @@ export function normalizeDiaryResponse(params: {
     }
 
     if (!validStudentRefs.has(studentRef)) {
-      return { ok: false, contractError: `CONTRACT_UNKNOWN_STUDENT_REF: index=${i}` };
+      // [FIX] unknown student ref → skip (not hard error)
+      // Engine이 APP이 보내지 않은 student_ref를 반환하면 해당 항목만 건너뜀
+      // (hard error면 common 일지까지 통째로 버려지는 문제 방지)
+      console.warn('[DiaryAIService] unknown_student_ref_skipped', { index: i, ref_prefix: studentRef.substring(0, 8) });
+      continue;
     }
 
     if (seenRefs.has(studentRef)) {

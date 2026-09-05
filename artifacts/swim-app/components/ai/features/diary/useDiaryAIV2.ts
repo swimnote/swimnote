@@ -285,8 +285,9 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     })));
     setGeneratedCurriculumMatches(curriculumMatches ?? []);
     setV2State('RESULT');
-    if (__DEV__) console.log('[useDiaryAIV2] generate_succeeded', {
-      reqId, student_count: students.length,
+    // [PROD_LOG] production에서 generate 완료 확인 (PII 없음)
+    console.log('[useDiaryAIV2] generate_succeeded', {
+      reqId, common_len: common.length, student_count: students.length,
       curriculum_match_count: (curriculumMatches ?? []).length,
     });
   }, [options.token, options.poolId, options.classId, options.date, options.students]);
@@ -459,13 +460,15 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
   // ── handleInsert ──────────────────────────────────────────────────────────
   const handleInsert = useCallback(() => {
     if (isInsertingRef.current) {
-      if (__DEV__) console.log('[useDiaryAIV2] insert_skipped: duplicate');
+      // [PROD_LOG] production에서 중복 insert 감지
+      console.log('[useDiaryAIV2] insert_skipped:duplicate');
       return;
     }
 
     const hasContent = Boolean(resultText) || generatedStudents.length > 0;
     if (!options.onInsert || !hasContent) {
-      if (__DEV__) console.log('[useDiaryAIV2] insert_skipped', { has_onInsert: Boolean(options.onInsert), has_content: hasContent });
+      // [PROD_LOG] production에서 insert_skipped 원인 추적
+      console.log('[useDiaryAIV2] insert_skipped', { has_onInsert: Boolean(options.onInsert), has_content: hasContent, result_len: resultText.length });
       return;
     }
 
@@ -477,7 +480,9 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       curriculumMatches: generatedCurriculumMatches.length > 0 ? generatedCurriculumMatches : undefined,
     };
     options.onInsert(result);
-    if (__DEV__) console.log('[useDiaryAIV2] insert_completed', {
+    // [PROD_LOG] production에서 insert 성공 확인
+    console.log('[useDiaryAIV2] insert_completed', {
+      common_len:             result.commonDiary.length,
       student_count:          result.students.length,
       curriculum_match_count: result.curriculumMatches?.length ?? 0,
     });
