@@ -1175,20 +1175,10 @@ export default function TeacherDiaryScreen() {
           setDiarySet(prev => new Set([...prev, `${selectedGroup!.id}_${targetDate}`]));
         });
       setSaveMsg({ type: "success", text: "수업 일지가 저장되었습니다. 학부모에게 알림이 발송됩니다." });
-      // Issue 5 Fix: router.back()은 탭 구조에 따라 홈으로 이탈할 수 있음.
-      // backTo 파라미터가 있으면 명시적 경로로 replace해 확실하게 해당 화면으로 이동.
-      const backTo = params.backTo as string | undefined;
+      // 저장 성공 후 항상 diary history에 머뭄.
+      // 자동으로 다른 화면으로 이동하지 않음 — 사용자가 뒤로가기로 직접 이동.
       setTimeout(() => {
         setSaveMsg(null);
-        if (backTo === "my-schedule") {
-          router.replace("/(teacher)/my-schedule" as any);
-        } else if (backTo === "today-schedule") {
-          router.replace("/(teacher)/today-schedule" as any);
-        } else if (backTo) {
-          router.back();
-        } else {
-          setSelectedGroup(prev => prev?.id === savedGroupId ? null : prev);
-        }
       }, 2000);
     } catch (e: any) {
       setFormError(e.message || "저장 중 오류가 발생했습니다.");

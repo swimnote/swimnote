@@ -283,7 +283,7 @@ async function runDiaryPushQueue(): Promise<void> {
           if (studentIds.length > 0) {
             const idsLiteral = studentIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
             const parentRows = (await db.execute(sql.raw(`
-              SELECT DISTINCT pa.id AS parent_account_id, s.name AS student_name
+              SELECT pa.id AS parent_account_id, ps.student_id, s.name AS student_name
               FROM students s
               JOIN parent_students ps ON ps.student_id = s.id
               JOIN parent_accounts pa ON pa.id = ps.parent_id
@@ -291,14 +291,36 @@ async function runDiaryPushQueue(): Promise<void> {
                 AND s.deleted_at IS NULL AND ps.status = 'approved'
             `))).rows as any[];
 
+            // multi-child 처리: 동일 parent의 복수 자녀 → studentId undefined
+            const indivMap = new Map<string, string | undefined>();
             for (const p of parentRows) {
-              const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
+              if (!indivMap.has(p.parent_account_id)) {
+                indivMap.set(p.parent_account_id, (p as any).student_id ?? undefined);
+              } else {
+                indivMap.set(p.parent_account_id, undefined);
+              }
+            }
+            for (const [parentId, studentId] of indivMap.entries()) {
+              const matched = (parentRows as any[]).find(p => p.parent_account_id === parentId);
+              const studentLabel = matched?.student_name ? `${matched.student_name}의 ` : "";
               const notifBody = `${item.class_name}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요`;
+              // in-app notification INSERT (즉시 발송 경로와 동일하게 처리)
+              const diaryDeepLink = studentId ? `/(parent)/swim-diary?id=${studentId}` : null;
+              const nid = `notif_${crypto.randomUUID().replace(/-/g, "")}`;
+              await db.execute(sql`
+                INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, deep_link)
+                VALUES (${nid}, ${parentId}, 'parent_account', 'diary_upload',
+                        '수업 일지가 도착했어요', ${notifBody},
+                        ${item.diary_id}, 'class_diary', ${item.pool_id}, false, ${diaryDeepLink})
+                ON CONFLICT DO NOTHING
+              `).catch(() => {});
+              const pushData: Record<string, string> = { type: "diary_upload", diaryId: item.diary_id };
+              if (studentId) pushData.studentId = studentId;
               await sendPushToUser(
-                p.parent_account_id, true, "diary_upload",
+                parentId, true, "diary_upload",
                 "수업 일지가 도착했어요", notifBody,
-                { type: "diary_upload", diaryId: item.diary_id },
-                `diary_${item.diary_id}_${p.parent_account_id}`,
+                pushData,
+                `diary_${item.diary_id}_${parentId}`,
                 { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
               ).catch(() => {});
             }
@@ -313,7 +335,7 @@ async function runDiaryPushQueue(): Promise<void> {
             // student_class_history 기준 유효 학부모 조회
             // — 해당 날짜 결석(absent) 학생의 학부모는 발송 제외
             const parentRows2 = (await db.execute(sql.raw(`
-              SELECT DISTINCT pa.id AS parent_account_id
+              SELECT pa.id AS parent_account_id, ps.student_id
               FROM parent_students ps
               JOIN parent_accounts pa ON pa.id = ps.parent_id
               JOIN student_class_history sch
@@ -332,12 +354,33 @@ async function runDiaryPushQueue(): Promise<void> {
                 )
             `))).rows as any[];
             const notifBody = `${item.class_name}${dateLabel} 수업 일지가 도착했어요. 지금 확인해보세요`;
-            for (const p of parentRows2) {
+            // multi-child 처리: 동일 parent의 복수 자녀(동일 반) → studentId undefined
+            const groupMap = new Map<string, string | undefined>();
+            for (const p of parentRows2 as any[]) {
+              if (!groupMap.has(p.parent_account_id)) {
+                groupMap.set(p.parent_account_id, p.student_id ?? undefined);
+              } else {
+                groupMap.set(p.parent_account_id, undefined);
+              }
+            }
+            for (const [parentId, studentId] of groupMap.entries()) {
+              // in-app notification INSERT (예약 발송도 즉시 발송과 동일하게 처리)
+              const diaryDeepLinkG = studentId ? `/(parent)/swim-diary?id=${studentId}` : null;
+              const nidG = `notif_${crypto.randomUUID().replace(/-/g, "")}`;
+              await db.execute(sql`
+                INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, deep_link)
+                VALUES (${nidG}, ${parentId}, 'parent_account', 'diary_upload',
+                        '수업 일지가 도착했어요', ${notifBody},
+                        ${item.diary_id}, 'class_diary', ${item.pool_id}, false, ${diaryDeepLinkG})
+                ON CONFLICT DO NOTHING
+              `).catch(() => {});
+              const pushData: Record<string, string> = { type: "diary_upload", diaryId: item.diary_id, classId: item.class_id };
+              if (studentId) pushData.studentId = studentId;
               await sendPushToUser(
-                p.parent_account_id, true, "diary_upload",
+                parentId, true, "diary_upload",
                 "수업 일지가 도착했어요", notifBody,
-                { type: "diary_upload", diaryId: item.diary_id, classId: item.class_id },
-                `diary_${item.diary_id}_${p.parent_account_id}`,
+                pushData,
+                `diary_${item.diary_id}_${parentId}`,
                 { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
               ).catch(() => {});
             }
