@@ -12,6 +12,12 @@ import {
 } from "../lib/auto-link-v2.js";
 import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSession } from "../lib/auth.js";
 import { requireAuth, requireDbRoleCheck, type AuthRequest } from "../middlewares/auth.js";
+import {
+  loginLimiter,
+  signupLimiter,
+  passwordLimiter,
+  verifyLimiter,
+} from "../middlewares/rate-limit.js";
 import { generateSecret as totpGenerateSecret, verifySync as totpVerifySync, generateURI as totpGenerateURI } from "otplib";
 import QRCode from "qrcode";
 import {
@@ -31,7 +37,7 @@ function err(res: any, status: number, message: string) {
 }
 
 // ── 관리자/선생님 로그인 ──────────────────────────────────────────────
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return err(res, 400, "아이디(이메일)와 비밀번호를 입력해주세요.");
   const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
@@ -256,7 +262,7 @@ router.get("/web-pin/status", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── 관리자 계정 가입 ──────────────────────────────────────────────────
-router.post("/register", async (req, res) => {
+router.post("/register", signupLimiter, async (req, res) => {
   const { email, password, name, phone, role,
           pool_name, pool_address, pool_phone, pool_owner_name, pool_name_en,
           kakao_id, apple_id } = req.body;
@@ -456,7 +462,7 @@ router.post("/activate-teacher", async (req, res) => {
 });
 
 // ── 학부모 로그인 ─────────────────────────────────────────────────────
-router.post("/parent-login", async (req, res) => {
+router.post("/parent-login", loginLimiter, async (req, res) => {
   const { identifier, loginId, phone, pin, password, pool_id } = req.body;
   const id = (identifier || loginId || phone || "").trim();
   const pw = (password || pin || "").trim();
@@ -647,7 +653,7 @@ router.get("/pools", async (req, res) => {
 });
 
 // ── 학부모 가입 ───────────────────────────────────────────────────────
-router.post("/parent-register", async (req, res) => {
+router.post("/parent-register", signupLimiter, async (req, res) => {
   const { name, phone, pin, loginId, password, swimming_pool_id, child_names, memo } = req.body;
   const pw = (password || pin || "").trim();
   const lid = loginId?.trim() || null;
@@ -721,7 +727,7 @@ router.get("/pool-student-search", async (req, res) => {
 });
 
 // ── 학부모 간편 가입 (수영장/자녀 없이 계정만 생성) ──────────────────────
-router.post("/simple-parent-register", async (req, res) => {
+router.post("/simple-parent-register", signupLimiter, async (req, res) => {
   // child_names: string[] — 자녀 이름 배열 (선택한 수영장 내에서 이름 매칭에 사용)
   // child_ids: string[]   — 직접 선택한 학생 ID 배열 (검색 후 확인한 경우 우선 사용)
   // pool_id: string       — 학부모가 선택한 수영장 ID
@@ -1016,7 +1022,7 @@ router.post("/check-id", async (req, res) => {
 });
 
 // ── 통합 로그인 v2 — available_accounts 배열 반환 ──────────────────────
-router.post("/unified-login", async (req, res) => {
+router.post("/unified-login", loginLimiter, async (req, res) => {
   const { identifier, password } = req.body;
   if (!identifier || !password) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   const id = identifier.trim();
@@ -1380,7 +1386,7 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── 비밀번호 재설정 (MVP: 이메일 확인 → 바로 변경) ────────────────────
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", passwordLimiter, async (req, res) => {
   const { identifier, new_password, pool_id } = req.body;
   if (!identifier || !new_password) return err(res, 400, "아이디와 새 비밀번호를 입력해주세요.");
   if (new_password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
@@ -1425,7 +1431,7 @@ router.post("/change-password", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── 선생님 자체 회원가입 (풀 검색 후 등록, PENDING 상태) ───────────────
-router.post("/teacher-self-signup", async (req, res) => {
+router.post("/teacher-self-signup", signupLimiter, async (req, res) => {
   const { name, email, loginId, password, phone, pool_id, kakao_id, apple_id } = req.body;
   // loginId = 실제 로그인 식별자 (email 컬럼에 저장), email = 연락용 (현재 저장 안 함)
   const identifier = (loginId?.trim() || email?.trim() || "").toLowerCase();
@@ -1539,7 +1545,7 @@ router.post("/teacher-self-signup", async (req, res) => {
 });
 
 // ── 선생님 단독 대표 가입 (개인 워크스페이스 생성) ───────────────────────
-router.post("/solo-teacher-signup", async (req, res) => {
+router.post("/solo-teacher-signup", signupLimiter, async (req, res) => {
   const { name, loginId, password, phone, workspace_name } = req.body;
   const identifier = (loginId?.trim() || "").toLowerCase();
   if (!name?.trim() || !identifier || !password || !workspace_name?.trim()) {
@@ -1620,7 +1626,7 @@ router.post("/solo-teacher-signup", async (req, res) => {
 // ══════════════════════════════════════════════════════
 
 // TOTP 로그인 2단계 검증 (비밀번호 인증 후 OTP 코드 확인)
-router.post("/totp/verify-login", async (req, res) => {
+router.post("/totp/verify-login", verifyLimiter, async (req, res) => {
   const { totp_session, otp_code } = req.body;
   if (!totp_session || !otp_code) return err(res, 400, "totp_session과 otp_code를 입력해주세요.");
   try {
@@ -1756,7 +1762,7 @@ router.post("/totp/disable", requireAuth, async (req: AuthRequest, res) => {
 //   - 고정 코드 금지 — 매번 랜덤 6자리 생성
 //   - phone_verifications 저장/검증 구조는 provider 무관 동일
 // ════════════════════════════════════════════════════════════════
-router.post("/send-sms-code", async (req, res) => {
+router.post("/send-sms-code", passwordLimiter, async (req, res) => {
   const { phone, purpose } = req.body;
   const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "";
 
@@ -1887,7 +1893,7 @@ router.post("/send-sms-code", async (req, res) => {
 // POST /auth/verify-sms-code
 // body: { phone, code, purpose }
 // ════════════════════════════════════════════════════════════════
-router.post("/verify-sms-code", async (req, res) => {
+router.post("/verify-sms-code", verifyLimiter, async (req, res) => {
   const { phone, code, purpose } = req.body;
   if (!phone || !code || !purpose) {
     return res.status(400).json({ success: false, error: "missing_fields", message: "필수 항목이 누락되었습니다." });
@@ -2033,7 +2039,7 @@ router.post("/find-identifier-by-phone", async (req, res) => {
 //   5) 계정 없음 → kakao_no_account (신규 가입 유도)
 //
 // enum 제약: user_role에 sub_admin 없음 → role IN ('teacher','pool_admin') 고정
-router.post("/kakao-social-login", async (req, res) => {
+router.post("/kakao-social-login", loginLimiter, async (req, res) => {
   const { accessToken, pool_id: requestPoolId } = req.body;
   if (!accessToken) return err(res, 400, "카카오 액세스 토큰이 필요합니다.");
   // pool_id: 2.0.0 앱이 현재 선택된 수영장 id를 전달 (1.6.3은 미전달 → undefined)
@@ -2407,7 +2413,7 @@ router.post("/kakao-link-teacher", async (req, res) => {
 });
 
 // ── Apple Sign In ──────────────────────────────────────────────────────
-router.post("/apple-social-login", async (req, res) => {
+router.post("/apple-social-login", loginLimiter, async (req, res) => {
   const { identityToken, fullName } = req.body;
   if (!identityToken) return err(res, 400, "Apple identity token이 필요합니다.");
 
