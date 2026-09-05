@@ -1,0 +1,1448 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 REOPEN — DIARY COMPLETE SYSTEM FORENSIC + REPAIR
+# 기존 DIARY_E2E_PASS 판정 무효
+# 실기기 Production에서 핵심 Diary 흐름 실패 확인
+# 이번 작업은 Diary 기능 전체의 단일 전수조사 + 최소수정 + 검증 작업
+# 관련 없는 APP 영역 조사 금지
+# 반복 repo-wide audit 금지
+# 이미 확정된 AI contract/topology 재조사 금지
+# 수정 가능한 APP client/server 문제는 이번 작업에서 전부 수정
+# APP client 수정이 있으면 최종 iOS production-v2 OTA까지 수행
+# Render Production deploy는 사용자 수동이므로 절대 실행 금지
+
+현재 실제 Production 증상:
+
+1. 일지 작성/수정 중 일부 경로에서 저장 후 Home으로 튐
+2. 모달/하위 작성화면에서 저장 후 직전 목록/화면으로 복귀하지 않음
+3. 새 일지를 작성해도 학부모 Feed에 나타나지 않음
+4. "일지가 도착했습니다" 알림은 오는데 실제 Diary가 안 보임
+5. 알림 탭 시 잘못된 Diary context 또는 undefined/empty 상태 발생
+6. 사진/영상 선택 후 작성화면에서 즉시 preview가 안 보이는 경우 존재
+7. AI 일지 생성이 선생님 입력을 그대로 또는 빈약하게 사용하는 증상
+8. AI Engine이 전문 지식/템플릿/Knowledge를 활용해 풍성하게 만든 결과가
+   APP 화면/저장값까지 실제로 이어지는지 불명확
+9. 관리자에서 작성된 Diary 목록/상세가 정상적으로 연결되는지도 전체 확인 필요
+
+이번 작업의 최종 목표:
+
+Teacher 작성
+→ AI/수동
+→ media
+→ 저장
+→ Teacher 목록
+→ Teacher 수정
+→ Parent Feed
+→ Parent Diary
+→ Notification
+→ Notification deep-link
+→ Admin Diary list/detail
+
+까지 하나의 canonical Diary system으로 완전히 연결.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. CREDIT / 조사 제한 — 반드시 준수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 크레딧 낭비 방지 규칙:
+
+금지:
+- repo 전체 audit
+- 동일 grep 반복
+- 동일 테스트 반복
+- 기존 ENGINE contract 1.0 재검증
+- AI Engine topology 재조사
+- x_global 조사
+- RevenueCat/X mode 조사
+- Growth Report 전체 구조 조사
+- Diary와 무관한 화면 조사
+- 대규모 refactor
+- 신규 architecture 작성
+- 새 state library
+- 새 navigation framework
+
+이미 확정된 사실:
+
+APP_CONTRACT_VERSION = "1.0"
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+AI Engine route =
+/api/v1/teacher-diary/generate
+
+AI Engine pipeline =
+GroundedPipelineRunner
+
+pipeline_mode =
+grounded_v1
+
+APP가 수영 전문 판단을 새로 생성하면 안 됨.
+
+이 사실들은 다시 조사하지 말 것.
+
+조사는 Diary 관련 route/component/API/service/DB query/push만.
+
+처음 한 번 Diary dependency map을 만들고
+그 map을 기준으로 끝까지 작업.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 ACTUAL DIARY SYSTEM MAP 작성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전에 현재 실제 사용 중인 Diary path를 정확히 작성.
+
+A. TEACHER ENTRY
+
+Teacher Home/Schedule/Class
+→ Diary entry route
+→ 실제 screen
+→ 실제 mounted component
+→ common diary state
+→ student diary state
+→ AI generate handler
+→ media picker
+→ save handler
+
+B. TEACHER HISTORY
+
+Diary 작성 완료
+→ history/list
+
+지난 일지 목록
+→ Diary detail/edit
+→ save/update
+→ return destination
+
+C. AI
+
+teacher raw input
+→ APP request builder
+→ TeacherDiaryAIClient
+→ Engine request
+→ Engine response
+→ APP response mapper
+→ common/student UI state
+→ save payload
+→ DB persisted text
+
+D. MEDIA
+
+picker
+→ local asset
+→ preview state
+→ upload
+→ uploaded URL
+→ Diary save
+→ edit reopen
+
+E. PARENT
+
+saved Diary
+→ DB
+→ class/student ownership
+→ parent visibility query
+→ Parent home/feed API
+→ feed merge
+→ UI render
+→ child diary page
+
+F. NOTIFICATION
+
+Diary save
+→ DB notification
+→ push payload
+→ notification list
+→ tap handler
+→ deep_link
+→ student context
+→ diary fetch
+
+G. ADMIN
+
+saved Diary
+→ Admin Diary API/query
+→ Admin Diary list
+→ detail
+→ teacher/class/student/date/media visibility
+
+이 map을 한 번만 작성.
+이후 반복 스캔 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. TEACHER DIARY 모든 진입 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diary 작성으로 들어올 수 있는 모든 실제 entry를 Diary 범위 안에서만 찾기.
+
+예:
+- 수업 화면
+- 스케줄
+- Diary 목록
+- 지난 일지
+- 수정 화면
+- modal
+- subView
+- deep-link가 실제 존재한다면 해당 경로
+
+각 entry마다 다음 기록:
+
+ENTRY NAME
+route
+params
+return target
+create/edit
+modal 여부
+save success destination
+cancel destination
+
+중요:
+
+모든 저장 handler에서
+Home으로 강제 이동하는 코드가 있는지 조사.
+
+다음 패턴 포함:
+
+router.push
+router.replace
+router.back
+dismiss
+dismissAll
+setSubView
+setView
+setModalVisible
+navigation.goBack
+reset
+
+Diary 범위에서만 검색.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. CANONICAL NAVIGATION 규칙 확정 및 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정상 규칙:
+
+CREATE FROM DIARY CONTEXT:
+저장 성공
+→ Diary history/list
+
+EDIT FROM PAST DIARY:
+저장 성공
+→ Past Diary list
+
+MODAL:
+저장 성공
+→ modal close
+→ modal을 열었던 직전 Diary screen 유지
+
+SUBVIEW:
+저장 성공
+→ 해당 parent view의 history/list
+
+SAVE FAIL:
+현재 작성화면 유지
+입력 유지
+Home 이동 절대 금지
+
+CANCEL:
+원래 들어왔던 직전 Diary context
+
+절대:
+성공/실패와 무관하게 Home으로 보내지 말 것.
+
+단순 router.back 남발 금지.
+
+각 entry에 명확한 canonical return target 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. AI DIARY — 가장 중요
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자 의도:
+
+선생님이 짧게 입력한 문장을
+그대로 Diary에 넣는 기능이 아님.
+
+정상:
+
+Teacher short/raw input
+→ AI ENGINE
+→ Template Search
+→ Knowledge Search
+→ Grounded generation
+→ 수영 전문 내용이 보강된 자연스러운 Diary
+→ APP preview
+→ 그 AI 결과를 저장
+
+현재 실제 Production에서는
+"내가 입력한 내용만 들어가는 것 같다"는 증상이 있음.
+
+이것을 반드시 end-to-end 추적.
+
+확인 단계:
+
+1.
+Teacher가 입력한 raw text
+
+2.
+APP가 Engine으로 보내는 request payload
+민감정보는 마스킹
+
+3.
+Engine HTTP response
+다음 정도만 기록:
+- status
+- pipeline_mode
+- fallback_used
+- common result 존재 여부
+- student result 존재 여부
+- generated text length
+- template_ids count
+- knowledge_ids count
+- grounding_validation 존재 여부
+
+실제 전문 텍스트 전체 로그 출력 금지.
+
+4.
+APP response mapper
+
+5.
+AI 결과가 어떤 state에 저장되는지
+
+6.
+UI에서 어떤 text를 보여주는지
+
+7.
+Save payload가 무엇을 보내는지
+
+8.
+DB에 최종 어떤 source text가 저장되는지
+
+반드시 아래를 구분:
+
+CASE A
+Engine은 풍성한 결과를 반환하지만
+APP가 raw input으로 덮어씀
+
+CASE B
+Engine 결과 mapping이 깨짐
+
+CASE C
+common/student mapping 중 일부가 누락
+
+CASE D
+save payload가 generated text가 아니라 raw teacher text 사용
+
+CASE E
+Engine response 자체가 실제로 빈약함
+
+CASE F
+AI 호출이 실패하고 fallback/local raw text path가 작동
+
+CASE G
+잘못된 다른 legacy AI route 사용
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. AI ROOT CAUSE 처리 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+APP 문제라면:
+이번 작업에서 즉시 수정.
+
+예:
+- Engine response를 raw input으로 overwrite
+- wrong property mapping
+- save payload wrong source
+- legacy fallback 사용
+- common/student result 연결 오류
+
+수정 후 반드시:
+
+Teacher input ≠ saved AI diary
+
+가 실제로 확인되어야 함.
+
+즉 선생님이
+"태웅 자유형 호흡 좋아짐"
+
+정도로 입력한 경우,
+
+AI mode에서 최종 Diary가
+그 raw string 그대로 저장되는 것만으로 PASS 금지.
+
+Engine response 자체가 원인인 경우:
+
+APP에서 임의로 수영 지식 생성 금지.
+
+보고에 반드시:
+
+AI_ENGINE_CHANGE_REQUIRED = YES
+
+Exact evidence:
+request 정상
+APP mapping 정상
+Engine response 자체가 원인
+
+까지만 기록.
+
+AI ENGINE repo source는 이 APP 작업에서 수정 금지.
+
+ENGINE 원인인 경우에도
+APP의 나머지 Diary 버그는 전부 계속 수정할 것.
+ENGINE 문제 때문에 전체 작업을 중단하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. LEGACY AI PATH 제거 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Teacher Diary 생성이 실제로:
+
+TeacherDiaryAIClient
+→ professional engine
+→ /api/v1/teacher-diary/generate
+
+하나의 canonical path만 사용하는지 확인.
+
+Diary runtime에서 legacy:
+ai-v1.ts
+local fallback
+raw-text shortcut
+
+이 실제 실행될 가능성이 있으면
+기존 기능 영향 최소 범위에서 제거/차단.
+
+단:
+파일을 무작정 삭제하지 말 것.
+
+실제 Teacher Diary production path만 단일화.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. COMMON / STUDENT DIARY 데이터 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher Diary에는:
+
+공통 일지
+학생별 일지
+
+가 있음.
+
+반드시 확인:
+
+AI response common
+→ common state
+→ common save field
+
+AI response student
+→ 정확한 student_ref/id
+→ 해당 student state
+→ 해당 student save field
+
+학생 A의 생성 결과가
+학생 B에게 들어가면 P0.
+
+학생별 raw input과 AI generated result가
+서로 덮어쓰이지 않는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. MEDIA PREVIEW 실제 렌더 경로
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 코드 PASS 보고는 무효.
+
+실제 current write screen 기준으로 확인.
+
+왜 preview JSX가 안 보였는지 exact root cause 작성.
+
+확인:
+
+- 실제 mounted component
+- picker result
+- URI
+- state
+- props
+- render conditional
+- ScrollView/layout clipping
+- upload replacement
+- common/student media 분리
+
+정상:
+
+선택 즉시 preview
+
+PHOTO:
+local image 표시
+
+VIDEO:
+video card/thumbnail + play indication
+
+업로드 중:
+preview 유지
+
+업로드 완료:
+preview 유지
+
+실패:
+preview 유지 + failure status
+
+삭제:
+즉시 제거
+
+공통/학생 media 혼합 금지.
+
+EDIT에서도 기존 media + 신규 media 동일하게 동작.
+
+새 native dependency 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. DIARY SAVE — DB까지 실제 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CREATE:
+
+UI state
+→ save payload
+→ API route
+→ validation
+→ transaction
+→ diary row
+→ student diary relation
+→ media relation
+→ notification generation
+
+UPDATE:
+
+edit state
+→ update payload
+→ API
+→ DB
+→ list refresh
+
+반드시 실제 generated Diary가
+저장된 row/response까지 이어지는지 확인.
+
+"UI에는 AI 결과인데 DB에는 raw input"
+이면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. TEACHER HISTORY / LIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새 Diary 저장:
+→ Teacher history/list에 즉시 나타남
+
+수정:
+→ 목록에 수정된 내용 즉시 반영
+
+필요하면 기존 focus reload/query invalidation 사용.
+
+앱 재시작 금지.
+
+중복 API fetch가 생기지 않도록
+useEffect/useFocusEffect 중복 여부도 이 화면에서만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. PARENT VISIBILITY — SAVE부터 FEED까지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher가 Diary를 작성했으면
+해당 시점에 볼 권한이 있는 Parent에게
+Diary가 실제로 보여야 함.
+
+다음 전체 추적:
+
+diary row
+→ diary date
+→ student
+→ class
+→ student_class_history
+→ parent_students
+→ parent account
+→ parent feed query
+→ unified feed
+→ UI
+
+실제 Production에서:
+
+알림은 오는데
+Feed에는 Diary가 없음.
+
+이건 절대 PASS 아님.
+
+반드시 API level에서 확인:
+
+Teacher 저장 직후
+해당 parent/student용 API response에
+새 diaryId가 존재하는가?
+
+YES/NO.
+
+없다면 server query root cause 수정.
+
+있는데 UI에 없으면
+client merge/cache/root cause 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. CLASS HISTORY SEMANTICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Feed와 Push가 반드시 동일한
+Diary visibility 조건 사용.
+
+lesson_date 기준으로
+학생이 해당 class에 실제 소속돼 있었는지 판단.
+
+Push YES
+Feed NO
+
+상태 금지.
+
+Feed YES
+Push optional은 가능하지만
+Push를 보냈다면 Feed도 반드시 YES.
+
+중복 조건을 여러 군데 복붙해서
+다시 어긋나지 않도록
+가능한 기존 helper/query를 재사용.
+
+새 architecture 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. PARENT UNIFIED FEED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diary + Growth Report 등
+기존 unified feed를 확인.
+
+이번 조사 대상은
+Diary가 누락되는 부분만.
+
+확인:
+
+Diary source API
+→ normalization
+→ merge
+→ key
+→ sort
+→ dedupe
+→ render
+
+반드시 실제 새 Diary가
+feed collection에 들어가는지 확인.
+
+정렬 semantics도 실제 current product에 맞게 통일.
+
+중요:
+
+lesson_date와 created_at은 다른 의미.
+
+예:
+9/3 수업 Diary를 9/6에 작성
+
+Parent에게 "새로 도착한 Feed" 기준이라면
+created/published 시점으로 최신 노출되는 것이 자연스러운 현재 동작인지
+기존 Feed semantics를 코드 기준으로 확인.
+
+Growth Report 때문에 Diary가 사라지거나
+dedupe collision 나면 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. PARENT DIARY SCREEN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정확한 studentId를 source of truth로 사용.
+
+route name parameter에 의존해서
+undefined title 만드는 구조 금지.
+
+정상:
+
+studentId
+→ parent student context
+→ display name
+→ Diary API
+
+studentId invalid:
+API 호출 금지
+undefined 렌더 금지
+
+잘못된 "아직 수업일지가 없습니다"
+false empty 금지.
+
+실제 Diary가 존재한다면
+반드시 해당 학생 화면에서 보여야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. NOTIFICATION — 생성부터 TAP까지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체 추적:
+
+Diary successfully saved
+→ recipient selection
+→ notification DB
+→ push
+→ notification API
+→ notification UI
+→ tap
+→ deep_link
+→ studentId
+→ Diary screen
+→ Diary data
+
+Canonical new Diary notification:
+
+type = diary_upload
+diaryId = exact diary
+studentId = exact recipient-visible student
+classId = 필요 시
+
+recipient마다 정확한 studentId.
+
+shared studentIds array로
+클라이언트가 추측하게 만들지 말 것.
+
+multi-child parent에서도
+정확한 child context.
+
+과거 notification에 studentId가 없다면:
+crash/undefined 금지
+Parent Home 또는 안전한 기존 Diary 진입점 fallback.
+
+자녀 연결 onboarding으로 보내지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. ADMIN DIARY LINE 전수확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher가 작성한 Diary가
+관리자에게도 정상적으로 보여야 함.
+
+Diary 관련 관리자 화면만 조사.
+
+확인:
+
+Admin Diary list route
+→ API
+→ pool authorization
+→ Diary query
+→ class/student/teacher/date
+→ common/student content
+→ media
+→ detail/edit permission
+
+정상 요구:
+
+Teacher가 작성한 새 Diary
+→ 같은 pool Admin Diary list에서 보임
+
+수정한 Diary
+→ Admin에서 최신 상태 보임
+
+다른 pool Admin
+→ 절대 접근 불가
+
+관리자는 자기 pool 전체 Diary 조회 가능.
+
+Teacher 권한 규칙과
+Admin 권한 규칙 섞지 말 것.
+
+Cross-pool leak 발견 시 P0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. MODAL / SUBVIEW / STACK 전수조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diary 관련 modal/subview만 전부 찾기.
+
+각 modal에 대해:
+
+OPEN SOURCE
+SAVE
+CANCEL
+CLOSE
+SUCCESS DESTINATION
+
+표로 작성.
+
+다음 현상 모두 제거:
+
+- save → Home
+- modal save → root tab
+- edit save → teacher home
+- create save → unrelated screen
+- dismissAll로 stack 전체 날림
+- undefined param으로 new screen
+
+정상:
+
+저장 후 사용자가 작업하던 Diary context 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. ERROR / FAILURE UX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diary save 실패:
+작성 화면 유지
+
+AI generate 실패:
+작성 내용 유지
+명확한 오류
+Home 이동 금지
+
+media upload 실패:
+작성화면 유지
+preview 유지
+재시도 가능한 기존 UX 유지
+
+API fetch 실패:
+undefined/empty를 정상 empty처럼 표시하지 말 것.
+
+실제 empty와 load failure 구분.
+
+대규모 error system 새로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. APP/SERVER 코드 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+위 조사에서 발견된
+APP client + APP API server Diary 관련 문제는
+이번 작업에서 전부 최소 수정.
+
+가능하면 commit 분리:
+
+CLIENT DIARY FIX
+SERVER DIARY FIX
+
+SERVER 변경이 필요하면:
+main에 안전하게 반영/push.
+
+하지만:
+Render Production deploy 절대 금지.
+
+보고에:
+RENDER_DEPLOY_REQUIRED = YES
+
+라고 명확히 표시.
+
+CLIENT 변경은:
+release/v2.0.0에 반드시 포함.
+
+main에서 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. AI ENGINE 경계 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI Engine source 수정 금지.
+
+대신 actual live/smoke boundary 확인:
+
+APP request:
+contract_version 1.0
+
+Engine:
+HTTP 200
+
+pipeline_mode:
+grounded_v1
+
+fallback_used:
+false
+
+template grounding:
+존재 여부
+
+knowledge grounding:
+존재 여부
+
+generated common/student output:
+존재 여부
+
+중요:
+실제 text 전체 report에 출력 금지.
+
+Engine 결과가 풍성한데
+APP에서 사라지는 경우:
+APP FIX.
+
+Engine 결과 자체가 raw input 수준이면:
+AI_ENGINE_CHANGE_REQUIRED=YES.
+
+이 둘을 반드시 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. E2E TEST MATRIX — 코드 테스트만 PASS 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+T1 Teacher Manual Create
+class
+→ diary
+→ common/student
+→ media
+→ save
+→ history/list
+
+T2 Teacher AI Create
+short teacher input
+→ Engine
+→ generated enriched result
+→ UI
+→ save
+→ DB
+
+검증:
+saved AI output must not merely equal raw teacher input
+unless Engine itself actually returned identical output.
+
+T3 Common Photo
+select
+→ immediate preview
+→ upload
+→ preview remains
+→ save
+
+T4 Common Video
+동일
+
+T5 Student Photo
+해당 student card 안에만 preview
+
+T6 Student Video
+동일
+
+T7 Edit
+past diary
+→ edit
+→ save
+→ past list
+→ refreshed value
+
+T8 Modal/Subview
+모든 Diary modal save
+→ correct previous Diary context
+
+T9 Parent Feed
+Teacher new diary
+→ exact parent API
+→ unified feed
+→ visible without app restart after focus
+
+T10 Parent Student Diary
+correct child
+→ new diary visible
+
+T11 Notification
+new Diary
+→ push
+→ notification
+→ tap
+→ correct child Diary
+
+T12 Old Notification
+missing studentId
+→ safe fallback
+→ no undefined
+
+T13 Multi-child
+wrong child routing = 0
+
+T14 Class History
+eligible:
+Feed YES
+Push YES if push generated
+
+ineligible:
+Feed NO
+Push NO
+
+T15 Admin List
+Teacher new Diary
+→ same pool Admin list YES
+
+T16 Admin Detail
+correct Diary/detail/media YES
+
+T17 Cross Pool
+other pool Admin access NO
+
+T18 AI Save Integrity
+Engine generated result
+→ UI result
+→ save payload
+→ DB result
+동일 source chain 확인
+
+T19 Save Failure
+stay on current Diary screen
+
+T20 AI Failure
+stay on current Diary screen
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. TEST EVIDENCE 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"코드상 PASS"만 쓰지 말 것.
+
+각 중요 테스트는 가능한 범위에서:
+
+- route
+- API status
+- response shape
+- state transition
+- saved record id
+- navigation destination
+
+으로 증거를 남길 것.
+
+실제 개인정보/Diary 전문/토큰/URL secret은 마스킹.
+
+Mock만 통과했다고
+Production-ready 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. PRODUCTION OTA — 수정 완료 후 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 정책:
+앞으로 일반 APP 수정은
+수정 + 테스트 + release 반영 + OTA까지 한 작업에서 완료.
+
+따라서 CLIENT 수정이 있고
+다음 조건 전부 PASS면
+사용자 추가 승인 기다리지 말고
+iOS production-v2 OTA까지 수행.
+
+영구 Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible changes =
+NO
+
+Android =
+NO
+
+하나라도 FAIL:
+OTA 금지 + HOLD.
+
+절대:
+main에서 production-v2 OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. SERVER 변경 발생 시 OTA 순서
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER code 변경이 필요한 경우에도:
+
+- server 수정
+- test
+- main push
+- client 수정
+- release push
+- client preflight
+- iOS OTA 가능하면 수행
+
+단 Render Production deploy는 하지 말 것.
+
+보고에 명확히:
+
+SERVER_FIX_PUSHED=YES
+RENDER_DEPLOY_REQUIRED=YES
+
+사용자가 Render deploy 후
+server-dependent E2E를 실기기 확인할 수 있게 할 것.
+
+서버 미배포 상태를 숨기고
+"전체 Production PASS"라고 쓰면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- fake PASS
+- 코드만 보고 REAL DEVICE PASS 주장
+- AI Engine 지식 로직을 APP에 복제
+- raw teacher input을 AI 결과처럼 저장
+- legacy ai-v1로 우회
+- contract_version 변경
+- Engine URL 변경
+- x_global 복구
+- 신규 DB architecture
+- 대규모 Diary rewrite
+- 전체 repo audit
+- unrelated cleanup
+- Render Production deploy
+- Production DB mutation
+- Android OTA
+- main에서 OTA
+- WP17 선행
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 DIARY FULL SYSTEM FORENSIC + REPAIR REPORT
+
+APP RELEASE
+Branch:
+HEAD before:
+HEAD after:
+Client commit:
+
+SERVER
+main before:
+main after:
+Server commit:
+Server changed:
+YES / NO
+
+RENDER_DEPLOY_REQUIRED:
+YES / NO
+
+━━━━━━━━━━
+DIARY SYSTEM MAP
+━━━━━━━━━━
+
+Teacher create actual route:
+Teacher edit actual route:
+Teacher history actual route:
+Parent feed actual route:
+Parent diary actual route:
+Notification tap route:
+Admin diary route:
+
+Diary modals/subviews found:
+...
+
+━━━━━━━━━━
+ROOT CAUSES
+━━━━━━━━━━
+
+Navigation root cause:
+...
+
+Parent Feed root cause:
+...
+
+Notification root cause:
+...
+
+Media preview root cause:
+...
+
+AI Diary root cause:
+...
+
+Admin Diary root cause:
+...
+
+Additional Diary defects found:
+...
+
+━━━━━━━━━━
+AI DIARY
+━━━━━━━━━━
+
+Canonical Engine path:
+PASS / FAIL
+
+Legacy path active:
+YES / NO
+
+Contract:
+1.0
+
+Engine HTTP:
+...
+
+pipeline_mode:
+...
+
+fallback_used:
+...
+
+Template grounding:
+YES / NO
+
+Knowledge grounding:
+YES / NO
+
+Engine generated output present:
+YES / NO
+
+APP mapped generated output:
+YES / NO
+
+Saved generated output:
+YES / NO
+
+Raw teacher input incorrectly saved instead:
+YES / NO
+
+AI_ENGINE_CHANGE_REQUIRED:
+YES / NO
+
+Evidence/reason:
+...
+
+━━━━━━━━━━
+TEACHER
+━━━━━━━━━━
+
+Manual create:
+PASS / FAIL
+
+AI create:
+PASS / FAIL
+
+Create return:
+...
+
+Correct:
+YES / NO
+
+Edit:
+PASS / FAIL
+
+Edit return:
+...
+
+Correct:
+YES / NO
+
+History refresh:
+PASS / FAIL
+
+All Diary modal/subview returns:
+PASS / FAIL
+
+━━━━━━━━━━
+MEDIA
+━━━━━━━━━━
+
+Common photo immediate preview:
+PASS / FAIL
+
+Common video immediate preview:
+PASS / FAIL
+
+Student photo immediate preview:
+PASS / FAIL
+
+Student video immediate preview:
+PASS / FAIL
+
+Upload completion preview:
+PASS / FAIL
+
+Edit media:
+PASS / FAIL
+
+━━━━━━━━━━
+PARENT
+━━━━━━━━━━
+
+Diary exists in DB:
+YES / NO
+
+Eligible parent API contains Diary:
+YES / NO
+
+Unified Feed contains Diary:
+YES / NO
+
+Visible after focus without restart:
+YES / NO
+
+Correct student Diary:
+PASS / FAIL
+
+False empty:
+YES / NO
+
+━━━━━━━━━━
+NOTIFICATION
+━━━━━━━━━━
+
+Recipient studentId:
+PASS / FAIL
+
+diaryId:
+PASS / FAIL
+
+Deep-link:
+PASS / FAIL
+
+Correct child:
+PASS / FAIL
+
+Undefined:
+YES / NO
+
+Old notification fallback:
+PASS / FAIL
+
+Multi-child:
+PASS / FAIL
+
+Push/Feed visibility semantics identical:
+YES / NO
+
+━━━━━━━━━━
+ADMIN
+━━━━━━━━━━
+
+New Diary visible:
+PASS / FAIL
+
+Updated Diary visible:
+PASS / FAIL
+
+Detail:
+PASS / FAIL
+
+Media:
+PASS / FAIL
+
+Same-pool authorization:
+PASS / FAIL
+
+Cross-pool blocked:
+PASS / FAIL
+
+━━━━━━━━━━
+REGRESSION
+━━━━━━━━━━
+
+APP_CONTRACT_VERSION:
+1.0
+
+Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+DB migration:
+NO / YES
+
+Production DB mutation:
+NO
+
+AI Engine source changed:
+NO
+
+Native dependency:
+NO
+
+Render Production deploy:
+NO
+
+Android OTA:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+Client changes present:
+YES / NO
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin/release match:
+YES / NO
+
+Working tree clean:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Published:
+YES / NO
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Production OTA source was main:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Remaining Diary defects:
+NONE / ...
+
+Server deploy required:
+YES / NO
+
+AI Engine follow-up required:
+YES / NO
+
+Ready for user real-device verify:
+YES / NO
+
+Final:
+WP16_DIARY_REPAIR_PASS
+/
+HOLD_SERVER_DEPLOY
+/
+HOLD_AI_ENGINE
+/
+FAIL
+
+완료 후 STOP.
+WP17 절대 선행 금지.
+
+최우선 원칙:
+
+이번에는
+"함수 하나가 맞다"
+"코드상으로 보인다"
+"테스트 fixture가 통과한다"
+
+만으로 PASS 하지 마십시오.
+
+Teacher가 실제 Diary를 만들고
+AI 결과가 실제 저장되고
+Parent가 실제 Feed에서 보고
+알림으로 정확한 Diary를 열고
+Admin도 같은 Diary를 확인하는
+
+하나의 연결된 Diary system을 기준으로 검증하십시오.
