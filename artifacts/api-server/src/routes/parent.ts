@@ -622,11 +622,19 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
     const studentIdSafe = req.params.id.replace(/'/g, "''");
 
     // 학생의 모든 반 이력에서 class_group_id 수집 (반 이동 후 과거 반 일지도 조회)
+    // [FIX] student_class_history 미존재(신규 등록 학생) 시 students.class_group_id fallback
     const historyClasses = (await db.execute(sql.raw(`
-      SELECT DISTINCT class_group_id
-      FROM student_class_history
-      WHERE student_id = '${studentIdSafe}'
-        AND class_group_id IS NOT NULL
+      SELECT DISTINCT class_group_id FROM (
+        SELECT class_group_id
+        FROM student_class_history
+        WHERE student_id = '${studentIdSafe}'
+          AND class_group_id IS NOT NULL
+        UNION
+        SELECT class_group_id
+        FROM students
+        WHERE id = '${studentIdSafe}'
+          AND class_group_id IS NOT NULL
+      ) t
     `))).rows as any[];
     const allClassIds = historyClasses.map(r => r.class_group_id);
     if (!allClassIds.length) { res.json([]); return; }

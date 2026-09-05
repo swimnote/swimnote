@@ -322,9 +322,13 @@ export async function initPoolDb(db: MigrationDb): Promise<void> {
       is_deleted       boolean     NOT NULL DEFAULT false,
       deleted_at       timestamptz,
       deleted_by       text,
+      ai_generated     boolean     NOT NULL DEFAULT false,
+      ai_trace_id      text,
       created_at       timestamptz NOT NULL DEFAULT now(),
       updated_at       timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE class_diaries ADD COLUMN IF NOT EXISTS ai_generated boolean NOT NULL DEFAULT false;
+    ALTER TABLE class_diaries ADD COLUMN IF NOT EXISTS ai_trace_id text;
     CREATE TABLE IF NOT EXISTS class_diary_student_notes (
       id           text        PRIMARY KEY DEFAULT ('csn_' || replace(gen_random_uuid()::text,'-','')),
       diary_id     text        NOT NULL,

@@ -4146,7 +4146,8 @@ router.get(
         : q
           ? sql`AND (cd.teacher_name ILIKE ${'%' + q + '%'} OR cd.common_content ILIKE ${'%' + q + '%'})`
           : sql``;
-      const aiFilter      = ai_only === "true" ? sql`AND cd.ai_generated = true` : sql``;
+      // COALESCE: ai_generated 컬럼 미존재 pool DB 대비 (WP9 미적용 pool)
+      const aiFilter      = ai_only === "true" ? sql`AND COALESCE(cd.ai_generated, false) = true` : sql``;
 
       // ── KPI (date range, class/teacher/ai filter 반영, 검색어 제외) ────
       const kpiRow = await db.execute(sql`
