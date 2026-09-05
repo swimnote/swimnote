@@ -1,0 +1,239 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 HOLD FIX — TOYKIDS ENGINE-SEEDED CURRICULUM READINESS VERIFY
+# 범위 수정
+# WP17 선행 금지
+
+중요한 제품 사실을 사용자에게서 확정했습니다.
+
+일반 X Pool:
+커리큘럼 파일 업로드
+→ 시스템 처리
+→ X runtime curriculum/template 생성
+
+Toykids:
+커리큘럼 파일을 업로드하지 않았음.
+대신 AI ENGINE에서 직접 커리큘럼을 구축하여
+앱/DB의 실제 베이스 curriculum/template data로 넣어놓은 원본 Pool임.
+
+따라서:
+
+x_setup_files / upload history 없음
+≠ prerequisite 실패
+
+Toykids의 legitimate prerequisite는
+"실제 runtime에서 사용 가능한 엔진 구축 curriculum/template data가 존재하는가"
+입니다.
+
+이번 작업에서는 이 사실을 기준으로
+Toykids readiness만 최소 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 확인할 핵심
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production Toykids:
+
+pool_1780849364252_l9k44rbk3
+
+현재 확인된:
+
+pool-specific ACTIVE templates = 363
+x_setup_files = 0
+xmode_config_status = CURRICULUM_PENDING
+manual = true
+management_override = true
+paid = false
+member_limit = 1000
+
+질문:
+
+A.
+이 363개 pool-specific template이
+실제 AI Diary/X runtime에서 사용되는
+엔진 직접 구축 curriculum/template data가 맞는가?
+
+B.
+실제 current runtime resolver가
+Toykids 요청 시 이 363개를 consume하는가?
+
+C.
+맞다면 checkXPrerequisite가
+이 legitimate engine-seeded path를 READY로 인정하는가?
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Legitimate prerequisite semantics
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 prerequisite는 업로드 기록이 아니라
+실제 runtime usability 기준이어야 합니다.
+
+즉 legitimate path는 실제 architecture에 따라:
+
+PATH A:
+processed global/x_global curriculum
+
+또는
+
+PATH B:
+Pool에 이미 엔진 구축형 canonical curriculum/template data 존재
+
+가 될 수 있습니다.
+
+정확한 OR 조건은 실제 runtime resolver evidence로 확정.
+
+Toykids hardcode 금지.
+
+Pool ID/name exception 금지.
+
+일반화 가능한 data-state rule이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 runtime trace
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 추적:
+
+- AI Diary template resolver
+- diary-template-search
+- pool-specific template selection
+- x_global/global fallback
+- checkXPrerequisite
+
+Production READ-ONLY로 Toykids에
+실제 resolver query 조건을 적용.
+
+보고:
+
+actual selected template source:
+...
+
+pool-specific 363 consumed:
+YES / NO
+
+actual runtime usable:
+YES / NO
+
+upload history required:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 결과 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A:
+
+363개 pool-specific data가 실제 canonical runtime source이고
+Toykids X가 정상 동작 가능.
+
+그런데 checkXPrerequisite만 PENDING이라면:
+
+→ prerequisite resolver bug.
+
+최소 수정:
+checkXPrerequisite가
+actual runtime usable data를 READY로 인정.
+
+Toykids hardcode 금지.
+
+
+CASE B:
+
+363개가 runtime source가 아님.
+
+→ 실제 engine-seeded curriculum source가 어디인지 추적.
+그 source를 prerequisite와 일치시킴.
+
+
+CASE C:
+
+현재 prerequisite도 이미 engine-seeded path를 인정하지만
+xmode_config_status만 과거값 CURRICULUM_PENDING으로 남은 상태.
+
+→ code bug 아님.
+→ legitimate readiness recalculation/transition 경로만 확인.
+
+blind SQL READY 강제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 중요한 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+커리큘럼 파일 업로드를
+Toykids에 새로 요구하지 마십시오.
+
+Toykids는 파일 업로드형 Pool이 아닙니다.
+
+금지:
+
+- fake x_setup_files 생성
+- fake upload history 생성
+- Toykids ID hardcode
+- blind xmode_config_status='READY'
+- management override OFF
+- Production data mutation
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# TOYKIDS ENGINE-SEEDED CURRICULUM READINESS REPORT
+
+Toykids pool:
+pool_1780849364252_l9k44rbk3
+
+Engine-seeded curriculum/template source:
+...
+
+Pool-specific ACTIVE templates:
+...
+
+Actually consumed by X/AI Diary runtime:
+YES / NO
+
+Exact runtime resolver:
+...
+
+Upload history required:
+NO
+
+checkXPrerequisite currently:
+READY / PENDING
+
+Actual runtime usable:
+YES / NO
+
+Prerequisite/runtime consistent:
+YES / NO
+
+xmode_config_status:
+...
+
+Classification:
+RESOLVER_BUG / STALE_STATUS_ONLY / NO_BUG / OTHER
+
+Code fix required:
+YES / NO
+
+If code fix:
+files:
+...
+commit:
+...
+tests:
+...
+
+Toykids hardcode:
+0
+
+Production writes:
+0
+
+Management override changed:
+NO
+
+Final:
+PASS / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
