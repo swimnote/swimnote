@@ -64,7 +64,7 @@ const LEGACY_PATH = '/api/ai/diary/generate';
  * 운영 Teacher Diary의 유일한 권한 경로입니다.
  * 환경변수로 override 불가 — 코드 수준 고정값이 우선합니다.
  */
-const GROUNDED_BASE = 'https://swimnote-api.onrender.com';
+const GROUNDED_BASE = 'https://swimnote-professional-engine.onrender.com';
 const GROUNDED_PATH = '/api/v1/teacher-diary/generate';
 
 /** Teacher Diary에서 절대 호출해서는 안 되는 legacy path 목록 */
