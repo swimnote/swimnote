@@ -1,0 +1,683 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP2 — X MEMBER LIMIT ENFORCEMENT
+# FINAL MASTER WP V6.1 IMPLEMENTATION
+# PLAN FREEZE 상태 — 이번 WP 범위 밖 변경 금지
+
+목적:
+X300 / X500 / X1000의 활성회원 한도를
+모든 회원 증가 경로에 일관되게 적용하고,
+동시 등록 race condition까지 차단합니다.
+
+이번 작업은 WP2만 수행합니다.
+WP3 이후 작업은 절대 선행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP 범위 밖의:
+- 개선
+- 재설계
+- roadmap 변경
+- 다른 WP 선행작업
+- 관련 없는 리팩터링
+
+금지.
+
+새로운 실제 P0 blocker를 발견하면
+임의로 전체 계획을 바꾸지 말고
+evidence만 보고하고 STOP하십시오.
+
+작업 방식:
+
+최소 조사
+→ 실제 회원 증가 경로 확정
+→ canonical limit enforcement 구현
+→ 관련 테스트
+→ 완료보고
+→ STOP
+
+repo-wide 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기준 Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 branch:
+
+release/v2.0.0
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean 여부
+
+WP1 commit:
+
+4265945f
+
+가 현재 release history에 포함되어 있는지 확인하십시오.
+
+포함 여부만 확인하고
+WP1을 재검수하지 마십시오.
+
+금지:
+
+- force push
+- reset --hard
+- history rewrite
+- main local-only commit 임의 merge/cherry-pick
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 공식 회원한도 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300:
+active member max 300
+
+X500:
+active member max 500
+
+X1000:
+active member max 1000
+
+active member 정의는
+현재 repository의 공식 회원 lifecycle/status 기준을 그대로 사용합니다.
+
+새로운 active 정의를 만들지 마십시오.
+
+퇴원/탈퇴/종료/비활성 등은
+현재 공식 lifecycle에서 inactive로 취급되는 경우 limit count에서 제외합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 한도 도달 시 서비스 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+한도 도달 시:
+
+신규 active member 증가만 BLOCK.
+
+절대 기존 회원의 기능을 차단하지 마십시오.
+
+기존 회원:
+
+- 출결
+- 일지
+- 사진
+- 반
+- 수업
+- AI
+- 성장정보
+- 기존 조회/수정
+
+정상 유지.
+
+예:
+
+X300에서 active=300
+
+301번째 active member 증가:
+BLOCK
+
+기존 300명:
+정상 서비스
+
+X500:
+501번째 BLOCK
+
+X1000:
+1001번째 BLOCK
+
+상위 X Plan으로 변경되면:
+새 한도 기준으로 즉시 생성 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 현재 이미 확인된 bypass
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 실제 Replit 검수에서 이미 확인된 bypass:
+
+1.
+artifacts/api-server/src/routes/auth.ts
+
+Parent signup 과정에서
+child student INSERT
+
+현재 member limit check 없음.
+
+
+2.
+artifacts/api-server/src/routes/admin.ts
+
+restore archive
+
+현재 member limit check 없음.
+
+이 두 경로는 다시 존재 여부부터 장시간 조사하지 말고
+현재 코드 위치를 확인한 뒤 바로 canonical enforcement 적용 대상으로 봅니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 WP에서 확인할 회원 증가 경로
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생/회원 row를 active 상태로 증가시킬 수 있는 실제 경로만 확인하십시오.
+
+최소:
+
+- Admin 일반 회원 생성
+- Parent signup child creation
+- Archive restore
+- Re-enrollment
+- Import
+- Bulk create
+- 기타 실제 student INSERT / inactive→active 전환 경로
+
+중요:
+
+단순 학생 조회/수정 route는 조사 대상이 아닙니다.
+
+"혹시 있을지 모르니 repository 전체를 전부 읽는" 방식 금지.
+
+student INSERT 또는 active 상태 증가와 직접 관련된 route/service/helper만 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Canonical Enforcement
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원한도 로직을 route마다 복붙하지 마십시오.
+
+현재 repository 구조에 맞는
+단일 canonical helper/service를 우선 사용하거나 최소 구현하십시오.
+
+목표:
+
+- 현재 pool의 effective X plan 확인
+- 해당 plan member limit 확인
+- active member count 확인
+- 증가 허용/차단
+
+반드시 server-side 처리.
+
+Client가 보내는:
+
+- plan
+- member_limit
+- pool_id
+- role
+
+을 source of truth로 신뢰하지 마십시오.
+
+Authenticated/server-side pool context 기준으로 처리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Race Condition 차단
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순:
+
+SELECT COUNT
+→ if below limit
+→ INSERT
+
+구조만 사용하면 안 됩니다.
+
+동시 요청에서:
+
+299
+→ 두 요청 동시에 count
+→ 둘 다 insert
+→ 301
+
+같은 race가 가능합니다.
+
+현재 최종 기준:
+
+BEGIN
+
+→ 대상 swimming_pools row
+   SELECT ... FOR UPDATE
+
+→ 현재 active member count
+
+→ plan/member limit 확인
+
+→ 허용되면 INSERT 또는 active 전환
+
+→ COMMIT
+
+한도를 넘으면:
+
+ROLLBACK
+또는 transaction 내에서 변경 없이 종료.
+
+현재 DB/ORM transaction API에 맞는 방식으로 구현하십시오.
+
+같은 pool의 회원 증가 작업이
+동일 lock 기준을 사용하도록 해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Create와 Reactivation 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 둘 모두 limit 증가로 취급해야 할 수 있습니다.
+
+A. 신규 student INSERT
+
+B. 기존 inactive/archive student를
+active 상태로 복원
+
+Restore/Re-enrollment가
+active count를 +1 증가시키면
+반드시 같은 limit check를 사용하십시오.
+
+단:
+
+이미 active인 회원의 단순 update는
+limit check로 막지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Error Contract
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원한도 도달은 500 오류가 아닙니다.
+
+구분 가능한 business error 사용.
+
+권장 코드:
+
+PLAN_MEMBER_LIMIT_REACHED
+
+또는 repository 기존 error convention이 있으면
+그 convention을 재사용.
+
+사용자 메시지는 짧고 이해 가능하게.
+
+예:
+
+"현재 X300 회원 한도 300명에 도달했습니다. 상위 플랜으로 변경하면 회원을 추가할 수 있습니다."
+
+정확한 UI 문구는 기존 앱 convention에 맞추십시오.
+
+이번 WP에서 별도 UI redesign은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Warning 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책상 warning threshold:
+
+limit - 10
+limit - 5
+limit
+
+예:
+
+X300:
+290
+295
+300
+
+단 이번 WP의 핵심은
+"실제 enforcement"입니다.
+
+현재 repository에 이미 적절한 warning UI/indicator가 있으면 연결 가능.
+
+새 대형 warning UX 시스템은 만들지 마십시오.
+
+Warning 구현이 별도 대형 UI 작업을 요구한다면
+이번 WP에서는 server-side count/limit 정보까지만 제공하고
+evidence와 함께 보고하십시오.
+
+회원 생성 BLOCK 자체는 반드시 완료해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Manual / Paid / Management X와의 관계
+━━━━━━━━━━━━━━━━━━━━━━
+
+member limit 판단은
+"유료 여부"가 아니라
+현재 canonical X plan/effective plan을 기준으로 해야 합니다.
+
+금지:
+
+mode=x → 무조건 x1000
+paid=true → member limit 결정
+manual=true → 별도 임의 limit
+
+Plan 기준:
+
+x300 → 300
+x500 → 500
+x1000 → 1000
+
+Toykids 현재 Management Override도
+effective plan=x1000 이므로 1000 기준.
+
+RevenueCat은 이번 WP에서 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. DB / Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP 기본 기대:
+
+Schema change:
+NO
+
+Migration:
+NO
+
+Production data mutation:
+NO
+
+기존 plan/member_limit 데이터와
+현재 resolver 구조를 우선 재사용하십시오.
+
+새 컬럼/테이블 없이는 구현 불가능한
+실제 blocker가 확인되면:
+
+임의 migration 생성 금지.
+
+Exact blocker만 보고하고 STOP하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 test suite 실행 금지.
+
+WP2 관련 테스트만.
+
+최소 테스트:
+
+A. X300 active=299 → 300번째 생성 성공
+
+B. X300 active=300 → 301번째 생성 BLOCK
+
+C. X500 active=499 → 500 성공
+
+D. X500 active=500 → 501 BLOCK
+
+E. X1000 active=999 → 1000 성공
+
+F. X1000 active=1000 → 1001 BLOCK
+
+G. Parent signup child 생성이 limit 적용
+
+H. Archive restore가 limit 적용
+
+I. Re-enrollment가 active count 증가 시 limit 적용
+
+J. 일반 admin create 적용
+
+K. inactive 회원은 공식 lifecycle 기준 count에서 제외
+
+L. 기존 active 회원 update 정상
+
+M. 한도 도달 상태에서도 기존 회원 출결/일지 등 대표 기존 기능 정상
+
+N. 상위 plan limit 적용 정상
+
+O. 두 동시 생성 요청 race test
+
+예:
+X300 active=299에서
+동시에 2명 생성 시도
+
+최종 active count:
+300
+
+성공:
+1
+
+실패:
+1
+
+301 이상:
+절대 금지
+
+가능하면 transaction/concurrency 테스트로 증명하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Cross-Pool 안전
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP6 전체 audit를 지금 하지 마십시오.
+
+다만 이번 member limit helper가:
+
+Pool A 요청이
+Pool B member count / plan / lock을 사용하지 않는지
+
+관련 테스트 또는 코드 검증은 필수.
+
+server-side exact pool 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 금지:
+
+- WP3 RevenueCat
+- WP5 Push Scale
+- WP4 Notice Schema
+- WP6 전체 Security Audit
+- WP7 Manual Grant UI
+- Toykids management override cleanup
+- WP8 Pagination
+- Growth Report
+- Super Admin redesign
+- CRM
+- Version/runtime
+- legacy cleanup
+- Production DB 직접 데이터 수정
+- 신규 runtime DDL
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 코드 변경 예상.
+
+Render required:
+YES/NO 실제 결과 보고.
+
+Production Render deploy:
+하지 마십시오.
+
+사용자가 수동 배포합니다.
+
+OTA:
+서버-only 작업이면 NO.
+
+Native binary:
+NO.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP2 PASS 조건:
+
+1. X300=300
+2. X500=500
+3. X1000=1000
+4. 모든 실제 member increase 경로 보호
+5. parent signup bypass 제거
+6. archive restore bypass 제거
+7. inactive→active 경로 보호
+8. canonical enforcement 사용
+9. SELECT ... FOR UPDATE 기반 race-safe 처리
+10. concurrent overflow 0
+11. 기존 active 회원 서비스 차단 0
+12. paid/manual/management 의미 혼동 없음
+13. cross-pool count/lock 혼선 없음
+14. DB schema 변경 없음 또는 승인된 예외
+15. 관련 테스트 PASS
+16. Commit SHA 존재
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP2 X MEMBER LIMIT COMPLETION REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Push:
+YES / NO
+
+Files changed:
+...
+
+Canonical member limit function/service:
+...
+
+Official active member definition used:
+...
+
+Protected member increase routes:
+1. ...
+2. ...
+3. ...
+
+Parent signup protected:
+PASS / FAIL
+
+Archive restore protected:
+PASS / FAIL
+
+Re-enrollment protected:
+PASS / FAIL / NOT APPLICABLE
+
+Import protected:
+PASS / FAIL / NOT PRESENT
+
+Bulk protected:
+PASS / FAIL / NOT PRESENT
+
+Other INSERT paths:
+...
+
+Transaction implementation:
+...
+
+Pool row lock:
+SELECT ... FOR UPDATE
+YES / NO
+
+X300:
+300th create:
+PASS / FAIL
+301st block:
+PASS / FAIL
+
+X500:
+500th create:
+PASS / FAIL
+501st block:
+PASS / FAIL
+
+X1000:
+1000th create:
+PASS / FAIL
+1001st block:
+PASS / FAIL
+
+Concurrent race test:
+...
+
+Starting count:
+...
+
+Concurrent attempts:
+...
+
+Success count:
+...
+
+Rejected count:
+...
+
+Final active count:
+...
+
+Overflow:
+0 / ...
+
+Business error code:
+...
+
+Existing member operations at limit:
+PASS / FAIL
+
+Cross-pool isolation for enforcement:
+PASS / FAIL
+
+Paid/manual/management semantics unchanged:
+PASS / FAIL
+
+DB changes:
+YES / NO
+
+Migration:
+YES / NO
+
+Production data changes:
+YES / NO
+
+Render required:
+YES / NO
+
+OTA required:
+YES / NO
+
+Native binary required:
+YES / NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+WP2 완료조건을 만족하면
+추가 개선, 리팩터링, 다른 회원관리 기능,
+WP3 선행 구현 없이 즉시 STOP하십시오.
+
+새로운 실제 Production P0 blocker가 발견되면
+roadmap을 임의 변경하지 말고
+evidence만 보고하십시오.
+
+Production Render deploy는 하지 마십시오.
+```

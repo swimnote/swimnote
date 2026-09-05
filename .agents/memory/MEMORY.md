@@ -67,3 +67,4 @@
 - [WP11 완료 상태](wp11-done-state.md) — SHA 67515a67; safeXMetric partial-failure격리+monthly KPI+운영현황 UI; OTA iOS 01a06ac2
 - [APP TS Hotfix 완료](app-ts-hotfix-done.md) — SHA 6ed60ce1; 21→0 errors; RC.identifier/apiRequest.json()/expo-file-system/legacy; OTA 01a06c53
 - [WP8 완료 상태](wp8-done-state.md) — SHA b728e007; Audit+SupportCase CRM; ensureWp8Schema+10 routes+AuditTab+SupportTab; 76TC; Render 트리거; OTA 없음
+- [WP2 Member Limit Enforcement 완료](wp2-member-limit-done.md) — SHA b17df141; lib/member-limit.ts+advisory lock; 6경로 bypass 수정; 25TC
