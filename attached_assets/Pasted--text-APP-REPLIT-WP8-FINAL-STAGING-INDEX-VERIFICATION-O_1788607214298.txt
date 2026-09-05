@@ -1,0 +1,290 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP8 — FINAL STAGING INDEX VERIFICATION ONLY
+# FINAL MASTER WP FREEZE — WP9 선행 금지
+
+현재 WP8 commit:
+
+60cd5a82
+origin/release/v2.0.0
+
+현재 pagination/N+1 코드 구현은 유지합니다.
+
+이번 작업은 WP8의 마지막 미충족 조건:
+
+"필요하다고 판정한 신규 index 4개를 Staging DB에 canonical migration으로 적용하고 실제 생성/멱등성을 검증"
+
+만 수행합니다.
+
+WP9 이후 작업 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 대상 Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 파일:
+
+artifacts/api-server/src/migrations/step-wp8-pagination-indexes.ts
+
+신규 index:
+
+1.
+idx_class_diaries_pool_cursor
+(class_diaries: swimming_pool_id, created_at DESC, id DESC)
+
+2.
+idx_notifications_user_cursor
+(notifications: recipient_id, created_at DESC, id DESC)
+
+3.
+idx_diary_messages_diary_cursor
+(diary_messages: diary_id, created_at DESC, id DESC)
+
+4.
+idx_members_pool_status_cursor
+(members: swimming_pool_id, status, created_at DESC)
+
+현재 migration 자체를 이유 없이 다시 설계하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DB Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+Target:
+
+STAGING ONLY
+
+Expected Staging ref:
+
+lspmacdbyvpzysnrjsww
+
+Production:
+
+mrgkiussgbbmxfnkjgqy
+
+절대 Production fallback 금지.
+
+실행 전 반드시 connection target을 확인하십시오.
+
+Staging connection/env를 사용할 수 없으면:
+
+Production으로 대체 실행하지 말고
+정확한 blocker를 보고하고 STOP하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Staging 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+Staging connection이 안전하게 확인되면:
+
+1. before index existence 확인
+2. migration 실행
+3. 4개 index existence 검증
+4. 동일 migration second-run
+5. second-run error 0
+6. 기존 data/table row 변경 없음 확인
+
+Production migration:
+절대 실행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. EXPLAIN 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Staging DB 접근이 가능해졌다면
+이번에 실제 query plan도 최소 확인하십시오.
+
+대상 최소:
+
+A. diary cursor query
+
+WHERE swimming_pool_id = ?
+AND cursor condition
+ORDER BY created_at DESC, id DESC
+LIMIT ?
+
+B. notifications cursor query
+
+WHERE recipient_id = ?
+AND cursor condition
+ORDER BY created_at DESC, id DESC
+LIMIT ?
+
+C. members pool/status list
+
+WHERE swimming_pool_id = ?
+AND status ...
+ORDER BY created_at DESC
+LIMIT ?
+
+가능하면:
+
+EXPLAIN
+
+또는 안전한 fixture 환경에서:
+
+EXPLAIN ANALYZE
+
+사용.
+
+중요:
+
+데이터량이 작아서 planner가 Seq Scan을 선택할 수 있습니다.
+
+그 경우 무조건 FAIL로 판단하지 마십시오.
+
+보고할 것은:
+
+- query
+- chosen plan
+- relevant index 존재
+- planner가 index 사용/미사용
+- 미사용이면 staging table size/cardinality 등 관찰 가능한 이유
+
+숫자 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 WP8 코드 재오픈 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다시 수정하지 마십시오:
+
+- pagination helper
+- diary API
+- notifications API
+- students/members N+1
+- notices limit
+- super pools-summary
+- compatibility strategy
+- DB pool settings
+
+새로운 실제 오류가 발견되지 않는 한
+production code 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 재실행 금지.
+
+필요 최소:
+
+- migration verification
+- second-run
+- index existence
+- 필요한 경우 WP8 migration 관련 test
+
+기존 64TC 전체를 이유 없이 반복하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP8 FINAL STAGING INDEX REPORT
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+60cd5a82
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Production code changed:
+YES / NO
+
+Migration file:
+artifacts/api-server/src/migrations/step-wp8-pagination-indexes.ts
+
+Staging DB ref:
+...
+
+Confirmed Staging:
+YES / NO
+
+Production DB touched:
+NO
+
+Indexes before:
+...
+
+Migration run:
+PASS / FAIL
+
+Indexes after:
+
+idx_class_diaries_pool_cursor:
+PRESENT / MISSING
+
+idx_notifications_user_cursor:
+PRESENT / MISSING
+
+idx_diary_messages_diary_cursor:
+PRESENT / MISSING
+
+idx_members_pool_status_cursor:
+PRESENT / MISSING
+
+Second-run:
+PASS / FAIL
+
+Unexpected data changes:
+0 / ...
+
+EXPLAIN diary:
+...
+
+EXPLAIN notifications:
+...
+
+EXPLAIN members:
+...
+
+Relevant indexes verified:
+PASS / FAIL
+
+Schema/table-column changes:
+NO
+
+Index changes:
+YES
+
+Production migration:
+NOT RUN
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+Render required:
+NO unless production code actually changed
+
+OTA required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+이번 작업은 WP8의 Staging index verification만 수행합니다.
+
+Production DB migration 금지.
+WP9 선행 구현 금지.
+Pagination/N+1 코드를 다시 열지 마십시오.
+
+완료 후 즉시 STOP하십시오.
+```
