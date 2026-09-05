@@ -1,0 +1,218 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — FINAL CORRECTED iOS PRODUCTION OTA
+# 사용자 승인 완료
+# release/v2.0.0 only
+# iOS ONLY
+# Android OTA 금지
+# WP17 선행 금지
+
+승인된 공식 OTA source:
+
+Branch:
+release/v2.0.0
+
+Exact SHA:
+4af18ac0
+
+이번 OTA 목적:
+WP16 Diary E2E client fixes 실기기 반영
+
+포함되어야 하는 수정:
+- Teacher Diary 작성 후 history/list 복귀
+- Teacher Diary 수정 후 past diary list 복귀
+- 사진/영상 즉시 preview 코드
+- Parent Feed focus refetch
+- Diary notification routing
+- undefined 수업일지 방어
+- old notification safe fallback
+- APP_CONTRACT_VERSION 1.0 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. PERMANENT PRODUCTION OTA PRECHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+production-v2 OTA는 반드시
+release/v2.0.0에서만 실행.
+
+다음 상태에서는 절대 실행 금지:
+
+- main
+- local main
+- feature branch
+- detached HEAD
+- dirty working tree
+- origin/release와 SHA 불일치
+
+실행 전 반드시 아래 전부 확인.
+
+1.
+git fetch origin
+
+2.
+git checkout release/v2.0.0
+
+3.
+git branch --show-current
+결과:
+release/v2.0.0
+
+4.
+git status --short
+결과:
+EMPTY / CLEAN
+
+5.
+git rev-parse HEAD
+결과:
+4af18ac0...
+
+6.
+git rev-parse origin/release/v2.0.0
+결과:
+4af18ac0...
+
+HEAD와 origin/release가 다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. RELEASE INVARIANTS
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드에서 다시 확인:
+
+APP_CONTRACT_VERSION:
+1.0
+
+Teacher Diary Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Native incompatible changes:
+NO
+
+Android OTA:
+NO
+
+다음 client fixes 포함 여부:
+
+Teacher create → history/list:
+YES
+
+Teacher edit → past diary list:
+YES
+
+Media preview:
+YES
+
+Parent feed refetch:
+YES
+
+Notification student diary routing:
+YES
+
+undefined title guard:
+YES
+
+하나라도 NO면 OTA 실행 금지 + HOLD 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 프로젝트의 검증된 EAS Update 방식으로만 실행.
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Source:
+release/v2.0.0@4af18ac0
+
+금지:
+- Android OTA
+- main에서 실행
+- 코드 수정
+- commit 추가
+- runtimeVersion 변경
+- app version 변경
+- native build
+- Render deploy
+- DB 변경
+- AI Engine 변경
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 완료 후 즉시 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 완료 후 아래를 보고:
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+4af18ac0...
+
+origin/release SHA match:
+YES
+
+Working tree clean:
+YES
+
+APP_CONTRACT_VERSION:
+1.0
+
+Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Published:
+YES
+
+Android OTA:
+NO
+
+Native changes:
+NO
+
+Production OTA source was main:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 최종 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 보고에서는 코드 PASS를 다시 주장하지 말 것.
+
+남은 blocker는 오직:
+
+USER REAL DEVICE E2E VERIFY
+
+Final:
+PASS_FOR_REAL_DEVICE_VERIFY
+
+완료 후 STOP.
+WP17 선행 금지.
