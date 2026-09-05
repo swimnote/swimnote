@@ -1,0 +1,245 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — DIARY MEDIA IMMEDIATE PREVIEW
+# 사진/영상 첨부 즉시 미리보기
+# 최소 UI 수정만
+# Upload/R2/DB 구조 변경 금지
+# 새 native dependency 금지
+# WP17 선행 금지
+
+사용자 실기기 확인:
+
+- Diary Save 정상
+- Photo Upload 정상
+- Video Upload 정상
+- 나머지 기능 정상
+
+현재 남은 UX 문제:
+
+선생님이 일지 작성 중
+사진 또는 영상을 선택하면
+업로드는 되지만 작성 화면에서 즉시 미리보기가 보이지 않음.
+
+목표:
+
+사진/영상 선택 직후
+업로드 완료를 기다리지 않고
+선택한 local asset을 작성 화면에 즉시 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Media Flow 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드에서 다음만 확인:
+
+Diary 작성 화면
+→ Photo picker
+→ Video picker
+→ selected local asset state
+→ upload state
+→ uploaded media state
+→ 현재 preview rendering
+
+실제 파일/컴포넌트 기준으로
+미리보기가 왜 업로드 전 표시되지 않는지 확인.
+
+전체 repo audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 사진 즉시 Preview
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 선택 직후:
+
+local URI를 사용해
+작성 화면에 즉시 thumbnail 표시.
+
+흐름:
+
+사진 선택
+→ local preview 즉시 표시
+→ background/current upload 진행
+→ 성공 시 server/R2 asset으로 상태 전환
+
+업로드 완료 전까지 빈 화면으로 두지 마십시오.
+
+업로드 실패 시:
+해당 미디어에 실패 상태를 표시하고
+기존 오류 처리 정책 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 영상 즉시 Preview
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 선택 직후에도
+작성 화면에 즉시 시각적 preview가 보여야 함.
+
+우선순위:
+
+1. 현재 프로젝트에 이미 존재하는 video thumbnail/preview 기능 재사용
+2. 기존 video component로 local URI preview 가능하면 재사용
+3. 기존 기능으로 thumbnail 생성이 불가능하면
+   local video preview card + play indicator 형태 사용
+
+중요:
+
+새 native dependency 추가 금지.
+expo-video-thumbnails 등 신규 native package를
+이번 작업 때문에 설치하지 마십시오.
+
+현재 dependency 안에서 가장 작은 구현 사용.
+
+사용자가 영상을 선택했다는 사실을
+즉시 시각적으로 알 수 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Upload 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진/영상 preview 위 또는 주변에
+현재 업로드 상태가 명확해야 함.
+
+예:
+
+업로드 중
+완료
+실패
+
+단 기존 UI 디자인과 일관되게 최소 표시.
+
+불필요한 progress 시스템 새로 만들지 마십시오.
+
+기존 progress 정보가 있으면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 삭제/취소
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 기존 첨부 삭제 기능이 있다면
+local preview 상태에서도 동일하게 작동하는지 확인.
+
+사용자가 업로드 중 첨부를 제거했을 때
+UI에 유령 preview가 남지 않아야 함.
+
+기존 안정된 upload cancellation 구조를
+대규모 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- R2 코드 수정 금지
+- Video credential 수정 금지
+- Diary Save API 수정 금지
+- DB/schema 변경 금지
+- AI Engine 수정 금지
+- Media upload endpoint 수정 금지
+- 새 native dependency 추가 금지
+- 화면 전체 디자인 개편 금지
+- 관련 없는 UI 수정 금지
+
+이번 작업은
+"첨부한 사진/영상이 즉시 보이는 것"
+만 해결합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 또는 현재 가능한 동일 UI path에서:
+
+A.
+사진 1장 선택
+→ 선택 직후 preview 표시
+→ upload 성공
+→ preview 유지
+
+B.
+사진 여러 장
+→ 각각 즉시 preview
+
+C.
+영상 1개 선택
+→ 선택 직후 visual preview 표시
+→ upload 성공
+→ preview 유지
+
+D.
+업로드 실패
+→ preview + 실패 상태 정상
+
+E.
+첨부 제거
+→ preview 즉시 제거
+
+F.
+Diary Save
+→ 기존 정상 동작 유지
+
+전체 test suite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 DIARY MEDIA PREVIEW REPORT
+
+Branch:
+...
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+Root cause of missing preview:
+...
+
+Photo immediate preview:
+PASS / FAIL
+
+Video immediate preview:
+PASS / FAIL
+
+Preview uses local URI before upload:
+YES / NO
+
+Upload status visible:
+YES / NO
+
+Remove attachment:
+PASS / FAIL
+
+Photo upload changed:
+NO
+
+Video upload changed:
+NO
+
+R2 changed:
+NO
+
+DB changed:
+NO
+
+Native dependency added:
+NO
+
+Diary Save regression:
+PASS / FAIL
+
+Production deploy/OTA performed:
+NO
+
+Final:
+PASS_FOR_IOS_OTA / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
