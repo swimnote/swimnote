@@ -1,0 +1,198 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 FINAL — APP RELEASE LINE INTEGRATION CHECK
+# AI ENGINE 연결 구현 PASS
+# 배포선만 확인
+# 새 기능 금지
+# OTA 금지
+# WP17 선행 금지
+
+현재 Teacher Diary AI ENGINE 연결은 기능적으로 PASS했습니다.
+
+완료 commit:
+1202e449869d584badc9f31b1462a7ca5f5aa4e7
+
+변경:
+TeacherDiaryAIClient.ts 1줄
+
+Final Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+Actual Engine smoke:
+HTTP 200
+pipeline_mode=grounded_v1
+grounding_validation=PASS
+knowledge_ids present
+fallback_used=false
+unexpected 5xx=0
+
+기능 재검증/재구현 금지.
+
+이번 작업은 오직
+"1202e449가 공식 APP 2.0.1 release 배포선에 포함되어 있는지"
+확인하고 필요한 경우 최소 integration만 수행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 공식 APP release 기준 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+공식 release branch:
+
+release/v2.0.0
+
+기존 freeze 기준:
+
+version = 2.0.1
+runtimeVersion = 2.1.0
+ios.buildNumber = 256
+android.versionCode = 240
+
+현재:
+
+git fetch origin
+
+보고:
+
+origin/release/v2.0.0 HEAD:
+...
+
+1202e449 ancestor of origin/release/v2.0.0:
+YES / NO
+
+현재 작업 repo의 main이
+공식 APP release repo/branch와 어떤 관계인지 정확히 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이미 포함되어 있으면
+━━━━━━━━━━━━━━━━━━━━━━
+
+1202e449가 release/v2.0.0에 이미 포함:
+
+→ 코드 변경 없음
+→ merge 없음
+→ PASS_FOR_IOS_OTA
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 포함되어 있지 않으면
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 1-file / 1-line 변경만
+공식 release/v2.0.0에 안전하게 포함.
+
+방법은 repository history를 보존하는
+가장 작은 정상 integration 사용.
+
+금지:
+
+- force push
+- reset --hard
+- unrelated commit 포함
+- broad merge
+- 다른 기능 수정
+
+충돌 발생 시 임의 해결 금지, HOLD.
+
+통합 후 반드시 확인:
+
+TeacherDiaryAIClient production base:
+https://swimnote-professional-engine.onrender.com
+
+version:
+2.0.1
+
+runtimeVersion:
+2.1.0
+
+ios.buildNumber:
+256
+
+android.versionCode:
+240
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 정책 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는 OTA 실행 금지.
+
+최종 Production OTA 정책:
+
+Platform:
+iOS ONLY
+
+Channel:
+production-v2
+
+Android OTA:
+절대 금지
+
+보고서에 나온
+"--branch production"을 자동 실행하지 마십시오.
+
+실제 publish command는
+사용자 승인 후 별도 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 APP RELEASE LINE FINAL REPORT
+
+Current work commit:
+1202e449869d584badc9f31b1462a7ca5f5aa4e7
+
+origin/release/v2.0.0 before:
+...
+
+1202e449 already contained:
+YES / NO
+
+Integration required:
+YES / NO
+
+Integration method:
+...
+
+origin/release/v2.0.0 after:
+...
+
+Final Teacher Diary Engine URL:
+https://swimnote-professional-engine.onrender.com
+
+Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+iOS buildNumber:
+256
+
+Android versionCode:
+240
+
+Tests:
+...
+
+Production OTA performed:
+NO
+
+Android OTA:
+NO
+
+Ready for iOS production-v2 OTA:
+YES / NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS_FOR_IOS_OTA / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
+
+중요:
+AI ENGINE 연결 기능은 이미 PASS했습니다.
+다시 조사하거나 다시 만들지 마십시오.
+이번에는 공식 release 배포선만 맞추십시오.
