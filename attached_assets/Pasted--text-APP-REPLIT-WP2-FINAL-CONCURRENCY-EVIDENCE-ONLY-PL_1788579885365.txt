@@ -1,0 +1,214 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP2 — FINAL CONCURRENCY EVIDENCE ONLY
+# PLAN FREEZE — 새 구현/재설계 금지
+
+현재 WP2 commit:
+
+9b619015
+origin/release/v2.0.0
+
+현재 구현은 유지합니다.
+
+이번 작업은 WP2의 마지막 미충족 완료조건:
+
+"한도 직전 상태에서 실제 동시 요청 2건이 들어왔을 때
+FOR UPDATE가 직렬화하여 정확히 1건만 성공하는가"
+
+만 검증합니다.
+
+WP3 이후 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 검증할 정확한 시나리오
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300 pool 기준:
+
+starting active count:
+299
+
+동시에 2개의 member increase transaction 실행.
+
+예상:
+
+attempts:
+2
+
+success:
+1
+
+PLAN_MEMBER_LIMIT_REACHED:
+1
+
+final active count:
+300
+
+overflow:
+0
+
+중요:
+
+현재처럼 starting count=300에서
+2건 모두 reject되는 테스트는 이 race condition 증거로 인정하지 않습니다.
+
+반드시:
+
+299 → concurrent 2 requests → 1 success / 1 reject → 300
+
+시나리오를 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 테스트 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 실제 PostgreSQL transaction + row lock 동작을 검증하는
+현재 테스트환경에서 가장 작은 integration/concurrency test를 사용하십시오.
+
+검증 대상:
+
+SELECT ... FOR UPDATE OF sp
+→ 첫 transaction lock
+→ 두 번째 transaction 대기
+→ 첫 transaction insert 후 commit
+→ 두 번째 transaction lock 획득
+→ count=300 재조회
+→ PLAN_MEMBER_LIMIT_REACHED
+
+단순 mock으로:
+
+"FOR UPDATE니까 아마 직렬화될 것이다"
+
+라고 가정하는 테스트는 이번 완료증거로 부족합니다.
+
+현재 테스트 환경상 실제 DB concurrency test가 기술적으로 불가능하다면
+임의로 다른 locking architecture를 만들지 말고
+정확한 blocker만 보고하고 STOP하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 코드 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현이 정상이라면 production code 수정하지 마십시오.
+
+특히 금지:
+
+- member-limit helper 재설계
+- lock 방식 변경
+- lifecycle 변경
+- 새로운 DB schema
+- migration
+- route 추가 수정
+- WP3 RevenueCat
+- WP5 Push
+- WP4 Notice
+- 관련 없는 refactor
+
+필요하면 test code만 최소 수정/추가하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 추가 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 테스트에서 가능하면 확인:
+
+Pool A:
+299 → concurrent 2 → final 300
+
+Pool B:
+별도 pool row lock 때문에 Pool A 작업에 불필요하게 묶이지 않음
+
+단 이미 Different-pool concurrency 증거가 충분하다면
+그 테스트를 다시 대규모로 만들 필요 없습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP2 FINAL CONCURRENCY REPORT
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+9b619015
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Production code changed:
+YES / NO
+
+Test files changed:
+...
+
+Test type:
+REAL DB INTEGRATION / OTHER
+
+Database:
+TEST / STAGING / OTHER
+
+Starting active count:
+299
+
+Concurrent attempts:
+2
+
+Success:
+1 / ...
+
+Rejected:
+1 / ...
+
+Rejected error:
+PLAN_MEMBER_LIMIT_REACHED / ...
+
+Final active count:
+300 / ...
+
+Overflow:
+0 / ...
+
+FOR UPDATE serialization observed:
+PASS / FAIL
+
+Different-pool independence:
+PASS / FAIL / PREVIOUS EVIDENCE REUSED
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+DB schema changes:
+NO
+
+Migration:
+NO
+
+Production data changes:
+NO
+
+Render required:
+YES / NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / FAIL
+
+이번 작업은 마지막 concurrency evidence만 확보합니다.
+
+기존 구현을 다시 열거나 다른 WP를 선행하지 마십시오.
+
+완료 후 즉시 STOP하십시오.
+```
