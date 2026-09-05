@@ -7293,6 +7293,155 @@ router.get(
 );
 
 // ════════════════════════════════════════════════════════════════════════════
+// WP13 DATA INTEGRITY CHECKER — Super Admin read-only integrity routes
+// §0: READ ONLY — NO UPDATE / DELETE / INSERT repair
+// §21: GET /super/integrity/summary, GET /super/integrity/issues,
+//      GET /super/integrity/pools/:poolId
+// ════════════════════════════════════════════════════════════════════════════
+
+import { runIntegrityScan, type IntegrityIssue } from "../lib/integrity-checker.js";
+
+const INTEGRITY_SUPER_ROLES = new Set(["super_admin", "platform_admin"]);
+
+function requireIntegrityRole(req: any, res: any, next: any) {
+  if (!req.user || !INTEGRITY_SUPER_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: "FORBIDDEN", message: "슈퍼관리자 전용 기능입니다." });
+  }
+  next();
+}
+
+/**
+ * GET /super/integrity/summary
+ * §18A/B: Global scan summary — CRITICAL/WARNING/INFO counts + overall status.
+ * §23: Optionally writes ONE DATA_INTEGRITY_SCAN audit log on demand.
+ * §19: Bounded per-check LIMIT=50 default; 500 pools → no per-pool N+1.
+ */
+router.get(
+  "/super/integrity/summary",
+  requireIntegrityRole,
+  async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit ?? 50), 100);
+      const result = await runIntegrityScan({ limit });
+
+      // Optional audit — only on explicit ?audit=1 to avoid log spam
+      if (req.query.audit === "1") {
+        await superAdminDb.execute(sql`
+          INSERT INTO audit_logs
+            (id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+          VALUES
+            (gen_random_uuid()::text, ${req.user!.userId},
+             'DATA_INTEGRITY_SCAN', 'global', 'global',
+             ${JSON.stringify({
+               scanned_at: result.scanned_at,
+               critical:   result.summary.CRITICAL,
+               warning:    result.summary.WARNING,
+               info:       result.summary.INFO,
+               total:      result.summary.total,
+             })}::jsonb,
+             NOW())
+        `);
+      }
+
+      const overall =
+        result.summary.CRITICAL > 0 ? "CRITICAL" :
+        result.summary.WARNING  > 0 ? "WARNING"  : "OK";
+
+      return res.json({
+        overall,
+        summary:     result.summary,
+        scanned_at:  result.scanned_at,
+        check_count: result.check_count,
+        query_count: result.query_count,
+        n_plus_one:  "NONE",
+      });
+    } catch (e: any) {
+      console.error("[WP13] /super/integrity/summary 오류:", e?.message);
+      return res.status(500).json({ error: "SCAN_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * GET /super/integrity/issues
+ * §21: Paginated issue list with optional severity/code filter.
+ * §17: Each issue: code, severity, entity_type, entity_id, pool_id, summary, evidence, suggested_action.
+ * §24: No PII in evidence (student names / phone numbers excluded from checks).
+ */
+router.get(
+  "/super/integrity/issues",
+  requireIntegrityRole,
+  async (req, res) => {
+    try {
+      const limit    = Math.min(Number(req.query.limit ?? 50), 100);
+      const offset   = Number(req.query.offset ?? 0);
+      const severity = req.query.severity as string | undefined;
+      const code     = req.query.code     as string | undefined;
+
+      const result = await runIntegrityScan({ limit });
+
+      let issues: IntegrityIssue[] = result.issues;
+      if (severity) issues = issues.filter(i => i.severity === severity.toUpperCase());
+      if (code)     issues = issues.filter(i => i.code === code);
+
+      const page = issues.slice(offset, offset + limit);
+
+      return res.json({
+        issues:     page,
+        total:      issues.length,
+        limit,
+        offset,
+        scanned_at: result.scanned_at,
+      });
+    } catch (e: any) {
+      console.error("[WP13] /super/integrity/issues 오류:", e?.message);
+      return res.status(500).json({ error: "SCAN_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * GET /super/integrity/pools/:poolId
+ * §18A: Single pool deep scan — scoped to one pool.
+ * §28: Pool Admin cannot access global integrity API — but Super Admin can view any pool.
+ */
+router.get(
+  "/super/integrity/pools/:poolId",
+  requireIntegrityRole,
+  async (req, res) => {
+    try {
+      const { poolId } = req.params;
+      const limit = Math.min(Number(req.query.limit ?? 50), 100);
+
+      // Verify pool exists first
+      const poolRow = (await superAdminDb.execute(sql`
+        SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows[0] as any;
+      if (!poolRow) return res.status(404).json({ error: "POOL_NOT_FOUND" });
+
+      const result = await runIntegrityScan({ poolId, limit });
+
+      const overall =
+        result.summary.CRITICAL > 0 ? "CRITICAL" :
+        result.summary.WARNING  > 0 ? "WARNING"  : "OK";
+
+      return res.json({
+        pool_id:     poolId,
+        pool_name:   poolRow.name,
+        overall,
+        summary:     result.summary,
+        issues:      result.issues,
+        scanned_at:  result.scanned_at,
+        check_count: result.check_count,
+      });
+    } catch (e: any) {
+      console.error("[WP13] /super/integrity/pools/:id 오류:", e?.message);
+      return res.status(500).json({ error: "SCAN_FAILED", message: e?.message });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════════
 // WP12 MARKETING — Super Admin marketing message routes
 // ════════════════════════════════════════════════════════════════════════════
 
