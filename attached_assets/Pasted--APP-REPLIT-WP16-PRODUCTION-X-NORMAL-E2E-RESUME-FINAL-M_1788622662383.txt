@@ -1,0 +1,747 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — PRODUCTION X / NORMAL E2E RESUME
+# FINAL MASTER WP FREEZE
+# PRODUCTION DEPLOY COMPLETED BY USER
+# WP17 선행 금지
+
+현재 기준:
+
+release/v2.0.0 HEAD:
+aff68b8a
+
+origin/main:
+210d0554a6204b060a31fa2065e463d81dc4b32b
+
+Production required migrations:
+WP4 PASS
+WP5 PASS
+WP8 PASS
+WP11 PASS
+
+사용자가 Render 수동 배포 완료를 보고했습니다.
+
+이번 작업은
+Production X / Normal E2E 검증만 수행합니다.
+
+기능 개발 금지.
+Production migration 금지.
+Production destructive write 금지.
+WP17 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render SHA Final Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 Render deployed SHA를 확인하십시오.
+
+보고:
+
+Render deployed SHA:
+...
+
+확인:
+
+git merge-base --is-ancestor aff68b8a <render_sha>
+
+Expected:
+YES
+
+또한 가능하면:
+
+git merge-base --is-ancestor 210d0554a6204b060a31fa2065e463d81dc4b32b <render_sha>
+
+Expected:
+YES
+또는 Render SHA 자체가 210d0554...
+
+하나라도 NO이면:
+HOLD + STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production Schema Final Recheck
+━━━━━━━━━━━━━━━━━━━━━━
+
+READ-ONLY 확인:
+
+WP4:
+notice unified columns 8/8
+notice_dismissals PRESENT
+
+WP5:
+push_fanout_jobs PRESENT
+push_fanout_deliveries PRESENT
+
+WP8:
+4/4 pagination indexes PRESENT
+
+WP11:
+admin_member_notes PRESENT
+
+Expected:
+Missing required migrations = NONE
+
+추가 DDL 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production Pool Targets
+━━━━━━━━━━━━━━━━━━━━━━
+
+X Pool:
+
+Toykids
+pool_1780849364252_l9k44rbk3
+
+Normal Pool:
+
+Production에 존재하는 실제 Normal SWIMNOTE pool 중
+안전하게 READ-only 검증 가능한 Pool 하나 선택.
+
+보고:
+
+Normal Pool ID:
+...
+
+Selection reason:
+...
+
+실제 고객 데이터 mutation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Authentication Smoke
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 기존 test/account credential이 실제로 존재할 경우에만:
+
+- Normal Pool Admin
+- X Pool Admin
+- Teacher
+- Parent
+
+확인:
+
+login success
+JWT resolution
+pool resolution
+role resolution
+unexpected 500 = 0
+
+credential 원문 로그/보고 금지.
+
+안전한 account가 없으면:
+READ-only route/session evidence로 가능한 범위 수행하고
+해당 auth role은 SAFE_ACCOUNT_NOT_AVAILABLE로 보고.
+
+실제 고객 비밀번호 추측/변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Normal Pool E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+READ-only 또는 기존 안전 fixture 기준:
+
+Mode:
+normal
+
+검증:
+
+- Admin dashboard
+- members/students list
+- classes
+- attendance read
+- diary list/detail
+- notices
+- notifications
+- storage state
+- billing/subscription state
+- X-only 기능 오노출 없음
+
+Unexpected 5xx:
+0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X Pool / Toykids E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids current Production state를 READ-only 확인:
+
+x_management_override:
+...
+
+x_manual_entitlement:
+...
+
+x_paid_entitlement:
+...
+
+x_force_disabled:
+...
+
+x_plan_key:
+...
+
+member_limit:
+...
+
+effective:
+...
+
+mode:
+...
+
+source:
+...
+
+중요:
+
+현재 상태를 있는 그대로 보고.
+
+이번 WP에서 Toykids entitlement 변경 금지.
+
+검증:
+
+- mode=x
+- effective X
+- canonical plan
+- member limit
+- X prerequisite
+- x_global template routing
+- AI Diary X routing
+- Growth state/access
+- notices/banner
+- notifications
+- storage
+- billing/manual/management semantics
+
+paid=false이어도
+manual 또는 management override로
+X 기능이 정상 동작할 수 있어야 함.
+
+mode=x를 paid=true로 해석하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X Prerequisite
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production READ-only로:
+
+global_template_sets ACTIVE 존재
+
+scope='x_global'
+swimming_pool_id IS NULL
+is_active=true template 존재
+
+checkXPrerequisite(Toykids)
+결과 확인.
+
+Expected:
+READY/PASS
+
+Upload history를 prerequisite로 사용하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Member Limit
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 회원 생성 금지.
+
+READ-only 확인:
+
+Toykids:
+active member count
+plan
+member_limit
+
+Normal Pool:
+plan/member limit semantics
+
+WP2 race test 재실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Cross-Pool Security Smoke
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 fixture/resource가 존재할 때만
+READ-only cross-pool denial 1~2개 확인.
+
+Expected:
+403/404
+
+무작위 실제 고객 resource ID probing 금지.
+
+safe fixture 없으면:
+
+SAFE_FIXTURE_NOT_AVAILABLE
+
+로 보고.
+
+WP6 전체 audit 재실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Notices / Banner
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production existing data 기준:
+
+- notice list route 정상
+- target filtering 정상
+- banner route 정상
+- dismissal/read 구조 접근 정상
+
+신규 notice 생성 금지.
+Marketing send 금지.
+Push 금지.
+
+Notices 0건이어도
+route/schema/auth가 정상이라면 PASS 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Push 발송 금지.
+
+확인:
+
+- push worker startup
+- scheduler heartbeat
+- queue tables accessible
+- failed/pending/current states
+- WP9 health state
+
+Synthetic push job 생성 금지.
+
+Expected:
+Production test Push sent = NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. RevenueCat
+━━━━━━━━━━━━━━━━━━━━━━
+
+fake purchase/event 금지.
+
+READ-only 확인:
+
+- webhook route/config 존재
+- revenuecat_webhook_events accessible
+- recent event processing
+- official product mapping
+- paid/manual/management separation
+
+Historical billing 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Growth
+━━━━━━━━━━━━━━━━━━━━━━
+
+강제 발급 금지.
+
+확인:
+
+- growth scheduler heartbeat
+- batch worker
+- analysis worker
+- existing growth reports
+- REVIEW_REQUIRED visibility
+- WP9 incident state
+
+manual recovery 실행 금지.
+date mock 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Admin Notes
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+admin_member_notes schema accessible
+
+API:
+auth/route 정상
+
+기존 note가 있으면 read-only 확인.
+
+Production test note 생성 금지.
+
+0 rows여도 route/schema/security 정상이라면 PASS 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Marketing
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 send 금지.
+
+확인:
+
+- Super Admin marketing route auth
+- audience preview READ operation
+- explicit ALL guard
+- empty target accidental global send blocked
+- scheduled push scheduler health
+
+Production Marketing Notice:
+NO
+
+Production Push:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Integrity Checker
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production full global scan 금지.
+
+가능하면:
+
+single safe Pool read-only scan
+
+또는 endpoint auth/health 확인.
+
+Data mutation:
+0
+
+Repair endpoint:
+0
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Ops Health
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production:
+
+Public health:
+PASS / FAIL
+
+Detailed Super Admin ops health:
+PASS / FAIL
+
+확인:
+
+API
+DB
+Push
+RevenueCat
+Growth
+Workers
+
+현재 실제 incident가 있으면
+새 장애를 만들지 말고 그대로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Unexpected 5xx
+━━━━━━━━━━━━━━━━━━━━━━
+
+주요 정상 READ route에서:
+
+unexpected 5xx = 0
+
+만약 5xx 발생:
+
+route
+status
+safe error code
+root evidence
+
+보고.
+
+실제 P0가 발견되면
+WP17로 넘어가지 말고 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Production Write Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 E2E 기본:
+
+Production DB writes:
+0
+
+허용하지 않음:
+
+- Toykids entitlement 변경
+- member 생성
+- attendance test write
+- diary test write
+- notice 생성
+- push enqueue
+- fake RevenueCat
+- Growth batch
+- Admin Note 생성
+- Marketing send
+
+READ-only 검증 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. WP16 PASS 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP16 PASS:
+
+1. Render ancestry includes aff68b8a
+2. Production schema complete
+3. Normal Pool core smoke PASS
+4. X Pool core smoke PASS
+5. Normal/X separation PASS
+6. paid/manual/management semantics PASS
+7. X prerequisite PASS
+8. X template routing PASS
+9. unexpected 5xx 0
+10. Push worker/queue health
+11. RC read-only health
+12. Growth read-only health
+13. Ops health
+14. Production destructive writes 0
+15. mass Push 0
+16. fake billing 0
+17. forced Growth 0
+18. P0 blocker 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PRODUCTION X / NORMAL E2E FINAL REPORT
+
+Release HEAD:
+aff68b8a
+
+origin/main:
+210d0554a6204b060a31fa2065e463d81dc4b32b
+
+Render deployed SHA:
+...
+
+aff68b8a ancestor of Render:
+YES / NO
+
+210d0554 ancestor of Render:
+YES / NO
+
+Production schema:
+
+WP4:
+PASS / FAIL
+
+WP5:
+PASS / FAIL
+
+WP8:
+PASS / FAIL
+
+WP11:
+PASS / FAIL
+
+Missing migrations:
+NONE / ...
+
+NORMAL POOL:
+
+Pool ID:
+...
+
+Selection reason:
+...
+
+Auth:
+PASS / FAIL / SAFE_ACCOUNT_NOT_AVAILABLE
+
+Mode:
+...
+
+Members:
+PASS / FAIL
+
+Classes:
+PASS / FAIL
+
+Attendance:
+PASS / FAIL
+
+Diary:
+PASS / FAIL
+
+Notice:
+PASS / FAIL
+
+Notification:
+PASS / FAIL
+
+Storage:
+PASS / FAIL
+
+Billing:
+PASS / FAIL
+
+X-only accidental exposure:
+0 / ...
+
+Unexpected 5xx:
+...
+
+X POOL:
+
+Pool ID:
+pool_1780849364252_l9k44rbk3
+
+Auth:
+PASS / FAIL / SAFE_ACCOUNT_NOT_AVAILABLE
+
+management:
+...
+
+manual:
+...
+
+paid:
+...
+
+force:
+...
+
+plan:
+...
+
+member_limit:
+...
+
+effective:
+...
+
+mode:
+...
+
+source:
+...
+
+X prerequisite:
+PASS / FAIL
+
+X global templates:
+PASS / FAIL
+
+X template routing:
+PASS / FAIL
+
+AI Diary X routing:
+PASS / FAIL
+
+Growth:
+PASS / FAIL
+
+Notice/Banner:
+PASS / FAIL
+
+Notification:
+PASS / FAIL
+
+Storage:
+PASS / FAIL
+
+Billing/source semantics:
+PASS / FAIL
+
+mode=x interpreted as paid:
+NO / FAIL
+
+Unexpected 5xx:
+...
+
+Toykids entitlement write:
+NO
+
+Push:
+
+Worker:
+PASS / FAIL
+
+Scheduler:
+PASS / FAIL
+
+Queue:
+PASS / FAIL
+
+Production test Push:
+NO
+
+RevenueCat:
+
+Webhook/config:
+PASS / FAIL
+
+Event processing:
+PASS / FAIL
+
+Paid/manual/management separation:
+PASS / FAIL
+
+Fake purchase/event:
+NO
+
+Growth:
+
+Scheduler:
+PASS / FAIL
+
+Batch worker:
+PASS / FAIL
+
+Analysis worker:
+PASS / FAIL
+
+REVIEW_REQUIRED visibility:
+PASS / FAIL
+
+Forced generation:
+NO
+
+Admin Notes:
+PASS / FAIL / READ_ONLY_VERIFIED
+
+Marketing:
+PASS / FAIL
+
+Integrity:
+PASS / FAIL / SAFE_SCAN_NOT_RUN
+
+Ops health:
+PASS / FAIL
+
+Cross-pool smoke:
+PASS / FAIL / SAFE_FIXTURE_NOT_AVAILABLE
+
+Production DB writes:
+0 / ...
+
+Production data deletes:
+0
+
+Production migration:
+NO
+
+Production Render deploy by Replit:
+NO
+
+OTA published by Replit:
+NO
+
+P0 blockers:
+0 / ...
+
+P1 blockers:
+0 / ...
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+이번 작업은 Production E2E 검증입니다.
+
+새 기능 구현 금지.
+Production test data 생성 금지.
+WP17 선행 금지.
+
+P0 blocker가 없고 PASS 조건을 충족하면 STOP하십시오.
