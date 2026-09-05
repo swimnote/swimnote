@@ -229,7 +229,7 @@ export async function checkGrowthWorkers(): Promise<GrowthResult> {
     const ar = await superAdminDb.execute(sql`
       SELECT
         COUNT(*) FILTER (WHERE product_status = 'FAILED')::int                                                           AS afailed,
-        COUNT(*) FILTER (WHERE product_status = 'IN_PROGRESS' AND updated_at < ${analysisStaleTs}::timestamptz)::int    AS astuck
+        COUNT(*) FILTER (WHERE product_status IN ('PREANALYZING','ANALYZING') AND updated_at < ${analysisStaleTs}::timestamptz)::int    AS astuck
       FROM growth_reports
       WHERE updated_at > NOW() - INTERVAL '4 hours'
       LIMIT 1

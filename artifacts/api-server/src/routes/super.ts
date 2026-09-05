@@ -3682,6 +3682,145 @@ router.post(
   },
 );
 
+// ── POST /super/growth-reports/batch-recovery — Manual batch recovery ─────────
+//
+// 목적: Super Admin이 특정 pool+report_month에 대해 실패/누락된 배치를 수동으로 복구.
+// 조건:
+//   - exact pool + exact report_month (YYYY-MM) 지정
+//   - 이미 COMPLETED 배치는 무시 (중복 생성 금지)
+//   - 기존 FAILED/PARTIAL 배치는 PENDING으로 리셋 (재시도)
+//   - 없으면 새 PENDING 배치 생성
+//   - audit_logs 기록
+//   - duplicate report 방지 (processStudentReport 내 ON CONFLICT)
+//
+router.post(
+  "/super/growth-reports/batch-recovery",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { pool_id, report_month } = req.body as { pool_id?: string; report_month?: string };
+    const actorId = (req as any).user?.id ?? "super_admin";
+
+    if (!pool_id || typeof pool_id !== "string") {
+      res.status(400).json({ error: "INVALID_POOL_ID" });
+      return;
+    }
+
+    if (!report_month || !/^\d{4}-\d{2}$/.test(report_month)) {
+      res.status(400).json({ error: "INVALID_REPORT_MONTH", expected: "YYYY-MM" });
+      return;
+    }
+
+    // report_month = 이전달 (e.g. "2026-08")
+    // batch job의 year/month = 발급 실행 달 (e.g. 2026-09)
+    const [ryStr, rmStr] = report_month.split("-");
+    const ry = Number(ryStr), rm = Number(rmStr);
+    const batchYear  = rm === 12 ? ry + 1 : ry;
+    const batchMonth = rm === 12 ? 1       : rm + 1;
+
+    try {
+      // 기존 batch job 조회
+      const existing = await superAdminDb.execute(sql`
+        SELECT id, status, attempts FROM growth_report_batch_jobs
+        WHERE swimming_pool_id = ${pool_id}
+          AND year = ${batchYear} AND month = ${batchMonth}
+          AND job_type = 'MONTHLY_AUTO'
+        LIMIT 1
+      `);
+
+      let jobId: string;
+      let action: string;
+
+      if (existing.rows.length > 0) {
+        const job = existing.rows[0] as any;
+
+        if (job.status === "COMPLETED") {
+          res.json({
+            ok: true,
+            action: "SKIPPED_ALREADY_COMPLETED",
+            job_id: job.id,
+            pool_id, report_month,
+          });
+          return;
+        }
+
+        // FAILED/PARTIAL/RUNNING stale → PENDING 리셋
+        await superAdminDb.execute(sql`
+          UPDATE growth_report_batch_jobs
+          SET status = 'PENDING', next_attempt_at = NOW(), updated_at = NOW()
+          WHERE id = ${job.id}
+        `);
+        jobId  = job.id as string;
+        action = "RESET_TO_PENDING";
+      } else {
+        // 새 PENDING 배치 생성
+        const ins = await superAdminDb.execute(sql`
+          INSERT INTO growth_report_batch_jobs
+            (swimming_pool_id, year, month, job_type, status, next_attempt_at)
+          VALUES
+            (${pool_id}, ${batchYear}, ${batchMonth}, 'MONTHLY_AUTO', 'PENDING', NOW())
+          ON CONFLICT (swimming_pool_id, year, month, job_type) DO NOTHING
+          RETURNING id
+        `);
+        if (!ins.rows.length) {
+          // Race — look it up
+          const r2 = await superAdminDb.execute(sql`
+            SELECT id FROM growth_report_batch_jobs
+            WHERE swimming_pool_id = ${pool_id}
+              AND year = ${batchYear} AND month = ${batchMonth} AND job_type = 'MONTHLY_AUTO'
+            LIMIT 1
+          `);
+          jobId = r2.rows.length ? (r2.rows[0] as any).id as string : "unknown";
+        } else {
+          jobId = (ins.rows[0] as any).id as string;
+        }
+        action = "CREATED_NEW_BATCH";
+      }
+
+      // Audit
+      try {
+        const vRes = await superAdminDb.execute(sql`
+          SELECT next_audit_version('growth_report_batch_job', ${jobId}) AS v
+        `);
+        const v = (vRes.rows[0] as any)?.v ?? 1;
+        await superAdminDb.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason,
+            request_id, correlation_id, ip_hash
+          ) VALUES (
+            'growth_report_batch_job', ${jobId}, ${v},
+            'manual_recovery', 'super_admin', ${actorId}, ${pool_id},
+            ${JSON.stringify({ report_month, action })}::jsonb,
+            ${JSON.stringify({ status: 'PENDING', report_month, batch_year: batchYear, batch_month: batchMonth })}::jsonb,
+            'SUPER_ADMIN_BATCH_RECOVERY',
+            NULL, NULL, NULL
+          )
+        `);
+      } catch (auditErr: any) {
+        console.warn("[super] batch-recovery audit 실패:", auditErr.message);
+      }
+
+      console.log(`[super] BATCH_RECOVERY actor=${actorId} pool=${pool_id} report_month=${report_month} action=${action} job=${jobId}`);
+      res.json({
+        ok: true,
+        action,
+        job_id: jobId,
+        pool_id,
+        report_month,
+        batch_year:  batchYear,
+        batch_month: batchMonth,
+        message: action === "CREATED_NEW_BATCH"
+          ? "새 batch job 생성됨. worker loop에서 처리 예정."
+          : "기존 batch job을 PENDING으로 리셋. worker loop에서 처리 예정.",
+      });
+    } catch (err: any) {
+      console.error("[super] batch-recovery 오류:", err.message);
+      res.status(500).json({ error: "BATCH_RECOVERY_FAILED", message: err.message });
+    }
+  },
+);
+
 // ════════════════════════════════════════════════════════════════════════════
 // PATCH /super/operators/:id/base — BASE SWIMNOTE manual entitlement grant/revoke
 // ════════════════════════════════════════════════════════════════════════════
