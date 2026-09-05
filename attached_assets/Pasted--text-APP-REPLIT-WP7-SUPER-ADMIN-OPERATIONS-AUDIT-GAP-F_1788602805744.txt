@@ -1,0 +1,1185 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP7 — SUPER ADMIN OPERATIONS + AUDIT GAP FILL
+# + OFFICIAL MANUAL X GRANT
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 중간 계획 변경 금지
+
+목적:
+
+기존 Super Admin 운영 도구를 재사용하면서
+
+1. X Manual Grant를 공식 운영 기능으로 완성
+2. Paid / Manual / Management Override 의미를 완전히 분리
+3. Manual Grant prerequisite를 실제 X 운영 데이터 존재 기준으로 수정
+4. blind xmode_config_status='READY' 강제 설정 제거
+5. 필요한 운영 지표 / Audit gap 최소 보완
+6. Toykids를 최종적으로 Management Override → Manual Grant 구조로 이전할 준비 완료
+
+합니다.
+
+이번 작업은 WP7만 수행합니다.
+
+WP8 이후 작업 절대 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP에서 기존 시스템을 새로 만들지 않습니다.
+
+이미 존재:
+
+- Pool Health
+- Support Cases
+- audit_logs
+- X entitlement controls
+- Growth metrics
+
+반드시 재사용하십시오.
+
+금지:
+
+- Super Admin 전체 재설계
+- 새로운 CRM
+- 새로운 support system
+- 새로운 analytics platform
+- WP8 Pagination
+- WP9 Monitoring
+- 이후 WP 선행 구현
+- unrelated refactor
+
+새로운 실제 P0 발견 시
+해당 범위만 최소 수정하고 evidence 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+64cae1f1
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- 64cae1f1 ancestry 포함
+
+WP1~WP6 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. X Entitlement 공식 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 의미:
+
+Paid:
+x_paid_entitlement
+
+Manual:
+x_manual_entitlement
+
+Management Override:
+x_management_override
+
+Force Disabled:
+x_force_disabled
+
+Plan:
+x_plan_key
+
+Canonical access/mode:
+기존 resolver가 위 상태를 종합해서 결정.
+
+절대 금지:
+
+mode === 'x'
+→ paid subscriber로 해석
+
+manual=true
+→ fake RevenueCat purchase 생성
+
+management_override=true
+→ manual로 자동 복사
+
+RevenueCat webhook
+→ manual/management 변경
+
+WP3에서 확정된 semantics를 그대로 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Official Manual X Grant
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin이 결제 없이 다음 중 하나를 부여 가능해야 합니다.
+
+NONE
+X300
+X500
+X1000
+
+예:
+
+Manual X1000 Grant:
+
+x_manual_entitlement = true
+x_plan_key = 'x1000'
+member_limit = 1000
+x_force_disabled = false
+
+중요:
+
+x_paid_entitlement:
+변경 금지
+
+x_management_override:
+Grant 자체가 자동 변경하지 않음
+
+RevenueCat:
+fake purchase/event/row 생성 금지.
+
+Manual Grant는 billing-independent operation입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Manual Grant NONE / Revoke
+━━━━━━━━━━━━━━━━━━━━━━
+
+NONE 선택은:
+
+x_manual_entitlement=false
+
+를 의미.
+
+하지만:
+
+paid=true
+또는
+management_override=true
+
+이면 canonical X access가 계속 유지될 수 있습니다.
+
+Manual revoke가:
+
+paid=false
+management_override=false
+
+로 강제하면 안 됩니다.
+
+Plan 처리도 기존 canonical semantics 확인 후
+다른 entitlement source를 깨뜨리지 않는 방식으로 구현하십시오.
+
+즉:
+
+Manual source만 제거.
+
+다른 source는 그대로.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 확인된 기존 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 Replit review evidence:
+
+src/routes/super.ts 부근에서
+
+manual entitlement prerequisite가:
+
+xmode_config_status='READY'
+
+에 묶여 있음.
+
+또한 기존 Manual Grant endpoint에서
+bypass_readiness_check=true 흐름이
+
+xmode_config_status='READY'
+
+를 강제로 설정하는 구조가 확인됐습니다.
+
+이 구조는 최종 설계와 불일치합니다.
+
+이번 WP에서 정확히 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 금지 — Upload History를 prerequisite로 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+Manual X Grant prerequisite는:
+
+"과거 커리큘럼 파일을 업로드했는가"
+"승인 workflow를 거쳤는가"
+
+가 아닙니다.
+
+Toykids처럼:
+
+- upload history 없음
+- 하지만 실제 X 운영 curriculum/template/config 데이터가 이미 code/DB에 존재
+
+하는 Pool은 정상 Manual Grant 가능해야 합니다.
+
+절대:
+
+upload record 없음
+→ Manual Grant 불가
+
+로 판단하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실제 X Prerequisite Resolver
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 repository에서
+X mode가 실제 운영되기 위해 필요한 canonical 데이터가 무엇인지
+최소 범위로 확인하십시오.
+
+예시 개념:
+
+- 실제 curriculum/template set 존재
+- X에서 사용하는 required configuration 존재
+- X runtime이 참조하는 실제 data source 존재
+
+중요:
+
+새 readiness 시스템을 발명하지 마십시오.
+
+현재 X runtime이 실제로 참조하는 데이터 존재 여부를 기준으로
+하나의 canonical prerequisite resolver/helper를 사용하거나 최소 구현하십시오.
+
+목표:
+
+canActivateManualX(poolId)
+
+와 같은 의미.
+
+정확한 함수명은 repository convention에 맞게.
+
+결과 최소:
+
+READY
+NOT_READY
+
+그리고 NOT_READY이면:
+
+- 어떤 실제 required data가 부족한지
+- 사용자가 이해 가능한 reason
+
+제공.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. xmode_config_status 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 금지:
+
+Manual Grant 요청
+→ 무조건 xmode_config_status='READY'
+
+blind force.
+
+xmode_config_status가 현재 다른 운영 flow에서 필요한 legacy/status field라면
+그 자체를 삭제하지 마십시오.
+
+다만:
+
+Manual Grant authorization source
+또는
+실제 X data 존재의 대체값으로 사용하지 마십시오.
+
+실제 prerequisite를 통과했을 때
+현재 기존 legitimate transition logic이 status를 READY로 만드는 것이
+정말 필요한 구조라면
+기존 공식 transition만 재사용 가능.
+
+직접 UPDATE ... SET READY 강제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Toykids 특별 처리 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids exact Production pool ID:
+
+pool_1780849364252_l9k44rbk3
+
+중요:
+
+이 ID는 향후 Production 검증 대상 식별용입니다.
+
+코드에:
+
+if poolId === 'pool_1780849364252_l9k44rbk3'
+
+같은 특별 branch를 만들지 마십시오.
+
+이름:
+
+토이키즈
+Toykids
+
+hardcode 금지.
+
+Manual Grant가 제대로 구현되면
+Toykids도 일반적인 동일 flow로 통과해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Toykids 최종 목표 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 공식 상태:
+
+x_management_override = false
+x_manual_entitlement = true
+x_paid_entitlement = false
+x_force_disabled = false
+
+x_plan_key = x1000
+member_limit = 1000
+
+effective = true
+mode = x
+source = MANUAL
+
+단:
+
+이번 Replit 작업에서
+Production DB를 직접 변경하지 마십시오.
+
+먼저:
+
+- 구현
+- Staging 검증
+- Manual Grant 실제 flow PASS
+- canonical resolver 결과 PASS
+
+후 완료보고에서
+Toykids Production 변경에 필요한 exact before/after operation만 제출하십시오.
+
+사용자 승인 전 Production mutation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. x_management_override 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+field/기능 자체는 삭제하지 않습니다.
+
+Management Override는:
+
+- HQ emergency
+- fallback
+- advanced operational override
+
+용도로 계속 유지.
+
+이번 WP에서 삭제/rename/deprecate 금지.
+
+Toykids만 향후 정상 Manual source로 이동하는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Manual Grant UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Super Admin Pool/X entitlement UI가 있으면 재사용/확장.
+
+새 별도 Admin 앱 만들지 마십시오.
+
+최소 UI:
+
+Manual X Grant:
+- NONE
+- X300
+- X500
+- X1000
+
+상태 표시:
+
+Paid:
+ON/OFF
+
+Manual:
+ON/OFF
+
+Management Override:
+ON/OFF
+
+Force Disabled:
+ON/OFF
+
+Effective X:
+ON/OFF
+
+Plan:
+...
+
+Source:
+PAID / MANUAL / MANAGEMENT / NONE
+또는 현재 canonical resolver 표현.
+
+중요:
+
+Paid와 Manual을 하나의 "활성" toggle로 뭉치지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Manual Grant Authorization
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin only.
+
+Pool Admin:
+Manual Grant 불가
+
+Teacher:
+불가
+
+Parent:
+불가
+
+client supplied role 신뢰 금지.
+
+기존 Super Admin authorization helper 재사용.
+
+WP6에서 검증한 security 약화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Audit Log
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 audit_logs 재사용.
+
+Manual Grant / revoke에 최소 기록:
+
+- actor
+- pool
+- action
+- before
+- after
+- plan
+- timestamp
+
+Sensitive token/secret 저장 금지.
+
+Management Override 변경도
+현재 기존 audit가 없다면 최소 추가.
+
+중요:
+
+새 audit table 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Super Admin 운영 지표 Gap Fill
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Pool Health / Super Admin 화면에
+이미 있는 metrics를 먼저 확인.
+
+새 dashboard 전체 제작 금지.
+
+이번 WP에서 필요한 최소 visibility:
+
+- current member count / member limit
+- storage usage / quota
+- X paid/manual/management/force state
+- effective X mode + plan
+- RevenueCat billing state 요약
+- Push queue/failure 요약
+- Growth worker/report 상태는 기존 metric 재사용
+
+가능하면 기존 endpoint/health response에 additive하게 추가.
+
+새 telemetry platform 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Push 운영 지표
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5 durable queue가 생겼으므로
+Super Admin이 최소한 다음을 확인 가능하도록
+기존 health/operations 구조에 최소 연결:
+
+- pending fanout jobs
+- failed/partial jobs
+- pending deliveries
+- recent failures
+
+개별 사용자 push analytics/campaign analytics는
+WP12/WP20 범위.
+
+지금 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. RevenueCat 운영 지표
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 billing/RC 구조에서 가능한 최소 정보:
+
+- paid entitlement
+- current product/plan
+- auto renew cancelled
+- payment failure timestamp/status
+- recent webhook failure count 가능 시
+
+새 reconciliation worker 금지.
+WP20 범위 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Storage 운영 지표
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical storage quota 구조를 재사용해서:
+
+- base quota
+- DATA addon
+- effective quota
+- current usage
+
+표시 가능하게.
+
+DATA cancellation 정책은 아직 사용자 결정 미확정.
+
+WP3에서 미확정인:
+
+- expiry 후 quota 회수 시점
+- grace
+- over-quota upload policy
+
+를 이번 WP에서 임의 결정하지 마십시오.
+
+현재 상태 표시만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Member Limit 운영 지표
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP2 canonical limit helper/plan 정보를 재사용.
+
+최소:
+
+current active count
+effective member limit
+remaining slots
+
+가능하면:
+
+limit-10
+limit-5
+limit
+
+warning 정보도 기존 Super Admin Health에 additive.
+
+새 notification system 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Support Cases / Pool Health
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Support Cases와 Pool Health를 그대로 유지.
+
+새 support ticket 시스템 생성 금지.
+
+이번 WP에서 목적은:
+
+운영자가 한 Pool의 문제를 볼 때
+billing/X/member/storage/push 등의 최소 상태를
+기존 operations 화면에서 함께 파악할 수 있게 하는 것.
+
+대형 redesign 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. DB / Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 기대:
+
+DB schema change:
+NO
+
+Migration:
+NO
+
+기존 entitlement/audit/health 구조 재사용.
+
+실제 필요한 field가 이미 없는 경우에만
+evidence 보고 후 STOP.
+
+신규 runtime DDL 금지.
+
+Production DB mutation:
+NO
+
+Toykids Production 변경:
+NO — 사용자 승인 전 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Staging Manual Grant E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+Staging에서 최소 세 가지 Pool/상태 테스트.
+
+A. 실제 X prerequisite 데이터가 있는 Pool
++ upload history 없음
+
+Manual X1000 Grant:
+
+manual=true
+paid unchanged
+management unchanged
+force=false
+plan=x1000
+member_limit=1000
+effective=true
+source=MANUAL 또는 canonical equivalent
+
+PASS 필요.
+
+
+B. 실제 prerequisite 데이터가 없는 Pool
+
+Manual Grant attempt:
+
+BLOCK
+
+xmode_config_status blind READY:
+절대 발생하지 않음.
+
+
+C. Paid X Pool
+
+paid=true
+
+Manual X500 Grant/revoke를 해도
+paid state unchanged.
+
+Manual revoke 후에도
+Paid source 때문에 effective X 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Management Override coexistence 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Staging:
+
+management_override=true
+manual=false
+paid=false
+
+→ effective X 유지.
+
+그 상태에서 Manual X1000 Grant:
+
+management_override:
+자동 OFF 금지
+
+manual:
+true
+
+그 후 management override를 별도 legitimate control로 OFF:
+
+manual=true이므로
+effective X 유지
+source=MANUAL
+
+이 sequence를 검증하십시오.
+
+Toykids Production 전환의 사전 증명입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. Force Disabled 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 canonical semantics를 확인하고 그대로 검증.
+
+예상 의미:
+
+x_force_disabled=true
+
+이면 Paid/Manual/Management가 있어도
+effective X 차단.
+
+단 현재 resolver의 공식 semantics가 다르면
+기존 canonical behavior를 변경하지 말고 보고.
+
+Manual Grant가
+force_disabled를 자동 해제하는 설계가 확정되어 있으므로:
+
+Manual Grant 실행 시
+x_force_disabled=false
+
+적용.
+
+다만 revoke가 force flag를 건드리면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 필수 Security 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. Super Admin Manual X300
+→ PASS
+
+B. Super Admin Manual X500
+→ PASS
+
+C. Super Admin Manual X1000
+→ PASS
+
+D. Super Admin Manual NONE
+→ PASS
+
+E. Pool Admin Manual Grant
+→ 403
+
+F. Teacher
+→ 403
+
+G. Parent
+→ 403
+
+H. client role spoof
+→ BLOCK
+
+I. target Pool ID valid but non-Super Admin
+→ BLOCK
+
+WP6 전체 audit 다시 실행 금지.
+
+WP7 route만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 필수 Semantics 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+1.
+manual grant
+→ paid unchanged
+
+2.
+manual grant
+→ management unchanged
+
+3.
+manual grant
+→ no fake RC event
+
+4.
+manual revoke
+→ paid unchanged
+
+5.
+manual revoke
+→ management unchanged
+
+6.
+RC expiry when manual=true
+→ manual remains true
+→ effective X 유지
+
+7.
+management=false when manual=true
+→ effective X 유지
+
+8.
+mode=x / paid=false
+→ valid
+
+9.
+x1000
+→ member_limit=1000
+
+10.
+x500
+→ 500
+
+11.
+x300
+→ 300
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. Prerequisite 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+A. Upload history 없음
+BUT actual X data exists
+→ READY/PASS
+
+B. Upload history 있음
+BUT actual required X data 없음
+→ NOT_READY/BLOCK
+
+C. No blind:
+UPDATE xmode_config_status='READY'
+
+증명.
+
+D. prerequisite result reason 제공.
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. Audit 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Manual Grant:
+audit row 1
+
+Manual revoke:
+audit row 1
+
+before/after 정확.
+
+actor/pool/action 정확.
+
+민감정보 없음.
+
+동일 API retry 시
+불필요한 duplicate audit가 발생하는지
+현재 operation semantics 기준 최소 확인.
+
+대형 audit redesign 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. Toykids Production Transition PREVIEW
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production mutation은 하지 마십시오.
+
+Exact pool:
+
+pool_1780849364252_l9k44rbk3
+
+완료보고에서 READ-ONLY로 가능하다면 현재 Production 상태 확인:
+
+- x_management_override
+- x_manual_entitlement
+- x_paid_entitlement
+- x_force_disabled
+- x_plan_key
+- member_limit
+- effective resolver outcome
+
+단 Production read가 현재 안전한 existing admin/DB read mechanism으로
+가능한 경우에만.
+
+Production write:
+절대 NO.
+
+그리고 Manual Grant feature PASS 후
+향후 승인 시 수행할 exact transition:
+
+BEFORE:
+...
+
+ACTION 1:
+Official Manual X1000 Grant via canonical API
+
+VERIFY:
+manual=true
+paid=false
+plan=x1000
+limit=1000
+effective=true
+
+ACTION 2:
+Management Override OFF via legitimate management control
+
+VERIFY:
+management=false
+manual=true
+paid=false
+force=false
+effective=true
+mode=x
+source=MANUAL
+
+형태로 제출.
+
+직접 SQL 강제 전환을 기본안으로 사용하지 마십시오.
+
+Canonical API/operation 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP8 Pagination
+- WP9 Monitoring
+- WP10 Growth worker
+- WP11 Admin Notes
+- WP12 Marketing
+- WP13 Integrity
+- WP14 Cleanup
+- WP15 Version
+- WP16 E2E
+- RevenueCat architecture 변경
+- WP5 Push queue redesign
+- Notice schema 변경
+- AI Engine 수정
+- Toykids hardcode
+- Production DB write
+- fake RevenueCat purchase
+- x_management_override 삭제
+- xmode_config_status blind READY
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server 변경 예상:
+
+Render required:
+YES/NO 보고.
+
+Super Admin app JS/TS UI 변경 시:
+
+iOS OTA required:
+YES/NO 보고.
+
+Replit이 OTA publish 금지.
+
+Android OTA:
+NO.
+
+Native binary:
+NO 예상.
+
+Production deploy:
+하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. PASS 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP7 PASS:
+
+1. Official Manual NONE/X300/X500/X1000
+2. Super Admin only
+3. Paid unchanged
+4. Management Override unchanged by grant
+5. Force-disabled proper semantics
+6. fake RC 0
+7. real X prerequisite resolver
+8. upload history dependency 제거
+9. blind READY 제거
+10. Toykids hardcode 0
+11. audit_logs 연결
+12. existing Pool Health/Support 재사용
+13. member limit visibility
+14. storage visibility
+15. RC visibility
+16. push failure/queue visibility
+17. existing Growth metrics reuse
+18. Staging Manual Grant E2E PASS
+19. Management→Manual transition sequence PASS
+20. Production Toykids write 0
+21. Production transition preview 제공
+22. 관련 tests PASS
+23. Commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP7 SUPER ADMIN + MANUAL X GRANT REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+64cae1f1
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Official Manual Grant endpoint/action:
+...
+
+Options:
+NONE / X300 / X500 / X1000
+
+Super Admin only:
+PASS / FAIL
+
+Pool Admin denied:
+PASS / FAIL
+
+Teacher denied:
+PASS / FAIL
+
+Parent denied:
+PASS / FAIL
+
+Paid changed by Manual Grant:
+YES / NO
+
+Management Override changed automatically:
+YES / NO
+
+Fake RevenueCat event/row:
+YES / NO
+
+Manual X300:
+PASS / FAIL
+
+Manual X500:
+PASS / FAIL
+
+Manual X1000:
+PASS / FAIL
+
+Manual NONE/revoke:
+PASS / FAIL
+
+Canonical prerequisite resolver:
+...
+
+Prerequisite actual data sources:
+...
+
+Upload history required:
+YES / NO
+
+Blind xmode_config_status READY removed:
+YES / NO
+
+Pool with actual X data + no upload history:
+PASS / FAIL
+
+Pool with upload history + no required X data:
+BLOCKED / FAIL
+
+Force Disabled semantics:
+...
+
+Audit log:
+PASS / FAIL
+
+Audit actions:
+...
+
+Pool Health reused:
+YES / NO
+
+Support Cases reused:
+YES / NO
+
+Member count/limit visibility:
+PASS / FAIL
+
+Storage usage/quota visibility:
+PASS / FAIL
+
+RevenueCat state visibility:
+PASS / FAIL
+
+Push queue/failure visibility:
+PASS / FAIL
+
+Growth metrics reused:
+PASS / FAIL
+
+Staging Manual Grant E2E:
+PASS / FAIL
+
+Management Override → Manual sequence:
+PASS / FAIL
+
+Production Toykids write:
+NO
+
+Toykids current read-only state:
+...
+
+Toykids transition preview:
+
+BEFORE:
+...
+
+STEP 1:
+...
+
+VERIFY 1:
+...
+
+STEP 2:
+...
+
+VERIFY 2:
+...
+
+Expected final:
+management_override=false
+manual=true
+paid=false
+force_disabled=false
+plan=x1000
+member_limit=1000
+effective=true
+mode=x
+source=MANUAL
+
+DB schema changes:
+YES / NO
+
+Migration:
+YES / NO
+
+Production data changes:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+Render required:
+YES / NO
+
+iOS OTA required:
+YES / NO
+
+Android OTA:
+NO
+
+Native binary required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+Production Toykids 상태는 사용자 승인 전 절대 변경하지 마십시오.
+
+WP7 완료조건 만족 후
+WP8 선행 구현 없이 즉시 STOP하십시오.
+
+새로운 실제 P0 blocker가 발견되면
+roadmap 변경 없이 해당 evidence만 보고하십시오.
+```

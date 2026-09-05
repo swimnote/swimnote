@@ -3785,26 +3785,34 @@ router.get(
 // ════════════════════════════════════════════════════════════════════════════
 //
 // Super Admin이 결제 없이 수영장에 X 이용권을 직접 부여/회수.
-// 쓰는 DB 필드: x_manual_entitlement (± x_force_disabled, x_plan_key, xmode_config_status)
-// 절대 수정하지 않는 필드: x_paid_entitlement, xmode_entitlement (legacy)
-// RevenueCat 상태 조작 금지.
+// 쓰는 DB 필드: x_manual_entitlement, x_force_disabled, x_plan_key, xmode_config_status, member_limit
+// 절대 수정하지 않는 필드: x_paid_entitlement, x_management_override
+// RevenueCat 상태 조작 금지. Fake purchase 금지.
+//
+// WP7 변경:
+//   - blind READY 강제 로직 제거 (prerequisite 실제 검증으로 대체)
+//   - x_plan_key: "x300"/"x500"/"x1000" 3가지만 허용 (grant 시 필수)
+//   - grant 시: checkXPrerequisite (실제 X runtime 데이터 기준) → READY 시에만 허용
+//   - xmode_config_status: prerequisite PASS 시 "READY" 설정 (upload history 무관)
 //
 // Body:
 //   xmode_entitlement: boolean  — true=부여, false=회수  (UI backward-compat key)
-//   x_plan_key?:       string | null
-//   bypass_readiness_check?: boolean  — true 시 xmode_config_status → READY
+//   x_plan_key?:       "none"|"x300"|"x500"|"x1000"|null
 //   reason?: string
 //
 // 부여 시:
+//   prerequisite check → READY only
 //   x_manual_entitlement = true
 //   x_force_disabled     = false  (강제 비활성화 해제)
-//   x_plan_key           = provided value (optional)
-//   xmode_config_status  = bypass_readiness_check ? 'READY' : 기존값 유지
+//   x_plan_key           = provided valid plan key
+//   xmode_config_status  = "READY" (prerequisite 통과 기반)
+//   member_limit         = catalog 기준 자동 설정
 //
-// 회수 시:
+// 회수 시 (NONE):
 //   x_manual_entitlement = false
 //   x_plan_key           = null
-//   (x_paid_entitlement, xmode_config_status 불변)
+//   member_limit         = null
+//   (x_paid_entitlement, xmode_config_status, x_force_disabled, x_management_override 불변)
 //
 // Response: effective resolver 기준 상태 반환.
 // Audit: audit_logs 기록.
@@ -3818,12 +3826,10 @@ router.patch(
     const {
       xmode_entitlement,
       x_plan_key,
-      bypass_readiness_check,
       reason,
     } = req.body as {
       xmode_entitlement?: boolean;
       x_plan_key?: string | null;
-      bypass_readiness_check?: boolean;
       reason?: string;
     };
 
@@ -3835,6 +3841,31 @@ router.patch(
     const actorId = req.user!.id;
     const grant = xmode_entitlement; // true=부여, false=회수
 
+    // ── Plan key validation (grant 시 필수) ──────────────────────────────────
+    const VALID_GRANT_PLANS = new Set(["x300", "x500", "x1000"]);
+    if (grant) {
+      if (!x_plan_key || !VALID_GRANT_PLANS.has(x_plan_key)) {
+        res.status(400).json({
+          error:   "INVALID_PLAN_KEY",
+          message: `x_plan_key는 x300, x500, x1000 중 하나여야 합니다. (받은 값: ${x_plan_key ?? "없음"})`,
+        });
+        return;
+      }
+
+      // WP7: checkXPrerequisite — 실제 X runtime 데이터 기준 (upload history 무관)
+      const { checkXPrerequisite } = await import("../lib/xmode-readiness.js");
+      const prereq = await checkXPrerequisite(poolId, superAdminDb);
+      if (!prereq.ready) {
+        res.status(422).json({
+          error:         "X_PREREQUISITE_NOT_MET",
+          message:       prereq.reason ?? "X 운영 prerequisite를 충족하지 않습니다.",
+          missing:       prereq.missing,
+          global_template_count: prereq.global_template_count,
+        });
+        return;
+      }
+    }
+
     try {
       await superAdminDb.transaction(async (tx) => {
         // ── Before state ───────────────────────────────────────────────
@@ -3844,6 +3875,7 @@ router.patch(
             COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
             COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
             COALESCE(x_force_disabled,    false) AS x_force_disabled,
+            COALESCE(x_management_override, false) AS x_management_override,
             x_plan_key,
             xmode_config_status
           FROM swimming_pools
@@ -3856,9 +3888,10 @@ router.patch(
         }
         const before = beforeRes.rows[0] as any;
 
-        const beforePaid   = Boolean(before.x_paid_entitlement);
-        const beforeManual = Boolean(before.x_manual_entitlement);
-        const beforeForce  = Boolean(before.x_force_disabled);
+        const beforePaid     = Boolean(before.x_paid_entitlement);
+        const beforeManual   = Boolean(before.x_manual_entitlement);
+        const beforeForce    = Boolean(before.x_force_disabled);
+        const beforeOverride = Boolean(before.x_management_override);
 
         // ── Build UPDATE ────────────────────────────────────────────────
         let newManual: boolean;
@@ -3867,17 +3900,19 @@ router.patch(
         let newConfigStatus: string | null;
 
         if (grant) {
-          newManual     = true;
-          newForce      = false; // 강제 비활성화 해제
-          newPlanKey    = x_plan_key ?? (before.x_plan_key ?? null);
-          newConfigStatus = bypass_readiness_check
-            ? "READY"
-            : (before.xmode_config_status ?? null);
+          newManual       = true;
+          newForce        = false; // 강제 비활성화 해제 (spec §24)
+          newPlanKey      = x_plan_key!;
+          // WP7: prerequisite PASS 기반 READY 설정 (blind 강제 아님)
+          newConfigStatus = "READY";
+          // x_management_override: 변경하지 않음 (spec §3, §11)
         } else {
-          newManual     = false;
-          newForce      = beforeForce; // force는 건드리지 않음
-          newPlanKey    = null;
-          newConfigStatus = before.xmode_config_status ?? null; // 불변
+          // NONE / revoke
+          newManual       = false;
+          newForce        = beforeForce; // force는 건드리지 않음 (spec §4)
+          newPlanKey      = null;
+          newConfigStatus = before.xmode_config_status ?? null; // 불변 (spec §4)
+          // x_management_override: 변경하지 않음
         }
 
         // ── Catalog-authoritative member_limit ─────────────────────────
@@ -4271,8 +4306,9 @@ router.get(
       if (!poolRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
       const pool = poolRes.rows[0] as any;
 
-      // Counts + storage + recent errors (parallel)
-      const [countsRes, errorRes, aiRes, grRes, notifRes, supportRes] = await Promise.all([
+      // Counts + storage + recent errors + WP7 operational metrics (parallel)
+      const [countsRes, errorRes, aiRes, grRes, notifRes, supportRes,
+             pushRes, memberLimitRes, storageRes, rcRes] = await Promise.all([
         superAdminDb.execute(sql`
           SELECT
             (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_members,
@@ -4315,6 +4351,54 @@ router.get(
           ORDER BY created_at DESC
           LIMIT 1
         `).catch(() => ({ rows: [] })),
+        // WP7: Push fanout queue visibility (WP5 durable tables)
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE status IN ('pending','claimed'))    AS pending_jobs,
+            COUNT(*) FILTER (WHERE status = 'failed')                  AS failed_jobs,
+            COUNT(*) FILTER (WHERE status = 'partial')                 AS partial_jobs,
+            COUNT(*) FILTER (WHERE completed_at > NOW() - INTERVAL '24 hours') AS completed_24h,
+            (SELECT COUNT(*) FROM push_fanout_deliveries d
+               JOIN push_fanout_jobs j ON j.job_ref = d.job_ref
+               WHERE j.pool_id = ${poolId} AND d.status = 'failed'
+                 AND d.attempted_at > NOW() - INTERVAL '24 hours'
+            ) AS recent_delivery_failures
+          FROM push_fanout_jobs
+          WHERE pool_id = ${poolId}
+        `).catch(() => ({ rows: [{ pending_jobs: 0, failed_jobs: 0, partial_jobs: 0, completed_24h: 0, recent_delivery_failures: 0 }] })),
+        // WP7: Member limit visibility (WP2 canonical)
+        superAdminDb.execute(sql`
+          SELECT
+            member_limit,
+            x_plan_key,
+            (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_count
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `).catch(() => ({ rows: [{ member_limit: null, x_plan_key: null, active_count: 0 }] })),
+        // WP7: Storage quota visibility
+        superAdminDb.execute(sql`
+          SELECT
+            used_storage_bytes,
+            base_storage_bytes,
+            addon_storage_bytes,
+            upload_blocked
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `).catch(() => ({ rows: [{ used_storage_bytes: 0, base_storage_bytes: null, addon_storage_bytes: null, upload_blocked: false }] })),
+        // WP7: RevenueCat / billing state visibility
+        superAdminDb.execute(sql`
+          SELECT
+            subscription_status,
+            subscription_tier,
+            subscription_expires_at,
+            payment_failed_at,
+            auto_renew_status
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `).catch(() => ({ rows: [{ subscription_status: null, subscription_tier: null, subscription_expires_at: null, payment_failed_at: null, auto_renew_status: null }] })),
       ]);
 
       const counts = countsRes.rows[0] as any;
@@ -4323,6 +4407,11 @@ router.get(
       const gr = grRes.rows[0] as any ?? {};
       const notif = notifRes.rows[0] as any;
       const recentSupport = (supportRes.rows[0] as any) ?? null;
+      // WP7 operational metrics
+      const pushStats  = (pushRes.rows[0] as any) ?? {};
+      const mlRow      = (memberLimitRes.rows[0] as any) ?? {};
+      const storRow    = (storageRes.rows[0] as any) ?? {};
+      const rcRow      = (rcRes.rows[0] as any) ?? {};
 
       // Health score (rule-based)
       const healthIssues: string[] = [];
@@ -4330,17 +4419,38 @@ router.get(
       if (Number(errors.cnt ?? 0) > 10) healthIssues.push("FREQUENT_ERRORS");
       if (Number(gr.failed_count ?? 0) > 3) healthIssues.push("GROWTH_REPORT_FAILURES");
       if (pool.upload_blocked) healthIssues.push("STORAGE_QUOTA");
+      if (Number(pushStats.failed_jobs ?? 0) > 0) healthIssues.push("PUSH_FANOUT_FAILURES");
       const health: "GREEN" | "YELLOW" | "RED" =
         healthIssues.length === 0 ? "GREEN" :
         healthIssues.some((h) => h.includes("CONFLICT") || h.includes("STORAGE")) ? "RED" : "YELLOW";
 
-      const xPaid    = Boolean(pool.x_paid_entitlement);
-      const xManual  = Boolean(pool.x_manual_entitlement);
-      const xForce   = Boolean(pool.x_force_disabled);
-      const xEff     = (xPaid || xManual) && !xForce;
-      const basePaid = Boolean(pool.subscription_status === "active" && !pool.base_manual_entitlement);
+      const xPaid     = Boolean(pool.x_paid_entitlement);
+      const xManual   = Boolean(pool.x_manual_entitlement);
+      const xForce    = Boolean(pool.x_force_disabled);
+      const xOverride = Boolean(pool.x_management_override);
+      const xEff      = (xOverride || xPaid || xManual) && !xForce;
+      const basePaid  = Boolean(pool.subscription_status === "active" && !pool.base_manual_entitlement);
       const baseManual = Boolean(pool.base_manual_entitlement);
-      const baseEff  = basePaid || baseManual;
+      const baseEff   = basePaid || baseManual;
+
+      // WP7: member limit derived
+      const { getXMemberLimit } = await import("../lib/xPlanCatalog.js");
+      const effectiveMemberLimit: number | null =
+        mlRow.member_limit ?? (mlRow.x_plan_key ? (getXMemberLimit(mlRow.x_plan_key) ?? null) : null);
+      const activeMemberCount = Number(mlRow.active_count ?? counts.active_members ?? 0);
+      const memberLimitRemaining = effectiveMemberLimit != null
+        ? Math.max(0, effectiveMemberLimit - activeMemberCount)
+        : null;
+
+      // WP7: storage quota
+      const effectiveStorageBytes =
+        Number(storRow.base_storage_bytes ?? 0) + Number(storRow.addon_storage_bytes ?? 0) || null;
+
+      // WP7: x_source (management_override > manual > paid > none)
+      const xSource = xOverride ? "management_override"
+                    : xManual   ? "manual"
+                    : xPaid     ? "paid"
+                    :             "none";
 
       res.json({
         pool_id:          pool.id,
@@ -4358,24 +4468,44 @@ router.get(
         base_source:      baseManual ? "manual" : (basePaid ? "paid" : "none"),
         subscription_status: pool.subscription_status,
         subscription_tier:   pool.subscription_tier,
-        // X access
-        x_paid:           xPaid,
-        x_manual:         xManual,
-        x_force_disabled: xForce,
-        x_effective:      xEff,
-        x_source:         xManual ? "manual" : (xPaid ? "paid" : "none"),
-        x_plan_key:       pool.x_plan_key ?? null,
-        xmode_config_status: pool.xmode_config_status,
+        // X access — WP7: separated fields (paid/manual/override distinct)
+        x_paid:                xPaid,
+        x_manual:              xManual,
+        x_management_override: xOverride,
+        x_force_disabled:      xForce,
+        x_effective:           xEff,
+        x_source:              xSource,
+        x_plan_key:            pool.x_plan_key ?? null,
+        xmode_config_status:   pool.xmode_config_status,
         // Counts
         active_members:   Number(counts.active_members ?? 0),
         total_members:    Number(counts.total_members ?? 0),
         teacher_count:    Number(counts.teacher_count ?? 0),
         parent_count:     Number(counts.parent_count ?? 0),
         active_class_count: Number(counts.active_class_count ?? 0),
-        // Storage
-        member_limit:     pool.member_limit,
-        used_storage_bytes: pool.used_storage_bytes,
-        upload_blocked:   pool.upload_blocked,
+        // WP7: Member limit visibility
+        member_limit:           effectiveMemberLimit,
+        member_limit_remaining: memberLimitRemaining,
+        member_limit_warn:      effectiveMemberLimit != null
+          ? activeMemberCount >= effectiveMemberLimit - 10 : false,
+        // WP7: Storage visibility
+        used_storage_bytes:     Number(storRow.used_storage_bytes ?? pool.used_storage_bytes ?? 0),
+        base_storage_bytes:     storRow.base_storage_bytes ?? null,
+        addon_storage_bytes:    storRow.addon_storage_bytes ?? null,
+        effective_storage_bytes: effectiveStorageBytes,
+        upload_blocked:         Boolean(storRow.upload_blocked ?? pool.upload_blocked),
+        // WP7: RevenueCat / billing state visibility
+        rc_subscription_status:    rcRow.subscription_status ?? null,
+        rc_subscription_tier:      rcRow.subscription_tier ?? null,
+        rc_subscription_expires_at: rcRow.subscription_expires_at ?? null,
+        rc_payment_failed_at:      rcRow.payment_failed_at ?? null,
+        rc_auto_renew_status:      rcRow.auto_renew_status ?? null,
+        // WP7: Push fanout queue visibility (WP5 durable)
+        push_pending_jobs:          Number(pushStats.pending_jobs ?? 0),
+        push_failed_jobs:           Number(pushStats.failed_jobs ?? 0),
+        push_partial_jobs:          Number(pushStats.partial_jobs ?? 0),
+        push_completed_24h:         Number(pushStats.completed_24h ?? 0),
+        push_recent_delivery_failures: Number(pushStats.recent_delivery_failures ?? 0),
         // AI
         recent_ai_diary_count: Number(ai.diary_count ?? 0),
         recent_ai_month:       ai.year_month ?? null,

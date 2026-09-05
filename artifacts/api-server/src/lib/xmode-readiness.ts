@@ -1,45 +1,129 @@
 /**
  * xmode-readiness.ts
  *
- * validateXModeReadiness — READY 전환 전 필수 조건 검증
+ * WP7 REWRITE: checkXPrerequisite — Manual X Grant 실제 전제조건 검증
  *
- * PATCH /super/operators/:id/xmode 에서 READY 전환 전에 반드시 호출.
- * 실제 DB 상태(x_setup_submissions, x_setup_files, swimming_pools)를 읽어
- * readiness를 검증한다.
+ * 핵심 원칙 (spec §6, §7):
+ *   - "upload record 없음 → Manual Grant 불가"가 아님
+ *   - X runtime이 실제로 참조하는 데이터 존재 여부를 기준으로 판단
+ *   - upload history 없어도 global X curriculum/template이 이미
+ *     code/DB에 존재하면 READY여야 함
  *
- * Rules (기존 schema를 authority로 사용 — 임의 필드 추가 없음):
- *   1. Pool에 effective entitlement 존재 (x_paid OR x_manual)
- *   2. x_setup_submissions row 존재 (Pool Admin이 setup 제출 flow를 시작했음)
- *   3. curriculum 파일 업로드됨 (x_setup_files WHERE file_type='curriculum' AND is_current=true)
+ * 실제 prerequisite:
+ *   1. Pool이 존재할 것
+ *   2. Global diary templates (X 운영 핵심 데이터)가 시스템에 존재할 것
+ *      — scope='global' AND status='active' AND version > 0
+ *   3. (참고 정보) approval_status
  *
- * NOTE: setup_status='SUBMITTED'/'APPROVED'는 requirement가 아님.
- *       Curriculum 파일 존재 여부가 핵심 prerequisite.
+ * 금지:
+ *   - x_setup_submissions row 유무 확인 (upload history)
+ *   - x_setup_files curriculum 파일 업로드 확인 (upload history)
+ *   - xmode_config_status를 blind READY로 강제
  *
- * AI calls:  0
  * DB write:  NO
+ * AI calls:  0
  */
 
-import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
 
-type Db = NodePgDatabase<any> | LibSQLDatabase<any> | any;
+type Db = any;
+
+export type XPrerequisiteStatus = "READY" | "NOT_READY";
+
+export interface XPrerequisiteResult {
+  /** READY = 모든 실제 X runtime 조건 충족, Manual Grant 가능 */
+  status:   XPrerequisiteStatus;
+  ready:    boolean;
+  /** 운영자가 이해할 수 있는 reason (NOT_READY 시) */
+  reason:   string | null;
+  /** 구체적 누락 항목 */
+  missing:  string[];
+  /** pool approval_status (참고) */
+  pool_approval_status: string | null;
+  /** 시스템 global template 개수 (참고) */
+  global_template_count: number;
+}
+
+/**
+ * checkXPrerequisite
+ *
+ * WP7 공식 X Manual Grant prerequisite resolver.
+ *
+ * @param poolId  swimming_pools.id
+ * @param db      drizzle-compat db instance (superAdminDb)
+ */
+export async function checkXPrerequisite(
+  poolId: string,
+  db: Db,
+): Promise<XPrerequisiteResult> {
+  const missing: string[] = [];
+
+  // ── 1. Pool 존재 확인 ─────────────────────────────────────────────────────
+  const poolRows = await db.execute(sql`
+    SELECT id, approval_status
+    FROM swimming_pools
+    WHERE id = ${poolId}
+    LIMIT 1
+  `);
+
+  if (!poolRows.rows.length) {
+    return {
+      status: "NOT_READY",
+      ready: false,
+      reason: "수영장을 찾을 수 없습니다.",
+      missing: ["POOL_NOT_FOUND"],
+      pool_approval_status: null,
+      global_template_count: 0,
+    };
+  }
+  const pool = poolRows.rows[0] as any;
+
+  // ── 2. Global X diary templates 존재 확인 ────────────────────────────────
+  // X runtime은 global scope diary templates를 참조한다.
+  // 업로드 이력이 아닌 실제 운영 데이터 존재 여부로 판단.
+  const tmplRows = await db.execute(sql`
+    SELECT COUNT(*) AS cnt
+    FROM diary_templates
+    WHERE scope = 'global'
+      AND status = 'active'
+  `).catch(() => ({ rows: [{ cnt: 0 }] }));
+
+  const globalTemplateCnt = Number((tmplRows.rows[0] as any)?.cnt ?? 0);
+
+  if (globalTemplateCnt === 0) {
+    missing.push("GLOBAL_X_TEMPLATES: 시스템에 활성 global diary template이 없습니다. X runtime 운영 불가.");
+  }
+
+  const ready = missing.length === 0;
+
+  return {
+    status: ready ? "READY" : "NOT_READY",
+    ready,
+    reason: ready
+      ? null
+      : missing.map(m => m.split(":")[1]?.trim() ?? m).join("; "),
+    missing,
+    pool_approval_status: pool.approval_status ?? null,
+    global_template_count: globalTemplateCnt,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy: validateXModeReadiness — 기존 xmode_config_status READY 전환 flow에서
+// 사용 가능 (super.ts xmode config-status 관련 다른 endpoint가 있을 경우 재사용).
+// Manual Grant에서는 사용하지 않음 (WP7 이후 checkXPrerequisite 사용).
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface XModeReadinessResult {
-  /** true = 모든 조건 충족, READY 전환 가능 */
   ready:    boolean;
-  /** 누락된 항목 목록 */
   missing:  string[];
-  /** 차단 이유 목록 */
   blockers: string[];
 }
 
 /**
- * validateXModeReadiness
- *
- * @param poolId   swimming_pools.id
- * @param db       drizzle db instance (superAdminDb 등)
- * @returns        {ready, missing, blockers}
+ * @deprecated Manual Grant에서 사용 금지 (WP7 이후 checkXPrerequisite 사용).
+ *             upload history 기반 check — upload history 없어도 X Grant 가능해야 함.
+ *             기존 legacy xmode config transition flow가 필요한 경우에만 재사용.
  */
 export async function validateXModeReadiness(
   poolId: string,
@@ -48,7 +132,6 @@ export async function validateXModeReadiness(
   const missing:  string[] = [];
   const blockers: string[] = [];
 
-  // ── 1. Pool + entitlement 확인 ────────────────────────────────────────────
   const poolRows = await db.execute(sql`
     SELECT id,
            COALESCE(x_paid_entitlement,   false) AS x_paid,
@@ -78,47 +161,36 @@ export async function validateXModeReadiness(
     blockers.push(`POOL_NOT_APPROVED: approval_status=${p.approval_status}`);
   }
 
-  // ── 2. x_setup_submissions row 존재 확인 ─────────────────────────────────
+  // Legacy: x_setup_submissions + curriculum file check
   const subRows = await db.execute(sql`
-    SELECT id, setup_status, curriculum_status, submitted_at
+    SELECT id, setup_status, submitted_at
     FROM x_setup_submissions
     WHERE pool_id = ${poolId}
     LIMIT 1
-  `);
+  `).catch(() => ({ rows: [] }));
 
   if (!subRows.rows.length) {
     missing.push("X_SETUP_SUBMISSION: Pool Admin이 X Setup 제출 flow를 아직 시작하지 않았습니다");
     blockers.push("NO_SETUP_SUBMISSION");
-    // curriculum check는 submission이 없으면 의미 없음
     return { ready: false, missing, blockers };
   }
 
-  const sub = subRows.rows[0] as any;
-  // setup_status 참고값만 기록 — 현재 SUBMITTED/APPROVED 모두 허용
-  if (sub.submitted_at === null) {
-    missing.push("X_SETUP_NOT_SUBMITTED: Pool Admin이 Setup을 아직 제출하지 않았습니다 (POST /api/x-setup/submit 미호출)");
-  }
-
-  // ── 3. Curriculum 파일 업로드 확인 ────────────────────────────────────────
   const currRows = await db.execute(sql`
-    SELECT id, original_filename, uploaded_at
-    FROM x_setup_files
+    SELECT id FROM x_setup_files
     WHERE pool_id   = ${poolId}
       AND file_type = 'curriculum'
       AND is_current = true
       AND deleted_at IS NULL
     LIMIT 1
-  `);
+  `).catch(() => ({ rows: [] }));
 
   if (!currRows.rows.length) {
-    missing.push("CURRICULUM_FILE: curriculum DOCX 파일이 업로드되지 않았습니다 (POST /api/x-setup/upload/curriculum 미호출)");
+    missing.push("CURRICULUM_FILE: curriculum DOCX 파일이 업로드되지 않았습니다");
     blockers.push("NO_CURRICULUM_FILE");
   }
 
-  const ready = blockers.length === 0 && missing.filter(m => !m.startsWith("X_SETUP_NOT_SUBMITTED")).length === 0;
-  // submitted_at 누락은 WARNING만 (curriculum 파일이 있으면 계속 진행 가능)
   return {
-    ready:    blockers.length === 0 && !missing.some(m => m.startsWith("CURRICULUM_FILE") || m.startsWith("X_SETUP_SUBMISSION:")),
+    ready:    blockers.length === 0,
     missing,
     blockers,
   };
