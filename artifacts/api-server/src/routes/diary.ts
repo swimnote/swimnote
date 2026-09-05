@@ -660,6 +660,14 @@ router.post("/diaries",
         ai_generated: clientAiGenerated,
       } = req.body;
 
+      // pool/teacher 정보는 최우선 취득 — verifyAiOrigin 및 이후 로그에서 poolId를 사용하므로
+      // 반드시 candidateRequestId 평가 이전에 선언해야 TDZ(ReferenceError)를 방지한다
+      const [poolId, teacherName] = await Promise.all([
+        getUserPoolId(userId),
+        getUserName(userId),
+      ]);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
       // WP9-P1: AI origin server verification
       // - client가 보낸 ai_request_id를 서버가 in-memory registry + event_logs로 검증
       // - fake "fake-id" → registry miss + event_logs miss → FALSE
@@ -668,7 +676,7 @@ router.post("/diaries",
       // - 일반 저장(ai_request_id 없음) → FALSE
       const candidateRequestId = typeof ai_request_id === "string" ? ai_request_id.trim() : "";
       const isAiGenerated = candidateRequestId.length > 0
-        ? await verifyAiOrigin(candidateRequestId, poolId!, userId)
+        ? await verifyAiOrigin(candidateRequestId, poolId, userId)
         : false;
       console.log(`[diary-create] ai_origin_verify request_id=${candidateRequestId ? candidateRequestId.slice(0,8)+"..." : "(none)"} pool=${poolId} verified=${isAiGenerated}`);
 
@@ -689,12 +697,6 @@ router.post("/diaries",
               typeof m.match_status  === "string",
           )
         : [];
-
-      const [poolId, teacherName] = await Promise.all([
-        getUserPoolId(userId),
-        getUserName(userId),
-      ]);
-      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
       // 선생님: 본인 반인지 확인 (pool_admin이 teacher로 전환한 경우 전체 접근 허용)
       if (role === "teacher") {
