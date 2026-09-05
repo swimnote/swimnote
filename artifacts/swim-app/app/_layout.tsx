@@ -447,7 +447,12 @@ function PushNavSync() {
       // ── 일지 알림 ─────────────────────────────────────────────────────
       if (notifType === "diary_upload") {
         if (kind === "parent") {
-          router.push("/(parent)/swim-diary" as any);
+          const studentId = (data?.studentId as string | undefined) ?? "";
+          if (studentId) {
+            router.push(`/(parent)/swim-diary?id=${encodeURIComponent(studentId)}` as any);
+          } else {
+            router.push("/(parent)/home" as any);
+          }
         } else if (kind === "admin") {
           router.push(isTeacher ? "/(teacher)/diary" as any : "/(admin)/diary-teacher-entries" as any);
         }

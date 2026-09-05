@@ -228,7 +228,15 @@ export default function ParentNotificationsScreen() {
       // deep_link: notifications INSERT 시 저장된 /(parent)/swim-diary?id={studentId}
       // 없으면(과거 알림 또는 multi-child) 홈으로 안전 fallback
       if ((n as any).deep_link) {
-        router.push((n as any).deep_link as any);
+        // studentId를 deep_link에서 추출해 students context에서 이름 조회 후 name param 추가
+        const rawLink: string = (n as any).deep_link;
+        const idMatch = rawLink.match(/[?&]id=([^&]+)/);
+        const studentId = idMatch ? decodeURIComponent(idMatch[1]) : "";
+        const studentName = studentId ? (students.find(s => s.id === studentId)?.name ?? "") : "";
+        const finalLink = studentName
+          ? `${rawLink}${rawLink.includes("?") ? "&" : "?"}name=${encodeURIComponent(studentName)}`
+          : rawLink;
+        router.push(finalLink as any);
       } else {
         router.push("/(parent)/home" as any);
       }

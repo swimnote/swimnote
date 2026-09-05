@@ -17,6 +17,7 @@ import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 
@@ -264,16 +265,26 @@ function WeekHeader({ label }: { label: string }) {
 
 export default function SwimDiaryScreen() {
   const { token } = useAuth();
+  const { students } = useParent();
   const insets = useSafeAreaInsets();
   const { mode } = useMode();
   const isX = isXMode(mode);
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
+
+  // 이름 안전 처리: route param → ParentContext students → 빈 문자열
+  const safeName = React.useMemo(() => {
+    if (name && name !== 'undefined') return name;
+    const found = students.find(s => s.id === id);
+    return found?.name ?? '';
+  }, [name, id, students]);
 
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   async function fetchEntries() {
+    // id 없으면 API 호출 금지 (undefined/empty → 잘못된 경로 방지)
+    if (!id || id === 'undefined') { setLoading(false); setRefreshing(false); return; }
     try {
       const res = await apiRequest(token, `/parent/students/${id}/diary`);
       if (res.ok) {
@@ -301,7 +312,7 @@ export default function SwimDiaryScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: isX ? XT.background : C.background }]}>
-      <SubScreenHeader title={`${name} 수업 일지`} showHome={false} homePath="/(parent)/children" />
+      <SubScreenHeader title={safeName ? `${safeName} 수업 일지` : '수업 일지'} showHome={false} homePath="/(parent)/children" />
 
       {loading ? (
         <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
