@@ -1679,6 +1679,15 @@ export default function TeacherDiaryScreen() {
             videoEnabled={planFeatures?.video_enabled ?? false}
             onRetryGroupPhotoItem={retryGroupPhotoItem}
             onRetryStudentPhotoItem={retryStudentPhotoItem}
+            onRemoveGroupMediaItem={(clientIdOrUri) =>
+              setGroupMedia(prev => prev.filter(m => (m.clientId ?? m.uri) !== clientIdOrUri))
+            }
+            onRemoveStudentMediaItem={(studentId, clientIdOrUri) =>
+              setStudentMedia(prev => ({
+                ...prev,
+                [studentId]: (prev[studentId] ?? []).filter(m => (m.clientId ?? m.uri) !== clientIdOrUri),
+              }))
+            }
           />
         ) : (
           <DiaryHistoryList
