@@ -1302,28 +1302,20 @@ router.post("/students/:id/restore", requireAuth, requireRole("super_admin", "po
       const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
       const actorName = actor?.name || req.user!.userId;
 
-      // [WP2] deleted → active: 카운트가 증가하므로 회원 한도 검사 필요
-      // withdrawn → active: withdrawn은 이미 카운트에 포함되므로 한도 영향 없음
-      if (student.status === "deleted") {
-        try {
-          await db.transaction(async (tx) => {
-            await assertMemberLimitInTx(tx, poolId!);
-            await tx.execute(sql`
-              UPDATE students SET status = 'active', withdrawn_at = NULL, deleted_at = NULL,
-                archived_reason = NULL, updated_at = NOW()
-              WHERE id = ${req.params.id}
-            `);
-          });
-        } catch (e) {
-          if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
-          throw e;
-        }
-      } else {
-        await db.execute(sql`
-          UPDATE students SET status = 'active', withdrawn_at = NULL, deleted_at = NULL,
-            archived_reason = NULL, updated_at = NOW()
-          WHERE id = ${req.params.id}
-        `);
+      // [WP2] 공식 lifecycle: NOT IN ('withdrawn','archived','deleted') → count 제외
+      // withdrawn/deleted 모두 복구 시 count 증가 → 항상 한도 검사 필요
+      try {
+        await db.transaction(async (tx) => {
+          await assertMemberLimitInTx(tx, poolId!);
+          await tx.execute(sql`
+            UPDATE students SET status = 'active', withdrawn_at = NULL, deleted_at = NULL,
+              archived_reason = NULL, updated_at = NOW()
+            WHERE id = ${req.params.id}
+          `);
+        });
+      } catch (e) {
+        if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+        throw e;
       }
 
       await writeActivityLog({

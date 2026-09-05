@@ -44,7 +44,7 @@ async function getEffectiveMemberLimit(poolId: string): Promise<{ limit: number;
   `)).rows as any[];
   const [cntRow] = (await db.execute(sql`
     SELECT COUNT(*) AS cnt FROM students
-    WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+    WHERE swimming_pool_id = ${poolId} AND status NOT IN ('withdrawn','archived','deleted')
   `)).rows as any[];
   const limit = Number(planRow?.effective_member_limit ?? 5);
   const current = Number(cntRow?.cnt ?? 0);
@@ -304,21 +304,20 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     const newStudentIds: string[] = [];
     let limit = 5, current = 0;
 
-    // 2단계: advisory lock + INSERT — 전체를 트랜잭션으로 묶어 race-safe 처리
+    // 2단계: FOR UPDATE row-lock + INSERT — 전체를 트랜잭션으로 묶어 race-safe 처리
     await db.transaction(async (tx) => {
-      // Advisory lock으로 pool 단위 직렬화
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${poolId}))`);
-
-      // 유효 한도 & 현재 카운트 (lock 취득 후 읽기)
+      // swimming_pools row에 SELECT FOR UPDATE — 동일 pool 동시 요청 직렬화
+      // FOR UPDATE OF sp: LEFT JOIN에서 swimming_pools row만 lock
       const [planRow] = (await tx.execute(sql`
         SELECT
-          sp2.x_plan_key, sp2.x_paid_entitlement, sp2.x_manual_entitlement,
-          sp2.x_management_override, sp2.x_force_disabled,
-          sp2.member_limit AS pool_override_limit, sp2.subscription_tier,
+          sp.x_plan_key, sp.x_paid_entitlement, sp.x_manual_entitlement,
+          sp.x_management_override, sp.x_force_disabled,
+          sp.member_limit AS pool_override_limit, sp.subscription_tier,
           COALESCE(spl.member_limit, 5) AS plan_limit
-        FROM swimming_pools sp2
-        LEFT JOIN subscription_plans spl ON spl.tier = sp2.subscription_tier
-        WHERE sp2.id = ${poolId} LIMIT 1
+        FROM swimming_pools sp
+        LEFT JOIN subscription_plans spl ON spl.tier = sp.subscription_tier
+        WHERE sp.id = ${poolId}
+        FOR UPDATE OF sp
       `)).rows as any[];
 
       if (planRow) {
@@ -335,9 +334,10 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
             ? Number(planRow.pool_override_limit) : Number(planRow.plan_limit);
         }
       }
+      // 공식 lifecycle 기준: withdrawn/archived/deleted 제외
       const [cntRow] = (await tx.execute(sql`
         SELECT COUNT(*) AS cnt FROM students
-        WHERE swimming_pool_id = ${poolId} AND status NOT IN ('archived','deleted')
+        WHERE swimming_pool_id = ${poolId} AND status NOT IN ('withdrawn','archived','deleted')
       `)).rows as any[];
       current = Number(cntRow?.cnt ?? 0);
       let available = Math.max(0, limit - current);

@@ -6,11 +6,13 @@
  *   x500  → 500
  *   x1000 → 1000
  *
- * Active member 정의: status NOT IN ('archived','deleted') — 기존 lifecycle 기준 그대로.
+ * Active member 정의 (공식 lifecycle 기준):
+ *   status NOT IN ('withdrawn', 'archived', 'deleted')
+ *   근거: admin.ts, auto-link-v2.ts, parent.ts 등 codebase 전체 일관 사용
  *
  * Race 안전:
  *   assertMemberLimitInTx()는 반드시 db.transaction() 내부에서 호출해야 함.
- *   pg_advisory_xact_lock(hashtext(poolId)) 으로 동일 pool의 동시 생성을 직렬화.
+ *   swimming_pools row에 SELECT ... FOR UPDATE를 걸어 동일 pool의 동시 증가를 직렬화.
  *
  * 중요:
  *   - mode=x를 paid로 해석하지 않음
@@ -18,7 +20,6 @@
  *   - x_plan_key가 X 한도 canonical source
  */
 
-import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 // ── X Plan 공식 회원 한도 ─────────────────────────────────────────────────
@@ -33,6 +34,11 @@ const X_PLAN_LABELS: Record<string, string> = {
   x500:  "X500",
   x1000: "X1000",
 };
+
+// ── 공식 Active member count 정의 ─────────────────────────────────────────
+// 근거: admin.ts total_members, auto-link-v2.ts, parent.ts 등 codebase 전체 일관
+// excluded: withdrawn (퇴원), archived (아카이브), deleted (삭제)
+export const MEMBER_LIMIT_EXCLUDED_STATUSES = `('withdrawn', 'archived', 'deleted')`;
 
 // ── MemberLimitError ──────────────────────────────────────────────────────
 
@@ -78,8 +84,9 @@ export interface MemberLimitConfig {
  * 일반 pool: swimming_pools.member_limit 개별 override 우선, 없으면 subscription_plans.member_limit.
  *
  * Client가 보낸 어떤 값도 신뢰하지 않음 — poolId만 입력.
+ * NOTE: race-safe하지 않음. 단순 read-only 조회용. race-safe는 assertMemberLimitInTx 사용.
  */
-export async function getMemberLimitConfig(poolId: string): Promise<MemberLimitConfig> {
+export async function getMemberLimitConfig(poolId: string, db: any): Promise<MemberLimitConfig> {
   const [row] = (await db.execute(sql`
     SELECT
       sp.x_plan_key,
@@ -96,9 +103,14 @@ export async function getMemberLimitConfig(poolId: string): Promise<MemberLimitC
     LIMIT 1
   `)).rows as any[];
 
+  return resolveConfig(row);
+}
+
+// ── 내부: pool row → { limit, planKey } ─────────────────────────────────
+
+function resolveConfig(row: any): MemberLimitConfig {
   if (!row) return { limit: 5, planKey: "free" };
 
-  // X pool 판단: management_override OR paid OR manual entitlement, AND not force_disabled
   const isX = (
     Boolean(row.x_management_override) ||
     Boolean(row.x_paid_entitlement) ||
@@ -115,7 +127,7 @@ export async function getMemberLimitConfig(poolId: string): Promise<MemberLimitC
   // 일반 pool: pool override > plan default
   const limit = row.pool_override_limit != null
     ? Number(row.pool_override_limit)
-    : Number(row.plan_limit);
+    : Number(row.plan_limit ?? 5);
 
   return { limit, planKey: row.subscription_tier ?? "free" };
 }
@@ -127,7 +139,7 @@ export async function getActiveMemberCount(tx: any, poolId: string): Promise<num
     SELECT COUNT(*) AS cnt
     FROM students
     WHERE swimming_pool_id = ${poolId}
-      AND status NOT IN ('archived', 'deleted')
+      AND status NOT IN ('withdrawn', 'archived', 'deleted')
   `)).rows as any[];
   return Number(cnt?.cnt ?? 0);
 }
@@ -137,9 +149,10 @@ export async function getActiveMemberCount(tx: any, poolId: string): Promise<num
 /**
  * db.transaction() 콜백 안에서 호출.
  *
- * 1. pg_advisory_xact_lock(hashtext(poolId)) — 동일 pool 동시 요청 직렬화
- * 2. 유효 한도 조회 (server-side, client 값 무시)
- * 3. active member 카운트
+ * 1. SELECT id FROM swimming_pools WHERE id = poolId FOR UPDATE
+ *    — 동일 pool의 동시 회원 증가 요청을 row-level lock으로 직렬화
+ * 2. 유효 한도 조회 (server-side, x_plan_key 기준)
+ * 3. active member count (공식 lifecycle: NOT IN ('withdrawn','archived','deleted'))
  * 4. 한도 초과 시 MemberLimitError throw → transaction 자동 ROLLBACK
  * 5. 정상 시 { limit, current, planKey } 반환 (caller는 이후 INSERT/UPDATE 진행)
  *
@@ -150,11 +163,11 @@ export async function assertMemberLimitInTx(
   tx: any,
   poolId: string,
 ): Promise<{ limit: number; current: number; planKey: string }> {
-  // 1. Advisory lock: pool 단위 직렬화 (동시 요청이 동일 pool에 들어오면 순차 처리)
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${poolId}))`);
-
-  // 2. 유효 한도 (server-side: x_plan_key 또는 subscription_plans 기준)
-  const [row] = (await tx.execute(sql`
+  // 1. swimming_pools row에 SELECT FOR UPDATE (단일 쿼리)
+  //    - 동일 pool에 대한 동시 회원 증가 요청을 row-level lock으로 직렬화
+  //    - FOR UPDATE OF sp: LEFT JOIN 대상 중 swimming_pools row만 lock
+  //    - subscription_plans는 읽기 전용이므로 lock 불필요
+  const [planRow] = (await tx.execute(sql`
     SELECT
       sp.x_plan_key,
       sp.x_paid_entitlement,
@@ -167,34 +180,12 @@ export async function assertMemberLimitInTx(
     FROM swimming_pools sp
     LEFT JOIN subscription_plans spl ON spl.tier = sp.subscription_tier
     WHERE sp.id = ${poolId}
-    LIMIT 1
+    FOR UPDATE OF sp
   `)).rows as any[];
 
-  let limit = 5;
-  let planKey = "free";
+  const { limit, planKey } = resolveConfig(planRow ?? null);
 
-  if (row) {
-    const isX = (
-      Boolean(row.x_management_override) ||
-      Boolean(row.x_paid_entitlement) ||
-      Boolean(row.x_manual_entitlement)
-    ) && !Boolean(row.x_force_disabled);
-
-    if (isX && row.x_plan_key) {
-      const xLimit = X_PLAN_LIMITS[row.x_plan_key as string];
-      if (xLimit !== undefined) {
-        limit   = xLimit;
-        planKey = row.x_plan_key as string;
-      }
-    } else {
-      limit   = row.pool_override_limit != null
-        ? Number(row.pool_override_limit)
-        : Number(row.plan_limit);
-      planKey = row.subscription_tier ?? "free";
-    }
-  }
-
-  // 3. Active member count
+  // 3. Active member count (공식 lifecycle 기준)
   const current = await getActiveMemberCount(tx, poolId);
 
   console.log(`[member-limit] poolId=${poolId} plan=${planKey} limit=${limit} current=${current}`);
