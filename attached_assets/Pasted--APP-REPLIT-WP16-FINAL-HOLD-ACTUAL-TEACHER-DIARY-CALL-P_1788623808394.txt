@@ -1,0 +1,260 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 FINAL HOLD — ACTUAL TEACHER DIARY CALL PATH VERIFY ONLY
+# READ ONLY / CODE INSPECTION ONLY
+# x_global DATA RECOVERY 금지
+# WP17 선행 금지
+
+중요한 정정:
+
+Production global_template_sets가 test fixture뿐이라는 사실은 확인됐습니다.
+
+그러나 지금 운영용 x_global dataset을 새로 적재하지 마십시오.
+
+기존 SWIMNOTE 헌법상 Teacher Diary 최종 구조는:
+
+APP
+→ Teacher Diary API Adapter
+→ SWIMNOTE AI ENGINE
+→ 기존 Grounded Teacher Diary Pipeline
+
+이며 APP 자체에서 curriculum/template/knowledge 검색을 확장하지 않습니다.
+
+기존 APP API Server 일반 GPT / x_global template path는
+legacy/rollback 성격일 가능성이 있습니다.
+
+이번 작업은 실제 현재 앱 2.0.1의 Teacher Diary 호출 경로만 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Production DB write 금지
+- global_template_sets 생성 금지
+- x_global template 적재 금지
+- Toykids 350 templates 변경 금지
+- 코드 수정 금지
+- Render deploy 금지
+- OTA 금지
+- WP17 선행 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 App UI 진입점 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 release/main 코드에서 실제 사용되는:
+
+DiaryAIModalV2
+→ useDiaryAIV2
+→ DiaryAIService.generateDiary()
+
+호출 chain을 정확히 추적하십시오.
+
+보고:
+
+UI file:
+...
+
+hook:
+...
+
+service:
+...
+
+final HTTP client:
+...
+
+actual URL/path:
+...
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 Production 호출 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 구분:
+
+A.
+SWIMNOTE APP API Server
+→ ai-v1.ts
+→ searchXGlobalTemplates()
+
+인가?
+
+B.
+TeacherDiaryAIClient
+→ SWIMNOTE AI ENGINE Teacher Diary API
+
+인가?
+
+C.
+feature flag에 따라 A/B 분기인가?
+
+실제 Production 환경에서 어떤 branch가 선택되는지
+env/config/feature flag까지 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 관련 환경변수/Feature Flag
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL
+EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH
+또는 실제 repository equivalent
+
+그리고:
+
+grounded/legacy feature flag
+production default
+preview default
+
+Secret 값은 보고하지 말고
+SET / NOT_SET 및 host/path만 safe하게 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ai-v1.ts 실제 사용 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고에서 조사한:
+
+ai-v1.ts
+→ searchXGlobalTemplates()
+→ global_template_sets
+
+경로가 실제 2.0.1 Teacher Diary UI에서 호출되는지 확인.
+
+결과:
+
+ACTIVE_PRODUCTION_PATH
+LEGACY_ROLLBACK_PATH
+UNUSED_PATH
+
+중 하나로 확정.
+
+단 파일이 존재한다고 ACTIVE라고 판단 금지.
+
+actual caller evidence 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. AI ENGINE 연결 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP repository에서 확인 가능한 범위:
+
+TeacherDiaryAIClient 존재:
+YES / NO
+
+AI Engine endpoint adapter 존재:
+YES / NO
+
+Production feature flag active:
+YES / NO
+
+Production app currently routes to AI Engine:
+YES / NO
+
+AI Engine 쪽 내부 구현까지 조사하지 마십시오.
+그건 별도 AI ENGINE REPLIT 범위입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 결과 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A — PRODUCTION ALREADY USES AI ENGINE
+
+→ ai-v1 x_global path는 legacy/rollback.
+
+→ global_template_sets test fixture만 존재하는 것은
+Teacher Diary Production blocker가 아님.
+
+→ x_global data recovery 불필요.
+
+→ Toykids 기존 350 templates와 Management X1000 그대로 유지.
+
+
+CASE B — PRODUCTION STILL USES LEGACY ai-v1 PATH
+
+→ 운영용 x_global 데이터를 새로 만들지 마십시오.
+
+→ 기존 확정 architecture대로
+APP Teacher Diary를 AI Engine endpoint에 연결하는
+미완료 전환 문제로 분류.
+
+→ 필요한 exact adapter/config gap만 보고.
+코드 수정은 아직 하지 말고 STOP.
+
+
+CASE C — FEATURE FLAG MIXED
+
+→ Production에서 어떤 branch가 실제 default인지 확정.
+
+→ AI Engine이 준비되어 있으나 legacy가 default라면
+전환 gap으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 TEACHER DIARY ACTUAL CALL PATH REPORT
+
+UI entry:
+...
+
+Hook:
+...
+
+Service:
+...
+
+Final client:
+...
+
+Production HTTP target:
+APP_API / AI_ENGINE / FEATURE_FLAGGED
+
+Actual endpoint:
+...
+
+Production feature flag:
+...
+
+TeacherDiaryAIClient exists:
+YES / NO
+
+AI Engine adapter exists:
+YES / NO
+
+ai-v1.ts searchXGlobalTemplates path:
+ACTIVE_PRODUCTION_PATH / LEGACY_ROLLBACK_PATH / UNUSED_PATH
+
+Evidence:
+...
+
+global_template_sets required by CURRENT production Teacher Diary:
+YES / NO
+
+Toykids 350 templates require modification:
+NO
+
+x_global Production data recovery required:
+YES / NO
+
+Classification:
+CASE A / CASE B / CASE C
+
+Code change performed:
+NO
+
+Production writes:
+0
+
+Recommended next action:
+...
+
+Final:
+PASS / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
