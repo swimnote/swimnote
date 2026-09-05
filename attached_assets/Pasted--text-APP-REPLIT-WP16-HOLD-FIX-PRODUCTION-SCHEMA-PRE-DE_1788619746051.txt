@@ -1,0 +1,476 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP16 HOLD FIX — PRODUCTION SCHEMA PRE-DEPLOY GATE ONLY
+# FINAL MASTER WP FREEZE
+# WP17 선행 금지
+# PRODUCTION WRITE / MIGRATION / DEPLOY 금지
+
+현재 상태:
+
+release/v2.0.0 HEAD:
+aff68b8a
+
+origin/release:
+aff68b8a
+
+main / origin/main:
+8aef7060
+
+Render deployed:
+8aef7060cb3ade8d2769784f6f6953b77b2006df
+
+aff68b8a ancestor of Render:
+NO
+
+따라서 WP16은 HOLD 상태입니다.
+
+이번 작업은:
+
+"새 release 코드를 Production에 올리기 전에
+필수 Production schema/index가 준비되어 있는지 READ-ONLY로 확인"
+
+만 수행합니다.
+
+release→main merge 금지.
+main push 금지.
+Render deploy 금지.
+Production migration 실행 금지.
+Production data mutation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production DB
+━━━━━━━━━━━━━━━━━━━━━━
+
+Expected Production Supabase ref:
+
+mrgkiussgbbmxfnkjgqy
+
+Production DB connection임을 명확히 확인한 뒤
+READ-ONLY metadata query만 수행하십시오.
+
+Staging과 혼동 금지.
+
+Production connection을 안전하게 확인할 수 없으면
+추측하거나 Staging으로 대체하지 말고 HOLD 보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 반드시 확인할 WP5 schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+push_fanout_jobs table
+
+push_fanout_deliveries table
+
+필수 constraint/index도 현재 migration 기준으로 확인:
+
+- push_fanout_jobs primary/job_ref uniqueness
+- push_fanout_deliveries UNIQUE(job_ref, push_token_id)
+- worker가 release 코드에서 실제 참조하는 필수 columns
+
+Migration source:
+
+2026-09-05-push-fanout-queue.sql
+또는 현재 repository의 canonical WP5 migration.
+
+결과:
+
+PRESENT
+PARTIAL
+MISSING
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 반드시 확인할 WP4 schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical WP4 migration 기준으로 확인:
+
+notices unified columns 전체
+
+notice_dismissals table
+
+필수 indexes/constraints
+
+특히 release 코드가 실제 참조하는:
+
+- target_pools
+- target_roles
+- target_plan_types
+- show_banner
+- send_push
+- starts_at
+- ends_at
+- deep_link
+
+등의 실제 column 존재 여부.
+
+정확한 canonical migration과 route code를 기준으로
+필수 필드를 확인하십시오.
+
+Migration source:
+
+2026-09-05-notice-unified-schema.sql
+또는 현재 canonical WP4 migration.
+
+결과:
+
+PRESENT
+PARTIAL
+MISSING
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 반드시 확인할 WP8 indexes
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production pg_indexes에서 확인:
+
+1.
+idx_class_diaries_pool_cursor
+
+2.
+idx_notifications_user_cursor
+
+3.
+idx_diary_messages_diary_cursor
+
+4.
+idx_members_pool_status_cursor
+
+결과:
+
+4/4 PRESENT
+또는 정확한 missing 목록.
+
+Production에서 index 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 반드시 확인할 WP11 schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+admin_member_notes table
+
+필수 columns:
+
+- id
+- swimming_pool_id
+- canonical member/student reference
+- author_user_id
+- category
+- content
+- created_at
+- updated_at
+- deleted_at
+
+정확한 column 이름은 현재 WP11 migration 기준.
+
+필수 2 indexes도 확인.
+
+Migration source:
+
+src/migrations/wp11-admin-member-notes.ts
+
+결과:
+
+PRESENT
+PARTIAL
+MISSING
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기타 release-required migrations
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP2~WP15의 commit에서
+Production runtime이 요구하는 schema migration을
+최소 diff 기준으로 확인하십시오.
+
+이미 알려진 WP4/WP5/WP8/WP11 외에
+추가로 Production에 필수인 migration이 있는지 확인.
+
+repo 전체 migration 재감사 금지.
+
+범위:
+
+3775e2ce 이후
+aff68b8a까지 추가된 release commits 중
+runtime schema dependency만.
+
+발견 시:
+
+WP
+migration file
+required table/column/index
+Production present/missing
+
+보고.
+
+신규 migration 작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Production row/data 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+information_schema
+pg_indexes
+pg_constraint
+pg_catalog
+SELECT metadata/existence
+
+금지:
+
+CREATE
+ALTER
+DROP
+INSERT
+UPDATE
+DELETE
+TRUNCATE
+
+Migration runner 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Deploy Order 판단
+━━━━━━━━━━━━━━━━━━━━━━
+
+Schema audit 결과에 따라
+정확한 안전 순서만 보고하십시오.
+
+CASE A:
+
+모든 required schema PRESENT
+
+→ recommended next:
+
+1. user-approved release/v2.0.0 → main merge
+2. push main
+3. user/manual Render deploy
+4. Render SHA ancestry 확인
+5. WP16 Production E2E resume
+
+
+CASE B:
+
+하나라도 MISSING/PARTIAL
+
+→ recommended next:
+
+1. exact missing migration list
+2. exact migration execution order
+3. migration dependency/order
+4. expected before/after
+5. rollback/containment note
+6. 사용자 Production migration 승인 필요
+7. migration 적용 후 schema verify
+8. release→main merge
+9. Render deploy
+10. WP16 resume
+
+중요:
+
+Replit은 migration 실행하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Migration Order
+━━━━━━━━━━━━━━━━━━━━━━
+
+Missing migration이 여러 개면
+현재 dependency에 따라 안전 순서를 제시.
+
+기본적으로 추측하지 말고
+실제 code dependency를 확인.
+
+예상 후보:
+
+WP5 Push queue
+WP4 Notice schema
+WP8 indexes
+WP11 Admin Notes
+
+단 migration 번호 순서만 보고
+무조건 그 순서라고 가정하지 마십시오.
+
+실제 FK/table dependency 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. release→main Merge Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 실제 merge하지 않습니다.
+
+다만 read-only Git inspection으로:
+
+git log
+git merge-base
+git diff
+git merge-tree 또는 equivalent non-mutating check
+
+를 이용해
+
+release/v2.0.0 → main merge 시
+conflict 예상 여부만 확인 가능.
+
+보고:
+
+Merge conflicts expected:
+YES / NO
+
+Conflict files:
+...
+
+실제 merge:
+NO
+
+main push:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 필수 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PRODUCTION PRE-DEPLOY SCHEMA GATE REPORT
+
+Branch:
+release/v2.0.0
+
+Release HEAD:
+aff68b8a
+
+main HEAD:
+8aef7060
+
+Render deployed:
+8aef7060cb3ade8d2769784f6f6953b77b2006df
+
+Production DB ref:
+...
+
+Confirmed Production:
+YES / NO
+
+WP5:
+
+push_fanout_jobs:
+PRESENT / PARTIAL / MISSING
+
+push_fanout_deliveries:
+PRESENT / PARTIAL / MISSING
+
+required constraints:
+...
+
+WP4:
+
+notice unified columns:
+PRESENT / PARTIAL / MISSING
+
+notice_dismissals:
+PRESENT / PARTIAL / MISSING
+
+target_plan_types:
+...
+
+required indexes:
+...
+
+WP8 indexes:
+
+idx_class_diaries_pool_cursor:
+...
+
+idx_notifications_user_cursor:
+...
+
+idx_diary_messages_diary_cursor:
+...
+
+idx_members_pool_status_cursor:
+...
+
+Count:
+.../4 PRESENT
+
+WP11:
+
+admin_member_notes:
+PRESENT / PARTIAL / MISSING
+
+required columns:
+...
+
+required indexes:
+...
+
+Other release-required migrations:
+NONE / ...
+
+For each additional migration:
+WP:
+file:
+requirement:
+Production state:
+
+Missing migrations:
+NONE / ...
+
+Migration execution order if required:
+1. ...
+2. ...
+
+Migration dependency evidence:
+...
+
+Production migration executed:
+NO
+
+Production data writes:
+0
+
+Production DDL executed:
+0
+
+release→main merge conflict precheck:
+PASS / FAIL
+
+Expected merge conflicts:
+YES / NO
+
+Conflict files:
+...
+
+release→main merge executed:
+NO
+
+main pushed:
+NO
+
+Render deployed:
+NO
+
+Recommended exact next sequence:
+1. ...
+2. ...
+3. ...
+
+Remaining blocker:
+...
+
+Final:
+PASS_FOR_DEPLOY_GATE / HOLD
+
+중요:
+
+이번 작업은 READ-ONLY Production schema preflight만.
+
+Production migration 실행 금지.
+release→main merge 금지.
+Render deploy 금지.
+WP16 E2E 재시작 금지.
+WP17 선행 금지.
+
+완료 후 즉시 STOP.
+```
