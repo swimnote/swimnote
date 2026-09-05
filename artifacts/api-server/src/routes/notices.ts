@@ -2,16 +2,24 @@ import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { noticesTable, usersTable, studentsTable } from "@workspace/db/schema";
-import { eq, and, ne, or, isNull } from "drizzle-orm";
+import { eq, and, ne, or, isNull, lte, gte, inArray } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import {
   sendPushToPoolParents, sendPushToClassParents,
   sendPushToPoolAdmins, sendPushToPoolTeachers,
   sendPushToAllUsers,
+  enqueueFanoutJob,
 } from "../lib/push-service.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 
 const router = Router();
+
+const SUPER_ROLES = ["super_admin", "platform_admin", "super_manager"] as const;
+type Role = string;
+
+function isSuperRole(role: Role): boolean {
+  return (SUPER_ROLES as readonly string[]).includes(role);
+}
 
 function err(res: any, status: number, message: string) {
   return res.status(status).json({ success: false, message, error: message });
@@ -20,6 +28,14 @@ function err(res: any, status: number, message: string) {
 async function getPoolId(userId: string): Promise<string | null> {
   const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.swimming_pool_id || null;
+}
+
+/** Returns true if the notice is currently active (starts_at/ends_at window). */
+function isNoticeActive(notice: { starts_at?: Date | null; ends_at?: Date | null }): boolean {
+  const now = new Date();
+  if (notice.starts_at && notice.starts_at > now) return false;
+  if (notice.ends_at   && notice.ends_at   < now) return false;
+  return true;
 }
 
 // ── GET /notices ──────────────────────────────────────────────────────────────
@@ -31,7 +47,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     const role = req.user!.role;
     const scopeFilter = req.query.scope as string | undefined; // 'global' | 'pool' | undefined(전체)
 
-    if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
+    if (isSuperRole(role)) {
       // 슈퍼관리자: scope=global → 전체 공지만, pool_id 있으면 해당 풀만, 없으면 전체
       const poolId = (req.query.pool_id as string) || null;
 
@@ -52,7 +68,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         whereClause = ne(noticesTable.status, "deleted");
       }
 
-      const notices = await db.select().from(noticesTable).where(whereClause);
+      // WP8: add LIMIT (notices dataset is admin-managed, bounded in practice)
+    const notices = await db.select().from(noticesTable).where(whereClause).limit(200);
       return res.json(sortNotices(notices));
     }
 
@@ -71,7 +88,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
           ),
         ),
       )
-    );
+    ).limit(200);
     return res.json(sortNotices(notices));
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -87,16 +104,27 @@ function sortNotices(notices: any[]) {
 // ── POST /notices ─────────────────────────────────────────────────────────────
 // 공지 등록
 //  - audience_scope='global': 전체 공지 (swimming_pool_id 불필요)
-//    → 푸시: 모든 수영장 관리자·선생님·학부모 전체
-//    → 푸시 제목: [스윔노트] 공지사항
 //  - audience_scope='pool': 수영장별 공지 (swimming_pool_id 필수)
-//    → 푸시: 해당 수영장 관리자·선생님·학부모만
-//    → 푸시 제목: [수영장명] 공지사항
+//  - send_push: true 이면 WP5 durable fan-out enqueue
+//  - show_banner: true 이면 Banner 대상
+//  - target_roles: ['ADMIN','TEACHER','PARENT'] 타겟 역할
+//  - target_pools: 수영장 ID 배열 또는 null(전체)
+//  - starts_at / ends_at: 노출 기간 (nullable)
+//  - deep_link: 딥링크 URL (nullable)
 router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const {
     title, content, is_pinned, notice_type, student_id, image_urls,
     pool_id: bodyPoolId,
     audience_scope: rawScope,
+    // WP4 new fields
+    show_banner   = false,
+    send_push     = true,   // backward-compat: existing callers expect push to be sent
+    target_roles  = null,
+    target_pools  = null,
+    starts_at     = null,
+    ends_at       = null,
+    deep_link     = null,
+    target_plan_types = null,
   } = req.body;
   if (!title || !content) return err(res, 400, "제목과 내용을 입력해주세요.");
 
@@ -104,16 +132,34 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
   const imgs: string[] = Array.isArray(image_urls) ? image_urls.slice(0, 5) : [];
   const role = req.user!.role;
 
+  // Validate target_roles
+  const VALID_ROLES = ["ADMIN", "TEACHER", "PARENT"];
+  const parsedTargetRoles: string[] | null = Array.isArray(target_roles)
+    ? target_roles.filter((r: string) => VALID_ROLES.includes(r))
+    : null;
+
+  // Pool Admin authorization: cannot target other pools
+  const parsedTargetPools: string[] | null = (() => {
+    if (!Array.isArray(target_pools) || !target_pools.length) return null;
+    return target_pools;
+  })();
+
   try {
     let poolId: string | null = null;
 
     if (scope === "pool") {
-      if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
+      if (isSuperRole(role)) {
         poolId = bodyPoolId || null;
         if (!poolId) return err(res, 400, "수영장별 공지에는 pool_id가 필요합니다.");
       } else {
+        // pool_admin: only their own pool
         poolId = await getPoolId(req.user!.userId);
         if (!poolId) return err(res, 403, "소속된 수영장이 없습니다.");
+
+        // Pool Admin cross-pool target guard
+        if (parsedTargetPools && parsedTargetPools.some((p: string) => p !== poolId)) {
+          return err(res, 403, "자기 수영장만 공지 대상으로 설정할 수 있습니다.");
+        }
       }
     }
     // global이면 poolId = null
@@ -142,67 +188,155 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       student_id: scope === "pool" && notice_type === "individual" ? (student_id || null) : null,
       student_name: studentName,
       image_urls: imgs,
+      // WP4 new fields
+      show_banner:       show_banner   === true,
+      send_push:         send_push     !== false,  // default true (backward compat)
+      target_roles:      parsedTargetRoles,
+      target_pools:      parsedTargetPools,
+      starts_at:         starts_at  ? new Date(starts_at)  : null,
+      ends_at:           ends_at    ? new Date(ends_at)    : null,
+      deep_link:         deep_link  || null,
+      target_plan_types: Array.isArray(target_plan_types) ? target_plan_types : null,
     }).returning();
 
-    // 푸시 발송 (비동기 — 저장은 항상 성공 먼저)
-    setImmediate(async () => {
-      try {
-        if (scope === "global") {
-          // ── 전체 공지 푸시 ────────────────────────────────────────
-          const pushTitle = "[스윔노트] 공지사항";
-          const pushBody  = title;
-          await sendPushToAllUsers("notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`);
+    // 푸시 발송 (send_push=true일 때만 — WP5 durable fan-out)
+    if (send_push !== false) {
+      // Deterministic job_ref: same notice create action → same job_ref → idempotent
+      const jobRef = `notice:${id}:send`;
 
-        } else if (poolId) {
-          // ── 수영장별 공지 푸시 ────────────────────────────────────
-          const poolInfoRows = await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`).catch(() => null);
-          const poolName = (poolInfoRows?.rows[0] as any)?.name || "수영장";
-          const pushTitle = `[${poolName}] 공지사항`;
-          const pushBody  = title;
+      setImmediate(async () => {
+        try {
+          if (scope === "global") {
+            // WP5 durable fan-out: all users (already uses enqueueFanoutJob internally)
+            await sendPushToAllUsers("notice", "[스윔노트] 공지사항", title, { noticeId: id, type: "notice", deepLink: deep_link }, jobRef);
 
-          if (notice_type === "individual" && student_id) {
-            const parentRows = await db.execute(sql`
-              SELECT parent_id AS parent_account_id FROM parent_students
-              WHERE student_id = ${student_id} AND status = 'approved'
-            `);
-            const { sendPushToUser } = await import("../lib/push-service.js");
-            const noticeOpts = { subtitle: "SwimNote", channelId: "notice" as const };
-            for (const p of parentRows.rows as any[]) {
-              await sendPushToUser(p.parent_account_id, true, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`, noticeOpts);
+          } else if (poolId) {
+            const poolInfoRows = await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`).catch(() => null);
+            const poolName = (poolInfoRows?.rows[0] as any)?.name || "수영장";
+            const pushTitle = `[${poolName}] 공지사항`;
+
+            if (notice_type === "individual" && student_id) {
+              const parentRows = await db.execute(sql`
+                SELECT parent_id AS parent_account_id FROM parent_students
+                WHERE student_id = ${student_id} AND status = 'approved'
+              `);
+              const { sendPushToUser } = await import("../lib/push-service.js");
+              const noticeOpts = { subtitle: "SwimNote", channelId: "notice" as const };
+              for (const p of parentRows.rows as any[]) {
+                await sendPushToUser(p.parent_account_id, true, "notice", pushTitle, title, { noticeId: id, type: "notice" }, jobRef, noticeOpts);
+              }
+            } else {
+              // WP5 durable fan-out for pool parents
+              await sendPushToPoolParents(poolId, "notice", pushTitle, title, { noticeId: id, type: "notice", deepLink: deep_link }, jobRef);
+              // Admins + Teachers via direct push (small count, no fan-out needed)
+              await Promise.allSettled([
+                sendPushToPoolAdmins(poolId, "notice", pushTitle, title, { noticeId: id, type: "notice" }, `${jobRef}:admin`),
+                sendPushToPoolTeachers(poolId, "notice", pushTitle, title, { noticeId: id, type: "notice" }, `${jobRef}:teacher`),
+              ]);
             }
-          } else {
-            const noticeOpts = { subtitle: "SwimNote", channelId: "notice" as const };
-            await Promise.allSettled([
-              sendPushToPoolParents(poolId, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`),
-              sendPushToPoolAdmins(poolId, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`),
-              sendPushToPoolTeachers(poolId, "notice", pushTitle, pushBody, { noticeId: id, type: "notice" }, `notice_${id}`),
-            ]);
           }
-        }
 
-        // push_sent_at 기록
-        await db.execute(sql`
-          UPDATE notices SET push_sent_at = NOW(), push_sent_count = COALESCE(push_sent_count, 0) + 1
-          WHERE id = ${id}
-        `).catch(console.error);
-      } catch (e) {
-        console.error("[notices] 푸시 발송 오류:", e);
-      }
-    });
+          // push_sent_at 기록
+          await db.execute(sql`
+            UPDATE notices SET push_sent_at = NOW(), push_sent_count = COALESCE(push_sent_count, 0) + 1
+            WHERE id = ${id}
+          `).catch(console.error);
+        } catch (e) {
+          console.error("[notices] 푸시 발송 오류:", e);
+        }
+      });
+    }
 
     const logPoolId = poolId || "global";
-    logPoolEvent({ pool_id: logPoolId, event_type: "notice_create", entity_type: "notice", entity_id: notice.id, actor_id: req.user!.userId, actor_name: user?.name || "관리자", payload: { title, scope, notice_type: notice.notice_type } }).catch(console.error);
+    logPoolEvent({ pool_id: logPoolId, event_type: "notice_create", entity_type: "notice", entity_id: notice.id, actor_id: req.user!.userId, actor_name: user?.name || "관리자", payload: { title, scope, notice_type: notice.notice_type, show_banner, send_push } }).catch(console.error);
     res.status(201).json({ success: true, ...notice });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── GET /notices/banners — Banner 후보 조회 ───────────────────────────────────
+// 현재 사용자에게 표시할 Banner 후보를 반환합니다.
+// 조건: show_banner=true, active period, not dismissed by this user
+// 인증 필수 (§16 WP1 security 유지).
+router.get("/banners", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId  = req.user!.userId;
+    const role    = req.user!.role;
+    const now     = new Date();
+
+    // Banner candidates: show_banner=true, not deleted
+    const candidates = await db.execute(sql`
+      SELECT n.*
+      FROM notices n
+      WHERE n.show_banner = true
+        AND (n.status IS NULL OR n.status != 'deleted')
+        AND (n.starts_at IS NULL OR n.starts_at <= ${now})
+        AND (n.ends_at   IS NULL OR n.ends_at   >= ${now})
+        AND n.id NOT IN (
+          SELECT notice_id FROM notice_dismissals WHERE user_id = ${userId}
+        )
+      ORDER BY n.is_pinned DESC, n.created_at DESC
+      LIMIT 10
+    `);
+
+    const rows = candidates.rows as any[];
+
+    // Filter by target_roles if present
+    const filtered = rows.filter(n => {
+      if (!n.target_roles || !n.target_roles.length) return true;
+      // Map DB roles to spec roles
+      const userSpecRole = roleToSpecRole(role);
+      return n.target_roles.includes(userSpecRole);
+    });
+
+    res.json({ success: true, banners: filtered });
+  } catch (e) {
+    console.error("[notices/banners]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+/** Map DB role → spec target_role label */
+function roleToSpecRole(role: string): string {
+  if (role === "pool_admin" || role === "sub_admin") return "ADMIN";
+  if (role === "teacher") return "TEACHER";
+  if (role === "parent_account") return "PARENT";
+  if (isSuperRole(role)) return "ADMIN";
+  return role.toUpperCase();
+}
+
+// ── POST /notices/:id/dismiss — Banner 다시 보지 않기 ────────────────────────
+// idempotent: 동일 (notice_id, user_id) 중복 요청 → 200, no error
+router.post("/:id/dismiss", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId   = req.user!.userId;
+    const noticeId = req.params.id;
+
+    // Verify notice exists and has show_banner=true
+    const rows = await db.execute(sql`SELECT id, show_banner FROM notices WHERE id = ${noticeId} LIMIT 1`);
+    const notice = rows.rows[0] as any;
+    if (!notice) return err(res, 404, "공지를 찾을 수 없습니다.");
+    if (!notice.show_banner) return err(res, 400, "배너 공지가 아닙니다.");
+
+    // Upsert: ON CONFLICT DO NOTHING — idempotent
+    const dismId = `nd_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO notice_dismissals (id, notice_id, user_id, dismissed_at)
+      VALUES (${dismId}, ${noticeId}, ${userId}, NOW())
+      ON CONFLICT (notice_id, user_id) DO NOTHING
+    `);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[notices/dismiss]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
 });
 
 // ── GET /:id/read-stats ───────────────────────────────────────────────────────
 router.get("/:id/read-stats", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     const role = req.user!.role;
-    const poolId = (role === "super_admin" || role === "platform_admin")
-      ? null
-      : await getPoolId(req.user!.userId);
+    const poolId = isSuperRole(role) ? null : await getPoolId(req.user!.userId);
 
     const [notice] = await db.select().from(noticesTable).where(eq(noticesTable.id, req.params.id)).limit(1);
     if (!notice) return err(res, 404, "공지를 찾을 수 없습니다.");
@@ -233,9 +367,7 @@ router.get("/:id/read-stats", requireAuth, requireRole("super_admin", "pool_admi
 router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   try {
     const role = req.user!.role;
-    const poolId = (role === "super_admin" || role === "platform_admin")
-      ? null
-      : await getPoolId(req.user!.userId);
+    const poolId = isSuperRole(role) ? null : await getPoolId(req.user!.userId);
 
     const [notice] = await db.select({ swimming_pool_id: noticesTable.swimming_pool_id, status: noticesTable.status, audience_scope: noticesTable.audience_scope })
       .from(noticesTable).where(eq(noticesTable.id, req.params.id)).limit(1);
@@ -259,12 +391,11 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
 
 // ── PATCH /:id — 수정 (재발송 포함) ─────────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { title, content, is_pinned, notice_type, resend_push } = req.body;
+  const { title, content, is_pinned, notice_type, resend_push,
+          show_banner, send_push, target_roles, target_pools, starts_at, ends_at, deep_link } = req.body;
   try {
     const role = req.user!.role;
-    const poolId = (role === "super_admin" || role === "platform_admin")
-      ? null
-      : await getPoolId(req.user!.userId);
+    const poolId = isSuperRole(role) ? null : await getPoolId(req.user!.userId);
 
     const [notice] = await db.select().from(noticesTable).where(eq(noticesTable.id, req.params.id)).limit(1);
     if (!notice) return err(res, 404, "공지를 찾을 수 없습니다.");
@@ -277,26 +408,34 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     if (content     !== undefined) updates.content     = content;
     if (is_pinned   !== undefined) updates.is_pinned   = is_pinned;
     if (notice_type !== undefined) updates.notice_type = ["individual", "update", "maintenance", "special"].includes(notice_type) ? notice_type : "general";
+    if (show_banner !== undefined) updates.show_banner = show_banner === true;
+    if (send_push   !== undefined) updates.send_push   = send_push !== false;
+    if (starts_at   !== undefined) updates.starts_at   = starts_at ? new Date(starts_at) : null;
+    if (ends_at     !== undefined) updates.ends_at     = ends_at   ? new Date(ends_at)   : null;
+    if (deep_link   !== undefined) updates.deep_link   = deep_link || null;
+    if (Array.isArray(target_roles))  updates.target_roles  = target_roles.filter((r: string) => ["ADMIN","TEACHER","PARENT"].includes(r));
+    if (Array.isArray(target_pools))  updates.target_pools  = target_pools;
 
     await db.update(noticesTable).set(updates).where(eq(noticesTable.id, req.params.id));
 
     // 재발송 (스위치 ON 시에만, 기본 OFF)
     if (resend_push) {
       const finalTitle = title || notice.title;
+      const jobRef = `notice:${req.params.id}:resend_${Date.now()}`;
 
       setImmediate(async () => {
         try {
           if (notice.audience_scope === "global") {
-            await sendPushToAllUsers("notice", "[스윔노트] 공지사항 (수정)", finalTitle, { noticeId: req.params.id }, `notice_re_${req.params.id}`);
+            await sendPushToAllUsers("notice", "[스윔노트] 공지사항 (수정)", finalTitle, { noticeId: req.params.id }, jobRef);
           } else if (notice.swimming_pool_id) {
             const targetPoolId = notice.swimming_pool_id;
             const poolInfoRows = await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${targetPoolId} LIMIT 1`).catch(() => null);
             const poolName = (poolInfoRows?.rows[0] as any)?.name || "수영장";
             const pushTitle = `[${poolName}] 공지사항 (수정)`;
             await Promise.allSettled([
-              sendPushToPoolParents(targetPoolId, "notice", pushTitle, finalTitle, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
-              sendPushToPoolAdmins(targetPoolId, "notice", pushTitle, finalTitle, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
-              sendPushToPoolTeachers(targetPoolId, "notice", pushTitle, finalTitle, { noticeId: req.params.id }, `notice_re_${req.params.id}`),
+              sendPushToPoolParents(targetPoolId, "notice", pushTitle, finalTitle, { noticeId: req.params.id }, jobRef),
+              sendPushToPoolAdmins(targetPoolId, "notice", pushTitle, finalTitle, { noticeId: req.params.id }, `${jobRef}:admin`),
+              sendPushToPoolTeachers(targetPoolId, "notice", pushTitle, finalTitle, { noticeId: req.params.id }, `${jobRef}:teacher`),
             ]);
           }
           await db.execute(sql`

@@ -43,6 +43,7 @@ const STALE_RUNNING = 30 * 60;     // 30분 이상 RUNNING → stale (재claim �
 const MAX_POOL_WORKERS = 2;        // 동시 처리 pool 수 (부하 분산)
 const STUDENT_CONCURRENCY = 1;     // pool 내 학생 동시 처리 (순차)
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;  // KST = UTC+9
+const MAX_BATCH_ATTEMPTS = 3;      // FAILED/PARTIAL 배치 최대 재시도 횟수
 
 // 월별 자동 생성 실행 여부 (env fail-closed)
 function isBatchEnabled(): boolean {
@@ -51,7 +52,7 @@ function isBatchEnabled(): boolean {
 
 // ── KST date helper ───────────────────────────────────────────────────────────
 
-function getKSTNow(utcNow: Date = new Date()): { year: number; month: number } {
+export function getKSTNow(utcNow: Date = new Date()): { year: number; month: number } {
   const kst = new Date(utcNow.getTime() + KST_OFFSET_MS);
   return { year: kst.getUTCFullYear(), month: kst.getUTCMonth() + 1 };
 }
@@ -141,6 +142,7 @@ interface BatchJob {
 async function claimJob(db: Db): Promise<BatchJob | null> {
   const now = new Date().toISOString();
   const staleThreshold = new Date(Date.now() - STALE_RUNNING * 1000).toISOString();
+  const maxAttempts = MAX_BATCH_ATTEMPTS;
 
   const r = await db.execute(sql`
     UPDATE growth_report_batch_jobs
@@ -153,12 +155,15 @@ async function claimJob(db: Db): Promise<BatchJob | null> {
     WHERE id = (
       SELECT id FROM growth_report_batch_jobs
       WHERE (
-        -- PENDING 또는 stale RUNNING
+        -- PENDING — 첫 실행
         status = 'PENDING'
+        -- stale RUNNING — heartbeat 없이 30분 경과 → 재claim
         OR (status = 'RUNNING' AND locked_at < ${staleThreshold})
+        -- FAILED/PARTIAL — 재시도 가능 (attempts < max + next_attempt_at 경과)
+        OR (status IN ('FAILED','PARTIAL') AND attempts < ${maxAttempts} AND next_attempt_at <= ${now})
       )
       AND (next_attempt_at IS NULL OR next_attempt_at <= ${now})
-      AND status NOT IN ('COMPLETED','PARTIAL','FAILED')
+      AND status NOT IN ('COMPLETED')
       ORDER BY created_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED
@@ -492,13 +497,13 @@ async function markJobComplete(db: Db, jobId: string, completed: number, failed:
 // 매월 5일 02:00 KST = 전월 4일 17:00 UTC → cron "0 17 4 * *" UTC
 // KST 기준: 매월 5일 → UTC "0 17 4 * *"
 
-export async function runMonthlyBatchCron(db: Db): Promise<void> {
+export async function runMonthlyBatchCron(db: Db, now: Date = new Date()): Promise<void> {
   if (!isBatchEnabled()) {
     console.log("[gr-batch] DISABLED (GROWTH_REPORT_BATCH_AUTO_ENABLED != true)");
     return;
   }
 
-  const { year, month } = getKSTNow();
+  const { year, month } = getKSTNow(now);
   console.log(`[gr-batch] MONTHLY CRON: KST year=${year} month=${month}`);
 
   try {
@@ -549,12 +554,42 @@ export async function runBatchWorker(db: Db): Promise<void> {
   }
 }
 
+// ── startupBatchRecovery ──────────────────────────────────────────────────────
+// 서버 재시작 후: 오늘이 5일 이후 KST이고 이번 달 batch job이 없으면 즉시 생성.
+// process downtime으로 cron을 놓쳤을 때를 복구한다.
+
+export async function startupBatchRecovery(db: Db, now: Date = new Date()): Promise<void> {
+  if (!isBatchEnabled()) return;
+
+  const { year, month } = getKSTNow(now);
+  const kstDay = new Date(now.getTime() + KST_OFFSET_MS).getUTCDate();
+  if (kstDay < 5) {
+    console.log(`[gr-batch] startup recovery skip: KST day=${kstDay} (< 5)`);
+    return;
+  }
+
+  // 이번 달 batch job 존재 여부 확인
+  const existing = await db.execute(sql`
+    SELECT id FROM growth_report_batch_jobs
+    WHERE year = ${year} AND month = ${month} AND job_type = 'MONTHLY_AUTO'
+    LIMIT 1
+  `).catch(() => ({ rows: [] }));
+
+  if (existing.rows.length > 0) {
+    console.log(`[gr-batch] startup recovery skip: batch already exists year=${year} month=${month}`);
+    return;
+  }
+
+  console.log(`[gr-batch] startup recovery: creating missing batch year=${year} month=${month} KST_day=${kstDay}`);
+  await runMonthlyBatchCron(db, now);
+}
+
 // ── startGrowthReportBatchWorker ──────────────────────────────────────────────
 
 export function startGrowthReportBatchWorker(): void {
   const db = superAdminDb;
 
-  // 매월 5일 02:00 KST = "0 17 4 * *" UTC
+  // 매월 5일 02:00 KST = UTC "0 17 4 * *" (UTC+9 고정; KST DST 없음)
   cron.schedule("0 17 4 * *", async () => {
     console.log("[gr-batch] monthly cron trigger");
     await runMonthlyBatchCron(db).catch(e =>
@@ -569,5 +604,12 @@ export function startGrowthReportBatchWorker(): void {
     );
   });
 
-  console.log("[gr-batch] scheduler started (monthly 5일 02:00 KST + 5min worker)");
+  // 서버 시작 45초 후 — 5일 이후 downtime recovery
+  setTimeout(async () => {
+    await startupBatchRecovery(db).catch(e =>
+      console.error("[gr-batch] startup recovery error:", e.message)
+    );
+  }, 45_000);
+
+  console.log("[gr-batch] scheduler started (monthly 5일 02:00 KST + 5min worker + startup recovery)");
 }

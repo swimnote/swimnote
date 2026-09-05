@@ -1,0 +1,881 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP9 — OPERATIONAL MONITORING / INCIDENT ALERT
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 계획 변경 금지
+
+목적:
+
+출시 전 최소 운영 모니터링과 장애 감지 체계를 완성합니다.
+
+이번 WP 핵심:
+
+1. API uptime/health
+2. 5xx/error spike
+3. DB connectivity
+4. Worker health
+5. Growth worker failure
+6. RevenueCat webhook failure
+7. Push fanout failure
+8. 단일 운영 alert channel
+
+새 대형 APM 플랫폼을 만드는 작업이 아닙니다.
+
+이번 작업은 WP9만 수행합니다.
+
+WP10 이후 작업 절대 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이미 존재하는:
+
+- system-health
+- Pool Health
+- audit_logs
+- Support Cases
+- Worker 상태
+- Push queue
+- RevenueCat event log
+
+를 최대한 재사용합니다.
+
+금지:
+
+- Datadog/New Relic 대형 도입
+- 새로운 observability platform
+- 대형 log aggregation system
+- worker architecture 재작성
+- WP10 Growth logic 수정
+- WP11 이후 선행작업
+- unrelated refactor
+
+목표:
+
+"운영자가 실제 장애를 놓치지 않는 최소 체계"
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+60cd5a82
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- 60cd5a82 ancestry 포함
+
+WP1~WP8 재검수 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 기존 Monitoring 구조 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+repo-wide audit 금지.
+
+다음 기존 구조만 최소 확인:
+
+- system-health endpoint/service
+- Pool Health
+- audit_logs
+- Support Cases
+- existing error logger
+- Growth worker status/log
+- Push fanout job status
+- RevenueCat webhook event log
+- existing notification/email/Slack/etc alert mechanism
+
+이미 있는 것은 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Health Check
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 system-health를 확장/재사용.
+
+최소 상태:
+
+API:
+UP / DEGRADED / DOWN
+
+DB:
+OK / FAIL
+
+Workers:
+OK / DEGRADED / FAIL
+
+Push:
+OK / DEGRADED / FAIL
+
+RevenueCat:
+OK / DEGRADED / FAIL
+
+Growth:
+OK / DEGRADED / FAIL
+
+중요:
+
+health endpoint 자체에서
+대형 query나 전체 table scan 금지.
+
+빠르고 bounded 해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. API 5xx 감지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 API error handling/logger를 확인하십시오.
+
+최소 운영 지표:
+
+- 최근 5분 5xx count
+- 최근 15분 5xx count
+- 최근 error rate 가능하면
+- top recent endpoint/error code 최소 요약
+
+새 request tracing system 전체를 만들지 마십시오.
+
+기존 request/error logs로 가능한 범위 우선.
+
+Schema 추가가 필요하면
+최소 필요성 evidence 확인 후 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DB Connectivity
+━━━━━━━━━━━━━━━━━━━━━━
+
+health check에서 최소:
+
+SELECT 1
+
+또는 기존 DB health query 재사용.
+
+확인:
+
+- connection success/fail
+- timeout
+- latency 가능하면
+
+DB query 실패가
+health endpoint 자체 500 crash로 이어지지 않게.
+
+DB DOWN이면 structured health response.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Worker Health
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 worker:
+
+- push fanout worker
+- growth report batch worker
+- growth report analysis worker
+- scheduler 등
+
+기존 heartbeat/status 구조가 있으면 재사용.
+
+없으면 최소 상태 판단:
+
+- 마지막 성공/실행 시각
+- pending count
+- failed count
+- stuck processing count
+
+새 worker heartbeat platform 만들지 마십시오.
+
+현재 DB job status로 판단 가능한 경우 우선 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Push Fanout Monitoring
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5 durable queue 기준.
+
+최소 감지:
+
+- FAILED jobs > 0
+- PARTIAL_FAILED jobs > 0
+- processing stuck
+- pending backlog 급증
+- recent delivery failure count
+
+WP7 control-center에 일부 metric 이미 추가됨.
+
+그 구조를 재사용.
+
+새 push analytics system 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. RevenueCat Monitoring
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 revenuecat_webhook_events 재사용.
+
+최소:
+
+- recent processing failure count
+- duplicate events는 failure로 보지 않음
+- unprocessed/stuck event
+- auth failure는 기존 security log 가능하면 포함
+
+RevenueCat reconciliation worker는 만들지 마십시오.
+그건 WP20.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Growth Monitoring
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+growth-report-batch-worker
+growth-report-analysis-worker
+growth-report-scheduler
+
+재사용.
+
+이번 WP에서 Growth eligibility/생성 logic 수정 금지.
+
+최소:
+
+- last successful batch
+- recent failed jobs
+- stuck processing
+- scheduler last run
+- REVIEW_REQUIRED count 가능하면
+
+실패를 감지하는 것만.
+
+WP10에서 실제 auto-issue recovery를 다룹니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Incident Severity
+━━━━━━━━━━━━━━━━━━━━━━
+
+간단한 severity만.
+
+예:
+
+RED:
+- API health down
+- DB unavailable
+- repeated 5xx spike
+- critical worker completely stopped
+
+YELLOW:
+- push failed/partial jobs
+- RC webhook failures
+- Growth failed/stuck
+- backlog warning
+
+GREEN:
+정상
+
+기존 health severity convention이 있으면 재사용.
+
+새 복잡한 incident scoring system 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Alert Channel
+━━━━━━━━━━━━━━━━━━━━━━
+
+"하나의 운영 채널"만 연결합니다.
+
+먼저 기존 repo에:
+
+- Slack webhook
+- email
+- admin notification
+- SMS
+- other ops notifier
+
+가 있는지 최소 확인.
+
+있으면 가장 적절한 기존 mechanism 재사용.
+
+없으면:
+
+외부 신규 vendor를 무조건 도입하지 마십시오.
+
+현재 가장 작은 운영 alert mechanism을 선택.
+
+예:
+
+- Super Admin internal alert/health issue
+- existing email transport
+- existing Slack webhook env support
+
+단 실제 외부 credential이 없으면
+코드 구조 + test까지만 구현하고
+운영 env requirement를 보고.
+
+새 multi-channel notification platform 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Alert Dedup / Noise Control
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 장애가 매 polling 때마다
+무한 alert spam 되면 안 됩니다.
+
+최소:
+
+incident key
++ cooldown
+
+예:
+
+db_down
+push_failed
+rc_failure
+growth_stuck
+api_5xx_spike
+
+같은 unresolved incident는
+cooldown 동안 반복 alert 제한.
+
+Recovery 시:
+
+RESOLVED
+
+상태를 1회 알릴 수 있으면 좋음.
+
+단 대형 incident lifecycle system 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Alert Threshold
+━━━━━━━━━━━━━━━━━━━━━━
+
+threshold를 임의로 과도하게 세밀하게 만들지 마십시오.
+
+기존 data에 근거한 보수적인 기본값.
+
+예:
+
+5xx:
+짧은 시간 내 반복 발생
+
+Push:
+FAILED > 0
+PARTIAL_FAILED > 0
+
+RevenueCat:
+recent processing failure > 0
+
+Growth:
+failed/stuck > 0
+
+DB:
+health query failure 즉시 RED
+
+정확한 threshold는 코드에 명시하고
+완료보고에 적으십시오.
+
+env configurable이 자연스러우면
+기존 env pattern 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Stuck Job 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+PROCESSING 상태가
+정상 처리시간을 지나 오래 유지되면 stuck.
+
+각 worker의 현재 작업 특성 확인 후
+합리적인 timeout 사용.
+
+모든 worker에 동일 5분 같은 값 강제 금지.
+
+기존 timeout/lease semantics가 있으면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Health Endpoint Security
+━━━━━━━━━━━━━━━━━━━━━━
+
+Public uptime probe가 필요한 endpoint와
+민감한 operational detail endpoint를 분리하십시오.
+
+Public health:
+
+최소:
+
+{ status: "ok" }
+
+정도.
+
+민감한:
+
+- error count
+- DB detail
+- queue count
+- webhook status
+- worker state
+
+는 Super Admin 또는 internal auth 보호.
+
+기존 endpoint security convention 우선.
+
+민감한 system details 공개 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Secret / PII
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 로그/alert에 포함 금지:
+
+- DB URL
+- RevenueCat secret
+- JWT
+- Expo push token 원문
+- API key
+- parent/student 민감정보
+- raw webhook payload 전체
+
+Incident message는:
+
+service
+severity
+count
+time
+safe error code
+
+정도만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. DB / Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 기대:
+
+Schema changes:
+NO
+
+Migration:
+NO
+
+기존 logs/jobs/health 구조 재사용.
+
+만약 alert dedup state 저장 때문에
+새 persistent state가 꼭 필요하면:
+
+먼저 기존 audit/health table 재사용 가능 여부 확인.
+
+새 schema가 실제 필수라면
+canonical migration → Staging → Production 미실행.
+
+신규 runtime DDL 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Polling / Scheduler
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 cron/worker interval 구조가 있으면 재사용.
+
+새 external scheduler 도입 금지.
+
+모니터 주기:
+
+1분~5분 수준의 bounded interval이면 충분.
+
+너무 짧은 polling으로 DB 부하 만들지 마십시오.
+
+health monitor 자체가 장애 원인이 되면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 최소 Incident 종류
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음 incident key를 지원/감지:
+
+API_5XX_SPIKE
+
+DB_UNAVAILABLE
+
+PUSH_FANOUT_FAILURE
+
+PUSH_FANOUT_STUCK
+
+REVENUECAT_WEBHOOK_FAILURE
+
+GROWTH_BATCH_FAILURE
+
+GROWTH_ANALYSIS_FAILURE
+
+GROWTH_JOB_STUCK
+
+가능하면:
+
+WORKER_NOT_RUNNING
+
+도 추가.
+
+이 이름은 repository convention에 맞게 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Super Admin Visibility
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Super Admin health/operations 화면 또는 endpoint에
+최소 상태를 additive하게 노출.
+
+예:
+
+overall_status
+api
+db
+push
+revenuecat
+growth
+workers
+recent_incidents
+
+새 dashboard 전체 redesign 금지.
+
+UI가 이미 있으면 최소 연결.
+
+없으면 endpoint만으로도 이번 WP PASS 가능,
+단 운영자가 실제 조회 가능한 경로는 있어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. Incident Recovery
+━━━━━━━━━━━━━━━━━━━━━━
+
+incident condition이 사라지면:
+
+ACTIVE
+→ RESOLVED
+
+또는 기존 equivalent state.
+
+최소한 stale incident가
+영구 RED로 남지 않게.
+
+DB persistent incident system이 없으면
+현재 health calculation 기반 current-state 방식도 허용.
+
+단 alert dedup/cooldown은 안전해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+WP9 관련 test만.
+
+A.
+API 정상
+→ GREEN
+
+B.
+DB SELECT health failure
+→ RED / DB_UNAVAILABLE
+
+C.
+5xx threshold 이하
+→ no incident
+
+D.
+5xx threshold 초과
+→ API_5XX_SPIKE
+
+E.
+push FAILED job
+→ PUSH_FANOUT_FAILURE
+
+F.
+push PROCESSING stale
+→ PUSH_FANOUT_STUCK
+
+G.
+RC failed webhook
+→ REVENUECAT_WEBHOOK_FAILURE
+
+H.
+Growth batch failed
+→ GROWTH_BATCH_FAILURE
+
+I.
+Growth analysis failed
+→ GROWTH_ANALYSIS_FAILURE
+
+J.
+Growth stale processing
+→ GROWTH_JOB_STUCK
+
+K.
+same incident repeated
+→ cooldown dedup
+
+L.
+incident resolves
+→ resolved/current health 정상
+
+M.
+public health endpoint
+→ sensitive details 없음
+
+N.
+Super Admin health endpoint
+→ detailed state 표시
+
+O.
+non-Super Admin detailed health
+→ 403
+
+P.
+secret/PII absent in alert payload
+
+Q.
+monitor query bounded
+
+Production 실제 장애 생성 금지.
+
+Staging/mock only.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server 변경 예상.
+
+Render required:
+YES / NO
+
+App/Super Admin JS 변경 시:
+
+iOS OTA required:
+YES / NO
+
+Replit publish 금지.
+
+Android OTA:
+NO
+
+Native:
+NO
+
+Production deploy:
+하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP10 Growth recovery logic
+- WP11 Admin Notes
+- WP12 Marketing
+- WP13 Integrity
+- WP14 Cleanup
+- WP15 Version
+- WP16 E2E
+- RevenueCat reconciliation
+- Push architecture 재설계
+- Pagination
+- Manual X Grant
+- Notice schema
+- AI Engine
+- external APM platform
+- new queue provider
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. PASS 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP9 PASS:
+
+1. API health
+2. DB health
+3. 5xx spike detection
+4. Push failure/stuck detection
+5. RC webhook failure detection
+6. Growth worker/job failure/stuck detection
+7. worker status visibility
+8. one operational alert channel
+9. alert dedup/cooldown
+10. recovery handling
+11. public/internal health separation
+12. secrets/PII leakage 0
+13. bounded monitor queries
+14. existing systems reused
+15. Production incident generation 0
+16. related tests PASS
+17. Commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP9 OPERATIONAL MONITORING REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+60cd5a82
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Existing monitoring reused:
+...
+
+Public health endpoint:
+...
+
+Detailed health endpoint:
+...
+
+Detailed endpoint authorization:
+...
+
+API health:
+PASS / FAIL
+
+DB health:
+PASS / FAIL
+
+DB query:
+...
+
+5xx detection:
+...
+
+5xx threshold:
+...
+
+Push failure detection:
+PASS / FAIL
+
+Push stuck detection:
+PASS / FAIL
+
+RC webhook failure detection:
+PASS / FAIL
+
+Growth batch failure:
+PASS / FAIL
+
+Growth analysis failure:
+PASS / FAIL
+
+Growth stuck detection:
+PASS / FAIL
+
+Worker health:
+PASS / FAIL
+
+Operational alert channel:
+...
+
+External credential required:
+YES / NO
+
+Alert incident keys:
+...
+
+Alert cooldown:
+...
+
+Duplicate alert prevented:
+PASS / FAIL
+
+Recovery handling:
+PASS / FAIL
+
+Public health sensitive info:
+NONE / FAIL
+
+Secrets/PII in alert payload:
+NONE / FAIL
+
+Monitor interval:
+...
+
+Bounded queries:
+PASS / FAIL
+
+Super Admin visibility:
+PASS / FAIL
+
+DB schema changes:
+YES / NO
+
+Migration:
+YES / NO
+
+Staging migration:
+PASS / FAIL / NOT REQUIRED
+
+Production DB changes:
+NO
+
+Production incident generated:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+Render required:
+YES / NO
+
+iOS OTA required:
+YES / NO
+
+Android OTA:
+NO
+
+Native binary required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP 완료 후
+WP10 Growth recovery를 선행 구현하지 마십시오.
+
+대형 APM/observability 플랫폼을 추가하지 마십시오.
+
+Production 장애를 실제로 발생시키지 마십시오.
+
+완료조건 충족 후 즉시 STOP하십시오.
+```

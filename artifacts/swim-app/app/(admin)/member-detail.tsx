@@ -28,6 +28,7 @@ import { SectionD_Summary } from "@/components/admin/member/SectionD_Summary";
 import { SectionE_Guardian } from "@/components/admin/member/SectionE_Guardian";
 import { SectionF_Feed } from "@/components/admin/member/SectionF_Feed";
 import { SectionH_StatusMgmt } from "@/components/admin/member/SectionH_StatusMgmt";
+import { SectionG_AdminNotes } from "@/components/admin/member/SectionG_AdminNotes";
 import {
   DetailData, ActivityLog, ClassGroup, LevelInfo, STATUS_META,
 } from "@/components/admin/member/memberDetailTypes";
@@ -426,7 +427,8 @@ export default function MemberDetailScreen() {
           onGoAttendance={() => router.push("/(admin)/attendance")}
         />
 
-        {/* Section G: WP-M5 전까지 미노출 (링크 공개 추가정보) */}
+        {/* Section G: 관리 메모 (WP11 Admin Notes MVP) */}
+        <SectionG_AdminNotes studentId={id!} />
 
         {/* Section H: 회원 상태 / 관리 + Danger Zone */}
         <SectionH_StatusMgmt

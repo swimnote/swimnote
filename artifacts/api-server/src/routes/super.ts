@@ -247,6 +247,27 @@ router.get(
       if (filter === "xmode")           conditions.push(`NOT COALESCE(p.x_force_disabled, false) AND (COALESCE(p.x_paid_entitlement, false) OR (COALESCE(p.x_manual_entitlement, false) AND p.xmode_config_status = 'READY'))`);
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
+      // WP8: cursor pagination — backward compat: response is plain array,
+      // X-Next-Cursor header added when more pages exist.
+      // Query params: limit (default 200, max 500), cursor (base64url {created_at, id})
+      const rawLimit = parseInt(String((req.query as any).limit ?? ""), 10);
+      const pageLimit = (!rawLimit || rawLimit <= 0) ? 200 : Math.min(rawLimit, 500);
+      const cursorRaw = (req.query as any).cursor as string | undefined;
+
+      let cursorFilter = "";
+      if (cursorRaw) {
+        try {
+          const obj = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+          if (obj.created_at && obj.id) {
+            const safeCat = obj.created_at.replace(/'/g, "");
+            const safeId  = obj.id.replace(/'/g, "");
+            cursorFilter = `AND (p.created_at < '${safeCat}'::timestamptz OR (p.created_at = '${safeCat}'::timestamptz AND p.id < '${safeId}'))`;
+          }
+        } catch { /* invalid cursor → ignore, return from start */ }
+      }
+
+      const finalWhere = conditions.length ? `WHERE ${conditions.join(" AND ")} ${cursorFilter}` : (cursorFilter ? `WHERE TRUE ${cursorFilter}` : "");
+
       const rows = (await db.execute(sql.raw(`
         SELECT
           p.id                                  AS pool_id,
@@ -307,13 +328,17 @@ router.get(
           END                                   AS deletion_pending
         FROM swimming_pools p
         LEFT JOIN users u ON u.id = p.admin_user_id
-        ${whereClause}
-        ORDER BY p.created_at DESC
-        LIMIT 500
+        ${finalWhere}
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT ${pageLimit + 1}
       `))).rows as any[];
 
+      // WP8: detect next page
+      const hasMorePools = rows.length > pageLimit;
+      const pageRows = hasMorePools ? rows.slice(0, pageLimit) : rows;
+
       // 중첩 구조로 변환
-      const result = rows.map(r => ({
+      const result = pageRows.map(r => ({
         pool_id:             r.pool_id,
         pool_name:           r.pool_name,
         pool_type:           r.pool_type,
@@ -350,6 +375,15 @@ router.get(
           trial_end_at:          r.sub_trial_end_at ?? null,
         },
       }));
+
+      if (hasMorePools && pageRows.length > 0) {
+        const last = pageRows[pageRows.length - 1] as any;
+        const nextCursor = Buffer.from(JSON.stringify({
+          created_at: last.created_at instanceof Date ? last.created_at.toISOString() : String(last.created_at),
+          id: last.pool_id,
+        })).toString("base64url");
+        res.set("X-Next-Cursor", nextCursor);
+      }
 
       res.json(result);
     } catch (err) {
@@ -3648,6 +3682,145 @@ router.post(
   },
 );
 
+// ── POST /super/growth-reports/batch-recovery — Manual batch recovery ─────────
+//
+// 목적: Super Admin이 특정 pool+report_month에 대해 실패/누락된 배치를 수동으로 복구.
+// 조건:
+//   - exact pool + exact report_month (YYYY-MM) 지정
+//   - 이미 COMPLETED 배치는 무시 (중복 생성 금지)
+//   - 기존 FAILED/PARTIAL 배치는 PENDING으로 리셋 (재시도)
+//   - 없으면 새 PENDING 배치 생성
+//   - audit_logs 기록
+//   - duplicate report 방지 (processStudentReport 내 ON CONFLICT)
+//
+router.post(
+  "/super/growth-reports/batch-recovery",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { pool_id, report_month } = req.body as { pool_id?: string; report_month?: string };
+    const actorId = (req as any).user?.id ?? "super_admin";
+
+    if (!pool_id || typeof pool_id !== "string") {
+      res.status(400).json({ error: "INVALID_POOL_ID" });
+      return;
+    }
+
+    if (!report_month || !/^\d{4}-\d{2}$/.test(report_month)) {
+      res.status(400).json({ error: "INVALID_REPORT_MONTH", expected: "YYYY-MM" });
+      return;
+    }
+
+    // report_month = 이전달 (e.g. "2026-08")
+    // batch job의 year/month = 발급 실행 달 (e.g. 2026-09)
+    const [ryStr, rmStr] = report_month.split("-");
+    const ry = Number(ryStr), rm = Number(rmStr);
+    const batchYear  = rm === 12 ? ry + 1 : ry;
+    const batchMonth = rm === 12 ? 1       : rm + 1;
+
+    try {
+      // 기존 batch job 조회
+      const existing = await superAdminDb.execute(sql`
+        SELECT id, status, attempts FROM growth_report_batch_jobs
+        WHERE swimming_pool_id = ${pool_id}
+          AND year = ${batchYear} AND month = ${batchMonth}
+          AND job_type = 'MONTHLY_AUTO'
+        LIMIT 1
+      `);
+
+      let jobId: string;
+      let action: string;
+
+      if (existing.rows.length > 0) {
+        const job = existing.rows[0] as any;
+
+        if (job.status === "COMPLETED") {
+          res.json({
+            ok: true,
+            action: "SKIPPED_ALREADY_COMPLETED",
+            job_id: job.id,
+            pool_id, report_month,
+          });
+          return;
+        }
+
+        // FAILED/PARTIAL/RUNNING stale → PENDING 리셋
+        await superAdminDb.execute(sql`
+          UPDATE growth_report_batch_jobs
+          SET status = 'PENDING', next_attempt_at = NOW(), updated_at = NOW()
+          WHERE id = ${job.id}
+        `);
+        jobId  = job.id as string;
+        action = "RESET_TO_PENDING";
+      } else {
+        // 새 PENDING 배치 생성
+        const ins = await superAdminDb.execute(sql`
+          INSERT INTO growth_report_batch_jobs
+            (swimming_pool_id, year, month, job_type, status, next_attempt_at)
+          VALUES
+            (${pool_id}, ${batchYear}, ${batchMonth}, 'MONTHLY_AUTO', 'PENDING', NOW())
+          ON CONFLICT (swimming_pool_id, year, month, job_type) DO NOTHING
+          RETURNING id
+        `);
+        if (!ins.rows.length) {
+          // Race — look it up
+          const r2 = await superAdminDb.execute(sql`
+            SELECT id FROM growth_report_batch_jobs
+            WHERE swimming_pool_id = ${pool_id}
+              AND year = ${batchYear} AND month = ${batchMonth} AND job_type = 'MONTHLY_AUTO'
+            LIMIT 1
+          `);
+          jobId = r2.rows.length ? (r2.rows[0] as any).id as string : "unknown";
+        } else {
+          jobId = (ins.rows[0] as any).id as string;
+        }
+        action = "CREATED_NEW_BATCH";
+      }
+
+      // Audit
+      try {
+        const vRes = await superAdminDb.execute(sql`
+          SELECT next_audit_version('growth_report_batch_job', ${jobId}) AS v
+        `);
+        const v = (vRes.rows[0] as any)?.v ?? 1;
+        await superAdminDb.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason,
+            request_id, correlation_id, ip_hash
+          ) VALUES (
+            'growth_report_batch_job', ${jobId}, ${v},
+            'manual_recovery', 'super_admin', ${actorId}, ${pool_id},
+            ${JSON.stringify({ report_month, action })}::jsonb,
+            ${JSON.stringify({ status: 'PENDING', report_month, batch_year: batchYear, batch_month: batchMonth })}::jsonb,
+            'SUPER_ADMIN_BATCH_RECOVERY',
+            NULL, NULL, NULL
+          )
+        `);
+      } catch (auditErr: any) {
+        console.warn("[super] batch-recovery audit 실패:", auditErr.message);
+      }
+
+      console.log(`[super] BATCH_RECOVERY actor=${actorId} pool=${pool_id} report_month=${report_month} action=${action} job=${jobId}`);
+      res.json({
+        ok: true,
+        action,
+        job_id: jobId,
+        pool_id,
+        report_month,
+        batch_year:  batchYear,
+        batch_month: batchMonth,
+        message: action === "CREATED_NEW_BATCH"
+          ? "새 batch job 생성됨. worker loop에서 처리 예정."
+          : "기존 batch job을 PENDING으로 리셋. worker loop에서 처리 예정.",
+      });
+    } catch (err: any) {
+      console.error("[super] batch-recovery 오류:", err.message);
+      res.status(500).json({ error: "BATCH_RECOVERY_FAILED", message: err.message });
+    }
+  },
+);
+
 // ════════════════════════════════════════════════════════════════════════════
 // PATCH /super/operators/:id/base — BASE SWIMNOTE manual entitlement grant/revoke
 // ════════════════════════════════════════════════════════════════════════════
@@ -3785,26 +3958,34 @@ router.get(
 // ════════════════════════════════════════════════════════════════════════════
 //
 // Super Admin이 결제 없이 수영장에 X 이용권을 직접 부여/회수.
-// 쓰는 DB 필드: x_manual_entitlement (± x_force_disabled, x_plan_key, xmode_config_status)
-// 절대 수정하지 않는 필드: x_paid_entitlement, xmode_entitlement (legacy)
-// RevenueCat 상태 조작 금지.
+// 쓰는 DB 필드: x_manual_entitlement, x_force_disabled, x_plan_key, xmode_config_status, member_limit
+// 절대 수정하지 않는 필드: x_paid_entitlement, x_management_override
+// RevenueCat 상태 조작 금지. Fake purchase 금지.
+//
+// WP7 변경:
+//   - blind READY 강제 로직 제거 (prerequisite 실제 검증으로 대체)
+//   - x_plan_key: "x300"/"x500"/"x1000" 3가지만 허용 (grant 시 필수)
+//   - grant 시: checkXPrerequisite (실제 X runtime 데이터 기준) → READY 시에만 허용
+//   - xmode_config_status: prerequisite PASS 시 "READY" 설정 (upload history 무관)
 //
 // Body:
 //   xmode_entitlement: boolean  — true=부여, false=회수  (UI backward-compat key)
-//   x_plan_key?:       string | null
-//   bypass_readiness_check?: boolean  — true 시 xmode_config_status → READY
+//   x_plan_key?:       "none"|"x300"|"x500"|"x1000"|null
 //   reason?: string
 //
 // 부여 시:
+//   prerequisite check → READY only
 //   x_manual_entitlement = true
 //   x_force_disabled     = false  (강제 비활성화 해제)
-//   x_plan_key           = provided value (optional)
-//   xmode_config_status  = bypass_readiness_check ? 'READY' : 기존값 유지
+//   x_plan_key           = provided valid plan key
+//   xmode_config_status  = "READY" (prerequisite 통과 기반)
+//   member_limit         = catalog 기준 자동 설정
 //
-// 회수 시:
+// 회수 시 (NONE):
 //   x_manual_entitlement = false
 //   x_plan_key           = null
-//   (x_paid_entitlement, xmode_config_status 불변)
+//   member_limit         = null
+//   (x_paid_entitlement, xmode_config_status, x_force_disabled, x_management_override 불변)
 //
 // Response: effective resolver 기준 상태 반환.
 // Audit: audit_logs 기록.
@@ -3818,12 +3999,10 @@ router.patch(
     const {
       xmode_entitlement,
       x_plan_key,
-      bypass_readiness_check,
       reason,
     } = req.body as {
       xmode_entitlement?: boolean;
       x_plan_key?: string | null;
-      bypass_readiness_check?: boolean;
       reason?: string;
     };
 
@@ -3835,6 +4014,31 @@ router.patch(
     const actorId = req.user!.id;
     const grant = xmode_entitlement; // true=부여, false=회수
 
+    // ── Plan key validation (grant 시 필수) ──────────────────────────────────
+    const VALID_GRANT_PLANS = new Set(["x300", "x500", "x1000"]);
+    if (grant) {
+      if (!x_plan_key || !VALID_GRANT_PLANS.has(x_plan_key)) {
+        res.status(400).json({
+          error:   "INVALID_PLAN_KEY",
+          message: `x_plan_key는 x300, x500, x1000 중 하나여야 합니다. (받은 값: ${x_plan_key ?? "없음"})`,
+        });
+        return;
+      }
+
+      // WP7: checkXPrerequisite — 실제 X runtime 데이터 기준 (upload history 무관)
+      const { checkXPrerequisite } = await import("../lib/xmode-readiness.js");
+      const prereq = await checkXPrerequisite(poolId, superAdminDb);
+      if (!prereq.ready) {
+        res.status(422).json({
+          error:         "X_PREREQUISITE_NOT_MET",
+          message:       prereq.reason ?? "X 운영 prerequisite를 충족하지 않습니다.",
+          missing:       prereq.missing,
+          global_template_count: prereq.global_template_count,
+        });
+        return;
+      }
+    }
+
     try {
       await superAdminDb.transaction(async (tx) => {
         // ── Before state ───────────────────────────────────────────────
@@ -3844,6 +4048,7 @@ router.patch(
             COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
             COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
             COALESCE(x_force_disabled,    false) AS x_force_disabled,
+            COALESCE(x_management_override, false) AS x_management_override,
             x_plan_key,
             xmode_config_status
           FROM swimming_pools
@@ -3856,9 +4061,10 @@ router.patch(
         }
         const before = beforeRes.rows[0] as any;
 
-        const beforePaid   = Boolean(before.x_paid_entitlement);
-        const beforeManual = Boolean(before.x_manual_entitlement);
-        const beforeForce  = Boolean(before.x_force_disabled);
+        const beforePaid     = Boolean(before.x_paid_entitlement);
+        const beforeManual   = Boolean(before.x_manual_entitlement);
+        const beforeForce    = Boolean(before.x_force_disabled);
+        const beforeOverride = Boolean(before.x_management_override);
 
         // ── Build UPDATE ────────────────────────────────────────────────
         let newManual: boolean;
@@ -3867,17 +4073,19 @@ router.patch(
         let newConfigStatus: string | null;
 
         if (grant) {
-          newManual     = true;
-          newForce      = false; // 강제 비활성화 해제
-          newPlanKey    = x_plan_key ?? (before.x_plan_key ?? null);
-          newConfigStatus = bypass_readiness_check
-            ? "READY"
-            : (before.xmode_config_status ?? null);
+          newManual       = true;
+          newForce        = false; // 강제 비활성화 해제 (spec §24)
+          newPlanKey      = x_plan_key!;
+          // WP7: prerequisite PASS 기반 READY 설정 (blind 강제 아님)
+          newConfigStatus = "READY";
+          // x_management_override: 변경하지 않음 (spec §3, §11)
         } else {
-          newManual     = false;
-          newForce      = beforeForce; // force는 건드리지 않음
-          newPlanKey    = null;
-          newConfigStatus = before.xmode_config_status ?? null; // 불변
+          // NONE / revoke
+          newManual       = false;
+          newForce        = beforeForce; // force는 건드리지 않음 (spec §4)
+          newPlanKey      = null;
+          newConfigStatus = before.xmode_config_status ?? null; // 불변 (spec §4)
+          // x_management_override: 변경하지 않음
         }
 
         // ── Catalog-authoritative member_limit ─────────────────────────
@@ -4271,8 +4479,9 @@ router.get(
       if (!poolRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
       const pool = poolRes.rows[0] as any;
 
-      // Counts + storage + recent errors (parallel)
-      const [countsRes, errorRes, aiRes, grRes, notifRes, supportRes] = await Promise.all([
+      // Counts + storage + recent errors + WP7 operational metrics (parallel)
+      const [countsRes, errorRes, aiRes, grRes, notifRes, supportRes,
+             pushRes, memberLimitRes, storageRes, rcRes] = await Promise.all([
         superAdminDb.execute(sql`
           SELECT
             (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_members,
@@ -4315,6 +4524,54 @@ router.get(
           ORDER BY created_at DESC
           LIMIT 1
         `).catch(() => ({ rows: [] })),
+        // WP7: Push fanout queue visibility (WP5 durable tables)
+        superAdminDb.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE status IN ('pending','claimed'))    AS pending_jobs,
+            COUNT(*) FILTER (WHERE status = 'failed')                  AS failed_jobs,
+            COUNT(*) FILTER (WHERE status = 'partial')                 AS partial_jobs,
+            COUNT(*) FILTER (WHERE completed_at > NOW() - INTERVAL '24 hours') AS completed_24h,
+            (SELECT COUNT(*) FROM push_fanout_deliveries d
+               JOIN push_fanout_jobs j ON j.job_ref = d.job_ref
+               WHERE j.pool_id = ${poolId} AND d.status = 'failed'
+                 AND d.attempted_at > NOW() - INTERVAL '24 hours'
+            ) AS recent_delivery_failures
+          FROM push_fanout_jobs
+          WHERE pool_id = ${poolId}
+        `).catch(() => ({ rows: [{ pending_jobs: 0, failed_jobs: 0, partial_jobs: 0, completed_24h: 0, recent_delivery_failures: 0 }] })),
+        // WP7: Member limit visibility (WP2 canonical)
+        superAdminDb.execute(sql`
+          SELECT
+            member_limit,
+            x_plan_key,
+            (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_count
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `).catch(() => ({ rows: [{ member_limit: null, x_plan_key: null, active_count: 0 }] })),
+        // WP7: Storage quota visibility
+        superAdminDb.execute(sql`
+          SELECT
+            used_storage_bytes,
+            base_storage_bytes,
+            addon_storage_bytes,
+            upload_blocked
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `).catch(() => ({ rows: [{ used_storage_bytes: 0, base_storage_bytes: null, addon_storage_bytes: null, upload_blocked: false }] })),
+        // WP7: RevenueCat / billing state visibility
+        superAdminDb.execute(sql`
+          SELECT
+            subscription_status,
+            subscription_tier,
+            subscription_expires_at,
+            payment_failed_at,
+            auto_renew_status
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+        `).catch(() => ({ rows: [{ subscription_status: null, subscription_tier: null, subscription_expires_at: null, payment_failed_at: null, auto_renew_status: null }] })),
       ]);
 
       const counts = countsRes.rows[0] as any;
@@ -4323,6 +4580,11 @@ router.get(
       const gr = grRes.rows[0] as any ?? {};
       const notif = notifRes.rows[0] as any;
       const recentSupport = (supportRes.rows[0] as any) ?? null;
+      // WP7 operational metrics
+      const pushStats  = (pushRes.rows[0] as any) ?? {};
+      const mlRow      = (memberLimitRes.rows[0] as any) ?? {};
+      const storRow    = (storageRes.rows[0] as any) ?? {};
+      const rcRow      = (rcRes.rows[0] as any) ?? {};
 
       // Health score (rule-based)
       const healthIssues: string[] = [];
@@ -4330,17 +4592,38 @@ router.get(
       if (Number(errors.cnt ?? 0) > 10) healthIssues.push("FREQUENT_ERRORS");
       if (Number(gr.failed_count ?? 0) > 3) healthIssues.push("GROWTH_REPORT_FAILURES");
       if (pool.upload_blocked) healthIssues.push("STORAGE_QUOTA");
+      if (Number(pushStats.failed_jobs ?? 0) > 0) healthIssues.push("PUSH_FANOUT_FAILURES");
       const health: "GREEN" | "YELLOW" | "RED" =
         healthIssues.length === 0 ? "GREEN" :
         healthIssues.some((h) => h.includes("CONFLICT") || h.includes("STORAGE")) ? "RED" : "YELLOW";
 
-      const xPaid    = Boolean(pool.x_paid_entitlement);
-      const xManual  = Boolean(pool.x_manual_entitlement);
-      const xForce   = Boolean(pool.x_force_disabled);
-      const xEff     = (xPaid || xManual) && !xForce;
-      const basePaid = Boolean(pool.subscription_status === "active" && !pool.base_manual_entitlement);
+      const xPaid     = Boolean(pool.x_paid_entitlement);
+      const xManual   = Boolean(pool.x_manual_entitlement);
+      const xForce    = Boolean(pool.x_force_disabled);
+      const xOverride = Boolean(pool.x_management_override);
+      const xEff      = (xOverride || xPaid || xManual) && !xForce;
+      const basePaid  = Boolean(pool.subscription_status === "active" && !pool.base_manual_entitlement);
       const baseManual = Boolean(pool.base_manual_entitlement);
-      const baseEff  = basePaid || baseManual;
+      const baseEff   = basePaid || baseManual;
+
+      // WP7: member limit derived
+      const { getXMemberLimit } = await import("../lib/xPlanCatalog.js");
+      const effectiveMemberLimit: number | null =
+        mlRow.member_limit ?? (mlRow.x_plan_key ? (getXMemberLimit(mlRow.x_plan_key) ?? null) : null);
+      const activeMemberCount = Number(mlRow.active_count ?? counts.active_members ?? 0);
+      const memberLimitRemaining = effectiveMemberLimit != null
+        ? Math.max(0, effectiveMemberLimit - activeMemberCount)
+        : null;
+
+      // WP7: storage quota
+      const effectiveStorageBytes =
+        Number(storRow.base_storage_bytes ?? 0) + Number(storRow.addon_storage_bytes ?? 0) || null;
+
+      // WP7: x_source (management_override > manual > paid > none)
+      const xSource = xOverride ? "management_override"
+                    : xManual   ? "manual"
+                    : xPaid     ? "paid"
+                    :             "none";
 
       res.json({
         pool_id:          pool.id,
@@ -4358,24 +4641,44 @@ router.get(
         base_source:      baseManual ? "manual" : (basePaid ? "paid" : "none"),
         subscription_status: pool.subscription_status,
         subscription_tier:   pool.subscription_tier,
-        // X access
-        x_paid:           xPaid,
-        x_manual:         xManual,
-        x_force_disabled: xForce,
-        x_effective:      xEff,
-        x_source:         xManual ? "manual" : (xPaid ? "paid" : "none"),
-        x_plan_key:       pool.x_plan_key ?? null,
-        xmode_config_status: pool.xmode_config_status,
+        // X access — WP7: separated fields (paid/manual/override distinct)
+        x_paid:                xPaid,
+        x_manual:              xManual,
+        x_management_override: xOverride,
+        x_force_disabled:      xForce,
+        x_effective:           xEff,
+        x_source:              xSource,
+        x_plan_key:            pool.x_plan_key ?? null,
+        xmode_config_status:   pool.xmode_config_status,
         // Counts
         active_members:   Number(counts.active_members ?? 0),
         total_members:    Number(counts.total_members ?? 0),
         teacher_count:    Number(counts.teacher_count ?? 0),
         parent_count:     Number(counts.parent_count ?? 0),
         active_class_count: Number(counts.active_class_count ?? 0),
-        // Storage
-        member_limit:     pool.member_limit,
-        used_storage_bytes: pool.used_storage_bytes,
-        upload_blocked:   pool.upload_blocked,
+        // WP7: Member limit visibility
+        member_limit:           effectiveMemberLimit,
+        member_limit_remaining: memberLimitRemaining,
+        member_limit_warn:      effectiveMemberLimit != null
+          ? activeMemberCount >= effectiveMemberLimit - 10 : false,
+        // WP7: Storage visibility
+        used_storage_bytes:     Number(storRow.used_storage_bytes ?? pool.used_storage_bytes ?? 0),
+        base_storage_bytes:     storRow.base_storage_bytes ?? null,
+        addon_storage_bytes:    storRow.addon_storage_bytes ?? null,
+        effective_storage_bytes: effectiveStorageBytes,
+        upload_blocked:         Boolean(storRow.upload_blocked ?? pool.upload_blocked),
+        // WP7: RevenueCat / billing state visibility
+        rc_subscription_status:    rcRow.subscription_status ?? null,
+        rc_subscription_tier:      rcRow.subscription_tier ?? null,
+        rc_subscription_expires_at: rcRow.subscription_expires_at ?? null,
+        rc_payment_failed_at:      rcRow.payment_failed_at ?? null,
+        rc_auto_renew_status:      rcRow.auto_renew_status ?? null,
+        // WP7: Push fanout queue visibility (WP5 durable)
+        push_pending_jobs:          Number(pushStats.pending_jobs ?? 0),
+        push_failed_jobs:           Number(pushStats.failed_jobs ?? 0),
+        push_partial_jobs:          Number(pushStats.partial_jobs ?? 0),
+        push_completed_24h:         Number(pushStats.completed_24h ?? 0),
+        push_recent_delivery_failures: Number(pushStats.recent_delivery_failures ?? 0),
         // AI
         recent_ai_diary_count: Number(ai.diary_count ?? 0),
         recent_ai_month:       ai.year_month ?? null,
@@ -6987,6 +7290,438 @@ router.get(
       res.status(500).json({ error: "DIAGNOSTIC_FAILED", message: e?.message });
     }
   },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// WP13 DATA INTEGRITY CHECKER — Super Admin read-only integrity routes
+// §0: READ ONLY — NO UPDATE / DELETE / INSERT repair
+// §21: GET /super/integrity/summary, GET /super/integrity/issues,
+//      GET /super/integrity/pools/:poolId
+// ════════════════════════════════════════════════════════════════════════════
+
+import { runIntegrityScan, type IntegrityIssue } from "../lib/integrity-checker.js";
+
+const INTEGRITY_SUPER_ROLES = new Set(["super_admin", "platform_admin"]);
+
+function requireIntegrityRole(req: any, res: any, next: any) {
+  if (!req.user || !INTEGRITY_SUPER_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: "FORBIDDEN", message: "슈퍼관리자 전용 기능입니다." });
+  }
+  next();
+}
+
+/**
+ * GET /super/integrity/summary
+ * §18A/B: Global scan summary — CRITICAL/WARNING/INFO counts + overall status.
+ * §23: Optionally writes ONE DATA_INTEGRITY_SCAN audit log on demand.
+ * §19: Bounded per-check LIMIT=50 default; 500 pools → no per-pool N+1.
+ */
+router.get(
+  "/super/integrity/summary",
+  requireIntegrityRole,
+  async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit ?? 50), 100);
+      const result = await runIntegrityScan({ limit });
+
+      // Optional audit — only on explicit ?audit=1 to avoid log spam
+      if (req.query.audit === "1") {
+        await superAdminDb.execute(sql`
+          INSERT INTO audit_logs
+            (id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+          VALUES
+            (gen_random_uuid()::text, ${req.user!.userId},
+             'DATA_INTEGRITY_SCAN', 'global', 'global',
+             ${JSON.stringify({
+               scanned_at: result.scanned_at,
+               critical:   result.summary.CRITICAL,
+               warning:    result.summary.WARNING,
+               info:       result.summary.INFO,
+               total:      result.summary.total,
+             })}::jsonb,
+             NOW())
+        `);
+      }
+
+      const overall =
+        result.summary.CRITICAL > 0 ? "CRITICAL" :
+        result.summary.WARNING  > 0 ? "WARNING"  : "OK";
+
+      return res.json({
+        overall,
+        summary:     result.summary,
+        scanned_at:  result.scanned_at,
+        check_count: result.check_count,
+        query_count: result.query_count,
+        n_plus_one:  "NONE",
+      });
+    } catch (e: any) {
+      console.error("[WP13] /super/integrity/summary 오류:", e?.message);
+      return res.status(500).json({ error: "SCAN_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * GET /super/integrity/issues
+ * §21: Paginated issue list with optional severity/code filter.
+ * §17: Each issue: code, severity, entity_type, entity_id, pool_id, summary, evidence, suggested_action.
+ * §24: No PII in evidence (student names / phone numbers excluded from checks).
+ */
+router.get(
+  "/super/integrity/issues",
+  requireIntegrityRole,
+  async (req, res) => {
+    try {
+      const limit    = Math.min(Number(req.query.limit ?? 50), 100);
+      const offset   = Number(req.query.offset ?? 0);
+      const severity = req.query.severity as string | undefined;
+      const code     = req.query.code     as string | undefined;
+
+      const result = await runIntegrityScan({ limit });
+
+      let issues: IntegrityIssue[] = result.issues;
+      if (severity) issues = issues.filter(i => i.severity === severity.toUpperCase());
+      if (code)     issues = issues.filter(i => i.code === code);
+
+      const page = issues.slice(offset, offset + limit);
+
+      return res.json({
+        issues:     page,
+        total:      issues.length,
+        limit,
+        offset,
+        scanned_at: result.scanned_at,
+      });
+    } catch (e: any) {
+      console.error("[WP13] /super/integrity/issues 오류:", e?.message);
+      return res.status(500).json({ error: "SCAN_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * GET /super/integrity/pools/:poolId
+ * §18A: Single pool deep scan — scoped to one pool.
+ * §28: Pool Admin cannot access global integrity API — but Super Admin can view any pool.
+ */
+router.get(
+  "/super/integrity/pools/:poolId",
+  requireIntegrityRole,
+  async (req, res) => {
+    try {
+      const { poolId } = req.params;
+      const limit = Math.min(Number(req.query.limit ?? 50), 100);
+
+      // Verify pool exists first
+      const poolRow = (await superAdminDb.execute(sql`
+        SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows[0] as any;
+      if (!poolRow) return res.status(404).json({ error: "POOL_NOT_FOUND" });
+
+      const result = await runIntegrityScan({ poolId, limit });
+
+      const overall =
+        result.summary.CRITICAL > 0 ? "CRITICAL" :
+        result.summary.WARNING  > 0 ? "WARNING"  : "OK";
+
+      return res.json({
+        pool_id:     poolId,
+        pool_name:   poolRow.name,
+        overall,
+        summary:     result.summary,
+        issues:      result.issues,
+        scanned_at:  result.scanned_at,
+        check_count: result.check_count,
+      });
+    } catch (e: any) {
+      console.error("[WP13] /super/integrity/pools/:id 오류:", e?.message);
+      return res.status(500).json({ error: "SCAN_FAILED", message: e?.message });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// WP12 MARKETING — Super Admin marketing message routes
+// ════════════════════════════════════════════════════════════════════════════
+
+import {
+  VALID_PLAN_TYPES,
+  VALID_TARGET_ROLES,
+  type MarketingCriteria,
+  resolveAudiencePreview,
+  resolveTargetPoolIds,
+  enqueueMarketingFanoutJob,
+} from "../lib/marketing-audience.js";
+
+const SUPER_ROLES_MARKETING = new Set(["super_admin", "platform_admin"]);
+
+function requireMarketingRole(req: any, res: any, next: any) {
+  if (!req.user || !SUPER_ROLES_MARKETING.has(req.user.role)) {
+    return res.status(403).json({ error: "FORBIDDEN", message: "슈퍼관리자 전용 기능입니다." });
+  }
+  next();
+}
+
+/** Validate + build MarketingCriteria from request body.
+ * Returns { criteria, error } — error is non-null on validation failure. */
+function parseMarketingCriteria(body: any): { criteria: MarketingCriteria | null; error: string | null } {
+  const { pool_ids, plan_types, roles } = body;
+
+  // pool_ids: string[] | null
+  if (pool_ids !== null && pool_ids !== undefined) {
+    if (!Array.isArray(pool_ids)) return { criteria: null, error: "pool_ids는 배열 또는 null이어야 합니다." };
+    for (const id of pool_ids) {
+      if (typeof id !== "string" || !id.trim()) return { criteria: null, error: "pool_ids 요소는 non-empty string이어야 합니다." };
+    }
+  }
+
+  // plan_types: string[] | null
+  if (plan_types !== null && plan_types !== undefined) {
+    if (!Array.isArray(plan_types)) return { criteria: null, error: "plan_types는 배열 또는 null이어야 합니다." };
+    for (const p of plan_types) {
+      if (!(VALID_PLAN_TYPES as readonly string[]).includes(p)) {
+        return { criteria: null, error: `plan_types에 유효하지 않은 값: ${p}. 허용값: ${VALID_PLAN_TYPES.join(", ")}` };
+      }
+    }
+  }
+
+  // roles: string[] | null
+  if (roles !== null && roles !== undefined) {
+    if (!Array.isArray(roles)) return { criteria: null, error: "roles는 배열 또는 null이어야 합니다." };
+    for (const r of roles) {
+      if (!(VALID_TARGET_ROLES as readonly string[]).includes(r)) {
+        return { criteria: null, error: `roles에 유효하지 않은 값: ${r}. 허용값: ${VALID_TARGET_ROLES.join(", ")}` };
+      }
+    }
+  }
+
+  const criteria: MarketingCriteria = {
+    poolIds:   (pool_ids   ?? null) as string[] | null,
+    planTypes: (plan_types ?? null) as any,
+    roles:     (roles      ?? null) as any,
+  };
+
+  return { criteria, error: null };
+}
+
+/**
+ * POST /super/marketing/notices/preview
+ * §7: audience count preview — pool_count, user_count, role breakdown, push_token_count
+ */
+router.post(
+  "/super/marketing/notices/preview",
+  requireMarketingRole,
+  async (req, res) => {
+    try {
+      const { criteria, error } = parseMarketingCriteria(req.body);
+      if (error || !criteria) return res.status(400).json({ error: "INVALID_CRITERIA", message: error });
+
+      const preview = await resolveAudiencePreview(criteria);
+      return res.json(preview);
+    } catch (e: any) {
+      console.error("[WP12] /super/marketing/notices/preview 오류:", e?.message);
+      return res.status(500).json({ error: "PREVIEW_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * POST /super/marketing/notices
+ * §9: create notice + conditionally enqueue push (respecting starts_at).
+ * §12: accidental global send protection — 빈 targeting은 전부-선택으로 해석하되
+ *      모든 것이 null인 경우 명시적 target_all=true 필요.
+ */
+router.post(
+  "/super/marketing/notices",
+  requireMarketingRole,
+  async (req, res) => {
+    try {
+      const {
+        title, content,
+        pool_ids, plan_types, roles,
+        send_push, show_banner,
+        starts_at, ends_at,
+        deep_link,
+        target_all,
+      } = req.body as any;
+
+      // ── Required fields ──────────────────────────────────────────────────
+      if (!title || typeof title !== "string" || !title.trim()) {
+        return res.status(400).json({ error: "MISSING_FIELD", message: "title은 필수입니다." });
+      }
+      if (!content || typeof content !== "string" || !content.trim()) {
+        return res.status(400).json({ error: "MISSING_FIELD", message: "content는 필수입니다." });
+      }
+
+      // ── Accidental global send protection (§12) ───────────────────────────
+      const allNull = (pool_ids == null || (Array.isArray(pool_ids) && pool_ids.length === 0))
+                   && (plan_types == null || (Array.isArray(plan_types) && plan_types.length === 0))
+                   && (roles == null || (Array.isArray(roles) && roles.length === 0));
+      if (allNull && !target_all) {
+        return res.status(400).json({
+          error: "ACCIDENTAL_GLOBAL_SEND",
+          message: "모든 필터가 비어있으면 전체 발송이 됩니다. target_all=true로 명시적으로 확인하세요.",
+        });
+      }
+
+      // ── Criteria validation ───────────────────────────────────────────────
+      const { criteria, error: criteriaError } = parseMarketingCriteria({ pool_ids, plan_types, roles });
+      if (criteriaError || !criteria) {
+        return res.status(400).json({ error: "INVALID_CRITERIA", message: criteriaError });
+      }
+
+      // ── starts_at / ends_at ───────────────────────────────────────────────
+      let startsAtDate: Date | null = null;
+      if (starts_at) {
+        startsAtDate = new Date(starts_at);
+        if (isNaN(startsAtDate.getTime())) {
+          return res.status(400).json({ error: "INVALID_STARTS_AT", message: "starts_at 형식이 유효하지 않습니다." });
+        }
+      }
+      let endsAtDate: Date | null = null;
+      if (ends_at) {
+        endsAtDate = new Date(ends_at);
+        if (isNaN(endsAtDate.getTime())) {
+          return res.status(400).json({ error: "INVALID_ENDS_AT", message: "ends_at 형식이 유효하지 않습니다." });
+        }
+      }
+
+      const nowDate = new Date();
+      const isFuture = startsAtDate !== null && startsAtDate > nowDate;
+
+      // ── Resolve target pool IDs for storage ──────────────────────────────
+      const targetPoolIds = await resolveTargetPoolIds(criteria);
+
+      // ── Create notice ─────────────────────────────────────────────────────
+      const noticeResult = await superAdminDb.execute(sql`
+        INSERT INTO notices
+          (id, title, content, notice_type, audience_scope,
+           target_roles, target_pools, target_plan_types,
+           send_push, show_banner, starts_at, ends_at, deep_link,
+           author_user_id, created_at, updated_at)
+        VALUES
+          (gen_random_uuid()::text,
+           ${title.trim()}, ${content.trim()}, 'general', 'global',
+           ${criteria.roles ? JSON.stringify(criteria.roles) : null}::jsonb,
+           ${targetPoolIds.length > 0 ? JSON.stringify(targetPoolIds) : null}::jsonb,
+           ${criteria.planTypes ? JSON.stringify(criteria.planTypes) : null}::text[],
+           ${send_push !== false},
+           ${show_banner !== false},
+           ${startsAtDate ? startsAtDate.toISOString() : null}::timestamptz,
+           ${endsAtDate  ? endsAtDate.toISOString()  : null}::timestamptz,
+           ${deep_link ?? null},
+           ${req.user!.userId},
+           NOW(), NOW())
+        RETURNING id, title, created_at
+      `);
+
+      const notice = (noticeResult.rows as any[])[0];
+      if (!notice) throw new Error("공지 INSERT 실패");
+
+      // ── Audit log ─────────────────────────────────────────────────────────
+      await superAdminDb.execute(sql`
+        INSERT INTO audit_logs
+          (id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+        VALUES
+          (gen_random_uuid()::text, ${req.user!.userId},
+           'MARKETING_NOTICE_CREATE', 'notice', ${notice.id},
+           ${JSON.stringify({
+             title: notice.title,
+             pool_count: targetPoolIds.length,
+             plan_types: criteria.planTypes,
+             roles: criteria.roles,
+             send_push: send_push !== false,
+             starts_at: starts_at ?? null,
+             is_future: isFuture,
+           })}::jsonb,
+           NOW())
+      `);
+
+      // ── Enqueue push (only if not future-scheduled) ───────────────────────
+      let pushResult: { duplicate: boolean; deliveriesAdded: number } | null = null;
+      if (send_push !== false && !isFuture) {
+        const jobRef = `notice:${notice.id}:send`;
+        pushResult = await enqueueMarketingFanoutJob({
+          jobRef,
+          noticeId:      notice.id,
+          title:         title.trim(),
+          body:          content.trim().slice(0, 255),
+          deepLink:      deep_link ?? null,
+          targetPoolIds,
+          roles:         criteria.roles,
+        });
+
+        // Mark push_sent_at
+        await superAdminDb.execute(sql`
+          UPDATE notices SET push_sent_at = NOW(), updated_at = NOW()
+          WHERE id = ${notice.id}
+        `);
+
+        // Audit: MARKETING_NOTICE_SEND
+        await superAdminDb.execute(sql`
+          INSERT INTO audit_logs
+            (id, actor_user_id, action, entity_type, entity_id, metadata, created_at)
+          VALUES
+            (gen_random_uuid()::text, ${req.user!.userId},
+             'MARKETING_NOTICE_SEND', 'notice', ${notice.id},
+             ${JSON.stringify({
+               job_ref: `notice:${notice.id}:send`,
+               deliveries_added: pushResult?.deliveriesAdded ?? 0,
+               duplicate: pushResult?.duplicate ?? false,
+             })}::jsonb,
+             NOW())
+        `);
+      }
+
+      return res.status(201).json({
+        id:              notice.id,
+        title:           notice.title,
+        created_at:      notice.created_at,
+        push_scheduled:  isFuture,
+        push_enqueued:   !isFuture && send_push !== false,
+        push_deliveries: pushResult?.deliveriesAdded ?? null,
+        target_pool_count: targetPoolIds.length,
+      });
+    } catch (e: any) {
+      console.error("[WP12] /super/marketing/notices 오류:", e?.message);
+      return res.status(500).json({ error: "CREATE_FAILED", message: e?.message });
+    }
+  }
+);
+
+/**
+ * GET /super/marketing/notices
+ * §11: Marketing notice list (audience_scope='global', super admin only).
+ */
+router.get(
+  "/super/marketing/notices",
+  requireMarketingRole,
+  async (req, res) => {
+    try {
+      const limit  = Math.min(Number(req.query.limit  ?? 50), 100);
+      const offset = Number(req.query.offset ?? 0);
+
+      const rows = (await superAdminDb.execute(sql`
+        SELECT
+          n.id, n.title, n.content, n.notice_type,
+          n.audience_scope, n.target_roles, n.target_pools, n.target_plan_types,
+          n.send_push, n.show_banner, n.starts_at, n.ends_at, n.deep_link,
+          n.push_sent_at, n.created_at, n.updated_at,
+          u.name AS author_name
+        FROM notices n
+        LEFT JOIN users u ON n.author_user_id = u.id
+        WHERE n.audience_scope = 'global'
+        ORDER BY n.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `)).rows;
+
+      return res.json({ notices: rows, limit, offset });
+    } catch (e: any) {
+      console.error("[WP12] GET /super/marketing/notices 오류:", e?.message);
+      return res.status(500).json({ error: "LIST_FAILED", message: e?.message });
+    }
+  }
 );
 
 export default router;

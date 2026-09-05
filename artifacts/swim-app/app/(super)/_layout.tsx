@@ -124,8 +124,11 @@ export default function SuperLayout() {
       <Stack.Screen name="security-settings" />
       <Stack.Screen name="users" />
 
-      {/* ─── 기타 (파일 없음, 라우트 등록만) ─── */}
-      <Stack.Screen name="infra-usage" />
+      {/* ─── 마케팅 (WP12) ─── */}
+      <Stack.Screen name="marketing" />
+
+      {/* ─── 데이터 무결성 검사 (WP13) ─── */}
+      <Stack.Screen name="integrity" />
     </Stack>
   );
 }

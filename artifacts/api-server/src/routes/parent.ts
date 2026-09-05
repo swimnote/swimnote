@@ -549,6 +549,60 @@ router.post("/notices/:id/read", requireAuth, requireParent, async (req: AuthReq
   } catch (err) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── WP4: 학부모 Banner 후보 조회 ─────────────────────────────────────────────
+// show_banner=true + active period + not dismissed by this parent
+router.get("/notices/banners", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, userId)).limit(1);
+    if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
+
+    const now = new Date();
+    const candidates = await db.execute(sql`
+      SELECT n.*
+      FROM notices n
+      WHERE n.show_banner = true
+        AND (n.status IS NULL OR n.status != 'deleted')
+        AND (n.starts_at IS NULL OR n.starts_at <= ${now})
+        AND (n.ends_at   IS NULL OR n.ends_at   >= ${now})
+        AND (
+          n.audience_scope = 'global'
+          OR (n.audience_scope = 'pool' AND n.swimming_pool_id = ${pa.swimming_pool_id})
+        )
+        AND n.id NOT IN (
+          SELECT notice_id FROM notice_dismissals WHERE user_id = ${userId}
+        )
+        AND (n.target_roles IS NULL OR 'PARENT' = ANY(n.target_roles))
+      ORDER BY n.is_pinned DESC, n.created_at DESC
+      LIMIT 10
+    `);
+
+    res.json({ success: true, banners: candidates.rows });
+  } catch (e) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// ── WP4: 학부모 Banner 다시 보지 않기 ──────────────────────────────────────
+// idempotent: ON CONFLICT DO NOTHING
+router.post("/notices/:id/dismiss", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const userId   = req.user!.userId;
+    const noticeId = req.params.id;
+
+    const rows = await db.execute(sql`SELECT id, show_banner FROM notices WHERE id = ${noticeId} LIMIT 1`);
+    const notice = rows.rows[0] as any;
+    if (!notice) { res.status(404).json({ error: "공지를 찾을 수 없습니다." }); return; }
+    if (!notice.show_banner) { res.status(400).json({ error: "배너 공지가 아닙니다." }); return; }
+
+    const dismId = `nd_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO notice_dismissals (id, notice_id, user_id, dismissed_at)
+      VALUES (${dismId}, ${noticeId}, ${userId}, NOW())
+      ON CONFLICT (notice_id, user_id) DO NOTHING
+    `);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 // ── 학부모: 자녀 수영일지 조회 (class_diaries 기반) ───────────────────
 router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
@@ -1706,6 +1760,18 @@ router.post("/onboard-pool", requireAuth, requireParent, async (req: AuthRequest
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     if (!pa) { res.status(404).json({ error: "계정을 찾을 수 없습니다." }); return; }
 
+    // WP6 P0 FIX: block pool switch if parent already has an approved child link in a DIFFERENT pool
+    if (pa.swimming_pool_id && pa.swimming_pool_id !== swimming_pool_id) {
+      const existingLink = await db.execute(sql`
+        SELECT id FROM parent_students
+        WHERE parent_id = ${pa.id} AND status = 'approved'
+        LIMIT 1
+      `);
+      if ((existingLink.rows as any[]).length > 0) {
+        res.status(403).json({ error: "이미 연결된 수영장이 있습니다. 변경이 필요하면 수영장에 문의하세요." }); return;
+      }
+    }
+
     // 수영장 존재 확인
     const [pool] = await superAdminDb.select({ id: swimmingPoolsTable.id, name: swimmingPoolsTable.name })
       .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);
@@ -1783,6 +1849,20 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
     res.status(400).json({ success: false, message: "수영장과 자녀 이름을 입력해주세요." }); return;
   }
   try {
+    // WP6 P0 FIX: block pool switch if parent already has an approved child link in a DIFFERENT pool
+    const [paCheck] = await db.select({ swimming_pool_id: parentAccountsTable.swimming_pool_id })
+      .from(parentAccountsTable).where(eq(parentAccountsTable.id, parentId)).limit(1);
+    if (paCheck?.swimming_pool_id && paCheck.swimming_pool_id !== swimming_pool_id) {
+      const existingLink = await db.execute(sql`
+        SELECT id FROM parent_students
+        WHERE parent_id = ${parentId} AND status = 'approved'
+        LIMIT 1
+      `);
+      if ((existingLink.rows as any[]).length > 0) {
+        res.status(403).json({ success: false, message: "이미 연결된 수영장이 있습니다. 변경이 필요하면 수영장에 문의하세요." }); return;
+      }
+    }
+
     // 수영장 존재 확인
     const [pool] = await superAdminDb.select().from(swimmingPoolsTable)
       .where(eq(swimmingPoolsTable.id, swimming_pool_id)).limit(1);

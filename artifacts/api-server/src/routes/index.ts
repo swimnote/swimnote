@@ -171,4 +171,8 @@ router.use("/", terminologyRouter);
 import adminGrowthReportProductionRouter from "./admin-growth-report-production.js";
 router.use("/admin/growth-reports", adminGrowthReportProductionRouter);
 
+// WP9: Operational Monitoring Health Endpoints (Super Admin 전용)
+import opsHealthRouter from "./ops-health.js";
+router.use("/", opsHealthRouter);
+
 export default router;

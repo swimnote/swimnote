@@ -9,6 +9,11 @@ import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { sendPushToClassParents, sendPushToUser, sendRawPush, checkPushEnabled } from "../lib/push-service.js";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
+import {
+  resolveTargetPoolIds,
+  enqueueMarketingFanoutJob,
+  type MarketingCriteria,
+} from "../lib/marketing-audience.js";
 
 function getKSTNow(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
@@ -353,9 +358,71 @@ async function runDiaryPushQueue(): Promise<void> {
   }
 }
 
+// ── WP12: 예약 마케팅 공지 푸시 처리 ─────────────────────────────────
+/**
+ * checkDueMarketingPushes — starts_at이 지났으나 아직 push_sent_at이 없는
+ * 마케팅 공지(audience_scope='global', send_push=true)를 처리한다.
+ * §13: 매 분 poll (push-minute 락 내부에서 호출).
+ * §12: jobRef = notice:{id}:send → ON CONFLICT DO NOTHING (idempotent).
+ */
+async function checkDueMarketingPushes(): Promise<void> {
+  try {
+    const rows = (await superAdminDb.execute(sql`
+      SELECT id, title, content, deep_link, target_roles, target_pools, target_plan_types
+      FROM notices
+      WHERE send_push = true
+        AND audience_scope = 'global'
+        AND starts_at IS NOT NULL
+        AND starts_at <= NOW()
+        AND push_sent_at IS NULL
+      ORDER BY starts_at ASC
+      LIMIT 5
+    `)).rows as {
+      id: string; title: string; content: string;
+      deep_link: string | null;
+      target_roles: string[] | null;
+      target_pools: string[] | null;
+      target_plan_types: string[] | null;
+    }[];
+
+    for (const row of rows) {
+      // Mark push_sent_at first (optimistic) to prevent duplicate concurrent sends
+      const updateRes = await superAdminDb.execute(sql`
+        UPDATE notices
+        SET push_sent_at = NOW(), updated_at = NOW()
+        WHERE id = ${row.id} AND push_sent_at IS NULL
+      `);
+      if ((updateRes as any).rowCount === 0) continue; // another instance already processed
+
+      const criteria: MarketingCriteria = {
+        poolIds:   Array.isArray(row.target_pools)      ? row.target_pools      : null,
+        planTypes: Array.isArray(row.target_plan_types) ? row.target_plan_types as any : null,
+        roles:     Array.isArray(row.target_roles)      ? row.target_roles as any : null,
+      };
+
+      const targetPoolIds = await resolveTargetPoolIds(criteria);
+      const jobRef = `notice:${row.id}:send`;
+
+      const result = await enqueueMarketingFanoutJob({
+        jobRef,
+        noticeId:      row.id,
+        title:         row.title,
+        body:          row.content.slice(0, 255),
+        deepLink:      row.deep_link,
+        targetPoolIds,
+        roles:         criteria.roles,
+      });
+
+      console.log(`[push-scheduler] 마케팅 예약 공지 처리: ${row.id} duplicate=${result.duplicate} deliveries=${result.deliveriesAdded}`);
+    }
+  } catch (e) {
+    console.error("[push-scheduler] checkDueMarketingPushes 오류:", e);
+  }
+}
+
 // ── 스케줄러 등록 ────────────────────────────────────────────────────
 export function startPushScheduler(): void {
-  // 매 분 실행 (전날 알림 + 당일 알림 시간 체크 + 일지 예약 큐)
+  // 매 분 실행 (전날 알림 + 당일 알림 시간 체크 + 일지 예약 큐 + 마케팅 예약)
   // DB 락으로 서버 여러 대에서 중복 발송 방지
   cron.schedule("* * * * *", async () => {
     const locked = await acquireLock("push-minute", 90); // 1분30초 TTL
@@ -364,6 +431,7 @@ export function startPushScheduler(): void {
       await runPrevDaySchedule();
       await runSameDaySchedule();
       await runDiaryPushQueue();
+      await checkDueMarketingPushes();      // WP12: 예약 마케팅 공지
       await recordHeartbeat("push-minute", { ran: true, at: new Date().toISOString() });
     } finally {
       await releaseLock("push-minute");

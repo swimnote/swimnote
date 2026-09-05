@@ -1,0 +1,695 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP5 — PUSH SCALE / EXPO PUSH BATCH
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 이번 WP 범위 밖 변경 금지
+
+목적:
+
+현재 Expo Push HTTP API 기반 발송 구조를
+10K+ 수신자에서도 안전하게 동작하도록:
+
+- chunking
+- bounded batch
+- async processing
+- partial failure
+- invalid token cleanup
+- retry
+- idempotency
+
+구조로 보완합니다.
+
+이번 작업은 WP5만 수행합니다.
+
+WP4 Notice Schema,
+WP6 Security Audit,
+WP7 이후 작업은 절대 선행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP 범위 밖의:
+
+- roadmap 변경
+- Push provider 교체
+- 대규모 queue architecture 교체
+- 전체 Worker 재설계
+- WP4 Notice 구현
+- Super Admin 기능 추가
+- unrelated refactor
+
+금지.
+
+새로운 실제 P0 blocker가 발견되면
+임의로 계획을 변경하지 말고
+evidence만 보고하고 STOP하십시오.
+
+작업 방식:
+
+최소 조사
+→ 현재 push send path 확정
+→ 기존 구조 최대한 재사용
+→ 필요한 scale gap만 수정
+→ 관련 테스트
+→ 완료보고
+→ STOP
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 branch:
+
+release/v2.0.0
+
+현재 required commit:
+
+f51eaee7
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- f51eaee7 ancestry 포함
+
+WP1~WP3를 다시 재검수하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 확인된 실제 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 실제 Replit 검수 evidence:
+
+artifacts/api-server/src/lib/push-service.ts
+
+현재 sendRawPush()에서
+messages/token 전체 배열을 하나의 JSON body로 Expo Push API에 전송하는 구조.
+
+현재 chunking 없음.
+
+Expo Push 기준에서
+대량 recipient를 단일 request로 보내는 것은 안전하지 않습니다.
+
+따라서 이번 WP에서
+현재 provider인 Expo Push 기준으로만 보완하십시오.
+
+FCM provider로 교체하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Provider 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 provider:
+
+Expo Push HTTP API
+
+이번 WP에서:
+
+- FCM 직접 전환 금지
+- APNs 직접 전환 금지
+- 다른 Push vendor 도입 금지
+
+현재 Expo Push 구조를 scale-safe하게 만드는 작업입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Chunking
+━━━━━━━━━━━━━━━━━━━━━━
+
+Expo Push request는 bounded chunk로 나눕니다.
+
+현재 공식/SDK convention에 맞춰
+최대 안전 batch size를 사용하십시오.
+
+현재 검수 기준:
+
+100 messages/request
+
+따라서 기본:
+
+messages
+→ chunks of <=100
+→ 개별 Expo request
+
+구조.
+
+단 현재 설치된 Expo server SDK에
+공식 chunk helper가 이미 존재하면
+중복 구현하지 말고 우선 재사용하십시오.
+
+예:
+
+chunkPushNotifications(...)
+
+같은 현재 SDK canonical helper가 있으면
+그 구조 우선.
+
+직접 custom chunk util을 새로 만들 필요가 있는 경우에만 최소 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Rate / Bounded Concurrency
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순히 100개씩 자르기만 하고
+수백 chunk를 Promise.all로 동시에 폭발시키지 마십시오.
+
+필요:
+
+- bounded concurrency
+- Expo rate limit 고려
+- 과도한 burst 방지
+
+현재 architecture에 맞는 작은 concurrency limit 사용.
+
+새 BullMQ / pg-boss / Redis queue 도입 금지.
+
+현재 cron/DB polling/worker architecture를 이유 없이 교체하지 마십시오.
+
+실제 scale evidence 기반 대형 queue 전환은 WP21입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. HTTP Request와 대량 발송 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+10K+ push를
+사용자 HTTP request 하나가 끝날 때까지
+전부 동기 처리하지 않도록 해야 합니다.
+
+현재 실제 call path를 확인하십시오.
+
+이미 async job/worker 구조가 있으면 재사용.
+
+없다면:
+
+현재 repository architecture 안에서
+최소한의 enqueue/background processing 구조를 사용하십시오.
+
+단 새로운 대형 job framework 도입 금지.
+
+목표:
+
+API request
+→ send job/queued work 등록
+→ 빠른 response
+→ background bounded delivery
+
+현재 route 구조상 일부 작은 push는 즉시 발송이 합리적인 경우가 있으면
+모든 push를 무조건 queue로 바꾸지 마십시오.
+
+이번 WP 핵심은 대량 fan-out입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Partial Failure
+━━━━━━━━━━━━━━━━━━━━━━
+
+Chunk 하나 실패했다고
+전체 발송을 실패로 취급하지 않습니다.
+
+각 chunk / message 결과를 구분.
+
+최소:
+
+- success count
+- failure count
+- retryable failure
+- permanent failure
+- invalid token
+
+추적 가능하게.
+
+일부 실패 후
+이미 성공한 recipient에게 전체를 다시 재발송하여
+중복 push가 생기면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Invalid Token Cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+Expo가 device token invalid / not registered 등을 반환하면
+현재 repository의 push token storage 구조를 확인해
+해당 token을 안전하게 비활성화/삭제 처리하십시오.
+
+단:
+
+- user 전체 push 설정 삭제 금지
+- 다른 정상 token 삭제 금지
+- 다른 pool token 영향 금지
+
+정확히 실패한 token만 처리.
+
+현재 canonical token cleanup helper가 있으면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Retry
+━━━━━━━━━━━━━━━━━━━━━━
+
+Retryable failure만 retry.
+
+예:
+
+- transient Expo failure
+- network timeout
+- 429 / temporary server error
+- 현재 SDK convention에서 retryable로 보는 오류
+
+Permanent error는 무한 retry 금지.
+
+Retry:
+
+- bounded count
+- backoff
+- duplicate-safe
+
+새 대형 retry platform 만들지 마십시오.
+
+현재 architecture 안에서 최소 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Idempotency
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+같은 logical push job이
+worker retry나 HTTP retry 때문에
+같은 recipient에게 중복 발송되지 않도록
+현재 가능한 최소 idempotency 구조를 적용하십시오.
+
+먼저 현재 repository에:
+
+- push job id
+- notification id
+- delivery id
+- send log
+- idempotency key
+
+등이 있는지 확인.
+
+있으면 재사용.
+
+없다면 이번 WP에 필요한 최소 범위로만 추가.
+
+단 DB schema가 필요하면
+임의 runtime DDL 추가 금지.
+
+새 schema가 정말 필요하면:
+
+- canonical migration file
+- Staging 검증
+- Production 미적용
+- 사용자 승인 Gate
+
+순서.
+
+가능하면 기존 notification/message primary key를
+idempotency source로 재사용하는 방향 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Payload 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP는 scale 개선이지
+notification UX redesign이 아닙니다.
+
+기존 payload:
+
+- title
+- body
+- data
+- deep link
+- image 등
+
+현재 지원되는 필드는 그대로 유지.
+
+WP4의 Notice schema 필드는
+지금 새로 만들지 마십시오.
+
+Push batching 때문에 payload contract를 깨뜨리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Token Deduplication
+━━━━━━━━━━━━━━━━━━━━━━
+
+발송 전 recipient/token 목록에서
+같은 Expo token이 중복 포함될 수 있는지 확인.
+
+동일 logical delivery 안에서
+같은 token으로 동일 push를 중복 발송하지 않도록
+dedupe 처리하십시오.
+
+단 multi-device 사용자가 서로 다른 정상 token을 가진 경우
+그 token들은 각각 정상 발송.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Logging / Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서는 대형 monitoring 플랫폼을 만들지 않습니다.
+
+최소 로그:
+
+- push job/reference id
+- recipient/token count
+- chunk count
+- success count
+- failure count
+- invalid token count
+- retry count
+- total latency
+- final status
+
+민감한 Expo token 원문 전체를 운영 로그에 쏟지 마십시오.
+
+WP9 Monitoring에서 운영 alert를 추가할 예정이므로
+이번 WP에서 Datadog/Slack alert 등을 선행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. DB / Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 기대:
+
+가능하면 기존 DB 구조 재사용.
+
+Schema change:
+NOT PREFERRED
+
+Migration:
+NOT PREFERRED
+
+만약 idempotency/delivery state 때문에
+새 DB 필드/테이블이 실제 필수라면:
+
+신규 runtime DDL 금지.
+
+canonical migration file 작성
+→ Staging 적용
+→ schema verify
+→ second-run/idempotency
+→ data preservation
+→ Production 적용하지 않음
+→ 보고 후 STOP
+
+Production DB 자동 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 실행 금지.
+
+WP5 관련 테스트만.
+
+최소:
+
+A. 1 token
+→ 1 request 정상
+
+B. 100 tokens
+→ 1 chunk
+
+C. 101 tokens
+→ 2 chunks
+
+D. 1,000 tokens
+→ 10 chunks
+
+E. 10,000 tokens
+→ bounded chunk/concurrency
+→ 하나의 거대한 request 없음
+
+F. 같은 token duplicate input
+→ logical push 1회
+
+G. 서로 다른 device token
+→ 각각 정상 발송
+
+H. 일부 chunk 성공 + 일부 실패
+→ 성공 recipient 재발송 없음
+
+I. invalid token response
+→ 해당 token만 cleanup
+
+J. transient failure
+→ bounded retry
+
+K. permanent failure
+→ 무한 retry 없음
+
+L. timeout
+→ 전체 worker crash 없음
+
+M. Expo 429 / rate limit 상황
+→ backoff 또는 bounded 처리
+
+N. 동일 logical job 중복 실행
+→ duplicate delivery 방지 또는 현재 구현 가능한 idempotency evidence
+
+O. 기존 소규모 push path regression 없음
+
+P. deep link/data payload 유지
+
+실제 Production 사용자에게 push 보내지 마십시오.
+
+Mock/Test/Staging token 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 성능 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+10,000 recipient simulation 기준으로 보고:
+
+- total messages
+- chunk size
+- total chunks
+- max concurrent Expo requests
+- retry policy
+- API request blocking 여부
+- 예상 worker behavior
+
+"10만 동시 사용자 완전 보장" 같은 주장은 하지 마십시오.
+
+이번 WP 목표는
+현재 명백한 fan-out 병목 제거입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 금지:
+
+- WP4 Notice schema
+- notice_dismissals
+- platform_banners 구조 변경
+- WP6 cross-pool full audit
+- WP7 Manual X Grant
+- RevenueCat 추가 변경
+- Growth worker
+- Pagination
+- Admin Notes
+- Marketing
+- Version/runtime
+- provider 교체
+- pg-boss/BullMQ/Redis 신규 도입
+- worker architecture 전체 재작성
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 코드 변경 예상.
+
+Render required:
+YES/NO 보고.
+
+Production Render deploy:
+하지 마십시오.
+
+사용자가 수동 배포합니다.
+
+OTA:
+NO
+
+Native:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5 PASS 조건:
+
+1. Expo Push <=100 chunk
+2. bounded concurrency
+3. 10K+ 대량 발송 single request 제거
+4. HTTP request 장시간 blocking 제거 또는 기존 async path 재사용
+5. partial failure 안전
+6. invalid token cleanup
+7. bounded retry/backoff
+8. duplicate token 방지
+9. logical delivery idempotency
+10. 기존 payload contract 유지
+11. provider 변경 없음
+12. Production 실사용자 push 없음
+13. 관련 테스트 PASS
+14. Commit SHA 존재
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP5 PUSH SCALE COMPLETION REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Current Expo Push entry:
+...
+
+Expo SDK/helper reused:
+YES / NO
+Details:
+...
+
+Chunk size:
+...
+
+100 messages:
+chunks: ...
+
+101 messages:
+chunks: ...
+
+1,000 messages:
+chunks: ...
+
+10,000 messages:
+chunks: ...
+
+Max concurrent Expo requests:
+...
+
+Rate limiting/backoff:
+...
+
+API request blocking:
+YES / NO
+
+Async/background path:
+...
+
+Partial failure:
+PASS / FAIL
+
+Successful recipients resent after partial failure:
+YES / NO
+
+Invalid token cleanup:
+PASS / FAIL
+Implementation:
+...
+
+Retry:
+PASS / FAIL
+Max attempts:
+...
+Backoff:
+...
+
+Permanent failure infinite retry:
+NO
+
+Token dedupe:
+PASS / FAIL
+
+Logical job idempotency:
+PASS / FAIL
+Implementation:
+...
+
+Payload preserved:
+PASS / FAIL
+
+Deep link preserved:
+PASS / FAIL
+
+Production push sent:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+DB changes:
+YES / NO
+
+Schema changes:
+YES / NO
+
+Migration:
+YES / NO
+
+Staging migration:
+PASS / FAIL / NOT REQUIRED
+
+Production DB changes:
+NO
+
+Render required:
+YES / NO
+
+OTA required:
+NO
+
+Native binary required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP 완료 후:
+- WP4 선행 구현 금지
+- 다른 Push architecture 제안/교체 금지
+- 추가 최적화 금지
+
+완료조건 충족 시 즉시 STOP하십시오.
+
+새로운 실제 P0 blocker가 있으면
+roadmap을 바꾸지 말고
+evidence만 보고하십시오.
+```

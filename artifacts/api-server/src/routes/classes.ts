@@ -94,6 +94,15 @@ router.post("/:id/members", requireAuth, requireRole("super_admin", "pool_admin"
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
+    // WP6 P0 FIX: verify member belongs to the same pool as the class
+    const [memberCheck] = await db.select({ swimming_pool_id: membersTable.swimming_pool_id })
+      .from(membersTable).where(eq(membersTable.id, member_id)).limit(1);
+    if (!memberCheck) return err(res, 404, "회원을 찾을 수 없습니다.");
+    const targetPoolId = req.user!.role === "super_admin" ? cls.swimming_pool_id : poolId;
+    if (memberCheck.swimming_pool_id !== targetPoolId) {
+      return err(res, 403, "다른 수영장의 회원은 추가할 수 없습니다.");
+    }
+
     const existing = await db.select().from(classMembersTable)
       .where(eq(classMembersTable.member_id, member_id)).limit(1);
     if (existing.length > 0) {

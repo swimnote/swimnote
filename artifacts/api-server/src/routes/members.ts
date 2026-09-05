@@ -19,29 +19,45 @@ async function getPoolId(userId: string): Promise<string | null> {
   return user?.swimming_pool_id || null;
 }
 
+// WP8: N+1 fix (batch class lookup) + LIMIT added (default 200, max 500)
+// Backward-compat: plain array response preserved
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = req.user!.role === "super_admin" ? null : await getPoolId(req.user!.userId);
     if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
 
     const includeWithdrawn = req.query.include_withdrawn === "true";
+    const rawLimit = parseInt(String(req.query.limit ?? ""), 10);
+    const limit = (!rawLimit || rawLimit <= 0) ? 200 : Math.min(rawLimit, 500);
+
     const members = await db.execute(sql`
       SELECT * FROM members
       WHERE swimming_pool_id = ${poolId!}
         ${includeWithdrawn ? sql`` : sql`AND status = 'active'`}
       ORDER BY created_at DESC
+      LIMIT ${limit}
     `);
 
-    const membersWithClass = await Promise.all((members.rows as any[]).map(async (m) => {
-      const [cm] = await db.select({ class_id: classMembersTable.class_id })
-        .from(classMembersTable).where(eq(classMembersTable.member_id, m.id)).limit(1);
-      let class_name = null;
-      if (cm) {
-        const [cls] = await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, cm.class_id)).limit(1);
-        class_name = cls?.name || null;
-      }
-      return { ...m, class_id: cm?.class_id || null, class_name };
-    }));
+    const memberRows = members.rows as any[];
+    if (memberRows.length === 0) { return res.json([]); }
+
+    // WP8 N+1 Fix: batch load class assignments in ONE query
+    const memberIds = memberRows.map(m => `'${m.id}'`).join(",");
+    const cmRows = await db.execute(sql`
+      SELECT cm.member_id, cm.class_id, c.name AS class_name
+      FROM class_members cm
+      LEFT JOIN classes c ON c.id = cm.class_id
+      WHERE cm.member_id IN (${sql.raw(memberIds)})
+    `);
+    const cmMap = new Map<string, { class_id: string; class_name: string | null }>();
+    for (const cm of cmRows.rows as any[]) {
+      cmMap.set(cm.member_id, { class_id: cm.class_id, class_name: cm.class_name ?? null });
+    }
+
+    const membersWithClass = memberRows.map(m => {
+      const cm = cmMap.get(m.id);
+      return { ...m, class_id: cm?.class_id ?? null, class_name: cm?.class_name ?? null };
+    });
 
     res.json(membersWithClass);
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }

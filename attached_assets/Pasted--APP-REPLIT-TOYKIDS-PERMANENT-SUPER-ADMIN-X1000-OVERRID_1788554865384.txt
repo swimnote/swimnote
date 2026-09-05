@@ -1,0 +1,405 @@
+[보낼 곳: APP REPLIT]
+
+# TOYKIDS — PERMANENT SUPER ADMIN X1000 OVERRIDE
+# 목적:
+# 토이키즈스윔클럽을 일반 X 가입/결제/커리큘럼 승인 절차와 완전히 분리된
+# 본사 관리용 / 개발 기준용 X1000 테넌트로 고정한다.
+#
+# 이 pool은 앞으로 모든 일반 조건을 무시하고 항상 full X mode여야 한다.
+#
+# IMPORTANT:
+# 이름 기반 하드코딩 금지.
+# exact pool_id 기준으로만 override.
+# 다른 pool에는 절대 적용 금지.
+# 일반 고객의 X entitlement/config flow는 변경하지 말 것.
+
+============================================================
+TARGET POOL
+============================================================
+
+pool_id:
+
+pool_1780849364252_l9k44rbk3
+
+이 exact pool만 대상.
+
+============================================================
+1. 최종 정책
+============================================================
+
+Toykids는 앞으로:
+
+- SWIMNOTE 본사 관리용 수영장
+- 개발/운영 기준 tenant
+- permanent X1000
+- subscription independent
+- RevenueCat independent
+- curriculum upload approval independent
+- xmode_config_status independent
+
+로 동작.
+
+즉 아래 일반 X 진입조건을 Toykids에만 적용하지 않는다:
+
+- paid subscription
+- RevenueCat entitlement
+- curriculum upload
+- curriculum approval
+- xmode_config_status=READY
+- onboarding/config completion
+- 기타 일반 X activation prerequisite
+
+Toykids는 위 조건과 무관하게 항상 full X.
+
+============================================================
+2. 공식 override 구조
+============================================================
+
+임시 if문을 여러 군데 만들지 말 것.
+
+하나의 canonical override source를 만든다.
+
+권장:
+
+super_admin_x_override
+또는
+management_x_override
+
+같은 명확한 서버측 field/config.
+
+가능하면 swimming_pools의 명시적 boolean/enum field 또는
+현재 existing override/feature control 구조를 재사용.
+
+예시 의미:
+
+x_management_override = true
+
+Toykids exact pool에만 true.
+
+일반 pool:
+false/default.
+
+============================================================
+3. MODE RESOLVER에만 override 적용
+============================================================
+
+X mode 최종 판정의 canonical resolver에서만 적용.
+
+예:
+
+if management override:
+    effective X = true
+    plan = x1000
+    mode = x
+    source = SUPER_ADMIN_OVERRIDE
+
+else:
+    기존 일반 resolver 사용
+
+기존 일반식:
+
+(paid OR manual)
+AND NOT force_disabled
++ config/onboarding condition
+
+은 다른 모든 pool에 그대로 유지.
+
+여러 UI/API에서 Toykids pool_id를 직접 검사하지 말 것.
+
+override 판단은 resolver 한 곳으로 통합.
+
+============================================================
+4. TOYKIDS 최종 강제값
+============================================================
+
+Toykids는 override가 활성화되어 있을 때:
+
+effective X = true
+
+resolved mode = x
+
+x_plan_key effective value = x1000
+
+member_limit effective value = 1000
+
+source = SUPER_ADMIN_OVERRIDE
+또는 repository convention에 맞는 공식 management source
+
+x_manual_entitlement:
+현재 true 유지 가능
+
+x_paid_entitlement:
+false 유지
+
+RevenueCat:
+무관
+
+xmode_config_status:
+CURRICULUM_PENDING이어도 full X 진입 가능
+
+중요:
+DB historical 값까지 억지로 READY로 바꾸지 않아도 됨.
+
+즉:
+config 상태는 실제 상태 그대로 보존하되
+Toykids mode resolver에서는 activation blocker로 사용하지 않는다.
+
+============================================================
+5. Super Admin 표시
+============================================================
+
+Super Admin에서 Toykids를 보면 명확하게:
+
+X Mode:
+ACTIVE
+
+Plan:
+X1000
+
+Access Source:
+SUPER ADMIN / MANAGEMENT OVERRIDE
+
+Paid:
+OFF
+
+Manual:
+ON 또는 현재값
+
+Management Override:
+ON
+
+Config Status:
+CURRICULUM_PENDING
+(override로 인해 activation에는 영향 없음)
+
+표시.
+
+일반 고객과 헷갈리지 않도록
+"본사 관리용 X 강제 활성" 상태를 식별 가능하게 한다.
+
+============================================================
+6. 일반 플랜/구독 로직과 완전 분리
+============================================================
+
+Toykids override 때문에:
+
+RevenueCat webhook
+subscription expiry
+plan payment
+curriculum approval
+manual entitlement revoke
+
+등이 발생해도
+override=true인 동안 full X가 꺼지면 안 됨.
+
+즉 override가 최상위 우선순위.
+
+Priority:
+
+1. management/superadmin override
+2. normal entitlement/config resolver
+
+============================================================
+7. 해제 가능성
+============================================================
+
+향후 필요 시 Super Admin만 override를 해제할 수 있도록 구조 설계.
+
+override=false가 되면 즉시 일반 X resolver로 복귀.
+
+단 이번 작업에서 해제 UI까지 과하게 만들 필요 없음.
+
+최소:
+DB/config field + server resolver + Super Admin 표시
+
+면 충분.
+
+============================================================
+8. 보안
+============================================================
+
+override 설정/해제 권한:
+
+SUPER ADMIN ONLY
+
+Pool Admin:
+불가
+
+Teacher:
+불가
+
+Parent:
+불가
+
+client request에서 override=true를 보내서 활성화할 수 없게 할 것.
+
+서버 DB/config만 authoritative.
+
+============================================================
+9. TEST
+============================================================
+
+Toykids:
+
+override=true
+paid=false
+manual=false이어도
+effective=true
+mode=x
+plan=x1000
+
+PASS
+
+Toykids:
+
+config=CURRICULUM_PENDING
+override=true
+→ mode=x
+
+PASS
+
+Toykids:
+
+RevenueCat expired
+override=true
+→ mode=x
+
+PASS
+
+Toykids:
+
+override=false
+→ 기존 resolver 결과로 복귀
+
+PASS
+
+다른 pool:
+override default false
+기존 X activation flow 그대로
+
+PASS
+
+cross-pool:
+0 leak
+
+============================================================
+10. PRODUCTION 적용
+============================================================
+
+Toykids exact pool에만:
+
+management/superadmin override = true
+
+적용.
+
+다른 pools:
+0
+
+회원:
+0
+
+반:
+0
+
+일지:
+0
+
+RevenueCat:
+0
+
+============================================================
+11. Render / OTA
+============================================================
+
+서버 resolver / Super Admin Web만 변경되면:
+
+Render deploy:
+필요
+
+OTA:
+불필요
+
+APP runtime 변경이 실제로 필요하면 별도 보고.
+
+Render 자동 deploy 금지.
+사용자 수동 배포.
+
+============================================================
+12. 완료보고
+============================================================
+
+# TOYKIDS PERMANENT X1000 OVERRIDE REPORT
+
+Override field/config:
+...
+
+Canonical resolver file:
+...
+
+Toykids override:
+ON
+
+Effective X:
+true
+
+Resolved mode:
+x
+
+Effective plan:
+x1000
+
+Effective member limit:
+1000
+
+Source:
+...
+
+Paid dependency:
+NONE
+
+RevenueCat dependency:
+NONE
+
+Curriculum approval dependency:
+NONE
+
+Config READY dependency:
+NONE
+
+Current config status:
+...
+
+Other pools affected:
+0
+
+Cross-pool:
+PASS
+
+Super Admin only:
+PASS
+
+Files changed:
+...
+
+Commit:
+...
+
+Push:
+...
+
+Render required:
+YES / NO
+
+OTA required:
+YES / NO
+
+FINAL:
+
+Toykids permanently forced to full X1000:
+YES / NO
+
+General customer X flow unchanged:
+YES / NO
+
+DO NOT AUTO DEPLOY RENDER.
+WAIT FOR USER MANUAL RENDER DEPLOY.

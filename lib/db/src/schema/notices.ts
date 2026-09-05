@@ -22,8 +22,25 @@ export const noticesTable = pgTable("notices", {
   // status: 'published'(정상) | 'hidden'(숨김) | 'deleted'(소프트 삭제)
   // 소프트 삭제로 이력 추적 가능 — 완전 삭제는 별도 배치로만 수행
   status: text("status").notNull().default("published"),
+  // WP4: Unified Notice/Banner/Push fields (additive)
+  show_banner:       boolean("show_banner").notNull().default(false),
+  send_push:         boolean("send_push").notNull().default(false),
+  target_roles:      text("target_roles").array(),          // ['ADMIN','TEACHER','PARENT']
+  target_pools:      text("target_pools").array(),          // pool IDs or null=all
+  starts_at:         timestamp("starts_at", { withTimezone: true }),
+  ends_at:           timestamp("ends_at",   { withTimezone: true }),
+  deep_link:         text("deep_link"),                     // nullable deep-link URL
+  target_plan_types: text("target_plan_types").array(),     // WP12 forward-compat
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at"),
+});
+
+/** notice_dismissals — Banner "다시 보지 않기" per user */
+export const noticeDismissalsTable = pgTable("notice_dismissals", {
+  id:           text("id").primaryKey().default("gen_random_uuid()"),
+  notice_id:    text("notice_id").notNull().references(() => noticesTable.id, { onDelete: "cascade" }),
+  user_id:      text("user_id").notNull(),
+  dismissed_at: timestamp("dismissed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const insertNoticeSchema = createInsertSchema(noticesTable).omit({
@@ -35,3 +52,4 @@ export const insertNoticeSchema = createInsertSchema(noticesTable).omit({
 });
 export type InsertNotice = z.infer<typeof insertNoticeSchema>;
 export type Notice = typeof noticesTable.$inferSelect;
+export type NoticeDismissal = typeof noticeDismissalsTable.$inferSelect;

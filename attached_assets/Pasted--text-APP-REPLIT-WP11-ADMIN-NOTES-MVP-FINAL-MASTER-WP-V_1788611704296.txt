@@ -1,0 +1,948 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP11 — ADMIN NOTES MVP
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 중간 계획 변경 금지
+
+목적:
+
+수영장 운영자가 회원별 운영 메모를 간단하고 안전하게 기록/조회할 수 있는
+Admin Notes MVP를 구현합니다.
+
+이번 WP는 CRM을 만드는 작업이 아닙니다.
+
+핵심:
+
+- 회원별 관리자 메모
+- 고정 카테고리
+- 작성자
+- 작성 시각
+- 수정/삭제
+- 권한
+- cross-pool 차단
+- bounded list
+
+이번 작업은 WP11만 수행합니다.
+
+WP12 이후 작업 절대 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP는 최소 운영 메모 기능입니다.
+
+금지:
+
+- CRM 구축
+- 상담관리 플랫폼
+- 태그 시스템 확장
+- 자동 AI 요약
+- 고객 점수
+- 세일즈 pipeline
+- 리마인더
+- 문자/Push 자동 연계
+- WP12 Marketing
+- 이후 WP 선행작업
+- unrelated refactor
+
+작업 방식:
+
+기존 회원 detail / admin UI / audit / DB convention 최소 확인
+→ 가장 작은 schema/API/UI 구현
+→ security/test
+→ 완료보고
+→ STOP
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+f3ffc9d2
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- f3ffc9d2 ancestry 포함
+
+WP1~WP10 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 공식 Note Categories
+━━━━━━━━━━━━━━━━━━━━━━
+
+카테고리는 아래 6개로 고정합니다.
+
+1. general
+   일반
+
+2. consultation
+   상담
+
+3. payment
+   결제
+
+4. class
+   수업
+
+5. vehicle
+   차량
+
+6. caution
+   주의
+
+이번 WP에서 사용자 정의 카테고리 추가 기능 금지.
+
+DB에는 stable key를 저장하고,
+UI에서 한국어 label 표시.
+
+예:
+
+general → 일반
+consultation → 상담
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 대상:
+
+학생/회원 1명.
+
+Admin Note는 반드시:
+
+- swimming_pool_id
+- student/member resource
+- author user
+- category
+- content
+- created_at
+- updated_at
+
+에 귀속.
+
+현재 APP의 canonical 회원 entity가
+students / members 중 어떤 구조인지 실제 route/UI 기준으로 확인하여
+기존 회원 detail의 canonical ID를 사용하십시오.
+
+같은 목적의 note를 students용/members용으로
+이중 시스템 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 권한
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 MVP 권한:
+
+Pool Admin:
+자기 Pool 회원 note
+CREATE / READ / UPDATE / DELETE 가능
+
+Super Admin:
+기존 global privilege 정책상 필요한 경우 조회/운영 가능
+
+Teacher:
+이번 MVP에서는 관리자 메모 작성/수정 권한 부여 금지.
+기존 명시적 제품 정책이 이미 다르게 존재하는 경우 evidence 보고.
+
+Parent:
+접근 절대 금지.
+
+중요:
+
+Admin Note는 학부모에게 노출되는 일지/피드가 아닙니다.
+
+parent-facing API에 포함 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Cross-Pool Security
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP6 보안 원칙 그대로 유지.
+
+Admin A가:
+
+- Student B note 조회
+- 생성
+- 수정
+- 삭제
+
+불가.
+
+client body의:
+
+pool_id
+author_id
+role
+
+을 source of truth로 사용하지 마십시오.
+
+Server:
+
+authenticated user
+→ actual role
+→ actual pool
+→ target member ownership
+
+검증.
+
+Note ID 직접 변경 IDOR도 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Author
+━━━━━━━━━━━━━━━━━━━━━━
+
+author는 request body에서 신뢰하지 않습니다.
+
+항상 authenticated server user 기준.
+
+저장:
+
+author_user_id
+
+가능하면 조회 시 기존 user/admin profile JOIN으로:
+
+author_name
+
+표시.
+
+작성자 삭제/변경 이력이 있더라도
+note row 자체가 깨지지 않는 현재 FK convention 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Content
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순 text note.
+
+필수:
+
+- trim
+- empty 금지
+- server-side max length
+
+권장 max:
+현재 repository text convention 확인 후
+합리적인 값 사용.
+
+예:
+2,000~5,000 chars
+
+정확한 값은 현재 UX와 DB convention에 맞게 정하고 보고.
+
+HTML rich text editor 새로 만들지 마십시오.
+
+plain text 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+MVP에서 수정 허용.
+
+수정 가능:
+
+- category
+- content
+
+수정 시:
+
+updated_at 갱신.
+
+author_user_id는
+원 작성자 기록 유지.
+
+누가 수정했는지 별도 editor field가 기존 audit_logs로 충분하다면
+새 컬럼 만들 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 삭제
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 repository의 notes/audit convention을 확인.
+
+가능하면 soft delete가 이미 일반 convention이면 재사용.
+
+그렇지 않다면 MVP에서 hard delete도 가능하지만:
+
+audit_logs에 삭제 operation을 남겨
+누가/언제/어떤 note를 삭제했는지 최소 추적.
+
+민감한 note 전체 원문을 audit payload에 무조건 복제하지 마십시오.
+
+기존 audit convention 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Audit
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 audit_logs 재사용.
+
+최소:
+
+CREATE_NOTE
+UPDATE_NOTE
+DELETE_NOTE
+
+또는 repository action naming convention.
+
+저장:
+
+- actor
+- pool
+- target member
+- note id
+- category
+- timestamp
+- safe before/after summary
+
+새 audit table 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DB Schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 동일 목적 note table이 있는지 먼저 최소 확인.
+
+있으면 중복 table 생성 금지.
+
+없으면 canonical table 하나.
+
+예시 의미:
+
+admin_member_notes
+
+- id
+- swimming_pool_id
+- member/student id
+- author_user_id
+- category
+- content
+- created_at
+- updated_at
+- deleted_at optional
+
+정확한 table/column naming은 repository convention 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Index
+━━━━━━━━━━━━━━━━━━━━━━
+
+주요 조회:
+
+회원 1명의 최근 notes.
+
+필요 최소 index:
+
+(target_member_id, created_at DESC, id DESC)
+
+그리고 cross-pool query에 실제 필요하면:
+
+(swimming_pool_id, target_member_id, created_at DESC)
+
+중 equivalent 하나.
+
+중복 index 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 table이 필요하면 canonical migration.
+
+신규 runtime DDL 금지.
+
+절차:
+
+1. migration file 작성
+2. Staging exact DB 확인
+3. Staging 적용
+4. table/constraint/index verify
+5. second-run idempotency
+6. existing data 영향 0 확인
+7. Production migration 실행 금지
+8. 완료보고
+
+Staging:
+
+lspmacdbyvpzysnrjsww
+
+Production:
+
+mrgkiussgbbmxfnkjgqy
+
+Production write/migration:
+사용자 승인 전 NO.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. API
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 admin/member route hierarchy를 재사용.
+
+필요 최소 기능:
+
+LIST notes for member
+CREATE note
+UPDATE note
+DELETE note
+
+API 전체 새 hierarchy 만들지 마십시오.
+
+예시 의미:
+
+GET /admin/students/:id/notes
+POST /admin/students/:id/notes
+PATCH /admin/students/:id/notes/:noteId
+DELETE /admin/students/:id/notes/:noteId
+
+정확한 path는 기존 route convention에 맞게.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. List Pagination
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP8 원칙 적용.
+
+Notes list는 bounded.
+
+default:
+합리적인 값
+
+max:
+server cap
+
+가능하면 기존 pagination helper 재사용.
+
+예:
+default 50
+max 100
+
+created_at + id stable ordering.
+
+메모 수가 적더라도 unbounded `.select()` 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Admin 회원 상세 화면을 재사용.
+
+새 별도 CRM 화면 만들지 마십시오.
+
+회원 상세에 최소 섹션:
+
+"관리 메모"
+
+표시:
+
+- 카테고리
+- 내용
+- 작성자
+- 작성 일시
+- 수정 일시 필요 시
+
+기능:
+
++ 메모 추가
+수정
+삭제
+
+카테고리 선택:
+
+일반
+상담
+결제
+수업
+차량
+주의
+
+UI는 현재 design system/component 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Caution Category
+━━━━━━━━━━━━━━━━━━━━━━
+
+`caution`은 시각적으로 구분 가능하면 좋지만
+새 warning system을 만들지 마십시오.
+
+현재 badge/color semantic 재사용.
+
+중요:
+
+주의 메모라고 해서
+회원 서비스 자동 차단/경고 Push/AI 판단을 하지 않습니다.
+
+단순 운영 메모.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Search / Filtering
+━━━━━━━━━━━━━━━━━━━━━━
+
+MVP에서 별도 전체 notes search 시스템 만들지 마십시오.
+
+회원 상세에서 category filter 정도가
+기존 component로 매우 작게 가능하면 허용.
+
+필수는 아님.
+
+전체 수영장 notes timeline/search는
+이번 WP 범위 아님.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 개인정보 / 노출
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin Notes는 internal operational data.
+
+절대 포함 금지:
+
+- Parent feed
+- Parent notification
+- Teacher diary
+- public API
+- AI prompt input
+
+이번 WP에서 AI와 연결 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Historical Member
+━━━━━━━━━━━━━━━━━━━━━━
+
+퇴원/withdrawn/archived 회원의 기존 notes는
+회원 detail을 관리자에게 보여주는 현재 정책 내에서
+조회 가능해야 합니다.
+
+삭제되지 않아야 함.
+
+단 신규 note 작성 가능 여부는
+현재 관리자 historical-member edit 정책을 그대로 따르십시오.
+
+새 lifecycle 규칙 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. Performance
+━━━━━━━━━━━━━━━━━━━━━━
+
+Member detail 열 때:
+
+note count 때문에 N+1 구조 만들지 마십시오.
+
+해당 회원의 notes 1 query 수준.
+
+author profile은 JOIN/batch.
+
+note마다 author query 반복 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Required Tests
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+WP11 관련 tests만.
+
+A.
+Pool Admin A
+→ Student A note create PASS
+
+B.
+Admin A
+→ Student B note create BLOCK
+
+C.
+Admin A
+→ Student B notes read BLOCK
+
+D.
+Admin A
+→ Pool B note ID 직접 update BLOCK
+
+E.
+Admin A
+→ Pool B note delete BLOCK
+
+F.
+Teacher create
+→ 403
+
+G.
+Parent read
+→ 403
+
+H.
+client author_id spoof
+→ ignored/blocked, actual authenticated author 저장
+
+I.
+client pool_id spoof
+→ ignored/blocked
+
+J.
+general category create
+
+K.
+consultation create
+
+L.
+payment create
+
+M.
+class create
+
+N.
+vehicle create
+
+O.
+caution create
+
+P.
+invalid category
+→ 400
+
+Q.
+empty note
+→ 400
+
+R.
+over max length
+→ validation error
+
+S.
+update content/category
+→ author unchanged
+→ updated_at changed
+
+T.
+delete
+→ inaccessible afterward / deleted according to chosen convention
+
+U.
+audit create
+
+V.
+audit update
+
+W.
+audit delete
+
+X.
+list newest first
+
+Y.
+same timestamp stable order
+
+Z.
+max limit capped
+
+AA.
+author display without N+1
+
+AB.
+archived/withdrawn member note preservation
+
+AC.
+Parent-facing endpoints contain admin notes:
+0
+
+AD.
+AI request payload contains admin notes:
+0
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Security
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 note IDOR 테스트 실제 수행.
+
+Note lookup 시:
+
+WHERE note_id = ?
+AND swimming_pool_id = authenticatedPool
+AND target member ownership
+
+또는 equivalent canonical guard.
+
+단 note table pool_id만 믿고
+target member 자체가 다른 pool인지 놓치지 않도록
+CREATE 시 target ownership 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. DB / Production Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production data:
+NO WRITE
+
+Production migration:
+NO
+
+Staging only.
+
+기존 Production member/note data 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server 변경:
+Render required 예상 YES
+
+App JS/TS UI 변경:
+iOS OTA required YES/NO 실제 보고
+
+Replit OTA publish 금지.
+
+Android OTA:
+NO
+
+Native:
+NO
+
+Production deploy:
+하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP12 Marketing
+- WP13 Integrity
+- WP14 Legacy Cleanup
+- WP15 Version/runtime
+- WP16 E2E
+- CRM
+- Notes AI summary
+- automated follow-up
+- Push from notes
+- RevenueCat
+- Growth
+- Notice schema
+- Pagination architecture 재설계
+- Monitoring architecture
+- AI Engine
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. PASS 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP11 PASS:
+
+1. canonical Admin Notes storage
+2. fixed 6 categories
+3. Admin create/read/update/delete
+4. author/time
+5. audit_logs
+6. cross-pool leak 0
+7. Teacher/Parent internal-note access 0
+8. bounded list
+9. N+1 없음
+10. historical member notes preserved
+11. Parent-facing exposure 0
+12. AI exposure 0
+13. canonical migration if needed
+14. Staging migration PASS
+15. Production DB changes 0
+16. relevant tests PASS
+17. Commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP11 ADMIN NOTES MVP REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+f3ffc9d2
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Existing note structure reused:
+YES / NO
+
+Table:
+...
+
+Migration:
+YES / NO
+
+Migration file:
+...
+
+Staging DB:
+...
+
+Staging migration:
+PASS / FAIL / NOT REQUIRED
+
+Second-run:
+PASS / FAIL / NOT REQUIRED
+
+Production migration:
+NOT RUN
+
+Categories:
+
+general:
+PASS / FAIL
+
+consultation:
+PASS / FAIL
+
+payment:
+PASS / FAIL
+
+class:
+PASS / FAIL
+
+vehicle:
+PASS / FAIL
+
+caution:
+PASS / FAIL
+
+Create:
+PASS / FAIL
+
+Read:
+PASS / FAIL
+
+Update:
+PASS / FAIL
+
+Delete:
+PASS / FAIL
+
+Author source:
+...
+
+Author spoof blocked:
+PASS / FAIL
+
+Pool spoof blocked:
+PASS / FAIL
+
+Cross-pool read:
+BLOCKED / FAIL
+
+Cross-pool create:
+BLOCKED / FAIL
+
+Cross-pool update:
+BLOCKED / FAIL
+
+Cross-pool delete:
+BLOCKED / FAIL
+
+Teacher access:
+BLOCKED / FAIL
+
+Parent access:
+BLOCKED / FAIL
+
+Audit create:
+PASS / FAIL
+
+Audit update:
+PASS / FAIL
+
+Audit delete:
+PASS / FAIL
+
+List default limit:
+...
+
+List max limit:
+...
+
+Stable pagination/order:
+PASS / FAIL
+
+N+1:
+NONE / ...
+
+Historical member note preservation:
+PASS / FAIL
+
+Parent-facing exposure:
+0 / ...
+
+AI payload exposure:
+0 / ...
+
+UI location:
+...
+
+Production data changes:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+DB schema changes:
+YES / NO
+
+Render required:
+YES / NO
+
+iOS OTA required:
+YES / NO
+
+Android OTA:
+NO
+
+Native binary required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP는 단순 Admin Notes MVP입니다.
+
+CRM/상담관리/AI/Push 기능으로 확장하지 마십시오.
+
+WP12 이후 작업 선행 금지.
+
+완료조건 충족 후 즉시 STOP하십시오.
+```

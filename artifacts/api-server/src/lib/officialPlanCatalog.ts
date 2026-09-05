@@ -60,7 +60,9 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     storage_add_gb:        null,
     active:                true,
     sort_order:            10,
-    revenuecat_product_id: null,
+    // [WP3] 확정 RC product ID (App Store/Google Play canonical format)
+    // RC_PRODUCT_TIER_MAP 동일 패턴: subscriptionService.ts 기준
+    revenuecat_product_id: "com.swimnote.swimnote.monthly",
   },
 
   // ─ X PLAN ────────────────────────────────────────────────────────────────
@@ -74,7 +76,8 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     storage_add_gb:        null,
     active:                true,
     sort_order:            20,
-    revenuecat_product_id: null,
+    // [WP3] X 상품: REVENUECAT_X_PRODUCT_IDS env var로 라우팅
+    revenuecat_product_id: "com.swimnote.x300.monthly",
   },
   {
     plan_key:              "x500",
@@ -86,7 +89,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     storage_add_gb:        null,
     active:                true,
     sort_order:            21,
-    revenuecat_product_id: null,
+    revenuecat_product_id: "com.swimnote.x500.monthly",
   },
   {
     plan_key:              "x1000",
@@ -98,13 +101,14 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     storage_add_gb:        null,
     active:                true,
     sort_order:            22,
-    revenuecat_product_id: null,
+    revenuecat_product_id: "com.swimnote.x1000.monthly",
   },
 
   // ─ DATA ADD-ON ───────────────────────────────────────────────────────────
   // storage_add_gb: 확정 (2026-09-05) — additive, BASE/X plan quota에 가산
-  // 중복 add-on 정책: 기존 /billing/storage-addon 라우트 = additive 누적 허용
-  // RevenueCat 경로 중복 구매 정책: repo 미정의 (미구현 상태 유지, 별도 WP에서 정의)
+  // RevenueCat 경로: INITIAL_PURCHASE 1회 grant (extra_storage_gb += N)
+  //                  RENEWAL: grant 없음 (구독 유지)
+  //                  CANCEL/EXPIRY: USER DECISION REQUIRED (quota 정책 미확정)
   {
     plan_key:              "data100",
     display_name:          "DATA100",
@@ -115,7 +119,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     storage_add_gb:        100,
     active:                true,
     sort_order:            30,
-    revenuecat_product_id: null,
+    revenuecat_product_id: "com.swimnote.data100.monthly",
   },
   {
     plan_key:              "data300",
@@ -127,7 +131,7 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     storage_add_gb:        300,
     active:                true,
     sort_order:            31,
-    revenuecat_product_id: null,
+    revenuecat_product_id: "com.swimnote.data300.monthly",
   },
 ] as const;
 

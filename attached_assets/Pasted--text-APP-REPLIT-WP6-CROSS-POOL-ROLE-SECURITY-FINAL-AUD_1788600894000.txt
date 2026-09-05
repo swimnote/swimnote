@@ -1,0 +1,745 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP6 — CROSS-POOL / ROLE SECURITY FINAL AUDIT
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 계획 변경 금지
+
+목적:
+
+APP 전체 주요 리소스에서
+
+- 다른 수영장 데이터 접근
+- 다른 역할 권한 상승
+- client supplied pool_id / role 신뢰
+- resource ownership 검증 누락
+
+이 있는지 최종 보안 검증하고,
+실제 발견된 gap만 최소 수정합니다.
+
+이번 작업은 WP6만 수행합니다.
+
+WP7 이후 작업 절대 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP는 “전체 앱 리팩터링”이 아닙니다.
+
+목표는:
+
+실제 cross-pool / role authorization gap
+→ evidence 확인
+→ 최소 수정
+→ 관련 테스트
+→ STOP
+
+금지:
+
+- architecture 전면 교체
+- auth framework 재작성
+- unrelated endpoint cleanup
+- WP7 Manual Grant
+- WP8 Pagination
+- WP9 Monitoring
+- 이후 WP 선행 구현
+
+새로운 Production P0가 확인되면
+해당 범위만 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+6b6d806a
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- 6b6d806a ancestry 포함
+
+WP1~WP5 재검수 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Authorization Source of Truth
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 보호 리소스는 다음 기준:
+
+authenticated JWT/server context
+→ actual user
+→ actual pool membership
+→ actual role
+→ requested resource ownership
+→ authorization
+
+Client가 보내는:
+
+- pool_id
+- role
+- user_id
+- teacher_id
+- parent_id
+- student_id
+
+를 권한 source of truth로 신뢰하지 마십시오.
+
+특히:
+
+query/body/path의 pool_id를
+authenticated pool membership 검증 없이
+그대로 DB filter로 사용하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 테스트 Actor
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 두 Pool:
+
+Pool A:
+- Admin A
+- Teacher A
+- Parent A
+- Student A
+
+Pool B:
+- Admin B
+- Teacher B
+- Parent B
+- Student B
+
+가능하면 existing staging fixtures 재사용.
+
+Production 데이터 사용 금지.
+
+Staging / integration test 전용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 필수 감사 리소스
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 주요 영역만 확인하십시오.
+
+A. Members / Students
+B. Parents / Parent-child relation
+C. Classes
+D. Attendance
+E. Diaries / feeds
+F. Media / photo / album access
+G. Notices / banners
+H. Billing / subscription / X entitlement
+I. AI request-related APP routes
+J. Growth report/result access
+K. Storage / file metadata / signed access path
+
+이 외 영역까지 repo-wide 확장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Members / Students
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Admin A:
+- Student A 조회/수정 가능
+- Student B 조회/수정 불가
+
+Teacher A:
+- 허용된 자기 Pool 학생만
+- Student B 불가
+
+Parent A:
+- 자기 연결 child만
+- Student B 또는 타 가정 child 불가
+
+IDOR:
+
+/students/:id
+/admin/students/:id
+등 direct ID route에서
+resource pool ownership 확인 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Parents
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- Parent A profile/data를 Pool B actor가 조회/수정 불가
+- parent-child link를 타 Pool student에 생성 불가
+- Admin A가 Pool B parent/student 연결 불가
+- Teacher가 admin-only parent mutation 수행 불가
+
+client supplied parentId/studentId 조합을
+무검증 신뢰하지 않도록 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Classes
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Admin A:
+Pool B class 조회/수정/삭제 불가
+
+Teacher A:
+Pool B class access 불가
+
+Student/member assignment:
+Pool A class에 Pool B student 삽입 불가
+
+teacher assignment:
+Pool A class에 Pool B teacher 임의 연결 불가
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Attendance
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Attendance create/update/delete/read에서
+
+- class pool
+- student pool
+- authenticated actor pool
+
+일치 검증.
+
+Student A ID + Class B ID 조합
+BLOCK.
+
+Teacher A가 Pool B attendance 수정 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Diary / Feed
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 중요.
+
+현재 공식 권한:
+
+- Admin: 자기 Pool 전체
+- Teacher: 현재 담당 반 기준
+- Parent: 자기 자녀 관련 허용 범위
+
+검증:
+
+Teacher A가 URL ID 변경으로
+Pool B diary 접근 불가.
+
+Teacher A가 같은 Pool이더라도
+현재 담당 권한이 없는 리소스에
+기존 정책 이상 접근하지 않는지 확인.
+
+Parent A:
+자기 child diary만.
+
+직접 diaryId 변경 IDOR 차단.
+
+기존 과거 일지 담당자 정책을
+이번 WP에서 재설계하지 마십시오.
+
+현재 확정 policy 그대로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Media / Photo
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- album/photo metadata
+- signed URL endpoint
+- object key resolution
+- diary attached media
+
+Pool A actor가
+Pool B object key/id를 전달해
+signed URL을 얻을 수 없어야 합니다.
+
+중요:
+
+R2 key 자체를 client에서 받는 경우
+DB ownership 검증 없이 sign 금지.
+
+Storage architecture 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Notices / Banners
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP4 구조 기준 검증:
+
+- Pool Admin A가 Pool B target 불가
+- Parent/Teacher는 target 생성 불가
+- user-level dismissal은 자기 user_id 기준
+- 다른 사용자의 dismissal 생성/삭제 불가
+- SWIMNOTE notice target filter 정상
+
+WP4 재구현 금지.
+
+gap만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Billing / X
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+확인:
+
+Admin A가:
+
+- Pool B billing
+- Pool B plan
+- Pool B entitlement
+- Pool B member_limit
+- Pool B storage addon
+
+조회/수정 불가.
+
+RevenueCat webhook은 server-to-server이므로
+user pool authorization과 분리.
+
+일반 app route에서 client pool_id로
+다른 pool subscription 접근 금지.
+
+Super Admin route는
+명시적 Super Admin 권한 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. AI APP Routes
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP route에서 AI Engine 호출 전:
+
+- user
+- pool
+- student/member
+- diary/resource
+
+권한 확인.
+
+AI Engine에게 잘못된 pool/resource를 전달하기 전에
+APP에서 차단해야 합니다.
+
+AI Engine 자체를 수정하지 마십시오.
+
+APP authorization만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Growth Report
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Admin/Teacher/Parent가
+허용 범위 밖 growth report를
+report ID 직접 변경으로 조회 불가.
+
+Parent A:
+자기 child report만.
+
+Pool A actor:
+Pool B report 불가.
+
+Growth worker/eligibility logic 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Storage / Files
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- storage usage
+- upload authorization
+- file metadata
+- signed URL
+- delete
+
+에서 Pool ownership 검증.
+
+Pool A admin이 Pool B file 삭제 불가.
+
+Parent가 admin-only delete route 호출 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Role Escalation
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Parent가 body/query에:
+
+role=admin
+
+을 보내도 권한 상승 불가.
+
+Teacher가:
+
+role=admin
+
+또는
+pool_id=other_pool
+
+을 보내도 무효.
+
+Server auth context가 항상 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Super Admin
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin은 별도 global privilege.
+
+단 일반 admin과 혼동 금지.
+
+확인:
+
+pool admin role string을 조작해서
+Super Admin route 접근 불가.
+
+Super Admin authorization helper가 있으면 재사용.
+
+새 Super Admin auth architecture 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 테스트 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 test suite 금지.
+
+WP6 security integration tests만.
+
+최소 matrix:
+
+Actor A → Resource A:
+ALLOW
+
+Actor A → Resource B:
+DENY
+
+각 핵심 리소스별 수행.
+
+최소:
+
+1. Admin A → Student B DENY
+2. Teacher A → Student B DENY
+3. Parent A → Student B DENY
+4. Admin A → Class B DENY
+5. Teacher A → Attendance B DENY
+6. Parent A → Diary B DENY
+7. Teacher A → Diary B DENY
+8. Admin A → Media B DENY
+9. Parent A → Media B DENY
+10. Admin A → Notice target B DENY
+11. Admin A → Billing B DENY
+12. Admin A → X entitlement B DENY
+13. Parent A → Growth report B DENY
+14. Admin A → File B delete DENY
+15. Teacher/Parent → Super Admin endpoint DENY
+16. client pool_id spoof DENY
+17. client role spoof DENY
+
+그리고 정상 경로도 각 영역 최소 1개 ALLOW 확인.
+
+DENY는:
+
+401/403/404
+
+중 repository security convention에 맞게.
+
+중요:
+타 Pool resource 존재 여부를 숨기기 위해
+404 convention을 쓰는 기존 route가 있으면 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 발견된 Gap 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 gap 발견 시:
+
+가장 좁은 canonical helper를 재사용/보완.
+
+route마다:
+
+if(poolId !== ...)
+
+식 복붙 남발 금지.
+
+이미:
+
+requireAuth
+requireRole
+pool membership helper
+resource ownership helper
+
+등이 있으면 재사용.
+
+새 authorization framework 전체 작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Cross-Pool Leak = P0
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 cross-pool read/write leak 발견 시:
+
+P0 release blocker.
+
+반드시:
+
+- exact route
+- actor
+- target resource
+- before behavior
+- root cause
+- minimal fix
+- regression test
+
+보고.
+
+단 이것 때문에 roadmap 전체 재설계 금지.
+
+WP6 범위에서 해당 leak만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. DB / Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 기대:
+
+DB schema change:
+NO
+
+Migration:
+NO
+
+Authorization 수정은 기존 schema 기반.
+
+새 schema 없이는 차단 불가능한
+실제 blocker가 있을 때만 evidence 보고 후 STOP.
+
+Production DB mutation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP7 Manual Grant
+- Toykids management override cleanup
+- WP8 pagination
+- WP9 monitoring
+- WP10 Growth worker logic
+- WP11 notes
+- WP12 marketing
+- WP13 integrity
+- WP14 cleanup
+- WP15 version/runtime
+- RevenueCat 재설계
+- Push queue 재설계
+- Notice schema 재설계
+- AI Engine 수정
+- Production DB mutation
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 수정 파일 기준 보고.
+
+Server authorization 변경:
+Render required YES 예상.
+
+App JS/TS:
+이번 WP 기본적으로 없음.
+
+OTA:
+NO 예상.
+
+Native:
+NO.
+
+Production deploy:
+하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. PASS 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP6 PASS:
+
+1. 핵심 리소스 cross-pool leak 0
+2. role escalation 0
+3. IDOR 주요 경로 차단
+4. client pool_id source-of-truth 사용 0
+5. client role source-of-truth 사용 0
+6. Billing/X cross-pool 차단
+7. AI APP route cross-pool 차단
+8. Growth report cross-pool 차단
+9. Media/File signed access cross-pool 차단
+10. Super Admin privilege 분리
+11. 정상 same-pool access regression 없음
+12. Production data 변경 없음
+13. 관련 security tests PASS
+14. Commit SHA 존재
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP6 CROSS-POOL / ROLE SECURITY REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+6b6d806a
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Security matrix:
+
+Members/Students:
+same-pool: PASS/FAIL
+cross-pool: BLOCKED/FAIL
+
+Parents:
+...
+
+Classes:
+...
+
+Attendance:
+...
+
+Diary:
+...
+
+Media:
+...
+
+Notices:
+...
+
+Billing:
+...
+
+X entitlement:
+...
+
+AI APP routes:
+...
+
+Growth reports:
+...
+
+Storage/files:
+...
+
+Role spoof:
+BLOCKED / FAIL
+
+Pool ID spoof:
+BLOCKED / FAIL
+
+Super Admin privilege:
+PASS / FAIL
+
+Cross-pool leaks found:
+...
+
+P0 leaks:
+0 / ...
+
+For each leak fixed:
+
+Route:
+...
+
+Actor:
+...
+
+Before:
+...
+
+Root cause:
+...
+
+Fix:
+...
+
+Regression test:
+...
+
+Authorization helpers reused:
+...
+
+DB changes:
+YES / NO
+
+Migration:
+YES / NO
+
+Production data changes:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+Render required:
+YES / NO
+
+OTA required:
+YES / NO
+
+Native binary required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+WP6 완료 후
+WP7 또는 다른 기능을 선행 구현하지 마십시오.
+
+실제 cross-pool P0가 발견되면
+그 범위만 최소 수정하십시오.
+
+완료조건 충족 후 즉시 STOP하십시오.
+```

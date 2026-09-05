@@ -1,0 +1,1277 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP12 — SUPER ADMIN MARKETING MVP
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 중간 계획 변경 금지
+
+목적:
+
+WP4의 canonical Notice 시스템과
+WP5 durable Push fan-out을 재사용하여
+
+Super Admin이 수영장 운영자/선생님/학부모에게
+필요한 공지·안내·마케팅 메시지를
+
+- Pool
+- Plan
+- Role
+- Channel
+
+기준으로 최소 타겟팅할 수 있는
+Marketing MVP를 완성합니다.
+
+이번 WP는 "대형 Campaign 플랫폼" 구축이 아닙니다.
+
+이번 작업은 WP12만 수행합니다.
+
+WP13 이후 작업 절대 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이미 존재하는 구조를 반드시 재사용:
+
+- WP4 notices canonical schema
+- target_pools
+- target_roles
+- target_plan_types 가능 필드
+- show_banner
+- send_push
+- starts_at / ends_at
+- deep_link
+- notice_dismissals
+- WP5 durable push fan-out
+- Super Admin auth
+- audit_logs
+
+금지:
+
+- 새로운 campaign table 대형 설계
+- 새로운 Push system
+- email marketing platform
+- SMS marketing platform
+- CRM
+- conversion analytics
+- attribution
+- campaign automation
+- drip campaign
+- audience builder
+- AI marketing generator
+- WP13 이후 작업
+- unrelated refactor
+
+이번 목표는:
+
+"Super Admin이 기존 Notice를
+조금 더 정교하게 타겟팅해서 보내는 최소 운영 기능"
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+e2d4ac0f
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- e2d4ac0f ancestry 포함
+
+WP1~WP11 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Marketing MVP 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 canonical content entity는 계속:
+
+notices
+
+입니다.
+
+새 campaign content entity를 만들지 마십시오.
+
+Marketing MVP는:
+
+Notice
++
+Targeting
++
+Channel selection
++
+Preview/count
++
+Send
++
+Audit
+
+정도만.
+
+기존 공지 시스템의 상위 운영 기능으로 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 타겟 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수 타겟 축:
+
+A. Pool
+
+- all pools
+- single pool
+- multiple pools
+
+
+B. Plan
+
+최소:
+
+- all
+- SWIMNOTE
+- X300
+- X500
+- X1000
+
+DATA100 / DATA300는
+storage addon이므로 기본 plan targeting source로 사용하지 않습니다.
+
+단 현재 canonical plan resolver가
+base/X plan을 다른 key로 표현하면
+그 구조를 재사용하십시오.
+
+
+C. Role
+
+- ADMIN / POOL_ADMIN equivalent
+- TEACHER
+- PARENT
+
+
+D. Channel
+
+- Notice inbox
+- Push
+- Banner
+
+기존 WP4 toggle로 표현:
+
+send_push
+show_banner
+
+Notice inbox는 canonical base.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. target_plan_types
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP4 migration에
+target_plan_types가 이미 존재하는지 먼저 확인하십시오.
+
+있으면 그대로 재사용.
+
+없으면:
+
+이번 WP에서 실제 필요하므로
+canonical additive migration 가능.
+
+신규 runtime DDL 금지.
+
+가능한 값은
+현재 canonical plan keys와 일치해야 합니다.
+
+client arbitrary string을
+그대로 query 조건으로 사용하지 마십시오.
+
+server validation 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Canonical Plan Source
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+Marketing targeting에서 plan 판단도
+client나 mode 문자열을 임의 사용하지 않습니다.
+
+사용:
+
+현재 Pool의 canonical effective/base plan source.
+
+절대:
+
+mode=x → paid X subscriber
+
+로 판단하지 마십시오.
+
+Manual X
+Management Override X
+Paid X
+
+모두 현재 effective plan에 따라
+X300/X500/X1000 audience에 포함될 수 있습니다.
+
+단 실제 current product semantics를
+기존 resolver 기준으로 유지.
+
+RevenueCat billing source와 marketing plan targeting을 혼동하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Audience Resolution
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin이 타겟을 선택하면
+server가 audience를 계산.
+
+예:
+
+Pool:
+A + B
+
+Plan:
+X500
+
+Role:
+PARENT
+
+→ 지정 Pool 중 canonical plan이 X500인 Pool
+→ 그 Pool의 Parent 사용자
+
+중요:
+
+audience query는 server-side.
+
+client에서 recipient IDs 전체를 만들어 보내는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Audience Preview
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 발송 전 최소 preview 제공.
+
+필수:
+
+- target pool count
+- target user count
+- role breakdown 가능하면
+- push-capable token/user count 가능하면
+
+예:
+
+Pools: 12
+Users: 3,240
+Parents: 2,900
+Teachers: 280
+Admins: 60
+Push reachable: 2,710
+
+새 analytics warehouse 금지.
+
+현재 DB query로 bounded aggregate.
+
+recipient 전체 3천/10만 row를 UI에 펼쳐 보여줄 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Audience Query Scale
+━━━━━━━━━━━━━━━━━━━━━━
+
+500 pools / 수만~10만 user를 고려.
+
+금지:
+
+for each pool:
+  query users
+
+형태의 N+1.
+
+가능하면:
+
+JOIN
+WHERE pool IN (...)
+GROUP BY
+
+등 batch query.
+
+target_pools가 all이면
+전체 Pool ID를 메모리로 불러온 뒤 반복하지 말고
+query 조건으로 직접 처리.
+
+WP8 performance 원칙 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Create / Draft
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Notice create 구조 재사용.
+
+이번 MVP에서 복잡한 campaign draft workflow는 만들지 않습니다.
+
+가능한 최소 flow:
+
+1. 내용 작성
+2. 타겟 선택
+3. audience preview
+4. create/send
+
+기존 notices가 future starts_at을 지원하므로
+예약 발송 의미는 starts_at으로 충분.
+
+새 scheduler table 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Immediate / Scheduled
+━━━━━━━━━━━━━━━━━━━━━━
+
+starts_at:
+
+NULL 또는 now 이하:
+즉시 활성
+
+future:
+예약
+
+ends_at:
+optional
+
+Push timing:
+
+현재 WP4/WP5 구조를 확인.
+
+중요:
+
+future starts_at인데
+Notice 생성 즉시 Push가 발송되면 안 됩니다.
+
+만약 현재 WP4가
+send_push=true create 시 즉시 enqueue하는 구조라면,
+WP12에서 이 gap을 최소 수정하십시오.
+
+Expected:
+
+starts_at <= now:
+durable push enqueue 가능
+
+starts_at > now:
+해당 시각 전 push enqueue 금지
+
+기존 scheduler/cron convention 재사용.
+
+새 scheduler platform 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Scheduled Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+future Notice push가 필요하면
+현재 existing Notice/Push scheduler가 있는지 먼저 확인.
+
+있으면 재사용.
+
+없으면 현재 기존 scheduler pattern을 이용한
+최소 due-notice poll 가능.
+
+조건:
+
+- send_push=true
+- starts_at <= now
+- 아직 push not enqueued/sent
+- deterministic job_ref
+
+새 external scheduler 금지.
+
+DB schema가 필요하다면
+먼저 기존 field/audit/jobRef로 판별 가능한지 확인.
+
+과도한 campaign lifecycle table 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Duplicate Send Protection
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5 job idempotency 재사용.
+
+동일 Notice의 같은 발송 action:
+
+deterministic jobRef
+
+예:
+
+notice:{notice_id}:send
+
+이미 WP4 convention이 있으면 그대로.
+
+scheduled poll이 여러 번 실행돼도
+duplicate push enqueue 0.
+
+Notice inbox row duplicate 생성도 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Resend
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 MVP에서
+"같은 Notice를 다시 보내기"용 대형 version/resend system 만들지 마십시오.
+
+필요하면 새 Notice를 복제하여 새 ID로 발송하는
+현재 simple operational flow 유지.
+
+같은 notice_id에 여러 campaign send version을
+쌓는 구조는 WP20 이후 범위.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Banner
+━━━━━━━━━━━━━━━━━━━━━━
+
+show_banner=true:
+
+WP4 Banner presentation 사용.
+
+dismissal semantics 그대로.
+
+Marketing MVP가
+dismissal/read logic을 변경하면 안 됩니다.
+
+targeting만 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+send_push=true:
+
+반드시 WP5 durable queue 사용.
+
+금지:
+
+- direct Expo HTTP 호출
+- new push sender
+- detached Promise
+
+audience resolution 후
+WP5 enqueue path에 canonical target 전달.
+
+가능하면 token snapshot/delivery 구조 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Notice Inbox
+━━━━━━━━━━━━━━━━━━━━━━
+
+Marketing Notice도
+대상 사용자 Notice inbox에서 정상 조회.
+
+별도 "광고함" 만들지 마십시오.
+
+현재 제품 분류상:
+
+SWIMNOTE 공지
+
+로 표시.
+
+Pool 공지와는 sender/source로 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Super Admin Only
+━━━━━━━━━━━━━━━━━━━━━━
+
+Marketing targeting/send:
+
+Super Admin only.
+
+Pool Admin은
+기존 자기 Pool Notice 기능만.
+
+Pool Admin이:
+
+target_plan_types
+multiple target pools
+all pools
+
+등 Marketing 기능 사용 불가.
+
+Teacher/Parent:
+불가.
+
+WP6 security 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Target Validation
+━━━━━━━━━━━━━━━━━━━━━━
+
+server validation 필수.
+
+예:
+
+target_pools:
+존재하지 않는 pool ID → validation error
+
+target_roles:
+지원하지 않는 role → 400
+
+target_plan_types:
+canonical plan key 아닌 값 → 400
+
+empty targeting:
+기본 all로 해석할지 현재 WP4 semantics 확인.
+
+위험하게 accidental all-users 발송되지 않도록
+Super Admin send 시에는 명시적 target 확인을 우선.
+
+예:
+
+all_pools=true
+
+같은 explicit flag/confirmation source가 현재 UI에서 필요하다면
+기존 구조 안에서 최소 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Accidental Global Send 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+Super Admin Marketing에서:
+
+target_pools 비어있음
+target_roles 비어있음
+target_plan_types 비어있음
+
+을 자동으로 "전 사용자"로 해석하여
+대량 발송하지 마십시오.
+
+전체 발송은 명시적이어야 합니다.
+
+예:
+
+target_all_pools=true
+target_all_roles=true
+target_all_plans=true
+
+또는 기존 equivalent explicit semantics.
+
+정확한 field는 현재 schema/UI에 맞게.
+
+새 schema가 필요하지 않도록
+UI/API validation만으로 해결 가능하면 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Preview → Send Consistency
+━━━━━━━━━━━━━━━━━━━━━━
+
+Preview count와 실제 send audience가
+서로 다른 resolver를 사용하면 안 됩니다.
+
+하나의 canonical audience resolver를 재사용.
+
+예:
+
+resolveMarketingAudience(criteria)
+
+를 preview/send 모두 사용.
+
+route별 duplicate audience logic 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. Audience Snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 send 시
+WP5 durable delivery rows가 recipient/token snapshot 역할을 하므로
+Marketing 별도 recipient snapshot table 만들지 마십시오.
+
+Preview는 current estimate.
+
+Send:
+WP5 durable enqueue에서 실제 대상 snapshot.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Audit
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 audit_logs 재사용.
+
+최소:
+
+MARKETING_NOTICE_CREATE
+MARKETING_NOTICE_SEND
+
+또는 repository convention.
+
+기록:
+
+- actor
+- notice id
+- pool targeting summary
+- plan targeting summary
+- role targeting summary
+- send_push
+- show_banner
+- starts_at
+- audience count
+- timestamp
+
+recipient 전체 개인정보를 audit payload에 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Super Admin Notice/공지 UI가 있으면 재사용/확장.
+
+새 Marketing 앱/대형 dashboard 만들지 마십시오.
+
+최소 UI:
+
+- 제목
+- 내용
+- Pool target
+- Plan target
+- Role target
+- Push ON/OFF
+- Banner ON/OFF
+- 시작일시
+- 종료일시 optional
+- Deep link optional
+- audience preview
+- 발송/등록
+
+현재 design system 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. Pool Selector
+━━━━━━━━━━━━━━━━━━━━━━
+
+500 pools 고려.
+
+수백 개 checkbox를 한 화면에 전부 렌더링하지 마십시오.
+
+기존 pool search/select component가 있으면 재사용.
+
+최소:
+
+- 전체
+- 검색
+- 다중 선택
+
+가능.
+
+새 complex audience builder 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. Plan Selector
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+전체
+SWIMNOTE
+X300
+X500
+X1000
+
+현재 legacy plan을
+필요 없이 UI에 노출하지 마십시오.
+
+단 기존 active legacy customer가 존재하고
+선택 불가로 인해 audience 누락이 실제 발생하면
+"OTHER/LEGACY" 처리 여부 evidence 보고.
+
+임의 product taxonomy 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. Role Selector
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+전체
+관리자
+선생님
+학부모
+
+Super Admin 자체를
+일반 marketing recipient role에 자동 포함하지 마십시오.
+
+실제 product role keys 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. Channel Combinations
+━━━━━━━━━━━━━━━━━━━━━━
+
+지원:
+
+Notice only
+Push + Notice
+Banner + Notice
+Push + Banner + Notice
+
+WP4 semantics 그대로.
+
+Push only로
+Notice row 없이 보내는 새 path 만들지 마십시오.
+
+Canonical content는 항상 Notice.
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. Deep Link
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 deep_link field 재사용.
+
+Push / Banner / Notice에서 동일 link.
+
+새 navigation system 금지.
+
+invalid deep link input은
+기존 validation convention 또는 safe nullable 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. Image
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Notice image/R2 구조가 있으면 그대로.
+
+Marketing용 media library 만들지 마십시오.
+
+Push image delivery 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. Basic Delivery Visibility
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 full campaign analytics 금지.
+
+단 발송 후 최소:
+
+- notice id
+- target audience count
+- push job status reference
+- created/scheduled time
+
+정도 운영자가 볼 수 있으면 충분.
+
+open rate
+click rate
+conversion
+attribution
+
+구현 금지.
+
+그건 WP20/향후.
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. DB / Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 기대:
+
+WP4 target_plan_types가 이미 있다면
+Schema change:
+NO
+
+Migration:
+NO
+
+없고 실제 필요하면
+target_plan_types additive migration만 허용.
+
+신규 campaign tables 금지.
+
+Migration 필요 시:
+
+1. canonical migration
+2. Staging
+3. second-run
+4. Production 미실행
+
+신규 runtime DDL 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. Scheduled Send DB State
+━━━━━━━━━━━━━━━━━━━━━━
+
+future starts_at push enqueue 여부 판별에
+추가 field가 필요할지 먼저 확인.
+
+가능하면 WP5 deterministic jobRef + existing job lookup으로:
+
+job_ref=notice:{id}:send
+
+존재 여부를 이용.
+
+별도:
+
+marketing_sent
+campaign_status
+campaign_deliveries
+
+같은 schema를 만들지 마십시오.
+
+정말 불가능한 경우만 blocker evidence.
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. Performance
+━━━━━━━━━━━━━━━━━━━━━━
+
+Audience preview/send resolver:
+
+500 pools
+100k users target를 고려하되
+
+"100k simultaneous guaranteed"
+
+주장 금지.
+
+최소:
+
+- no per-pool N+1
+- no per-user N+1
+- aggregate count query
+- send recipient resolution batch
+- WP5 durable fanout
+
+이면 충분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+34. Required Tests
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+WP12 관련 tests만.
+
+A.
+Super Admin
+all pools + all roles + all plans
+explicit targeting
+→ preview PASS
+
+B.
+empty targeting without explicit ALL
+→ BLOCK
+
+C.
+single pool target
+→ only that pool
+
+D.
+multiple pools
+→ only selected pools
+
+E.
+SWIMNOTE plan
+→ canonical SWIMNOTE pools only
+
+F.
+X300 plan
+→ X300 only
+
+G.
+X500
+→ X500 only
+
+H.
+X1000
+→ X1000 only
+
+I.
+Manual X500 pool
+→ X500 audience included
+
+J.
+Management Override X1000 pool
+→ X1000 audience included
+
+K.
+mode=x but effective plan mismatch
+→ canonical plan source used
+
+L.
+Parent role
+→ parents only
+
+M.
+Teacher role
+→ teachers only
+
+N.
+Admin role
+→ admins only
+
+O.
+multiple roles
+→ union without duplicate user
+
+P.
+Pool Admin marketing endpoint
+→ 403
+
+Q.
+Teacher
+→ 403
+
+R.
+Parent
+→ 403
+
+S.
+client role spoof
+→ BLOCK
+
+T.
+invalid plan
+→ 400
+
+U.
+invalid pool
+→ validation error
+
+V.
+preview and send resolver identical
+→ counts/criteria consistent
+
+W.
+send_push=false
+→ WP5 enqueue 0
+
+X.
+send_push=true immediate
+→ WP5 durable enqueue 1
+
+Y.
+duplicate send retry same notice
+→ duplicate enqueue 0
+
+Z.
+future starts_at
+→ immediate push enqueue 0
+
+AA.
+future starts_at becomes due
+→ enqueue exactly 1
+
+AB.
+due scheduler repeated
+→ duplicate enqueue 0
+
+AC.
+show_banner target
+→ matching audience only
+
+AD.
+dismissal semantics unchanged
+
+AE.
+notice inbox target correct
+
+AF.
+deep_link preserved
+
+AG.
+audit create/send
+
+AH.
+recipient list N+1 0
+
+AI.
+500 pool preview query bounded
+
+AJ.
+Production push sent
+→ 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+35. Production Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production mass marketing send:
+절대 금지.
+
+Production 사용자 Push:
+0.
+
+Staging/mock fixtures만.
+
+Production DB migration:
+NO.
+
+━━━━━━━━━━━━━━━━━━━━━━
+36. Render / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server code 변경 예상:
+
+Render required:
+YES/NO
+
+Super Admin App JS/TS 변경 예상:
+
+iOS OTA required:
+YES/NO
+
+Replit OTA publish 금지.
+
+Android OTA:
+NO
+
+Native:
+NO 예상.
+
+Production deploy:
+하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+37. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP13 Integrity Checker
+- WP14 Legacy Cleanup
+- WP15 Version/runtime
+- WP16 E2E
+- WP17 RC
+- CRM
+- campaign automation
+- campaign analytics
+- open/click tracking
+- attribution
+- email platform
+- SMS platform
+- AI copy generator
+- RevenueCat 수정
+- Push architecture 재설계
+- Notice schema 전면 재설계
+- Pagination 재설계
+- Growth
+- Admin Notes
+- AI Engine
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+38. PASS 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP12 PASS:
+
+1. existing notices reused
+2. Pool targeting
+3. Plan targeting
+4. Role targeting
+5. Channel targeting
+6. canonical audience resolver
+7. preview
+8. preview/send consistency
+9. explicit all-users safety
+10. Super Admin only
+11. Manual/Management X plan correctly targeted
+12. immediate push via WP5
+13. scheduled push safe
+14. duplicate send 0
+15. Banner/Notice semantics preserved
+16. deep link preserved
+17. audit_logs
+18. no N+1
+19. Production mass send 0
+20. campaign analytics 없음
+21. migration only if necessary
+22. Staging migration PASS if needed
+23. related tests PASS
+24. Commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+39. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP12 SUPER ADMIN MARKETING MVP REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+e2d4ac0f
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Existing notices reused:
+YES / NO
+
+New campaign table:
+YES / NO
+
+Canonical audience resolver:
+...
+
+Pool targeting:
+PASS / FAIL
+
+Plan targeting:
+PASS / FAIL
+
+Canonical plan source:
+...
+
+Manual X targeting:
+PASS / FAIL
+
+Management Override X targeting:
+PASS / FAIL
+
+Role targeting:
+PASS / FAIL
+
+Channel targeting:
+PASS / FAIL
+
+Explicit ALL targeting:
+...
+
+Empty-target accidental global send:
+BLOCKED / FAIL
+
+Audience preview:
+PASS / FAIL
+
+Preview fields:
+...
+
+Preview/send same resolver:
+PASS / FAIL
+
+500-pool N+1:
+NONE / ...
+
+Immediate send_push:
+...
+
+WP5 durable enqueue:
+PASS / FAIL
+
+Future starts_at immediate enqueue:
+0 / ...
+
+Scheduled push implementation:
+...
+
+Scheduled send:
+PASS / FAIL
+
+Repeated scheduler duplicate enqueue:
+0 / ...
+
+Push job_ref:
+...
+
+Notice inbox:
+PASS / FAIL
+
+Banner:
+PASS / FAIL
+
+Dismissal semantics preserved:
+PASS / FAIL
+
+Deep link:
+PASS / FAIL
+
+Audit:
+PASS / FAIL
+
+Super Admin only:
+PASS / FAIL
+
+Pool Admin denied:
+PASS / FAIL
+
+Teacher denied:
+PASS / FAIL
+
+Parent denied:
+PASS / FAIL
+
+Production marketing send:
+NO
+
+Production Push sent:
+NO
+
+DB schema changes:
+YES / NO
+
+Migration:
+YES / NO
+
+Migration file:
+...
+
+Staging migration:
+PASS / FAIL / NOT REQUIRED
+
+Production migration:
+NOT RUN
+
+Campaign analytics added:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+Render required:
+YES / NO
+
+iOS OTA required:
+YES / NO
+
+Android OTA:
+NO
+
+Native binary required:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP는 Marketing MVP입니다.
+Campaign 플랫폼/CRM/analytics로 확장하지 마십시오.
+
+WP13 이후 작업 선행 금지.
+
+Production 사용자에게 실제 마케팅 Push를 보내지 마십시오.
+
+완료조건 충족 후 즉시 STOP하십시오.
+```

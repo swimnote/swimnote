@@ -31,6 +31,30 @@ function getXProductIds(): Set<string> {
   return new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
 }
 
+// ── [WP3] RC Product ID → x_plan_key 추출 ───────────────────────────────────
+// 공식 X 상품 RC product ID → internal plan key 매핑
+// RC_PRODUCT_TIER_MAP과 동일 패턴 (subscriptionService.ts 기준)
+//
+// 지원:
+//   com.swimnote.x300.monthly → x300
+//   x300 / x300:monthly       → x300
+//   (x500, x1000 동일 패턴)
+//
+// 반환: null → 알 수 없는 productId (x_plan_key 변경 안 함)
+export function getXPlanKeyFromProductId(productId: string): string | null {
+  if (!productId) return null;
+  for (const key of ["x300", "x500", "x1000"]) {
+    if (
+      productId === key ||
+      productId === `${key}:monthly` ||
+      productId === `com.swimnote.${key}.monthly`
+    ) {
+      return key;
+    }
+  }
+  return null;
+}
+
 /**
  * RevenueCat product ID가 X 전용 상품인지 판정.
  * REVENUECAT_X_PRODUCT_IDS 미설정 시 항상 false.
@@ -120,13 +144,20 @@ export async function handleXEntitlementEvent(
       // xmode_config_status: 절대 수정 안 함
       // x_manual_entitlement: 수정 금지
       // x_auto_renew_cancelled: 갱신/재구독 시 false 복원
+      //
+      // [WP3] x_plan_key: RC product ID에서 plan key를 결정할 수 있으면 갱신
+      // 결정 불가(null)이면 기존값 유지 (COALESCE)
+      const derivedPlanKey = getXPlanKeyFromProductId(productId);
+      const planKeyFragment = derivedPlanKey
+        ? sql`, x_plan_key = ${derivedPlanKey}`
+        : sql``;
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
         SET x_paid_entitlement        = true,
             xmode_subscription_end_at = ${expiresAt ?? null},
             xmode_payment_failed_at   = NULL,
             xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
-            x_auto_renew_cancelled    = false,
+            x_auto_renew_cancelled    = false${planKeyFragment},
             updated_at                = NOW()
         WHERE id = ${poolId}
       `);

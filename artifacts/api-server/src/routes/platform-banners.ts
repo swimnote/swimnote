@@ -82,11 +82,14 @@ router.post("/super/banner-upload", requireAuth, upload.single("image"), async (
   }
 });
 
-// ── PUBLIC: 활성 배너 목록 (학부모 앱 호출) ─────────────────────────────
-router.get("/platform/banners", async (req, res) => {
+// ── AUTHENTICATED: 활성 배너 목록 (학부모 앱 호출) ──────────────────────
+// WP1: 미인증 공개 접근 제거. server-side role/target 필터링 적용.
+// client가 전달하는 pool_id/role을 authorization source로 신뢰하지 않습니다.
+router.get("/platform/banners", requireAuth, async (req: AuthRequest, res) => {
   try {
     const now = new Date();
     const bannerType = (req.query.type as string) || null;
+    const userRole = req.user!.role;
 
     const conditions: any[] = [
       eq(platformBannersTable.status, "active"),
@@ -97,11 +100,17 @@ router.get("/platform/banners", async (req, res) => {
       conditions.push(eq(platformBannersTable.banner_type as any, bannerType));
     }
 
-    const rows = await superAdminDb
+    const allRows = await superAdminDb
       .select()
       .from(platformBannersTable)
       .where(and(...conditions))
       .orderBy(platformBannersTable.sort_order, desc(platformBannersTable.created_at));
+
+    // server-side target filtering: 'all' 또는 요청 사용자의 실제 role이 포함된 배너만 반환
+    const rows = allRows.filter(b => {
+      const target: string = (b as any).target ?? "all";
+      return target === "all" || target === userRole;
+    });
 
     return res.json({ success: true, banners: rows });
   } catch (e: any) {

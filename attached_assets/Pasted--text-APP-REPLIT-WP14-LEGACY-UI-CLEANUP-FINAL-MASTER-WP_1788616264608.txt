@@ -1,0 +1,892 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# WP14 — LEGACY / UI CLEANUP
+# FINAL MASTER WP V6.1
+# PLAN FREEZE — 계획 변경 금지
+# DEAD CODE ONLY AFTER EVIDENCE
+
+목적:
+
+2.0.1 Release Candidate 전에
+현재 앱/API에 남아 있는 명백한:
+
+- dead code
+- obsolete UI
+- debug/mock/test-only production path
+- duplicated legacy presentation
+- stale navigation
+- unsafe debug logging
+
+을 최소 범위로 정리합니다.
+
+중요:
+
+이번 WP는 "옛 코드 싹 삭제" 작업이 아닙니다.
+
+실제로 DEAD임을 증명할 수 있는 것만 제거합니다.
+
+WP15 이후 작업 절대 선행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+가장 중요한 규칙:
+
+삭제 전 반드시 evidence.
+
+순서:
+
+candidate 확인
+→ 실제 reference/search
+→ route/navigation/import/runtime usage 확인
+→ DEAD 증명
+→ 최소 삭제
+→ 관련 regression test
+→ STOP
+
+"오래돼 보인다"
+"legacy라는 이름이다"
+"안 쓰는 것 같다"
+
+만으로 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Branch
+━━━━━━━━━━━━━━━━━━━━━━
+
+Branch:
+
+release/v2.0.0
+
+Required previous commit:
+
+96295ec3
+
+시작 전 최소 확인:
+
+- local release HEAD
+- origin/release HEAD
+- working tree clean
+- 96295ec3 ancestry 포함
+
+WP1~WP13 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이번 WP 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인 대상만:
+
+A. APP navigation의 dead/stale screen
+
+B. API의 실제 미사용 obsolete route/helper
+
+C. production path의 mock/placeholder data
+
+D. debug console/logging
+
+E. duplicated obsolete UI components
+
+F. WP4 이후 deprecated presentation path
+
+G. 명백히 dead import/export
+
+H. 출시 화면에 남은 개발용 text/button
+
+범위를 repository 전체 architecture cleanup으로 확대하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 절대 삭제 금지 — Historical Data
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 삭제/정리 금지:
+
+- historical billing
+- legacy subscriptions
+- RevenueCat history
+- 과거 entitlement evidence
+- 기존 Growth reports
+- notices historical rows
+- platform_banners historical rows
+- 과거 member/student data
+- audit_logs
+- Support Cases
+- user files/media
+
+"legacy"라는 이유로 DB row 삭제 금지.
+
+Production data cleanup:
+0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Legacy Runtime DDL
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+현재 repository에는 기존 TypeScript runtime/boot migration DDL이 존재합니다.
+
+예:
+
+pool-db-init.ts
+super-db-init.ts
+및 기존 initPushTables 계열.
+
+프로젝트 원칙:
+
+"신규 schema 변경을 runtime DDL로 추가하지 않는다."
+
+이지,
+
+"기존 runtime DDL을 WP14에서 전부 제거한다"
+
+가 아닙니다.
+
+따라서 금지:
+
+- legacy runtime DDL 전면 제거
+- boot schema architecture 재설계
+- migration system 전체 교체
+
+이번 WP에서 runtime DDL은
+실제 dead block이라는 강한 증거가 없는 한 그대로 둡니다.
+
+새 runtime DDL:
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. platform_banners
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP4에서:
+
+platform_banners = DEPRECATED / historical compatibility
+
+로 결정했습니다.
+
+따라서:
+
+DB table DROP 금지.
+historical row DELETE 금지.
+
+확인할 것은 UI/API write path.
+
+새 banner content는 canonical notices를 사용해야 합니다.
+
+만약 old Super Admin UI가 아직
+platform_banners에 신규 write하는 dead/obsolete screen으로 남아 있고
+현재 active navigation에서도 사용되지 않는 것이 증명되면:
+
+obsolete write UI/path만 최소 제거/비활성 가능.
+
+단 기존 client compatibility read path는
+근거 없이 삭제하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Old X Mode UI / Semantics
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP7 이후 canonical 상태:
+
+paid
+manual
+management_override
+force_disabled
+effective
+plan
+
+구조.
+
+UI에 아직:
+
+- mode=x = 유료
+- manual과 paid를 한 toggle
+- management override를 manual로 표시
+- bypass_readiness_check
+- upload history prerequisite
+
+같은 obsolete 표현이 남아 있는지
+현재 Super Admin X 관련 화면만 최소 확인.
+
+실제 존재하면 정리.
+
+WP7 backend semantics 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Debug / Console
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production runtime path의:
+
+console.log
+console.debug
+temporary DEBUG output
+
+중 다음만 정리:
+
+- secret/token 출력 가능성
+- raw payload
+- excessive per-user/per-row log
+- 개발용 테스트 출력
+- 명백한 temporary debugging
+
+운영에 필요한:
+
+console.error
+structured operational log
+WP9 monitoring log
+
+를 무조건 지우지 마십시오.
+
+로그 전체 무음화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Mock / Placeholder
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production screen/API에서 실제 실행 가능한:
+
+- mock user
+- fake pool
+- fake chart/data
+- test button
+- placeholder success result
+- hardcoded demo value
+
+가 존재하는지
+현재 active routes/screens만 확인.
+
+테스트 fixture / __tests__ / story/example 파일은
+production path가 아니면 삭제하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Navigation Cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP navigation에서:
+
+- 실제 file 없음
+- permanently deprecated screen
+- duplicate old screen
+- 출시 시 노출되면 안 되는 dev screen
+
+을 확인.
+
+삭제 전에:
+
+- _layout registration
+- router.push / replace
+- deep links
+- notifications deep links
+- existing client compatibility
+
+검색.
+
+Deep link target으로 아직 쓰이면
+dead가 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Duplicate UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 기능의 old/new 화면이 모두 남아 있더라도
+무조건 old 삭제 금지.
+
+삭제 조건:
+
+1. new canonical screen 존재
+2. active navigation은 new만 사용
+3. deep link reference 없음
+4. API/client usage 없음
+5. tests/reference 없음 또는 obsolete임이 확인
+6. Store current client compatibility에 영향 없음
+
+충족 시만 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. API Route Cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+Route 삭제는 특히 보수적으로.
+
+삭제 전에 최소 확인:
+
+- App source 호출 0
+- active deep link/API usage 0
+- scheduler/worker usage 0
+- Super Admin usage 0
+- current 2.0.x compatibility 영향 0
+
+1.6.3 legacy compatibility는
+2.0.1 release blocker가 아니지만,
+
+단순히 오래됐다는 이유만으로
+기존 route를 제거하지 마십시오.
+
+애매하면 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Deprecated Endpoint
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미:
+
+410 Gone
+deprecated redirect
+compatibility adapter
+
+로 안전하게 처리되는 endpoint는
+굳이 삭제할 필요 없음.
+
+"deprecated but harmless"는
+WP14 cleanup 대상이 아닐 수 있습니다.
+
+삭제 자체가 목적이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Dead Imports / Helpers
+━━━━━━━━━━━━━━━━━━━━━━
+
+명백하게:
+
+- import reference 0
+- export consumer 0
+- runtime dynamic lookup 가능성 없음
+
+인 helper/component만 제거.
+
+TypeScript compiler/linter가 잡는 단순 unused는
+현재 tooling 범위에서 정리 가능.
+
+대형 tree-shaking/refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. UI 출시 품질
+━━━━━━━━━━━━━━━━━━━━━━
+
+active production screens에서 최소 확인:
+
+- "TODO"
+- "준비중"인데 실제 출시 핵심 기능인 화면
+- 개발 테스트 버튼
+- 임시 alert()
+- placeholder text
+- raw error/JSON 표시
+- internal ID/SHA/token 표시
+- 영문 개발용 상태 코드 그대로 노출
+
+실제 발견된 것만 수정.
+
+전체 디자인 리뉴얼 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Error UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자에게 raw:
+
+SQL error
+stack trace
+internal server message
+JSON blob
+
+가 노출되는 명백한 path가 있으면
+기존 error component/message convention으로 최소 수정.
+
+새 global error framework 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Security Regression 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP14 cleanup 때문에:
+
+- requireAuth 삭제
+- requireRole 약화
+- pool ownership guard 제거
+- validation 제거
+
+가 발생하면 안 됩니다.
+
+"코드 줄이기"를 이유로
+WP1/WP6 security helper 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. WP5/WP9 Worker 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 active:
+
+- push fanout worker
+- push scheduler
+- ops monitor scheduler
+- Growth workers
+
+를 dead code로 오판하지 마십시오.
+
+app/index import reference뿐 아니라
+startup registration까지 확인.
+
+Worker cleanup 금지 unless indisputably obsolete duplicate.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Growth Legacy 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report에는 현재 여러 historical/status path가 존재.
+
+WP10에서 verified된:
+
+scheduler
+batch worker
+analysis worker
+eligibility
+manual recovery
+
+관련 code는 WP14에서 건드리지 마십시오.
+
+이름이 old/legacy여도 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. RevenueCat / Billing 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+Legacy product mapping/history는 보존.
+
+금지:
+
+- old RC product ID 삭제
+- historical subscription mapping 제거
+- billing history cleanup
+- legacy entitlement evidence 제거
+
+현재 공식 6개 제품이 추가됐다고
+기존 mapping을 제거하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. DB Schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본:
+
+Schema changes:
+NO
+
+Migration:
+NO
+
+Table/column DROP:
+NO
+
+Data cleanup:
+NO
+
+WP14에서 DB cleanup migration 만들지 마십시오.
+
+실제 obsolete schema가 보여도
+이번 WP에서는 candidate로 보고만 하고 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. App Asset Cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+명백히 미사용 asset을 찾더라도
+무차별 asset purge 금지.
+
+특히:
+
+- splash/icon
+- Store asset
+- notification image
+- level image
+- remotely referenced asset
+
+은 reference search만으로 부족할 수 있음.
+
+이번 WP에서 asset cleanup은
+명백한 개발용 placeholder 정도만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Build Config
+━━━━━━━━━━━━━━━━━━━━━━
+
+app.json
+eas.json
+native config
+runtimeVersion
+version
+buildNumber
+versionCode
+
+이번 WP에서 수정 금지.
+
+그건 WP15.
+
+Dependencies/package versions도
+이번 WP에서 upgrade 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Candidate Report First
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전에
+내부적으로 candidate 목록을 만드십시오.
+
+각 candidate:
+
+- file/path
+- what
+- current references
+- why dead/obsolete
+- removal risk
+- action
+
+분류:
+
+REMOVE
+KEEP
+DEFER
+
+REMOVE만 수정.
+
+KEEP/DEFER는 코드 건드리지 않음.
+
+완료보고에 요약 제출.
+
+별도 중간 사용자 승인 요청은 필요 없음.
+확실한 REMOVE만 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. Required Tests
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+변경한 기능 관련 regression만.
+
+최소:
+
+A. active Admin navigation 정상
+
+B. Teacher navigation 정상
+
+C. Parent navigation 정상
+
+D. Super Admin navigation 정상
+
+E. important deep links resolve
+
+F. Notice/Banner canonical path 정상
+
+G. X Super Admin canonical UI 정상
+
+H. WP5 worker startup reference 유지
+
+I. WP9 monitor startup 유지
+
+J. Growth worker startup 유지
+
+K. RevenueCat route 유지
+
+L. Admin Notes screen 유지
+
+M. Marketing screen 유지
+
+N. Integrity screen 유지
+
+O. no production mock data
+
+P. no obvious sensitive debug logs introduced/exposed
+
+Q. authorization regression 0
+
+R. build/typecheck relevant scope PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. Deletion Evidence
+━━━━━━━━━━━━━━━━━━━━━━
+
+삭제된 각 production file/route/component에 대해
+완료보고에 최소:
+
+Deleted:
+...
+
+Why confirmed dead:
+...
+
+Reference search:
+...
+
+Replacement/canonical path:
+...
+
+Compatibility impact:
+NONE / ...
+
+제출.
+
+증거 없이 삭제된 파일이 있으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. Production Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB write:
+0
+
+Production data delete:
+0
+
+Production migration:
+0
+
+Replit이 Production Render deploy:
+하지 마십시오.
+
+Replit이 OTA publish:
+하지 마십시오.
+
+필요 여부만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- WP15 version/runtime
+- WP16 Production E2E
+- WP17 RC freeze
+- WP18 DR
+- WP19 Store release
+- schema DROP
+- table cleanup
+- historical billing deletion
+- historical data deletion
+- broad runtime DDL removal
+- dependency upgrades
+- native config
+- architecture rewrite
+- AI Engine
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. PASS 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP14 PASS:
+
+1. dead/stale production UI 확인
+2. obsolete production mock/debug 정리
+3. canonical screens/routes 보존
+4. legacy historical DB/data 삭제 0
+5. legacy runtime DDL broad removal 0
+6. platform_banners DB 보존
+7. billing history/mappings 보존
+8. workers preserved
+9. security regression 0
+10. deep-link regression 0
+11. version/native config 변경 0
+12. DB schema/migration 0
+13. 삭제된 모든 item에 dead evidence 존재
+14. relevant tests PASS
+15. Commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP14 LEGACY / UI CLEANUP REPORT
+
+Target:
+APP
+
+Branch:
+...
+
+HEAD before:
+96295ec3
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Files changed:
+...
+
+Candidate summary:
+
+REMOVE:
+1. ...
+2. ...
+
+KEEP:
+1. ...
+2. ...
+
+DEFER:
+1. ...
+2. ...
+
+Deleted files/components/routes:
+...
+
+For each deleted item:
+
+Item:
+...
+
+Dead evidence:
+...
+
+References before:
+...
+
+Canonical replacement:
+...
+
+Compatibility impact:
+...
+
+Obsolete UI removed:
+...
+
+Mock/placeholder production paths removed:
+...
+
+Debug logs removed:
+...
+
+Sensitive logging remaining:
+NONE / ...
+
+platform_banners table deleted:
+NO
+
+platform_banners historical rows deleted:
+NO
+
+Legacy billing/history deleted:
+NO
+
+Legacy RevenueCat mappings deleted:
+NO
+
+Legacy runtime DDL broadly removed:
+NO
+
+Worker code removed:
+NO
+
+Growth pipeline changed:
+NO
+
+Security helpers removed/weakened:
+NO
+
+Deep-link regression:
+PASS / FAIL
+
+Active navigation:
+
+Admin:
+PASS / FAIL
+
+Teacher:
+PASS / FAIL
+
+Parent:
+PASS / FAIL
+
+Super Admin:
+PASS / FAIL
+
+Canonical Notice/Banner:
+PASS / FAIL
+
+Canonical X UI:
+PASS / FAIL
+
+Admin Notes:
+PASS / FAIL
+
+Marketing:
+PASS / FAIL
+
+Integrity:
+PASS / FAIL
+
+Production mock data:
+0 / ...
+
+DB schema changes:
+NO
+
+Migration:
+NO
+
+Production data changes:
+NO
+
+Version/runtime changed:
+NO
+
+Native config changed:
+NO
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+Render required:
+YES / NO
+
+iOS OTA required:
+YES / NO
+
+Android OTA:
+NO
+
+Native binary required:
+NO
+
+Production Render deployed by Replit:
+NO
+
+OTA published by Replit:
+NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+FINAL MASTER WP는 Freeze 상태입니다.
+
+이번 WP는 "안전하게 확인된 dead code만 제거"하는 작업입니다.
+
+애매하면 KEEP.
+
+DB/history/runtime migration architecture를
+cleanup 명목으로 건드리지 마십시오.
+
+WP15 이후 작업 선행 금지.
+
+완료조건 충족 후 즉시 STOP하십시오.
+```
