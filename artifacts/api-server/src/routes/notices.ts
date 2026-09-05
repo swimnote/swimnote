@@ -68,7 +68,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         whereClause = ne(noticesTable.status, "deleted");
       }
 
-      const notices = await db.select().from(noticesTable).where(whereClause);
+      // WP8: add LIMIT (notices dataset is admin-managed, bounded in practice)
+    const notices = await db.select().from(noticesTable).where(whereClause).limit(200);
       return res.json(sortNotices(notices));
     }
 
@@ -87,7 +88,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
           ),
         ),
       )
-    );
+    ).limit(200);
     return res.json(sortNotices(notices));
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });

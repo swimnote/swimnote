@@ -424,6 +424,8 @@ router.get("/diaries/index",
 
 // ── GET /diaries ─────────────────────────────────────────────────────────
 // 쿼리: class_group_id, lesson_date, include_deleted(admin only)
+// WP8: cursor pagination 추가 (backward-compat: plain array + X-Next-Cursor header)
+// Query params: limit (default 50, max 100), cursor (opaque base64url)
 router.get("/diaries",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
@@ -433,7 +435,19 @@ router.get("/diaries",
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      let whereClauses = [`cd.swimming_pool_id = ${db.execute(sql`${poolId}`)} `];
+      const { encodeCursor: ec, decodeCursor: dc, parseLimit: pl } = await import("../lib/pagination.js");
+      const limit = pl(req.query.limit, 50, 100);
+      const cursorRaw = req.query.cursor as string | undefined;
+
+      let cursorClause = sql``;
+      if (cursorRaw) {
+        const decoded = dc(cursorRaw);
+        if (!decoded) return apiErr(res, 400, "cursor 형식이 올바르지 않습니다.");
+        cursorClause = sql`
+          AND (cd.created_at < ${decoded.created_at}::timestamptz
+            OR (cd.created_at = ${decoded.created_at}::timestamptz AND cd.id < ${decoded.id}))
+        `;
+      }
 
       // 역할별 제한
       if (role === "teacher") {
@@ -443,13 +457,11 @@ router.get("/diaries",
 
         let classFilter: string;
         if (isAdminAsTeacher) {
-          // pool_admin은 소속 수영장 전체 반 일지 조회 가능
           const poolRows = await db.execute(sql`SELECT id FROM class_groups WHERE swimming_pool_id = ${poolId} AND is_deleted = false`);
           const allIds = (poolRows.rows as any[]).map(r => r.id);
           if (allIds.length === 0) { res.json([]); return; }
           classFilter = allIds.map(id => `cd.class_group_id = '${id}'`).join(" OR ");
         } else {
-          // 일반 선생님: 주담당 또는 co-teacher인 반 조회
           const rows = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text)`);
           const myClassIds = (rows.rows as any[]).map(r => r.id);
           if (myClassIds.length === 0) { res.json([]); return; }
@@ -472,10 +484,18 @@ router.get("/diaries",
             AND cd.is_deleted = false
             ${class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``}
             ${lesson_date ? sql`AND cd.lesson_date = ${lesson_date}` : sql``}
-          ORDER BY cd.lesson_date DESC, cd.created_at DESC
-          LIMIT 100
+            ${cursorClause}
+          ORDER BY cd.created_at DESC, cd.id DESC
+          LIMIT ${limit + 1}
         `);
-        res.json(rows2.rows);
+        const allRows2 = rows2.rows as any[];
+        const hasMore2 = allRows2.length > limit;
+        const pageRows2 = hasMore2 ? allRows2.slice(0, limit) : allRows2;
+        if (hasMore2 && pageRows2.length > 0) {
+          const last = pageRows2[pageRows2.length - 1] as any;
+          res.set("X-Next-Cursor", ec(last.created_at, last.id));
+        }
+        res.json(pageRows2);
         return;
       }
 
@@ -496,10 +516,18 @@ router.get("/diaries",
           ${!showDeleted ? sql`AND cd.is_deleted = false` : sql``}
           ${class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``}
           ${lesson_date ? sql`AND cd.lesson_date = ${lesson_date}` : sql``}
-        ORDER BY cd.lesson_date DESC, cd.created_at DESC
-        LIMIT 200
+          ${cursorClause}
+        ORDER BY cd.created_at DESC, cd.id DESC
+        LIMIT ${limit + 1}
       `);
-      res.json(rows3.rows);
+      const allRows3 = rows3.rows as any[];
+      const hasMore3 = allRows3.length > limit;
+      const pageRows3 = hasMore3 ? allRows3.slice(0, limit) : allRows3;
+      if (hasMore3 && pageRows3.length > 0) {
+        const last = pageRows3[pageRows3.length - 1] as any;
+        res.set("X-Next-Cursor", ec(last.created_at, last.id));
+      }
+      res.json(pageRows3);
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );
@@ -2237,6 +2265,8 @@ router.get("/diary/class-groups",
 );
 
 // GET /diary — 레거시: class_diaries로 리다이렉트
+// WP8: cursor pagination 추가 (backward-compat: plain array, X-Next-Cursor header)
+// Query params: limit (default 50, max 100), cursor (opaque base64url)
 router.get("/diary",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
@@ -2244,6 +2274,20 @@ router.get("/diary",
       const { userId, role } = req.user!;
       const poolId = await getUserPoolId(userId);
       const { class_group_id, date } = req.query;
+
+      const { encodeCursor: ec, decodeCursor: dc, parseLimit: pl } = await import("../lib/pagination.js");
+      const limit = pl(req.query.limit, 50, 100);
+      const cursorRaw = req.query.cursor as string | undefined;
+
+      let cursorClause = sql``;
+      if (cursorRaw) {
+        const decoded = dc(cursorRaw);
+        if (!decoded) return apiErr(res, 400, "cursor 형식이 올바르지 않습니다.");
+        cursorClause = sql`
+          AND (cd.created_at < ${decoded.created_at}::timestamptz
+            OR (cd.created_at = ${decoded.created_at}::timestamptz AND cd.id < ${decoded.id}))
+        `;
+      }
 
       if (role === "teacher") {
         const myClasses = await db.execute(sql`SELECT id FROM class_groups WHERE teacher_user_id = ${userId}`);
@@ -2259,20 +2303,36 @@ router.get("/diary",
             AND cd.is_deleted = false
             ${class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``}
             ${date ? sql`AND cd.lesson_date = ${date}` : sql``}
-          ORDER BY cd.lesson_date DESC, cd.created_at DESC
-          LIMIT 50
+            ${cursorClause}
+          ORDER BY cd.created_at DESC, cd.id DESC
+          LIMIT ${limit + 1}
         `);
-        res.json(rows.rows);
+        const allRows = rows.rows as any[];
+        const hasMore = allRows.length > limit;
+        const pageRows = hasMore ? allRows.slice(0, limit) : allRows;
+        if (hasMore && pageRows.length > 0) {
+          const last = pageRows[pageRows.length - 1] as any;
+          res.set("X-Next-Cursor", ec(last.created_at, last.id));
+        }
+        res.json(pageRows);
       } else {
         const rows = await db.execute(sql`
           SELECT cd.*, cg.name AS class_name
           FROM class_diaries cd
           LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
           WHERE cd.swimming_pool_id = ${poolId} AND cd.is_deleted = false
-          ORDER BY cd.lesson_date DESC, cd.created_at DESC
-          LIMIT 100
+            ${cursorClause}
+          ORDER BY cd.created_at DESC, cd.id DESC
+          LIMIT ${limit + 1}
         `);
-        res.json(rows.rows);
+        const allRows = rows.rows as any[];
+        const hasMore = allRows.length > limit;
+        const pageRows = hasMore ? allRows.slice(0, limit) : allRows;
+        if (hasMore && pageRows.length > 0) {
+          const last = pageRows[pageRows.length - 1] as any;
+          res.set("X-Next-Cursor", ec(last.created_at, last.id));
+        }
+        res.json(pageRows);
       }
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -2435,6 +2495,7 @@ router.get("/teacher/overview",
 );
 
 // GET /teacher/messages — 안읽은 학부모 쪽지 목록
+// WP8: cursor pagination 추가 (backward-compat: plain array + X-Next-Cursor header)
 router.get("/teacher/messages",
   requireAuth, requireRole("teacher", "pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
@@ -2442,6 +2503,20 @@ router.get("/teacher/messages",
       const { userId } = req.user!;
       const poolId = await getUserPoolId(userId);
       const unreadOnly = req.query.unread === "true";
+
+      const { encodeCursor: ec, decodeCursor: dc, parseLimit: pl } = await import("../lib/pagination.js");
+      const limit = pl(req.query.limit, 50, 100);
+      const cursorRaw = req.query.cursor as string | undefined;
+
+      let cursorClause = sql``;
+      if (cursorRaw) {
+        const decoded = dc(cursorRaw);
+        if (!decoded) return apiErr(res, 400, "cursor 형식이 올바르지 않습니다.");
+        cursorClause = sql`
+          AND (dm.created_at < ${decoded.created_at}::timestamptz
+            OR (dm.created_at = ${decoded.created_at}::timestamptz AND dm.id < ${decoded.id}))
+        `;
+      }
 
       const myClasses = await db.execute(sql`
         SELECT id FROM class_groups WHERE teacher_user_id = ${userId} AND swimming_pool_id = ${poolId}
@@ -2462,10 +2537,18 @@ router.get("/teacher/messages",
           AND dm.sender_role = 'parent'
           AND dm.is_deleted = false
           ${unreadOnly ? sql`AND dm.read_at IS NULL` : sql``}
-        ORDER BY dm.created_at DESC
-        LIMIT 50
+          ${cursorClause}
+        ORDER BY dm.created_at DESC, dm.id DESC
+        LIMIT ${limit + 1}
       `);
-      res.json(rows.rows);
+      const allRows = rows.rows as any[];
+      const hasMore = allRows.length > limit;
+      const pageRows = hasMore ? allRows.slice(0, limit) : allRows;
+      if (hasMore && pageRows.length > 0) {
+        const last = pageRows[pageRows.length - 1] as any;
+        res.set("X-Next-Cursor", ec(last.created_at, last.id));
+      }
+      res.json(pageRows);
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );

@@ -2,21 +2,54 @@ import { Router, Response } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { encodeCursor, decodeCursor, parseLimit } from "../lib/pagination.js";
 
 const router = Router();
 
 // ── 내 알림 목록 ──────────────────────────────────────────────────────
+// Backward-compatible: response shape {notifications, unread_count} preserved.
+// Additive: next_cursor field added when more pages exist.
+// Query params: limit (default 50, max 100), cursor (opaque base64url)
 router.get("/notifications", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
+    const limit = parseLimit(req.query.limit, 50, 100);
+    const cursor = req.query.cursor as string | undefined;
+
+    let cursorClause = sql``;
+    if (cursor) {
+      const decoded = decodeCursor(cursor);
+      if (!decoded) {
+        return res.status(400).json({ error: "cursor 형식이 올바르지 않습니다." });
+      }
+      cursorClause = sql`
+        AND (n.created_at, n.id) < (${decoded.created_at}::timestamptz, ${decoded.id})
+      `;
+    }
+
+    // Fetch limit+1 to detect next page
     const rows = await db.execute(sql`
-      SELECT * FROM notifications
-      WHERE recipient_id = ${userId}
-      ORDER BY created_at DESC
-      LIMIT 50
+      SELECT n.*, n.id AS _id_for_cursor
+      FROM notifications n
+      WHERE n.recipient_id = ${userId}
+        ${cursorClause}
+      ORDER BY n.created_at DESC, n.id DESC
+      LIMIT ${limit + 1}
     `);
-    const unread = (rows.rows as any[]).filter(n => !n.is_read).length;
-    res.json({ notifications: rows.rows, unread_count: unread });
+
+    const allRows = rows.rows as any[];
+    const hasMore = allRows.length > limit;
+    const pageRows = hasMore ? allRows.slice(0, limit) : allRows;
+
+    const unread = pageRows.filter(n => !n.is_read).length;
+
+    let next_cursor: string | null = null;
+    if (hasMore && pageRows.length > 0) {
+      const last = pageRows[pageRows.length - 1];
+      next_cursor = encodeCursor(last.created_at, last.id);
+    }
+
+    res.json({ notifications: pageRows, unread_count: unread, next_cursor });
   } catch (err) { res.status(500).json({ error: "서버 오류" }); }
 });
 
@@ -56,9 +89,25 @@ router.post("/notifications/read-all", requireAuth, async (req: AuthRequest, res
 });
 
 // ── 선생님 소식 (diary_like / diary_thanks / diary_comment / growth_report_like) ─────────────
+// Backward-compatible: {news, unread_count} + additive next_cursor
+// Query params: limit (default 50, max 100), cursor
 router.get("/teacher/news", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
+    const limit = parseLimit(req.query.limit, 50, 100);
+    const cursor = req.query.cursor as string | undefined;
+
+    let cursorClause = sql``;
+    if (cursor) {
+      const decoded = decodeCursor(cursor);
+      if (!decoded) {
+        return res.status(400).json({ error: "cursor 형식이 올바르지 않습니다." });
+      }
+      cursorClause = sql`
+        AND (n.created_at, n.id) < (${decoded.created_at}::timestamptz, ${decoded.id})
+      `;
+    }
+
     const rows = await db.execute(sql`
       SELECT n.id, n.type, n.title, n.body, n.ref_id, n.is_read, n.created_at,
         cd.lesson_date, cg.name AS class_name
@@ -67,10 +116,24 @@ router.get("/teacher/news", requireAuth, async (req: AuthRequest, res: Response)
       LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
       WHERE n.recipient_id = ${userId} AND n.recipient_type = 'user'
         AND n.type IN ('diary_like', 'diary_thanks', 'diary_comment', 'growth_report_like', 'growth_report_comment')
-      ORDER BY n.created_at DESC LIMIT 100
+        ${cursorClause}
+      ORDER BY n.created_at DESC, n.id DESC
+      LIMIT ${limit + 1}
     `);
-    const unread = (rows.rows as any[]).filter((n: any) => !n.is_read).length;
-    res.json({ news: rows.rows, unread_count: unread });
+
+    const allRows = rows.rows as any[];
+    const hasMore = allRows.length > limit;
+    const pageRows = hasMore ? allRows.slice(0, limit) : allRows;
+
+    const unread = pageRows.filter((n: any) => !n.is_read).length;
+
+    let next_cursor: string | null = null;
+    if (hasMore && pageRows.length > 0) {
+      const last = pageRows[pageRows.length - 1];
+      next_cursor = encodeCursor(last.created_at, last.id);
+    }
+
+    res.json({ news: pageRows, unread_count: unread, next_cursor });
   } catch (err) { res.status(500).json({ error: "서버 오류" }); }
 });
 

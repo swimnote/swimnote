@@ -247,6 +247,27 @@ router.get(
       if (filter === "xmode")           conditions.push(`NOT COALESCE(p.x_force_disabled, false) AND (COALESCE(p.x_paid_entitlement, false) OR (COALESCE(p.x_manual_entitlement, false) AND p.xmode_config_status = 'READY'))`);
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
+      // WP8: cursor pagination — backward compat: response is plain array,
+      // X-Next-Cursor header added when more pages exist.
+      // Query params: limit (default 200, max 500), cursor (base64url {created_at, id})
+      const rawLimit = parseInt(String((req.query as any).limit ?? ""), 10);
+      const pageLimit = (!rawLimit || rawLimit <= 0) ? 200 : Math.min(rawLimit, 500);
+      const cursorRaw = (req.query as any).cursor as string | undefined;
+
+      let cursorFilter = "";
+      if (cursorRaw) {
+        try {
+          const obj = JSON.parse(Buffer.from(cursorRaw, "base64url").toString("utf8"));
+          if (obj.created_at && obj.id) {
+            const safeCat = obj.created_at.replace(/'/g, "");
+            const safeId  = obj.id.replace(/'/g, "");
+            cursorFilter = `AND (p.created_at < '${safeCat}'::timestamptz OR (p.created_at = '${safeCat}'::timestamptz AND p.id < '${safeId}'))`;
+          }
+        } catch { /* invalid cursor → ignore, return from start */ }
+      }
+
+      const finalWhere = conditions.length ? `WHERE ${conditions.join(" AND ")} ${cursorFilter}` : (cursorFilter ? `WHERE TRUE ${cursorFilter}` : "");
+
       const rows = (await db.execute(sql.raw(`
         SELECT
           p.id                                  AS pool_id,
@@ -307,13 +328,17 @@ router.get(
           END                                   AS deletion_pending
         FROM swimming_pools p
         LEFT JOIN users u ON u.id = p.admin_user_id
-        ${whereClause}
-        ORDER BY p.created_at DESC
-        LIMIT 500
+        ${finalWhere}
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT ${pageLimit + 1}
       `))).rows as any[];
 
+      // WP8: detect next page
+      const hasMorePools = rows.length > pageLimit;
+      const pageRows = hasMorePools ? rows.slice(0, pageLimit) : rows;
+
       // 중첩 구조로 변환
-      const result = rows.map(r => ({
+      const result = pageRows.map(r => ({
         pool_id:             r.pool_id,
         pool_name:           r.pool_name,
         pool_type:           r.pool_type,
@@ -350,6 +375,15 @@ router.get(
           trial_end_at:          r.sub_trial_end_at ?? null,
         },
       }));
+
+      if (hasMorePools && pageRows.length > 0) {
+        const last = pageRows[pageRows.length - 1] as any;
+        const nextCursor = Buffer.from(JSON.stringify({
+          created_at: last.created_at instanceof Date ? last.created_at.toISOString() : String(last.created_at),
+          id: last.pool_id,
+        })).toString("base64url");
+        res.set("X-Next-Cursor", nextCursor);
+      }
 
       res.json(result);
     } catch (err) {

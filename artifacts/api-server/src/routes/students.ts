@@ -58,7 +58,32 @@ function generateInviteCode(): string {
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
-/** 반 배정 정보 enrichment */
+/** 반 배정 정보 enrichment (batch version — WP8 N+1 fix)
+ *  classGroupMap: poolId 전체 class_groups를 미리 로드한 Map<id, row>
+ */
+function enrichWithClassesFromMap(student: any, classGroupMap: Map<string, any>) {
+  const assignedIds: string[] = Array.isArray(student.assigned_class_ids)
+    ? student.assigned_class_ids
+    : (typeof student.assigned_class_ids === "string"
+      ? JSON.parse(student.assigned_class_ids || "[]")
+      : []);
+
+  const validClasses = assignedIds
+    .map(id => classGroupMap.get(id) || null)
+    .filter(Boolean);
+
+  // schedule_labels 자동 생성: 월4·목7 형식
+  const labels = validClasses.map((c: any) => {
+    if (!c) return "";
+    const days = c.schedule_days.split(",").map((d: string) => d.trim());
+    const hour = c.schedule_time.split(":")[0];
+    return days.map((d: string) => `${d}${hour}`).join("·");
+  }).filter(Boolean).join("·");
+
+  return { ...student, assignedClasses: validClasses, schedule_labels: labels };
+}
+
+/** 레거시 단건 enrichment (단일 학생 조회 등 소수에서 사용) */
 async function enrichWithClasses(student: any) {
   const assignedIds: string[] = Array.isArray(student.assigned_class_ids)
     ? student.assigned_class_ids
@@ -68,18 +93,17 @@ async function enrichWithClasses(student: any) {
 
   if (assignedIds.length === 0) return { ...student, assignedClasses: [] };
 
-  const classes = await Promise.all(assignedIds.map(async (id: string) => {
-    const [cg] = await db.select({
-      id: classGroupsTable.id, name: classGroupsTable.name,
-      schedule_days: classGroupsTable.schedule_days, schedule_time: classGroupsTable.schedule_time,
-      instructor: classGroupsTable.instructor,
-    }).from(classGroupsTable).where(eq(classGroupsTable.id, id)).limit(1);
-    return cg || null;
-  }));
+  if (assignedIds.length === 0) return { ...student, assignedClasses: [] };
+  // Batch single call instead of per-id
+  const idList = assignedIds.map(id => `'${id}'`).join(",");
+  const cgRows = await db.execute(sql`
+    SELECT id, name, schedule_days, schedule_time, instructor
+    FROM class_groups
+    WHERE id IN (${sql.raw(idList)})
+  `);
+  const cgMap = new Map((cgRows.rows as any[]).map(r => [r.id, r]));
+  const validClasses = assignedIds.map(id => cgMap.get(id) || null).filter(Boolean);
 
-  const validClasses = classes.filter(Boolean);
-
-  // schedule_labels 자동 생성: 월4·목7 형식
   const labels = validClasses.map((c: any) => {
     if (!c) return "";
     const days = c.schedule_days.split(",").map((d: string) => d.trim());
@@ -138,15 +162,22 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         ));
     }
 
-    const enriched = await Promise.all(students.map(async (s) => {
-      let class_group_name: string | null = null;
-      if (s.class_group_id) {
-        const [grp] = await db.select({ name: classGroupsTable.name }).from(classGroupsTable).where(eq(classGroupsTable.id, s.class_group_id)).limit(1);
-        class_group_name = grp?.name || null;
-      }
-      const withClasses = await enrichWithClasses({ ...s, class_group_name });
-      return withClasses;
-    }));
+    // WP8 N+1 Fix: batch-load all class_groups for this pool once
+    const allClassGroupsRes = await db.execute(sql`
+      SELECT id, name, schedule_days, schedule_time, instructor
+      FROM class_groups
+      WHERE swimming_pool_id = ${poolId!} AND is_deleted = false
+    `);
+    const classGroupMap = new Map<string, any>(
+      (allClassGroupsRes.rows as any[]).map(r => [r.id, r])
+    );
+
+    const enriched = students.map((s) => {
+      const class_group_name = s.class_group_id
+        ? (classGroupMap.get(s.class_group_id)?.name ?? null)
+        : null;
+      return enrichWithClassesFromMap({ ...s, class_group_name }, classGroupMap);
+    });
 
     const sorted = enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     console.log("[PERF][students-list]", { elapsed_ms: Date.now() - _stuListStartedAt, pool_id: poolId, count: sorted.length });
