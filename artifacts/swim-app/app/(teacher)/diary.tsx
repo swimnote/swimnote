@@ -583,18 +583,12 @@ export default function TeacherDiaryScreen() {
         setSelectedAlbumIds(prev => { const ex = new Set(prev); return [...prev, ...successIds.filter(id => !ex.has(id))]; });
         setSelectedAlbumPhotos(prev => { const ex = new Set(prev.map(p => p.id)); return [...prev, ...successPhotos.filter(p => !ex.has(p.id))]; });
       }
-      // 성공 항목 compressedUri 삭제 — RETRY PENDING 항목(r.error)은 유지
-      for (const r of results) {
-        if (!r.error) {
-          const cf = compressedFiles.find(f => f.clientId === r.clientId);
-          if (cf) deleteTempFileAfterUpload(cf.compressedUri).catch(() => {});
-        }
-      }
+      // [FIX] compressedUri 즉시 삭제 금지 — state uri가 같은 파일을 가리키므로 ExpoImage preview 소실됨
+      // compressedUri는 V3 cleanup (다음 앱 실행 시 ImageManipulator/ 디렉터리 일괄 정리)에서 처리됨
     } catch (e) {
       if (__DEV__) console.error("[uploadGroupMedia] photo upload error:", e);
       setGroupMedia(prev => prev.map(m => newItems.find(n => n.clientId === m.clientId) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
-      // 세션 전체 실패(throw): 모든 compressedUri 삭제 (retry 불가)
-      for (const cf of compressedFiles) { deleteTempFileAfterUpload(cf.compressedUri).catch(() => {}); }
+      // catch: 세션 전체 실패 — compressedUri 삭제도 제거 (preview 소실 방지, V3 cleanup이 처리)
     } finally {
       setMediaUploading(null);
     }
@@ -754,21 +748,13 @@ export default function TeacherDiaryScreen() {
           return { ...prev, [studentId]: [...(prev[studentId] ?? []), ...successPhotos.filter(p => !existing.has(p.id))] };
         });
       }
-      // 성공 항목 compressedUri 삭제 — RETRY PENDING 항목(r.error)은 유지
-      for (const r of results) {
-        if (!r.error) {
-          const cf = compressedFiles.find(f => f.clientId === r.clientId);
-          if (cf) deleteTempFileAfterUpload(cf.compressedUri).catch(() => {});
-        }
-      }
+      // [FIX] compressedUri 즉시 삭제 금지 — state uri preview 소실 방지; V3 cleanup이 처리
     } catch (e) {
       if (__DEV__) console.error("[uploadStudentMedia] photo upload error:", e);
       setStudentMedia(prev => ({
         ...prev,
         [studentId]: (prev[studentId] || []).map(m => newItems.find(n => n.clientId === m.clientId) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m),
       }));
-      // 세션 전체 실패(throw): 모든 compressedUri 삭제 (retry 불가)
-      for (const cf of compressedFiles) { deleteTempFileAfterUpload(cf.compressedUri).catch(() => {}); }
     } finally {
       setMediaUploading(null);
     }
