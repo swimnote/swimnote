@@ -1,0 +1,455 @@
+```text id="y9f6tv"
+[보낼 곳: APP REPLIT]
+
+# WP7 — FINAL HOLD FIX
+# POOL-SPECIFIC X PREREQUISITE + TRANSITION EVIDENCE ONLY
+# FINAL MASTER WP FREEZE — 계획 변경 금지
+
+현재 WP7 commit:
+
+f6fe666d
+origin/release/v2.0.0
+
+현재 구현 대부분은 유지합니다.
+
+이번 HOLD는 아래 2개 항목만 처리합니다.
+
+1. checkXPrerequisite가 global template 존재만으로 모든 Pool을 READY 처리할 수 있는 문제
+2. Management Override → Manual / Force Disabled sequence의 Staging E2E 증거 누락
+
+WP8 이후 작업 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 prerequisite:
+
+diary_templates
+WHERE scope='global'
+AND status='active'
+
+개수가 존재하면 READY.
+
+현재 global template 약 1,050개가 이미 존재하므로
+이 조건만 사용하면:
+
+실제 X runtime 설정이 전혀 없는 신규 Pool
+
+도 Manual X Grant가 가능해질 수 있습니다.
+
+이것은 WP7 확정 설계의:
+
+"실제 X 운영에 필요한 curriculum/template/config data가 존재하는 Pool만 Manual Grant 가능"
+
+조건을 충족하지 못합니다.
+
+Upload history를 다시 prerequisite로 사용해서는 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 X Runtime 기준으로 최소 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+repository 전체를 재감사하지 마십시오.
+
+현재 X mode runtime이 실제로 Pool별로 참조하는 데이터만 최소 추적하십시오.
+
+확인 대상 예:
+
+- pool-specific X configuration
+- pool에 연결된 curriculum/template set
+- global template을 실제 해당 pool에서 사용할 수 있게 만드는 canonical mapping/config
+- X mode runtime resolver가 요구하는 pool-level setting
+
+정확한 실제 repository 구조를 근거로 판단하십시오.
+
+중요:
+
+global template 존재는 prerequisite의 한 요소가 될 수 있지만
+그것만으로 READY를 결정해서는 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 prerequisite 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+checkXPrerequisite(poolId)는 최소한:
+
+A. 공통 X runtime data 존재
+AND
+B. 해당 Pool이 실제 그 X runtime data를 사용할 수 있는 canonical pool-specific 상태/연결/config 존재
+
+를 확인해야 합니다.
+
+단 기존 제품 구조가
+"모든 Pool이 global template을 자동 사용하고,
+별도 pool mapping/config가 실제로 필요하지 않는다"
+는 구조라면,
+
+그 사실을 실제 runtime code evidence로 증명하십시오.
+
+그 경우에는 global-only resolver를 유지할 수 있습니다.
+
+하지만 단순히
+"global template이 있으니까 충분하다"
+는 추론은 인정하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Toykids 하드코딩 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대:
+
+if (poolId === 'pool_1780849364252_l9k44rbk3')
+
+금지.
+
+Toykids는 일반 canonical prerequisite를
+정상적으로 통과해야 합니다.
+
+Toykids 때문에 예외 branch를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 필수 Staging 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 서로 다른 두 종류 Pool을 사용하십시오.
+
+A. X runtime prerequisite가 실제 존재하는 Pool
+upload history 없음
+
+Expected:
+READY
+Manual X1000 Grant PASS
+
+
+B. X runtime prerequisite가 실제 없는 Pool
+
+Expected:
+NOT_READY
+Manual Grant BLOCK
+HTTP 422 X_PREREQUISITE_NOT_MET
+
+중요:
+
+global templates가 존재한다는 이유만으로
+B가 READY가 되면 FAIL입니다.
+
+
+C. upload history 존재 여부 자체는
+READY 결정 source가 아님
+
+PASS 필요.
+
+
+D. blind xmode_config_status='READY'
+직접 강제 없음
+
+PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Management Override → Manual Staging Sequence
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP7 완료조건의 실제 E2E를 제출하십시오.
+
+Staging test pool:
+
+초기:
+
+management_override=true
+manual=false
+paid=false
+force_disabled=false
+
+→ effective X = true
+
+STEP 1:
+Official Manual X1000 Grant
+
+Expected:
+
+management_override=true
+manual=true
+paid=false
+force_disabled=false
+plan=x1000
+member_limit=1000
+effective=true
+
+중요:
+Manual Grant가 management override를 자동 OFF 하면 FAIL.
+
+
+STEP 2:
+기존 legitimate Management Override control로
+management_override=false
+
+Expected:
+
+management_override=false
+manual=true
+paid=false
+force_disabled=false
+plan=x1000
+member_limit=1000
+effective=true
+mode=x
+source=MANUAL
+
+이 sequence를 실제 Staging E2E로 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Force Disabled E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical resolver semantics를 실제 검증하십시오.
+
+최소:
+
+manual=true
+force_disabled=true
+
+Expected:
+effective X = false
+
+그 상태에서 Official Manual X1000 Grant 실행:
+
+확정 설계대로:
+force_disabled=false
+
+Expected:
+effective X = true
+
+그리고 Manual revoke는:
+force_disabled 값을 임의 변경하지 않음.
+
+현재 canonical semantics가 이와 다르면
+임의로 redesign하지 말고 exact evidence와 blocker를 보고하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 WP7 구현 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 재개발 금지:
+
+- Manual NONE/X300/X500/X1000
+- Super Admin authorization
+- paid invariant
+- management invariant
+- fake RC 0
+- audit_logs
+- control-center metrics
+- push metrics
+- storage metrics
+- RevenueCat visibility
+- member limit visibility
+- Support Cases / Pool Health
+- UI
+
+이번 HOLD와 직접 관련 없는 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Production
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production Toykids WRITE:
+절대 금지.
+
+Exact Production pool:
+
+pool_1780849364252_l9k44rbk3
+
+read-only 상태 확인은 안전한 기존 mechanism이 있을 경우만.
+
+최종 전환은 여전히:
+
+1. Official Manual X1000 Grant
+2. verify
+3. Management Override OFF
+4. verify source=MANUAL
+
+순서.
+
+중요:
+
+완료보고에 Toykids 전환 plan을
+x300 예시로 쓰지 마십시오.
+
+Toykids 확정 목표는:
+
+x1000
+member_limit=1000
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 재실행 금지.
+
+WP7 HOLD 관련 테스트만.
+
+필수:
+
+1. actual X-ready pool + no upload history → PASS
+2. non-X-ready pool → BLOCK
+3. upload history irrelevant → PASS
+4. blind READY 0
+5. management=true → manual grant → management remains true
+6. management OFF after manual → effective remains true/source MANUAL
+7. force=true blocks X
+8. Manual Grant clears force
+9. Manual revoke does not alter unrelated force state
+10. Toykids hardcode 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP7 FINAL HOLD FIX REPORT
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+f6fe666d
+
+HEAD after:
+...
+
+origin/release HEAD:
+...
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+Canonical prerequisite resolver:
+...
+
+Actual X runtime data sources checked:
+1. ...
+2. ...
+
+Pool-specific prerequisite:
+YES / NO
+
+If NO:
+Explain with exact runtime evidence why no pool-specific config/mapping is required:
+...
+
+Global templates alone sufficient:
+YES / NO
+
+Evidence:
+...
+
+Upload history required:
+NO
+
+X-ready pool without upload history:
+PASS / FAIL
+
+Non-X-ready pool:
+BLOCKED / FAIL
+
+Non-X-ready error:
+X_PREREQUISITE_NOT_MET / ...
+
+Blind READY:
+0 / ...
+
+Management → Manual staging sequence:
+
+Initial:
+management:
+manual:
+paid:
+force:
+effective:
+
+After Manual X1000 Grant:
+management:
+manual:
+paid:
+force:
+plan:
+member_limit:
+effective:
+source:
+
+After Management Override OFF:
+management:
+manual:
+paid:
+force:
+plan:
+member_limit:
+effective:
+mode:
+source:
+
+Sequence:
+PASS / FAIL
+
+Force Disabled staging E2E:
+PASS / FAIL
+
+Manual Grant clears force:
+PASS / FAIL
+
+Manual revoke preserves unrelated entitlement/force semantics:
+PASS / FAIL
+
+Toykids hardcode:
+0
+
+Toykids Production write:
+NO
+
+Toykids final transition preview:
+Manual X1000
+→ verify
+→ Management Override OFF
+→ final source MANUAL
+
+Tests:
+...
+
+Test result:
+PASS / FAIL
+
+DB schema changes:
+NO / ...
+
+Migration:
+NO / ...
+
+Production data changes:
+NO
+
+Render required:
+YES / NO
+
+OTA required:
+YES / NO
+
+Remaining blocker:
+NONE / ...
+
+Final:
+PASS / HOLD / FAIL
+
+중요:
+
+이번 작업은 WP7 마지막 HOLD만 처리합니다.
+
+WP8 선행 금지.
+Production Toykids write 금지.
+Upload history prerequisite로 되돌리지 마십시오.
+
+완료 후 즉시 STOP하십시오.
+```
