@@ -304,6 +304,16 @@ async function runDiaryPushQueue(): Promise<void> {
               const matched = (parentRows as any[]).find(p => p.parent_account_id === parentId);
               const studentLabel = matched?.student_name ? `${matched.student_name}의 ` : "";
               const notifBody = `${item.class_name}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요`;
+              // in-app notification INSERT (즉시 발송 경로와 동일하게 처리)
+              const diaryDeepLink = studentId ? `/(parent)/swim-diary?id=${studentId}` : null;
+              const nid = `notif_${crypto.randomUUID().replace(/-/g, "")}`;
+              await db.execute(sql`
+                INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, deep_link)
+                VALUES (${nid}, ${parentId}, 'parent_account', 'diary_upload',
+                        '수업 일지가 도착했어요', ${notifBody},
+                        ${item.diary_id}, 'class_diary', ${item.pool_id}, false, ${diaryDeepLink})
+                ON CONFLICT DO NOTHING
+              `).catch(() => {});
               const pushData: Record<string, string> = { type: "diary_upload", diaryId: item.diary_id };
               if (studentId) pushData.studentId = studentId;
               await sendPushToUser(
@@ -354,6 +364,16 @@ async function runDiaryPushQueue(): Promise<void> {
               }
             }
             for (const [parentId, studentId] of groupMap.entries()) {
+              // in-app notification INSERT (예약 발송도 즉시 발송과 동일하게 처리)
+              const diaryDeepLinkG = studentId ? `/(parent)/swim-diary?id=${studentId}` : null;
+              const nidG = `notif_${crypto.randomUUID().replace(/-/g, "")}`;
+              await db.execute(sql`
+                INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, deep_link)
+                VALUES (${nidG}, ${parentId}, 'parent_account', 'diary_upload',
+                        '수업 일지가 도착했어요', ${notifBody},
+                        ${item.diary_id}, 'class_diary', ${item.pool_id}, false, ${diaryDeepLinkG})
+                ON CONFLICT DO NOTHING
+              `).catch(() => {});
               const pushData: Record<string, string> = { type: "diary_upload", diaryId: item.diary_id, classId: item.class_id };
               if (studentId) pushData.studentId = studentId;
               await sendPushToUser(
