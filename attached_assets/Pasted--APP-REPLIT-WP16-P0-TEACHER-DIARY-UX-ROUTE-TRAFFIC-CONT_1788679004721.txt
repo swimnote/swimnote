@@ -1,0 +1,1040 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — TEACHER DIARY UX / ROUTE TRAFFIC CONTROL FINAL CLEANUP
+# 사용자 첨부 스크린샷 기준
+# 이번 작업은 선생님 일지관리 UX와 navigation 구조를 역할별로 정리하는 작업
+# "홈 일지 바로쓰기"와 "수업관리 > 수업 일지 허브"를 명확히 분리
+# 관련 없는 Parent / AI Engine / RevenueCat / Growth Report 재조사 금지
+# APP 전체 repo audit 금지
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA까지 자동 완료
+# Render Production deploy 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 사용자 최종 의도 — 반드시 그대로 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Diary UX가 서로 섞여 있어
+일지 목록 화면이 사실상 2개처럼 보이고
+작성/수정 경로도 혼재되어 있습니다.
+
+최종 역할을 아래처럼 명확히 분리합니다.
+
+━━━━━━━━━━
+A. HOME "일지 바로쓰기"
+━━━━━━━━━━
+
+목적:
+미작성 수업을 빠르게 작성하기 위한 shortcut.
+
+정상 flow:
+
+Teacher Home
+→ 일지 바로쓰기
+→ 미작성 수업 목록
+→ 미작성 수업 하나 선택
+→ 즉시 DiaryWriteView
+→ 저장
+→ 미작성 수업 목록 또는 직전 바로쓰기 context로 복귀
+
+절대:
+미작성 수업 선택
+→ 지난 일지 목록
+→ 다시 일지작성 버튼
+
+처럼 중간 단계가 끼면 안 됩니다.
+
+"일지 바로쓰기"에서는
+작성된 일지 전체 history를 보여줄 필요 없음.
+
+오직:
+미작성 수업 목록
+→ 작성
+
+에 집중.
+
+━━━━━━━━━━
+B. 수업관리 > 수업 일지
+━━━━━━━━━━
+
+목적:
+선생님의 전체 Diary 관리 Hub.
+
+정상 기능:
+
+- 전체 작성된 일지 목록
+- 검색
+- 요일 필터
+- 시간 필터
+- 날짜별 정리
+- 반 공통 Diary
+- 학생별 추가 Diary
+- 수정 진입
+- 공유
+- 지난 일지 관리
+
+이 화면은 삭제하지 않습니다.
+
+━━━━━━━━━━
+C. WRITE / EDIT
+━━━━━━━━━━
+
+NEW:
+DiaryWriteView 하나
+
+EXISTING:
+DiaryEditView 하나
+
+Write와 Edit를 서로 교체용으로 섞지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 금지:
+
+- Parent Feed 조사
+- Parent API 조사
+- Notification 조사
+- AI Engine 조사
+- AI contract 조사
+- Media upload architecture 조사
+- Admin Diary 조사
+- X mode 조사
+- RevenueCat 조사
+- Growth Report 조사
+- 전체 navigation audit
+- repo-wide audit
+- 대규모 Diary rewrite
+
+오직 Teacher Diary:
+
+Home quick-write
+Teacher Diary Hub
+Write
+Edit
+List
+Return navigation
+UI collision
+
+만 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 실제 ROUTE MAP 한 번만 작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 실제 entry를 한 번만 추적:
+
+1.
+Teacher Home
+→ "일지 바로쓰기"
+
+2.
+수업관리 tab
+→ "수업 일지"
+
+3.
+Hub의 기존 Diary card
+
+4.
+미작성 수업 card
+
+5.
+DiaryWriteView
+
+6.
+DiaryEditView
+
+각각 기록:
+
+source file
+onPress
+route
+params
+component
+destination
+return destination
+
+현재 왜:
+
+Quick Write
+→ 미작성 목록
+→ 지난 일지 목록
+→ 일지작성
+
+이라는 불필요한 중간 경로가 생기는지 exact root cause 확인.
+
+현재 왜 Hub와 session/history view가
+중복 Diary list처럼 보이는지도 확인.
+
+반복 grep 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. HOME "일지 바로쓰기" 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Home의 "일지 바로쓰기" 기능 자체의 목적은 맞습니다.
+
+문제:
+
+미작성 날짜/수업을 선택해도
+즉시 작성으로 가지 않고
+중간에 지난 일지/Diary list 화면이 한 번 더 나옴.
+
+이 중간 단계를 제거.
+
+최종:
+
+Home
+→ 일지 바로쓰기
+→ 미작성 수업 목록
+→ item tap
+→ DiaryWriteView
+
+바로 연결.
+
+필수 전달 context:
+
+classGroupId
+lesson_date
+time/session
+students
+teacher context
+
+정확히 전달.
+
+미작성 수업 선택 후
+Hub/history를 경유하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. QUICK WRITE는 작성된 Diary 목록을 가지지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+Quick Write 화면 역할:
+
+ONLY:
+미작성 수업
+
+이미 작성된 Diary history를
+여기에서 다시 보여주지 말 것.
+
+작성된 일지를 보고 싶으면:
+
+수업관리
+→ 수업 일지 Hub
+
+로 가는 것이 canonical.
+
+따라서:
+
+Quick Write path와
+Diary Hub path를 분리.
+
+둘을 하나의 화면 state/subView로
+무리하게 섞지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 수업관리 > 수업 일지 HUB 유지 및 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자 첨부 스크린샷의:
+
+Header:
+수업 일지
+학생에게 노출된 전체 이력
+
+화면을 전체 Diary 관리 Hub로 유지.
+
+이 화면에서:
+
+[일지 작성]
+[지난 일지]
+검색
+요일
+시간
+작성된 Diary 목록
+
+을 관리.
+
+단 현재 UI 문제가 있음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. HUB 상단 UI 겹침 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 현재:
+
+"일지 작성" 큰 CTA가
+상단 header/background 영역과 겹쳐 보임.
+
+수정:
+
+- SafeArea/Header 아래 정상 spacing
+- 카드가 header와 겹치지 않음
+- 좌우 margin 일관
+- 현재 앱의 카드 radius/padding 유지
+- 화면 전체 redesign 금지
+
+확인:
+
+small iPhone width에서도 overlap 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. HUB 목록 — 날짜별 GROUP으로 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+같은 9/3 수업의
+
+- 반 공통 일지
+- 서태웅 개별 일지
+
+가 Hub에서 서로 독립된 두 개의 큰 카드로 표시됨.
+
+사용자 요구:
+
+Diary 목록은 "날짜별 수업 단위"로 먼저 보여야 함.
+
+즉 예:
+
+9월 3일 목요일
+목 19:00반 · 19:00
+
+[반 공통]
+접영 글라이딩 연습하고
+
+[서태웅 추가]
+서태웅이는 길게 글라이딩을 더 연습
+
+같은 수업/날짜 Diary는
+하나의 Group Card 안에서 묶어서 표시.
+
+그룹 기준:
+
+lesson_date
+class_group_id
+필요 시 session time
+
+동일 수업의:
+common diary
+student diaries
+
+를 한 Group에 묶음.
+
+주의:
+DB 구조를 바꾸는 것이 아님.
+UI ViewModel/grouping만.
+
+DB migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. HUB GROUP CARD 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+하나의 수업 Diary Group Card:
+
+Header:
+
+9월 3일 목요일
+목 19:00반 · 19:00
+
+가능하면 teacher 표시 유지.
+
+Body:
+
+공통 일지가 있으면:
+[반 공통]
+내용 preview
+
+학생별 일지가 있으면:
+[서태웅 추가]
+내용 preview
+
+학생이 여러 명이면
+각 individual Diary를 내부 row로 표시.
+
+목록이 지나치게 길어지면
+기존 UI 패턴에 맞는 preview/더보기 사용 가능.
+
+새 complex accordion architecture 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 공유 버튼 / 화살표 겹침 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 screenshot:
+
+Diary list card 우측의
+"공유" 버튼과
+detail/edit 진입 화살표가 겹쳐 있음.
+
+수정:
+
+공유와 edit/detail action을
+명확히 다른 hit area로 배치.
+
+예:
+
+Card header/right:
+
+[공유]   [>]
+
+또는
+
+공유는 독립 버튼
+Card body tap = edit/detail
+
+어떤 방식이든:
+
+- 서로 overlap 금지
+- 터치 영역 겹침 금지
+- 잘못된 action 실행 금지
+- 작은 iPhone에서도 layout 안정
+
+공유 기능 자체의 동작 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. HUB CARD TAP 동작 명확화
+━━━━━━━━━━━━━━━━━━━━━━
+
+Group Card 전체 또는 edit affordance tap:
+
+→ 해당 session의 Diary management/detail context
+
+그 안에서 특정:
+
+common
+student individual
+
+를 선택하면
+
+→ canonical DiaryEditView
+
+기존 Diary는:
+PUT /diaries/{id}
+
+유지.
+
+절대:
+DiaryWriteView로 들어가
+DELETE + POST replacement 하는 legacy path 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. HUB의 "일지 작성" 버튼 역할
+━━━━━━━━━━━━━━━━━━━━━━
+
+Hub 상단 "일지 작성"은
+Quick Write와 목적이 약간 다름.
+
+Hub에서:
+
+일지 작성
+→ 미작성 수업 선택이 필요하면
+미작성 수업 selector
+→ DiaryWriteView
+
+또는 현재 구조상
+class/session selector가 이미 있다면 그것 재사용.
+
+하지만 절대:
+
+Hub
+→ 지난 일지 목록
+→ 일지 작성
+
+같은 불필요한 looping 금지.
+
+NEW Diary를 위한 최소 단계만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. EDIT 저장 후 복귀
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 버그:
+
+Hub list
+→ Diary 선택
+→ Edit
+→ 저장
+
+후 Teacher Home으로 이동.
+
+수정:
+
+Hub에서 Edit로 진입했다면
+
+Edit Save
+→ Hub
+→ 같은 필터/search context 유지 가능하면 유지
+→ 수정된 날짜 Group 바로 최신 상태
+
+Home으로 절대 이동 금지.
+
+canonical return target을 명시적으로 사용.
+
+무조건 router.back()에 의존하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. QUICK WRITE 저장 후 복귀
+━━━━━━━━━━━━━━━━━━━━━━
+
+Home Quick Write:
+
+미작성 목록
+→ Write
+→ Save
+
+정상:
+
+→ Quick Write 미작성 목록
+
+그리고 방금 작성된 수업은
+미작성 목록에서 즉시 제거.
+
+미작성 수업이 0개가 되면
+기존 empty state 표시.
+
+Home으로 강제 이동할 필요 없음.
+
+사용자가 back/home 버튼으로 직접 나갈 수 있음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. HUB 목록 최신화
+━━━━━━━━━━━━━━━━━━━━━━
+
+CREATE:
+→ Hub 들어오면 새 날짜 Group 표시
+
+EDIT:
+→ 해당 Group 내용 즉시 업데이트
+
+DELETE:
+→ 해당 Diary row 제거
+→ Group 안에 아무 Diary도 없으면 Group 제거
+
+앱 재시작 필요 없음.
+
+focus refetch 또는 기존 load pattern 최소 사용.
+
+중복 fetch 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 날짜/SESSION 정합성
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 버그:
+
+screen header:
+2026-08-27
+
+Diary card:
+9월 3일
+
+같은 context mismatch가 있었음.
+
+Hub에서는:
+여러 날짜 Diary를 보는 화면이므로
+상단에 특정 session date를 source of truth로 쓰지 말 것.
+
+Hub list:
+각 Group 자체 lesson_date를 표시.
+
+특정 Session management/detail 화면이라면:
+그 session date와 일치하는 Diary만 표시.
+
+즉:
+
+Hub = 전체 history
+Session detail = 해당 session only
+
+두 역할을 명확히 분리.
+
+8/27 session detail에
+9/3 Diary가 나타나면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. HUB vs SESSION DETAIL 역할 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+화면을 무조건 하나로 합치지 마십시오.
+
+정상 역할:
+
+A. Diary Hub
+전체 Diary 목록/검색/필터
+
+B. Session Diary Detail/Management
+특정 수업의 공통/개별 Diary 보기/수정
+
+C. DiaryWriteView
+신규 작성
+
+D. DiaryEditView
+기존 Diary 수정
+
+이 4개의 역할을 명확히 유지.
+
+문제는 화면 수가 아니라
+route와 역할이 중복/혼재된 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. SESSION DETAIL 정상화
+━━━━━━━━━━━━━━━━━━━━━━
+
+Session 화면 header:
+
+class
+lesson_date
+time
+
+본문은:
+
+동일 class_group_id
+동일 lesson_date
+동일 session/time
+
+Diary만 보여야 함.
+
+같은 session의:
+common + individual
+
+은 같이 보여도 됨.
+
+다른 날짜 Diary 절대 섞지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 최종 NAVIGATION 교통정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 Flow 1 — Quick Write:
+
+Home
+→ 일지 바로쓰기
+→ 미작성 수업 목록
+→ DiaryWriteView
+→ Save
+→ 미작성 수업 목록
+
+최종 Flow 2 — Diary Hub:
+
+수업관리
+→ 수업 일지
+→ Diary Hub
+→ 날짜별 Group 목록
+
+Hub → Existing Diary
+→ Session Detail 또는 직접 Edit
+→ DiaryEditView
+→ Save
+→ Diary Hub
+
+최종 Flow 3 — Session:
+
+Schedule/Class Session
+→ Session Diary Management
+→ common/individual
+→ Edit
+→ Save
+→ same Session screen
+
+이 세 flow가 서로 불필요하게
+중간 화면을 공유하지 않도록 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 기존 정상 기능 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 유지:
+
+- 검색
+- 요일 filter
+- 시간 filter
+- 공유
+- 좋아요/댓글
+- 사진/영상
+- 공통 Diary
+- individual Diary
+- 삭제
+- Write
+- Edit
+- Teacher authorization
+
+이번 UI 정리 때문에
+기존 기능 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 이번 작업 범위 밖
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+Parent API
+Parent Feed
+Notification
+AI Engine
+AI contract
+Admin
+DB schema
+Growth Report
+RevenueCat
+
+SERVER_CHANGED expected:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. TEST MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1
+Home → 일지 바로쓰기
+→ 미작성 목록
+
+T2
+미작성 수업 tap
+→ 중간 history 화면 없이
+DiaryWriteView 즉시 진입
+
+T3
+Write save
+→ 미작성 목록 복귀
+
+T4
+방금 작성한 session
+→ 미작성 목록에서 제거
+
+T5
+수업관리 → 수업 일지
+→ Hub
+
+T6
+Hub header/CTA overlap
+→ 없음
+
+T7
+같은 9/3 session의
+common + individual
+→ 하나의 date/session Group으로 표시
+
+T8
+검색
+→ 정상
+
+T9
+요일 filter
+→ 정상
+
+T10
+시간 filter
+→ 정상
+
+T11
+공유 버튼과 chevron/edit hit area
+→ overlap 없음
+
+T12
+Hub existing Diary edit
+→ DiaryEditView
+
+T13
+Edit save
+→ Hub 복귀
+→ Home으로 이동하지 않음
+
+T14
+Session detail
+8/27
+→ 8/27 Diary만
+
+T15
+9/3 Diary가 8/27 session에 표시
+→ 0건
+
+T16
+Existing Diary update:
+PUT 유지
+
+T17
+DELETE + POST replacement:
+ABSENT
+
+T18
+Delete:
+Hub/group 최신화
+
+T19
+small iPhone layout:
+no overlap
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. CLIENT 수정 후 OTA 자동 완료
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+release/v2.0.0
+commit
+push
+
+그 후 영구 preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS하면
+사용자 추가 승인 기다리지 말고
+
+iOS production-v2 OTA까지 완료.
+
+main에서 production-v2 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 TEACHER DIARY UX TRAFFIC CONTROL REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+━━━━━━━━━━
+ROUTE MAP
+━━━━━━━━━━
+
+Quick Write route before:
+...
+
+Quick Write route after:
+...
+
+Diary Hub route:
+...
+
+Session Diary route:
+...
+
+Write route/component:
+...
+
+Edit route/component:
+...
+
+━━━━━━━━━━
+QUICK WRITE
+━━━━━━━━━━
+
+Home shortcut:
+PASS / FAIL
+
+Unwritten list:
+PASS / FAIL
+
+Unwritten tap → direct Write:
+PASS / FAIL
+
+Intermediate history screen removed:
+YES / NO
+
+Save → unwritten list:
+PASS / FAIL
+
+Completed session removed from unwritten:
+YES / NO
+
+━━━━━━━━━━
+DIARY HUB
+━━━━━━━━━━
+
+Hub retained:
+YES
+
+Header overlap:
+FIXED / FAIL
+
+CTA layout:
+PASS / FAIL
+
+Search:
+PASS / FAIL
+
+Day filter:
+PASS / FAIL
+
+Time filter:
+PASS / FAIL
+
+Diary grouping key:
+...
+
+Same session common+individual grouped:
+YES / NO
+
+Share/Edit overlap:
+FIXED / FAIL
+
+━━━━━━━━━━
+SESSION DETAIL
+━━━━━━━━━━
+
+Session source of truth:
+...
+
+8/27 contains only 8/27 Diary:
+YES / NO
+
+9/3 mixed into 8/27:
+NO / YES
+
+Common + individual:
+PASS / FAIL
+
+━━━━━━━━━━
+EDIT
+━━━━━━━━━━
+
+Canonical Edit component:
+...
+
+Existing Diary method:
+PUT
+
+Legacy DELETE+POST:
+ABSENT / PRESENT
+
+Hub → Edit → Save → Hub:
+PASS / FAIL
+
+Session → Edit → Save → Session:
+PASS / FAIL
+
+Home redirect after Edit:
+NO / YES
+
+━━━━━━━━━━
+WRITE
+━━━━━━━━━━
+
+Canonical Write:
+...
+
+Quick Write → Write:
+PASS / FAIL
+
+Hub → Write:
+PASS / FAIL
+
+Save return correct:
+PASS / FAIL
+
+━━━━━━━━━━
+REGRESSION
+━━━━━━━━━━
+
+Photo/video:
+PASS / FAIL
+
+Share:
+PASS / FAIL
+
+Reactions/comments:
+PASS / FAIL
+
+Delete:
+PASS / FAIL
+
+Authorization:
+PASS / FAIL
+
+SERVER_CHANGED:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+Update ID:
+...
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Quick Write extra intermediate screens:
+0 / ...
+
+Diary Hub roots:
+1 / ...
+
+Session/detail role collision:
+NONE / ...
+
+Hub common/student duplicate top-level cards:
+NO / YES
+
+Navigation defects remaining:
+NONE / ...
+
+Layout overlap remaining:
+NONE / ...
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
