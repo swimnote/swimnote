@@ -1,0 +1,1089 @@
+[보낼 곳: APP REPLIT]
+
+# WP17 — SWIMNOTE 2.0.1 RELEASE CANDIDATE / FEATURE FREEZE
+# WP16 CLOSED
+# 목표: 현재 2.0.1을 실제 Store 출시 가능한 Release Candidate로 고정
+# 신규 기능 개발 금지
+# 구조 재설계 금지
+# 기존 PASS WP 재오픈 금지
+# 오직 실제 Release blocker(P0/P1 regression)만 최소 수정
+# Client 수정 발생 시 release/v2.0.0 반영 + iOS production-v2 OTA까지 자동 완료
+# Server 수정 시 main commit/push까지만. Render Production deploy 금지
+# Production DB mutation 금지
+# Android OTA 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. WP17 목적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE 2.0.1의 모든 핵심 기능이
+출시 후보 상태인지 검증하고 Feature Freeze를 선언합니다.
+
+WP17 완료 후에는:
+
+- 기능 추가 금지
+- UI 재설계 금지
+- architecture 변경 금지
+- P2 개선 금지
+
+Store 출시를 막는 실제 결함만 수정합니다.
+
+최종 산출물:
+
+SWIMNOTE 2.0.1 RELEASE CANDIDATE
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 고정 RELEASE BASELINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Canonical client branch:
+
+release/v2.0.0
+
+반드시 확인:
+
+App Version:
+2.0.1
+
+RuntimeVersion:
+2.1.0
+
+iOS buildNumber:
+256
+
+Android versionCode:
+240
+
+EAS production channel:
+production-v2
+
+APP_CONTRACT_VERSION:
+1.0
+
+Teacher Diary Engine:
+https://swimnote-professional-engine.onrender.com
+
+Android production OTA:
+NO
+
+Native dependency/config 변경:
+NO
+
+현재 release HEAD:
+...
+
+origin/release HEAD:
+...
+
+working tree:
+clean / dirty
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 영구 OTA GUARDRAIL 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+production-v2 OTA는 반드시:
+
+branch = release/v2.0.0
+
+에서만 실행.
+
+main에서 production-v2 OTA 금지.
+
+현재 repo에 deployment guard/check가 있다면
+다음 6개 invariant가 실제로 보호되는지 확인:
+
+1.
+branch = release/v2.0.0
+
+2.
+APP_CONTRACT_VERSION = 1.0
+
+3.
+Teacher Diary Engine URL correct
+
+4.
+App Version = 2.0.1
+
+5.
+RuntimeVersion = 2.1.0
+
+6.
+iOS ONLY / Android OTA NO
+
+이미 존재하면 재작성 금지.
+
+없거나 불완전하면
+최소한의 preflight script/check만 추가 허용.
+
+새 deployment system 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP17은 전체 재개발 감사가 아닙니다.
+
+금지:
+
+- repo-wide architecture audit
+- AI Engine 구조 재조사
+- RevenueCat 재설계
+- X 구조 재설계
+- Diary pipeline 재설계
+- Parent Feed 재설계
+- 영상 pipeline 재설계
+- 기존 PASS WP 반복 조사
+- 코드 스타일 정리
+- dead-code 대청소
+- 대규모 refactor
+
+방식:
+
+existing tests
++ critical route smoke
++ Production-safe API checks
++ 실제 release blocker만 수정
+
+한 번 확인한 사실은 working notes에 유지.
+반복 조사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. AUTH / TENANT / SECURITY REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 WP1/WP6 재설계 금지.
+
+최종 regression만 수행:
+
+A.
+Unauthenticated protected API:
+차단
+
+B.
+Teacher:
+자기 pool만 접근
+
+C.
+Parent:
+연결된 student만 접근
+
+D.
+Admin:
+자기 pool만 접근
+
+E.
+Cross-pool student/diary/media:
+403/404 안전 차단
+
+F.
+Super Admin:
+기존 권한 정상
+
+Cross-pool leak 발견 시:
+P0
+
+그 외 PASS면 닫고 넘어감.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. LOGIN / ROLE ENTRY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 role 최소 smoke:
+
+ADMIN
+login
+→ home/dashboard
+
+TEACHER
+login
+→ teacher home
+
+PARENT
+login
+→ selected child/home feed
+
+확인:
+
+- login loop 없음
+- invalid redirect 없음
+- undefined child/pool route 없음
+- logout 정상
+- role-switch 기능이 존재하는 경우 기존 정상 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. ADMIN CORE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 release regression:
+
+- 회원 목록
+- 회원 상세
+- 반 목록
+- 반 상세
+- 출결
+- 스케줄
+- 보강
+- 작성 일지 조회
+- 공지
+- 설정
+
+확인:
+
+HTTP 500 없음
+undefined/null crash 없음
+cross-pool 없음
+
+새 Admin 기능 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. TEACHER CORE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 regression:
+
+- Teacher Home
+- 오늘 수업
+- 스케줄
+- 출결
+- 보강
+- 일지 바로쓰기
+- 수업일지 Hub
+- 일지 작성
+- 일지 수정
+- 사진
+- 영상
+- 저장 후 정상 복귀
+
+특히 WP16 최종 동선 유지:
+
+Home Quick Write
+→ 미작성 수업
+→ Write
+
+수업관리
+→ 수업일지 Hub
+
+Hub
+→ Edit
+→ Hub
+
+Hub Back
+→ Scheduler
+
+회귀하면 P0/P1.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. TEACHER DIARY AI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI Engine 구조 재조사 금지.
+
+최종 smoke 1회:
+
+Teacher AI Diary
+→ actual Engine endpoint
+
+contract:
+1.0
+
+HTTP:
+200
+
+pipeline_mode:
+grounded_v1
+
+fallback_used:
+false
+
+generated output != raw input
+
+generated output
+→ APP state
+→ save payload
+
+Normal / X 모두 기존 contract 유지.
+
+400 regression:
+0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. DIARY MEDIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+영상 pipeline 재조사 금지.
+
+최종 smoke:
+
+COMMON PHOTO
+select → upload → save → reopen
+
+STUDENT PHOTO
+select → upload → save → reopen
+
+COMMON VIDEO
+select → upload → save → reopen
+
+STUDENT VIDEO
+select → upload → save → reopen
+
+Parent:
+- media 표시
+- video viewer
+- video download
+- video thumbnail/fallback
+- video count/action
+- Story에서 video 제외 정책 유지
+
+앱 Documents & Data에
+영상 원본 누적 구조 재발 없음.
+
+실제 문제 없으면 바로 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. PARENT CORE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 regression:
+
+- Parent Home
+- child switch
+- Diary Feed
+- Growth Report Feed
+- Diary detail/list
+- notification list
+- notification deep-link
+- photo/video
+- like/comment
+- PDF/share 기존 기능
+
+확인:
+
+새 Diary
+→ Parent API
+→ Feed
+
+알림 tap
+→ correct student diary
+
+Growth Report item 때문에
+Diary screen crash 없음.
+
+Feed item 정렬 정상.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. GROWTH REPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 WP10/16 구조 재조사 금지.
+
+최종 regression:
+
+- 기존 발급 report 조회
+- Parent Feed render
+- 상세 render
+- PDF 저장/공유
+- Diary와 동일 Feed에서 crash 없음
+- older/newer item ordering 정상
+
+리포트 생성 engine을 새로 실행/재설계하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. NOTIFICATION / PUSH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 WP5/WP4 재설계 금지.
+
+최종 regression:
+
+- Diary notification
+- immediate push
+- scheduled notification code path
+- notification list
+- deep-link
+- studentId
+- diaryId
+
+알림은 오는데 대상 화면이 비거나
+undefined route면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. X MODE / ENTITLEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+고정 의미 절대 변경 금지:
+
+Feature access = canonical mode resolver
+
+Paid =
+x_paid_entitlement
+
+Manual =
+x_manual_entitlement
+
+Management =
+x_management_override
+
+Force Disabled =
+x_force_disabled
+
+mode === x를
+paid와 동일시 금지.
+
+Toykids special policy 유지.
+
+확인:
+
+effective X 정상
+Normal pool 정상
+force disabled 우선
+cross-pool 없음
+
+RevenueCat 전체 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. PRODUCT / LIMIT REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+제품 코드/limit mapping만 확인:
+
+SWIMNOTE
+X300
+X500
+X1000
+DATA100
+DATA300
+
+member limits:
+기존 WP2 기준 유지
+
+가격 자체는 Store 설정 영역이므로
+WP17에서 임의 수정 금지.
+
+Store actual pricing/config는 WP19 범위.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. STORAGE / R2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+photo:
+upload/read
+
+video:
+upload/read/download
+
+R2 credentials:
+존재 여부만
+
+secret 값 출력 금지.
+
+앱 local persistent media accumulation:
+없음
+
+R2 구조 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. EMPTY / ERROR / LOADING STATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+출시 직전 사용자에게 치명적인 화면만 확인:
+
+- undefined
+- Invalid Date
+- blank screen
+- endless spinner
+- generic error boundary
+- false empty state
+- route loop
+
+발견 시 실제 route만 최소 수정.
+
+전체 UI polishing 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. RELEASE LOG / PII
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production console/log에서:
+
+- JWT
+- phone
+- email
+- sensitive diary full text
+- R2 secret
+- OpenAI key
+
+직접 노출 여부 확인.
+
+기존 debug logging 중
+WP16 trace용으로 추가했던 production logging이 남아 있으면
+필요 여부 확인.
+
+더 이상 필요 없는
+민감/과도한 production debug log만 최소 제거.
+
+전체 logging architecture 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. CLIENT TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 existing test suites 중
+release-critical subset 먼저 실행.
+
+그 후 최종 regression suite는 1회만.
+
+동일 suite 반복 금지.
+
+보고:
+
+tests executed:
+...
+
+PASS:
+...
+
+FAIL:
+...
+
+실패 항목이 release blocker인지 분류:
+
+P0
+P1
+NON_BLOCKING
+
+NON_BLOCKING을 WP17에서 고치지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. SERVER TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP API server main 기준
+기존 relevant tests 실행.
+
+특히:
+
+auth
+diary
+parent
+media
+notification
+admin
+
+related subset.
+
+Production DB mutation 금지.
+
+Production destructive test 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. PRODUCTION HEALTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production-safe endpoint로 확인 가능한 범위에서:
+
+APP API:
+health PASS
+
+AI ENGINE:
+health PASS
+
+Production server SHA:
+...
+
+AI Engine deployed SHA:
+가능하면 확인 / 아니면 UNKNOWN
+
+잘 모르겠으면
+억지 infrastructure 조사 금지.
+
+UNKNOWN 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. P0/P1 발견 시 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 release blocker가 발견될 경우만 수정.
+
+P0 예:
+
+- crash
+- login 불가
+- save 불가
+- cross-pool leak
+- billing entitlement critical error
+- Parent Diary 전달 불가
+- AI Diary 완전 실패
+- media 핵심 기능 실패
+
+P1 예:
+
+- 핵심 UX가 정상 사용을 막는 navigation defect
+- critical false empty
+- major layout interaction collision
+
+수정 방식:
+
+root cause
+→ 최소 변경
+→ 관련 test
+→ regression
+→ STOP
+
+새 기능으로 해결 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. CLIENT FIX 발생 시 OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 정책:
+
+수정 완료
+→ 테스트
+→ release 반영
+→ OTA
+
+를 한 번에 수행.
+
+Client 수정 발생 시:
+
+release/v2.0.0
+commit
+push
+
+영구 preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS하면
+추가 사용자 승인 기다리지 말고
+
+iOS production-v2 OTA 수행.
+
+main에서 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. SERVER FIX 발생 시
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Server defect가 확인되면:
+
+main
+→ 최소 commit
+→ push
+
+Render Production deploy:
+절대 수행 금지.
+
+보고:
+
+SERVER_CHANGED=YES
+SERVER_SHA=...
+RENDER_DEPLOY_REQUIRED=YES
+
+사용자가 직접 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. FEATURE FREEZE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+모든 release blocker가 해소되면
+다음을 선언:
+
+FEATURE_FREEZE = ACTIVE
+
+이 시점 이후:
+
+금지:
+- 신규 기능
+- UI redesign
+- schema redesign
+- architecture refactor
+- optimization P2
+
+허용:
+- Store release blocker P0
+- Store rejection blocker
+- security P0
+- billing P0
+- crash P0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. RELEASE CANDIDATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 조건:
+
+Release branch clean:
+YES
+
+Critical regression:
+PASS
+
+Security regression:
+PASS
+
+Teacher:
+PASS
+
+Parent:
+PASS
+
+Admin:
+PASS
+
+Diary:
+PASS
+
+AI:
+PASS
+
+Media:
+PASS
+
+Growth Report:
+PASS
+
+Push:
+PASS
+
+X mode:
+PASS
+
+Production health:
+PASS
+
+Native changes since freeze:
+NO
+
+DB pending migration:
+NO
+
+Server pending deploy:
+NO
+
+Client pending OTA:
+NO
+
+이면:
+
+RELEASE_CANDIDATE = YES
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# WP17 SWIMNOTE 2.0.1 RELEASE CANDIDATE REPORT
+
+━━━━━━━━━━
+BASELINE
+━━━━━━━━━━
+
+Release branch:
+...
+
+Release SHA:
+...
+
+origin match:
+YES / NO
+
+Working tree clean:
+YES / NO
+
+App version:
+...
+
+RuntimeVersion:
+...
+
+iOS build:
+...
+
+Android versionCode:
+...
+
+APP_CONTRACT_VERSION:
+...
+
+Engine URL:
+...
+
+━━━━━━━━━━
+OTA GUARD
+━━━━━━━━━━
+
+Production OTA branch guard:
+PASS / FAIL
+
+6 invariants:
+PASS / FAIL
+
+━━━━━━━━━━
+SECURITY
+━━━━━━━━━━
+
+Auth:
+PASS / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+Role authorization:
+PASS / FAIL
+
+━━━━━━━━━━
+ADMIN
+━━━━━━━━━━
+
+Core:
+PASS / FAIL
+
+Blocking defects:
+...
+
+━━━━━━━━━━
+TEACHER
+━━━━━━━━━━
+
+Home:
+PASS / FAIL
+
+Schedule:
+PASS / FAIL
+
+Attendance:
+PASS / FAIL
+
+Quick Write:
+PASS / FAIL
+
+Diary Hub:
+PASS / FAIL
+
+Diary Write:
+PASS / FAIL
+
+Diary Edit:
+PASS / FAIL
+
+Media:
+PASS / FAIL
+
+━━━━━━━━━━
+AI DIARY
+━━━━━━━━━━
+
+HTTP:
+...
+
+contract:
+...
+
+pipeline_mode:
+...
+
+fallback_used:
+...
+
+Generated != raw:
+YES / NO
+
+Result saved:
+YES / NO
+
+━━━━━━━━━━
+PARENT
+━━━━━━━━━━
+
+Home:
+PASS / FAIL
+
+Diary Feed:
+PASS / FAIL
+
+Diary Detail:
+PASS / FAIL
+
+Growth Report:
+PASS / FAIL
+
+Notification:
+PASS / FAIL
+
+Deep-link:
+PASS / FAIL
+
+Photo:
+PASS / FAIL
+
+Video:
+PASS / FAIL
+
+━━━━━━━━━━
+MEDIA
+━━━━━━━━━━
+
+Common photo:
+PASS / FAIL
+
+Student photo:
+PASS / FAIL
+
+Common video:
+PASS / FAIL
+
+Student video:
+PASS / FAIL
+
+Video viewer:
+PASS / FAIL
+
+Download:
+PASS / FAIL
+
+Local accumulation:
+NONE / ...
+
+━━━━━━━━━━
+X MODE
+━━━━━━━━━━
+
+Normal:
+PASS / FAIL
+
+Effective X:
+PASS / FAIL
+
+Management override:
+PASS / FAIL
+
+Paid semantics:
+PASS / FAIL
+
+Force disabled:
+PASS / FAIL
+
+━━━━━━━━━━
+TESTS
+━━━━━━━━━━
+
+Client tests:
+...
+
+Server tests:
+...
+
+Failures:
+...
+
+Release-blocking failures:
+...
+
+━━━━━━━━━━
+PRODUCTION
+━━━━━━━━━━
+
+APP health:
+PASS / FAIL
+
+Production server SHA:
+...
+
+AI Engine health:
+PASS / FAIL
+
+Pending Render deploy:
+YES / NO
+
+Pending DB migration:
+YES / NO
+
+━━━━━━━━━━
+FIXES DURING WP17
+━━━━━━━━━━
+
+Client changed:
+YES / NO
+
+Client commit:
+...
+
+OTA published:
+YES / NO
+
+OTA source branch:
+...
+
+OTA source SHA:
+...
+
+Android OTA:
+NO
+
+Server changed:
+YES / NO
+
+Server commit:
+...
+
+Render deploy performed:
+NO
+
+━━━━━━━━━━
+FREEZE
+━━━━━━━━━━
+
+New features added:
+NO
+
+Native incompatible changes:
+NO
+
+FEATURE_FREEZE:
+ACTIVE / HOLD
+
+RELEASE_CANDIDATE:
+YES / NO
+
+Remaining blockers:
+NONE / ...
+
+Final:
+WP17_PASS
+/
+HOLD_RENDER_DEPLOY
+/
+HOLD_REAL_DEVICE
+/
+FAIL
+
+STOP.
+WP18/WP19 선행 금지.
