@@ -1,0 +1,650 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — PARENT FEED VIDEO VIEWER CRASH TRACE + FIX
+# 영상 업로드 pipeline 재조사 금지
+# 현재 증상은 Parent Feed의 "영상 N개 보기" 진입 후 viewer screen crash
+# 오직 Feed → Video Viewer → Read API → Render/Playback 경로만 조사
+# 관련 없는 Teacher Diary / Upload / AI / Notification / Growth Report 조사 금지
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA까지 자동 완료
+# Render Production deploy 금지
+
+현재 실기기 실제 증상:
+
+Parent Feed에서 Diary 카드에:
+- 영상 썸네일 표시됨
+- "영상 2개 보기" 표시됨
+
+즉 최소한:
+Diary ↔ Video relation 존재
+video count 존재
+대표 thumbnail 존재
+
+하지만 "영상 2개 보기" 버튼을 누르면:
+
+Something went wrong
+Please reload the app to continue.
+
+React Native error boundary / screen crash 형태로 종료됨.
+
+이번 작업 목표:
+
+Feed
+→ 영상 2개 보기
+→ 해당 Diary video 목록
+→ 영상 2개 모두 표시
+→ 각 영상 재생
+
+까지 정상화.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 금지:
+
+- video upload 재조사
+- R2 upload 재조사
+- temp/cache 재조사
+- Teacher Diary
+- AI Engine
+- Parent Feed 전체 rewrite
+- Growth Report
+- Notification
+- Admin
+- repo-wide audit
+
+오직:
+
+Feed video button
+→ route
+→ params
+→ viewer screen
+→ video fetch
+→ response mapping
+→ render
+→ playback
+
+만 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. "영상 N개 보기" 실제 onPress 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Feed Diary card에서:
+
+버튼 component:
+...
+
+onPress:
+...
+
+destination route:
+...
+
+params:
+...
+
+전달되는 값 확인:
+
+diaryId:
+present / missing
+
+studentId:
+present / missing
+
+video count:
+...
+
+video ids:
+present / absent
+
+URLs:
+present / absent
+
+현재 viewer가
+diaryId 기반 fetch인지
+videoIds 직접 전달인지
+확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 VIEWER route/component 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+"영상 2개 보기" 후 열리는 실제:
+
+route:
+...
+
+file:
+...
+
+component:
+...
+
+screen params:
+...
+
+mounted:
+YES / NO
+
+crash before fetch:
+YES / NO
+
+crash after fetch:
+YES / NO
+
+정확한 crash 단계 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ERROR STACK 반드시 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자 화면은
+generic error boundary만 보여줌.
+
+실제 Xcode/console/runtime stack에서:
+
+error type:
+...
+
+message:
+...
+
+file:
+...
+
+line:
+...
+
+stack top:
+...
+
+반드시 exact root cause 확보.
+
+"렌더 문제로 보임" 같은 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. VIDEO READ API 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+viewer가 사용하는 실제 API 확인.
+
+예:
+GET /videos/diary/:diaryId
+또는 다른 endpoint.
+
+HTTP:
+...
+
+response item count:
+...
+
+2개 기대 시:
+2개 반환:
+YES / NO
+
+각 item에 필요한 field:
+
+id
+file_url
+thumbnail_url
+student_note_id
+journal_id
+mime/type
+duration
+created_at
+
+현재 UI가 기대하는 field와
+server response shape가 다른지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 가장 의심되는 mapping 문제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+최근 server video response가 확장되면서
+student_note_id가 추가됨.
+
+Viewer가:
+
+- common video만 가정
+- journal_id 필수 가정
+- student video의 null journal_id 처리 못함
+- file_url field name mismatch
+- thumbnail field null 처리 못함
+- array shape 변경 미반영
+
+중 하나인지 확인.
+
+특히:
+공통 + 학생별 video가 한 Diary에 섞여 있을 때
+viewer가 모두 처리 가능한지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. null/undefined crash 전수확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+viewer 렌더링에서:
+
+video.file_url
+video.thumbnail_url
+video.id
+video.student_note_id
+video.journal_id
+
+등을 직접 접근하는 부분에서
+undefined/null safe 여부 확인.
+
+다음 패턴 집중:
+
+.includes
+.map
+.length
+.split
+.replace
+new URL
+Image source
+Video source
+keyExtractor
+
+null field 때문에 crash하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 2개 이상 VIDEO 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 Diary:
+영상 2개.
+
+반드시:
+
+1개
+2개
+3개 이상
+
+모두 처리 가능한 구조인지 확인.
+
+"영상 1개일 때만 정상"이면 FAIL.
+
+carousel/list/grid 중
+현재 기존 UI를 유지.
+
+새 viewer architecture 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 공통 + 학생별 VIDEO 혼합 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Diary에는 공통/학생별 영상이 혼재 가능.
+
+Viewer는 다음을 모두 표시해야 함:
+
+Common video
+Student video
+
+단 Parent가 볼 수 있는 video만.
+
+student_note_id가 있더라도
+viewer에서 crash하지 않도록 처리.
+
+필요 시 label은 기존 UI대로 유지.
+새 복잡한 student grouping UI 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PLAYBACK SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 video playback source는
+반드시 R2 remote URL.
+
+local file URI 의존 금지.
+
+확인:
+
+video source:
+remote URL
+
+URL accessible:
+YES / NO
+
+signed/public 정책은 기존 그대로.
+
+viewer open 후
+로컬 temp 필요하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. THUMBNAIL / FALLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+thumbnail URL이 없더라도
+viewer 전체가 crash하면 안 됨.
+
+정상:
+
+thumbnail 있음
+→ thumbnail 표시
+
+thumbnail 없음
+→ video placeholder / poster 없이도 render
+
+undefined thumbnail로
+Image component crash 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. BACK / CLOSE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Viewer:
+
+Back
+→ Parent Feed
+
+Close
+→ Parent Feed
+
+앱 root error 화면으로 빠지면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 실제 TEST MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1
+Diary video 1개
+→ "영상 1개 보기"
+→ viewer 정상
+
+T2
+Diary video 2개
+→ "영상 2개 보기"
+→ viewer 정상
+
+T3
+Common video만
+→ 정상
+
+T4
+Student video만
+→ 정상
+
+T5
+Common + Student 혼합
+→ 정상
+
+T6
+thumbnail 없는 video
+→ crash 없음
+
+T7
+invalid/missing optional field
+→ crash 없음
+
+T8
+video tap
+→ playback 시작
+
+T9
+back
+→ Parent Feed
+
+T10
+같은 viewer 재진입
+→ 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 수정 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client-only면:
+release/v2.0.0 수정.
+
+Server response contract defect가 실제로 확인되면:
+main 최소 수정 + push.
+
+Render deploy는 NO.
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+Video upload pipeline:
+변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client 수정 후:
+
+release/v2.0.0
+commit/push
+
+Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS면
+추가 승인 없이
+
+iOS production-v2 OTA 완료.
+
+main OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PARENT VIDEO VIEWER CRASH REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+SERVER main before:
+SERVER main after:
+Server commit:
+
+━━━━━━━━━━
+ROUTE
+━━━━━━━━━━
+
+Feed button component:
+...
+
+onPress route:
+...
+
+Params:
+...
+
+Viewer route:
+...
+
+Viewer component:
+...
+
+━━━━━━━━━━
+CRASH
+━━━━━━━━━━
+
+Crash stage:
+BEFORE_FETCH / AFTER_FETCH / RENDER / PLAYBACK
+
+Exact error:
+...
+
+File:
+...
+
+Line:
+...
+
+Root cause:
+...
+
+━━━━━━━━━━
+READ API
+━━━━━━━━━━
+
+Endpoint:
+...
+
+HTTP:
+...
+
+Expected videos:
+2
+
+Returned videos:
+...
+
+Common videos:
+...
+
+Student videos:
+...
+
+Response shape mismatch:
+YES / NO
+
+━━━━━━━━━━
+VIEWER
+━━━━━━━━━━
+
+1 video:
+PASS / FAIL
+
+2 videos:
+PASS / FAIL
+
+Common:
+PASS / FAIL
+
+Student:
+PASS / FAIL
+
+Mixed:
+PASS / FAIL
+
+Missing thumbnail:
+PASS / FAIL
+
+Playback:
+PASS / FAIL
+
+Back:
+PASS / FAIL
+
+━━━━━━━━━━
+REGRESSION
+━━━━━━━━━━
+
+Feed thumbnail:
+PASS / FAIL
+
+Video count:
+PASS / FAIL
+
+Upload pipeline changed:
+NO
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+━━━━━━━━━━
+SERVER
+━━━━━━━━━━
+
+SERVER_CHANGED:
+YES / NO
+
+SERVER_SHA:
+...
+
+RENDER_DEPLOY_REQUIRED:
+YES / NO
+
+Render deploy:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Video viewer:
+PASS / FAIL
+
+2-video Diary:
+PASS / FAIL
+
+Remaining defects:
+NONE / ...
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+HOLD_RENDER_DEPLOY
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
