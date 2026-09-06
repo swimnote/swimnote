@@ -74,3 +74,4 @@
 - [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA c03446bd; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
 - [WP16 AI ENGINE OTA 완료](wp16-ai-engine-ota-done.md) — SHA 5deba2f8; GROUNDED_BASE+contract_version 1.0 fix; OTA iOS production-v2 01a07292
 - [WP15 Version/Runtime Freeze 완료](wp15-version-freeze-done-state.md) — SHA aff68b8a; v2.0.1 Store/runtime 2.1.0 explicit/build256/vCode240; 15TC
+- [WP18-C Production Backup CLOSED](wp18c-closed-state.md) — Render Cron Job 실제 실행 성공; snap_b249344dcc3e VERIFIED; swimnote-worker 사망 유지; R2 정책 영구 적용
