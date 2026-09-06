@@ -1,0 +1,477 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — VIDEO LOCAL TEMP/CACHE CLEANUP FIX
+# 사용자 정책: 영상은 기기에 장기 저장하지 않고 선택 후 바로 R2 업로드
+# 앱 Documents/Data에 영상 원본/임시파일 누적 금지
+# 사진/영상 기능 자체는 유지
+# R2 업로드 구조 변경 금지
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA 자동 수행
+
+현재 실제 iPhone 저장공간 상태:
+
+App size:
+약 65MB
+
+Documents & Data:
+약 5GB
+
+사용자 요구:
+
+Diary 영상 선택
+→ 필요한 경우 iOS picker가 임시 local uri 제공
+→ 즉시 R2 upload
+→ upload 성공 후 local temp/cache 삭제
+→ 앱 내부에 영상 원본 장기 보관 금지
+
+현재처럼 영상 작업 후
+Documents & Data가 GB 단위로 누적되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+오직 Diary media local file lifecycle 조사.
+
+금지:
+- Parent Feed
+- AI Engine
+- Navigation
+- Growth Report
+- Notification
+- Admin
+- R2 architecture 변경
+- DB 변경
+- 전체 repo audit
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 영상 선택 시 실제 local file 위치 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+공통/학생별 video 각각 확인:
+
+picker uri scheme:
+file:// / ph:// / 기타
+
+실제 경로가:
+cacheDirectory
+documentDirectory
+tmp
+ImagePicker temp
+FileSystem copy destination
+
+중 어디인지 확인.
+
+영상 선택 후 앱이 추가로:
+
+copyAsync
+moveAsync
+downloadAsync
+createDownloadResumable
+FileSystem.write
+base64 변환
+blob 임시파일
+
+을 만드는지 Diary/media 범위에서만 추적.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. LOCAL FILE LIFE CYCLE MAP
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 1개 기준:
+
+picker source:
+...
+
+temporary copied file:
+YES / NO
+
+copy destination:
+...
+
+upload source:
+...
+
+upload 완료 후 cleanup:
+YES / NO
+
+cleanup timing:
+...
+
+cleanup function:
+...
+
+앱 종료 후 남는 file:
+YES / NO
+
+정확히 어떤 파일이 누적되는지 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 직접 R2 업로드 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 정책:
+
+영상은 앱 내부 저장용으로 복사하지 말 것.
+
+가능하면:
+
+picker local uri
+→ 바로 upload request
+→ R2
+→ remote id/url state 저장
+→ local temp 정리
+
+만 사용.
+
+불필요한:
+
+Documents 폴더 복사
+persistent cache 복사
+duplicate compression copy
+
+금지.
+
+단 iOS picker가 주는 임시 local file 자체는
+업로드를 위해 잠깐 존재할 수 있음.
+
+핵심:
+업로드 성공 후 남기지 않기.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 cleanup 회귀 주의
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전에 photo preview bug가
+upload 직후 compressedUri를 너무 빨리 삭제해서 발생했음.
+
+따라서 이번 cleanup은:
+
+영상 preview가 local uri에 의존하는 동안
+즉시 삭제해서 UI를 깨뜨리면 안 됨.
+
+정상:
+
+upload success
+→ remote video id/url 확보
+→ preview source를 remote 또는 video card state로 전환
+→ 그 다음 local temp 삭제
+
+즉:
+LOCAL DELETE BEFORE STATE SWITCH = 금지
+
+LOCAL DELETE AFTER REMOTE STATE READY = 허용
+
+사진 path는 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 공통/학생별 video 모두 동일
+━━━━━━━━━━━━━━━━━━━━━━
+
+Common video:
+select
+→ upload
+→ remote state
+→ local cleanup
+
+Student video:
+select
+→ upload
+→ remote state
+→ local cleanup
+
+둘 다 동일 cleanup policy.
+
+한쪽만 정리되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실패 시 cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+upload 실패 시에도
+무한 local temp 누적 금지.
+
+정상 정책:
+
+upload fail
+→ 사용자에게 실패 표시
+→ retry가 필요하면 해당 session 동안 temp 유지 가능
+→ 화면 이탈/취소/새 선택 시 cleanup
+→ app restart 시 stale temp cleanup
+
+대규모 queue system 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. STALE TEMP STARTUP CLEANUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존에 이미 쌓인
+Diary video temp/cache가
+앱 시작 시 안전하게 정리 가능한 구조가 있는지 확인.
+
+기존 V3 cleanup이 있다면 재사용.
+
+없다면 Diary video 전용 temp directory를 사용하고
+startup에서 stale file만 정리.
+
+절대:
+사용자 사진앨범
+다른 앱 데이터
+R2 synced metadata
+영구 DB 관련 파일
+
+삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Documents/Data GB 증가 원인 증명
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 전:
+app-local Diary media temp size:
+...
+
+영상 1개 선택/upload 후:
+...
+
+upload success + cleanup 후:
+...
+
+화면 종료 후:
+...
+
+앱 재시작 후:
+...
+
+정상:
+업로드 성공 후 local usage가
+영상 원본 크기만큼 계속 남지 않아야 함.
+
+5GB 누적 원인 directory:
+...
+
+exact file pattern:
+...
+
+을 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 저장 후 재진입 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+local file 삭제 후에도:
+
+Diary save:
+PASS
+
+Reopen Edit:
+video metadata:
+PASS
+
+video playback/preview:
+PASS
+
+즉 local 원본 없이
+R2 remote asset만으로 정상 동작해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+영상 선택
+
+B.
+R2 upload 2xx
+
+C.
+video.id/url 확보
+
+D.
+remote state 반영
+
+E.
+local temp 삭제
+
+F.
+Diary save
+
+G.
+Edit reopen
+
+H.
+video 정상 표시
+
+I.
+앱 Documents/Data가 영상 크기만큼 계속 누적되지 않음
+
+전부 PASS 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 수정 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client-only 최소 수정.
+
+DB migration:
+NO
+
+Server:
+가능하면 NO
+
+Native dependency:
+NO
+
+R2 architecture:
+변경 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+release/v2.0.0
+commit/push
+
+Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS면
+추가 승인 없이
+
+iOS production-v2 OTA 완료.
+
+main에서 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 VIDEO LOCAL TEMP CLEANUP REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+Local video source path:
+...
+
+Persistent copy created:
+YES / NO
+
+Accumulation directory:
+...
+
+Accumulation root cause:
+...
+
+Common video cleanup:
+PASS / FAIL
+
+Student video cleanup:
+PASS / FAIL
+
+Upload success before cleanup:
+YES / NO
+
+Remote state before delete:
+YES / NO
+
+Local file deleted:
+YES / NO
+
+Upload failure cleanup:
+PASS / FAIL
+
+Startup stale cleanup:
+PASS / FAIL
+
+Before local temp size:
+...
+
+After video upload:
+...
+
+After cleanup:
+...
+
+After app restart:
+...
+
+Diary save:
+PASS / FAIL
+
+Edit reopen video:
+PASS / FAIL
+
+Playback/preview:
+PASS / FAIL
+
+Photo regression:
+PASS / FAIL
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+SERVER_CHANGED:
+NO
+
+OTA source branch:
+release/v2.0.0
+
+OTA source SHA:
+...
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
