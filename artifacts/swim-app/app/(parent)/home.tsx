@@ -1044,15 +1044,31 @@ function DiaryFeedItem({
             <Text style={f.diaryBadgeTxt}>수업 피드</Text>
           </View>
         </View>
-        {/* Row 2: 선생님 · 반 */}
-        <Text style={[f.headerName, { color: C.text }]}>
-          {entry.teacher_name} 선생님
-          {entry.class_group_name ? (
-            <Text style={[f.headerClass, { color: C.textSecondary }]}>
-              {"  · "}{entry.class_group_name}
-            </Text>
-          ) : null}
-        </Text>
+        {/* Row 2: 선생님 · 반 (좌) + 영상 pill (우, videoCount>0 시만) */}
+        <View style={f.headerRow2}>
+          <Text style={[f.headerName, { color: C.text, flexShrink: 1 }]} numberOfLines={1}>
+            {entry.teacher_name} 선생님
+            {entry.class_group_name ? (
+              <Text style={[f.headerClass, { color: C.textSecondary }]}>
+                {"  · "}{entry.class_group_name}
+              </Text>
+            ) : null}
+          </Text>
+          {videoCount != null && videoCount > 0 && (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/(parent)/diary" as any,
+                  params: { diary_id: entry.id, backTo: "home" },
+                })
+              }
+              style={({ pressed }) => [f.videoPill, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <LucideIcon name="video" size={12} color={TEAL} />
+              <Text style={[f.videoPillTxt, { color: TEAL }]}>영상 {videoCount}개</Text>
+            </Pressable>
+          )}
+        </View>
         {/* Row 3: 날짜 */}
         <Text style={[f.headerDate, { color: C.textSecondary }]}>
           {!isCurrentYear && `${year}년 `}{month}월 {day}일 {weekday}요일
@@ -1079,24 +1095,7 @@ function DiaryFeedItem({
         />
       )}
 
-      {/* ── 영상 버튼 ── */}
-      {videoCount != null && videoCount > 0 && (
-        <Pressable
-          onPress={() =>
-            router.push({
-              pathname: "/(parent)/diary" as any,
-              params: { diary_id: entry.id, backTo: "home" },
-            })
-          }
-          style={({ pressed }) => [f.videoBtn, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <LucideIcon name="video" size={14} color={TEAL} />
-          <Text style={[f.videoBtnTxt, { color: TEAL }]}>
-            영상 {videoCount}개 보기
-          </Text>
-          <LucideIcon name="chevron-right" size={13} color={TEAL} />
-        </Pressable>
-      )}
+      {/* 영상 버튼 — 상단 Row2 pill로 이동됨 */}
 
       {/* ── 액션바: GrowthReport ActionRow 동일 규격 — LEFT 좋아요 / CENTER 댓글 / RIGHT IG AI ── */}
       <View style={f.actions}>
@@ -2503,11 +2502,17 @@ const f = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
-  // Row 2: 선생님 · 반
+  // Row 2: 선생님 · 반 + 영상 pill
+  headerRow2: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 4,
+  },
   headerName: {
     fontSize: 15,
     fontFamily: "Pretendard-SemiBold",
-    marginBottom: 4,
   },
   headerClass: {
     fontSize: 15,
@@ -2530,20 +2535,18 @@ const f = StyleSheet.create({
     paddingBottom: 14,
   },
 
-  // ── 영상 버튼 ──
-  videoBtn: {
+  // ── 영상 pill (Row2 우측 고정) ──
+  videoPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    gap: 4,
+    flexShrink: 0,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
     backgroundColor: IB,
-    borderRadius: 8,
-    alignSelf: "flex-start",
+    borderRadius: 20,
   },
-  videoBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  videoPillTxt: { fontSize: 12, fontFamily: "Pretendard-SemiBold" },
 
   // ── 액션바 — GrowthReport ActionRow 동일 규격 (§7) ──
   // LEFT 좋아요 / CENTER 댓글 / RIGHT IG AI — space-around, borderTop
