@@ -298,8 +298,14 @@ export default function SwimDiaryScreen() {
   // 화면 포커스(재진입 포함)마다 최신 Diary fetch — useEffect([id]) 중복 제거
   useFocusEffect(useCallback(() => { fetchEntries(); }, [id]));
 
+  // [FIX] /parent/students/{id}/diary는 diary + growth_report를 합쳐 반환
+  // growth_report에는 lesson_date가 없어 parseLessonDate(undefined) → TypeError crash
+  // → lesson_date가 있는 DiaryEntry 항목만 사용
+  const diaryEntries = entries.filter(
+    (e) => typeof (e as any).lesson_date === "string" && !(e as any).type,
+  );
   const grouped: { weekKey: string; weekLabel: string; items: DiaryEntry[] }[] = [];
-  for (const entry of entries) {
+  for (const entry of diaryEntries) {
     const { weekYear } = parseLessonDate(entry.lesson_date);
     const weekLabel = getWeekLabel(entry.lesson_date);
     const last = grouped[grouped.length - 1];
@@ -322,7 +328,7 @@ export default function SwimDiaryScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 8, gap: 12 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchEntries(); }} />}
         >
-          {entries.length === 0 ? (
+          {diaryEntries.length === 0 ? (
             <View style={s.empty}>
               <LucideIcon name="book-open" size={44} color={C.textMuted} />
               <Text style={[s.emptyTitle, { color: C.text }]}>아직 수업 일지가 없습니다</Text>

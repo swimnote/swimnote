@@ -1463,6 +1463,33 @@ export default function ParentHomeScreen() {
     return () => sub.remove();
   }, [selectedStudent?.id, token]);
 
+  // ── DIARY-PUSH: foreground diary 알림 수신 → home feed 즉시 refresh ──
+  // [FIX] teacher가 diary 작성 후 parent가 이미 home에 있으면 useFocusEffect가 안 걸림
+  // → in-foreground 알림 수신 시 loadEntries 즉시 호출로 home feed 자동 갱신
+  useEffect(() => {
+    const Notif: null | typeof import("expo-notifications") =
+      Platform.OS !== "web"
+        ? (() => { try { return require("expo-notifications") as typeof import("expo-notifications"); } catch { return null; } })()
+        : null;
+    if (!Notif) return;
+    const sub = Notif.addNotificationReceivedListener((notification) => {
+      try {
+        const data = notification.request.content.data as Record<string, unknown> | null;
+        if (!data) return;
+        // diary 관련 알림(type: "diary", "diary_comment" 등) 수신 시 feed refresh
+        const ntype = typeof data.type === "string" ? data.type : "";
+        if (!ntype.includes("diary")) return;
+        const targetSid = typeof data.studentId === "string" ? data.studentId : null;
+        const currentSid = selectedStudent?.id;
+        if (!currentSid) return;
+        // 현재 선택 자녀와 일치하거나 studentId 없는(pool-wide) 알림만 refresh
+        if (targetSid && targetSid !== currentSid) return;
+        loadEntries(currentSid);
+      } catch { /* malformed payload — crash 없음 */ }
+    });
+    return () => sub.remove();
+  }, [selectedStudent?.id, token]);
+
   const renderItem = useCallback(
     ({ item }: { item: FeedItem }) => {
       // GR6: GROWTH_REPORT 카드 렌더링 (spec §6, §26)
