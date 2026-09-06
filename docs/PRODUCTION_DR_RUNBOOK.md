@@ -339,3 +339,99 @@ R2_OBJECT_DELETE_RECOVERY = NOT_AVAILABLE (기본 설정 기준)
 Cloudflare R2는 기본적으로 object versioning 미제공.
 삭제된 object 복구 불가 (versioning 활성화 시 가능 — dashboard 확인 필요).
 ```
+
+---
+
+## 13. INDEPENDENT BACKUP DB (WP18-C)
+
+### Backup DB 구성
+
+| 항목 | 값 |
+|---|---|
+| Secret name | `SUPABASE_BACKUP_DATABASE_URL` (Replit Secret only) |
+| Project ref | `uznwvkuqmvuahpsltqrr` |
+| Location | ap-south-1 (Production: `mrgkiussgbbmxfnkjgqy` ap-south-1과 별개) |
+| Independent from Production | YES |
+| Tables | 15 (14 critical + backup_runs metadata) |
+| Indexes | 33 |
+| FK constraints | 19 |
+| Schema built | 2026-09-07 via WP18-C Phase A |
+
+### Schema 구성
+
+Production-compatible schema (swimming_pools → users → students → class_groups → parent_accounts → parent_students → student_class_history → class_diaries → class_diary_student_notes → notifications → pool_subscriptions → photo_assets_meta → video_assets_meta → growth_reports).
+
+`backup_runs` 테이블: 백업 실행 이력 (id, started_at, completed_at, source_project, snapshot_id, status, table_count, row_count_summary, verification_status, error_summary). 개인정보 값 미저장.
+
+### Snapshot 원칙 (§6)
+
+**순서 규칙 (절대)**:
+1. 새 snapshot 생성 → schema/data restore → integrity verification → VERIFIED
+2. VERIFIED 후에만 이전 snapshot retention cleanup 가능
+3. 새 snapshot 실패 시 기존 verified snapshot 유지
+4. **금지**: old snapshot 삭제 → 새 backup 시작 순서
+
+### Manual Backup 명령
+
+```bash
+# api-server 디렉토리에서
+pnpm run backup:production
+# 또는
+npx tsx artifacts/api-server/src/scripts/backup-production.ts
+```
+
+**실행 전 guard (자동 포함)**:
+- source = Production ref (`mrgkiussgbbmxfnkjgqy`)
+- target = Backup ref (`uznwvkuqmvuahpsltqrr`)
+- source ≠ target (동일 프로젝트 BLOCK)
+- source read-only session (`SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`)
+- backup secret exists
+
+**Production restore 자동 실행 절대 금지**. Production restore 시 `REQUIRE_EXPLICIT_PRODUCTION_RESTORE_APPROVAL` 필수.
+
+### Automatic Backup 준비 상태
+
+| 항목 | 상태 |
+|---|---|
+| AUTOMATION_READY | NO (현재 Render worker 또는 별도 cron 없음) |
+| SCHEDULER_DEPLOY_REQUIRED | YES (기존 standby-sync 구조 재사용 가능) |
+| NEW_PAID_INFRA_REQUIRED | NO (Render cron job 추가 시 기존 유료 플랜 내 가능) |
+
+→ 자동화는 사용자 승인 후 standby-sync/scheduler 구조에 통합.
+
+### Retention 권장
+
+DB 크기가 매우 작음 (backup schema ~11MB). 운영 데이터 snapshot 추가 후에도 수십 MB 예상.
+
+| 정책 | 보관 |
+|---|---|
+| Latest verified | 항상 유지 |
+| Daily | 14개 (DB 소형이므로 7→14로 확장 가능) |
+| Weekly | 4개 |
+
+### Production DB Size (WP18-C 시점)
+
+| 항목 | 값 |
+|---|---|
+| Production DB size | USER_CONFIRM_REQUIRED (SUPABASE_DATABASE_URL Replit 환경 인증 실패로 직접 측정 불가) |
+| Backup DB size (schema only) | 11 MB |
+| R2 binary | Backup DB 미포함 (object_key/metadata만 포함) — R2 binary backup은 WP18-D 범위 |
+
+### Backup DB 보안
+
+- `SUPABASE_BACKUP_DATABASE_URL`: Replit Secret only
+- repo hardcode: NO
+- client env (Expo bundle): NO
+- API response: NO
+- logs: NO (URL/password 출력 금지)
+- 일반 APP runtime 접근: NONE (backup tooling only)
+
+### Phase C Production Snapshot 상태
+
+**BLOCKED_PROD_CONNECT**: Replit 환경의 `SUPABASE_DATABASE_URL` 인증 실패 (`password authentication failed for user postgres`). Render production server는 정상 연결 중. 원인: Replit Secret의 SUPABASE_DATABASE_URL 비밀번호가 만료/변경됐거나 Replit pooler 경유 시 인증 방식 불일치.
+
+해결 방법:
+1. Supabase dashboard → project settings → Database → Reset password → Replit Secret 갱신
+2. 또는 `SUPABASE_DB_PASSWORD` Secret 갱신 후 URL 재구성
+
+스크립트 준비 완료: `artifacts/api-server/src/scripts/backup-production.ts`

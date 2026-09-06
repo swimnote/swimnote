@@ -11,6 +11,7 @@
     "start:worker": "WORKER_MODE=true node dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pre-backup": "tsx ./src/scripts/pre-backup.ts",
+    "backup:production": "tsx ./src/scripts/backup-production.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
