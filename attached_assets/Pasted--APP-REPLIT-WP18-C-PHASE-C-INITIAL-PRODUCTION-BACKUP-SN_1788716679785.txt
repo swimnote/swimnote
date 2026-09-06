@@ -1,0 +1,436 @@
+[보낼 곳: APP REPLIT]
+
+# WP18-C PHASE C — INITIAL PRODUCTION → BACKUP SNAPSHOT
+# 현재:
+# Production = mrgkiussgbbmxfnkjgqy
+# Backup = uznwvkuqmvuahpsltqrr
+# Free Staging migration = PASS
+# Backup DB schema + synthetic restore drill = PASS
+#
+# 목표:
+# Production DB를 READ ONLY로 읽어
+# Backup DB에 최초 실제 VERIFIED snapshot 생성
+#
+# Production mutation 절대 금지
+# Production R2 mutation 금지
+# Render deploy 금지
+# Client/OTA 변경 금지
+# 기존 schema/synthetic drill 재수행 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CONNECTION GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Production DB connection:
+PASS / FAIL
+
+Backup DB connection:
+PASS / FAIL
+
+Production project:
+mrgkiussgbbmxfnkjgqy
+
+Backup project:
+uznwvkuqmvuahpsltqrr
+
+SOURCE != TARGET:
+PASS 필수
+
+같으면 즉시 STOP.
+
+Secret 값 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. SOURCE READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production connection은
+백업 작업 동안 READ ONLY 강제.
+
+가능하면:
+
+SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY
+
+또는 동등한 안전 guard 사용.
+
+Production 허용:
+- SELECT
+- schema metadata read
+- logical export
+
+금지:
+- INSERT
+- UPDATE
+- DELETE
+- ALTER
+- DROP
+- CREATE
+- TRUNCATE
+
+SOURCE_READ_ONLY:
+YES 필수
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PRODUCTION DB SIZE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB 실제 approximate size 측정.
+
+보고:
+
+PRODUCTION_DB_SIZE:
+...
+
+Critical table total size:
+...
+
+사진/영상 binary 원본은 DB에 없음.
+photo/video metadata/object_key만 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. INITIAL SNAPSHOT
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 준비된:
+
+backup-production.ts
+
+사용.
+
+명령:
+
+pnpm run backup:production
+
+목표:
+
+Production logical export
+→ Backup DB
+→ 신규 snapshot 생성
+→ verification
+→ VERIFIED
+
+실패 시:
+기존 verified snapshot 삭제 금지.
+
+이번이 최초 실제 snapshot이라
+실패하면 synthetic schema/metadata는 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SNAPSHOT SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 snapshot 작성 순서:
+
+1.
+snapshot 시작 기록
+
+2.
+schema/data restore
+
+3.
+critical integrity verify
+
+4.
+row count verify
+
+5.
+relation verify
+
+6.
+status VERIFIED
+
+7.
+그 후만 retention cleanup 가능
+
+VERIFIED 전 기존 정상 snapshot 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CRITICAL TABLE VERIFY
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+swimming_pools
+users
+students
+class_groups
+parent_students
+student_class_history
+class_diaries
+class_diary_student_notes
+notifications
+pool_subscriptions
+growth_reports
+photo_assets_meta
+video_assets_meta
+
+실제 canonical 이름 기준.
+
+CRITICAL_TABLES:
+PASS / FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ROW COUNT VERIFY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production vs Backup 비교.
+
+각 critical table에 대해
+row values가 아니라 count만 비교.
+
+민감 데이터 출력 금지.
+
+보고:
+
+ROW_COUNT_MATCH:
+PASS / FAIL
+
+Mismatch 있으면:
+table명 + prod count + backup count만 보고.
+
+개별 row 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. RELATION INTEGRITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+parent → student
+PASS / FAIL
+
+student → class
+PASS / FAIL
+
+diary → student note
+PASS / FAIL
+
+photo metadata → diary/note relation
+PASS / FAIL
+
+video metadata → diary/note relation
+PASS / FAIL
+
+growth report relation
+PASS / FAIL
+
+tenant/pool relation
+PASS / FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. TENANT SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Backup snapshot에서
+swimming_pool_id 및 관계가 보존됐는지 확인.
+
+Production app authorization을
+Backup DB에서 실행시키는 것은 아님.
+
+목표:
+복구 후 tenant relation이 손상되지 않았는지 확인.
+
+TENANT_RELATION_INTEGRITY:
+PASS / FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. BACKUP SIZE
+━━━━━━━━━━━━━━━━━━━━━━
+
+최초 snapshot 후:
+
+BACKUP_DB_SIZE:
+...
+
+SNAPSHOT_SIZE:
+...
+
+Production DB size와 비교해
+비정상적인 차이가 없는지 확인.
+
+사진/영상 원본 미포함이므로
+R2 크기와 비교하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. TEMP CLEANUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+logical export 중
+/tmp 또는 Replit filesystem에
+temporary dump/artifact가 생성됐다면
+작업 후 즉시 삭제.
+
+repo commit 금지.
+
+TEMP_ARTIFACTS_REMAIN:
+NO 필수
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. PRODUCTION MUTATION PROOF
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 전/후 가능한 범위에서 확인:
+
+Production schema changed:
+NO
+
+Production write executed:
+NO
+
+Production migration:
+NO
+
+Production R2:
+NO
+
+보고:
+
+PRODUCTION_MUTATED:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. BACKUP_RUNS
+━━━━━━━━━━━━━━━━━━━━━━
+
+backup_runs metadata에
+최초 Production snapshot 기록.
+
+최소:
+
+snapshot_id
+started_at
+completed_at
+source_project
+status
+verification_status
+table_count
+row_count_summary
+
+개인정보 값 저장 금지.
+
+최종:
+
+STATUS:
+COMPLETED
+
+VERIFICATION:
+VERIFIED
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. AUTOMATION은 아직 실행 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는
+자동 scheduler 배포하지 마십시오.
+
+최초 실제 snapshot PASS 확인 후
+다음 단계에서 자동 백업을 붙입니다.
+
+SCHEDULER_DEPLOY:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. PRODUCTION 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB mutation:
+NO
+
+Production R2 mutation:
+NO
+
+Render deploy:
+NO
+
+Client:
+NO
+
+OTA:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP18-C PHASE C INITIAL PRODUCTION SNAPSHOT REPORT
+
+Production project:
+mrgkiussgbbmxfnkjgqy
+
+Backup project:
+uznwvkuqmvuahpsltqrr
+
+Source != target:
+PASS / FAIL
+
+Production connection:
+PASS / FAIL
+
+Backup connection:
+PASS / FAIL
+
+Source read-only:
+YES / NO
+
+Production DB size:
+...
+
+Backup DB size:
+...
+
+Backup method:
+...
+
+Initial Production snapshot:
+PASS / FAIL
+
+Snapshot ID:
+...
+
+Critical tables:
+PASS / FAIL
+
+Row count match:
+PASS / FAIL
+
+Relation integrity:
+PASS / FAIL
+
+Tenant relation integrity:
+PASS / FAIL
+
+Backup verification:
+VERIFIED / FAIL
+
+Temporary artifacts:
+NONE / ...
+
+Production mutated:
+NO
+
+Production schema changed:
+NO
+
+R2 changed:
+NO
+
+Render deploy:
+NO
+
+Client/OTA:
+NO
+
+Scheduler deployed:
+NO
+
+Remaining blockers:
+NONE / ...
+
+Final:
+WP18C_PHASE_C_PASS
+/
+FAIL
+
+STOP.
