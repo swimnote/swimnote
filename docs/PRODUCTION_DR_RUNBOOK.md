@@ -262,3 +262,80 @@ DB 접속 가능 후:
 ---
 
 *이 문서는 WP18 DR finalization 시 작성됨. 장애 발생 후 업데이트 권장.*
+
+---
+
+## 12. SYNTHETIC RESTORE REHEARSAL 결과 (WP18-B)
+
+> 실행일: 2026-09-07 | 환경: Staging DB isolated schema (`dr_rehearsal`)
+> Production 데이터 미사용. Synthetic 데이터 전용.
+
+### Schema Inspection vs Real Restore 구분
+
+| 항목 | WP18 (최초) | WP18-B (정정) |
+|---|---|---|
+| 방법 | Staging DB critical table 존재 확인 (조회만) | Backup → DROP → Restore → 검증 |
+| 분류 | SCHEMA_INSPECTION_ONLY | ACTUAL RESTORE REHEARSAL |
+| Actual restore executed | NO | YES |
+
+### Restore Target
+
+- Environment: Staging DB (TEST_DATABASE_URL ap-northeast-2) / isolated schema `dr_rehearsal`
+- Isolated: YES (별도 schema, 실제 staging 테이블과 분리)
+- Production data used: NO
+- Backup method: Node.js SQL export (schema + synthetic INSERT statements)
+- Restore method: SQL statement 재실행 (48 statements, 0 failures)
+
+### Critical Table 매핑 (WP18 명칭 → 실제 테이블명)
+
+| WP18 명칭 | 실제 테이블명 |
+|---|---|
+| student_diary_notes | class_diary_student_notes |
+| media | photo_assets_meta |
+| videos | video_assets_meta |
+
+> `staging-manifest.ts`에서 누락 원인: bootstrap에 `class_diary_student_notes`는 `pool-db-init.ts`가 담당하나, staging-manifest가 photo/video asset 테이블을 bootstrap에서 누락. 서비스 영향 없음 (staging 전용 문제).
+
+### Integrity Check Results
+
+| 검증 항목 | 결과 |
+|---|---|
+| T1 Schema | PASS |
+| T2 All 14 critical tables | PASS |
+| T3 Indexes (4+) | PASS |
+| T4 FK constraints (8+) | PASS |
+| T5 Pool A records | PASS |
+| T6 Pool B records | PASS |
+| T7 Parent A → Student A | PASS |
+| T8 Student A → Class A history | PASS |
+| T9 Diary Pool A | PASS |
+| T10 Diary note (class_diary_student_notes) | PASS |
+| T11 Photo media (photo_assets_meta) | PASS |
+| T12 Video (video_assets_meta) | PASS |
+| T13 Growth report | PASS |
+| T14 Cross-pool isolation | PASS |
+| **RESTORE_SCHEMA_INTEGRITY** | **PASS** |
+| **RESTORE_DATA_INTEGRITY** | **PASS** |
+| **RESTORE_RELATION_INTEGRITY** | **PASS** |
+
+### External Config (Dashboard 직접 확인 필요)
+
+| 항목 | 상태 |
+|---|---|
+| Supabase automatic backup | USER_CONFIRM_REQUIRED |
+| Supabase PITR | USER_CONFIRM_REQUIRED |
+| Supabase retention period | USER_CONFIRM_REQUIRED |
+| R2 photo versioning/recovery | USER_CONFIRM_REQUIRED |
+| R2 video versioning/recovery | USER_CONFIRM_REQUIRED |
+| AI Engine current deploy SHA | USER_CONFIRM_REQUIRED |
+
+> Supabase: dashboard → project `mrgkiussgbbmxfnkjgqy` → Backups 탭
+> R2: Cloudflare dashboard → R2 → bucket Settings → Versioning
+
+### R2 Object 삭제 복구
+
+```
+R2_OBJECT_DELETE_RECOVERY = NOT_AVAILABLE (기본 설정 기준)
+Cloudflare R2는 기본적으로 object versioning 미제공.
+삭제된 object 복구 불가 (versioning 활성화 시 가능 — dashboard 확인 필요).
+```
