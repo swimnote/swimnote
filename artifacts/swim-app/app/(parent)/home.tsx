@@ -2483,8 +2483,8 @@ const f = StyleSheet.create({
     marginBottom: 10,
   },
   diaryLogo: {
-    width: 28,
-    height: 28,
+    width: 44,
+    height: 44,
     aspectRatio: 1,
   },
   diaryBadge: {
