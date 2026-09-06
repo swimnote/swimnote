@@ -1,0 +1,473 @@
+[보낼 곳: APP REPLIT]
+
+# WP18-C FINAL — AUTOMATIC DAILY BACKUP
+# Coverage snapshot PASS
+# 현재 VERIFIED snapshot:
+# snap_6fbe7dd99fa2
+#
+# 목표:
+# Production → Independent Backup DB 자동 일일 백업 완성
+# WP19 선행 금지
+# Production DB READ ONLY
+# Production / R2 / Client / OTA 변경 금지
+# 기존 97-table coverage 재조사 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 사실 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production:
+mrgkiussgbbmxfnkjgqy
+
+Backup:
+uznwvkuqmvuahpsltqrr
+
+BACKUP_REQUIRED:
+97 tables
+
+Latest verified:
+snap_6fbe7dd99fa2
+
+Manual command:
+pnpm run backup:production
+
+Production DB size:
+236 MB
+
+Application persistent data:
+약 29 MB
+
+Backup DB:
+약 24 MB
+
+기존 coverage/table classification 재수행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 먼저 ATOMIC SAFETY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 backup-production.ts에
+DELETE FROM → INSERT 방식이 포함됨.
+
+자동화 전에 반드시 확인:
+
+새 backup 실행 도중 실패했을 때
+직전 VERIFIED backup data가 손상되는가?
+
+절대 허용 안 됨:
+
+기존 정상 Backup tables DELETE
+→ 새 INSERT 도중 실패
+→ Backup DB가 partial 상태로 남음
+
+필수 최종 원칙:
+
+NEW BACKUP
+→ complete copy
+→ verification
+→ VERIFIED
+→ 그 후에만 previous data/snapshot cleanup
+
+가능한 최소 안전 방식 사용:
+
+A.
+temporary/staging schema에 새 snapshot 생성
+→ verify
+→ atomic promote
+
+또는
+
+B.
+transaction 내부에서 전체 refresh
+→ 모든 검증 성공 시 COMMIT
+→ 실패 시 ROLLBACK
+
+현재 구조에서 가장 단순하고 안전한 방법 선택.
+
+대형 redesign 금지.
+
+보고:
+
+BACKUP_ATOMIC:
+YES / NO
+
+FAILURE_ROLLBACK_SAFE:
+YES / NO
+
+둘 다 YES 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실패 시 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Backup DB에서만 안전하게 failure simulation.
+
+Production은 READ ONLY.
+
+테스트:
+
+1.
+현재 VERIFIED snapshot 유지
+
+2.
+새 backup run 시작
+
+3.
+중간 artificial failure 유도
+
+4.
+rollback
+
+5.
+기존 VERIFIED backup row counts 재확인
+
+필수:
+
+PREVIOUS_VERIFIED_PRESERVED:
+YES
+
+PARTIAL_BACKUP_VISIBLE:
+NO
+
+Production data mutation:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. DAILY SCHEDULE
+━━━━━━━━━━━━━━━━━━━━━━
+
+매일 1회 자동 실행.
+
+사용량 낮은 시간대 사용.
+
+권장:
+Asia/Seoul 새벽 04:00 전후
+
+정확한 기존 scheduler/cron 환경에 맞게 구성.
+
+기존 standby-sync / scheduler infrastructure가 있으면 재사용.
+
+새 paid service 생성 금지.
+
+Render Cron Job이 기존 플랜에서 추가 비용 없이 사용 가능하면 사용 가능.
+
+NEW_PAID_INFRA:
+NO 필수
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 자동 실행 COMMAND
+━━━━━━━━━━━━━━━━━━━━━━
+
+자동 작업은 기존 verified command 재사용:
+
+pnpm run backup:production
+
+별도 backup implementation 복제 금지.
+
+Cron/Scheduler는 command trigger만 담당.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ENV
+━━━━━━━━━━━━━━━━━━━━━━
+
+Scheduled environment에 필요한 secrets:
+
+Production DB source
+Backup DB target
+
+기존 canonical env names 재사용.
+
+secret value 출력 금지.
+
+확인:
+
+SOURCE != TARGET
+
+Production READ ONLY
+
+BACKUP_DATABASE_URL server-side only
+
+client exposure:
+NONE
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. BACKUP_RUN STATUS
+━━━━━━━━━━━━━━━━━━━━━━
+
+자동 run마다 backup_runs 기록:
+
+RUNNING
+→ VERIFIED
+
+실패:
+
+RUNNING
+→ FAILED
+
+FAILED run 때문에
+latest verified pointer/status가 변경되면 안 됨.
+
+최종 정상 snapshot만:
+
+LATEST_VERIFIED
+
+로 간주.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. RETENTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DB가 작으므로 초기 정책:
+
+Daily:
+14개
+
+Weekly:
+4개
+
+단 현재 implementation이
+실제 historical data snapshots를 보존하지 않고
+latest data + backup_runs metadata만 보존한다면
+거짓으로 "14 snapshots 보존"이라고 보고하지 말 것.
+
+정확히 구분:
+
+HISTORICAL_DATA_SNAPSHOTS:
+YES / NO
+
+만약 NO라면 이번 WP에서 무리하게
+97개 테이블 × 18세대 복제 구조 만들지 말 것.
+
+초기 출시에는:
+
+latest verified independent backup
++
+Production provider backup/PITR
+
+구조로도 가능.
+
+보고서에서 정확히 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. MONITORING
+━━━━━━━━━━━━━━━━━━━━━━
+
+자동 백업 실패를 조용히 무시하면 안 됨.
+
+기존 system-health / audit / monitoring 구조가 있으면
+최소 재사용.
+
+필수 최소 정보:
+
+last backup time
+last backup status
+last verified snapshot
+failure reason sanitized
+
+PII/secret 로그 금지.
+
+새 모니터링 플랫폼 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. MANUAL FALLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+자동 백업 실패 시에도:
+
+pnpm run backup:production
+
+수동 실행 가능해야 함.
+
+scheduler와 manual command가
+동일 backup logic을 사용해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. REAL SCHEDULED DRY RUN
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 scheduler 배포 후
+다음 예정시간까지 기다리지 말고
+동일 scheduler command를 수동 trigger 1회 수행.
+
+확인:
+
+Production READ ONLY
+Backup completed
+97 tables
+row counts match
+relations pass
+VERIFIED
+
+실제 cron 등록 여부와
+backup command 성공 여부를 별도로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. PRODUCTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB mutation:
+NO
+
+Production schema:
+NO CHANGE
+
+R2:
+NO CHANGE
+
+Render APP service deploy:
+NO
+
+Client:
+NO
+
+OTA:
+NO
+
+Scheduler/Cron만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP18-C AUTOMATIC BACKUP FINAL REPORT
+
+Latest previous verified snapshot:
+snap_6fbe7dd99fa2
+
+━━━━━━━━━━
+ATOMIC SAFETY
+━━━━━━━━━━
+
+Backup atomic:
+YES / NO
+
+Failure rollback safe:
+YES / NO
+
+Failure simulation:
+PASS / FAIL
+
+Previous verified preserved:
+YES / NO
+
+Partial backup visible:
+YES / NO
+
+━━━━━━━━━━
+AUTOMATION
+━━━━━━━━━━
+
+Scheduler type:
+...
+
+Schedule:
+...
+
+Timezone:
+...
+
+Command:
+...
+
+New paid infrastructure:
+NO / YES
+
+Secrets exposed:
+NO
+
+━━━━━━━━━━
+AUTOMATED RUN
+━━━━━━━━━━
+
+Manual scheduler-trigger test:
+PASS / FAIL
+
+New snapshot ID:
+...
+
+97 required tables:
+PASS / FAIL
+
+Row counts:
+PASS / FAIL
+
+Relations:
+PASS / FAIL
+
+Tenant integrity:
+PASS / FAIL
+
+Latest verified:
+YES / NO
+
+━━━━━━━━━━
+RETENTION
+━━━━━━━━━━
+
+Historical data snapshots:
+YES / NO
+
+Daily retained:
+...
+
+Weekly retained:
+...
+
+Latest verified independent copy:
+YES / NO
+
+━━━━━━━━━━
+MONITORING
+━━━━━━━━━━
+
+Last backup status observable:
+YES / NO
+
+Failure observable:
+YES / NO
+
+PII/secret logging:
+NO
+
+━━━━━━━━━━
+PRODUCTION
+━━━━━━━━━━
+
+Production mutated:
+NO
+
+R2 changed:
+NO
+
+APP Render deploy:
+NO
+
+Client/OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Manual backup:
+READY / NOT_READY
+
+Automatic daily backup:
+READY / NOT_READY
+
+Atomic failure safety:
+PASS / FAIL
+
+DB disaster recovery:
+READY / NOT_READY
+
+Remaining DB backup blockers:
+NONE / ...
+
+Final:
+WP18C_PASS
+/
+FAIL
+
+STOP.
+WP18-D/WP19 선행 금지.
