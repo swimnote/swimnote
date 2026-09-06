@@ -24,10 +24,8 @@ import { captureRef } from "react-native-view-shot";
 import * as FileSystem from "expo-file-system/legacy";
 import Share, { Social } from "react-native-share";
 
-// Meta/Facebook App ID — EXPO_PUBLIC_META_APP_ID 환경변수에서 읽음
-// OTA 배포 시 반드시 shell env 직접 주입:
-//   EXPO_PUBLIC_META_APP_ID=2093655621362240 expo export ...
-const META_APP_ID = process.env.EXPO_PUBLIC_META_APP_ID ?? "";
+// Meta/Facebook App ID — env 우선, fallback 하드코딩
+const META_APP_ID = process.env.EXPO_PUBLIC_META_APP_ID || "2093655621362240";
 
 import StoryPageRenderer, {
   STORY_W,
