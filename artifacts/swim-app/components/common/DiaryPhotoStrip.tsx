@@ -48,6 +48,65 @@ interface Props {
   parentMode?: boolean;
 }
 
+/** 영상 상세 모달 — viewVideo를 캡처해서 렌더 내부 null-race 방지 */
+function VideoDetailModal({
+  video,
+  downloadingVideo,
+  onClose,
+  onDownload,
+  videoThumbUrl,
+}: {
+  video: VideoItem;
+  downloadingVideo: boolean;
+  onClose: () => void;
+  onDownload: (v: VideoItem) => void;
+  videoThumbUrl: (v: VideoItem) => string | null;
+}) {
+  const tn = videoThumbUrl(video); // 한 번만 평가
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Pressable style={s.overlay} onPress={onClose}>
+        <View style={s.overlayCard}>
+          <Pressable style={s.closeBtn} onPress={onClose}>
+            <LucideIcon name="x" size={20} color="#fff" />
+          </Pressable>
+          {tn ? (
+            <Image source={{ uri: tn }} style={s.fullImg} contentFit="contain" />
+          ) : (
+            <View style={[s.fullImg, { backgroundColor: "#0F2742", alignItems: "center", justifyContent: "center" }]}>
+              <LucideIcon name="play" size={52} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
+            </View>
+          )}
+          <View style={s.videoModalPlayIcon} pointerEvents="none">
+            <LucideIcon name="play" size={42} color="#fff" fill="#fff" />
+          </View>
+          <Pressable
+            style={[s.dlBtn, { bottom: 16 }, downloadingVideo && { opacity: 0.6 }]}
+            onPress={(e) => { e.stopPropagation?.(); onDownload(video); }}
+            disabled={downloadingVideo}
+          >
+            {downloadingVideo
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <LucideIcon name="upload-cloud" size={16} color="#fff" />}
+            <Text style={s.dlBtnText}>
+              {downloadingVideo ? "저장 중..." : "영상 다운로드"}
+            </Text>
+          </Pressable>
+          {video.caption ? (
+            <Text style={s.videoCaption}>{video.caption}</Text>
+          ) : null}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diaryId, studentId, parentMode }: Props) {
   // Safe area insets — 뷰어 헤더가 Dynamic Island/노치 뒤로 숨지 않도록
   const insets = useSafeAreaInsets();
@@ -343,6 +402,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
 
         {/* 영상 썸네일 */}
         {videos.map((video: VideoItem) => {
+          if (!video?.id) return null; // null-safe guard
           const tn = videoThumbUrl(video);
           return (
             <Pressable
@@ -358,9 +418,13 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               <View style={s.videoPlayOverlay}>
                 <LucideIcon name="play" size={22} color="#fff" fill="#fff" />
               </View>
-              <View style={s.downloadOverlay}>
+              <Pressable
+                style={s.downloadOverlay}
+                onPress={(e) => { e.stopPropagation?.(); downloadVideo(video); }}
+                hitSlop={4}
+              >
                 <LucideIcon name="upload-cloud" size={14} color="#fff" />
-              </View>
+              </Pressable>
               <View style={s.videoBadge}>
                 <LucideIcon name="play" size={8} color="#fff" />
               </View>
@@ -467,54 +531,15 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
       </Modal>
 
       {/* ── 영상 전체화면 모달 ── */}
-      <Modal
-        visible={!!viewVideo}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setViewVideo(null)}
-        statusBarTranslucent
-      >
-        <Pressable style={s.overlay} onPress={() => setViewVideo(null)}>
-          <View style={s.overlayCard}>
-            <Pressable style={s.closeBtn} onPress={() => setViewVideo(null)}>
-              <LucideIcon name="x" size={20} color="#fff" />
-            </Pressable>
-            {viewVideo && (
-              <>
-                {videoThumbUrl(viewVideo) ? (
-                  <Image
-                    source={{ uri: videoThumbUrl(viewVideo)! }}
-                    style={s.fullImg}
-                    contentFit="contain"
-                  />
-                ) : (
-                  <View style={[s.fullImg, { backgroundColor: "#0F2742", alignItems: "center", justifyContent: "center" }]}>
-                    <LucideIcon name="play" size={52} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
-                  </View>
-                )}
-                <View style={s.videoModalPlayIcon} pointerEvents="none">
-                  <LucideIcon name="play" size={42} color="#fff" fill="#fff" />
-                </View>
-                <Pressable
-                  style={[s.dlBtn, { bottom: 16 }, downloadingVideo && { opacity: 0.6 }]}
-                  onPress={(e) => { e.stopPropagation?.(); downloadVideo(viewVideo); }}
-                  disabled={downloadingVideo}
-                >
-                  {downloadingVideo
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <LucideIcon name="upload-cloud" size={16} color="#fff" />}
-                  <Text style={s.dlBtnText}>
-                    {downloadingVideo ? "저장 중..." : "영상 다운로드"}
-                  </Text>
-                </Pressable>
-                {viewVideo.caption ? (
-                  <Text style={s.videoCaption}>{viewVideo.caption}</Text>
-                ) : null}
-              </>
-            )}
-          </View>
-        </Pressable>
-      </Modal>
+      {viewVideo ? (
+        <VideoDetailModal
+          video={viewVideo}
+          downloadingVideo={downloadingVideo}
+          onClose={() => setViewVideo(null)}
+          onDownload={downloadVideo}
+          videoThumbUrl={videoThumbUrl}
+        />
+      ) : null}
     </View>
   );
 }
