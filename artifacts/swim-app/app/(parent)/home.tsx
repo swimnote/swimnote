@@ -1025,18 +1025,10 @@ function DiaryFeedItem({
     setSharing(true);
   }
 
-  // 선생님 이니셜 아바타 색상 — 이름 첫 글자 기반으로 고정 색상
-  const AVATAR_COLORS = ["#1E6FBF","#0D8A6E","#7C3AED","#C2410C","#0369A1","#15803D"];
-  const avatarColor = AVATAR_COLORS[(entry.teacher_name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
-  const avatarInitial = entry.teacher_name?.[0] ?? "선";
-
   return (
     <View style={f.item}>
-      {/* ── Instagram 스타일 헤더: 아바타 + 선생님 + 반 + 날짜 ── */}
+      {/* ── 헤더: 선생님 · 반 / 날짜 (avatar 없음 §3, 수정됨 없음 §4) ── */}
       <View style={f.header}>
-        <View style={[f.avatar, { backgroundColor: avatarColor }]}>
-          <Text style={f.avatarText}>{avatarInitial}</Text>
-        </View>
         <View style={f.headerMeta}>
           <Text style={[f.headerName, { color: C.text }]}>
             {entry.teacher_name} 선생님
@@ -1048,7 +1040,6 @@ function DiaryFeedItem({
           </Text>
           <Text style={[f.headerDate, { color: C.textSecondary }]}>
             {!isCurrentYear && `${year}년 `}{month}월 {day}일 {weekday}요일
-            {entry.is_edited ? "  · 수정됨" : ""}
           </Text>
         </View>
       </View>
@@ -1092,48 +1083,45 @@ function DiaryFeedItem({
         </Pressable>
       )}
 
-      {/* ── 액션바: Instagram 스타일 — 좌측 아이콘 그룹 + 우측 IG AI ── */}
+      {/* ── 액션바: GrowthReport ActionRow 동일 규격 — LEFT 좋아요 / CENTER 댓글 / RIGHT IG AI ── */}
       <View style={f.actions}>
-        {/* 좌측: 좋아요 + 댓글 */}
-        <View style={f.actionsLeft}>
-          <Pressable
-            onPress={() => toggleReaction("like")}
-            style={({ pressed }) => [f.actionBtn, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <LucideIcon
-              name="heart"
-              size={22}
-              color={myReactions.has("like") ? "#E8003D" : "#262626"}
-              fill={myReactions.has("like") ? "#E8003D" : "none"}
-            />
-          </Pressable>
-          <Pressable
-            onPress={goToComments}
-            style={({ pressed }) => [f.actionBtn, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <LucideIcon name="message-circle" size={22} color="#262626" />
-          </Pressable>
-        </View>
+        {/* LEFT: 좋아요 */}
+        <Pressable
+          onPress={() => toggleReaction("like")}
+          style={({ pressed }) => [f.actionBtn, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <LucideIcon
+            name="heart"
+            size={20}
+            color={myReactions.has("like") ? "#E8003D" : "#6B7280"}
+            fill={myReactions.has("like") ? "#E8003D" : "none"}
+          />
+        </Pressable>
 
-        {/* 우측: Instagram AI Story */}
+        {/* CENTER: 댓글 */}
+        <Pressable
+          onPress={goToComments}
+          style={({ pressed }) => [f.actionBtn, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <LucideIcon name="message-circle" size={18} color="#6B7280" />
+        </Pressable>
+
+        {/* RIGHT: Instagram AI Story */}
         <Pressable
           onPress={handleInstagramShare}
           disabled={sharing || preparing}
           style={({ pressed }) => [f.actionBtn, { opacity: pressed || sharing || preparing ? 0.4 : 1 }]}
         >
           {(sharing || preparing)
-            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 22, height: 22 }} />
+            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 20, height: 20 }} />
             : (
               <View style={f.igAiLockup}>
-                <LucideIcon name="instagram" size={22} color="#E1306C" />
+                <LucideIcon name="instagram" size={20} color="#E1306C" />
                 <Text style={f.aiMark}>AI</Text>
               </View>
             )}
         </Pressable>
       </View>
-
-      {/* ── 하단 구분선 ── */}
-      <View style={f.divider} />
 
       {/* Instagram Story 캡처 파이프라인 */}
       {sharing && (
@@ -2467,36 +2455,21 @@ const f = StyleSheet.create({
   // ── 아이템 컨테이너 ──
   item: {
     backgroundColor: "#FFFFFF",
-    paddingTop: 12,
+    paddingTop: 14,
   },
 
-  // ── Instagram 스타일 헤더 ──
+  // ── 헤더: avatar 없이 메타만 (§3) ──
   header: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 10,
-    gap: 10,
   },
-  avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 15,
-    fontFamily: "Pretendard-Bold",
-    color: "#FFFFFF",
-  },
-  headerMeta: { flex: 1, gap: 1 },
+  headerMeta: { gap: 3 },
   headerName: {
     fontSize: 14,
     fontFamily: "Pretendard-SemiBold",
   },
   headerClass: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: "Pretendard-Regular",
   },
   headerDate: {
@@ -2510,7 +2483,7 @@ const f = StyleSheet.create({
     fontFamily: "Pretendard-Regular",
     lineHeight: 24,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
   },
 
   // ── 영상 버튼 ──
@@ -2519,7 +2492,7 @@ const f = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginHorizontal: 16,
-    marginBottom: 10,
+    marginBottom: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
     backgroundColor: IB,
@@ -2528,46 +2501,31 @@ const f = StyleSheet.create({
   },
   videoBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
-  // ── 액션바 (Instagram 스타일) ──
+  // ── 액션바 — GrowthReport ActionRow 동일 규격 (§7) ──
+  // LEFT 좋아요 / CENTER 댓글 / RIGHT IG AI — space-around, borderTop
   actions: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E8F0",
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+    justifyContent: "space-around",
   },
-  actionsLeft: {
+  // unused — kept for reference
+  actionsLeft: { flexDirection: "row", alignItems: "center", gap: 4 },
+  actionBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 4,
   },
-  actionBtn: {
-    padding: 6,
-    borderRadius: 6,
-  },
-
-  // ── 하단 구분선 ──
-  divider: {
-    height: 1,
-    backgroundColor: "#EBF1F7",
-    marginTop: 4,
-  },
-
-  // ── deprecated (참조 유지) ──
-  sep: { height: 1, marginTop: 20, marginBottom: 16 },
-  noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, marginTop: 12 },
-  noteLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  meta: { gap: 3, marginBottom: 12 },
-  dateText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
-  teacherText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  reactions: { flexDirection: "row", borderTopWidth: 1, marginTop: 16, paddingTop: 4, paddingBottom: 4, paddingHorizontal: 0, justifyContent: "space-around" },
-  reactionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 8, borderRadius: 4 },
-  reactionBtnActive: {},
 
   // Instagram AI lockup
   igAiLockup: {
-    width:           30,
-    height:          28,
+    width:           26,
+    height:          24,
     alignItems:      "center",
     justifyContent:  "center",
   },
@@ -2581,4 +2539,18 @@ const f = StyleSheet.create({
     letterSpacing: 0.2,
     lineHeight:    10,
   },
+
+  // ── deprecated 참조 유지 ──
+  avatar: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#FFFFFF" },
+  divider: { height: 1, backgroundColor: "#E5E8F0" },
+  sep: { height: 1, marginTop: 20, marginBottom: 16 },
+  noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, marginTop: 12 },
+  noteLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
+  meta: { gap: 3, marginBottom: 12 },
+  dateText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
+  teacherText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  reactions: { flexDirection: "row", borderTopWidth: 1, marginTop: 16, paddingTop: 4, paddingBottom: 4, paddingHorizontal: 0, justifyContent: "space-around" },
+  reactionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 8, borderRadius: 4 },
+  reactionBtnActive: {},
 });
