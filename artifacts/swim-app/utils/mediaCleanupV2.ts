@@ -34,7 +34,7 @@ const V2_FLAG_KEY = "@swimnote:media_cleanup_v2";
  * 이 값을 bump하면 모든 기기에서 cleanup이 정확히 1회 재실행됨.
  * 현재: r1
  */
-const MEDIA_CLEANUP_REVISION = "r1";
+const MEDIA_CLEANUP_REVISION = "r2"; // r2: 영상 temp 5GB 누적 문제 대응 — 전체 재청소
 const V3_FLAG_KEY = `@swimnote:media_cleanup:${MEDIA_CLEANUP_REVISION}`;
 
 // 동시 실행 방지 lock
@@ -234,18 +234,26 @@ export async function runMediaCleanupV3(
 }
 
 /**
- * 업로드 완료 후 cacheDirectory에 있는 temp 파일 삭제.
+ * 업로드 완료 후 app-local temp 파일 삭제.
  * ImageManipulator / ImagePicker temp copy 대상.
- * 원본 MediaLibrary(ph://, assets-library://) 파일은 건드리지 않음.
+ *
+ * 변경 이력:
+ *  - r1: cacheDir path prefix 비교만 사용 →
+ *    iOS /private/var vs /var symlink 불일치로 영상 temp 미삭제 (5GB 누적 버그)
+ *  - r2: ph:// / assets-library:// 만 제외하고 file:// URI 전체 삭제 허용
+ *
+ * 원본 MediaLibrary(ph://, assets-library://) 파일은 절대 건드리지 않음.
  *
  * @param uri 업로드에 사용된 로컬 URI
  */
 export async function deleteTempFileAfterUpload(uri: string): Promise<void> {
   try {
-    const cacheDir = FileSystem.cacheDirectory;
-    if (!cacheDir) return;
-    // cacheDirectory 내 파일만 삭제 (file:///.../Caches/... 확인)
-    if (!uri.startsWith(cacheDir) && !uri.includes("/Caches/")) return;
+    if (!uri) return;
+    // ph:// / assets-library:// = iOS MediaLibrary 원본 — 절대 삭제 금지
+    if (uri.startsWith("ph://") || uri.startsWith("assets-library://")) return;
+    // file:// URI만 삭제 시도 — cacheDirectory, tmpDirectory, ImagePicker 경로 모두 포함
+    // (iOS의 /private/var ↔ /var symlink 불일치로 인한 startsWith 오판을 회피)
+    if (!uri.startsWith("file://")) return;
     const info = await FileSystem.getInfoAsync(uri);
     if (info.exists && !info.isDirectory) {
       await FileSystem.deleteAsync(uri, { idempotent: true });
