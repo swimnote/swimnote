@@ -1,0 +1,454 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — PARENT DIARY VIDEO FEED PRESENTATION CLEANUP
+# 목표: 학부모 일지 Feed의 영상 표시를 자연스럽게 정리
+# 영상 다운로드는 현재 정상 → 재조사 금지
+# Teacher upload pipeline / R2 upload / attach 재조사 금지
+# Instagram Story는 영상 제외, 사진만 공유 대상으로 유지
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA 자동 완료
+# Render Production deploy 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. USER REAL DEVICE FACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 학부모 수업일지 Feed:
+
+- 사진은 정상 표시
+- 영상 count도 정상
+- 영상 다운로드도 정상
+- 하지만 영상 thumbnail/card가 검은 박스처럼 보여
+  기능 오류처럼 보임
+- 사용자 입장에서는 실제 영상 내용이 식별되지 않음
+
+사용자 요구:
+
+1.
+가능하면 영상 썸네일 표시
+
+2.
+영상 썸네일이 없는 경우에도
+오류처럼 보이지 않는 자연스러운 fallback UI
+
+3.
+사진 + 영상 혼합 Feed를 깔끔하게 표현
+
+4.
+Instagram Story 공유에서는
+영상은 기술적으로 복잡하면 포함하지 않음
+
+5.
+Story 공유는 사진만 사용
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 금지:
+
+- 영상 upload pipeline
+- R2 upload
+- video.id attach
+- download/save to Photos
+- Parent Diary API 전체
+- Teacher Diary
+- AI
+- Notification
+- Growth Report
+- Admin
+- DB
+- repo-wide audit
+
+오직:
+
+Parent Diary Feed
+→ media strip
+→ video thumbnail/fallback
+→ Story share media selection
+
+만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 video thumbnail source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+DiaryPhotoStrip에서 video마다:
+
+thumbnail_presigned_url:
+present / missing
+
+thumbnail_key:
+present / null
+
+presigned_url:
+present / missing
+
+현재 render source:
+...
+
+검은 박스가 나오는 경우를 분류:
+
+A.
+thumbnail_presigned_url 있음
+
+B.
+thumbnail_key null
+
+C.
+thumbnail URL fetch fail
+
+각 경우 UI를 다르게 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. thumbnail 있는 영상
+━━━━━━━━━━━━━━━━━━━━━━
+
+thumbnail_presigned_url이 있으면:
+
+실제 thumbnail image 표시
+
+그 위 중앙에
+play icon overlay
+
+형태로 렌더.
+
+현재 검은 placeholder보다
+thumbnail을 최우선.
+
+이미 expo-image 사용 중이면 그대로 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. thumbnail 없는 영상 fallback
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 영상 중 thumbnail_key=null이면
+검은 박스만 덩그러니 보여주지 말 것.
+
+fallback 카드:
+
+- 앱 디자인과 맞는 neutral background
+- video icon
+- "영상"
+- play icon
+- 필요 시 "탭하여 보기"
+
+정도로 정리.
+
+중요:
+
+오류/실패처럼 보이는 검은 박스 금지.
+
+thumbnail이 없다는 이유로
+viewer/download 기능은 막지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 사진 + 영상 혼합 media strip
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+사진 1장
+영상 3개
+
+같이 있을 때
+
+각 item 크기/비율/spacing을 통일.
+
+권장:
+
+- 같은 높이
+- 동일 corner radius
+- 일정 gap
+- video에는 play overlay
+- horizontal scroll 유지
+
+첫 사진만 크게 보이고
+영상이 별도 검은 박스로 튀어 보이지 않게 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. "영상 N개 보기" 버튼 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+버튼 유지:
+
+영상 3개 보기 >
+
+단 UI는 feed media strip과 자연스럽게 연결.
+
+button 위치:
+media strip 아래
+
+button style:
+현재 SWIMNOTE feed tone 유지
+
+기능은 기존 viewer 연결 그대로.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 영상 썸네일 없는 기존 영상
+━━━━━━━━━━━━━━━━━━━━━━
+
+LEGACY_VIDEO_THUMBNAIL_BACKFILL_REQUIRED 상태는 유지 가능.
+
+단 이번 UI는
+backfill 전에도 보기 좋아야 함.
+
+즉:
+
+thumbnail 있음
+→ actual image
+
+thumbnail 없음
+→ polished fallback
+
+이 구조.
+
+이번 작업에서 대규모 thumbnail backfill 시스템 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Instagram Story 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 최종 정책:
+
+Diary → Instagram Story 공유 시
+영상은 포함하지 않습니다.
+
+Story share media selection:
+
+PHOTO:
+포함 가능
+
+VIDEO:
+제외
+
+PHOTO + VIDEO 혼합 Diary:
+사진만 사용
+
+VIDEO ONLY Diary:
+영상 자동 포함 금지
+
+영상만 있는 경우에는
+기존 텍스트/브랜딩 카드만 공유하거나
+"스토리 공유 가능한 사진이 없습니다"
+같은 기존 UX에 맞는 안전한 처리.
+
+새 video export/composition 기능 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Story share 쪽에서 video filtering
+━━━━━━━━━━━━━━━━━━━━━━
+
+Instagram/Story share payload 생성 전:
+
+media.filter(type === "photo")
+
+또는 현재 canonical media type에 맞춰
+사진만 선별.
+
+다음 금지:
+
+video file download
+video transcoding
+video story composition
+video→image 변환
+
+이번 범위 밖.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Feed media click
+━━━━━━━━━━━━━━━━━━━━━━
+
+Photo tap:
+기존 photo viewer 유지
+
+Video thumbnail tap:
+기존 video viewer 유지
+
+"영상 N개 보기":
+기존 video list/viewer 유지
+
+thumbnail/fallback 수정 때문에
+기능 route가 바뀌면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. visual test
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1
+사진 1장
+→ 기존 정상
+
+T2
+영상 1개 + thumbnail 있음
+→ actual thumbnail + play
+
+T3
+영상 1개 + thumbnail 없음
+→ polished fallback
+
+T4
+사진 1 + 영상 3
+→ media strip 자연스러움
+
+T5
+영상 여러 개
+→ 모두 동일 크기/spacing
+
+T6
+영상 tap
+→ viewer
+
+T7
+영상 다운로드
+→ 기존 정상 유지
+
+T8
+Story share: photo only
+→ 정상
+
+T9
+Story share: photo + video
+→ photo만 포함
+
+T10
+Story share: video only
+→ video 포함 안 됨
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 범위 밖
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- server
+- DB
+- download
+- upload
+- viewer core
+- thumbnail generation infrastructure
+
+SERVER_CHANGED expected:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+release/v2.0.0
+commit/push
+
+Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS면
+추가 승인 없이
+
+iOS production-v2 OTA 완료.
+
+main에서 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PARENT VIDEO FEED PRESENTATION REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+Diary media component:
+...
+
+Thumbnail priority:
+...
+
+Thumbnail present:
+PASS / FAIL
+
+Thumbnail missing fallback:
+PASS / FAIL
+
+Photo/video mixed layout:
+PASS / FAIL
+
+Video count button:
+PASS / FAIL
+
+Video viewer regression:
+PASS / FAIL
+
+Download regression:
+PASS / FAIL
+
+Story photo only:
+PASS / FAIL
+
+Story photo+video:
+PASS / FAIL
+
+Story video excluded:
+YES / NO
+
+SERVER_CHANGED:
+NO
+
+OTA source branch:
+release/v2.0.0
+
+OTA source SHA:
+...
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
