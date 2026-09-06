@@ -766,13 +766,17 @@ router.get("/videos/diary/:diaryId", requireAuth, async (req: AuthRequest, res: 
           AND s.class_group_id = ${classGroupId}
       `);
       if (!childRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
-      // 학부모는 pool_id 없이 journal_id만으로 조회
+      // P0 Fix (parent): journal_id 기반 공통 영상 + student_note_id 기반 학생 영상 함께 반환
       const rows = await db.execute(sql`
-        SELECT id, uploaded_by_name, created_at, file_size, class_id, caption, thumbnail_key, status,
-               '/api/videos/' || id || '/file' AS file_url
-        FROM video_assets_meta
-        WHERE journal_id = ${diaryId}
-        ORDER BY created_at ASC
+        SELECT v.id, v.uploaded_by_name, v.created_at, v.file_size, v.class_id,
+               v.caption, v.thumbnail_key, v.status, v.student_note_id,
+               '/api/videos/' || v.id || '/file' AS file_url
+        FROM video_assets_meta v
+        WHERE v.journal_id = ${diaryId}
+           OR v.student_note_id IN (
+             SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+           )
+        ORDER BY v.created_at ASC
       `);
       const videos = await batchVideoPresign(rows.rows as any[]);
       res.json({ videos, total: videos.length }); return;
