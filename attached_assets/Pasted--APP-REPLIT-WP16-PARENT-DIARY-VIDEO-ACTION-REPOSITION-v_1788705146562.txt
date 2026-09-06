@@ -1,0 +1,401 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — PARENT DIARY VIDEO ACTION REPOSITION
+# 현재 영상 다운로드/viewer는 정상 → 기능 로직 재조사 금지
+# 이번 작업은 Parent Diary Feed에서 "영상 N개 보기" 버튼 위치/표현만 정리
+# 영상이 있는 Diary에서만 상단 고정 액션으로 표시
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA 자동 완료
+# Render Production deploy 금지
+
+현재 실기기 UI:
+
+Diary Feed 상단:
+
+서경민 선생님 · 목 19:00반
+9월 3일 목요일
+
+본문:
+공통 내용
+학생별 내용
+
+사진
+
+[영상 3개 보기 >]
+
+형태.
+
+문제:
+
+"영상 3개 보기"가 사진 바로 아래에 붙어 있어
+사진의 부속 액션처럼 보이고
+Feed 전체 hierarchy가 어색함.
+
+사용자 최종 요구:
+
+영상 보기 기능을
+Diary 상단 metadata/action 영역으로 이동.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary header의:
+
+서경민 선생님 · 목 19:00반
+
+이 줄의 오른쪽에
+영상이 존재하는 경우에만 video action 표시.
+
+예:
+
+서경민 선생님 · 목 19:00반        [영상 3개]
+
+또는 width가 부족한 경우:
+
+서경민 선생님 · 목 19:00반      [영상 보기]
+
+현재 SWIMNOTE typography/button style에 맞춰
+작고 명확한 pill/button 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 표시 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+videoCount > 0
+일 때만 표시.
+
+videoCount = 0:
+버튼 완전히 숨김.
+
+videoCount = 1:
+"영상 1개"
+
+videoCount > 1:
+"영상 N개"
+
+숫자가 이미 정확히 계산되고 있으므로
+기존 videoCount source 재사용.
+
+새 API 요청 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 하단 버튼 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진/미디어 영역 아래의:
+
+[영상 N개 보기 >]
+
+버튼 제거.
+
+영상 action은 한 곳에만 존재해야 함.
+
+중복 button 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 버튼 기능
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 상단 video action onPress는
+현재 정상 동작 중인 기존 viewer flow 그대로 재사용.
+
+즉:
+
+setViewVideo / video viewer/list
+또는 현재 "영상 N개 보기" handler
+
+를 그대로 연결.
+
+viewer/download 코드 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 사진 영역
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 영역은 사진만 보여줌.
+
+사진이 있으면:
+기존 photo preview 유지.
+
+영상 때문에 사진 아래에
+별도 video button 추가하지 않음.
+
+photo/video mixed Diary라도
+Feed body는 더 깔끔하게 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. video thumbnail 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 썸네일은 viewer/list 내부에서:
+
+thumbnail_presigned_url 있으면
+actual thumbnail
+
+없으면
+polished fallback
+
+기존 feb560ca 동작 유지.
+
+이번 위치 수정 때문에
+thumbnail generation/read logic 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. RESPONSIVE LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━
+
+작은 iPhone 폭에서:
+
+teacher/class text와 video action 겹침 금지.
+
+우선순위:
+
+LEFT:
+teacher/class metadata
+
+RIGHT:
+video action
+
+필요하면 metadata text:
+flexShrink: 1
+
+video action:
+flexShrink: 0
+
+버튼은 한 줄 유지.
+
+텍스트가 너무 길면
+teacher/class metadata 쪽만 ellipsis 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Feed visual hierarchy
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 Diary Feed 구조:
+
+[SWIMNOTE logo]                  [수업 피드]
+
+서경민 선생님 · 목 19:00반      [영상 3개]
+9월 3일 목요일
+
+공통 내용
+
+학생별 내용
+
+사진 media
+
+----------------
+좋아요     댓글     Instagram AI
+
+영상 action이 본문/사진 영역을
+분리시키지 않게 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Instagram Story 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Story share:
+
+PHOTO:
+포함
+
+VIDEO:
+제외
+
+photo + video:
+photo만
+
+video only:
+video 공유하지 않음
+
+기존 feb560ca 정책 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1
+영상 0개 Diary
+→ video button 없음
+
+T2
+영상 1개 Diary
+→ 상단 "영상 1개"
+
+T3
+영상 3개 Diary
+→ 상단 "영상 3개"
+
+T4
+상단 button tap
+→ existing video viewer 정상
+
+T5
+사진 아래 기존 "영상 N개 보기"
+→ 없음
+
+T6
+사진 1 + 영상 3
+→ Feed layout 자연스러움
+
+T7
+긴 teacher/class 이름
+→ overlap 없음
+
+T8
+small iPhone
+→ button/header 정상
+
+T9
+video viewer
+→ regression 없음
+
+T10
+download
+→ regression 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 범위 밖
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- server
+- DB
+- Parent Diary API
+- video upload
+- video attach
+- video download
+- thumbnail generation
+- viewer core
+- Teacher Diary
+- Growth Report
+
+SERVER_CHANGED:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+release/v2.0.0
+commit/push
+
+Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+모두 PASS면
+추가 승인 없이
+
+iOS production-v2 OTA 완료.
+
+main OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PARENT DIARY VIDEO ACTION REPOSITION REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+Video action previous location:
+...
+
+Video action new location:
+...
+
+Video count source:
+...
+
+0 video:
+PASS / FAIL
+
+1 video:
+PASS / FAIL
+
+N videos:
+PASS / FAIL
+
+Old bottom button removed:
+YES / NO
+
+Header overlap:
+NONE / ...
+
+Small iPhone:
+PASS / FAIL
+
+Viewer regression:
+PASS / FAIL
+
+Download regression:
+PASS / FAIL
+
+Story video excluded:
+YES / NO
+
+SERVER_CHANGED:
+NO
+
+OTA source branch:
+release/v2.0.0
+
+OTA source SHA:
+...
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
