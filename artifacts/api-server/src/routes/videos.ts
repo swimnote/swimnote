@@ -785,13 +785,18 @@ router.get("/videos/diary/:diaryId", requireAuth, async (req: AuthRequest, res: 
     const poolId = await getUserPoolId(userId);
     if (!poolId) { res.json({ videos: [], total: 0 }); return; }
 
+    // P0 Fix: journal_id 기반 공통 영상 + student_note_id 기반 학생별 영상 함께 반환
+    // student note videos는 class_diary_student_notes.diary_id = diaryId 조건으로 조인
     const rows = await db.execute(sql`
-      SELECT id, uploaded_by_name, created_at, file_size, class_id, caption, thumbnail_key, status,
-             '/api/videos/' || id || '/file' AS file_url
-      FROM video_assets_meta
-      WHERE journal_id = ${diaryId}
-        AND pool_id = ${poolId}
-      ORDER BY created_at ASC
+      SELECT v.id, v.uploaded_by_name, v.created_at, v.file_size, v.class_id,
+             v.caption, v.thumbnail_key, v.status, v.student_note_id,
+             '/api/videos/' || v.id || '/file' AS file_url
+      FROM video_assets_meta v
+      WHERE (v.journal_id = ${diaryId} AND v.pool_id = ${poolId})
+         OR v.student_note_id IN (
+           SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+         )
+      ORDER BY v.created_at ASC
     `);
 
     const videos = await batchVideoPresign(rows.rows as any[]);
