@@ -1,0 +1,637 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — PARENT VIDEO VIEWER REAL CRASH STACK TRACE + FINAL FIX
+# 이전 viewer fix 실패 확인
+# 실기기에서 여전히 "Something went wrong" 동일 증상
+# 이전 null-race 가설 재사용 금지
+# 영상 업로드/R2/server attach 재조사 금지
+# 오직 Parent Feed → "영상 N개 보기" → viewer crash 실제 stack 추적
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA 자동 완료
+# Render Production deploy 금지
+
+현재 사용자 실기기 결과:
+
+Parent Feed
+→ Diary 카드
+→ "영상 2개 보기"
+→ 즉시
+
+Something went wrong
+Please reload the app to continue.
+
+이전 수정:
+- d16d62ee server
+- a126bf62 계열 client
+- videoThumbUrl null-race 수정
+- student_note_id query 확장
+- null id guard
+
+전부 반영 후에도 동일 증상.
+
+따라서 이전 root cause 판정은 무효.
+
+이번에는 실제 runtime exception을 확보한 뒤
+그 exact crash만 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+재조사 금지:
+
+- video upload
+- R2
+- temp/cache
+- diary attach
+- teacher diary
+- parent feed 전체
+- AI
+- notification
+- growth report
+- admin
+- repo-wide audit
+
+오직:
+
+"영상 N개 보기"
+→ route/component
+→ viewer/modal
+→ render/playback
+
+범위.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 crash stack 먼저 확보
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 또는 production-compatible runtime에서
+"영상 2개 보기" 1회 실행.
+
+반드시 보고:
+
+Error name:
+...
+
+Error message:
+...
+
+File:
+...
+
+Line:
+...
+
+Function/component:
+...
+
+Top 5 stack frames:
+...
+
+Crash stage:
+ROUTE
+PARAM_PARSE
+FETCH
+MAPPING
+MODAL_MOUNT
+THUMBNAIL_RENDER
+VIDEO_COMPONENT_MOUNT
+PLAYBACK
+OTHER
+
+generic error boundary 화면만 보고 추측 금지.
+
+실제 exception 없이는 코드 수정 시작하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. viewer 실제 mounted path 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Feed button:
+
+component:
+...
+
+onPress:
+...
+
+route:
+...
+
+params:
+...
+
+viewer component:
+...
+
+modal component:
+...
+
+실제로 현재 Production에서 mounted 되는 component가
+이전 수정한 VideoDetailModal인지 확인:
+
+YES / NO
+
+NO이면:
+이전 fix가 실제 crash path를 수정하지 않은 것.
+
+actual component를 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. "영상 2개 보기" data shape 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+버튼 누르기 직전 video array:
+
+count:
+2
+
+각 item에 대해 민감 URL 전문은 마스킹하고:
+
+id present:
+YES / NO
+
+file_url present:
+YES / NO
+
+thumbnail_url present:
+YES / NO
+
+student_note_id:
+present / null
+
+journal_id:
+present / null
+
+mime/type:
+...
+
+같은 video object shape가
+viewer가 기대하는 type과 일치하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. crash 가능한 render 접근 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+actual viewer에서 다음을 집중 확인:
+
+video.file_url
+video.thumbnail_url
+video.id
+video.student_note_id
+video.journal_id
+
+그리고:
+
+.includes()
+.split()
+.replace()
+.length
+.map()
+new URL()
+Image source
+Video source
+keyExtractor
+useMemo
+useEffect dependency
+index access
+selectedVideo[index]
+
+null/undefined에서 예외 나는 actual line을 찾을 것.
+
+"가능성" 나열 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 2개 영상 선택 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 2개일 때만 깨지는지 확인.
+
+viewer state:
+
+videos.length:
+2
+
+selectedIndex:
+...
+
+selectedVideo:
+...
+
+viewVideo:
+...
+
+modal visible:
+...
+
+첫 mount 시 selectedVideo:
+present / undefined
+
+state update 순서:
+...
+
+다음 패턴 확인:
+
+modal visible=true
+→ selected video 아직 undefined
+→ child component mount
+→ crash
+
+또는:
+
+selectedIndex가 범위를 벗어남
+
+실제 stack으로 판단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Native Video component source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 재생 component가
+remote URL 준비 전 mount되는지 확인.
+
+source가:
+
+undefined
+null
+""
+invalid scheme
+
+일 때 native/video component가 crash하는지 확인.
+
+정상:
+
+valid remote URL이 있을 때만
+Video component mount.
+
+없으면 placeholder/error state.
+
+non-null assertion (!) 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Modal lifecycle 안전화
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 root cause가 modal lifecycle이면:
+
+modal visible 조건과
+selected video 존재 조건을 분리하지 말 것.
+
+정상 예:
+
+visible && validSelectedVideo
+
+일 때만 detail content mount.
+
+selected video 없음:
+modal content mount 금지.
+
+close:
+selected state safe reset.
+
+reopen:
+다시 정상.
+
+대규모 viewer rewrite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 실제 API 다시 호출 필요 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+viewer가 이미 Feed에서 videos를 받고 있다면
+불필요하게 같은 Diary videos API를 다시 호출하는지 확인.
+
+두 source가 섞여:
+
+feed videos
+viewer fetched videos
+
+간 shape mismatch가 있으면
+하나의 source로 정리.
+
+단 전체 feed architecture 변경 금지.
+
+최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Student/Common mixed data
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Diary는:
+
+common video
+student video
+
+혼합 가능.
+
+viewer가 student_note_id video를
+common-only type으로 cast해서 crash하는지 확인.
+
+journal_id null은 정상일 수 있음.
+
+student_note_id null도 common video에서는 정상.
+
+둘 다 optional로 안전 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Error boundary 회피가 아니라 root cause 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+try/catch로 crash 숨기기
+전체 viewer를 빈 화면 fallback으로 대체
+generic "재시도"만 추가
+
+목표:
+
+영상 2개 viewer 자체가 정상 렌더/재생.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 실제 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1
+영상 1개
+→ viewer 정상
+
+T2
+영상 2개
+→ viewer 정상
+
+T3
+common only
+→ 정상
+
+T4
+student only
+→ 정상
+
+T5
+common + student mixed
+→ 정상
+
+T6
+thumbnail null
+→ crash 없음
+
+T7
+journal_id null
+→ crash 없음
+
+T8
+student_note_id null
+→ crash 없음
+
+T9
+first video playback
+→ 정상
+
+T10
+second video playback
+→ 정상
+
+T11
+close/back
+→ Parent Feed
+
+T12
+viewer 재진입
+→ 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client-only expected.
+
+Server 변경:
+NO expected
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+Upload pipeline:
+NO CHANGE
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+release/v2.0.0
+commit
+push
+
+Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS하면
+추가 승인 없이
+iOS production-v2 OTA 완료.
+
+main OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PARENT VIDEO VIEWER REAL CRASH REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+Actual mounted viewer:
+...
+
+Previous fix component actually mounted:
+YES / NO
+
+━━━━━━━━━━
+CRASH STACK
+━━━━━━━━━━
+
+Error name:
+...
+
+Error message:
+...
+
+File:
+...
+
+Line:
+...
+
+Function:
+...
+
+Top stack:
+...
+
+Crash stage:
+...
+
+━━━━━━━━━━
+DATA
+━━━━━━━━━━
+
+Videos count:
+2
+
+Video #1 shape:
+...
+
+Video #2 shape:
+...
+
+Common/student mixed:
+YES / NO
+
+━━━━━━━━━━
+ROOT CAUSE
+━━━━━━━━━━
+
+Exact root cause:
+...
+
+Why previous fix failed:
+...
+
+Files changed:
+...
+
+━━━━━━━━━━
+VIEWER
+━━━━━━━━━━
+
+1 video:
+PASS / FAIL
+
+2 videos:
+PASS / FAIL
+
+Common:
+PASS / FAIL
+
+Student:
+PASS / FAIL
+
+Mixed:
+PASS / FAIL
+
+First playback:
+PASS / FAIL
+
+Second playback:
+PASS / FAIL
+
+Back:
+PASS / FAIL
+
+Reopen:
+PASS / FAIL
+
+━━━━━━━━━━
+REGRESSION
+━━━━━━━━━━
+
+Feed thumbnail:
+PASS / FAIL
+
+Video count:
+PASS / FAIL
+
+Upload pipeline changed:
+NO
+
+SERVER_CHANGED:
+NO
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Update ID:
+...
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Real crash fixed:
+YES / NO
+
+Remaining viewer defects:
+NONE / ...
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
