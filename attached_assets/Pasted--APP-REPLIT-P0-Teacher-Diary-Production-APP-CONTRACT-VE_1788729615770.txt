@@ -1,0 +1,185 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — Teacher Diary Production 실기기 진단 로그 임시 추가]
+
+현재까지 확정:
+
+- APP_CONTRACT_VERSION = "1.0" 정상
+- Engine Production 공식 contract = "1.0" only
+- 1.0에서도 Template / Knowledge Search 정상 가능
+- 1.3 변경 금지
+- APP Request 생성 경로 정적 검증상 큰 이상 없음
+- Engine Response → Normalize → Draft 매핑도 정적 검증상 정상
+- 현재 남은 원인 분류 = F
+- 실제 Production 요청 1건의 response meta가 필요함
+
+이번 작업 목적:
+Teacher Diary 실제 실기기 요청 1건에서
+APP이 보낸 context와 Engine이 반환한 meta를
+개인정보 없이 확인할 수 있도록 최소 진단 로그만 추가한다.
+
+기능 동작 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선 대상:
+
+artifacts/swim-app/components/ai/services/DiaryAIService.ts
+
+필요하다면 실제 request 생성/response normalize 파일 1개까지 허용.
+
+불필요한 다른 파일 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production-safe 진단 로그
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher Diary generate 요청 직전과 성공 응답 직후에
+다음 비민감 정보만 구조화 로그로 남긴다.
+
+REQUEST:
+
+- request_id
+- endpoint host/path
+- contract_version
+- pool_id exact match boolean
+  (실제 pool_id 문자열 자체는 로그하지 않아도 됨)
+- class_id_present
+- lesson_date_present
+- student_count
+- text_length
+
+Toykids exact 비교 기준:
+
+pool_1780849364252_l9k44rbk3
+
+로그 예:
+
+teacher_diary_request_trace {
+  request_id,
+  contract_version,
+  endpoint,
+  is_toykids_pool,
+  class_id_present,
+  lesson_date_present,
+  student_count,
+  text_length
+}
+
+RESPONSE:
+
+- request_id
+- HTTP status
+- pipeline_mode
+- generation_mode
+- template_ids_count
+- knowledge_ids_count
+- grounding_validation status/score
+- fallback_used
+- common_length
+- student_result_count
+- total_student_content_length
+
+로그 예:
+
+teacher_diary_response_trace {
+  request_id,
+  status,
+  pipeline_mode,
+  generation_mode,
+  template_ids_count,
+  knowledge_ids_count,
+  grounding_status,
+  grounding_score,
+  fallback_used,
+  common_length,
+  student_result_count,
+  total_student_content_length
+}
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 개인정보 로그 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 Production 로그에 절대 출력하지 말 것:
+
+- 학생 이름
+- input.text 원문
+- 생성 일지 본문
+- JWT
+- 전체 request body
+- 전체 response body
+- 전화번호
+- 사용자 이름
+
+ID도 필요 이상 출력하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 동작 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 절대 하지 말 것:
+
+- contract_version 변경
+- request body 구조 변경
+- Engine URL 변경
+- fallback 변경
+- Template/Knowledge 로직 변경
+- Normalize 변경
+- Draft 적용 변경
+- DB 변경
+- AI Engine 변경
+
+진단만 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+- TypeScript PASS
+- 기존 Teacher Diary 관련 테스트 PASS
+- 요청 payload 동일
+- 응답 normalize 동일
+- 로그 추가 전후 생성 결과 동일
+- 개인정보 원문 로그 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OTA 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS/TS 진단 변경만 있으므로
+테스트 PASS 후 Production OTA 가능.
+
+단 반드시:
+
+- branch = release/v2.0.0
+- working tree clean
+- origin/release/v2.0.0 exact
+- version = 2.0.1
+- runtimeVersion = 2.1.0
+- contract = 1.0
+- AI Engine URL =
+  https://swimnote-professional-engine.onrender.com
+- iOS production-v2 only
+- Android OTA 금지
+
+OTA 전에 위 guard 중 하나라도 불일치하면 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 변경 파일
+2. 추가한 REQUEST 로그 필드
+3. 추가한 RESPONSE 로그 필드
+4. 개인정보 로그 없음 확인
+5. 테스트 결과
+6. commit SHA
+7. OTA guard 결과
+8. iOS Production OTA ID
+
+완료 후 STOP.
