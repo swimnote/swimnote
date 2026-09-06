@@ -190,20 +190,24 @@ export default function ParentDiaryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const listRef = useRef<FlatList>(null);
 
+  // API 응답에는 GROWTH_REPORT 아이템이 섞여 있음 — DiaryCard 렌더 불가, 필터 필수
+  const diaryOnly = (items: any[]): DiaryEntry[] =>
+    items.filter((item) => item.type !== "GROWTH_REPORT" && typeof item.lesson_date === "string");
+
   const fetchEntries = useCallback(async () => {
     const sid = selectedStudent?.id;
     if (!sid) { setLoading(false); return; }
     let hasCached = false;
     try {
       const raw = await AsyncStorage.getItem(`@sn:parent_diary_${sid}`);
-      if (raw) { setEntries(JSON.parse(raw)); hasCached = true; setLoading(false); }
+      if (raw) { setEntries(diaryOnly(JSON.parse(raw))); hasCached = true; setLoading(false); }
     } catch {}
     if (!hasCached) setLoading(true);
     try {
       const res = await apiRequest(token, `/parent/students/${sid}/diary`);
       if (res.ok) {
         const data = await res.json();
-        setEntries(data);
+        setEntries(diaryOnly(Array.isArray(data) ? data : []));
         AsyncStorage.setItem(`@sn:parent_diary_${sid}`, JSON.stringify(data)).catch(() => {});
       }
       apiRequest(token, `/parent/students/${sid}/mark-diary-read`, { method: "POST" }).catch(() => {});
