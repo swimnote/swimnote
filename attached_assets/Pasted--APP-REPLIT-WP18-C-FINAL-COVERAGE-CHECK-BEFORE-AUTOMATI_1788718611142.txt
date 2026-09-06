@@ -1,0 +1,238 @@
+[보낼 곳: APP REPLIT]
+
+# WP18-C FINAL COVERAGE CHECK — BEFORE AUTOMATION
+# Phase C initial snapshot execution = PASS
+# 단, scheduler 배포 전에 backup coverage를 최종 확정
+# Production mutation 금지
+# 기존 APP 기능/AI/미디어 재조사 금지
+
+현재 사실:
+
+Production DB size:
+236 MB
+
+현재 verified snapshot:
+snap_978846931a6e
+
+현재 실제 backup 대상:
+14 critical tables
+
+현재 backup:
+row counts 14/14 PASS
+relations PASS
+tenant PASS
+
+문제:
+
+독립 Backup DB의 목적은
+실제 Production 장애 시 서비스 데이터를 복구하는 것인데,
+현재 14개 critical table만으로
+모든 보존 필요 application data가 포함되는지는 아직 증명되지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. DB TABLE INVENTORY ONLY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB에서 pg_catalog / information_schema를 READ ONLY로 조회.
+
+전체 application-owned public tables 목록을 1회 확보.
+
+코드 repo-wide audit 금지.
+
+각 table을 아래 3개로 분류:
+
+A. BACKUP_REQUIRED
+사용자/운영/결제/권한/일지/리포트/설정 등
+복구 시 반드시 필요한 persistent business data
+
+B. REBUILDABLE
+migration/bootstrap/reference seed 등으로
+안전하게 재생성 가능한 데이터
+
+C. EPHEMERAL
+queue/temp/cache/derived transient data 등
+복구할 필요 없는 데이터
+
+각 테이블마다 짧은 reason만 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 중요 누락 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 14개 외에 최소 다음 계열 확인:
+
+- makeup / absence / attendance
+- notices
+- schedules
+- subscriptions / products / entitlements
+- X mode/config
+- audit
+- curriculum/templates
+- notifications/push state
+- growth events/report related persistent data
+- parent requests
+- any other user-created persistent records
+
+실제 존재하는 canonical table만 사용.
+
+추측으로 테이블 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. BACKUP REQUIRED TABLES 전부 포함
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. BACKUP_REQUIRED로 분류된 table은
+backup-production.ts의 logical snapshot 대상에 포함.
+
+기존 14개만 유지하지 말 것.
+
+단 다음은 제외 가능:
+
+- PostgreSQL/Supabase system tables
+- extensions
+- rebuildable seed/reference tables
+- ephemeral queue/cache/temp
+
+제외 이유를 명확히 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. FIRST FULL APPLICATION SNAPSHOT
+━━━━━━━━━━━━━━━━━━━━━━
+
+coverage 수정 후
+Production READ ONLY 상태에서
+새 snapshot 1회 생성.
+
+순서:
+
+Production READ ONLY
+→ new snapshot
+→ all BACKUP_REQUIRED tables copy
+→ row count verification
+→ relation verification
+→ VERIFIED
+
+기존 VERIFIED snapshot
+snap_978846931a6e
+
+는 새 snapshot VERIFIED 전까지 절대 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SIZE 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+Production DB total size:
+236 MB
+
+Application-owned data/index approximate size:
+...
+
+BACKUP_REQUIRED logical data size:
+...
+
+Backup DB final size:
+...
+
+236MB와 backup DB size가 반드시 같을 필요는 없음.
+extensions/index/bloat/system overhead가 다르기 때문.
+
+중요한 것은:
+
+모든 BACKUP_REQUIRED row count/data relation이
+복구됐는지 여부.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+ALL_BACKUP_REQUIRED_TABLES_PRESENT:
+PASS / FAIL
+
+ALL_REQUIRED_ROW_COUNTS_MATCH:
+PASS / FAIL
+
+RELATION_INTEGRITY:
+PASS / FAIL
+
+TENANT_INTEGRITY:
+PASS / FAIL
+
+EXCLUDED_TABLES_JUSTIFIED:
+YES / NO
+
+Production mutated:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 자동화 아직 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는 scheduler deploy 금지.
+
+Full application snapshot coverage PASS 후
+다음 단계에서 daily automatic backup 붙임.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP18-C BACKUP COVERAGE FINAL REPORT
+
+Production application tables:
+...
+
+BACKUP_REQUIRED:
+... tables
+
+REBUILDABLE:
+... tables
+
+EPHEMERAL:
+... tables
+
+Previously backed up:
+14 tables
+
+Newly added backup tables:
+...
+
+Excluded tables:
+...
+
+Exclusion reasons:
+...
+
+Full application snapshot ID:
+...
+
+All required tables:
+PASS / FAIL
+
+Required row counts:
+PASS / FAIL
+
+Relations:
+PASS / FAIL
+
+Tenant integrity:
+PASS / FAIL
+
+Previous verified snapshot preserved:
+YES / NO
+
+Production mutated:
+NO
+
+Backup DB final size:
+...
+
+Remaining uncovered persistent data:
+NONE / ...
+
+Final:
+WP18C_COVERAGE_PASS / FAIL
+
+STOP.
+Scheduler 선행 금지.
