@@ -151,7 +151,7 @@ export default function SubscriptionScreen() {
       if (pkg.product.priceString) map[pkg.identifier] = pkg.product.priceString;
     }
     return map;
-  }, [soloOffering, centerOffering, xOffering]);
+  }, [soloOffering, centerOffering, xOffering, swimnoteOffering]);
 
   // ── 정책 동의 ──────────────────────────────────────────────────────────────
   const [policyAgreed,  setPolicyAgreed]  = useState<boolean | null>(null);
@@ -375,7 +375,7 @@ export default function SubscriptionScreen() {
         try {
           const info = await purchase(pkg);
           // 서버 동기화 — DB tier=swimnote 갱신 (RC entitlement 없음, productId 기반)
-          await syncRcToServer(info, pkg.product?.identifier ?? "com.swimnote.swimnote.monthly");
+          await syncRcToServer(info, pkg.product?.productIdentifier ?? "com.swimnote.swimnote.monthly");
           await refetchCustomerInfo();
           await refreshPool();
           await refreshMode().catch(() => {});
@@ -461,7 +461,7 @@ export default function SubscriptionScreen() {
         try {
           const info = await purchase(pkg);
           // 서버 동기화 — x_mode entitlement + pool 갱신
-          await syncRcToServer(info, pkg.product?.identifier ?? plan.tier);
+          await syncRcToServer(info, pkg.product?.productIdentifier ?? plan.tier);
           await refetchCustomerInfo();
           await refreshPool();
           await refreshMode().catch(() => {});
