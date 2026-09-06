@@ -1,0 +1,1408 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — DIARY VIDEO PIPELINE FULL FORENSIC + CANONICAL RESET
+# 이전 VIDEO 관련 PASS 판정 전부 무효
+# 부분 패치 중단
+# Diary VIDEO 기능만 처음부터 끝까지 1회 전수조사 후 canonical pipeline으로 정리
+# 공통/학생별 + 작성/수정 + upload/save/read/delete 전부 포함
+# 사진 기능은 정상 → 수정 금지
+# Parent/AI/Navigation/Growth Report/Notification/Admin 재조사 금지
+# APP 전체 repo audit 금지
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA 자동 완료
+# Render Production deploy는 절대 수행 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 실제 문제
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 실기기 기준:
+
+- 사진 업로드는 정상
+- 영상 관련 수정이 여러 번 있었지만 아직 안정되지 않음
+- 공통 일지:
+  영상 업로드 UI는 일부 보이나 실제 저장/재조회 신뢰 불가
+- 학생별 개별 일지:
+  영상 기능이 공통과 동일하게 작동하지 않음
+- 영상 작업 후 iPhone 앱 Documents & Data가 약 5GB까지 증가
+- 사용자 정책은 영상 파일을 앱 로컬에 장기 보관하는 구조가 아님
+- 영상은 선택 후 가능한 즉시 R2로 보내고,
+  로컬에는 업로드에 필요한 최소 임시파일만 존재해야 함
+- 기존 패치:
+  업로드 배너
+  video.id 저장
+  save payload 연결
+  temp cleanup
+  등을 따로 수정했지만 전체 line이 아직 불안정
+
+따라서 이번에는
+개별 버그를 하나 더 붙이는 방식 금지.
+
+VIDEO PIPELINE 자체를
+하나의 canonical flow로 재정리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사 범위:
+
+ONLY Diary Video.
+
+허용 파일/영역:
+
+- DiaryWriteView
+- DiaryEditView
+- diary.tsx
+- video picker helper
+- video upload helper/client
+- /videos/group
+- /videos/private
+- /videos/diary-attach
+- /videos/note-attach
+- Diary video read/mapping
+- video delete/detach
+- Diary video temp/cache lifecycle
+
+금지:
+
+- repo-wide audit
+- AI Engine
+- Parent Feed
+- Notification
+- Growth Report
+- RevenueCat
+- X mode
+- Admin
+- Diary navigation
+- Photo architecture 변경
+- 전체 R2 architecture 재설계
+
+한 번 dependency map 작성 후
+같은 경로 반복 조사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. VIDEO PIPELINE MAP 먼저 작성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전에
+현재 실제 Video path를 전부 한 번만 그리십시오.
+
+다음 4개를 각각 작성:
+
+A. WRITE — COMMON VIDEO
+
+button
+→ picker
+→ local uri
+→ upload function
+→ endpoint
+→ response video.id
+→ client state
+→ save payload
+→ attach endpoint
+→ persisted relation
+→ edit reopen
+
+B. WRITE — STUDENT VIDEO
+
+button
+→ picker
+→ studentId/ref
+→ local uri
+→ upload function
+→ endpoint
+→ response video.id
+→ student-specific state
+→ save payload
+→ attach endpoint
+→ persisted relation
+→ edit reopen
+
+C. EDIT — COMMON VIDEO
+
+existing video load
+→ display
+→ add
+→ upload
+→ attach
+→ remove/detach
+→ save
+→ reopen
+
+D. EDIT — STUDENT VIDEO
+
+existing video load
+→ correct student
+→ display
+→ add
+→ upload
+→ attach
+→ remove/detach
+→ save
+→ reopen
+
+각 pipeline의:
+
+function
+state variable
+ID collection
+remote URL collection
+cleanup function
+
+정확히 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 중복 VIDEO STATE 전수확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Video 관련 state가 몇 개 있는지 확인.
+
+예:
+
+selectedAlbumVideos
+studentAlbumVideos
+groupMedia
+studentMedia
+linkedVideos
+newVideos
+mediaUploading
+uploaded
+localUri
+remoteUrl
+videoIds
+
+실제 존재하는 state 이름을 전부 정리.
+
+각 state에 대해:
+
+PURPOSE:
+WRITE / EDIT / PREVIEW / SAVE / READ
+
+SOURCE OF TRUTH:
+YES / NO
+
+중요:
+
+동일한 영상이
+여러 state에 따로 저장되고
+한쪽만 갱신되는 구조가 있는지 확인.
+
+최종 목표:
+
+영상의 canonical client identity는
+반드시 server가 반환한 `video.id`.
+
+local URI는:
+upload/temporary preview 용도.
+
+remote URL은:
+display/playback 용도.
+
+save/attach identity는:
+video.id.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. CANONICAL VIDEO MODEL 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 Video item의 최소 canonical shape를
+현재 TypeScript 구조 안에서 하나로 통일.
+
+개념적으로:
+
+{
+  id?: string,          // server video.id
+  localUri?: string,    // upload 전/중 임시
+  remoteUrl?: string,   // upload 완료 후
+  ownerType: "common" | "student",
+  studentId?: string,
+  uploading: boolean,
+  uploaded: boolean,
+  error?: string
+}
+
+실제 코드의 기존 type을 최대한 재사용.
+
+새 architecture/library 금지.
+
+핵심:
+
+UPLOAD SUCCESS 전:
+localUri 중심.
+
+UPLOAD SUCCESS 후:
+video.id + remoteUrl 중심.
+
+SAVE:
+video.id만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 공통/학생별 코드 대칭성 확보
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Common과 Student video가
+별도 임시 구현으로 갈라져 있으면 정리.
+
+공통:
+
+uploadVideo({
+  ownerType: "common",
+  ...
+})
+
+학생별:
+
+uploadVideo({
+  ownerType: "student",
+  studentId,
+  ...
+})
+
+처럼 동일 core/helper를 재사용하는 방향을 우선 검토.
+
+단 대규모 refactor 금지.
+
+목표는:
+
+picker
+upload
+success
+failure
+state update
+cleanup
+
+로직을 최대한 동일하게 사용하고
+
+마지막 귀속만:
+
+common
+studentId
+
+로 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. WRITE COMMON — 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+공통 영상 1개:
+
+1.
+영상 선택
+
+2.
+picker asset 획득
+
+3.
+local URI 획득
+
+4.
+upload 시작
+
+5.
+POST /videos/group
+
+6.
+HTTP 201
+
+7.
+video.id 획득
+
+8.
+video.file_url 획득
+
+9.
+common canonical state에 반영
+
+10.
+preview가 remote state로 전환
+
+11.
+Diary 저장
+
+12.
+video.id가 common attach에 포함
+
+13.
+/videos/diary-attach 성공
+
+14.
+Diary 재진입
+
+15.
+같은 video.id 조회
+
+16.
+영상 표시
+
+전부 실제 evidence 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. WRITE STUDENT — 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학생별 영상 1개:
+
+studentId를 반드시 고정.
+
+예:
+학생 A
+
+1.
+학생 A 카드의 영상 버튼
+
+2.
+picker
+
+3.
+학생 A context 유지
+
+4.
+POST /videos/private
+
+5.
+HTTP 201
+
+6.
+video.id 획득
+
+7.
+studentVideoState[studentId]에 정확히 저장
+
+8.
+preview는 학생 A 카드에만 표시
+
+9.
+Diary 저장
+
+10.
+학생 A note/individual Diary용 video IDs 포함
+
+11.
+/videos/note-attach 또는 현재 canonical endpoint
+
+12.
+저장 성공
+
+13.
+Edit 재진입
+
+14.
+학생 A 카드에 동일 video 표시
+
+학생 B에 나타나면 P0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. EDIT COMMON / STUDENT 동일성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DiaryEditView에서도 Write와 동일 수준 지원.
+
+COMMON:
+
+existing video
+→ 표시
+
+새 video
+→ 추가
+
+remove
+→ detach/delete policy 적용
+
+save
+→ 최신 관계 유지
+
+STUDENT:
+
+existing video
+→ 정확한 학생 카드
+
+새 video
+→ 해당 학생에게만 추가
+
+remove
+→ 해당 학생 관계만 제거
+
+save
+→ reopen 시 동일
+
+Write에서는 되고 Edit에서 안 되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. UPLOAD vs ATTACH 역할 분리 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 구분:
+
+UPLOAD
+= 파일 자체를 R2에 올리고 video record 생성
+
+ATTACH
+= 생성된 video.id를 Diary/common/student record에 연결
+
+현재 버그들이 이 둘을 섞어서 발생했는지 확인.
+
+정상:
+
+upload success
+→ video.id 확보
+
+그 후 Diary Save
+→ attach video.id
+
+upload만 성공하고 attach 안 됨:
+FAIL
+
+attach 전에 video.id 없음:
+FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 실제 SAVE PAYLOAD 하나로 정리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Diary save 시:
+
+Common:
+commonVideoIds
+
+Student:
+studentVideoIds[studentId]
+
+가 명확하게 만들어져야 함.
+
+확인:
+
+공통 video ID가
+학생 video collection으로 들어가지 않음.
+
+학생 A video ID가
+공통 또는 학생 B로 들어가지 않음.
+
+사진 state와 video state 혼용 금지.
+
+save 직전:
+
+common video IDs count:
+...
+
+student A video IDs count:
+...
+
+student B video IDs count:
+...
+
+실제 값은 마스킹.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. LOCAL STORAGE / 5GB 원인 전수확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 iPhone:
+
+App size 약 65MB
+Documents & Data 약 5GB
+
+이 원인을 영상 pipeline 안에서 정확히 찾기.
+
+확인:
+
+picker 원본 uri location:
+...
+
+앱이 추가 copy 생성:
+YES / NO
+
+copy destination:
+cache / document / tmp / other
+
+영상 하나당 duplicate file count:
+...
+
+FileSystem.copyAsync:
+사용 여부
+
+moveAsync:
+사용 여부
+
+base64:
+사용 여부
+
+blob temp:
+사용 여부
+
+compression/transcode temp:
+사용 여부
+
+R2 upload용 추가 파일:
+...
+
+upload 성공 후 남는 local file:
+...
+
+누적 directory:
+...
+
+5GB를 차지하는 file pattern:
+...
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. "바로 R2" 정책 정확히 구현
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 정책:
+
+영상은 앱에 저장하는 기능이 아님.
+
+정상:
+
+Photo Library picker
+→ iOS가 제공하는 임시/local URI
+→ 즉시 R2 upload
+→ video.id + remoteUrl
+→ remote state 전환
+→ 앱이 만든 temp/copy cleanup
+
+금지:
+
+picker video
+→ app Documents에 permanent copy
+→ 나중에 upload
+
+불필요한 persistent duplicate 금지.
+
+iOS picker 자체가 임시 local URI를 생성하는 것은 정상.
+
+중요:
+"로컬파일이 순간적으로 존재함"과
+"앱이 5GB 영구 저장함"을 혼동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. TEMP FILE CLEANUP 시점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 photo preview regression 때문에
+무조건 업로드 직후 URI 삭제하는 식의 수정 금지.
+
+Video는 다음 순서를 지킬 것:
+
+upload success
+
+→ video.id 확보
+
+→ remoteUrl 확보
+
+→ canonical state를 REMOTE로 전환
+
+→ preview가 local file 의존하지 않는 상태 확인
+
+→ app-created temp copy 삭제
+
+이 순서.
+
+DELETE TEMP BEFORE REMOTE STATE READY:
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Picker 원본 삭제 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 사진/영상 앨범 원본 절대 삭제 금지.
+
+cleanup 대상은 오직:
+
+앱이 생성한 temp/cache copy
+또는 안전하게 앱 cacheDirectory 아래에 있는 임시파일.
+
+Photo Library asset 원본
+또는 외부 provider URI 삭제 시도 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 실패/CANCEL cleanup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+UPLOAD FAIL:
+
+- 실패 표시
+- retry 가능
+- temp가 필요하면 현재 작성 session 동안만 유지 가능
+- 화면 취소/이탈 시 app-created temp cleanup
+
+USER REMOVE:
+
+- 아직 attach 전이면 local temp cleanup
+- 이미 uploaded video.id가 있으면 기존 delete/orphan policy 확인
+- 함부로 R2 object 직접 삭제 금지
+- 현재 server lifecycle 정책 사용
+
+APP RESTART:
+
+stale Diary video temp directory만 cleanup.
+
+다른 app documents 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. VIDEO UPLOAD UX 최종 통일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Common / Student
+Write / Edit
+
+전부 동일:
+
+SELECT
+→ preview placeholder/card 즉시
+
+UPLOADING
+→ "영상 업로드 중... 잠시 기다려주세요"
+→ spinner
+
+SUCCESS
+→ uploaded/check state
+→ preview 유지
+
+FAIL
+→ 실패 state
+→ 재시도 안내
+
+REMOVE
+→ item 제거
+
+영상 upload 중:
+Diary Save 차단.
+
+안내:
+"영상 업로드가 완료될 때까지 잠시 기다려주세요."
+
+공통/학생별 UI 차이 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. VIDEO BUTTON parity
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 네 곳 모두 video action 존재 여부 확인:
+
+Write Common:
+YES
+
+Write Student:
+YES
+
+Edit Common:
+YES
+
+Edit Student:
+YES
+
+현재 UI pattern에서:
+
+앨범에서 선택
+내 사진앨범
+내 영상앨범
+
+중 필요한 기존 버튼 구조를 사용.
+
+학생별 영상 버튼 누락 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. VIDEO READ PATH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+저장 후 다시 열었을 때
+server가 video 관계를 어떻게 반환하는지 확인.
+
+Common read:
+...
+
+Student read:
+...
+
+DiaryEditView mapping:
+...
+
+remote playback URL:
+...
+
+saved relation이 있는데 UI에서 안 보이는 문제까지
+이번 범위에 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. DELETE / DETACH PATH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+영상 제거도 전수 확인.
+
+공통 영상 제거:
+→ common relation만 제거
+
+학생별 영상 제거:
+→ 해당 student relation만 제거
+
+다른 학생 영상 삭제 금지.
+
+R2 object 삭제 정책이 별도라면
+기존 서버 정책 유지.
+
+클라이언트가 직접 bucket object를 임의 삭제하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. SERVER CONTRACT 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 실제 endpoint contract만 확인:
+
+POST /videos/group
+POST /videos/private
+
+/videos/diary-attach
+/videos/note-attach
+
+그리고 read/delete/detach endpoint.
+
+각 endpoint:
+
+request shape
+response shape
+video.id field
+file_url field
+
+한 번 정리.
+
+이미 정상 endpoint는 수정하지 말 것.
+
+SERVER_CHANGED expected:
+NO
+
+실제 서버 contract defect가 발견된 경우만
+main 최소 수정 + push.
+
+Render deploy는 NO.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 중복/LEGACY VIDEO 코드 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Diary video production path에서
+사용되지 않는 legacy handler/state가
+실제 current flow와 충돌한다면:
+
+삭제 또는 production path에서 차단.
+
+하지만 무조건 파일 삭제 금지.
+
+보고:
+
+LEGACY_VIDEO_PATH_FOUND:
+YES / NO
+
+ACTIVELY_CONFLICTING:
+YES / NO
+
+DISABLED/REMOVED:
+YES / NO
+
+최종 active production video pipeline은
+가능한 하나.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. MEMORY / CACHE SIZE TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+테스트용 영상 1개로 실제 측정.
+
+예:
+100MB video.
+
+TEST BEFORE:
+Diary video temp dir size:
+...
+
+SELECT:
+...
+
+UPLOAD IN PROGRESS:
+...
+
+UPLOAD COMPLETE BEFORE CLEANUP:
+...
+
+REMOTE STATE READY:
+...
+
+AFTER CLEANUP:
+...
+
+AFTER DIARY SAVE:
+...
+
+AFTER SCREEN EXIT:
+...
+
+AFTER APP RESTART:
+...
+
+정상:
+
+업로드 성공 뒤
+100MB가 앱 Documents/Data에 계속 남아있지 않음.
+
+반복 3회:
+
+100MB × 3 업로드 후
+앱 temp가 300MB씩 누적되지 않아야 함.
+
+실제 큰 영상이 없으면
+안전한 test fixture로 비율 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. 기존 5GB 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자 기기에 이미 쌓인
+기존 stale Diary video temp/cache가
+새 버전 설치 후 안전하게 정리되어야 함.
+
+단 자동 cleanup 대상은 반드시:
+
+앱이 생성했다는 것이 확실한
+Diary video temp directory/file pattern
+
+만.
+
+다른 documents/data까지 전체 delete 금지.
+
+cleanup 실행 후:
+freed bytes를 log/report 가능하면 기록.
+
+민감 path 전문 불필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. PHOTO 기능 절대 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사진은 정상.
+
+이번 작업에서:
+
+photo picker
+photo upload
+photo preview
+photo temp cleanup
+
+코드 변경 금지.
+
+공통/학생 photo regression test만 최종 1회.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 최종 E2E MATRIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+T1 WRITE COMMON VIDEO
+
+select
+→ upload 201
+→ video.id
+→ remote state
+→ temp cleanup
+→ save
+→ attach
+→ reopen
+→ visible/playable
+
+T2 WRITE STUDENT VIDEO
+
+student A
+→ select
+→ /videos/private 201
+→ student A state
+→ save
+→ attach
+→ reopen
+→ student A only
+
+T3 EDIT COMMON VIDEO
+
+existing
+→ add
+→ save
+→ reopen
+
+T4 EDIT STUDENT VIDEO
+
+existing
+→ add
+→ save
+→ reopen
+
+T5 REMOVE COMMON
+
+remove
+→ save
+→ reopen absent
+
+T6 REMOVE STUDENT
+
+student A remove
+→ student B unaffected
+
+T7 UPLOAD FAIL
+
+error visible
+→ no fake success
+→ safe temp cleanup
+
+T8 SAVE DURING UPLOAD
+
+blocked
+
+T9 LOCAL STORAGE
+
+repeated uploads
+→ no GB accumulation
+
+T10 APP RESTART
+
+stale app-created video temp cleanup
+
+T11 PHOTO REGRESSION
+
+common photo PASS
+student photo PASS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. PASS 증거 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"코드상 PASS" 금지.
+
+최종 PASS에는 다음 실제 evidence 필요:
+
+- HTTP 201
+- returned video.id
+- canonical state에 ID 존재
+- save/attach request에 같은 ID 존재
+- read API에 같은 ID 존재
+- reopen UI에 같은 ID 존재
+- temp cleanup 이후 파일 크기 감소
+- 반복 upload 후 local accumulation 없음
+
+같은 masked videoId 하나를
+upload→attach→read까지 추적.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+27. 수정 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목표:
+
+기존에 붙인 patch를 계속 추가하는 것이 아니라
+VIDEO flow를 canonical 상태로 정리.
+
+하지만:
+
+대규모 rewrite 금지.
+
+최소 파일/최소 변경으로
+중복 handler/state를 정리하고
+공통/학생별의 같은 pipeline 사용.
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+R2 architecture:
+NO CHANGE
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+28. CLIENT 수정 후 OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+release/v2.0.0
+commit
+push
+
+영구 Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+모두 PASS면
+추가 사용자 승인 기다리지 말고
+
+iOS production-v2 OTA까지 완료.
+
+main에서 production-v2 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+29. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 DIARY VIDEO PIPELINE FULL RESET REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+SERVER main before:
+SERVER main after:
+Server commit:
+
+━━━━━━━━━━
+CURRENT PIPELINE MAP
+━━━━━━━━━━
+
+Write Common:
+...
+
+Write Student:
+...
+
+Edit Common:
+...
+
+Edit Student:
+...
+
+Active video state variables:
+...
+
+Canonical video identity:
+...
+
+━━━━━━━━━━
+LEGACY / DUPLICATION
+━━━━━━━━━━
+
+Legacy video path found:
+YES / NO
+
+Conflicting duplicate handlers:
+...
+
+Removed/disabled:
+...
+
+Final active pipeline count:
+...
+
+━━━━━━━━━━
+COMMON WRITE
+━━━━━━━━━━
+
+Picker:
+PASS / FAIL
+
+Upload endpoint:
+...
+
+HTTP:
+...
+
+video.id:
+YES / NO
+
+Remote state:
+PASS / FAIL
+
+Temp cleanup:
+PASS / FAIL
+
+Attach:
+PASS / FAIL
+
+Reopen:
+PASS / FAIL
+
+Playback:
+PASS / FAIL
+
+━━━━━━━━━━
+STUDENT WRITE
+━━━━━━━━━━
+
+Video button:
+YES / NO
+
+Student context:
+PASS / FAIL
+
+Upload endpoint:
+...
+
+HTTP:
+...
+
+video.id:
+YES / NO
+
+Correct student state:
+PASS / FAIL
+
+Temp cleanup:
+PASS / FAIL
+
+Attach:
+PASS / FAIL
+
+Reopen:
+PASS / FAIL
+
+Wrong-student attachment:
+0 / ...
+
+━━━━━━━━━━
+COMMON EDIT
+━━━━━━━━━━
+
+Existing video:
+PASS / FAIL
+
+Add:
+PASS / FAIL
+
+Remove:
+PASS / FAIL
+
+Save:
+PASS / FAIL
+
+Reopen:
+PASS / FAIL
+
+━━━━━━━━━━
+STUDENT EDIT
+━━━━━━━━━━
+
+Existing video:
+PASS / FAIL
+
+Add:
+PASS / FAIL
+
+Remove:
+PASS / FAIL
+
+Save:
+PASS / FAIL
+
+Reopen:
+PASS / FAIL
+
+━━━━━━━━━━
+LOCAL STORAGE
+━━━━━━━━━━
+
+Picker local path type:
+...
+
+App-created copy:
+YES / NO
+
+Accumulation directory:
+...
+
+Previous 5GB root cause:
+...
+
+Before temp size:
+...
+
+After upload:
+...
+
+After remote-state switch:
+...
+
+After cleanup:
+...
+
+After screen exit:
+...
+
+After restart:
+...
+
+Repeated 3 uploads accumulation:
+...
+
+Persistent source video left:
+YES / NO
+
+Existing stale temp cleanup:
+PASS / FAIL
+
+━━━━━━━━━━
+SAVE CONTRACT
+━━━━━━━━━━
+
+Common video IDs:
+PASS / FAIL
+
+Student video IDs:
+PASS / FAIL
+
+Diary attach:
+PASS / FAIL
+
+Student/note attach:
+PASS / FAIL
+
+Read API:
+PASS / FAIL
+
+━━━━━━━━━━
+UX
+━━━━━━━━━━
+
+Common uploading:
+PASS / FAIL
+
+Student uploading:
+PASS / FAIL
+
+Upload success:
+PASS / FAIL
+
+Upload failure:
+PASS / FAIL
+
+Save blocked while uploading:
+PASS / FAIL
+
+━━━━━━━━━━
+REGRESSION
+━━━━━━━━━━
+
+Common photo:
+PASS / FAIL
+
+Student photo:
+PASS / FAIL
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+R2 architecture changed:
+NO
+
+━━━━━━━━━━
+SERVER
+━━━━━━━━━━
+
+SERVER_CHANGED:
+YES / NO
+
+SERVER_SHA:
+...
+
+RENDER_DEPLOY_REQUIRED:
+YES / NO
+
+Render deploy:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+CLIENT_CHANGED:
+YES / NO
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+Update ID:
+...
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Common Write Video E2E:
+PASS / FAIL
+
+Student Write Video E2E:
+PASS / FAIL
+
+Common Edit Video E2E:
+PASS / FAIL
+
+Student Edit Video E2E:
+PASS / FAIL
+
+Local accumulation:
+NONE / ...
+
+Canonical video pipeline count:
+1 / ...
+
+Remaining video defects:
+NONE / ...
+
+Final:
+VIDEO_PIPELINE_PASS
+/
+HOLD_RENDER_DEPLOY
+/
+FAIL
+
+STOP.
+WP17 절대 선행 금지.
