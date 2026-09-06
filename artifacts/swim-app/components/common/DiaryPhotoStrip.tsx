@@ -48,21 +48,28 @@ interface Props {
   parentMode?: boolean;
 }
 
+type DownloadPhase = "idle" | "downloading" | "saving";
+
 /** 영상 상세 모달 — viewVideo를 캡처해서 렌더 내부 null-race 방지 */
 function VideoDetailModal({
   video,
-  downloadingVideo,
+  downloadPhase,
   onClose,
   onDownload,
   videoThumbUrl,
 }: {
   video: VideoItem;
-  downloadingVideo: boolean;
+  downloadPhase: DownloadPhase;
   onClose: () => void;
   onDownload: (v: VideoItem) => void;
   videoThumbUrl: (v: VideoItem) => string | null;
 }) {
   const tn = videoThumbUrl(video); // 한 번만 평가
+  const busy = downloadPhase !== "idle";
+  const phaseLabel =
+    downloadPhase === "downloading" ? "영상 다운로드 중..." :
+    downloadPhase === "saving"      ? "사진 앱에 저장 중..." :
+                                      "영상 다운로드";
   return (
     <Modal
       visible
@@ -87,16 +94,14 @@ function VideoDetailModal({
             <LucideIcon name="play" size={42} color="#fff" fill="#fff" />
           </View>
           <Pressable
-            style={[s.dlBtn, { bottom: 16 }, downloadingVideo && { opacity: 0.6 }]}
+            style={[s.dlBtn, { bottom: 16 }, busy && { opacity: 0.6 }]}
             onPress={(e) => { e.stopPropagation?.(); onDownload(video); }}
-            disabled={downloadingVideo}
+            disabled={busy}
           >
-            {downloadingVideo
+            {busy
               ? <ActivityIndicator size="small" color="#fff" />
               : <LucideIcon name="upload-cloud" size={16} color="#fff" />}
-            <Text style={s.dlBtnText}>
-              {downloadingVideo ? "저장 중..." : "영상 다운로드"}
-            </Text>
+            <Text style={s.dlBtnText}>{phaseLabel}</Text>
           </Pressable>
           {video.caption ? (
             <Text style={s.videoCaption}>{video.caption}</Text>
@@ -117,7 +122,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   const [downloading, setDownloading] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const [downloadingVideo, setDownloadingVideo] = useState(false);
+  const [downloadPhase, setDownloadPhase] = useState<DownloadPhase>("idle");
 
   const photoScrollRef = useRef<ScrollView>(null);
 
@@ -262,46 +267,64 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
 
   // ── 영상 다운로드 ────────────────────────────────────────────────────
   async function downloadVideo(video: VideoItem) {
-    if (downloadingVideo) return;
-    setDownloadingVideo(true);
+    if (downloadPhase !== "idle") return;
     let localPath: string | null = null;
     try {
+      // 1. 권한 확인
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("권한 필요", "영상 저장을 위해 갤러리 접근 권한이 필요합니다.");
+        Alert.alert("권한 필요", "사진 접근 권한이 필요합니다. 설정에서 사진 접근을 허용해 주세요.");
         return;
       }
+
+      // 2. URL 확정 (presigned_url 우선 — object_key 포함 쿼리 후 서버에서 생성)
       const finalUrl = video.presigned_url
         ?? (() => {
           const raw = video.file_url ?? "";
           return raw.startsWith("http") ? raw : `${BASE_ORIGIN}${raw}`;
         })();
-      if (!finalUrl) throw new Error("URL 확인 실패");
+      if (!finalUrl) throw new Error("URL_MISSING");
 
-      const ext = finalUrl.split("?")[0].split(".").pop()?.toLowerCase() ?? "mp4";
-      localPath = (FileSystem.documentDirectory ?? "") + `diary_video_${video.id}.${ext}`;
+      // 3. 안전한 확장자 결정 (query string 제거 후 파싱, 기본 mp4)
+      const urlPath = finalUrl.split("?")[0];
+      const rawExt = urlPath.split(".").pop()?.toLowerCase() ?? "";
+      const ext = /^(mp4|mov|m4v|avi|mkv|webm)$/.test(rawExt) ? rawExt : "mp4";
+      const cacheBase = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? "";
+      localPath = `${cacheBase}diary_video_${video.id}_${Date.now()}.${ext}`;
 
+      // 4. 다운로드 단계
+      setDownloadPhase("downloading");
       const headers: Record<string, string> = video.presigned_url
         ? {}
         : { Authorization: `Bearer ${token}` };
       const dl = await FileSystem.downloadAsync(finalUrl, localPath, { headers });
-      if (dl.status !== 200) throw new Error(`다운로드 실패 (${dl.status})`);
+      if (dl.status !== 200) throw new Error(`DOWNLOAD_HTTP_${dl.status}`);
 
+      // 5. Photos 저장 단계
+      setDownloadPhase("saving");
       await MediaLibrary.saveToLibraryAsync(dl.uri);
 
+      // 6. 성공
       if (Platform.OS === "android") {
-        ToastAndroid.show("영상이 갤러리에 저장되었습니다 🎥", ToastAndroid.SHORT);
+        ToastAndroid.show("영상이 사진 앱에 저장되었습니다.", ToastAndroid.SHORT);
       } else {
-        Alert.alert("저장 완료", "영상이 갤러리에 저장되었습니다.");
+        Alert.alert("저장 완료", "영상이 사진 앱에 저장되었습니다.");
       }
     } catch (e: any) {
-      console.warn("[DiaryPhotoStrip] video download error:", e);
-      Alert.alert("오류", "영상 저장에 실패했습니다.");
+      console.warn("[DiaryPhotoStrip] video download error:", e?.message ?? e);
+      const msg: string = e?.message ?? "";
+      if (msg === "URL_MISSING") {
+        Alert.alert("오류", "영상 주소를 확인할 수 없습니다.");
+      } else if (msg.startsWith("DOWNLOAD_HTTP_")) {
+        Alert.alert("오류", "영상을 다운로드하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      } else {
+        Alert.alert("오류", "영상을 다운로드하지 못했습니다.");
+      }
     } finally {
       if (localPath) {
         FileSystem.deleteAsync(localPath, { idempotent: true }).catch(() => {});
       }
-      setDownloadingVideo(false);
+      setDownloadPhase("idle");
     }
   }
 
@@ -534,7 +557,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
       {viewVideo ? (
         <VideoDetailModal
           video={viewVideo}
-          downloadingVideo={downloadingVideo}
+          downloadPhase={downloadPhase}
           onClose={() => setViewVideo(null)}
           onDownload={downloadVideo}
           videoThumbUrl={videoThumbUrl}
