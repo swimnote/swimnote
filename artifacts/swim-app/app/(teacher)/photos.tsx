@@ -144,6 +144,15 @@ export default function TeacherPhotosScreen() {
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const [deleting,    setDeleting]    = useState(false);
   const [confirmDel,  setConfirmDel]  = useState(false);
+  const [videoActionItem, setVideoActionItem] = useState<MediaItem | null>(null);
+  // drag-select refs
+  const selectModeRef = useRef(false);
+  useEffect(() => { selectModeRef.current = selectMode; }, [selectMode]);
+  const dragScrollYRef = useRef(0);
+  const dragContainerPageYRef = useRef(0);
+  const dragContainerRef = useRef<View>(null);
+  const itemsForDragRef = useRef<MediaItem[]>([]);
+  useEffect(() => { itemsForDragRef.current = items; }, [items]);
   const [saving,        setSaving]        = useState(false);
   const [confirmSave,   setConfirmSave]   = useState(false);
   const [savedPhotoIds, setSavedPhotoIds] = useState<Set<string>>(new Set());
@@ -309,6 +318,69 @@ export default function TeacherPhotosScreen() {
   function toggleAll() {
     if (selected.size === items.length) setSelected(new Set());
     else setSelected(new Set(items.map(i => i.id).filter(Boolean)));
+  }
+  // ── drag-select: 사진 3열 그리드 ─────────────────────────────────────
+  function selectPhotoAt(pageX: number, pageY: number) {
+    if (!selectModeRef.current) return;
+    const relY = pageY - dragContainerPageYRef.current + dragScrollYRef.current - 2;
+    if (relY < 0) return;
+    const col = Math.min(2, Math.max(0, Math.floor(pageX / (PHOTO_SIZE + 2))));
+    const row = Math.floor(relY / (PHOTO_SIZE + 2));
+    const idx = row * 3 + col;
+    const target = itemsForDragRef.current[idx];
+    if (target?.id) {
+      setSelected(prev => {
+        if (prev.has(target.id)) return prev;
+        const n = new Set(prev); n.add(target.id); return n;
+      });
+    }
+  }
+  const photoGridDragPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => selectModeRef.current,
+    onMoveShouldSetPanResponder: () => selectModeRef.current,
+    onPanResponderGrant: e => selectPhotoAt(e.nativeEvent.pageX, e.nativeEvent.pageY),
+    onPanResponderMove: e => selectPhotoAt(e.nativeEvent.pageX, e.nativeEvent.pageY),
+  })).current;
+  // ── drag-select: 영상 리스트 (행 높이 약 76px) ───────────────────────
+  const VIDEO_ROW_H = 76;
+  function selectVideoAt(pageY: number) {
+    if (!selectModeRef.current) return;
+    const relY = pageY - dragContainerPageYRef.current + dragScrollYRef.current - 12;
+    if (relY < 0) return;
+    const idx = Math.floor(relY / (VIDEO_ROW_H + 8));
+    const target = itemsForDragRef.current[idx];
+    if (target?.id) {
+      setSelected(prev => {
+        if (prev.has(target.id)) return prev;
+        const n = new Set(prev); n.add(target.id); return n;
+      });
+    }
+  }
+  const videoListDragPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => selectModeRef.current,
+    onMoveShouldSetPanResponder: () => selectModeRef.current,
+    onPanResponderGrant: e => selectVideoAt(e.nativeEvent.pageY),
+    onPanResponderMove: e => selectVideoAt(e.nativeEvent.pageY),
+  })).current;
+  // ── 개별 영상 삭제 ─────────────────────────────────────────────────
+  async function deleteSingleVideo(id: string) {
+    setVideoActionItem(null);
+    setDeleting(true);
+    try {
+      setItems(prev => prev.filter(i => i.id !== id));
+      const res = await fetch(`${API_BASE}/videos/bulk`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        body: JSON.stringify({ ids: [id] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const deleted = (data as any)?.deleted ?? 1;
+      setSuccessMsg(`${deleted}개가 삭제됐습니다.`);
+    } catch {
+      setSuccessMsg("삭제됐습니다.");
+    } finally {
+      setDeleting(false);
+    }
   }
   // ── 선택 삭제 ─────────────────────────────────────────────────────────
   async function deleteSelected() {
@@ -618,7 +690,7 @@ export default function TeacherPhotosScreen() {
                 size={18} color={cfg.color}
               />
               <Text style={[s.selectBarAllText, { color: cfg.color }]}>
-                {selected.size === safeItems.length && safeItems.length > 0 ? "전체 해제" : "전체 선택"}
+                {selected.size === safeItems.length && safeItems.length > 0 ? "전체해제" : "전체선택"}
               </Text>
             </Pressable>
             <Text style={s.selectBarCount}>{selected.size}개 선택</Text>
@@ -641,16 +713,26 @@ export default function TeacherPhotosScreen() {
                 </Pressable>
               )}
               <Pressable
-                onPress={() => selected.size > 0 && setConfirmDel(true)}
-                disabled={selected.size === 0 || deleting || saving}
-                style={[s.selectBarDel, { opacity: selected.size === 0 ? 0.4 : 1 }]}
+                onPress={() => {
+                  if (selected.size === 0) {
+                    // 전체 선택 후 삭제
+                    setSelected(new Set(safeItems.map(i => i.id).filter(Boolean)));
+                    setTimeout(() => setConfirmDel(true), 0);
+                  } else {
+                    setConfirmDel(true);
+                  }
+                }}
+                disabled={deleting || saving}
+                style={[s.selectBarDel, { opacity: deleting ? 0.4 : 1 }]}
               >
                 {deleting
                   ? <ActivityIndicator color="#fff" size="small" />
                   : (
                     <>
                       <LucideIcon name="trash-2" size={14} color="#fff" />
-                      <Text style={s.selectBarDelText}>삭제</Text>
+                      <Text style={s.selectBarDelText}>
+                        {selected.size === 0 ? "전체삭제" : `${selected.size}개 삭제`}
+                      </Text>
                     </>
                   )
                 }
@@ -696,13 +778,26 @@ export default function TeacherPhotosScreen() {
             <Text style={s.emptySubText}>아래 + 버튼으로 {cfg.title}을 업로드하세요</Text>
           </View>
         ) : isPhoto ? (
+          <View
+            ref={dragContainerRef}
+            style={{ flex: 1 }}
+            onLayout={() => {
+              dragContainerRef.current?.measure((_x, _y, _w, _h, _px, py) => {
+                dragContainerPageYRef.current = py;
+              });
+            }}
+            {...(selectMode ? photoGridDragPan.panHandlers : {})}
+          >
           <FlatList
             data={safeItems}
             keyExtractor={(item, idx) => item?.id ?? String(idx)}
             numColumns={3}
+            scrollEnabled={!selectMode}
             contentContainerStyle={{ padding: 2, paddingBottom: insets.bottom + 100 }}
             columnWrapperStyle={{ gap: 2 }}
             removeClippedSubviews
+            onScroll={e => { dragScrollYRef.current = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={16}
             onLayout={() => {
               console.log(`[ALBUM FLATLIST] data.length=${safeItems.length}`);
             }}
@@ -773,11 +868,25 @@ export default function TeacherPhotosScreen() {
               );
             }}
           />
+          </View>
         ) : (
+          <View
+            ref={dragContainerRef}
+            style={{ flex: 1 }}
+            onLayout={() => {
+              dragContainerRef.current?.measure((_x, _y, _w, _h, _px, py) => {
+                dragContainerPageYRef.current = py;
+              });
+            }}
+            {...(selectMode ? videoListDragPan.panHandlers : {})}
+          >
           <FlatList
             data={safeItems}
             keyExtractor={(item, idx) => item?.id ?? String(idx)}
+            scrollEnabled={!selectMode}
             contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: insets.bottom + 100 }}
+            onScroll={e => { dragScrollYRef.current = e.nativeEvent.contentOffset.y; }}
+            scrollEventThrottle={16}
             renderItem={({ item }) => {
               if (!item) return null;
               const isSel = selected.has(item.id);
@@ -786,11 +895,13 @@ export default function TeacherPhotosScreen() {
                 <Pressable
                   onPress={() => {
                     if (selectMode) { toggleSelect(item.id); return; }
-                    Alert.alert(
-                      "영상 안내",
-                      "영상 파일은 앱 내 직접 재생이 지원되지 않습니다.\n삭제가 필요하면 선택 후 삭제하세요.",
-                      [{ text: "확인" }]
-                    );
+                    setVideoActionItem(item);
+                  }}
+                  onLongPress={() => {
+                    if (!selectMode) {
+                      setSelectMode(true);
+                      setSelected(new Set([item.id]));
+                    }
                   }}
                   style={[
                     s.videoRow,
@@ -806,7 +917,7 @@ export default function TeacherPhotosScreen() {
                       cachePolicy="memory"
                     />
                   ) : (
-                    <View style={[s.videoThumb, { backgroundColor: cfg.bg }]}>
+                    <View style={[s.videoThumb, { backgroundColor: cfg.bg, borderRadius: 12 }]}>
                       <LucideIcon name="video" size={22} color={cfg.color} />
                     </View>
                   )}
@@ -831,6 +942,7 @@ export default function TeacherPhotosScreen() {
               );
             }}
           />
+          </View>
         )}
         {!selectMode && (
           <Pressable
@@ -952,6 +1064,71 @@ export default function TeacherPhotosScreen() {
             </Modal>
           );
         })()}
+        {/* ── 영상 상세 시트 ── */}
+        <Modal
+          visible={!!videoActionItem}
+          transparent
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={() => setVideoActionItem(null)}
+        >
+          <Pressable style={s.vdOverlay} onPress={() => setVideoActionItem(null)}>
+            <Pressable style={[s.vdSheet, { paddingBottom: insets.bottom + 20 }]} onPress={e => e.stopPropagation()}>
+              <View style={s.vdHandle} />
+              {videoActionItem?.thumbnail_url ? (
+                <Image
+                  source={{ uri: videoActionItem.thumbnail_url }}
+                  style={s.vdThumb}
+                  contentFit="cover"
+                  cachePolicy="memory"
+                />
+              ) : (
+                <View style={[s.vdThumb, { backgroundColor: cfg.bg, borderRadius: 14, alignItems: "center", justifyContent: "center" }]}>
+                  <LucideIcon name="video" size={40} color={cfg.color} />
+                </View>
+              )}
+              <Text style={s.vdLabel} numberOfLines={2}>{safeLabel(videoActionItem ?? undefined as any) || "영상"}</Text>
+              <Text style={s.vdMeta}>
+                {fmtDate(videoActionItem?.created_at)}
+                {videoActionItem?.file_size_bytes ? `  ·  ${fmtBytes(videoActionItem.file_size_bytes)}` : ""}
+              </Text>
+              <View style={s.vdBtnRow}>
+                <Pressable
+                  style={[s.vdBtn, { backgroundColor: "#D96C6C" }]}
+                  onPress={() => {
+                    if (videoActionItem?.id) {
+                      deleteSingleVideo(videoActionItem.id);
+                    }
+                  }}
+                  disabled={deleting}
+                >
+                  {deleting
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <><LucideIcon name="trash-2" size={16} color="#fff" /><Text style={s.vdBtnTxt}>삭제</Text></>}
+                </Pressable>
+                <Pressable
+                  style={[s.vdBtn, { backgroundColor: cfg.color }]}
+                  onPress={() => {
+                    if (videoActionItem?.id) {
+                      const id = videoActionItem.id;
+                      setVideoActionItem(null);
+                      setTimeout(() => {
+                        setSelectMode(true);
+                        setSelected(new Set([id]));
+                      }, 100);
+                    }
+                  }}
+                >
+                  <LucideIcon name="check-square" size={16} color="#fff" />
+                  <Text style={s.vdBtnTxt}>선택모드</Text>
+                </Pressable>
+                <Pressable style={[s.vdBtn, { backgroundColor: C.backgroundSoft }]} onPress={() => setVideoActionItem(null)}>
+                  <Text style={[s.vdBtnTxt, { color: C.textPrimary }]}>닫기</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
         <ConfirmModal
           visible={confirmSave}
           title="내앨범에 추가"
@@ -963,8 +1140,8 @@ export default function TeacherPhotosScreen() {
         />
         <ConfirmModal
           visible={confirmDel}
-          title={`${selected.size}개 삭제`}
-          message={`선택한 ${mediaType === "photo" ? "사진" : "영상"} ${selected.size}개를 삭제합니다.\n이 작업은 취소할 수 없습니다.`}
+          title={`${selected.size > 0 ? selected.size : safeItems.length}개 삭제`}
+          message={`선택한 ${mediaType === "photo" ? "사진" : "영상"} ${selected.size > 0 ? selected.size : safeItems.length}개를 삭제합니다.\n이 작업은 취소할 수 없습니다.`}
           confirmText="삭제"
           destructive
           onConfirm={deleteSelected}
@@ -1206,4 +1383,14 @@ const s = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   studentName: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  // ── 영상 상세 시트 ──
+  vdOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  vdSheet: { backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 14, gap: 14 },
+  vdHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
+  vdThumb: { width: "100%", height: 180, borderRadius: 14, overflow: "hidden", backgroundColor: "#E2E8F0" },
+  vdLabel: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textPrimary, textAlign: "center" },
+  vdMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
+  vdBtnRow: { flexDirection: "row", gap: 10 },
+  vdBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 13, borderRadius: 14 },
+  vdBtnTxt: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 });
