@@ -1025,35 +1025,20 @@ function DiaryFeedItem({
     setSharing(true);
   }
 
-  // 선생님 이니셜 아바타 색상 — 이름 첫 글자 기반으로 고정 색상
-  const AVATAR_COLORS = ["#1E6FBF","#0D8A6E","#7C3AED","#C2410C","#0369A1","#15803D"];
-  const avatarColor = AVATAR_COLORS[(entry.teacher_name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
-  const avatarInitial = entry.teacher_name?.[0] ?? "선";
-
   return (
     <View style={f.item}>
-      {/* ── Instagram 스타일 헤더: 아바타 + 선생님 + 반 + 날짜 ── */}
-      <View style={f.header}>
-        <View style={[f.avatar, { backgroundColor: avatarColor }]}>
-          <Text style={f.avatarText}>{avatarInitial}</Text>
-        </View>
-        <View style={f.headerMeta}>
-          <Text style={[f.headerName, { color: C.text }]}>
-            {entry.teacher_name} 선생님
-            {entry.class_group_name ? (
-              <Text style={[f.headerClass, { color: C.textSecondary }]}>
-                {"  · "}{entry.class_group_name}
-              </Text>
-            ) : null}
-          </Text>
-          <Text style={[f.headerDate, { color: C.textSecondary }]}>
-            {!isCurrentYear && `${year}년 `}{month}월 {day}일 {weekday}요일
-            {entry.is_edited ? "  · 수정됨" : ""}
-          </Text>
-        </View>
+      <View style={f.meta}>
+        <Text style={[f.dateText, { color: C.text }]}>
+          {!isCurrentYear && `${year}년 `}
+          {month}월 {day}일 {weekday}요일
+        </Text>
+        <Text style={[f.teacherText, { color: C.textSecondary }]}>
+          {entry.teacher_name} 선생님
+          {entry.class_group_name ? `  · ${entry.class_group_name}` : ""}
+          {entry.is_edited ? "  · 수정됨" : ""}
+        </Text>
       </View>
 
-      {/* ── 본문 ── */}
       {(!!entry.common_content?.trim() || !!entry.student_note?.note_content?.trim()) && (
         <Text style={[f.body, { color: C.text }]}>
           {[entry.common_content?.trim(), entry.student_note?.note_content?.trim()]
@@ -1062,7 +1047,6 @@ function DiaryFeedItem({
         </Text>
       )}
 
-      {/* ── 사진 ── */}
       {photos !== null && allPhotos.length > 0 && (
         <PhotosGrid
           photos={allPhotos}
@@ -1073,7 +1057,6 @@ function DiaryFeedItem({
         />
       )}
 
-      {/* ── 영상 버튼 ── */}
       {videoCount != null && videoCount > 0 && (
         <Pressable
           onPress={() =>
@@ -1092,48 +1075,51 @@ function DiaryFeedItem({
         </Pressable>
       )}
 
-      {/* ── 액션바: Instagram 스타일 — 좌측 아이콘 그룹 + 우측 IG AI ── */}
-      <View style={f.actions}>
-        {/* 좌측: 좋아요 + 댓글 */}
-        <View style={f.actionsLeft}>
-          <Pressable
-            onPress={() => toggleReaction("like")}
-            style={({ pressed }) => [f.actionBtn, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <LucideIcon
-              name="heart"
-              size={22}
-              color={myReactions.has("like") ? "#E8003D" : "#262626"}
-              fill={myReactions.has("like") ? "#E8003D" : "none"}
-            />
-          </Pressable>
-          <Pressable
-            onPress={goToComments}
-            style={({ pressed }) => [f.actionBtn, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <LucideIcon name="message-circle" size={22} color="#262626" />
-          </Pressable>
-        </View>
+      <View style={[f.reactions, { borderTopColor: C.border }]}>
+        {/* 좋아요 — 하트 아이콘 */}
+        <Pressable
+          onPress={() => toggleReaction("like")}
+          style={({ pressed }) => [
+            f.reactionBtn,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <LucideIcon
+            name="heart"
+            size={20}
+            color={myReactions.has("like") ? "#E8003D" : "#6B7280"}
+            fill={myReactions.has("like") ? "#E8003D" : "none"}
+          />
+        </Pressable>
 
-        {/* 우측: Instagram AI Story */}
+        {/* 댓글 — 아이콘만 */}
+        <Pressable
+          onPress={goToComments}
+          style={({ pressed }) => [f.reactionBtn, { opacity: pressed ? 0.7 : 1 }]}
+        >
+          <LucideIcon name="message-circle" size={18} color={C.textSecondary} />
+        </Pressable>
+
+        {/* Instagram AI Story — 로고 우측 하단에 AI 마크 overlap (lockup) */}
         <Pressable
           onPress={handleInstagramShare}
           disabled={sharing || preparing}
-          style={({ pressed }) => [f.actionBtn, { opacity: pressed || sharing || preparing ? 0.4 : 1 }]}
+          style={({ pressed }) => [
+            f.reactionBtn,
+            { opacity: pressed || sharing || preparing ? 0.5 : 1 },
+          ]}
         >
           {(sharing || preparing)
-            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 22, height: 22 }} />
+            ? <ActivityIndicator size="small" color="#E1306C" style={{ width: 20, height: 20 }} />
             : (
               <View style={f.igAiLockup}>
-                <LucideIcon name="instagram" size={22} color="#E1306C" />
+                <LucideIcon name="instagram" size={20} color="#E1306C" />
+                {/* AI: 우측 하단 overlap — 로고와 하나의 마크처럼 */}
                 <Text style={f.aiMark}>AI</Text>
               </View>
             )}
         </Pressable>
       </View>
-
-      {/* ── 하단 구분선 ── */}
-      <View style={f.divider} />
 
       {/* Instagram Story 캡처 파이프라인 */}
       {sharing && (
@@ -1142,6 +1128,8 @@ function DiaryFeedItem({
             ...(resolvedBodyRef.current !== null
               ? { ...storyInput, bodyText: resolvedBodyRef.current }
               : storyInput),
+            // 5~10장: AR 확보된 enriched photos 사용 (Adaptive Collage)
+            // 4장 이하 또는 조회 실패 시 기존 storyInput.photos 그대로
             photos: enrichedPhotosRef.current ?? storyInput.photos,
           }}
           onDone={() => {
@@ -2296,7 +2284,7 @@ export default function ParentHomeScreen() {
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
-        ItemSeparatorComponent={() => <View style={{ height: 20, backgroundColor: "#F4F7FB" }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 120 }} />}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -2437,62 +2425,38 @@ const s = StyleSheet.create({
 });
 
 const f = StyleSheet.create({
-  // ── 아이템 컨테이너 ──
-  item: {
-    backgroundColor: "#FFFFFF",
-    paddingTop: 12,
-  },
-
-  // ── Instagram 스타일 헤더 ──
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    gap: 10,
-  },
-  avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
+  item: { paddingHorizontal: 20, backgroundColor: "#FFFFFF" },
+  sep: { height: 1, marginTop: 20, marginBottom: 16 },
+  meta: { gap: 3, marginBottom: 12 },
+  dateText: {
     fontSize: 15,
-    fontFamily: "Pretendard-Bold",
-    color: "#FFFFFF",
-  },
-  headerMeta: { flex: 1, gap: 1 },
-  headerName: {
-    fontSize: 14,
     fontFamily: "Pretendard-SemiBold",
   },
-  headerClass: {
+  teacherText: {
     fontSize: 13,
     fontFamily: "Pretendard-Regular",
   },
-  headerDate: {
-    fontSize: 12,
-    fontFamily: "Pretendard-Regular",
-  },
-
-  // ── 본문 ──
   body: {
     fontSize: 15,
     fontFamily: "Pretendard-Regular",
     lineHeight: 24,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
   },
-
-  // ── 영상 버튼 ──
+  noteBox: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    padding: 12,
+    marginTop: 12,
+  },
+  noteLabel: {
+    fontSize: 11,
+    fontFamily: "Pretendard-Regular",
+    color: "#7C3AED",
+  },
   videoBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginHorizontal: 16,
-    marginBottom: 10,
+    marginTop: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
     backgroundColor: IB,
@@ -2500,50 +2464,34 @@ const f = StyleSheet.create({
     alignSelf: "flex-start",
   },
   videoBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-
-  // ── 액션바 (Instagram 스타일) ──
-  actions: {
+  reactions: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    marginTop: 16,
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: 0,
+    justifyContent: "space-around",
+  },
+  reactionBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 4,
   },
-  actionsLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  actionBtn: {
-    padding: 6,
-    borderRadius: 6,
-  },
-
-  // ── 하단 구분선 ──
-  divider: {
-    height: 1,
-    backgroundColor: "#EBF1F7",
-    marginTop: 4,
-  },
-
-  // ── deprecated (참조 유지) ──
-  sep: { height: 1, marginTop: 20, marginBottom: 16 },
-  noteBox: { borderRadius: 12, borderWidth: 1.5, padding: 12, marginTop: 12 },
-  noteLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  meta: { gap: 3, marginBottom: 12 },
-  dateText: { fontSize: 15, fontFamily: "Pretendard-SemiBold" },
-  teacherText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  reactions: { flexDirection: "row", borderTopWidth: 1, marginTop: 16, paddingTop: 4, paddingBottom: 4, paddingHorizontal: 0, justifyContent: "space-around" },
-  reactionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 8, borderRadius: 4 },
   reactionBtnActive: {},
-
-  // Instagram AI lockup
+  // Instagram AI lockup — 로고(20px) + AI 마크 overlap 컨테이너
+  // width/height에 여유를 두어 AI badge가 잘리지 않도록
   igAiLockup: {
-    width:           30,
-    height:          28,
+    width:           28,
+    height:          26,
     alignItems:      "center",
     justifyContent:  "center",
   },
+  // AI 마크 — Instagram 로고 우측 하단에 살짝 overlap
+  // wrapper 기준 absolute → 로고와 하나의 마크처럼 인식
   aiMark: {
     position:      "absolute",
     right:         0,
