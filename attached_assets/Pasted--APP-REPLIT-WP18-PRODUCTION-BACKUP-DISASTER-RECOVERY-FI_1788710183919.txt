@@ -1,0 +1,950 @@
+[보낼 곳: APP REPLIT]
+
+# WP18 — PRODUCTION BACKUP / DISASTER RECOVERY FINALIZATION
+# WP17 PASS / RELEASE_CANDIDATE=YES / FEATURE_FREEZE=ACTIVE
+# 신규 기능 개발 금지
+# Production 파괴 테스트 절대 금지
+# Production DB mutation 금지
+# Production R2 object 삭제/변경 금지
+# Render Production deploy 금지
+# Store/WP19 선행 금지
+# 목표: SWIMNOTE 2.0.1 출시 전 실제 복구 가능성을 증명
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. WP18 목표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+검증 범위:
+
+A. PostgreSQL / Supabase DB backup
+B. PITR 또는 provider backup 상태
+C. staging 기반 restore drill
+D. DB migration rollback/recovery
+E. R2 photo/video object durability
+F. DB ↔ R2 relation 복구 가능성
+G. Render/API configuration recovery
+H. 장애 시 실제 복구 runbook
+
+이번 WP의 목적은
+"백업이 있다고 생각한다"가 아니라
+
+실제로:
+
+장애 발생
+→ 무엇을 복구
+→ 어디서 복구
+→ 어떤 순서
+→ 어느 시점까지 복구 가능
+→ 무엇은 자동 / 무엇은 수동
+
+인지 증명하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 고정 환경
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB ref:
+mrgkiussgbbmxfnkjgqy
+
+Staging DB ref:
+lspmacdbyvpzysnrjsww
+
+Production APP:
+swimnote-api.onrender.com
+
+AI Engine:
+swimnote-professional-engine.onrender.com
+
+Client:
+release/v2.0.0
+
+현재 Release Candidate:
+f51d4641 또는 현재 최신 freeze SHA
+
+중요:
+
+Production:
+READ ONLY
+
+Staging:
+restore/drill 목적의 안전한 변경만 허용
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- APP repo 전체 audit
+- AI Engine 재조사
+- Diary 재조사
+- Parent 재조사
+- UI 변경
+- 기능 추가
+- schema redesign
+- 새로운 backup platform 도입
+- 불필요한 script 대량 제작
+- 동일 infrastructure 반복 조사
+
+현재 사용 중인 infrastructure에서
+복구 가능한지 확인하는 것이 목표.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PRODUCTION DB BACKUP 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production PostgreSQL/Supabase의
+현재 backup mechanism 확인.
+
+반드시 구분:
+
+- automatic backups
+- PITR
+- manual snapshot/export
+- retention period
+- restore granularity
+- restore target
+
+보고:
+
+AUTOMATIC_BACKUP:
+ENABLED / DISABLED / UNKNOWN
+
+PITR:
+ENABLED / DISABLED / UNKNOWN
+
+RETENTION:
+...
+
+LATEST_RECOVERABLE_POINT:
+가능하면 ...
+
+PROVIDER:
+...
+
+확인할 수 없는 provider-console 정보는
+추측하지 말고 UNKNOWN.
+
+Production setting 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DB SCHEMA + DATA BACKUP 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DB 복구에 필요한 것이:
+
+schema
++
+application data
++
+critical metadata
+
+모두 포함되는지 확인.
+
+특히:
+
+- swimming_pools
+- users
+- students
+- class_groups
+- parent_students
+- student_class_history
+- diaries / class_diaries
+- student diary notes
+- notifications
+- subscriptions/entitlements
+- growth_reports
+- growth_events
+- media relation tables
+- audit logs
+
+등 Release-critical data가
+provider backup 범위에 포함되는지 확인.
+
+테이블 전체 목록을 다시 감사할 필요 없음.
+critical table family만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. STAGING RESTORE DRILL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production을 건드리지 않고
+Staging에서 실제 restore 가능성을 검증.
+
+Production raw data를
+무단으로 staging에 복사하지 말 것.
+
+가능한 안전한 방식 우선순위:
+
+1.
+Staging 자체 backup/snapshot을
+새 temporary restore target 또는
+안전한 staging recovery path로 복구
+
+2.
+provider가 isolated restore clone을 지원하면 사용
+
+3.
+불가능하면
+schema + synthetic test data 기반 restore rehearsal
+
+절대:
+Production DB overwrite 금지.
+
+보고:
+
+RESTORE_METHOD:
+...
+
+ISOLATED:
+YES / NO
+
+REAL RESTORE EXECUTED:
+YES / NO
+
+왜 해당 방식을 선택했는지:
+...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. RESTORE 후 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+복구된 staging/isolated DB에서 최소 검증:
+
+- schema 존재
+- critical tables 존재
+- indexes 존재
+- foreign keys/constraints 존재
+- representative records 조회
+- pool scoping 유지
+- diary relation 유지
+- parent/student relation 유지
+- media relation ID 유지
+
+복구 데이터가 synthetic이면
+synthetic 관계 기준으로 확인.
+
+RESTORE_INTEGRITY:
+PASS / FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. PITR DRILL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PITR가 실제 enabled 상태라면
+Production에서 실행하지 말 것.
+
+가능하면 staging/isolated 환경에서:
+
+T0:
+synthetic marker row 생성
+
+T1:
+marker update/delete
+
+T2:
+T0~T1 사이 시점 복구 가능성 확인
+
+provider가 실제 isolated PITR test를 지원하지 않으면:
+
+PITR_DRILL:
+NOT_EXECUTED
+
+reason:
+...
+
+대신 provider 설정/retention evidence만 기록.
+
+Production PITR 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. MIGRATION INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 release에 적용된 migration 체계 확인.
+
+확인:
+
+migration directory:
+...
+
+migration runner:
+...
+
+applied migration tracking:
+...
+
+Production pending migration:
+NO 유지
+
+최근 WP4/WP5/WP8/WP11 등
+Production 적용 migration이
+현재 schema와 일치하는지
+기존 migration status 기준으로 확인.
+
+전체 migration 재실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. MIGRATION ROLLBACK 전략
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 migration마다 down script를 새로 만드는 작업이 아님.
+
+Release-critical 장애 시
+어떤 방식으로 rollback할지 분류:
+
+A.
+Backward-compatible migration
+→ old app/server로 rollback 가능
+
+B.
+Destructive/incompatible migration
+→ DB restore required
+
+C.
+Additive column/index
+→ leave schema, rollback app/server only
+
+현재 Release Candidate의
+최근 migration은 어느 유형인지 정리.
+
+Production schema 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. APP SERVER ROLLBACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP API Production 배포에서
+문제 발생 시 이전 known-good SHA로
+rollback 가능한지 확인.
+
+보고:
+
+CURRENT_PROD_SHA:
+...
+
+KNOWN_GOOD_PREVIOUS_SHA:
+...
+
+ROLLBACK_METHOD:
+Render previous deploy / git SHA / other
+
+실제 Production rollback 실행 금지.
+
+AI Engine도 동일:
+
+CURRENT_ENGINE_SHA:
+...
+
+KNOWN_GOOD:
+...
+
+ROLLBACK_METHOD:
+...
+
+UNKNOWN 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. R2 OBJECT STORAGE INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Release-critical object storage 구분:
+
+PHOTO bucket/config:
+...
+
+VIDEO bucket/config:
+...
+
+기타:
+...
+
+secret 값 출력 금지.
+
+확인:
+
+- object key가 DB에 저장되는 방식
+- DB relation이 삭제돼도 object가 즉시 없어지는지
+- R2 object 삭제 lifecycle
+- accidental client deletion 가능 여부
+- server-only deletion 여부
+
+R2 architecture 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. R2 DURABILITY / RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+R2 자체 object backup/versioning 정책이
+현재 어떻게 되어 있는지 확인 가능한 범위에서 확인.
+
+VERSIONING:
+ENABLED / DISABLED / UNSUPPORTED / UNKNOWN
+
+OBJECT RECOVERY:
+...
+
+RETENTION:
+...
+
+provider setting을 확인할 수 없으면 UNKNOWN.
+
+Production object 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. R2 SAFE RECOVERY DRILL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production bucket 사용 금지.
+
+가능한 staging/test object로:
+
+1.
+test object 업로드
+2.
+DB synthetic relation 생성
+3.
+read 확인
+4.
+relation/object recovery path 확인
+5.
+test object cleanup
+
+기존 staging/test bucket이 없으면
+Production R2를 테스트 목적으로 건드리지 말고:
+
+R2_DRILL:
+NOT_EXECUTED
+
+reason:
+...
+
+로 보고.
+
+새 bucket 생성도 사용자 승인 없이 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. DB ↔ R2 CONSISTENCY RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+재난 상황:
+
+CASE A
+DB 복구됐으나 R2 object 존재
+→ relation 복구 가능성
+
+CASE B
+DB relation 존재하나 object 없음
+→ 앱 안전 처리
+
+CASE C
+R2 object 존재하나 DB relation 없음
+→ orphan 처리
+
+현재 코드에서:
+
+missing image/video object
+→ crash 여부
+
+404/null
+→ safe fallback 여부
+
+기존 정상 handling만 확인.
+
+새 orphan sweeper 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. SECRETS / CONFIG RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+복구에 필요한 서비스 config 목록만 작성.
+
+APP API:
+- DB connection
+- JWT_SECRET
+- R2 photo
+- R2 video
+- push
+- RevenueCat
+- 기타 release-critical
+
+AI Engine:
+- JWT_SECRET
+- OpenAI key/config
+- DB/config 등
+
+값 자체 출력 금지.
+
+각각:
+
+Render/secret manager에 존재:
+YES / NO / UNKNOWN
+
+repo에 secret hardcode:
+NO 필수
+
+백업 문서에 secret value 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. DATABASE CONNECTION FAILOVER BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DB unavailable 상황에서:
+
+API:
+- crash loop?
+- clean 5xx?
+- health endpoint?
+- connection retry?
+
+현재 existing behavior만 확인.
+
+새 HA system 만들지 말 것.
+
+목표:
+장애 시 데이터 손상 없이 fail closed.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. BACKUP RESTORE SECURITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Backup/restore 과정에서도:
+
+- 다른 pool 데이터 노출 금지
+- dump 공개 저장 금지
+- access token/log 노출 금지
+- raw backup을 repo commit 금지
+- production backup 파일을 Replit workspace에 장기 저장 금지
+
+실제 dump 생성 시
+staging synthetic data만 우선.
+
+Production dump를 생성해야 할 이유가 있으면
+작업 중단 후 HOLD_FOR_APPROVAL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. RECOVERY ORDER 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체 장애 시 recovery order를 고정.
+
+권장 순서:
+
+1.
+Incident declare / writes stop
+
+2.
+DB 상태 판단
+
+3.
+DB restore/PITR
+
+4.
+schema/migration compatibility 확인
+
+5.
+APP server known-good SHA 복구
+
+6.
+AI Engine known-good SHA 확인
+
+7.
+R2 object availability 확인
+
+8.
+DB ↔ media relation smoke
+
+9.
+Auth / tenant smoke
+
+10.
+Teacher / Parent / Admin core smoke
+
+11.
+writes reopen
+
+12.
+incident audit 기록
+
+현재 architecture에 맞게 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. RTO / RPO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 provider capability 기준으로
+현실적인 값을 산정.
+
+RPO:
+얼마나 최근 데이터까지 보존 가능?
+
+RTO:
+복구까지 예상되는 기술적 시간 범위?
+
+근거 없는 숫자 금지.
+
+Provider backup/PITR 상태가 UNKNOWN이면:
+
+RPO = UNKNOWN
+RTO = UNKNOWN
+
+으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. DR RUNBOOK 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+repo에 이미 operational docs 위치가 있다면
+기존 위치에 최소 문서 1개 추가 가능.
+
+예:
+
+docs/PRODUCTION_DR_RUNBOOK.md
+
+내용:
+
+- environment identifiers
+- 절대 금지사항
+- incident checklist
+- DB restore procedure
+- app rollback procedure
+- engine rollback procedure
+- R2 verification
+- post-restore smoke
+- escalation/HOLD points
+
+절대 포함 금지:
+
+- passwords
+- JWT_SECRET
+- API keys
+- DB passwords
+- R2 credentials
+
+새 documentation system 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. RESTORE SMOKE MATRIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+isolated/staging restore 후:
+
+T1
+DB connection
+
+T2
+schema critical tables
+
+T3
+pool query
+
+T4
+student relation
+
+T5
+diary relation
+
+T6
+parent relation
+
+T7
+media relation
+
+T8
+auth-safe query
+
+T9
+cross-pool isolation
+
+T10
+health
+
+실제 가능한 범위만 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. PRODUCTION 변경 여부
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP의 예상:
+
+Production DB changed:
+NO
+
+Production R2 changed:
+NO
+
+Production Render deploy:
+NO
+
+Client changed:
+NO
+
+OTA:
+NO
+
+Feature added:
+NO
+
+문서/script만 필요하면
+release behavior에 영향 없는 위치에 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. BLOCKER 판정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래는 WP18 blocker:
+
+DR-P0:
+Production backup 자체가 없음
+
+DR-P0:
+DB restore 방법이 전혀 없음
+
+DR-P0:
+backup이 있어도 암호화/접근상 안전하지 않음
+
+DR-P0:
+critical schema/data가 backup에서 제외
+
+DR-P1:
+R2 recovery strategy가 전혀 없음
+
+DR-P1:
+known-good app rollback 방법 불명
+
+DR-P1:
+migration rollback path 불명
+
+외부 provider 설정이 필요한 경우
+코드로 억지 해결하지 말고:
+
+HOLD_EXTERNAL_CONFIG
+
+로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# WP18 BACKUP / DISASTER RECOVERY REPORT
+
+━━━━━━━━━━
+PRODUCTION DB
+━━━━━━━━━━
+
+Provider:
+...
+
+Automatic backup:
+ENABLED / DISABLED / UNKNOWN
+
+PITR:
+ENABLED / DISABLED / UNKNOWN
+
+Retention:
+...
+
+Latest recoverable point:
+...
+
+Production DB mutated:
+NO
+
+━━━━━━━━━━
+RESTORE DRILL
+━━━━━━━━━━
+
+Environment:
+STAGING / ISOLATED / SYNTHETIC / NOT_EXECUTED
+
+Method:
+...
+
+Actual restore executed:
+YES / NO
+
+Schema integrity:
+PASS / FAIL / NOT_TESTED
+
+Data integrity:
+PASS / FAIL / NOT_TESTED
+
+Tenant isolation:
+PASS / FAIL / NOT_TESTED
+
+━━━━━━━━━━
+PITR
+━━━━━━━━━━
+
+Enabled:
+YES / NO / UNKNOWN
+
+Drill:
+PASS / FAIL / NOT_EXECUTED
+
+RPO:
+...
+
+RTO:
+...
+
+━━━━━━━━━━
+MIGRATIONS
+━━━━━━━━━━
+
+Migration system:
+...
+
+Pending Production migration:
+YES / NO
+
+Rollback classification:
+...
+
+Restore-required migrations:
+...
+
+━━━━━━━━━━
+APP SERVER
+━━━━━━━━━━
+
+Current Production SHA:
+...
+
+Known-good previous SHA:
+...
+
+Rollback method:
+...
+
+━━━━━━━━━━
+AI ENGINE
+━━━━━━━━━━
+
+Current SHA:
+...
+
+Known-good previous SHA:
+...
+
+Rollback method:
+...
+
+━━━━━━━━━━
+R2
+━━━━━━━━━━
+
+Photo storage:
+...
+
+Video storage:
+...
+
+Versioning/recovery:
+...
+
+Safe recovery drill:
+PASS / FAIL / NOT_EXECUTED
+
+Production objects mutated:
+NO
+
+━━━━━━━━━━
+DB ↔ R2
+━━━━━━━━━━
+
+Relation recovery:
+PASS / FAIL / PARTIAL
+
+Missing object safe handling:
+PASS / FAIL
+
+Orphan strategy:
+...
+
+━━━━━━━━━━
+CONFIG / SECRETS
+━━━━━━━━━━
+
+Required config inventoried:
+YES / NO
+
+Secrets hardcoded:
+NO / YES
+
+Secret values documented:
+NO
+
+━━━━━━━━━━
+RUNBOOK
+━━━━━━━━━━
+
+Created/updated:
+YES / NO
+
+Path:
+...
+
+Contains secrets:
+NO
+
+━━━━━━━━━━
+PRODUCTION CHANGES
+━━━━━━━━━━
+
+DB mutation:
+NO
+
+R2 mutation:
+NO
+
+Render deploy:
+NO
+
+Client change:
+NO
+
+OTA:
+NO
+
+━━━━━━━━━━
+BLOCKERS
+━━━━━━━━━━
+
+DR-P0:
+NONE / ...
+
+DR-P1:
+NONE / ...
+
+External config required:
+YES / NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+DB recoverable:
+YES / NO / UNKNOWN
+
+App rollback ready:
+YES / NO
+
+Engine rollback ready:
+YES / NO
+
+R2 recovery ready:
+YES / NO / PARTIAL
+
+DR runbook ready:
+YES / NO
+
+Final:
+WP18_PASS
+/
+HOLD_EXTERNAL_CONFIG
+/
+FAIL
+
+STOP.
+WP19 선행 금지.
