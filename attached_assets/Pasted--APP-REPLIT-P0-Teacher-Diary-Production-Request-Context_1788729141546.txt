@@ -1,0 +1,212 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — Teacher Diary 실제 Production Request Context 추적]
+
+AI ENGINE 최신 검증 결과:
+
+- 공식 contract_version = "1.0" only
+- contract 1.0에서 Template Search 실행 = YES
+- contract 1.0에서 Knowledge Search 실행 = YES
+- contract 1.3은 현재 Production Engine에서 지원하지 않음
+- APP_CONTRACT_VERSION은 1.0 유지가 정답
+- APP 코드의 "1.0 → 1.3" 주석은 STALE
+- contract 1.0 smoke에서는:
+  template=1
+  knowledge=5
+  generation_mode=KNOWLEDGE_GROUNDED
+  grounding PASS
+
+따라서 이제 contract_version은 원인 후보에서 제거한다.
+
+현재 실기기 증상:
+AI 일지 작성 시 교사가 입력한 내용이 거의 그대로 출력됨.
+
+목표:
+현재 APP이 실제 Production Engine으로 보내는 request context가
+왜 Template/Knowledge 검색 0건을 유발하는지 확인한다.
+
+코드 수정 전 TRACE 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. contract 관련
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP_CONTRACT_VERSION = "1.0" 유지.
+
+1.3으로 변경 금지.
+
+현재 DiaryAIService.ts에 남아 있는
+"1.0 → 1.3 업그레이드 필요"
+주석은 STALE로 판정되었으므로
+이번 조사에서는 근거로 사용하지 말 것.
+
+아직 코드는 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 Request 생성 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 release/v2.0.0 기준:
+
+DiaryAIModalV2
+→ useDiaryAIV2
+→ DiaryAIService.generateDiary
+→ TeacherDiaryAIClient
+→ Production Engine
+
+실제 요청 body가 만들어지는 지점을 추적한다.
+
+반드시 확인:
+
+- contract_version
+- request_id
+- schema_version
+- feature
+- locale
+- input.text
+- context.pool_id
+- context.class_id
+- context.lesson_date
+- context.student_refs[]
+- context.students[].ref
+
+보고 시 학생 이름/입력 원문/JWT는 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 특히 pool_id 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 로그인한 토이키즈스윔클럽 계정에서
+실제 AI 요청에 들어가는 pool_id가 정확히 무엇인지 확인.
+
+정상 Production Toykids pool:
+
+pool_1780849364252_l9k44rbk3
+
+확인:
+
+- 요청 pool_id가 exact 일치하는가
+- null/undefined/다른 tenant id가 들어가지 않는가
+- class 객체의 pool id로 잘못 덮어쓰는가
+- 사용자/선생님/session에서 오래된 pool id를 사용하는가
+
+pool_id가 잘못되면 center-specific Template 검색이 0건이 될 수 있으므로 최우선 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. class_id / students context 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 선택한 수업에서:
+
+- class_id 존재
+- class_id가 현재 pool 소속
+- student_refs 길이
+- students 길이
+- student_refs와 students[].ref 집합 일치
+- 빈 배열/잘못된 ref가 전달되지 않는지
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. input.text 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Engine으로 보내기 직전:
+
+- text length > 0
+- STT 원문이 정상 전달
+- trim 후 빈 값 아님
+- 앱에서 text를 다른 필드로 덮어쓰지 않음
+- common/student parsing을 앱에서 미리 변형하지 않음
+
+원문 자체는 보고하지 말고
+text_length만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Production 실제 요청 1건 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 현재 테스트 중인 실기기 요청 1건을 기준으로:
+
+APP에서 보고:
+
+- request_id
+- endpoint
+- pool_id exact 여부
+- class_id present 여부
+- lesson_date present 여부
+- student_count
+- text_length
+- HTTP status
+
+그리고 response meta에서:
+
+- pipeline_mode
+- generation_mode
+- template_ids count
+- knowledge_ids count
+- grounding_validation
+- fallback_used
+
+Production 앱에서 현재 meta를 로그하지 않는다면,
+새 build/OTA 없이 기존 response object를 코드상 어디서 읽을 수 있는지 정적 추적하고
+실제 값 확인이 불가능한 부분은 명시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 원인 후보 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+pool_id 오류
+
+B.
+class_id / student context 오류
+
+C.
+input.text 전달/변형 오류
+
+D.
+APP 요청은 완전히 정상이며
+Production Engine/DB에서 해당 실제 pool에 대해 Template/Knowledge 검색 결과가 0
+
+E.
+Engine 응답은 Grounded인데 APP normalize/UI에서 generated 결과 손실
+
+F.
+현재 증상 재현에 추가 실기기 trace 필요
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인 확정 전:
+
+- contract_version 변경 금지
+- AI Engine 수정 금지
+- DB 수정 금지
+- Template/Knowledge 데이터 추가 금지
+- fallback 추가 금지
+- OTA 금지
+- build 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. APP_CONTRACT_VERSION
+2. 실제 pool_id가 Toykids exact ID와 일치하는지
+3. class_id present 여부
+4. lesson_date present 여부
+5. student_count
+6. text_length
+7. HTTP status
+8. pipeline_mode
+9. generation_mode
+10. template count
+11. knowledge count
+12. grounding_validation
+13. Engine response → APP normalize → Draft 매핑 이상 여부
+14. 최종 원인 A/B/C/D/E/F
+15. 수정 필요 파일 후보
+
+원인 확정 후 STOP.
