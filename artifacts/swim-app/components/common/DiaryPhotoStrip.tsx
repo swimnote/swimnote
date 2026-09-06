@@ -436,7 +436,11 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               {tn ? (
                 <Image source={{ uri: tn }} style={s.thumbImg} contentFit="cover" cachePolicy="memory" />
               ) : (
-                <View style={s.videoPlaceholder} />
+                /* thumbnail_key=null 기존 영상: 검은 박스 대신 neutral fallback */
+                <View style={s.videoFallback}>
+                  <LucideIcon name="film" size={20} color="#7B9BBF" />
+                  <Text style={s.videoFallbackText}>영상</Text>
+                </View>
               )}
               <View style={s.videoPlayOverlay}>
                 <LucideIcon name="play" size={22} color="#fff" fill="#fff" />
@@ -603,12 +607,18 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
     borderRadius: 8, padding: 5,
   },
-  videoThumb: { backgroundColor: "#1E293B" },
-  videoPlaceholder: { width: "100%", height: "100%", backgroundColor: "#1E293B" },
+  videoThumb: { backgroundColor: "#E8EEF6" },
+  videoFallback: {
+    width: "100%", height: "100%", backgroundColor: "#E8EEF6",
+    alignItems: "center", justifyContent: "center", gap: 4,
+  },
+  videoFallbackText: {
+    fontSize: 10, fontFamily: "Pretendard-Regular", color: "#7B9BBF",
+  },
   videoPlayOverlay: {
     position: "absolute", inset: 0,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.28)",
   },
   videoBadge: {
     position: "absolute", bottom: 5, left: 5,

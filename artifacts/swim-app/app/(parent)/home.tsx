@@ -854,7 +854,10 @@ function DiaryFeedItem({
       entry.common_content?.trim(),
       entry.student_note?.note_content?.trim(),
     ].filter(Boolean).join("\n\n"),
-    photos: allPhotos.map(p => ({ id: p.id, uri: buildPhotoUri(p.file_url) })),
+    // Story share: 사진만 포함 — 영상은 Instagram Story 기술적 제약으로 제외
+    photos: allPhotos
+      .filter((p: any) => !p.type || p.type !== "VIDEO")
+      .map(p => ({ id: p.id, uri: buildPhotoUri(p.file_url) })),
   };
 
   async function handleInstagramShare() {
