@@ -56,7 +56,7 @@ const C = Colors.light;
 const TEAL = C.brandStrong;
 const NAVY = "#1B3A70";   // 네이비 기본색 (버튼 fill, 선택된 탭)
 const IB = C.brandMist;
-const DIARY_LOGO = require("@/assets/images/swimnote-ai-report-logo.png");
+const DIARY_LOGO = require("@/assets/images/swimnote-logo.png");
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
 interface DiaryEntry {
@@ -2483,9 +2483,9 @@ const f = StyleSheet.create({
     marginBottom: 10,
   },
   diaryLogo: {
+    width: 28,
     height: 28,
-    width: undefined,
-    aspectRatio: 2774 / 998,
+    aspectRatio: 1,
   },
   diaryBadge: {
     marginLeft: "auto" as any,
