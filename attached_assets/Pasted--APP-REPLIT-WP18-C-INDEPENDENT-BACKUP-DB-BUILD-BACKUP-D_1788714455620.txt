@@ -1,0 +1,638 @@
+[보낼 곳: APP REPLIT]
+
+# WP18-C — INDEPENDENT BACKUP DB BUILD
+# 현재 상태:
+# - BACKUP_DATABASE_URL 설정 완료
+# - Backup Supabase 연결 성공
+# - PostgreSQL 17.6
+# - database=postgres
+# - public tables=0
+# - 신규 독립 Backup DB 확인 완료
+#
+# 목표:
+# 1) Backup DB에 Production-compatible schema 복원
+# 2) synthetic restore drill
+# 3) 실제 Production DB read-only snapshot을 Backup DB에 최초 생성
+# 4) 검증 및 자동 백업 준비
+#
+# WP19 선행 금지
+# Production DB mutation 금지
+# Production R2 mutation 금지
+# Client/OTA 변경 금지
+# Render Production deploy 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CONNECTION FACT 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 확인 완료:
+
+BACKUP_DATABASE_URL:
+CONFIGURED
+
+Backup PostgreSQL:
+17.6
+
+Backup DB:
+postgres
+
+Backup public tables:
+0
+
+Backup DB는 신규 독립 Supabase 인스턴스.
+
+이 연결 사실을 다시 조사하지 말 것.
+
+Production DB와 Backup DB가 다른 project인지
+project/ref 수준에서 1회만 최종 guard 확인.
+
+같으면 즉시 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PHASE A — SCHEMA RESTORE
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 빈 Backup DB에
+Production-compatible schema를 복원.
+
+목표:
+
+운영 DB의 critical schema를
+Backup DB에서도 복구 가능하게 만드는 것.
+
+필수 critical table family:
+
+swimming_pools
+users
+students
+class_groups
+parent_students
+student_class_history
+class_diaries
+class_diary_student_notes
+notifications
+pool_subscriptions
+growth_reports
+photo_assets_meta
+video_assets_meta
+
+실제 canonical table명을 사용.
+
+기존 migration/bootstrap 체계를 우선 재사용.
+
+Production에는 절대 write 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PHASE B — SYNTHETIC RESTORE DRILL
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production data를 아직 복사하지 말고
+먼저 Backup DB에서 synthetic restore drill 수행.
+
+synthetic 최소 구성:
+
+Pool A
+Pool B
+
+Admin A
+Teacher A
+Parent A
+
+Student A
+Class A
+
+parent_students relation
+student_class_history
+class_diary
+student diary note
+photo metadata
+video metadata
+growth report
+
+검증:
+
+schema
+FK
+indexes
+relations
+tenant isolation
+cross-pool separation
+
+PASS 후 synthetic test data cleanup 가능.
+
+단 schema 자체는 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PHASE C — 실제 PRODUCTION READ-ONLY BACKUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+Synthetic restore PASS 후
+Production DB를 READ ONLY로 읽어
+Backup DB에 최초 실제 snapshot 생성.
+
+Production 허용:
+
+SELECT
+schema metadata read
+logical export
+
+Production 금지:
+
+INSERT
+UPDATE
+DELETE
+ALTER
+DROP
+CREATE
+TRUNCATE
+
+가능하면 source connection을
+read-only transaction/session으로 강제.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 백업 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 환경에 맞는 최소 안정 방식 사용.
+
+우선순위:
+
+1.
+pg_dump / pg_restore
+단 PostgreSQL version/toolchain 호환 시
+
+2.
+호환 문제 있으면
+WP18-B에서 검증한 Node logical export 방식 일반화
+
+새 대형 dependency/toolchain 설치 금지.
+
+보고:
+
+BACKUP_METHOD:
+PG_NATIVE
+/
+NODE_LOGICAL
+/
+OTHER
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. SNAPSHOT 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Backup DB를 realtime replica로 만들지 말 것.
+
+목표:
+
+verified snapshot
+
+원칙:
+
+새 snapshot 생성
+→ schema/data restore
+→ integrity verification
+→ VERIFIED
+→ 그 후 이전 snapshot retention cleanup
+
+새 snapshot 실패 시
+기존 verified snapshot 유지.
+
+절대:
+
+old snapshot 삭제
+→ 새 backup 시작
+
+순서 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. BACKUP DB 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+Backup DB 안에서
+snapshot 상태를 식별할 최소 metadata 구성 허용.
+
+예:
+
+backup_runs
+
+필드 개념:
+
+id
+started_at
+completed_at
+source_project
+snapshot_id
+status
+table_count
+row_count_summary
+verification_status
+error_summary
+
+개인정보 값 자체 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. INTEGRITY VERIFY
+━━━━━━━━━━━━━━━━━━━━━━
+
+최초 실제 Production snapshot 후:
+
+critical tables:
+PASS
+
+critical row counts:
+Production vs Backup 비교
+
+relation integrity:
+PASS
+
+parent → student:
+PASS
+
+student → class:
+PASS
+
+diary → student note:
+PASS
+
+photo metadata:
+PASS
+
+video metadata:
+PASS
+
+growth report:
+PASS
+
+tenant relation:
+PASS
+
+중요:
+값 자체 출력 금지.
+count/hash/존재 여부 위주로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. BACKUP SIZE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB 실제 approximate size 측정.
+
+보고:
+
+PRODUCTION_DB_SIZE:
+...
+
+Backup snapshot size:
+...
+
+사진/영상 binary는 Backup DB에 포함하지 않음.
+
+DB에는 metadata/object_key만 포함.
+
+이를 바탕으로
+daily/weekly retention 제안.
+
+무한 snapshot 보관 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. RETENTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+초기 권장:
+
+Latest verified:
+항상 유지
+
+Daily:
+7개
+
+Weekly:
+4개
+
+단 실제 DB size가 매우 작으면
+더 길게 보관 가능.
+
+정확한 정책은 실제 size 확인 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. MANUAL BACKUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+수동 백업 명령 제공.
+
+예:
+
+npm run backup:production
+
+실행 전 guard:
+
+source = Production
+target = Backup
+source != target
+source read-only
+backup secret exists
+
+Production restore는 이 script에 넣지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. AUTOMATIC BACKUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+매일 1회 자동 백업 가능하게 준비.
+
+기존 scheduler/worker 있으면 재사용.
+
+새 유료 인프라 임의 생성 금지.
+
+현재 runtime에서 직접 자동화 가능 여부 보고:
+
+AUTOMATION_READY:
+YES / NO
+
+SCHEDULER_DEPLOY_REQUIRED:
+YES / NO
+
+NEW_PAID_INFRA_REQUIRED:
+YES / NO
+
+사용자가 승인하지 않은 새 service 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. RESTORE GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+restore tool/script는
+기본 target을 staging/isolated로 제한.
+
+Production restore 시도 시:
+
+REQUIRE_EXPLICIT_PRODUCTION_RESTORE_APPROVAL
+
+없으면 즉시 STOP.
+
+Production restore 자동 실행 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. BACKUP DB SECURITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+BACKUP_DATABASE_URL
+- Replit Secret only
+- repo hardcode NO
+- client env NO
+- Expo bundle NO
+- API response NO
+- logs NO
+
+일반 APP runtime에서
+Backup DB 사용 금지.
+
+Backup tooling만 접근.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. R2 제외
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP18-C에서는
+사진/영상 binary 원본 백업하지 않음.
+
+DB에 저장된:
+
+photo object_key
+video object_key
+metadata
+relations
+
+만 포함.
+
+R2 binary backup은 후속 WP18-D 범위.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. DR RUNBOOK
+━━━━━━━━━━━━━━━━━━━━━━
+
+docs/PRODUCTION_DR_RUNBOOK.md 업데이트:
+
+- Backup DB project 역할
+- BACKUP_DATABASE_URL secret 이름만
+- manual backup
+- automatic backup 준비 상태
+- last-known-good snapshot rule
+- restore guard
+- retention
+- first verified snapshot 정보
+
+secret 값 기록 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. PRODUCTION CHANGE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB mutation:
+NO
+
+Production schema change:
+NO
+
+Production R2:
+NO
+
+Render deploy:
+NO
+
+Client:
+NO
+
+OTA:
+NO
+
+Production에서는 READ ONLY export만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP18-C INDEPENDENT BACKUP DB REPORT
+
+━━━━━━━━━━
+DATABASES
+━━━━━━━━━━
+
+Production project:
+...
+
+Backup project:
+...
+
+Independent:
+YES / NO
+
+BACKUP_DATABASE_URL:
+CONFIGURED
+
+Secret exposed:
+NO
+
+━━━━━━━━━━
+SCHEMA
+━━━━━━━━━━
+
+Production-compatible schema restored:
+YES / NO
+
+Critical tables:
+PASS / FAIL
+
+FK/indexes:
+PASS / FAIL
+
+━━━━━━━━━━
+SYNTHETIC DRILL
+━━━━━━━━━━
+
+Synthetic restore:
+PASS / FAIL
+
+Tenant isolation:
+PASS / FAIL
+
+Relation integrity:
+PASS / FAIL
+
+Production data used:
+NO
+
+━━━━━━━━━━
+REAL BACKUP
+━━━━━━━━━━
+
+Initial Production snapshot:
+YES / NO
+
+Backup method:
+...
+
+Source read-only:
+YES / NO
+
+Production mutated:
+NO
+
+Schema:
+PASS / FAIL
+
+Data:
+PASS / FAIL
+
+Relations:
+PASS / FAIL
+
+Critical row counts:
+PASS / FAIL
+
+━━━━━━━━━━
+SIZE / RETENTION
+━━━━━━━━━━
+
+Production DB size:
+...
+
+Backup snapshot size:
+...
+
+Daily retention:
+...
+
+Weekly retention:
+...
+
+━━━━━━━━━━
+SAFETY
+━━━━━━━━━━
+
+Previous verified backup preserved on failure:
+YES / NO
+
+Temporary files cleaned:
+PASS / FAIL
+
+General APP runtime access:
+NONE
+
+Production restore guard:
+PASS / FAIL
+
+━━━━━━━━━━
+AUTOMATION
+━━━━━━━━━━
+
+Manual backup command:
+...
+
+Automation ready:
+YES / NO
+
+Scheduler deploy required:
+YES / NO
+
+New paid infra required:
+YES / NO
+
+━━━━━━━━━━
+RUNBOOK
+━━━━━━━━━━
+
+Updated:
+YES / NO
+
+Path:
+docs/PRODUCTION_DR_RUNBOOK.md
+
+━━━━━━━━━━
+PRODUCTION
+━━━━━━━━━━
+
+DB mutation:
+NO
+
+R2 mutation:
+NO
+
+Render deploy:
+NO
+
+Client:
+NO
+
+OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Independent Backup DB:
+READY / NOT_READY
+
+Latest verified Production snapshot:
+YES / NO
+
+Automatic backup path:
+READY / HOLD
+
+DB disaster recovery:
+READY / NOT_READY
+
+Remaining blockers:
+...
+
+Final:
+WP18C_PASS
+/
+HOLD_SCHEDULER
+/
+FAIL
+
+STOP.
+WP19 선행 금지.
