@@ -203,7 +203,7 @@ async function main() {
     console.error(`🚫 Target is not backup ref (got: ${backupRef}) — abort`);
     process.exit(1);
   }
-  if (prodRef === backupRef) {
+  if ((prodRef as string) === (backupRef as string)) {
     console.error("🚫 Source === Target — same project detected — abort");
     process.exit(1);
   }
@@ -288,95 +288,101 @@ async function main() {
       prodClient2.release();
     }
 
-    // ── Export production data to backup (UPSERT) ────────────────────────
-    console.log("\n─── SNAPSHOT COPY (prod → backup) ───");
+    // ── Export production data to backup — ATOMIC TRANSACTION ────────────
+    // Safety contract:
+    //   BEGIN → DELETE + INSERT all tables → verify counts WITHIN transaction
+    //   → all pass → COMMIT (new snapshot visible)
+    //   → any fail → ROLLBACK (previous VERIFIED data preserved, no partial state)
+    //   backup_runs metadata lives outside this transaction so FAILED status is always recorded.
+    console.log("\n─── SNAPSHOT COPY (prod → backup) [ATOMIC] ───");
 
-    // Snapshot tables that can be fully copied (metadata/structural, no huge JSONB blobs)
-    // R2 binary excluded per spec §15.
-    // PII fields: we copy object_key/metadata only, not actual binary.
-    // For safety: copy all structured fields (they're already in backup schema).
-
-    // exportOrder mirrors CRITICAL_TABLES — order matches FK dependency (parents before children)
     const exportOrder: TableName[] = [...CRITICAL_TABLES];
-
     const copyCounts: Record<string, number> = {};
     const batchSize = 500;
 
-    // Dedicated backup write client — session_replication_role=replica bypasses FK trigger checks
-    // (Supabase postgres user has this privilege; required for bulk restore without FK order constraints)
-    const backupWriteClient = await backupPool.connect();
-    await backupWriteClient.query("SET session_replication_role = 'replica'");
-    console.log("  backup write client: session_replication_role=replica OK");
+    // Pre-fetch backup column metadata (outside transaction — read-only metadata queries)
+    const backupColMeta: Record<string, { cols: string[]; types: Map<string, string> }> = {};
+    for (const table of exportOrder) {
+      const colQ = await backupPool.query(
+        `SELECT column_name, data_type FROM information_schema.columns
+         WHERE table_schema='public' AND table_name=$1 ORDER BY ordinal_position`,
+        [table]
+      );
+      backupColMeta[table] = {
+        cols: colQ.rows.map((r: any) => r.column_name as string),
+        types: new Map(colQ.rows.map((r: any) => [r.column_name as string, r.data_type as string])),
+      };
+    }
 
+    // Production column sets (outside transaction — read-only)
+    const prodColSets: Record<string, Set<string>> = {};
     const exportClient = await prodPool.connect();
     try {
       await exportClient.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
-
       for (const table of exportOrder) {
-        if (prodCounts[table] === -1) {
-          console.log(`  SKIP ${table} (not accessible on production)`);
-          copyCounts[table] = 0;
-          continue;
-        }
-
-        // Fetch columns from backup schema (source of truth for column names + types)
-        const colQ = await backupPool.query(
-          `SELECT column_name, data_type FROM information_schema.columns
-           WHERE table_schema='public' AND table_name=$1
-           ORDER BY ordinal_position`,
+        const r = await exportClient.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
           [table]
         );
-        // Exclude backup_runs from copy (it's backup-only metadata)
-        if (table === ("backup_runs" as any)) continue;
+        prodColSets[table] = new Set(r.rows.map((x: any) => x.column_name as string));
+      }
+    } finally {
+      exportClient.release();
+    }
 
-        const cols = colQ.rows.map((r: any) => r.column_name as string);
-        // Track backup column types to serialize correctly
-        const backupColTypes = new Map<string, string>(
-          colQ.rows.map((r: any) => [r.column_name as string, (r.data_type as string)])
-        );
+    // ATOMIC TRANSACTION on backup write client
+    const backupWriteClient = await backupPool.connect();
+    let txCommitted = false;
+    try {
+      // session_replication_role=replica must be set before BEGIN (session-level, bypasses FK checks)
+      await backupWriteClient.query("SET session_replication_role = 'replica'");
+      console.log("  backup write client: session_replication_role=replica OK");
 
-        // Fetch from production (columns that exist in both)
-        const prodColQ = await exportClient.query(
-          `SELECT column_name FROM information_schema.columns
-           WHERE table_schema='public' AND table_name=$1`,
-          [table]
-        );
-        const prodCols = new Set(prodColQ.rows.map((r: any) => r.column_name as string));
-        const commonCols = cols.filter(c => prodCols.has(c));
+      await backupWriteClient.query("BEGIN");
+      console.log("  BEGIN atomic transaction");
 
-        if (commonCols.length === 0) {
-          console.log(`  SKIP ${table} (no common columns)`);
-          copyCounts[table] = 0;
-          continue;
-        }
+      const prodExportClient = await prodPool.connect();
+      try {
+        await prodExportClient.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
 
-        // DELETE all existing rows before fresh copy — avoids multi-col unique constraint conflicts.
-        // session_replication_role=replica disables FK trigger checks on DELETE as well.
-        await backupWriteClient.query(`DELETE FROM ${table}`);
+        for (const table of exportOrder) {
+          if (prodCounts[table] === -1) {
+            console.log(`  SKIP ${table} (not accessible on production)`);
+            copyCounts[table] = 0;
+            continue;
+          }
 
-        let offset = 0;
-        let copied = 0;
+          const { cols, types: backupColTypes } = backupColMeta[table] ?? { cols: [], types: new Map() };
+          const prodCols = prodColSets[table] ?? new Set();
+          const commonCols = cols.filter(c => prodCols.has(c));
 
-        while (true) {
-            const rows = await exportClient.query(
-              `SELECT ${commonCols.map(c => `"${c}"`).join(",")} FROM ${table} LIMIT $1 OFFSET $2`,
+          if (commonCols.length === 0) {
+            console.log(`  SKIP ${table} (no common columns)`);
+            copyCounts[table] = 0;
+            continue;
+          }
+
+          // DELETE within transaction — ROLLBACK restores previous data on failure
+          await backupWriteClient.query(`DELETE FROM ${table}`);
+
+          let offset = 0;
+          let copied = 0;
+          const colList = commonCols.map(c => `"${c}"`).join(",");
+
+          while (true) {
+            const rows = await prodExportClient.query(
+              `SELECT ${commonCols.map(c => `"${c}"`).join(",")} FROM ${table} ORDER BY 1 LIMIT $1 OFFSET $2`,
               [batchSize, offset]
             );
             if (rows.rows.length === 0) break;
-
-            // INSERT to backup — DELETE already cleared the table so no conflicts expected;
-            // ON CONFLICT DO NOTHING as safety net for tables without a single-col PK.
-            const colList = commonCols.map(c => `"${c}"`).join(",");
 
             for (const row of rows.rows) {
               const vals = commonCols.map(c => {
                 const v = row[c];
                 if (v === null || v === undefined) return null;
                 if (typeof v === "object" && !(v instanceof Date)) {
-                  const bkType = backupColTypes.get(c) ?? "";
-                  // PostgreSQL native ARRAY columns → pass JS array as-is
-                  // JSON/JSONB columns → always stringify
-                  if (bkType === "ARRAY") return v;
+                  // PostgreSQL native ARRAY → pass as-is; JSON/JSONB → stringify
+                  if (backupColTypes.get(c) === "ARRAY") return v;
                   return JSON.stringify(v);
                 }
                 return v;
@@ -389,79 +395,94 @@ async function main() {
             }
 
             copied += rows.rows.length;
-          offset += rows.rows.length;
-          if (rows.rows.length < batchSize) break;
+            offset += rows.rows.length;
+            if (rows.rows.length < batchSize) break;
+          }
+
+          copyCounts[table] = copied;
+          console.log(`  ${table}: ${copied} rows copied`);
         }
 
-        copyCounts[table] = copied;
-        console.log(`  ${table}: ${copied} rows copied`);
+      } finally {
+        prodExportClient.release();
       }
 
+      // ── In-transaction verification (counts must match BEFORE COMMIT) ────
+      console.log("\n─── IN-TRANSACTION VERIFICATION (pre-commit) ───");
+      const verifyResults: Record<string, string> = {};
+      let allVerified = true;
+
+      for (const table of exportOrder) {
+        if (prodCounts[table] === -1) { verifyResults[table] = "SKIP"; continue; }
+        // Count within transaction — sees the new data before commit
+        const bkCount = await backupWriteClient.query(`SELECT COUNT(*) c FROM ${table}`);
+        const bk = parseInt(bkCount.rows[0].c);
+        const prod = prodCounts[table];
+        const pass = bk === prod;
+        verifyResults[table] = pass
+          ? `PASS (prod:${prod} bk:${bk})`
+          : `FAIL (prod:${prod} bk:${bk})`;
+        if (!pass) allVerified = false;
+        console.log(`  ${table}: ${verifyResults[table]}`);
+      }
+
+      // ── FK spot-checks (within transaction) ──────────────────────────────
+      const fkChecks: [string, string][] = [
+        [`SELECT COUNT(*) c FROM parent_students ps JOIN parent_accounts pa ON pa.id=ps.parent_id JOIN students s ON s.id=ps.student_id`, "parent→student join"],
+        [`SELECT COUNT(*) c FROM student_class_history sch JOIN students s ON s.id=sch.student_id JOIN class_groups cg ON cg.id=sch.class_group_id`, "sch→student→class join"],
+        [`SELECT COUNT(*) c FROM class_diary_student_notes n JOIN class_diaries d ON d.id=n.diary_id JOIN students s ON s.id=n.student_id`, "notes→diary→student join"],
+      ];
+      let fkPass = true;
+      for (const [sql, label] of fkChecks) {
+        try {
+          await backupWriteClient.query(sql);
+          console.log(`  FK[${label}]: PASS`);
+        } catch (e: any) {
+          console.error(`  FK[${label}]: FAIL — ${e.message.slice(0, 80)}`);
+          fkPass = false; allVerified = false;
+        }
+      }
+
+      if (!allVerified) {
+        // Verification failed — ROLLBACK preserves previous VERIFIED data
+        await backupWriteClient.query("ROLLBACK");
+        console.error("  ROLLBACK: verification failed — previous VERIFIED snapshot preserved");
+        throw new Error(`Snapshot verification failed — rolled back. Tables: ${
+          Object.entries(verifyResults).filter(([,v]) => v.startsWith("FAIL")).map(([k]) => k).join(", ")
+        }`);
+      }
+
+      // All checks pass → COMMIT atomically
+      await backupWriteClient.query("COMMIT");
+      txCommitted = true;
+      console.log("  COMMIT: new snapshot atomically promoted");
+
+      // ── Update backup_runs — VERIFIED (outside transaction, on main pool) ─
+      await backupPool.query(
+        `UPDATE backup_runs SET
+           completed_at = now(), status = 'VERIFIED',
+           table_count = $1, row_count_summary = $2, verification_status = 'VERIFIED'
+         WHERE id = $3`,
+        [exportOrder.length, JSON.stringify(copyCounts), runId]
+      );
+
+      console.log(`\nVERIFICATION_STATUS: VERIFIED`);
+      console.log(`BACKUP_METHOD: NODE_LOGICAL+ATOMIC_TX`);
+      console.log(`SNAPSHOT_ID: ${snapshotId}`);
+      console.log(`COMPLETED: ${new Date().toISOString()}`);
+
+      return { snapshotId, tableCount: exportOrder.length, copyCounts, verificationStatus: "VERIFIED" as const };
+
+    } catch (txErr: any) {
+      // ROLLBACK if transaction not yet committed
+      if (!txCommitted) {
+        await backupWriteClient.query("ROLLBACK").catch(() => {});
+        console.error("  ROLLBACK executed — previous VERIFIED snapshot preserved");
+      }
+      throw txErr;
     } finally {
-      exportClient.release();
       backupWriteClient.release();
     }
-
-    // ── Verify: compare counts ────────────────────────────────────────────
-    console.log("\n─── VERIFICATION ───");
-    const verifyResults: Record<string, string> = {};
-    let allVerified = true;
-
-    for (const table of exportOrder) {
-      if (prodCounts[table] === -1) { verifyResults[table] = "SKIP"; continue; }
-      const bkCount = await backupPool.query(`SELECT COUNT(*) c FROM ${table}`);
-      const bk = parseInt(bkCount.rows[0].c);
-      const prod = prodCounts[table];
-      // Allow backup >= prod (backup may have previous runs' data; prod has authoritative rows)
-      const pass = bk >= prod;
-      verifyResults[table] = pass
-        ? `PASS (prod:${prod} bk:${bk})`
-        : `FAIL (prod:${prod} bk:${bk})`;
-      if (!pass) allVerified = false;
-      console.log(`  ${table}: ${verifyResults[table]}`);
-    }
-
-    // ── FK spot-check ─────────────────────────────────────────────────────
-    const fkChecks = [
-      [`SELECT COUNT(*) c FROM parent_students ps JOIN parent_accounts pa ON pa.id=ps.parent_id JOIN students s ON s.id=ps.student_id`, "parent→student join"],
-      [`SELECT COUNT(*) c FROM student_class_history sch JOIN students s ON s.id=sch.student_id JOIN class_groups cg ON cg.id=sch.class_group_id`, "sch→student→class join"],
-      [`SELECT COUNT(*) c FROM class_diary_student_notes n JOIN class_diaries d ON d.id=n.diary_id JOIN students s ON s.id=n.student_id`, "notes→diary→student join"],
-    ];
-    let fkPass = true;
-    for (const [sql, label] of fkChecks) {
-      try {
-        await backupPool.query(sql);
-        console.log(`  FK[${label}]: PASS`);
-      } catch (e: any) {
-        console.error(`  FK[${label}]: FAIL — ${e.message.slice(0, 80)}`);
-        fkPass = false;
-      }
-    }
-
-    const verificationStatus = allVerified && fkPass ? "VERIFIED" : "PARTIAL";
-
-    // ── Update backup_runs ────────────────────────────────────────────────
-    await backupPool.query(
-      `UPDATE backup_runs SET
-         completed_at = now(),
-         status = $1,
-         table_count = $2,
-         row_count_summary = $3,
-         verification_status = $4
-       WHERE id = $5`,
-      [
-        verificationStatus,
-        exportOrder.length,
-        JSON.stringify(copyCounts),
-        verificationStatus,
-        runId,
-      ]
-    );
-
-    console.log(`\nVERIFICATION_STATUS: ${verificationStatus}`);
-    console.log(`BACKUP_METHOD: NODE_LOGICAL`);
-    console.log(`SNAPSHOT_ID: ${snapshotId}`);
-    console.log(`COMPLETED: ${new Date().toISOString()}`);
 
   } catch (e: any) {
     console.error("BACKUP_ERROR:", e.message);
@@ -471,18 +492,34 @@ async function main() {
         [e.message.slice(0, 500), runId]
       ).catch(() => {});
     }
-    process.exit(1);
+    throw e;
   } finally {
     await prodPool.end();
     await backupPool.end();
   }
-
-  console.log("\n╔══════════════════════════════════════════════════════════════╗");
-  console.log("║              BACKUP COMPLETE                                 ║");
-  console.log("╚══════════════════════════════════════════════════════════════╝");
 }
 
-main().catch((e) => {
-  console.error("[backup-production] FATAL:", e.message);
-  process.exit(1);
-});
+/**
+ * runProductionBackup — callable from scheduler jobs without process.exit().
+ * Returns result or throws on failure. Caller is responsible for lock management.
+ */
+export async function runProductionBackup(): Promise<{
+  snapshotId: string;
+  tableCount: number;
+  verificationStatus: string;
+}> {
+  return main();
+}
+
+// CLI entry point
+if (process.argv[1] && process.argv[1].includes("backup-production")) {
+  main().then(() => {
+    console.log("\n╔══════════════════════════════════════════════════════════════╗");
+    console.log("║              BACKUP COMPLETE                                 ║");
+    console.log("╚══════════════════════════════════════════════════════════════╝");
+    process.exit(0);
+  }).catch((e) => {
+    console.error("[backup-production] FATAL:", e.message);
+    process.exit(1);
+  });
+}

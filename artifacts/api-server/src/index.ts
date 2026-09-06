@@ -13,6 +13,7 @@ import { startGrowthReportScheduler }      from "./jobs/growth-report-scheduler.
 import { startGrowthReportAnalysisWorker } from "./jobs/growth-report-analysis-worker.js";
 import { startGrowthReportBatchWorker }    from "./jobs/growth-report-batch-worker.js";
 import { startOpsMonitorScheduler }        from "./jobs/ops-monitor-scheduler.js";
+import { startProductionBackupScheduler }  from "./jobs/production-backup-scheduler.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
 import { runGrInteractionsMigration } from "./migrations/pool-db-x-gr-interactions-init.js";
@@ -144,7 +145,8 @@ if (IS_WORKER) {
   startGrowthReportAnalysisWorker();
   startGrowthReportBatchWorker();
   startOpsMonitorScheduler();
-  console.log("[worker] 스케줄러 11개 등록 완료 (backup / parent-link / auto-attendance / push / readonly-trigger / standby-sync / video-expiry / queue-worker / growth-report / growth-report-analysis / growth-report-batch)");
+  startProductionBackupScheduler();
+  console.log("[worker] 스케줄러 12개 등록 완료 (backup / parent-link / auto-attendance / push / readonly-trigger / standby-sync / video-expiry / queue-worker / growth-report / growth-report-analysis / growth-report-batch / production-backup-daily)");
   console.log("[worker] HTTP 서버 미실행 — DB 락으로 중복 실행 방지됨");
 } else {
   // ── API 서버 모드: HTTP 실행 + 비활성화 정리 스케줄러 ───────────────────
