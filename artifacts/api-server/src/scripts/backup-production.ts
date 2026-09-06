@@ -33,22 +33,140 @@ import { randomUUID } from "crypto";
 const PRODUCTION_REF = "mrgkiussgbbmxfnkjgqy";
 const BACKUP_REF     = "uznwvkuqmvuahpsltqrr";
 
-// ── Critical tables to snapshot (WP18-C spec §2) ─────────────────────────
+// ── BACKUP_REQUIRED tables — full application coverage (WP18-C Coverage Final)
+//
+// EXCLUDED (with reason):
+//   REBUILDABLE: subscription_plans, diary_templates, diary_template_levels,
+//     curriculum_items, curriculum_drills, curriculum_versions,
+//     curriculum_node_relations, global_template_sets, platform_banners,
+//     misconception_candidates  — seed/reference data rebuilt by bootstrap/migration
+//   EPHEMERAL:   event_logs, backup_logs, db_health_logs, pool_change_logs,
+//     pool_event_logs, push_scheduled_sent, push_logs, audit_logs,
+//     audit_entity_versions, class_diary_audit_logs, ops_alerts,
+//     scheduler_heartbeat, scheduler_locks, data_change_logs,
+//     push_fanout_deliveries, push_fanout_jobs, dead_letter_queue,
+//     event_retry_queue, restore_logs, readonly_control_logs,
+//     db_server_snapshots, backup_snapshots, support_query_log,
+//     analytics_events, phone_verifications, messenger_read_state,
+//     parent_content_reads, platform_backups, backup_settings,
+//     notice_reads, notice_dismissals, temp_class_transfers
+//     — operational logs / transient state / rebuild-on-login tokens
+//
 const CRITICAL_TABLES = [
+  // ── Tenant root ──────────────────────────────────────────────────────────
   "swimming_pools",
+  // ── Accounts ─────────────────────────────────────────────────────────────
   "users",
+  "parent_accounts",
+  "teacher_invites",
+  "parent_v2_pending",
+  "push_tokens",
+  "push_settings",
+  "policy_consents",
+  // ── Students / classes ───────────────────────────────────────────────────
   "students",
   "class_groups",
-  "parent_accounts",
-  "parent_students",
   "student_class_history",
+  "parent_students",
+  "members",
+  "class_members",
+  "student_levels",
+  "student_registration_requests",
+  "member_transfers",
+  "user_pool_memberships",
+  // ── Attendance / makeup ──────────────────────────────────────────────────
+  "attendance",
+  "makeup_sessions",
+  "manual_handover_makeups",
+  "holiday_confirmations",
+  // ── Diaries / notes ──────────────────────────────────────────────────────
   "class_diaries",
   "class_diary_student_notes",
-  "notifications",
-  "pool_subscriptions",
+  "diary_messages",
+  "diary_reactions",
+  "notices",
+  // ── Media ────────────────────────────────────────────────────────────────
   "photo_assets_meta",
   "video_assets_meta",
+  "teacher_saved_photos",
+  "teacher_saved_videos",
+  "student_photos",
+  "student_videos",
+  // ── Notifications ────────────────────────────────────────────────────────
+  "notifications",
+  "pool_push_settings",
+  // ── Billing / subscriptions ───────────────────────────────────────────────
+  "pool_subscriptions",
+  "x_subscription_slots",
+  "revenuecat_webhook_events",
+  "payment_cards",
+  "payment_logs",
+  "revenue_logs",
+  "monthly_settlements",
+  "subscriptions",
+  // ── Pool config ───────────────────────────────────────────────────────────
+  "pool_class_pricing",
+  "pool_holidays",
+  "pool_level_settings",
+  "pool_support_incidents",
+  "feature_flags",
+  "feature_flag_overrides",
+  // ── Support / CRM ────────────────────────────────────────────────────────
+  "support_cases",
+  "support_case_notes",
+  "support_tickets",
+  "support_ticket_replies",
+  "support_knowledge_items",
+  "support_knowledge_candidates",
+  "knowledge_approval_log",
+  "inquiries",
+  "inquiry_replies",
+  // ── Parent requests ──────────────────────────────────────────────────────
+  "parent_student_requests",
+  "parent_request_messages",
+  "parent_pool_requests",
+  // ── Messages ─────────────────────────────────────────────────────────────
+  "work_messages",
+  // ── Growth reports ───────────────────────────────────────────────────────
   "growth_reports",
+  "growth_report_cycles",
+  "growth_report_batch_jobs",
+  "growth_report_answers",
+  "growth_report_comments",
+  "growth_report_reactions",
+  "growth_report_questions",
+  "growth_events",
+  // ── Curriculum ───────────────────────────────────────────────────────────
+  "parent_curriculum_conversations",
+  "parent_curriculum_messages",
+  "curriculum_requests",
+  "curriculum_request_files",
+  "student_curriculum_assignments",
+  "student_curriculum_progress",
+  "curriculum_progress_observations",
+  // ── X mode ───────────────────────────────────────────────────────────────
+  "x_setup_submissions",
+  "x_setup_files",
+  "x_setup_revision_requests",
+  "x_website_profiles",
+  "x_website_packages",
+  "x_curriculum_profiles",
+  "x_curriculum_levels",
+  "x_monthly_operational_snapshots",
+  // ── Teacher records ───────────────────────────────────────────────────────
+  "teacher_daily_memos",
+  "teacher_schedule_notes",
+  "teacher_absences",
+  // ── Admin / misc ──────────────────────────────────────────────────────────
+  "admin_member_notes",
+  "member_activity_logs",
+  "parent_ai_daily_usage",
+  "parent_ai_usage_reservations",
+  "super_incidents",
+  "misconception_hunter_settings",
+  "partner_analytics_snapshots",
+  "swim_diary",
+  "classes",
 ] as const;
 
 type TableName = typeof CRITICAL_TABLES[number];
@@ -178,22 +296,8 @@ async function main() {
     // PII fields: we copy object_key/metadata only, not actual binary.
     // For safety: copy all structured fields (they're already in backup schema).
 
-    const exportOrder: TableName[] = [
-      "swimming_pools",
-      "users",
-      "students",
-      "class_groups",
-      "parent_accounts",
-      "parent_students",
-      "student_class_history",
-      "class_diaries",
-      "class_diary_student_notes",
-      "notifications",
-      "pool_subscriptions",
-      "photo_assets_meta",
-      "video_assets_meta",
-      "growth_reports",
-    ];
+    // exportOrder mirrors CRITICAL_TABLES — order matches FK dependency (parents before children)
+    const exportOrder: TableName[] = [...CRITICAL_TABLES];
 
     const copyCounts: Record<string, number> = {};
     const batchSize = 500;
@@ -215,9 +319,9 @@ async function main() {
           continue;
         }
 
-        // Fetch columns from backup schema (source of truth for column names)
+        // Fetch columns from backup schema (source of truth for column names + types)
         const colQ = await backupPool.query(
-          `SELECT column_name FROM information_schema.columns
+          `SELECT column_name, data_type FROM information_schema.columns
            WHERE table_schema='public' AND table_name=$1
            ORDER BY ordinal_position`,
           [table]
@@ -226,6 +330,10 @@ async function main() {
         if (table === ("backup_runs" as any)) continue;
 
         const cols = colQ.rows.map((r: any) => r.column_name as string);
+        // Track backup column types to serialize correctly
+        const backupColTypes = new Map<string, string>(
+          colQ.rows.map((r: any) => [r.column_name as string, (r.data_type as string)])
+        );
 
         // Fetch from production (columns that exist in both)
         const prodColQ = await exportClient.query(
@@ -242,6 +350,10 @@ async function main() {
           continue;
         }
 
+        // DELETE all existing rows before fresh copy — avoids multi-col unique constraint conflicts.
+        // session_replication_role=replica disables FK trigger checks on DELETE as well.
+        await backupWriteClient.query(`DELETE FROM ${table}`);
+
         let offset = 0;
         let copied = 0;
 
@@ -252,27 +364,26 @@ async function main() {
             );
             if (rows.rows.length === 0) break;
 
-            // UPSERT to backup
+            // INSERT to backup — DELETE already cleared the table so no conflicts expected;
+            // ON CONFLICT DO NOTHING as safety net for tables without a single-col PK.
             const colList = commonCols.map(c => `"${c}"`).join(",");
-            const updateSet = commonCols
-              .filter(c => c !== "id")
-              .map(c => `"${c}"=EXCLUDED."${c}"`)
-              .join(",");
 
             for (const row of rows.rows) {
               const vals = commonCols.map(c => {
                 const v = row[c];
                 if (v === null || v === undefined) return null;
-                // pg returns PostgreSQL arrays as JS arrays — pass as-is so pg re-serializes correctly
-                if (Array.isArray(v)) return v;
-                // Non-array objects (JSONB etc.) → JSON string
-                if (typeof v === "object" && !(v instanceof Date)) return JSON.stringify(v);
+                if (typeof v === "object" && !(v instanceof Date)) {
+                  const bkType = backupColTypes.get(c) ?? "";
+                  // PostgreSQL native ARRAY columns → pass JS array as-is
+                  // JSON/JSONB columns → always stringify
+                  if (bkType === "ARRAY") return v;
+                  return JSON.stringify(v);
+                }
                 return v;
               });
               const placeholders = vals.map((_: any, i: number) => `$${i + 1}`).join(",");
               await backupWriteClient.query(
-                `INSERT INTO ${table} (${colList}) VALUES (${placeholders})
-                 ON CONFLICT (id) DO UPDATE SET ${updateSet}`,
+                `INSERT INTO ${table} (${colList}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
                 vals
               );
             }
