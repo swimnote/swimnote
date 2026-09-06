@@ -197,7 +197,7 @@ function PaidInsightCtaSection({
     <View style={s.ctaSection}>
       <View style={s.priceRow}>
         <Text style={s.priceName}>AI 인사이트 전략 리포트</Text>
-        <Text style={s.priceAmount}>29,000원 · 1회</Text>
+        <Text style={s.priceAmount}>79,000원 · 1회</Text>
       </View>
       <View style={{ gap: 8 }}>
         <Pressable style={s.ctaBtn} onPress={onCheckReadiness}>
@@ -409,7 +409,7 @@ function PreflightSheet({
       </View>
       <View style={s.preflightPrice}>
         <Text style={s.preflightProduct}>AI 인사이트 전략 리포트</Text>
-        <Text style={s.preflightAmount}>29,000원 · 1회</Text>
+        <Text style={s.preflightAmount}>79,000원 · 1회</Text>
       </View>
       <View style={s.ctaDisabled}>
         <Text style={s.ctaDisabledTxt}>발급 준비가 완료되었습니다</Text>
