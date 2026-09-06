@@ -1,0 +1,677 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — DIARY VIDEO UPLOAD ACTUAL FAILURE TRACE + FIX
+# 현재 "업로드 중" 배너 추가만으로는 미해결
+# 핵심은 영상이 실제 Diary에 첨부/저장되지 않는 문제
+# 사진 upload는 정상 → 재조사 금지
+# 오직 Diary VIDEO upload/save path만 추적
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA까지 자동 완료
+# Render Production deploy 금지
+
+현재 실기기 증상:
+
+- 사진 첨부: 정상
+- 영상 첨부 버튼: 선택 가능
+- 이전에는 업로드 진행 표시도 거의 안 보였음
+- 이번 OTA에서 "영상 업로드 중..." 배너 추가
+- 하지만 핵심 문제:
+  영상이 실제로 Diary에 첨부/저장되지 않음
+
+따라서 이번 작업 목표는
+"업로드 중 UI"가 아니라
+VIDEO가 실제로 저장되는 end-to-end path 복구입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━
+
+재조사 금지:
+
+- 사진 upload
+- Parent Feed
+- AI Engine
+- Diary navigation
+- Growth Report
+- Notification
+- Admin
+- X mode
+- repo-wide audit
+
+오직 VIDEO:
+
+picker
+→ upload function
+→ R2/API
+→ state
+→ save payload
+→ DB/media relation
+→ edit reopen
+
+만 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. VIDEO SELECT 실제 trace
+━━━━━━━━━━━━━━━━━━━━━━
+
+공통 일지 영상 선택 1회 기준:
+
+picker callback:
+YES / NO
+
+selected asset:
+YES / NO
+
+asset uri:
+present / absent
+
+mime/type:
+...
+
+duration:
+...
+
+fileSize:
+...
+
+state append:
+YES / NO
+
+mediaUploading set:
+YES / NO
+
+학생별 영상도 동일 확인.
+
+민감 URI 전문 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. VIDEO UPLOAD 함수 실제 호출
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 선택 후 실제 어떤 함수가 호출되는지 확인.
+
+예:
+
+uploadGroupMedia
+uploadStudentMedia
+uploadVideoToR2
+directUpload
+기타
+
+보고:
+
+actual function:
+...
+
+called:
+YES / NO
+
+request method:
+...
+
+endpoint:
+...
+
+body/form-data:
+...
+
+video-specific credentials/config 사용:
+YES / NO
+
+사진 upload path와
+영상 upload path가 어디서 갈라지는지 정확히 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 HTTP / R2 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 1개 upload 기준:
+
+request sent:
+YES / NO
+
+HTTP status:
+...
+
+response:
+success / fail
+
+returned media URL/key:
+present / absent
+
+error code:
+...
+
+error message:
+...
+
+timeout:
+YES / NO
+
+upload duration:
+...
+
+중요:
+
+"버튼 눌렀다"로 PASS 금지.
+실제 2xx + returned asset evidence 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Render/R2 VIDEO config 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 Production에서 video R2 config 문제 있었음.
+
+현재 actual runtime에서
+다음 video config가 존재하는지만 확인:
+
+CF_R2_VIDEO_ACCESS_KEY_ID
+CF_R2_VIDEO_SECRET_ACCESS_KEY
+CF_R2_VIDEO_BUCKET_NAME
+
+값 자체 출력 금지.
+
+각각:
+
+present / missing
+
+bucket reachable:
+YES / NO
+
+사진용 config와 video용 config를
+혼동하지 않는지 확인.
+
+이미 정상으로 존재하면
+다시 infra 조사하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. UPLOAD 성공 후 state 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+HTTP 2xx 이후:
+
+video item state에
+
+local uri
+remote url/key
+uploaded=true
+uploading=false
+
+가 실제 반영되는지 확인.
+
+중요:
+
+업로드 성공했는데
+state replacement에서 video item이 사라지는지 확인.
+
+공통/학생별 각각.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. SAVE PAYLOAD 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary 저장 시 영상이 실제 payload에 포함되는지 확인.
+
+공통 Diary:
+
+video IDs/URLs:
+present / absent
+
+학생별 Diary:
+
+video IDs/URLs:
+present / absent
+
+사진 field와 영상 field를
+같은 배열/다른 배열 중 현재 contract에 맞게 사용.
+
+다음 오류 확인:
+
+- upload는 성공했지만 save payload에서 video 누락
+- uploaded flag filter 때문에 제외
+- remote key field 이름 불일치
+- local uri만 남아 server가 무시
+- photoIds만 저장하고 videoIds 빠짐
+- student media mapping에서 video만 drop
+
+exact root cause 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. SERVER SAVE / DB RELATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+save request 이후:
+
+HTTP:
+...
+
+Diary saved:
+YES / NO
+
+video relation saved:
+YES / NO
+
+saved video count:
+...
+
+공통 video:
+...
+
+student video:
+...
+
+실제 DB mutation을 수동으로 하지 말 것.
+기존 API 결과/조회로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. EDIT REOPEN 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 첨부 후 Diary 저장
+→ 다시 해당 Diary Edit 열기
+
+영상이 기존 media로 로드:
+YES / NO
+
+재생/preview card:
+YES / NO
+
+없다면 어느 단계에서 사라졌는지 확인:
+
+UPLOAD
+SAVE PAYLOAD
+SERVER SAVE
+READ API
+EDIT MAPPING
+
+중 하나로 분류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. FAILURE CLASSIFICATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 하나로 확정:
+
+V1
+picker 후 upload 함수 미호출
+
+V2
+upload request 생성 실패
+
+V3
+video R2/config 문제
+
+V4
+upload HTTP 실패
+
+V5
+upload 성공 후 client state에서 유실
+
+V6
+save payload에서 video 누락
+
+V7
+server save에서 video relation 누락
+
+V8
+read API에서 video 누락
+
+V9
+edit UI mapping/render 누락
+
+V10
+기타 — exact evidence 필요
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 업로드 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 추가한 전역 배너 유지:
+
+[스피너]
+영상 업로드 중...
+잠시 기다려주세요
+
+하지만 다음 상태까지 명확히 처리:
+
+UPLOAD START:
+배너 표시
+
+UPLOAD SUCCESS:
+배너 종료
+영상 preview 유지
+성공 상태
+
+UPLOAD FAIL:
+배너 종료
+영상 preview 유지 또는 실패 card 유지
+"영상 업로드에 실패했습니다. 다시 시도해주세요"
+명확히 표시
+
+실패인데 그냥 배너만 사라지면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. SAVE BUTTON 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+영상 업로드 중에는
+Diary Save가 premature하게 실행되어
+video 없이 저장되는지 확인.
+
+정상 정책:
+
+mediaUploading !== null
+일 때
+
+Save를 막거나
+업로드 완료까지 기다리는 기존 안전 방식 사용.
+
+사용자에게:
+
+"영상 업로드가 완료될 때까지 잠시 기다려주세요"
+
+정도 안내.
+
+대규모 queue system 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 공통/학생별 모두 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+A. 공통 video
+select
+→ upload
+→ preview
+→ save
+→ reopen
+
+B. 학생별 video
+select
+→ upload
+→ preview
+→ save
+→ reopen
+
+둘 다 PASS.
+
+한쪽만 되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 사진 regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 path는 건드리지 말 것.
+
+최종 regression만:
+
+공통 photo:
+PASS
+
+학생별 photo:
+PASS
+
+영상 수정 때문에 사진 깨지면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 client/server Diary video 코드만 최소 수정.
+
+DB migration 금지.
+새 native dependency 금지.
+R2 architecture 변경 금지.
+
+SERVER 변경이 필요하면:
+main commit/push
+Render deploy는 하지 말 것.
+
+보고:
+SERVER_CHANGED=YES
+RENDER_DEPLOY_REQUIRED=YES
+
+Client 변경이면:
+release/v2.0.0 반영.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client 수정 완료 후:
+
+release/v2.0.0
+commit/push
+
+Preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS면
+추가 승인 없이
+
+iOS production-v2 OTA 완료.
+
+main OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 DIARY VIDEO UPLOAD ACTUAL FIX REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+SERVER main before:
+SERVER main after:
+Server commit:
+
+━━━━━━━━━━
+VIDEO TRACE
+━━━━━━━━━━
+
+Picker:
+PASS / FAIL
+
+Asset uri:
+PRESENT / MISSING
+
+Upload function:
+...
+
+Called:
+YES / NO
+
+Endpoint:
+...
+
+HTTP:
+...
+
+Returned video key/url:
+YES / NO
+
+Upload duration:
+...
+
+VIDEO config present:
+YES / NO
+
+━━━━━━━━━━
+ROOT CAUSE
+━━━━━━━━━━
+
+Classification:
+V1 / V2 / V3 / V4 / V5 / V6 / V7 / V8 / V9 / V10
+
+Exact root cause:
+...
+
+Files changed:
+...
+
+━━━━━━━━━━
+STATE
+━━━━━━━━━━
+
+Uploading state:
+PASS / FAIL
+
+Uploaded state:
+PASS / FAIL
+
+Preview after upload:
+PASS / FAIL
+
+Failure message:
+PASS / FAIL
+
+━━━━━━━━━━
+SAVE
+━━━━━━━━━━
+
+Save blocked during upload:
+YES / NO
+
+Common video in save payload:
+YES / NO
+
+Student video in save payload:
+YES / NO
+
+Server saved relation:
+YES / NO
+
+━━━━━━━━━━
+REOPEN
+━━━━━━━━━━
+
+Common video loads after reopen:
+PASS / FAIL
+
+Student video loads after reopen:
+PASS / FAIL
+
+━━━━━━━━━━
+REGRESSION
+━━━━━━━━━━
+
+Common photo:
+PASS / FAIL
+
+Student photo:
+PASS / FAIL
+
+DB migration:
+NO
+
+Native dependency:
+NO
+
+━━━━━━━━━━
+SERVER
+━━━━━━━━━━
+
+SERVER_CHANGED:
+YES / NO
+
+SERVER_SHA:
+...
+
+RENDER_DEPLOY_REQUIRED:
+YES / NO
+
+Render deploy:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+CLIENT_CHANGED:
+YES / NO
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+Update ID:
+...
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Common video end-to-end:
+PASS / FAIL
+
+Student video end-to-end:
+PASS / FAIL
+
+Remaining video defects:
+NONE / ...
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+HOLD_RENDER_DEPLOY
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
