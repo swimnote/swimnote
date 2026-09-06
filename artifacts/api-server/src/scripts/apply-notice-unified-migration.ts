@@ -100,7 +100,7 @@ async function main(): Promise<void> {
     for (const stmt of stmts) { await query(stmt); }
     console.log("  → Second run: OK (IF NOT EXISTS)");
 
-    console.log("\n✅ WP4 Migration PASS — Staging (lspmacdbyvpzysnrjsww) only. Production NOT touched.\n");
+    console.log("\n✅ WP4 Migration PASS — Staging (cbpaxrvrqczqefjoykge) only. Production NOT touched.\n");
   } finally {
     await pool.end();
   }

@@ -13,7 +13,7 @@
 import pg from "pg";
 
 const PROD_REF    = "mrgkiussgbbmxfnkjgqy";
-const STAGING_REFS = new Set(["lspmacdbyvpzysnrjsww"]);
+const STAGING_REFS = new Set(["cbpaxrvrqczqefjoykge"]); // swimnote-staging-free
 
 // ── Safety gates ────────────────────────────────────────────────────────────
 if (process.env.ALLOW_TEST_DB_MUTATIONS !== "true") {

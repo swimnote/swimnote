@@ -76,7 +76,7 @@ async function main(): Promise<void> {
     const jobCount = await db.execute(drizzleSql.raw("SELECT COUNT(*) AS n FROM push_fanout_jobs"));
     console.log(`  → push_fanout_jobs rows: ${(jobCount.rows[0] as any).n} (should be 0 on fresh staging)`);
 
-    console.log("\n✅ Migration PASS — Staging (lspmacdbyvpzysnrjsww) only. Production NOT touched.\n");
+    console.log("\n✅ Migration PASS — Staging (cbpaxrvrqczqefjoykge) only. Production NOT touched.\n");
   } finally {
     await close();
   }

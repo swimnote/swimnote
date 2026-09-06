@@ -15,12 +15,12 @@ import {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-// swimnote-staging (ap-northeast-2, Seoul) — the ONLY allowed staging ref
-const STAGING_REF = "lspmacdbyvpzysnrjsww";
+// swimnote-staging-free (ap-southeast-1, Singapore) — the ONLY allowed staging ref
+const STAGING_REF = "cbpaxrvrqczqefjoykge";
 
-// Known staging URL (Shared Transaction Pooler, Seoul)
+// Known staging URL (Shared Transaction Pooler, Singapore)
 const STAGING_TX_URL =
-  `postgresql://postgres.${STAGING_REF}:REDACTED@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres`;
+  `postgresql://postgres.${STAGING_REF}:REDACTED@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres`;
 
 // Production URL (Shared Session Pooler, Mumbai) — must be BLOCKED
 const PRODUCTION_REF = "mrgkiussgbbmxfnkjgqy"; // real production ref (swimnote production)
@@ -33,7 +33,7 @@ const UNKNOWN_URL =
 
 // Direct URL format (dedicated pooler)
 const DIRECT_STAGING_URL =
-  `postgresql://postgres:REDACTED@db.${STAGING_REF}.supabase.co:6543/postgres`;
+  `postgresql://postgres:REDACTED@db.cbpaxrvrqczqefjoykge.supabase.co:6543/postgres`;
 
 const MALFORMED_URL = "not-a-valid-url://???";
 

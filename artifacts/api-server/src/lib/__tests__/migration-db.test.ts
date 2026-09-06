@@ -17,8 +17,8 @@ import { extractProjectRef } from "../migration-db.js";
 
 describe("extractProjectRef", () => {
   it("parses standard supabase pooler URL", () => {
-    const url = "postgresql://postgres.lspmacdbyvpzysnrjsww:password@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres";
-    expect(extractProjectRef(url)).toBe("lspmacdbyvpzysnrjsww");
+    const url = "postgresql://postgres.cbpaxrvrqczqefjoykge:password@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres";
+    expect(extractProjectRef(url)).toBe("cbpaxrvrqczqefjoykge");
   });
 
   it("parses transaction pooler URL", () => {
@@ -36,7 +36,7 @@ describe("extractProjectRef", () => {
   });
 
   it("returns null for username without postgres. prefix", () => {
-    const url = "postgresql://admin.lspmacdbyvpzysnrjsww:pw@host:5432/db";
+    const url = "postgresql://admin.cbpaxrvrqczqefjoykge:pw@host:5432/db";
     expect(extractProjectRef(url)).toBeNull();
   });
 });
@@ -44,9 +44,9 @@ describe("extractProjectRef", () => {
 // ── getMigrationDb safety gate tests (mock process.exit) ────────────────────
 
 describe("getMigrationDb safety gates", () => {
-  const STAGING_REF = "lspmacdbyvpzysnrjsww";
+  const STAGING_REF = "cbpaxrvrqczqefjoykge";
   const PROD_REF    = "mrgkiussgbbmxfnkjgqy";
-  const STAGING_URL = `postgresql://postgres.${STAGING_REF}:pw@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres`;
+  const STAGING_URL = `postgresql://postgres.${STAGING_REF}:pw@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres`;
   const PROD_URL    = `postgresql://postgres.${PROD_REF}:pw@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres`;
   const UNKNOWN_URL = `postgresql://postgres.unknownref12345:pw@host:5432/postgres`;
 

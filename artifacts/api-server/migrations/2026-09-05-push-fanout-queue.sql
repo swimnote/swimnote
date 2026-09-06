@@ -12,7 +12,7 @@
 --   - SENT/PERMANENT_FAIL delivery → 재발송 없음
 --
 -- 실행 조건:
---   - Staging(lspmacdbyvpzysnrjsww)에서 검증 후 Production 수동 실행
+--   - Staging(cbpaxrvrqczqefjoykge)에서 검증 후 Production 수동 실행
 --   - Runtime boot에서 자동 실행 금지
 --
 -- Rollback:

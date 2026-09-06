@@ -7,7 +7,7 @@
 import pg from "pg";
 
 const PROD_REF     = "mrgkiussgbbmxfnkjgqy";
-const STAGING_REFS = new Set(["lspmacdbyvpzysnrjsww"]);
+const STAGING_REFS = new Set(["cbpaxrvrqczqefjoykge"]); // swimnote-staging-free
 
 const testUrl = process.env.TEST_DATABASE_URL!;
 const ref = new URL(testUrl).username.match(/^postgres\.([a-z0-9]+)$/)?.[1];

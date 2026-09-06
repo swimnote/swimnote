@@ -11,7 +11,7 @@ export {};
  * 필수 환경변수:
  *   STAGING_API_TEST_MODE=true
  *   ALLOW_TEST_DB_MUTATIONS=true
- *   TEST_DATABASE_URL=postgresql://postgres.lspmacdbyvpzysnrjsww:...
+ *   TEST_DATABASE_URL=postgresql://postgres.cbpaxrvrqczqefjoykge:...
  *
  * 실행:
  *   STAGING_API_TEST_MODE=true ALLOW_TEST_DB_MUTATIONS=true \
@@ -68,7 +68,7 @@ if (!testUrl) {
 }
 
 const PRODUCTION_REF = "mrgkiussgbbmxfnkjgqy";
-const STAGING_REFS   = new Set(["lspmacdbyvpzysnrjsww"]);
+const STAGING_REFS   = new Set(["cbpaxrvrqczqefjoykge"]); // swimnote-staging-free
 
 function extractRef(url: string): string | null {
   try {

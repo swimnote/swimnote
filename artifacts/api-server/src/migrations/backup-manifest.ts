@@ -11,7 +11,7 @@
  * 보안:
  *   - SUPABASE_BACKUP_DATABASE_URL만 허용
  *   - Production ref (mrgkiussgbbmxfnkjgqy) 자동 BLOCK
- *   - Staging ref (lspmacdbyvpzysnrjsww) BLOCK (staging≠backup)
+ *   - Staging ref (cbpaxrvrqczqefjoykge) BLOCK (staging≠backup)
  *   - ALLOW_BACKUP_DB_MUTATIONS=true 필수
  *   - 연결 문자열/비밀번호 로그 출력 금지
  */
@@ -21,7 +21,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@workspace/db/schema";
 
 const PRODUCTION_REF = "mrgkiussgbbmxfnkjgqy";
-const STAGING_REF    = "lspmacdbyvpzysnrjsww";
+const STAGING_REF    = "cbpaxrvrqczqefjoykge"; // swimnote-staging-free
 const BACKUP_REF     = "uznwvkuqmvuahpsltqrr";
 
 // ── Migration imports (same as staging-manifest) ───────────────────────────

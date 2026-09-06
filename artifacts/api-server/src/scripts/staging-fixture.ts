@@ -24,7 +24,7 @@ if (!url)           { console.error("🚫 TEST_DATABASE_URL not set"); process.e
 if (allow !== "true") { console.error("🚫 ALLOW_TEST_DB_MUTATIONS must be true"); process.exit(1); }
 
 const ref = new URL(url).username.replace(/^postgres\./, "");
-const STAGING_REFS = new Set(["lspmacdbyvpzysnrjsww"]);
+const STAGING_REFS = new Set(["cbpaxrvrqczqefjoykge"]); // swimnote-staging-free
 if (!STAGING_REFS.has(ref)) { console.error(`🚫 Not a known staging ref: ${ref}`); process.exit(1); }
 
 const pool = new pg.Pool({ connectionString: url, ssl: { rejectUnauthorized: false }, max: 2 });

@@ -4,7 +4,7 @@
  * 규칙:
  *   1. TEST_DATABASE_URL만 사용 (SUPABASE_DATABASE_URL fallback 완전 금지)
  *   2. TEST_DATABASE_URL 미설정 시 FAIL CLOSED
- *   3. Staging project ref lspmacdbyvpzysnrjsww 외 mutation 차단
+ *   3. Staging project ref cbpaxrvrqczqefjoykge 외 mutation 차단
  *   4. Production ref mrgkiussgbbmxfnkjgqy 무조건 BLOCK
  *   5. Unknown ref BLOCK
  *   6. ALLOW_TEST_DB_MUTATIONS=true 필수
@@ -24,7 +24,7 @@ import * as schema from "@workspace/db/schema";
 const { Pool } = pg;
 
 // ── Known project refs ─────────────────────────────────────────────────────
-const KNOWN_STAGING_REFS = new Set(["lspmacdbyvpzysnrjsww"]);
+const KNOWN_STAGING_REFS = new Set(["cbpaxrvrqczqefjoykge"]); // swimnote-staging-free (ap-southeast-1)
 const PRODUCTION_REF     = "mrgkiussgbbmxfnkjgqy";
 
 // ── Exported type ──────────────────────────────────────────────────────────

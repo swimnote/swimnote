@@ -19,7 +19,7 @@ if (allow !== "true") { console.error("🚫 ALLOW_TEST_DB_MUTATIONS must be true
 // Safety: verify staging project ref
 const username = new URL(url).username;
 const ref = username.replace(/^postgres\./, "");
-const STAGING_REFS = new Set(["lspmacdbyvpzysnrjsww"]);
+const STAGING_REFS = new Set(["cbpaxrvrqczqefjoykge"]); // swimnote-staging-free
 if (!STAGING_REFS.has(ref)) {
   console.error(`🚫 URL does not point to known staging (ref=${ref})`);
   process.exit(1);
