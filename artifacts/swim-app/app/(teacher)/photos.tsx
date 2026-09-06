@@ -364,23 +364,14 @@ export default function TeacherPhotosScreen() {
   })).current;
   // ── 개별 영상 삭제 ─────────────────────────────────────────────────
   async function deleteSingleVideo(id: string) {
+    // 시트 닫기 → 낙관적 UI 제거 → 백그라운드 API 호출
     setVideoActionItem(null);
-    setDeleting(true);
-    try {
-      setItems(prev => prev.filter(i => i.id !== id));
-      const res = await fetch(`${API_BASE}/videos/bulk`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
-        body: JSON.stringify({ ids: [id] }),
-      });
-      const data = await res.json().catch(() => ({}));
-      const deleted = (data as any)?.deleted ?? 1;
-      setSuccessMsg(`${deleted}개가 삭제됐습니다.`);
-    } catch {
-      setSuccessMsg("삭제됐습니다.");
-    } finally {
-      setDeleting(false);
-    }
+    setItems(prev => prev.filter(i => i.id !== id));
+    fetch(`${API_BASE}/videos/bulk`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+      body: JSON.stringify({ ids: [id] }),
+    }).catch(e => console.warn("[deleteSingleVideo]", e));
   }
   // ── 선택 삭제 ─────────────────────────────────────────────────────────
   async function deleteSelected() {
