@@ -105,6 +105,22 @@ export default function DiaryWriteView({
   const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1 }}>
+      {/* ── 영상 업로드 중 전역 배너 ── */}
+      {mediaUploading !== null && (
+        <View style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: "#1E293B",
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          gap: 10,
+        }}>
+          <ActivityIndicator size="small" color="#FFFFFF" />
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontFamily: "Pretendard-SemiBold" }}>
+            영상 업로드 중... 잠시 기다려주세요
+          </Text>
+        </View>
+      )}
       <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" bottomOffset={90}>
 
         <View style={[s.card, { backgroundColor: C.card }]}>
