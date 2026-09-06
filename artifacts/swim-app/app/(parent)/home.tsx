@@ -2311,7 +2311,7 @@ export default function ParentHomeScreen() {
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
-        ItemSeparatorComponent={() => <View style={{ height: 20, backgroundColor: "#F4F7FB" }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 48, backgroundColor: "#F4F7FB" }} />}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
