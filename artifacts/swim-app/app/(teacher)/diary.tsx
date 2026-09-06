@@ -1246,6 +1246,11 @@ export default function TeacherDiaryScreen() {
   }
   async function handleEditSave() {
     if (!editDiary || !selectedGroup) return;
+    // 영상 업로드 완료 전 저장 차단
+    if (mediaUploading !== null) {
+      setEditError("영상 업로드가 완료될 때까지 잠시 기다려주세요.");
+      return;
+    }
     const hasEditMedia =
       editLinkedPhotos.length > 0 ||
       editLinkedVideos.length > 0 ||
@@ -1572,6 +1577,8 @@ export default function TeacherDiaryScreen() {
             onOpenStudentAlbumPicker={(student) => { setStudentAlbumPickerTarget(student); setShowEditStudentAlbumPicker(true); }}
             onRemoveStudentAlbumPhoto={(studentId, photoId) => setStudentAlbumPhotos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(p => p.id !== photoId) }))}
             onRemoveStudentAlbumVideo={(studentId, videoId) => setStudentAlbumVideos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(v => v.id !== videoId) }))}
+            onUploadStudentMedia={uploadStudentMedia}
+            mediaUploading={mediaUploading}
           />
           <AlbumPickerModal
             visible={showEditAlbumPicker}

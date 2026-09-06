@@ -32,6 +32,7 @@ export default function DiaryEditView({
   token, linkedPhotos, onRemoveLinkedPhoto, onOpenAlbumPicker, newAlbumPhotos, onRemoveNewAlbumPhoto,
   linkedVideos, onRemoveLinkedVideo, newAlbumVideos, onRemoveNewAlbumVideo,
   studentAlbumPhotos, studentAlbumVideos, onOpenStudentAlbumPicker, onRemoveStudentAlbumPhoto, onRemoveStudentAlbumVideo,
+  onUploadStudentMedia, mediaUploading,
 }: {
   group: TeacherClassGroup; themeColor: string;
   editDiary: DiaryEntry | null;
@@ -67,6 +68,8 @@ export default function DiaryEditView({
   onOpenStudentAlbumPicker: (student: StudentOption) => void;
   onRemoveStudentAlbumPhoto: (studentId: string, photoId: string) => void;
   onRemoveStudentAlbumVideo: (studentId: string, videoId: string) => void;
+  onUploadStudentMedia?: (student: StudentOption, kind: "video") => void;
+  mediaUploading?: string | null;
 }) {
   const insets = useSafeAreaInsets();
   const activeNotes = editNotes.filter(n => !n._deleted);
@@ -81,6 +84,13 @@ export default function DiaryEditView({
 
   return (
     <View style={{ flex: 1 }}>
+      {/* ── 영상 업로드 중 전역 배너 ── */}
+      {!!mediaUploading && (
+        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#1E293B", paddingHorizontal: 16, paddingVertical: 10, gap: 10 }}>
+          <ActivityIndicator size="small" color="#FFFFFF" />
+          <Text style={{ color: "#FFFFFF", fontSize: 13, fontFamily: "Pretendard-SemiBold" }}>영상 업로드 중... 잠시 기다려주세요</Text>
+        </View>
+      )}
       <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" bottomOffset={90}>
 
         <View style={[s.infoCard, { backgroundColor: themeColor + "12", borderColor: themeColor + "30" }]}>
@@ -254,6 +264,11 @@ export default function DiaryEditView({
                   <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
                     <LucideIcon name="image" size={13} color={C.brandStrong} /><Text style={[s.mediaBtnText, { color: C.brandStrong }]}>앨범에서 선택</Text>
                   </Pressable>
+                  {onUploadStudentMedia && (
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onUploadStudentMedia!(st, "video")}>
+                      <LucideIcon name="video" size={13} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
+                    </Pressable>
+                  )}
                 </View>
                 {(stPhotos.length > 0 || stVideos.length > 0) && (
                   <View style={s.albumPreviewRow}>
@@ -307,6 +322,11 @@ export default function DiaryEditView({
                   <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
                     <LucideIcon name="image" size={13} color={C.brandStrong} /><Text style={[s.mediaBtnText, { color: C.brandStrong }]}>앨범에서 선택</Text>
                   </Pressable>
+                  {onUploadStudentMedia && (
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onUploadStudentMedia!(st, "video")}>
+                      <LucideIcon name="video" size={13} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
+                    </Pressable>
+                  )}
                 </View>
                 {(stPhotos.length > 0 || stVideos.length > 0) && (
                   <View style={s.albumPreviewRow}>
