@@ -1027,7 +1027,7 @@ function DiaryFeedItem({
 
   return (
     <View style={f.item}>
-      {/* ── 헤더: 선생님 · 반 / 날짜 (avatar 없음 §3, 수정됨 없음 §4) ── */}
+      {/* ── 헤더: 좌측 선생님·반/날짜 + 우측 수업일지 배지 ── */}
       <View style={f.header}>
         <View style={f.headerMeta}>
           <Text style={[f.headerName, { color: C.text }]}>
@@ -1041,6 +1041,10 @@ function DiaryFeedItem({
           <Text style={[f.headerDate, { color: C.textSecondary }]}>
             {!isCurrentYear && `${year}년 `}{month}월 {day}일 {weekday}요일
           </Text>
+        </View>
+        {/* 우측 수업 일지 배지 */}
+        <View style={f.diaryBadge}>
+          <Text style={f.diaryBadgeTxt}>수업 일지</Text>
         </View>
       </View>
 
@@ -2458,12 +2462,29 @@ const f = StyleSheet.create({
     paddingTop: 14,
   },
 
-  // ── 헤더: avatar 없이 메타만 (§3) ──
+  // ── 헤더: 좌측 메타 + 우측 배지 ──
   header: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 10,
   },
-  headerMeta: { gap: 3 },
+  headerMeta: { flex: 1, gap: 3 },
+  diaryBadge: {
+    borderWidth: 1,
+    borderColor: NAVY,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginLeft: 8,
+    alignSelf: "flex-start",
+  },
+  diaryBadgeTxt: {
+    fontSize: 11,
+    fontFamily: "Pretendard-SemiBold",
+    color: NAVY,
+    letterSpacing: 0.3,
+  },
   headerName: {
     fontSize: 14,
     fontFamily: "Pretendard-SemiBold",
