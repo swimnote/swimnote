@@ -56,6 +56,10 @@ const TIMEOUT_MS = 60_000;
 // ★ false로 고정 — request_id 없는 응답은 즉시 CONTRACT_REQUEST_ID_MISSING 반환
 const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = false;
 
+// ─── 진단 기준 pool ───────────────────────────────────────────────────────────
+// P0 Trace: request pool_id가 정확히 이 값인지 확인 (Production 로그용 boolean만)
+const _TRACE_TOYKIDS_POOL_ID = 'pool_1780849364252_l9k44rbk3';
+
 // ─── Contract 버전 관리 ───────────────────────────────────────────────────────
 //
 // 앱이 전송하는 contract_version — Request에 포함됩니다.
@@ -800,21 +804,27 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
   // ── 3. Feature flag 결정 ─────────────────────────────────────────────────
   const mode: AIDiaryMode = getAIDiaryMode();
 
-  // ── 4. 엔드포인트 host (로깅용) ──────────────────────────────────────────
+  // ── 4. 엔드포인트 host/path (로깅용) ────────────────────────────────────
   let endpointHost = '(unknown)';
+  let endpointPath = '(unknown)';
   try {
-    endpointHost = getDiaryEndpoint(mode).host;
+    const ep  = getDiaryEndpoint(mode);
+    endpointHost = ep.host;
+    endpointPath = ep.path;
   } catch { /* grounded + URL 미설정 — sendRequest에서 처리 */ }
 
-  // ── 5. 요청 시작 로그 (PII 미포함) ──────────────────────────────────────
-  // 금지: 학생 이름, 교사 입력 원문, JWT, 전체 payload
-  // 허용: request_id, endpoint_host, status, student_count, text_length, pipeline_mode
-  console.log('[DiaryAIService] generate_request', {
-    request_id:    requestId,
-    endpoint_host: endpointHost,
-    student_count: students.length,
-    text_length:   inputText.trim().length,
-    pipeline_mode: mode,
+  // ── 5. REQUEST 진단 로그 (PII 미포함 — Production 항시 출력) ─────────────
+  // 금지: 학생 이름, 교사 입력 원문, JWT, pool_id 원문, 전체 payload
+  // 허용: request_id, contract_version, endpoint, boolean flags, counts, lengths
+  console.log('[DiaryAIService] teacher_diary_request_trace', {
+    request_id:         requestId,
+    contract_version:   APP_CONTRACT_VERSION,
+    endpoint:           `${endpointHost}${endpointPath}`,
+    is_toykids_pool:    poolId === _TRACE_TOYKIDS_POOL_ID,
+    class_id_present:   Boolean(classId),
+    lesson_date_present: Boolean(date),
+    student_count:      students.length,
+    text_length:        inputText.trim().length,
   });
 
   // ── 6. 진행 상태 알림 ────────────────────────────────────────────────────
@@ -912,24 +922,29 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     };
   }
 
-  // ── 성공 로그 (허용 필드만: PII 금지) ──────────────────────────────────────
+  // ── RESPONSE 진단 로그 (PII 미포함 — Production 항시 출력) ─────────────────
+  // 금지: 일지 본문, 학생 이름, 학생 ID, 원문
+  // 허용: request_id, 상태값, meta 수치, 길이 합산
   const resMeta = normalized.result.meta;
-  if (__DEV__) {
-    console.log('[DiaryAIService] generate_succeeded', {
-      request_id:          requestId,
-      pipeline_mode:       mode,
-      generation_mode:     resMeta?.generationMode,
-      grounding_validation: resMeta?.groundingValidation,
-      template_ids_count:  resMeta?.templateIds?.length ?? 0,
-      knowledge_ids_count: resMeta?.knowledgeIds?.length ?? 0,
-      latency_ms:          normalized.result.usage?.latency_ms,
-      has_common:          normalized.result.common.length > 0,
-      student_count:       normalized.result.students.length,
-    });
-    // POLISH_ONLY 전용 안내 (Developer Log)
-    if (resMeta?.generationMode === 'POLISH_ONLY') {
-      console.log('[DiaryAIService] POLISH_ONLY: 입력 내용을 중심으로 문장을 정리했습니다.');
-    }
+  const totalStudentContentLen = normalized.result.students.reduce(
+    (sum, s) => sum + s.content.length, 0,
+  );
+  console.log('[DiaryAIService] teacher_diary_response_trace', {
+    request_id:                requestId,
+    http_status:               clientResult.httpStatus,
+    pipeline_mode:             resMeta?.pipelineMode   ?? '(none)',
+    generation_mode:           resMeta?.generationMode ?? '(none)',
+    template_ids_count:        resMeta?.templateIds?.length    ?? 0,
+    knowledge_ids_count:       resMeta?.knowledgeIds?.length   ?? 0,
+    grounding_validation:      resMeta?.groundingValidation    ?? '(none)',
+    fallback_used:             resMeta?.fallbackUsed           ?? false,
+    common_length:             normalized.result.common.length,
+    student_result_count:      normalized.result.students.length,
+    total_student_content_length: totalStudentContentLen,
+  });
+  // POLISH_ONLY 전용 안내 (Developer Log)
+  if (__DEV__ && resMeta?.generationMode === 'POLISH_ONLY') {
+    console.log('[DiaryAIService] POLISH_ONLY: 입력 내용을 중심으로 문장을 정리했습니다.');
   }
 
   return { ok: true, result: normalized.result };
