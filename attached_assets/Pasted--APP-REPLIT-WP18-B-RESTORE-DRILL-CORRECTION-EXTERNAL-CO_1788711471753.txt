@@ -1,0 +1,531 @@
+[보낼 곳: APP REPLIT]
+
+# WP18-B — RESTORE DRILL CORRECTION + EXTERNAL CONFIG HOLD
+# WP18 본보고서 최종 HOLD
+# WP19 선행 금지
+# Production DB/R2 mutation 절대 금지
+# 이번 작업은 WP18의 잘못된 restore 판정을 바로잡고
+# 실제 staging/synthetic restore rehearsal만 보완
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 기존 WP18 판정 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 보고:
+
+Actual restore executed = YES
+
+그러나 실제 method는:
+
+기존 Staging DB에 직접 접속
+→ critical table 존재 확인
+→ query 실행
+
+이므로 이는 restore가 아님.
+
+정정:
+
+PREVIOUS_RESTORE_CLASSIFICATION =
+SCHEMA_INSPECTION_ONLY
+
+ACTUAL_RESTORE_EXECUTED =
+NO
+
+이 사실을 최종 보고서에 반영.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production raw data를 사용하지 않고
+실제 "복구 절차"를 한 번 rehearsal.
+
+허용:
+
+STAGING
+ISOLATED TEST DATABASE
+SYNTHETIC DATA
+
+금지:
+
+Production restore
+Production dump copy
+Production DB mutation
+Production R2 mutation
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. RESTORE TARGET
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 가장 안전한 방식 선택:
+
+A.
+격리된 staging/test DB가 있으면
+빈 schema target 사용
+
+B.
+새 DB 생성 권한이 없으면
+기존 staging 내 안전한 isolated schema/database가 가능한지 확인
+
+C.
+둘 다 불가하면
+temporary local/test PostgreSQL에
+현재 migrations/bootstrap + synthetic data를 복구
+
+새 유료 인프라 생성 금지.
+
+선택한 방식 보고:
+
+RESTORE_TARGET:
+...
+
+ISOLATED:
+YES / NO
+
+WHY:
+...
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SCHEMA RESTORE
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production-compatible schema를
+restore target에 재구성.
+
+기존 migration/bootstrap 체계를 사용.
+
+필수 critical families:
+
+swimming_pools
+users
+students
+class_groups
+parent_students
+student_class_history
+class_diaries
+student_diary_notes
+notifications
+pool_subscriptions
+growth_reports
+media
+videos
+
+기존 staging bootstrap에서 누락된:
+
+student_diary_notes
+media
+videos
+
+세 테이블이 왜 누락되는지 확인하고
+DR rehearsal에서는 반드시 포함.
+
+Production schema 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SYNTHETIC DATA RESTORE
+━━━━━━━━━━━━━━━━━━━━━━
+
+개인정보 없는 synthetic dataset 최소 생성:
+
+Pool A
+Pool B
+
+Admin A
+Teacher A
+Parent A
+
+Student A
+Class A
+
+parent_students relation
+
+student_class_history
+
+Diary
+Student diary note
+
+Photo media relation
+Video relation
+
+Growth report 대표 row
+
+목표는 데이터 생성 기능 테스트가 아니라
+backup/restore relation integrity 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. BACKUP → LOSS → RESTORE REHEARSAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+격리 환경에서만:
+
+STEP 1
+synthetic schema/data 준비
+
+STEP 2
+pg_dump 또는 현재 안전한 backup method로
+backup artifact 생성
+
+STEP 3
+별도 empty restore target 준비
+
+STEP 4
+backup restore
+
+STEP 5
+복구된 DB 검증
+
+backup artifact는 synthetic data만 포함.
+
+Production dump 생성 금지.
+
+작업 완료 후 test artifact는
+repo commit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. RESTORE INTEGRITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+복구 후 반드시 확인:
+
+critical tables:
+ALL PRESENT
+
+indexes:
+PASS
+
+constraints/FK:
+PASS
+
+Pool A:
+records present
+
+Pool B:
+records present
+
+Parent A → Student A:
+PASS
+
+Student A → Class A:
+PASS
+
+Diary:
+PASS
+
+Student note:
+PASS
+
+Photo relation:
+PASS
+
+Video relation:
+PASS
+
+Growth report:
+PASS
+
+cross-pool:
+Pool A credential/context가
+Pool B synthetic record를 읽지 못하는 구조 확인
+
+RESTORE_SCHEMA_INTEGRITY:
+PASS / FAIL
+
+RESTORE_DATA_INTEGRITY:
+PASS / FAIL
+
+RESTORE_RELATION_INTEGRITY:
+PASS / FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. MIGRATION RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 migration 분석은 재수행 금지.
+
+현재 결론 유지:
+
+Additive/backward-compatible
+→ app/server rollback 가능
+
+Destructive/data-replacing
+→ DB restore 필요
+
+실제 restore rehearsal을 통해
+DB restore required 상황에서
+schema/data가 돌아오는지만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. EXTERNAL CONFIG — 코드로 추측 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래는 사용자가 Dashboard에서 직접 확인할 항목.
+
+SUPABASE:
+
+AUTOMATIC_BACKUP =
+USER_CONFIRM_REQUIRED
+
+PITR =
+USER_CONFIRM_REQUIRED
+
+RETENTION =
+USER_CONFIRM_REQUIRED
+
+LATEST_RECOVERABLE_POINT =
+USER_CONFIRM_REQUIRED
+
+CLOUDFLARE R2:
+
+PHOTO_VERSIONING/RECOVERY =
+USER_CONFIRM_REQUIRED
+
+VIDEO_VERSIONING/RECOVERY =
+USER_CONFIRM_REQUIRED
+
+AI ENGINE:
+
+CURRENT_DEPLOY_SHA =
+가능하면 기존 repo/deploy evidence로 확인
+
+확인 불가능하면 USER_CONFIRM_REQUIRED.
+
+외부 console 정보를 추측하여 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. R2 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production R2 test 금지.
+
+기존 결과 유지:
+
+DB object_key → R2 relation recovery:
+PASS
+
+missing object safe handling:
+PASS
+
+R2 orphan:
+PARTIAL
+
+provider-level deleted-object recovery:
+USER_CONFIRM_REQUIRED
+
+R2 backup/versioning이 실제 없다면
+WP18 최종 보고에서 명확히:
+
+R2_OBJECT_DELETE_RECOVERY =
+NOT_AVAILABLE / MANUAL / OTHER
+
+로 표시.
+
+없는 기능을 있다고 가정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. RUNBOOK 보완
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+docs/PRODUCTION_DR_RUNBOOK.md
+
+유지.
+
+다음만 보완:
+
+- schema inspection과 restore drill 차이
+- 실제 synthetic restore rehearsal 결과
+- Supabase dashboard 확인 위치
+- R2 deleted-object recovery 상태
+- restore 후 smoke 순서
+
+secret 값 절대 기록 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. PRODUCTION 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB:
+NO CHANGE
+
+Production R2:
+NO CHANGE
+
+Render:
+NO DEPLOY
+
+Client:
+NO CHANGE
+
+OTA:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP18-B REAL RESTORE REHEARSAL REPORT
+
+Previous restore classification:
+SCHEMA_INSPECTION_ONLY
+
+Actual previous restore:
+NO
+
+━━━━━━━━━━
+RESTORE TARGET
+━━━━━━━━━━
+
+Environment:
+...
+
+Isolated:
+YES / NO
+
+Production data used:
+NO
+
+━━━━━━━━━━
+BACKUP / RESTORE
+━━━━━━━━━━
+
+Backup method:
+...
+
+Synthetic only:
+YES
+
+Restore executed:
+YES / NO
+
+Restore target:
+...
+
+Schema integrity:
+PASS / FAIL
+
+Data integrity:
+PASS / FAIL
+
+Relation integrity:
+PASS / FAIL
+
+Tenant isolation:
+PASS / FAIL
+
+━━━━━━━━━━
+CRITICAL TABLES
+━━━━━━━━━━
+
+swimming_pools:
+PASS / FAIL
+
+students:
+PASS / FAIL
+
+parent_students:
+PASS / FAIL
+
+student_class_history:
+PASS / FAIL
+
+class_diaries:
+PASS / FAIL
+
+student_diary_notes:
+PASS / FAIL
+
+media:
+PASS / FAIL
+
+videos:
+PASS / FAIL
+
+growth_reports:
+PASS / FAIL
+
+━━━━━━━━━━
+EXTERNAL CONFIG
+━━━━━━━━━━
+
+Supabase automatic backup:
+USER_CONFIRM_REQUIRED / confirmed value
+
+PITR:
+USER_CONFIRM_REQUIRED / confirmed value
+
+Retention:
+USER_CONFIRM_REQUIRED / confirmed value
+
+R2 photo recovery/versioning:
+USER_CONFIRM_REQUIRED / confirmed value
+
+R2 video recovery/versioning:
+USER_CONFIRM_REQUIRED / confirmed value
+
+AI Engine current SHA:
+... / USER_CONFIRM_REQUIRED
+
+━━━━━━━━━━
+DR
+━━━━━━━━━━
+
+DB restore rehearsal:
+PASS / FAIL
+
+App rollback:
+PASS / FAIL
+
+Engine rollback:
+PASS / FAIL
+
+R2 relation recovery:
+PASS / FAIL / PARTIAL
+
+R2 deleted-object recovery:
+CONFIRMED / NOT_AVAILABLE / UNKNOWN
+
+Runbook updated:
+YES / NO
+
+━━━━━━━━━━
+PRODUCTION
+━━━━━━━━━━
+
+DB mutation:
+NO
+
+R2 mutation:
+NO
+
+Render deploy:
+NO
+
+Client change:
+NO
+
+OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+DR-P0:
+NONE / ...
+
+DR-P1:
+NONE / ...
+
+External confirmations remaining:
+...
+
+Final:
+WP18_PASS
+/
+HOLD_EXTERNAL_CONFIG
+/
+FAIL
+
+STOP.
+WP19 선행 금지.
