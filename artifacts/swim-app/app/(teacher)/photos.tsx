@@ -789,18 +789,12 @@ export default function TeacherPhotosScreen() {
             removeClippedSubviews
             onScroll={e => { dragScrollYRef.current = e.nativeEvent.contentOffset.y; }}
             scrollEventThrottle={16}
-            onLayout={() => {
-              console.log(`[ALBUM FLATLIST] data.length=${safeItems.length}`);
-            }}
-            renderItem={({ item, index }) => {
+            renderItem={({ item }) => {
               if (!item) return null;
               const isSel = selected.has(item.id);
               const isSaved = scope === "group" && mediaType === "photo" && savedPhotoIds.has(item.id);
               const label = safeLabel(item);
               const uri = photoUri(item.file_url, token);
-              if (index === 0) {
-                console.log(`[ALBUM IMAGE RENDER] index=0 mediaId=${item.id} status=${(item as any).media_status ?? "n/a"} fileUrl=${item.file_url} resolvedUri=${uri}`);
-              }
               return (
                 <Pressable
                   onPress={() => selectMode ? toggleSelect(item.id) : setLightboxIdx(items.findIndex(i => i.id === item.id))}
@@ -823,7 +817,6 @@ export default function TeacherPhotosScreen() {
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                       cachePolicy="memory"
-                      onError={(e) => console.warn(`[ALBUM IMAGE ERROR] mediaId=${item.id} resolvedUri=${uri} error=${JSON.stringify(e.error)}`)}
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>
