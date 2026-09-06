@@ -178,6 +178,28 @@ CASE C — R2 object 존재하나 DB relation 없음:
   media 삭제: diary.ts repair-orphan-media 또는 내부 cleanup
 ```
 
+### ⚠️ Production R2 운영 Safety Guard (WP18 확정, 영구 적용)
+
+**허용: 사용자 정상 삭제 기능 (기존 동작 유지)**
+- 앱 내 사진/영상 삭제 (위 서버 라우트 경유) — 변경하지 말 것
+
+**절대 금지: 개발·배포·마이그레이션·백업·검증 작업 중**
+```
+FORBIDDEN  object delete (단건)
+FORBIDDEN  bulk delete (일괄 삭제)
+FORBIDDEN  bucket delete
+FORBIDDEN  lifecycle 규칙 변경
+FORBIDDEN  cleanup script 실행 (orphan 일괄 삭제 포함)
+FORBIDDEN  destructive media migration
+```
+
+**백업 범위 및 복구 보장**
+```
+MEDIA_ORIGINAL_BACKUP:      NO  — 사진/영상 원본 파일은 R2에만 존재, 별도 백업 없음
+MEDIA_RECOVERY_GUARANTEE:   NO  — R2 object 유실 시 원본 복구 불가
+DB_MEDIA_METADATA_BACKUP:  YES  — photo/video metadata 및 object_key 관계는 DB 백업에 포함
+```
+
 ---
 
 ## 8. 복구 후 Smoke Test
