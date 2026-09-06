@@ -1,0 +1,998 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — PARENT DIARY DELIVERY FORENSIC + FINAL REPAIR
+# 이번 작업은 학부모 Diary 조회/표시 라인만 조사
+# Teacher 작성/AI/Media/Edit 재조사 금지
+# 실제 9/3 발급 Diary 1건을 exact diaryId + studentId 기준으로 끝까지 추적
+# 코드상 PASS 금지
+# APP 전체 repo audit 금지
+# 수정 완료 시 client 변경은 iOS production-v2 OTA까지 자동 수행
+# server 변경은 main push까지만, Render Production deploy 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. USER REAL DEVICE FACTS
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 실제 증상:
+
+Teacher가 9/3 Diary 작성
+
+결과:
+
+1.
+Diary save 성공
+
+2.
+Parent에게
+"일지가 도착했습니다"
+알림 생성됨
+
+3.
+Push message도 실제 도착
+
+즉:
+Teacher save
+→ notification generation
+→ push send
+
+라인은 살아 있음.
+
+하지만:
+
+4.
+Parent Home / 통합 Feed에
+새 Diary가 전혀 나타나지 않음.
+
+정상이라면 기존 8월 성장리포트 위에
+새로 도착한 9/3 Diary Feed가 나타나야 함.
+
+5.
+알림함에서
+"일지가 도착했습니다" 메시지를 누르면
+해당 자녀 Diary 화면으로 이동하지만
+
+"아직 수업일지가 없습니다"
+
+또는 빈 Diary 목록이 표시됨.
+
+따라서 이번 작업의 조사 범위는:
+
+SAVED DIARY
+→ Parent visibility
+→ Parent Diary API
+→ Parent unified Feed
+→ Notification deep-link destination
+→ Parent Diary screen fetch/render
+
+여기만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 절대 재조사 금지:
+
+- Teacher Diary 작성
+- Teacher edit
+- AI Engine
+- AI contract 1.0
+- media preview
+- duplicate edit screen
+- X mode
+- RevenueCat
+- Growth Report 생성 엔진
+- Admin Diary
+- Push architecture 전체
+- repo-wide audit
+
+현재 핵심은:
+
+"알림은 왔는데 Parent가 Diary를 조회하지 못함"
+
+이 한 문제.
+
+한 번 dependency map 작성 후
+같은 route/query 반복 검색 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. TEST TARGET 하나 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 또는 안전한 동일 조건 데이터에서
+9/3에 작성된 실제 Diary 1건을 선택.
+
+반드시 다음 ID를 끝까지 동일하게 사용:
+
+diaryId:
+masked
+
+studentId:
+masked
+
+parentId:
+masked
+
+classGroupId:
+masked
+
+lesson_date:
+2026-09-03
+
+created_at:
+...
+
+알림 row가 가리키는 diaryId와
+실제 저장된 diaryId가 같은지 먼저 확인.
+
+Notification:
+
+notification.diaryId:
+...
+
+Saved Diary:
+
+class_diaries.id:
+...
+
+MATCH:
+YES / NO
+
+다르면 즉시 root cause.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. DB / SERVER SOURCE DATA 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 diaryId 기준으로 실제 source data 확인.
+
+Diary row:
+
+exists:
+YES / NO
+
+class_group_id:
+present / absent
+
+lesson_date:
+2026-09-03
+
+common_content:
+present / absent
+
+student-specific content:
+present / absent
+
+deleted/hidden 상태:
+...
+
+created_at:
+...
+
+updated_at:
+...
+
+학생 관계:
+
+studentId:
+...
+
+students.class_group_id:
+...
+
+student_class_history rows:
+count ...
+
+parent_students relation:
+YES / NO
+
+중요:
+
+여기서는 Production DB 직접 mutation 금지.
+
+READ/actual API evidence만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PARENT DIARY API — 가장 먼저 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Parent 인증 context로:
+
+GET
+/parent/students/{studentId}/diary
+
+실행.
+
+HTTP:
+...
+
+response item count:
+...
+
+exact 9/3 diaryId exists:
+YES / NO
+
+이 결과가 이번 작업의 첫 번째 분기점.
+
+CASE A:
+API response에 diaryId 없음
+→ SERVER visibility/query 문제.
+
+CASE B:
+API response에 diaryId 있음
+→ CLIENT Parent 처리 문제.
+
+코드 읽기 전에
+가능하면 실제 response evidence부터 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CASE A — API에서 Diary가 누락되는 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Diary query 전체 WHERE/JOIN을
+한 번만 정확히 풀어쓰십시오.
+
+특히 확인:
+
+class_diaries cd
+
+students s
+
+student_class_history sch
+
+parent_students ps
+
+class_group_id
+
+lesson_date
+
+deleted/status/published 관련 조건
+
+pool_id / tenant
+
+teacher/class visibility 조건
+
+다음 조건 각각에 대해
+테스트 diaryId가 통과/탈락하는지 기록:
+
+COND 1:
+student ownership
+PASS / FAIL
+
+COND 2:
+parent_students
+PASS / FAIL
+
+COND 3:
+pool
+PASS / FAIL
+
+COND 4:
+class_group_id
+PASS / FAIL
+
+COND 5:
+student_class_history
+PASS / FAIL
+
+COND 6:
+students.class_group_id fallback
+PASS / FAIL
+
+COND 7:
+lesson_date enrollment range
+PASS / FAIL
+
+COND 8:
+left_at / enrolled_at
+PASS / FAIL
+
+COND 9:
+deleted/visibility status
+PASS / FAIL
+
+COND 10:
+기타 WHERE
+PASS / FAIL
+
+exact diaryId를 제거하는
+정확한 조건 하나를 찾아야 함.
+
+"쿼리상 정상" 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 이전 e777b2c0 수정 실제 적용 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 수정:
+
+student_class_history가 없는 신규 학생도
+
+students.class_group_id = cd.class_group_id
+
+이면 현재 소속 fallback으로 Parent Diary에 보이도록 수정.
+
+현재 Production server에
+e777b2c0 또는 그 후속 commit이 실제 반영됐는지
+health/build SHA로 1회 확인 가능하면 확인.
+
+Production server SHA:
+...
+
+e777b2c0 포함:
+YES / NO / UNKNOWN
+
+중요:
+
+코드에 fix가 존재해도
+실제 GET /parent/students/{studentId}/diary
+response에 diaryId가 없으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. lesson_date 의미 다시 실제 데이터로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 실제 Diary:
+
+lesson_date = 2026-09-03
+
+Teacher가 작성한 날짜/시간과
+수업 날짜는 다를 수 있음.
+
+Parent visibility가
+created_at 기준이 아니라
+lesson_date 기준 class membership을 사용하는 경우
+
+9/3 당시 학생의 소속을
+실제 데이터 기준으로 판정.
+
+특히 신규 회원은:
+
+student_class_history 없음
+students.class_group_id만 있음
+
+가능.
+
+또한 기존 회원은:
+
+student_class_history에
+enrolled_at / left_at range 존재.
+
+현재 학생 fallback을
+과거 일지에도 무조건 적용해서
+잘못된 class Diary가 보이게 만들면 안 됨.
+
+정상 semantics:
+
+과거 history가 존재하면
+lesson_date 기준 history 우선.
+
+history가 전혀 없는 신규/legacy record라면
+현재 students.class_group_id fallback 허용.
+
+이 원칙으로 현재 query가 실제 작동하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Parent API response shape 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+API에 diaryId가 존재하면
+response shape 확인.
+
+Diary item fields:
+
+id
+type
+lesson_date
+created_at
+updated_at
+class_group_id
+common content
+student content
+media
+teacher/class metadata
+
+필요한 Parent client field가
+null/undefined라서 normalize 단계에서
+drop되는지 확인.
+
+특히:
+
+type
+id
+studentId
+date
+
+중 하나가 없어서
+filter(Boolean) / type guard / normalize에서
+Diary를 버리는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. PARENT UNIFIED FEED 실제 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+API에 exact diaryId가 있으면
+이제 다음 단계에서 같은 ID만 추적.
+
+Parent home:
+
+loadEntries(studentId)
+→ API response
+→ normalize diary
+→ Growth Report normalize
+→ merge
+→ dedupe
+→ sort
+→ setState
+→ render
+
+각 단계:
+
+API:
+diaryId YES
+
+Normalized:
+YES / NO
+
+Merged:
+YES / NO
+
+After dedupe:
+YES / NO
+
+After sort:
+YES / NO
+
+React state:
+YES / NO
+
+FlatList/render data:
+YES / NO
+
+실제 화면:
+YES / NO
+
+사라지는 exact 단계 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Growth Report와 Diary collision 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자 화면:
+
+8월 Growth Report는 보임
+새 9/3 Diary는 안 보임.
+
+확인:
+
+Diary와 Growth Report의 React key/dedupe key.
+
+예:
+
+item.id
+
+만 사용하는지,
+
+또는
+
+`${type}-${id}`
+
+인지 확인.
+
+다음 collision 가능성 확인:
+
+- 동일/undefined id
+- type 누락
+- date key
+- studentId key
+- dedupe Map key
+
+Diary가 Growth Report 때문에
+덮어써지는지 실제 same feed array에서 확인.
+
+정상:
+
+Diary item과 Growth Report는
+각각 독립 item.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. FEED ORDERING
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary가 array에는 있지만
+Growth Report 아래로 숨어 있는지도 확인.
+
+실제 sort key 출력:
+
+Diary:
+lesson_date
+created_at
+published_at equivalent
+
+Growth Report:
+period
+created_at
+published_at
+
+사용자 요구:
+
+"새로 도착한 Diary Feed"
+
+는 기존 8월 Growth Report보다
+위에 나타나야 함.
+
+이번 9/3 Diary의 실제 작성/발급 시점이
+Growth Report 발급시점보다 최신이면
+
+Feed sorting source는
+"사용자에게 발행/생성된 시점" 기준으로
+일관되게 비교해야 함.
+
+단 기존 전체 Feed 정책을 재설계하지 말고
+현재 semantic bug만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. PARENT DIARY SCREEN 별도 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+알림을 누르면 이동하는:
+
+/(parent)/swim-diary?id={studentId}
+
+화면에서 실제 실행:
+
+studentId received:
+YES / NO
+
+parent student lookup:
+PASS / FAIL
+
+GET /parent/students/{id}/diary
+실행:
+YES / NO
+
+HTTP:
+...
+
+response count:
+...
+
+exact diaryId:
+YES / NO
+
+UI state:
+...
+
+render:
+...
+
+"아직 수업일지가 없습니다"
+
+가 실제 API empty일 때만 표시되는지 확인.
+
+다음 상태를 empty로 표시하면 안 됨:
+
+- fetch error
+- 500
+- unauthorized
+- invalid studentId
+- loading interrupted
+- normalize error
+
+EMPTY와 ERROR를 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 알림 DEEP LINK는 지금 최소 확인만
+━━━━━━━━━━━━━━━━━━━━━━
+
+알림/push 자체는 현재 도착함.
+
+따라서 push generation 재설계 금지.
+
+확인할 것:
+
+notification row diaryId:
+correct
+
+studentId:
+correct
+
+deep_link:
+correct
+
+탭 후:
+correct studentId
+
+여기까지만.
+
+현재 핵심은
+deep-link destination 화면의 Diary query가
+실제 데이터를 가져오지 못하는 문제.
+
+Push 코드를 다시 뜯지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. CREATE와 EDIT 둘 다 Parent에서 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent line 수정 후 반드시 2개 검증.
+
+A. NEW CREATE
+
+Teacher 새 Diary
+→ diaryId A
+→ Parent API A YES
+→ Home Feed A YES
+→ Notification tap A YES
+
+B. EDIT EXISTING
+
+Teacher 기존 Diary PUT
+→ same diaryId B
+→ Parent API 최신 content YES
+→ Home Feed 최신 content YES
+→ notification 정책은 기존 정책 유지
+
+CREATE만 고치고 EDIT 빠지면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. SERVER 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 root cause가
+Parent server query/API라면
+최소 수정.
+
+server main:
+commit + push.
+
+Render Production deploy:
+절대 수행 금지.
+
+보고:
+
+SERVER_CHANGED=YES
+SERVER_SHA=...
+RENDER_DEPLOY_REQUIRED=YES
+
+사용자가 직접 Render deploy.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. CLIENT 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 root cause가
+
+normalize
+merge
+dedupe
+sort
+state
+render
+swim-diary screen
+
+이면 client 최소 수정.
+
+반드시:
+
+release/v2.0.0
+
+에 반영/push.
+
+수정 완료 + tests PASS 후
+추가 사용자 승인 기다리지 말고
+iOS production-v2 OTA까지 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. PERMANENT OTA PREFLIGHT
+━━━━━━━━━━━━━━━━━━━━━━
+
+production-v2 OTA:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+모두 PASS 필수.
+
+main에서 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 실제 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Parent 작업의 PASS 조건:
+
+같은 9/3 diaryId가
+
+1.
+DB/save response에 존재
+
+2.
+Parent Diary API response에 존재
+
+3.
+Parent Home unified feed array에 존재
+
+4.
+실제 Home Feed에 렌더
+
+5.
+알림 탭 후 swim-diary API response에 존재
+
+6.
+실제 해당 자녀 수업일지 목록에 렌더
+
+위 6개 모두 증거 필요.
+
+"코드상 정상" 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PARENT DIARY DELIVERY FINAL REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+SERVER main before:
+SERVER main after:
+Server commit:
+
+Production server SHA:
+...
+
+━━━━━━━━━━
+TARGET
+━━━━━━━━━━
+
+Test diaryId:
+masked
+
+studentId:
+masked
+
+lesson_date:
+2026-09-03
+
+notification diaryId matches saved diary:
+YES / NO
+
+━━━━━━━━━━
+SOURCE DATA
+━━━━━━━━━━
+
+Diary exists:
+YES / NO
+
+class_group_id:
+PRESENT / MISSING
+
+student_class_history count:
+...
+
+students.class_group_id:
+PRESENT / MISSING
+
+parent_students:
+YES / NO
+
+━━━━━━━━━━
+PARENT API
+━━━━━━━━━━
+
+GET /parent/students/{id}/diary
+
+HTTP:
+...
+
+Exact diaryId:
+YES / NO
+
+If NO, failing condition:
+...
+
+Parent failure classification:
+SERVER_QUERY
+/
+CLIENT_NORMALIZE
+/
+CLIENT_MERGE
+/
+CLIENT_DEDUPE
+/
+CLIENT_SORT
+/
+CLIENT_STATE
+/
+CLIENT_RENDER
+/
+OTHER
+
+━━━━━━━━━━
+HOME FEED
+━━━━━━━━━━
+
+API:
+YES / NO
+
+Normalized:
+YES / NO
+
+Merged:
+YES / NO
+
+After dedupe:
+YES / NO
+
+After sort:
+YES / NO
+
+State:
+YES / NO
+
+Rendered:
+YES / NO
+
+Diary above older Growth Report:
+YES / NO
+
+Exact root cause:
+...
+
+━━━━━━━━━━
+NOTIFICATION DESTINATION
+━━━━━━━━━━
+
+notification studentId:
+YES / NO
+
+deep_link:
+YES / NO
+
+swim-diary studentId:
+YES / NO
+
+API HTTP:
+...
+
+Exact diaryId:
+YES / NO
+
+UI rendered:
+YES / NO
+
+False empty:
+YES / NO
+
+━━━━━━━━━━
+CREATE
+━━━━━━━━━━
+
+New Diary → Parent API:
+PASS / FAIL
+
+New Diary → Home Feed:
+PASS / FAIL
+
+New Diary → Notification destination:
+PASS / FAIL
+
+━━━━━━━━━━
+EDIT
+━━━━━━━━━━
+
+PUT preserves same diaryId:
+YES / NO
+
+Latest Parent API:
+PASS / FAIL
+
+Latest Home Feed:
+PASS / FAIL
+
+━━━━━━━━━━
+SERVER
+━━━━━━━━━━
+
+SERVER_CHANGED:
+YES / NO
+
+SERVER_SHA:
+...
+
+RENDER_DEPLOY_REQUIRED:
+YES / NO
+
+Render deploy:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+CLIENT_CHANGED:
+YES / NO
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+Update ID:
+...
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Parent API contains exact Diary:
+YES / NO
+
+Home Feed renders exact Diary:
+YES / NO
+
+Notification destination renders exact Diary:
+YES / NO
+
+Remaining Parent Diary defects:
+NONE / ...
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+HOLD_RENDER_DEPLOY
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
