@@ -1563,16 +1563,16 @@ export default function TeacherDiaryScreen() {
             style={[s.tabBtn, { backgroundColor: C.background, borderColor: themeColor }]}
             onPress={() => {
               if (subView === "history") {
-                // history → write: 동일 날짜 기존 일지가 있으면 교체 확인
                 if (myDiaryExists) {
-                  // class_group_id + lesson_date 둘 다 일치해야 정확한 same session
+                  // [FIX] 기존 일지가 있으면 canonical edit path로 직접 이동
+                  // 이전: replace confirm → write view(날짜 변경 가능) — 두 번째 edit UI
+                  // 변경: openEditDiary → DiaryEditView — 단일 canonical edit path
                   const existing = diaries.find(d =>
                     d.class_group_id === group.id &&
                     String(d.lesson_date ?? "").slice(0, 10) === targetDate &&
                     !d.is_deleted
                   );
-                  setReplacingDiaryId(existing?.id ?? null);
-                  setShowReplaceConfirm(true);
+                  if (existing) { openEditDiary(existing); }
                 } else {
                   setSubView("write");
                 }
