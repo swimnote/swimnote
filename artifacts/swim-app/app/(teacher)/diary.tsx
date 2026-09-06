@@ -1484,7 +1484,15 @@ export default function TeacherDiaryScreen() {
           <SubScreenHeader
             title={params.viewOnly === "true" ? "일지 보기" : "일지 수정"}
             subtitle={editDiary ? `${editDiary.lesson_date} · ${group.schedule_time}` : ""}
-            onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
+            onBack={() => {
+              if (params.editDiaryId) {
+                // Hub 등 외부 진입 시 backTo로 명시 복귀 — router.back() 금지 (Home으로 빠질 수 있음)
+                if (params.backTo) router.replace((`/(teacher)/${params.backTo}`) as any);
+                else router.back();
+              } else {
+                setSubView("history"); setEditDiary(null);
+              }
+            }}
             homePath="/(teacher)/today-schedule"
           />
           <DiaryEditView
@@ -1500,7 +1508,14 @@ export default function TeacherDiaryScreen() {
             classStudents={classStudents}
             onSave={handleEditSave}
             viewOnly={params.viewOnly === "true"}
-            onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
+            onBack={() => {
+              if (params.editDiaryId) {
+                if (params.backTo) router.replace((`/(teacher)/${params.backTo}`) as any);
+                else router.back();
+              } else {
+                setSubView("history"); setEditDiary(null);
+              }
+            }}
             onUpdateNoteContent={(noteId, content) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_content: content, _modified: true } : n))}
             onMarkNoteDeleted={(noteId) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, _deleted: true } : n))}
             onEditAddNote={() => {
