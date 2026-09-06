@@ -198,6 +198,12 @@ async function main() {
     const copyCounts: Record<string, number> = {};
     const batchSize = 500;
 
+    // Dedicated backup write client — session_replication_role=replica bypasses FK trigger checks
+    // (Supabase postgres user has this privilege; required for bulk restore without FK order constraints)
+    const backupWriteClient = await backupPool.connect();
+    await backupWriteClient.query("SET session_replication_role = 'replica'");
+    console.log("  backup write client: session_replication_role=replica OK");
+
     const exportClient = await prodPool.connect();
     try {
       await exportClient.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
@@ -240,35 +246,38 @@ async function main() {
         let copied = 0;
 
         while (true) {
-          const rows = await exportClient.query(
-            `SELECT ${commonCols.map(c => `"${c}"`).join(",")} FROM ${table} LIMIT $1 OFFSET $2`,
-            [batchSize, offset]
-          );
-          if (rows.rows.length === 0) break;
-
-          // UPSERT to backup
-          const colList = commonCols.map(c => `"${c}"`).join(",");
-          const updateSet = commonCols
-            .filter(c => c !== "id")
-            .map(c => `"${c}"=EXCLUDED."${c}"`)
-            .join(",");
-
-          for (const row of rows.rows) {
-            const vals = commonCols.map(c => {
-              const v = row[c];
-              if (v === null || v === undefined) return null;
-              if (typeof v === "object" && !(v instanceof Date)) return JSON.stringify(v);
-              return v;
-            });
-            const placeholders = vals.map((_: any, i: number) => `$${i + 1}`).join(",");
-            await backupPool.query(
-              `INSERT INTO ${table} (${colList}) VALUES (${placeholders})
-               ON CONFLICT (id) DO UPDATE SET ${updateSet}`,
-              vals
+            const rows = await exportClient.query(
+              `SELECT ${commonCols.map(c => `"${c}"`).join(",")} FROM ${table} LIMIT $1 OFFSET $2`,
+              [batchSize, offset]
             );
-          }
+            if (rows.rows.length === 0) break;
 
-          copied += rows.rows.length;
+            // UPSERT to backup
+            const colList = commonCols.map(c => `"${c}"`).join(",");
+            const updateSet = commonCols
+              .filter(c => c !== "id")
+              .map(c => `"${c}"=EXCLUDED."${c}"`)
+              .join(",");
+
+            for (const row of rows.rows) {
+              const vals = commonCols.map(c => {
+                const v = row[c];
+                if (v === null || v === undefined) return null;
+                // pg returns PostgreSQL arrays as JS arrays — pass as-is so pg re-serializes correctly
+                if (Array.isArray(v)) return v;
+                // Non-array objects (JSONB etc.) → JSON string
+                if (typeof v === "object" && !(v instanceof Date)) return JSON.stringify(v);
+                return v;
+              });
+              const placeholders = vals.map((_: any, i: number) => `$${i + 1}`).join(",");
+              await backupWriteClient.query(
+                `INSERT INTO ${table} (${colList}) VALUES (${placeholders})
+                 ON CONFLICT (id) DO UPDATE SET ${updateSet}`,
+                vals
+              );
+            }
+
+            copied += rows.rows.length;
           offset += rows.rows.length;
           if (rows.rows.length < batchSize) break;
         }
@@ -279,6 +288,7 @@ async function main() {
 
     } finally {
       exportClient.release();
+      backupWriteClient.release();
     }
 
     // ── Verify: compare counts ────────────────────────────────────────────
