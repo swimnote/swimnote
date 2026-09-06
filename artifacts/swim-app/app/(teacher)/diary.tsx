@@ -475,7 +475,14 @@ export default function TeacherDiaryScreen() {
           const errData = await res.json().catch(() => ({})) as any;
           throw new Error(errData?.error || `업로드 실패 (${res.status})`);
         }
+        const resData = await res.json().catch(() => ({})) as any;
         setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m));
+        // ── V6 fix: 업로드된 video를 selectedAlbumVideos에 추가해야 save payload에 포함됨 ──
+        if (resData?.video?.id) {
+          const v = resData.video;
+          const videoInfo: AlbumVideoInfo = { id: v.id, file_url: v.file_url, created_at: v.created_at, uploaded_by_name: v.uploaded_by_name, caption: v.caption };
+          setSelectedAlbumVideos(prev => prev.some(x => x.id === v.id) ? prev : [...prev, videoInfo]);
+        }
       } catch (e) {
         if (__DEV__) console.error("[uploadGroupMedia] video error:", e);
         setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
@@ -629,7 +636,18 @@ export default function TeacherDiaryScreen() {
           const errData = await res.json().catch(() => ({})) as any;
           throw new Error(errData?.error || `업로드 실패 (${res.status})`);
         }
+        const resData = await res.json().catch(() => ({})) as any;
         setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m) }));
+        // ── V6 fix: 업로드된 video를 studentAlbumVideos에 추가해야 save payload에 포함됨 ──
+        if (resData?.video?.id) {
+          const v = resData.video;
+          const videoInfo: AlbumVideoInfo = { id: v.id, file_url: v.file_url, created_at: v.created_at, uploaded_by_name: v.uploaded_by_name, caption: v.caption };
+          setStudentAlbumVideos(prev => {
+            const existing = prev[student.id] ?? [];
+            if (existing.some(x => x.id === v.id)) return prev;
+            return { ...prev, [student.id]: [...existing, videoInfo] };
+          });
+        }
       } catch (e) {
         if (__DEV__) console.error("[uploadStudentMedia] video error:", e);
         setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m) }));
@@ -999,6 +1017,11 @@ export default function TeacherDiaryScreen() {
   async function handleSave() {
     // [WP11] Save 중복 요청 차단
     if (saving) return;
+    // 영상 업로드 완료 전 저장 차단 — video ID가 payload에 누락되는 것을 방지
+    if (mediaUploading !== null) {
+      setFormError("영상 업로드가 완료될 때까지 잠시 기다려주세요.");
+      return;
+    }
     if (__DEV__) console.log(`[HANDLE_SAVE] contentLength=${commonContent.length} studentCount=${studentNotes.length} isRetry=${!!pendingDiaryId}`);
     const isRetry = !!pendingDiaryId;
     let effectiveNotes = [...studentNotes];
