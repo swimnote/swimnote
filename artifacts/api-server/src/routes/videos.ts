@@ -766,15 +766,15 @@ router.get("/videos/diary/:diaryId", requireAuth, async (req: AuthRequest, res: 
           AND s.class_group_id = ${classGroupId}
       `);
       if (!childRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
-      // P0 Fix (parent): journal_id 기반 공통 영상 + student_note_id 기반 학생 영상 함께 반환
+      // P0 Fix (parent): journal_id 공통 영상 + student_note_id 학생 영상 + object_key presign 포함
       const rows = await db.execute(sql`
         SELECT v.id, v.uploaded_by_name, v.created_at, v.file_size, v.class_id,
-               v.caption, v.thumbnail_key, v.status, v.student_note_id,
+               v.caption, v.thumbnail_key, v.status, v.student_note_id, v.object_key,
                '/api/videos/' || v.id || '/file' AS file_url
         FROM video_assets_meta v
         WHERE v.journal_id = ${diaryId}
            OR v.student_note_id IN (
-             SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+             SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId} AND is_deleted = false
            )
         ORDER BY v.created_at ASC
       `);
