@@ -671,8 +671,19 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
             FROM students WHERE id = '${studentIdSafe}' LIMIT 1
           )
           AND (
-            -- 일반 수업: 재원 이력이 있고, 해당 날짜 결석(absent)이 아닌 경우만 표시
-            (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL
+            -- 일반 수업: 재원 이력이 있거나 students.class_group_id 직접 연결, 결석 아닌 경우
+            -- [FIX] 신규 등록 학생(student_class_history 미존재)도 표시
+            --   이전: sch.id IS NOT NULL 단독 → 신규 학생 diary 항상 누락
+            --   변경: sch.id IS NOT NULL OR students.class_group_id 직접 일치
+            (cd.class_group_id IN (${idsLiteral})
+              AND (
+                sch.id IS NOT NULL
+                OR EXISTS (
+                  SELECT 1 FROM students s2
+                  WHERE s2.id = '${studentIdSafe}'
+                    AND s2.class_group_id = cd.class_group_id
+                )
+              )
               AND NOT EXISTS (
                 SELECT 1 FROM attendance a
                 WHERE a.student_id = '${studentIdSafe}'
