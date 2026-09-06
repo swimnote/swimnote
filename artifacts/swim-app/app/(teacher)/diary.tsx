@@ -477,11 +477,16 @@ export default function TeacherDiaryScreen() {
         }
         const resData = await res.json().catch(() => ({})) as any;
         setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m));
-        // ── V6 fix: 업로드된 video를 selectedAlbumVideos에 추가해야 save payload에 포함됨 ──
+        // ── V6 fix: 업로드된 video를 canonical state에 추가해야 save payload에 포함됨 ──
+        // edit 모드면 editNewAlbumVideos, write 모드면 selectedAlbumVideos에 귀속
         if (resData?.video?.id) {
           const v = resData.video;
           const videoInfo: AlbumVideoInfo = { id: v.id, file_url: v.file_url, created_at: v.created_at, uploaded_by_name: v.uploaded_by_name, caption: v.caption };
-          setSelectedAlbumVideos(prev => prev.some(x => x.id === v.id) ? prev : [...prev, videoInfo]);
+          if (subView === "edit") {
+            setEditNewAlbumVideos(prev => prev.some(x => x.id === v.id) ? prev : [...prev, videoInfo]);
+          } else {
+            setSelectedAlbumVideos(prev => prev.some(x => x.id === v.id) ? prev : [...prev, videoInfo]);
+          }
         }
       } catch (e) {
         if (__DEV__) console.error("[uploadGroupMedia] video error:", e);
@@ -1239,7 +1244,26 @@ export default function TeacherDiaryScreen() {
       }
       if (videoRes.ok) {
         const videoData = await videoRes.json();
-        setEditLinkedVideos(Array.isArray(videoData.videos) ? videoData.videos : []);
+        const allVideos: any[] = Array.isArray(videoData.videos) ? videoData.videos : [];
+        // P0 Fix: journal_id 기반(공통) vs student_note_id 기반(학생별) 분리
+        setEditLinkedVideos(allVideos.filter(v => !v.student_note_id));
+        // 학생별 note video → studentAlbumVideos[student_id] 에 귀속
+        const noteVideos = allVideos.filter(v => !!v.student_note_id);
+        if (noteVideos.length > 0) {
+          // data.student_notes 에서 note_id → student_id 매핑
+          const notes: any[] = Array.isArray(data.student_notes) ? data.student_notes : [];
+          const noteToStudent = new Map<string, string>(notes.map((n: any) => [n.id, n.student_id]));
+          const byStudent: Record<string, AlbumVideoInfo[]> = {};
+          for (const v of noteVideos) {
+            const sid = noteToStudent.get(v.student_note_id);
+            if (sid) {
+              if (!byStudent[sid]) byStudent[sid] = [];
+              const avi: AlbumVideoInfo = { id: v.id, file_url: v.file_url, created_at: v.created_at, uploaded_by_name: v.uploaded_by_name, caption: v.caption, thumbnail_presigned_url: v.thumbnail_presigned_url };
+              byStudent[sid].push(avi);
+            }
+          }
+          setStudentAlbumVideos(byStudent);
+        }
       }
     } catch (e: any) { setEditError(e.message || "불러오기 오류"); }
     finally { setEditLoading(false); }
@@ -1578,6 +1602,7 @@ export default function TeacherDiaryScreen() {
             onRemoveStudentAlbumPhoto={(studentId, photoId) => setStudentAlbumPhotos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(p => p.id !== photoId) }))}
             onRemoveStudentAlbumVideo={(studentId, videoId) => setStudentAlbumVideos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(v => v.id !== videoId) }))}
             onUploadStudentMedia={uploadStudentMedia}
+            onUploadGroupMedia={uploadGroupMedia}
             mediaUploading={mediaUploading}
           />
           <AlbumPickerModal

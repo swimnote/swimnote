@@ -32,7 +32,7 @@ export default function DiaryEditView({
   token, linkedPhotos, onRemoveLinkedPhoto, onOpenAlbumPicker, newAlbumPhotos, onRemoveNewAlbumPhoto,
   linkedVideos, onRemoveLinkedVideo, newAlbumVideos, onRemoveNewAlbumVideo,
   studentAlbumPhotos, studentAlbumVideos, onOpenStudentAlbumPicker, onRemoveStudentAlbumPhoto, onRemoveStudentAlbumVideo,
-  onUploadStudentMedia, mediaUploading,
+  onUploadStudentMedia, onUploadGroupMedia, mediaUploading,
 }: {
   group: TeacherClassGroup; themeColor: string;
   editDiary: DiaryEntry | null;
@@ -69,6 +69,7 @@ export default function DiaryEditView({
   onRemoveStudentAlbumPhoto: (studentId: string, photoId: string) => void;
   onRemoveStudentAlbumVideo: (studentId: string, videoId: string) => void;
   onUploadStudentMedia?: (student: StudentOption, kind: "video") => void;
+  onUploadGroupMedia?: (kind: "video") => void;
   mediaUploading?: string | null;
 }) {
   const insets = useSafeAreaInsets();
@@ -228,10 +229,18 @@ export default function DiaryEditView({
             </View>
           )}
 
-          <Pressable style={s.albumPickerBtn} onPress={onOpenAlbumPicker}>
-            <LucideIcon name="image" size={14} color={C.brandStrong} />
-            <Text style={s.albumPickerBtnText}>앨범에서 선택</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            <Pressable style={s.albumPickerBtn} onPress={onOpenAlbumPicker}>
+              <LucideIcon name="image" size={14} color={C.brandStrong} />
+              <Text style={s.albumPickerBtnText}>앨범에서 선택</Text>
+            </Pressable>
+            {onUploadGroupMedia && (
+              <Pressable style={[s.albumPickerBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onUploadGroupMedia("video")}>
+                <LucideIcon name="video" size={14} color="#5B21B6" />
+                <Text style={[s.albumPickerBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <View style={[s.card, { backgroundColor: C.card }]}>
