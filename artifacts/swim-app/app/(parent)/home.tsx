@@ -56,6 +56,7 @@ const C = Colors.light;
 const TEAL = C.brandStrong;
 const NAVY = "#1B3A70";   // 네이비 기본색 (버튼 fill, 선택된 탭)
 const IB = C.brandMist;
+const DIARY_LOGO = require("@/assets/images/swimnote-ai-report-logo.png");
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
 interface DiaryEntry {
@@ -1027,25 +1028,32 @@ function DiaryFeedItem({
 
   return (
     <View style={f.item}>
-      {/* ── 헤더: 좌측 선생님·반/날짜 + 우측 수업일지 배지 ── */}
+      {/* ── 헤더: GrowthReport 동일 구조 — Row1(로고+배지) / Row2(선생님·반) / Row3(날짜) ── */}
       <View style={f.header}>
-        <View style={f.headerMeta}>
-          <Text style={[f.headerName, { color: C.text }]}>
-            {entry.teacher_name} 선생님
-            {entry.class_group_name ? (
-              <Text style={[f.headerClass, { color: C.textSecondary }]}>
-                {"  · "}{entry.class_group_name}
-              </Text>
-            ) : null}
-          </Text>
-          <Text style={[f.headerDate, { color: C.textSecondary }]}>
-            {!isCurrentYear && `${year}년 `}{month}월 {day}일 {weekday}요일
-          </Text>
+        {/* Row 1: 스윔노트 로고 (좌) + 수업 피드 배지 (우) */}
+        <View style={f.headerRow1}>
+          <ExpoImage
+            source={DIARY_LOGO}
+            style={f.diaryLogo}
+            contentFit="contain"
+          />
+          <View style={f.diaryBadge}>
+            <Text style={f.diaryBadgeTxt}>수업 피드</Text>
+          </View>
         </View>
-        {/* 우측 수업 일지 배지 */}
-        <View style={f.diaryBadge}>
-          <Text style={f.diaryBadgeTxt}>수업 일지</Text>
-        </View>
+        {/* Row 2: 선생님 · 반 */}
+        <Text style={[f.headerName, { color: C.text }]}>
+          {entry.teacher_name} 선생님
+          {entry.class_group_name ? (
+            <Text style={[f.headerClass, { color: C.textSecondary }]}>
+              {"  · "}{entry.class_group_name}
+            </Text>
+          ) : null}
+        </Text>
+        {/* Row 3: 날짜 */}
+        <Text style={[f.headerDate, { color: C.textSecondary }]}>
+          {!isCurrentYear && `${year}년 `}{month}월 {day}일 {weekday}요일
+        </Text>
       </View>
 
       {/* ── 본문 ── */}
@@ -2462,41 +2470,53 @@ const f = StyleSheet.create({
     paddingTop: 14,
   },
 
-  // ── 헤더: 좌측 메타 + 우측 배지 ──
+  // ── 헤더: GrowthReport ReportHeader 동일 구조 ──
   header: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  // Row 1: 로고(좌) + 배지(우)
+  headerRow1: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    marginBottom: 10,
   },
-  headerMeta: { flex: 1, gap: 3 },
+  diaryLogo: {
+    height: 28,
+    width: undefined,
+    aspectRatio: 2774 / 998,
+  },
   diaryBadge: {
-    borderWidth: 1,
-    borderColor: NAVY,
-    borderRadius: 6,
+    marginLeft: "auto" as any,
+    backgroundColor: NAVY,
+    borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    marginLeft: 8,
-    alignSelf: "flex-start",
   },
   diaryBadgeTxt: {
     fontSize: 11,
     fontFamily: "Pretendard-SemiBold",
-    color: NAVY,
-    letterSpacing: 0.3,
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
+  // Row 2: 선생님 · 반
   headerName: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Pretendard-SemiBold",
+    marginBottom: 4,
   },
   headerClass: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Pretendard-Regular",
   },
+  // Row 3: 날짜
   headerDate: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Pretendard-Regular",
   },
+  // unused — kept for compat
+  headerMeta: { flex: 1, gap: 3 },
 
   // ── 본문 ──
   body: {
