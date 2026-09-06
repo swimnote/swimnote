@@ -1,0 +1,48 @@
+work_messages: PASS (prod:46 bk:46)
+  growth_reports: PASS (prod:517 bk:517)
+  growth_report_cycles: PASS (prod:10 bk:10)
+  growth_report_batch_jobs: PASS (prod:0 bk:0)
+  growth_report_answers: PASS (prod:0 bk:0)
+  growth_report_comments: PASS (prod:0 bk:0)
+  growth_report_reactions: PASS (prod:0 bk:0)
+  growth_report_questions: PASS (prod:0 bk:0)
+  growth_events: PASS (prod:0 bk:0)
+  parent_curriculum_conversations: PASS (prod:6 bk:6)
+  parent_curriculum_messages: PASS (prod:95 bk:95)
+  curriculum_requests: PASS (prod:2 bk:2)
+  curriculum_request_files: PASS (prod:0 bk:0)
+  student_curriculum_assignments: PASS (prod:0 bk:0)
+  student_curriculum_progress: PASS (prod:1 bk:1)
+  curriculum_progress_observations: PASS (prod:0 bk:0)
+  x_setup_submissions: PASS (prod:2 bk:2)
+  x_setup_files: PASS (prod:0 bk:0)
+  x_setup_revision_requests: PASS (prod:0 bk:0)
+  x_website_profiles: PASS (prod:0 bk:0)
+  x_website_packages: PASS (prod:0 bk:0)
+  x_curriculum_profiles: PASS (prod:0 bk:0)
+  x_curriculum_levels: PASS (prod:0 bk:0)
+  x_monthly_operational_snapshots: PASS (prod:2 bk:2)
+  teacher_daily_memos: PASS (prod:0 bk:0)
+  teacher_schedule_notes: PASS (prod:0 bk:0)
+  teacher_absences: PASS (prod:0 bk:0)
+  admin_member_notes: PASS (prod:0 bk:0)
+  member_activity_logs: PASS (prod:24 bk:24)
+  parent_ai_daily_usage: PASS (prod:4 bk:4)
+  parent_ai_usage_reservations: PASS (prod:53 bk:53)
+  super_incidents: PASS (prod:0 bk:0)
+  misconception_hunter_settings: PASS (prod:0 bk:0)
+  partner_analytics_snapshots: PASS (prod:0 bk:0)
+  swim_diary: PASS (prod:0 bk:0)
+  classes: PASS (prod:0 bk:0)
+  FK[parent→student join]: PASS
+  FK[sch→student→class join]: PASS
+  FK[notes→diary→student join]: PASS
+  COMMIT: new snapshot atomically promoted
+VERIFICATION_STATUS: VERIFIED
+BACKUP_METHOD: NODE_LOGICAL+ATOMIC_TX
+SNAPSHOT_ID: snap_b249344dcc3e
+COMPLETED: 2026-09-06T19:33:59.044Z
+╔══════════════════════════════════════════════════════════════╗
+║              BACKUP COMPLETE                                 ║
+╚══════════════════════════════════════════════════════════════╝
+==> Cron job run finished successfully
