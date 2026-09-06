@@ -1,0 +1,782 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 P0 — PARENT VIDEO PREVIEW + DOWNLOAD FULL TRACE & FIX
+# 현재 영상 업로드/attach pipeline 재조사 금지
+# 문제는 Parent에서 저장된 영상을 보는/다운로드하는 소비 경로
+# 목표: R2 remote video → thumbnail preview → download/save to Photos
+# 일반적인 모바일 앱 방식으로 정리
+# 수정 완료 시 release/v2.0.0 반영 + iOS production-v2 OTA 자동 완료
+# 서버 변경 필요 시 main push까지만, Render Production deploy 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. USER REAL DEVICE FACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 iPhone 상태:
+
+Parent 수업일지에서:
+
+- 사진 1장 정상 표시
+- 영상 3개 관계도 정상 조회
+- 영상 개수도 정상 표시
+- 영상 card는 나타남
+
+하지만:
+
+A.
+영상 card가 검은 박스 + play icon만 표시됨.
+
+실시간 스트리밍/inline playback이 당장 안 되더라도
+최소한 각 영상의 실제 내용을 식별할 수 있는
+썸네일/미리보기 이미지가 있어야 함.
+
+B.
+영상 상세/modal에서
+"영상 다운로드" 실행
+
+→ "영상 저장에 실패했습니다."
+
+즉 Parent video consumer path가 미완성.
+
+이번 작업은 아래 두 기능만 확실히 완성:
+
+1.
+VIDEO PREVIEW / THUMBNAIL
+
+2.
+VIDEO DOWNLOAD / SAVE TO PHOTOS
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CREDIT CONTROL
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 재조사 금지:
+
+- Teacher video upload
+- /videos/group 업로드
+- /videos/private 업로드
+- video.id save
+- diary/note attach
+- temp upload cache cleanup
+- AI
+- Diary navigation
+- Parent Diary visibility
+- Growth Report
+- Notification
+- Admin
+- RevenueCat
+- repo-wide audit
+
+이미 저장된 remote video를 Parent가
+어떻게 preview/download 하는지만 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PARENT VIDEO CONSUMER MAP 1회 작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 flow를 한 번만 정리:
+
+Parent Diary API
+→ video response
+→ DiaryPhotoStrip
+→ video card
+→ thumbnail source
+→ detail modal
+→ remote video URL
+→ download function
+→ temp file
+→ iOS Photos save
+→ temp cleanup
+
+각 단계 실제 함수/file/state 기록.
+
+반복 grep 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 VIDEO RESPONSE SHAPE
+━━━━━━━━━━━━━━━━━━━━━━
+
+저장된 영상 1개 기준으로 확인:
+
+video.id:
+present
+
+file_url:
+present / missing
+
+thumbnail_key:
+present / missing / null
+
+thumbnail_url:
+present / missing / null
+
+mime_type:
+...
+
+filename:
+...
+
+student_note_id:
+present / null
+
+journal_id:
+present / null
+
+현재 Parent card가
+어떤 field를 thumbnail source로 사용하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PREVIEW가 검은 박스인 정확한 원인
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 영상에 대해 확인:
+
+thumbnail_key 실제 존재:
+YES / NO
+
+thumbnail remote object 실제 존재:
+YES / NO
+
+thumbnail URL 생성:
+YES / NO
+
+HTTP access:
+2xx / fail
+
+client Image source:
+valid / invalid / absent
+
+현재 검은 placeholder를 보여주는 이유를
+아래 중 하나로 정확히 분류:
+
+PV1
+thumbnail 자체가 생성되지 않음
+
+PV2
+thumbnail_key는 있으나 URL 생성 실패
+
+PV3
+thumbnail URL은 정상인데 client가 사용 안 함
+
+PV4
+thumbnail fetch 실패
+
+PV5
+response field mismatch
+
+PV6
+기타 exact evidence
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 표준 VIDEO THUMBNAIL 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 정상 구조:
+
+VIDEO UPLOAD
+→ remote video stored in R2
+→ video record
+→ representative thumbnail/poster 확보
+→ thumbnail도 remote asset으로 저장
+→ Parent UI는 remote thumbnail 사용
+
+Parent 앱이 영상을 매번 로컬 다운로드해서
+첫 프레임을 추출하는 구조는 우선 사용하지 마십시오.
+
+일반적인 서비스처럼
+서버/R2에 thumbnail/poster를 두고
+client는 Image로 읽는 방향을 우선.
+
+이미 thumbnail generation infrastructure가 있으면
+반드시 재사용.
+
+새로운 media architecture 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. thumbnail 없는 기존 VIDEO 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 영상 중
+thumbnail_key가 null일 수 있음.
+
+이 경우 UI가 crash하거나
+영구 검은 박스만 보여서는 안 됨.
+
+조사 결과 서버에 기존 thumbnail 생성 기능이 있다면
+기존 영상에도 안전하게 적용 가능한 경로 확인.
+
+단:
+Production DB 직접 대량 mutation 금지.
+
+기존 video thumbnail generation endpoint/job이 있으면 재사용.
+
+없다면 보고:
+
+LEGACY_VIDEO_THUMBNAIL_BACKFILL_REQUIRED = YES
+
+로 남기고
+이번에 신규 영상부터 정상화.
+
+무리한 신규 batch system 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PARENT PREVIEW UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+thumbnail 있는 video:
+
+[실제 영상 썸네일]
+중앙 play icon
+
+형태.
+
+현재 검은 card를
+실제 thumbnail로 교체.
+
+thumbnail 없는 경우만
+fallback placeholder 사용.
+
+공통/학생별 video 모두 동일.
+
+1개/2개/3개 이상 모두 정상.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. DOWNLOAD FAIL 실제 STACK/ERROR 확보
+━━━━━━━━━━━━━━━━━━━━━━
+
+"영상 다운로드" 버튼 1회 기준으로
+실제 단계 추적.
+
+downloadVideo(video):
+invoked YES / NO
+
+remote URL:
+present / missing
+
+remote HTTP:
+...
+
+content-type:
+...
+
+content-length:
+...
+
+temporary destination:
+...
+
+download result:
+success / fail
+
+MediaLibrary permission:
+granted / denied / limited / unknown
+
+saveToLibrary:
+success / fail
+
+actual error:
+...
+
+file:
+...
+
+line:
+...
+
+Generic "영상 저장에 실패했습니다"
+메시지만 보고 수정 금지.
+
+actual failure point를 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. iOS 표준 DOWNLOAD FLOW
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 구조:
+
+R2 remote video URL
+→ app cache/temp directory로 temporary download
+→ download 완료 확인
+→ iOS Photos / Media Library에 save
+→ save 성공
+→ app temporary file cleanup
+
+즉:
+
+REMOTE
+→ TEMP
+→ PHOTOS
+→ TEMP DELETE
+
+Documents에 영구 저장 금지.
+
+사용자 Photos library에 저장하는 것은
+사용자가 직접 "영상 다운로드"를 누른 경우에만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PHOTOS PERMISSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Expo/React Native에서 사용 중인
+MediaLibrary permission flow 확인.
+
+다운로드 버튼 tap 시:
+
+permission already granted
+→ 바로 저장
+
+not determined
+→ permission request
+
+denied
+→ 명확한 안내
+
+limited
+→ 현재 iOS API에서 저장 가능 여부에 맞게 처리
+
+절대 permission error를
+generic upload/download failure로 숨기지 말 것.
+
+새 native dependency 추가 금지.
+
+현재 프로젝트에 이미 설치된
+expo-media-library / FileSystem 계열이 있으면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. REMOTE URL 접근
+━━━━━━━━━━━━━━━━━━━━━━
+
+download source는 반드시
+실제 video.file_url 또는 canonical download URL.
+
+확인:
+
+URL이 thumbnail URL이 아님
+
+URL이 expired signed URL이면
+다운로드 시점에 유효한 URL 사용
+
+R2 object access:
+2xx
+
+redirect 처리:
+정상
+
+HEAD/GET 권한:
+정상
+
+viewer에서 쓰는 remote URL과
+download에서 쓰는 URL이 다르면 이유 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 파일 확장자 / MIME
+━━━━━━━━━━━━━━━━━━━━━━
+
+다운로드 temp file 생성 시
+확장자/mime 문제 확인.
+
+예:
+
+.mp4
+.mov
+기타
+
+iOS Photos save가
+유효한 video file로 인식해야 함.
+
+remote URL에 query string이 붙어서
+확장자 파싱 실패하면
+response content-type / original filename 기준으로
+안전한 temp extension 사용.
+
+하드코딩으로 모든 영상을 mp4로 강제하지 말 것
+실제 MIME/format 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. DOWNLOAD UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+버튼 누르면:
+
+DOWNLOADING:
+spinner
+"영상 다운로드 중..."
+
+SAVE TO PHOTOS:
+"사진 앱에 저장 중..."
+
+SUCCESS:
+"영상이 사진 앱에 저장되었습니다."
+
+FAIL:
+실제 failure class에 맞는 안내
+
+예:
+권한 없음
+→ "사진 접근 권한이 필요합니다."
+
+네트워크 실패
+→ "영상을 다운로드하지 못했습니다."
+
+generic 한 문구 하나로 모든 failure를 처리하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. TEMP CLEANUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+다운로드용 temp는:
+
+download success + Photos save success 후 삭제
+
+Photos save fail:
+필요한 retry가 끝나면 cleanup
+
+modal close:
+stale temp cleanup
+
+app restart:
+기존 Diary download temp만 안전 cleanup
+
+사용자 Photos library 원본 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. INLINE/REALTIME PLAYBACK 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 요구:
+
+실시간 보기/스트리밍이 당장 안 되더라도
+미리보기는 반드시 보여야 함.
+
+따라서 이번 PASS 조건에서
+inline streaming playback은 필수 아님.
+
+필수:
+
+- 실제 thumbnail
+- video count
+- video detail
+- download/save
+
+현재 remote playback component가 안정적으로 동작한다면 유지.
+
+불안정하다면 이번 작업에서
+대규모 streaming architecture를 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 실제 TEST MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1
+video thumbnail exists
+→ actual image preview
+
+T2
+common video preview
+→ actual thumbnail
+
+T3
+student video preview
+→ actual thumbnail
+
+T4
+mixed common/student
+→ all thumbnails
+
+T5
+thumbnail null
+→ safe fallback, no crash
+
+T6
+video 1개
+→ normal
+
+T7
+video 3개
+→ normal
+
+T8
+download button
+→ remote download success
+
+T9
+permission granted
+→ Photos save success
+
+T10
+permission denied
+→ clear permission message
+
+T11
+download progress UI
+→ visible
+
+T12
+save success
+→ success UI
+
+T13
+Photos 앱에서 저장된 영상 실제 존재
+
+T14
+download temp removed after success
+
+T15
+repeated downloads
+→ app Documents/Data accumulation 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. SERVER 수정 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+thumbnail generation/read URL 또는
+download URL contract에 실제 server bug가 있으면
+최소 수정 허용.
+
+main:
+commit + push
+
+Render Production deploy:
+NO
+
+보고:
+
+SERVER_CHANGED=YES
+SERVER_SHA=...
+RENDER_DEPLOY_REQUIRED=YES
+
+단 client-only 문제면 server 건드리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. CLIENT 수정 후 OTA 자동 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client 변경 시:
+
+release/v2.0.0
+commit
+push
+
+영구 preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS면
+추가 승인 기다리지 말고
+
+iOS production-v2 OTA 완료.
+
+main에서 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PARENT VIDEO PREVIEW + DOWNLOAD REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+SERVER main before:
+SERVER main after:
+Server commit:
+
+━━━━━━━━━━
+PREVIEW
+━━━━━━━━━━
+
+Thumbnail source:
+...
+
+thumbnail_key:
+YES / NO
+
+thumbnail URL:
+YES / NO
+
+thumbnail HTTP:
+...
+
+Previous black-card classification:
+PV1 / PV2 / PV3 / PV4 / PV5 / PV6
+
+Exact root cause:
+...
+
+Common preview:
+PASS / FAIL
+
+Student preview:
+PASS / FAIL
+
+Mixed preview:
+PASS / FAIL
+
+Missing thumbnail fallback:
+PASS / FAIL
+
+━━━━━━━━━━
+DOWNLOAD
+━━━━━━━━━━
+
+downloadVideo invoked:
+YES / NO
+
+Remote URL:
+PASS / FAIL
+
+HTTP:
+...
+
+Temp destination:
+...
+
+MIME:
+...
+
+Permission:
+...
+
+Photos save:
+PASS / FAIL
+
+Actual previous download root cause:
+...
+
+Download progress:
+PASS / FAIL
+
+Success message:
+PASS / FAIL
+
+Failure message:
+PASS / FAIL
+
+Temp cleanup:
+PASS / FAIL
+
+Photos app actual saved video:
+PASS / FAIL
+
+━━━━━━━━━━
+STORAGE
+━━━━━━━━━━
+
+Before download temp:
+...
+
+After download:
+...
+
+After Photos save:
+...
+
+After cleanup:
+...
+
+Persistent local copy:
+YES / NO
+
+━━━━━━━━━━
+SERVER
+━━━━━━━━━━
+
+SERVER_CHANGED:
+YES / NO
+
+SERVER_SHA:
+...
+
+RENDER_DEPLOY_REQUIRED:
+YES / NO
+
+Render deploy:
+NO
+
+━━━━━━━━━━
+OTA
+━━━━━━━━━━
+
+Source branch:
+release/v2.0.0
+
+Source SHA:
+...
+
+origin match:
+YES / NO
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+━━━━━━━━━━
+FINAL
+━━━━━━━━━━
+
+Actual video thumbnail:
+PASS / FAIL
+
+Video download:
+PASS / FAIL
+
+Save to Photos:
+PASS / FAIL
+
+Local accumulation:
+NONE / ...
+
+Remaining defects:
+NONE / ...
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+HOLD_RENDER_DEPLOY
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
