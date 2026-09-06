@@ -249,7 +249,9 @@ export default function TeacherDiaryScreen() {
         } else if (params.classGroupId) {
           const found = groupsList.find(g => g.id === params.classGroupId);
           if (found) {
-            openGroup(found);
+            // writeIntent=true: classGroupId + lessonDate 진입은 Quick Write / 미작성 수업 선택
+            // → 중간 history 화면 없이 즉시 write 뷰로 진입 (§3)
+            openGroup(found, undefined, true);
             handledParamKey.current = paramKey;
           }
         }
@@ -259,9 +261,10 @@ export default function TeacherDiaryScreen() {
   }, [token, targetDate, params.classGroupId, params.editDiaryId]);
   useEffect(() => { load(); }, [load]);
   // overrideDate: session switch 시 targetDate가 아직 React state 반영 전일 때 명시적으로 전달
-  async function openGroup(group: TeacherClassGroup, overrideDate?: string) {
-    // 항상 history 뷰로 시작 — write 뷰는 사용자가 직접 버튼을 눌렀을 때만 진입
-    setSelectedGroup(group); setSubView("history"); setCommonContent(""); setStudentNotes([]);
+  // writeIntent: true 이면 write 뷰로 즉시 진입 (Quick Write / 미작성 수업 선택 경로)
+  async function openGroup(group: TeacherClassGroup, overrideDate?: string, writeIntent?: boolean) {
+    // writeIntent=true (Quick Write) 이면 write 뷰로 즉시 진입, 아니면 history 뷰에서 시작
+    setSelectedGroup(group); setSubView(writeIntent ? "write" : "history"); setCommonContent(""); setStudentNotes([]);
     setAddNoteStudent(null); setNoteInput("");
     setGroupMedia([]); setStudentMedia({}); setHasDraft(false);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
@@ -1331,7 +1334,11 @@ export default function TeacherDiaryScreen() {
       setEditLinkedPhotos([]); setEditRemovedPhotoIds([]); setEditNewAlbumIds([]); setEditNewAlbumPhotos([]);
       setEditLinkedVideos([]); setEditRemovedVideoIds([]); setEditNewAlbumVideos([]);
       haptic.success();
-      if (params.editDiaryId) { router.back(); }
+      if (params.editDiaryId) {
+        // Hub에서 진입한 경우 backTo="diary-index" → Hub으로 명시 복귀 (Home 이동 금지 §12)
+        if (params.backTo) { router.replace((`/(teacher)/${params.backTo}`) as any); }
+        else { router.back(); }
+      }
       else { setSubView("history"); setEditDiary(null); await loadDiaries(selectedGroup.id); }
     } catch (e: any) { setEditError(e.message || "저장 중 오류가 발생했습니다."); }
     finally { setEditSaving(false); }

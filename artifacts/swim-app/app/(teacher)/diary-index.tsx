@@ -1,11 +1,10 @@
 /**
- * (teacher)/diary-index.tsx — 수업 일지 인덱스
+ * (teacher)/diary-index.tsx — 수업 일지 Hub
  *
- * - 학생에게 노출된 모든 일지 이력 (반 공통 + 학생별 추가)
- * - 학생 이름 검색 (즉시 필터)
- * - 요일 / 시간 필터
- * - 최신순 정렬
- * - 항목 클릭 → diary.tsx 로 이동 (해당 반)
+ * - 날짜별 수업 단위로 Group Card 표시 (lesson_date + class_group_id 기준)
+ * - 같은 수업의 공통 일지 + 학생별 추가 일지를 하나의 Group Card에 묶음 (§7)
+ * - 공유 버튼과 chevron hit area 분리 (§9)
+ * - writeCard SafeArea 아래 정상 spacing (§6)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
@@ -39,12 +38,58 @@ interface DiaryIndexEntry {
   source_diary_id: string;
   source_note_id: string | null;
 }
+
+/** 날짜별 수업 단위 Group — 같은 source_diary_id 항목들을 묶음 */
+interface DiaryGroup {
+  /** 그룹 대표 key */
+  key: string;
+  lesson_date: string;
+  class_name: string;
+  schedule_days: string;
+  schedule_time: string;
+  teacher_name: string;
+  source_diary_id: string;
+  /** 반 공통 일지 (있으면 1개) */
+  common: DiaryIndexEntry | null;
+  /** 학생별 추가 일지 */
+  notes: DiaryIndexEntry[];
+}
+
 /* ── 날짜 포맷 ───────────────────────────────────────────────────── */
 function formatDate(iso: string) {
   const d = new Date(iso + "T12:00:00");
   const days = ["일", "월", "화", "수", "목", "금", "토"];
   return `${d.getMonth() + 1}월 ${d.getDate()}일 ${days[d.getDay()]}요일`;
 }
+
+/** entries → DiaryGroup[] 변환 (source_diary_id 기준 grouping) */
+function groupEntries(entries: DiaryIndexEntry[]): DiaryGroup[] {
+  const map = new Map<string, DiaryGroup>();
+  for (const e of entries) {
+    const key = e.source_diary_id;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        lesson_date: e.lesson_date,
+        class_name: e.class_name,
+        schedule_days: e.schedule_days,
+        schedule_time: e.schedule_time,
+        teacher_name: e.teacher_name,
+        source_diary_id: e.source_diary_id,
+        common: null,
+        notes: [],
+      });
+    }
+    const g = map.get(key)!;
+    if (e.entry_type === "class_common") {
+      g.common = e;
+    } else {
+      g.notes.push(e);
+    }
+  }
+  return Array.from(map.values());
+}
+
 /* ════════════════════════════════════════════════════════════════
    메인 컴포넌트
    ════════════════════════════════════════════════════════════════ */
@@ -52,7 +97,6 @@ export default function DiaryIndexScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
-  // student-scoped mode: studentId + studentName from Student Detail
   const { studentId: paramStudentId, studentName: paramStudentName } = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
   const studentScopeId   = paramStudentId   || null;
   const studentScopeName = paramStudentName || null;
@@ -69,11 +113,11 @@ export default function DiaryIndexScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showQuickWrite, setShowQuickWrite] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   /* ── 데이터 로드 ── */
   const load = useCallback(async (sName = "", day: string | null = null, time: string | null = null) => {
     if (!token) return;
     const params = new URLSearchParams();
-    // student-scoped mode: student_id가 있으면 authoritative ID 필터 사용, name search 비활성
     if (studentScopeId) {
       params.set("student_id", studentScopeId);
     } else if (sName.trim()) {
@@ -99,7 +143,9 @@ export default function DiaryIndexScreen() {
       setRefreshing(false);
     }
   }, [token, studentScopeId]);
+
   useEffect(() => { load(); }, [load]);
+
   /* ── 검색어 변경 시 디바운스 ── */
   const handleSearchChange = useCallback((text: string) => {
     setSearchText(text);
@@ -108,83 +154,113 @@ export default function DiaryIndexScreen() {
       load(text, activeDay, activeTime);
     }, 300);
   }, [load, activeDay, activeTime]);
+
   /* ── 요일 필터 변경 ── */
   const handleDaySelect = useCallback((day: string | null) => {
     setActiveDay(day);
     setShowDayPicker(false);
     load(searchText, day, activeTime);
   }, [searchText, activeTime, load]);
+
   /* ── 시간 필터 변경 ── */
   const handleTimeSelect = useCallback((time: string | null) => {
     setActiveTime(time);
     setShowTimePicker(false);
     load(searchText, activeDay, time);
   }, [searchText, activeDay, load]);
-  /* ── 항목 클릭 → diary.tsx 수정 뷰 ── */
-  const handlePress = useCallback((entry: DiaryIndexEntry) => {
+
+  /* ── 그룹 tap → diary.tsx 수정 뷰 ── */
+  const handleGroupPress = useCallback((group: DiaryGroup) => {
     router.push({
       pathname: "/(teacher)/diary",
-      params: { editDiaryId: entry.source_diary_id, backTo: "diary-index" },
+      params: { editDiaryId: group.source_diary_id, backTo: "diary-index" },
     } as any);
   }, []);
-  /* ── 공유 ── */
-  const handleShare = useCallback((item: DiaryIndexEntry, e: any) => {
-    e.stopPropagation();
+
+  /* ── 공유 (반 공통 기준) ── */
+  const handleShare = useCallback((group: DiaryGroup) => {
+    const item = group.common ?? group.notes[0];
+    if (!item) return;
     shareDiaryEntry({
-      studentName:  item.student_name ?? undefined,
-      className:    item.class_name,
-      teacherName:  item.teacher_name,
-      lessonDate:   item.lesson_date,
-      content:      item.entry_type === "student_note" && item.note_content
-        ? item.note_content
-        : item.content,
-      noteContent:  item.entry_type === "student_note" && item.note_content
-        ? item.content
-        : undefined,
+      studentName:  undefined,
+      className:    group.class_name,
+      teacherName:  group.teacher_name,
+      lessonDate:   group.lesson_date,
+      content:      group.common?.content ?? group.notes[0]?.note_content ?? "",
+      noteContent:  undefined,
     });
   }, []);
-  const renderItem = useCallback(({ item }: { item: DiaryIndexEntry }) => {
-    const isNote = item.entry_type === "student_note";
+
+  /* ── Group Card 렌더 ── */
+  const renderGroup = useCallback(({ item: group }: { item: DiaryGroup }) => {
+    const timeStr = (group.schedule_time || "").slice(0, 5);
+    const daysStr = group.schedule_days || "";
     return (
-      <Pressable style={[di.card, { backgroundColor: C.card }]} onPress={() => handlePress(item)}>
-        {/* 상단 메타 */}
+      <Pressable
+        style={[di.card, { backgroundColor: C.card }]}
+        onPress={() => handleGroupPress(group)}
+      >
+        {/* 상단: 날짜 + 공유/진입 버튼 */}
         <View style={di.cardTop}>
-          <Text style={di.cardDate}>{formatDate(item.lesson_date)}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={[di.typeBadge, { backgroundColor: C.brandMist }]}>
-              {isNote
-                ? <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>{item.student_name} 추가</Text></>
-                : <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>반 공통</Text></>
-              }
-            </View>
+          <View style={di.cardTopLeft}>
+            <Text style={di.cardDate}>{formatDate(group.lesson_date)}</Text>
+            <Text style={di.cardMeta}>
+              {daysStr ? `${daysStr} ` : ""}
+              {timeStr ? `${timeStr}반` : group.class_name}
+              {timeStr ? ` · ${timeStr}` : ""}
+            </Text>
+          </View>
+          {/* 공유 + 진입 — 별도 hit area (§9) */}
+          <View style={di.cardActions}>
             <Pressable
               style={di.shareBtn}
               hitSlop={8}
-              onPress={(e) => handleShare(item, e)}
+              onPress={(e) => { e.stopPropagation(); handleShare(group); }}
             >
               <LucideIcon name="share-2" size={13} color="#4EA7D8" />
               <Text style={di.shareBtnText}>공유</Text>
             </Pressable>
+            <View style={di.chevronWrap}>
+              <LucideIcon name="chevron-right" size={15} color={C.textMuted} />
+            </View>
           </View>
         </View>
-        {/* 반/시간 */}
-        <View style={di.cardMeta}>
-          <LucideIcon name="layers" size={11} color={C.textSecondary} />
-          <Text style={di.cardMetaText}>{item.class_name}</Text>
-          <LucideIcon name="clock" size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
-          <Text style={di.cardMetaText}>{(item.schedule_time || "").slice(0, 5)}</Text>
-          {item.schedule_days && (
-            <Text style={di.cardMetaText}> · {item.schedule_days}</Text>
-          )}
-        </View>
-        {/* 내용 미리보기 */}
-        <Text style={di.cardContent} numberOfLines={2}>{item.content}</Text>
-        <LucideIcon name="chevron-right" size={15} color={C.textMuted} style={di.chevron} />
+
+        {/* 반 공통 일지 */}
+        {group.common && (
+          <View style={di.entryRow}>
+            <View style={[di.typeBadge, { backgroundColor: C.brandMist }]}>
+              <LucideIcon name="users" size={10} color={C.textPrimary} />
+              <Text style={[di.typeBadgeText, { color: C.textPrimary }]}>반 공통</Text>
+            </View>
+            <Text style={di.entryContent} numberOfLines={2}>{group.common.content}</Text>
+          </View>
+        )}
+
+        {/* 학생별 추가 일지 */}
+        {group.notes.map((note, idx) => (
+          <View
+            key={note.source_note_id ?? `${note.student_id}-${idx}`}
+            style={[di.entryRow, idx > 0 || group.common ? di.entryRowBorder : undefined]}
+          >
+            <View style={[di.typeBadge, { backgroundColor: "#F0FDF4" }]}>
+              <LucideIcon name="user" size={10} color="#15803D" />
+              <Text style={[di.typeBadgeText, { color: "#15803D" }]}>{note.student_name} 추가</Text>
+            </View>
+            <Text style={di.entryContent} numberOfLines={2}>
+              {note.note_content ?? note.content}
+            </Text>
+          </View>
+        ))}
       </Pressable>
     );
-  }, [handlePress, handleShare]);
-  const keyExtractor = useCallback((item: DiaryIndexEntry, index: number) => `${item.diary_id}-${item.entry_type}-${item.student_id || "x"}-${index}`, []);
+  }, [handleGroupPress, handleShare]);
+
+  /* ── 그룹 데이터 ── */
+  const groups = groupEntries(entries);
+  const keyExtractor = useCallback((item: DiaryGroup) => item.key, []);
   const activeFilterCount = [activeDay, activeTime].filter(Boolean).length;
+
   return (
     <SafeAreaView style={di.safe} edges={[]}>
       <SubScreenHeader
@@ -192,9 +268,10 @@ export default function DiaryIndexScreen() {
         subtitle={studentScopeName ? "개인 일지 이력" : "학생에게 노출된 전체 이력"}
         homePath="/(teacher)/today-schedule"
       />
-      {/* 일지 작성 카드 — 미작성 수업 선택 sheet 오픈 */}
+
+      {/* 일지 작성 카드 — SafeArea 아래 정상 spacing (§6) */}
       <Pressable
-        style={[di.writeCard, { backgroundColor: C.primaryAction }]}
+        style={[di.writeCard, { backgroundColor: themeColor }]}
         onPress={() => setShowQuickWrite(true)}
       >
         <View style={di.writeCardIcon}>
@@ -230,9 +307,9 @@ export default function DiaryIndexScreen() {
           </Pressable>
         )}
       </View>
+
       {/* 필터 바 */}
       <View style={di.filterBar}>
-        {/* 요일 필터 버튼 */}
         <Pressable
           style={[di.filterBtn, activeDay ? { backgroundColor: themeColor + "18", borderColor: themeColor } : undefined]}
           onPress={() => { setShowDayPicker(v => !v); setShowTimePicker(false); }}
@@ -243,7 +320,6 @@ export default function DiaryIndexScreen() {
           </Text>
           <LucideIcon name="chevron-down" size={11} color={activeDay ? themeColor : C.textSecondary} />
         </Pressable>
-        {/* 시간 필터 버튼 */}
         <Pressable
           style={[di.filterBtn, activeTime ? { backgroundColor: themeColor + "18", borderColor: themeColor } : undefined]}
           onPress={() => { setShowTimePicker(v => !v); setShowDayPicker(false); }}
@@ -254,7 +330,6 @@ export default function DiaryIndexScreen() {
           </Text>
           <LucideIcon name="chevron-down" size={11} color={activeTime ? themeColor : C.textSecondary} />
         </Pressable>
-        {/* 필터 초기화 */}
         {activeFilterCount > 0 && (
           <Pressable
             style={di.resetBtn}
@@ -264,8 +339,9 @@ export default function DiaryIndexScreen() {
             <Text style={di.resetBtnText}>초기화</Text>
           </Pressable>
         )}
-        <Text style={di.resultCount}>{entries.length}건</Text>
+        <Text style={di.resultCount}>{groups.length}건</Text>
       </View>
+
       {/* 요일 선택 드롭다운 */}
       {showDayPicker && (
         <View style={di.picker}>
@@ -280,6 +356,7 @@ export default function DiaryIndexScreen() {
           ))}
         </View>
       )}
+
       {/* 시간 선택 드롭다운 */}
       {showTimePicker && (
         <View style={di.picker}>
@@ -296,14 +373,15 @@ export default function DiaryIndexScreen() {
           ))}
         </View>
       )}
+
       {/* 목록 */}
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : (
         <FlatList
-          data={entries}
+          data={groups}
           keyExtractor={keyExtractor}
-          renderItem={renderItem}
+          renderItem={renderGroup}
           contentContainerStyle={[di.listContent, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
           onRefresh={() => { setRefreshing(true); load(searchText, activeDay, activeTime); }}
@@ -332,11 +410,16 @@ export default function DiaryIndexScreen() {
     </SafeAreaView>
   );
 }
+
 const di = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.background },
+
+  /* ── 일지 작성 CTA ── */
   writeCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    marginHorizontal: 16, marginBottom: 20,
+    marginHorizontal: 16,
+    marginTop: 12,    /* SafeArea/Header 아래 정상 gap (§6) */
+    marginBottom: 16,
     paddingHorizontal: 16, paddingVertical: 14,
     borderRadius: 14,
   },
@@ -348,13 +431,13 @@ const di = StyleSheet.create({
   writeCardBody: { flex: 1, gap: 2 },
   writeCardTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
   writeCardSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)" },
+
+  /* ── 섹션 헤더 ── */
   sectionHeader: { paddingHorizontal: 16, marginBottom: 12 },
   sectionTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
   sectionSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
-  backBtn: { marginBottom: 6, width: 32 },
-  headerTitle: { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  headerSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 2 },
+
+  /* ── 검색 ── */
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginBottom: 10,
@@ -362,10 +445,9 @@ const di = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
-  filterBar: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 16, paddingBottom: 10,
-  },
+
+  /* ── 필터 ── */
+  filterBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
   filterBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
@@ -379,6 +461,8 @@ const di = StyleSheet.create({
   },
   resetBtnText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   resultCount: { marginLeft: "auto", fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
+
+  /* ── 드롭다운 ── */
   picker: {
     marginHorizontal: 16, backgroundColor: "#fff",
     borderWidth: 1, borderColor: C.border, borderRadius: 12,
@@ -392,28 +476,57 @@ const di = StyleSheet.create({
   },
   pickerItemText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   pickerEmptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", padding: 12 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 32, gap: 8 },
+
+  /* ── 목록 ── */
+  listContent: { paddingHorizontal: 16, paddingBottom: 32, gap: 10 },
+
+  /* ── Group Card ── */
   card: {
-    borderRadius: 14, padding: 14, shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04,
-    shadowRadius: 4, elevation: 1, position: "relative",
+    borderRadius: 14, padding: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  cardDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
-  typeBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  typeBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  cardMeta: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  cardMetaText: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginLeft: 3 },
-  cardContent: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 19 },
-  chevron: { position: "absolute", right: 12, top: "50%" },
-  empty: { alignItems: "center", paddingTop: 80, gap: 8 },
-  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  cardTop: {
+    flexDirection: "row", alignItems: "flex-start",
+    justifyContent: "space-between", marginBottom: 10,
+  },
+  cardTopLeft: { flex: 1, gap: 2 },
+  cardDate: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text },
+  cardMeta: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+
+  /* 공유 + chevron — 별도 hit area, 겹침 금지 (§9) */
+  cardActions: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginLeft: 8,
+  },
   shareBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 9, paddingVertical: 3,
+    paddingHorizontal: 9, paddingVertical: 4,
     borderRadius: 8, backgroundColor: "#EBF5FB",
     borderWidth: 1, borderColor: "#B8DCF0",
   },
   shareBtnText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4EA7D8" },
+  chevronWrap: {
+    width: 28, height: 28,
+    alignItems: "center", justifyContent: "center",
+  },
+
+  /* ── 일지 행 (공통/개별) ── */
+  entryRow: { gap: 4, paddingTop: 8 },
+  entryRowBorder: {
+    marginTop: 8, paddingTop: 8,
+    borderTopWidth: 1, borderTopColor: C.border,
+  },
+  typeBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+    alignSelf: "flex-start",
+  },
+  typeBadgeText: { fontSize: 10, fontFamily: "Pretendard-Regular" },
+  entryContent: { fontSize: 13, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 19 },
+
+  /* ── empty ── */
+  empty: { alignItems: "center", paddingTop: 80, gap: 8 },
+  emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
 });
