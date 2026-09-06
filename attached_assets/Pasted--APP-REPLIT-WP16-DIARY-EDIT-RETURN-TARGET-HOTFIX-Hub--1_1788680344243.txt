@@ -1,0 +1,384 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — DIARY EDIT RETURN TARGET HOTFIX
+# 범위 극소화
+# 수업일지 Hub의 뒤로가기는 정상 — 절대 수정 금지
+# 오직 DiaryEditView의 저장/뒤로가기 return target만 수정
+# 수정 완료 후 release/v2.0.0 반영 + iOS production-v2 OTA까지 자동 완료
+# Render deploy 금지
+
+현재 실기기 실제 증상:
+
+수업일지 Hub
+→ 기존 Diary 선택
+→ 일지 수정 화면
+
+여기까지는 정상.
+
+문제:
+
+1.
+일지 수정 화면에서 "저장"
+→ Teacher Home으로 이동함
+
+2.
+일지 수정 화면에서 상단 "뒤로가기"
+→ Teacher Home으로 이동함
+
+정상 동작:
+
+수업일지 Hub
+→ 일지 수정
+→ 저장
+→ 수업일지 Hub
+
+수업일지 Hub
+→ 일지 수정
+→ 뒤로가기
+→ 수업일지 Hub
+
+그리고:
+
+수업일지 Hub 자체에서 뒤로가기
+→ 스케줄러
+
+이 동작은 현재 정상이며 절대 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 edit entry/return contract 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+수업일지 Hub에서 기존 Diary를 눌렀을 때:
+
+source route:
+...
+
+destination:
+...
+
+params:
+...
+
+특히 확인:
+
+backTo
+returnTo
+from
+editDiaryId
+
+중 어떤 param/state로
+Hub를 return target으로 전달하는지 확인.
+
+현재 Hub → Edit 진입 시
+return target이 실제로 무엇인지 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 저장 후 Home으로 가는 exact 코드 찾기
+━━━━━━━━━━━━━━━━━━━━━━
+
+DiaryEditView save success 경로에서
+다음 패턴만 Diary 범위에서 확인:
+
+router.push
+router.replace
+router.back
+setSubView
+dismiss
+home
+teacher/home
+backTo fallback
+
+왜 Hub에서 들어왔는데
+Home으로 가는지 exact root cause 확정.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 상단 뒤로가기 exact 코드 찾기
+━━━━━━━━━━━━━━━━━━━━━━
+
+DiaryEditView header back action이
+어떤 handler를 사용하는지 확인.
+
+현재 Home으로 가는 이유를 exact 확인.
+
+중요:
+
+저장 handler와
+header back handler가
+서로 다른 return logic을 쓰면
+같은 canonical helper/target으로 통일.
+
+대규모 navigation refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. canonical return rule
+━━━━━━━━━━━━━━━━━━━━━━
+
+Hub에서 Edit 진입:
+
+return target =
+수업일지 Hub
+
+따라서:
+
+SAVE SUCCESS
+→ Hub
+
+HEADER BACK
+→ Hub
+
+CANCEL
+→ Hub
+
+SAVE FAIL
+→ Edit 화면 유지
+
+절대:
+Teacher Home으로 이동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Hub 자체 back 동작 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+수업일지 Hub:
+
+상단 뒤로가기
+→ 스케줄러
+
+현재 정상.
+
+절대 변경 금지.
+
+이번 수정으로:
+
+Edit → Hub → Back → Scheduler
+
+2단계 navigation이 정상이어야 함.
+
+Edit → Back → Scheduler
+로 한 번에 빠지면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. return target fallback
+━━━━━━━━━━━━━━━━━━━━━━
+
+Hub가 아닌 다른 정상 entry에서
+DiaryEditView를 열 수 있다면
+기존 정상 return semantics는 유지.
+
+단:
+
+Hub에서 들어왔는데
+fallback 때문에 Home으로 가는 상태 금지.
+
+우선순위:
+
+1. explicit backTo/returnTo
+2. valid previous Diary context
+3. safe Diary Hub
+
+Home은 Diary edit의 기본 fallback으로 사용하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1
+수업관리
+→ 수업일지 Hub
+→ 9/3 Diary
+→ Edit
+→ 저장
+→ 수업일지 Hub
+
+PASS 필수.
+
+T2
+Hub
+→ 9/3 Diary
+→ Edit
+→ 상단 뒤로가기
+→ 수업일지 Hub
+
+PASS 필수.
+
+T3
+Hub
+→ Edit
+→ 취소
+→ 수업일지 Hub
+
+PASS 필수.
+
+T4
+Hub 자체 뒤로가기
+→ 스케줄러
+
+기존 정상 동작 유지.
+
+T5
+Edit 저장 실패
+→ Edit 화면 유지
+→ Home 이동 없음.
+
+T6
+수정 후 Hub 목록에
+수정 내용 즉시 반영.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 금지:
+
+- Diary Hub UI 변경
+- Quick Write 변경
+- Parent Feed 변경
+- Notification 변경
+- AI 변경
+- Media 변경
+- Server 변경
+- DB 변경
+- Admin 변경
+
+오직 Edit return navigation.
+
+SERVER_CHANGED expected:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. OTA 자동 완료
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+release/v2.0.0
+commit
+push
+
+영구 preflight:
+
+branch =
+release/v2.0.0
+
+working tree =
+clean
+
+HEAD =
+origin/release/v2.0.0
+
+APP_CONTRACT_VERSION =
+1.0
+
+Teacher Diary Engine =
+https://swimnote-professional-engine.onrender.com
+
+App Version =
+2.0.1
+
+RuntimeVersion =
+2.1.0
+
+Native incompatible =
+NO
+
+Android =
+NO
+
+전부 PASS면
+사용자 추가 승인 기다리지 말고
+
+iOS production-v2 OTA까지 완료.
+
+main에서 production-v2 OTA 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 DIARY EDIT RETURN HOTFIX REPORT
+
+APP release before:
+APP release after:
+Client commit:
+
+Hub → Edit route:
+...
+
+Return param/state:
+...
+
+Save root cause:
+...
+
+Back root cause:
+...
+
+Save destination after fix:
+...
+
+Header back destination after fix:
+...
+
+Cancel destination:
+...
+
+Hub own back destination:
+...
+
+Hub own back behavior changed:
+NO
+
+Edit save → Hub:
+PASS / FAIL
+
+Edit back → Hub:
+PASS / FAIL
+
+Hub back → Scheduler:
+PASS / FAIL
+
+Save fail stays on Edit:
+PASS / FAIL
+
+SERVER_CHANGED:
+NO
+
+OTA source branch:
+release/v2.0.0
+
+OTA source SHA:
+...
+
+Preflight:
+PASS / FAIL
+
+Published:
+YES / NO
+
+Channel:
+production-v2
+
+Platform:
+iOS ONLY
+
+Group ID:
+...
+
+Update ID:
+...
+
+Android OTA:
+NO
+
+main OTA:
+NO
+
+Final:
+READY_FOR_REAL_DEVICE
+/
+FAIL
+
+STOP.
+WP17 선행 금지.
