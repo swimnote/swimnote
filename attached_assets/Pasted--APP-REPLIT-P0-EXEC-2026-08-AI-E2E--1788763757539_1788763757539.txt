@@ -1,0 +1,396 @@
+[보낼 곳: APP REPLIT]
+
+[P0 EXEC — 서태웅 2026-08 AI 성장리포트 삭제 → 최신 파이프라인 단일 재발급 → E2E 검증]
+
+선행 차단요인 수정 완료:
+
+- 2026-08 analysis_cutoff_at
+  2026-08-31T15:00:00Z
+  (= 2026-09-01 00:00 KST)
+  로 수정 완료
+
+- cutoff 계산 코드 수정 완료
+- 8/27 student diary 2건 + class diary 1건 추가 포함 가능
+
+- 기존 notification 0건 원인:
+  script_super_admin 비표준 publish path
+- 정상 scheduler / sendIndividualReport 경로는
+  notifyGrowthReportPublished() 호출 확인
+
+- PDF:
+  utils/growthReportExport.ts
+  expo-print 기반 구현 존재
+
+이번 작업에서 실제 Production E2E를 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 대상 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+학생:
+서태웅
+
+student_id:
+student_1784491932941_n95eeew89
+
+삭제 대상 현재 live 8월 report:
+
+gr_eaf237b428de4a32907d8a5e53323d66
+
+Period:
+2026-08
+
+다른 동일 이름 withdrawn 학생 2명 절대 선택하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실행 직전 안전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+삭제 직전 다시 확인:
+
+- student status = active
+- report_id exact match
+- period = 2026-08
+- deleted_at IS NULL
+- pool_id exact match
+- parent 연결 존재
+- cycle analysis_cutoff_at =
+  2026-08-31T15:00:00Z
+
+하나라도 불일치하면 STOP/HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 live report 삭제
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 공식 endpoint 사용:
+
+DELETE /admin/growth-reports/:reportId
+
+대상:
+gr_eaf237b428de4a32907d8a5e53323d66
+
+기존 deleteGrowthReport() 정상 경로 사용.
+
+DB에서 수동 report row DELETE 금지.
+
+삭제 후 확인:
+
+- old report.deleted_at IS NOT NULL
+- live 2026-08 report count = 0
+- orphan notification/comment/reaction 없음
+- 다른 student/report 변화 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 재발급은 반드시 단일 학생 정상 경로 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+전체 batch를 무작정 실행해서
+다른 회원까지 발급하지 말 것.
+
+기존 Production에 구현된
+single-student / sendIndividualReport /
+super individual issuance 경로 중
+
+아래 조건을 만족하는 공식 기존 경로를 사용:
+
+- student_id 명시 가능
+- period/cycle 명시 가능
+- Snapshot Builder 사용
+- Growth Report Engine 호출
+- result persistence 사용
+- validation 사용
+- publish 사용
+- notifyGrowthReportPublished() 사용
+
+새 endpoint 생성 금지.
+DB 직접 INSERT 금지.
+구형 script_super_admin 직접 publish 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 새 Snapshot 데이터 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 report 생성 시 반드시
+새 snapshot을 빌드할 것.
+
+기존 report의 snapshot/report_content 재사용 금지.
+
+2026-08 source 기준 확인:
+
+Student-specific diary:
+총 4건 사용 가능 여부
+
+Class diary:
+총 2건 사용 가능 여부
+
+특히 이전에 제외됐던:
+
+- 8/27 student diary 2건
+- 8/27 class diary 1건
+
+새 snapshot에 실제 포함됐는지 확인.
+
+보고:
+
+- source diary count
+- class diary count
+- fact count
+- evidence count
+- claim count
+
+원문 전체는 보고하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최신 Growth Report Engine 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 경로:
+
+Snapshot Builder
+→ Growth Report Engine Client
+→ AI analysis/composition
+→ Grounding Validation
+→ Growth Framing Validation
+→ Persistence
+→ Publish
+
+확인:
+
+GR_CONTRACT_VERSION = "1.0"
+
+- engine 호출 성공
+- grounding PASS
+- growth framing PASS
+- generation error 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 8개 공식 section 완전성 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 report_content에서 다음 8개를 모두 검사:
+
+1. core_growth
+2. parent_support
+3. swimming_progress
+4. next_growth_direction
+5. longitudinal_comparison
+6. teacher_guidance
+7. success_conditions
+8. behavioral_strengths
+
+각 section마다:
+
+- 존재 여부
+- is_empty
+- text length
+- evidence 연결 여부
+
+목표:
+8/8 모두 의미 있는 내용 존재.
+
+단 매우 중요:
+
+근거가 없는데 억지로 채우는 것은 금지.
+
+만약 다시 빈 section이 발생하면
+단순히 "데이터 부족"으로 끝내지 말고
+해당 section에 사용 가능한 fact/evidence가 실제 존재하는지 확인.
+
+A.
+관련 fact/evidence 자체 없음
+→ 정당한 empty 가능
+
+B.
+관련 fact/evidence 존재하지만 Engine output empty
+→ Engine composition issue
+
+C.
+Engine output에는 있으나 persistence에서 empty
+→ persistence/schema issue
+
+D.
+DB에는 있으나 APP에서 안 보임
+→ APP rendering issue
+
+정확히 분류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 리포트 품질 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 리포트는 다음을 만족해야 함:
+
+- 실제 8월 전체 기록 기반
+- 실제 서태웅 관찰 반영
+- 사실 없는 성장 창작 없음
+- 긍정적이지만 과장 없음
+- 단순 일지 요약이 아니라 성장 분석
+- 학부모가 이해할 수 있는 자연어
+- 같은 표현 반복 최소화
+- 내부 enum 노출 없음
+- claim_id/evidence_id 노출 없음
+- prompt/evidence packet 노출 없음
+- null / undefined / placeholder 없음
+
+최종 품질:
+
+A = 출시 가능한 완성형
+B = 일부 누락
+C = 구조 불완전
+D = 생성 실패
+E = 사실성/grounding 문제
+
+A가 아니면 최종 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Parent Feed 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+PUBLISHED 후 부모 API 기준 확인:
+
+- 새 8월 AI 성장리포트가 feed에 나타남
+- old soft-deleted report는 나타나지 않음
+- 동일 8월 report 중복 없음
+- 제목 정상
+- 2026년 8월 period 정상
+- report_content 정상 전달
+- 카드에서 내용이 실제로 보임
+- 상세 화면 진입 가능
+- 8개 section rendering 확인
+
+중요:
+"피드에 리포트가 있다는 표시만 보임"은 PASS 아님.
+
+학부모가 피드/상세에서
+실제 성장리포트 내용을 읽을 수 있어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Notification / Push 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 정상 발급에서:
+
+notifyGrowthReportPublished()
+
+실행 여부 확인.
+
+확인:
+
+- notifications row 생성
+- parent_user_id 정확
+- notification type 정확
+- ref_id = 신규 report_id
+- push_logs 기록
+- push token 대상 존재
+- provider success/failure
+
+가능하면 실제 push 발송 결과까지 확인.
+
+구형 report처럼 notification=0이면 FAIL/HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. PDF Export 경로 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 구현 확인:
+
+utils/growthReportExport.ts
+→ expo-print
+→ PDF 생성
+→ 공유/저장 경로
+
+새 report_content 전체가 PDF 데이터로 전달되는지 확인.
+
+반드시 확인:
+
+- 리포트 제목
+- 학생명
+- 대상 월
+- 실제 section 내용
+- 한글 깨짐 없음
+- 빈 페이지 없음
+- null/undefined 없음
+- 내부 metadata 없음
+- 8개 section 중 실제 존재 section이 모두 PDF에 포함
+
+코드 기준 검증 후
+실기기 PDF 저장은 사용자가 최종 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 중복발급 방지 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 report 발급 완료 후:
+
+student_id +
+2026-08 cycle
+
+live report count = 정확히 1.
+
+동일 발급을 다시 시도했을 때
+두 번째 live report가 생기지 않아야 함.
+
+기존 unique/idempotency 로직을
+비활성화하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 다른 회원 영향 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업 전/후 비교:
+
+- 다른 학생 report count
+- 다른 month report count
+- 다른 parent notification
+- 다른 feed
+
+변화 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 다른 stale cycle 2건
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는 건드리지 말 것.
+
+발견된 다른 pool의 stale cycle 2건은
+status와 실제 영향 회원을 별도 확인한 뒤 처리한다.
+
+서태웅 E2E와 섞지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 삭제한 old report_id
+2. 삭제 성공 여부
+3. 신규 report_id
+4. 신규 cycle/cutoff
+5. student diary 사용 count
+6. class diary 사용 count
+7. fact/evidence/claim count
+8. GR Engine status
+9. grounding status
+10. growth framing status
+11. 8개 section별 empty/non-empty + length
+12. 빈 section이 있다면 정확한 A/B/C/D 원인
+13. report quality A/B/C/D/E
+14. parent feed 표시 여부
+15. feed에서 실제 내용 제공 여부
+16. 상세 화면 데이터 정상 여부
+17. notification row 생성 여부
+18. push_logs 결과
+19. PDF export 데이터 정상 여부
+20. live 2026-08 report count
+21. 동일 period 중복 차단 확인
+22. 다른 학생/period 영향 없음 확인
+23. 코드 수정 여부
+24. Production deploy/OTA 여부
+25. 최종 PASS/HOLD/FAIL
+
+완료 후 STOP.

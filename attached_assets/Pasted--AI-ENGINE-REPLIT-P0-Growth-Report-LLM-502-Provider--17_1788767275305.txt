@@ -1,0 +1,295 @@
+[보낼 곳: AI ENGINE REPLIT]
+
+[P0 — Growth Report LLM 502 종료: Provider 경로 단일 원인 수정]
+
+현재 작업을 즉시 정리한다.
+
+지금까지 확정된 사실:
+
+1.
+"snapshot students: 0"은 오진.
+debug script가 잘못된 key를 참조한 것이며
+실제 diary source는 존재함.
+
+2.
+실제 차단 원인은 Growth Report Engine:
+
+POST /api/v1/growth-report/analyze
+
+에서 반복 발생하는:
+
+HTTP 502
+LLM Provider Connection error
+
+3.
+원인 후보가 이미 확인됨:
+
+AI_INTEGRATIONS_OPENAI_BASE_URL
+= localhost 기반 Replit proxy
+
+Render Production에서는 localhost:1106 접근 불가.
+
+4.
+Teacher Diary에서는 이미 같은 문제를 해결함:
+
+OPENAI_API_KEY가 존재하면
+direct OpenAI 사용
+(baseURL undefined)
+
+OPENAI_API_KEY가 없을 때만
+AI_INTEGRATIONS_OPENAI_* fallback 사용.
+
+이번 목표:
+Growth Report Engine의 LLM client도
+Teacher Diary와 동일한 Production-safe provider 정책으로 통일한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 즉시 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+지금부터 금지:
+
+- Render env 전체 PUT
+- env key 임의 추가/삭제
+- 반복 재배포
+- localhost proxy를 Production에서 살리려는 시도
+- 로컬 서버로 Production E2E 우회
+- route를 못 찾는 상태에서 임의 코드 수정
+
+먼저 코드상 정확한 Growth Report LLM 호출 경로를 찾는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Growth Report analyze 실제 Route 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production endpoint:
+
+POST /api/v1/growth-report/analyze
+
+가 실제로 어떤 파일/route/router에서 등록되는지
+끝까지 추적한다.
+
+반드시 보고:
+
+- route registration 파일
+- handler 파일
+- analyze 함수
+- LLM provider/client 생성 함수
+- model config
+- baseURL 결정 로직
+- API key 결정 로직
+
+grep만 나열하지 말고
+실제 호출 chain 하나로 제출.
+
+예:
+
+route
+→ analyzer
+→ composer
+→ provider factory
+→ OpenAI client
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher Diary와 Provider 구성 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정상인 Teacher Diary Production 코드:
+
+OPENAI_API_KEY 존재
+→ direct OpenAI
+→ baseURL undefined
+
+OPENAI_API_KEY 없음
+→ AI_INTEGRATIONS_OPENAI_API_KEY
+→ AI_INTEGRATIONS_OPENAI_BASE_URL
+
+Growth Report 쪽과 exact 비교.
+
+확인:
+
+- Growth Report가 AI_INTEGRATIONS_OPENAI_BASE_URL을
+  무조건 사용하는지
+- OPENAI_API_KEY가 있어도 localhost proxy를 사용하는지
+- 별도 OpenAI client factory가 있는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Root Cause 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나로 판정:
+
+A.
+Growth Report client가 AI_INTEGRATIONS_OPENAI_BASE_URL을
+무조건 사용하여 Render에서 localhost 연결 실패
+
+B.
+OPENAI_API_KEY fallback 우선순위 오류
+
+C.
+별도 provider factory가 stale Replit proxy 전용
+
+D.
+다른 원인
+
+A/B/C가 맞으면
+정확한 파일/line을 제출 후 최소 수정 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report에서도 Teacher Diary와 동일한 정책 사용:
+
+const openai = new OpenAI({
+  apiKey:
+    process.env.OPENAI_API_KEY ??
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+
+  baseURL:
+    process.env.OPENAI_API_KEY
+      ? undefined
+      : process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
+
+단 위 코드를 그대로 복붙하라는 뜻이 아님.
+
+공통 factory가 이미 있으면 재사용.
+중복 구현보다 기존 Production-safe helper 우선.
+
+중요:
+
+- model 변경 금지
+- prompt 변경 금지
+- growth logic 변경 금지
+- snapshot 변경 금지
+- contract 변경 금지
+- DB 변경 금지
+
+오직 provider connection policy만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Render ENV는 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render env를 더 수정하지 않는다.
+
+특히:
+
+AI_INTEGRATIONS_OPENAI_BASE_URL
+
+값을 direct api.openai.com으로 강제 변경하는 방식 금지.
+
+왜냐하면 다른 Replit integration 경로에 영향을 줄 수 있음.
+
+Production direct 사용 여부는 코드가
+OPENAI_API_KEY 존재 여부로 결정하게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 Render env 상태 확인만
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 전 현재 Production AI ENGINE env KEY만 읽어서 확인.
+
+VALUE 출력 금지.
+
+최소 확인:
+
+- PROD_DATABASE_URL PRESENT
+- SESSION_SECRET PRESENT
+- JWT_SECRET PRESENT
+- OPENAI_API_KEY PRESENT
+- AI_INTEGRATIONS_OPENAI_API_KEY PRESENT
+- AI_INTEGRATIONS_OPENAI_BASE_URL PRESENT
+- VOYAGE_API_KEY PRESENT
+- TEACHER_DIARY_V2_SEARCH=true
+
+이전에 정상 Teacher Diary deploy 때 있던
+canonical 필수 env가 빠졌다면
+그때만 HOLD 보고.
+
+환경변수 전체 덮어쓰기 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 후 로컬/unit 수준에서:
+
+A.
+OPENAI_API_KEY 존재
+→ OpenAI client baseURL = undefined
+→ direct provider 선택
+
+B.
+OPENAI_API_KEY 없음
+→ integration key/baseURL fallback
+
+C.
+Growth Report analyze provider 선택 테스트 PASS
+
+Teacher Diary regression도 확인:
+
+- direct OpenAI 유지
+- Teacher Diary Grounded PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Production Deploy
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 PASS 후 단 1회 deploy.
+
+deploy 후:
+
+- LIVE
+- /api/healthz HTTP 200
+- restart loop 없음
+
+그리고 Growth Report analyze 재시도:
+
+- HTTP 200
+- LLM Provider Connection error 없음
+- analysis complete
+- grounding/framing validation 정상
+
+실패하면 반복 deploy하지 말고
+첫 오류에서 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 서태웅 재발급 작업은 여기서 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는:
+
+- 기존 8월 report 삭제 금지
+- 새 report 생성 금지
+- scheduler 재실행 금지
+
+먼저 Growth Report Engine analyze endpoint 자체가
+Production에서 HTTP 200 되는 것까지만 해결.
+
+그 후 APP Replit에서
+서태웅 삭제→재발급 E2E를 다시 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Growth Report route 등록 파일
+2. 실제 LLM 호출 chain
+3. OpenAI client 생성 파일/함수
+4. 정확한 502 root cause A/B/C/D
+5. Teacher Diary provider와 차이
+6. 수정 파일
+7. 수정 내용
+8. Render env 필수 key 상태
+9. 테스트 결과
+10. commit SHA
+11. deploy ID
+12. deploy LIVE 여부
+13. healthz
+14. Growth Report analyze HTTP status
+15. LLM connection error 해소 여부
+16. 최종 PASS/HOLD
+
+완료 후 STOP.
