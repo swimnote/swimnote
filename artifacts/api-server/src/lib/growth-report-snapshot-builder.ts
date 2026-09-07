@@ -9,8 +9,9 @@
  *   - No question creation
  *   - No analysis logic
  *
- * Cutoff policy (GR2 §9):
- *   analysis_cutoff_at = parent_input_open_at = 25th 00:00 Asia/Seoul (UTC)
+ * Cutoff policy (GR2 §9, updated):
+ *   analysis_cutoff_at = parent_input_open_at = 이전달 마지막날 15:00 UTC (= 다음달 1일 00:00 KST)
+ *   e.g. 2026-08 리포트: 2026-08-31T15:00:00.000Z
  *   analysis_from      = null (정책 미확정)
  *
  * Privacy (GR3 spec §41):

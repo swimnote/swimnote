@@ -289,7 +289,7 @@ async function openCycleForPool(
   } else {
     // 기존 cycle 조회
     const existCycle = await db.execute(sql`
-      SELECT id, cycle_status FROM growth_report_cycles
+      SELECT id, cycle_status, analysis_cutoff_at FROM growth_report_cycles
       WHERE swimming_pool_id = ${poolId}
         AND report_period = ${reportPeriod}
       LIMIT 1
@@ -299,6 +299,28 @@ async function openCycleForPool(
     }
     const row = existCycle.rows[0] as any;
     cycleId = row.id as string;
+
+    // PENDING 상태 cycle의 cutoff가 구버전 정책(25일 기준)으로 생성된 경우 최신 값으로 수정.
+    // ACTIVE 이상은 이미 분석이 진행 중이므로 cutoff 변경 금지.
+    if (row.cycle_status === "PENDING") {
+      const storedCutoff = row.analysis_cutoff_at as string;
+      const correctCutoff = analysisCutoffAt.toISOString();
+      if (storedCutoff !== correctCutoff) {
+        await db.execute(sql`
+          UPDATE growth_report_cycles
+          SET analysis_cutoff_at      = ${correctCutoff},
+              parent_input_open_at    = ${parentInputOpenAt.toISOString()},
+              parent_input_close_at   = ${parentInputCloseAt.toISOString()},
+              updated_at              = now()
+          WHERE id = ${cycleId}
+            AND cycle_status = 'PENDING'
+        `);
+        console.log(
+          `[gr-scheduler] CYCLE_CUTOFF_REPAIRED: cycle=${cycleId} pool=${poolId}` +
+          ` old=${storedCutoff} new=${correctCutoff}`,
+        );
+      }
+    }
 
     // 이미 ACTIVE 이상이면 skip (idempotent)
     if (row.cycle_status !== "PENDING") {
