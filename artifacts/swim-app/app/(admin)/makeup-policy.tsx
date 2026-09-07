@@ -162,19 +162,19 @@ export default function MakeupPolicyScreen() {
           <View style={s.limitCard}>
             <LimitRow
               label="주 1회 회원"
-              desc="weekly_count = 1"
+              desc="주 1회 수업 회원"
               {...limitInputProps(policy.limit_weekly_1, "limit_weekly_1")}
             />
             <View style={s.divider} />
             <LimitRow
               label="주 2회 회원"
-              desc="weekly_count = 2"
+              desc="주 2회 수업 회원"
               {...limitInputProps(policy.limit_weekly_2, "limit_weekly_2")}
             />
             <View style={s.divider} />
             <LimitRow
               label="주 3회 이상 회원"
-              desc="weekly_count ≥ 3"
+              desc="주 3회 이상 수업 회원"
               {...limitInputProps(policy.limit_weekly_3, "limit_weekly_3")}
             />
           </View>

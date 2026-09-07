@@ -314,12 +314,7 @@ export default function DiaryTeacherEntriesScreen() {
             }
           </Pressable>
         </View>
-      ) : (
-        <View style={s.infoBar}>
-          <LucideIcon name="info" size={12} color={C.textMuted} />
-          <Text style={s.infoText}>항목을 길게 눌러 선택 모드로 전환합니다</Text>
-        </View>
-      )}
+      ) : null}
 
       {deleteMsg && (
         <View style={[s.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : C.brandSoft }]}>
