@@ -154,50 +154,60 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
             const dayNum     = parseInt(dateStr.split("-")[2]);
             const isSun      = di === 0;
             const isSat      = di === 6;
-            const timePills  = cls.slice(0, 3).map(g => fmtHour(g.schedule_time));
-            const extraCount = cls.length - timePills.length;
+            // 최대 2개 대표 일정
+            const visibleCls = cls.slice(0, 2);
+            const extraCount = cls.length - visibleCls.length;
 
             return (
               <Pressable key={dateStr}
                 style={[
-                  mc.dayCell, { width: CELL_W, height: CELL_H },
+                  mc.dayCell, { width: CELL_W },
                   isSelected && { backgroundColor: themeColor + "18", borderRadius: 8 },
                   isToday && !isSelected && { backgroundColor: themeColor + "0C" },
                   isHoliday && { backgroundColor: "#FEF2F2" },
                 ]}
                 onPress={() => onSelectDate(dateStr)}>
 
-                <View style={[mc.dayNumWrap,
-                  isToday && { backgroundColor: themeColor },
-                  isSelected && !isToday && { backgroundColor: themeColor + "30" },
-                ]}>
-                  <Text style={[mc.dayNum,
-                    (isSun || isHoliday) ? { color: "#D96C6C" } : isSat ? { color: themeColor } : {},
-                    isToday && { color: "#fff" },
-                  ]}>{dayNum}</Text>
+                {/* 날짜 헤더 — 항상 최상단 */}
+                <View style={mc.dateHeaderRow}>
+                  <View style={[mc.dayNumWrap,
+                    isToday && { backgroundColor: themeColor },
+                    isSelected && !isToday && { backgroundColor: themeColor + "30" },
+                  ]}>
+                    <Text style={[mc.dayNum,
+                      (isSun || isHoliday) ? { color: "#D96C6C" } : isSat ? { color: themeColor } : {},
+                      isToday && { color: "#fff" },
+                    ]}>{dayNum}</Text>
+                  </View>
                 </View>
 
-                {isHoliday ? (
-                  <Text style={mc.holidayTag}>휴무일</Text>
-                ) : (
-                  <View style={mc.timePills}>
-                    {timePills.map((label, ti) => {
-                      const pillIsPast = isPast ||
-                        (isToday && parseHour(cls[ti].schedule_time) < nowHour);
-                      return (
-                        <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id, cls[ti].color) + "22" }]}>
-                          <Text style={[mc.timePillText, { color: darkenHex(classColor(cls[ti].id, cls[ti].color)) }]}>{label}</Text>
-                          {pillIsPast && (
-                            <View style={mc.strikeOverlay} pointerEvents="none">
-                              <View style={mc.strikeLine} />
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                    {extraCount > 0 && <Text style={mc.moreTxt}>+{extraCount}</Text>}
-                  </View>
-                )}
+                {/* 콘텐츠 영역 — overflow hidden */}
+                <View style={mc.contentArea}>
+                  {isHoliday ? (
+                    <Text style={mc.holidayTag} numberOfLines={1}>휴무일</Text>
+                  ) : (
+                    <>
+                      {visibleCls.map((g, ti) => {
+                        const pillIsPast = isPast ||
+                          (isToday && parseHour(g.schedule_time) < nowHour);
+                        const bg = classColor(g.id, g.color) + "22";
+                        const fg = darkenHex(classColor(g.id, g.color));
+                        return (
+                          <View key={ti} style={[mc.timePill, { backgroundColor: bg }]}>
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                mc.timePillText, { color: fg },
+                                pillIsPast && { textDecorationLine: "line-through", color: C.textMuted },
+                              ]}
+                            >{fmtHour(g.schedule_time)}</Text>
+                          </View>
+                        );
+                      })}
+                      {extraCount > 0 && <Text style={mc.moreTxt} numberOfLines={1}>+{extraCount}</Text>}
+                    </>
+                  )}
+                </View>
               </Pressable>
             );
           })}
@@ -214,16 +224,16 @@ const mc = StyleSheet.create({
   weekRow:        { flexDirection: "row" },
   weekHeader:     { height: 28, alignItems: "center", justifyContent: "center" },
   weekHeaderText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  dayCell:        { alignItems: "center", paddingTop: 4, paddingHorizontal: 1 },
+  // 셀 고정 높이 80px, overflow hidden
+  dayCell:        { height: 80, alignItems: "center", paddingTop: 4, paddingHorizontal: 1, overflow: "hidden" },
+  dateHeaderRow:  { alignItems: "center", justifyContent: "center", height: 26 },
   dayNumWrap:     { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  dayNum:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
-  timePills:      { flexDirection: "column", alignItems: "center", gap: 1, marginTop: 2, width: "100%" },
-  timePill:       { paddingHorizontal: 3, paddingVertical: 2, borderRadius: 4, alignItems: "center", width: "92%" },
-  timePillText:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
-  strikeOverlay:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center" },
-  strikeLine:     { height: 1.5, backgroundColor: "rgba(0,0,0,0.28)", borderRadius: 1, marginHorizontal: 1 },
-  moreTxt:        { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
-  holidayTag:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
+  dayNum:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 18 },
+  contentArea:    { width: "100%", alignItems: "center", marginTop: 3, flex: 1, overflow: "hidden" },
+  timePill:       { paddingHorizontal: 3, paddingVertical: 1, borderRadius: 4, alignItems: "center", width: "92%", marginBottom: 1 },
+  timePillText:   { fontSize: 10, fontFamily: "Pretendard-SemiBold", lineHeight: 14 },
+  moreTxt:        { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, lineHeight: 14, marginTop: 1 },
+  holidayTag:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C", lineHeight: 16, marginTop: 2 },
 });
 
 // ─── 슬롯 상세 팝업 (compact 주간 뷰, 2단계) ──────────────────
