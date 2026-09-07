@@ -1,0 +1,179 @@
+[보낼 곳: APP REPLIT]
+
+[FAST TRACK — STEP 2 FINAL VERIFY + STEP 3 AI 일지피드]
+
+목표:
+1) Render 배포 완료 즉시 STEP 2 Production smoke
+2) Render 빌드 대기 중에는 STEP 3 AI 일지피드 원인 추적 및 최소 수정
+3) 불필요한 재감사/리팩터링 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+A. STEP 2 — Render 완료 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+target main SHA:
+52fe512e4072d6c5d1a3765c30f68f0063383009
+
+swimnote-api Render 상태 확인.
+
+LIVE가 되면:
+
+- deployed SHA 확인
+- 회원 상세 Production API 실제 학생 3건 HTTP 200 확인
+- 기존 오류
+  operator does not exist: text >= timestamp
+  재발 0건 확인
+- 정상 학생 상세 데이터 렌더 가능 확인
+
+가능하면 앱:
+관리자 → 회원관리 → 상세
+1건 실제 진입 확인.
+
+이 결과로 STEP 2 PASS/HOLD 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B. STEP 3 — AI 일지피드 바로 진행
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+관리자 > AI 일지피드
+→ "서버 오류가 발생했습니다"
+
+반면:
+수업관리 > 수업 일지
+→ 실제 수업일지 정상 존재.
+
+먼저 최소 추적:
+
+1.
+app/(admin)/diary-hub.tsx가 호출하는 endpoint 확인
+
+2.
+현재
+/admin/diaries/summary
+route 존재 여부 + 실제 500 원인 확인
+
+3.
+기존 정상 수업일지 화면이 사용하는
+API/data source 확인
+
+4.
+별도 duplicate DB/API 만들지 말고
+기존 실제 일지 데이터 재사용 우선
+
+━━━━━━━━━━━━━━━━━━━━━━
+C. STEP 3 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Case 1:
+summary route 존재 + 작은 server bug
+→ 해당 bug 최소 수정
+
+Case 2:
+summary route가 죽은/stale API
+→ 기존 정상 diary API 재사용 가능하면 frontend 연결 변경
+
+Case 3:
+관리자 집계에 정말 필요한 데이터만 기존 API로 못 얻으면
+→ 경량 admin summary route 최소 수정/신설
+
+금지:
+- 새 DB table
+- migration
+- diary schema 변경
+- AI ENGINE 수정
+- Teacher Diary V2 contract 변경
+- 대규모 diary refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+D. AI 일지피드 목표 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 오류 해결 후 기존 데이터 기준:
+
+- 선생님별 그룹
+- 선생님 이름
+- 작성 건수
+- 날짜순 일지
+
+필터:
+- 오늘
+- 어제
+- 이번 주
+- 날짜
+- 검색
+
+상단 카운터:
+현재 "AI 일지 / 학생 노트"가
+실제 schema와 의미가 맞는지 확인.
+
+실제 구분 가능:
+→ 정상 집계
+
+의미 없거나 데이터 근거 없음:
+→ 임의 숫자 만들지 말고
+  현재 데이터로 가능한 사용자용 카운터로 최소 재정의 후 보고
+
+━━━━━━━━━━━━━━━━━━━━━━
+E. 공유 영향
+━━━━━━━━━━━━━━━━━━━━━━
+
+diary-hub = admin 전용.
+
+하지만 실제 diary API/service가 teacher와 공유될 경우:
+teacher 기존 수업일지 회귀 확인.
+
+BASE/X:
+diary-hub는 BASE/X 공유 접근 가능하므로 양쪽 확인.
+
+Teacher Diary AI 생성/엔진 자체는 건드리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+F. 배포 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 3이 FRONTEND ONLY면:
+release/v2.0.0 commit/push까지만 우선.
+
+이번에는 작은 OTA를 바로 발행하지 말 것.
+앞으로 LOW-RISK frontend 수정은 묶어서 OTA할 예정.
+
+STEP 3에 server 수정이 있으면:
+server 수정은 main Production 반영 필요.
+
+release와 main의 역할을 혼동하지 말 것.
+
+서버 수정이 필요한 경우:
+- release에서 수정/검증
+- 필요한 server commit만 main에 최소 cherry-pick
+- Render 수동 deploy가 필요하다고 보고
+- 사용자 승인 없이 대규모 merge 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+G. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[STEP 2]
+1. Render LIVE 여부
+2. deployed SHA
+3. 상세 API 실제 3건 HTTP 결과
+4. PostgreSQL 오류 재발 여부
+5. STEP 2 최종 PASS/HOLD
+
+[STEP 3]
+6. AI 일지피드 root cause
+7. 기존 정상 수업일지 API/data source
+8. 수정 방식
+9. 수정 파일
+10. server 수정 여부
+11. 선생님별 그룹/집계 결과
+12. BASE/X 회귀
+13. teacher diary 회귀
+14. 테스트
+15. commit SHA
+16. Render 배포 필요 여부
+17. OTA는 발행하지 않았는지
+18. STEP 3 PASS/HOLD/FAIL
+
+완료 후 STOP.
