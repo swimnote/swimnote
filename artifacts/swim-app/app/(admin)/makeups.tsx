@@ -18,6 +18,8 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { useBrand } from "@/context/BrandContext";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 const TABS = ["결석자 리스트", "담당 보강", "다른선생님", "완료 기록", "만료"] as const;
@@ -43,6 +45,7 @@ type ConfirmAction = {
 export default function MakeupsScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const insets = useSafeAreaInsets();
 
   const [tab, setTab]           = useState<MkTab>("결석자 리스트");
   const [makeups, setMakeups]   = useState<any[]>([]);
@@ -217,7 +220,7 @@ export default function MakeupsScreen() {
         <FlatList
           data={makeups}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: TAB_BAR_H + 16 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: TAB_BAR_H + insets.bottom + 16 }}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
           ListEmptyComponent={
             <View style={s.empty}>
