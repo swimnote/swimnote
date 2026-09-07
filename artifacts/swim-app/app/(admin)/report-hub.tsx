@@ -210,12 +210,15 @@ export default function ReportHubScreen() {
   // ── KPI 집계 (전체 rows 기준) ─────────────────────────────────────────────
   const kpi = useMemo(() => computeKpi(allRows), [allRows]);
 
-  // ── API 호출: summary ───────────────────────────────────────────────────────
+  // ── API 호출: summary (KPI 배지용, 에러 무시) ─────────────────────────────
   const fetchSummary = useCallback(async (yr: number, mo: number) => {
     try {
-      const res = await apiRequest(token, `/admin/growth-reports/monthly-summary?year=${yr}&month=${mo}`);
+      const res = await apiRequest(token, `/admin/reports/summary?year=${yr}&month=${mo}&limit=1&offset=0`);
       if (!res.ok) return;
-      setSummary(await res.json());
+      // 서버 응답: { summary, students, pagination, ... }
+      // MonthlyReportSummary 호환 형태로 변환 (batch_status 등 없으면 null)
+      const d = await res.json();
+      setSummary(d as any);
     } catch { /* ignore */ }
   }, [token]);
 
@@ -233,14 +236,15 @@ export default function ReportHubScreen() {
       });
       if (qv) params.set("q", qv);
 
-      const res = await apiRequest(token, `/admin/growth-reports/monthly-list?${params.toString()}`);
+      const res = await apiRequest(token, `/admin/reports/summary?${params.toString()}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error((body as any)?.error ?? `오류 (${res.status})`);
       }
       const d = await res.json();
-      setAllRows(d.items ?? []);
-      setTotal(d.total ?? 0);
+      // 서버 응답: { students: [...], pagination: { total }, summary }
+      setAllRows(d.students ?? d.items ?? []);
+      setTotal(d.pagination?.total ?? d.total ?? 0);
     } catch (e: any) {
       setError(e?.message ?? "조회에 실패했습니다.");
     } finally {

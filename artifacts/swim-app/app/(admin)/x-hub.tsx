@@ -79,6 +79,7 @@ interface HubData {
 function fmtDate(d: string | null): string {
   if (!d) return "—";
   const dt = new Date(d);
+  if (isNaN(dt.getTime())) return "—";
   return `${dt.getFullYear()}.${String(dt.getMonth() + 1).padStart(2,"0")}.${String(dt.getDate()).padStart(2,"0")}`;
 }
 function fmtBytes(bytes: number): string {
