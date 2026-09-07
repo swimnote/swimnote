@@ -1110,6 +1110,7 @@ router.get("/dashboard-stats", requireAuth, requireRole("super_admin", "pool_adm
         total_parents:    parentCountRow?.total_parents ?? 0,
         pending_makeups:  makeupRow?.pending_makeups ?? 0,
         monthly_revenue:  Number(revenueRow?.monthly_revenue ?? 0),
+        has_pricing:      false,
         expiring_soon:    0,
         recent_members:   recentMembers,
         activity_logs:    activityLogs,
@@ -4540,6 +4541,7 @@ router.get(
           subscription_status: poolM.failed ? null : subscription_status,
           tier_key:            p.tier_key ?? null,
           tier_label:          p.tier_key ? (X_TIER_LABEL[p.tier_key] ?? p.tier_key) : null,
+          activation_method:   paid ? "subscription" : manual ? "manual" : "none",
           started_at:          p.xmode_purchased_at ?? null,
           expires_at:          endAt,
         },
@@ -4778,6 +4780,7 @@ router.get(
           (
             SELECT MAX(a.date)::text FROM attendance a
             WHERE a.student_id = s.id AND a.swimming_pool_id = ${poolId}
+              AND a.date <= CURRENT_DATE
           ) AS last_attendance_date,
           (
             SELECT COUNT(*)::int FROM growth_events ge

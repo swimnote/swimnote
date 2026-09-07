@@ -435,7 +435,7 @@ export default function DashboardScreen() {
                   <LucideIcon name="trending-up" size={18} color="#CA8A04" />
                 </View>
                 <Text style={s.quickBtnLabel}>매출 확인</Text>
-                <Text style={[s.quickBtnSub, { color: "#CA8A04" }]}>{stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}</Text>
+                <Text style={[s.quickBtnSub, { color: "#CA8A04" }]}>{stats ? (stats.monthly_revenue == null ? "계산 중" : formatWon(stats.monthly_revenue)) : "—"}</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
@@ -660,7 +660,7 @@ export default function DashboardScreen() {
                   <LucideIcon name="trending-up" size={18} color="#CA8A04" />
                 </View>
                 <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
-                  {stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}
+                  {stats ? (stats.monthly_revenue == null ? "계산 중" : formatWon(stats.monthly_revenue)) : "—"}
                 </Text>
                 <Text style={s.bannerLabel}>현황</Text>
                 <Text style={s.bannerSub}>월 누적 매출</Text>

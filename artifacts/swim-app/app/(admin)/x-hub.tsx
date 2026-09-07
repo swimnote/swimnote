@@ -39,6 +39,7 @@ interface PlanInfo {
   subscription_status: string  | null;
   tier_key:            string  | null;
   tier_label:          string  | null;
+  activation_method:   string  | null; // "subscription" | "manual" | "none"
   started_at:          string  | null;
   expires_at:          string  | null;
 }
@@ -195,10 +196,9 @@ export default function XHubScreen() {
 
   const badge = SUBSCRIPTION_BADGE[plan.subscription_status ?? "UNKNOWN"] ?? SUBSCRIPTION_BADGE.UNKNOWN;
 
-  // attention items
+  // attention items — 커리큘럼 미배정(student_curriculum_assignments 미사용)은 제거
   const reviewCnt     = monthly.growth_report_pending_count;
-  const unassignedCnt = live.unassigned_students;
-  const hasAttention  = (reviewCnt ?? 0) > 0 || (unassignedCnt ?? 0) > 0;
+  const hasAttention  = (reviewCnt ?? 0) > 0;
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -223,15 +223,6 @@ export default function XHubScreen() {
                   <View style={[s.attentionDot, { backgroundColor: "#D97706" }]} />
                   <Text style={s.attentionItemText}>검토 대기 리포트</Text>
                   <Text style={[s.attentionCount, { color: "#D97706" }]}>{reviewCnt}건</Text>
-                  <LucideIcon name="chevron-right" size={14} color={C.textSecondary} />
-                </Pressable>
-              )}
-              {(unassignedCnt ?? 0) > 0 && (
-                <Pressable style={s.attentionItem}
-                  onPress={() => router.push("/(admin)/curriculum-hub?backTo=x-hub" as any)}>
-                  <View style={[s.attentionDot, { backgroundColor: "#6366F1" }]} />
-                  <Text style={s.attentionItemText}>커리큘럼 미배정</Text>
-                  <Text style={[s.attentionCount, { color: "#6366F1" }]}>{unassignedCnt}명</Text>
                   <LucideIcon name="chevron-right" size={14} color={C.textSecondary} />
                 </Pressable>
               )}
@@ -299,15 +290,15 @@ export default function XHubScreen() {
               <Text style={s.opsLabel}>연결 학부모</Text>
             </Pressable>
           </View>
-          {/* 커리큘럼 배정 현황 */}
+          {/* 오늘 수업일지 */}
           <View style={[s.divider, { marginTop: 10 }]} />
           <Pressable style={[s.kpiRow, { marginTop: 8 }]}
-            onPress={() => router.push("/(admin)/curriculum-hub")}>
-            <View style={[s.kpiIcon, { backgroundColor: "#ECFDF5" }]}>
-              <LucideIcon name="graduation-cap" size={14} color="#059669" />
+            onPress={() => router.push("/(admin)/diary-hub")}>
+            <View style={[s.kpiIcon, { backgroundColor: "#EFF6FF" }]}>
+              <LucideIcon name="book-open" size={14} color="#2563EB" />
             </View>
-            <Text style={s.kpiLabel}>커리큘럼 배정</Text>
-            <Text style={s.kpiValue}>{fmtNum(live.curriculum_assigned_students)}명</Text>
+            <Text style={s.kpiLabel}>오늘 수업일지</Text>
+            <Text style={s.kpiValue}>{fmtNum(live.diaries_today)}건</Text>
             <LucideIcon name="chevron-right" size={14} color={C.textSecondary} />
           </Pressable>
         </View>
@@ -326,21 +317,25 @@ export default function XHubScreen() {
             <View style={s.planCell}>
               <Text style={s.planCellLabel}>플랜</Text>
               <Text style={s.planCellValue}>
-                {plan.tier_label
-                  ? `SWIMNOTE X ${plan.tier_label}`
-                  : (plan.enabled ? "X 활성" : plan.enabled == null ? "—" : "미활성")}
+                {plan.activation_method === "subscription"
+                  ? (plan.tier_label ? `SWIMNOTE X ${plan.tier_label}` : "유료 구독")
+                  : plan.activation_method === "manual"
+                    ? "관리자 수동 활성"
+                    : plan.enabled ? "X 활성" : plan.enabled == null ? "—" : "미활성"}
               </Text>
             </View>
             <View style={s.planCell}>
               <Text style={s.planCellLabel}>시작일</Text>
-              <Text style={s.planCellValue}>{fmtDate(plan.started_at)}</Text>
+              <Text style={s.planCellValue}>
+                {plan.started_at ? fmtDate(plan.started_at) : plan.enabled ? "시작일 기록 없음" : "—"}
+              </Text>
             </View>
             <View style={s.planCell}>
               <Text style={s.planCellLabel}>만료일</Text>
               <Text style={[s.planCellValue,
                 plan.expires_at && new Date(plan.expires_at) < new Date(Date.now() + 7*86400000)
                   ? { color: "#DC2626" } : {}]}>
-                {fmtDate(plan.expires_at)}
+                {plan.expires_at ? fmtDate(plan.expires_at) : plan.enabled ? "만료 없음" : "—"}
               </Text>
             </View>
           </View>
