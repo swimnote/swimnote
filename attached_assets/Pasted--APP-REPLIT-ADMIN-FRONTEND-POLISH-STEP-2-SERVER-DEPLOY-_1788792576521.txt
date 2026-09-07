@@ -1,0 +1,261 @@
+[보낼 곳: APP REPLIT]
+
+[ADMIN FRONTEND POLISH — STEP 2 SERVER DEPLOY FINAL]
+
+STEP 2 HOLD 사유 확인 완료.
+
+현재 상황:
+
+- server fix commit:
+  2e9c6c9f
+
+- 해당 commit은 release/v2.0.0에만 존재
+
+- Render Production API는 main branch를 추적 중
+
+- 현재 Render LIVE:
+  7bea0e246234eef8a068c5b80ab50b563919ada7
+
+목표:
+
+STEP 2의 server 수정만 main에 최소 반영하여
+Render Production에 배포하고
+실제 Production API smoke까지 완료한다.
+
+STEP 3 시작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. main 반영 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+release/v2.0.0 전체 merge 금지.
+
+이번 목적은
+STEP 2 server fix만 Production server에 반영하는 것.
+
+따라서 우선:
+
+main 최신 fetch/pull
+→ clean 확인
+→ commit 2e9c6c9f의 diff 확인
+→ 해당 commit만 main에 cherry-pick
+
+권장:
+
+git checkout main
+git pull --ff-only origin main
+git cherry-pick 2e9c6c9f
+
+단,
+2e9c6c9f commit 안에
+server 수정 외 frontend member-detail 변경도 포함되어 있으면
+cherry-pick 자체는 허용.
+
+main에 들어가더라도
+Render server build에 frontend 파일은 실행 영향 없음.
+
+충돌 발생 시:
+임의 해결 금지
+→ HOLD 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. main push 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+cherry-pick 후 반드시:
+
+- git status clean
+- diff/stat 확인
+- 예상 파일만 포함 확인
+
+예상:
+
+server:
+admin.ts
+- attendance.date::date cast
+
+frontend:
+member-detail.tsx
+- 403/404/500 error 분기
+
+그 외 unrelated 파일이 포함되면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. main push
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 PASS 시:
+
+origin main push
+
+완료보고에:
+
+- cherry-pick 결과 SHA
+- main HEAD SHA
+- 포함 파일
+
+기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Render 자동 배포 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+main push 후
+swimnote-api Production Render가
+자동 빌드되는지 확인.
+
+반드시 최종 상태:
+
+LIVE
+
+확인.
+
+보고:
+
+- Render deploy ID
+- deployed commit SHA
+- status
+- production URL
+- deploy 완료 시각
+
+빌드 실패하면
+추가 코드 수정하지 말고 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Production API 실제 smoke
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render LIVE 후
+실제 Production endpoint에서 확인.
+
+관리자 정상 학생 최소 3건:
+
+회원관리 목록
+→ student detail API
+
+기대:
+
+HTTP 200
+
+그리고 더 이상:
+
+operator does not exist: text >= timestamp
+
+오류 없어야 함.
+
+최소 케이스:
+
+A.
+active + 반 배정 학생
+
+B.
+학부모 연결 학생
+
+C.
+다른 정상 학생
+또는 학부모 미연결/반 미배정 학생
+
+확인:
+
+- student_id 일치
+- 학생명 일치
+- 반 정보
+- 담당 선생님
+- 보호자 정보
+- 이달 출결 summary
+
+개인정보는 마스킹.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 앱 동작 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 Production 앱 기준:
+
+관리자
+→ 운영관리
+→ 회원관리
+→ 학생 상세
+
+최소 1건 실제 화면 진입 확인.
+
+더 이상:
+
+"회원을 찾을 수 없습니다"
+
+가 정상 학생에서 나오지 않아야 함.
+
+실기기 직접 확인이 불가능하면
+API 3건 200까지 완료하고
+USER_DEVICE_VERIFY_REQUIRED로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 보안/tenant 회귀
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Production 반영에서도:
+
+pool scope 변경 0건
+
+확인.
+
+WHERE s.swimming_pool_id = current pool
+
+등 기존 tenant isolation 유지.
+
+다른 pool 접근 허용하는 변경 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 iOS OTA:
+
+01a07c39-7f60-76a6-b05c-08e04e336589
+
+이미 Published.
+
+이번 작업은 main server 배포 목적이므로:
+
+추가 OTA 금지.
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- STEP 3 시작
+- release 전체 main merge
+- DB migration
+- schema 변경
+- attendance.date column type 변경
+- MemberCard 수정
+- AI diary 수정
+- Growth Report 수정
+- AI ENGINE 수정
+- RevenueCat 수정
+- native build
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. cherry-pick 성공 여부
+2. main 새 SHA
+3. main에 포함된 수정 파일
+4. unrelated 변경 없음 확인
+5. Render deploy ID
+6. Render LIVE 여부
+7. deployed SHA
+8. Production detail API 3건 HTTP 결과
+9. PostgreSQL 기존 오류 재발 여부
+10. 실제 앱 상세 진입 확인 여부
+11. tenant isolation 유지
+12. 추가 OTA 없음 확인
+13. STEP 3 미착수
+14. 최종 PASS/HOLD/FAIL
+
+완료 후 STOP.
