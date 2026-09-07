@@ -45,6 +45,8 @@ interface MakeupSession {
   original_class_group_id: string | null; original_class_group_name: string;
   original_teacher_id: string | null; original_teacher_name: string;
   absence_date: string; absence_time?: string | null; status: string;
+  assigned_class_group_id?: string | null; assigned_class_group_name?: string | null;
+  assigned_date?: string | null;
 }
 interface EligibleClass {
   id: string; name: string; schedule_days: string; schedule_time: string;
@@ -122,6 +124,9 @@ export default function TeacherAttendanceScreen() {
   const [makeupLoading,      setMakeupLoading]      = useState(false);
   const [makeupRefresh,      setMakeupRefresh]      = useState(false);
   const [revertingId,        setRevertingId]        = useState<string | null>(null);
+  const [completingId,       setCompletingId]       = useState<string | null>(null);
+  /* ─ 결석 추가 모달 ─ */
+  const [showAddAbsent,      setShowAddAbsent]      = useState(false);
   /* ─ 보강 지정 모달 ─ */
   const [assignTarget,   setAssignTarget]   = useState<MakeupSession | null>(null);
   const [eligibleClasses,setEligibleClasses]= useState<EligibleClass[]>([]);
@@ -191,6 +196,44 @@ export default function TeacherAttendanceScreen() {
     } catch (e) { console.error(e); }
     finally { setMakeupLoading(false); setMakeupRefresh(false); }
   }, [token]);
+  async function handleComplete(mk: MakeupSession) {
+    const completionDate = mk.assigned_date || todayDateStr();
+    const classId = mk.assigned_class_group_id || mk.original_class_group_id;
+    if (!classId) {
+      Alert.alert("오류", "보강 반 정보가 없습니다. 보강 지정 후 완료 처리하세요.");
+      return;
+    }
+    Alert.alert(
+      "보강 완료",
+      `${mk.student_name}의 보강을 완료 처리합니까?\n\n날짜: ${completionDate}\n보강 후 대기 목록에서 제거됩니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "완료 처리",
+          onPress: async () => {
+            setCompletingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ date: completionDate, class_group_id: classId }),
+              });
+              if (res.ok) {
+                setAssignedMakeupList(prev => prev.filter(m => m.id !== mk.id));
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.message || err.error || "완료 처리에 실패했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setCompletingId(null);
+            }
+          },
+        },
+      ]
+    );
+  }
   async function handleRevert(mk: MakeupSession) {
     Alert.alert(
       "배정 취소",
@@ -402,6 +445,10 @@ export default function TeacherAttendanceScreen() {
     const bAbsent = attState[b.id] === "absent" ? 0 : 1;
     return aAbsent - bAbsent || a.name.localeCompare(b.name, "ko");
   });
+  // 결석 학생만 (출결 서브뷰 기본 표시)
+  const absentStudents = sortedStudents.filter(st => attState[st.id] === "absent");
+  // 결석 추가 대상 (미결석 학생)
+  const nonAbsentStudents = sortedStudents.filter(st => attState[st.id] !== "absent");
   /* ════════════════════ statusMap ════════════════════ */
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => {
@@ -580,22 +627,33 @@ export default function TeacherAttendanceScreen() {
             </>
           )}
         </View>
+        {/* 결석 추가 버튼 */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 }}>
+          <TouchableOpacity
+            style={[s.addAbsentBtn, { borderColor: themeColor }]}
+            onPress={() => setShowAddAbsent(true)}
+          >
+            <LucideIcon name="user-x" size={15} color={themeColor} />
+            <Text style={[s.addAbsentBtnText, { color: themeColor }]}>결석 추가</Text>
+          </TouchableOpacity>
+        </View>
         <FlatList
-          data={sortedStudents}
+          data={absentStudents}
           keyExtractor={i => i.id}
           contentContainerStyle={[s.studentList, { paddingBottom: insets.bottom + 20 }]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <LucideIcon name="users" size={32} color={C.textMuted} />
-              <Text style={s.emptyText}>이 반에 배정된 학생이 없습니다</Text>
+              <LucideIcon name="check-circle" size={32} color={C.brandStrong} />
+              <Text style={[s.emptyText, { color: C.brandStrong }]}>전원 출석</Text>
+              <Text style={[s.emptyText, { fontSize: 13, marginTop: 4 }]}>결석 학생이 없습니다</Text>
             </View>
           }
           renderItem={({ item }) => {
-            const cur = attState[item.id];
-            const isAbsent  = cur === "absent";
-            const isPresent = cur === "present";
             const isSaving  = savingId === item.id;
+            const isAbsent  = true; // absent-only list
+            const isPresent = false;
+            const cur = attState[item.id];
             return (
               <View style={[s.attRow, { backgroundColor: C.card, opacity: isSaving ? 0.6 : 1 }]}>
                 {/* 결석 빨간 점 / 출석 여백 */}
@@ -623,33 +681,25 @@ export default function TeacherAttendanceScreen() {
                   </View>
                   <LucideIcon name="chevron-right" size={14} color={C.textMuted} style={{ marginRight: 4 }} />
                 </Pressable>
-                {/* 출결 버튼 */}
+                {/* 출결 버튼 (결석 전용 뷰: 출석 복귀 + 반이동) */}
                 <View style={s.attBtns}>
                   {isSaving ? (
                     <ActivityIndicator size="small" color={themeColor} style={{ marginRight: 8 }} />
                   ) : (
                     <>
                       <Pressable
-                        style={({ pressed }) => [s.attBtn, isPresent && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
+                        style={({ pressed }) => [s.attBtn, { backgroundColor: C.brandStrong, borderColor: C.brandStrong }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
                         onPress={() => saveOne(item.id, "present")}
                       >
-                        <Text style={[s.attBtnText, isPresent && { color: "#fff" }]}>출석</Text>
+                        <Text style={[s.attBtnText, { color: "#fff" }]}>출석 복귀</Text>
                       </Pressable>
                       <Pressable
-                        style={({ pressed }) => [s.attBtn, isAbsent && { backgroundColor: "#D96C6C", borderColor: "#D96C6C" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
-                        onPress={() => saveOne(item.id, "absent")}
+                        style={[s.attBtn, s.moveBtn]}
+                        onPress={() => handleMove(item)}
                       >
-                        <Text style={[s.attBtnText, isAbsent && { color: "#fff" }]}>결석</Text>
+                        <LucideIcon name="repeat" size={13} color={themeColor} />
+                        <Text style={[s.attBtnText, { color: themeColor }]}>반이동</Text>
                       </Pressable>
-                      {isAbsent && (
-                        <Pressable
-                          style={[s.attBtn, s.moveBtn]}
-                          onPress={() => handleMove(item)}
-                        >
-                          <LucideIcon name="repeat" size={13} color={themeColor} />
-                          <Text style={[s.attBtnText, { color: themeColor }]}>반이동</Text>
-                        </Pressable>
-                      )}
                     </>
                   )}
                 </View>
@@ -657,6 +707,43 @@ export default function TeacherAttendanceScreen() {
             );
           }}
         />
+        {/* 결석 추가 모달 */}
+        <Modal visible={showAddAbsent} animationType="slide" transparent presentationStyle="overFullScreen">
+          <View style={s.modalOverlay}>
+            <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>결석 학생 선택</Text>
+                <Pressable onPress={() => setShowAddAbsent(false)} hitSlop={8}>
+                  <LucideIcon name="x" size={22} color={C.text} />
+                </Pressable>
+              </View>
+              {nonAbsentStudents.length === 0 ? (
+                <View style={s.emptyBox}>
+                  <Text style={s.emptyText}>전원 결석 처리됨</Text>
+                </View>
+              ) : (
+                <KeyboardAwareScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                  {nonAbsentStudents.map(st => (
+                    <TouchableOpacity
+                      key={st.id}
+                      style={[s.attRow, { backgroundColor: C.background, borderRadius: 10, marginBottom: 6, opacity: savingId === st.id ? 0.5 : 1 }]}
+                      disabled={savingId === st.id}
+                      onPress={async () => {
+                        setShowAddAbsent(false);
+                        await saveOne(st.id, "absent");
+                      }}
+                    >
+                      <View style={s.dotArea} />
+                      <Text style={[s.attName, { flex: 1 }]}>{st.name}</Text>
+                      {st.weekly_count ? <Text style={[s.attSub, { marginRight: 8 }]}>주{st.weekly_count}회</Text> : null}
+                      <LucideIcon name="user-x" size={16} color="#D96C6C" style={{ marginRight: 8 }} />
+                    </TouchableOpacity>
+                  ))}
+                </KeyboardAwareScrollView>
+              )}
+            </View>
+          </View>
+        </Modal>
         {/* 보강 지정/소멸 모달은 아래 공통 영역에서 렌더링 */}
         {renderAssignModal()}
         {renderExtinguishModal()}
@@ -755,16 +842,30 @@ export default function TeacherAttendanceScreen() {
                         </Pressable>
                         <Text style={s.mkSub}>{mk.original_class_group_name}</Text>
                         <Text style={s.mkSub}>결석일: {mk.absence_date}{mk.absence_time ? ` ${mk.absence_time}` : ""}</Text>
+                        {mk.assigned_date && (
+                          <Text style={s.mkSub}>보강일: {mk.assigned_date}{mk.assigned_class_group_name ? ` · ${mk.assigned_class_group_name}` : ""}</Text>
+                        )}
                       </View>
-                      <TouchableOpacity
-                        style={[s.mkActionBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706" }]}
-                        disabled={revertingId === mk.id}
-                        onPress={() => handleRevert(mk)}
-                      >
-                        {revertingId === mk.id
-                          ? <ActivityIndicator size="small" color="#D97706" />
-                          : <Text style={[s.mkActionBtnText, { color: "#D97706" }]}>배정 취소</Text>}
-                      </TouchableOpacity>
+                      <View style={{ gap: 6 }}>
+                        <TouchableOpacity
+                          style={[s.mkActionBtn, { backgroundColor: C.brandStrong }]}
+                          disabled={completingId === mk.id}
+                          onPress={() => handleComplete(mk)}
+                        >
+                          {completingId === mk.id
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <Text style={s.mkActionBtnText}>보강 완료</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.mkActionBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706" }]}
+                          disabled={revertingId === mk.id}
+                          onPress={() => handleRevert(mk)}
+                        >
+                          {revertingId === mk.id
+                            ? <ActivityIndicator size="small" color="#D97706" />
+                            : <Text style={[s.mkActionBtnText, { color: "#D97706" }]}>배정 취소</Text>}
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   );
                 }
@@ -823,6 +924,8 @@ const s = StyleSheet.create({
   title:          { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
   dateBadge:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, backgroundColor: C.card, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   // 출결 요약
+  addAbsentBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, alignSelf: "flex-start" },
+  addAbsentBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   attSummary:     { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   attSummaryText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   attSummaryPresent: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },

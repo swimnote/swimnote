@@ -284,7 +284,7 @@ export default function AttendanceScreen() {
   }
 
   useEffect(() => {
-    if (viewMode === "makeup") fetchMakeup();
+    if (viewMode === "makeup" || viewMode === "daily") fetchMakeup();
   }, [viewMode]);
 
   // ── 보강 지정 열기 ────────────────────────────────────────────
@@ -430,6 +430,8 @@ export default function AttendanceScreen() {
     s.class_group_id === selectedClass &&
     (!s.class_enrolled_at || s.class_enrolled_at <= baseDate)
   );
+  // 일자별 뷰: 결석 학생만 표시 (결석 중심)
+  const absentClassStudents = classStudents.filter(s => dailyAtt[s.id] === "absent");
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(getMonday(baseDate), i));
 
   // ── 날짜 탐색 바 ─────────────────────────────────────────────
@@ -877,47 +879,55 @@ export default function AttendanceScreen() {
           <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
         ) : (
           <FlatList
-            data={classStudents}
+            data={absentClassStudents}
             keyExtractor={item => item.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 4, gap: 10 }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={a.empty}>
-                <LucideIcon name="users" size={40} color={C.textMuted} />
-                <Text style={[a.emptyText, { color: C.textMuted }]}>
-                  {classGroups.length === 0 ? "등록된 반이 없습니다" : "반에 배정된 회원이 없습니다"}
+                <LucideIcon name={selectedClass ? "check-circle" : "users"} size={40} color={selectedClass ? C.brandStrong : C.textMuted} />
+                <Text style={[a.emptyText, { color: selectedClass ? C.brandStrong : C.textMuted }]}>
+                  {!selectedClass
+                    ? "반을 선택하세요"
+                    : classGroups.length === 0
+                    ? "등록된 반이 없습니다"
+                    : "결석자 없음"}
                 </Text>
               </View>
             }
             ListHeaderComponent={
               <View style={a.readonlyBanner}>
-                <LucideIcon name="info" size={13} color={C.textSecondary} />
-                <Text style={a.readonlyBannerTxt}>출결 체크는 선생님 모드에서만 처리 가능합니다 (관리자: 읽기 전용)</Text>
+                <LucideIcon name="user-x" size={13} color={C.textSecondary} />
+                <Text style={a.readonlyBannerTxt}>결석자 목록 · 출결 체크는 선생님 모드에서 처리</Text>
               </View>
             }
             renderItem={({ item }) => {
-              const status = dailyAtt[item.id];
+              const mkStatus = makeupList.find(m => m.student_id === item.id);
+              const assignedMk = (assignedMakeupList || []).find(m => m.student_id === item.id);
+              const hasMakeup = !!mkStatus || !!assignedMk;
               return (
-                <View style={[a.card, { backgroundColor: C.card }]}>
-                  <View style={[a.avatar, { backgroundColor: C.brandSoft }]}>
-                    <Text style={[a.avatarText, { color: C.brandStrong }]}>{item.name[0]}</Text>
+                <View style={[a.card, { backgroundColor: "#FFF5F5", borderWidth: 1, borderColor: "#FECACA" }]}>
+                  <View style={[a.avatar, { backgroundColor: "#FECACA" }]}>
+                    <Text style={[a.avatarText, { color: "#D96C6C" }]}>{item.name[0]}</Text>
                   </View>
                   <View style={a.memberInfo}>
                     <Pressable onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id, backTo: "attendance" } } as any)}>
                       <Text style={[a.memberName, { color: C.text }]}>{item.name}</Text>
                     </Pressable>
-                    {status ? (
-                      <View style={[a.badge, { backgroundColor: STATUS_CONFIG[status].bg }]}>
-                        <LucideIcon name={STATUS_CONFIG[status].icon} size={12} color={STATUS_CONFIG[status].color} />
-                        <Text style={[a.badgeText, { color: STATUS_CONFIG[status].color }]}>{STATUS_CONFIG[status].label}</Text>
+                    <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                      <View style={[a.badge, { backgroundColor: STATUS_CONFIG.absent.bg }]}>
+                        <LucideIcon name="x-circle" size={12} color={STATUS_CONFIG.absent.color} />
+                        <Text style={[a.badgeText, { color: STATUS_CONFIG.absent.color }]}>결석</Text>
                       </View>
-                    ) : (
-                      <Text style={[a.noStatus, { color: C.textMuted }]}>미체크</Text>
-                    )}
-                  </View>
-                  <View style={a.readonlyTag}>
-                    <Lock size={11} color={C.textSecondary} />
-                    <Text style={a.readonlyTagTxt}>선생님 전용</Text>
+                      {hasMakeup && (
+                        <View style={[a.badge, { backgroundColor: assignedMk ? "#FFF1BF" : C.brandMist }]}>
+                          <LucideIcon name={assignedMk ? "calendar-check" : "clock"} size={12} color={assignedMk ? "#D97706" : C.brandStrong} />
+                          <Text style={[a.badgeText, { color: assignedMk ? "#D97706" : C.brandStrong }]}>
+                            {assignedMk ? "보강 배정됨" : "보강 대기"}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </View>
               );
