@@ -220,7 +220,7 @@ export default function MakeupsScreen() {
         <FlatList
           data={makeups}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: TAB_BAR_H + insets.bottom + 16 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: TAB_BAR_H + insets.bottom + 16 }}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
           ListEmptyComponent={
             <View style={s.empty}>
@@ -500,8 +500,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
 
 const s = StyleSheet.create({
   root:          { flex: 1, backgroundColor: C.background },
-  chipRow:       { flexGrow: 0 },
-  chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff", flexShrink: 0 },
+  chipRow:       { flexGrow: 0, flexShrink: 0, height: 52 },
+  chip:          { height: 36, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff", flexShrink: 0, justifyContent: "center", alignItems: "center" },
   chipTxt:       { fontSize: 13, fontWeight: "600", color: C.textSecondary, lineHeight: 18, flexShrink: 0 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   row:           { flexDirection: "row", alignItems: "flex-start" },
