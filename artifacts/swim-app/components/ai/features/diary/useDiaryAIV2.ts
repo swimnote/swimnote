@@ -121,6 +121,21 @@ export interface DiaryAIV2HookResult {
   isLocked:             boolean;
   /** 음성 녹음 진행 시간 (ms) — 녹음 중 UI 표시 */
   recordingDurationMs:  number;
+  /** [DIAG] Toykids 전용 진단 메타 — 일반 pool에서는 null */
+  diagMeta:             DiaryAIDiagMeta | null;
+}
+
+/** [DIAG] Toykids 진단 전용 — pool_id 원문·PII 포함 불가 */
+export interface DiaryAIDiagMeta {
+  requestIdSuffix:    string;   // request_id 끝 8자리만
+  pipelineMode:       string;
+  generationMode:     string;
+  templateIdsCount:   number;
+  knowledgeIdsCount:  number;
+  groundingValidation: string;
+  fallbackUsed:       boolean;
+  commonLength:       number;
+  studentResultCount: number;
 }
 
 // ─── useDiaryAIV2 ─────────────────────────────────────────────────────────────
@@ -136,6 +151,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
   const [generatedStudents,          setGeneratedStudents]          = useState<StudentDiaryNote[]>([]);
   const [generatedCurriculumMatches, setGeneratedCurriculumMatches] = useState<CurriculumMatch[]>([]);
   const [insertDone,                 setInsertDone]                 = useState(false);
+  const [diagMeta,                   setDiagMeta]                   = useState<DiaryAIDiagMeta | null>(null);
 
   // ── 안정성 refs ────────────────────────────────────────────────────────────
   /** 생성 API AbortController */
@@ -188,6 +204,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     setGeneratedStudents([]);
     setGeneratedCurriculumMatches([]);
     setInsertDone(false);
+    setDiagMeta(null);
   }, []);
 
   // ── handleClose ────────────────────────────────────────────────────────────
@@ -274,7 +291,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       return;
     }
 
-    const { common, students, curriculumMatches } = result.result;
+    const { common, students, curriculumMatches, meta, requestId: resReqId } = result.result;
     const studentLookup = new Map((options.students ?? []).map(s => [s.id, s.name]));
 
     setResultText(common);
@@ -284,6 +301,26 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       note:        s.content,
     })));
     setGeneratedCurriculumMatches(curriculumMatches ?? []);
+
+    // [DIAG] Toykids 전용 진단 메타 — pool_id 원문 미저장
+    const _DIAG_POOL = 'pool_1780849364252_l9k44rbk3';
+    if (options.poolId === _DIAG_POOL) {
+      const rid = resReqId ?? reqId;
+      setDiagMeta({
+        requestIdSuffix:     rid.slice(-8),
+        pipelineMode:        meta?.pipelineMode        ?? '—',
+        generationMode:      meta?.generationMode      ?? '—',
+        templateIdsCount:    (meta?.templateIds        ?? []).length,
+        knowledgeIdsCount:   (meta?.knowledgeIds       ?? []).length,
+        groundingValidation: meta?.groundingValidation ?? '—',
+        fallbackUsed:        meta?.fallbackUsed        ?? false,
+        commonLength:        common.length,
+        studentResultCount:  students.length,
+      });
+    } else {
+      setDiagMeta(null);
+    }
+
     setV2State('RESULT');
     // [PROD_LOG] production에서 generate 완료 확인 (PII 없음)
     console.log('[useDiaryAIV2] generate_succeeded', {
@@ -519,5 +556,6 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
     reset,
     isLocked,
     recordingDurationMs: recorder.durationMs,
+    diagMeta,
   };
 }
