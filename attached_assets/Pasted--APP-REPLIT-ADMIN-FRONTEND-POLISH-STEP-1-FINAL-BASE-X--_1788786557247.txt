@@ -1,0 +1,451 @@
+[보낼 곳: APP REPLIT]
+
+[ADMIN FRONTEND POLISH — STEP 1 FINAL / 공유영향 반영판]
+
+사전 설계도 + 관리자/선생님 + BASE/X 공유 영향도 감사 완료.
+
+이번 STEP 1은 아래 범위만 실행한다.
+
+핵심 원칙:
+
+1.
+공유 component면
+admin + teacher + base + X 영향까지 같이 검증.
+
+2.
+별도 screen인데 동일 문제가 있으면
+같은 STEP에서 동시 수정.
+
+3.
+이번 STEP 범위 밖 기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 관리자 수업일지 Dead UI 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+app/(admin)/diary-teacher-entries.tsx
+
+삭제:
+
+"항목을 길게 눌러 선택 모드로 전환합니다"
+
+실제 기능이 없는 안내문이므로 완전 제거.
+
+삭제 후:
+- 상단 빈 공간 제거
+- 첫 선생님 그룹이 자연스럽게 위로 이동
+
+teacher 쪽에는 동일 문구 없음 확인 완료.
+teacher 수정 불필요.
+
+BASE/X 공용 admin 화면이므로
+두 mode에서 레이아웃 이상 없는지 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. x-growth 용어 admin + teacher 동시 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+app/(admin)/x-growth.tsx
+app/(teacher)/x-growth.tsx
+
+양쪽 동일하게:
+
+"성장판"
+→ "성장 이벤트"
+
+"학생별 성장 이벤트 조회"
+→ 자연스러운 사용자용 성장 이벤트 설명
+
+주의:
+
+x-growth는
+AI 성장리포트 상세가 아니라
+별도 성장 이벤트 조회 기능으로 유지.
+
+이번 STEP에서는
+학생선택 UI 제거/숨김은 하지 않는다.
+그건 STEP 4에서 처리.
+
+repo 전체 사용자 노출 문자열 중
+"성장판" 잔존 위치 전수 검색 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. curriculum-hub 개발자 문구 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+app/(admin)/curriculum-hub.tsx
+
+사용자 UI에서 제거:
+
+curriculum_versions
+student_curriculum_assignments
+등 내부 table명/개발자 표현.
+
+weekly_count 같은 내부 변수명이
+사용자에게 노출되면 사용자 표현으로 변경.
+
+예:
+
+weekly_count = 1
+→ 주 1회 회원
+
+weekly_count = 2
+→ 주 2회 회원
+
+weekly_count >= 3
+→ 주 3회 이상 회원
+
+중요:
+teacher attendance의
+"주 {weekly_count}회"는 정상 사용자 데이터 표시이므로
+건드리지 말 것.
+
+커리큘럼 기능/배정 개념 자체는
+이번 STEP에서 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 아이콘 정규화 — 정확한 사용처만 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 STEP에서 반드시 확인/수정:
+
+A.
+홈 > 휴무일 관리
+
+B.
+홈 > 수업 미배정
+
+C.
+수업관리 > 보강 관리
+
+D.
+수업관리 > 휴무일 관리
+
+E.
+AI 성장리포트:
+- 연도 주변 이상한 느낌표
+- 학생 검색 주변 이상한 느낌표
+
+F.
+수업 스케줄러 상단 보강 버튼의
+새로고침형 아이콘
+
+원칙:
+
+- 같은 기능 = 같은 아이콘
+- alert-circle/alert-triangle은 실제 경고에만 사용
+- 일반 기능 바로가기에는 경고 아이콘 금지
+- LucideIcon 공통 wrapper 자체는 수정하지 말 것
+- 각 사용처의 icon prop만 수정
+- 새 icon library 추가 금지
+
+공통 LucideIcon은 admin/teacher/parent 200+ 파일 영향이 있으므로
+wrapper 수정 금지.
+
+teacher 쪽에 존재하는 실제 warning icon:
+- diary-unwritten
+- attendance warning
+- growth-report-review warning
+
+이들은 실제 warning이므로 변경하지 말 것.
+
+완료보고에:
+
+기능
+→ 파일
+→ 기존 icon
+→ 변경 icon
+→ admin/teacher/base/X 영향
+
+표 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. AI 성장리포트 spinner 상태 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+app/(admin)/report-hub.tsx
+
+현재:
+REVIEW_REQUIRED가 analyzing state로 묶여
+spinner가 계속 표시됨.
+
+수정:
+
+실제 처리 중 상태에만 spinner.
+
+예:
+
+미생성 / null
+→ "생성 전"
+
+OPEN
+→ "대기 중" 정적 badge
+
+ANALYZING 등 실제 처리 중
+→ spinner 허용
+
+REVIEW_REQUIRED
+→ "검수 대기" 정적 badge
+→ spinner 금지
+
+READY_TO_SEND
+→ "발송 대기"
+
+PUBLISHED
+→ "발행 완료"
+
+DISCARDED
+→ "제외"
+
+FAILED
+→ "실패"
+
+주의:
+teacher growth-report-list는 별도 screen/logic이므로
+admin 수정이 자동 적용되지 않음.
+
+teacher 쪽에서는 동일 상태가
+잘못 spinner 처리되는지 VERIFY만 수행.
+같은 버그가 없으면 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X 운영현황 NaN 날짜 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+app/(admin)/x-hub.tsx
+
+시작일/만료일에서:
+
+NaN.NaN.NaN
+Invalid Date
+undefined
+
+노출 금지.
+
+fmtDate 계열:
+
+null
+undefined
+invalid
+
+→ "미설정" 또는 "-"
+
+실제 날짜 존재:
+→ 기존 앱 포맷 유지.
+
+x-hub는 X_ONLY이므로
+기본 SWIMNOTE 화면에는 직접 영향 없음.
+
+이번 STEP에서는:
+- 성장추적 레이블
+- 지표 구조
+- back navigation
+수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 학부모 초대 — 카카오 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+components/admin/members/InviteModal.tsx
+
+제거:
+
+- 카카오톡으로 초대하기 버튼
+- 카카오 전용 로직
+- 카카오 안내문구
+- unused import
+
+유지:
+
+- 문자
+- 복사
+- 공유
+
+문자를 primary action으로 정리.
+
+기존:
+- 학생명
+- 보호자 번호
+- 초대문구
+- App Store link
+
+데이터 전달은 유지.
+
+InviteModal은 admin only.
+teacher 수정 없음.
+
+members 화면은 BASE/X 공용이므로
+기본 SWIMNOTE/X에서 동일하게 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 공유 화면/모드 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 STEP 완료 후 반드시 다음 범위 확인.
+
+ADMIN:
+- dashboard
+- report-hub
+- diary-teacher-entries
+- curriculum-hub
+- x-hub
+- InviteModal
+
+TEACHER:
+- x-growth 용어
+- growth-report-list 상태 표시
+- 실제 warning icon들이 유지되는지
+
+BASE SWIMNOTE:
+- dashboard 아이콘
+- diary admin 공용화면
+- members InviteModal
+
+X:
+- 위 공용화면
+- admin x-growth
+- teacher x-growth
+- x-hub
+
+공통 component 자체를 수정했다면
+사용처 전수 영향 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 범위 밖 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 STEP에서 금지:
+
+- x-growth 학생선택 UI 제거
+- report 상세 화면 신규 생성
+- report-hub row navigation 변경
+- Dashboard KPI 추가
+- AI 일지피드 서버 수정
+- MemberCard 크기 수정
+- member-detail 404
+- 학부모 자동연결
+- 보강 탭 글자 잘림
+- 출결
+- 스케줄러 캘린더 가독성
+- 커리큘럼 의미 재정의
+- 정산
+- 공지 음성 AI
+- navigation back 수정
+- DB
+- AI ENGINE
+- RevenueCat
+- subscription
+- native dependency
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- TypeScript
+- build
+- 기존 관련 tests
+- icon import compile
+- report status rendering regression
+- null/invalid date formatter
+- admin/teacher x-growth render
+- BASE/X shared 화면 render
+
+검증:
+
+1.
+dead 수업일지 문구 제거
+
+2.
+admin + teacher x-growth:
+"성장판" 없음
+
+3.
+curriculum 개발자 문자열 없음
+
+4.
+지정 아이콘 정상
+
+5.
+실제 warning 아이콘은 유지
+
+6.
+REVIEW_REQUIRED spinner 없음
+
+7.
+미생성 report 무한 spinner 없음
+
+8.
+X 날짜 NaN 없음
+
+9.
+카카오 초대 없음
+
+10.
+BASE/X 공용 화면 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Git / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+기준 branch:
+release/v2.0.0
+
+작업 전:
+- clean 여부
+- origin exact 여부
+확인.
+
+unrelated 변경 있으면 STOP.
+
+테스트 PASS 후 commit.
+
+OTA 조건:
+
+- branch release/v2.0.0
+- working tree clean
+- origin exact
+- app 2.0.1
+- runtimeVersion 2.1.0
+- iOS production-v2
+- native change 없음
+
+모두 만족 시:
+
+iOS production-v2 OTA 1회.
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 파일 전체
+2. admin/teacher 동시 수정 파일
+3. BASE/X 공유 영향 파일
+4. dead UI 제거 항목
+5. "성장판" 잔존 여부
+6. 아이콘 변경표
+7. 실제 warning icon 보존 여부
+8. report-hub spinner 수정
+9. teacher report 상태 회귀 확인
+10. NaN 날짜 수정
+11. 카카오 제거
+12. BASE SWIMNOTE 회귀
+13. X 회귀
+14. 테스트 결과
+15. commit SHA
+16. OTA 여부
+17. OTA ID
+18. 다른 STEP 미수정 확인
+19. 최종 PASS/HOLD/FAIL
+
+완료 후 STOP.
