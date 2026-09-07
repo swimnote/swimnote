@@ -1,0 +1,345 @@
+[보낼 곳: APP REPLIT]
+
+[ADMIN FRONTEND POLISH — STEP 2 / 회원 상세 404 원인 조사 + 최소 수정]
+
+STEP 1 PASS 완료.
+
+이번에는 STEP 2만 진행한다.
+
+목표:
+관리자 > 운영관리 > 회원관리 > 학생 카드 > 상세
+진입 시
+
+"회원을 찾을 수 없습니다"
+
+가 나오는 문제를 정확히 추적하고 수정한다.
+
+현재 목록에는 실제 학생이 존재하고,
+학생 카드에서도 이름/반/보호자 정보가 정상 표시된다.
+
+즉:
+목록 데이터는 정상인데
+상세 route/API 연결이 깨진 상태로 본다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 전체 흐름 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 순서로 실제 코드 기준 추적:
+
+A.
+app/(admin)/members.tsx
+
+학생 카드의 상세 버튼 onPress
+
+→ 어떤 id/param을 넘기는지
+
+B.
+components/common/MemberCard.tsx
+또는 관련 wrapper
+
+상세 action이 별도 override되는지
+
+C.
+app/(admin)/member-detail.tsx
+
+route params:
+- id
+- student_id
+- member_id
+- pool_id
+등 무엇을 기대하는지
+
+D.
+상세 화면이 호출하는 API endpoint
+
+예:
+GET /admin/students/:id/detail
+또는 실제 endpoint
+
+E.
+server route에서:
+- id lookup
+- pool scope
+- tenant scope
+- deleted filter
+- status filter
+를 어떻게 검사하는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ID 종류 mismatch 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 아래를 명확히 구분:
+
+- students.id
+- members.id
+- users.id
+- parent id
+- guardian id
+- student_class_history id
+- enrollment id
+
+목록 item.id가 실제로 무엇인지 확인.
+
+상세 API가 기대하는 id와
+members.tsx가 넘기는 id가
+같은 entity인지 반드시 확인.
+
+추측 금지.
+
+완료보고에 실제 값을 예시 하나로 작성:
+
+회원 목록 row:
+student name =
+row id =
+student id =
+member id =
+detail route param =
+server lookup field =
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. pool_id / tenant scope 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 설계도에서 pool_id mismatch 가능성이 제기됨.
+
+확인:
+
+- client가 pool_id를 같이 넘기는지
+- server가 JWT/session pool_id를 쓰는지
+- student row의 pool_id와 current pool이 일치하는지
+- Toykids current pool에서도 정상이어야 함
+- 다른 pool 접근 차단은 유지되어야 함
+
+중요:
+404를 해결한다고 tenant isolation을 완화하면 안 됨.
+
+다른 수영장의 학생이 보일 수 있는 식의 수정 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. soft delete / 상태 filter 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 목록에는 나오는데
+상세에서는 제외되는 조건이 있는지 확인:
+
+- is_deleted
+- deleted_at
+- status
+- archived
+- withdrawal
+- inactive
+- current class assignment 유무
+
+목록과 상세의 filter 정책이 다르면
+왜 다른지 확인.
+
+정상 회원이면
+목록에 보이는 학생은 상세도 열리는 것이 기본 원칙.
+
+단:
+정말 삭제된 학생/다른 pool 학생은
+404 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. API response / error handling 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+member-detail.tsx가
+
+모든 오류:
+- 401
+- 403
+- 404
+- 500
+- network error
+
+를 전부
+"회원을 찾을 수 없습니다"
+로 뭉개고 있는지도 확인.
+
+가능하면 최소 수정:
+
+404:
+"회원을 찾을 수 없습니다"
+
+403:
+"이 회원을 조회할 권한이 없습니다"
+
+network/500:
+"회원 정보를 불러오지 못했습니다"
+
+다만 이번 핵심은
+정상 학생 상세 진입 성공.
+
+에러 UX 확장은 최소 범위만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Case A.
+잘못된 route param 전달
+→ frontend 최소 수정
+
+Case B.
+student id/member id mismatch
+→ canonical student id로 통일
+
+Case C.
+server route가 잘못된 id column 조회
+→ MINIMAL SERVER CHANGE
+
+Case D.
+pool scope 버그
+→ tenant isolation 유지하면서 최소 수정
+
+Case E.
+API endpoint 자체 불일치
+→ 기존 정상 endpoint 재사용 우선
+
+금지:
+- 새 테이블
+- migration
+- 대규모 member schema 변경
+- 회원관리 전체 refactor
+- parent linking 수정
+- MemberCard 높이 수정
+- STEP 3 시작
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 공유 영향 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사전 감사 결과:
+
+관리자:
+members.tsx / member-detail.tsx
+
+선생님:
+students.tsx / student-detail.tsx
+
+는 별도 화면.
+
+하지만 MemberCard / UnifiedMemberCard가 일부 공유됨.
+
+이번 STEP에서
+MemberCard 레이아웃은 수정하지 말 것.
+
+단:
+상세 action/id 전달이 공통 component 안에 있으면
+teacher students.tsx에도 영향 가능한지 확인.
+
+teacher 학생 상세 진입이
+현재 정상인지 regression VERIFY.
+
+BASE/X:
+members.tsx는 BASE/X 공용 운영화면이므로
+기본 SWIMNOTE와 X 양쪽 동일하게
+관리자 상세 진입이 정상이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Production 데이터 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 현재 pool에서
+정상 학생 최소 3명으로 확인:
+
+- 학생 A
+- 학생 B
+- 학생 C
+
+각각:
+
+회원 목록 표시
+→ 상세 클릭
+→ 해당 학생 상세
+→ 이름 일치
+→ 보호자 정보 일치
+→ 반/선생님 정보 일치
+
+동명이인이 있으면
+ID 기준 정확한 학생으로 열리는지 확인.
+
+가능하면:
+- active 학생
+- 반 미배정 학생
+- 학부모 미연결 학생
+
+각 1명씩 포함.
+
+개인정보는 완료보고에서 마스킹 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- TypeScript
+- 관련 route/API test
+- admin member detail 정상 case
+- 404 case
+- tenant isolation case
+- teacher student-detail regression 확인
+- BASE/X 동일 동작
+
+server 수정 시:
+기존 admin student/member 관련 regression test 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Git / Deploy / OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 기준:
+release/v2.0.0
+
+작업 전:
+- clean
+- origin exact
+확인.
+
+FRONTEND ONLY 수정이면:
+테스트 PASS
+→ commit/push
+→ canonical OTA guard 확인
+→ iOS production-v2 OTA
+→ Android OTA 금지
+
+SERVER 수정이 필요하면:
+server commit/push
+→ Render deploy 정상 확인
+→ API smoke
+→ 앱 수정 있으면 그 다음 iOS OTA
+
+DB 변경은 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식:
+
+1. 최종 root cause
+2. members.tsx가 넘기던 id
+3. member-detail이 기대하던 id
+4. server가 조회하던 실제 field
+5. pool/tenant scope 상태
+6. soft-delete/status filter 상태
+7. 수정 파일
+8. frontend/server 수정 구분
+9. 정상 학생 3건 상세 진입 검증
+10. 동명이인 안전성
+11. teacher student-detail regression
+12. BASE/X regression
+13. 테스트 결과
+14. commit SHA
+15. Render deploy 여부/ID (있으면)
+16. OTA 여부
+17. OTA ID
+18. DB 변경 없음 확인
+19. 다른 STEP 미수정 확인
+20. 최종 PASS/HOLD/FAIL
+
+완료 후 STOP.
