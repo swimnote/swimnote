@@ -501,7 +501,7 @@ export default function DashboardScreen() {
               return (
                 <View style={s.alertCard}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <LucideIcon name="alert-triangle" size={13} color="#D97706" />
+                    <LucideIcon name="bell-dot" size={13} color="#D97706" />
                     <Text style={[s.alertTxt, { fontWeight: "700", color: "#D97706" }]}>처리 필요 {alerts.length}건</Text>
                   </View>
                   {alerts.map(a => (

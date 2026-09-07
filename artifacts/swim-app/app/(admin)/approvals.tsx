@@ -647,7 +647,7 @@ function ParentPendingCard({
       {/* 관리자 확인 안내 (자동승인 미완료 이유) */}
       {!!reasonLabel && (
         <View style={[pc.reasonBox, { backgroundColor: "#FFFBEB", borderColor: "#FCD34D" }]}>
-          <LucideIcon name="alert-circle" size={13} color="#D97706" />
+          <LucideIcon name="info" size={13} color="#D97706" />
           <Text style={[pc.reasonTxt, { color: "#D97706" }]}>{reasonLabel}</Text>
           {needsPicker && (
             <Text style={[pc.pickerHint, { color: "#D97706" }]}>학생 선택 필요</Text>

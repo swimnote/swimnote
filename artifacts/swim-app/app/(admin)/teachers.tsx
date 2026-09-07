@@ -339,7 +339,7 @@ export default function TeachersScreen() {
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
                       {[
                         { icon: "calendar", val: todayGroups.length, label: "오늘 수업", color: C.brandStrong },
-                        { icon: "alert-circle", val: todayUnchecked, label: "출결 미확인", color: todayUnchecked > 0 ? "#E4A93A" : "#2E9B6F" },
+                        { icon: "clipboard-x", val: todayUnchecked, label: "출결 미확인", color: todayUnchecked > 0 ? "#E4A93A" : "#2E9B6F" },
                         { icon: "edit-3", val: todayUnwritten, label: "일지 미작성", color: todayUnwritten > 0 ? "#E4A93A" : "#2E9B6F" },
                       ].map((st, i) => (
                         <View key={i} style={[s.statCard, { backgroundColor: C.card }]}>

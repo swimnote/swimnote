@@ -35,7 +35,7 @@ const _IC = C.textPrimary; const _IB = C.brandSoft;
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",               label: "전체",       icon: "list" },
   { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: _IC, activeBg: _IB },
-  { key: "unassigned",        label: "미배정",     icon: "alert-circle",  activeColor: _IC, activeBg: _IB },
+  { key: "unassigned",        label: "미배정",     icon: "user-minus",    activeColor: _IC, activeBg: _IB },
   { key: "weekly_1",          label: "주1회",      icon: "sun",           activeColor: _IC, activeBg: _IB },
   { key: "weekly_2",          label: "주2회",      icon: "wind",          activeColor: _IC, activeBg: _IB },
   { key: "weekly_3",          label: "주3회",      icon: "zap",           activeColor: _IC, activeBg: _IB },
