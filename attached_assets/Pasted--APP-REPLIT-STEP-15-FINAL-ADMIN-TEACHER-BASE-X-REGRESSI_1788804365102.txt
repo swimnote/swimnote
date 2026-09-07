@@ -1,0 +1,379 @@
+[보낼 곳: APP REPLIT]
+
+[STEP 15 — FINAL ADMIN/TEACHER/BASE/X REGRESSION / NO NEW FEATURES]
+
+STEP 14 PASS 완료.
+
+이번 STEP이 관리자모드 최종 마감이다.
+
+목표:
+지금까지 수정한 관리자/선생님/BASE/X 관련 변경을
+전체 흐름 기준으로 빠르게 회귀검증하고
+출시 차단 P0만 수정한다.
+
+원칙:
+- 새 기능 추가 금지
+- UI 재설계 금지
+- 광범위 refactor 금지
+- 이미 PASS된 기능 재개발 금지
+- P0/P1 실제 오류만 수정
+- 사소한 미관 문제는 보고만 하고 이번 STEP에서 확장 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 관리자 홈 / 공통 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 휴무일 관리 아이콘 정상
+- 수업 미배정 아이콘 정상
+- 보강 관리 아이콘 정상
+- 같은 기능 동일 아이콘
+- 정상 기능에 느낌표/경고 아이콘 없음
+- 실제 error/warning에서는 경고 아이콘 유지
+
+BASE/X 양쪽 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. AI 성장리포트
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 미생성 → 생성 전/대기 정적 상태
+- OPEN spinner 없음
+- READY_FOR_ANALYSIS spinner 없음
+- REVIEW_REQUIRED spinner 없음
+- PREANALYZING / ANALYZING / REGENERATING만 spinner
+- 성장판 사용자 문자열 0
+- report-hub 학생 클릭 흐름 현재 상태 확인
+- 잘못 x-growth로 연결되는 미완료 작업이 남아 있다면 보고
+
+중요:
+앞서 계획된 report 상세 연결/Dashboard 작업이 아직 미완료라면
+이번 Final에서 숨기지 말고 명확히 OPEN ITEM으로 보고.
+임의 대규모 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. AI 일지피드
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 서버 오류 여부
+- 실제 수업일지 데이터 표시 여부
+- 선생님별 그룹
+- 날짜/검색/필터
+- BASE/X
+
+앞서 계획만 잡고 실제 수정되지 않은 상태라면
+그대로 OPEN ITEM으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. AI 커리큘럼
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 미배정 210명 제거
+- 재원학생 / 최근30일출석 / 운영반 / 활성커리큘럼 KPI
+- 학생명/반/담당/레벨/최근출석
+- 내부 DB명 노출 없음
+- 기록 없는 학생 허위 진도 없음
+- BASE/X 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. X 운영현황
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- NaN / Invalid Date 없음
+- X plan 표시
+- 운영지표 에러 여부
+- 빠른관리 back navigation
+
+앞서 navigation/지표 정리 작업이 아직 미완료면
+OPEN ITEM으로 보고.
+
+이번 Final에서 큰 navigation 구조 개편 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 회원관리
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 회원 상세 정상 진입
+- 정상 학생에서 "회원을 찾을 수 없습니다" 없음
+- 403/404/500 메시지 구분
+- 학부모 연결 상태
+- 문자 초대
+- 카카오 버튼 없음
+
+MemberCard 높이 축소가 아직 미완료면
+OPEN ITEM 보고.
+
+teacher students 화면 회귀 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 학부모 자동연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 이름 + 보호자 번호 일치 → 자동 연결
+- 명확 match pending 잔류 없음
+- 이름만/번호만 일치 → 자동승인 금지
+- 다른 pool 연결 0
+- duplicate 0
+- 승인관리 check/search 아이콘 정상
+
+Production은 destructive test 금지.
+기존 데이터/read-only 기준 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 출결 / 보강
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher:
+
+- 기본 출석
+- 결석자만 리스트
+- 결석 추가
+- 출석 복귀
+- 과거 결석 수정
+- 보강 생성
+- 보강 완료
+- pending 감소
+
+Admin:
+
+- 결석 중심 daily
+- 보강 상태 badge
+- 결석 없음 empty state
+
+정합성:
+
+absent
+→ makeup 1
+→ present 복귀
+→ active makeup 0
+→ 다시 absent
+→ active makeup 1
+
+completed 보강 삭제 금지.
+
+BASE/X 동시 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 스케줄러 / 보강 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 보강 아이콘
+- 보강 탭 텍스트 잘림
+- 캘린더 가독성
+- admin/teacher 양쪽
+
+앞서 planned item 중 실제 미수정이면
+OPEN ITEM으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 수업일지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin:
+"항목을 길게 눌러 선택 모드로 전환합니다"
+→ 없어야 함.
+
+Teacher:
+기존 일지 작성 정상.
+
+AI Teacher Diary:
+기존 기능 회귀 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 공지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자:
+
+- 기존 텍스트 AI 작성
+- 음성 녹음 시작/종료
+- STT
+- AI 제목/본문 생성
+- 적용
+- 수동 수정
+- 게시
+
+실기기 자동검증이 불가능하면:
+USER_DEVICE_VERIFY_REQUIRED로 표시.
+
+중요:
+실제 mic permission/native crash 여부는
+최종 사용자 실기기 확인 항목으로 남길 수 있음.
+
+teacher notices 기존 기능 회귀 없음.
+
+BASE/X 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 매출 / 수업정산
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- "매출 확인" 레이블
+- 예상 매출 화면
+- 관리자 수업정산 별도
+- teacher 정산 별도
+- 계산 로직 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Navigation
+━━━━━━━━━━━━━━━━━━━━━━
+
+주요 관리자 하위화면:
+
+- 홈
+- 운영관리
+- X 운영현황
+- 회원관리
+- 성장리포트
+- AI 일지
+- 커리큘럼
+- 출결/보강
+- 공지
+
+각 진입/뒤로가기 확인.
+
+실제 잘못 홈으로 튀는 route가 남아 있으면
+파일/route를 OPEN ITEM으로 정확히 보고.
+
+P0 수준이고 1~2줄 안전 수정이면 이번 STEP에서 허용.
+큰 구조 변경이면 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 사용자 노출 문자열 전수 체크
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 화면에서 아래 잔존 확인:
+
+- 성장판
+- curriculum_versions
+- student_curriculum_assignments
+- weekly_count =
+- 길게 눌러 선택 모드
+- NaN
+- Invalid Date
+- 카카오톡으로 초대하기
+
+사용자 노출 기준 0건 목표.
+
+코드 주석/테스트 fixture는 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Build / Regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- TypeScript
+- app build
+- server build if relevant
+- existing related tests
+- route compile
+- no new native dependency
+- no DB migration
+- no AI ENGINE change
+- no RevenueCat change
+
+기존 unrelated 사전 오류는
+이번 변경과 분리해서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 미완료 항목 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+앞선 전체 계획 중 실제로 아직 구현되지 않은 항목이 있으면
+Final PASS라고 숨기지 말 것.
+
+아래 3등급으로 분류:
+
+P0
+출시 차단 / 정상 기능 불가
+→ 이번 STEP에서 최소 수정
+
+P1
+출시 가능하지만 운영 UX 불편
+→ OPEN ITEM
+
+P2
+추후 개선
+→ OPEN ITEM
+
+특히 확인:
+
+- AI 일지피드 서버 오류
+- 성장리포트 상세 연결
+- 성장리포트 Dashboard
+- X hub back navigation
+- MemberCard 높이
+- 보강 탭 글자 잘림
+- 스케줄러 가독성
+
+실제 완료 여부를 코드 기준으로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 최신 iOS production-v2 OTA:
+01a07d09-b168-7811-ad8a-9a390d9a6326
+
+Final regression에서 코드 수정이 없으면
+추가 OTA 없음.
+
+P0 최소 frontend 수정이 발생하면:
+canonical guard 확인 후
+iOS production-v2 OTA 1회.
+
+Android OTA 금지.
+
+native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+짧게:
+
+1. 전체 PASS 항목
+2. 발견 P0
+3. 발견 P1
+4. 발견 P2
+5. 이번 STEP 수정 파일
+6. Admin regression
+7. Teacher regression
+8. BASE regression
+9. X regression
+10. 사용자 노출 금지 문자열 결과
+11. build/test 결과
+12. app SHA
+13. server SHA
+14. OTA 여부/ID
+15. native 변경 없음
+16. DB migration 없음
+17. AI ENGINE/RevenueCat 변경 없음
+18. 사용자 실기기 확인 필요 항목
+19. 최종 OPEN ITEM 목록
+20. 최종 판정:
+    RELEASE_READY
+    또는
+    HOLD
+
+완료 후 STOP.
