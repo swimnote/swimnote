@@ -677,9 +677,10 @@ function ParentPendingCard({
               : (
                 <View style={pc.approveBtnInner}>
                   <Text style={pc.approveTxt}>승인</Text>
-                  {needsPicker && (
-                    <LucideIcon name="search" size={13} color="#fff" />
-                  )}
+                  {needsPicker
+                    ? <LucideIcon name="search" size={13} color="#fff" />
+                    : <LucideIcon name="check" size={13} color="#fff" />
+                  }
                 </View>
               )
             }

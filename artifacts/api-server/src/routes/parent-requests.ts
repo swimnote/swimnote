@@ -763,4 +763,25 @@ router.post("/admin/parent-v2-retry-all", requireAuth, requireRole("pool_admin",
   }
 );
 
+// ─── 관리자: 모든 pending 건(reason 무관) 일괄 재시도 ────────────────────
+// POST /admin/parent-v2-retry-pending-all
+// 학생이 나중에 등록된 경우 name_mismatch reason이 있어도 재시도
+router.post("/admin/parent-v2-retry-pending-all", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+      if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
+
+      const { retryAllPendingByPool } = await import("../lib/auto-link-v2.js");
+      const result = await retryAllPendingByPool(me.swimming_pool_id);
+
+      res.json({ success: true, ...result });
+    } catch (e) {
+      console.error("[admin/parent-v2-retry-pending-all POST]", e);
+      res.status(500).json({ success: false, message: "서버 오류" });
+    }
+  }
+);
+
 export default router;
