@@ -92,7 +92,7 @@ export default function SettlementScreen() {
 
   return (
     <View style={s.root}>
-      <SubScreenHeader title="정산 확인" />
+      <SubScreenHeader title="매출 확인" />
 
       {/* 월 선택 */}
       <View style={s.monthRow}>
