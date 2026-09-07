@@ -220,7 +220,7 @@ export default function MakeupsScreen() {
         <FlatList
           data={makeups}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: TAB_BAR_H + insets.bottom + 16 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: TAB_BAR_H + insets.bottom + 16 }}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
           ListEmptyComponent={
             <View style={s.empty}>
