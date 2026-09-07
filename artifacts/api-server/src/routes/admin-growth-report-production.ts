@@ -201,6 +201,101 @@ router.get(
   }
 );
 
+// ─── GET /admin/growth-reports/:id — 리포트 상세 (관리자 전용) ──────────────
+
+router.get(
+  "/:id",
+  requireAuth,
+  requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId   = parsePoolAdmin(req);
+      const isSuperAdmin = parseSuperAdmin(req);
+      if (!poolId && !isSuperAdmin) return res.status(403).json({ error: "FORBIDDEN" });
+
+      const reportId = req.params["id"] as string;
+
+      // 1. 리포트 조회 (내부 메타데이터 제외)
+      const rRows = await db.execute(sql`
+        SELECT
+          gr.id,
+          gr.student_id,
+          gr.swimming_pool_id,
+          gr.product_status,
+          gr.analysis_status,
+          gr.report_period,
+          gr.report_content,
+          gr.teacher_reviewed_by,
+          gr.teacher_reviewed_at,
+          gr.teacher_review_action,
+          gr.teacher_review_reason_code,
+          gr.teacher_review_note,
+          gr.published_at,
+          gr.created_at,
+          gr.version_number,
+          grc.parent_input_open_at,
+          grc.parent_input_close_at
+        FROM growth_reports gr
+        LEFT JOIN growth_report_cycles grc ON grc.id = gr.cycle_id
+        WHERE gr.id = ${reportId}
+          AND gr.deleted_at IS NULL
+        LIMIT 1
+      `);
+      if (!rRows.rows.length) return res.status(404).json({ error: "REPORT_NOT_FOUND" });
+
+      const report = rRows.rows[0] as any;
+
+      // 2. pool 격리 확인 (super_admin 예외)
+      if (!isSuperAdmin && poolId && report.swimming_pool_id !== poolId) {
+        return res.status(403).json({ error: "POOL_MISMATCH" });
+      }
+
+      // 3. 학생 + 반 + 담당교사 조회
+      const stuRows = await db.execute(sql`
+        SELECT s.id, s.name, s.class_group_id,
+               cg.name AS class_name,
+               cg.teacher_id,
+               u.name  AS teacher_name
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
+        LEFT JOIN users u ON u.id = cg.teacher_id
+        WHERE s.id = ${report.student_id}
+        LIMIT 1
+      `);
+      const stu = (stuRows.rows[0] as any) ?? {};
+
+      // 4. 응답 — 내부 grounding/claim/fact/trace 노출 금지
+      return res.json({
+        ok:            true,
+        report_id:     reportId,
+        product_status:   report.product_status,
+        analysis_status:  report.analysis_status,
+        report_period:    report.report_period,
+        version_number:   report.version_number ?? 1,
+        published_at:     report.published_at,
+        created_at:       report.created_at,
+        teacher_reviewed_at:        report.teacher_reviewed_at,
+        teacher_review_action:      report.teacher_review_action,
+        teacher_review_reason_code: report.teacher_review_reason_code,
+        teacher_review_note:        report.teacher_review_note,
+        report_period_open:   report.parent_input_open_at,
+        report_period_close:  report.parent_input_close_at,
+        student: {
+          id:           report.student_id,
+          name:         stu.name ?? null,
+          class_name:   stu.class_name ?? null,
+          teacher_name: stu.teacher_name ?? null,
+        },
+        // ENGINE 결과물만 — claim_ids·fact_package·trace·grounding 제외
+        report_content: report.report_content ?? null,
+      });
+    } catch (err: any) {
+      console.error("[admin-gr-detail] error:", err.message);
+      return res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
 // ─── PUT /admin/growth-reports/:id/discard ───────────────────────────────────
 
 router.put(

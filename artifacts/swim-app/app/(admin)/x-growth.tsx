@@ -197,36 +197,38 @@ export default function AdminXGrowthScreen() {
           </View>
         </View>
 
-        {/* 학생 선택 */}
-        <View style={s.sectionWrap}>
-          <Text style={s.sectionLabel}>학생 선택</Text>
-          {studentsLoading ? (
-            <ActivityIndicator color={MINT} style={{ marginVertical: 8 }} />
-          ) : students.length === 0 ? (
-            <Text style={s.noStudentTxt}>등록된 학생이 없습니다.</Text>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingRight: 16 }}
-            >
-              {students.map(stu => {
-                const active = selectedStu?.id === stu.id;
-                return (
-                  <Pressable
-                    key={stu.id}
-                    style={[s.stuChip, active && s.stuChipActive]}
-                    onPress={() => handleSelectStudent(stu)}
-                  >
-                    <Text style={[s.stuChipTxt, active && s.stuChipTxtActive]}>
-                      {stu.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
+        {/* 학생 선택 — preselected 진입 시 숨김 */}
+        {!preselect_student_id && (
+          <View style={s.sectionWrap}>
+            <Text style={s.sectionLabel}>학생 선택</Text>
+            {studentsLoading ? (
+              <ActivityIndicator color={MINT} style={{ marginVertical: 8 }} />
+            ) : students.length === 0 ? (
+              <Text style={s.noStudentTxt}>등록된 학생이 없습니다.</Text>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingRight: 16 }}
+              >
+                {students.map(stu => {
+                  const active = selectedStu?.id === stu.id;
+                  return (
+                    <Pressable
+                      key={stu.id}
+                      style={[s.stuChip, active && s.stuChipActive]}
+                      onPress={() => handleSelectStudent(stu)}
+                    >
+                      <Text style={[s.stuChipTxt, active && s.stuChipTxtActive]}>
+                        {stu.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        )}
 
         {/* 필터 — 학생 선택 후에만 표시 */}
         {selectedStu && (
