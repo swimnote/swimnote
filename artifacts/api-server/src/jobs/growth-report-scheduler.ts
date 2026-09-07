@@ -417,10 +417,20 @@ async function autoPublishMonthlyReports(
       gr.swimming_pool_id AS pool_id,
       gr.report_period,
       gr.analysis_status,
-      gr.grounding_status,
-      gr.growth_framing_status,
-      gr.val_grounding_status,
-      gr.val_growth_framing_status,
+      -- grounding/framing status는 JSONB 필드에서 추출 (별도 컬럼 없음)
+      -- report_fact_package 우선, 없으면 report_content 내 fallback
+      COALESCE(
+        gr.report_fact_package->'grounding_result'->>'status',
+        gr.report_content->'grounding_result'->>'status',
+        gr.report_content->'validation'->'grounding'->>'status'
+      )                   AS grounding_status,
+      COALESCE(
+        gr.report_fact_package->'growth_framing_result'->>'status',
+        gr.report_content->'growth_framing_result'->>'status',
+        gr.report_content->'validation'->'growth_framing'->>'status'
+      )                   AS growth_framing_status,
+      NULL::text          AS val_grounding_status,
+      NULL::text          AS val_growth_framing_status,
       gr.report_content,
       gr.report_fact_package,
       gr.sns_summary,
