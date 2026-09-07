@@ -1,0 +1,176 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — OTA WRONG BRANCH 즉시 확인/수정]
+
+지금 OTA 배포 위치를 잘못 잡은 것으로 보인다.
+
+현재 SWIMNOTE Production 고정 기준:
+
+Git canonical branch:
+release/v2.0.0
+
+EAS Production channel:
+production-v2
+
+runtimeVersion:
+2.1.0
+
+그런데 방금 발행한 OTA 보고:
+
+update:
+01a07d6d
+
+EAS branch:
+release-2.0.0
+
+이건 production-v2 배포 기준과 다르다.
+
+지금부터 앱 코드 수정 금지.
+새 기능 작업 금지.
+OTA 추가 발행도 확인 전 금지.
+
+먼저 EAS Updates routing만 정확히 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. production-v2 channel 실제 mapping 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+EAS에서 실제로:
+
+production-v2
+→ 어느 branch를 가리키는지
+
+정확히 조회해서 보고.
+
+추측 금지.
+
+보고:
+
+channel:
+production-v2
+
+mapped branch:
+<실제값>
+
+runtime:
+<실제값>
+
+latest update id:
+<실제값>
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 01a07d6d 위치 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA update 01a07d6d가 실제로:
+
+branch:
+어디
+
+runtimeVersion:
+무엇
+
+platform:
+iOS인지
+
+message:
+무엇
+
+확인.
+
+그리고 production-v2가
+그 branch를 실제로 바라보는지 YES/NO.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 틀린 branch면 즉시 바로잡기
+━━━━━━━━━━━━━━━━━━━━━━
+
+production-v2가 release-2.0.0을 바라보지 않는다면
+
+01a07d6d는 Production 앱에서 받을 수 없는 OTA다.
+
+이 경우:
+
+현재 canonical release/v2.0.0 코드가 맞는지 확인
+→ clean
+→ origin exact
+→ app version 2.0.1
+→ runtimeVersion 2.1.0
+→ production-v2가 실제 연결된 올바른 EAS branch 대상으로
+iOS OTA 1회 다시 발행
+
+중요:
+
+`--branch release-2.0.0`
+를 임의로 다시 사용하지 말 것.
+
+EAS channel mapping을 먼저 확인하고
+Production 앱이 실제 구독하는 branch에 발행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Git branch와 EAS branch 혼동 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 3개는 서로 다른 개념이다:
+
+Git branch:
+release/v2.0.0
+
+EAS channel:
+production-v2
+
+EAS update branch:
+<channel이 실제 매핑된 branch>
+
+이 세 개를 각각 보고.
+
+Git branch 이름을 임의로
+release-2.0.0으로 변환해서
+EAS branch로 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. OTA 모달은 그 다음
+━━━━━━━━━━━━━━━━━━━━━━
+
+올바른 branch에 OTA가 존재하는 것을 확인한 뒤에만
+
+앱 완전 종료
+→ 재실행
+→ Updates check
+
+확인.
+
+올바른 OTA가 Production branch에 없는데
+checkAndDownloadOta 호출시점부터 조사하지 말 것.
+
+routing이 먼저다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 보고:
+
+Git branch:
+Git HEAD:
+
+EAS channel:
+channel mapped branch:
+
+01a07d6d branch:
+01a07d6d runtime:
+01a07d6d platform:
+
+Production 앱이 01a07d6d를 받을 수 있었는가:
+YES / NO
+
+NO라면:
+새 Production OTA ID:
+새 OTA branch:
+runtime:
+platform:
+
+최종:
+PASS / FAIL
+
+이번 작업에서는 앱 기능 코드 수정하지 말 것.
