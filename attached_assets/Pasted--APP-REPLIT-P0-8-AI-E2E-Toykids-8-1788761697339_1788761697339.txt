@@ -1,0 +1,334 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — 서태웅 8월 AI 성장리포트 삭제 후 최신 파이프라인 재발급 E2E 검증]
+
+목표:
+Toykids 회원 "서태웅"의 기존 8월 AI 성장리포트 발급분을 안전하게 삭제하고,
+동일한 8월 period로 최신 AI 성장리포트 파이프라인을 통해 재발급한다.
+
+이번 테스트는 단순 생성 성공 확인이 아니라,
+우리가 준비한 최신 AI 성장리포트가 실제 Production에서
+완전한 내용/구조/수신 흐름으로 정상 발급되는지 End-to-End 검증하는 것이 목적이다.
+
+중요:
+- 대상 회원은 서태웅
+- 대상 period는 8월
+- 기존 8월 발급분은 구형 텍스트 리포트일 가능성이 있음
+- 최신 성장리포트 파이프라인으로 재발급해야 함
+- 임의 DB 수동 생성 금지
+- eligibility 우회 금지
+- 결과가 빈약하면 PASS 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 대상 회원/기존 리포트 정확히 식별
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids pool:
+
+pool_1780849364252_l9k44rbk3
+
+회원:
+서태웅
+
+Production에서 exact student_id를 확인하고,
+해당 학생의 8월 기존 성장리포트를 찾는다.
+
+보고:
+
+- student_id
+- report_id
+- report period
+- report type/version
+- status
+- legacy text report 여부
+- parent 연결 여부
+- feed 연결 여부
+- PDF/artifact 여부
+- notification 여부
+
+다른 회원 리포트 절대 건드리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 삭제 전 Snapshot / 관계 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+삭제 전 기존 8월 리포트와 연관 데이터를 snapshot/export 가능한 범위에서 기록.
+
+반드시 확인:
+
+- growth_reports 본체
+- report artifact
+- PDF/storage object
+- parent feed row
+- notification row
+- issue/generation history
+- duplicate prevention key
+- job/idempotency record
+- report status history
+
+각 관계의 FK/CASCADE/SET NULL/수동삭제 필요 여부를 확인.
+
+삭제 전 row count와 관련 ID 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 8월 리포트만 안전하게 삭제
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+서태웅 + 8월 + 기존 report_id
+
+삭제 원칙:
+
+- 다른 period 삭제 금지
+- 다른 학생 삭제 금지
+- 다른 Toykids 회원 영향 금지
+- DB constraint 비활성화 금지
+- unique constraint 삭제 금지
+
+필요한 연관 row만
+FK/cascade 정책에 맞춰 정리.
+
+삭제 후 확인:
+
+- 기존 8월 report row = 0
+- orphan row = 0
+- duplicate blocker 잔여 여부
+- 동일 period 재발급 가능 상태
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 최신 Growth Report 발급 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+재발급 전에 현재 Production 코드 기준
+최신 AI 성장리포트 생성 경로를 exact 확인.
+
+반드시 추적:
+
+Eligibility
+→ source diary/lesson data 수집
+→ evaluation/fact extraction
+→ AI/analysis pipeline
+→ report composition
+→ report persistence
+→ parent feed
+→ notification/push
+→ PDF/artifact
+
+각 단계의:
+
+- 함수
+- endpoint
+- worker/job
+- DB table
+- model/engine
+- output schema/version
+
+을 확인.
+
+중요:
+구형 텍스트 리포트 생성 경로로 다시 발급하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 8월 원천 데이터 충분성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+서태웅의 8월 실제 수업기록을 확인.
+
+보고:
+
+- diary count
+- lesson/session count
+- attendance/observation data 유무
+- student-specific diary count
+- common diary count
+- growth/evaluation source fact count
+
+개인정보/원문 전체를 보고하지 말 것.
+
+리포트를 만들 근거가 충분한지 판정.
+
+근거가 부족하면 억지 생성 금지하고 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최신 AI 성장리포트 품질 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+재발급 결과는 단순 텍스트 요약으로 PASS 처리하지 말 것.
+
+최신 리포트가 현재 설계된 구조를 실제로 사용해야 한다.
+
+반드시 확인:
+
+A. 실제 8월 수업기록 기반
+B. 근거 없는 사실/성장 창작 없음
+C. 학생별 실제 관찰/변화가 반영됨
+D. 단순 수영기술 나열이 아니라 성장 분석 구조 사용
+E. 긍정적이되 사실 기반
+F. 부모가 읽을 수 있는 자연스러운 문장
+G. 내부 enum / DB ID / evidence packet / prompt metadata 노출 없음
+H. report schema/version이 최신
+I. 빈 section / placeholder / lorem / null 표시 없음
+J. 같은 내용 반복 없음
+
+현재 구현된 공식 section/component가 있다면
+모든 필수 section이 존재하는지 체크.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실제 재발급 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 single-student trigger가 존재하면
+그 경로로:
+
+student = 서태웅
+period = 8월
+
+1건만 재발급.
+
+새 endpoint 생성 금지.
+DB 직접 INSERT로 결과 위조 금지.
+
+worker/job이 있다면 정상 enqueue → process → complete 경로를 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 생성 결과 Backend 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 후 확인:
+
+- HTTP/job success
+- report status = completed/issued
+- report schema/version
+- source period = 8월
+- student = 서태웅 exact
+- duplicate report count = 1
+- generation error 없음
+- artifact 생성 여부
+- PDF 생성 여부
+- parent feed 연결 여부
+- notification 생성 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 리포트 내용 품질 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 생성된 리포트의 내용을 검수.
+
+민감정보를 제외하고 다음을 보고:
+
+- 전체 section 목록
+- 각 section 내용 길이
+- 사용된 source/evidence count
+- AI-generated analysis 존재 여부
+- actual observation/fact 반영 여부
+- empty section 수
+- placeholder 수
+- internal metadata 노출 수
+- hallucination 의심 항목 수
+
+최종 품질 분류:
+
+A. 최신 완성형 리포트
+B. 일부 section 누락
+C. 구형 텍스트형
+D. 생성 실패/빈약
+E. 사실성 문제
+
+A가 아니면 PASS 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Parent App E2E 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+발급 후 학부모 앱에서:
+
+- 새 8월 AI 성장리포트 표시
+- 피드 카드 정상
+- 제목/기간 정상
+- 상세 진입 정상
+- section layout 정상
+- 스크롤/텍스트 깨짐 없음
+- PDF 저장 가능
+- push/notification 정상
+- deep link 정상
+- 구형 삭제 리포트 중복 노출 없음
+
+실기기 최종 확인은 사용자가 직접 수행할 예정.
+
+APP 쪽에서는 코드/DB 기준 상태를 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 중복방지 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은:
+서태웅 + 8월
+
+재발급 요청을 다시 넣었을 때
+두 번째 report가 생성되지 않는지 확인.
+
+중복방지 로직을 해제하지 말 것.
+
+기대:
+report count = 1
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 비대상 영향 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 삭제/재발급으로:
+
+- 다른 학생 report count 변화 없음
+- 다른 month report 변화 없음
+- 다른 parent feed 영향 없음
+- 다른 notification 영향 없음
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 다른 학생 리포트 삭제
+- 8월 이외 period 삭제
+- eligibility 강제 우회
+- DB constraint 제거
+- 수동 report content INSERT
+- GPT 결과를 직접 DB에 붙여넣기
+- 구형 리포트 경로 사용
+- source data 수정
+- 실제 수업기록 조작
+- 코드 대규모 refactor
+
+문제가 발견되면 원인을 보고하고
+최소 수정 전 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 서태웅 student_id
+2. 삭제한 기존 8월 report_id
+3. legacy 여부
+4. 삭제 전 연관 row 목록
+5. 삭제 후 orphan 여부
+6. duplicate blocker 제거 여부
+7. 8월 source diary/session count
+8. 최신 generation entrypoint
+9. 사용 report schema/version
+10. 재발급 report_id
+11. generation status
+12. 생성 section 목록
+13. source/evidence count
+14. empty/placeholder count
+15. internal metadata 노출 여부
+16. hallucination 의심 여부
+17. parent feed 생성 여부
+18. notification 생성 여부
+19. PDF/artifact 생성 여부
+20. 동일 period 중복 재요청 차단 여부
+21. 다른 회원/period 영향 없음 확인
+22. 최종 품질 A/B/C/D/E
+23. 최종 PASS/HOLD/FAIL
+
+완료 후 STOP.
