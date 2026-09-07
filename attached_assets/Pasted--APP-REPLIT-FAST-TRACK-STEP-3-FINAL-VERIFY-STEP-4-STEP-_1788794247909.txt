@@ -1,0 +1,198 @@
+[보낼 곳: APP REPLIT]
+
+[FAST TRACK — STEP 3 FINAL VERIFY + STEP 4 성장리포트 상세 연결]
+
+목표:
+- STEP 3 Render LIVE 즉시 Production smoke
+- 기다리는 동안 STEP 4 frontend 작업 진행
+- 광범위 재감사 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+A. STEP 3 FINAL VERIFY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render target:
+main
+3a8f4dbf6f3dd0251c792678ec99b7718e90feed
+
+LIVE 확인 후:
+
+GET /admin/diaries/summary
+Production 실제 호출.
+
+필수:
+- HTTP 200
+- 기존 오류
+  subquery uses ungrouped column "cd.lesson_date"
+  재발 0건
+- AI 일지피드 실제 데이터 반환
+- 선생님별 집계 정상
+- total_diaries / total_notes 정상
+
+가능하면 관리자 AI 일지피드 화면 렌더 확인.
+
+STEP 3 PASS/HOLD 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B. STEP 4 — 성장리포트 상세 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+관리자 AI 성장리포트 목록에서 학생 선택
+→ x-growth 성장 이벤트 화면으로 잘못 이동.
+
+목표:
+
+report-hub 학생 row
+→ 해당 학생 / 해당 월 / 해당 report의
+AI 성장리포트 상세 화면으로 직접 진입.
+
+x-growth는 별도 “성장 이벤트” 기능으로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+C. 기존 API 우선 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 backend 만들기 전에 현재 존재하는:
+
+- monthly-list
+- growth report detail 관련 endpoint
+- teacher growth-report-review/detail 구현
+- parent report detail 구현
+
+을 필요한 범위만 확인.
+
+관리자 full detail API가 이미 있으면 그대로 재사용.
+
+없을 때만:
+GET /admin/growth-reports/:id
+수준의 최소 server route 추가.
+
+DB migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+D. 관리자 report detail 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+목록 row에서 report_id를 전달.
+
+상세에서 최소 표시:
+
+- 학생명
+- 대상 월
+- 반 / 담당 선생님
+- report 상태
+- 생성/검수/발송 상태
+- 실제 리포트 섹션 내용
+
+빈 evidence 기반 section은
+억지로 표시하지 말고 기존 앱 정책대로 숨김.
+
+절대 노출 금지:
+
+- claim_ids
+- fact_package
+- trace
+- 내부 grounding metadata
+- 내부 model/provider 정보
+
+관리자가 실제 학부모에게 보낼 결과물 중심으로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+E. x-growth 정리 — admin + teacher 동시
+━━━━━━━━━━━━━━━━━━━━━━
+
+사전 감사에서 admin/teacher x-growth가 near-identical 확인됨.
+
+이번 STEP에서 양쪽:
+
+- report 상세 화면과 혼동되지 않게 유지
+- 외부에서 특정 student가 preselected 되어 들어오는 경우
+  불필요한 horizontal 학생선택 UI는 숨길 수 있도록 정리
+
+단:
+x-growth 자체의 독립 학생 탐색 화면에서는
+학생 선택 기능 유지 가능.
+
+즉:
+독립 진입 → 학생 선택 가능
+preselected 진입 → 학생 선택 UI 숨김
+
+admin + teacher 양쪽 동일 정책.
+
+━━━━━━━━━━━━━━━━━━━━━━
+F. Navigation
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 STEP에서는 x-hub back-navigation 전체 수정 금지.
+
+오직:
+
+report-hub
+→ report-detail
+→ back
+→ report-hub
+
+정상 동작만 보장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+G. 공유 영향
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin report-hub/detail:
+BASE/X 공용 접근 코드 구조 확인.
+
+Teacher:
+growth-report-list/review는 별도 화면이므로 회귀 VERIFY만.
+
+Parent:
+기존 report detail/feed 영향 금지.
+
+Growth Report backend state machine/contract 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+H. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 4 frontend-only면:
+release/v2.0.0 commit/push까지만.
+
+OTA는 아직 발행하지 말 것.
+다음 LOW-RISK frontend 묶음과 합쳐서 1회 OTA 예정.
+
+server 최소 수정이 필요하면:
+server commit을 main에 최소 cherry-pick까지 준비하고
+Render 수동 배포 필요 여부 보고.
+
+사용자 승인 없이 Render deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+I. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[STEP 3]
+1. Render LIVE 여부
+2. deployed SHA
+3. /admin/diaries/summary HTTP 결과
+4. 기존 PostgreSQL 오류 재발 여부
+5. 실제 AI 일지피드 데이터 결과
+6. STEP 3 PASS/HOLD
+
+[STEP 4]
+7. 기존 관리자 report detail API 존재 여부
+8. 최종 navigation 경로
+9. report-detail 신규/재사용 여부
+10. 표시되는 report 필드
+11. 내부 metadata 비노출 확인
+12. admin x-growth 학생선택 처리
+13. teacher x-growth 동일 처리
+14. parent/teacher report 회귀
+15. 수정 파일
+16. server 수정 여부
+17. 테스트
+18. commit SHA
+19. OTA 미발행 확인
+20. STEP 4 PASS/HOLD/FAIL
+
+완료 후 STOP.
