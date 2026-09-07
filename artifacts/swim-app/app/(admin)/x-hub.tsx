@@ -204,13 +204,7 @@ export default function XHubScreen() {
       <SubScreenHeader title={SCREEN_TITLE} homePath="/(admin)/dashboard" />
       <ScrollView contentContainerStyle={{ paddingBottom: 48 }}>
 
-        {/* partial 안내 */}
-        {isPartial && (
-          <View style={s.partialBanner}>
-            <LucideIcon name="info" size={13} color="#D97706" />
-            <Text style={s.partialText}>일부 지표를 불러오지 못했습니다 (—)</Text>
-          </View>
-        )}
+        {/* partial: 보조 지표 null은 각 카드에 "—" 표시로 충분. 상단 전체 경고 불필요 */}
 
         {/* ── 1. 오늘 확인할 것 ────────────────────────────────────────── */}
         <View style={s.card}>
@@ -224,7 +218,7 @@ export default function XHubScreen() {
             <View>
               {(reviewCnt ?? 0) > 0 && (
                 <Pressable style={s.attentionItem}
-                  onPress={() => router.push("/(admin)/report-hub")}>
+                  onPress={() => router.push("/(admin)/report-hub?backTo=x-hub" as any)}>
                   <View style={[s.attentionDot, { backgroundColor: "#D97706" }]} />
                   <Text style={s.attentionItemText}>검토 대기 리포트</Text>
                   <Text style={[s.attentionCount, { color: "#D97706" }]}>{reviewCnt}건</Text>
@@ -233,9 +227,9 @@ export default function XHubScreen() {
               )}
               {(unassignedCnt ?? 0) > 0 && (
                 <Pressable style={s.attentionItem}
-                  onPress={() => router.push("/(admin)/curriculum-hub")}>
+                  onPress={() => router.push("/(admin)/curriculum-hub?backTo=x-hub" as any)}>
                   <View style={[s.attentionDot, { backgroundColor: "#6366F1" }]} />
-                  <Text style={s.attentionItemText}>커리큘럼 미배정 학생</Text>
+                  <Text style={s.attentionItemText}>커리큘럼 미배정</Text>
                   <Text style={[s.attentionCount, { color: "#6366F1" }]}>{unassignedCnt}명</Text>
                   <LucideIcon name="chevron-right" size={14} color={C.textSecondary} />
                 </Pressable>
@@ -253,7 +247,7 @@ export default function XHubScreen() {
               icon="book-open" iconBg="#EFF6FF" iconColor="#2563EB"
               label="AI 일지"
               value={monthly.ai_diary_count != null ? `${monthly.ai_diary_count}건` : "—"}
-              onPress={() => router.push("/(admin)/diary-hub")}
+              onPress={() => router.push("/(admin)/diary-hub?backTo=x-hub" as any)}
             />
             <View style={s.divider} />
             {/* 학부모 커리큘럼 검색 */}
@@ -272,15 +266,15 @@ export default function XHubScreen() {
               value={monthly.growth_report_sent_count != null
                 ? `완료 ${monthly.growth_report_sent_count}건`
                 : "—"}
-              onPress={() => router.push("/(admin)/report-hub")}
+              onPress={() => router.push("/(admin)/report-hub?backTo=x-hub" as any)}
             />
             <View style={s.divider} />
-            {/* 성장추적 이벤트 (이번 주) */}
+            {/* AI 성장 이벤트 (이번 주) */}
             <KpiRow
               icon="trending-up" iconBg="#F0FDF4" iconColor="#059669"
-              label="성장추적"
+              label="AI 성장 이벤트(주간)"
               value={live.growth_events_week != null ? `이번 주 ${fmtNum(live.growth_events_week)}건` : "—"}
-              onPress={() => router.push("/(admin)/x-growth")}
+              onPress={() => router.push("/(admin)/x-growth?backTo=x-hub" as any)}
             />
           </View>
         </View>
@@ -386,9 +380,9 @@ export default function XHubScreen() {
             {[
               { icon: "book-open"      as const, label: "커리큘럼 세팅", route: "/(admin)/x-setup" },
               { icon: "credit-card"    as const, label: "구독 관리",     route: "/(admin)/subscription" },
-              { icon: "file-text"      as const, label: "AI 리포트",     route: "/(admin)/report-hub" },
-              { icon: "book-open"      as const, label: "AI 일지",       route: "/(admin)/diary-hub" },
-              { icon: "graduation-cap" as const, label: "커리큘럼",      route: "/(admin)/curriculum-hub" },
+              { icon: "file-text"      as const, label: "AI 리포트",     route: "/(admin)/report-hub?backTo=x-hub" },
+              { icon: "book-open"      as const, label: "AI 일지",       route: "/(admin)/diary-hub?backTo=x-hub" },
+              { icon: "graduation-cap" as const, label: "커리큘럼",      route: "/(admin)/curriculum-hub?backTo=x-hub" },
             ].map(item => (
               <Pressable key={item.route} style={s.quickItem}
                 onPress={() => router.push(item.route as any)}>
@@ -410,14 +404,6 @@ export default function XHubScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F3F4F6" },
 
-  partialBanner: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    marginHorizontal: 14, marginTop: 8, marginBottom: 2,
-    backgroundColor: "#FFFBEB", borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 7,
-    borderWidth: 1, borderColor: "#FDE68A",
-  },
-  partialText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D97706" },
 
   card: {
     marginHorizontal: 14, marginTop: 10,
