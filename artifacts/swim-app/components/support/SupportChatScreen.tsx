@@ -693,7 +693,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
               >
                 {isRequestingHuman
                   ? <ActivityIndicator size="small" color="#7C3AED" />
-                  : <LucideIcon name="headphones" size={16} color="#7C3AED" />}
+                  : <LucideIcon name="message-circle" size={16} color="#7C3AED" />}
                 <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>
                   {humanOnly ? "담당자 연결 요청" : "아직 해결되지 않았어요"}
                 </Text>
@@ -751,8 +751,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
           {/* 담당자는 GPT 후 미해결 확인이 끝난 Case만 확인한다. */}
           {isHuman && !isResolved && (
             <View style={s.humanCta}>
-              <LucideIcon name="headphones" size={20} color="#7C3AED" />
-              <Text style={[s.humanCtaTitle, { color: C.text }]}>상담사에게 문의하기</Text>
+              <LucideIcon name="message-circle" size={20} color="#7C3AED" />
               <Text style={[s.humanCtaDesc, { color: C.textMuted }]}>
                 상담사가 확인 중입니다. 잠시 기다려주세요.
               </Text>

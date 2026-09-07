@@ -47,7 +47,7 @@ const N = C.textPrimary; const N_BG = C.brandSoft;
 const SHORTCUTS = [
   { label: "일지 템플릿",      icon: "file-text"  as const, color: N, bg: N_BG, route: "/(admin)/diary-template-settings"     },
   { label: "공지함",           icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/notices"                     },
-  { label: "휴무일 관리",      icon: "x-square"   as const, color: N, bg: N_BG, route: "/(admin)/holidays"                    },
+  { label: "휴무일 관리",      icon: "calendar-off" as const, color: N, bg: N_BG, route: "/(admin)/holidays"                    },
   { label: "데이터 관리",      icon: "hard-drive" as const, color: N, bg: N_BG, route: "/(admin)/data-management"             },
   { label: "초대 안내 기록",   icon: "send"       as const, color: N, bg: N_BG, route: "/(admin)/invite-records"              },
   { label: "푸시 알림 설정",   icon: "bell"       as const, color: N, bg: N_BG, route: "/(admin)/push-notification-settings"  },
