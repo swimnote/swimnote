@@ -4149,6 +4149,14 @@ router.get(
       // COALESCE: ai_generated 컬럼 미존재 pool DB 대비 (WP9 미적용 pool)
       const aiFilter      = ai_only === "true" ? sql`AND COALESCE(cd.ai_generated, false) = true` : sql``;
 
+      // cd2 alias용 필터 — KPI 내 중첩 서브쿼리에서 외부 alias 충돌 방지
+      const dateFilter2    = fromDate === toDate
+        ? sql`AND cd2.lesson_date = ${fromDate}`
+        : sql`AND cd2.lesson_date >= ${fromDate} AND cd2.lesson_date <= ${toDate}`;
+      const classFilter2   = class_group_id ? sql`AND cd2.class_group_id = ${class_group_id}` : sql``;
+      const teacherFilter2 = teacher_id     ? sql`AND cd2.teacher_id = ${teacher_id}`          : sql``;
+      const aiFilter2      = ai_only === "true" ? sql`AND COALESCE(cd2.ai_generated, false) = true` : sql``;
+
       // ── KPI (date range, class/teacher/ai filter 반영, 검색어 제외) ────
       const kpiRow = await db.execute(sql`
         SELECT
@@ -4162,10 +4170,10 @@ router.get(
                   SELECT id FROM class_diaries cd2
                   WHERE cd2.is_deleted = false
                     AND cd2.swimming_pool_id = ${poolId}
-                    ${dateFilter}
-                    ${classFilter}
-                    ${teacherFilter}
-                    ${aiFilter}
+                    ${dateFilter2}
+                    ${classFilter2}
+                    ${teacherFilter2}
+                    ${aiFilter2}
                 )
             ) t
           ), 0)::int AS total_notes
