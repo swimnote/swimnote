@@ -11,7 +11,7 @@
 - [API_BASE 소스 규칙](api-base-source.md) — 실기기에서 /api fallback 사용 금지; 반드시 AuthContext에서 import
 - [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
 - [OTA 배포 패턴](ota-deploy-pattern.md) — Replit RAM 부족으로 Metro OOM; 2단계(115s 번들→skip-bundler 업로드) 우회법; package.json dev 스크립트에 큰따옴표 금지(JSON 파싱 오류)
-- [★ OTA 채널 정책 (영구)](ota-channel-policy.md) — iOS OTA = 항상 --branch production; preview branch 금지(명시 지시 시만 예외); TestFlight≠preview channel
+- [★ OTA 채널 정책 (영구)](ota-channel-policy.md) — iOS OTA = 항상 --branch production-v2 (채널매핑 확인완료); release-2.0.0/production 브랜치 금지; runtimeVersion=2.1.0
 - [OTA 릴리즈 컨벤션](ota-release-convention.md) — 기본=iOS production+preview만; Android는 최종 검증 단계 누적 배포; 별도 지시 WP만 Android 동시 배포
 - [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
 - [API 서버 DB 구성](api-server-db-config.md) — executeSql≠운영DB; tsx 스크립트(@workspace/db)로만 실제 데이터 접근; swimnote.kr=Render.com 동일 외부DB 확인
