@@ -1,0 +1,170 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — SWIMNOTE 기존 대량 Teacher Diary Template 실제 Source-of-Truth 추출]
+
+목표:
+AI ENGINE 조사에서 APP DB → ENGINE kf.diary_templates 사이
+MISSING_DATA_BRIDGE가 확정되었다.
+
+이제 APP Production DB에 실제로 존재하는
+기존 대량 Teacher Diary Template 데이터셋을 정확히 조사한다.
+
+중요:
+DB 수정 금지.
+데이터 삭제 금지.
+migration 실행 금지.
+현재 실제 데이터 구조/건수만 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production APP DB 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production Supabase:
+mrgkiussgbbmxfnkjgqy
+
+Teacher Diary 관련 실제 테이블 전수 확인:
+
+- diary_templates
+- global_template_sets
+- diary_template_levels
+- x_global 관련 template
+- teacher/global scope
+- pool-specific template
+- curriculum-linked template
+- 기타 실제 runtime에서 사용하는 template 테이블
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. diary_templates 실제 count
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 기준으로 exact count 보고:
+
+전체 count
+active count
+
+scope별:
+- global
+- teacher
+- x_global
+- 기타
+
+pool별:
+- Toykids pool-specific
+  pool_1780849364252_l9k44rbk3
+
+level별
+category별
+stroke 관련 분류가 있으면 stroke별
+
+삭제/비활성 row는 별도 count.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+diary_templates 실제 column 목록과 타입 보고.
+
+특히:
+
+- id
+- swimming_pool_id
+- scope
+- title
+- template_text
+- category
+- level
+- level_id
+- is_active/status
+- created_at
+- updated_at
+- source/version 관련 필드
+
+global_template_sets 등 관련 테이블도
+실제 관계/FK를 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 runtime 사용 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP/API 서버에서 현재 어떤 코드가
+diary_templates를 실제 조회하는지 확인.
+
+보고:
+
+- 조회 파일
+- 함수
+- query 조건
+- scope 처리
+- Toykids pool 처리
+- x_global 처리
+- 현재 이 데이터가 Teacher Diary AI 이전/현재 어디에서 사용되는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 대량 데이터 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+과거 구축한 대량 템플릿이 실제로 존재하는지 exact 확인.
+
+특히 예상 후보:
+- 수백 건
+- 1000건 이상 historical dataset
+- global/x_global/Toykids-specific 세트
+
+숫자 추측 금지.
+Production DB 실제 count만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ENGINE 이관 가능성 평가
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP diary_templates schema를
+ENGINE kf.diary_templates와 비교하여
+실제 row 기준 변환 가능성을 평가.
+
+다음 필드는 특히 매핑안 제시:
+
+APP:
+- id
+- swimming_pool_id
+- scope
+- title
+- template_text
+- category
+- level
+
+ENGINE:
+- uuid id
+- center_id
+- title
+- common_template
+- student_template
+- stroke
+- level
+- skill_category
+- focus_points[]
+- tags[]
+- priority
+- status
+
+아직 변환/INSERT 하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. APP Production DB 실제 template 총 count
+2. active count
+3. global count
+4. x_global count
+5. teacher count
+6. Toykids-specific count
+7. largest dataset 위치
+8. 실제 schema
+9. runtime 조회 코드
+10. ENGINE으로 이관 가능한 row 예상 수
+11. 변환 필수 필드
+12. 데이터 손실 위험
+13. migration 권장 방식
+14. DB 수정 필요 여부
+
+조사 후 STOP.
