@@ -79,11 +79,7 @@ import {
 import {
   useDiaryAIV2,
   type UseDiaryAIV2Options,
-  type DiaryAIDiagMeta,
 } from './useDiaryAIV2';
-
-// [DIAG] Toykids 진단 전용 — pool_id 원문을 UI에 노출하지 않음
-const _DIAG_POOL_ID = 'pool_1780849364252_l9k44rbk3';
 import type { DiaryAIStateV2, StudentDiaryNote } from '../../services/DiaryAIService';
 
 // ─── V2 State → 레거시 AIState 매핑 ─────────────────────────────────────────
@@ -237,10 +233,6 @@ export default function DiaryAIModalV2({
               </View>
             ) : null}
 
-            {/* [DIAG] Toykids 전용 임시 진단 박스 — 일반 pool 절대 표시 안 함 */}
-            {hookOptions.poolId === _DIAG_POOL_ID && hook.diagMeta ? (
-              <DiagDebugBox meta={hook.diagMeta} />
-            ) : null}
           </View>
         );
 
@@ -420,67 +412,6 @@ function StudentNoteCard({ student, onChange }: StudentNoteCardProps) {
     </View>
   );
 }
-
-// ─── DiagDebugBox (Toykids 전용 임시 진단 UI) ────────────────────────────────
-
-function DiagDebugBox({ meta }: { meta: DiaryAIDiagMeta }) {
-  const rows: [string, string][] = [
-    ['Pipeline',   meta.pipelineMode],
-    ['Mode',       meta.generationMode],
-    ['Templates',  String(meta.templateIdsCount)],
-    ['Knowledge',  String(meta.knowledgeIdsCount)],
-    ['Grounding',  meta.groundingValidation],
-    ['Fallback',   String(meta.fallbackUsed)],
-    ['CommonLen',  String(meta.commonLength)],
-    ['Students',   String(meta.studentResultCount)],
-    ['ReqID …',   meta.requestIdSuffix],
-  ];
-  return (
-    <View style={diagStyles.container}>
-      <Text style={diagStyles.title}>⚙ AI DEBUG</Text>
-      {rows.map(([label, value]) => (
-        <View key={label} style={diagStyles.row}>
-          <Text style={diagStyles.label}>{label}:</Text>
-          <Text style={diagStyles.value}>{value}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const diagStyles = StyleSheet.create({
-  container: {
-    marginTop:       16,
-    marginBottom:    8,
-    padding:         10,
-    borderRadius:    8,
-    backgroundColor: '#F0F4FF',
-    borderWidth:     1,
-    borderColor:     '#BDD0FF',
-  },
-  title: {
-    fontSize:    10,
-    fontWeight:  '700',
-    color:       '#3A5FBF',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  row: {
-    flexDirection: 'row',
-    marginBottom:  2,
-  },
-  label: {
-    fontSize:   10,
-    color:      '#5577AA',
-    width:      76,
-    fontWeight: '600',
-  },
-  value: {
-    fontSize:   10,
-    color:      '#1A2C55',
-    flexShrink: 1,
-  },
-});
 
 const STUDENT_NOTE_MIN_H = 60;
 

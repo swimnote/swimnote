@@ -56,18 +56,12 @@ const TIMEOUT_MS = 60_000;
 // ★ false로 고정 — request_id 없는 응답은 즉시 CONTRACT_REQUEST_ID_MISSING 반환
 const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = false;
 
-// ─── 진단 기준 pool ───────────────────────────────────────────────────────────
-// P0 Trace: request pool_id가 정확히 이 값인지 확인 (Production 로그용 boolean만)
-const _TRACE_TOYKIDS_POOL_ID = 'pool_1780849364252_l9k44rbk3';
-
 // ─── Contract 버전 관리 ───────────────────────────────────────────────────────
 //
 // 앱이 전송하는 contract_version — Request에 포함됩니다.
 //
-// WP6: '1.0' → '1.3' 업그레이드
-//   contract 1.3이어야 서버에서 Phase 0(resolvePoolMode)가 실행되고
-//   X pool에서 x_global template search / curriculum candidate search가 활성화됩니다.
-//   contract 1.0은 poolMode 조회를 건너뛰므로 X mode가 미활성화됩니다.
+// ★ Teacher Diary는 contract_version = '1.0' 고정.
+//   Production Engine은 1.0만 지원하며, 1.3 전송 시 HTTP 400 반환.
 export const APP_CONTRACT_VERSION = '1.0' as const;
 
 /**
@@ -813,21 +807,7 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     endpointPath = ep.path;
   } catch { /* grounded + URL 미설정 — sendRequest에서 처리 */ }
 
-  // ── 5. REQUEST 진단 로그 (PII 미포함 — Production 항시 출력) ─────────────
-  // 금지: 학생 이름, 교사 입력 원문, JWT, pool_id 원문, 전체 payload
-  // 허용: request_id, contract_version, endpoint, boolean flags, counts, lengths
-  console.log('[DiaryAIService] teacher_diary_request_trace', {
-    request_id:         requestId,
-    contract_version:   APP_CONTRACT_VERSION,
-    endpoint:           `${endpointHost}${endpointPath}`,
-    is_toykids_pool:    poolId === _TRACE_TOYKIDS_POOL_ID,
-    class_id_present:   Boolean(classId),
-    lesson_date_present: Boolean(date),
-    student_count:      students.length,
-    text_length:        inputText.trim().length,
-  });
-
-  // ── 6. 진행 상태 알림 ────────────────────────────────────────────────────
+  // ── 5. 진행 상태 알림 ────────────────────────────────────────────────────
   // 현재 서버는 단일 HTTP 응답만 제공 (SSE 미지원).
   // AI Engine SSE 연결 시 실제 이벤트에 맞춰 onProgress 호출 시점을 변경하십시오.
   onProgress?.('SEARCHING');
@@ -922,28 +902,8 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     };
   }
 
-  // ── RESPONSE 진단 로그 (PII 미포함 — Production 항시 출력) ─────────────────
-  // 금지: 일지 본문, 학생 이름, 학생 ID, 원문
-  // 허용: request_id, 상태값, meta 수치, 길이 합산
-  const resMeta = normalized.result.meta;
-  const totalStudentContentLen = normalized.result.students.reduce(
-    (sum, s) => sum + s.content.length, 0,
-  );
-  console.log('[DiaryAIService] teacher_diary_response_trace', {
-    request_id:                requestId,
-    http_status:               clientResult.httpStatus,
-    pipeline_mode:             resMeta?.pipelineMode   ?? '(none)',
-    generation_mode:           resMeta?.generationMode ?? '(none)',
-    template_ids_count:        resMeta?.templateIds?.length    ?? 0,
-    knowledge_ids_count:       resMeta?.knowledgeIds?.length   ?? 0,
-    grounding_validation:      resMeta?.groundingValidation    ?? '(none)',
-    fallback_used:             resMeta?.fallbackUsed           ?? false,
-    common_length:             normalized.result.common.length,
-    student_result_count:      normalized.result.students.length,
-    total_student_content_length: totalStudentContentLen,
-  });
   // POLISH_ONLY 전용 안내 (Developer Log)
-  if (__DEV__ && resMeta?.generationMode === 'POLISH_ONLY') {
+  if (__DEV__ && normalized.result.meta?.generationMode === 'POLISH_ONLY') {
     console.log('[DiaryAIService] POLISH_ONLY: 입력 내용을 중심으로 문장을 정리했습니다.');
   }
 
