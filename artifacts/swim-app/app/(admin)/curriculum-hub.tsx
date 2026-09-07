@@ -240,7 +240,7 @@ export default function CurriculumHubScreen() {
       {/* ── A. 교육 커리큘럼 ────────────────────────────────────────── */}
       <View style={s.sectionHeader}>
         <Text style={s.sectionTitle}>교육 커리큘럼</Text>
-        <Text style={s.sectionSub}>curriculum_versions → student_curriculum_assignments</Text>
+        <Text style={s.sectionSub}>AI 기반 학생별 커리큘럼 배정 및 성장 추적</Text>
       </View>
 
       {/* KPI */}
@@ -372,7 +372,7 @@ export default function CurriculumHubScreen() {
       {/* ── Parent AI 사용 현황 ──────────────────────────────────────── */}
       <View style={[s.sectionHeader, { marginTop: 24 }]}>
         <Text style={s.sectionTitle}>학부모 AI 커리큘럼 검색</Text>
-        <Text style={s.sectionSub}>event_logs (category=AI, feature=parent_curriculum_search)</Text>
+        <Text style={s.sectionSub}>학부모 앱 커리큘럼 AI 검색 현황</Text>
       </View>
       {summaryData && (
         <View style={s.parentAiCard}>

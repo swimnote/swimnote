@@ -101,7 +101,7 @@ function getStatusDisplay(status: string) {
 }
 
 function isAnalyzingState(status: string): boolean {
-  return ["OPEN","PREANALYZING","READY_FOR_ANALYSIS","ANALYZING","REGENERATING","REVIEW_REQUIRED"].includes(status);
+  return ["OPEN","PREANALYZING","READY_FOR_ANALYSIS","ANALYZING","REGENERATING"].includes(status);
 }
 
 // ── BatchStatusBadge ──────────────────────────────────────────────────────────
@@ -386,7 +386,7 @@ export default function ReportHubScreen() {
               >
                 {isLoading
                   ? <ActivityIndicator size={12} color="#fff" />
-                  : <LucideIcon name="Send" size={12} color="#fff" />
+                  : <LucideIcon name="send" size={12} color="#fff" />
                 }
                 <Text style={s.actionBtnPrimaryText}>발송</Text>
               </TouchableOpacity>
@@ -397,7 +397,7 @@ export default function ReportHubScreen() {
                 disabled={isLoading}
                 onPress={() => { setDiscardTarget(item); setDiscardConfirm(true); }}
               >
-                <LucideIcon name="Trash2" size={12} color="#C62828" />
+                <LucideIcon name="trash-2" size={12} color="#C62828" />
                 <Text style={s.actionBtnDangerText}>폐기</Text>
               </TouchableOpacity>
             )}
@@ -406,7 +406,7 @@ export default function ReportHubScreen() {
                 style={[s.actionBtn, s.actionBtnGhost]}
                 onPress={() => { setRegenTarget(item); setRegenConfirm(true); }}
               >
-                <LucideIcon name="RefreshCw" size={12} color="#1565C0" />
+                <LucideIcon name="refresh-cw" size={12} color="#1565C0" />
                 <Text style={s.actionBtnBlueText}>재발급</Text>
               </TouchableOpacity>
             )}
@@ -459,7 +459,7 @@ export default function ReportHubScreen() {
               style={s.bulkSendBtn}
               onPress={() => setBulkSendConfirm(true)}
             >
-              <LucideIcon name="Send" size={14} color="#fff" />
+              <LucideIcon name="send" size={14} color="#fff" />
               <Text style={s.bulkSendBtnText}>
                 대기 중 {summary.ready_count}건 전체 발송
               </Text>
@@ -479,7 +479,7 @@ export default function ReportHubScreen() {
       {/* ── 연도 + 월 선택 ── */}
       <View style={s.sectionRow}>
         <TouchableOpacity style={s.yearBtn} onPress={() => { setYear(y => y - 1); }}>
-          <LucideIcon name="ChevronLeft" size={16} color={C.textPrimary} />
+          <LucideIcon name="chevron-left" size={16} color={C.textPrimary} />
         </TouchableOpacity>
         <Text style={s.yearText}>{year}년</Text>
         <TouchableOpacity
@@ -487,7 +487,7 @@ export default function ReportHubScreen() {
           onPress={() => { setYear(y => y + 1); }}
           disabled={year >= now.getFullYear()}
         >
-          <LucideIcon name="ChevronRight" size={16} color={year >= now.getFullYear() ? C.textMuted : C.textPrimary} />
+          <LucideIcon name="chevron-right" size={16} color={year >= now.getFullYear() ? C.textMuted : C.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -509,7 +509,7 @@ export default function ReportHubScreen() {
 
       {/* ── 검색 ── */}
       <View style={s.searchRow}>
-        <LucideIcon name="Search" size={16} color={C.textMuted} />
+        <LucideIcon name="search" size={16} color={C.textMuted} />
         <TextInput
           style={s.searchInput}
           value={q}
@@ -519,7 +519,7 @@ export default function ReportHubScreen() {
         />
         {q.length > 0 && (
           <TouchableOpacity onPress={() => setQ("")}>
-            <LucideIcon name="X" size={16} color={C.textMuted} />
+            <LucideIcon name="x" size={16} color={C.textMuted} />
           </TouchableOpacity>
         )}
       </View>
@@ -532,7 +532,7 @@ export default function ReportHubScreen() {
       {/* 오류 */}
       {error && (
         <View style={s.errorWrap}>
-          <LucideIcon name="AlertCircle" size={24} color="#C62828" />
+          <LucideIcon name="alert-circle" size={24} color="#C62828" />
           <Text style={s.errorText}>{error}</Text>
           <TouchableOpacity
             style={s.retryBtn}
@@ -571,7 +571,7 @@ export default function ReportHubScreen() {
               : rows.length === 0 && !loading
               ? (
                 <View style={s.emptyWrap}>
-                  <LucideIcon name="FileSearch" size={40} color={C.textMuted} />
+                  <LucideIcon name="file-text" size={40} color={C.textMuted} />
                   <Text style={s.emptyTitle}>리포트가 없습니다</Text>
                   <Text style={s.emptySub}>{year}년 {month}월 AI 성장리포트가 아직 없습니다.</Text>
                 </View>

@@ -32,8 +32,8 @@ const SECTIONS: { title: string; items: MenuItem[] }[] = [
   {
     title: "보강 관리",
     items: [
-      { label: "보강 관리",     icon: "rotate-ccw",  color: "#EA580C", route: "/(admin)/makeups",              desc: "보강 신청 · 대기 · 배정 처리" },
-      { label: "휴무일 관리",   icon: "x-square",    color: "#1D4ED8", route: "/(admin)/holidays",             desc: "수영장 휴무 · 공휴일 설정" },
+      { label: "보강 관리",     icon: "calendar-check", color: "#EA580C", route: "/(admin)/makeups",           desc: "보강 신청 · 대기 · 배정 처리" },
+      { label: "휴무일 관리",   icon: "calendar-days",  color: "#1D4ED8", route: "/(admin)/holidays",          desc: "수영장 휴무 · 공휴일 설정" },
       { label: "보강정책 설정", icon: "sliders",     color: "#7C3AED", route: "/(admin)/makeup-policy",        desc: "보강 가능 기간 및 규칙" },
     ],
   },

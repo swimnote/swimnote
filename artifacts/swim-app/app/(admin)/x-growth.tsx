@@ -1,5 +1,5 @@
 /**
- * (admin)/x-growth.tsx — SWIMNOTE X 성장판 (pool_admin) WP9 / WP13
+ * (admin)/x-growth.tsx — SWIMNOTE X 성장 이벤트 (pool_admin) WP9 / WP13
  *
  * XModeGuard 보호 유지.
  * 구조:
@@ -188,12 +188,12 @@ export default function AdminXGrowthScreen() {
           </Pressable>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={s.title}>성장판</Text>
+              <Text style={s.title}>성장 이벤트</Text>
               <View style={s.xBadge}>
                 <Text style={s.xBadgeTxt}>SWIMNOTE X</Text>
               </View>
             </View>
-            <Text style={s.headerSub}>학생별 성장 이벤트 조회</Text>
+            <Text style={s.headerSub}>AI 일지 기반 학생 성장 기록</Text>
           </View>
         </View>
 

@@ -1,5 +1,5 @@
 /**
- * (teacher)/x-growth.tsx — SWIMNOTE X 성장판 (teacher) WP9 / WP13
+ * (teacher)/x-growth.tsx — SWIMNOTE X 성장 이벤트 (teacher) WP9 / WP13
  *
  * XModeGuard 보호 유지.
  * 구조:
@@ -159,7 +159,7 @@ export default function TeacherXGrowthScreen() {
           </Pressable>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={s.title}>성장판</Text>
+              <Text style={s.title}>성장 이벤트</Text>
               <View style={s.xBadge}>
                 <Text style={s.xBadgeTxt}>SWIMNOTE X</Text>
               </View>

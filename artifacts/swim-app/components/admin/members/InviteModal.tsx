@@ -10,8 +10,6 @@ import { buildInviteMessage, type StudentMember } from "@/utils/studentUtils";
 import { useInviteRecordStore } from "@/store/inviteRecordStore";
 
 const C = Colors.light;
-const KAKAO_YELLOW = "#FEE500";
-const KAKAO_TEXT   = "#191919";
 
 interface InviteModalProps {
   student: StudentMember;
@@ -41,25 +39,6 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
       studentName:  student.name,
       messageBody:  msg,
     };
-  }
-
-  async function openKakao() {
-    addRecord({ ...makeRecordBase() });
-    await Clipboard.setStringAsync(msg);
-    const kakaoScheme = "kakaotalk://";
-    const canOpen = await Linking.canOpenURL(kakaoScheme);
-    if (canOpen) {
-      Alert.alert(
-        "카카오톡 열기",
-        "메시지가 복사되었습니다.\n카카오톡 채팅창에서 붙여넣기 해주세요.",
-        [
-          { text: "취소", style: "cancel" },
-          { text: "카카오톡 열기", onPress: () => Linking.openURL(kakaoScheme) },
-        ]
-      );
-    } else {
-      await Share.share({ message: msg });
-    }
   }
 
   async function openSms() {
@@ -104,21 +83,14 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
             <Text style={inv.msgText}>{msg}</Text>
           </View>
 
-          {/* 카카오톡 초대 버튼 (주 버튼) */}
-          <View>
-            <Pressable style={[inv.kakaoBtn]} onPress={openKakao}>
-              <Text style={inv.kakaoBtnIcon}>💬</Text>
-              <Text style={inv.kakaoBtnTxt}>카카오톡으로 초대하기</Text>
-            </Pressable>
-            <Text style={inv.kakaoNote}>* 카카오톡에 등록된 친구만 초대 가능</Text>
-          </View>
+          {/* 문자 (주 버튼) */}
+          <Pressable style={inv.smsBtn} onPress={openSms}>
+            <LucideIcon name="message-circle" size={16} color="#fff" />
+            <Text style={inv.smsBtnTxt}>문자로 초대하기</Text>
+          </Pressable>
 
-          {/* 문자 / 복사 / 공유 */}
+          {/* 복사 / 공유 */}
           <View style={inv.btnRow}>
-            <Pressable style={[inv.btn, { backgroundColor: C.brandSoft }]} onPress={openSms}>
-              <LucideIcon name="message-circle" size={14} color={C.brandStrong} />
-              <Text style={[inv.btnText, { color: C.brandStrong }]}>문자</Text>
-            </Pressable>
             <Pressable style={[inv.btn, { backgroundColor: "#F3F4F6" }]} onPress={copyMessage}>
               <LucideIcon name="copy" size={14} color={C.textSecondary} />
               <Text style={[inv.btnText, { color: C.textSecondary }]}>복사</Text>
@@ -146,10 +118,8 @@ const inv = StyleSheet.create({
   studentName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   msgBox:      { backgroundColor: C.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   msgText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 20 },
-  kakaoBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: KAKAO_YELLOW },
-  kakaoBtnIcon:{ fontSize: 16 },
-  kakaoBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: KAKAO_TEXT },
-  kakaoNote:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#999", textAlign: "center", marginTop: 5 },
+  smsBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: C.brandStrong },
+  smsBtnTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   btnRow:      { flexDirection: "row", gap: 8 },
   btn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 11, borderRadius: 12 },
   btnText:     { fontSize: 13, fontFamily: "Pretendard-Regular" },

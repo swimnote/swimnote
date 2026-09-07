@@ -452,7 +452,7 @@ export default function DashboardScreen() {
                 onPress={() => router.push("/(admin)/holidays" as any)}
               >
                 <View style={s.quickBtnIcon}>
-                  <LucideIcon name="calendar-off" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
+                  <LucideIcon name="calendar-days" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
                 </View>
                 <Text style={s.quickBtnLabel}>휴무일</Text>
                 <Text style={[s.quickBtnSub, { color: !holidayConfirmed && confirmTargetMonth ? "#DC2626" : C.textMuted }]}>

@@ -674,7 +674,7 @@ export default function ClassesScreen() {
           <View style={s.rightBtns}>
             <Pressable style={[s.iconBtn, { backgroundColor: C.backgroundSoft }]}
               onPress={() => router.push("/(admin)/makeups?backTo=classes" as any)}>
-              <LucideIcon name="rotate-ccw" size={13} color={C.textSecondary} />
+              <LucideIcon name="calendar-check" size={13} color={C.textSecondary} />
               <Text style={[s.iconBtnTxt, { color: C.textSecondary }]}>보강</Text>
             </Pressable>
             <Pressable style={[s.mgmtBtn, { borderColor: themeColor }]}
