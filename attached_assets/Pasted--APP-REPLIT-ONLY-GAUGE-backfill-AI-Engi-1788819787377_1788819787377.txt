@@ -1,0 +1,206 @@
+[보낼 곳: APP REPLIT]
+
+[조사 ONLY — 정상 커리큘럼 파일 업로드 과정 생략이 GAUGE 미작동 원인인지 확인]
+
+아직 backfill 구현하지 마.
+AI Engine 수정하지 마.
+DB 데이터 생성/삭제하지 마.
+OTA 하지 마.
+
+먼저 매우 중요한 선행조건을 확인한다.
+
+현재 Toykids X모드는 정상적인
+"커리큘럼 파일 업로드/등록 과정"을 거치지 않고
+개발 과정에서 강제로 활성/삽입된 이력이 있다.
+
+따라서 현재 curriculum progress가 0인 원인이
+단순히 과거 diary에 curriculum_matches가 없어서가 아니라,
+
+정상 curriculum upload/provisioning 과정에서 생성되어야 할
+version/items/mapping metadata 자체가 누락된 것인지
+먼저 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 정상 커리큘럼 업로드 전체 파이프라인 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드에서 실제 정상 흐름을 찾는다.
+
+커리큘럼 파일 업로드
+→ parse
+→ curriculum/version 생성
+→ curriculum_items 생성
+→ ordering/level/category/skill 저장
+→ template와 item mapping
+→ pool active version 지정
+→ X curriculum scope 활성
+
+정확히 어떤 단계가 있는지 실제 코드 기준으로 보고.
+
+파일명/함수명/API/table을 전부 적는다.
+
+특히 업로드 과정에서 아래가 생성되는지 확인:
+
+- curriculum_versions
+- curriculum_items
+- active version relation
+- item sort_order
+- skill/category/stroke/level metadata
+- template_id relation
+- global template relation
+- knowledge relation
+- curriculum matching index/table
+- 기타 diary → curriculum item 연결에 필요한 key
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Toykids Production 현재 상태와 정상 업로드 결과 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids Production pool에 대해 실제 조회:
+
+ACTIVE CURRICULUM VERSION:
+- version id
+- active 여부
+- source/import method
+- created_at
+
+CURRICULUM ITEMS:
+- 총 item 수
+- active item 수
+- sort_order 존재율
+- level metadata 존재율
+- stroke/skill/category metadata 존재율
+
+MAPPING:
+- template ↔ curriculum item mapping 수
+- mapping 가능한 item 수
+- mapping 없는 item 수
+- 실제 사용 table/field
+
+그리고 정상 파일 업로드를 거친 test/dev pool 또는
+정상 import fixture와 구조를 비교.
+
+표:
+
+구성요소 | 정상 업로드 시 생성 | Toykids 현재 | 누락 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. "강제삽입"이 실제로 무엇을 만들었는지 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+개발 중 Toykids에 강제 삽입했던 코드/스크립트/SQL을 찾는다.
+
+강제삽입이 실제로 한 것:
+
+- mode만 x로 변경?
+- active version 생성?
+- curriculum items 직접 insert?
+- global template만 연결?
+- mapping 생성?
+- import metadata 생성?
+
+정확히 확인.
+
+정상 upload pipeline과 비교해
+SKIPPED STEP을 전부 나열.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. curriculum_matches 생성 조건 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 diary save가 curriculum_matches를 받을 때만
+growth_events가 생성된다고 보고했다.
+
+그렇다면 그 curriculum_matches는 원래 어디서 생성되는지 역추적.
+
+AI Engine:
+template_id
+knowledge_ids
+student_ref
+
+↓
+
+어떤 APP/API 코드가
+template/evidence를 curriculum item과 비교하여
+curriculum_matches를 만드는가?
+
+그리고 그 코드가 필요로 하는 DB 데이터가 무엇인지 확인.
+
+특히:
+
+정상 curriculum upload 때 생성되는 mapping 데이터가 없어서
+curriculum_matches가 항상 empty가 되는지 확인.
+
+실제 AI Diary request/response 하나로 trace:
+
+Engine template_id
+→ curriculum mapper 입력
+→ candidate item
+→ curriculum_matches
+
+각 단계 결과를 출력.
+
+개인정보는 마스킹.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 핵심 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 셋 중 하나로 결론내라.
+
+CASE A
+정상 커리큘럼 업로드를 생략해서
+필수 curriculum/template mapping이 누락됨.
+→ 이것이 primary root cause.
+
+CASE B
+Toykids에는 정상 active version/items/mapping이 모두 있음.
+→ upload 생략은 원인이 아님.
+→ diary pipeline의 curriculum_matches 생성 로직 문제.
+
+CASE C
+둘 다 문제.
+→ provisioning 누락 + diary mapping bug 동시 존재.
+
+추측 금지.
+실제 DB/code 결과로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 이번 조사에서 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 기존 343 diary AI backfill 금지
+- 새 mapping table 생성 금지
+- migration 금지
+- AI Engine 수정 금지
+- Production data 수정 금지
+- Render deploy 금지
+- OTA 금지
+
+먼저 원인만 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 정상 curriculum upload pipeline 전체 단계
+2. 관련 파일/함수/API
+3. 정상 생성 DB/table/metadata
+4. Toykids active curriculum version
+5. Toykids curriculum item 수
+6. Toykids item metadata 상태
+7. 정상 template↔curriculum mapping 수
+8. Toykids mapping 수
+9. 강제삽입 당시 실제 수행 단계
+10. 정상 과정에서 생략된 단계
+11. curriculum_matches 원래 생성 위치
+12. 실제 AI diary 1건:
+    template_id
+    mapper candidate
+    curriculum_matches 결과
+13. 최종 판정:
+    CASE A / B / C
+14. 정확한 root cause
+15. 수정 방향만 제안
+
+수정하지 말고 STOP.
