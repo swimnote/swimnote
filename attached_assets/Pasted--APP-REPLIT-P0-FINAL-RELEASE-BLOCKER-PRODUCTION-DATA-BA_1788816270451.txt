@@ -1,0 +1,1290 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL RELEASE BLOCKER — PRODUCTION DATA BACKBONE 완성 / 출시 전 마지막 서버 통합 수정]
+
+이번 작업은 Android 가격표/Android Build 이전 마지막 핵심 수정이다.
+
+이번 작업 완료 후 더 이상 화면별 서버 연결을 땜질하지 않을 수 있도록
+SWIMNOTE APP/API의 데이터 연결 본진을 완성한다.
+
+이번 작업 범위:
+
+1. 관리자 회원카드 → 회원상세 정상화
+2. X모드 핵심 Dashboard 전체 Production 서버 연결
+3. X 활성방식/시작일/만료일 실제 데이터 연결
+4. "커리큘럼 연결"의 현재 구조 정확히 규명
+5. Teacher Diary / AI Engine evidence와 Curriculum 완전 결합
+6. 학생별 CurriculumProgress 단일 source 구축
+7. 관리자 커리큘럼 실제 진도 연결
+8. 학부모 커리큘럼 "준비중" 제거 + 실제 진도 게이지
+9. X Dashboard Curriculum KPI를 같은 progress source에 연결
+10. AI 성장리포트 Dashboard/API 완전 연결
+11. 매월 5일 발급준비 → 관리자 검토/재생성/제외 → 직접 발송 흐름 완성
+
+이번 작업에서 하지 말 것:
+
+- 아이콘 수정
+- 버튼 크기 수정
+- 스케줄러 디자인 수정
+- UI 전체 재디자인
+- Android 가격표
+- Android Build
+- 관련 없는 refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 완료 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래는 PASS가 아니다:
+
+코드가 있음
+Git push 됨
+Render 배포됨
+OTA 발행됨
+화면이 열림
+숫자 0이 표시됨
+
+PASS 기준:
+
+Production DB
+→ canonical server service
+→ 실제 존재하는 API
+→ authenticated Production HTTP
+→ frontend mapping
+→ 실제 앱 표시
+
+가 전부 일치해야 한다.
+
+없는 endpoint를 frontend에서 상상해서 호출 금지.
+
+API 오류를:
+
+value ?? 0
+count || 0
+
+등으로 0처럼 보여주는 코드 금지.
+
+각 값은 반드시 구분:
+
+LOADED_VALUE
+LOADED_ZERO
+ERROR
+UNAVAILABLE
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 전체 서버 연결망을 하나로 전수조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 화면별로 따로 조사하지 않는다.
+
+아래 5개의 흐름을 하나의 dependency map으로 만든다.
+
+A. MEMBER
+
+Admin MemberCard
+→ student/member id
+→ navigation
+→ member detail
+→ API
+→ server route
+→ service/query
+→ student/class/teacher/attendance/memo DB
+
+B. X DASHBOARD
+
+x-hub
+→ 모든 metric
+→ API
+→ server
+→ source DB/service
+
+C. CURRICULUM
+
+Curriculum Set/Version
+→ Item
+→ Student Diary
+→ Diary Evidence
+→ Curriculum Item Mapping
+→ Progress
+→ Admin
+→ Parent
+→ X Dashboard
+
+D. AI ENGINE CONNECTION
+
+Teacher Diary input
+→ AI Engine
+→ Template Search
+→ Knowledge Search
+→ student_ref result
+→ APP normalize
+→ Diary save
+→ 어떤 evidence가 실제 저장되는지
+
+E. GROWTH REPORT
+
+previous month diary/data
+→ report cycle
+→ prepare/generate
+→ manager review
+→ regenerate/exclude
+→ manager send
+→ PUBLISHED
+→ parent feed/push/PDF
+→ X Dashboard status
+
+먼저 어디에서 연결이 끊겼는지 정확히 확정하고
+그 구조를 기준으로 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 서버 DOMAIN BACKBONE 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+화면마다 DB query를 따로 해석하지 말고
+API Server에 canonical domain service 계층을 둔다.
+
+기존 service가 이미 있으면 새로 만들지 말고 통합/재사용.
+
+최소 논리 단위:
+
+A. StudentContextService
+
+학생 하나의 운영정보 source-of-truth.
+
+반환 범위:
+
+- student
+- enrollment/status
+- class
+- teacher
+- current level
+- linked parents
+- recent attendance
+- memo
+- 회원상세에 필요한 기존 데이터
+
+B. CurriculumProgressService
+
+입력:
+
+poolId
+studentId
+
+반환 개념:
+
+student_id
+curriculum/version
+progress_percent
+completed_count
+total_count
+current_items
+completed_items
+in_progress_items
+not_started_items
+recent_progress
+last_updated_at
+
+Admin/Parent/X는 이 동일 계산을 사용.
+
+C. XContextService
+
+- X mode
+- activation_type
+- paid/manual/HQ
+- started_at
+- expires_at
+- plan
+- storage entitlement
+
+D. XDashboardService
+
+X Dashboard metric을
+위 canonical service + authoritative stats로 조합.
+
+E. GrowthReportManagementService
+
+관리자 Growth Report 운영상태를
+하나의 canonical source로 제공.
+
+중요:
+
+Frontend에서 progress/상태/발급가능 여부를 재계산하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 관리자 회원카드 → 회원상세 전수조사 및 복구
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production에서 회원카드 선택 시
+회원정보를 정상적으로 불러오지 못함.
+
+처음부터 실제 trace:
+
+MemberCard에 있는 id
+→ navigation param
+→ detail screen param
+→ request URL
+→ HTTP status/body
+→ server route
+→ StudentContext/query
+→ DB
+
+반드시 실제 Production 회원으로 확인.
+
+이전 실제 장애도 재확인:
+
+attendance.date가 TEXT인데
+timestamp와 비교하여 Postgres 500이 발생했던 이력.
+
+date::date 수정이
+현재 실제 Render LIVE 코드에 포함되어 있는지 확인.
+
+특히:
+
+회원 부가정보 한 query가 실패했다고
+전체 회원을 MEMBER_NOT_FOUND로 만들지 말 것.
+
+오류 정확히 구분:
+
+401 AUTH
+403 FORBIDDEN
+404 MEMBER_NOT_FOUND
+500 INTERNAL_SERVER_ERROR
+NETWORK_ERROR
+
+실제 500을 "회원정보 없음"이라고 보여주지 않는다.
+
+Production 회원 최소 3명:
+
+1. 재원 + 출결 많음
+2. 재원 + 출결 적음
+3. 과거 데이터/메모 등 있는 회원
+
+각각:
+
+detail API 200
+이름
+상태
+반
+담당
+레벨
+출결
+메모
+기존 상세정보
+
+정상 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. X Dashboard 모든 metric 서버 전수조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+app/(admin)/x-hub.tsx
+
+화면에 표시하는 모든 데이터에 대해 표 작성:
+
+metric
+frontend field
+endpoint
+server route
+service/query
+DB/source
+Production HTTP
+Production actual
+UI actual
+
+최소:
+
+- X 활성
+- 활성 방식
+- 시작일
+- 만료일
+- plan
+- 재원 학생
+- 선생님
+- 연결 학부모
+- 저장공간
+- AI 일지
+- Curriculum
+- Growth Report
+- Growth Event
+
+존재하지 않는 endpoint 호출 0개.
+
+없는 route이면:
+
+1. 기존 canonical endpoint 검색
+2. 있으면 재사용
+3. 정말 필요한 기능이고 endpoint가 없을 때만 minimal route 생성
+
+frontend에 임의 URL부터 만드는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. X 활성 방식 / 시작일 / 만료일
+━━━━━━━━━━━━━━━━━━━━━━
+
+canonical semantics 유지:
+
+feature access = canonical mode resolver
+paid = x_paid_entitlement
+manual = x_manual_entitlement
+HQ = x_management_override
+forced off = x_force_disabled
+
+mode === 'x' != paid
+
+현재 Production pool의 X 활성 source를 실제 확인.
+
+반환:
+
+activation_type
+activation_source
+started_at
+expires_at
+
+강제/수동 활성도 실제 시작한 시점이 저장돼 있으면
+그 timestamp 사용.
+
+updated_at을 임의 시작일로 쓰지 말 것.
+
+표시 예:
+
+관리자 수동 활성
+시작일 2026.XX.XX
+만료 없음
+
+또는
+
+X300 구독
+시작일 ...
+만료일 ...
+
+과거 started_at을 정말 어디에서도 찾을 수 없다면:
+
+시작일 기록 없음
+
+으로 표시.
+
+NaN / Invalid Date 금지.
+
+현재부터도 activation timestamp 자체를 저장하지 않는 구조라면
+그 사실과 최소 schema 필요성을 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. "커리큘럼 연결"이 현재 무엇인지 완전히 규명
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+현재 다음을 실제 코드/DB 기준으로 조사:
+
+- curriculum 관련 모든 table
+- curriculum set/version
+- curriculum item
+- item order
+- template/curriculum 관계
+- student_curriculum_assignments
+- assignment 생성 코드
+- assignment 읽는 코드
+- parent curriculum route
+- admin curriculum route
+- progress 관련 기존 코드
+- "준비중" render 조건
+- diary → curriculum mapping
+- template → curriculum mapping
+
+반드시 답:
+
+1. student_curriculum_assignments는 왜 존재하는가?
+2. 누가 생성하는가?
+3. 누가 읽는가?
+4. Production에 0건인 이유는 무엇인가?
+5. 0건인데 왜 X Dashboard는 "미배정"으로 표시했는가?
+6. 원래 제품 의미의 "커리큘럼 연결"과 assignment가 같은 것인가?
+7. 일지를 보고 진도를 계산하는 코드가 이미 있는가?
+8. 있다면 어디서 끊겼는가?
+9. 없다면 학부모 게이지/준비중 화면은 왜 만들어졌는가?
+
+조사결과에 따라
+죽은 assignment 개념을 core progress source로 사용하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. AI Engine ↔ APP Diary evidence 싱크 완전 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Teacher Diary AI Engine은 내부에서:
+
+입력 구조화
+→ Template Search
+→ Knowledge Search
+→ Grounded generation
+→ student_ref별 결과
+
+를 수행한다.
+
+APP/API와 비교해서 아래를 단계별로 조사:
+
+ENGINE HAS
+→ HTTP RETURNS
+→ APP NORMALIZE
+→ DIARY SAVE
+→ DB STORES
+→ CURRICULUM USES
+
+확인할 metadata:
+
+student_ref
+template_id / template_ids
+knowledge_ids
+stroke
+skill/topic
+lesson/category
+level
+structured observation
+success/error/state
+기타 교육내용 stable identifier
+
+특히 확인:
+
+Engine에서는 정확한 Template을 찾았는데
+최종 APP에는 자연어 문장만 저장되어
+Template identity/evidence가 버려지고 있는가?
+
+YES라면 이것이 핵심 sync 문제다.
+
+APP에서 자연어를 다시 GPT로 재해석해서 보완하지 말 것.
+
+Engine에서 이미 만든 deterministic evidence를
+보존해서 재사용하는 구조로 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. AI ENGINE 변경 필요 여부 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP/API만으로 가능한지 먼저 확인.
+
+Engine 내부에는 필요한 template/evidence가 있는데
+Contract response에서 유실된다면
+정확히 다음을 보고:
+
+ENGINE HAS
+HTTP RETURNS
+APP SAVES
+LOST
+CURRICULUM NEEDS
+
+Contract 1.0을 깨지 않는
+optional metadata/evidence 확장으로 해결 가능한지 우선 확인.
+
+APP에서 Engine 결과를 추측해 복원하지 말 것.
+
+AI Engine Core Pipeline 자체를 다시 만들거나 변경하지 않는다.
+
+AI ENGINE repo 수정이 실제 필수이면
+이번 APP 작업에서 임의로 다른 repo를 수정하지 말고
+완료보고에 정확한 AI ENGINE handoff를 생성한다.
+
+단 APP/API에서 해결 가능한 것까지
+AI Engine 핑계로 HOLD 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Diary Evidence canonical화
+━━━━━━━━━━━━━━━━━━━━━━
+
+Progress의 source는
+"학생이 실제 받은 수업기록"이다.
+
+기존 schema/metadata를 우선 사용해서
+Diary evidence를 canonical하게 보존/조회.
+
+필요 개념:
+
+student_ref
+lesson_date
+template identity
+knowledge identity
+stroke
+skill/topic
+level
+structured state
+evidence source
+
+새 field/table은
+기존 데이터로 정말 불가능할 때만.
+
+매 조회마다 자연어 diary를 OpenAI로 재분석하는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Diary → Curriculum Item Mapping
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선순위:
+
+1. explicit curriculum_item_id
+2. template_id ↔ curriculum_item deterministic mapping
+3. structured stroke/skill/lesson/category/level
+4. Template DB ↔ Curriculum DB canonical mapping
+5. 정말 deterministic 불가능한 자유서술만 AI Engine classification 보조
+
+LLM에게 직접:
+
+"이 학생 몇 % 완료?"
+
+질문해서 percentage를 생성하는 방식 절대 금지.
+
+AI는 item/evidence 식별까지만.
+
+퍼센트 계산은 서버 deterministic.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Curriculum Item 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 × curriculum item 기준:
+
+NOT_STARTED
+IN_PROGRESS
+COMPLETED
+
+IN_PROGRESS:
+
+해당 item과 연결되는 실제 diary evidence 존재.
+
+COMPLETED:
+
+기존 시스템에서 사용할 수 있는
+실제 완료 근거가 있어야 함.
+
+확인:
+
+success state
+achieved
+mastery
+completed
+level test
+explicit positive result
+curriculum completion rule
+기타 verified state
+
+일지에 한번 언급됐다고 COMPLETED 처리 금지.
+
+완료근거가 없으면 IN_PROGRESS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Curriculum Progress 계산 단일화
+━━━━━━━━━━━━━━━━━━━━━━
+
+CurriculumProgressService에서만 계산.
+
+현재 curriculum 구조가 단순 item이면 기본:
+
+completed_items / total_trackable_items × 100
+
+실제 weight/required/group 구조가 있으면
+기존 구조 우선.
+
+IN_PROGRESS를 임의 50% 처리 금지.
+
+제품 정의가 별도로 없으면:
+
+게이지 %
+= COMPLETED 기준
+
+현재 배우는 항목
+= IN_PROGRESS 별도 표시
+
+Admin/Parent/X frontend에서 자체 계산 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 과거 Diary 전부 Progress에 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+오늘 이후 작성되는 diary부터 시작하면 안 됨.
+
+기존 Production Diary 전체에서:
+
+student
+→ diary evidence
+→ curriculum item mapping
+→ progress
+
+계산 가능해야 한다.
+
+먼저 on-read aggregation 가능성 확인.
+
+성능상 문제 없으면
+별도 progress table 필요 없음.
+
+materialized state가 정말 필요할 때만 DB migration 검토.
+
+"student_curriculum_progress table 없음"
+한 가지 이유로 구현 불가 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 신규 Diary 자동 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher에게 별도 curriculum 체크 업무 추가 금지.
+
+정상 flow:
+
+Teacher Diary 작성
+→ 기존 Diary save
+→ evidence 보존
+→ curriculum mapping
+→ progress 변화
+→ Admin 반영
+→ Parent 반영
+→ X Dashboard aggregation 반영
+
+수동 assignment 작업을 선생님에게 요구하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 관리자 AI 커리큘럼
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자는 학생별로 실제 Progress를 확인.
+
+최소 데이터:
+
+학생
+반
+담당
+레벨
+progress %
+완료 / 전체
+현재 진행 항목
+최근 진행 항목
+last_updated
+
+"미배정"이 핵심 상태가 아님.
+
+학생 detail을 열면
+CurriculumProgressService 결과 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 학부모 Curriculum "준비중" 완전 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Parent Curriculum이
+왜 "준비중"인지 실제 trace:
+
+Parent child
+→ route
+→ API
+→ server
+→ progress
+→ response
+→ frontend condition
+→ 준비중
+
+가능성 모두 실제 확인:
+
+- hardcoded placeholder
+- API 없음
+- API 404/500
+- assignment empty
+- X guard
+- progress service 없음
+- student link 문제
+- curriculum inactive
+- response mapping
+
+정확한 root cause 확정 후 수정.
+
+최종 Parent 화면에서 실제 자녀 데이터:
+
+- 현재 커리큘럼
+- progress %
+- 게이지
+- 완료 / 전체
+- 현재 배우는 항목
+- 완료 item
+- 진행 중 item
+- 미시작 item
+- 최근 반영일
+
+표시.
+
+Admin과 Parent가 같은 학생이면
+progress 결과가 정확히 동일해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. X Dashboard Curriculum KPI도 같은 Backbone
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+커리큘럼 미배정 N
+커리큘럼 배정 N
+
+같은 assignment 기반 KPI 제거.
+
+CurriculumProgressService 기반 실제 KPI 사용.
+
+실제 의미 있고 계산 가능한 것만 표시.
+
+예:
+
+진도 추적 학생 N명
+이번 달 진도 갱신 N명
+활성 Curriculum N개
+
+어떤 KPI를 사용할지는
+실제 available source 확인 후 확정.
+
+없는 데이터를 보여주지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. AI 성장리포트 서버 연결 완전 복구
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+Growth Report는 이미 Production 핵심 기능이다.
+
+frontend에서 존재하지 않는 endpoint 호출 금지.
+
+실제 현재 canonical Growth Report API/service를 전수 확인:
+
+- monthly cycle
+- summary
+- manager review queue
+- report list
+- report detail
+- regenerate
+- exclude
+- publish/send
+- status counts
+
+각각:
+
+frontend endpoint
+server route
+DB/service
+response schema
+
+일치시킨다.
+
+정상 empty 상태와 API error 상태를 분리.
+
+서버 error인데 KPI 0으로 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Growth Report 월간 정책 정확히 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+확정 제품 정책:
+
+전월 수업 데이터 마감
+→ 다음 달 5일까지 대상 학생 Report 생성/준비
+→ 관리자가 검토
+→ 필요 학생 제외 가능
+→ 필요 시 개별/대상 Report 재생성 가능
+→ 관리자가 직접 "발송"
+→ 그 순간 PUBLISHED
+→ 학부모 feed/push/PDF 제공
+
+Scheduler가 자동 PUBLISH 하면 안 됨.
+
+이미 제거한 auto publish 회귀 금지.
+
+5일은:
+
+"학부모에게 무조건 자동발송하는 날"
+
+이 아니라
+
+"관리자가 발급/발송할 수 있도록 준비가 완료되는 기준"
+
+으로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. X Dashboard에 Growth Report 운영 상태 실제 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+X Dashboard에서 관리자가
+이번 달 Growth Report 상태를 바로 이해할 수 있어야 함.
+
+서버 실제 상태를 기준으로 표시 가능한 최소 운영정보:
+
+- 대상 학생 수
+- 생성 전 / 준비 중
+- 검토 대기
+- 발송 대기
+- 발송 완료
+- 제외
+- 실패
+
+실제 기존 status contract에 맞게 mapping.
+
+없는 새로운 상태를 frontend에서 발명하지 말 것.
+
+특히 5일 이후:
+
+발급 준비가 완료된 report가 존재하면
+Dashboard에서 관리자가
+Growth Report 관리 화면으로 바로 들어가
+검토/발송할 수 있어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. Growth Report 관리자 발송 기능 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 flow 확인:
+
+1. 해당 월 cycle 존재
+2. eligible student 계산
+3. reports prepare/generate
+4. REVIEW/READY 상태
+5. 관리자 목록 확인
+6. 특정 학생 제외
+7. 필요 report regenerate
+8. 관리자 발송 버튼
+9. server publish/send
+10. PUBLISHED
+11. parent feed 생성
+12. push
+13. parent detail
+14. PDF
+
+"발송" 버튼이 frontend 상태만 바꾸면 안 됨.
+
+실제 server 상태가 PUBLISHED 되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Growth Report 재등록 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료 AI 성장리포트 대상 정책 유지:
+
+전월 수업기록이 있고
+다음 달 재등록이 완료된 회원이 대상.
+
+퇴원/미재등록 회원에게
+무료 report를 자동 발급하지 않는다.
+
+현재 eligibility service가 있으면 재사용.
+
+frontend에서 대상 여부 새 계산 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Growth Report X Dashboard 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+Dashboard의:
+
+성장리포트 발송 완료 N건
+
+만 보여주고 끝내지 말 것.
+
+이번 달 운영상 다음 행동이 있으면
+실제 서버 데이터를 기반으로 actionable하게 표시.
+
+예:
+
+검토 대기 N건
+발송 대기 N건
+
+이 존재하면
+"오늘 확인할 것" 영역에서
+Growth Report 관리로 이동 가능.
+
+단 count는 실제 DB/service 값.
+
+fake 0 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. Growth Report 실제 Production 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 월 + 이전 월 실제 cycle로 확인.
+
+최소:
+
+A. report 없는 정상 month
+→ empty
+→ server error 없음
+
+B. 준비된 report
+→ review queue 표시
+
+C. 제외
+→ 실제 제외 상태
+
+D. regenerate
+→ 새 report 정상
+
+E. 관리자 send
+→ PUBLISHED
+
+F. Parent
+→ feed/detail/PDF
+
+실제 Production 또는 안전한 현재 데이터로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. X Dashboard 부분 실패 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Dashboard metric 하나 실패했다고
+전체 Dashboard를 0 또는 server error 화면으로 만들지 않는다.
+
+metric/service 단위로 오류 격리.
+
+예:
+
+재원학생 210
+선생님 8
+연결학부모 112
+AI 일지 -
+성장리포트 검토대기 7
+
+가능해야 함.
+
+실패 metric만 retry/error 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 실제 E2E — MEMBER
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 회원 최소 3명:
+
+MemberCard
+→ detail
+→ API 200
+→ StudentContext
+→ 실제 데이터
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 실제 E2E — CURRICULUM
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 학생 최소 3명:
+
+A. Diary 많음
+B. Diary 일부
+C. Diary 없음
+
+각각:
+
+matched items
+IN_PROGRESS
+COMPLETED
+progress %
+Admin %
+Parent %
+last_updated
+
+Admin == Parent 필수.
+
+Diary 없음:
+허위 progress 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. 실제 E2E — 신규 Diary
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 학생:
+
+BEFORE:
+progress 기록
+
+→ Teacher Diary 실제 저장
+
+→ Engine evidence 확인
+
+→ Diary DB 저장
+
+→ curriculum item mapping
+
+→ progress 변화
+
+→ Admin 변화
+
+→ Parent 변화
+
+→ X aggregate 필요 시 변화
+
+까지 확인.
+
+수동 DB UPDATE로 성공 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. 실제 E2E — X DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+X Dashboard 모든 metric:
+
+API value
+==
+UI value
+
+확인.
+
+특히:
+
+activation
+student
+teacher
+parent
+storage
+AI Diary
+Curriculum
+Growth Report
+Growth Event
+
+각각 실제 source 증명.
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. Git / Render / Release 정합성
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전처럼 GitHub main과 Render LIVE가 다른 상태로
+PASS 금지.
+
+반드시 마지막에:
+
+origin/main SHA
+Render LIVE SHA
+release/v2.0.0 SHA
+
+확인.
+
+Server 수정:
+
+main push
+→ Render가 정확히 그 SHA로 LIVE
+→ Production smoke
+
+그 다음 APP release 통합.
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. DB Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 구조로 가능하면 migration 금지.
+
+정말 필요하면 승인 없이 실행하지 말고:
+
+WHY
+SCHEMA
+BACKFILL
+NEW WRITE PATH
+IDEMPOTENCY
+ROLLBACK
+
+정확히 보고.
+
+단:
+
+"progress table이 없다"
+
+한 줄은 migration 근거가 아니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업 중간 OTA 남발 금지.
+
+모든 server/backend 연결 완료 후:
+
+1. Render LIVE 확인
+2. Production smoke
+3. canonical release/v2.0.0 통합
+4. 현재 Production iOS runtime 확인
+5. 올바른 production-v2 update route 확인
+6. iOS OTA 1회
+7. 실제 iPhone 검증
+
+Android OTA 금지.
+Android Build 금지.
+
+Android 가격표/Build는 이 작업 PASS 후 다음 단계.
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. FINAL PASS CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━
+
+MEMBER
+
+[ ] 회원카드 → 상세 실제 API 200
+[ ] 실제 회원정보 표시
+[ ] 404/500 구분
+[ ] Production 회원 3명 PASS
+
+X
+
+[ ] 모든 metric source 확인
+[ ] 존재하지 않는 endpoint 0
+[ ] error→0 fallback 0
+[ ] activation 방식 정상
+[ ] 시작일 정상
+[ ] 만료일 정상
+[ ] NaN 0
+[ ] Dashboard API == UI
+
+CURRICULUM
+
+[ ] "커리큘럼 연결" 실제 기존 의미 규명
+[ ] assignment 실제 역할 규명
+[ ] AI Engine evidence 유실 위치 규명
+[ ] Diary→Curriculum deterministic mapping
+[ ] CurriculumProgressService 단일화
+[ ] 과거 Diary 반영
+[ ] 신규 Diary 자동 반영
+[ ] Admin progress 정상
+[ ] Parent "준비중" 제거
+[ ] Parent 게이지 실제 표시
+[ ] Admin == Parent
+[ ] X Curriculum KPI 동일 backbone
+
+GROWTH REPORT
+
+[ ] 실제 canonical APIs 모두 연결
+[ ] 없는 frontend route 0
+[ ] 5일까지 generate/prepare 흐름 정상
+[ ] 자동 publish 없음
+[ ] 관리자 review queue
+[ ] 관리자 exclude
+[ ] 관리자 regenerate
+[ ] 관리자 직접 send
+[ ] send 후 PUBLISHED
+[ ] Parent feed
+[ ] Push
+[ ] Detail
+[ ] PDF
+[ ] X Dashboard 검토대기/발송대기/완료 count 실제 server 연결
+[ ] Dashboard에서 관리화면 이동
+[ ] 정상 empty와 server error 구분
+
+DEPLOYMENT
+
+[ ] main == 의도한 server commit
+[ ] Render LIVE == main server commit
+[ ] release canonical 정상
+[ ] iOS Production OTA 정상
+[ ] 실제 iPhone E2E 정상
+[ ] Android untouched
+
+하나라도 실패하면 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+34. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. ROOT CAUSE
+
+- 전체 구조에서 끊겨 있던 지점
+- 왜 화면별 서버 오류/0/준비중이 발생했는지
+
+B. BACKBONE
+
+- StudentContextService
+- CurriculumProgressService
+- XContextService
+- XDashboardService
+- GrowthReportManagementService
+
+각 실제 구현/재사용 위치
+
+C. MEMBER
+
+route
+service
+DB
+Production HTTP
+3명 테스트
+
+D. X DASHBOARD CONTRACT
+
+metric
+endpoint
+service
+DB/source
+HTTP
+actual
+UI
+PASS
+
+E. CURRICULUM
+
+curriculum source
+assignment 실제 역할
+Diary source
+Engine evidence
+유실 위치
+mapping rule
+completion rule
+progress formula
+past Diary 처리
+new Diary 처리
+
+F. ADMIN/PARENT
+
+학생 A/B/C
+Admin %
+Parent %
+동일 여부
+Parent 준비중 제거
+게이지 실제 결과
+
+G. AI ENGINE
+
+ENGINE HAS
+HTTP RETURNS
+APP SAVES
+LOST
+CURRICULUM USES
+Engine 수정 필요 YES/NO
+
+H. GROWTH REPORT
+
+cycle source
+eligible source
+prepare/generated
+review queue
+exclude
+regenerate
+send
+published
+parent feed/push/pdf
+
+해당 월 실제 count:
+
+대상
+생성 전
+검토 대기
+발송 대기
+발송 완료
+제외
+실패
+
+X Dashboard 표시값과 비교
+
+I. DEPLOYMENT
+
+main SHA
+Render LIVE SHA
+release SHA
+OTA ID
+runtime
+channel/branch
+DB migration 여부
+
+J. RELEASE BLOCKER
+
+남은 항목 전부 명시.
+
+남은 출시 blocker = 0
+일 때만 PASS.
+
+최종:
+PASS / HOLD / FAIL
+
+완료 후 STOP.
+
+Android 가격표/Android Build는 절대 시작하지 말 것.
+이 작업 PASS 후 별도 지시로 진행한다.
