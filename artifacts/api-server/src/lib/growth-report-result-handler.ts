@@ -288,7 +288,7 @@ export async function persistEngineQuestions(
         metric_definition_version, question_policy_version,
         created_at
       ) VALUES (
-        gen_random_uuid(), ${reportId}, ${q.engine_question_id}, ${q.metric_id},
+        gen_random_uuid(), ${reportId}, ${(q as any).engine_question_id ?? (q as any).question_id ?? null}, ${q.metric_id},
         ${q.question_text}, ${answerType},
         ${optionsJson}::jsonb,
         ${q.parent_confirmable_behavior ?? null},
