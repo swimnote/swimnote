@@ -22,7 +22,7 @@ const MINT_LIGHT = "#E9EEF3";   // xAccentLight
 const NAVY       = "#23415C";   // xAccentStrong
 
 const FEATURES = [
-  { icon: "activity",       label: "실시간 성장판",         sub: "자녀의 수영 항목별 달성 현황" },
+  { icon: "activity",       label: "실시간 성장 이벤트",     sub: "자녀의 수영 항목별 달성 현황" },
   { icon: "file-text",      label: "월별 성장 리포트",      sub: "AI가 분석한 자녀 성장 요약" },
   { icon: "award",          label: "커리큘럼 달성 현황",    sub: "수영 커리큘럼 단계별 진도" },
 ];

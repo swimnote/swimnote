@@ -101,7 +101,9 @@ function getStatusDisplay(status: string) {
 }
 
 function isAnalyzingState(status: string): boolean {
-  return ["OPEN","PREANALYZING","READY_FOR_ANALYSIS","ANALYZING","REGENERATING"].includes(status);
+  // 실제 비동기 처리 중 상태만 포함
+  // OPEN("대기 중")·READY_FOR_ANALYSIS("분석 준비")·REVIEW_REQUIRED("검토 대기") = 큐 대기 → spinner 금지
+  return ["PREANALYZING","ANALYZING","REGENERATING"].includes(status);
 }
 
 // ── BatchStatusBadge ──────────────────────────────────────────────────────────
