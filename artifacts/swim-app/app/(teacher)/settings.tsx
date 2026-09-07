@@ -283,7 +283,6 @@ function CategoryD({
   const items = [
     { label: "이용약관",          icon: "file-text",     route: "/terms" },
     { label: "개인정보처리방침",   icon: "shield",        route: "/privacy" },
-    { label: "환불 및 결제 정책", icon: "file-check",    route: "/refund" },
     { label: "AI 문의",           icon: "message-circle",route: "/(teacher)/support-chat" },
     { label: "스윔노트 직접문의", icon: "help-circle",   route: "/(teacher)/inquiries" },
   ] as const;
