@@ -557,20 +557,10 @@ function RootNav() {
 
   // OTA 체크 + silent 다운로드 (V2: 사용자 알림 없음)
   async function checkAndDownloadOta() {
-    if (__DEV__) return;
-    // 진단: Updates.isEnabled 상태 확인
-    if (!Updates.isEnabled) {
-      Alert.alert("[OTA 진단]", `Updates.isEnabled=false\nchannel=${Updates.channel ?? "없음"}\nruntime=${Updates.runtimeVersion ?? "없음"}`);
-      return;
-    }
-    if (isCheckingRef.current) return;
+    if (__DEV__ || !Updates.isEnabled || isCheckingRef.current) return;
     isCheckingRef.current = true;
     try {
       const { isAvailable } = await Updates.checkForUpdateAsync();
-      if (!isAvailable) {
-        // 진단: 업데이트 없음 상태 표시
-        Alert.alert("[OTA 진단]", `isAvailable=false\nchannel=${Updates.channel ?? "없음"}\nruntime=${Updates.runtimeVersion ?? "없음"}\nupdateId=${Updates.updateId ?? "없음"}`);
-      }
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
         otaDownloadedRef.current = true;
@@ -578,8 +568,8 @@ function RootNav() {
           setOtaModalVisible(true);
         }
       }
-    } catch (e: any) {
-      Alert.alert("[OTA 진단]", `오류: ${String(e?.message ?? e)}`);
+    } catch (_) {
+      // 실패 시 앱 계속 사용
     } finally {
       isCheckingRef.current = false;
     }
