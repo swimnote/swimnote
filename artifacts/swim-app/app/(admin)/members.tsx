@@ -526,6 +526,7 @@ export default function MembersScreen() {
                 isSelected={sel.isSelected(item.id)}
                 onToggle={() => sel.toggleItem(item.id)}
                 actions={[]}
+                compactDetail
               />
             </View>
           )}
