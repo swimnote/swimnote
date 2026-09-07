@@ -1744,8 +1744,8 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
             COUNT(*) FILTER (WHERE status = 'late')::int    AS late_count
           FROM attendance
           WHERE student_id = ${studentId}
-            AND date >= date_trunc('month', NOW()::date)
-            AND date <  date_trunc('month', NOW()::date) + interval '1 month'
+            AND date::date >= date_trunc('month', NOW()::date)
+            AND date::date <  date_trunc('month', NOW()::date) + interval '1 month'
         `).then(r => r.rows),
 
         // 보강 요약 (waiting+expired=대기, assigned=배정됨, completed=완료)

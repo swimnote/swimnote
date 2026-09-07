@@ -49,6 +49,7 @@ export default function MemberDetailScreen() {
   const [groups, setGroups] = useState<ClassGroup[]>([]);
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [loading, setLoading]   = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
 
   // ── Section A 편집 상태 ─────────────────────────────────────────
@@ -96,6 +97,7 @@ export default function MemberDetailScreen() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const [detailRes, cgRes, lvRes] = await Promise.all([
         apiRequest(token, `/admin/students/${id}/detail`),
@@ -120,10 +122,22 @@ export default function MemberDetailScreen() {
         setEditParentPhone2((d as any).parent_phone2 || "");
         setEditParentPhone3((d as any).parent_phone3 || "");
         setEditParentPhone4((d as any).parent_phone4 || "");
+      } else {
+        const status = detailRes.status;
+        if (status === 403) {
+          setLoadError("이 회원을 조회할 권한이 없습니다");
+        } else if (status === 404) {
+          setLoadError("회원을 찾을 수 없습니다");
+        } else {
+          setLoadError("회원 정보를 불러오지 못했습니다");
+        }
       }
       if (cgRes.ok) setGroups(await cgRes.json());
       if (lvRes.ok) setLevelInfo(await lvRes.json());
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setLoadError("회원 정보를 불러오지 못했습니다");
+    }
     finally { setLoading(false); }
   }, [id, token]);
 
@@ -300,8 +314,10 @@ export default function MemberDetailScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: C.background }}>
         <SubScreenHeader title="회원 정보" />
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: C.textMuted }}>회원을 찾을 수 없습니다</Text>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Text style={{ color: C.textMuted }}>
+            {loadError ?? "회원을 찾을 수 없습니다"}
+          </Text>
         </View>
       </View>
     );
