@@ -358,8 +358,8 @@ export default function ReportHubScreen() {
       <Pressable
         style={s.row}
         onPress={() => router.push({
-          pathname: "/(admin)/x-growth" as any,
-          params: { preselect_student_id: item.student_id },
+          pathname: "/(admin)/report-detail" as any,
+          params: { report_id: item.report_id },
         })}
       >
         <View style={s.rowTop}>

@@ -21,7 +21,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { XModeGuard } from "@/components/common/XModeGuard";
@@ -52,6 +52,7 @@ const STATUS_FILTER_OPTIONS = [
 export default function TeacherXGrowthScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const { preselect_student_id } = useLocalSearchParams<{ preselect_student_id?: string }>();
 
   const [students,        setStudents]        = useState<Student[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -168,36 +169,38 @@ export default function TeacherXGrowthScreen() {
           </View>
         </View>
 
-        {/* 학생 선택 */}
-        <View style={s.sectionWrap}>
-          <Text style={s.sectionLabel}>학생 선택</Text>
-          {studentsLoading ? (
-            <ActivityIndicator color={MINT} style={{ marginVertical: 8 }} />
-          ) : students.length === 0 ? (
-            <Text style={s.noStudentTxt}>담당 학생이 없습니다.</Text>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingRight: 16 }}
-            >
-              {students.map(stu => {
-                const active = selectedStu?.id === stu.id;
-                return (
-                  <Pressable
-                    key={stu.id}
-                    style={[s.stuChip, active && s.stuChipActive]}
-                    onPress={() => handleSelectStudent(stu)}
-                  >
-                    <Text style={[s.stuChipTxt, active && s.stuChipTxtActive]}>
-                      {stu.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
+        {/* 학생 선택 — preselected 진입 시 숨김 */}
+        {!preselect_student_id && (
+          <View style={s.sectionWrap}>
+            <Text style={s.sectionLabel}>학생 선택</Text>
+            {studentsLoading ? (
+              <ActivityIndicator color={MINT} style={{ marginVertical: 8 }} />
+            ) : students.length === 0 ? (
+              <Text style={s.noStudentTxt}>담당 학생이 없습니다.</Text>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingRight: 16 }}
+              >
+                {students.map(stu => {
+                  const active = selectedStu?.id === stu.id;
+                  return (
+                    <Pressable
+                      key={stu.id}
+                      style={[s.stuChip, active && s.stuChipActive]}
+                      onPress={() => handleSelectStudent(stu)}
+                    >
+                      <Text style={[s.stuChipTxt, active && s.stuChipTxtActive]}>
+                        {stu.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        )}
 
         {/* status 필터 */}
         {selectedStu && (
