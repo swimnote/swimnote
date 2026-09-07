@@ -4607,38 +4607,33 @@ router.get(
       const poolId = await getAdminPoolId(req);
       if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
 
-      // ── KPI 1: 활성 커리큘럼 수 ───────────────────────────────────────
+      // ── KPI 1: 재원 학생 수 (student_class_history 기준) ─────────────────
       const [kpi1, kpi2, kpi3, kpi4, versionsRes, parentAiRes, xGlobalRes] = await Promise.all([
+        db.execute(sql`
+          SELECT COUNT(DISTINCT sch.student_id)::int AS cnt
+          FROM student_class_history sch
+          JOIN students s ON s.id = sch.student_id
+          WHERE s.swimming_pool_id = ${poolId} AND sch.left_at IS NULL
+        `),
+        // KPI 2: 최근 30일 출석 학생 수
+        db.execute(sql`
+          SELECT COUNT(DISTINCT student_id)::int AS cnt
+          FROM attendance
+          WHERE swimming_pool_id = ${poolId}
+            AND date >= (NOW() - INTERVAL '30 days')::date
+        `),
+        // KPI 3: 운영 중인 반 수
+        db.execute(sql`
+          SELECT COUNT(*)::int AS cnt
+          FROM class_groups
+          WHERE swimming_pool_id = ${poolId}
+            AND (is_active = true OR is_active IS NULL)
+        `),
+        // KPI 4: 활성 커리큘럼 수 (기존 유지)
         db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM curriculum_versions
           WHERE swimming_pool_id = ${poolId} AND is_active = true
-        `),
-        // KPI 2: 활성 version의 활성 item 수
-        db.execute(sql`
-          SELECT COUNT(ci.id)::int AS cnt
-          FROM curriculum_items ci
-          JOIN curriculum_versions cv ON cv.id = ci.curriculum_version_id
-          WHERE cv.swimming_pool_id = ${poolId} AND cv.is_active = true AND ci.is_active = true
-        `),
-        // KPI 3: 배정 학생 DISTINCT count
-        db.execute(sql`
-          SELECT COUNT(DISTINCT student_id)::int AS cnt
-          FROM student_curriculum_assignments
-          WHERE swimming_pool_id = ${poolId} AND is_active = true
-        `),
-        // KPI 4: 미배정 학생 (현재 재원 기준: student_class_history.left_at IS NULL)
-        db.execute(sql`
-          SELECT COUNT(DISTINCT s.id)::int AS cnt
-          FROM students s
-          JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
-          WHERE s.swimming_pool_id = ${poolId}
-            AND NOT EXISTS (
-              SELECT 1 FROM student_curriculum_assignments sca
-              WHERE sca.student_id = s.id
-                AND sca.swimming_pool_id = ${poolId}
-                AND sca.is_active = true
-            )
         `),
         // 커리큘럼 버전 목록 (item_count + assigned_student_count)
         db.execute(sql`
@@ -4689,10 +4684,14 @@ router.get(
 
       res.json({
         summary: {
-          active_versions:    Number(k1),
-          active_items:       Number(k2),
-          assigned_students:  Number(k3),
-          unassigned_students: Number(k4),
+          enrolled_students:       Number(k1),
+          recent_active_students:  Number(k2),
+          class_count:             Number(k3),
+          active_versions:         Number(k4),
+          // backward compat (더 이상 화면에 표시 안 함)
+          active_items:       0,
+          assigned_students:  0,
+          unassigned_students: 0,
         },
         versions: (versionsRes.rows as any[]).map(r => ({
           curriculum_version_id:  r.curriculum_version_id,
@@ -4769,15 +4768,17 @@ router.get(
       // 학생 목록
       const listRows = await db.execute(sql`
         SELECT
-          s.id              AS student_id,
-          s.name            AS student_name,
-          cg.id             AS class_group_id,
-          cg.name           AS class_name,
-          cg.teacher_user_id AS teacher_id,
-          u.name            AS teacher_name,
-          sca.curriculum_version_id,
-          cv.version_name   AS curriculum_version_name,
-          sca.is_active     AS assignment_is_active,
+          s.id                   AS student_id,
+          s.name                 AS student_name,
+          s.current_level_order  AS current_level_order,
+          cg.id                  AS class_group_id,
+          cg.name                AS class_name,
+          cg.teacher_user_id     AS teacher_id,
+          u.name                 AS teacher_name,
+          (
+            SELECT MAX(a.date)::text FROM attendance a
+            WHERE a.student_id = s.id AND a.swimming_pool_id = ${poolId}
+          ) AS last_attendance_date,
           (
             SELECT COUNT(*)::int FROM growth_events ge
             WHERE ge.student_id = s.id
@@ -4794,15 +4795,10 @@ router.get(
         JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
         LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
         LEFT JOIN users u ON u.id = cg.teacher_user_id
-        LEFT JOIN student_curriculum_assignments sca
-          ON sca.student_id = s.id AND sca.swimming_pool_id = ${poolId} AND sca.is_active = true
-        LEFT JOIN curriculum_versions cv ON cv.id = sca.curriculum_version_id
         WHERE s.swimming_pool_id = ${poolId}
           ${nameFilter}
           ${initialFilter}
           ${classFilter}
-          ${cvFilter}
-          ${assignFilter}
         ORDER BY s.name ASC
         LIMIT ${limitNum} OFFSET ${offset}
       `);
@@ -4811,15 +4807,12 @@ router.get(
         students: (listRows.rows as any[]).map(r => ({
           student_id:                r.student_id,
           student_name:             r.student_name,
+          current_level_order:      r.current_level_order != null ? Number(r.current_level_order) : null,
           class_group_id:           r.class_group_id,
           class_name:               r.class_name,
           teacher_id:               r.teacher_id,
           teacher_name:             r.teacher_name,
-          assignment: r.curriculum_version_id ? {
-            curriculum_version_id:   r.curriculum_version_id,
-            curriculum_version_name: r.curriculum_version_name,
-            is_active:               r.assignment_is_active,
-          } : null,
+          last_attendance_date:     r.last_attendance_date ?? null,
           recent_growth_event_count: Number(r.recent_growth_event_count ?? 0),
           latest_growth_event_at:   r.latest_growth_event_at ?? null,
         })),

@@ -1,12 +1,12 @@
 /**
- * (admin)/curriculum-hub.tsx — AI 커리큘럼 허브 (PHASE 4, INDEX FIX)
+ * (admin)/curriculum-hub.tsx — 학생 진도 현황 (STEP 12)
  *
- * FIX: students list → FlatList virtualization (ScrollView+map 제거)
- * FIX: 반 filter UI 추가 (class_group_id param 기존 API 그대로 사용)
- *
- * 두 시스템 완전 분리 유지:
- *   A. 교육 커리큘럼 (curriculum_versions → curriculum_items → student_curriculum_assignments → growth_events)
- *   B. X Global AI 일지 템플릿 (global_template_sets → diary_templates scope='x_global')
+ * 변경 내역:
+ *  - KPI: 배정/미배정 → 재원학생/최근출석/반수/커리큘럼
+ *  - 학생 row: 미배정 배지 제거 → 레벨·최근출석 표시
+ *  - 필터: 배정 상태 필터 제거 (assignment 미사용)
+ *  - 내부 DB 이름(sectionSub) 전면 제거
+ *  - 두 시스템(교육 커리큘럼 / X Global AI 일지 템플릿) 분리 유지
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -38,10 +38,15 @@ interface CurriculumVersion {
   assigned_student_count: number;
 }
 interface Summary {
+  // 신규 KPI
+  enrolled_students: number;
+  recent_active_students: number;
+  class_count: number;
   active_versions: number;
-  active_items: number;
-  assigned_students: number;
-  unassigned_students: number;
+  // backward compat (미사용)
+  active_items?: number;
+  assigned_students?: number;
+  unassigned_students?: number;
 }
 interface ParentAi {
   current_month_search_count: number;
@@ -62,15 +67,12 @@ interface SummaryResponse {
 interface StudentRow {
   student_id: string;
   student_name: string;
+  current_level_order: number | null;
   class_group_id: string | null;
   class_name: string | null;
   teacher_id: string | null;
   teacher_name: string | null;
-  assignment: {
-    curriculum_version_id: string;
-    curriculum_version_name: string;
-    is_active: boolean;
-  } | null;
+  last_attendance_date: string | null;
   recent_growth_event_count: number;
   latest_growth_event_at: string | null;
 }
@@ -79,7 +81,7 @@ interface ClassGroup { id: string; name: string; }
 // ─── 상수 ───────────────────────────────────────────────────────────────────
 const INITIALS = ["ㄱ","ㄴ","ㄷ","ㄹ","ㅁ","ㅂ","ㅅ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
 
-function formatRelative(dateStr: string | null): string {
+function formatRelativeDate(dateStr: string | null): string {
   if (!dateStr) return "";
   const d = new Date(dateStr);
   const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
@@ -87,7 +89,8 @@ function formatRelative(dateStr: string | null): string {
   if (diffDays === 1) return "어제";
   if (diffDays < 7)  return `${diffDays}일 전`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}주 전`;
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  if (diffDays < 365) return `${d.getMonth() + 1}/${d.getDate()}`;
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
@@ -104,14 +107,10 @@ export default function CurriculumHubScreen() {
   const [debouncedQ,      setDebouncedQ]      = useState("");
   const [selectedInitial, setSelectedInitial] = useState("");
   const [filterClassId,   setFilterClassId]   = useState("");
-  const [filterAssign,    setFilterAssign]    = useState<""|"assigned"|"unassigned">("");
-  const [filterVersionId, setFilterVersionId] = useState("");
   const [pendingClass,    setPendingClass]    = useState("");
-  const [pendingAssign,   setPendingAssign]   = useState<""|"assigned"|"unassigned">("");
-  const [pendingVersion,  setPendingVersion]  = useState("");
   const [showFilter,      setShowFilter]      = useState(false);
 
-  // 학생 목록 (FlatList)
+  // 학생 목록
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentsError,   setStudentsError]   = useState<string | null>(null);
   const [students,        setStudents]        = useState<StudentRow[]>([]);
@@ -120,7 +119,7 @@ export default function CurriculumHubScreen() {
   const [loadingMore,     setLoadingMore]     = useState(false);
   const pageRef = useRef(1);
 
-  // 반 목록 — student 응답에서 누적 수집 (API 변경 없음)
+  // 반 목록 — student 응답에서 누적
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
 
   // 검색 debounce
@@ -140,7 +139,7 @@ export default function CurriculumHubScreen() {
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "조회 실패"); }
       setSummaryData(await res.json());
     } catch (e: any) {
-      setSummaryError(e?.message || "커리큘럼 현황을 불러오지 못했습니다.");
+      setSummaryError(e?.message || "현황을 불러오지 못했습니다.");
     } finally {
       setSummaryLoading(false);
     }
@@ -155,11 +154,9 @@ export default function CurriculumHubScreen() {
     else        { setLoadingMore(true); }
     try {
       const p = new URLSearchParams({ page: reset ? "1" : String(pageRef.current + 1), limit: "30" });
-      if (debouncedQ)      p.set("q",                    debouncedQ);
-      if (selectedInitial) p.set("initial",              selectedInitial);
-      if (filterClassId)   p.set("class_group_id",       filterClassId);
-      if (filterAssign)    p.set("assignment",            filterAssign);
-      if (filterVersionId) p.set("curriculum_version_id",filterVersionId);
+      if (debouncedQ)      p.set("q",              debouncedQ);
+      if (selectedInitial) p.set("initial",        selectedInitial);
+      if (filterClassId)   p.set("class_group_id", filterClassId);
       const res = await apiRequest(token, `/admin/curriculum/students?${p.toString()}`);
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "조회 실패"); }
       const data = await res.json();
@@ -168,7 +165,6 @@ export default function CurriculumHubScreen() {
       else       { setStudents(prev => [...prev, ...rows]); pageRef.current = data.pagination?.page ?? pageRef.current + 1; }
       setTotal(data.pagination?.total ?? 0);
       setHasMore(data.pagination?.has_more ?? false);
-      // 반 목록 누적 (class_group_id / class_name 기준)
       setClassGroups(prev => {
         const map = new Map(prev.map(g => [g.id, g]));
         for (const r of rows) {
@@ -183,53 +179,38 @@ export default function CurriculumHubScreen() {
     } finally {
       setStudentsLoading(false); setLoadingMore(false);
     }
-  }, [token, debouncedQ, selectedInitial, filterClassId, filterAssign, filterVersionId]);
+  }, [token, debouncedQ, selectedInitial, filterClassId]);
 
-  useEffect(() => { fetchStudents(true); }, [debouncedQ, selectedInitial, filterClassId, filterAssign, filterVersionId]);
+  useEffect(() => { fetchStudents(true); }, [debouncedQ, selectedInitial, filterClassId]);
 
   // ─── 필터 ───────────────────────────────────────────────────────────────
-  const activeFilterCount = [filterClassId, filterAssign, filterVersionId].filter(Boolean).length;
-  const openFilter = () => {
-    setPendingClass(filterClassId); setPendingAssign(filterAssign); setPendingVersion(filterVersionId);
-    setShowFilter(true);
-  };
-  const applyFilter = () => {
-    setFilterClassId(pendingClass); setFilterAssign(pendingAssign); setFilterVersionId(pendingVersion);
-    setShowFilter(false);
-  };
-  const resetFilter = () => {
-    setPendingClass(""); setPendingAssign(""); setPendingVersion("");
-    setFilterClassId(""); setFilterAssign(""); setFilterVersionId("");
-    setShowFilter(false);
-  };
+  const activeFilterCount = [filterClassId].filter(Boolean).length;
+  const openFilter = () => { setPendingClass(filterClassId); setShowFilter(true); };
+  const applyFilter = () => { setFilterClassId(pendingClass); setShowFilter(false); };
+  const resetFilter = () => { setPendingClass(""); setFilterClassId(""); setShowFilter(false); };
 
   // ─── 학생 row 렌더 ───────────────────────────────────────────────────────
   const renderStudent = useCallback(({ item }: { item: StudentRow }) => (
     <View style={[s.studentRow, { marginHorizontal: 16 }]}>
       <View style={s.studentTop}>
         <Text style={s.studentName}>{item.student_name}</Text>
-        {item.assignment ? (
-          <View style={[s.assignChip, s.assignChipActive]}>
-            <Text style={s.assignChipText} numberOfLines={1}>{item.assignment.curriculum_version_name}</Text>
+        {item.current_level_order != null ? (
+          <View style={s.levelChip}>
+            <Text style={s.levelChipText}>Lv.{item.current_level_order}</Text>
           </View>
-        ) : (
-          <View style={s.assignChip}>
-            <Text style={[s.assignChipText, { color: C.textSecondary }]}>미배정</Text>
-          </View>
-        )}
+        ) : null}
       </View>
       <View style={s.studentMeta}>
         <LucideIcon name="users" size={12} color={C.textSecondary} />
         <Text style={s.studentMetaText}>{item.class_name ?? "반 미정"} · {item.teacher_name ?? "선생님 미정"}</Text>
       </View>
-      {item.recent_growth_event_count > 0 && (
-        <View style={s.growthRow}>
-          <LucideIcon name="trending-up" size={11} color="#6B7280" />
-          <Text style={s.growthText}>
-            최근 성장 이벤트 {item.recent_growth_event_count}건
-            {item.latest_growth_event_at ? ` · ${formatRelative(item.latest_growth_event_at)}` : ""}
-          </Text>
+      {item.last_attendance_date ? (
+        <View style={s.attRow}>
+          <LucideIcon name="calendar-check" size={11} color="#6B7280" />
+          <Text style={s.attText}>최근 출석 {formatRelativeDate(item.last_attendance_date)}</Text>
         </View>
+      ) : (
+        <Text style={s.noRecordText}>출석 기록 없음</Text>
       )}
     </View>
   ), []);
@@ -237,13 +218,11 @@ export default function CurriculumHubScreen() {
   // ─── ListHeaderComponent ─────────────────────────────────────────────────
   const ListHeader = (
     <View>
-      {/* ── A. 교육 커리큘럼 ────────────────────────────────────────── */}
+      {/* ── 학생 진도 현황 KPI ──────────────────────────────────────── */}
       <View style={s.sectionHeader}>
-        <Text style={s.sectionTitle}>교육 커리큘럼</Text>
-        <Text style={s.sectionSub}>AI 기반 학생별 커리큘럼 배정 및 성장 추적</Text>
+        <Text style={s.sectionTitle}>학생 진도 현황</Text>
       </View>
 
-      {/* KPI */}
       {summaryLoading ? (
         <View style={s.kpiGrid}>
           {[1,2,3,4].map(i => <View key={i} style={[s.kpiCard, { opacity: 0.3 }]}><View style={{ height: 28, width: 40, backgroundColor: C.border, borderRadius: 6 }} /></View>)}
@@ -258,45 +237,38 @@ export default function CurriculumHubScreen() {
         <>
           <View style={s.kpiGrid}>
             <View style={s.kpiCard}>
-              <Text style={s.kpiValue}>{summaryData.summary.active_versions}</Text>
-              <Text style={s.kpiLabel}>활성 커리큘럼</Text>
+              <Text style={s.kpiValue}>{summaryData.summary.enrolled_students ?? 0}</Text>
+              <Text style={s.kpiLabel}>재원 학생</Text>
             </View>
             <View style={s.kpiCard}>
-              <Text style={s.kpiValue}>{summaryData.summary.active_items}</Text>
-              <Text style={s.kpiLabel}>커리큘럼 항목</Text>
+              <Text style={s.kpiValue}>{summaryData.summary.recent_active_students ?? 0}</Text>
+              <Text style={s.kpiLabel}>최근 30일 출석</Text>
             </View>
             <View style={s.kpiCard}>
-              <Text style={s.kpiValue}>{summaryData.summary.assigned_students}</Text>
-              <Text style={s.kpiLabel}>배정 학생</Text>
+              <Text style={s.kpiValue}>{summaryData.summary.class_count ?? 0}</Text>
+              <Text style={s.kpiLabel}>운영 반</Text>
             </View>
-            <View style={[s.kpiCard, summaryData.summary.unassigned_students > 0 && s.kpiCardWarn]}>
-              <Text style={s.kpiValue}>{summaryData.summary.unassigned_students}</Text>
-              <Text style={s.kpiLabel}>미배정 학생</Text>
+            <View style={s.kpiCard}>
+              <Text style={s.kpiValue}>{summaryData.summary.active_versions ?? 0}</Text>
+              <Text style={s.kpiLabel}>커리큘럼</Text>
             </View>
           </View>
 
-          {/* 커리큘럼 버전 INDEX */}
-          <Text style={s.subSectionTitle}>커리큘럼 버전</Text>
-          {summaryData.versions.length === 0 ? (
-            <Text style={s.emptyDesc}>등록된 커리큘럼 버전이 없습니다.</Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-              <Pressable style={[s.versionChip, !filterVersionId && s.versionChipActive]}
-                onPress={() => setFilterVersionId("")}>
-                <Text style={[s.versionChipText, !filterVersionId && s.versionChipTextActive]}>전체</Text>
-              </Pressable>
-              {summaryData.versions.map(v => (
-                <Pressable key={v.curriculum_version_id}
-                  style={[s.versionChip, filterVersionId === v.curriculum_version_id && s.versionChipActive]}
-                  onPress={() => setFilterVersionId(filterVersionId === v.curriculum_version_id ? "" : v.curriculum_version_id)}>
-                  {v.is_active && <View style={s.activeVersionDot} />}
-                  <Text style={[s.versionChipText, filterVersionId === v.curriculum_version_id && s.versionChipTextActive]}
-                    numberOfLines={1}>{v.version_name}</Text>
-                  <Text style={s.versionChipMeta}>{v.item_count}항목 · {v.assigned_student_count}명</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+          {/* 커리큘럼 버전 INDEX (있을 때만) */}
+          {summaryData.versions.length > 0 && (
+            <>
+              <Text style={s.subSectionTitle}>커리큘럼 버전</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+                {summaryData.versions.map(v => (
+                  <View key={v.curriculum_version_id} style={s.versionChip}>
+                    {v.is_active && <View style={s.activeVersionDot} />}
+                    <Text style={s.versionChipText} numberOfLines={1}>{v.version_name}</Text>
+                    <Text style={s.versionChipMeta}>{v.item_count}항목</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </>
           )}
         </>
       ) : null}
@@ -304,7 +276,7 @@ export default function CurriculumHubScreen() {
       {/* ── 학생 탐색 헤더 ───────────────────────────────────────────── */}
       <Text style={s.subSectionTitle}>학생 탐색</Text>
 
-      {/* 검색 + 필터 버튼 */}
+      {/* 검색 + 필터 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <LucideIcon name="search" size={14} color={C.textSecondary} />
@@ -337,7 +309,7 @@ export default function CurriculumHubScreen() {
         ))}
       </ScrollView>
 
-      {/* 결과 수 / 로딩 */}
+      {/* 결과 수 */}
       {studentsLoading ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 16, marginBottom: 4 }}>
           <ActivityIndicator size="small" color={C.primary} />
@@ -361,7 +333,6 @@ export default function CurriculumHubScreen() {
   // ─── ListFooterComponent ─────────────────────────────────────────────────
   const ListFooter = (
     <View>
-      {/* load more */}
       {hasMore && !loadingMore && (
         <Pressable style={[s.loadMoreBtn, { marginHorizontal: 16 }]} onPress={() => fetchStudents(false)}>
           <Text style={s.loadMoreBtnText}>더 보기</Text>
@@ -369,10 +340,9 @@ export default function CurriculumHubScreen() {
       )}
       {loadingMore && <ActivityIndicator color={C.primary} style={{ marginVertical: 14 }} />}
 
-      {/* ── Parent AI 사용 현황 ──────────────────────────────────────── */}
+      {/* ── 학부모 AI 커리큘럼 검색 ─────────────────────────────────── */}
       <View style={[s.sectionHeader, { marginTop: 24 }]}>
         <Text style={s.sectionTitle}>학부모 AI 커리큘럼 검색</Text>
-        <Text style={s.sectionSub}>학부모 앱 커리큘럼 AI 검색 현황</Text>
       </View>
       {summaryData && (
         <View style={s.parentAiCard}>
@@ -384,7 +354,7 @@ export default function CurriculumHubScreen() {
           {summaryData.parent_ai.searcher_count > 0 && (
             <Text style={s.parentAiSub}>
               학부모 {summaryData.parent_ai.searcher_count}명 사용
-              {summaryData.parent_ai.latest_at ? ` · 최근 ${formatRelative(summaryData.parent_ai.latest_at)}` : ""}
+              {summaryData.parent_ai.latest_at ? ` · 최근 ${formatRelativeDate(summaryData.parent_ai.latest_at)}` : ""}
             </Text>
           )}
           {summaryData.parent_ai.current_month_search_count === 0 && (
@@ -393,14 +363,13 @@ export default function CurriculumHubScreen() {
         </View>
       )}
 
-      {/* ── B. X Global AI 일지 템플릿 (완전 독립 섹션) ─────────────── */}
+      {/* ── X Global AI 일지 템플릿 ──────────────────────────────────── */}
       <View style={[s.xGlobalSection, { marginTop: 20, marginBottom: 40 }]}>
         <View style={s.xGlobalHeader}>
           <LucideIcon name="sparkles" size={16} color="#6366F1" />
           <Text style={s.xGlobalTitle}>X Global AI 일지 템플릿</Text>
         </View>
         <Text style={s.xGlobalSub}>AI 일지 생성에 사용되는 글로벌 템플릿</Text>
-        <Text style={s.xGlobalNote}>※ 교육 커리큘럼과 별개의 독립 시스템</Text>
         {summaryData?.x_global ? (
           <View>
             <View style={s.xGlobalRow}>
@@ -434,7 +403,6 @@ export default function CurriculumHubScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="AI 커리큘럼" homePath="/(admin)/dashboard" />
 
-      {/* FlatList — virtualization, ListHeader/Footer로 나머지 섹션 포함 */}
       <FlatList
         data={students}
         keyExtractor={item => item.student_id}
@@ -450,16 +418,15 @@ export default function CurriculumHubScreen() {
         removeClippedSubviews={false}
       />
 
-      {/* ── 필터 모달 (반 + 배정 상태 + 커리큘럼 버전) ────────────────── */}
+      {/* ── 필터 모달 (반 선택만) ────────────────────────────────────── */}
       <Modal visible={showFilter} transparent animationType="slide" onRequestClose={() => setShowFilter(false)}>
         <Pressable style={s.modalOverlay} onPress={() => setShowFilter(false)}>
           <Pressable style={s.filterModal} onPress={e => e.stopPropagation()}>
             <View style={s.filterHandle} />
             <Text style={s.filterTitle}>필터</Text>
 
-            {/* 반 filter */}
             <Text style={s.filterSection}>반</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}
               contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
               <Pressable style={[s.filterChip, !pendingClass && s.filterChipActive]}
                 onPress={() => setPendingClass("")}>
@@ -475,40 +442,6 @@ export default function CurriculumHubScreen() {
                 <Text style={[s.filterChipText, { paddingVertical: 7, color: C.border }]}>학생 로드 후 표시</Text>
               )}
             </ScrollView>
-
-            {/* 배정 상태 */}
-            <Text style={s.filterSection}>배정 상태</Text>
-            <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
-              {([["", "전체"], ["assigned", "배정됨"], ["unassigned", "미배정"]] as const).map(([v, l]) => (
-                <Pressable key={v} style={[s.filterChip, pendingAssign === v && s.filterChipActive]}
-                  onPress={() => setPendingAssign(v)}>
-                  <Text style={[s.filterChipText, pendingAssign === v && s.filterChipTextActive]}>{l}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* 커리큘럼 버전 */}
-            {summaryData && summaryData.versions.length > 0 && (
-              <>
-                <Text style={s.filterSection}>커리큘럼 버전</Text>
-                <ScrollView style={{ maxHeight: 150, marginBottom: 20 }}>
-                  <Pressable style={[s.filterListItem, !pendingVersion && s.filterListItemActive]}
-                    onPress={() => setPendingVersion("")}>
-                    <Text style={[s.filterListItemText, !pendingVersion && { color: C.primary, fontFamily: "Pretendard-SemiBold" }]}>전체</Text>
-                  </Pressable>
-                  {summaryData.versions.map(v => (
-                    <Pressable key={v.curriculum_version_id}
-                      style={[s.filterListItem, pendingVersion === v.curriculum_version_id && s.filterListItemActive]}
-                      onPress={() => setPendingVersion(pendingVersion === v.curriculum_version_id ? "" : v.curriculum_version_id)}>
-                      {v.is_active && <View style={s.activeVersionDot} />}
-                      <Text style={[s.filterListItemText, pendingVersion === v.curriculum_version_id && { color: C.primary, fontFamily: "Pretendard-SemiBold" }]}>
-                        {v.version_name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </>
-            )}
 
             <View style={s.filterActionRow}>
               <Pressable style={s.filterResetBtn} onPress={resetFilter}><Text style={s.filterResetBtnText}>초기화</Text></Pressable>
@@ -527,19 +460,15 @@ const s = StyleSheet.create({
 
   sectionHeader: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
   sectionTitle: { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.textPrimary },
-  sectionSub: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   subSectionTitle: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginLeft: 16, marginTop: 12, marginBottom: 8 },
 
   kpiGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 8, marginBottom: 4 },
   kpiCard: { flex: 1, minWidth: "44%", backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 14, paddingHorizontal: 14 },
-  kpiCardWarn: { borderColor: "#FCD34D", backgroundColor: "#FFFBEB" },
   kpiValue: { fontSize: 22, fontFamily: "Pretendard-Bold", color: C.textPrimary, marginBottom: 2 },
   kpiLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   versionChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff", maxWidth: 200 },
-  versionChipActive: { backgroundColor: C.primary, borderColor: C.primary },
   versionChipText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  versionChipTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
   versionChipMeta: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
   activeVersionDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#10B981" },
 
@@ -560,13 +489,13 @@ const s = StyleSheet.create({
   studentRow: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14 },
   studentTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
   studentName: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textPrimary, flex: 1, marginRight: 8 },
-  assignChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: C.border, maxWidth: 160 },
-  assignChipActive: { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" },
-  assignChipText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2563EB" },
+  levelChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: "#BFDBFE", backgroundColor: "#EFF6FF" },
+  levelChipText: { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#2563EB" },
   studentMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
   studentMetaText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  growthRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  growthText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  attRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  attText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280" },
+  noRecordText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.border, fontStyle: "italic" },
 
   loadMoreBtn: { paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center", marginTop: 4, marginBottom: 8 },
   loadMoreBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
@@ -580,8 +509,7 @@ const s = StyleSheet.create({
   xGlobalSection: { marginHorizontal: 16, backgroundColor: "#F5F3FF", borderRadius: 14, borderWidth: 1, borderColor: "#DDD6FE", padding: 16 },
   xGlobalHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   xGlobalTitle: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#4C1D95" },
-  xGlobalSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", marginBottom: 2 },
-  xGlobalNote: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#8B5CF6", marginBottom: 12, fontStyle: "italic" },
+  xGlobalSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", marginBottom: 12 },
   xGlobalRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   xGlobalActiveBadge: { paddingHorizontal: 7, paddingVertical: 2, backgroundColor: "#7C3AED", borderRadius: 6 },
   xGlobalActiveBadgeText: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#fff", letterSpacing: 0.5 },
@@ -605,9 +533,6 @@ const s = StyleSheet.create({
   filterChipActive: { backgroundColor: C.primary, borderColor: C.primary },
   filterChipText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterChipTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
-  filterListItem: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
-  filterListItemActive: { backgroundColor: "#EFF6FF" },
-  filterListItemText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   filterActionRow: { flexDirection: "row", gap: 10, marginTop: 8 },
   filterResetBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: C.border, alignItems: "center" },
   filterResetBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
