@@ -158,8 +158,10 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
 
     // lesson_date 기준 student_class_history에 유효한 학부모 대상
     // — 해당 날짜 결석(absent) 학생의 학부모는 발송 제외
+    // parent별 student_id 포함 (feed API와 동일한 student_class_history 조건)
+    // DISTINCT 제거: multi-child parent의 자녀별 row를 별도 처리
     const parentRows = await db.execute(sql.raw(`
-      SELECT DISTINCT pa.id AS parent_account_id
+      SELECT pa.id AS parent_account_id, ps.student_id
       FROM parent_students ps
       JOIN parent_accounts pa ON pa.id = ps.parent_id
       JOIN student_class_history sch
@@ -178,15 +180,28 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
         )
     `));
 
-    // 인앱 알림 생성 (시간대 무관 즉시)
+    // multi-child parent 처리: 동일 parent에 여러 자녀 → studentId undefined (home fallback)
+    const parentStudentMap = new Map<string, string | undefined>();
     for (const p of parentRows.rows as any[]) {
+      if (!parentStudentMap.has(p.parent_account_id)) {
+        parentStudentMap.set(p.parent_account_id, p.student_id);
+      } else {
+        parentStudentMap.set(p.parent_account_id, undefined); // 복수 자녀 → fallback
+      }
+    }
+    const uniqueParents = Array.from(parentStudentMap.entries())
+      .map(([parent_account_id, student_id]) => ({ parent_account_id, student_id }));
+
+    // 인앱 알림 생성 (시간대 무관 즉시)
+    for (const p of uniqueParents) {
       const nid = genId("notif");
+      const diaryDeepLink = p.student_id ? `/(parent)/swim-diary?id=${p.student_id}` : null;
       await db.execute(sql`
-        INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+        INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, deep_link)
         VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
                 '수업 일지가 도착했어요',
                 ${notifBody},
-                ${diaryId}, 'class_diary', ${poolId}, false)
+                ${diaryId}, 'class_diary', ${poolId}, false, ${diaryDeepLink})
         ON CONFLICT DO NOTHING
       `);
     }
@@ -195,11 +210,13 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
     const kstNow = getKSTNow();
     if (isDiaryPushAllowed(kstNow)) {
       // 허용 시간대 → lesson_date 기준 학부모에게 즉시 개별 발송
-      for (const p of parentRows.rows as any[]) {
+      for (const p of uniqueParents) {
+        const pushData: Record<string, string> = { type: "diary_upload", diaryId, classId };
+        if (p.student_id) pushData.studentId = p.student_id;
         await sendPushToUser(
           p.parent_account_id, true, "diary_upload",
           "수업 일지가 도착했어요", notifBody,
-          { type: "diary_upload", diaryId, classId },
+          pushData,
           `diary_${diaryId}_${p.parent_account_id}`,
           { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
         ).catch(() => {});
@@ -218,31 +235,56 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
 }
 
 // 공통 일지 없이 개인 일지만 있을 때: 해당 학생의 학부모에게만 발송
-async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, className: string, poolId: string, lessonDate?: string) {
+// classGroupId: Feed API와 동일한 student_class_history 조건 적용을 위해 필요
+async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, className: string, poolId: string, lessonDate?: string, classGroupId?: string) {
   if (studentIds.length === 0) return;
   try {
     const dateLabel = lessonDate ? ` (${formatDateKr(lessonDate)})` : "";
     const idsLiteral = studentIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",");
+
+    // student_class_history 조건: lessonDate + classGroupId 있을 때 Feed API와 동일한 멤버십 검증
+    const historyJoin = (lessonDate && classGroupId)
+      ? `JOIN student_class_history sch
+           ON sch.student_id = ps.student_id
+           AND sch.class_group_id = '${classGroupId.replace(/'/g, "''")}'
+           AND sch.enrolled_at <= '${lessonDate.replace(/'/g, "''")}'
+           AND (sch.left_at IS NULL OR sch.left_at > '${lessonDate.replace(/'/g, "''")}')`
+      : "";
+
     const parentRows = await db.execute(sql.raw(`
-      SELECT DISTINCT pa.id AS parent_account_id, s.name AS student_name
+      SELECT pa.id AS parent_account_id, ps.student_id, s.name AS student_name
       FROM students s
       JOIN parent_students ps ON ps.student_id = s.id
       JOIN parent_accounts pa ON pa.id = ps.parent_id
+      ${historyJoin}
       WHERE s.id IN (${idsLiteral})
         AND s.status != 'deleted' AND ps.status = 'approved'
     `));
 
-    // 인앱 알림은 시간대 무관 즉시 생성
+    // multi-child parent 처리 (개인 일지에서 동일 parent에 복수 대상 자녀 — 극히 드문 edge case)
+    const parentStudentMap = new Map<string, { student_id: string | undefined; student_name: string }>();
     for (const p of parentRows.rows as any[]) {
+      if (!parentStudentMap.has(p.parent_account_id)) {
+        parentStudentMap.set(p.parent_account_id, { student_id: p.student_id, student_name: p.student_name });
+      } else {
+        parentStudentMap.set(p.parent_account_id, { student_id: undefined, student_name: p.student_name });
+      }
+    }
+    const uniqueParents = Array.from(parentStudentMap.entries())
+      .map(([parent_account_id, info]) => ({ parent_account_id, student_id: info.student_id, student_name: info.student_name }));
+
+    // 인앱 알림은 시간대 무관 즉시 생성
+    for (const p of uniqueParents) {
       const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
       const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요`;
       const nid = genId("notif");
+      const diaryDeepLink = p.student_id ? `/(parent)/swim-diary?id=${p.student_id}` : null;
       await db.execute(sql`
-        INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
+        INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, deep_link)
         VALUES (${nid}, ${p.parent_account_id}, 'parent_account', 'diary_upload',
                 '수업 일지가 도착했어요',
                 ${notifBody},
-                ${diaryId}, 'class_diary', ${poolId}, false)
+                ${diaryId}, 'class_diary', ${poolId}, false, ${diaryDeepLink})
         ON CONFLICT DO NOTHING
       `);
     }
@@ -251,13 +293,15 @@ async function sendDiaryPushToStudents(studentIds: string[], diaryId: string, cl
     const kstNow = getKSTNow();
     if (isDiaryPushAllowed(kstNow)) {
       // 허용 시간대 → 즉시 발송
-      for (const p of parentRows.rows as any[]) {
+      for (const p of uniqueParents) {
         const studentLabel = p.student_name ? `${p.student_name}의 ` : "";
         const notifBody = `${className}${dateLabel} ${studentLabel}개인 수업 일지가 도착했어요`;
+        const pushData: Record<string, string> = { type: "diary_upload", diaryId };
+        if (p.student_id) pushData.studentId = p.student_id;
         await sendPushToUser(
           p.parent_account_id, true, "diary_upload",
           "수업 일지가 도착했어요", notifBody,
-          { type: "diary_upload", diaryId },
+          pushData,
           `diary_${diaryId}_${p.parent_account_id}`,
           { subtitle: "SwimNote", channelId: "diary", priority: "high", ttl: 86400 }
         ).catch(() => {});
@@ -854,7 +898,7 @@ router.post("/diaries",
       } else {
         // 공통 일지 없음 → 개인 일지가 있는 학생의 학부모에게만 발송
         const noteStudentIds = savedNotes.map((n: any) => n.student_id);
-        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId, dateStr);
+        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId, dateStr, class_group_id);
       }
 
       logPoolEvent({
@@ -1601,7 +1645,7 @@ router.post("/diaries/with-media",
         sendDiaryPush(class_group_id, diaryId, className, poolId, dateStr);
       } else {
         const noteStudentIds = savedNotes.map((n: any) => n.student_id);
-        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId, dateStr);
+        sendDiaryPushToStudents(noteStudentIds, diaryId, className, poolId, dateStr, class_group_id);
       }
 
       logPoolEvent({

@@ -1,0 +1,195 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — DIARY SAVE FIX MAIN INTEGRATION
+# Video R2 env는 사용자 직접 Render에 입력 완료
+# 최소 수정만
+# 새 기능 금지
+# DB 변경 금지
+# WP17 선행 금지
+
+현재 사용자 조치 완료:
+
+Render Production service:
+swimnote-api
+
+다음 Video R2 env 입력 완료:
+
+CF_R2_VIDEO_ACCESS_KEY_ID
+CF_R2_VIDEO_SECRET_ACCESS_KEY
+CF_R2_VIDEO_BUCKET_NAME
+
+비밀값 재확인/출력 금지.
+
+Video R2 관련 코드 수정은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Diary Save fix를 Production main에 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+release/v2.0.0에서 완료된 fix:
+
+Commit:
+e821e2df
+
+Root Cause:
+
+POST /diaries에서
+poolId가 const 선언 전에 참조되어
+TDZ ReferenceError 발생
+→ 모든 Diary Save HTTP 500
+
+Fix:
+getUserPoolId/getUserName 초기화를
+사용 전에 수행하도록 순서 수정.
+
+Production Render는 main branch 기준.
+
+git fetch origin
+
+확인:
+
+origin/main HEAD:
+...
+
+e821e2df ancestor of origin/main:
+YES / NO
+
+YES:
+아무 변경하지 않음.
+
+NO:
+e821e2df만 최소 cherry-pick.
+
+충돌 발생 시 임의 해결 금지.
+HOLD 보고.
+
+금지:
+
+- broad merge
+- unrelated commit 포함
+- force push
+- reset --hard
+
+통합 성공 시 origin/main push 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 변경 범위 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+main 반영 후 확인:
+
+Diary Save fix 외 runtime 변경:
+NO
+
+Teacher Diary Engine URL 변경:
+NO
+
+contract_version 변경:
+NO
+
+Video upload code 변경:
+NO
+
+R2 code 변경:
+NO
+
+DB/schema 변경:
+NO
+
+UI 변경:
+NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만.
+
+확인:
+
+Manual Diary Save path:
+PASS
+
+AI-generated Diary Save path:
+PASS
+
+poolId TDZ:
+해소
+
+Authorization:
+기존 유지
+
+Video 관련 테스트는
+코드 수정 없이 existing config/path만 확인.
+
+전체 suite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production Deploy
+━━━━━━━━━━━━━━━━━━━━━━
+
+Replit이 Render Production deploy 하지 마십시오.
+
+main push까지만.
+
+사용자가 Render에서 직접 deploy 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 DIARY SAVE MAIN FINAL REPORT
+
+release fix commit:
+e821e2df
+
+origin/main before:
+...
+
+Already contained:
+YES / NO
+
+Integration required:
+YES / NO
+
+Integration method:
+...
+
+origin/main after:
+...
+
+Files changed:
+...
+
+Diary Save tests:
+...
+
+Manual Save:
+PASS / FAIL
+
+AI-generated Save:
+PASS / FAIL
+
+Video R2 env:
+USER CONFIGURED IN RENDER
+
+Video code changes:
+NO
+
+DB changes:
+NO
+
+Render deploy performed by Replit:
+NO
+
+Ready for user Render deploy:
+YES / NO
+
+Remaining blocker:
+USER RENDER DEPLOY + REAL DEVICE VERIFY / ...
+
+Final:
+PASS_FOR_RENDER_DEPLOY / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.

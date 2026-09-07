@@ -4,7 +4,14 @@
  * 핵심 Product Rule (MONTHLY_FREE 최종 정책):
  *   report_period = previous month (이번 달 실행 → 지난달 리포트)
  *   매월 1~4일 KST: cycle ensure → report ensure → AI analysis 준비
- *   매월 5일 KST: delivery_eligible 학생에게 자동 발행(auto-publish)
+ *   매월 5일 KST: AI 생성/분석 완료 기준 (관리자 발송대기함 준비 시점)
+ *
+ * ★ 자동 발행 완전 비활성화 (2026-09-07):
+ *   관리자 승인 전 PUBLISHED 전환 금지.
+ *   scheduler는 REVIEW_REQUIRED 상태에서 멈추며
+ *   이후 publish는 반드시 pool_admin 직접 action으로만 허용:
+ *     - POST /admin/growth-reports/:id/send
+ *     - POST /admin/growth-reports/bulk-send
  *
  * 원칙:
  *   - analysis_cutoff_at = 1일 00:00 KST (= 이전달 마지막 순간)
@@ -15,20 +22,11 @@
  *   - pool 단위 failure isolation
  *   - PII 로그 금지
  *
- * Delivery Eligibility (§E):
- *   students.status = 'active' → eligible
- *   suspended / withdrawn → 제외
- *   scheduled lesson / makeup lesson 존재 여부 무시 (lifecycle 우선)
- *
- * Publication Safety (§K):
- *   analysis_status = COMPLETE, report_content 존재,
- *   grounding PASS/REVISED_PASS, growth_framing PASS/REVISED_PASS,
- *   product_status = REVIEW_REQUIRED → auto-approve → PUBLISHED
- *
  * GR2 금지:
  *   - ENGINE API 호출 → GR3
  *   - Parent Question UI → GR4
  *   - Teacher Review UI → GR5
+ *   - PUBLISHED 자동 전환 (관리자 action 필수)
  *
  * analysis_cutoff_at 정책:
  *   1일 00:00 KST = UTC 전날 15:00:00
@@ -39,9 +37,7 @@ import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 import { transitionReportStatus } from "../lib/growth-report-service.js";
-import { autoApproveAndPublishForDelivery } from "../lib/growth-report-service.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
-import { notifyGrowthReportPublished } from "../utils/notify.js";
 
 type Db = typeof superAdminDb;
 
@@ -406,174 +402,15 @@ async function openCycleForPool(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Auto-publish — 5일 KST에 delivery eligible 학생에게 자동 발행
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * autoPublishMonthlyReports — REVIEW_REQUIRED 상태의 리포트를 자동 publish
- *
- * Delivery eligibility (§E):
- *   students.status = 'active' → eligible
- *   suspended / withdrawn → 제외
- *   makeup lesson 존재 여부는 판단 근거로 사용하지 않음
- *
- * Publication Safety (§K):
- *   analysis_status = COMPLETE
- *   report_content IS NOT NULL
- *   grounding_status IN ('PASS', 'REVISED_PASS')
- *   growth_framing_status IN ('PASS', 'REVISED_PASS') OR val_* fallback
- *   product_status = REVIEW_REQUIRED
- *
- * Idempotent: 이미 PUBLISHED인 경우 skip.
- */
-async function autoPublishMonthlyReports(
-  db: Db,
-  reportPeriod: string,
-  result: GrowthReportSchedulerRunResult,
-): Promise<void> {
-  // 발행 대상: REVIEW_REQUIRED + COMPLETE + report_content 존재 + safety pass
-  const candidates = await db.execute(sql`
-    SELECT
-      gr.id               AS report_id,
-      gr.student_id,
-      gr.swimming_pool_id AS pool_id,
-      gr.report_period,
-      gr.analysis_status,
-      gr.grounding_status,
-      gr.growth_framing_status,
-      gr.val_grounding_status,
-      gr.val_growth_framing_status,
-      gr.report_content,
-      gr.report_fact_package,
-      gr.sns_summary,
-      s.status            AS student_status
-    FROM growth_reports gr
-    INNER JOIN students s ON s.id = gr.student_id
-    WHERE gr.report_period = ${reportPeriod}
-      AND gr.product_status = 'REVIEW_REQUIRED'
-      AND gr.analysis_status IN ('COMPLETE', 'COMPLETE_WITH_QUESTIONS_AVAILABLE', 'COMPLETE_WITH_PARENT_EVIDENCE')
-      AND gr.report_content IS NOT NULL
-      AND gr.report_fact_package IS NOT NULL
-      AND gr.sns_summary IS NOT NULL
-      AND gr.deleted_at IS NULL
-      AND s.deleted_at IS NULL
-  `);
-
-  // ── Bulk enrollment check (N+1 제거) ────────────────────────────────────────
-  // issueMonth = reportPeriod의 다음 달 (스케줄러가 매월 5일 실행)
-  const [rpy, rpm] = reportPeriod.split("-");
-  const rpYear  = parseInt(rpy ?? "2000", 10);
-  const rpMonth = parseInt(rpm ?? "1",    10);
-  const issueYear  = rpMonth === 12 ? rpYear + 1 : rpYear;
-  const issueMonth = rpMonth === 12 ? 1 : rpMonth + 1;
-  const issueMonthFirstDay = `${issueYear}-${String(issueMonth).padStart(2, "0")}-01`;
-
-  const candidateStudentIds = [...new Set(
-    (candidates.rows as any[]).map(r => r.student_id).filter(Boolean)
-  )];
-
-  let enrolledStudentIds = new Set<string>();
-  if (candidateStudentIds.length > 0) {
-    // ANY(ARRAY[...]) 패턴으로 bulk IN — Drizzle sql template이 배열 파라미터화를 지원
-    const idListLiteral = candidateStudentIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(",");
-    const enrollRows = await db.execute(sql.raw(`
-      SELECT DISTINCT student_id
-      FROM student_class_history
-      WHERE student_id IN (${idListLiteral})
-        AND enrolled_at <= '${issueMonthFirstDay}'::date
-        AND (left_at IS NULL OR left_at >= '${issueMonthFirstDay}'::date)
-    `));
-    enrolledStudentIds = new Set((enrollRows.rows as any[]).map((r: any) => r.student_id));
-  }
-
-  const PASS_VALUES = new Set(["PASS", "REVISED_PASS"]);
-
-  for (const row of candidates.rows as any[]) {
-    const {
-      report_id, student_id, pool_id, report_period: rPeriod,
-      student_status,
-      grounding_status, growth_framing_status,
-      val_grounding_status, val_growth_framing_status,
-    } = row;
-
-    // ── Delivery eligibility check ──────────────────────────────────────────
-    if (student_status !== "active") {
-      result.reports_delivery_skipped++;
-      console.log(
-        `[gr-scheduler] DELIVERY_SKIP lifecycle: report=${report_id} student_status=${student_status}`,
-      );
-      continue;
-    }
-
-    // ── Per-student re-enrollment check (§8-11) ─────────────────────────────
-    // Policy: reportPeriod = "YYYY-MM" (previous month).
-    // issueDate = 5th of this month.
-    // Eligible if student has valid class enrollment in the ISSUE month.
-    // Source of Truth: student_class_history (canonical enrollment record).
-    // Enrollment eligibility is bulk-loaded once per batch (see below); use that.
-    {
-      if (!enrolledStudentIds.has(student_id)) {
-        result.reports_delivery_skipped++;
-        console.log(
-          `[gr-scheduler] DELIVERY_SKIP re_enrollment: report=${report_id}`,
-        );
-        continue;
-      }
-    }
-
-    // ── Publication safety check ────────────────────────────────────────────
-    const groundingOk = PASS_VALUES.has(grounding_status) || PASS_VALUES.has(val_grounding_status);
-    const framingOk   = PASS_VALUES.has(growth_framing_status) || PASS_VALUES.has(val_growth_framing_status);
-
-    if (!groundingOk || !framingOk) {
-      result.reports_delivery_skipped++;
-      console.log(
-        `[gr-scheduler] DELIVERY_SKIP safety: report=${report_id} grounding=${grounding_status} framing=${growth_framing_status}`,
-      );
-      continue;
-    }
-
-    // ── Auto-approve + Publish ──────────────────────────────────────────────
-    try {
-      const publishResult = await autoApproveAndPublishForDelivery({
-        db,
-        reportId: report_id,
-        actorId:  "SYSTEM_MONTHLY_AUTO",
-      });
-
-      if (publishResult.alreadyPublished) {
-        console.log(`[gr-scheduler] ALREADY_PUBLISHED: report=${report_id}`);
-        continue;
-      }
-
-      result.reports_auto_published++;
-      console.log(`[gr-scheduler] AUTO_PUBLISHED: report=${report_id} period=${rPeriod}`);
-
-      // ── GR7: fire-and-forget notification ──────────────────────────────
-      const studentId    = publishResult.studentId   ?? student_id;
-      const poolId       = publishResult.poolId      ?? pool_id;
-      const reportPeriodFinal = publishResult.reportPeriod ?? rPeriod;
-      const publishedAt  = publishResult.publishedAt ?? new Date().toISOString();
-
-      setImmediate(() => {
-        notifyGrowthReportPublished({
-          reportId:     report_id,
-          studentId,
-          poolId,
-          reportPeriod: reportPeriodFinal,
-          publishedAt,
-          actorId:      "SYSTEM_MONTHLY_AUTO",
-        }).catch(err => {
-          console.error(`[gr-scheduler] GR7 notification failed report=${report_id}:`, err);
-        });
-      });
-    } catch (err: any) {
-      result.failed++;
-      result.errors.push({ report_id, code: "AUTO_PUBLISH_FAILED", message: err.message });
-      console.error(`[gr-scheduler] AUTO_PUBLISH_FAILED: report=${report_id}:`, err.message);
-    }
-  }
-}
+// NOTE: autoPublishMonthlyReports 함수는 2026-09-07에 제거됨.
+//
+// 이유: 관리자 승인 전 PUBLISHED 자동 전환 금지 정책 (제품 정책 §0).
+//   scheduler는 AI 생성 완료(REVIEW_REQUIRED) 단계에서 멈추어야 하며,
+//   이후 publish는 pool_admin 직접 action으로만 허용:
+//     - POST /admin/growth-reports/:id/send
+//     - POST /admin/growth-reports/bulk-send
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Audit helper
@@ -711,23 +548,24 @@ export async function runGrowthReportScheduler(
     result.errors.push({ code: "PENDING_CYCLES_FETCH_FAILED", message: err.message });
   }
 
-  // ── Step 4: 5일 이후 → auto-publish ──────────────────────────────────────
-  const shouldPublish = now.getTime() >= ts.parentInputCloseAt.getTime();
-
-  if (shouldPublish) {
-    try {
-      await autoPublishMonthlyReports(db, ts.reportPeriod, result);
-    } catch (err: any) {
-      console.error("[gr-scheduler] auto-publish 실패:", err.message);
-      result.errors.push({ code: "AUTO_PUBLISH_BATCH_FAILED", message: err.message });
-    }
+  // ── Step 4: 5일 이후 → 관리자 발송대기 안내 (자동 publish 비활성화) ────────
+  // ★ 자동 publish 완전 차단 (2026-09-07):
+  //   AI 생성 완료(REVIEW_REQUIRED) 후 scheduler가 PUBLISHED로 자동 전환하는 경로 제거.
+  //   5일(parentInputCloseAt) 이후에는 관리자 발송대기 알림 로그만 출력.
+  //   publish는 pool_admin 직접 action으로만:
+  //     - POST /admin/growth-reports/:id/send
+  //     - POST /admin/growth-reports/bulk-send
+  const pastPublishDate = now.getTime() >= ts.parentInputCloseAt.getTime();
+  if (pastPublishDate) {
+    console.log(
+      `[gr-scheduler] 5일 경과 — REVIEW_REQUIRED 리포트가 관리자 발송대기 중. ` +
+      `period=${ts.reportPeriod} 자동publish=DISABLED`,
+    );
   } else {
-    const daysUntilPublish = Math.ceil(
+    const daysUntil = Math.ceil(
       (ts.parentInputCloseAt.getTime() - now.getTime()) / (24 * 3600 * 1000),
     );
-    console.log(
-      `[gr-scheduler] 5일 미도달 (D-${daysUntilPublish}) — auto-publish skip`,
-    );
+    console.log(`[gr-scheduler] 5일 미도달 (D-${daysUntil}) — 관리자 발송대기 준비 중`);
   }
 
   console.log(

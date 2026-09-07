@@ -1,0 +1,540 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL AUDIT — AI 성장리포트 생성 → 관리자 검수 → 학부모 발행 전체 라인 최종 감사]
+
+목적:
+SWIMNOTE AI 성장리포트가 현재 Production에서
+우리가 확정한 운영 정책대로 처음부터 끝까지 연결되어 있는지
+APP/API/DB 기준으로 최종 검수한다.
+
+이번 작업은 AUDIT ONLY.
+코드 수정 금지.
+DB 수정 금지.
+실제 리포트 삭제/재발급/발송 금지.
+Render env 수정 금지.
+새 deploy/OTA 금지.
+
+결과만 보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 제품 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 목표 흐름:
+
+[전월 수업 기록 마감]
+→ [다음 달 5일 전에 AI 리포트 사전 생성]
+→ [수영장 관리자 발송대기함]
+→ 관리자가 학생별 검수
+   - 발송
+   - 발송 제외
+   - 재발급
+→ 관리자 발송 승인
+→ PUBLISHED
+→ 학부모 Feed 노출
+→ Push 알림
+→ 상세 열람
+→ PDF 저장
+
+핵심 원칙:
+
+1.
+AI 생성 완료와 학부모 공개는 별개다.
+
+2.
+관리자 승인 전에는 학부모가 볼 수 없어야 한다.
+
+3.
+재등록하지 않은 회원 등은
+관리자가 최종 발송 대상에서 제외할 수 있어야 한다.
+
+4.
+리포트 이상 시 해당 학생만 재발급 가능해야 한다.
+
+5.
+관리자 승인 후에만 PUBLISHED.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 월간 Cycle 생성 정책 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 함수/잡/cron을 실제 코드 기준으로 추적:
+
+- cycle 생성
+- analysis_cutoff_at 계산
+- parent input 기간
+- scheduler 실행
+- report row 생성
+
+확인:
+
+A.
+2026-08 리포트 기준 cutoff가
+2026-08-31T15:00:00Z
+= 2026-09-01 00:00 KST
+
+B.
+전월 전체 기록이 snapshot 대상이 됨
+
+C.
+5일 발급 정책과 cycle/scheduler 날짜가 일치
+
+D.
+기존 stale cycle 수정 로직이
+PENDING cycle에 정상 적용됨
+
+E.
+ACTIVE 이상 cycle을 임의 변경하지 않는 보호 유지
+
+보고:
+실제 함수명 / 파일 / cron / 상태.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Eligibility / 대상자 선정 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 무료 AI 성장리포트 발급 대상 조건
+- 재등록 회원 판정
+- 퇴원/탈퇴/비대상 회원 처리
+- 중복 발급 방지
+- 동일 student + cycle unique protection
+
+그리고 매우 중요:
+
+현재 자동 eligibility와 별개로
+"관리자 최종 발송 제외" 기능이
+이미 구현되어 있는지 확인.
+
+판정:
+
+A. 이미 구현됨
+B. 일부 구현
+C. 없음
+
+아직 없으면 코드 수정하지 말고
+MISSING으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Snapshot Builder 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 pipeline:
+
+scheduler
+→ report OPEN
+→ buildAnalysisSnapshot()
+
+추적.
+
+확인:
+
+- student-specific diary
+- class diary
+- growth events
+- curriculum observations
+- 이전 report/history
+- parent input
+- teacher input/review data
+
+각 source가:
+
+- 어떤 테이블
+- 어떤 필터
+- deleted 제외 여부
+- cutoff 적용
+- pool/student ownership 적용
+
+되는지 표로 보고.
+
+특히 deleted diary가 정확히 제외되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. APP → AI ENGINE 계약 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- Growth Report Engine URL
+- endpoint
+- GR_CONTRACT_VERSION
+- request schema
+- response schema
+- timeout
+- retry
+- rollback
+- retryable/non-retryable error 처리
+
+현재 canonical:
+
+GR_CONTRACT_VERSION = "1.0"
+
+변경 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Engine 결과 Persistence 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Engine response
+→ growth-report-result-handler
+→ DB 저장
+
+저장 항목:
+
+- report_content
+- fact_package
+- sns_summary
+- questions
+- validation
+- versions
+- trace 필요한 내부 정보
+
+특히 최근 수정된:
+
+engine_question_id
+← question_id fallback
+
+정상 코드 존재 여부 확인.
+
+undefined INSERT 재발 가능성 없는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Analysis Status / State Machine 전체 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 상태 enum/transition 전부 추출.
+
+최소:
+
+OPEN
+READY_FOR_ANALYSIS
+COMPLETE
+COMPLETE_WITH_QUESTIONS_AVAILABLE
+REVIEW_REQUIRED
+READY_TO_SEND
+PUBLISHED
+FAILED
+DISCARDED
+
+실제 허용 transition matrix 작성.
+
+반드시 확인:
+
+COMPLETE
+및
+COMPLETE_WITH_QUESTIONS_AVAILABLE
+
+두 정상 완료 상태가
+DB 직접 UPDATE 없이
+관리자 검수/발송 경로로 진행 가능한지.
+
+최근 서태웅 E2E에서
+DB 직접 status UPDATE가 사용됐는지
+audit_logs / 코드 / 실행 이력으로 최종 확인.
+
+중요:
+
+DB 직접 상태변경 없이는
+COMPLETE_WITH_QUESTIONS_AVAILABLE
+→ 관리자 review
+→ READY_TO_SEND
+→ PUBLISHED
+
+가 불가능하다면
+P0 BUG로 보고.
+
+이번 audit에서는 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 자동 PUBLISH 우회경로 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 코드 검색:
+
+- PUBLISHED 설정
+- published_at 설정
+- sendIndividualReport
+- autoApprove
+- autoPublish
+- SUPER_ADMIN_SAMPLE
+- script_super_admin
+- batch publish
+- scheduler publish
+
+확인:
+
+"AI 분석 완료만으로"
+학부모에게 자동 공개되는 경로가 있는지.
+
+목표 정책:
+
+AI 생성
+≠
+학부모 발행
+
+반드시 관리자의 최종 발송 action이 있어야 함.
+
+판정:
+
+A. 관리자 승인 강제
+B. 일부 자동 publish 우회 있음
+C. 완전 자동 publish
+
+B/C면 P0 ISSUE.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 관리자 운영 기능 현황
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 관리자 UI/API에 다음 기능이
+실제로 존재하는지 각각 확인:
+
+- 발송대기 리포트 목록
+- 학생별 리포트 열람
+- 전체 내용 검수
+- 발송
+- 발송 제외
+- 재발급
+- 선택 발송
+- 전체 발송
+- 발송완료 상태
+- 발송실패 상태
+- 재발급 진행 상태
+
+각 항목:
+
+IMPLEMENTED
+PARTIAL
+MISSING
+
+으로 판정.
+
+대시보드 구현 전에
+정확한 현재 상태만 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. PUBLISHED 이후 Parent 경로 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+PUBLISHED
+→ parent feed projection
+→ detail API
+→ notification
+→ push
+→ PDF export
+
+조건:
+
+- deleted report 미노출
+- unpublished report 미노출
+- 다른 student report 접근 금지
+- 다른 pool 접근 금지
+- 실제 report_content 전달
+- empty section 안전 처리
+- PDF export 연결
+
+서태웅 실제 E2E 결과와
+현재 코드가 일치하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Notification / Push 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+notifyGrowthReportPublished()
+
+호출 지점.
+
+중복 send 시:
+
+- notification 중복 여부
+- push 중복 여부
+
+여러 보호자 연결 시:
+
+- notification 대상
+- push token 대상
+- parent_account 중복 처리
+
+실제 정책상 의도와 코드가 일치하는지 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Regenerate 경로 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자가 리포트가 마음에 들지 않을 때
+해당 학생만 재발급 가능한 공식 경로를 추적.
+
+확인:
+
+- 어떤 status에서 재발급 가능?
+- PUBLISHED 전 재발급 가능?
+- PUBLISHED 후 재발급 가능?
+- 기존 report 처리 방식
+- 새 snapshot 생성 여부
+- 이전 report_content 재사용 여부
+- unique index 충돌 처리
+- 다른 학생 영향 없음
+
+관리자 발송대기 단계에서
+"재발급" 버튼을 붙일 수 있는
+안전한 service/API가 이미 있는지 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 발송 제외 기능 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 report/student를
+"이번 달 학부모 발송 제외" 처리할 수 있는
+DB state/API/service가 있는지 확인.
+
+중요:
+
+학생 자체를 퇴원/삭제하는 기능이 아니라
+
+"이번 cycle report만 발송 제외"
+
+가 가능해야 함.
+
+없으면 MISSING.
+
+필요 데이터 모델도
+제안만 하고 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Dashboard 구축 가능성 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 관리자 대시보드에서 필요한 데이터를
+현재 API/DB로 가져올 수 있는지 조사:
+
+상단 현황:
+
+- 이번 달 전체 대상
+- 생성 대기
+- AI 분석 중
+- 검수 필요
+- 발송 준비
+- 발송 완료
+- 발송 제외
+- 실패
+- 재발급 중
+
+학생별 목록:
+
+- 학생명
+- 반
+- 담당선생님
+- 재등록/상태
+- 리포트 생성 상태
+- 품질/validation 상태
+- 생성일
+- 검수일
+- 발송일
+- 열람 여부
+- PDF 여부
+- 재발급 횟수
+
+필터:
+
+- 상태
+- 반
+- 선생님
+- 발송/미발송
+- 열람/미열람
+- 검색
+
+각 필드가:
+
+AVAILABLE
+DERIVABLE
+MISSING
+
+인지 표로 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Security / Tenant 검수
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 관리자 report API가:
+
+- JWT role
+- pool ownership
+- student ownership
+- report ownership
+
+검사하는지 확인.
+
+ID만 알면 다른 수영장 report를
+열람/발송/삭제/재발급할 수 있는
+IDOR 가능성 없는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 최종 Pipeline Diagram
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 실제 흐름을
+한 줄 다이어그램으로 제출:
+
+Cycle
+→ Eligibility
+→ Report Create
+→ Snapshot
+→ AI Engine
+→ Persist
+→ Validation
+→ Review
+→ Ready
+→ Admin Send
+→ Published
+→ Feed
+→ Push
+→ PDF
+
+각 단계에:
+
+PASS
+PARTIAL
+MISSING
+BUG
+
+표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+1. cycle 정책
+2. 5일 발급 정책 일치 여부
+3. 전월 전체 cutoff 정상 여부
+4. eligibility 상태
+5. snapshot source 상태
+6. Engine contract
+7. persistence
+8. questions 저장
+9. 전체 state transition matrix
+10. COMPLETE_WITH_QUESTIONS_AVAILABLE 정상 처리 여부
+11. 자동 publish 우회 여부
+12. 관리자 검수 강제 여부
+13. 관리자 발송 제외 기능
+14. 관리자 재발급 기능
+15. 선택 발송
+16. 전체 발송
+17. parent feed
+18. notification/push
+19. PDF
+20. tenant/security
+21. Dashboard 데이터 AVAILABLE/DERIVABLE/MISSING
+22. P0 BUG 목록
+23. Dashboard 구현 전 필요한 최소 수정 목록
+24. 전체 판정 PASS/HOLD/FAIL
+
+코드 수정 없이 보고 후 STOP.

@@ -1,0 +1,295 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FIX — AI 성장리포트 관리자 승인 전 자동 PUBLISH 완전 차단]
+
+최종 APP 감사 결과:
+
+출시차단 P0 버그 1건 확정.
+
+현재 scheduler cron에서:
+
+autoApproveAndPublishForDelivery()
+
+가 실행되며
+
+REVIEW_REQUIRED
++ 정상 analysis
++ grounding/framing PASS
+
+조건만 만족하면
+
+관리자 action 없이
+PUBLISHED
+
+까지 자동 전환 가능함.
+
+이는 확정 제품 정책과 충돌한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 확정 제품 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 정책:
+
+전월 수업 종료
+→ 다음 달 5일 전 리포트 사전 생성
+→ REVIEW_REQUIRED / 관리자 발송대기
+→ 관리자가 검수
+→ 필요 시 발송 제외
+→ 필요 시 재발급
+→ 관리자가 직접 발송
+→ PUBLISHED
+→ Parent Feed + Push
+
+핵심:
+
+AI 생성 완료
+≠
+학부모 발행
+
+관리자 발송 action 없이
+PUBLISHED가 되는 경로는 0개여야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 자동 publish 호출 경로 정확히 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 exact trace:
+
+runGrowthReportScheduler()
+→ parentInputCloseAt 이후 처리
+→ autoApproveAndPublishForDelivery()
+→ transition/status update
+→ PUBLISHED
+→ notifyGrowthReportPublished()
+
+파일/함수/조건 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+scheduler에서
+autoApproveAndPublishForDelivery()
+자동 호출을 제거하거나 비활성화.
+
+목표:
+
+정상 AI 분석 완료 후:
+
+COMPLETE /
+COMPLETE_WITH_QUESTIONS_AVAILABLE /
+COMPLETE_WITH_PARENT_EVIDENCE
+
+→ product_status = REVIEW_REQUIRED
+
+에서 멈춤.
+
+scheduler가 이후:
+
+READY_TO_SEND
+PUBLISHED
+
+로 자동 진행하면 안 됨.
+
+PUBLISHED는 아래 관리자 경로에서만 허용:
+
+- POST /admin/growth-reports/:id/send
+- 관리자 인증된 bulk send
+- 향후 선택발송 관리자 endpoint
+
+SYSTEM_MONTHLY_AUTO actor로
+PUBLISHED 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 정상 기능 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- cycle 생성
+- cutoff
+- eligibility
+- snapshot
+- AI Engine 호출
+- report_content persistence
+- grounding/framing validation
+- questions
+- notification/push
+- parent feed
+- PDF
+- discard
+- regenerate
+- state transition matrix
+
+오직 자동 발행만 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 5일 정책 의미 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+기존 "5일 발급"을
+"5일 자동 PUBLISHED"로 유지하지 말 것.
+
+새 의미:
+
+5일까지 AI 생성/분석 완료
+→ 관리자 발송대기함에 준비
+
+관리자가 확인 후 발송할 때
+학부모에게 공개.
+
+즉 5일은
+사전 생성 완료 기준.
+
+학부모 공개는 관리자 승인 시점.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PUBLISHED 가능한 코드 전수 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 repo에서 검색:
+
+- product_status = 'PUBLISHED'
+- transitionReportStatus(...PUBLISHED)
+- published_at
+- autoApproveAndPublishForDelivery
+- SYSTEM_MONTHLY_AUTO
+- sendIndividualReport
+- bulkSendReports
+
+각 PUBLISHED 진입점을 분류:
+
+A. pool_admin 직접 action
+B. system/scheduler
+C. super/admin script
+D. 기타
+
+Production 정상 사용자 경로에서
+B/C/D 자동 우회가 없어야 함.
+
+운영/복구용 super 경로가 존재하면
+일반 scheduler에서는 절대 호출되지 않는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+scheduler + 정상 COMPLETE report
+→ REVIEW_REQUIRED
+→ PUBLISHED 안 됨
+
+B.
+scheduler + CWQA
+→ REVIEW_REQUIRED
+→ PUBLISHED 안 됨
+
+C.
+scheduler 재실행
+→ REVIEW_REQUIRED 그대로 유지
+→ push/notification 생성 안 됨
+
+D.
+pool_admin 개별 send
+→ PUBLISHED
+→ notification/push 정상
+
+E.
+pool_admin bulk-send
+→ 대상 READY_TO_SEND만 PUBLISHED
+→ 관리자 인증 필수
+
+F.
+DISCARDED
+→ 자동 publish 안 됨
+
+G.
+FAILED
+→ 자동 publish 안 됨
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 서태웅 리포트 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PUBLISHED된
+서태웅 2026-08 리포트:
+
+gr_e008a541350c488e9d998ad541b4da96
+
+삭제/재발급/상태변경 금지.
+
+이번 작업은 future cycle 동작 수정만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Engine 감사 경고 APP 측 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 변경 범위를 넓히지 말고
+아래 3개는 확인만:
+
+A.
+questions[].question_id
+fallback 수정 92d9c40c 현재 존재
+
+B.
+Engine validation canonical:
+validation.grounding
+validation.growth_framing
+
+APP가 다른 key로 읽는 stale 코드 없는지 검색
+
+C.
+Parent API에서 내부 필드:
+
+- evidence_ids
+- claim_ids
+- fact_package
+- composition_manifest
+- trace
+
+가 부모 화면에 직접 표시되지 않는지 확인
+
+실제 leak가 있으면 P0로 보고하고 STOP.
+없으면 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 PASS 후:
+
+- release/v2.0.0 반영
+- main/server canonical branch 반영
+- Render API deploy
+
+APP UI 변경 없으면
+이번 단계에서 OTA 불필요.
+
+새 native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 자동 publish 호출 파일/함수
+2. 제거/비활성화 방식
+3. PUBLISHED 진입점 전수 목록
+4. scheduler가 REVIEW_REQUIRED에서 멈추는지
+5. scheduler 재실행 시 그대로 유지되는지
+6. 개별 admin send 정상
+7. bulk admin send 정상
+8. notification/push가 admin send 때만 발생하는지
+9. CWQA 정상 대기 여부
+10. DISCARDED/FAILED 보호
+11. validation key mismatch 존재 여부
+12. parent internal metadata leak 여부
+13. 수정 파일
+14. 테스트 결과
+15. commit SHA
+16. Render deploy
+17. 최종 PASS/HOLD/FAIL
+
+완료 후 STOP.

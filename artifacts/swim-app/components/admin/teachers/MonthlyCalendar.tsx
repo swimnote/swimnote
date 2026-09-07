@@ -81,12 +81,17 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
                     {dayNum}
                   </Text>
                 </View>
-                <View style={{ flexDirection: "row", gap: 1.5, marginTop: 3, flexWrap: "wrap", justifyContent: "center" }}>
-                  {cls.slice(0, 4).map(g => (
-                    <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id, g.color) }]} />
-                  ))}
-                  {cls.length > 4 && <Text style={[mc.moreText, { color: C.textMuted }]}>+{cls.length - 4}</Text>}
-                </View>
+                {cls.length > 0 && (
+                  <>
+                    <View style={{ flexDirection: "row", gap: 2, marginTop: 3, flexWrap: "wrap", justifyContent: "center" }}>
+                      {cls.slice(0, 3).map(g => (
+                        <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id, g.color) }]} />
+                      ))}
+                      {cls.length > 3 && <Text style={[mc.moreText, { color: C.textMuted }]}>+{cls.length - 3}</Text>}
+                    </View>
+                    <Text style={mc.countText}>{cls.length}건</Text>
+                  </>
+                )}
               </Pressable>
             );
           })}
@@ -104,6 +109,7 @@ const mc = StyleSheet.create({
   dayCell: { height: 64, alignItems: "center", paddingTop: 6 },
   dayNumWrap: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   dayNum: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
   moreText: { fontSize: 8, fontFamily: "Pretendard-Regular" },
+  countText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center", marginTop: 1 },
 });

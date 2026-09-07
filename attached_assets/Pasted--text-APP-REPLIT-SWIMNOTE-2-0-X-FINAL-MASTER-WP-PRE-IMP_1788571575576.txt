@@ -1,0 +1,1144 @@
+```text
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 / X — FINAL MASTER WP PRE-IMPLEMENTATION REVIEW
+# 목적: 구현 시작 전 마지막 WP 구조 검수
+# 중요: 이번 작업은 REVIEW ONLY. 코드 수정 금지.
+
+현재 기준일: 2026-09-05
+
+이번 작업의 목적은
+SWIMNOTE 2.0 / X 출시까지 남은 작업을 WP0~WP21로 최종 고정하기 전에,
+현재 실제 repository / architecture 기준으로:
+
+1. 빠진 필수 작업
+2. 이미 구현되어 중복되는 작업
+3. WP 순서상 dependency 문제
+4. 출시 P0/P1/P2 분류 오류
+5. 현재 repo와 설계가 충돌하는 부분
+
+만 최소 범위로 검수하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 이번 검수 절대 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정 금지
+- DB 변경 금지
+- Migration 실행 금지
+- Production data 변경 금지
+- Render deploy 금지
+- OTA 금지
+- Native build 금지
+- 새로운 architecture 구현 금지
+- 관련 없는 repo-wide audit 금지
+- 이미 완료/확인된 시스템을 다시 처음부터 조사하지 마십시오.
+- "더 깔끔하게 만들 수 있다"는 이유로 대규모 리팩터링 제안 금지
+- 출시와 무관한 좋은 기능을 P0로 승격하지 마십시오.
+
+이번 검수는
+"이 WP 체계로 바로 구현을 시작해도 되는가?"
+판단만 합니다.
+
+실제 repo/Production evidence가 문서보다 우선합니다.
+
+단,
+legacy 구조가 발견됐다는 이유만으로 전체 리팩터링 대상으로 확대하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 확정된 최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 방식:
+
+최소 조사
+→ 실제 원인/구조 확인
+→ 최소 수정
+→ 관련 테스트
+→ 완료보고
+→ STOP
+
+ONE WP AT A TIME.
+
+APP / AI ENGINE 작업은 분리합니다.
+
+Production DB 변경은 사용자 승인 Gate입니다.
+
+Render Production deploy는 사용자가 수동으로 합니다.
+
+Cross-pool leak은 Release Blocker입니다.
+
+Replit 완료보고의 자체 PASS 여부와 별개로
+최종 PASS/HOLD는 GPT가 SHA/테스트/실제 동작을 보고 판단합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. WP0 현재 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP0 — Production / X Baseline
+
+현재 기능적으로 CLOSED.
+
+Toykids Production pool:
+
+pool_1780849364252_l9k44rbk3
+
+현재 Production 확인 상태:
+
+x_management_override = true
+mode = x
+plan = x1000
+member_limit = 1000
+
+실제 Full X Mode 진입 확인 완료.
+
+따라서 새로운 실제 Production P0 evidence가 없는 한
+WP0를 다시 열지 않습니다.
+
+단 실제:
+
+- Production 500
+- schema missing
+- X mode failure
+- billing corruption
+- cross-pool leak
+
+등 새로운 evidence가 있으면
+그 문제 범위만 제한적으로 다시 열 수 있습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. X / BILLING 의미 분리 — 절대 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 절대 혼동하지 않습니다.
+
+기능 접근:
+canonical mode resolver
+
+실제 유료 결제:
+RevenueCat / x_paid_entitlement
+
+Super Admin 무상 X:
+x_manual_entitlement
+
+본사/비상 관리 override:
+x_management_override
+
+청구 상태:
+RevenueCat subscription state
+
+절대:
+
+mode === 'x'
+→ paid subscriber
+
+판단 금지.
+
+Toykids는 현재:
+
+mode=x
+paid=false
+
+인 정상 사례입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. FINAL MASTER WP 후보
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 WP 번호는 현재 최종 후보입니다.
+
+이번 검수 결과에 실제 P0 technical evidence가 없는 한
+불필요하게 재번호화하지 마십시오.
+
+
+==================================================
+WP0 — Production / X Baseline
+STATUS: CLOSED
+==================================================
+
+완료:
+
+- 신규 Production 공식 plan baseline
+- Toykids Management X1000
+- Production Full X 확인
+
+새 evidence 없으면 재오픈 금지.
+
+
+==================================================
+WP1 — Auth / Rate Limit / Public Endpoint Security
+P0
+==================================================
+
+목표:
+
+출시 전 server security boundary 고정.
+
+범위:
+
+- login rate limit
+- signup rate limit
+- password/reset/auth-sensitive endpoint
+- abusive public-sensitive endpoint
+- /platform/banners 공개 접근 문제 제거
+- JWT → user → pool membership → role → resource 검증
+- client pool_id/role을 authorization source로 신뢰 금지
+
+완료조건:
+
+- auth-sensitive rate limiting
+- 공개 sensitive leak 제거
+- authorization boundary 확정
+- 정상 로그인/가입 regression 없음
+
+
+==================================================
+WP2 — X Member Limit Enforcement
+P0
+==================================================
+
+공식:
+
+X300 = 300
+X500 = 500
+X1000 = 1000
+
+active member 기준.
+
+모든 회원 증가 경로 검사:
+
+- admin create
+- parent signup child creation
+- archive restore
+- re-enrollment
+- import
+- bulk
+- 기타 student INSERT
+
+기존 실제 bypass 보고:
+
+- auth.ts parent signup child INSERT
+- admin.ts archive restore
+
+Race 방지:
+
+BEGIN
+→ swimming_pool row FOR UPDATE
+→ active member count
+→ limit check
+→ INSERT
+→ COMMIT
+
+한도 도달 후 신규회원 생성만 차단.
+
+기존회원 기능은 정상 유지.
+
+완료조건:
+
+- 모든 증가경로 canonical check
+- concurrent race-safe
+- 301/501/1001 차단
+- 기존 회원 서비스 영향 0
+
+
+==================================================
+WP3 — RevenueCat Core Safety + New Products
+P0
+==================================================
+
+공식 상품:
+
+SWIMNOTE
+X300
+X500
+X1000
+DATA100
+DATA300
+
+핵심:
+
+rc_webhook_events 또는 repository convention에 맞는 event log
+
+event_id UNIQUE
+
+receive
+→ persist/dedupe
+→ process
+→ result
+
+동일 webhook 중복처리 금지.
+
+검증:
+
+- purchase
+- cancel
+- expiry
+- restore
+- resubscribe
+- billing issue
+
+RevenueCat은 원칙적으로:
+
+x_paid_entitlement
+
+만 관리.
+
+금지:
+
+- manual entitlement 변경
+- management override 변경
+- mode로 billing 추론
+- fake RevenueCat purchase
+
+RC 처리 후 manual/management 값 unchanged 검증.
+
+DATA:
+
+DATA100 = +100GB
+DATA300 = +300GB
+
+중요:
+
+DATA addon cancellation/expiration 후
+기존 데이터 자동삭제 금지.
+
+quota 초과 상태의:
+
+- 신규 업로드 제한
+- grace
+- read/download
+- resubscribe
+
+정책은 사용자가 WP3에서 결정하기 전 구현 금지.
+
+추가로 이 WP에서:
+
+Official Manual X Grant와 billing의 독립 semantics를 확정.
+
+실제 Super Admin Manual Grant UI 완결은 WP7.
+
+
+==================================================
+WP4 — Notice / Banner / Push Unified Schema
+P0
+==================================================
+
+canonical entity:
+
+notices
+
+추가 후보:
+
+- show_banner
+- send_push
+- target_roles[]
+- target_pools[]
+- starts_at
+- ends_at
+- deep_link
+- 향후 target_plan_types[]
+
+공지함:
+
+1. SWIMNOTE 공지
+2. 우리 수영장 공지
+
+Banner:
+
+별도 콘텐츠 시스템이 아니라 Notice presentation.
+
+사용자별 1회 표시.
+
+notice_dismissals:
+
+notice_id
+user_id
+dismissed_at
+
+UNIQUE(notice_id, user_id)
+
+platform_banners는 즉시 destructive delete하지 않고 deprecated.
+
+중요:
+
+신규 schema는 canonical migration file.
+
+기존 legacy runtime DDL이 존재하더라도
+새 runtime DDL을 추가하지 않습니다.
+
+완료조건:
+
+- notice canonical model
+- banner show-once
+- dismissal
+- role/pool targeting
+- push/banner toggle
+- 기존 공지 데이터 보존
+
+
+==================================================
+WP5 — Push Scale / Expo Push Batch
+P0
+==================================================
+
+현재 provider:
+
+Expo Push HTTP API
+
+FCM 기준으로 새로 설계하지 않습니다.
+
+필수:
+
+- Expo chunking
+- bounded batch
+- async processing
+- partial failure
+- invalid token cleanup
+- retry
+- idempotency
+- duplicate send 방지
+
+수천/수만 token을 하나의 동기 HTTP request에서 처리 금지.
+
+완료조건:
+
+10K+ fan-out이 request 하나를 장시간 점유하지 않는 구조.
+
+
+==================================================
+WP6 — Cross-Pool / Role Security Final Audit
+P0
+==================================================
+
+Pool A:
+Toykids X1000
+
+Pool B:
+일반 SWIMNOTE
+
+Roles:
+
+Admin
+Teacher
+Parent
+
+대상:
+
+- 회원
+- 부모
+- 반
+- 출결
+- 일지
+- 미디어
+- 공지
+- 결제
+- X
+- AI
+- Growth
+- 저장공간
+
+Cross-pool leak:
+
+0
+
+하나라도 발견되면 Release Block.
+
+이번 WP는 보안 전수검증 WP이지만
+문제 발견 시 해당 문제만 최소 수정하고
+무관한 전체 시스템 리팩터링 금지.
+
+
+==================================================
+WP7 — Super Admin Operations + Audit Gap Fill
+P1 / 출시 전 운영완결
+==================================================
+
+기존 구현 재사용:
+
+- Pool Health
+- Support Cases
+- Audit Viewer / audit_logs
+- X entitlement control
+- Growth metrics
+- NORMAL/WARNING/CRITICAL
+
+재개발 금지.
+
+Gap만 추가:
+
+- active member / X limit %
+- storage usage %
+- RevenueCat webhook status
+- Push failure
+- AI/Growth failure
+- recent operational error
+- last admin activity
+
+Audit 추가:
+
+- X grant/revoke
+- plan change
+- billing adjustment
+- permission change
+- important member change/delete
+- notice send
+- feature override
+
+기존 audit_logs 재사용 우선.
+
+
+### Official Super Admin Manual X Plan Grant
+
+지원:
+
+NONE
+X300
+X500
+X1000
+
+Manual Grant:
+
+x_manual_entitlement=true
+x_paid_entitlement=unchanged
+x_force_disabled=false
+x_plan_key=선택 plan
+
+Fake billing 생성 금지.
+
+Prerequisite는:
+
+"커리큘럼 파일 업로드 이력이 있는가"
+
+가 아니라:
+
+"실제 X 기능 실행에 필요한 curriculum/template/config 데이터가 존재하는가"
+
+로 판단.
+
+Toykids는 파일 upload history가 없어도
+기존 code/DB 데이터가 실제 준비되어 있다면 activation 가능해야 함.
+
+config를 이유 없이 READY로 SQL 강제세팅 금지.
+
+
+### Toykids final cleanup
+
+Official Manual X Grant가 완전히 PASS한 뒤에만:
+
+x_management_override:
+true → false
+
+전환.
+
+최종:
+
+manual=true
+paid=false
+plan=x1000
+member_limit=1000
+effective=true
+mode=x
+source=MANUAL
+
+Production 확인 후 완료.
+
+x_management_override 구조 자체는 삭제 금지.
+
+Advanced/Emergency control로 유지 가능.
+
+
+==================================================
+WP8 — Pagination / DB Performance
+P0
+==================================================
+
+우선 필수:
+
+- diary
+- parent
+- notifications
+
+추가:
+
+- students
+- notices
+- audit
+- billing/payments
+- jobs
+- Super Admin large lists
+
+bounded query.
+
+cursor pagination 우선.
+
+DB:
+
+- connection max
+- PgBouncer compatibility
+- indexes
+- N+1
+- 500-pool loops
+
+Super Admin 기존 LATERAL/aggregate 구조 재사용.
+
+불필요한 DB architecture 교체 금지.
+
+
+==================================================
+WP9 — Operational Monitoring / Incident Alert
+P0
+==================================================
+
+기존:
+
+- system-health.ts
+- logOperationalError
+- ErrorsTab
+
+재사용.
+
+새 APM platform 대규모 도입 금지.
+
+최소:
+
+- /api/health 또는 기존 canonical health
+- external uptime monitor
+- 5xx spike
+- DB error
+- worker repeated failure
+- Growth batch failure
+- RC webhook failure
+- Push failure
+
+Slack 또는 Email 한 채널이면 초기 충분.
+
+
+==================================================
+WP10 — Growth Report Auto Issue Recovery
+P0
+==================================================
+
+기존:
+
+growth-report-batch-worker
+growth-report-analysis-worker
+
+재개발 금지.
+
+확인:
+
+- scheduler timezone
+- enrollment eligibility/history
+- REVIEW_REQUIRED
+- student active
+- grounding/framing
+- report artifacts
+- enqueue
+- retry
+- push
+
+현재 실제 원인 후보로 보고된 것:
+
+- enrollment history condition
+- scheduler 01:00 UTC/KST
+
+단 추측으로 수정 금지.
+
+Staging date/mock test 가능.
+
+Production data 날짜조작 테스트 금지.
+
+완료조건:
+
+기존 worker를 이용한 매월 5일 자동발급 정상.
+
+
+==================================================
+WP11 — Admin Notes MVP
+P1
+==================================================
+
+출시 전 CRM은 Admin Notes까지만.
+
+분류:
+
+general
+consultation
+payment
+class
+vehicle
+caution
+
+필드:
+
+content
+author
+created_at
+
+출시 후:
+
+- absence warning
+- tags
+- duplicate detection
+- merge
+- timeline
+- consultation/trial CRM
+
+
+==================================================
+WP12 — Super Admin Marketing MVP
+P1
+==================================================
+
+Campaign platform 새로 만들지 않음.
+
+WP4 Notice 기반 targeting만 확장.
+
+Pool:
+
+all
+single
+multiple
+
+Plan:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+Role:
+
+Admin
+Teacher
+Parent
+
+Channel:
+
+Notice
+Push
+Banner
+
+Campaign Analytics는 출시 후.
+
+
+==================================================
+WP13 — Data Integrity Checker
+P1/P2
+==================================================
+
+가능하면 RC 전 read-only.
+
+자동수정 없음.
+
+탐지:
+
+- X인데 plan 없음
+- entitlement combination 이상
+- member limit 초과
+- broken pool/class
+- orphan media
+- broken guardian relation
+- DB 내부 subscription inconsistency
+
+RevenueCat ↔ DB full reconciliation은 WP20.
+
+
+==================================================
+WP14 — Legacy / UI Cleanup
+P0 Release Cleanup
+==================================================
+
+이 단계에서만 cleanup.
+
+대상:
+
+- old Coach/Premier 신규 UI
+- legacy X UI
+- debug/test
+- mock/dummy
+- dead component
+- stale flags
+- unused selector
+
+금지:
+
+- historical billing 삭제
+- historical DB 삭제
+- 실제 rollback에 필요한 live code 삭제
+
+기존 legacy runtime DDL 구조 전체 제거도
+별도 명시 작업 없이는 금지.
+
+
+==================================================
+WP15 — Version / Runtime Freeze
+P0
+==================================================
+
+현재 history:
+
+app version = 2.1.0
+runtime = 2.1.0
+iOS build = 255
+Android code = 239
+
+Store target:
+
+2.0.1
+
+기본 후보:
+
+app version = 2.0.1
+runtimeVersion = 2.1.0
+
+단 WP15에서 native compatibility audit 후 확정.
+
+runtimeVersion과 marketing version 혼동 금지.
+
+runtimeVersion을 단순히 2.0.1로 downgrade 금지.
+
+Native dependency/config 변화가 runtime compatibility를 깨는지 실제 확인.
+
+
+==================================================
+WP16 — Production X / Normal E2E
+P0
+==================================================
+
+Toykids:
+
+Official X1000 final state 기준.
+
+Admin / Teacher / Parent 실제 흐름.
+
+Normal Pool:
+
+X 기능 미노출
+기본 SWIMNOTE 정상.
+
+검증:
+
+- Plan/X
+- 회원
+- 수업
+- 일지
+- 피드
+- 공지
+- AI
+- Growth
+- 기본 운영
+
+
+==================================================
+WP17 — 2.0.1 Release Candidate
+P0
+==================================================
+
+여기부터 Feature Freeze.
+
+전체 회귀:
+
+- Auth
+- Normal
+- X
+- Super Admin
+- RevenueCat
+- Notices
+- Banner
+- Push
+- R2
+- AI Engine
+- Growth
+- member limit
+- security
+- deep link
+- health
+
+WP17 전까지 매 WP마다 전체 regression을 반복하지 마십시오.
+
+
+==================================================
+WP18 — Backup / Disaster Recovery Ops Check
+병렬
+==================================================
+
+코드개발 WP 아님.
+
+확인:
+
+- Supabase backup
+- PITR 실제 현재 plan/config 제공 여부
+- restore procedure
+- Staging restore test
+- R2 delete/recovery
+- migration rollback
+
+Production restore test 금지.
+
+"migration file 존재"와
+"Production DB 실제 적용"을 별개로 판단.
+
+필요 시:
+
+Git migration source
+Staging schema
+Production schema
+
+3개 별도 확인.
+
+
+==================================================
+WP19 — Store Release
+==================================================
+
+iOS:
+
+TestFlight
+→ App Store
+
+Android:
+
+internal/closed
+→ Production
+
+1.6.3 backward compatibility는 blocker 아님.
+
+
+==================================================
+WP20 — Post-launch P1
+==================================================
+
+실사용량 후:
+
+- RevenueCat reconciliation
+- DLQ
+- absence warning
+- member tags
+- duplicate detector
+- merge
+- Push delivery metrics
+- Data Integrity UI
+- Health 강화
+- R2 retry
+
+
+==================================================
+WP21 — Scale P2
+==================================================
+
+실제 scale evidence 후:
+
+- pg-boss / durable queue
+- worker/API service split
+- Campaign analytics
+- Full Member Timeline
+- consultation/trial CRM
+- advanced APM
+- data warehouse
+- AI concurrency tuning
+
+V6 완료가
+"10만 동시접속 완전 보장"
+을 의미하지 않습니다.
+
+목표는 10만 사용자 규모 전에 명백한 핵심 병목/운영위험을 제거하는 것입니다.
+
+과도한 선제 infrastructure 구축으로 출시를 늦추지 않습니다.
+
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 검수에서 특히 확인할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 실제 repo 기준으로 검토하십시오.
+
+A. 위 WP 중 이미 완전히 구현되어 삭제해야 하는 작업이 있는가?
+
+B. 하나의 WP가 다른 WP보다 먼저 와야만 하는
+실제 code/schema dependency가 있는가?
+
+C. P0인데 빠진 출시 blocker가 있는가?
+
+D. P0로 되어 있지만 실제로는 출시 후로 미뤄도 되는 항목이 있는가?
+
+E. WP3 RevenueCat과 WP7 Manual X Grant의 책임 분리가 맞는가?
+
+F. Manual Grant prerequisite를
+과거 curriculum upload/approval 행위에 잘못 종속시키는 코드가 현재 존재하는가?
+
+G. mode=x를 paid subscriber로 취급하는 코드가 실제 존재하는가?
+
+H. WP4 Notice schema 변경 시
+현재 legacy runtime DDL 때문에 특별히 주의해야 하는 실제 충돌이 있는가?
+
+I. WP5 Expo Push 구조에 현재 repository와 다른 전제가 있는가?
+
+J. WP8 pagination 적용 시
+기존 앱 contract를 깨뜨릴 위험이 큰 endpoint가 있는가?
+
+K. WP10 Growth Report는 기존 worker 재사용으로 충분한가?
+
+L. WP15 app version/runtime 기본안에
+현재 native dependency/config 기준 실제 blocker가 이미 보이는가?
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 크레딧 절약을 위한 조사 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 검수에서:
+
+- 모든 파일을 읽지 마십시오.
+- 먼저 관련 route/service/schema/config를 찾고 필요한 파일만 확인하십시오.
+- 이미 evidence가 있는 항목은 동일 사실을 다시 장시간 재검증하지 마십시오.
+- 테스트 suite 전체 실행 금지.
+- 코드 변경이 없으므로 새 테스트 작성 금지.
+- README/documentation 정리 금지.
+- architecture 문서 새로 작성 금지.
+
+필요한 증거가 이미 충분하면
+더 조사하지 말고 결론을 내십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식으로만 간결하게 보고하십시오.
+
+# SWIMNOTE FINAL MASTER WP REVIEW REPORT
+
+Repository:
+...
+
+Branch:
+...
+
+HEAD:
+...
+
+## 1. Overall
+APPROVE / APPROVE WITH CHANGES / HOLD
+
+## 2. WP sequence
+현재 순서 그대로 사용 가능:
+YES / NO
+
+변경이 필요한 경우에만:
+- WP...
+- 이유
+- 실제 dependency evidence
+
+## 3. Missing P0
+NONE
+또는
+- 항목
+- 실제 repo evidence
+- 어느 WP에 포함할지
+
+## 4. Duplicate / Already Implemented
+NONE
+또는
+- WP/항목
+- 이미 구현된 파일/기능
+- 삭제 또는 gap-only 권고
+
+## 5. Incorrect P0/P1/P2
+NONE
+또는
+- 항목
+- 현재 등급
+- 권장 등급
+- 이유
+
+## 6. Critical semantic checks
+
+mode=x interpreted as paid anywhere:
+YES / NO
+Evidence:
+...
+
+RC touching manual entitlement:
+YES / NO
+Evidence:
+...
+
+RC touching management override:
+YES / NO
+Evidence:
+...
+
+Manual Grant tied incorrectly to upload history:
+YES / NO
+Evidence:
+...
+
+## 7. WP4 Notice migration risk
+NONE
+또는:
+...
+
+## 8. WP5 Expo Push assumption
+CORRECT / NEEDS CHANGE
+Evidence:
+...
+
+## 9. WP8 Pagination contract risk
+NONE
+또는:
+...
+
+## 10. WP10 Growth existing worker reuse
+VALID / NOT VALID
+Evidence:
+...
+
+## 11. WP15 Version/runtime
+Current proposal technically plausible:
+YES / NO / NEEDS WP15 AUDIT
+
+Immediate known blocker:
+NONE / ...
+
+## 12. Final recommended WP list
+
+WP0 ...
+WP1 ...
+...
+WP21 ...
+
+실제 변경이 필요할 때만 수정해서 작성하십시오.
+변경이 없으면 현재 목록 그대로라고 명시하십시오.
+
+## 13. Implementation readiness
+
+WP1 implementation can start after this review:
+YES / NO
+
+If NO:
+exact blocker only.
+
+## 14. Changes made
+
+Code:
+NONE
+
+DB:
+NONE
+
+Migration:
+NONE
+
+Production:
+NONE
+
+Render:
+NONE
+
+OTA:
+NONE
+
+이번 검수 후 STOP하십시오.
+
+WP1 구현을 시작하지 마십시오.
+다음 WP를 선행 구현하지 마십시오.
+```

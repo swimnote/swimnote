@@ -1,21 +1,27 @@
 /**
  * growth-report-monthly-policy.test.ts
  *
- * MONTHLY_FREE Growth Report 최종 정책 테스트 (§P절 13개 케이스)
+ * MONTHLY_FREE Growth Report 최종 정책 테스트 (§P절)
+ *
+ * ★ 2026-09-07 자동 publish 완전 비활성화:
+ *   scheduler는 REVIEW_REQUIRED에서 멈춤.
+ *   publish는 반드시 pool_admin 직접 action으로만:
+ *     - POST /admin/growth-reports/:id/send
+ *     - POST /admin/growth-reports/bulk-send
  *
  * P-1  2026-09 실행 → report_period 2026-08
  * P-2  analysisCutoffAt = 2026-09-01 00:00:00 KST (= 2026-08-31 15:00:00 UTC)
  * P-3  period_start = 2026-08-01, period_end = 2026-08-31
- * P-4  student.status = 'active' → delivery eligible → auto-publish 호출
- * P-5  student.status = 'suspended' (연기) → delivery skip
- * P-6  student.status = 'withdrawn' (퇴원) → delivery skip
- * P-7  make-up lesson 존재 + status = 'withdrawn' → delivery skip (lifecycle 우선)
+ * P-4  scheduler는 5일 이후에도 REVIEW_REQUIRED에서 멈춤 (auto-publish 없음)
+ * P-5  scheduler는 student.status='suspended' 여도 auto-publish 없음
+ * P-6  scheduler는 student.status='withdrawn' 여도 auto-publish 없음
+ * P-7  scheduler는 5일 이후 실행 시 항상 reports_auto_published=0
  * P-8  이전달 report period 계산 = previous month (pure function 검증)
- * P-9  동일 publish 재실행 → alreadyPublished (idempotency)
- * P-10 이미 PUBLISHED report → autoApproveAndPublishForDelivery → alreadyPublished
- * P-11 deep-link: notifyGrowthReportPublished에 정확한 reportId 전달
+ * P-9  scheduler 5일 두 번 실행 → 두 번 모두 reports_auto_published=0 (비활성화 일관성)
+ * P-10 5일 이후 실행 → autoApproveAndPublishForDelivery 절대 호출 안 됨
+ * P-11 5일 이후 실행 → notifyGrowthReportPublished 절대 호출 안 됨
  * P-12 GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false → scheduler 정상 실행 (worker와 무관)
- * P-13 5일 이전 실행 → auto-publish skip (cycle open은 실행)
+ * P-13 5일 이전 실행 → auto-publish 없음, cycle open은 실행
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -46,13 +52,9 @@ vi.mock("../../lib/growth-report-eligibility.js", () => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock DB factory (P-4~P-13에서 사용)
+// Mock DB factory
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * makeTestDb — returns a db object with a vi.fn() execute that responds from a queue.
- * Each call to execute() pops the next item from `responses`.
- */
 function makeTestDb(responses: any[][]) {
   let idx = 0;
   const execute = vi.fn(async (_q: any) => {
@@ -68,40 +70,16 @@ function makeTestDb(responses: any[][]) {
  *   [1] INSERT cycle → [] (already exists)
  *   [2] SELECT existing cycle → [{ id: "cycle-1", cycle_status: "ACTIVE" }]
  *   [3] PENDING cycles → []
- *   [4] autoPublish candidates → provided
+ *
+ * NOTE: 5번째(candidates) 응답 불필요 — scheduler가 auto-publish 쿼리 미실행
  */
-function makeQueueFor5th(candidateReports: any[]) {
+function makeQueueFor5th() {
   return [
-    [{ id: "pool-x" }],              // getXEligiblePools
-    [],                               // INSERT cycle → conflict
-    [{ id: "cycle-1", cycle_status: "ACTIVE" }], // SELECT existing cycle → ACTIVE → skip
-    [],                               // PENDING cycles
-    candidateReports,                 // autoPublish candidates
+    [{ id: "pool-x" }],                                         // getXEligiblePools
+    [],                                                          // INSERT cycle → conflict
+    [{ id: "cycle-1", cycle_status: "ACTIVE" }],                // SELECT existing cycle → ACTIVE
+    [],                                                          // PENDING cycles
   ];
-}
-
-function makeCandidate(overrides: Partial<{
-  report_id: string;
-  student_status: string;
-  grounding_status: string;
-  growth_framing_status: string;
-}> = {}) {
-  return {
-    report_id: "r1",
-    student_id: "s1",
-    pool_id: "p1",
-    report_period: "2026-08",
-    analysis_status: "COMPLETE",
-    grounding_status: "PASS",
-    growth_framing_status: "PASS",
-    val_grounding_status: null,
-    val_growth_framing_status: null,
-    report_content: { text: "ok" },
-    report_fact_package: {},
-    sns_summary: {},
-    student_status: "active",
-    ...overrides,
-  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,53 +147,44 @@ describe("getKSTDate", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// P-4 ~ P-7: delivery eligibility (lifecycle 기반)
+// P-4 ~ P-7: scheduler는 5일 이후에도 자동 publish 없음
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("runGrowthReportScheduler — delivery eligibility", () => {
+describe("runGrowthReportScheduler — auto-publish 비활성화 검증", () => {
   // 5일 KST = 2026-09-05 01:00 KST = UTC 2026-09-04T16:00:00Z
   const NOW_5TH = new Date("2026-09-04T16:00:00.000Z");
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAutoApprove.mockResolvedValue({
-      alreadyPublished: false,
-      publishedAt: new Date().toISOString(),
-      studentId: "s1", poolId: "p1", reportPeriod: "2026-08",
-    });
   });
 
-  it("P-4: student.status='active' → auto-publish 실행", async () => {
-    const { db } = makeTestDb(makeQueueFor5th([makeCandidate({ student_status: "active" })]));
+  it("P-4: 5일 이후 실행 — scheduler가 REVIEW_REQUIRED에서 멈춤 (auto-publish 없음)", async () => {
+    const { db } = makeTestDb(makeQueueFor5th());
     const result = await runGrowthReportScheduler(db as any, NOW_5TH);
-    expect(mockAutoApprove).toHaveBeenCalledWith(
-      expect.objectContaining({ reportId: "r1", actorId: "SYSTEM_MONTHLY_AUTO" }),
-    );
-    expect(result.reports_auto_published).toBe(1);
+    expect(mockAutoApprove).not.toHaveBeenCalled();
+    expect(result.reports_auto_published).toBe(0);
+  });
+
+  it("P-5: 5일 이후 실행 — student.status 무관하게 auto-publish 없음 (suspended)", async () => {
+    const { db } = makeTestDb(makeQueueFor5th());
+    const result = await runGrowthReportScheduler(db as any, NOW_5TH);
+    expect(mockAutoApprove).not.toHaveBeenCalled();
+    expect(result.reports_auto_published).toBe(0);
+  });
+
+  it("P-6: 5일 이후 실행 — student.status 무관하게 auto-publish 없음 (withdrawn)", async () => {
+    const { db } = makeTestDb(makeQueueFor5th());
+    const result = await runGrowthReportScheduler(db as any, NOW_5TH);
+    expect(mockAutoApprove).not.toHaveBeenCalled();
+    expect(result.reports_auto_published).toBe(0);
+  });
+
+  it("P-7: 5일 이후 실행 → reports_auto_published=0, reports_delivery_skipped=0 (비활성화)", async () => {
+    const { db } = makeTestDb(makeQueueFor5th());
+    const result = await runGrowthReportScheduler(db as any, NOW_5TH);
+    expect(result.reports_auto_published).toBe(0);
     expect(result.reports_delivery_skipped).toBe(0);
-  });
-
-  it("P-5: student.status='suspended' (연기) → delivery skip", async () => {
-    const { db } = makeTestDb(makeQueueFor5th([makeCandidate({ student_status: "suspended" })]));
-    const result = await runGrowthReportScheduler(db as any, NOW_5TH);
-    expect(mockAutoApprove).not.toHaveBeenCalled();
-    expect(result.reports_delivery_skipped).toBe(1);
-  });
-
-  it("P-6: student.status='withdrawn' (퇴원) → delivery skip", async () => {
-    const { db } = makeTestDb(makeQueueFor5th([makeCandidate({ student_status: "withdrawn" })]));
-    const result = await runGrowthReportScheduler(db as any, NOW_5TH);
-    expect(mockAutoApprove).not.toHaveBeenCalled();
-    expect(result.reports_delivery_skipped).toBe(1);
-  });
-
-  it("P-7: makeup lesson 존재 + status='withdrawn' → delivery skip (lifecycle 우선)", async () => {
-    // scheduler는 makeup_lesson을 확인하지 않음 — status만 체크
-    const candidate = { ...makeCandidate({ student_status: "withdrawn" }), has_makeup_lesson: true };
-    const { db } = makeTestDb(makeQueueFor5th([candidate]));
-    const result = await runGrowthReportScheduler(db as any, NOW_5TH);
-    expect(mockAutoApprove).not.toHaveBeenCalled();
-    expect(result.reports_delivery_skipped).toBe(1);
+    expect(result.failed).toBe(0);
   });
 });
 
@@ -256,67 +225,39 @@ describe("P-8: parent-growth-report-status period = previous month", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// P-9, P-10: idempotency
+// P-9 ~ P-11: 자동 publish 비활성화 일관성
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("P-9 & P-10: publish idempotency", () => {
+describe("P-9 ~ P-11: auto-publish 완전 비활성화 일관성", () => {
   const NOW = new Date("2026-09-04T16:00:00.000Z"); // 5일 KST
 
-  it("P-9: 5일 두 번 실행 → 두 번째 auto-publish는 alreadyPublished 처리", async () => {
-    mockAutoApprove
-      .mockResolvedValueOnce({
-        alreadyPublished: false,
-        publishedAt: "2026-09-05T16:00:00.000Z",
-        studentId: "s1", poolId: "p1", reportPeriod: "2026-08",
-      })
-      .mockResolvedValueOnce({ alreadyPublished: true, publishedAt: "2026-09-05T16:00:00.000Z" });
-
-    const candidate = makeCandidate({ student_status: "active" });
-
-    const { db: db1 } = makeTestDb(makeQueueFor5th([candidate]));
-    const r1 = await runGrowthReportScheduler(db1 as any, NOW);
-    expect(r1.reports_auto_published).toBe(1);
-
-    const { db: db2 } = makeTestDb(makeQueueFor5th([candidate]));
-    const r2 = await runGrowthReportScheduler(db2 as any, NOW);
-    // second run: alreadyPublished → no increment
-    expect(r2.reports_auto_published).toBe(0);
-  });
-
-  it("P-10: alreadyPublished:true 반환 시 auto_published 카운트 미증가", async () => {
-    mockAutoApprove.mockResolvedValueOnce({ alreadyPublished: true });
-
-    const { db } = makeTestDb(makeQueueFor5th([makeCandidate({ student_status: "active" })]));
-    const result = await runGrowthReportScheduler(db as any, NOW);
-    expect(result.reports_auto_published).toBe(0);
-    expect(result.failed).toBe(0);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// P-11: feed item growth_report_id matches report id
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe("P-11: feed deep-link integrity", () => {
-  it("GR7 notify에는 정확한 reportId가 전달됨", async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    mockAutoApprove.mockResolvedValue({
-      alreadyPublished: false,
-      publishedAt: "2026-09-05T16:00:00.000Z",
-      studentId: "s1", poolId: "p1", reportPeriod: "2026-08",
-    });
+  });
 
-    const candidate = makeCandidate({ report_id: "rXYZ" });
-    const { db } = makeTestDb(makeQueueFor5th([candidate]));
+  it("P-9: 5일 두 번 실행 → 두 번 모두 reports_auto_published=0 (비활성화 일관성)", async () => {
+    const { db: db1 } = makeTestDb(makeQueueFor5th());
+    const r1 = await runGrowthReportScheduler(db1 as any, NOW);
+    expect(r1.reports_auto_published).toBe(0);
 
-    await runGrowthReportScheduler(db as any, new Date("2026-09-04T16:00:00.000Z"));
+    const { db: db2 } = makeTestDb(makeQueueFor5th());
+    const r2 = await runGrowthReportScheduler(db2 as any, NOW);
+    expect(r2.reports_auto_published).toBe(0);
 
-    // setImmediate로 비동기 실행 → flush
+    expect(mockAutoApprove).not.toHaveBeenCalled();
+  });
+
+  it("P-10: 5일 이후 실행 → autoApproveAndPublishForDelivery 절대 호출 안 됨", async () => {
+    const { db } = makeTestDb(makeQueueFor5th());
+    await runGrowthReportScheduler(db as any, NOW);
+    expect(mockAutoApprove).not.toHaveBeenCalled();
+  });
+
+  it("P-11: 5일 이후 실행 → notifyGrowthReportPublished 절대 호출 안 됨 (scheduler에서)", async () => {
+    const { db } = makeTestDb(makeQueueFor5th());
+    await runGrowthReportScheduler(db as any, NOW);
     await new Promise(resolve => setImmediate(resolve));
-
-    expect(mockNotify).toHaveBeenCalledWith(
-      expect.objectContaining({ reportId: "rXYZ" }),
-    );
+    expect(mockNotify).not.toHaveBeenCalled();
   });
 });
 
@@ -330,33 +271,32 @@ describe("P-12: AUTO_ENABLED=false → worker 차단, scheduler 정상 실행", 
     process.env.GROWTH_REPORT_ANALYSIS_AUTO_ENABLED = "false";
 
     vi.clearAllMocks();
-    mockAutoApprove.mockResolvedValue({ alreadyPublished: false, publishedAt: "x" });
 
-    const { db } = makeTestDb(makeQueueFor5th([])); // no candidates
+    const { db } = makeTestDb(makeQueueFor5th());
     const result = await runGrowthReportScheduler(db as any, new Date("2026-09-04T16:00:00.000Z"));
     expect(result.failed).toBe(0);
+    expect(mockAutoApprove).not.toHaveBeenCalled();
 
     process.env.GROWTH_REPORT_ANALYSIS_AUTO_ENABLED = orig ?? "";
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// P-13: 5일 이전 → auto-publish skip, cycle open은 실행
+// P-13: 5일 이전 → auto-publish 없음, cycle open은 실행
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("P-13: 5일 이전 → auto-publish skip", () => {
+describe("P-13: 5일 이전 → auto-publish 없음, cycle open은 실행", () => {
   // 2026-09-02 01:00 KST = UTC 2026-09-01T16:00Z (1일 이후이므로 open은 실행)
   const NOW_2ND = new Date("2026-09-01T16:00:00.000Z");
 
-  it("2일 KST 실행 → auto-publish skip, cycle open은 실행됨", async () => {
+  it("2일 KST 실행 → auto-publish 없음, cycle open은 실행됨", async () => {
     vi.clearAllMocks();
 
     const { db } = makeTestDb([
-      [{ id: "pool-x" }],             // getXEligiblePools
-      [],                              // INSERT cycle → conflict
-      [{ id: "cycle-1", cycle_status: "ACTIVE" }], // SELECT existing → ACTIVE → skip
-      [],                              // PENDING cycles
-      // shouldPublish=false → auto-publish query 미실행
+      [{ id: "pool-x" }],                                       // getXEligiblePools
+      [],                                                        // INSERT cycle → conflict
+      [{ id: "cycle-1", cycle_status: "ACTIVE" }],              // SELECT existing → ACTIVE
+      [],                                                        // PENDING cycles
     ]);
 
     const result = await runGrowthReportScheduler(db as any, NOW_2ND);
@@ -364,13 +304,13 @@ describe("P-13: 5일 이전 → auto-publish skip", () => {
     expect(result.reports_auto_published).toBe(0);
   });
 
-  it("parentInputCloseAt 1ms 이전 → auto-publish skip", () => {
+  it("parentInputCloseAt 1ms 이전 → auto-publish 조건 미충족", () => {
     const ts = computeMonthlyFreePeriodTimestamps(2026, 9);
     const justBefore = new Date(ts.parentInputCloseAt.getTime() - 1);
     expect(justBefore < ts.parentInputCloseAt).toBe(true);
   });
 
-  it("parentInputCloseAt 정각 → auto-publish 조건 충족", () => {
+  it("parentInputCloseAt 정각 → 날짜 조건 충족 (단, auto-publish 비활성화로 실행 없음)", () => {
     const ts = computeMonthlyFreePeriodTimestamps(2026, 9);
     const atClose = new Date(ts.parentInputCloseAt.getTime());
     expect(atClose >= ts.parentInputCloseAt).toBe(true);

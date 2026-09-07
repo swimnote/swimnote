@@ -1,0 +1,378 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 — PARENT DIARY FEED + NOTIFICATION DEEP LINK RCA
+# 실제 iOS Production 실기기 문제
+# 원인 확정 전 수정 금지
+# 새 기능 금지
+# DB migration 금지
+# WP17 선행 금지
+
+현재 사용자 실기기에서 다음 2개 문제 확인:
+
+ISSUE A
+선생님이 Diary 작성 및 저장 성공
+→ 학부모 계정 로그인
+→ 해당 자녀의 일지 피드에 새 Diary가 보이지 않음
+
+ISSUE B
+학부모에게
+"일지가 작성되었습니다"
+알림은 정상 도착
+
+하지만 알림 탭
+→ 해당 Diary/일지피드로 이동하지 않고
+→ 엉뚱한 자녀 연결 화면으로 이동
+
+이번 작업은 두 문제의 exact Root Cause만 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Diary 저장 구조 재작성 금지
+- AI ENGINE 수정 금지
+- DB migration 금지
+- Production DB 직접 수정 금지
+- push 전체 구조 재설계 금지
+- navigation 전체 refactor 금지
+- broad repo audit 금지
+- 전체 test suite 금지
+- Production OTA 금지
+- Render deploy 금지
+- WP17 선행 금지
+
+원인 확인 전 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ISSUE A — Parent Diary Feed 미노출
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 저장된 Diary 1건을 기준으로 다음 흐름 추적:
+
+Teacher Diary Save
+→ diary DB row
+→ student 연결 row / diary target relation
+→ Parent API
+→ Parent feed query
+→ app state/cache
+→ Parent Diary Feed rendering
+
+확인:
+
+1.
+Teacher Save가 실제 DB에 성공했는가:
+YES / NO
+
+2.
+해당 Diary가 어느 student_id/ref에 연결됐는가:
+정상 / 비정상
+
+3.
+해당 student와 Parent 연결이 실제 존재하는가:
+YES / NO
+
+4.
+Parent feed API가 해당 Diary를 반환하는가:
+YES / NO
+
+5.
+API가 반환하지만 UI에서 안 보이는가:
+YES / NO
+
+6.
+API 자체에서 누락되는가:
+YES / NO
+
+반드시 정확한 누락 지점을 하나로 특정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Parent Feed Query 조건 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 조건 전부 확인:
+
+- pool_id
+- student_id
+- parent-child link
+- diary status
+- publish/visibility 조건
+- lesson_date
+- created_at
+- deleted/archived flag
+- teacher assignment condition
+- current class vs historical class condition
+- pagination
+- cache/stale query
+- timezone/date filter
+
+특히:
+
+"현재 반 담당자" 권한 정책 때문에
+학부모 feed가 과거/새 Diary를 잘못 필터링하는지 확인.
+
+Diary 저장은 성공했는데
+Parent feed query에서 누락되는 exact predicate가 있으면 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실시간 갱신 / 캐시 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 앱에서:
+
+A.
+로그인 직후 새 Diary 안 보임
+
+B.
+pull-to-refresh 후:
+보임 / 안 보임
+
+C.
+앱 완전 종료 후 재실행:
+보임 / 안 보임
+
+D.
+Parent feed query cache invalidation:
+정상 / 비정상
+
+E.
+새 Diary 저장 후 parent feed cache가 invalidate/refetch 되는가:
+YES / NO
+
+만약 단순 stale cache라면
+DB/query 문제로 오판하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ISSUE B — Notification Deep Link 오동작
+━━━━━━━━━━━━━━━━━━━━━━
+
+"일지가 작성되었습니다" 알림 생성 경로 추적:
+
+Diary Save
+→ Notification 생성
+→ Push payload
+→ deep_link / route / screen / params
+→ app notification handler
+→ navigation resolver
+→ 최종 screen
+
+실제 payload에서 확인:
+
+notification type:
+...
+
+deep_link:
+...
+
+student_id:
+...
+
+diary_id:
+...
+
+pool_id:
+...
+
+target role:
+PARENT
+
+값 자체는 필요시 마스킹.
+
+JWT/개인정보 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 잘못된 자녀연결 화면으로 가는 이유 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 exact 원인 분류:
+
+A.
+push payload 자체 deep_link가 잘못 생성됨
+
+B.
+deep_link는 맞지만 notification handler가 잘못 매핑
+
+C.
+student_id가 없어 fallback으로 child-link 화면 이동
+
+D.
+diary_id가 없어 fallback 발생
+
+E.
+parent navigation resolver에서 unknown route fallback 발생
+
+F.
+로그인/자녀 context 초기화 전 deep-link 처리되어
+child-link onboarding으로 잘못 이동
+
+G.
+기타
+
+반드시 하나로 특정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 올바른 목표 동작 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary notification tap의 정상 동작은:
+
+Parent
+→ 해당 자녀 context 확보
+→ Parent Diary Feed 또는 해당 Diary 상세
+→ 방금 작성된 Diary가 보이는 위치
+
+현재 앱 구조상 Diary 상세 route가 이미 있다면:
+해당 Diary 상세로 이동 우선.
+
+Diary 상세 route가 없다면:
+해당 자녀의 Diary Feed로 이동.
+
+새 화면 만들지 마십시오.
+
+현재 existing route를 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Shared Root Cause 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+ISSUE A와 B가
+같은 student_id/diary_id relation 문제인지 확인.
+
+Shared root cause:
+YES / NO
+
+YES면 exact shared cause 보고.
+
+NO면 각각 독립 원인 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최소 재현
+━━━━━━━━━━━━━━━━━━━━━━
+
+safe test account 사용.
+
+Teacher:
+Diary 1건 저장
+
+Parent:
+해당 student 연결 계정으로 로그인
+
+확인:
+
+- Parent feed API result
+- Parent UI result
+- Notification row
+- Push payload
+- Deep-link resolver output
+
+Production 고객 데이터 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 PARENT FEED + DEEP LINK RCA REPORT
+
+Branch:
+...
+
+HEAD:
+...
+
+━━━━━━━━━━
+ISSUE A — PARENT DIARY FEED
+━━━━━━━━━━
+
+Diary DB row exists:
+YES / NO
+
+Student relation:
+PASS / FAIL
+
+Parent-child relation:
+PASS / FAIL
+
+Parent feed API includes diary:
+YES / NO
+
+Parent UI displays diary:
+YES / NO
+
+Refresh changes result:
+YES / NO
+
+Restart changes result:
+YES / NO
+
+Cache invalidation:
+PASS / FAIL
+
+Exact root cause:
+...
+
+Affected file(s):
+...
+
+Minimal fix:
+...
+
+━━━━━━━━━━
+ISSUE B — NOTIFICATION DEEP LINK
+━━━━━━━━━━
+
+Notification created:
+YES / NO
+
+Notification type:
+...
+
+deep_link payload:
+...
+
+student_id included:
+YES / NO
+
+diary_id included:
+YES / NO
+
+Current resolved screen:
+...
+
+Expected screen:
+...
+
+Exact root cause:
+...
+
+Affected file(s):
+...
+
+Minimal fix:
+...
+
+━━━━━━━━━━
+RELATION
+━━━━━━━━━━
+
+Shared root cause:
+YES / NO
+
+Explanation:
+...
+
+DB migration required:
+NO / YES
+
+Production data repair required:
+NO / YES
+
+Code changes performed:
+NO
+
+Production deploy performed:
+NO
+
+Final:
+ROOT_CAUSE_CONFIRMED / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.

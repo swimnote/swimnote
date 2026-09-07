@@ -1,0 +1,391 @@
+[보낼 곳: APP REPLIT]
+
+# WP16 FINAL ROUTE DEPLOYMENT RECONCILIATION
+# 목표: Teacher Diary 운영 경로를 "한 줄 구조"로 확정
+# READ-ONLY 조사만
+# 코드 수정 금지
+# Production DB 수정 금지
+# WP17 선행 금지
+
+최종 구조 목표:
+
+App
+→ TeacherDiaryAIClient
+→ ONE Production API
+→ GroundedPipelineRunner
+→ Response
+
+병렬 운영 경로 금지.
+동일 역할의 handler/resolver 중복 금지.
+legacy 경로가 있다면 rollback 전용으로 격리.
+
+현재 Production Render SHA:
+
+210d0554a6204b060a31fa2065e463d81dc4b32b
+
+현재 App 호출:
+
+POST https://swimnote-api.onrender.com/api/v1/teacher-diary/generate
+
+AI ENGINE 조사 결과:
+
+Repository:
+swimnote-group/swimnote-project
+
+Branch:
+deploy-clean
+
+HEAD:
+3eff2be2
+
+Existing Grounded Pipeline:
+PRESENT
+
+Pipeline entry:
+src/lib/grounded/GroundedPipelineRunner.ts
+→ GroundedPipelineRunner.run()
+
+Existing route:
+src/routes/v1-teacher-diary.ts
+
+Route:
+POST /api/v1/teacher-diary/generate
+
+Tests:
+30/30 PASS
+
+하지만 이전 APP 조사에서는 동일 endpoint가:
+
+ai-v1.ts
+→ searchXGlobalTemplates()
+→ getActiveGlobalTemplateSet()
+
+경로를 탄다고 보고했습니다.
+
+이 둘 중 Production에서 실제 어느 handler가 실행되는지 딱 하나로 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정 금지
+- merge 금지
+- cherry-pick 금지
+- 새 route 생성 금지
+- Production deploy 금지
+- OTA 금지
+- DB write 금지
+- global_template_sets 수정 금지
+- x_global 데이터 생성 금지
+- Toykids 350 template 수정 금지
+- WP17 선행 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production SHA 기준 실제 Route 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 commit:
+
+210d0554a6204b060a31fa2065e463d81dc4b32b
+
+기준으로 확인.
+
+Endpoint:
+
+POST /api/v1/teacher-diary/generate
+
+이 endpoint를 등록하는 모든 route definition 확인.
+
+각 후보:
+
+file:
+router mount:
+handler:
+import chain:
+registration order:
+
+동일 endpoint가 2개 이상이면
+Express 실제 registration order 기준으로
+어느 handler가 먼저 받는지 확정.
+
+파일 존재만으로 active 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Grounded Pipeline 포함 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production SHA에서 확인:
+
+src/lib/grounded/GroundedPipelineRunner.ts
+PRESENT / ABSENT
+
+src/routes/v1-teacher-diary.ts
+PRESENT / ABSENT
+
+src/adapters/TeacherDiaryAdapter.ts
+PRESENT / ABSENT
+
+그리고 실제 active route에서:
+
+GroundedPipelineRunner.run()
+호출:
+YES / NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ai-v1.ts 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production SHA에서 ai-v1.ts Teacher Diary handler 존재 여부 확인.
+
+있으면 분류:
+
+ACTIVE
+LEGACY
+UNREACHABLE
+DIFFERENT_NAMESPACE
+
+그리고:
+
+searchXGlobalTemplates()
+
+가 실제 current Teacher Diary request path에서 호출되는지
+direct caller chain으로 증명.
+
+단순 함수 존재는 증거 아님.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 3eff2be2 vs 210d0554 최소 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher Diary 관련 파일만 비교.
+
+대상:
+
+- GroundedPipelineRunner
+- v1-teacher-diary route
+- TeacherDiaryAdapter
+- route/index registration
+- ai-v1 route
+- server startup/router mount
+
+보고:
+
+AI ENGINE Grounded implementation
+included in Production main:
+YES / NO
+
+NO라면:
+
+missing commits/files:
+...
+
+전체 repo diff 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Production Runtime Evidence
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production write 없이 확인 가능한 경우:
+
+- existing request trace
+- startup route registration log
+- masked request_id
+- pipeline_mode
+- engine_build
+
+확인.
+
+실제 고객 데이터로 새 Diary 생성 요청 금지.
+
+보고:
+
+observed pipeline_mode:
+grounded_v1 / legacy / UNKNOWN
+
+observed engine_build:
+...
+
+evidence source:
+...
+
+없으면 UNKNOWN.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 구조 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+
+Production endpoint가 이미:
+
+TeacherDiaryAIClient
+→ /api/v1/teacher-diary/generate
+→ GroundedPipelineRunner.run()
+
+으로 단일 연결.
+
+→ APP 수정 없음
+→ x_global data recovery 없음
+→ 기존 ai-v1 active 판정이 잘못된 조사
+→ WP16 Teacher Diary blocker 해소
+
+
+CASE B
+
+Production main에 GroundedPipelineRunner route가 없음.
+
+→ 이미 완성된 3eff2be2 구현이
+현재 release/main 배포선에 포함되지 않은 상태.
+
+→ 필요한 exact commits/files만 보고.
+→ 이번 단계에서 merge 금지.
+
+
+CASE C
+
+Grounded handler와 ai-v1 handler 둘 다 존재하며
+legacy가 registration order상 실제 요청을 받음.
+
+→ routing conflict.
+
+→ 최소 routing 정리 필요.
+→ 이번 단계에서는 수정하지 말고 exact root cause만 보고.
+
+
+CASE D
+
+GroundedPipelineRunner가 active인데
+내부에서 실제로 x_global/global_template_sets를 사용.
+
+→ exact internal caller evidence 제출.
+→ 그 경우에만 data requirement 재판단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 복잡도 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 Teacher Diary는 반드시:
+
+App
+→ TeacherDiaryAIClient
+→ ONE endpoint
+→ GroundedPipelineRunner
+
+한 줄이어야 함.
+
+금지:
+
+- 두 개 active handler
+- two template resolver
+- production feature flag 분기
+- legacy 자동 fallback
+- 같은 endpoint에 다른 구현 동시 등록
+- APP 서버에서 수영 지식/template/knowledge 판단 재구현
+
+legacy가 필요하면:
+
+ROLLBACK_ONLY
++
+Production normal path에서는 unreachable
+
+상태로만 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+# WP16 TEACHER DIARY ROUTE FINAL REPORT
+
+Production SHA:
+210d0554a6204b060a31fa2065e463d81dc4b32b
+
+Endpoint:
+/api/v1/teacher-diary/generate
+
+Route definitions found:
+...
+
+Active handler:
+...
+
+Active handler file:
+...
+
+Registration chain:
+...
+
+Registration order:
+...
+
+GroundedPipelineRunner in Production SHA:
+PRESENT / ABSENT
+
+v1-teacher-diary route in Production SHA:
+PRESENT / ABSENT
+
+TeacherDiaryAdapter in Production SHA:
+PRESENT / ABSENT
+
+GroundedPipelineRunner actually called:
+YES / NO
+
+ai-v1 Teacher Diary handler exists:
+YES / NO
+
+ai-v1 handler classification:
+ACTIVE / LEGACY / UNREACHABLE / DIFFERENT_NAMESPACE / NONE
+
+searchXGlobalTemplates on active request path:
+YES / NO
+
+3eff2be2 Grounded implementation included in 210d0554:
+YES / NO
+
+Missing commits/files:
+...
+
+Production observed pipeline_mode:
+grounded_v1 / legacy / UNKNOWN
+
+Final canonical path:
+...
+
+Parallel active paths:
+0 / ...
+
+Classification:
+CASE A / CASE B / CASE C / CASE D
+
+APP client change required:
+YES / NO
+
+Routing fix required:
+YES / NO
+
+x_global Production data recovery required:
+YES / NO / NOT_DETERMINED
+
+Toykids 350 templates modification:
+NO
+
+Code change performed:
+NO
+
+Production writes:
+0
+
+Recommended next action:
+...
+
+Final:
+PASS / HOLD
+
+완료 후 STOP.
+WP17 선행 금지.
+
+핵심 목표:
+
+"앱에서 AI 일지 누르면
+TeacherDiaryAIClient → 하나의 API → GroundedPipelineRunner"
+
+이 한 줄 외의 운영 경로를 남기지 않는 것입니다.

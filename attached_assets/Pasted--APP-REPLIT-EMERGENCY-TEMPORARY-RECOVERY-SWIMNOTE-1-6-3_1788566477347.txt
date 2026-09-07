@@ -1,0 +1,473 @@
+[보낼 곳: APP REPLIT]
+
+# EMERGENCY TEMPORARY RECOVERY — SWIMNOTE 1.6.3
+# 목적:
+# 현재 기존 배포 앱 1.6.3에서 로그인 후
+# "수영장 정보 불러오는 중..." 화면에 계속 머물며 접속이 되지 않는다.
+#
+# 2.0.1 정식 업데이트는 주말 이후 진행 예정.
+# 지금 목표는 1.6.3을 주말 동안 기존 운영자가 사용할 수 있을 정도로만
+# 최소 복구하는 것이다.
+#
+# 중요:
+# 1.6.3을 다시 개발하거나 현대화하지 않는다.
+# 기존 2.0/X 기능을 1.6.3에 맞추기 위해 되돌리지 않는다.
+# 원인 확인 → 최소 backward-compatible fix → 검증 → STOP.
+
+============================================================
+현재 증상
+============================================================
+
+실제 iPhone의 기존 1.6.3 앱에서:
+
+앱 실행
+→ 하단 navigation 표시됨
+→ 중앙 spinner
+→ "수영장 정보 불러오는 중..."
+→ 계속 대기
+→ 정상 화면 진입 불가
+
+즉 우선 조사 대상은:
+
+login/session restore
+→ authenticated API
+→ current pool / swimming pool info fetch
+→ app bootstrap
+
+구간이다.
+
+============================================================
+최상위 금지사항
+============================================================
+
+절대 하지 말 것:
+
+- 2.0/X 구조 롤백
+- X mode resolver 변경
+- Toykids management override 변경
+- RevenueCat 변경
+- subscription catalog 변경
+- Growth Report 변경
+- AI ENGINE 변경
+- Production DB schema 변경
+- migration 실행
+- Production data UPDATE
+- 1.6.3 전체 리팩터링
+- 최신 APP 코드를 1.6.3 기준으로 재설계
+- 1.6.3 Diary Save 같은 과거 버그 재개발
+- 새로운 native build 생성
+- App Store 재배포
+- repo-wide audit
+
+이번 작업은 오직:
+"1.6.3 bootstrap/pool-info fetch가 왜 현재 Production API에서 실패하는가"
+만 본다.
+
+============================================================
+STEP 1 — 실제 1.6.3 요청 경로 확인
+============================================================
+
+추측하지 말고 1.6.3 source/history 또는 현재 compatibility code를 확인해서
+
+앱 시작 시 실제 호출하는 endpoint를 찾는다.
+
+보고:
+
+App version:
+1.6.3
+
+bootstrap flow:
+...
+
+pool info endpoint:
+METHOD ...
+PATH ...
+
+추가 startup endpoints:
+...
+
+각 endpoint가 현재 Production에서:
+
+HTTP status:
+...
+
+response:
+...
+
+error:
+...
+
+를 확인.
+
+============================================================
+STEP 2 — Production 로그 확인
+============================================================
+
+현재 1.6.3 앱 실행 시 발생하는 Production API 로그에서:
+
+- 401
+- 403
+- 404
+- 500
+- validation failure
+- JWT/session error
+- missing field
+- response schema mismatch
+- endpoint removed/renamed
+- tenant/pool resolver error
+
+중 실제 오류를 찾는다.
+
+반드시 실제 로그/코드 evidence로 root cause 확정.
+
+"아마 이것 같다" 수준에서 수정 금지.
+
+============================================================
+STEP 3 — 최근 변경과 비교
+============================================================
+
+1.6.3이 과거 정상 동작하던 API contract와
+현재 Production API contract를 비교.
+
+특히 확인:
+
+1. 기존 pool/current-pool endpoint가 삭제/rename 되었는가
+2. response field가 바뀌었는가
+3. nullable → required 변화가 있었는가
+4. auth middleware가 추가되어 1.6.3 token을 거부하는가
+5. token_version/session validation 변화가 있는가
+6. role/pool membership resolver 변화가 있는가
+7. endpoint prefix가 바뀌었는가
+8. old client가 보내는 query/body field를 현재 server가 거부하는가
+9. X/subscription/catalog 변경 중 기존 bootstrap response contract가 깨졌는가
+10. 최근 WP0/X 작업이 이 startup endpoint에 간접 영향을 줬는가
+
+특히:
+"건드리지 말라고 했던 1.6.3 compatibility가 최근 backend 변경으로 깨졌는지"
+commit history/blame로 확인.
+
+============================================================
+STEP 4 — 정확한 ROOT CAUSE 먼저 보고
+============================================================
+
+수정 전에 반드시 다음을 확정:
+
+Failing endpoint:
+...
+
+HTTP/error:
+...
+
+Exact server file:
+...
+
+Exact client expectation:
+...
+
+Exact incompatibility:
+...
+
+Introduced by commit if identifiable:
+...
+
+1.6.3-specific regression:
+YES / NO
+
+2.0 current app affected:
+YES / NO
+
+============================================================
+STEP 5 — FIX 원칙
+============================================================
+
+가능하면 최우선은:
+
+SERVER-SIDE BACKWARD-COMPATIBLE 최소 수정.
+
+조건:
+
+- 1.6.3 정상
+- 현재 2.0/X 정상
+- 보안 약화 없음
+- cross-pool protection 유지
+- RevenueCat/X resolver 영향 없음
+- DB 변경 없음
+
+예:
+
+old response field alias 복구
+old endpoint compatibility alias
+optional legacy field 허용
+response contract backward-compatible extension
+
+처럼 additive fix가 가능하면 그것을 우선.
+
+절대:
+
+현재 API 보안을 낮춰서 1.6.3을 살리지 말 것.
+
+예:
+인증 제거
+membership 검증 제거
+role check 제거
+
+금지.
+
+============================================================
+1.6.3 자체 수정이 필요한 경우
+============================================================
+
+기존 설치된 1.6.3 binary를
+코드 수정만으로 살릴 수 없는 경우에는
+바로 수정하지 말고 보고.
+
+특히:
+
+native binary 새 배포 필요
+→ 이번 주말 임시 복구 방식으로 부적합
+
+OTA compatibility가 실제 존재하는 경우만 별도 보고.
+
+하지만 1.6.3 OTA를 임의 publish하지 말 것.
+
+============================================================
+STEP 6 — TEMPORARY RECOVERY 범위
+============================================================
+
+이번 임시복구 완료조건은 딱 이것:
+
+1. 기존 설치된 1.6.3 실행
+2. 기존 사용자 login/session 정상
+3. "수영장 정보 불러오는 중..." 통과
+4. 홈 진입
+5. 기존 핵심 운영 화면 최소 진입 가능
+
+최소 확인:
+
+- 홈
+- 수업관리
+- 운영관리
+- 메시지
+- 설정
+
+전체 1.6.3 regression test 필요 없음.
+
+Diary/AI/legacy bug까지 확대 금지.
+
+============================================================
+STEP 7 — 현재 2.0/X REGRESSION 확인
+============================================================
+
+최소 확인:
+
+Current app/API:
+PASS
+
+Toykids:
+GET /api/pools/x-mode
+→ HTTP 200
+→ mode=x
+
+Normal pool:
+기존 mode 정상
+
+Cross-pool:
+영향 0
+
+============================================================
+GIT / DEPLOYMENT
+============================================================
+
+코드 수정 발생 시:
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Push:
+YES
+
+Render Production 자동배포 금지.
+
+보고서에서:
+
+Render required:
+YES / NO
+
+까지만 보고.
+
+사용자가 직접 배포한다.
+
+Production DB 변경:
+금지.
+
+OTA:
+임의 실행 금지.
+
+============================================================
+FINAL REPORT
+============================================================
+
+# SWIMNOTE 1.6.3 TEMP RECOVERY REPORT
+
+Symptom reproduced:
+YES / NO
+
+--------------------------------
+FAILURE
+--------------------------------
+
+Failing startup step:
+...
+
+Endpoint:
+...
+
+HTTP:
+...
+
+Server error/log:
+...
+
+--------------------------------
+ROOT CAUSE
+--------------------------------
+
+Exact cause:
+...
+
+Server file:
+...
+
+Client expectation:
+...
+
+Breaking change introduced by:
+...
+
+Was recent 2.0/X work responsible:
+YES / NO / INDIRECT
+
+--------------------------------
+FIX
+--------------------------------
+
+Fix type:
+
+SERVER BACKWARD COMPATIBILITY
+/ CLIENT
+/ CONFIG
+/ OTHER
+
+Files changed:
+...
+
+DB changes:
+0
+
+Security weakened:
+NO
+
+2.0/X logic changed:
+NO
+
+--------------------------------
+GIT
+--------------------------------
+
+Branch:
+...
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Push:
+YES / NO
+
+--------------------------------
+TEST
+--------------------------------
+
+1.6.3 login/session:
+PASS / FAIL
+
+1.6.3 pool info load:
+PASS / FAIL
+
+1.6.3 home:
+PASS / FAIL
+
+수업관리:
+PASS / FAIL
+
+운영관리:
+PASS / FAIL
+
+메시지:
+PASS / FAIL
+
+설정:
+PASS / FAIL
+
+Current 2.0 API:
+PASS / FAIL
+
+Toykids X mode:
+PASS / FAIL
+
+Normal pool:
+PASS / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+--------------------------------
+DEPLOYMENT
+--------------------------------
+
+Render required:
+YES / NO
+
+OTA required:
+YES / NO
+
+Native build required:
+YES / NO
+
+--------------------------------
+FINAL
+--------------------------------
+
+Existing installed SWIMNOTE 1.6.3
+usable for temporary weekend operation:
+YES / NO
+
+If NO:
+exact blocker:
+...
+
+IMPORTANT:
+
+이번 목표 달성 후
+1.6.3 추가 개선/리팩터링/기능수정 없이 STOP.
+
+DO NOT AUTO DEPLOY RENDER.
+DO NOT MODIFY PRODUCTION DB.
+DO NOT START NEXT WP.

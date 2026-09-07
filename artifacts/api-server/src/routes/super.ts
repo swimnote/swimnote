@@ -3613,12 +3613,20 @@ router.post(
       }
 
       // ② analysis_status 확인
-      if (row.analysis_status !== "COMPLETE") {
+      // COMPLETE, COMPLETE_WITH_QUESTIONS_AVAILABLE, COMPLETE_WITH_PARENT_EVIDENCE 모두 허용.
+      // 질문이 있어도 parent input 기간이 종료되면 product_status=READY_FOR_ANALYSIS로 전환되므로
+      // mark-review-required 대상이 됨. FAILED 등 비완료 상태는 차단 유지.
+      const VALID_ANALYSIS_FOR_REVIEW = new Set([
+        "COMPLETE",
+        "COMPLETE_WITH_QUESTIONS_AVAILABLE",
+        "COMPLETE_WITH_PARENT_EVIDENCE",
+      ]);
+      if (!VALID_ANALYSIS_FOR_REVIEW.has(row.analysis_status)) {
         res.status(409).json({
           ok: false, error: "NOT_COMPLETE",
           report_id: reportId,
           analysis_status: row.analysis_status,
-          message: `analysis_status must be COMPLETE, got ${row.analysis_status}`,
+          message: `analysis_status must be COMPLETE/COMPLETE_WITH_QUESTIONS_AVAILABLE/COMPLETE_WITH_PARENT_EVIDENCE, got ${row.analysis_status}`,
         });
         return;
       }

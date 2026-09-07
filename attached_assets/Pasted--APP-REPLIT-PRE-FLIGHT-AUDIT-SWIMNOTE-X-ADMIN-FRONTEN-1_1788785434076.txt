@@ -1,0 +1,516 @@
+[보낼 곳: APP REPLIT]
+
+[PRE-FLIGHT AUDIT — 관리자/선생님 + SWIMNOTE/X 공용 화면 영향도 조사]
+
+목적:
+앞서 작성한 ADMIN FRONTEND FINAL POLISH 설계도를 실제 실행하기 전에,
+
+1.
+관리자와 선생님이
+같은 screen/component/API를 공유하는 영역
+
+2.
+SWIMNOTE 기본모드와 SWIMNOTE X가
+같은 screen/component/API를 공유하는 영역
+
+3.
+겉보기에는 다른 화면이지만
+실제로 공통 component/style/helper를 사용하는 영역
+
+을 전수 조사하여
+“한쪽 수정 시 다른 쪽도 반드시 같이 수정/검증해야 하는 항목”을
+기존 22개 Bundle 설계도에 보충한다.
+
+이번 단계:
+AUDIT / IMPACT MAP ONLY
+
+금지:
+- 코드 수정
+- DB 수정
+- server 수정
+- OTA
+- deploy
+- native build
+- 설계도 실행 시작
+
+보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 역할별 화면 구조 전수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP에서 최소 역할:
+
+- pool_admin
+- teacher
+- parent
+
+중
+
+관리자와 선생님이 같은 기능을
+각각 어디서 여는지 조사.
+
+특히 아래 기능:
+
+- 수업 스케줄
+- 반 관리
+- 출결
+- 수업 일지
+- 보강
+- 휴무일
+- 공지사항
+- 회원/학생 정보
+- 메시지
+- AI 일지
+- AI 관련 공통 component
+- 검색/필터/tab/pill UI
+
+각 기능별로:
+
+A.
+관리자 전용 screen
+
+B.
+선생님 전용 screen
+
+C.
+같은 screen을 role 분기로 사용
+
+D.
+다른 screen이지만 같은 component 사용
+
+E.
+다른 screen + 다른 component
+
+분류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 관리자 수정사항과 Teacher 영향 매핑
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞서 확정된 관리자 수정사항 전체를 대상으로
+각 항목마다 teacher 영향 여부 작성.
+
+최소 아래는 반드시 확인:
+
+A.
+수업 스케줄러 월간 캘린더
+
+B.
+보강 버튼 / 보강 관리
+
+C.
+휴무일 아이콘
+
+D.
+출결 관리
+
+E.
+수업 일지
+
+F.
+공지사항 작성 / AI 작성
+
+G.
+아이콘 공통 component
+
+H.
+tab/pill 버튼 글자 잘림
+
+I.
+navigation header / back button
+
+J.
+student/member card와 유사한 teacher student list
+
+각 항목:
+
+ADMIN_ONLY
+TEACHER_SHARED
+SHARED_COMPONENT
+TEACHER_SEPARATE_COPY
+NO_TEACHER_EQUIVALENT
+
+로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Teacher 화면의 동일 문제 전수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자에서 발견한 문제가
+teacher 화면에도 같은 형태로 존재하는지 코드 기준 확인.
+
+예:
+
+- 잘못된 refresh/alert icon
+- 글자 잘림
+- 작은 캘린더 텍스트
+- dead helper text
+- 잘못된 back navigation
+- 결석/보강 상태 표시
+- 수업일지 UI
+- 공지 작성 UI
+- 날짜 formatter
+- common empty/error state
+
+화면별로:
+
+SAME_BUG
+NOT_AFFECTED
+SHARED_FIX_AUTO_APPLIES
+SEPARATE_FIX_REQUIRED
+
+분류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SWIMNOTE 기본모드 vs X모드 화면 공유 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+현재 feature access를:
+
+mode === 'x'
+와 paid 여부를 혼동하지 말 것.
+
+기존 canonical semantics 유지:
+
+- feature access = canonical mode resolver
+- paid = x_paid_entitlement
+- manual = x_manual_entitlement
+- HQ = x_management_override
+- forced off = x_force_disabled
+
+이번 조사에서
+X 여부 로직 변경 금지.
+
+확인할 것:
+
+A.
+기본 SWIMNOTE와 X가
+같은 screen/component를 공유하는 기능
+
+B.
+X일 때만 추가 section/card/button을 보여주는 기능
+
+C.
+완전히 별도 X screen
+
+D.
+같은 backend API를 쓰지만 UI만 다른 기능
+
+특히:
+
+- dashboard/home
+- 수업관리
+- 스케줄러
+- 출결
+- 보강
+- 회원관리
+- 공지사항
+- 수업일지
+- 운영관리
+- 설정
+- AI 기능
+
+각 기능별로 분류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 수정사항 중 기본 SWIMNOTE 동시수정 필요 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞서 84개 요구사항 중
+X 전용이 아닌 일반 운영 기능은
+기본 SWIMNOTE에도 같은 UX가 적용되어야 함.
+
+최소 확인:
+
+- 휴무일 아이콘
+- 보강 아이콘
+- 스케줄러 가독성
+- 보강 tab 글자 잘림
+- 보강 정책 UI
+- 출결
+- 수업일지 dead 안내
+- 공지사항
+- 회원관리 카드
+- 회원 상세
+- 학부모 초대
+- 학부모 연결
+- 수업정산
+- navigation
+- 공통 icon
+
+각 항목:
+
+X_ONLY
+BASE_ONLY
+BASE_AND_X_SHARED
+SAME_COMPONENT
+SEPARATE_SCREEN_BUT_BOTH_NEED_FIX
+
+로 분류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 공통 Component Dependency Graph
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 종류의 공통 component/helper를 찾아서
+어디서 쓰는지 usage map 작성:
+
+- Header
+- Back button
+- Home button
+- LucideIcon wrapper
+- StatusBadge
+- Pill/Tab
+- SearchBar
+- MemberCard
+- StudentCard
+- EmptyState
+- ErrorState
+- Date formatter
+- Monthly calendar
+- Diary card
+- Attendance card
+- Makeup card
+- InviteModal
+- Bottom nav
+- Modal/Sheet
+
+각 component마다:
+
+파일
+→ admin 사용처
+→ teacher 사용처
+→ base/X 사용처
+→ 수정 영향도
+
+작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Route / Navigation 공유 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 주요 화면이:
+
+router.push
+router.replace
+router.back
+Stack.Screen
+Tabs
+
+중 어떤 방식인지 확인.
+
+특히:
+
+관리자와 teacher가
+동일 child screen으로 들어가는데
+back target만 다른 경우가 있는지 조사.
+
+또:
+
+base SWIMNOTE / X
+둘 다 같은 child screen을 쓰는데
+parent route가 다른 경우가 있는지 조사.
+
+이 경우
+단순 router.back 수정이
+다른 역할/모드에 영향을 줄 수 있으므로
+공통 navigation policy 제안.
+
+코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. API 공유 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+기능별로:
+
+- admin API
+- teacher API
+- shared API
+
+구분.
+
+특히:
+
+- diary
+- attendance
+- makeup
+- schedule
+- notices
+- students
+- parent linking
+
+관리자 UI 수정이
+teacher API contract에 영향 없는지 확인.
+
+UI만 공유하고 API는 role별로 다른 경우
+반드시 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 기존 22개 Bundle에 영향도 태그 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 설계도의 각 Bundle마다
+아래 필드를 추가:
+
+ROLE_SCOPE:
+- ADMIN_ONLY
+- ADMIN_TEACHER_SHARED
+- TEACHER_SEPARATE_VERIFY
+
+MODE_SCOPE:
+- BASE_ONLY
+- X_ONLY
+- BASE_X_SHARED
+- SHARED_COMPONENT_VERIFY
+
+CROSS_SCREEN_IMPACT:
+- NONE
+- LOW
+- MEDIUM
+- HIGH
+
+SIMULTANEOUS_FIX_REQUIRED:
+- YES
+- NO
+
+SIMULTANEOUS_VERIFY_REQUIRED:
+- YES
+- NO
+
+예:
+
+Bundle 7-A 스케줄러
+ROLE_SCOPE = ADMIN_TEACHER_SHARED ?
+MODE_SCOPE = BASE_X_SHARED ?
+→ 실제 코드 기준 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 가장 중요한 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 실제 수정 단계에서:
+
+공통 화면/공통 component인 경우
+
+“관리자 화면만 보이는 증상”이라고 해서
+관리자만 수정하지 않는다.
+
+반드시:
+
+공통 component 수정
+→ admin 확인
+→ teacher 확인
+→ base SWIMNOTE 확인
+→ X 확인
+
+까지 한 Bundle에서 검증.
+
+단:
+
+실제로 화면/컴포넌트가 분리되어 있으면
+불필요하게 다른 화면을 건드리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. STEP 1 영향 재검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞서 계획된 STEP 1:
+
+- dead UI
+- 아이콘
+- report spinner
+- X 날짜 NaN
+- 카카오 제거
+- 수업일지 안내 삭제
+
+각각에 대해:
+
+관리자만 수정하면 되는지
+teacher/base SWIMNOTE에도 동일 수정이 필요한지
+정확히 재판정.
+
+특히:
+
+- 휴무일 아이콘
+- 보강 아이콘
+- 공통 alert icon
+- 수업일지 dead 문구
+- InviteModal
+
+은 공유 가능성 반드시 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 최종 제출물
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로 보충 보고:
+
+1.
+관리자/선생님 공유 screen 목록
+
+2.
+관리자/선생님 공유 component 목록
+
+3.
+SWIMNOTE/X 공유 screen 목록
+
+4.
+SWIMNOTE/X 공유 component 목록
+
+5.
+관리자 수정사항 중 teacher 동시수정 필요 항목
+
+6.
+관리자 수정사항 중 teacher 동시검증만 필요한 항목
+
+7.
+관리자 수정사항 중 base SWIMNOTE 동시수정 필요 항목
+
+8.
+X 전용이라 base에 영향 없는 항목
+
+9.
+공통 component 수정 시 영향 큰 파일 TOP 10
+
+10.
+navigation 공유 위험
+
+11.
+API role별 공유/분리 현황
+
+12.
+기존 22 Bundle별 ROLE_SCOPE
+
+13.
+기존 22 Bundle별 MODE_SCOPE
+
+14.
+SIMULTANEOUS_FIX_REQUIRED 목록
+
+15.
+SIMULTANEOUS_VERIFY_REQUIRED 목록
+
+16.
+기존 STEP 1 보충 필요 사항
+
+17.
+기존 실행순서 변경 필요 여부
+
+18.
+새롭게 합쳐야 할 Bundle
+
+19.
+분리해야 할 Bundle
+
+20.
+최종 보정된 STEP 1~14 순서
+
+21.
+전체 판정:
+READY_TO_EXECUTE / NEEDS_REPLAN
+
+코드 수정 없이 보고 후 STOP.

@@ -1,0 +1,514 @@
+[보낼 곳: APP REPLIT]
+
+# P0 — TOYKIDS FULL X MODE LIVE END-TO-END ROOT CAUSE + FIX
+# 목표:
+# Render 최신 main 배포 후에도 토이키즈 모바일 앱이 X Mode로 진입하지 않는
+# 실제 원인을 Production API → APP ModeContext → Navigation/Feature Guard까지
+# 한 번에 추적하여 해결한다.
+#
+# 이번에는 entitlement/plan/config를 다시 설계하지 않는다.
+# Toykids DB 값은 이미 정상이다.
+#
+# DB 임의변경 금지.
+# xmode_config_status READY 강제변경 금지.
+# Toykids curriculum approval flow로 되돌리지 말 것.
+# RevenueCat 수정 금지 unless 실제 root cause.
+# unrelated repo-wide audit 금지.
+#
+# Render Production 자동배포 금지.
+# OTA는 APP runtime 수정이 실제 필요한 경우에만 마지막에 판단.
+
+============================================================
+KNOWN GOOD STATE
+============================================================
+
+Target pool:
+
+pool_1780849364252_l9k44rbk3
+
+Production DB:
+
+x_management_override = true
+x_manual_entitlement = true
+x_paid_entitlement = false
+x_force_disabled = false
+x_plan_key = x1000
+member_limit = 1000
+xmode_config_status = CURRICULUM_PENDING
+
+Policy:
+
+Toykids는 Permanent Management X1000.
+
+따라서 무조건:
+
+effective X = true
+resolved mode = x
+source = SUPER_ADMIN_OVERRIDE
+
+이어야 한다.
+
+CURRICULUM_PENDING:
+activation blocker 아님.
+
+RevenueCat:
+dependency 없음.
+
+============================================================
+CURRENT DEPLOY
+============================================================
+
+Required override commit:
+
+3775e2ce
+
+Latest main merge:
+
+674e8fdb16f2782315f937b1e9928d24bc23ce37
+
+사용자는 해당 최신 main을 Render에 수동 배포했다고 보고함.
+
+먼저 실제 Render Production deployed SHA를 확인.
+
+보고:
+
+Render deployed SHA:
+...
+
+674e8fdb contained/deployed:
+YES / NO
+
+3775e2ce contained:
+YES / NO
+
+NO라면 그 즉시 root cause로 보고하고 STOP.
+코드 수정 금지.
+
+============================================================
+STEP 1 — LIVE PRODUCTION API 직접 확인
+============================================================
+
+Toykids 인증 context 기준으로
+실제 Production API가 반환하는 X mode payload를 확인.
+
+APP이 실제 호출하는 endpoint를 찾아서 그대로 검증.
+
+예상 후보를 추측하지 말고
+mobile client에서 실제 호출 endpoint를 역추적.
+
+보고:
+
+APP mode endpoint:
+METHOD ...
+PATH ...
+
+Production response:
+
+HTTP:
+...
+
+mode:
+...
+
+effective:
+...
+
+source:
+...
+
+x_plan_key:
+...
+
+x_management_override:
+...
+
+xmode_config_status:
+...
+
+EXPECTED:
+
+mode = x
+source = SUPER_ADMIN_OVERRIDE
+
+============================================================
+CASE A — LIVE API가 x가 아님
+============================================================
+
+Production API 응답이:
+
+x_pending
+normal
+또는 override 미반영
+
+이면 서버 문제.
+
+아래를 정확히 추적:
+
+1. Production route가 어떤 resolver를 호출하는가
+2. computeMode()를 실제 사용하는가
+3. x_management_override를 SELECT하는가
+4. DB row → mapper → service → route에서 필드가 누락되는가
+5. snake_case / camelCase mapping 누락 여부
+6. select projection에 컬럼 누락 여부
+7. stale alternate resolver가 존재하는가
+8. route가 old compute path를 사용하는가
+9. Render build artifact가 최신 source를 실제 포함하는가
+
+중요:
+
+canonical resolver에는 override가 있어도
+route query에서 x_management_override를 읽지 않으면
+undefined가 들어가 기존 resolver로 떨어질 수 있음.
+
+이 부분 반드시 실제 확인.
+
+ROOT CAUSE를 코드 line까지 확정 후
+최소 수정.
+
+============================================================
+CASE B — LIVE API는 mode=x인데 앱이 X로 안 들어감
+============================================================
+
+그 경우 server는 정상.
+
+모바일 APP runtime을 추적.
+
+실제 흐름:
+
+login/session restore
+→ pool/current pool fetch
+→ X mode fetch
+→ ModeContext
+→ persisted/cache state
+→ navigation
+→ X feature guards
+
+다음을 확인:
+
+1. ModeContext가 어떤 field를 읽는가
+2. mode === 'x'를 실제 반영하는가
+3. effectiveX만 보는 별도 guard가 있는가
+4. xmode_config_status === READY를 앱에서 다시 검사하는가
+5. CURRICULUM_PENDING이면 client가 x_pending으로 덮어쓰는가
+6. RevenueCat/local subscription을 client가 추가로 검사하는가
+7. AsyncStorage / persisted Zustand / query cache 등에 old x_pending이 남는가
+8. 로그인 후 refetch가 되는가
+9. app foreground 시 refetch되는가
+10. current pool switching 시 stale mode를 쓰는가
+11. navigation root가 mode 변경을 반영하는가
+12. X screens 자체에 별도 prerequisite guard가 있는가
+
+Toykids management override가 server에서 mode=x이면
+APP은 그 canonical mode를 그대로 존중해야 한다.
+
+APP이 다시:
+
+paid
+manual
+config READY
+curriculum approval
+
+등을 재판정해서 mode를 낮추면 안 된다.
+
+============================================================
+CANONICAL RULE
+============================================================
+
+X activation truth source는 SERVER.
+
+APP은 server resolved mode를 소비.
+
+금지:
+
+server:
+mode=x
+
+인데 client가:
+
+CURRICULUM_PENDING
+RevenueCat
+manual/paid
+
+등을 다시 계산해서:
+
+mode=x_pending / normal
+
+로 downgrade.
+
+============================================================
+CACHE / SESSION CHECK
+============================================================
+
+코드 수정 전에 반드시 확인:
+
+- logout/login
+- current pool refetch
+- mode query invalidate/refetch
+- app cold start
+
+로 최신 mode=x가 반영되는지.
+
+단 사용자가 매번 로그아웃하거나
+앱 데이터 삭제를 해야만 X가 켜지는 구조는 FAIL.
+
+정상적으로 앱 재실행/세션 복원 시
+server 최신 mode를 가져와야 함.
+
+============================================================
+FIX RULE
+============================================================
+
+ROOT CAUSE가 server route/mapping이면:
+
+server만 최소 수정.
+
+ROOT CAUSE가 APP ModeContext/guard이면:
+
+APP runtime만 최소 수정.
+
+둘 다 문제면:
+각각 필요한 최소 수정만.
+
+Toykids pool_id를 client에 하드코딩 금지.
+
+management override 판단을 모바일에 복제 금지.
+
+APP은 server mode=x만 신뢰.
+
+============================================================
+TESTS
+============================================================
+
+반드시 최소 다음 테스트:
+
+A.
+Toykids:
+override=true
+config=CURRICULUM_PENDING
+Production-equivalent resolver
+→ mode=x
+
+PASS
+
+B.
+Toykids APP:
+API mode=x
+→ ModeContext mode=x
+
+PASS
+
+C.
+Toykids APP:
+cold start/session restore
+→ X mode 유지
+
+PASS
+
+D.
+Toykids APP:
+server mode=x
+config=CURRICULUM_PENDING
+→ client가 x_pending으로 downgrade하지 않음
+
+PASS
+
+E.
+Normal pool:
+override=false
+config=NOT_CONFIGURED
+→ normal
+
+PASS
+
+F.
+Normal X pool:
+기존 entitlement/config flow 유지
+
+PASS
+
+G.
+Cross-pool:
+0 leak
+
+============================================================
+OTA DECISION
+============================================================
+
+서버만 수정:
+OTA = NO
+Render = YES
+
+APP JS/TS/TSX runtime 수정:
+iOS OTA = YES
+Android OTA = NO
+
+Native 변경:
+OTA 금지
+새 binary 필요 보고
+
+APP runtime 수정 시 기존 헌법 준수:
+
+runtimeVersion 확인
+channel = production-v2
+platform = iOS ONLY
+
+OTA publish는 테스트/commit/SHA 확인 후.
+
+============================================================
+GIT / REPORT REQUIREMENTS
+============================================================
+
+코드 수정이 발생하면 반드시:
+
+Branch:
+release/v2.0.0
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Commit message:
+...
+
+Push:
+YES
+
+SHA 없이 완료보고 금지.
+
+============================================================
+FINAL REPORT
+============================================================
+
+# TOYKIDS FULL X MODE E2E FAILURE REPORT
+
+Render deployed SHA:
+...
+
+674e8fdb deployed:
+YES / NO
+
+3775e2ce included:
+YES / NO
+
+--------------------------------
+LIVE API
+--------------------------------
+
+Mode endpoint:
+...
+
+HTTP:
+...
+
+Production mode:
+...
+
+Production source:
+...
+
+Production override:
+...
+
+Production config:
+...
+
+--------------------------------
+ROOT CAUSE
+--------------------------------
+
+Layer:
+
+SERVER / APP / CACHE / NAVIGATION / OTHER
+
+Exact file:
+...
+
+Exact logic:
+...
+
+Exact reason:
+...
+
+--------------------------------
+FIX
+--------------------------------
+
+Files changed:
+...
+
+HEAD before:
+...
+
+HEAD after:
+...
+
+Commit SHA:
+...
+
+Push:
+YES / NO
+
+--------------------------------
+TEST
+--------------------------------
+
+Server override:
+PASS / FAIL
+
+API mode=x:
+PASS / FAIL
+
+APP ModeContext:
+PASS / FAIL
+
+Cold start:
+PASS / FAIL
+
+CURRICULUM_PENDING ignored for Toykids:
+PASS / FAIL
+
+Normal pool regression:
+PASS / FAIL
+
+Cross-pool:
+PASS / FAIL
+
+--------------------------------
+DEPLOYMENT
+--------------------------------
+
+Render required:
+YES / NO
+
+iOS OTA required:
+YES / NO
+
+Android OTA:
+NO
+
+Native binary:
+YES / NO
+
+--------------------------------
+FINAL
+--------------------------------
+
+Toykids full X mode working end-to-end:
+YES / NO
+
+If NO:
+exact single remaining blocker:
+...
+
+DO NOT AUTO DEPLOY RENDER.
+
+If iOS OTA is required,
+do not publish until code tests + commit SHA are complete
+and report the required OTA action clearly.
+
+STOP AFTER REPORT.

@@ -483,7 +483,7 @@ export default function AttendanceScreen() {
           { key: "weekly",  label: "주간"   },
           { key: "monthly", label: "월간"   },
           { key: "search",  label: "검색"   },
-          { key: "makeup",  label: makeupList.length > 0 ? `보강(${makeupList.length})` : "보강관리" },
+          { key: "makeup",  label: "보강", badge: makeupList.length > 0 ? makeupList.length : undefined },
         ]}
         active={viewMode}
         onChange={handleTabChange}
