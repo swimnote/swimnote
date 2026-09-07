@@ -1777,7 +1777,7 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
                 ON csn.diary_id = cd.id AND csn.student_id = ${studentId} AND csn.is_deleted = false
               WHERE cd.class_group_id = ${student.class_group_id}
                 AND cd.is_deleted = false
-                AND cd.lesson_date >= (
+                AND cd.lesson_date::date >= (
                   SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
                   FROM students WHERE id = ${studentId} LIMIT 1
                 )
@@ -4330,21 +4330,22 @@ router.get(
       const today          = `${year}-${mm}-${String(kst.getDate()).padStart(2, "0")}`;
       const thisMonthStart = `${year}-${mm}-01`;
 
-      // ── 13 독립 병렬 queries — 각 metric 실패가 다른 metric에 영향 없음 ──
+      // ── 14 독립 병렬 queries — 각 metric 실패가 다른 metric에 영향 없음 ──
       const [
         poolM,          // X 상태 + 플랜
         snapshotM,      // 월별 KPI snapshot (WP10 parent_curriculum 연결 완료)
         reviewM,        // 검토 대기 리포트 (REVIEW_REQUIRED)
-        unassignedM,    // 커리큘럼 미배정 학생
+        unassignedM,    // 커리큘럼 미배정 학생 (레거시 — assignedM과 함께 유지)
         diariesTodayM,  // 오늘 일지 수 (WP9 전: AI 여부 미구분)
         growthWeekM,    // 이번 주 성장이벤트
         publishedMonthM,// 이번 달 발행(발송 완료) 리포트
-        assignedM,      // 커리큘럼 배정 학생
+        assignedM,      // 커리큘럼 배정 학생 (레거시)
         studentsM,      // 현재 재원 학생
         teachersM,      // 선생님 수
         parentsM,       // 연결 학부모
         aiCallsM,       // AI 호출 수 (이번 달)
         storageSubM,    // 저장공간 quota
+        progressM,      // GAUGE-01: SCP 기반 실제 진도 학생 수
       ] = await Promise.all([
         // 1. X 상태 + 플랜
         safeXMetric("pool_status", poolId, () => superAdminDb.execute(sql`
@@ -4465,6 +4466,16 @@ router.get(
           WHERE sp.id = ${poolId}
           LIMIT 1
         `)),
+        // 14. GAUGE-01: SCP 기반 진도 학생 수 (student_curriculum_progress)
+        safeXMetric("curriculum_progress", poolId, () => superAdminDb.execute(sql`
+          SELECT
+            COUNT(*)::int                                          AS progress_students_total,
+            COUNT(*) FILTER (WHERE observation_session_count >= 3)::int AS progress_students_confirmed,
+            ROUND(AVG(display_confirmed_pct) FILTER (WHERE observation_session_count >= 3), 1)
+                                                                   AS progress_avg_pct
+          FROM student_curriculum_progress
+          WHERE swimming_pool_id = ${poolId}
+        `)),
       ]);
 
       // ── 저장공간 사용량 (photo + video, 독립 try-catch) ──────────────────
@@ -4533,6 +4544,7 @@ router.get(
       if (parentsM.failed)       unavailable.push("connected_parents");
       if (aiCallsM.failed)       unavailable.push("ai_calls_month");
       if (storageSubM.failed || storageByteFailed) unavailable.push("storage");
+      if (progressM.failed)      unavailable.push("curriculum_progress");
 
       res.json({
         // 현재 X 플랜
@@ -4563,6 +4575,10 @@ router.get(
           growth_events_week:           growthWeekM.failed   ? null : Number((growthWeekM.value?.rows[0]   as any)?.cnt ?? 0),
           curriculum_assigned_students: assignedM.failed     ? null : Number((assignedM.value?.rows[0]     as any)?.cnt ?? 0),
           unassigned_students:          unassignedM.failed   ? null : Number((unassignedM.value?.rows[0]   as any)?.cnt ?? 0),
+          // GAUGE-01: SCP 기반 실제 진도 (student_curriculum_assignments 기반 아님)
+          progress_students_total:      progressM.failed     ? null : Number((progressM.value?.rows[0]     as any)?.progress_students_total ?? 0),
+          progress_students_confirmed:  progressM.failed     ? null : Number((progressM.value?.rows[0]     as any)?.progress_students_confirmed ?? 0),
+          progress_avg_pct:             progressM.failed     ? null : ((progressM.value?.rows[0] as any)?.progress_avg_pct != null ? Number((progressM.value?.rows[0] as any)?.progress_avg_pct) : null),
           active_students:              studentsM.failed     ? null : Number((studentsM.value?.rows[0]     as any)?.cnt ?? 0),
           active_teachers:              teachersM.failed     ? null : Number((teachersM.value?.rows[0]     as any)?.cnt ?? 0),
           connected_parents:            parentsM.failed      ? null : Number((parentsM.value?.rows[0]      as any)?.cnt ?? 0),

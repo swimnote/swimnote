@@ -60,6 +60,10 @@ interface LiveKpi {
   active_teachers:              number | null;
   connected_parents:            number | null;
   ai_calls_month:               number | null;
+  // GAUGE-01: SCP 기반 실제 진도 (student_curriculum_assignments 아님)
+  progress_students_total:      number | null;
+  progress_students_confirmed:  number | null;
+  progress_avg_pct:             number | null;
 }
 interface StorageInfo {
   total_bytes: number | null;
@@ -299,6 +303,23 @@ export default function XHubScreen() {
             </View>
             <Text style={s.kpiLabel}>오늘 수업일지</Text>
             <Text style={s.kpiValue}>{fmtNum(live.diaries_today)}건</Text>
+            <LucideIcon name="chevron-right" size={14} color={C.textSecondary} />
+          </Pressable>
+          {/* 커리큘럼 진도 (SCP 기반 — student_curriculum_progress) */}
+          <View style={s.divider} />
+          <Pressable style={[s.kpiRow, { marginTop: 0 }]}
+            onPress={() => router.push("/(admin)/curriculum-hub?backTo=x-hub" as any)}>
+            <View style={[s.kpiIcon, { backgroundColor: "#F0FDF4" }]}>
+              <LucideIcon name="graduation-cap" size={14} color="#059669" />
+            </View>
+            <Text style={s.kpiLabel}>교육과정 진도 (실제 관찰 기준)</Text>
+            <Text style={s.kpiValue}>
+              {live.progress_students_confirmed != null
+                ? live.progress_students_confirmed > 0
+                  ? `${fmtNum(live.progress_students_confirmed)}명 / 평균 ${live.progress_avg_pct != null ? Math.round(live.progress_avg_pct) : 0}%`
+                  : "관찰 데이터 수집 중"
+                : "—"}
+            </Text>
             <LucideIcon name="chevron-right" size={14} color={C.textSecondary} />
           </Pressable>
         </View>
