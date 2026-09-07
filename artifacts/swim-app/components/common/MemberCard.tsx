@@ -51,6 +51,11 @@ interface UnifiedMemberCardProps {
   showTeacher?: boolean;
   /** 동명이인 구분용 스케줄 힌트 (이름 아래 작게 표시) */
   scheduleHint?: string;
+  /**
+   * 상세 버튼을 카드 우상단으로 올리고 하단 bottom bar 제거.
+   * admin 회원관리처럼 actions 없이 onPress만 쓸 때 카드 높이 절약.
+   */
+  compactDetail?: boolean;
 }
 
 export function UnifiedMemberCard({
@@ -66,6 +71,7 @@ export function UnifiedMemberCard({
   showWithdrawnDate,
   showTeacher = true,
   scheduleHint,
+  compactDetail = false,
 }: UnifiedMemberCardProps) {
   const ps       = getPrimaryStatus(student);
   const wc       = getEffectiveWeekly(student);
@@ -219,13 +225,22 @@ export function UnifiedMemberCard({
               <LucideIcon name="mail" size={13} color={themeColor} />
             </Pressable>
           )}
+          {/* compactDetail: 상세 버튼을 우상단으로 올림 (하단 bottom bar 불필요) */}
+          {compactDetail && onPress && !selectionMode && (
+            <Pressable
+              style={[s.compactDetailBtn, { backgroundColor: themeColor + "12" }]}
+              onPress={onPress}
+            >
+              <LucideIcon name="chevron-right" size={14} color={themeColor} />
+            </Pressable>
+          )}
         </View>
       </View>
 
-      {/* ── 하단 액션 버튼들 (선택 모드 아닐 때만) ── */}
-      {!selectionMode && (actions || onPress) && (
+      {/* ── 하단 액션 버튼들: actions가 있을 때만. compactDetail이면 onPress는 우상단 처리 ── */}
+      {!selectionMode && actions && actions.length > 0 && (
         <View style={s.bottom}>
-          {actions?.map((act, i) => (
+          {actions.map((act, i) => (
             <Pressable
               key={i}
               style={[s.actionBtn, { backgroundColor: act.bg }]}
@@ -240,8 +255,8 @@ export function UnifiedMemberCard({
               <Text style={[s.actionTxt, { color: act.color }]}>{act.label}</Text>
             </Pressable>
           ))}
-          {/* 상세 보기 버튼 */}
-          {onPress && (
+          {/* 비-compact 모드에서만 하단에 상세 버튼 표시 */}
+          {!compactDetail && onPress && (
             <Pressable
               style={[s.actionBtn, { backgroundColor: themeColor + "12", marginLeft: "auto" }]}
               onPress={onPress}
@@ -250,6 +265,18 @@ export function UnifiedMemberCard({
               <Text style={[s.actionTxt, { color: themeColor }]}>상세</Text>
             </Pressable>
           )}
+        </View>
+      )}
+      {/* 비-compact: actions 없고 onPress만 있을 때 기존 동작 유지 */}
+      {!selectionMode && !compactDetail && (!actions || actions.length === 0) && onPress && (
+        <View style={s.bottom}>
+          <Pressable
+            style={[s.actionBtn, { backgroundColor: themeColor + "12", marginLeft: "auto" }]}
+            onPress={onPress}
+          >
+            <LucideIcon name="eye" size={12} color={themeColor} />
+            <Text style={[s.actionTxt, { color: themeColor }]}>상세</Text>
+          </Pressable>
         </View>
       )}
     </Pressable>
@@ -287,4 +314,6 @@ const s = StyleSheet.create({
   bottom:     { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border },
   actionBtn:  { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   actionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  // compactDetail 모드: 상세 버튼을 우상단 아이콘으로 표시
+  compactDetailBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
 });
