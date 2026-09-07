@@ -1,0 +1,136 @@
+[보낼 곳: APP REPLIT]
+
+[P0 종료 — Teacher Diary 임시 진단 제거 및 Production 정리]
+
+AI ENGINE Production Teacher Diary 최종 상태:
+
+- TEACHER_DIARY_V2_SEARCH=true
+- kf.v2_search_index 사용
+- Naturalizer direct OpenAI 정상
+- generation_mode=KNOWLEDGE_GROUNDED
+- template_count > 0
+- knowledge_count > 0
+- grounding_validation=PASS
+- fallback_used=false
+- 내부 evidence metadata 노출 0
+- 학생별 자연어 문장화 정상
+- Production deploy LIVE
+
+이제 APP에 넣었던 임시 진단 코드만 제거한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 제거 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+Toykids 전용 AI DEBUG Box 완전 제거
+
+제거 필드:
+- Pipeline
+- Mode
+- Templates
+- Knowledge
+- Grounding
+- Fallback
+- CommonLen
+- Students
+- ReqID
+
+B.
+임시 Production trace 로그 제거:
+
+teacher_diary_request_trace
+teacher_diary_response_trace
+
+이번 P0 원인 추적을 위해 항시 출력하도록 만든 로그만 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 유지 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 변경 금지:
+
+- APP_CONTRACT_VERSION = "1.0"
+- TeacherDiaryAIClient
+- Engine URL
+- request body
+- response normalize
+- common/student mapping
+- generated result 적용
+- error handling
+- timeout
+- meta parsing 구조
+
+기존 __DEV__ 전용 정상 로그는 유지 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. STALE 주석 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음과 같은 현재 사실과 충돌하는 주석이 있으면 제거/정정:
+
+- "1.0 → 1.3 필요"
+- "1.0이면 template/knowledge search 불가"
+- "resolvePoolMode 때문에 1.3 필요"
+
+현재 공식 사실:
+
+Teacher Diary contract_version = "1.0" only.
+1.3 사용 시 Production Engine HTTP 400.
+
+로직 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- Teacher Diary 관련 테스트 PASS
+- RevenueCat regression PASS
+- 이번 변경 관련 TS 신규 오류 0
+- AI 결과 UI 정상
+- DEBUG Box 제거
+- Production 개인정보 trace 제거
+- contract 1.0 유지
+- Engine URL 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Production OTA guard 확인 후:
+
+- branch = release/v2.0.0
+- clean
+- origin exact
+- app version = 2.0.1
+- runtimeVersion = 2.1.0
+- contract = 1.0
+- Engine URL =
+  https://swimnote-professional-engine.onrender.com
+
+iOS:
+production-v2 OTA 실행
+
+Android:
+OTA 금지
+
+새 native build는 아직 하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 변경 파일
+2. 제거한 Debug UI
+3. 제거한 임시 Production 로그
+4. stale 주석 정리 여부
+5. 테스트 결과
+6. contract 1.0 확인
+7. Engine URL 확인
+8. commit SHA
+9. OTA guard 결과
+10. iOS Production OTA ID
+
+완료 후 STOP.

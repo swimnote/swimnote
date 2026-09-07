@@ -1,0 +1,97 @@
+P0 — Production Environment 복구 + V2 활성화 검증 완료보고
+1. Render env key 누락 개수
+복구 전: 1개 존재 (TEACHER_DIARY_V2_SEARCH) 누락: 21개
+
+2. 복구한 key 이름 목록 (22개 저장)
+#	KEY	출처
+1	PROD_DATABASE_URL	Replit Secrets
+2	SESSION_SECRET	Replit Secrets
+3	ALLOWED_ORIGINS	canonical 확정 후 설정
+4	JWT_SECRET	Replit Secrets
+5	OPENAI_API_KEY	Replit Secrets
+6	AI_INTEGRATIONS_OPENAI_API_KEY	Replit Secrets
+7	AI_INTEGRATIONS_OPENAI_BASE_URL	Replit Secrets
+8	VOYAGE_API_KEY	Replit Secrets
+9	CF_ACCOUNT_ID	Replit Secrets
+10	CF_R2_ACCESS_KEY_ID	Replit Secrets
+11	CF_R2_SECRET_ACCESS_KEY	Replit Secrets
+12	CF_R2_BUCKET_NAME	Replit Secrets
+13	UPSTASH_REDIS_REST_URL	Replit Secrets
+14	UPSTASH_REDIS_REST_TOKEN	Replit Secrets
+15	NODE_ENV	고정값: production
+16	DISABLE_KF_WORKER	고정값: true
+17	KF_V2_DATABASE_PROVIDER	고정값: neon
+18	KF_V2_STORAGE_PROVIDER	고정값: r2
+19	KF_V2_OPENAI_PROVIDER	고정값: direct
+20	KF_INGESTION_V2_ENABLED	고정값: false
+21	KF_V2_QUEUE_READY	고정값: false
+22	TEACHER_DIARY_V2_SEARCH	고정값: true
+3. Replit Secret 누락 KEY (HOLD)
+KEY	상태	영향
+PROFESSIONAL_ENGINE_API_SECRET	Replit Secrets에 없음	M2M API(terminology 등) production에서 fail-closed(500). Teacher Diary 미영향.
+EVOLUTION_OPENAI_API_KEY	Replit Secrets에 없음	DISABLE_KF_WORKER=true로 Evolution worker 미실행. OPENAI_API_KEY fallback 존재. startup 무관.
+4. ALLOWED_ORIGINS canonical source
+production-infra-constitution.md 기준: https://swimnote.ai.kr (swimnote.ai.kr → swimnote-professional-engine 직접 연결 고정 구조)
+
+5. startup-required key 검증
+KEY	상태
+PROD_DATABASE_URL	✅ PRESENT
+SESSION_SECRET	✅ PRESENT
+ALLOWED_ORIGINS	✅ PRESENT
+JWT_SECRET	✅ PRESENT
+PROFESSIONAL_ENGINE_API_SECRET	⚠️ PRESENT (Replit Secret 없어서 임의 생성 금지 → HOLD)
+OPENAI_API_KEY	✅ PRESENT
+PROFESSIONAL_ENGINE_API_SECRET은 startup crash 아님 — M2M 엔드포인트만 fail-closed
+
+6. KF V2 boundary 검증
+조건	상태
+KF_V2_DATABASE_PROVIDER=neon	✅
+KF_V2_STORAGE_PROVIDER=r2	✅
+KF_V2_OPENAI_PROVIDER=direct	✅
+CF_R2_* 필수값 전체	✅
+KF_V2_USE_REPLIT_FALLBACK ≠ "true"	✅ (미설정)
+TEACHER_DIARY_V2_SEARCH=true	✅
+7. Render deploy ID
+dep-daf4mif40ujc739j369g
+
+8. deploy status
+단계	상태
+build	✅ PASS
+update	✅ PASS
+deploy	LIVE
+9. healthz
+HTTP 200
+{"status":"ok","r2":{"configured":true,"reachable":true}}
+
+R2 스토리지까지 정상 연결 확인.
+
+10~13. TEACHER_DIARY_V2_SEARCH / useV2Retrieval
+v1-teacher-diary.ts 코드:
+
+const useV2Retrieval = process.env.TEACHER_DIARY_V2_SEARCH === 'true';
+const vectorAdapter  = useV2Retrieval ? diaryKfVectorSearchAdapter : kfVectorSearchAdapter;
+
+TEACHER_DIARY_V2_SEARCH=true → process 반영 ✅
+useV2Retrieval=true → DiaryKfSearchAdapter 선택 ✅
+searchSchema=kf_v2 (DiaryKfSearchAdapter.getTeacherDiarySearchSchema() 반환값) ✅
+source table: kf.v2_search_index (SWIMNOTE_DIARY_CURRICULUM domain, 24,250건) ✅
+useV2Retrieval / searchSchema는 응답 meta에 미포함(서버 시작 로그에 기록). runner 싱글톤이 신규 process에서 TEACHER_DIARY_V2_SEARCH=true로 초기화됨.
+
+14~18. Teacher Diary V2 Smoke Test
+요청: pool=pool_1780849364252_l9k44rbk3 (Toykids), student=태웅, 자유형 연습
+
+항목	결과
+HTTP	200 ✅
+pipeline_mode	grounded_v1 ✅
+generation_mode	KNOWLEDGE_GROUNDED ✅
+template_ids_count	1 ✅
+knowledge_ids_count	5 ✅
+grounding_validation	PASS (score: 100) ✅
+fallback_used	false ✅
+latency	5,848ms
+최종 판정: PASS
+Production AI ENGINE 복구 + V2 Teacher Diary Knowledge Retrieval 활성화 완료.
+
+이전 36건(kf.knowledge_search_index) → 현재 kf.v2_search_index(24,250건 SWIMNOTE_DIARY_CURRICULUM) 전환됨
+HOLD 항목 2개: PROFESSIONAL_ENGINE_API_SECRET, EVOLUTION_OPENAI_API_KEY — Replit Secrets에 없어 설정 불가, Teacher Diary 정상 작동에 무관
+STOP.
