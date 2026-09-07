@@ -4609,35 +4609,31 @@ router.get(
       const poolId = await getAdminPoolId(req);
       if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
 
-      // ── KPI 1: 재원 학생 수 (student_class_history 기준) ─────────────────
-      const [kpi1, kpi2, kpi3, kpi4, versionsRes, parentAiRes, xGlobalRes] = await Promise.all([
+      // ── KPI 1~5: 핵심 지표 (안정 테이블만) ─────────────────────────────────
+      const [kpi1, kpi2, kpi3, kpi4, versionsRes] = await Promise.all([
         db.execute(sql`
           SELECT COUNT(DISTINCT sch.student_id)::int AS cnt
           FROM student_class_history sch
           JOIN students s ON s.id = sch.student_id
           WHERE s.swimming_pool_id = ${poolId} AND sch.left_at IS NULL
         `),
-        // KPI 2: 최근 30일 출석 학생 수
         db.execute(sql`
           SELECT COUNT(DISTINCT student_id)::int AS cnt
           FROM attendance
           WHERE swimming_pool_id = ${poolId}
             AND date >= (NOW() - INTERVAL '30 days')::date
         `),
-        // KPI 3: 운영 중인 반 수
         db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM class_groups
           WHERE swimming_pool_id = ${poolId}
             AND (is_active = true OR is_active IS NULL)
         `),
-        // KPI 4: 활성 커리큘럼 수 (기존 유지)
         db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM curriculum_versions
           WHERE swimming_pool_id = ${poolId} AND is_active = true
         `),
-        // 커리큘럼 버전 목록 (item_count + assigned_student_count)
         db.execute(sql`
           SELECT
             cv.id                                                                  AS curriculum_version_id,
@@ -4653,8 +4649,13 @@ router.get(
           GROUP BY cv.id, cv.version_name, cv.is_active
           ORDER BY cv.is_active DESC, cv.version_name ASC
         `),
-        // Parent AI 커리큘럼 검색 — 이번 달
-        db.execute(sql`
+      ]);
+
+      // ── 옵셔널 쿼리: 테이블 미존재 시 무시 ────────────────────────────────
+      let parentAiRes: any = { rows: [] };
+      let xGlobalRes: any = { rows: [] };
+      try {
+        parentAiRes = await db.execute(sql`
           SELECT COUNT(*)::int AS cnt,
                  MAX(created_at)::text AS latest_at,
                  COUNT(DISTINCT actor_id)::int AS searcher_count
@@ -4663,9 +4664,10 @@ router.get(
             AND category = 'AI'
             AND metadata->>'feature' = 'parent_curriculum_search'
             AND created_at >= date_trunc('month', now())
-        `),
-        // X Global AI 일지 템플릿
-        db.execute(sql`
+        `);
+      } catch { /* event_logs 미존재 무시 */ }
+      try {
+        xGlobalRes = await db.execute(sql`
           SELECT gts.id, gts.version_name,
                  COUNT(dt.id)::int AS template_count
           FROM global_template_sets gts
@@ -4674,8 +4676,8 @@ router.get(
           WHERE gts.status = 'ACTIVE'
           GROUP BY gts.id, gts.version_name
           LIMIT 1
-        `),
-      ]);
+        `);
+      } catch { /* global_template_sets 미존재 무시 */ }
 
       const k1 = (kpi1.rows[0] as any)?.cnt ?? 0;
       const k2 = (kpi2.rows[0] as any)?.cnt ?? 0;
