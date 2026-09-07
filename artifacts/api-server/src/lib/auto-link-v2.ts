@@ -92,7 +92,7 @@ async function markPendingMatched(pendingId: string, studentId: string): Promise
 }
 
 // ── pending 레코드 matched 처리 (parent_id 기준) ────────────────────────
-async function markPendingMatchedByParent(parentId: string, studentId: string): Promise<void> {
+export async function markPendingMatchedByParent(parentId: string, studentId: string): Promise<void> {
   await db.execute(sql`
     UPDATE parent_v2_pending SET
       status             = 'matched',
@@ -317,6 +317,10 @@ export async function getParentStatusV2(parentId: string): Promise<{
   if (matched && studentId) {
     const { success } = await linkParentToStudentV2(parentId, studentId, pending.pool_id);
     if (success) {
+      // pending 명시적 matched 처리 (linkApprovedParentToRegisteredChildren의 sibling 로직에만 의존하지 않음)
+      await markPendingMatchedByParent(parentId, studentId).catch(e =>
+        console.error(`[v2-status] pending matched 처리 실패 (무시): ${e?.message}`)
+      );
       // sibling 연결
       const phoneNorm = normalizePhone(pa.phone || "");
       if (phoneNorm) {
@@ -539,6 +543,52 @@ export async function rejectParentV2Pending(
   `);
 
   return { success: true, message: "거절 완료" };
+}
+
+// ── 관리자: 모든 pending 건 일괄 재시도 (reason 무관) ─────────────────
+// pending_reason이 있는 건(name_mismatch 등)도 재시도 — 학생이 나중에 등록된 경우 해소
+export async function retryAllPendingByPool(
+  poolId: string
+): Promise<{ retried: number; linked: number; reasonUpdated: number }> {
+  const rows = (await db.execute(sql`
+    SELECT id, parent_id, child_name_normalized, parent_phone_normalized
+    FROM parent_v2_pending
+    WHERE pool_id = ${poolId}
+      AND status = 'pending'
+  `)).rows as any[];
+
+  let retried = 0, linked = 0, reasonUpdated = 0;
+
+  for (const r of rows) {
+    retried++;
+    const { matched, studentId, reason } = await tryMatchStudentV2(
+      r.parent_id, poolId, r.parent_phone_normalized, r.child_name_normalized
+    );
+
+    if (matched && studentId) {
+      const { success } = await linkParentToStudentV2(r.parent_id, studentId, poolId);
+      if (success) {
+        linked++;
+        await markPendingMatchedByParent(r.parent_id, studentId).catch(() => {});
+        const [pa] = (await db.execute(sql`SELECT phone FROM parent_accounts WHERE id = ${r.parent_id} LIMIT 1`)).rows as any[];
+        const phoneNorm = normalizePhone(pa?.phone || "");
+        if (phoneNorm) {
+          await linkApprovedParentToRegisteredChildren(r.parent_id, poolId, phoneNorm);
+        }
+        console.log(`[v2-retry-all] ✓ 연결 완료: parent=${r.parent_id} pool=${poolId}`);
+      }
+    } else {
+      // 여전히 매칭 안 됨 → pending_reason 최신화
+      await db.execute(sql`
+        UPDATE parent_v2_pending SET pending_reason = ${reason ?? "name_mismatch"}
+        WHERE id = ${r.id}
+      `);
+      reasonUpdated++;
+    }
+  }
+
+  console.log(`[v2-retry-all] pool=${poolId} retried=${retried} linked=${linked} reasonUpdated=${reasonUpdated}`);
+  return { retried, linked, reasonUpdated };
 }
 
 // ── 관리자: pool의 pending_reason=NULL 건 일괄 재시도 ──────────────────
