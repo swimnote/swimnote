@@ -1,0 +1,283 @@
+[보낼 곳: APP REPLIT]
+
+[FAST TRACK — STEP 8 + STEP 9 + STEP 9-T 통합 / 보강·스케줄 UI 마감]
+
+목표:
+1. 관리자/선생님 보강 탭 UI 동시 정리
+2. 관리자 스케줄/보강 버튼 가독성 정리
+3. 선생님 my-schedule 캘린더 가독성 정리
+4. 기능/서버 정책은 건드리지 않음
+5. 완료 후 누적 frontend 변경 iOS OTA 1회
+
+재감사 금지.
+기존 조사 결과 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A. STEP 8 — 보강 탭 admin + teacher 동시 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+사전 감사 결과:
+admin attendance.tsx
+teacher attendance.tsx
+
+는 별도 파일이지만 동일한 보강 UI 문제가 있음.
+
+현재 문제:
+
+- 결석자 리스트
+- 담당 보강
+- 다른선생님
+- 완료 기록
+
+등 탭/pill 글자가 잘리거나 좁음.
+
+목표:
+
+- 작은 화면에서도 텍스트 잘림 없음
+- 탭 높이/패딩/폰트 균형
+- 필요하면 horizontal scroll 허용
+- 버튼이 너무 작거나 겹치지 않음
+- admin + teacher 양쪽 동일 수준으로 정리
+
+기능명은 사용자가 바로 이해할 수 있게 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B. 보강 카드 가독성
+━━━━━━━━━━━━━━━━━━━━━━
+
+admin + teacher 관련 화면에서
+보강 카드가 있으면 정보 우선순위 정리:
+
+- 학생명
+- 결석일
+- 원래 반
+- 담당 선생님
+- 보강 기한
+- 상태
+- 액션
+
+버튼:
+- 보강 지정
+- 다른 선생님
+- 취소/소멸
+- 완료
+
+기존 실제 기능만 사용.
+
+새 액션 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+C. 개발자 표현 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+보강 정책/카드에서 사용자에게:
+
+weekly_count = 1
+weekly_count >= 3
+
+같은 내부 표현이 남아 있으면 제거.
+
+사용자 표현:
+
+주 1회
+주 2회
+주 3회 이상
+
+단,
+teacher 화면에서 이미
+“주 {weekly_count}회”
+처럼 정상적으로 사용자용 표시하는 부분은
+불필요하게 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+D. STEP 9 — 관리자 스케줄/수업관리 가독성
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 관리자 측 관련 화면에서:
+
+- 월간 캘린더
+- 날짜
+- 시간
+- 수업 건수
+- 보강 버튼
+
+가 너무 작거나 의미가 불분명한 부분 정리.
+
+사전 확인상 admin schedule 화면 이름을
+추측하지 말고 실제 사용 파일만 수정.
+
+특히 STEP 1에서 보강 아이콘을
+calendar-check 계열로 수정했으므로
+그 의미 유지.
+
+목표:
+
+일반 수업
+휴무일
+보강
+
+이 한눈에 구분되도록.
+
+색상 시스템은 기존 theme token 재사용.
+새 디자인 시스템 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+E. STEP 9-T — Teacher my-schedule
+━━━━━━━━━━━━━━━━━━━━━━
+
+teacher:
+app/(teacher)/my-schedule.tsx
+components/teacher/my-schedule/MonthlyCalendar.tsx
+및 실제 관련 파일 확인.
+
+현재 관리자와 별도 구현이므로
+teacher 화면도 직접 수정/검증.
+
+목표:
+
+- 월간 캘린더 날짜 가독성
+- 수업 시간 가독성
+- 수업 건수/상태 가독성
+- 보강 버튼 의미 명확
+- 작은 화면에서 텍스트 잘림 없음
+
+중요:
+선생님 UX의 기준점은 “오늘의 수업”.
+
+캘린더를 과하게 복잡하게 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+F. 기능 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 STEP은 UI/가독성만.
+
+금지:
+
+- 결석 → 보강권 생성 로직
+- 보강 만료 계산
+- 보강 한도
+- attendance backend
+- makeup API
+- DB
+- schema
+- 자동 소멸
+- 실제 보강 완료 처리
+- 출결 정책 변경
+
+이 기능 검증/정책은 STEP 11에서 다룬다.
+
+현재 정상 API contract 변경 금지.
+
+주의:
+teacher attendance에서
+/admin/makeups/:id/revert 호출 경로가 존재하는 것은
+이미 감사에서 확인됨.
+
+이번에는 API를 변경하지 않으므로
+그 경로도 건드리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+G. BASE / X / 역할 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+보강/출결/스케줄은 BASE_X_SHARED.
+
+반드시:
+
+ADMIN BASE
+ADMIN X
+TEACHER BASE
+TEACHER X
+
+에서 레이아웃 영향 확인.
+
+공통 component를 수정한 경우
+관련 사용처 regression 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+H. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- TypeScript 신규 오류 0
+- admin attendance 렌더
+- teacher attendance 렌더
+- teacher my-schedule 렌더
+- 작은 화면 width에서 탭 잘림 없음
+- 버튼 overlap 없음
+- 기존 action handler 유지
+- 기존 API 호출 변경 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+I. Git
+━━━━━━━━━━━━━━━━━━━━━━
+
+release/v2.0.0 기준.
+
+이번 작업 frontend-only가 목표.
+
+commit/push.
+
+main에는 frontend-only 변경을 Render 때문에
+불필요하게 cherry-pick하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+J. 누적 iOS OTA 1회
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 STEP 8 + 9 + 9-T까지 PASS하면
+지금까지 대기 중인 frontend 변경을
+한 번에 production-v2 OTA 한다.
+
+포함:
+
+STEP 4 앱
+STEP 5 Dashboard
+STEP 6 X hub
+STEP 7 MemberCard
+STEP 8 보강 UI
+STEP 9 admin schedule UI
+STEP 9-T teacher schedule UI
+
+OTA guard:
+
+- branch release/v2.0.0
+- clean
+- origin exact
+- app 2.0.1
+- runtimeVersion 2.1.0
+- iOS production-v2
+- native change 없음
+
+모두 PASS 시:
+iOS OTA 1회.
+
+Android OTA 금지.
+
+하나라도 불일치면 OTA HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+K. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. STEP 8 admin 수정 파일
+2. STEP 8 teacher 수정 파일
+3. 탭 잘림 수정 결과
+4. 보강 카드 UI 변경
+5. STEP 9 admin schedule 수정
+6. STEP 9-T teacher my-schedule 수정
+7. BASE/X 검증
+8. 기능/API 변경 없음 확인
+9. TypeScript/test
+10. commit SHA
+11. OTA guard 결과
+12. OTA 발행 여부
+13. OTA ID
+14. Android 미발행 확인
+15. STEP 8 PASS/HOLD
+16. STEP 9 PASS/HOLD
+17. STEP 9-T PASS/HOLD
+
+완료 후 STOP.
