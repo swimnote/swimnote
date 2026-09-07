@@ -21,6 +21,16 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
 import { classColor } from "@/utils/classColor";
+
+/** hex 색상을 ratio만큼 어둡게 (0.0~1.0, 0=원본, 1=검정) */
+function darkenHex(hex: string, ratio = 0.35): string {
+  const h = hex.replace("#", "");
+  if (h.length !== 6) return hex;
+  const r = Math.round(parseInt(h.slice(0,2),16)*(1-ratio));
+  const g = Math.round(parseInt(h.slice(2,4),16)*(1-ratio));
+  const b = Math.round(parseInt(h.slice(4,6),16)*(1-ratio));
+  return `rgb(${r},${g},${b})`;
+}
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import OnboardingTooltip from "@/components/common/OnboardingTooltip";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
@@ -176,7 +186,7 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
                         (isToday && parseHour(cls[ti].schedule_time) < nowHour);
                       return (
                         <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id, cls[ti].color) + "22" }]}>
-                          <Text style={[mc.timePillText, { color: classColor(cls[ti].id, cls[ti].color) }]}>{label}</Text>
+                          <Text style={[mc.timePillText, { color: darkenHex(classColor(cls[ti].id, cls[ti].color)) }]}>{label}</Text>
                           {pillIsPast && (
                             <View style={mc.strikeOverlay} pointerEvents="none">
                               <View style={mc.strikeLine} />
