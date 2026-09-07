@@ -13,6 +13,12 @@ import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 import { useSelectionMode } from "@/hooks/useSelectionMode";
 import { SelectionActionBar } from "@/components/admin/SelectionActionBar";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import {
+  useAudioRecorder,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  RecordingPresets,
+} from "expo-audio";
 
 interface Notice {
   id: string;
@@ -56,6 +62,12 @@ export default function NoticesScreen() {
   const [aiError, setAiError] = useState("");
   const [aiResult, setAiResult] = useState<{ title: string; content: string } | null>(null);
   const aiSendingRef = React.useRef(false);
+
+  // ── 음성 AI 상태 ──
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false); // STT 처리 중
+  const [sttRaw, setSttRaw] = useState(""); // STT 원문 보관 (실패 시 복구용)
 
   async function fetchNotices() {
     try {
@@ -244,20 +256,26 @@ export default function NoticesScreen() {
     setAiMemo("");
     setAiError("");
     setAiResult(null);
+    setSttRaw("");
     aiSendingRef.current = false;
+    // 녹음 중이면 중단
+    if (recorder.isRecording) recorder.stop().catch(() => {});
+    setIsVoiceRecording(false);
+    setVoiceLoading(false);
   }
 
-  async function handleAIWrite() {
+  async function handleAIWrite(overrideMemo?: string) {
     if (aiSendingRef.current) return;
     aiSendingRef.current = true;
     setAiLoading(true);
     setAiError("");
     setAiResult(null);
     try {
+      const memoToSend = overrideMemo ?? aiMemo;
       const res = await apiRequest(token, "/notices/ai-write", {
         method: "POST",
         body: JSON.stringify({
-          memo: aiMemo || undefined,
+          memo: memoToSend || undefined,
           currentTitle: form.title || undefined,
           currentContent: form.content || undefined,
         }),
@@ -270,6 +288,60 @@ export default function NoticesScreen() {
     } finally {
       setAiLoading(false);
       aiSendingRef.current = false;
+    }
+  }
+
+  // ── 음성 녹음 시작 ──
+  async function startVoiceRecord() {
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        Alert.alert("권한 필요", "마이크 권한이 필요합니다. 설정에서 허용해주세요.");
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setIsVoiceRecording(true);
+      setAiError("");
+      setSttRaw("");
+    } catch {
+      setAiError("녹음을 시작할 수 없습니다.");
+    }
+  }
+
+  // ── 녹음 중단 → STT → AI 작성 ──
+  async function stopAndTranscribe() {
+    if (!recorder.isRecording) return;
+    await recorder.stop();
+    setIsVoiceRecording(false);
+    const uri = recorder.uri;
+    if (!uri) { setAiError("녹음 파일을 찾을 수 없습니다."); return; }
+
+    setVoiceLoading(true);
+    setAiError("");
+    try {
+      // STT
+      const formData = new FormData();
+      (formData as any).append("audio", { uri, name: "audio.m4a", type: "audio/m4a" } as any);
+      const sttRes = await fetch(`${API_BASE}/api/ai/whisper/transcribe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const sttData = await sttRes.json();
+      if (!sttRes.ok || !sttData.transcript) {
+        throw new Error(sttData.error?.message || "음성 인식에 실패했습니다. 직접 입력해주세요.");
+      }
+      const transcript: string = sttData.transcript;
+      setSttRaw(transcript);
+      setAiMemo(transcript);
+      setVoiceLoading(false);
+      // AI 작성 자동 호출
+      await handleAIWrite(transcript);
+    } catch (e: unknown) {
+      setVoiceLoading(false);
+      setAiError(e instanceof Error ? e.message : "음성 처리 중 오류가 발생했습니다.");
     }
   }
 
@@ -406,15 +478,60 @@ export default function NoticesScreen() {
                     <Text style={[styles.aiHint, { color: C.textMuted }]}>
                       현재 입력한 내용 + 아래 메모를 바탕으로 공지 초안을 작성합니다.
                     </Text>
+
+                    {/* ── 음성 AI 버튼 ── */}
+                    <View style={styles.voiceRow}>
+                      <Pressable
+                        style={[styles.voiceBtn, isVoiceRecording && styles.voiceBtnActive]}
+                        onPress={isVoiceRecording ? stopAndTranscribe : startVoiceRecord}
+                        disabled={voiceLoading || aiLoading}
+                      >
+                        {voiceLoading ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <>
+                            <Text style={styles.voiceBtnIcon}>{isVoiceRecording ? "⏹" : "🎤"}</Text>
+                            <Text style={styles.voiceBtnTxt}>
+                              {isVoiceRecording ? "녹음 중단" : "음성으로 작성"}
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                      {isVoiceRecording && (
+                        <View style={styles.recDotRow}>
+                          <View style={styles.recDot} />
+                          <Text style={[styles.recTxt, { color: C.textMuted }]}>녹음 중…</Text>
+                        </View>
+                      )}
+                      {voiceLoading && (
+                        <Text style={[styles.recTxt, { color: C.textMuted }]}>음성 인식 중…</Text>
+                      )}
+                    </View>
+
+                    {/* STT 원문 (실패 복구용) */}
+                    {sttRaw !== "" && aiError !== "" && (
+                      <View style={[styles.sttRawBox, { borderColor: C.border, backgroundColor: C.card }]}>
+                        <Text style={[styles.aiHint, { color: C.textMuted }]}>음성 원문 (복사 후 직접 입력 가능)</Text>
+                        <Text style={[styles.sttRawTxt, { color: C.text }]} selectable>{sttRaw}</Text>
+                      </View>
+                    )}
+
+                    <View style={styles.aiDivider}>
+                      <View style={[styles.aiDividerLine, { backgroundColor: C.border }]} />
+                      <Text style={[styles.aiDividerTxt, { color: C.textMuted }]}>또는 직접 입력</Text>
+                      <View style={[styles.aiDividerLine, { backgroundColor: C.border }]} />
+                    </View>
+
                     <TextInput
                       style={[styles.aiMemoInput, { borderColor: C.border, color: C.text, backgroundColor: C.card }]}
                       value={aiMemo}
                       onChangeText={setAiMemo}
-                      placeholder="추가 메모 (예: 9월 5일 태풍 휴강, 보강 추후 안내)"
+                      placeholder="메모 입력 (예: 9월 10일 공사 휴무, 보강은 다음 달 말까지)"
                       placeholderTextColor={C.textMuted}
                       multiline
                       numberOfLines={2}
                       textAlignVertical="top"
+                      editable={!isVoiceRecording && !voiceLoading}
                     />
                     {aiError ? <Text style={[styles.aiError, { color: C.error }]}>{aiError}</Text> : null}
 
@@ -437,13 +554,13 @@ export default function NoticesScreen() {
                       </View>
                     ) : (
                       <Pressable
-                        style={({ pressed }) => [styles.aiWriteBtn, { backgroundColor: C.primaryAction, opacity: pressed || aiLoading ? 0.75 : 1 }]}
-                        onPress={handleAIWrite}
-                        disabled={aiLoading}
+                        style={({ pressed }) => [styles.aiWriteBtn, { backgroundColor: C.primaryAction, opacity: pressed || aiLoading || voiceLoading ? 0.75 : 1 }]}
+                        onPress={() => handleAIWrite()}
+                        disabled={aiLoading || voiceLoading || isVoiceRecording}
                       >
                         {aiLoading
                           ? <ActivityIndicator color="#fff" size="small" />
-                          : <><LucideIcon name="sparkles" size={14} color="#fff" /><Text style={styles.aiWriteTxt}>작성 요청</Text></>
+                          : <><LucideIcon name="sparkles" size={14} color="#fff" /><Text style={styles.aiWriteTxt}>텍스트로 작성 요청</Text></>
                         }
                       </Pressable>
                     )}
@@ -606,6 +723,20 @@ const styles = StyleSheet.create({
   aiApplyTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600", color: "#fff" },
   aiRetryBtn:    { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
   aiRetryTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  // 음성 AI
+  voiceRow:      { flexDirection: "row", alignItems: "center", gap: 10 },
+  voiceBtn:      { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "#64748B" },
+  voiceBtnActive:{ backgroundColor: "#DC2626" },
+  voiceBtnIcon:  { fontSize: 16 },
+  voiceBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600", color: "#fff" },
+  recDotRow:     { flexDirection: "row", alignItems: "center", gap: 5 },
+  recDot:        { width: 8, height: 8, borderRadius: 4, backgroundColor: "#DC2626" },
+  recTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  aiDivider:     { flexDirection: "row", alignItems: "center", gap: 8 },
+  aiDividerLine: { flex: 1, height: 1 },
+  aiDividerTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  sttRawBox:     { borderRadius: 10, borderWidth: 1, padding: 10, gap: 4 },
+  sttRawTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   title: { fontSize: 24, fontFamily: "Pretendard-Regular" },
   selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
