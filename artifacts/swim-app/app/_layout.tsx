@@ -572,8 +572,9 @@ function RootNav() {
           setOtaModalVisible(true);
         }
       }
-    } catch (_) {
-      // 실패 시 앱 계속 사용 — 사용자 알림 없음
+    } catch (e: any) {
+      // 임시 진단용 — 에러 원인 확인 후 제거
+      Alert.alert("[OTA 진단]", String(e?.message ?? e));
     } finally {
       isCheckingRef.current = false;
     }
