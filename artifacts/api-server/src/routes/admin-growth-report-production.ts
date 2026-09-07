@@ -155,6 +155,7 @@ router.get(
           l.student_id,
           s.name              AS student_name,
           l.product_status,
+          l.analysis_status,
           l.version_number,
           l.discard_reason,
           l.discarded_at,
@@ -163,10 +164,14 @@ router.get(
           l.report_period,
           l.published_at,
           l.updated_at,
+          cg.name             AS class_name,
+          u.name              AS teacher_name,
           -- snippet for preview
           SUBSTRING(l.report_content::text, 1, 100) AS content_snippet
         FROM latest l
         JOIN students s ON s.id = l.student_id
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE l.product_status != 'NOT_OPEN'
           ${q ? sql`AND s.name ILIKE ${'%' + q + '%'}` : sql``}
         ORDER BY s.name ASC
@@ -254,11 +259,11 @@ router.get(
       const stuRows = await db.execute(sql`
         SELECT s.id, s.name, s.class_group_id,
                cg.name AS class_name,
-               cg.teacher_id,
+               cg.teacher_user_id,
                u.name  AS teacher_name
         FROM students s
         LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
-        LEFT JOIN users u ON u.id = cg.teacher_id
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE s.id = ${report.student_id}
         LIMIT 1
       `);
