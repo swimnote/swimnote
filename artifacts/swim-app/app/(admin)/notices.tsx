@@ -314,6 +314,8 @@ export default function NoticesScreen() {
   async function stopAndTranscribe() {
     if (!recorder.isRecording) return;
     await recorder.stop();
+    // 오디오 모드 복구: 녹음 모드 해제 (누락 시 iOS에서 STT 실패 가능)
+    try { await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }); } catch {}
     setIsVoiceRecording(false);
     const uri = recorder.uri;
     if (!uri) { setAiError("녹음 파일을 찾을 수 없습니다."); return; }
@@ -323,10 +325,10 @@ export default function NoticesScreen() {
     try {
       // STT
       const formData = new FormData();
-      (formData as any).append("audio", { uri, name: "audio.m4a", type: "audio/m4a" } as any);
+      (formData as any).append("audio", { uri, name: "recording.m4a", type: "audio/m4a" } as any);
       const sttRes = await fetch(`${API_BASE}/api/ai/whisper/transcribe`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
         body: formData,
       });
       const sttData = await sttRes.json();

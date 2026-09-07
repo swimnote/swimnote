@@ -208,11 +208,11 @@ const mc = StyleSheet.create({
   dayNumWrap:     { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   dayNum:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
   timePills:      { flexDirection: "column", alignItems: "center", gap: 1, marginTop: 2, width: "100%" },
-  timePill:       { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, alignItems: "center" },
-  timePillText:   { fontSize: 9, fontFamily: "Pretendard-Regular" },
+  timePill:       { paddingHorizontal: 3, paddingVertical: 2, borderRadius: 4, alignItems: "center", width: "92%" },
+  timePillText:   { fontSize: 10, fontFamily: "Pretendard-SemiBold" },
   strikeOverlay:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center" },
   strikeLine:     { height: 1.5, backgroundColor: "rgba(0,0,0,0.28)", borderRadius: 1, marginHorizontal: 1 },
-  moreTxt:        { fontSize: 8, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  moreTxt:        { fontSize: 9, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   holidayTag:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });
 
