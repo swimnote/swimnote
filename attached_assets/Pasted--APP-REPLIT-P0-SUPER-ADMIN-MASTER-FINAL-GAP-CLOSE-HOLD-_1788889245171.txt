@@ -1,0 +1,446 @@
+[보낼 곳: APP REPLIT]
+
+[P0 SUPER ADMIN MASTER — FINAL GAP CLOSE]
+
+현재 완료보고는 HOLD.
+
+이미 완료된 아래 작업 재작성/재조사 금지:
+
+- official pricing 일부 수정
+- subscription-products 교체
+- storage DATA 가격
+- ParentAdBanner multi-carousel
+- /parent/ad-slot creatives[]
+- Super Admin notice image
+- Super Ads CRUD
+- target_pool_id
+- notice/ad web routes
+- Render/OTA 완료분
+
+이번에는 MASTER 요구사항에서 빠진
+Super Admin 운영 콘솔 본체만 완성한다.
+
+추가 PRE-DESIGN 금지.
+바로 코드 → 테스트 → Production 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SUPER ADMIN WEB 실제 운영 경로
+━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote-web 안에
+protected Super Admin Console이 실제로 동작해야 함.
+
+최종 실제 path 보고.
+
+예:
+/super-admin
+
+또는 현재 구현 path.
+
+필수:
+
+- 비로그인 차단
+- Parent 차단
+- Teacher 차단
+- Pool Admin 차단
+- Super Admin만 접근
+
+마케팅 navigation에는 노출 금지.
+
+빌드 성공만으로 PASS 금지.
+Production 실제 URL에서 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. OVERVIEW 완성
+━━━━━━━━━━━━━━━━━━━━━━
+
+실데이터 KPI:
+
+- 전체 수영장
+- 활성 수영장
+- BASE
+- X
+- X Paid
+- X Manual
+- X Management Override
+- X Forced Off
+- 학생
+- Teacher
+- Parent
+- Diary
+- AI Diary
+- Curriculum READY / 문제
+- Subscription 정상 / 문제
+- 최근 Warning/Error
+
+실제 DB/API source만 사용.
+
+fake/placeholder = 0.
+
+현재 canonical diary table을 실제 코드/schema에서 확인해서 사용.
+stale diary_entries 추정 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 전국 수영장 목록 완성
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC용 TABLE.
+
+최소:
+
+- 수영장명
+- pool_id
+- active
+- BASE/X
+- plan
+- paid/manual/override/force-disabled
+- student count
+- teacher count
+- parent count
+- Local Curriculum
+- READY
+- subscription
+- next renewal
+- recent activity
+- warning/error
+
+검색/필터:
+
+- 수영장명
+- pool_id
+- mode
+- plan
+- active
+- paid
+- curriculum
+- subscription warning
+- system warning
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. POOL CONTROL DASHBOARD — 가장 중요
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool row 클릭:
+
+→ 해당 pool detail/control dashboard.
+
+아래 7개 섹션 전부 실제 데이터로 구현.
+
+A. 기본정보
+B. Mode
+C. 플랜/결제
+D. 사용현황
+E. Curriculum
+F. AI
+G. System Health
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. MODE
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 canonical resolver 사용.
+
+표시:
+
+- resolved BASE/X
+- x_paid_entitlement
+- x_manual_entitlement
+- x_management_override
+- x_force_disabled
+- x_plan_key
+- xmode_config_status
+
+mode === x 를 paid로 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 결제/구독 상세
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 pool별:
+
+- current product
+- official price
+- status
+- trial
+- next renewal
+- expires
+- payment_failed_at
+- auto-renew
+- RC app user ID
+- last sync
+
+가능하면 실제 source가 있는:
+- first purchase
+- last payment
+
+도 표시.
+
+없는 값 추측 금지.
+
+SOT:
+pool_subscriptions + RC webhook sync.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. CURRICULUM 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical 구조 사용.
+
+Pool Local:
+
+- active version
+- version id/name
+- item count
+- approved_at
+- activated_at
+- source hash/content hash
+- READY
+- unresolved/review
+- CPO
+- SCP
+- progress population
+
+Global Reference:
+
+curriculum_versions.is_global_reference 기반
+현재 canonical 구조 확인.
+
+stale global_curriculum_versions 새 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. AI / SYSTEM HEALTH
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 가능한 것:
+
+- AI Diary count
+- Parent AI Curriculum usage
+- Growth Report 상태
+- recent AI errors
+- Engine health
+- operational errors
+- trace id
+
+Health:
+
+NORMAL / WARNING / ERROR
+
+실데이터 rule만.
+
+가짜 score 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. POOL CONTROL ACTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 안전한 API 연결:
+
+- active/inactive
+- manual entitlement
+- management override
+- force disable
+- 현재 필요한 approve/restrict 등
+
+중요 action:
+
+confirm
+server-side guard
+audit
+
+필수.
+
+raw DB manipulation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. LEGACY PRICE 최종 전수검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 user-facing / operator-facing 코드에서:
+
+Coach30
+Coach50
+Coach100
+Premier 계열
+SOLO_PLANS
+CENTER_PLANS
+
+및 subscription legacy 가격:
+
+1,900
+2,900
+5,900
+27,000
+43,000
+
+X legacy:
+
+119,000
+189,000
+349,000
+
+현재 상품 가격으로 노출되는 곳 = 0.
+
+특히:
+
+app/(admin)/subscription.tsx
+
+legacy branch 제거 여부 확인.
+
+단:
+
+AI Insight Report ₩79,000은
+subscription legacy 가격이 아님.
+
+상품 정책값 자체 삭제 금지.
+purchase HOLD 정책 유지.
+
+historical transaction/migration history 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. AUDIT
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- notice create/update/delete/send
+- banner create/update/delete/activate
+- pool control
+- X entitlement
+- management override
+- force disable
+
+audit_logs 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. BUTTON OVERLAP / RESPONSIVE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Desktop
+Tablet width
+좁은 Web width
+
+실제 테스트.
+
+- action button overlap 0
+- filter overlap 0
+- card clipping 0
+- table은 필요 시 horizontal scroll
+- normal flow/flex wrap/gap
+
+negative margin/absolute hack 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. BACK / STATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 테스트:
+
+Pool List
+→ filter/search 설정
+→ Pool Detail
+→ Back
+
+결과:
+동일 filter/search/page 유지.
+
+Notice:
+list → edit → back → list
+
+Ads:
+list → edit → back → list
+
+Home 강제 이동 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. WEB PRODUCTION DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+"빌드 성공"은 완료 아님.
+
+실제 swimnote-web Production deploy 완료.
+
+보고:
+
+- 실제 URL
+- deployed commit
+- Super Admin route 접근 결과
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. PRODUCTION E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production pool 최소 1곳으로 확인:
+
+- Pool List 데이터
+- Pool Detail 7 sections
+- BASE/X semantics
+- Local Curriculum
+- current plan
+- next renewal
+- control action
+- audit
+
+공지:
+
+Super Admin Web
+→ 이미지 포함 공지
+→ 실제 Parent 앱 표시
+
+배너:
+
+Super Admin Web에서 2개
+→ Parent iPhone
+→ 한 슬롯 carousel
+→ swipe
+→ auto slide
+→ impression/click
+
+target_pool_id도 실제 대상/비대상 pool로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Web Production URL
+2. Super Admin path
+3. auth/role test
+4. Overview KPI 결과
+5. Pool List 결과
+6. 검색/필터 결과
+7. Pool Control 7섹션
+8. canonical diary source
+9. canonical curriculum source
+10. mode resolver 결과
+11. billing/next renewal 결과
+12. control action
+13. audit
+14. legacy pricing 전수검색 결과
+15. admin subscription legacy 제거
+16. AI Insight 79k 처리
+17. notice image Production E2E
+18. banner Production E2E
+19. pool targeting E2E
+20. overlap test
+21. back/filter-state test
+22. server test
+23. web test
+24. Render LIVE commit
+25. Web deployed commit
+26. iOS OTA가 추가로 필요했으면 ID
+27. 잔존 blocker
+
+PASS 조건:
+
+- Super Admin Web 실제 Production 운영 가능
+- Pool 클릭 → 전체 상태/제어 가능
+- 실제 데이터만 표시
+- legacy subscription 가격 현재 노출 0
+- 결제/갱신일 확인 가능
+- Curriculum/AI/System 상태 확인 가능
+- 공지 이미지 E2E
+- Parent banner carousel E2E
+- overlap 0
+- Back state 정상
+- blocker 0
+
+완료 후 STOP.

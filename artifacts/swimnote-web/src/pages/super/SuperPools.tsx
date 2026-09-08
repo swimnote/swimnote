@@ -1,246 +1,334 @@
 /**
- * SuperPools — 수영장 관리
- * 기존 SuperAdmin.tsx 「수영장 관리」탭 로직을 그대로 이동.
- * MOVED (not duplicated).
+ * SuperPools — 전국 수영장 목록 (PC TABLE 구조)
+ * - pools-summary API 사용
+ * - 검색/필터: 수영장명, pool_id, mode, plan, active, paid, curriculum, subscription, warning
+ * - URL search params로 filter/search 상태 보존 (Back 후 복원)
+ * - Pool row 클릭 → SuperPoolControlCenter
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
 
-const PRIMARY = "#002F5F";
-const SECONDARY = "#01B2F1";
+const NAVY = "#002F5F";
+const CYAN = "#01B2F1";
 
-interface Pool {
-  id: string;
-  name: string;
-  address: string;
-  phone: string;
-  owner_name: string;
-  owner_email: string;
-  approval_status: "pending" | "approved" | "rejected";
-  rejection_reason?: string | null;
-  subscription_status: "trial" | "active" | "expired" | "suspended" | "cancelled";
-  subscription_start_at?: string | null;
-  subscription_end_at?: string | null;
-  member_count?: number | null;
+interface PoolRow {
+  pool_id: string;
+  pool_name: string;
+  pool_type: string;
+  approval_status: string;
+  is_readonly: boolean;
+  upload_blocked: boolean;
+  active_member_count: number;
+  teacher_count: number;
+  parent_count: number;
+  diary_count: number;
+  ai_diary_count: number;
+  has_curriculum: boolean;
+  last_login_at: string | null;
+  usage_pct: number;
+  used_storage_bytes: number;
+  deletion_pending: boolean;
+  xmode_entitlement: boolean;
+  xmode_config_status: string;
+  x_paid: boolean;
+  x_manual: boolean;
+  x_override: boolean;
+  x_force_disabled: boolean;
   created_at: string;
-  homepage_slug?: string | null;
-  homepage_enabled?: boolean | null;
+  updated_at: string;
+  admin: { user_id: string | null; name: string; phone: string };
+  subscription: {
+    tier: string; plan_name: string; status: string; source: string;
+    member_limit: number; storage_mb: number; display_storage: string;
+    starts_at: string | null; ends_at: string | null; trial_end_at: string | null;
+  };
 }
 
-const statusLabel: Record<string, string> = {
-  pending: "승인 대기", approved: "승인됨", rejected: "반려됨",
-};
-const statusColor: Record<string, string> = {
-  pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  approved: "bg-green-50 text-green-700 border-green-200",
-  rejected: "bg-red-50 text-red-700 border-red-200",
-};
-const subLabel: Record<string, string> = {
-  trial: "트라이얼", active: "활성", expired: "만료",
-  suspended: "정지", cancelled: "해지",
-};
-const subColor: Record<string, string> = {
-  trial: "bg-blue-50 text-blue-700",
-  active: "bg-green-50 text-green-700",
-  expired: "bg-gray-100 text-gray-500",
-  suspended: "bg-orange-50 text-orange-700",
-  cancelled: "bg-red-50 text-red-600",
-};
-
-function Badge({ label, cls }: { label: string; cls: string }) {
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${cls}`}>
-      {label}
-    </span>
-  );
+// URL 쿼리 파라미터 파싱
+function parseParams() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    q: p.get("q") ?? "",
+    mode: (p.get("mode") ?? "all") as "all" | "base" | "x",
+    approval: (p.get("approval") ?? "all") as "all" | "pending" | "approved" | "rejected",
+    sub: (p.get("sub") ?? "all") as "all" | "ok" | "issue",
+    paid: (p.get("paid") ?? "all") as "all" | "paid" | "manual" | "force_off",
+    curriculum: (p.get("curriculum") ?? "all") as "all" | "ready" | "none",
+  };
 }
+function updateParams(patch: Record<string, string>) {
+  const p = new URLSearchParams(window.location.search);
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === "all" || v === "") p.delete(k); else p.set(k, v);
+  }
+  const s = p.toString();
+  const url = s ? `${window.location.pathname}?${s}` : window.location.pathname;
+  window.history.replaceState(null, "", url);
+}
+
+function Badge({ text, cls }: { text: string; cls: string }) {
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${cls}`}>{text}</span>;
+}
+function fmt(d: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
+}
+function fmtDT(d: string | null) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  return `${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+}
+
+function modeLabel(row: PoolRow) {
+  if (row.x_force_disabled) return { label: "X-OFF", cls: "bg-red-100 text-red-700" };
+  if (row.xmode_entitlement) return { label: "X", cls: "bg-[#002F5F] text-white" };
+  return { label: "BASE", cls: "bg-[#f3f4f6] text-[#555]" };
+}
+function subStatusCls(s: string) {
+  return s === "active" ? "bg-green-100 text-green-700"
+       : s === "trial"  ? "bg-blue-100 text-blue-700"
+       : "bg-red-100 text-red-600";
+}
+function approvalCls(s: string) {
+  return s === "approved" ? "bg-green-100 text-green-700"
+       : s === "pending"  ? "bg-amber-100 text-amber-700"
+       : "bg-gray-100 text-gray-500";
+}
+function approvalLabel(s: string) {
+  return s === "approved" ? "승인" : s === "pending" ? "대기" : "반려";
+}
+
+const FilterBtn = ({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) => (
+  <button onClick={onClick}
+    className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all border ${
+      active ? "text-white border-transparent" : "bg-white border-[#e5e5e5] text-[#888] hover:bg-[#f5f5f5]"
+    }`}
+    style={active ? { background: NAVY } : {}}>
+    {label}
+  </button>
+);
 
 export default function SuperPools() {
   const [, navigate] = useLocation();
-  const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-  const [pools, setPools] = useState<Pool[]>([]);
+  const init = useRef(parseParams());
+
+  const [pools, setPools]   = useState<PoolRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [q, setQ] = useState(init.current.q);
+  const [mode, setMode] = useState(init.current.mode);
+  const [approval, setApproval] = useState(init.current.approval);
+  const [sub, setSub] = useState(init.current.sub);
+  const [paid, setPaid] = useState(init.current.paid);
+  const [curriculum, setCurriculum] = useState(init.current.curriculum);
+
+  const [actionLoading, setActionLoading] = useState(false);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [subModal, setSubModal] = useState<Pool | null>(null);
-  const [subStatus, setSubStatus] = useState("");
-  const [subStart, setSubStart] = useState("");
-  const [subEnd, setSubEnd] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // URL sync
+  useEffect(() => { updateParams({ q, mode, approval, sub, paid, curriculum }); }, [q, mode, approval, sub, paid, curriculum]);
 
   const fetchPools = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get<Pool[]>(`/admin/pools?approval_status=${filter}`);
-      setPools(data);
-    } catch {
-      setPools([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
+      const params = new URLSearchParams({ limit: "200" });
+      if (approval !== "all") params.set("approval_status", approval);
+      const data = await api.get<PoolRow[]>(`/super/pools-summary?${params}`);
+      setPools(Array.isArray(data) ? data : []);
+    } catch { setPools([]); } finally { setLoading(false); }
+  }, [approval]);
 
   useEffect(() => { fetchPools(); }, [fetchPools]);
 
+  // 클라이언트 필터
+  const filtered = pools.filter(row => {
+    if (q) {
+      const lower = q.toLowerCase();
+      if (![row.pool_name, row.pool_id, row.admin.name, row.admin.phone, row.subscription.tier].some(s => s?.toLowerCase().includes(lower))) return false;
+    }
+    if (mode === "x" && !row.xmode_entitlement) return false;
+    if (mode === "base" && row.xmode_entitlement) return false;
+    if (sub === "ok" && !["active","trial"].includes(row.subscription.status)) return false;
+    if (sub === "issue" && ["active","trial"].includes(row.subscription.status)) return false;
+    if (paid === "paid" && !row.x_paid) return false;
+    if (paid === "manual" && !row.x_manual) return false;
+    if (paid === "force_off" && !row.x_force_disabled) return false;
+    if (curriculum === "ready" && !row.has_curriculum) return false;
+    if (curriculum === "none" && row.has_curriculum) return false;
+    return true;
+  });
+
   const approve = async (id: string) => {
     setActionLoading(true);
-    try {
-      await api.patch(`/admin/pools/${id}/approve`, {});
-      fetchPools();
-    } finally { setActionLoading(false); }
+    try { await api.patch(`/admin/pools/${id}/approve`, {}); fetchPools(); } finally { setActionLoading(false); }
   };
-
   const reject = async () => {
     if (!rejectId || !rejectReason.trim()) return;
     setActionLoading(true);
     try {
       await api.patch(`/admin/pools/${rejectId}/reject`, { reason: rejectReason });
-      setRejectId(null);
-      setRejectReason("");
-      fetchPools();
+      setRejectId(null); setRejectReason(""); fetchPools();
     } finally { setActionLoading(false); }
   };
-
-  const updateSub = async () => {
-    if (!subModal || !subStatus) return;
-    setActionLoading(true);
-    try {
-      await api.patch(`/admin/pools/${subModal.id}/subscription`, {
-        subscription_status: subStatus,
-        subscription_start_at: subStart || null,
-        subscription_end_at: subEnd || null,
-      });
-      setSubModal(null);
-      fetchPools();
-    } finally { setActionLoading(false); }
-  };
-
-  const filtered = pools.filter(p => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q) ||
-      p.owner_name.toLowerCase().includes(q) ||
-      p.owner_email.toLowerCase().includes(q) ||
-      p.phone.includes(q)
-    );
-  });
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 lg:p-6 min-h-screen">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-          <h1 className="text-[20px] font-bold text-[#111]">수영장 관리</h1>
-          <p className="text-[12px] text-[#999] mt-0.5">수영장 승인 · 구독 관리</p>
+          <h1 className="text-[20px] font-bold text-[#111]">전국 수영장 목록</h1>
+          <p className="text-[12px] text-[#999] mt-0.5">총 {filtered.length.toLocaleString()}곳 표시 / {pools.length.toLocaleString()}곳 로드</p>
         </div>
         <button onClick={fetchPools} className="text-[12px] text-[#888] hover:text-[#111] border border-[#e5e5e5] px-3 py-1.5 rounded-lg">새로고침</button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      {/* Stats 카드 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-4">
         {[
-          { label: "전체", value: pools.length, color: "#0a0a0a" },
-          { label: "승인 대기", value: pools.filter(p => p.approval_status === "pending").length, color: "#d97706" },
-          { label: "승인됨", value: pools.filter(p => p.approval_status === "approved").length, color: "#16a34a" },
-          { label: "활성 구독", value: pools.filter(p => p.subscription_status === "active").length, color: SECONDARY },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-lg border border-[#e5e5e5] px-4 py-3">
-            <p className="text-[11px] text-[#aaa] mb-1">{s.label}</p>
-            <p className="text-[24px] font-bold" style={{ color: s.color }}>{s.value}</p>
+          { label: "전체",     val: pools.length,                                       color: "#111" },
+          { label: "활성",     val: pools.filter(p => p.approval_status === "approved").length, color: "#16a34a" },
+          { label: "X MODE",   val: pools.filter(p => p.xmode_entitlement).length,      color: NAVY },
+          { label: "대기",     val: pools.filter(p => p.approval_status === "pending").length, color: "#d97706" },
+          { label: "구독이상", val: pools.filter(p => !["active","trial"].includes(p.subscription.status) && p.approval_status === "approved").length, color: "#dc2626" },
+          { label: "Curriculum", val: pools.filter(p => p.has_curriculum).length,       color: "#0369a1" },
+        ].map(c => (
+          <div key={c.label} className="bg-white rounded-lg border border-[#e5e5e5] px-3 py-2">
+            <p className="text-[10px] text-[#aaa]">{c.label}</p>
+            <p className="text-[18px] font-bold" style={{ color: c.color }}>{c.val}</p>
           </div>
         ))}
       </div>
 
-      {/* Search + Filter */}
-      <div className="flex gap-3 mb-4 flex-wrap">
-        <input
-          type="text"
-          placeholder="수영장명, pool_id, 대표자, 이메일, 전화번호"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="flex-1 min-w-[200px] px-3.5 py-1.5 rounded-lg border border-[#e5e5e5] text-[13px] text-[#111] placeholder:text-[#ccc] focus:outline-none focus:border-[#01B2F1]"
-        />
-        <div className="flex gap-1.5">
-          {(["all", "pending", "approved", "rejected"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${
-                filter === f ? "text-white" : "bg-white border border-[#e5e5e5] text-[#888] hover:bg-[#f5f5f5]"
-              }`}
-              style={filter === f ? { background: SECONDARY } : {}}
-            >
-              {f === "all" ? "전체" : statusLabel[f]}
-            </button>
-          ))}
+      {/* 검색 + 필터 */}
+      <div className="bg-white rounded-lg border border-[#e5e5e5] p-3 mb-4 space-y-2">
+        <input type="text" placeholder="수영장명 · pool_id · 대표자 · 전화번호 · plan"
+          value={q} onChange={e => setQ(e.target.value)}
+          className="w-full px-3 py-1.5 rounded-lg border border-[#e5e5e5] text-[13px] text-[#111] placeholder:text-[#ccc] focus:outline-none focus:border-[#01B2F1]" />
+        <div className="flex flex-wrap gap-1.5">
+          <span className="text-[10px] text-[#bbb] self-center mr-1">MODE</span>
+          {(["all","base","x"] as const).map(f => <FilterBtn key={f} label={f === "all" ? "전체" : f.toUpperCase()} active={mode === f} onClick={() => setMode(f)} />)}
+          <span className="text-[10px] text-[#bbb] self-center ml-2 mr-1">승인</span>
+          {(["all","pending","approved","rejected"] as const).map(f => <FilterBtn key={f} label={f === "all" ? "전체" : approvalLabel(f)} active={approval === f} onClick={() => setApproval(f)} />)}
+          <span className="text-[10px] text-[#bbb] self-center ml-2 mr-1">구독</span>
+          {(["all","ok","issue"] as const).map(f => <FilterBtn key={f} label={f === "all" ? "전체" : f === "ok" ? "정상" : "이상"} active={sub === f} onClick={() => setSub(f)} />)}
+          <span className="text-[10px] text-[#bbb] self-center ml-2 mr-1">Paid</span>
+          {(["all","paid","manual","force_off"] as const).map(f => <FilterBtn key={f} label={f === "all" ? "전체" : f === "paid" ? "RC유료" : f === "manual" ? "수동" : "Force-Off"} active={paid === f} onClick={() => setPaid(f)} />)}
+          <span className="text-[10px] text-[#bbb] self-center ml-2 mr-1">Curriculum</span>
+          {(["all","ready","none"] as const).map(f => <FilterBtn key={f} label={f === "all" ? "전체" : f === "ready" ? "READY" : "없음"} active={curriculum === f} onClick={() => setCurriculum(f)} />)}
         </div>
       </div>
 
-      {/* Pool list */}
+      {/* TABLE */}
       {loading ? (
-        <div className="py-20 text-center text-[#aaa] text-[13px]">불러오는 중...</div>
+        <div className="py-20 text-center text-[#aaa] text-[13px] animate-pulse">불러오는 중...</div>
       ) : filtered.length === 0 ? (
-        <div className="py-20 text-center text-[#aaa] text-[13px]">{searchQuery ? "검색 결과 없음" : "수영장이 없습니다."}</div>
+        <div className="py-20 text-center text-[#aaa] text-[13px]">조건에 맞는 수영장이 없습니다.</div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((pool) => (
-            <div key={pool.id} className="bg-white rounded-lg border border-[#e5e5e5] p-4">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <button
-                      onClick={() => navigate(`/super/pools/${pool.id}`)}
-                      className="text-[14px] font-bold text-[#002F5F] hover:underline"
-                    >
-                      {pool.name}
-                    </button>
-                    <Badge label={statusLabel[pool.approval_status]} cls={statusColor[pool.approval_status]} />
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${subColor[pool.subscription_status]}`}>
-                      {subLabel[pool.subscription_status]}
-                    </span>
-                    {pool.homepage_slug && pool.homepage_enabled && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#0369A1]">
-                        <img src={`${BASE}/icon.png`} alt="" className="w-3 h-3 rounded-[2px]" />
-                        홈페이지
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-[#999]">{pool.id}</p>
-                  <p className="text-[12px] text-[#888] mt-0.5">{pool.address}</p>
-                  <p className="text-[11px] text-[#aaa]">{pool.owner_name} · {pool.owner_email} · {pool.phone}</p>
-                  {pool.member_count != null && (
-                    <p className="text-[11px] text-[#aaa]">회원 {pool.member_count}명</p>
-                  )}
-                  {pool.rejection_reason && (
-                    <p className="text-[11px] text-red-500 mt-0.5">반려사유: {pool.rejection_reason}</p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1.5 shrink-0">
-                  {pool.approval_status === "pending" && (
-                    <>
-                      <button onClick={() => approve(pool.id)} disabled={actionLoading}
-                        className="px-3 py-1.5 rounded-lg text-white text-[12px] font-semibold bg-green-600 hover:opacity-80 disabled:opacity-50">승인</button>
-                      <button onClick={() => setRejectId(pool.id)} disabled={actionLoading}
-                        className="px-3 py-1.5 rounded-lg text-white text-[12px] font-semibold bg-red-500 hover:opacity-80 disabled:opacity-50">반려</button>
-                    </>
-                  )}
-                  <button
-                    onClick={() => { setSubModal(pool); setSubStatus(pool.subscription_status); setSubStart(pool.subscription_start_at?.slice(0, 10) || ""); setSubEnd(pool.subscription_end_at?.slice(0, 10) || ""); }}
-                    className="px-3 py-1.5 rounded-lg text-[12px] font-semibold border border-[#e5e5e5] text-[#555] hover:bg-[#f5f5f5]">구독 관리</button>
-                  <button onClick={() => navigate(`/super/pools/${pool.id}`)}
-                    className="px-3 py-1.5 rounded-lg text-[12px] font-semibold border border-[#e5e5e5] text-[#002F5F] hover:bg-[#f5f5f5]">상세 →</button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="overflow-x-auto rounded-lg border border-[#e5e5e5] bg-white">
+          <table className="w-full text-[12px] border-collapse min-w-[1100px]">
+            <thead>
+              <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
+                {["수영장명", "pool_id", "승인", "Mode", "Plan", "Paid/Manual/Override/ForceOff", "학생", "교사", "학부모", "일지/AI", "Curriculum", "구독", "갱신일", "최근활동", "Warning"].map(h => (
+                  <th key={h} className="text-left px-3 py-2.5 text-[10px] font-bold text-[#999] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => {
+                const m = modeLabel(row);
+                const subIssue = !["active","trial"].includes(row.subscription.status) && row.approval_status === "approved";
+                return (
+                  <tr key={row.pool_id}
+                    className="border-b border-[#f5f5f5] hover:bg-[#f8f9ff] cursor-pointer transition-colors"
+                    onClick={() => navigate(`/super/pools/${row.pool_id}`)}>
+                    {/* 수영장명 */}
+                    <td className="px-3 py-2.5 max-w-[160px]">
+                      <span className="font-semibold text-[#002F5F] hover:underline truncate block">{row.pool_name}</span>
+                      <span className="text-[10px] text-[#bbb] truncate block">{row.admin.name}</span>
+                    </td>
+                    {/* pool_id */}
+                    <td className="px-3 py-2.5 font-mono text-[10px] text-[#aaa] max-w-[80px]">
+                      <span className="truncate block">{row.pool_id}</span>
+                    </td>
+                    {/* 승인 */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        <Badge text={approvalLabel(row.approval_status)} cls={approvalCls(row.approval_status)} />
+                        {row.approval_status === "pending" && (
+                          <div className="flex gap-1 mt-1" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => approve(row.pool_id)} disabled={actionLoading}
+                              className="px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-green-600 hover:opacity-80 disabled:opacity-50">승인</button>
+                            <button onClick={() => { setRejectId(row.pool_id); }} disabled={actionLoading}
+                              className="px-2 py-0.5 rounded text-[10px] font-semibold text-white bg-red-500 hover:opacity-80 disabled:opacity-50">반려</button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    {/* Mode */}
+                    <td className="px-3 py-2.5"><Badge text={m.label} cls={m.cls} /></td>
+                    {/* Plan */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="text-[11px] font-medium text-[#333]">{row.subscription.plan_name}</span>
+                      <br />
+                      <span className="text-[10px] text-[#bbb]">/{row.subscription.member_limit}명</span>
+                    </td>
+                    {/* X Flags */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-wrap gap-0.5">
+                        {row.x_paid && <Badge text="Paid" cls="bg-[#002F5F] text-white" />}
+                        {row.x_manual && <Badge text="Manual" cls="bg-blue-100 text-blue-700" />}
+                        {row.x_override && <Badge text="Override" cls="bg-amber-100 text-amber-700" />}
+                        {row.x_force_disabled && <Badge text="Force-Off" cls="bg-red-100 text-red-700" />}
+                        {!row.x_paid && !row.x_manual && !row.x_override && !row.x_force_disabled && <span className="text-[#bbb]">—</span>}
+                      </div>
+                    </td>
+                    {/* 학생 */}
+                    <td className="px-3 py-2.5 text-center font-semibold text-[#333]">{row.active_member_count}</td>
+                    {/* 교사 */}
+                    <td className="px-3 py-2.5 text-center text-[#555]">{row.teacher_count}</td>
+                    {/* 학부모 */}
+                    <td className="px-3 py-2.5 text-center text-[#555]">{row.parent_count}</td>
+                    {/* 일지/AI */}
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="text-[#333]">{row.diary_count}</span>
+                      <span className="text-[#bbb] mx-0.5">/</span>
+                      <span className="text-[#0369a1]">{row.ai_diary_count}</span>
+                    </td>
+                    {/* Curriculum */}
+                    <td className="px-3 py-2.5">
+                      {row.has_curriculum ? <Badge text="READY" cls="bg-green-100 text-green-700" /> : <span className="text-[#bbb] text-[11px]">없음</span>}
+                    </td>
+                    {/* 구독 */}
+                    <td className="px-3 py-2.5">
+                      <Badge text={row.subscription.status} cls={subStatusCls(row.subscription.status)} />
+                    </td>
+                    {/* 갱신일 */}
+                    <td className="px-3 py-2.5 whitespace-nowrap text-[#888]">
+                      {fmt(row.subscription.ends_at)}
+                    </td>
+                    {/* 최근활동 */}
+                    <td className="px-3 py-2.5 whitespace-nowrap text-[#aaa]">
+                      {fmtDT(row.last_login_at)}
+                    </td>
+                    {/* Warning */}
+                    <td className="px-3 py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        {row.deletion_pending && <Badge text="삭제예정" cls="bg-red-100 text-red-700" />}
+                        {subIssue && <Badge text="구독이상" cls="bg-orange-100 text-orange-700" />}
+                        {row.upload_blocked && <Badge text="업로드차단" cls="bg-gray-100 text-gray-500" />}
+                        {!row.deletion_pending && !subIssue && !row.upload_blocked && <span className="text-[#bbb]">—</span>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Reject modal */}
+      {/* Reject Modal */}
       {rejectId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
@@ -253,44 +341,6 @@ export default function SuperPools() {
                 className="flex-1 py-2.5 rounded-xl border border-[#e5e5e5] text-[13px] font-semibold text-[#555] hover:bg-[#f5f5f5]">취소</button>
               <button onClick={reject} disabled={actionLoading || !rejectReason.trim()}
                 className="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold bg-red-500 hover:opacity-80 disabled:opacity-50">반려</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Subscription modal */}
-      {subModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-[16px] font-bold text-[#0a0a0a] mb-1">구독 관리</h3>
-            <p className="text-[12px] text-[#888] mb-4">{subModal.name}</p>
-            <div className="space-y-3 mb-4">
-              <div>
-                <label className="block text-[11px] font-semibold text-[#555] mb-1">구독 상태</label>
-                <select value={subStatus} onChange={e => setSubStatus(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#e5e5e5] text-[13px] text-[#111] focus:outline-none focus:border-[#01B2F1]">
-                  {["trial", "active", "expired", "suspended", "cancelled"].map(s => (
-                    <option key={s} value={s}>{subLabel[s]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#555] mb-1">시작일</label>
-                <input type="date" value={subStart} onChange={e => setSubStart(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#e5e5e5] text-[13px] text-[#111] focus:outline-none focus:border-[#01B2F1]" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-[#555] mb-1">만료일</label>
-                <input type="date" value={subEnd} onChange={e => setSubEnd(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#e5e5e5] text-[13px] text-[#111] focus:outline-none focus:border-[#01B2F1]" />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setSubModal(null)}
-                className="flex-1 py-2.5 rounded-xl border border-[#e5e5e5] text-[13px] font-semibold text-[#555] hover:bg-[#f5f5f5]">취소</button>
-              <button onClick={updateSub} disabled={actionLoading || !subStatus}
-                className="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold disabled:opacity-50"
-                style={{ background: PRIMARY }}>저장</button>
             </div>
           </div>
         </div>

@@ -66,7 +66,7 @@ router.get(
     try {
       await ensureExtraTables();
 
-      const [statsRes, pendingItems, paymentItems, storageItems, deletionItems,
+      const [statsRes, extraKpiRes, pendingItems, paymentItems, storageItems, deletionItems,
              policyItems, supportRes, securityItems] = await Promise.all([
         // KPI 지표
         superAdminDb.execute(sql`
@@ -93,9 +93,33 @@ router.get(
               WHERE NOT COALESCE(x_force_disabled, false)
                 AND (COALESCE(x_paid_entitlement, false)
                   OR (COALESCE(x_manual_entitlement, false) AND xmode_config_status = 'READY'))
-            )::int AS xmode_operators
+            )::int AS xmode_operators,
+            -- X 세분화
+            COUNT(*) FILTER (WHERE COALESCE(x_paid_entitlement, false))::int AS x_paid_count,
+            COUNT(*) FILTER (WHERE COALESCE(x_manual_entitlement, false) AND NOT COALESCE(x_paid_entitlement, false))::int AS x_manual_count,
+            COUNT(*) FILTER (WHERE COALESCE(x_management_override, false))::int AS x_override_count,
+            COUNT(*) FILTER (WHERE COALESCE(x_force_disabled, false))::int AS x_force_disabled_count,
+            -- BASE/X 집계
+            COUNT(*) FILTER (WHERE approval_status = 'approved' AND NOT (
+              NOT COALESCE(x_force_disabled, false)
+              AND (COALESCE(x_paid_entitlement, false) OR (COALESCE(x_manual_entitlement, false) AND xmode_config_status = 'READY'))
+            ))::int AS base_operators,
+            -- 구독 상태
+            COUNT(*) FILTER (WHERE approval_status = 'approved' AND COALESCE(subscription_status,'trial') IN ('active','trial'))::int AS subscription_ok_count,
+            COUNT(*) FILTER (WHERE approval_status = 'approved' AND COALESCE(subscription_status,'trial') IN ('expired','suspended','cancelled'))::int AS subscription_issue_count
           FROM swimming_pools
         `),
+        // 추가 KPI: 학생/교사/학부모/일지
+        superAdminDb.execute(sql`
+          SELECT
+            (SELECT COUNT(*)::int FROM students WHERE status IN ('active','suspended')) AS total_students_v2,
+            (SELECT COUNT(*)::int FROM users WHERE role IN ('pool_admin','teacher')) AS total_teachers,
+            (SELECT COUNT(*)::int FROM parent_accounts) AS total_parents,
+            (SELECT COUNT(*)::int FROM class_diaries WHERE COALESCE(is_deleted, false) = false) AS total_diaries,
+            (SELECT COUNT(*)::int FROM class_diaries WHERE ai_generated = true AND COALESCE(is_deleted, false) = false) AS total_ai_diaries,
+            (SELECT COUNT(DISTINCT cv.swimming_pool_id)::int FROM curriculum_versions cv WHERE cv.is_active = true) AS curriculum_ready_pools,
+            (SELECT COUNT(*)::int FROM operational_errors WHERE severity IN ('WARNING','ERROR') AND created_at >= NOW() - INTERVAL '24 hours') AS recent_warnings
+        `).catch(() => ({ rows: [{}] })),
         // 승인 대기
         superAdminDb.execute(sql`
           SELECT id, name, owner_name, created_at, COALESCE(pool_type,'swimming_pool') AS pool_type,
@@ -177,10 +201,20 @@ router.get(
       ]);
 
       const stats = (statsRes.rows[0] as any) ?? {};
+      const extra = (extraKpiRes.rows[0] as any) ?? {};
       const support = (supportRes.rows[0] as any) ?? { open_count: 0, overdue_count: 0 };
 
       res.json({
-        stats,
+        stats: {
+          ...stats,
+          total_students:           Number(extra.total_students_v2 ?? 0),
+          total_teachers:           Number(extra.total_teachers ?? 0),
+          total_parents:            Number(extra.total_parents ?? 0),
+          total_diaries:            Number(extra.total_diaries ?? 0),
+          total_ai_diaries:         Number(extra.total_ai_diaries ?? 0),
+          curriculum_ready_pools:   Number(extra.curriculum_ready_pools ?? 0),
+          recent_warnings:          Number(extra.recent_warnings ?? 0),
+        },
         todo: {
           pending_approval: pendingItems.rows,
           payment_failed:   paymentItems.rows,
@@ -307,6 +341,31 @@ router.get(
               AND st.status IN ('active','suspended')
           )                                     AS active_member_count,
           (
+            SELECT COUNT(*)::int FROM users u3
+            WHERE u3.swimming_pool_id = p.id
+              AND u3.role IN ('pool_admin','teacher')
+          )                                     AS teacher_count,
+          (
+            SELECT COUNT(*)::int FROM parent_accounts pa
+            WHERE pa.swimming_pool_id = p.id
+          )                                     AS parent_count,
+          (
+            SELECT COUNT(*)::int FROM class_diaries cd
+            WHERE cd.swimming_pool_id = p.id AND COALESCE(cd.is_deleted, false) = false
+          )                                     AS diary_count,
+          (
+            SELECT COUNT(*)::int FROM class_diaries cd
+            WHERE cd.swimming_pool_id = p.id AND cd.ai_generated = true AND COALESCE(cd.is_deleted, false) = false
+          )                                     AS ai_diary_count,
+          (
+            SELECT BOOL_OR(cv.is_active) FROM curriculum_versions cv
+            WHERE cv.swimming_pool_id = p.id
+          )                                     AS has_curriculum,
+          COALESCE(p.x_paid_entitlement, false)       AS x_paid,
+          COALESCE(p.x_manual_entitlement, false)     AS x_manual,
+          COALESCE(p.x_management_override, false)    AS x_override,
+          COALESCE(p.x_force_disabled, false)         AS x_force_disabled,
+          (
             SELECT MAX(u2.last_login_at) FROM users u2
             WHERE u2.swimming_pool_id = p.id
               AND u2.role IN ('pool_admin','super_admin')
@@ -353,6 +412,15 @@ router.get(
         deletion_pending:    r.deletion_pending ?? false,
         xmode_entitlement:   Boolean(r.xmode_entitlement ?? false),
         xmode_config_status: (r.xmode_config_status ?? 'NOT_CONFIGURED') as string,
+        x_paid:              Boolean(r.x_paid ?? false),
+        x_manual:            Boolean(r.x_manual ?? false),
+        x_override:          Boolean(r.x_override ?? false),
+        x_force_disabled:    Boolean(r.x_force_disabled ?? false),
+        teacher_count:       Number(r.teacher_count ?? 0),
+        parent_count:        Number(r.parent_count ?? 0),
+        diary_count:         Number(r.diary_count ?? 0),
+        ai_diary_count:      Number(r.ai_diary_count ?? 0),
+        has_curriculum:      Boolean(r.has_curriculum ?? false),
         created_at:          r.created_at,
         updated_at:          r.updated_at,
         admin: {
