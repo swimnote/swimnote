@@ -431,7 +431,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
     }
 
     const roleLabel =
-      msg.author_role === "ai"    ? "시스템"
+      msg.author_role === "ai"    ? "AI"
       : msg.author_role === "agent" ? "상담사"
       : null;
 
@@ -500,7 +500,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
             <Text style={[s.infoTitle, { color: C.text }]}>무엇이 궁금하세요?</Text>
             <Text style={[s.infoDesc, { color: C.textMuted }]}>
               스윔노트 사용에 대한 문의를 남겨주세요.{"\n"}
-              운영팀이 확인 후 답변드립니다.
+              AI가 즉시 답변합니다.
             </Text>
           </View>
 
@@ -560,7 +560,6 @@ export default function SupportChatScreen({ supportContext }: Props) {
     <View style={[s.root, { backgroundColor: C.background }]}>
       <SubScreenHeader
         title="AI 문의"
-        subtitle={!isNewCase ? stateLabel : undefined}
         onBack={isNewCase ? () => setActiveCase(null) : undefined}
         rightSlot={
           !isNewCase ? (
@@ -576,14 +575,12 @@ export default function SupportChatScreen({ supportContext }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
-        {/* 상태 뱃지 */}
+        {/* 새 문의 버튼 */}
         {!isNewCase && (
           <View style={[s.stateBadgeRow, { backgroundColor: C.card }]}>
-            <View style={[s.stateDot, { backgroundColor: stateColor }]} />
-            <Text style={[s.stateText, { color: stateColor }]}>{stateLabel}</Text>
             <Pressable
               onPress={handleNewCase}
-              style={({ pressed }) => [s.newCaseLink, { opacity: pressed ? 0.6 : 1 }]}
+              style={({ pressed }) => [s.newCaseLink, { opacity: pressed ? 0.6 : 1, marginLeft: "auto" }]}
             >
               <Text style={[s.newCaseLinkText, { color: C.textMuted }]}>새 문의</Text>
             </Pressable>
@@ -621,20 +618,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
           {/* 메시지 목록 */}
           {activeCase.messages.map((msg, idx) => renderMessage(msg, idx))}
 
-          {/* 문의 접수 안내 — STALE-05 fix:
-               human escalation이 실제 active인 경우에만 표시.
-               정상 FAQ/deterministic 응답이 존재하는 경우(isHuman=false) 숨김.
-               조건: isHuman=true AND 시스템 메시지 없음 */}
-          {!isNewCase &&
-            isHuman &&
-            activeCase.messages.length > 0 &&
-            !activeCase.messages.some((m) => m.author_role === "system") && (
-              <View style={s.systemMsg}>
-                <Text style={s.systemMsgText}>
-                  문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다.
-                </Text>
-              </View>
-            )}
+          {/* 문의 접수 안내 제거 — AI 채팅 전용, 운영팀 접수 없음 */}
 
           {/* 3회 연속 같은 문제일 때만 명시적으로 2차 상담을 시작한다. */}
           {!isNewCase && inquiryOffered && (
@@ -693,7 +677,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
               >
                 {isRequestingHuman
                   ? <ActivityIndicator size="small" color="#7C3AED" />
-                  : <LucideIcon name="headphones" size={16} color="#7C3AED" />}
+                  : <LucideIcon name="message-circle" size={16} color="#7C3AED" />}
                 <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>
                   {humanOnly ? "담당자 연결 요청" : "아직 해결되지 않았어요"}
                 </Text>
@@ -748,16 +732,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
             </View>
           )}
 
-          {/* 담당자는 GPT 후 미해결 확인이 끝난 Case만 확인한다. */}
-          {isHuman && !isResolved && (
-            <View style={s.humanCta}>
-              <LucideIcon name="headphones" size={20} color="#7C3AED" />
-              <Text style={[s.humanCtaTitle, { color: C.text }]}>상담사에게 문의하기</Text>
-              <Text style={[s.humanCtaDesc, { color: C.textMuted }]}>
-                상담사가 확인 중입니다. 잠시 기다려주세요.
-              </Text>
-            </View>
-          )}
+          {/* 상담사 대기 카드 제거 — AI 채팅 전용 */}
         </ScrollView>
 
         {/* 에러 메시지 */}

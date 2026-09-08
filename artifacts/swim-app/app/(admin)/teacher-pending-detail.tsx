@@ -160,7 +160,7 @@ export default function TeacherPendingDetailScreen() {
       <View style={[s.root, { paddingTop: insets.top }]}>
         <SubScreenHeader title="선생님 승인 처리" />
         <View style={s.errorState}>
-          <LucideIcon name="alert-circle" size={48} color={C.textMuted} />
+          <LucideIcon name="user-x" size={48} color={C.textMuted} />
           <Text style={s.errorTitle}>존재하지 않는 선생님입니다</Text>
           <Text style={s.errorDesc}>이미 처리됐거나 존재하지 않는 요청입니다.</Text>
           <Pressable

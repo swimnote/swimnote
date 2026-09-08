@@ -18,6 +18,8 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { useBrand } from "@/context/BrandContext";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 const C = Colors.light;
 const TAB_BAR_H = Platform.OS === "web" ? 84 : Platform.OS === "android" ? 56 : 49;
 const TABS = ["결석자 리스트", "담당 보강", "다른선생님", "완료 기록", "만료"] as const;
@@ -43,6 +45,7 @@ type ConfirmAction = {
 export default function MakeupsScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const insets = useSafeAreaInsets();
 
   const [tab, setTab]           = useState<MkTab>("결석자 리스트");
   const [makeups, setMakeups]   = useState<any[]>([]);
@@ -217,7 +220,7 @@ export default function MakeupsScreen() {
         <FlatList
           data={makeups}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: TAB_BAR_H + 16 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: TAB_BAR_H + insets.bottom + 16 }}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
           ListEmptyComponent={
             <View style={s.empty}>
@@ -497,8 +500,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
 
 const s = StyleSheet.create({
   root:          { flex: 1, backgroundColor: C.background },
-  chipRow:       { flexGrow: 0 },
-  chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff", flexShrink: 0 },
+  chipRow:       { flexGrow: 0, flexShrink: 0, height: 52 },
+  chip:          { height: 36, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff", flexShrink: 0, justifyContent: "center", alignItems: "center" },
   chipTxt:       { fontSize: 13, fontWeight: "600", color: C.textSecondary, lineHeight: 18, flexShrink: 0 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   row:           { flexDirection: "row", alignItems: "flex-start" },

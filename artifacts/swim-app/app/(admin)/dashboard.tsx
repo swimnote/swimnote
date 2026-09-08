@@ -481,7 +481,7 @@ export default function DashboardScreen() {
                   route: "/(admin)/makeups?backTo=dashboard",
                 },
                 (stats.unassigned ?? 0) > 0 && {
-                  icon: "alert-circle" as const,
+                  icon: "user-minus" as const,
                   color: "#DC2626",
                   bg: "#FEE2E2",
                   label: `수업 미배정 ${stats.unassigned}명`,
@@ -501,7 +501,7 @@ export default function DashboardScreen() {
               return (
                 <View style={s.alertCard}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <LucideIcon name="alert-triangle" size={13} color="#D97706" />
+                    <LucideIcon name="bell-dot" size={13} color="#D97706" />
                     <Text style={[s.alertTxt, { fontWeight: "700", color: "#D97706" }]}>처리 필요 {alerts.length}건</Text>
                   </View>
                   {alerts.map(a => (
@@ -685,7 +685,7 @@ export default function DashboardScreen() {
               <View style={s.splitStatRow}>
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
                   <View style={s.splitStatIcon}>
-                    <LucideIcon name="alert-circle" size={14} color={C.textPrimary} />
+                    <LucideIcon name="user-minus" size={14} color={C.textPrimary} />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>

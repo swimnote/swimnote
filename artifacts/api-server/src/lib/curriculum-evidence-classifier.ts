@@ -204,17 +204,30 @@ export function classifyObservationType(
     };
   }
 
-  // ── 2. teacher_manual: 교사 explicit selection → ACTUAL_TAUGHT ────────────
+  // ── 2. teacher_manual ──────────────────────────────────────────────────────
+  //
+  // - evidenceText 없음 → explicit selection (교사가 item 직접 선택): ACTUAL_TAUGHT
+  // - evidenceText 있음 → Manual Diary auto-resolve (일지 텍스트 기반 자동 매핑):
+  //     teacher_ai와 동일한 텍스트 분류 로직 사용.
+  //     negative evidence (FUTURE_PLAN/PAST_REFERENCE)는 isGaugeEligible=false.
 
   if (source === "teacher_manual") {
-    return {
-      observationType: "ACTUAL_TAUGHT",
-      isGaugeEligible: true,
-      matchedRule: "TEACHER_MANUAL_EXPLICIT_SELECTION",
-    };
+    const rawManualText = evidenceText ?? "";
+    const manualText = rawManualText.trim();
+
+    // evidenceText 없음 → explicit selection
+    if (!manualText) {
+      return {
+        observationType: "ACTUAL_TAUGHT",
+        isGaugeEligible: true,
+        matchedRule: "TEACHER_MANUAL_EXPLICIT_SELECTION",
+      };
+    }
+    // evidenceText 있음 → 텍스트 기반 분류 (fall-through to teacher_ai path below)
+    // source를 'teacher_ai'로 재처리하지 않고, 같은 텍스트 패턴 로직을 공유
   }
 
-  // ── 3. teacher_ai: evidenceText 필수 ──────────────────────────────────────
+  // ── 3. teacher_ai / teacher_manual+text: evidenceText 필수 ────────────────
 
   const rawText = evidenceText ?? "";
   const text = rawText.trim();

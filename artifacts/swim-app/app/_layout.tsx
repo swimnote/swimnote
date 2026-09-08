@@ -569,16 +569,12 @@ function RootNav() {
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
         otaDownloadedRef.current = true;
-        console.log("[OTA] update downloaded, pending silent apply");
-
-        // [2.0.0] DEV OTA Restart Modal: 다운로드 완료 즉시 모달 표시
-        // 1.6.3에서는 DEV_OTA_RESTART_MODAL=false → 기존 silent 동작 유지
         if (DEV_OTA_RESTART_MODAL) {
           setOtaModalVisible(true);
         }
       }
     } catch (_) {
-      // 실패 시 앱 계속 사용 — 사용자 알림 없음
+      // 실패 시 앱 계속 사용
     } finally {
       isCheckingRef.current = false;
     }
@@ -692,19 +688,15 @@ function RootNav() {
           ? Date.now() - backgroundAtRef.current
           : 0;
 
-        if (elapsed >= THIRTY_MIN) {
-          // 30분+ 복귀
-          if (otaDownloadedRef.current) {
-            // 다운로드된 OTA 있음 → silent reload
-            silentApplyOta();
-            return; // reload 이후 아래 로직 불필요
-          }
-          // 다운로드된 OTA 없음 → 이 시점에 추가 check (30분+ 복귀 시 1회)
-          checkNativeVersion().then(forced => {
-            if (!forced) checkAndDownloadOta();
-          });
+        // OTA 다운로드됐으면 → silent reload (30분 무관)
+        if (otaDownloadedRef.current) {
+          silentApplyOta();
+          return;
         }
-        // 30분 미만: OTA 관련 아무 것도 하지 않음
+        // 매 포어그라운드 복귀 시 OTA 체크
+        checkNativeVersion().then(forced => {
+          if (!forced) checkAndDownloadOta();
+        });
 
         // roles 갱신은 RolesPollingGuard의 AppState 리스너가 단독 처리.
         // 여기서 refreshSession을 동시에 호출하면 role 덮어쓰기 race condition 발생.

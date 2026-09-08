@@ -24,6 +24,7 @@ import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
 import { resolvePoolMode } from "../lib/xmode.js";
 import { insertGrowthEvents, type CurriculumMatchInput } from "../lib/growth-event-service.js";
+import { resolveManualDiaryEvidence } from "../lib/curriculum-evidence-resolver.js";
 import { syncDiaryTemplatesToCurriculumItems } from "../lib/diary-template-sync.js";
 import {
   upsertSessionObservation,
@@ -860,9 +861,48 @@ router.post("/diaries",
         });
       }
 
+      // ── GAUGE-MANUAL: Manual Diary → CurriculumEvidenceResolver (TX 외부 — fail-safe) ──
+      // AI Diary(curriculum_matches 있음)는 이미 insertGrowthEvents()로 처리됨 → 스킵.
+      // Manual Diary(curriculum_matches 없음): 일지 텍스트 자동 매핑 → growth_events → CPO → SCP.
+      if (isXMode && !isAiGenerated && rawCurriculumMatches.length === 0 && savedNotes.length > 0) {
+        const manualNotes = (savedNotes as any[])
+          .filter((n: any) => n.note_content?.trim())
+          .map((n: any) => ({ noteId: n.id, studentId: n.student_id, noteContent: n.note_content }));
+
+        if (manualNotes.length > 0) {
+          void resolveManualDiaryEvidence({
+            db,
+            poolId: poolId!,
+            diaryId,
+            notes: manualNotes,
+          })
+            .then((r) => {
+              console.log(
+                `[diary-create] MANUAL_RESOLVER diary=${diaryId}` +
+                ` processed=${r.notesProcessed} inserted=${r.growthEventsInserted} skipped=${r.skipped}`
+              );
+              // evidence 삽입 후 CPO/SCP 재실행 (CPO가 growth_events를 찾아야 함)
+              const uniqueIds = [...new Set(manualNotes.map((n: any) => n.studentId))];
+              return Promise.all(
+                uniqueIds.map((studentId) =>
+                  upsertSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })
+                    .then((cpo) => {
+                      console.log(`[diary-create] MANUAL_CPO student=${studentId} status=${cpo.status} rank=${cpo.progressRank}`);
+                      return computeConfirmedProgress(db, studentId, poolId!);
+                    })
+                    .then((scp) => console.log(`[diary-create] MANUAL_SCP student=${studentId} status=${scp.status} pct=${scp.displayConfirmedPct}`))
+                    .catch((e) => console.error(`[diary-create] MANUAL gauge pipeline error student=${studentId}:`, e))
+                )
+              );
+            })
+            .catch((e) => console.error(`[diary-create] MANUAL_RESOLVER_ERROR diary=${diaryId}:`, e));
+        }
+      }
+
       // ── GAUGE-04/05: CPO 매핑 → SCP 재계산 (TX 외부 — fail-safe) ──────────
-      // X mode일 때만 실행. 일지 저장은 항상 성공; CPO/SCP는 eventually consistent.
-      if (isXMode && savedNotes.length > 0) {
+      // AI Diary 또는 AI curriculum_matches가 있는 경우.
+      // Manual Diary의 CPO/SCP는 위 MANUAL_RESOLVER에서 처리됨.
+      if (isXMode && savedNotes.length > 0 && (isAiGenerated || rawCurriculumMatches.length > 0)) {
         const uniqueStudentIds = [...new Set(savedNotes.map((n: any) => n.student_id))];
         for (const studentId of uniqueStudentIds) {
           upsertSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })

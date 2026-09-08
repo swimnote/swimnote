@@ -108,6 +108,8 @@ export default function TeacherDiaryScreen() {
   const [replaceLoading,       setReplaceLoading]       = useState(false);
   /** WP7: AI generate 결과의 curriculum matches — diary save 시 서버로 전달 */
   const [aiCurriculumMatches, setAiCurriculumMatches] = useState<CurriculumMatch[]>([]);
+  /** CASE A Fix: AI request_id — diary save 시 ai_request_id로 서버에 전달 → verifyAiOrigin → isAiGenerated=true */
+  const [aiRequestId, setAiRequestId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<string>(params.startTime ?? "");
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
@@ -909,12 +911,14 @@ export default function TeacherDiaryScreen() {
     }
     // WP7: curriculum matches 저장 — diary save 시 서버로 전달하여 growth_events 생성
     setAiCurriculumMatches(result.curriculumMatches ?? []);
+    // CASE A Fix: request_id 저장 — diary save 시 ai_request_id로 서버 전달 → verifyAiOrigin → isAiGenerated=true
+    setAiRequestId(result.requestId ?? null);
   }, []);
 
   // ── 작성 세션 전체 초기화 (나가기 확정 시 호출) ──────────────────────────
   const resetWriteSession = useCallback(() => {
     setCommonContent(""); setStudentNotes([]); setNoteInput(""); setAddNoteStudent(null);
-    setAiCurriculumMatches([]);
+    setAiCurriculumMatches([]); setAiRequestId(null);
     setGroupMedia([]); setStudentMedia({}); setMediaUploading(null);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
@@ -1082,6 +1086,8 @@ export default function TeacherDiaryScreen() {
             student_notes:  effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content.trim() })),
             // WP7: AI curriculum matches — 서버에서 growth_events 생성에 사용
             ...(aiCurriculumMatches.length > 0 && { curriculum_matches: aiCurriculumMatches }),
+            // CASE A Fix: ai_request_id → verifyAiOrigin → class_diaries.ai_generated=true
+            ...(aiRequestId && { ai_request_id: aiRequestId }),
           }),
         });
         const data = await r.json();

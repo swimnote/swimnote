@@ -216,6 +216,9 @@ export default function TeacherLayout() {
       <Tabs.Screen name="support-chat"           options={{ href: null }} />
       {/* SMALL-FIX-3 — AI 학생리포트 목록 */}
       <Tabs.Screen name="growth-report-list"     options={{ href: null }} />
+      {/* terminology — 탭 노출 없이 push로만 접근 */}
+      <Tabs.Screen name="terminology-search"     options={{ href: null }} />
+      <Tabs.Screen name="terminology-detail"     options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );

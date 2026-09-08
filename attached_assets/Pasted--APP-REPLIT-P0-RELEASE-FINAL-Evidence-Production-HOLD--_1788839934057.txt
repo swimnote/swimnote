@@ -1,0 +1,231 @@
+[보낼 곳: APP REPLIT]
+
+[P0 RELEASE FINAL — Evidence 품질 최소 보정 + Production 배포 + 실제 검증]
+
+현재 판정 HOLD.
+
+구조 재설계 금지.
+기존 CurriculumEvidenceResolver / AI Diary / growth_events / CPO / SCP 연결 유지.
+
+이번 작업은 출시 전 마지막 최소 보정 + Production 반영이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 Git SHA 관계 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서에 이전 구현 SHA 852855cc,
+현재 main SHA 2803050f가 혼재한다.
+
+확인:
+
+- git log --oneline 최근 commit
+- 2803050f가 852855cc 및 이후 변경을 모두 포함하는지
+- 실제 배포 대상 canonical main HEAD
+
+보고:
+
+main HEAD:
+contains 852855cc: YES/NO
+deploy target:
+
+새 코드 수정 전에 이 관계부터 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. false positive 3건 방어
+━━━━━━━━━━━━━━━━━━━━━━
+
+샘플 30건 중 오매핑 3건을 그대로 두고 PASS 금지.
+
+오매핑 사례:
+
+- 일반 수업 노트 → 자유형 호흡 타이밍 오매핑
+- 사이드킥 → 배영 킥 물누르기 오매핑
+- 킥판 없이 눕는 연습 → 배영 킥 물누르기 오매핑
+
+global threshold를 낮추지 말 것.
+
+현재 candidate scoring에서
+왜 이 3건이 eligible까지 올라왔는지 trace.
+
+필요하면 최소한의 precision guard 추가:
+
+- stroke 불일치
+- atomic_skill 불일치
+- 명시되지 않은 기술 과잉 추론
+
+이 경우 eligible evidence 생성 금지.
+
+false positive 방지가 coverage보다 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. obvious stroke_low_score 최소 보강
+━━━━━━━━━━━━━━━━━━━━━━
+
+131건 전체를 AI 재분류하지 말 것.
+
+다음처럼 텍스트에 기술명이 명확히 직접 존재하는 경우만
+deterministic exact/alias match 우선 적용 가능 여부 확인:
+
+예:
+- "평영 팔동작"
+- "접영 발차기"
+- "자유형 호흡"
+- "배영 발차기"
+
+curriculum_items의
+stroke / atomic_skill / skill_group와
+명시적으로 일치할 때만 후보 생성.
+
+global threshold 하향 금지.
+LLM 추가 호출 금지.
+
+명백한 표현만 deterministic mapping.
+
+수정 전/후 dry-run:
+
+stroke_low_score 131
+→ recovered
+→ still_unmapped
+→ false positive sample
+
+보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. strong_negative는 이번 릴리즈에서 보수적으로 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 schema에 negative observation type이 없으므로
+이번 릴리즈에서 schema 확장하지 않는다.
+
+12건 skip 정책 유지 가능.
+
+단 positive 문장이 함께 있는 경우를
+단순 keyword 하나 때문에 전체 skip하지 않도록
+최소 context guard가 안전하게 가능하면 수정.
+
+대규모 NLP 추가 금지.
+
+안전하게 못 고치면 그대로 skip.
+under-count가 false progress보다 낫다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 관련 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 68/68 PASS 유지.
+
+이번 보정 관련 신규 테스트 추가:
+
+- 명확한 평영 팔동작
+- 명확한 접영 발차기
+- 사이드킥이 배영 킥으로 오매핑되지 않음
+- 일반 수업 문장이 자유형 호흡으로 오매핑되지 않음
+- negative + final success 문장
+- 순수 negative 문장
+
+이번 변경 관련 신규 FAIL = 0 필수.
+
+기존 unrelated 44 failures는 목록만 유지하고
+이번 작업에서 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Production Render 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 main HEAD push 후
+Render가 정확히 해당 SHA로 LIVE 되게 배포.
+
+"push 완료"로 PASS 금지.
+
+확인:
+
+/health commit
+==
+최종 main HEAD
+
+필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Production API 실제 smoke
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render LIVE 후 authenticated Production에서:
+
+- member detail
+- admin curriculum progress
+- parent curriculum-progress
+- x-hub/summary
+
+실제 HTTP status + 핵심 값 확인.
+
+학생 실측:
+
+서하린:
+Admin 42%와 Parent 42%가
+재계산 후에도 동일한지 확인.
+
+추가 학생 2명도 비교.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 신규 Manual Diary Production E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 test student 1명:
+
+수동 Diary 저장
+→ resolver
+→ growth_event
+→ CPO
+→ SCP
+
+실제 DB row 확인.
+
+기존 AI Diary 경로 regression도 1회 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 전부 성공 후에만 iOS Production OTA 1회.
+
+현재 실제 Production 기준:
+
+build 255
+runtimeVersion 2.1.0
+
+production-v2 channel이 실제 가리키는
+EAS update branch 확인 후 그 branch에만 발행.
+
+Android OTA 금지.
+
+앱 재시작 시:
+checkForUpdateAsync
+→ fetch
+→ 재시작 모달
+→ reload
+
+실제 모달 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. main HEAD
+2. 852855cc 포함 여부
+3. false positive 3건 원인/결과
+4. stroke_low_score 131:
+   - recovered
+   - still unmapped
+5. strong_negative 처리
+6. 관련 테스트 결과
+7. Render LIVE SHA
+8. Production API smoke
+9. 실제 학생 Admin/Parent %
+10. Manual Diary Production E2E
+11. AI Diary regression
+12. production-v2 mapped branch
+13. OTA ID
+14. 재시작 모달 실제 결과
+15. 잔존 FAIL
+
+PASS / HOLD / FAIL

@@ -1,0 +1,315 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — CURRICULUM PROGRESS 구조 수정 / 모든 일지를 진도 파이프라인에 연결]
+
+조사 결과 CASE B 확인.
+
+확정 사실:
+
+- Toykids active curriculum 정상
+- curriculum_items 50개 정상
+- AI 검색 필수 metadata 정상
+- DOCX 업로드 생략은 GAUGE 미작동 원인이 아님
+
+따라서 provisioning 쪽은 더 건드리지 않는다.
+
+하지만 보고서의
+"기술적 버그 없음 / adoption 문제"
+판정은 제품 요구와 맞지 않는다.
+
+현재 구조적 결함:
+
+curriculum_matches가
+AI 일지 생성 후 저장할 때만 만들어짐.
+
+그래서:
+
+수동 Diary
+→ curriculum_matches 없음
+→ growth_events 없음
+→ CPO 없음
+→ SCP 없음
+→ Parent Gauge 0
+
+이 구조를 수정한다.
+
+제품의 canonical 요구는:
+
+"학생에게 저장된 실제 수업일지 내용"
+→ curriculum item 비교
+→ evidence 생성
+→ progress 계산
+→ Admin / Parent / X Dashboard 반영
+
+AI 일지 생성 버튼 사용 여부가
+진도 게이지 작동 조건이 되어서는 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CurriculumEvidenceResolver를 단일 진입점으로 만든다
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 학생 Diary 저장 후:
+
+Diary Save
+→ CurriculumEvidenceResolver
+→ curriculum match/evidence
+→ growth_events
+→ CPO
+→ SCP
+
+로 통일.
+
+AI Diary / 수동 Diary / 템플릿 Diary가
+서로 다른 progress pipeline을 사용하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Evidence 우선순위
+━━━━━━━━━━━━━━━━━━━━━━
+
+Resolver는 다음 순서로 사용:
+
+1. 이미 curriculum_matches가 전달된 AI Diary
+   → 그대로 검증 후 사용
+
+2. diary에 template_id / structured metadata가 존재
+   → deterministic curriculum item mapping
+
+3. stroke / domain / atomic_skill / skill_group / level 등
+   기존 structured field로 curriculum_items와 매칭
+
+4. 위 정보가 부족한 자유서술 수동 Diary
+   → 기존 SWIMNOTE AI Engine의 curriculum/template 검색 기능 재사용
+
+새 일반 GPT classifier 만들지 말 것.
+
+AI Engine이 이미 제공하는
+검색/grounding 구조를 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 수동 Diary도 자동 매핑
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님이 직접 일지를 작성해도:
+
+저장
+→ diary 내용 분석
+→ curriculum candidate
+→ evidence
+→ progress
+
+자동 실행.
+
+선생님에게 별도:
+"오늘 가르친 커리큘럼 선택"
+
+UI 추가 금지.
+
+업무를 늘리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. AI Diary 기존 경로 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI Diary에서 이미 받은 curriculum_matches는
+다시 AI에 보내지 않는다.
+
+기존 match_token 검증 경로 유지.
+
+즉:
+
+AI Diary = 빠른 direct evidence
+Manual Diary = resolver가 evidence 생성
+
+최종 downstream은 둘 다 동일:
+
+growth_events
+→ CPO
+→ SCP
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 342개 Diary Backfill
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 수동 diary 342개를 버리지 않는다.
+
+Backfill pipeline:
+
+past diary
+→ 기존 structured data 먼저 확인
+→ deterministic mapping 가능하면 AI 호출 없이 처리
+→ 불충분한 diary만 AI Engine 검색
+→ curriculum evidence 생성
+→ CPO
+→ SCP 재계산
+
+기존 diary 본문 수정 금지.
+
+derived evidence만 생성.
+
+먼저 DRY RUN 실시.
+
+보고:
+
+total = 342
+deterministic mapped
+engine mapped
+ambiguous
+unmapped
+estimated AI calls
+estimated cost
+
+DRY RUN 결과 확인 후 실제 write.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. AI Engine 호출 비용 최소화
+━━━━━━━━━━━━━━━━━━━━━━
+
+342건 전부 무조건 AI 호출 금지.
+
+먼저 기존 DB fields로 가능한 것을 최대한 처리.
+
+중복/유사 일지는 캐시 가능한지 확인.
+
+동일 normalized content/template라면
+같은 mapping 결과 재사용 가능 여부 검토.
+
+AI Engine 호출은
+mapping에 필요한 최소 입력만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Progress 판정 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary에 curriculum item이 언급됐다는 이유만으로
+COMPLETED 처리 금지.
+
+기존 confirmation engine 규칙 유지/검증.
+
+negative evidence:
+
+- 못함
+- 실패
+- 어려움
+- 교정 중
+- 연습 중
+
+등은 완료 근거가 되면 안 됨.
+
+positive/confirmed evidence만
+confirmed progress에 반영.
+
+관련 수업이 있었지만 완료 근거 부족:
+IN_PROGRESS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 신규 E2E 2종
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 실행:
+
+A. 수동 Diary
+
+수동 작성
+→ save
+→ evidence 생성
+→ growth_event
+→ CPO
+→ SCP
+→ Admin progress
+→ Parent gauge
+
+B. AI Diary
+
+AI 생성
+→ curriculum_matches
+→ save
+→ growth_event
+→ CPO
+→ SCP
+→ Admin progress
+→ Parent gauge
+
+두 경로 모두 성공해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Backfill 후 실제 학생 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 최소 3명:
+
+- diary 많은 학생
+- 일부 diary 학생
+- diary 거의 없는 학생
+
+각각:
+
+diary count
+mapped evidence
+CPO count
+SCP %
+Admin %
+Parent %
+
+Admin == Parent 필수.
+
+과거 diary가 많은 학생인데
+계속 0%라면 원인 재조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. X Dashboard도 동일 본진 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+X Dashboard curriculum KPI는
+SCP/CPO 기반으로만 표시.
+
+assignment 기반 KPI 금지.
+
+Backfill 완료 후:
+
+progress_students_total
+progress_students_confirmed
+progress_avg_pct
+
+실제 값 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 이번 작업에서 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+- curriculum DOCX 재업로드 금지
+- Toykids curriculum version 재생성 금지
+- curriculum_items 재삽입 금지
+- 수동 curriculum 선택 UI 추가 금지
+- Teacher Diary AI Engine 핵심 pipeline 재작성 금지
+- LLM이 progress % 직접 생성 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 모든 diary save path 목록
+2. 기존에는 어떤 path만 curriculum_matches를 만들었는지
+3. 새 CurriculumEvidenceResolver 위치
+4. deterministic mapping rule
+5. AI Engine fallback 경로
+6. manual diary 실제 E2E
+7. AI diary 실제 E2E
+8. backfill dry-run:
+   - total
+   - deterministic
+   - engine required
+   - ambiguous
+   - unmapped
+   - 예상 비용
+9. 실제 backfill 결과
+10. CPO rows
+11. SCP students
+12. 학생 3명 Admin/Parent %
+13. X Dashboard KPI
+14. Render LIVE SHA
+15. OTA ID
+16. 잔존 FAIL
+
+PASS / HOLD / FAIL
+
+완료 후 STOP.

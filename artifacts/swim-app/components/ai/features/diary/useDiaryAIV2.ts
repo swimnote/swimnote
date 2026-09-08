@@ -478,6 +478,8 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       commonDiary:       resultText,
       students:          generatedStudents,
       curriculumMatches: generatedCurriculumMatches.length > 0 ? generatedCurriculumMatches : undefined,
+      // CASE A Fix: requestId를 diary save까지 전달 → ai_request_id → verifyAiOrigin → isAiGenerated=true
+      requestId:         requestIdRef.current || undefined,
     };
     options.onInsert(result);
     // [PROD_LOG] production에서 insert 성공 확인
@@ -485,6 +487,7 @@ export function useDiaryAIV2(options: UseDiaryAIV2Options = {}): DiaryAIV2HookRe
       common_len:             result.commonDiary.length,
       student_count:          result.students.length,
       curriculum_match_count: result.curriculumMatches?.length ?? 0,
+      request_id:             result.requestId?.slice(0, 8),
     });
 
     // 삽입 완료 피드백 (2초 후 자동 해제)

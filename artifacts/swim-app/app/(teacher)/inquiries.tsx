@@ -236,7 +236,7 @@ export default function TeacherInquiriesScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title="문의하기" homePath="/(teacher)/today-schedule" />
+      <SubScreenHeader title="스윔노트 직접문의" homePath="/(teacher)/today-schedule" />
 
       {listLoading && list.length === 0 ? (
         <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
