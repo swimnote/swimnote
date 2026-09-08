@@ -5,7 +5,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from "expo-video-thumbnails";
-import { compressImageIfNeeded } from "../../utils/compressImage";
+import { compressPhotosParallel } from "../../utils/compressImage";
+import { directUploadPhotos } from "../../utils/directUploadPhotos";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Dimensions, FlatList,
@@ -19,7 +20,7 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import { API_BASE, apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
-import { useUploadQueue, PhotoUploadJob } from "@/context/UploadQueueContext";
+import { useUploadQueue } from "@/context/UploadQueueContext";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
 
 const C = Colors.light;
@@ -181,7 +182,7 @@ export default function TeacherPhotosScreen() {
   const [compressTotal,    setCompressTotal]    = useState(0);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
-  const { addJobs, isActive: uploadActive, done: uploadDone, total: uploadTotal } = useUploadQueue();
+  const { isActive: uploadActive, done: uploadDone, total: uploadTotal } = useUploadQueue();
   // 업로드 완료 후 목록 자동 새로고침 — loadList 선언 후 아래에서 useEffect 실행
   const prevActiveRef = useRef(false);
   type PlanFeatures = { video_enabled: boolean; storage_quota_gb: number; storage_used_gb: number; storage_used_pct: number; upload_blocked: boolean; tier: string };
@@ -467,27 +468,56 @@ export default function TeacherPhotosScreen() {
       if (!isVideo) {
         setCompressTotal(assets.length);
         setCompressProgress(0);
-        const endpoint = sc === "group" ? "/photos/group" : "/photos/private";
-        const jobs: PhotoUploadJob[] = [];
-        const BATCH = 5;
-        for (let i = 0; i < assets.length; i += BATCH) {
-          const batch = assets.slice(i, i + BATCH);
-          const uris = await Promise.all(
-            batch.map((a: any) => compressImageIfNeeded(a.uri, a.fileSize ?? undefined))
-          );
-          uris.forEach(uri => jobs.push({
-            uri,
-            endpoint,
-            params: {
-              class_id: group?.id ?? "",
-              ...(sc === "private" && student?.id ? { student_id: student.id } : {}),
-            },
-            token: token ?? "",
-          }));
-          setCompressProgress(Math.min(i + BATCH, assets.length));
+        const t0 = Date.now();
+
+        // ── Step 1: parallel compression (concurrency 2) ──────────────────
+        const typedAssets = (assets as any[]).map(a => ({
+          uri: a.uri as string,
+          fileSize: (a.fileSize as number | undefined) ?? undefined,
+          mimeType: (a.mimeType as string | undefined) ?? undefined,
+          fileName: (a.fileName as string | undefined) ?? "photo.jpg",
+        }));
+        const compressed = await compressPhotosParallel(typedAssets, 2);
+        setCompressProgress(assets.length);
+
+        const origBytes = typedAssets.reduce((s, a) => s + (a.fileSize ?? 0), 0);
+        const compBytes = compressed.reduce((s, c) => s + c.fileSize, 0);
+        console.log(`[photos-upload] compress: ${assets.length} files, ${Math.round(origBytes / 1024)}KB → ${Math.round(compBytes / 1024)}KB, took ${Date.now() - t0}ms`);
+
+        // ── Step 2: direct R2 upload via presigned URLs ───────────────────
+        const files = compressed.map((c, i) => ({
+          clientId: `ph_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 6)}`,
+          uri: c.uri,
+          fileName: c.fileName,
+          mimeType: c.mimeType,
+          fileSize: c.fileSize,
+        }));
+
+        const results = await directUploadPhotos({
+          token: token ?? "",
+          albumType: sc,
+          classId: group?.id,
+          studentId: sc === "private" ? student?.id : undefined,
+          files,
+          onItemProgress: () => {}, // progress shown via setUploading spinner
+          onItemDone: () => {},
+          onItemError: () => {},
+        });
+
+        const succeeded = results.filter(r => !r.error);
+        const failed = results.filter(r => r.error);
+        const elapsed = Date.now() - t0;
+
+        console.log(`[photos-upload] done: ${succeeded.length} ok / ${failed.length} fail in ${elapsed}ms`);
+
+        if (succeeded.length > 0) {
+          await loadList();
         }
-        addJobs(jobs);
-        setSuccessMsg(`${assets.length}장 업로드 시작!\n화면을 이동해도 계속 업로드됩니다.`);
+        if (failed.length > 0) {
+          setErrorMsg(`${failed.length}장 업로드 실패. ${succeeded.length}장 성공.`);
+        } else {
+          setSuccessMsg(`${assets.length}장 업로드 완료!`);
+        }
         return;
       }
       // ── 영상: 블로킹 방식 ────────────────────────────────────────────
