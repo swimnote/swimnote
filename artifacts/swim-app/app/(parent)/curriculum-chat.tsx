@@ -193,7 +193,7 @@ function UnavailableView({ eligibility }: { eligibility: Eligibility }) {
   return (
     <View style={s.unavailableWrap}>
       <View style={s.unavailableIconWrap}>
-        <LucideIcon name="book-x" size={36} color={C.textMuted} />
+        <LucideIcon name="book-open" size={36} color={C.textMuted} />
       </View>
       <Text style={s.unavailableTitle}>{title}</Text>
       <Text style={s.unavailableDesc}>{desc}</Text>
@@ -812,7 +812,7 @@ export default function CurriculumChatScreen() {
     return (
       <View style={s.emptyWrap}>
         <View style={s.emptyIconWrap}>
-          <LucideIcon name="bot" size={36} color={TEAL} />
+          <LucideIcon name="book-open" size={36} color={TEAL} />
         </View>
         <Text style={s.emptyTitle}>AI 커리큘럼 검색</Text>
         <Text style={s.emptyDesc}>우리 아이의 수영 교육과정에 대해 물어보세요.</Text>
@@ -1002,7 +1002,7 @@ export default function CurriculumChatScreen() {
                 style={({ pressed }) => [s.headerBtn, { opacity: pressed ? 0.6 : 1 }]}
                 hitSlop={8}
               >
-                <LucideIcon name="history" size={20} color={C.textSecondary} />
+                <LucideIcon name="list" size={20} color={C.textSecondary} />
               </Pressable>
               {/* 새 대화 버튼 */}
               <Pressable
@@ -1011,7 +1011,7 @@ export default function CurriculumChatScreen() {
                 style={({ pressed }) => [s.headerBtn, { opacity: pressed ? 0.6 : 1 }]}
                 hitSlop={8}
               >
-                <LucideIcon name="square-pen" size={20} color={C.textSecondary} />
+                <LucideIcon name="edit" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
           }
