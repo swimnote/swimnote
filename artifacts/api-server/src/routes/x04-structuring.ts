@@ -623,29 +623,33 @@ router.post(
       }
       const targetVersionId: string = targetRow.version_id;
 
-      // ── Step 2: 기존 active Local version 조회 (deactivate 대상) ──
+      // ── Step 2: 기존 active version 조회 (Local + Global Reference 모두) ──
+      // uniq_curriculum_versions_one_active: (swimming_pool_id) WHERE is_active=true
+      // → pool에 is_active=true인 version이 1개뿐이어야 하므로
+      //   Local activation 전에 Global Reference 포함 모든 active version을 비활성화
       const oldActiveRes = await superAdminDb.execute(sql`
-        SELECT id FROM curriculum_versions
-        WHERE swimming_pool_id   = ${pool.id}
-          AND is_global_reference = false
-          AND is_active           = true
-          AND archived_at         IS NULL
-        LIMIT 1
+        SELECT id, is_global_reference FROM curriculum_versions
+        WHERE swimming_pool_id = ${pool.id}
+          AND is_active        = true
+          AND archived_at      IS NULL
       `);
-      const oldVersionId: string | null = (oldActiveRes as any).rows?.[0]?.id ?? null;
+      const oldActiveRows = (oldActiveRes as any).rows ?? [];
+      const oldVersionId: string | null =
+        (oldActiveRows.find((r: any) => !r.is_global_reference)?.id) ?? null;
 
       // ── Step 3: Atomic TX — deactivate old / activate new / set READY ──
       // superAdminDb는 drizzle-orm 기반 — raw BEGIN/COMMIT으로 transaction 처리
       await superAdminDb.execute(sql`BEGIN`);
       try {
-        // 3-a: 기존 active Local deactivate + archive
-        if (oldVersionId) {
+        // 3-a: 기존 active version 모두 deactivate (Local + Global Reference)
+        //      archived_at은 Local에만 적용 (Global Reference는 archive 안 함)
+        for (const row of oldActiveRows) {
           await superAdminDb.execute(sql`
             UPDATE curriculum_versions SET
               is_active   = false,
-              archived_at = NOW(),
+              archived_at = CASE WHEN ${!row.is_global_reference} THEN NOW() ELSE archived_at END,
               updated_at  = NOW()
-            WHERE id = ${oldVersionId}
+            WHERE id = ${row.id}
           `);
         }
 

@@ -37,6 +37,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { TEMPLATE_VERSIONS, getTemplateR2Key, type TemplateType } from "../lib/xSetupTemplates.js";
+import { processAndActivateLocalCurriculum } from "../lib/curriculum-orchestration.js";
 
 const router = Router();
 
@@ -230,7 +231,36 @@ router.post("/x-setup/upload/curriculum", requireAuth, requireRole("pool_admin")
         WHERE pool_id = ${poolId}
       `);
 
-      res.json({ ok: true, file_id: fileId, version, r2_key: r2Key });
+      // ── One-click Auto-Apply ─────────────────────────────────────────────
+      // 업로드 완료 후 PARSE → STRUCTURE → APPROVE → ACTIVATE LOCAL 자동 실행.
+      // 실패(HARD_BLOCKED)해도 업로드 자체는 성공 — 기존 active 버전 유지.
+      // actorId: 업로드한 pool_admin userId
+      const actorId = req.user!.userId;
+      let orchestration: Awaited<ReturnType<typeof processAndActivateLocalCurriculum>> | null = null;
+      try {
+        orchestration = await processAndActivateLocalCurriculum(poolId, actorId);
+      } catch (orchErr) {
+        // orchestration 오류는 업로드 응답을 막지 않음 (기존 active 보존 원칙)
+        console.error("[x-setup/upload/curriculum] orchestration error:", orchErr);
+        orchestration = null;
+      }
+
+      res.json({
+        ok: true,
+        file_id: fileId,
+        version,
+        r2_key: r2Key,
+        curriculum: orchestration
+          ? {
+              status: orchestration.status,
+              activated_version_id: orchestration.activated_version_id,
+              canonical_node_count: orchestration.canonical_node_count,
+              soft_review_count: orchestration.soft_review_count,
+              hard_error_count: orchestration.hard_error_count,
+              idempotent: orchestration.idempotent,
+            }
+          : { status: "ORCHESTRATION_ERROR" },
+      });
     } catch (err) {
       console.error("[x-setup/upload/curriculum]", err);
       res.status(500).json({ error: "업로드 오류" });
