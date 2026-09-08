@@ -255,13 +255,25 @@ router.post(
                 resolvedVersionId = newVersionId;
                 // 4. searchable_items → curriculum_items INSERT
                 //    (기존 version의 items는 절대 변경하지 않음)
+                //    FINAL_IMPORT canonical fields(display_no, stroke, domain, skill_group,
+                //    atomic_skill, level_order, is_master_import)도 함께 저장.
                 for (const item of structured.searchable_items) {
+                  const levelOrderVal =
+                    item.level_order != null && item.level_order > 0
+                      ? item.level_order
+                      : null;
+                  const isMasterImport = item.display_no != null ? true : null;
                   await superAdminDb.execute(sql`
                     INSERT INTO curriculum_items
-                      (curriculum_version_id, swimming_pool_id, sort_order, title, description, is_active)
+                      (curriculum_version_id, swimming_pool_id, sort_order, title, description, is_active,
+                       display_no, stroke, domain, skill_group, atomic_skill, level_order, is_master_import)
                     VALUES
                       (${newVersionId}, ${pool.id}, ${item.sort_order},
-                       ${item.title}, ${item.description}, true)
+                       ${item.title}, ${item.description}, true,
+                       ${item.display_no ?? null}, ${item.stroke ?? null},
+                       ${item.domain ?? null}, ${item.skill_group ?? null},
+                       ${item.atomic_skill ?? null}, ${levelOrderVal},
+                       ${isMasterImport})
                     ON CONFLICT (curriculum_version_id, sort_order) DO NOTHING
                   `);
                 }
