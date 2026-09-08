@@ -73,3 +73,4 @@
 - [WP13 Data Integrity Checker 완료](wp13-integrity-done-state.md) — SHA 96295ec3; integrity-checker.ts 22 checks+super.ts 3routes+App UI; 36TC
 - [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA pending; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
 - [500 Pool Curriculum Scale 완료](500pool-curriculum-scale-done.md) — SHA 6c07c6bc; approved_at binding+rollback injection 129TC; Render LIVE 6c07c6bc 확인
+- [P0 MASTER Super Admin Web Console 완료](p0-master-super-admin-done.md) — SHA 9450f655; carousel+가격+공지이미지+SuperNotices/Ads; Render LIVE; OTA 01a08217
