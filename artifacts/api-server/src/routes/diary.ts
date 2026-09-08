@@ -759,19 +759,19 @@ router.post("/diaries",
       const dateStr = lesson_date || new Date().toISOString().slice(0, 10);
       const diaryId = genId("cd");
 
-      // ── WP7: X mode 확인 (curriculum_matches 있을 때만 DB 조회) ──────────────
+      // ── WP7: X mode 확인 (AI Diary + Manual Diary 모두 필요) ────────────────
+      // Manual Diary도 MANUAL_RESOLVER(growth_events 자동 매핑)가 isXMode에 의존하므로
+      // curriculum_matches 유무와 관계없이 항상 X mode를 판정한다.
       let isXMode = false;
-      if (rawCurriculumMatches.length > 0) {
-        try {
-          const pmResult = await resolvePoolMode(poolId!);
-          isXMode = pmResult?.mode === "x";
-          console.log(
-            `[diary-create] X_MODE_CHECK poolId=${poolId} mode=${pmResult?.mode} isXMode=${isXMode}`,
-          );
-        } catch (e) {
-          console.error(`[diary-create] X_MODE_CHECK_FAILED poolId=${poolId}`, e);
-          // X mode 판정 실패 → growth_event 생성 안 함, diary 저장은 계속
-        }
+      try {
+        const pmResult = await resolvePoolMode(poolId!);
+        isXMode = pmResult?.mode === "x";
+        console.log(
+          `[diary-create] X_MODE_CHECK poolId=${poolId} mode=${pmResult?.mode} isXMode=${isXMode}`,
+        );
+      } catch (e) {
+        console.error(`[diary-create] X_MODE_CHECK_FAILED poolId=${poolId}`, e);
+        // X mode 판정 실패 → growth_event 생성 안 함, diary 저장은 계속
       }
 
       // 중복 방지: 같은 날 같은 반에 이미 일지 있으면 오류
