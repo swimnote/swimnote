@@ -1,0 +1,335 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL CURRICULUM ACTIVATION — CURRICULUM_PENDING 원인 확정 → 정상 상태 복구 → AI Diary downstream E2E]
+
+현재 AI Diary CASE A provenance 문제는 PASS/CLOSED.
+
+확정된 정상 항목:
+
+- AI generate 성공
+- AI generated content 저장 성공
+- class_diaries.ai_generated = true
+- ai_trace_id NOT NULL
+- 교사 원문만 저장되는 regression 없음
+- APP → swimnote-api → Professional Engine 경로 정상
+
+이 부분 절대 다시 수정하지 말 것.
+
+현재 남은 유일한 문제:
+
+Toykids pool:
+xmode_config_status = CURRICULUM_PENDING
+
+때문에 AI Diary 저장 후:
+
+growth_event source=match_token
+→ CPO
+→ SCP
+
+가 실행되지 않는다.
+
+이번 작업은 이 상태값이 왜 PENDING인지
+정상 X provisioning 규칙 기준으로 조사하고,
+Toykids가 실제 활성 조건을 충족했다면
+정상적인 방법으로 상태를 복구한 뒤
+실제 E2E를 끝내는 작업이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- AI Diary provenance 코드 수정 금지
+- TeacherDiaryAIClient 수정 금지
+- Professional Engine 수정 금지
+- curriculum_items 재생성 금지
+- curriculum_versions 재생성 금지
+- Toykids 50개 curriculum item 수정 금지
+- 기존 FINAL_IMPORT 데이터 수정 금지
+- Manual Diary resolver 수정 금지
+- growth_events/CPO/SCP schema 변경 금지
+- 새 migration 생성 금지
+- 무조건 DB에서 status='ACTIVE' 수동 UPDATE 금지
+
+먼저 정상 상태 전환 규칙을 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. xmode_config_status 실제 정의 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드/DB에서:
+
+xmode_config_status
+
+가능한 모든 상태값 확인.
+
+예:
+
+- PENDING
+- CURRICULUM_PENDING
+- CURRICULUM_ACTIVE
+- ACTIVE
+- READY
+- 기타
+
+실제 enum/check/application constants 기준으로 제출.
+
+각 상태 의미도 코드 기준으로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 정상 X 커리큘럼 설정 완료 플로우 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 고객이:
+
+DOCX 업로드
+→ 구조화
+→ curriculum version/items 생성
+→ active version 확정
+→ X 설정 완료
+
+할 때
+
+xmode_config_status가:
+
+어디서
+어떤 함수/API를 통해
+무슨 조건을 확인한 뒤
+CURRICULUM_PENDING에서 최종 활성 상태로 바뀌는지
+
+정확히 trace.
+
+보고:
+
+파일:
+함수:
+API:
+before status:
+after status:
+필수 조건:
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Toykids 현재 상태를 정상 활성 조건과 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids 현재 실제값:
+
+- xmode_config_status
+- X canonical mode
+- x_paid_entitlement
+- x_manual_entitlement
+- x_management_override
+- x_force_disabled
+- active curriculum version
+- import_status
+- curriculum_items active count
+- source_trace count
+- required setup files/submission 상태
+- 정상 활성화 함수가 검사하는 기타 필드
+
+중요:
+X mode와 paid entitlement를 혼동하지 말 것.
+
+Toykids는 강제/수동 X일 수 있으므로
+X access semantics 기존 규칙 유지.
+
+표:
+
+활성 조건 | 정상 요구 | Toykids 실제 | 충족 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 이전 조사와 현재 결과의 모순 해소
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사에서는:
+
+- active curriculum version 정상
+- items 50개 정상
+- searchCurriculumForDiary eligible 50/50
+- DOCX upload 생략은 AI 검색에 영향 없음
+
+이라고 확인했다.
+
+현재는:
+
+xmode_config_status = CURRICULUM_PENDING
+때문에 match_token downstream이 차단된다고 보고했다.
+
+따라서 정확히 구분해서 설명:
+
+A.
+AI curriculum candidate 검색은 PENDING에서도 가능한가?
+
+B.
+curriculum_matches 생성은 가능한가?
+
+C.
+match_token 발급은 가능한가?
+
+D.
+diary save 시 growth_event INSERT는 어디에서 PENDING으로 차단되는가?
+
+E.
+CPO/SCP는 growth_event 미생성 때문에만 안 되는가?
+
+파일/조건문/라인 기준으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Toykids가 실제 활성 조건을 이미 충족한 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 활성화 조건을 모두 충족했는데
+강제 FINAL_IMPORT 때문에 status transition만 누락된 것이라면:
+
+정상 production 코드가 사용하는
+동일한 상태 전환 함수/service를 사용해
+Toykids만 정상 활성 상태로 전환.
+
+가능하면 raw SQL 직접 UPDATE보다
+기존 canonical transition 경로 사용.
+
+만약 canonical 함수가
+DOCX setup record를 필수로 요구하지만
+그 record가 AI/운영상 필요 없는 추적용 필드라면
+억지로 가짜 setup record 생성하지 말 것.
+
+그 경우:
+왜 canonical transition을 그대로 못 쓰는지 보고하고
+최소한의 명시적 reconciliation 경로로
+Toykids status만 정상화.
+
+가짜 파일 업로드 기록 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 활성 조건을 충족하지 못한 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids에 실제 필수 데이터가 빠져 있다면
+status부터 강제로 올리지 말 것.
+
+누락 필드를 정확히 보고하고
+그 필드만 정상 데이터로 복구.
+
+curriculum 전체 재삽입 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 상태 복구 후 AI Diary 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+상태 정상화 후
+실제 AI Diary 1건 다시 실행.
+
+커리큘럼 매칭이 명확한 입력 사용:
+
+"평영 팔동작을 연습했고 동작이 안정되었습니다."
+
+반드시 실측:
+
+AI response
+→ curriculum_matches count > 0
+→ match_token 존재
+→ Diary save
+→ ai_generated=true
+→ ai_trace_id NOT NULL
+→ growth_event 생성
+→ source='match_token'
+→ CPO 생성/업데이트
+→ SCP 재계산
+
+각 실제 ID/결과 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 Manual Diary regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 데이터:
+
+teacher_manual growth_events
+CPO
+SCP
+
+그대로 보존 확인.
+
+status 변경 때문에
+수동 pipeline이 중복 실행되거나
+기존 backfill을 다시 생성하면 FAIL.
+
+duplicate 0 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Parent/Admin/X 실제 값
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 학생 기준:
+
+Admin progress
+Parent progress
+
+동일값 확인.
+
+X Dashboard:
+
+progress_students_total
+progress_students_confirmed
+progress_avg_pct
+
+실제 Production API 값 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 배포 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 코드 수정이 없다면
+새 Render deploy 불필요.
+
+DB 상태 reconciliation만 필요하면
+OTA도 불필요.
+
+APP 코드 변경 금지.
+
+이번 문제 해결을 위해
+새 OTA 발행하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. xmode_config_status 가능한 상태
+2. 정상 PENDING → ACTIVE transition 위치
+3. 정상 transition 필수 조건
+4. Toykids 실제 조건 비교표
+5. 왜 Toykids가 PENDING에 남았는지
+6. 이전 "DOCX upload 생략 무관" 조사와 현재 상태의 관계
+7. candidate search가 PENDING에서 가능한지
+8. curriculum_matches가 PENDING에서 가능한지
+9. match_token이 PENDING에서 가능한지
+10. growth_event 차단 정확한 조건
+11. 실제 적용한 최소 복구
+12. 복구 전 status
+13. 복구 후 status
+14. AI Diary curriculum_matches count
+15. match_token
+16. DB ai_generated
+17. ai_trace_id
+18. growth_event source
+19. CPO 결과
+20. SCP 결과
+21. Admin/Parent 동일 여부
+22. Manual pipeline regression
+23. duplicate 여부
+24. 잔존 FAIL
+
+아래가 모두 만족될 때만 PASS:
+
+- Toykids X curriculum 정상 활성 상태
+- 기존 AI Diary 기능 정상
+- ai_generated=true
+- ai_trace_id 존재
+- curriculum_matches 생성
+- match_token 생성
+- growth_event source=match_token
+- CPO 정상
+- SCP 정상
+- Manual Diary 기존 결과 보존
+- Admin == Parent
+
+완료 후 STOP.
