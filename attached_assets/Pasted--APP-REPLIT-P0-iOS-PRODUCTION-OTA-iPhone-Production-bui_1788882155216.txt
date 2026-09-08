@@ -1,0 +1,151 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — iOS PRODUCTION OTA 수신 복구 / 코드 수정 금지]
+
+현재 실제 iPhone Production build 255에서
+최신 OTA를 수신하지 못하고 있다.
+
+코드 수정 금지.
+UI 수정 금지.
+서버 수정 금지.
+
+OTA 배포 상태만 정확히 확인하고
+현재 Production 실기기가 받는 canonical branch에 다시 publish한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 실기기 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production iOS:
+
+buildNumber = 255
+runtimeVersion = 2.1.0
+channel = production-v2
+
+이 build가 실제 EAS에서
+어느 branch를 resolve하는지 반드시 조회.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 방금 잘못된 가능성이 있는 OTA 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+최근 OTA:
+
+update ID:
+01a081ac-b621-7ba0-94f8-ac1d76ee2f4a
+
+보고에는:
+
+branch = release-2.0.0
+channel = production-v2
+
+라고 되어 있음.
+
+반드시 확인:
+
+- 이 update가 실제 어느 branch에 publish됐는지
+- production-v2 channel이 현재 어느 branch를 가리키는지
+- build 255 / runtime 2.1.0이 이 update를 실제 resolve할 수 있는지
+
+"publish 성공"만으로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Branch / Channel mismatch면 즉시 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+production-v2 channel이 실제 연결된 canonical branch에
+동일 코드 HEAD 기준으로 OTA를 다시 publish.
+
+새 코드 commit 만들 필요 없음.
+
+중요:
+
+Git branch release/v2.0.0
+EAS Update branch
+EAS channel
+
+이 세 개를 혼동하지 말 것.
+
+Git canonical:
+release/v2.0.0
+
+Production OTA:
+실제 production-v2 channel이 연결된 EAS branch
+
+를 정확히 사용.
+
+임의로 release-2.0.0 같은 새 OTA branch를 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Runtime / Platform 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 OTA 반드시:
+
+platform = iOS
+runtimeVersion = 2.1.0
+
+확인.
+
+Android publish 금지.
+
+runtime mismatch면 publish 전에 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실제 수신 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+publish 후 EAS metadata 기준으로:
+
+- update ID
+- branch
+- channel
+- runtimeVersion
+- platform
+- commit SHA
+
+전부 제출.
+
+그리고 Production build 255가
+그 update를 resolve 가능한 상태인지 확인.
+
+가능하면 update check 결과까지 확인.
+
+"OTA publish 완료"에서 STOP 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 최신 코드 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP HEAD의 diary first-entry flash 수정은 그대로 유지.
+
+코드 변경 금지.
+
+이번 작업은 배포 경로 복구만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. production-v2 channel이 실제 가리키는 EAS branch
+2. 기존 OTA 01a081ac...가 올라간 branch
+3. 수신 실패 root cause
+4. 새 OTA branch
+5. 새 OTA update ID
+6. runtimeVersion
+7. iOS only 여부
+8. commit SHA
+9. build 255 resolve 가능 여부
+10. 잔존 blocker
+
+PASS 조건:
+
+Production iOS build 255
++ runtime 2.1.0
++ production-v2
+
+가 최신 OTA를 실제 resolve할 수 있어야 함.
+
+코드 수정 없이 완료 후 STOP.
