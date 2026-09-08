@@ -4637,13 +4637,13 @@ router.get(
           SELECT COUNT(DISTINCT student_id)::int AS cnt
           FROM attendance
           WHERE swimming_pool_id = ${poolId}
-            AND date >= (NOW() - INTERVAL '30 days')::date
+            AND date::date >= (NOW() - INTERVAL '30 days')::date
         `),
         db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM class_groups
           WHERE swimming_pool_id = ${poolId}
-            AND (is_active = true OR is_active IS NULL)
+            AND is_deleted IS NOT TRUE
         `),
         db.execute(sql`
           SELECT COUNT(*)::int AS cnt
