@@ -1,0 +1,1122 @@
+[보낼 곳: APP REPLIT]
+
+[P0 IMPLEMENTATION — NEW CANONICAL ONBOARDING SYSTEM FINAL]
+
+LEGACY ONBOARDING PURGE는 CLOSED.
+ONBOARDING PRE-DESIGN / DESIGN SYSTEM / CONTENT TRUTH AUDIT는 승인.
+X Curriculum Human Review Gate도 CLOSED.
+
+이제 새 온보딩을 구현한다.
+
+이번 작업 목표:
+
+1. SWIMNOTE
+2. SWIMNOTE X
+3. Admin
+4. Teacher
+5. Parent
+
+각 역할/기능에서 사용자가 막히지 않도록
+중요 기능은 모두 설명하되,
+한꺼번에 몰아서 보여주지 않는
+분산형 onboarding system을 완성한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+온보딩은 최소 개수가 목표가 아니다.
+
+목표:
+
+"사용자가 중요한 기능에서 물음표 없이
+막힘 없이 사용할 수 있게 한다."
+
+중요 기능은 빠짐없이 안내.
+
+단:
+
+- 로그인 직후 팝업 폭탄 금지
+- 매번 반복 노출 금지
+- 장문 설명 금지
+- 기능 설명과 실제 동작 불일치 금지
+- 구형 정책/legacy copy 재사용 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 공통 디자인 시스템
+━━━━━━━━━━━━━━━━━━━━━━
+
+공통 onboarding framework를 만든다.
+
+공식 asset:
+
+SWIMNOTE:
+assets/images/swimnote-logo.png
+또는 공식 SVG
+
+SWIMNOTE X:
+assets/images/swimnote-x-wordmark.png
+
+Full-screen / Setup 화면:
+
+좌측 상단:
+공식 로고 고정
+
+본문:
+- icon/illustration
+- 제목
+- 설명
+- 필요시 step indicator
+
+하단:
+- Primary CTA
+- Secondary CTA / 나중에 / 건너뛰기
+
+익숙한 일반 앱 패턴 사용.
+
+실험적인 UX 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SWIMNOTE THEME
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 theme token 재사용.
+
+SWIMNOTE:
+
+primaryAction #1683A3
+brandPrimary #25B7CF
+brandStrong #1683A3
+brandSoft #D9F2F6
+background #F5FAFB
+surface #FFFFFF
+text #243D47
+textStrong #163842
+textSecondary #526C78
+border #D9F2F6
+
+임의 HEX 하드코딩 금지.
+가능하면 theme token import.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SWIMNOTE X THEME
+━━━━━━━━━━━━━━━━━━━━━━
+
+X:
+
+surfaceNavy #1A4070
+surfaceNavyStrong #0E2A4E
+background #EEF3FA
+accent #2A5EA8
+accentStrong #1D4880
+accentSoft #E8F2FC
+ai #4878BC
+textOnNavy #F0F4FF
+text #14283D
+border #CAD6E8
+
+공통 layout은 SWIMNOTE와 동일.
+
+X 기능에서만 X theme/wordmark 적용.
+
+두 개를 서로 다른 UX system으로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 공통 COMPONENT
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 공통 구조:
+
+components/onboarding/
+
+- OnboardingSheet.tsx
+  TYPE B first-use guide
+
+- CoachMark.tsx
+  TYPE C 특정 버튼/영역 안내
+
+- OnboardingFullScreen.tsx
+  TYPE A setup onboarding
+
+- OnboardingInlineHelp.tsx
+  TYPE D inline helper가 공통화 가치 있으면 생성
+
+hooks/
+
+- useOnboarding.ts
+  feature guide version 관리
+
+constants/
+
+- onboardingContent.ts
+  모든 title/body/copy의 single source
+
+기능 화면마다 문구 하드코딩 남발 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ONBOARDING TYPE
+━━━━━━━━━━━━━━━━━━━━━━
+
+TYPE A — SETUP
+실제 설정/입력이 필요한 경우
+Full-screen
+
+TYPE B — FIRST USE
+기능 전체를 이해해야 하는 경우
+Bottom sheet 1~3장
+
+TYPE C — COACH MARK
+특정 버튼/영역
+overlay + pointer
+
+TYPE D — INLINE
+짧은 설명
+화면 내 항상 표시 가능
+
+중요:
+
+B/C를 같은 화면에서 연속으로 띄워
+사용자를 방해하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. VERSIONING — HYBRID
+━━━━━━━━━━━━━━━━━━━━━━
+
+Core onboarding은 SERVER account based.
+
+신규 DB migration:
+
+user_onboarding_state
+
+최소 필드:
+
+id
+user_id
+user_kind
+onboarding_key
+completed_version
+completed_at
+updated_at
+
+UNIQUE:
+(user_id, user_kind, onboarding_key)
+
+user_kind:
+'user'
+'parent'
+
+Core key 예:
+
+admin_core
+teacher_core
+parent_core
+x_core
+
+API:
+
+GET /onboarding/state
+POST /onboarding/complete
+
+required_version은
+server/config 또는 canonical client constant 중
+한 곳에서만 관리.
+
+기기 변경/재설치해도
+core 완료상태 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. FEATURE GUIDE VERSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+작은 기능별 guide/coach mark는
+AsyncStorage 사용.
+
+key:
+
+@swimnote:guide:{guide_id}:{version}
+
+예:
+
+@swimnote:guide:admin_members:1
+@swimnote:guide:teacher_ai_diary:1
+@swimnote:guide:parent_add_child:1
+@swimnote:guide:x_growth:1
+
+기능이 크게 변경되면 version bump.
+
+logout / 계정전환에서
+다른 사용자와 guide state가 섞이지 않도록 처리.
+
+가능하면 user id를 key에 포함하거나
+계정 전환 시 안전하게 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 기존 가입자 — 반드시 새 CORE 1회 노출
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+이번 새 onboarding 공개 후:
+
+기존 Admin
+기존 Teacher
+기존 Parent
+기존 X 사용자
+
+모두 자신의 role core onboarding을
+최소 1회 반드시 봐야 함.
+
+기존 가입자라고 제외 금지.
+
+단:
+
+기존 사용자가
+setup을 다시 하게 만들면 안 됨.
+
+기존 사용자:
+설명 onboarding만 1회
+
+신규 사용자:
+필요한 setup + 설명
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 로그인 직후 노출 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+로그인 직후:
+
+role CORE onboarding
+최대 1개만.
+
+그 이상 연속 modal 금지.
+
+예:
+
+Admin:
+admin_core v1
+
+Teacher:
+teacher_core v1
+
+Parent:
+parent_core v1
+
+완료 후 정상 Home 진입.
+
+기능별 안내는
+해당 기능 첫 진입에서만 노출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. ADMIN CORE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin core는
+앱 기능을 전부 설명하는 10장짜리 tutorial 금지.
+
+1~3장 이내.
+
+핵심:
+
+- 회원
+- 반/스케줄
+- 출결
+- 일지
+- 학부모 연결
+- X 기능 위치
+
+등 전체 구조를 짧게 안내.
+
+좌측 상단 SWIMNOTE 로고.
+
+X 설명이 들어가는 페이지/영역은
+X accent 사용 가능하나
+core 자체는 SWIMNOTE theme.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. TEACHER CORE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher 첫 core:
+
+- 오늘 수업
+- 출결
+- 일지
+- 사진/앨범
+- 학부모 요청
+
+이 어디서 시작되는지
+1~3장 이내로 설명.
+
+세부 사용법은
+각 기능 first-use에서 설명.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. PARENT CORE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent core:
+
+- Home
+- 자녀 전환
+- 일지
+- 사진
+- 공지
+- 요청/보강
+- AI/리포트 기능 위치
+
+짧게 안내.
+
+일반 소비자 사용자 기준으로
+가장 쉬운 표현 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. ADMIN 중요 기능 GUIDE
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 기능은 기존 audit map 기준으로
+필요한 TYPE B/C/D 구현.
+
+최소:
+
+- Dashboard
+- 수업 관리
+- 회원 등록
+- 반 배정
+- 반 관리
+- 출결
+- 결석/보강
+- 선생님 관리
+- 선생님 초대
+- Diary
+- AI Diary
+- 사진/앨범
+- 공지
+- 학부모 요청
+- 알림
+- Curriculum
+- 구독/플랜
+- 저장공간
+- X 진입
+- X Curriculum
+- Growth
+- Report
+- 설정
+- X PC dashboard
+
+단:
+
+중요하지 않은 기능까지
+억지로 modal 만들지 말고
+audit에서 TYPE D인 것은 inline 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. ADMIN 회원등록 — Parent auto-link 안내 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원 등록 화면의
+학부모 전화번호 입력 영역에
+TYPE D inline help 추가.
+
+최종 의미:
+
+"학부모 전화번호를 정확히 입력하면
+학부모 가입 시 자녀 이름과 전화번호가 일치할 때
+자동으로 연결됩니다."
+
+실제 조건:
+
+- same pool
+- child name match
+- phone match
+- active student
+
+설명과 코드 100% 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. TEACHER 중요 기능 GUIDE
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+- Today Schedule
+- 날짜/주간 이동
+- 출결
+- 결석/보강
+- Diary
+- AI Diary
+- AI 음성 입력
+- AI 학생 이름 구분
+- 사진/영상
+- 회원목록
+- 학생상세
+- 정산
+- 메시지/학부모 요청
+
+기존 audit TYPE 기준 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. TEACHER AI DIARY — 정확한 설명
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 기능 설명.
+
+핵심:
+
+- 음성/텍스트 메모
+- 공통 일지
+- 학생별 일지
+- 이름 호출 시 개인 대상
+- "전체"로 공통 전환
+- 저장 전 수정 가능
+
+X에서:
+
+"더 정확하다"
+"품질 향상"
+
+표현 금지.
+
+X 실제 차이:
+
+생성 후
+Pool Curriculum 항목과 연결된
+curriculum tag 제공.
+
+이를 정확하게 설명.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. PARENT 회원가입 — 자녀 자동연결 안내 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+가입 과정의 자녀 연결 화면에
+TYPE A/D 형태로 자연스럽게 삽입.
+
+최종 문구 의미:
+
+"수영장에 등록된 자녀 이름과
+지금 가입하는 전화번호가 일치하면
+자동으로 연결됩니다.
+
+정보가 일치하지 않으면
+수영장 확인 후 연결됩니다."
+
+"1~2일"
+처리기간 보장 문구 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 추가 보호자 안내 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+additional-guardians 첫 진입:
+
+TYPE B 1장.
+
+최종 의미:
+
+"배우자, 조부모 등 다른 보호자도
+함께 사용할 수 있습니다.
+
+추가 보호자 전화번호를 등록하면
+그 번호로 가입한 보호자가
+자동으로 자녀와 연결됩니다.
+
+최대 3명까지 등록할 수 있습니다."
+
+실제 조건:
+
+- 기존 Parent approved
+- phone2/3/4 저장
+- same pool
+- phone match
+- 추가 guardian 이름 matching 없음
+
+정확히 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. PARENT 중요 기능 GUIDE
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+- Home
+- 자녀 추가 연결
+- 추가 보호자
+- Diary
+- Album
+- Notice
+- 출결 현황
+- 결석/보강
+- 학부모 요청
+- 알림
+- 교육프로그램
+- AI Curriculum Search
+- AI Growth Report
+- AI Insight Report
+- 성장 질문지
+
+audit TYPE 기준 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. AI GROWTH REPORT — 최종 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent onboarding 최종 의미:
+
+"선생님의 수업 기록을 바탕으로
+AI가 성장 리포트를 만듭니다.
+
+수영장에서 내용을 확인한 뒤 발행하면
+앱에서 확인할 수 있습니다.
+
+발행된 리포트는 PDF로 저장할 수 있습니다."
+
+Admin onboarding:
+
+"매달 AI가 학생별 성장 리포트를 생성합니다.
+
+내용을 검토한 뒤 발급 버튼을 누르면
+학부모 앱에 공개되고 알림이 발송됩니다."
+
+금지:
+
+- 5일 자동발급
+- 자동 학부모 공개
+- 재등록 조건 Parent 노출
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. AI INSIGHT REPORT — HOLD
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 purchase HOLD.
+
+Parent onboarding:
+
+"일지 기반으로 내 아이의 수영 성장 과정을
+심층 분석한 리포트입니다.
+
+수업 기록이 쌓이면 이용할 수 있게 됩니다."
+
+금지:
+
+- 지금 구매
+- 구매 가능
+- 구매 후 즉시 열람
+- 별도 결제 필요
+- PDF 지원
+- ₩79,000 CTA
+
+가격 reference는
+현재 화면 정책상 꼭 필요할 때만
+기존 화면에 남기고
+onboarding에서는 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. X CORE / X GUIDE
+━━━━━━━━━━━━━━━━━━━━━━
+
+X 기능은
+일반 SWIMNOTE와 같은 component system에
+X theme 적용.
+
+최소:
+
+- X 진입/상태
+- X 구독
+- X Curriculum
+- READY
+- X AI Diary
+- Growth Event
+- Growth Report
+- PC dashboard
+- Parent AI Curriculum Search
+- AI Growth Report
+- AI Insight
+
+각 기능 first-use guide 제공.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. X CURRICULUM — HUMAN REVIEW 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 canonical flow:
+
+UPLOAD
+→ SAVE ORIGINAL
+→ PARSE
+→ STRUCTURE
+→ VALIDATE
+→ REVIEW_PENDING
+→ SUPER ADMIN REVIEW
+→ APPROVE
+→ ACTIVATE
+→ READY
+
+온보딩 설명:
+
+"수영장의 커리큘럼 파일을 업로드하면
+SWIMNOTE가 내용을 구조화해 검토 준비를 합니다.
+
+업로드된 내용은 운영 검수 후 승인되며,
+승인된 커리큘럼만 X 기능에 적용됩니다.
+
+수정이 필요한 경우
+파일을 다시 업로드할 수 있습니다."
+
+금지:
+
+- 업로드 즉시 READY
+- 자동 승인
+- 자동 X 활성
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. X READY
+━━━━━━━━━━━━━━━━━━━━━━
+
+READY 설명에서:
+
+"X 기능 전체 활성"
+
+금지.
+
+실제 조건:
+
+entitlement
+AND
+xmode_config_status=READY
+AND
+not force_disabled
+
+실제 기능:
+
+- Admin growth
+- Teacher X growth
+- Parent X growth
+- Parent curriculum chat
+- Growth report detail
+- Teacher diary curriculum matches
+- Parent Home X growth content
+
+기본 회원/스케줄/출결/일지는
+X와 무관하게 사용 가능.
+
+사용자 문구는
+기술 조건을 길게 나열하지 말고
+실제 체감 기능 위주로 설명.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. X AI DIARY
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 설명:
+
+"강사 메모를 입력하면
+AI가 공통 일지와 학생별 일지를
+자동으로 구분해 작성합니다.
+
+X에서는 생성된 일지에
+수영장의 커리큘럼 항목과 연결된
+태그를 함께 제공합니다."
+
+금지:
+
+- 학생 단계 반영
+- curriculum 원문을 GPT가 읽는다고 설명
+- 더 정확한
+- 품질 향상
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 기능 설명 위험표현
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 표현은
+실제 current code/API가 보장할 때만 사용:
+
+- 자동
+- 즉시
+- 무료
+- 유료
+- 승인
+- 무제한
+- AI 분석
+- 정확도 향상
+- 전체 활성
+- 저장 가능
+- 공유
+- 알림
+- 자동 생성
+
+기존 truth audit에서 수정된 copy를
+onboardingContent.ts에 반영.
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. 한꺼번에 노출 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+로그인
+→ core
+→ members guide
+→ AI guide
+→ popup
+
+연속 실행 금지.
+
+Core 완료
+→ Home
+
+그 이후 기능 guide는
+해당 기능 실제 첫 진입 시.
+
+한 화면에서 두 guide가 필요하면
+우선순위 하나만 먼저 노출.
+
+두 번째는 다음 진입 또는
+사용자 action 이후.
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. SETUP GUIDE와 설명 GUIDE 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 사용자에게는
+이미 완료한 setup 다시 요구 금지.
+
+TYPE A는
+실제 server-side 상태 확인.
+
+예:
+
+subscription 이미 있음
+→ subscription setup 강제 금지
+
+X READY
+→ curriculum setup 강제 금지
+
+기존 사용자는 설명만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. BACK / SKIP
+━━━━━━━━━━━━━━━━━━━━━━
+
+TYPE B:
+
+- 닫기 가능
+- 다시 자동 노출하지 않음
+- 필요하면 설정/도움말에서 다시 볼 수 있는 구조는 선택사항
+
+TYPE A:
+
+실제 필수 setup이면
+skip 여부는 제품정책에 따름.
+
+선택 기능:
+
+Teacher invite
+Parent link
+First Diary
+
+강제 blocker 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. MOBILE / ACCESSIBILITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- 작은 iPhone
+- 큰 iPhone
+- Android small screen
+- SafeArea
+- Dynamic text
+- keyboard
+- landscape 비정상 overlap 방지
+
+CTA 가림 0.
+텍스트 clipping 0.
+
+긴 설명은 ScrollView.
+
+illustration 최대 높이 제한.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. SERVER
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 Core onboarding state API 구현.
+
+권한:
+
+자기 onboarding state만 읽고/쓰기.
+
+다른 user state 변경 불가.
+
+Parent accounts와 users
+두 account system 모두 지원.
+
+id collision 방지를 위해
+user_kind 필수.
+
+upsert idempotent.
+
+version rollback 시
+completed_version 높은 값을
+낮게 덮어쓰지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. DB MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+user_onboarding_state 신규 table.
+
+필수:
+
+- PK
+- user_id
+- user_kind
+- onboarding_key
+- completed_version
+- completed_at
+- updated_at
+- UNIQUE constraint
+
+필요한 index 최소 추가.
+
+기존 데이터 영향 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+34. TEST — CORE
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 기존 Admin
+
+새 version 없음
+→ Admin core 1회
+→ 완료
+→ 재로그인
+→ 재노출 0
+
+B. 기존 Teacher
+
+동일.
+
+C. 기존 Parent
+
+동일.
+
+D. 새 기기
+
+같은 account 로그인
+→ server complete 상태면 core 재노출 0
+
+E. version bump
+
+v1 완료
+required v2
+→ 1회 재노출
+→ 완료 후 재노출 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+35. TEST — FEATURE GUIDE
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+members 첫 진입
+→ guide 1회
+
+재진입
+→ 0
+
+B.
+AI Diary
+→ 첫 사용 guide
+→ 이후 바로 기능
+
+C.
+additional guardian
+→ 1회 안내
+
+D.
+X curriculum
+→ human review 설명
+
+E.
+Growth report
+→ 관리자 수동발급 정책 설명
+
+F.
+Insight
+→ 구매 HOLD 설명
+
+━━━━━━━━━━━━━━━━━━━━━━
+36. PARENT AUTO-LINK E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안내 문구와 실제 동작도 함께 회귀검증.
+
+Case 1:
+
+same pool
++ child name exact normalized match
++ phone match
+→ approved auto-link
+
+Case 2:
+
+name match
+phone mismatch
+→ pending/manual confirm
+
+Case 3:
+
+duplicate name
+→ pending
+
+Case 4:
+
+additional guardian phone
+→ auto-link
+
+설명과 결과 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+37. X CURRICULUM E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+온보딩과 실제 기능 정합 확인.
+
+upload
+→ REVIEW_PENDING
+
+사람 승인 전:
+READY 아님.
+
+Super Admin approve
+→ ACTIVATE
+→ READY
+
+온보딩 문구와 실제 결과 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+38. GROWTH REPORT E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI 생성 완료
+→ READY_TO_SEND
+→ Admin guide에서 검수/발급 설명
+→ Admin send
+→ PUBLISHED
+→ Parent visible
+→ Parent push
+→ PDF export
+
+자동발급 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+39. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB/API/APP 변경이므로:
+
+server:
+code/test
+→ migration
+→ main
+→ Render Production
+→ LIVE 확인
+→ /health commit == main HEAD
+→ authenticated smoke
+
+APP:
+release/v2.0.0
+→ clean/origin exact
+→ contract 1.0
+→ app 2.0.1
+→ runtime 2.1.0
+→ preflight
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+native dependency 추가 없으면
+새 native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+40. 구현 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 온보딩 시스템 구현.
+
+Super Admin UI 재정리 금지.
+광고 수정 금지.
+고객센터 수정 금지.
+공지사항 redesign 금지.
+미디어 upload 추가수정 금지.
+
+온보딩 관련 기능만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+41. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 신규 DB table/schema
+2. Core onboarding API
+3. Core required version 관리 위치
+4. 공통 onboarding components
+5. SWIMNOTE theme 적용
+6. X theme 적용
+7. Logo 적용
+8. Admin core 최종 화면/copy
+9. Teacher core 최종 화면/copy
+10. Parent core 최종 화면/copy
+11. Admin feature guide 목록
+12. Teacher feature guide 목록
+13. Parent feature guide 목록
+14. X guide 목록
+15. 실제 구현한 TYPE A/B/C/D 개수
+16. Parent auto-link 안내
+17. Additional guardian 안내
+18. Growth Report 안내
+19. Insight Report 안내
+20. X Curriculum 안내
+21. X READY 안내
+22. X AI Diary 안내
+23. 기존 가입자 1회 노출 결과
+24. 신규 가입자 결과
+25. 새 기기 core 재노출 여부
+26. version bump 테스트
+27. 기능 guide 반복노출 테스트
+28. small screen 테스트
+29. Android 공통 코드 확인
+30. Parent auto-link E2E
+31. X Curriculum E2E
+32. Growth Report E2E
+33. 수정 파일
+34. migration
+35. tests
+36. main HEAD
+37. Render LIVE SHA
+38. OTA ID
+39. native rebuild 여부
+40. 잔존 blocker
+
+PASS 조건:
+
+- legacy onboarding 재생성 0
+- SWIMNOTE/X 디자인 일관
+- 공식 logo 좌측 상단
+- Admin/Teacher/Parent/X 중요 기능 안내
+- 기존 가입자 core 1회 보장
+- 기기 변경 시 core 불필요 재노출 0
+- version bump 가능
+- 기능 guide 분산 노출
+- onboarding 폭탄 0
+- Parent auto-link 설명 정확
+- Additional guardian 설명 정확
+- Growth Report 관리자 검수/발급 정확
+- Insight HOLD 정확
+- X Curriculum human review 정확
+- X AI Diary 과장 0
+- 작은 화면 overlap 0
+- blocker 0
+
+완료 후 STOP.
