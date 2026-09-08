@@ -468,7 +468,7 @@ export default function DiaryHubScreen() {
           data={diaries}
           keyExtractor={item => item.diary_id}
           renderItem={renderRow}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 4 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 12 }}
           ItemSeparatorComponent={() => <View style={s.separator} />}
           onEndReached={() => { if (hasMore && !loadingMore) fetchData(false); }}
           onEndReachedThreshold={0.3}
