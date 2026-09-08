@@ -571,13 +571,13 @@ router.post(
         FROM curriculum_versions cv
         JOIN x_curriculum_profiles xcp
           ON xcp.pool_id = cv.swimming_pool_id
+          AND xcp.status = 'APPROVED'
         WHERE cv.swimming_pool_id    = ${pool.id}
           AND cv.is_global_reference = false
           AND cv.is_active           = false
           AND cv.import_status       IN ('DRAFT', 'VALIDATED')
           AND cv.archived_at         IS NULL
-          AND xcp.status             = 'APPROVED'
-        ORDER BY cv.created_at DESC
+        ORDER BY cv.created_at DESC, xcp.created_at DESC
         LIMIT 1
       `);
       const targetRow = (approvedVersionRes as any).rows?.[0];

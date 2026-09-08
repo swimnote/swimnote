@@ -86,17 +86,21 @@ export interface XPrerequisiteResult {
  *
  * Pool READY 조건 (pool 개별):
  *   A. Pool 존재 확인
- *   → READY (entitlement는 PATCH /xmode 호출 시점에 플랜키로 검증)
+ *   B. Pool의 Active Local Curriculum 존재 확인
+ *      → is_global_reference=false AND is_active=true AND import_status='ACTIVE'
+ *      → Local curriculum 없으면 NOT_READY (LOCAL_CURRICULUM_NOT_ACTIVE)
+ *      → activate-local TX 완료 후에만 통과 가능
+ *   → 둘 다 통과 시 READY
  *
  * Global system health (별도 — pool 개별 READY 차단 금지):
- *   B. global_template_sets ACTIVE 존재 → SYSTEM_CURRICULUM_NOT_READY 경고만
- *   C. diary_templates x_global 존재 → SYSTEM_CURRICULUM_NOT_READY 경고만
+ *   C. global_template_sets ACTIVE 존재 → SYSTEM_CURRICULUM_NOT_READY 경고만
+ *   D. diary_templates x_global 존재 → SYSTEM_CURRICULUM_NOT_READY 경고만
  *
  * 설계 이유:
- *   - 전역 상태 하나(global_template_sets=0)가 모든 신규 pool의 READY를 차단하는
- *     fragile 구조 제거 (500 pool onboarding 필수 요건)
+ *   - Local curriculum 없는 pool이 READY 상태가 되는 것은 invariant 위반
+ *     (activate-local TX가 유일한 READY setter)
+ *   - 전역 상태(global_template_sets=0)는 pool 개별 READY를 차단하지 않음
  *   - Global system health는 checkSystemCurriculumHealth()로 분리
- *   - 특정 pool의 setup 진행과 시스템 템플릿 관리는 독립적으로 운영
  *
  * Upload history (x_setup_submissions/x_setup_files) 확인 금지.
  *
@@ -130,7 +134,27 @@ export async function checkXPrerequisite(
   }
   const pool = poolRows.rows[0] as any;
 
-  // ── B & C: Global system health 정보 수집 (참고용 — pool READY 차단 금지) ──
+  // ── B. Local curriculum ACTIVE 확인 (pool-level READY 조건) ─────────────────
+  // activate-local TX 완료 후에만 이 조건 충족 가능.
+  // PATCH /xmode grant는 이 조건을 통과해야 정상 상태 유지 가능.
+  // Local curriculum 없는 pool이 READY 상태가 되는 것은 invariant 위반.
+  // import_status 무관: 'ACTIVE' (신규) 또는 'LEGACY' (기존 데이터) 모두 허용.
+  // 핵심 조건 = is_active=true AND is_global_reference=false (실제 운영 중인 Local version).
+  // 이 함수는 read-only — DB 상태를 변경하지 않음.
+  const localActiveRows = await db.execute(sql`
+    SELECT id FROM curriculum_versions
+    WHERE swimming_pool_id   = ${poolId}
+      AND is_global_reference = false
+      AND is_active           = true
+      AND archived_at         IS NULL
+    LIMIT 1
+  `).catch(() => ({ rows: [] }));
+
+  if (!localActiveRows.rows.length) {
+    missing.push("LOCAL_CURRICULUM_NOT_ACTIVE");
+  }
+
+  // ── C & D: Global system health 정보 수집 (참고용 — pool READY 차단 금지) ──
   // SYSTEM_CURRICULUM_NOT_READY 경고는 응답에 포함하되, missing에 추가하지 않음.
   // 이 조건이 0이어도 pool READY 설정을 막지 않는다.
   const setRows = await db.execute(sql`
