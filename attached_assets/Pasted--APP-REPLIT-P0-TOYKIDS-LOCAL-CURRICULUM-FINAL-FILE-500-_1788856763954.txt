@@ -1,0 +1,248 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — TOYKIDS LOCAL CURRICULUM FINAL FILE 전달 및 표준 업로드 적용]
+
+현재 500 POOL CURRICULUM 서버/온보딩 구조는 PASS 완료 상태다.
+이제 Toykids Local Curriculum을 다른 신규 수영장과 동일한 표준 flow로 적용한다.
+
+중요:
+이번 단계에서는 서버 구조 추가 변경 금지.
+Toykids 전용 SQL / override / 수동 SCA 생성 금지.
+표준 onboarding flow만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 전달 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 2개 파일을 사용:
+
+1)
+SWIMNOTE_CURRICULUM_APP_FINAL_IMPORT_v1.0_TOYKIDS_REVIEW_REQUIRED(1).docx
+
+2)
+SWIMNOTE_CURRICULUM_AI_ENGINE_FINAL_IMPORT_v1.0_TOYKIDS_REVIEW_REQUIRED(1).docx
+
+현재 두 파일은 APP/AI 동일 Canonical hash 기반으로 생성되어 있으나,
+FINAL_STATUS가 REVIEW_REQUIRED 상태다.
+
+따라서 바로 activate 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이번 단계 목적
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 파일을 canonical upload/structure 단계까지 넣고,
+서버가 실제로 이 파일을 정상 해석하는지 검증한다.
+
+목표:
+
+APP 파일
+→ Pool Local Curriculum source
+
+AI ENGINE 파일
+→ 동일 Canonical의 AI search projection source
+
+두 파일의 canonical data가 실제 importer에서도 동일하게 유지되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Toykids Pool
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids Production pool:
+
+pool_1780849364252_l9k44rbk3
+
+기존 데이터 보호:
+
+- Global Reference 50 items
+- 기존 SCA 231
+- teacher_manual growth_events 194
+- 기존 CPO
+- 기존 SCP
+- 기존 Legacy Local versions
+
+삭제/초기화/백필 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. APP Local 파일 업로드
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP FINAL IMPORT 파일을
+기존 canonical X setup upload flow로 업로드:
+
+POST /api/x-setup/upload/curriculum
+
+→ Toykids pool 기준 신규 x_setup_files 생성
+→ R2 저장
+→ content_hash 기록
+
+그 다음:
+
+POST /api/super/x-setup/:poolId/structure
+
+실행.
+
+반드시 신규 Local curriculum_version 생성:
+
+- is_global_reference=false
+- swimming_pool_id=Toykids pool
+- is_active=false
+- import_status='DRAFT'
+- source_content_hash 기록
+
+기존 Global/Legacy version overwrite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. REVIEW_REQUIRED 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 파일 헤더:
+
+CANONICAL_STATUS=REVIEW_REQUIRED
+
+이므로 structure 후 자동 approve/activate 금지.
+
+서버가 REVIEW_REQUIRED를 정상 인식하는지 확인.
+
+검증:
+
+- canonical node count
+- level distribution
+- review_required_count
+- source trace
+- canonical hash
+- APP/AI match metadata
+
+현재 파일 기준 예상:
+
+canonical_node_count = 332
+review_required_count = 161
+
+레벨 미지정 항목이 존재하므로
+status는 검토 필요 상태로 유지.
+
+즉 이번 단계에서 REVIEW_REQUIRED 상태를
+억지로 APPROVED로 변경하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. AI ENGINE 파일 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE FINAL IMPORT 파일도 읽어서
+APP 파일과 canonical identity가 동일한지 비교.
+
+필수 비교:
+
+- CANONICAL_HASH
+- canonical_key set
+- level_order
+- stroke
+- domain
+- skill_group
+- atomic_skill
+- source_key
+
+차이 0이어야 함.
+
+AI ENGINE 파일에 추가된:
+
+- search_text
+- aliases
+- retrieval_metadata
+- embedding_text
+- source_hash
+
+는 AI projection 전용 필드로 유지.
+
+APP Canonical을 재해석/재분류 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 파일 상태에서는 activate 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+현재 REVIEW_REQUIRED 파일을
+실제 active Toykids Local로 전환하지 말 것.
+
+금지:
+
+- structured/approve 실행
+- activate-local 실행
+- READY transition
+- 기존 SCA transition
+- SCP version transition
+- 기존 Local archive
+
+이번 단계는:
+
+업로드
+→ structure
+→ APP/AI canonical validation
+→ review_required 상태 확인
+
+까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 검증해야 할 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 아래 항목 확인:
+
+A.
+161개 레벨 미지정 항목이
+정확히 REVIEW_REQUIRED로 유지되는지
+
+B.
+접영 발차기 등이 mixed로 오분류된 항목 존재 여부
+
+C.
+배영/자유형 평가 항목의
+stroke/domain/skill_group taxonomy 이상 여부
+
+D.
+APP/AI canonical hash 동일
+
+E.
+Global Reference와 Local role mixing 0
+
+F.
+기존 Global 50 items 변화 0
+
+G.
+기존 Production progress 데이터 변화 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. APP 파일 upload 결과
+2. x_setup_files id
+3. content_hash
+4. 신규 Local curriculum_version id
+5. 신규 version 상태
+6. canonical_node_count
+7. review_required_count
+8. level distribution
+9. APP/AI CANONICAL_HASH 비교
+10. canonical diff 결과
+11. taxonomy 의심 항목 수
+12. Global 50 items 보존
+13. SCA 231 보존
+14. growth_events 194 보존
+15. CPO/SCP 변화 여부
+16. approve 실행 여부 = NO
+17. activate-local 실행 여부 = NO
+18. 다음 단계에서 수정해야 할 review 항목 요약
+19. 잔존 blocker
+
+이번 단계 PASS 조건:
+
+- 파일 정상 업로드
+- 신규 Local DRAFT 생성
+- APP/AI canonical diff 0
+- 기존 Production 데이터 변화 0
+- REVIEW_REQUIRED 상태 유지
+- activate 하지 않음
+
+완료 후 STOP.
