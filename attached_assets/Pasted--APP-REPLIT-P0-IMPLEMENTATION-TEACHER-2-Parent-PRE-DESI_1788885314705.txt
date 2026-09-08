@@ -1,0 +1,476 @@
+[보낼 곳: APP REPLIT]
+
+[P0 IMPLEMENTATION — TEACHER 신규회원 등록 2개 진입점 + Parent 즉시 연결]
+
+PRE-DESIGN PASS.
+
+이제 조사 결과대로 실제 구현한다.
+
+이번 작업 목표:
+
+A.
+Teacher 반 배정 화면
+→ 신규회원 등록
+→ 저장 즉시 현재 반 자동배정
+
+B.
+Teacher 회원관리
+→ 신규회원 등록
+→ 관리자 등록과 동일한 방식으로 학생 생성
+
+두 경로 모두 기존 Admin RegisterModal 및 canonical student API를 재사용한다.
+
+별도 Teacher 회원등록 시스템 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 Admin RegisterModal 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+components/admin/members/RegisterModal.tsx
+
+를 canonical 등록 form으로 유지.
+
+기존 입력/validation 그대로 유지:
+
+- 학생 이름
+- 출생년도
+- 학부모 이름
+- 학부모 전화번호
+- 주 수업 횟수
+- registration_path
+- phone normalize/validation
+- birth year validation
+- duplicate server policy
+
+Admin 동작 회귀 금지.
+
+Teacher용 복제 component 생성 금지.
+
+필요한 최소 props만 추가.
+
+예:
+
+onSuccess?: (studentId: string) => void
+
+context에 따라 필요한 callback만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher 회원관리 신규등록
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(teacher)/students.tsx
+
+회원관리 상단에 명확한:
+
+[신규등록]
+
+버튼 추가.
+
+버튼:
+→ 기존 RegisterModal open
+
+저장 성공:
+→ student 생성
+→ modal 닫기
+→ Teacher 회원목록 refresh
+→ 현재 회원관리 화면 유지
+
+Home 이동 금지.
+Admin 화면 이동 금지.
+자동 반배정 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Teacher 반 배정 신규등록
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/class-assign.tsx
+
+현재:
+
+배정 가능 회원 검색
+
+영역 옆에:
+
+[신규등록]
+
+버튼 추가.
+
+클릭:
+→ 같은 RegisterModal open
+
+저장 성공:
+
+POST /students/
+→ 생성된 studentId 획득
+→ PATCH /students/:id/assign
+
+body:
+{
+  assigned_class_ids: [현재 classId],
+  effective_date: 현재 lessonDate
+}
+
+사용.
+
+성공 후:
+
+- modal 닫기
+- 현재 class-assign 목록 refresh
+- 방금 생성한 학생이 현재 반 배정 상태로 표시
+
+다른 화면 이동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Teacher student create 권한 최소 확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+POST /students/
+requireRole("super_admin", "pool_admin")
+
+를 Teacher도 사용할 수 있도록 최소 확장.
+
+단순 role 추가만 하고 끝내지 말 것.
+
+Teacher는 반드시:
+
+자기 로그인 계정이 속한 pool에만
+student 생성 가능해야 함.
+
+중요 보안 규칙:
+
+클라이언트 body.pool_id를 신뢰하거나
+body.pool_id를 새로 받아서 scope 결정 금지.
+
+현재 POST body에는 pool_id가 canonical field가 아님.
+
+Teacher 생성 시 pool은 반드시:
+
+req.user / authenticated session / canonical server-side tenant context
+
+에서 결정.
+
+Teacher가 request body를 조작해
+다른 pool 학생을 생성할 수 없어야 함.
+
+Admin 기존 tenant resolution도 회귀 금지.
+
+Teacher에게 추가하는 권한은:
+
+- 자기 pool student 생성
+
+뿐.
+
+추가 금지:
+
+- 학생 삭제
+- 타 pool 접근
+- 관리자 설정
+- Parent 관리 전체 권한
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Duplicate rule 구현 전 실제 handler 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRE-DESIGN에서
+POST /students/ 실제 duplicate exact rule이 완전히 확인되지 않았다.
+
+별도 조사 작업 만들지 말고
+구현 시작 시 해당 handler를 직접 확인한 후
+현재 Production duplicate rule을 그대로 유지.
+
+새 duplicate 기준 창작 금지.
+
+409 발생 시:
+
+반 배정 화면에서는:
+
+"이미 등록된 회원입니다."
+
+표시 후
+새 student 생성하지 않는다.
+
+가능하면 현재 검색 결과에서
+기존 회원을 찾아 배정할 수 있도록
+기존 class-assign flow로 자연스럽게 복귀.
+
+Teacher 회원관리에서는:
+중복 생성 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 학부모 전화번호 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 RegisterModal의 parent_phone은
+schema/기존 정책대로 optional 유지.
+
+단 Teacher가 등록할 때
+왜 입력하면 좋은지 UI에서 과도하지 않게 안내 가능:
+
+"학부모 전화번호를 입력하면 학부모 가입 시 자녀 연결이 더 빠르게 진행됩니다."
+
+필수값으로 변경 금지.
+
+전화번호가 없어도:
+
+- student 생성
+- 반 배정
+- 출석
+- Diary
+- AI Diary
+- Curriculum progress
+
+전부 사용 가능해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Parent 자동연결 기존 구조 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 Parent 연결 API 만들지 말 것.
+
+현재 canonical:
+
+Parent 가입
+→ /parent/link-child
+→ 동일 pool
+→ 학생 이름 normalized 일치
+→ 학부모 전화번호 normalized 일치
+→ parent_students approved
+→ 동일 student_id 연결
+
+그대로 사용.
+
+Teacher가 먼저 만든 student를
+Parent 가입 때 다시 생성하는 로직 절대 금지.
+
+전화번호/이름 정확 일치:
+→ 현재 기존 자동승인 정상 작동해야 함.
+
+동명이인 / 전화 불일치:
+→ 기존 pending/manual approval flow 유지.
+
+Teacher에게 Parent 수동승인 권한 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 과거기록 연결 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent 연결 이후
+같은 student_id 기준으로:
+
+- attendance
+- diary
+- curriculum progress
+
+기존 기록이 그대로 Parent에게 보이는지
+Production E2E로 확인.
+
+새 데이터 migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. parent_v2_pending 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRE-DESIGN 잔존 위험:
+
+parent_v2_pending runtime DDL 존재 여부
+
+확인.
+
+단:
+현재 Production canonical parent link flow가 이미 사용 중이면
+불필요한 migration 생성 금지.
+
+실제 Production schema에 존재하는지 확인하고
+정상 존재하면 그대로 사용.
+
+없어서 실제 mismatch/duplicate flow가 깨지는 경우에만
+최소 DB 조치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. E2E — 반드시 실제 Production
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A — 반 배정 등록
+
+Teacher
+→ class-assign
+→ 신규등록
+→ 학생 생성
+→ 현재 반 자동배정
+
+PASS:
+
+- 학생 1개 생성
+- 현재 반 assignment 정상
+- 출석 대상 등장
+- Diary 학생 목록 등장
+- Home 이동 0
+
+CASE B — 회원관리 등록
+
+Teacher
+→ 회원관리
+→ 신규등록
+→ 저장
+
+PASS:
+
+- 회원 목록 즉시 표시
+- 반 자동배정 없음
+- Parent 미연결이어도 student 정상 사용
+
+CASE C — Parent 연결
+
+CASE B 또는 A에서 생성한 테스트 학생
+→ 정확한 parent_phone 사용
+→ Parent 가입/link-child
+
+PASS:
+
+- 새 student 생성 0
+- 기존 student_id 그대로
+- 자동 approved
+- 과거 Diary/attendance/progress 접근 가능
+
+CASE D — Duplicate
+
+동일 duplicate 조건으로 다시 등록
+
+PASS:
+
+- 409
+- 새 student 생성 0
+
+CASE E — Tenant security
+
+Teacher credential로
+타 pool student 생성 시도
+
+PASS:
+
+403 또는 server-side scope 차단
+타 pool row 생성 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 기존 Admin 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin 회원관리
+→ 기존 신규등록
+
+반드시 기존처럼 정상.
+
+Teacher 권한 추가 때문에
+Admin 회원등록 흐름 변경/회귀 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 unit/integration test 추가 또는 수정.
+
+필수 검증:
+
+- admin create
+- teacher own-pool create
+- teacher cross-pool reject
+- duplicate reject
+- class assignment after create
+- parent exact-match auto-link
+
+실제 DB row로 student_id 동일성 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 서버 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 APP + API server 변경.
+
+순서:
+
+release/v2.0.0
+→ 코드
+→ 테스트
+→ commit/push
+
+APP/API server:
+→ main 반영
+→ Render Production deploy
+→ LIVE 대기
+→ /health commit == main HEAD 확인
+→ Production authenticated smoke
+
+"deploy triggered"만으로 완료 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. iOS OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render Production 검증 PASS 후:
+
+production-v2
+iOS only OTA
+
+조건:
+
+- release/v2.0.0
+- clean
+- origin exact
+- contract 1.0
+- Production Engine URL
+- app 2.0.1
+- runtime 2.1.0
+- native compatible
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식으로 제출:
+
+1. Admin RegisterModal 재사용 방식
+2. Teacher 회원관리 신규등록 위치
+3. 반 배정 신규등록 위치
+4. Teacher student create 권한 변경
+5. server-side pool scope 구현 방식
+6. 실제 duplicate rule
+7. CASE A 결과
+8. CASE B 결과
+9. Parent 정확일치 자동승인 결과
+10. 동일 student_id 확인
+11. 과거 Diary/attendance/progress 확인
+12. Duplicate 테스트
+13. cross-pool 차단 결과
+14. Admin 기존 등록 회귀 결과
+15. parent_v2_pending Production 상태
+16. 수정 파일
+17. 테스트 결과
+18. main HEAD
+19. Render LIVE commit
+20. OTA ID
+21. 잔존 blocker
+
+PASS 조건:
+
+- 신규등록 버튼 2곳
+- 하나의 canonical RegisterModal 사용
+- 반 배정 진입은 생성 즉시 현재 반 배정
+- 회원관리 진입은 생성만
+- Parent 없어도 학생 사용 가능
+- 전화번호/이름 일치 Parent는 기존 student에 자동연결
+- 과거 기록 유지
+- duplicate student 생성 0
+- Teacher 타 pool 생성 0
+- Admin 기존 기능 회귀 0
+
+완료 후 STOP.
