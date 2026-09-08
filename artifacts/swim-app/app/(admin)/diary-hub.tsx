@@ -583,9 +583,9 @@ const s = StyleSheet.create({
   kpiLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   // AI 필터 탭
-  aiTabRow: { flexDirection: "row", marginHorizontal: 16, marginBottom: 12, gap: 6 },
+  aiTabRow: { flexDirection: "row", marginHorizontal: 16, marginBottom: 20, gap: 6 },
   aiTab: {
-    paddingHorizontal: 16, paddingVertical: 9,
+    paddingHorizontal: 16, paddingVertical: 10,
     borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
   aiTabActive: { backgroundColor: C.primary, borderColor: C.primary },
