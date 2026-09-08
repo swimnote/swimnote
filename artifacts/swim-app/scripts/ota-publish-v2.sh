@@ -11,8 +11,8 @@
 # ============================================================
 set -euo pipefail
 
-REQUIRED_VERSION="2.0.0"
-REQUIRED_RUNTIME="2.0.0"
+REQUIRED_VERSION="2.0.1"
+REQUIRED_RUNTIME="2.1.0"
 REQUIRED_CHANNEL="production-v2"
 REQUIRED_BRANCH="release-2.0.0"
 
