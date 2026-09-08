@@ -4802,7 +4802,7 @@ router.get(
                u.name AS teacher_name,
                (SELECT COUNT(*) FROM parent_students ps
                   JOIN parent_accounts pa ON ps.parent_account_id = pa.id
-                  WHERE ps.student_id = s.id AND pa.approved_at IS NOT NULL) AS parent_count,
+                  WHERE ps.student_id = s.id AND pa.is_active = true) AS parent_count,
                (SELECT MAX(csn.created_at) FROM class_diary_student_notes csn WHERE csn.student_id = s.id) AS last_diary_at
         FROM students s
         LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
@@ -4868,12 +4868,12 @@ router.get(
         `).catch(() => ({ rows: [] })),
         // Linked parents (pool-scoped via students.swimming_pool_id)
         superAdminDb.execute(sql`
-          SELECT pa.id, pa.name, pa.phone, pa.approved_at, pa.last_login_at,
+          SELECT pa.id, pa.name, pa.phone,
                  ps.created_at AS linked_at
           FROM parent_students ps
           JOIN parent_accounts pa ON pa.id = ps.parent_account_id
           WHERE ps.student_id = ${memberId} AND pa.swimming_pool_id = ${poolId}
-          ORDER BY pa.approved_at DESC NULLS LAST
+          ORDER BY ps.created_at DESC NULLS LAST
           LIMIT 10
         `).catch(() => ({ rows: [] })),
         // Recent diaries (5)
@@ -5034,7 +5034,7 @@ router.get(
     const { q = "" } = req.query as Record<string, string>;
     try {
       const rows = await superAdminDb.execute(sql`
-        SELECT pa.id, pa.name, pa.phone, pa.created_at, pa.approved_at,
+        SELECT pa.id, pa.name, pa.phone, pa.created_at, pa.is_active,
                (SELECT COUNT(*) FROM parent_students ps WHERE ps.parent_account_id = pa.id) AS linked_student_count
         FROM parent_accounts pa
         WHERE pa.swimming_pool_id = ${poolId}
@@ -5062,7 +5062,7 @@ router.get(
     const { id: poolId, parentId } = req.params;
     try {
       const parentRes = await superAdminDb.execute(sql`
-        SELECT id, name, phone, created_at, approved_at
+        SELECT id, name, phone, created_at, is_active
         FROM parent_accounts
         WHERE swimming_pool_id = ${poolId} AND id = ${parentId}
         LIMIT 1
@@ -5112,8 +5112,8 @@ router.get(
         // Connection diagnostics
         connection_states: {
           total_linked: childrenRes.rows.length,
-          approved_at: (parentRes.rows[0] as any).approved_at,
-          approved: !!(parentRes.rows[0] as any).approved_at,
+          is_active: (parentRes.rows[0] as any).is_active,
+          approved: !!(parentRes.rows[0] as any).is_active,
         },
       });
     } catch (e: any) {
