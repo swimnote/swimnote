@@ -53,15 +53,34 @@ function getStatus(s: string) {
 
 interface ReportSection { title?: string; content?: string; [key: string]: unknown }
 
+// 섹션 key → 한국어 라벨 매핑
+const SECTION_TITLE_MAP: Record<string, string> = {
+  core_growth:       "핵심 성장",
+  swimming_progress: "교육과정 진행",
+  success_conditions:"성공 조건",
+  parent_support:    "부모 지원 방향",
+  teacher_guidance:  "선생님 가이드",
+};
+
 function parseSections(raw: unknown): ReportSection[] {
   if (!raw) return [];
   // Array 직접 전달
   if (Array.isArray(raw)) return raw as ReportSection[];
-  // { sections: [...] }
   if (typeof raw === "object" && raw !== null) {
     const obj = raw as Record<string, unknown>;
+    // { sections: [...] } — Array
     if (Array.isArray(obj["sections"])) return obj["sections"] as ReportSection[];
     if (Array.isArray(obj["content"]))  return obj["content"]  as ReportSection[];
+    // { sections: { core_growth: {text, is_empty}, ... } } — Object dict
+    const secObj = obj["sections"];
+    if (secObj && typeof secObj === "object" && !Array.isArray(secObj)) {
+      return Object.entries(secObj as Record<string, unknown>)
+        .filter(([, v]) => v && typeof v === "object" && !(v as any).is_empty)
+        .map(([k, v]) => ({
+          title:   SECTION_TITLE_MAP[k] ?? k,
+          content: (v as any).text ?? "",
+        }));
+    }
   }
   return [];
 }
