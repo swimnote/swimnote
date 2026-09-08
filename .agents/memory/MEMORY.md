@@ -72,4 +72,4 @@
 - [WP12 Marketing MVP 완료](wp12-marketing-done-state.md) — SHA dc768326; marketing-audience.ts+super.ts 3routes+scheduler+App UI; 36TC
 - [WP13 Data Integrity Checker 완료](wp13-integrity-done-state.md) — SHA 96295ec3; integrity-checker.ts 22 checks+super.ts 3routes+App UI; 36TC
 - [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA pending; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
-- [500 Pool Curriculum Scale 완료](500pool-curriculum-scale-done.md) — SHA 4dea2178; Canonical Resolver+activate-local+content_hash+READY분리; 95TC; Render LIVE 4dea2178 확인
+- [500 Pool Curriculum Scale 완료](500pool-curriculum-scale-done.md) — SHA f2f7f3df; READY invariant+Production migration+deterministic activation+125TC; Render LIVE f2f7f3df 확인
