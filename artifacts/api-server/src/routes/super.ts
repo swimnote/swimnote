@@ -4803,7 +4803,7 @@ router.get(
                (SELECT COUNT(*) FROM parent_students ps
                   JOIN parent_accounts pa ON ps.parent_account_id = pa.id
                   WHERE ps.student_id = s.id AND pa.approved_at IS NOT NULL) AS parent_count,
-               (SELECT MAX(created_at) FROM diary_entries WHERE student_id = s.id) AS last_diary_at
+               (SELECT MAX(csn.created_at) FROM class_diary_student_notes csn WHERE csn.student_id = s.id) AS last_diary_at
         FROM students s
         LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
         LEFT JOIN class_groups cg ON cg.id = cgs.class_group_id AND cg.active = true
@@ -4937,9 +4937,10 @@ router.get(
                (SELECT COUNT(*) FROM class_groups cg
                 WHERE cg.teacher_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.active = true
                ) AS active_class_count,
-               (SELECT COUNT(*) FROM ai_traces at2
-                WHERE at2.pool_id = ${poolId} AND at2.actor_id = u.id
-                  AND at2.created_at > NOW() - INTERVAL '30 days'
+               (SELECT COUNT(*) FROM event_logs el
+                WHERE el.pool_id = ${poolId} AND el.actor_id = u.id
+                  AND el.category = 'AI'
+                  AND el.created_at > NOW() - INTERVAL '30 days'
                ) AS recent_ai_count
         FROM users u
         WHERE u.swimming_pool_id = ${poolId}
@@ -5034,7 +5035,6 @@ router.get(
     try {
       const rows = await superAdminDb.execute(sql`
         SELECT pa.id, pa.name, pa.phone, pa.created_at, pa.approved_at,
-               pa.last_login_at,
                (SELECT COUNT(*) FROM parent_students ps WHERE ps.parent_account_id = pa.id) AS linked_student_count
         FROM parent_accounts pa
         WHERE pa.swimming_pool_id = ${poolId}
@@ -5062,7 +5062,7 @@ router.get(
     const { id: poolId, parentId } = req.params;
     try {
       const parentRes = await superAdminDb.execute(sql`
-        SELECT id, name, phone, created_at, approved_at, last_login_at
+        SELECT id, name, phone, created_at, approved_at
         FROM parent_accounts
         WHERE swimming_pool_id = ${poolId} AND id = ${parentId}
         LIMIT 1

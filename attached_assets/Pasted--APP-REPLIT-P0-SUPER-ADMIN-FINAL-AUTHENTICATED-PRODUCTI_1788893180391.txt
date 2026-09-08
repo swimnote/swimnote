@@ -1,0 +1,201 @@
+[보낼 곳: APP REPLIT]
+
+[P0 SUPER ADMIN — FINAL AUTHENTICATED PRODUCTION E2E]
+
+현재 상태 HOLD.
+
+배포 자체는 VERIFIED:
+- swimnote.kr 최신 asset 반영
+- Render LIVE == main HEAD
+- event_logs source 수정 완료
+
+이제 새 기능 수정 금지.
+아래 Production 인증 E2E와 권한만 최종 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SUPER ADMIN 인증 계정으로 실제 Production 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+401 응답을 기능 정상 증거로 사용 금지.
+
+실제 super_admin 인증 상태에서
+swimnote.kr/super 접속 후 확인:
+
+A. Overview
+- 화면 렌더 정상
+- KPI 숫자 실제 표시
+- API 200
+- console/runtime error 0
+
+B. Pool List
+- 실제 수영장 row 표시
+- 검색 정상
+- filter 정상
+
+C. Pool Detail
+실제 Production pool 1곳 클릭 후:
+
+- 기본정보
+- Mode
+- 결제
+- 사용현황
+- Curriculum
+- AI
+- System Health
+
+7개 섹션 실제 값 표시.
+
+undefined/null rendering error/500 = 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 DATA 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 Production pool 1곳 기준:
+
+- student count
+- teacher count
+- parent count
+- mode
+- paid/manual/override/force-disabled
+- current plan
+- next renewal
+- Local Curriculum active version
+- READY
+- Diary count
+- AI Diary count
+- warning/error
+
+를 API 응답/DB source와 대조.
+
+단순 화면이 뜬다는 이유로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. /api/super/notices, /api/super/ads AUTH 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 미인증 요청에서:
+
+GET /api/super/notices → 200
+GET /api/super/ads → 200
+
+보고됨.
+
+이것이 매우 중요하므로 실제 route guard 확인.
+
+관리용 Super Admin endpoint라면:
+
+requireRole("super_admin")
+
+필수.
+
+미인증/Parent/Teacher/Pool Admin:
+→ 401/403
+
+Super Admin:
+→ 200
+
+이어야 함.
+
+만약 공개 앱 소비용 조회가 필요하다면
+관리 endpoint를 public으로 두지 말고
+기존 public consumer endpoint를 사용.
+
+예:
+- Parent banner 조회 → /parent/ad-slot
+- platform banner consumer endpoint
+- 사용자 notice 조회 endpoint
+
+Super Admin CRUD/list 관리 endpoint는 보호.
+
+이번 확인에서 실제 auth 누락이면 즉시 최소 수정
+→ test
+→ Render LIVE
+→ Web 필요 시 redeploy.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CONTROL ACTION 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 destructive하지 않은 안전한 테스트 방식으로:
+
+- 기존 상태 조회
+- 가능한 reversible control 1건
+- audit_logs 기록
+- 원상복구
+- 복구 audit 기록
+
+확인.
+
+실서비스에 위험하면
+테스트 pool을 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. NOTICE / ADS 관리 실제 인증 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin 로그인 상태:
+
+공지 관리:
+- 목록 load
+- create/edit 화면 정상
+- 이미지 기존 데이터 표시 정상
+
+광고 관리:
+- 목록 load
+- banner data 정상
+- target_pool_id 정상
+
+비로그인에서는 관리 API 접근 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. BROWSER RUNTIME ERROR
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production /super 주요 화면에서:
+
+- JS exception
+- failed fetch
+- 500
+- nonexistent table
+- undefined field
+- infinite loading
+
+0건 확인.
+
+특히 event_logs 전환 후
+Overview/System Health 실제 query 200 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Super Admin authenticated Overview API/status
+2. Overview 실제 KPI 표시 결과
+3. Pool List 실제 row 결과
+4. Pool Detail 7섹션 실제 결과
+5. Production pool 데이터 대조 결과
+6. /api/super/notices 현재 auth guard
+7. /api/super/ads 현재 auth guard
+8. 비로그인 notices/ads 결과
+9. 일반 role notices/ads 결과
+10. super_admin notices/ads 결과
+11. control action + rollback 결과
+12. audit_logs 결과
+13. browser runtime error 수
+14. 500 수
+15. 수정 발생 시 main HEAD
+16. 수정 발생 시 Render LIVE commit
+17. 수정 발생 시 Web deploy 상태
+18. 잔존 blocker
+
+PASS 조건:
+
+- 인증된 Super Admin으로 실제 기능 200 검증
+- Overview/Pool List/Pool Detail 실제 데이터 정상
+- /api/super 관리 endpoint 권한 정상
+- runtime error 0
+- 500 0
+- blocker 0
+
+완료 후 STOP.
