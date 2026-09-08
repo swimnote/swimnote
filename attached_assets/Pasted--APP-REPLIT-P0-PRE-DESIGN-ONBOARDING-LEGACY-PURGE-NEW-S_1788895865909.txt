@@ -1,0 +1,295 @@
+[보낼 곳: APP REPLIT]
+
+[P0 PRE-DESIGN — ONBOARDING LEGACY PURGE + NEW SINGLE FLOW]
+
+이번 온보딩 작업의 최우선 원칙:
+
+기존 온보딩을 수정해서 재사용하지 않는다.
+
+기존 회원가입/첫 실행/역할별 안내/튜토리얼/설정 유도 등
+온보딩 성격의 기존 흐름을 전수 스캔하고
+새 온보딩과 충돌하거나 중복되는 것은 전부 제거/비노출한다.
+
+이번 응답은 코드 수정 전 조사/설계만.
+추가 audit 반복 금지.
+이 조사 1회 후 바로 구현 들어갈 수 있게 충분히 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 ONBOARDING 전수 스캔
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 성격의 모든 route/component/state/API를 전수 조사:
+
+- signup 직후 안내
+- first launch
+- welcome
+- tutorial
+- intro
+- role guide
+- first-time popup
+- coach/admin setup guide
+- pool setup intro
+- subscription intro
+- curriculum setup intro
+- empty-state onboarding CTA
+- 첫 로그인 후 강제 redirect
+- AsyncStorage 기반 seen flag
+- local state 기반 onboarding completed
+- profile flag
+- server-side onboarding flag
+- modal/banner 형태의 가입 유도
+- hidden route라도 first-run 조건으로 뜨는 화면
+
+이름에 onboarding이 없어도
+동작이 온보딩이면 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. LEGACY ONBOARDING 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 항목을:
+
+A. 반드시 삭제
+B. 새 flow에 흡수
+C. 일반 도움말로 남김
+D. onboarding과 무관
+
+로 분류.
+
+원칙:
+
+새 flow와 중복되는 first-run 안내는 A 또는 B.
+
+"예전에 쓰던 작은 안내니까 그냥 둔다"
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 상태 — ONBOARDING은 하나만
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 신규 수영장 onboarding entry point는 하나만 존재.
+
+가입
+→ 신규 pool setup
+→ 결제
+→ curriculum
+→ class/schedule
+→ member
+→ teacher
+→ parent 안내
+→ first diary
+→ READY
+
+중간에 legacy intro/tutorial이 끼어들면 FAIL.
+
+회원가입 직후에도
+별도 작은 welcome onboarding이 뜨면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 일반 회원가입과 ONBOARDING 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원가입 자체에 필요한:
+
+- 약관
+- 계정 생성
+- 인증
+- pool 생성
+
+만 유지.
+
+가입 완료 후
+legacy welcome/tutorial을 거치지 않고
+새 canonical onboarding flow로 직접 진입.
+
+중간 redirect 화면 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 "사소한 온보딩" 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 반드시 찾을 것:
+
+- 첫 로그인 축하 modal
+- 기능 소개 슬라이드
+- "처음이신가요?"
+- "몇 단계만 설정하세요"
+- 역할별 시작 가이드
+- 첫 실행 tooltip
+- 앱 둘러보기
+- 설정 안 됐을 때 자동 뜨는 legacy modal
+- 홈에 남아 있는 old onboarding card
+
+이런 것 전부 전수 조사.
+
+새 onboarding과 겹치면 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OLD FLAG / STATE 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 온보딩 완료 여부를 저장하는:
+
+- AsyncStorage key
+- SecureStore key
+- Zustand state
+- profile field
+- DB flag
+
+전부 조사.
+
+새 flow가 다른 SOT를 쓰게 되면
+old flag를 참조하는 코드 제거.
+
+단:
+기존 사용자에게 영향 주는 DB column을
+무조건 drop 하지 말 것.
+
+필요 없으면 읽기/분기만 제거하고
+legacy data는 보존 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 사용자 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+기존 운영 중인 수영장/기존 회원에게
+새 onboarding이 다시 뜨면 안 됨.
+
+새 onboarding 대상은:
+
+"신규 pool / setup 미완료 pool"
+
+만.
+
+기존 정상 pool은 기존 Home으로 진입.
+
+판정은
+server-side 실제 setup 상태를 기반으로.
+
+단순 local seen flag만으로 판단 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. RESUME SOT
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 onboarding은
+중간 이탈 후 resume 가능해야 함.
+
+우선 활용 후보:
+
+- pool 존재
+- subscription 상태
+- xmode_config_status
+- Local Curriculum active 여부
+- class 존재
+- student 존재
+- teacher invite 상태
+- 기타 setup profile
+
+이런 실제 server-side 상태로
+현재 단계 파생.
+
+불필요한 onboarding_progress 신규 테이블은
+가능하면 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. BACK / NAVIGATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 flow는 처음부터 구조 정상화.
+
+Back:
+직전 단계
+
+Home 강제 replace 금지.
+
+중간 invisible redirect screen 금지.
+
+특정 화면 mount side-effect에
+다음 단계 초기화 의존 금지.
+
+legacy onboarding route로 fallback 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 삭제 대상 ROUTE 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+legacy onboarding route는:
+
+- navigation entry 제거
+- first-run redirect 제거
+- deep-link 대상 제거
+- layout screen 등록 제거
+
+필요한 경우 실제 파일 삭제.
+
+단:
+다른 정상 기능이 재사용 중인 component를
+온보딩이라는 이유로 함부로 삭제 금지.
+
+공용 component는 필요한 부분만 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. IMPLEMENTATION 후 PASS 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 계정:
+
+회원가입
+→ legacy onboarding 노출 0
+→ 새 canonical onboarding 직접 진입
+
+기존 계정:
+
+로그인
+→ legacy onboarding 노출 0
+→ 새 onboarding 재노출 0
+→ 기존 정상 Home
+
+중간 이탈 신규 pool:
+
+재로그인
+→ 처음부터 시작 금지
+→ 실제 완료 상태 다음 단계 resume
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 PRE-DESIGN 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 없이 아래만 제출:
+
+1. 기존 onboarding 관련 route 전체
+2. 기존 onboarding 관련 component 전체
+3. signup 직후 현재 redirect 흐름
+4. first-login/current welcome flow
+5. AsyncStorage/SecureStore onboarding key
+6. DB/profile onboarding flag
+7. Home 안 legacy onboarding card/modal
+8. 역할별 onboarding 존재 여부
+9. 삭제 대상
+10. 흡수 대상
+11. 유지 대상
+12. 기존 사용자 재노출 방지 방식
+13. 신규 pool 판정 방식
+14. resume SOT
+15. 새 canonical entry route
+16. navigation cleanup 대상
+17. 예상 삭제 파일
+18. 예상 수정 파일
+19. server 변경 필요 여부
+20. DB migration 필요 여부
+21. 위험/회귀 가능성
+22. 구현 계획
+
+중요:
+
+이번 조사에서
+"legacy onboarding 찌꺼기"를 전부 찾아야 한다.
+
+새 onboarding 구현 후
+옛 welcome/tutorial/modal이 하나라도 다시 뜨면 FAIL.
+
+코드 수정 금지.
+완료 후 STOP.

@@ -1,0 +1,463 @@
+[보낼 곳: APP REPLIT]
+
+[P0 IMPLEMENTATION — PHOTO UPLOAD PERFORMANCE FINAL OPTIMIZATION]
+
+MEDIA UPLOAD QUICK AUDIT PASS.
+
+추가 조사 금지.
+지금 바로 구현 → 테스트 → Production 배포까지 한 번에 진행.
+
+목표:
+
+사진 업로드 체감속도를 개선하고
+SWIMNOTE 사진 업로드 architecture를
+기존 Diary 방식의 R2 direct upload 중심으로 통일한다.
+
+이번 작업에서 영상 upload 구조는 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 비용 업그레이드 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 판단:
+
+- Render upgrade 불필요
+- R2 plan upgrade 불필요
+
+architecture 개선 우선.
+
+서버 사양 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PHOTO COMPRESSION 정책 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+compressImageIfNeeded()
+→ 3MB 초과일 때만
+→ max 1920px
+→ JPEG Q0.75
+
+구조를 개선.
+
+중요:
+"모든 이미지를 무조건 1920px로 확대"하지 말 것.
+
+최종 정책:
+
+- 긴 변 > 1920px
+  → 1920px 이하로 resize
+
+- 긴 변 <= 1920px
+  → upscale 금지
+
+- HEIC/HEIF 등 upload compatibility가 필요한 포맷
+  → JPEG normalize
+
+- JPEG 등 이미 호환 가능한 사진도
+  불필요하게 큰 byte size면 recompress
+
+- 최종 JPEG quality:
+  기존 0.75 유지 우선
+
+- orientation 정상 유지
+
+목표:
+현재의 단순 "3MB 여부"만으로 압축 여부를 결정하지 않는다.
+
+해상도 + 포맷 + byte size를 기준으로
+안전하게 normalize/compress.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PHOTO QUALITY 회귀 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진은:
+
+- Diary
+- Album
+- Notice
+- Group Album
+
+에서 학부모에게 보여주는 콘텐츠이므로
+과도한 저화질 압축 금지.
+
+검증:
+
+- 텍스트가 포함된 이미지
+- 인물 사진
+- 세로 사진
+- 가로 사진
+- iPhone HEIC
+- Android JPEG
+
+모두 정상.
+
+사진 방향 회전 오류 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. NOTICE IMAGE → DIRECT R2
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+APP
+→ FormData /uploads
+→ Render binary 수신
+→ R2
+
+구조 제거.
+
+기존 Diary에서 Production 검증된
+directUploadPhotos.ts 패턴을 최대한 재사용.
+
+최종:
+
+APP
+→ upload session 발급
+→ presigned URL
+→ R2 직접 PUT
+→ finalize / metadata commit
+
+새 upload architecture 창작 금지.
+
+기존:
+
+- auth
+- tenant
+- quota
+- R2 key policy
+- finalize verification
+
+재사용.
+
+Super Admin Web 공지 upload와
+앱 Admin 공지 upload가 서로 깨지지 않게
+현재 Web pipeline 호환 여부 확인 후 구현.
+
+기존 /uploads는
+다른 기능이 사용 중이면 삭제 금지.
+
+Notice 신규 사진 경로만 direct upload 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PHOTOS/GROUP → DIRECT R2
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+APP
+→ /photos/group
+→ Render multipart buffer
+→ R2 PUT 순차
+→ DB INSERT 순차
+
+구조를 direct upload로 전환.
+
+가능하면 기존:
+
+/photos/direct-upload/session
+/photos/direct-upload/finalize
+
+계약을 확장해서
+group/album type을 지원.
+
+별도 중복 시스템 만들지 말 것.
+
+최종:
+
+사진 선택
+→ client compression
+→ session
+→ presigned URLs
+→ R2 direct PUT
+→ finalize
+→ DB commit
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CONCURRENCY
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Diary의:
+
+runWithConcurrency(..., 4)
+
+패턴 재사용.
+
+사진 업로드:
+
+concurrency = 3~4
+
+범위.
+
+무제한 Promise.all 금지.
+순차 1장씩 업로드 금지.
+
+기존 Diary concurrency=4가 Production에서 정상이라면
+4 유지 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 압축도 불필요하게 순차 처리하지 않기
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 MyAlbumPickerModal 등에서
+압축이 for...of 순차 처리됨.
+
+실제 안정성을 확인해서
+사진 압축도 제한 concurrency 적용 가능한지 검토 후 적용.
+
+단:
+
+10장을 한 번에 무제한 ImageManipulator 실행 금지.
+
+권장:
+2~3개 제한 병렬.
+
+메모리/저사양 Android 안정성이 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. UPLOAD PROGRESS 유지/확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary direct upload에 이미 존재하는
+진행률 UX 재사용.
+
+다중 사진 업로드 시:
+
+- 업로드 중
+- 완료 개수 / 전체 개수
+- 실패
+- 재시도 가능 여부
+
+사용자가 알 수 있어야 함.
+
+가짜 progress 금지.
+
+실제 upload callback 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. FAILURE / ATOMICITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+direct upload 전환하면서:
+
+R2 upload 성공
+하지만 finalize 실패
+
+또는
+
+일부 사진만 성공
+
+상황 처리 확인.
+
+기존 direct upload cleanup/retry semantics 재사용.
+
+DB에:
+- 없는 R2 object 참조
+- 미완성 media를 정상사진으로 표시
+- 중복 사진 row
+
+생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 기존 DIARY DIRECT UPLOAD 회귀 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 정상인 Diary 사진 pipeline을
+대규모 리팩터링 금지.
+
+기존:
+
+- session
+- PUT
+- finalize
+- concurrency=4
+- quota
+- progress
+
+동작 그대로 유지.
+
+공통화가 작은 변경으로 가능하면 재사용하되
+잘 작동하는 Diary 경로를 위험하게 갈아엎지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. VIDEO 이번 작업 제외
+━━━━━━━━━━━━━━━━━━━━━━
+
+/videos/group은 현재 Render 중계지만
+이번 작업에서는 변경 금지.
+
+이유:
+
+- 최대 100MB
+- 영상 direct/multipart 설계는 사진과 별개
+- 곧 Android E2E에서 실제 영상 성능도 확인 예정
+
+사진 최적화 완료 후
+영상이 실제 문제일 때 별도로 판단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 성능 측정
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 전/후 실측.
+
+가능하면 동일 또는 유사 크기 사진으로:
+
+CASE A
+사진 1장
+
+CASE B
+사진 5장
+
+CASE C
+사진 10장
+
+각각:
+
+- 원본 총 bytes
+- 압축 후 총 bytes
+- compression 시간
+- upload 시간
+- finalize 시간
+- 전체 시간
+
+측정.
+
+Production 로그에 개인정보/파일내용 출력 금지.
+
+허용:
+- file count
+- total bytes
+- compressed bytes
+- latency
+- status
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+iPhone Production에서:
+
+A.
+Diary 사진 1장
+
+B.
+Diary 사진 10장
+
+C.
+반/Album 사진 여러 장
+
+D.
+Admin 공지 이미지
+
+E.
+HEIC 사진
+
+F.
+세로/가로 사진
+
+확인.
+
+PASS:
+
+- upload 정상
+- 사진 표시 정상
+- 방향 정상
+- 속도 개선
+- 누락 0
+- 중복 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. ANDROID 대비
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 구현은 반드시
+iOS/Android 공통 React Native 코드로 유지.
+
+현재:
+
+expo-image-manipulator
+expo-file-system/legacy
+
+범위 안에서 구현.
+
+신규 native dependency 추가 금지.
+
+native rebuild가 발생하지 않게 할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. SERVER DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+server route 변경이 있으므로:
+
+release/v2.0.0
+→ code/test
+→ main push
+→ Render Production deploy
+→ LIVE 대기
+→ /health commit == main HEAD
+→ Production smoke
+
+deploy triggered만으로 완료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. iOS OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 변경 후:
+
+production-v2
+iOS only OTA
+
+조건:
+
+- release/v2.0.0
+- clean/origin exact
+- contract 1.0
+- app 2.0.1
+- runtime 2.1.0
+- native compatible
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최종 compression 정책
+2. HEIC 처리
+3. Notice 최종 upload flow
+4. photos/group 최종 upload flow
+5. Render binary 중계가 남은 사진 경로
+6. concurrency 값
+7. 사진 1장 전/후 bytes/time
+8. 사진 5장 전/후 bytes/time
+9. 사진 10장 전/후 bytes/time
+10. Diary 회귀 결과
+11. Album/group 결과
+12. Notice 결과
+13. 실패/retry 결과
+14. 수정 파일
+15. 테스트 결과
+16. main HEAD
+17. Render LIVE commit
+18. OTA ID
+19. native rebuild 여부
+20. 잔존 blocker
+
+PASS 조건:
+
+- 일반 사진 upload byte 유의미하게 감소
+- Notice 사진 Render binary 중계 제거
+- photos/group Render binary 중계 제거
+- multi-photo 제한 병렬
+- Diary 기존 기능 회귀 0
+- iOS 정상
+- Android 공통 코드
+- Render/R2 upgrade 없음
+- blocker 0
+
+완료 후 STOP.
