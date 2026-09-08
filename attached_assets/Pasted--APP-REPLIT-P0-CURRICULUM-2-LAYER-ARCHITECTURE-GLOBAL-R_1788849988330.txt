@@ -1,0 +1,307 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — CURRICULUM 2-LAYER ARCHITECTURE 정리 / GLOBAL REFERENCE + POOL LOCAL]
+
+이번 작업의 목적은 현재 Toykids에 직접 이식되어 있는
+기존 canonical curriculum과
+앞으로 각 수영장이 업로드할 자체 curriculum을 명확하게 분리하는 것이다.
+
+현재 Toykids에 직접 삽입되어 있는 기존 수영 curriculum 50개는
+더 이상 Toykids 전용 curriculum으로 취급하지 않는다.
+
+이 데이터는 일반적인 수영 학습과정으로 구성되어 있으므로
+앞으로 SWIMNOTE 전체 수영장이 공통으로 사용할:
+
+GLOBAL REFERENCE CURRICULUM
+
+으로 사용한다.
+
+그리고 Toykids를 포함한 각 수영장이 DOCX로 업로드하는 curriculum은:
+
+POOL LOCAL CURRICULUM
+
+으로 별도 관리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 curriculum을 물리적으로 하나로 합쳐
+하나의 pool curriculum version으로 만들지 말 것.
+
+구조:
+
+A. Global Reference Curriculum
+- SWIMNOTE 공통
+- 특정 pool 소유 아님
+- AI curriculum 검색 보강
+- Diary 의미 해석
+- skill/stroke/atomic skill 기준 제공
+
+B. Pool Local Curriculum
+- pool별 DOCX 업로드
+- 해당 수영장 공식 curriculum
+- 학생 progress의 canonical 기준
+- Parent Gauge의 denominator/진도 기준
+
+진도는 반드시 Local Curriculum을 기준으로 한다.
+
+Global Reference가
+Parent Gauge의 item 수에 직접 추가되어서는 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 Toykids 50개 curriculum 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+cv_bw6pee53qf4l2ipi
+toykids-curriculum-canonical-v2.0
+50 curriculum_items
+
+이 데이터의 내용 자체는 삭제하지 않는다.
+
+이 데이터를
+"Toykids 공식 Local Curriculum"
+역할에서 분리하고,
+
+SWIMNOTE GLOBAL REFERENCE CURRICULUM으로
+재분류/이관할 방법을 실제 현재 schema 기준으로 조사하고 구현한다.
+
+중요:
+
+기존 schema에 이미 global/reference scope 구조가 있으면 반드시 재사용.
+
+없는 경우에도 바로 새 table을 만들지 말고
+현재 curriculum_versions / curriculum_items 구조에서
+최소 변경으로 global scope를 표현할 수 있는지 우선 확인.
+
+데이터 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Toykids 새 Local Curriculum
+━━━━━━━━━━━━━━━━━━━━━━
+
+이후 사용자가 새 Toykids curriculum DOCX를 제공한다.
+
+그 DOCX는 다른 신규 X 수영장과 완전히 동일한:
+
+upload
+→ parse
+→ structure
+→ curriculum_version
+→ curriculum_items
+→ activation
+→ student assignment
+
+canonical flow를 사용한다.
+
+새로 생성되는 curriculum은:
+
+owner/scope = Toykids pool local
+
+이어야 한다.
+
+기존 Global Reference와 같은 항목이 존재해도 정상이다.
+
+중복이라는 이유로 Local item을 삭제하거나
+Global item으로 치환하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Candidate Search를 2-layer로 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 curriculum search가
+pool active curriculum만 검색한다면
+검색 계층을 다음처럼 확장:
+
+INPUT DIARY
+   ↓
+Local Curriculum Search
++
+Global Reference Search
+   ↓
+Candidate Merge / Rank
+   ↓
+최종 Local Progress Target
+
+검색 결과는 두 source를 구분해야 한다:
+
+source_scope:
+- POOL_LOCAL
+- GLOBAL_REFERENCE
+
+또는 현재 schema/style에 맞는 equivalent field 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 중복/유사 항목 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+Local과 Global에 동일/유사 항목이 존재할 수 있다.
+
+예:
+
+Local:
+"평영 팔동작"
+
+Global:
+"평영 팔 너비"
+"평영 풀 타이밍"
+
+이 경우 DB에서 중복 삭제하지 않는다.
+
+검색 단계에서 relevance 비교.
+
+원칙:
+
+1. Local에 의미적으로 적합한 item이 있으면
+   Local item을 progress target으로 우선.
+
+2. Global item이 더 세밀한 정보를 가지고 있다면
+   AI grounding/supporting evidence로 사용 가능.
+
+3. Global item만 검색되고
+   대응 Local item이 전혀 없다면
+   Global을 AI 보조 지식으로 사용할 수 있으나
+   Local progress를 임의 증가시키지 않는다.
+
+4. LLM이 임의로 Local item을 창작하거나
+   progress %를 결정하면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Global의 역할
+━━━━━━━━━━━━━━━━━━━━━━
+
+Global Reference는
+커리큘럼이 빈약한 수영장의 AI 품질을 보충하는 역할도 한다.
+
+예:
+
+Local curriculum:
+"자유형"
+
+처럼 너무 포괄적이어도
+
+Global Reference의:
+
+- 자유형 호흡
+- 롤링
+- 캐치
+- 킥
+- 타이밍
+
+정보를 검색하여
+AI가 수업 내용을 더 정확히 이해하는 데 사용할 수 있다.
+
+하지만 학부모 공식 curriculum progress는
+Local curriculum 구조를 기준으로 계산한다.
+
+즉:
+
+Global = AI 지식/검색 보강
+Local = 수영장 공식 교육과정/진도 기준
+
+으로 역할을 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 AI Diary / Manual Diary 연결 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정상화 중인:
+
+AI Diary
+→ curriculum_matches
+→ growth_events
+→ CPO
+→ SCP
+
+Manual Diary
+→ CurriculumEvidenceResolver
+→ growth_events
+→ CPO
+→ SCP
+
+구조를 폐기하지 않는다.
+
+Candidate Search 앞단만
+Local + Global reference를 사용할 수 있게 확장.
+
+최종 growth_event/CPO/SCP에는
+어떤 Local curriculum_item에 귀속되었는지
+명확히 남아야 한다.
+
+Global item id만 가지고
+SCP를 올리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Toykids 기존 progress 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+teacher_manual growth_events
+CPO
+SCP
+
+데이터 삭제 금지.
+
+Toykids 새 Local Curriculum 업로드 전에
+현재 progress 데이터를 snapshot.
+
+새 Local version 생성 후
+기존 evidence를 새 Local curriculum과 재매핑할 수 있는지
+별도 transition 단계에서 처리.
+
+이번 Global 전환 때문에
+기존 progress를 즉시 삭제하거나 0으로 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 기존 231 SCA 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Toykids에 복구된
+student_curriculum_assignments 231건은
+기존 cv_bw6pee53qf4l2ipi를 가리키고 있다.
+
+cv_bw6pee53qf4l2ipi가 Global Reference 역할로 변경되면
+학생 SCA가 Global version을 공식 curriculum으로 계속 가리켜서는 안 된다.
+
+단 지금 당장 삭제하지 않는다.
+
+Toykids 새 Local Curriculum이 정상 업로드되어
+새 active Local version이 확정된 뒤:
+
+기존 학생 assignment
+→ 새 Toykids Local version
+
+으로 canonical provisioning/transition 한다.
+
+직접 대량 SQL 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는 먼저 구조를 정리한다.
+
+완료보고:
+
+1. 현재 global curriculum을 표현할 수 있는 기존 schema 존재 여부
+2. 기존 50 items를 Global Reference로 전환하는 방식
+3. Global version id
+4. Global item count
+5. Toykids Local Curriculum과 Global이 분리되는 방식
+6. Candidate Search Local/Global 병합 구조
+7. duplicate ranking 규칙
+8. Global만 매치될 때 progress 처리
+9. CPO/SCP가 Local item만 기준으로 동작하는지
+10. 현재 Toykids 231 SCA transition 계획
+11. 기존 growth_events/CPO/SCP 보호 여부
+12. Toykids 새 DOCX 업로드 시 사용할 canonical flow
+13. 필요한 코드/DB 변경
+14. 잔존 위험
+
+이번 구조 정리 완료 후 STOP.
+
+Toykids 새 curriculum DOCX 업로드는
+이 구조 확인 후 다음 단계에서 수행한다.

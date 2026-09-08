@@ -1,0 +1,480 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — TOYKIDS X CURRICULUM CANONICAL RE-PROVISIONING]
+
+목표:
+
+토이키즈스윔클럽을 개발 중 강제삽입/override/reconciliation 상태로 두지 말고,
+실제 신규 X 수영장이 가입할 때 사용하는
+"정상 커리큘럼 업로드 → 구조화 → 활성화 → 학생연결"
+canonical flow와 동일한 상태로 다시 맞춘다.
+
+이번 작업은 테스트 pool이 아니다.
+
+실제 Toykids Production pool을
+정상 신규가입과 동일한 X curriculum setup 상태로 정규화한다.
+
+단,
+운영 중인 회원/반/수업/일지/진도 데이터는 절대 삭제하거나 초기화하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 보호 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 삭제/초기화/재생성 금지:
+
+- students
+- parents
+- teachers
+- classes / schedules
+- attendance
+- class_diaries
+- diary student notes
+- growth_events 기존 데이터
+- curriculum_progress_observations(CPO)
+- student_curriculum_progress(SCP)
+- 결제/구독/매출 데이터
+- 사진/미디어
+- 기존 회원-학부모 연결
+- 기존 운영 이력
+
+이번 작업 대상은
+Toykids의 X curriculum setup/provisioning 계층이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 작업 전 Production snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids 관련 아래 데이터 현재값을 먼저 export/snapshot.
+
+- swimming_pools X 관련 컬럼 전체
+- x_setup_files
+- x_setup_submissions
+- x_curriculum_profiles
+- x_curriculum_levels
+- curriculum_versions
+- curriculum_items
+- student_curriculum_assignments
+- global_template_sets 관련 참조
+- diary_templates x_global 관련 참조
+- import_meta
+- active curriculum version
+
+현재 row count / id / status 기록.
+
+Rollback 가능한 상태 확보 후 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 Toykids 운영 curriculum 원본 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 import_meta상 source document:
+
+TOYKIDS_SWIMNOTE_X_APP_FINAL_IMPORT_v2.0.docx
+
+실제 이 원본 DOCX가:
+
+- R2
+- repo
+- 기존 업로드 파일
+- 서버 저장소
+
+중 어디에 실제 파일로 존재하는지 확인.
+
+중요:
+
+파일명이 metadata에 있다는 이유로
+파일이 존재한다고 가정하지 말 것.
+
+실제 DOCX 원본이 있으면 그 파일 사용.
+
+원본 DOCX가 실제로 없으면
+여기서 STOP하고:
+
+"Toykids curriculum 원본 DOCX 업로드 필요"
+
+라고 보고.
+
+임의로 DB 내용을 DOCX로 재생성해서
+정상 업로드처럼 위장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 신규가입 canonical flow 정확히 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids에 적용하기 전에
+현재 Production 코드의 실제 신규가입 흐름을 확정.
+
+정상 흐름:
+
+1.
+POST /x-setup/upload/curriculum
+
+2.
+x_setup_files
+x_setup_submissions 생성/갱신
+
+3.
+POST /super/x-setup/:poolId/structure
+
+4.
+x_curriculum_profiles
+x_curriculum_levels
+curriculum_versions
+curriculum_items 생성
+
+5.
+canonical prerequisite 확인
+
+6.
+정상 X grant/activation API
+
+7.
+xmode_config_status = READY
+
+8.
+학생 curriculum 연결 생성
+
+순서가 실제 코드와 다르면
+실제 코드 기준 canonical 순서를 사용.
+
+SQL로 READY 직접 변경하거나
+수동 INSERT로 통과시키지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Toykids를 정상 setup flow로 재적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+기존 active curriculum을 단순 삭제하고 시작하지 말 것.
+
+정상 "기존 수영장의 curriculum 재업로드/update" 경로가 있으면
+그 경로를 최우선 사용.
+
+즉:
+
+Toykids pool
+→ 실제 DOCX upload
+→ 실제 parser
+→ 실제 structuring
+→ 실제 version activation
+→ 실제 assignment/provisioning
+
+을 신규 수영장과 동일한 business logic으로 수행.
+
+직접 DB INSERT 금지.
+
+직접 status UPDATE 금지.
+
+management_override로 강제 성공 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 active version 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 active version:
+
+cv_bw6pee53qf4l2ipi
+
+현재 curriculum_items:
+50개
+
+정상 upload가 새로운 curriculum_version을 생성한다면:
+
+old version을 즉시 물리삭제 금지.
+
+새 version 생성
+→ 구조 검증
+→ 정상 activation
+→ 이후 old version archive
+
+순서로 처리.
+
+old version ID와 new version ID 모두 기록.
+
+새 curriculum 내용이 기존 canonical v2.0과 동일하다면
+중복/충돌을 정상 importer가 어떻게 처리하는지 따른다.
+
+임의 dedupe SQL 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 정상 setup tables 생성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids에 기존 강제삽입 때문에 없었던:
+
+- x_setup_files
+- x_setup_submissions
+- x_curriculum_profiles
+- x_curriculum_levels
+
+가 정상 upload/structure flow를 통해 생성되는지 확인.
+
+최종적으로 Toykids도
+일반 신규 X 수영장과 동일한 setup record를 가져야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. global_template_sets prerequisite
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 조사에서:
+
+global_template_sets ACTIVE = 0
+
+때문에 canonical READY transition이 막혔다고 보고했다.
+
+이번에는 절대 READY를 강제로 올리지 말 것.
+
+정상 신규가입 flow에서
+global_template_sets ACTIVE가 반드시 필요한 구조라면:
+
+왜 현재 0인지 조사.
+
+필요한 canonical global template set이
+원래 시스템에 존재하지만 ARCHIVED 되어 있는 것인지,
+신규 X setup 과정에서 생성/활성화되어야 하는 것인지 확인.
+
+정상 신규가입 시스템 자체가
+global_template_sets ACTIVE=0 때문에 막힌다면
+그것은 Toykids 문제가 아니라 RELEASE BLOCKER다.
+
+그 경우 임의 우회하지 말고 STOP하고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. student_curriculum_assignments
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 231 SCA를 바로 삭제하지 말 것.
+
+정상 canonical setup에서
+SCA가 언제 생성되는지 실제 확인.
+
+새 active curriculum version이 생성되면
+정상 provisioning logic으로 현재 재원 학생에게
+assignment가 생성/갱신되어야 한다.
+
+확인:
+
+- 현재 재원학생 수
+- 정상 생성 SCA 수
+- pool_id
+- student_id
+- curriculum_version_id
+- duplicate 0
+- 타 pool 0
+
+기존 231건과 새 canonical assignment의 관계를 비교.
+
+정상 flow가 SCA를 자동 관리한다면
+그 결과를 canonical source로 사용.
+
+직접 231 INSERT 재실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 기존 progress 데이터 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+새 curriculum version이 생성됐다고 해서
+기존:
+
+growth_events
+CPO
+SCP
+
+를 삭제하거나 0으로 초기화하지 말 것.
+
+현재 시스템의 version transition 규칙에 따라
+progress가 어떻게 유지/이관되는지 확인.
+
+기존 SCP의:
+
+prev_curriculum_version_id
+prev_display_pct
+
+등 transition 지원 구조가 있으면
+정상 로직 사용.
+
+임의로 progress % 복사 금지.
+
+정상 version transition으로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. canonical READY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 READY는 반드시
+정상 prerequisite와 canonical activation API를 통해 획득.
+
+최종 상태:
+
+xmode_config_status = READY
+
+이어야 하지만,
+
+DB 직접 UPDATE
+reconciliation script
+management override만으로 READY
+
+는 이번 성공으로 인정하지 않는다.
+
+"일반 신규 수영장도 동일하게 이 과정을 거쳐 READY가 된다"
+
+는 경로여야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 정상 적용 후 AI Diary E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids 정상 setup 완료 후
+실제 AI Diary 1건 테스트.
+
+명확한 내용 사용:
+
+"평영 팔동작을 연습했고 동작이 안정되었습니다."
+
+확인:
+
+AI generate
+→ request_id
+→ curriculum_matches
+→ match_token
+→ generated common/student contents
+→ insert
+→ save
+
+DB:
+
+ai_generated = true
+ai_trace_id IS NOT NULL
+
+그리고:
+
+growth_event source=match_token
+→ CPO
+→ SCP
+
+정상.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Manual Diary regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Manual Diary pipeline도 유지:
+
+Manual Diary
+→ CurriculumEvidenceResolver
+→ teacher_manual growth_event
+→ CPO
+→ SCP
+
+기존:
+
+teacher_manual growth_events 194
+CPO 140
+SCP 146
+
+가 setup 재적용 과정에서 사라지거나 초기화되면 즉시 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. AI 생성 내용 자체 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 직전에
+AI 일지에서 입력 텍스트만 저장되고
+AI 생성 결과가 적용되지 않는 것 같다고 보고함.
+
+이번 E2E에서 반드시 같이 확인:
+
+교사 입력 원문
+≠
+최종 AI generated diary
+
+확인:
+
+- commonContent 정상
+- studentNotes 정상
+- Insert 후 작성화면 정상
+- 저장 DB content 정상
+- 다시 열었을 때 AI 생성 내용 정상
+
+provenance만 true이고
+생성 내용이 깨지면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 최종 화면 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids 실제 Production에서:
+
+- X status READY
+- Admin curriculum 정상
+- Parent curriculum gauge 정상
+- X Dashboard curriculum KPI 정상
+- AI curriculum search 정상
+- AI Diary 정상
+- Manual Diary 정상
+- 회원/반/일지 기존 운영 데이터 정상
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 이번 작업에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 테스트 pool 생성
+- Toykids 회원데이터 초기화
+- Toykids 일지 삭제
+- CPO/SCP 초기화
+- curriculum DB 직접 강제 INSERT
+- READY 직접 UPDATE
+- SCA 직접 대량 INSERT
+- management_override로 실패 우회
+- prerequisite 실패 숨기기
+- 새 AI Engine 구조 개발
+- 새 OTA 발행
+
+이번 작업은 우선
+"Toykids를 정상 신규가입 canonical curriculum setup 상태로 만드는 것"
+까지가 목적.
+
+앱 코드 변경이 정말 필요한 blocker가 발견되면
+임의 수정하지 말고 먼저 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Toykids curriculum DOCX 실제 원본 위치
+2. 작업 전 snapshot
+3. 실제 canonical upload API
+4. upload 결과
+5. structure 결과
+6. 생성 x_setup_files
+7. 생성 x_setup_submissions
+8. 생성 x_curriculum_profiles
+9. 생성 x_curriculum_levels
+10. old curriculum version
+11. new curriculum version
+12. curriculum_items 수
+13. global_template_sets prerequisite 결과
+14. canonical READY transition 결과
+15. SCA 정상 생성/갱신 결과
+16. 기존 growth_events 보존 여부
+17. CPO 보존 여부
+18. SCP/version transition 결과
+19. AI Diary curriculum_matches
+20. ai_generated / ai_trace_id
+21. AI generated content 저장/재조회 결과
+22. match_token growth_event
+23. CPO/SCP 결과
+24. Manual Diary regression
+25. Parent/Admin/X 결과
+26. Toykids가 일반 신규 X pool과 구조적으로 동일해졌는지 YES/NO
+27. 잔존 blocker
+
+정상 신규가입 flow를 끝까지 그대로 통과했을 때만 PASS.
+
+완료 후 STOP.
