@@ -1,0 +1,169 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL FINAL CLOSE — APPROVED VERSION BINDING + ROLLBACK TEST]
+
+현재 구조 유지.
+새 기능/리팩터링 금지.
+
+남은 blocker 2개만 해결한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. APPROVED profile과 curriculum_version 정확히 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 activate-local target query가:
+
+x_curriculum_profiles.status='APPROVED'
++
+같은 pool의 최신 DRAFT curriculum_version
+
+을 조합하는 구조라면 위험하다.
+
+반드시:
+
+"실제로 승인된 그 curriculum_version"
+
+1개를 선택해야 한다.
+
+현재 schema 조사 후
+가장 작은 변경으로 아래 중 하나를 canonical하게 구현:
+
+A.
+x_curriculum_profiles에
+curriculum_version_id 직접 저장
+
+또는
+
+B.
+approved import/file/batch identity를 통해
+정확한 curriculum_version과 연결
+
+또는
+
+C.
+이미 존재하는 확실한 FK/identity가 있으면 그것 사용
+
+중요:
+
+pool_id만 같다는 이유로
+APPROVED profile과 임의의 DRAFT version을 JOIN 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. activate-local 선택 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 규칙:
+
+APPROVED profile
+→ 해당 profile이 승인한 정확한 Local version
+→ activate
+
+운영자 version id 입력은 여전히 필요 없어야 한다.
+
+테스트:
+
+Case A:
+Draft A 생성
+→ A 승인
+
+Draft B 생성
+→ B 미승인
+
+activate-local
+→ 반드시 A 활성화
+→ B는 inactive 유지
+
+Case B:
+A 승인 후 B도 새로 승인
+
+activate-local
+→ 현재 승인 대상으로 명시된 B 활성화
+
+"최신 created_at"만으로 선택 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 rollback failure injection test
+━━━━━━━━━━━━━━━━━━━━━━
+
+activate-local transaction 중간에
+의도적으로 실패시키는 테스트 추가.
+
+예:
+
+old deactivate 성공 후
+new activate 직전 또는 이후 강제 throw
+
+검증:
+
+old:
+is_active=true 유지
+archived_at 기존값 유지
+
+new:
+is_active=false
+import_status DRAFT/VALIDATED 유지
+
+pool:
+READY로 변경되지 않음
+
+profile:
+ACTIVATED로 변경되지 않음
+
+partial activation = 0
+
+실제 테스트 PASS 필요.
+코드 검토만으로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production/Render
+━━━━━━━━━━━━━━━━━━━━━━
+
+schema 변경 필요 시 migration 실행.
+
+테스트
+→ main push
+→ Render Production 자동 배포
+→ 배포 완료 대기
+→ /health commit == main HEAD 확인
+→ smoke
+
+까지 Replit이 완료.
+
+"배포 트리거됨"에서 완료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Toykids 데이터 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업 중 새 Toykids DOCX 업로드 금지.
+
+기존:
+
+Global 50
+SCA 231
+teacher_manual growth_events 194
+CPO
+SCP
+
+변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. APPROVED profile ↔ version 연결 방식
+2. DB/schema 변경 여부
+3. A 승인 + B 미승인 테스트 결과
+4. A 승인 + B 승인 테스트 결과
+5. rollback failure injection 결과
+6. 관련 테스트
+7. main SHA
+8. Render LIVE SHA
+9. /health commit
+10. Toykids 기존 데이터 보존
+11. 잔존 blocker
+12. Toykids Local DOCX 업로드 준비 YES/NO
+
+잔존 blocker 0일 때만 PASS.
+
+완료 후 STOP.

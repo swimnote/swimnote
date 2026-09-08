@@ -200,10 +200,19 @@ router.post(
             `);
             const existingVersionId = (existingCheck as any).rows?.[0]?.id as string | undefined;
 
+            // profileId가 있으면 나중에 curriculum_version_id를 기록하기 위해 미리 조회
+            const profileIdRes = await superAdminDb.execute(
+              sql`SELECT id FROM x_curriculum_profiles WHERE pool_id = ${pool.id} LIMIT 1`
+            );
+            const profileIdForVersionLink = (profileIdRes as any).rows?.[0]?.id as string | undefined;
+
+            let resolvedVersionId: string | undefined;
+
             if (existingVersionId) {
               console.log(
                 `[x04-structuring] duplicate content_hash → 기존 version 재사용 (pool=${pool.id}, version=${existingVersionId})`
               );
+              resolvedVersionId = existingVersionId;
               // items 이미 존재 — 재생성 불필요
             } else {
               // 3. 새 Local version 생성 (is_active=false — activate-local TX에서만 활성화)
@@ -243,6 +252,7 @@ router.post(
               const newVersionId = (newVersionRes as any).rows?.[0]?.id as string | undefined;
 
               if (newVersionId) {
+                resolvedVersionId = newVersionId;
                 // 4. searchable_items → curriculum_items INSERT
                 //    (기존 version의 items는 절대 변경하지 않음)
                 for (const item of structured.searchable_items) {
@@ -259,6 +269,16 @@ router.post(
                   `[x04-structuring] 새 Local version 생성 (is_active=false): pool=${pool.id}, version=${newVersionId}, items=${structured.searchable_items.length}개`
                 );
               }
+            }
+
+            // 5. profile.curriculum_version_id 기록
+            //    approve 단계에서 "어떤 version이 승인된 것인지" 추적하기 위한 FK
+            if (resolvedVersionId && profileIdForVersionLink) {
+              await superAdminDb.execute(sql`
+                UPDATE x_curriculum_profiles
+                  SET curriculum_version_id = ${resolvedVersionId}, updated_at = NOW()
+                WHERE id = ${profileIdForVersionLink}
+              `);
             }
           }
 
@@ -566,18 +586,20 @@ router.post(
       // x_curriculum_profiles.status = 'APPROVED' AND
       // 해당 pool에 is_active=false AND is_global_reference=false AND import_status='DRAFT' 인
       // Local version이 존재해야 함 (structure 단계에서 생성, approve 후 미활성 상태)
+      // ── Step 1: 정확히 승인된 curriculum_version 선택 ──
+      // curriculum_versions.approved_at IS NOT NULL = approve 단계에서 명시적으로 승인된 version.
+      // pool_id 기반 임의 JOIN 금지 — approved_at으로 정확한 version 추적.
+      // Case A: Draft A 승인 후 B 구조화(미승인) → cv-A.approved_at 있음, cv-B 없음 → A 선택
+      // Case B: A 승인, B 승인 → approved_at DESC → 가장 최근 승인 version(B) 선택
       const approvedVersionRes = await superAdminDb.execute(sql`
-        SELECT cv.id AS version_id, cv.version_name, xcp.id AS profile_id
-        FROM curriculum_versions cv
-        JOIN x_curriculum_profiles xcp
-          ON xcp.pool_id = cv.swimming_pool_id
-          AND xcp.status = 'APPROVED'
-        WHERE cv.swimming_pool_id    = ${pool.id}
-          AND cv.is_global_reference = false
-          AND cv.is_active           = false
-          AND cv.import_status       IN ('DRAFT', 'VALIDATED')
-          AND cv.archived_at         IS NULL
-        ORDER BY cv.created_at DESC, xcp.created_at DESC
+        SELECT id AS version_id, version_name
+        FROM curriculum_versions
+        WHERE swimming_pool_id   = ${pool.id}
+          AND is_global_reference = false
+          AND is_active           = false
+          AND approved_at         IS NOT NULL
+          AND archived_at         IS NULL
+        ORDER BY approved_at DESC
         LIMIT 1
       `);
       const targetRow = (approvedVersionRes as any).rows?.[0];
@@ -688,7 +710,7 @@ router.post(
 
       if (type === "curriculum" || type === "both") {
         const profileRes = await superAdminDb.execute(
-          sql`SELECT id, status FROM x_curriculum_profiles WHERE pool_id = ${pool.id} LIMIT 1`
+          sql`SELECT id, status, curriculum_version_id FROM x_curriculum_profiles WHERE pool_id = ${pool.id} LIMIT 1`
         );
         const p = (profileRes as any).rows?.[0];
         if (!p) return res.status(404).json({ error: "커리큘럼 구조화 데이터가 없습니다." });
@@ -700,6 +722,17 @@ router.post(
             status = 'APPROVED', reviewed_at = NOW(), reviewed_by = ${actorId}, updated_at = NOW()
           WHERE pool_id = ${pool.id}
         `);
+        // curriculum_version_id FK가 있으면 해당 curriculum_version에 approved_at 기록
+        // → activate-local이 "정확히 이 승인된 version"을 선택할 수 있게 됨
+        const approvedVersionId = p.curriculum_version_id as string | null;
+        if (approvedVersionId) {
+          await superAdminDb.execute(sql`
+            UPDATE curriculum_versions
+              SET approved_at = NOW(), updated_at = NOW()
+            WHERE id = ${approvedVersionId}
+              AND is_global_reference = false
+          `);
+        }
         approved.push("curriculum");
       }
 

@@ -754,15 +754,18 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
       .mockResolvedValueOnce({ rows: [] })                                   // 7. DELETE x_curriculum_levels
       .mockResolvedValueOnce({ rows: [] })                                   // 8. INSERT x_curriculum_levels (level 1)
       // 500 Pool Standard — new version-per-import flow:
+      // 순서: content_hash 체크 → profile id (version FK) → new version 생성 → items
       .mockResolvedValueOnce({ rows: [] })                                   // 9.  SELECT content_hash (not found → new version)
-      .mockResolvedValueOnce({ rows: [] })                                   // 10. SELECT global overwrite check
-      .mockResolvedValueOnce({ rows: [] })                                   // 11. INSERT new curriculum_version (is_active=false)
-      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] })          // 12. SELECT new version id
-      .mockResolvedValueOnce({ rows: [] })                                   // 13. INSERT item 0 (ON CONFLICT DO NOTHING)
-      .mockResolvedValueOnce({ rows: [] })                                   // 14. INSERT item 1
-      .mockResolvedValueOnce({ rows: [] })                                   // 15. INSERT item 2
-      .mockResolvedValueOnce({ rows: [] })                                   // 16. audit version
-      .mockResolvedValueOnce({ rows: [] });                                   // 17. audit insert
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] }) // 10. SELECT profile id (for curriculum_version_id FK)
+      .mockResolvedValueOnce({ rows: [] })                                   // 11. SELECT global overwrite check
+      .mockResolvedValueOnce({ rows: [] })                                   // 12. INSERT new curriculum_version (is_active=false)
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] })          // 13. SELECT new version id
+      .mockResolvedValueOnce({ rows: [] })                                   // 14. INSERT item 0 (ON CONFLICT DO NOTHING)
+      .mockResolvedValueOnce({ rows: [] })                                   // 15. INSERT item 1
+      .mockResolvedValueOnce({ rows: [] })                                   // 16. INSERT item 2
+      .mockResolvedValueOnce({ rows: [] })                                   // 17. UPDATE profile SET curriculum_version_id (version FK 기록)
+      .mockResolvedValueOnce({ rows: [] })                                   // 18. audit version
+      .mockResolvedValueOnce({ rows: [] });                                   // 19. audit insert
 
     (parseCurriculumDocx as any).mockReturnValue({
       template_version: "1.0",
@@ -851,10 +854,12 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
       .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
       .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
       .mockResolvedValueOnce({ rows: [] }) // SELECT content_hash (not found)
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] }) // SELECT profile id (for version FK)
       .mockResolvedValueOnce({ rows: [] }) // SELECT global overwrite check
       .mockResolvedValueOnce({ rows: [] }) // INSERT new curriculum_version (is_active=false)
       .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT new version id
       .mockResolvedValueOnce({ rows: [] }) // INSERT item 0 (ON CONFLICT DO NOTHING)
+      .mockResolvedValueOnce({ rows: [] }) // UPDATE profile SET curriculum_version_id
       .mockResolvedValueOnce({ rows: [] }) // audit version
       .mockResolvedValueOnce({ rows: [] }); // audit insert
 
@@ -900,10 +905,12 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
       .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
       .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
       .mockResolvedValueOnce({ rows: [] }) // SELECT content_hash → [] (not found, new version needed)
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] }) // SELECT profile id (version FK)
       .mockResolvedValueOnce({ rows: [] }) // SELECT global overwrite check
       .mockResolvedValueOnce({ rows: [] }) // INSERT new curriculum_version (is_active=false)
       .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT new version id
       .mockResolvedValueOnce({ rows: [] }) // INSERT item 0 (ON CONFLICT DO NOTHING)
+      .mockResolvedValueOnce({ rows: [] }) // UPDATE profile SET curriculum_version_id
       .mockResolvedValueOnce({ rows: [] }) // audit version
       .mockResolvedValueOnce({ rows: [] }); // audit insert
 
@@ -936,8 +943,10 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
       .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
       .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
       .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] }) // SELECT profile id (version FK)
       // duplicate content_hash detected → skip new version/items
       .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT content_hash → found!
+      .mockResolvedValueOnce({ rows: [] }) // UPDATE profile SET curriculum_version_id (existing version)
       .mockResolvedValueOnce({ rows: [] }) // audit version
       .mockResolvedValueOnce({ rows: [] }); // audit insert
 
@@ -959,5 +968,170 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
       return q.includes("INSERT INTO") && q.includes("curriculum_items");
     });
     expect(hasItemInsert).toBe(false); // 재사용: 새 items INSERT 0
+  });
+});
+
+// ── APPROVED VERSION BINDING Tests ────────────────────────────────────────────
+//
+// A 승인 + B 미승인 → activate-local은 반드시 A 선택 (Case A)
+// A 승인 + B 승인   → activate-local은 가장 최근 승인(B) 선택  (Case B)
+// Rollback failure injection — partial activation = 0 보장
+
+const MOCK_CV_A = "cv-version-A-001";
+const MOCK_CV_B = "cv-version-B-002";
+const MOCK_PROFILE_ID_ACT = "profile-act-001";
+const MOCK_OLD_ACTIVE_CV = "cv-old-active-000";
+
+// activate-local 공통 pool look up 헬퍼
+function mockActivateLocalPool() {
+  return { rows: [{ id: MOCK_POOL_ID, name: MOCK_POOL_NAME, approval_status: "approved" }] };
+}
+
+describe("APPROVED VERSION BINDING — activate-local target selection", () => {
+  // ─── Case A: Draft A 승인, Draft B 구조화(미승인) → A 선택 ─────────────────
+  it("Case A: Draft A approved + Draft B NOT approved → activate-local selects A", async () => {
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      // 1. getPoolRow
+      .mockResolvedValueOnce(mockActivateLocalPool())
+      // 2. SELECT approved_at-based version → cv-A만 approved_at 있음
+      //    (cv-B는 approved_at=null이므로 쿼리 결과에 포함 안 됨)
+      .mockResolvedValueOnce({ rows: [{ version_id: MOCK_CV_A, version_name: "x-local-hashA" }] })
+      // 3. 기존 active Local version 조회 (없음)
+      .mockResolvedValueOnce({ rows: [] })
+      // 4. BEGIN
+      .mockResolvedValueOnce({ rows: [] })
+      // 5. 3-b: new version activate (cv-A)
+      .mockResolvedValueOnce({ rows: [] })
+      // 6. 3-c: pool READY
+      .mockResolvedValueOnce({ rows: [] })
+      // 7. 3-d: profile ACTIVATED
+      .mockResolvedValueOnce({ rows: [] })
+      // 8. COMMIT
+      .mockResolvedValueOnce({ rows: [] })
+      // 9. audit insert
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/activate-local`)
+      .set("Authorization", "Bearer super_token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.activated_version_id).toBe(MOCK_CV_A);
+    expect(res.body.deactivated_version_id).toBeNull();
+
+    // approved_at 쿼리: cv-B (approved_at=null) 포함 안 됨
+    const calls = (superAdminDb.execute as any).mock.calls;
+    const approvedQuery = calls.find((c: any[]) => {
+      const q = getSqlText(c);
+      return q.includes("curriculum_versions") && q.includes("approved_at") && !q.includes("UPDATE");
+    });
+    expect(approvedQuery).toBeTruthy();
+    // SELECT에 pool_id join만 있고 x_curriculum_profiles JOIN 없음 (임의 JOIN 금지)
+    const q = getSqlText(approvedQuery);
+    expect(q.includes("x_curriculum_profiles")).toBe(false);
+  });
+
+  // ─── Case B: A 승인 + B 나중에 승인 → 가장 최근 승인(B) 선택 ─────────────────
+  it("Case B: Draft A approved first, Draft B approved later → activate-local selects B (most recent)", async () => {
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      // 1. getPoolRow
+      .mockResolvedValueOnce(mockActivateLocalPool())
+      // 2. SELECT ORDER BY approved_at DESC → cv-B가 more recent
+      .mockResolvedValueOnce({ rows: [{ version_id: MOCK_CV_B, version_name: "x-local-hashB" }] })
+      // 3. 기존 active Local version 조회 (없음)
+      .mockResolvedValueOnce({ rows: [] })
+      // 4. BEGIN
+      .mockResolvedValueOnce({ rows: [] })
+      // 5. 3-b: new version activate (cv-B)
+      .mockResolvedValueOnce({ rows: [] })
+      // 6. 3-c: pool READY
+      .mockResolvedValueOnce({ rows: [] })
+      // 7. 3-d: profile ACTIVATED
+      .mockResolvedValueOnce({ rows: [] })
+      // 8. COMMIT
+      .mockResolvedValueOnce({ rows: [] })
+      // 9. audit insert
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/activate-local`)
+      .set("Authorization", "Bearer super_token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.activated_version_id).toBe(MOCK_CV_B); // B 선택 확인
+  });
+
+  // ─── approved_at 없는 pool → 409 (APPROVED version 없음) ────────────────────
+  it("No approved curriculum_version → 409 not 200", async () => {
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      .mockResolvedValueOnce(mockActivateLocalPool())
+      .mockResolvedValueOnce({ rows: [] }); // approved_at query → empty → 409
+
+    const res = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/activate-local`)
+      .set("Authorization", "Bearer super_token");
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/APPROVED/);
+  });
+});
+
+describe("APPROVED VERSION BINDING — activate-local rollback failure injection", () => {
+  // old deactivate 성공 후 new activate 강제 throw → ROLLBACK → partial activation = 0
+  it("TX failure after old deactivate → ROLLBACK → no partial activation", async () => {
+    const throwError = new Error("INJECTED: simulate activate step failure");
+
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      // 1. getPoolRow
+      .mockResolvedValueOnce(mockActivateLocalPool())
+      // 2. SELECT approved version
+      .mockResolvedValueOnce({ rows: [{ version_id: MOCK_CV_A, version_name: "x-local-hashA" }] })
+      // 3. SELECT old active version → 기존 active 있음
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_OLD_ACTIVE_CV }] })
+      // 4. BEGIN
+      .mockResolvedValueOnce({ rows: [] })
+      // 5. 3-a: old deactivate 성공
+      .mockResolvedValueOnce({ rows: [] })
+      // 6. 3-b: new activate → THROW (의도적 실패)
+      .mockRejectedValueOnce(throwError)
+      // 7. ROLLBACK (catch 블록)
+      .mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/activate-local`)
+      .set("Authorization", "Bearer super_token");
+
+    // TX 실패 → 500 반환
+    expect(res.status).toBe(500);
+
+    const calls = (superAdminDb.execute as any).mock.calls;
+
+    // ROLLBACK이 호출됐어야 함
+    const hasRollback = calls.some((c: any[]) => getSqlText(c).includes("ROLLBACK"));
+    expect(hasRollback).toBe(true);
+
+    // COMMIT은 호출되지 않았어야 함 (partial commit = 0)
+    const hasCommit = calls.some((c: any[]) => getSqlText(c).trim() === "COMMIT");
+    expect(hasCommit).toBe(false);
+
+    // pool READY 업데이트 시도 없음 (3-c가 ROLLBACK 후에 실행 안 됨)
+    const hasPoolReady = calls.some((c: any[]) => {
+      const q = getSqlText(c);
+      return q.includes("xmode_config_status") && q.includes("READY");
+    });
+    expect(hasPoolReady).toBe(false);
+
+    // profile ACTIVATED 업데이트 시도 없음
+    const hasProfileActivated = calls.some((c: any[]) => {
+      const q = getSqlText(c);
+      return q.includes("x_curriculum_profiles") && q.includes("ACTIVATED");
+    });
+    expect(hasProfileActivated).toBe(false);
   });
 });
