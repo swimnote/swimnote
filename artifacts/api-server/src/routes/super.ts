@@ -4801,13 +4801,12 @@ router.get(
                cg.id AS class_id, cg.name AS class_name,
                u.name AS teacher_name,
                (SELECT COUNT(*) FROM parent_students ps
-                  JOIN parent_accounts pa ON ps.parent_account_id = pa.id
+                  JOIN parent_accounts pa ON pa.id = ps.parent_id
                   WHERE ps.student_id = s.id AND pa.is_active = true) AS parent_count,
                (SELECT MAX(csn.created_at) FROM class_diary_student_notes csn WHERE csn.student_id = s.id) AS last_diary_at
         FROM students s
-        LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
-        LEFT JOIN class_groups cg ON cg.id = cgs.class_group_id AND cg.active = true
-        LEFT JOIN users u ON u.id = cg.teacher_id
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND NOT cg.is_deleted
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE s.swimming_pool_id = ${poolId}
           AND (${q} = '' OR s.name ILIKE ${'%' + q + '%'} OR s.phone ILIKE ${'%' + q + '%'} OR s.id ILIKE ${'%' + q + '%'})
           AND (${status} = '' OR s.status = ${status})
@@ -4855,33 +4854,32 @@ router.get(
               LIMIT 1
             `).catch(() => ({ rows: [] }))
           : Promise.resolve({ rows: [] }),
-        // Current class + teacher
+        // Current class + teacher (students.class_group_id 직접 조인)
         superAdminDb.execute(sql`
-          SELECT cg.id, cg.name AS class_name, cg.active,
+          SELECT cg.id, cg.name AS class_name, NOT cg.is_deleted AS active,
                  u.id AS teacher_id, u.name AS teacher_name, u.email AS teacher_email
-          FROM class_group_students cgs
-          JOIN class_groups cg ON cg.id = cgs.class_group_id
-          LEFT JOIN users u ON u.id = cg.teacher_id
-          WHERE cgs.student_id = ${memberId} AND cg.swimming_pool_id = ${poolId}
-          ORDER BY cg.active DESC, cg.name ASC
+          FROM students s
+          JOIN class_groups cg ON cg.id = s.class_group_id
+          LEFT JOIN users u ON u.id = cg.teacher_user_id
+          WHERE s.id = ${memberId} AND s.swimming_pool_id = ${poolId}
           LIMIT 5
         `).catch(() => ({ rows: [] })),
-        // Linked parents (pool-scoped via students.swimming_pool_id)
+        // Linked parents (pool-scoped)
         superAdminDb.execute(sql`
           SELECT pa.id, pa.name, pa.phone,
                  ps.created_at AS linked_at
           FROM parent_students ps
-          JOIN parent_accounts pa ON pa.id = ps.parent_account_id
+          JOIN parent_accounts pa ON pa.id = ps.parent_id
           WHERE ps.student_id = ${memberId} AND pa.swimming_pool_id = ${poolId}
           ORDER BY ps.created_at DESC NULLS LAST
           LIMIT 10
         `).catch(() => ({ rows: [] })),
-        // Recent diaries (5)
+        // Recent diary notes (5) — class_diary_student_notes
         superAdminDb.execute(sql`
-          SELECT id, created_at, title, ai_generated
-          FROM diary_entries
-          WHERE student_id = ${memberId}
-          ORDER BY created_at DESC
+          SELECT csn.id, csn.created_at, csn.note_content
+          FROM class_diary_student_notes csn
+          WHERE csn.student_id = ${memberId}
+          ORDER BY csn.created_at DESC
           LIMIT 5
         `).catch(() => ({ rows: [] })),
         // Recent notifications (5) — by ref_id (student) or pool
@@ -4935,7 +4933,7 @@ router.get(
         SELECT u.id, u.name, u.email, u.phone, u.role::text AS role,
                u.created_at, u.last_login_at,
                (SELECT COUNT(*) FROM class_groups cg
-                WHERE cg.teacher_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.active = true
+                WHERE cg.teacher_user_id = u.id AND cg.swimming_pool_id = ${poolId} AND NOT cg.is_deleted
                ) AS active_class_count,
                (SELECT COUNT(*) FROM event_logs el
                 WHERE el.pool_id = ${poolId} AND el.actor_id = u.id
@@ -4975,18 +4973,19 @@ router.get(
       const [classRes, aiRes, errorRes, notifRes] = await Promise.all([
         // Assigned classes (pool-scoped)
         superAdminDb.execute(sql`
-          SELECT cg.id, cg.name, cg.active, cg.created_at,
-                 (SELECT COUNT(*) FROM class_group_students cgs WHERE cgs.class_group_id = cg.id) AS student_count
+          SELECT cg.id, cg.name, NOT cg.is_deleted AS active, cg.created_at,
+                 (SELECT COUNT(*) FROM students s2 WHERE s2.class_group_id = cg.id AND s2.status = 'active') AS student_count
           FROM class_groups cg
-          WHERE cg.teacher_id = ${teacherId} AND cg.swimming_pool_id = ${poolId}
-          ORDER BY cg.active DESC, cg.name ASC
+          WHERE cg.teacher_user_id = ${teacherId} AND cg.swimming_pool_id = ${poolId}
+          ORDER BY cg.is_deleted ASC, cg.name ASC
           LIMIT 20
         `).catch(() => ({ rows: [] })),
-        // Recent AI diary traces (30d)
+        // Recent AI event logs (30d)
         superAdminDb.execute(sql`
-          SELECT id, feature, status, llm_model, total_tokens, latency_ms, created_at
-          FROM ai_traces
+          SELECT id, feature, category, level, description, created_at
+          FROM event_logs
           WHERE pool_id = ${poolId} AND actor_id = ${teacherId}
+            AND category = 'AI'
           ORDER BY created_at DESC
           LIMIT 10
         `).catch(() => ({ rows: [] })),
@@ -5035,7 +5034,7 @@ router.get(
     try {
       const rows = await superAdminDb.execute(sql`
         SELECT pa.id, pa.name, pa.phone, pa.created_at, pa.is_active,
-               (SELECT COUNT(*) FROM parent_students ps WHERE ps.parent_account_id = pa.id) AS linked_student_count
+               (SELECT COUNT(*) FROM parent_students ps WHERE ps.parent_id = pa.id) AS linked_student_count
         FROM parent_accounts pa
         WHERE pa.swimming_pool_id = ${poolId}
           AND (${q} = '' OR pa.name ILIKE ${'%' + q + '%'} OR pa.phone ILIKE ${'%' + q + '%'})
@@ -5077,9 +5076,8 @@ router.get(
                  cg.name AS class_name
           FROM parent_students ps
           JOIN students s ON s.id = ps.student_id
-          LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
-          LEFT JOIN class_groups cg ON cg.id = cgs.class_group_id AND cg.active = true
-          WHERE ps.parent_account_id = ${parentId}
+          LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND NOT cg.is_deleted
+          WHERE ps.parent_id = ${parentId}
             AND s.swimming_pool_id = ${poolId}
           ORDER BY s.status ASC, s.name ASC
           LIMIT 20
@@ -5133,14 +5131,14 @@ router.get(
     const { q = "" } = req.query as Record<string, string>;
     try {
       const rows = await superAdminDb.execute(sql`
-        SELECT cg.id, cg.name, cg.active, cg.created_at, cg.updated_at,
+        SELECT cg.id, cg.name, NOT cg.is_deleted AS active, cg.created_at, cg.updated_at,
                u.id AS teacher_id, u.name AS teacher_name,
-               (SELECT COUNT(*) FROM class_group_students cgs WHERE cgs.class_group_id = cg.id) AS student_count
+               (SELECT COUNT(*) FROM students s2 WHERE s2.class_group_id = cg.id AND s2.status = 'active') AS student_count
         FROM class_groups cg
-        LEFT JOIN users u ON u.id = cg.teacher_id
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE cg.swimming_pool_id = ${poolId}
           AND (${q} = '' OR cg.name ILIKE ${'%' + q + '%'})
-        ORDER BY cg.active DESC, cg.name ASC
+        ORDER BY cg.is_deleted ASC, cg.name ASC
         LIMIT ${rawLimit}
       `);
       res.json({ classes: rows.rows });
@@ -5158,10 +5156,10 @@ router.get(
     const { id: poolId, classId } = req.params;
     try {
       const classRes = await superAdminDb.execute(sql`
-        SELECT cg.id, cg.name, cg.active, cg.created_at, cg.updated_at,
+        SELECT cg.id, cg.name, NOT cg.is_deleted AS active, cg.created_at, cg.updated_at,
                u.id AS teacher_id, u.name AS teacher_name, u.email AS teacher_email
         FROM class_groups cg
-        LEFT JOIN users u ON u.id = cg.teacher_id
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE cg.swimming_pool_id = ${poolId} AND cg.id = ${classId}
         LIMIT 1
       `);
@@ -5171,21 +5169,22 @@ router.get(
         // Students in this class
         superAdminDb.execute(sql`
           SELECT s.id, s.name, s.status, s.current_level_order,
-                 cgs.created_at AS joined_at
-          FROM class_group_students cgs
-          JOIN students s ON s.id = cgs.student_id
-          WHERE cgs.class_group_id = ${classId}
+                 s.created_at AS joined_at
+          FROM students s
+          WHERE s.class_group_id = ${classId}
             AND s.swimming_pool_id = ${poolId}
           ORDER BY s.status ASC, s.name ASC
           LIMIT 100
         `).catch(() => ({ rows: [] })),
         // Recent diary entries in this class
         superAdminDb.execute(sql`
-          SELECT de.id, de.student_id, s.name AS student_name, de.created_at, de.ai_generated
-          FROM diary_entries de
-          JOIN students s ON s.id = de.student_id
-          WHERE de.class_group_id = ${classId}
-          ORDER BY de.created_at DESC
+          SELECT csn.id, csn.student_id, s.name AS student_name, csn.created_at
+          FROM class_diary_student_notes csn
+          JOIN students s ON s.id = csn.student_id
+          WHERE csn.diary_id IN (
+            SELECT cd.id FROM class_diaries cd WHERE cd.class_group_id = ${classId}
+          )
+          ORDER BY csn.created_at DESC
           LIMIT 5
         `).catch(() => ({ rows: [] })),
         // Schedules (if class_schedules exists)
@@ -5298,7 +5297,7 @@ router.get(
           JOIN x_curriculum_packages xp ON xp.id = xca.package_id
           LEFT JOIN (
             SELECT class_group_id, COUNT(*) AS student_count
-            FROM class_group_students
+            FROM students WHERE status = 'active'
             GROUP BY class_group_id
           ) cgs_cnt ON cgs_cnt.class_group_id = xca.class_group_id
           WHERE xca.swimming_pool_id = ${poolId}
