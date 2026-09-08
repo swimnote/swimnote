@@ -254,8 +254,9 @@ export default function TeacherDiaryScreen() {
             // writeIntent=true: classGroupId + lessonDate 진입은 Quick Write / 미작성 수업 선택
             // → 중간 history 화면 없이 즉시 write 뷰로 진입 (§3)
             openGroup(found, undefined, true);
-            handledParamKey.current = paramKey;
           }
+          // found 여부와 무관하게 처리 완료 표시 — null이면 무한로딩 방지 (WeeklySchedule fallback)
+          handledParamKey.current = paramKey;
         }
       }
     } catch (e) { if (__DEV__) console.error('[load] error:', e); }
@@ -1520,10 +1521,13 @@ export default function TeacherDiaryScreen() {
   }
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => { statusMap[g.id] = { attChecked: attMap[g.id] || 0, diaryDone: diarySet.has(`${g.id}_${targetDate}`), hasPhotos: false }; });
-  // classGroupId / editDiaryId param이 있으면 selectedGroup 자동 설정될 때까지 loading 처리.
-  // API 완료 후 setLoading(false)와 setSelectedGroup() 배치 타이밍 차이로
-  // 한 프레임 동안 WeeklySchedule이 flash되는 버그 방지.
-  const waitingForAutoSelect = !selectedGroup && !!(params.classGroupId || params.editDiaryId);
+  // classGroupId / editDiaryId param이 있으면 load()가 처리를 마칠 때까지 spinner 유지.
+  // - load() 완료 후 handledParamKey가 설정되면 대기 해제 (found=null 케이스도 포함)
+  // - load() 완료 전(loading=true)에는 이 조건과 무관하게 위의 loading guard에서 막힘
+  // - found=null이면 handledParamKey가 설정된 뒤 selectedGroup=null → WeeklySchedule fallback
+  const _autoSelectParamKey = params.classGroupId ?? params.editDiaryId;
+  const waitingForAutoSelect = !selectedGroup && !!_autoSelectParamKey
+    && handledParamKey.current !== _autoSelectParamKey;
   if (loading || waitingForAutoSelect) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
