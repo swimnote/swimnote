@@ -439,7 +439,7 @@ export default function MemberDetailScreen() {
         <SectionF_Feed
           data={data}
           themeColor={themeColor}
-          onGoDiary={() => router.push("/(admin)/diary-hub")}
+          onGoDiary={() => router.push(`/(admin)/diary-hub?studentId=${data?.student?.id ?? ""}` as any)}
           onGoAttendance={() => router.push("/(admin)/attendance")}
         />
 
