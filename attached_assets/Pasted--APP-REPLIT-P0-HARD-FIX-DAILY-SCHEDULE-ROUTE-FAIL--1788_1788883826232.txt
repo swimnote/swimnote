@@ -1,0 +1,246 @@
+[보낼 곳: APP REPLIT]
+
+[P0 HARD FIX — 일지 진입 시 DAILY SCHEDULE ROUTE 완전 제거]
+
+실기기 기준 아직 FAIL.
+
+재현:
+스케줄러에서 8월 날짜 선택
+→ 수업일지
+→ 중간에 일간스케줄 화면 노출
+→ 이후 일지목록
+
+이 동작은 금지.
+
+중요:
+이전 작업처럼 무한로딩 guard만 고치고 끝내지 말 것.
+이번 목표는 "중간 일간스케줄 화면 mount 자체 = 0"이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 진입 경로 전수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+"수업일지" 버튼을 누르는 모든 경로에서
+실제 router target을 확인.
+
+특히:
+
+- 월간 스케줄러
+- 날짜 선택 후 수업일지
+- 과거 월(8월)
+- 현재 월(9월)
+- 첫 진입
+- 재진입
+
+각각 어떤 route를 거치는지 실제 로그로 확인.
+
+아래 route/component가 중간에 mount되는지 확인:
+
+- today-schedule
+- daily-schedule
+- day-schedule
+- schedule-detail
+- 기타 일간 스케줄 화면
+
+이 중 하나라도 diary list 전에 mount되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최종 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+날짜가 이미 선택된 상태에서
+"수업일지" 누르면 항상:
+
+Scheduler
+→ canonical Diary List
+
+직행.
+
+중간 화면:
+0개.
+
+현재 canonical Teacher Diary List route가 diary-index라면:
+
+router.push({
+  pathname: "/(teacher)/diary-index",
+  params: {
+    date: selectedDate,
+    backTo: "my-schedule"
+  }
+})
+
+형태로 직접 진입.
+
+실제 코드의 canonical route/param 이름을 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 날짜별 분기 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+8월/과거 날짜에서만
+daily schedule로 보내는 legacy 분기가 있는지 확인.
+
+예:
+
+if (selectedDate !== today)
+  → daily schedule
+
+같은 로직이 있으면 제거.
+
+현재 날짜
+과거 날짜
+미래 날짜
+
+모두 동일한 Diary List 진입 규칙 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 첫 진입 / 캐시 의존 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+첫 진입과 두 번째 진입 동작이 다르면 안 됨.
+
+다음 의존성 제거:
+
+- selected schedule cache
+- previously opened day state
+- hydrated store 값
+- first mount redirect
+- useEffect 후속 navigation
+- "일간스케줄 열고 diary로 redirect" 패턴
+
+Diary List가 selectedDate param만으로
+독립적으로 열려야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Diary List 자체가 classGroupId를 요구하면 안 됨
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+"날짜의 일지 목록"으로 들어가는 경우
+특정 classGroupId가 없어도 정상이어야 한다.
+
+selectedDate만 있으면:
+
+해당 날짜의 diary list
+→ 여러 반 일지 표시
+
+가능해야 함.
+
+classGroupId가 없어서
+daily schedule로 우회하거나
+특정 반 자동 선택 화면으로 보내지 말 것.
+
+반을 바꾸고 싶을 때만:
+Back → Scheduler → 다른 수업 선택
+
+원칙 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 직접 실기기 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production iOS에서 반드시 확인:
+
+A.
+앱 완전 종료
+→ 9월 날짜 선택
+→ 수업일지
+→ Diary List 직행
+
+B.
+앱 완전 종료
+→ 8월 날짜 선택
+→ 수업일지
+→ Diary List 직행
+
+C.
+다른 8월 날짜
+→ Diary List 직행
+
+D.
+일지 없는 날짜
+→ 정상 empty Diary List
+
+E.
+뒤로가기
+→ Scheduler 복귀
+
+각 케이스에서:
+
+daily schedule mount count = 0
+
+이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 로그로 증명
+━━━━━━━━━━━━━━━━━━━━━━
+
+임시 dev log 또는 navigation trace로:
+
+Scheduler route
+→ Diary List route
+
+직접 전환되는 것을 확인.
+
+중간 route 이름이 하나라도 찍히면 FAIL.
+
+Production 개인정보 로그 남기지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 다른 기능 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서:
+
+- Diary UI
+- AI Diary
+- 서버
+- DB
+- 커리큘럼
+- 필터
+- 상세 화면
+
+수정 금지.
+
+navigation direct-entry만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP only.
+
+release/v2.0.0
+→ 테스트
+→ preflight
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 8월에서 daily schedule이 뜬 정확한 root cause
+2. 그 legacy route/분기 위치
+3. 수정 전 route chain
+4. 수정 후 route chain
+5. 9월 첫 진입 결과
+6. 8월 첫 진입 결과
+7. 일지 없는 날짜 결과
+8. daily schedule mount count
+9. 수정 파일
+10. OTA ID
+11. 잔존 blocker
+
+PASS 조건:
+
+- 8월/9월 모두 Diary List 직행
+- daily schedule mount = 0
+- first/re-entry 동일
+- 일지 없는 날짜도 정상
+- 중간 화면 0
+
+완료 후 STOP.
