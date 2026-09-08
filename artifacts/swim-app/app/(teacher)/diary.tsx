@@ -1520,7 +1520,11 @@ export default function TeacherDiaryScreen() {
   }
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => { statusMap[g.id] = { attChecked: attMap[g.id] || 0, diaryDone: diarySet.has(`${g.id}_${targetDate}`), hasPhotos: false }; });
-  if (loading) {
+  // classGroupId / editDiaryId param이 있으면 selectedGroup 자동 설정될 때까지 loading 처리.
+  // API 완료 후 setLoading(false)와 setSelectedGroup() 배치 타이밍 차이로
+  // 한 프레임 동안 WeeklySchedule이 flash되는 버그 방지.
+  const waitingForAutoSelect = !selectedGroup && !!(params.classGroupId || params.editDiaryId);
+  if (loading || waitingForAutoSelect) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title="수업 일지" homePath="/(teacher)/today-schedule" />
