@@ -46,6 +46,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { useCoreOnboarding } from "@/hooks/useOnboarding";
+import { PARENT_CORE_SLIDES } from "@/constants/onboardingContent";
 import { useParent } from "@/context/ParentContext";
 import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
@@ -1187,6 +1190,12 @@ export default function ParentHomeScreen() {
   // level_change foreground push dedup guard (3초)
   const lastLevelRefreshRef = useRef<number>(0);
 
+  // ── Core Onboarding ──────────────────────────────────────────────────────────
+  const {
+    shouldShow: showOnboarding,
+    markComplete: markOnboardingComplete,
+  } = useCoreOnboarding(token, "parent_core");
+
   // ── FREE GROWTH REPORT — 현재 월 리포트 상태 (Phase 1) ───────────────────
   type GrDisplayStatus =
     | "NOT_AVAILABLE"
@@ -2232,8 +2241,21 @@ export default function ParentHomeScreen() {
     </View>
   ) : null;
 
+  const parentSlides = PARENT_CORE_SLIDES.map((slide) => ({
+    ...slide,
+    icon: <LucideIcon name={slide.icon as any} size={32} color={NAVY} />,
+  }));
+
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
+      {/* ── Core Onboarding Sheet ─────────────────────────────────────────── */}
+      <OnboardingSheet
+        visible={showOnboarding}
+        onDismiss={markOnboardingComplete}
+        slides={parentSlides}
+        primaryLabel="시작하기"
+        logo="swimnote"
+      />
       {/* ── FIXED TOP HEADER ──────────────────────────────────────────────── */}
       <View style={[
         s.header,

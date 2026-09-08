@@ -18,6 +18,9 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useMode } from "@/context/ModeContext";
 
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { useCoreOnboarding } from "@/hooks/useOnboarding";
+import { TEACHER_CORE_SLIDES } from "@/constants/onboardingContent";
 import ScheduleCard from "@/components/teacher/today-schedule/ScheduleCard";
 import { ScheduleCardSkeleton } from "@/components/common/SkeletonBox";
 import { haptic } from "@/utils/haptic";
@@ -44,6 +47,12 @@ interface TeacherOverview {
 }
 export default function TodayScheduleScreen() {
   const { token, logout, adminUser, pool, switchRole, setLastUsedRole } = useAuth();
+
+  // ── Core Onboarding ──────────────────────────────────────────────────────────
+  const {
+    shouldShow: showOnboarding,
+    markComplete: markOnboardingComplete,
+  } = useCoreOnboarding(token, "teacher_core");
   const { themeColor } = useBrand();
   const { mode } = useMode();
   const insets = useSafeAreaInsets();
@@ -318,8 +327,23 @@ export default function TodayScheduleScreen() {
   /** §24: x_pending도 X UI */
   const isX = isXMode(mode);
 
+  // Core onboarding slides (icon은 렌더링 시 삽입)
+  const teacherSlides = TEACHER_CORE_SLIDES.map((slide) => ({
+    ...slide,
+    icon: <LucideIcon name={slide.icon} size={32} color={isX ? "#1A4070" : C.primaryAction} />,
+  }));
+
   return (
     <SafeAreaView style={[h.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
+      {/* ── Core Onboarding Sheet ─────────────────────────────────────────── */}
+      <OnboardingSheet
+        visible={showOnboarding}
+        onDismiss={markOnboardingComplete}
+        slides={teacherSlides}
+        primaryLabel="시작하기"
+        xTheme={isX}
+        logo={isX ? "x" : "swimnote"}
+      />
       {/* 헤더: X모드 = 네이비, Normal = 기본 */}
       <View style={[
         h.header,

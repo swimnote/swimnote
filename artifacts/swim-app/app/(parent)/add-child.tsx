@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import { OnboardingInlineHelp } from "@/components/onboarding/OnboardingInlineHelp";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 
 const C = Colors.light;
 
@@ -128,9 +130,11 @@ export default function AddChildScreen() {
         </View>
 
         {/* 안내 텍스트 */}
-        <Text style={[s.hint, { color: C.textSecondary }]}>
-          수영장에 등록된 이름과 일치해야 연결됩니다.
-        </Text>
+        <OnboardingInlineHelp
+          text={GUIDE_CONTENT.parent_add_child_inline.text}
+          variant="tip"
+          style={{ marginTop: 4, marginBottom: 8 }}
+        />
 
         {/* 확인 버튼 */}
         <Pressable

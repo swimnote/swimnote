@@ -23,6 +23,10 @@ import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
 import { SearchModal } from "@/components/admin/SearchModal";
 import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterModal";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { useCoreOnboarding } from "@/hooks/useOnboarding";
+import { ADMIN_CORE_SLIDES } from "@/constants/onboardingContent";
+import { LucideIcon as LI } from "@/components/common/LucideIcon";
 
 const WIZARD_DISMISSED_KEY = "@swimnote:setup_wizard_dismissed";
 const WIZARD_CELEBRATED_KEY = "@swimnote:setup_wizard_celebrated";
@@ -67,6 +71,13 @@ export default function DashboardScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [switching, setSwitching] = useState(false);
+
+  // ── Core Onboarding ──────────────────────────────────────────────────────────
+  const {
+    loading: obLoading,
+    shouldShow: showOnboarding,
+    markComplete: markOnboardingComplete,
+  } = useCoreOnboarding(token, "admin_core");
 
   // B: 시작 가이드 마법사
   const [wizardDismissed, setWizardDismissed] = useState(true);
@@ -252,8 +263,23 @@ export default function DashboardScreen() {
     );
   }
 
+  // Core onboarding slides (아이콘은 렌더링 시 삽입)
+  const adminSlides = ADMIN_CORE_SLIDES.map((slide) => ({
+    ...slide,
+    icon: <LI name={slide.icon} size={32} color={C.primaryAction} />,
+  }));
+
   return (
     <View style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }}>
+      {/* ── Core Onboarding Sheet ─────────────────────────────────────────── */}
+      <OnboardingSheet
+        visible={!obLoading && showOnboarding}
+        onDismiss={markOnboardingComplete}
+        slides={adminSlides}
+        primaryLabel="시작하기"
+        xTheme={isX}
+        logo={isX ? "x" : "swimnote"}
+      />
       {/* ── 상단 헤더 ── Normal: 흰색 / X: 네이비 */}
       <View style={[
         s.topBar,
