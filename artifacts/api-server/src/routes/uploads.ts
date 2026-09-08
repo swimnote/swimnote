@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
+import crypto from "crypto";
 import multer from "multer";
-import { uploadToR2, downloadFromR2 } from "../lib/objectStorage.js";
+import { uploadToR2, downloadFromR2, getPresignedPutUrl } from "../lib/objectStorage.js";
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
@@ -54,7 +55,7 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
       // 업로드 급증 감지: 24h 동안 300건 초과 시 경고 플래그
       const spikeEnabled = await isFeatureEnabled("upload_spike_detection", poolId).catch(() => false);
       if (spikeEnabled) {
-        const [spikeRow] = (await db.execute(sql`
+        const [spikeRow] = (await superAdminDb.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM student_photos
           WHERE swimming_pool_id = ${poolId}
@@ -88,6 +89,102 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
     }
     res.json({ urls });
   } catch (err) { console.error(err); res.status(500).json({ error: "업로드 중 오류가 발생했습니다." }); }
+});
+
+// ── POST /uploads/presigned — Notice image direct-upload sessions ─────────
+// Generates presigned PUT URLs so the app can PUT notice images directly to
+// R2 without Render acting as a binary proxy.
+// The app stores the returned object_key values in the notice's image_urls
+// field (same format as before). Display via GET /uploads/:key is unchanged.
+const NOTICE_ALLOWED_MIMES = new Set([
+  "image/jpeg", "image/png", "image/gif", "image/webp",
+  "image/heic", "image/heif",
+]);
+const NOTICE_MAX_FILES = 5;
+const NOTICE_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+const NOTICE_PRESIGNED_TTL_S = 5 * 60; // 5 minutes
+
+router.post("/presigned", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const poolId = req.user?.poolId;
+    const files = req.body?.files as Array<{
+      client_id?: unknown;
+      file_type?: unknown;
+      file_size?: unknown;
+    }> | undefined;
+
+    if (!Array.isArray(files) || files.length === 0) {
+      res.status(400).json({ error: "files 배열이 필요합니다." }); return;
+    }
+    if (files.length > NOTICE_MAX_FILES) {
+      res.status(400).json({ error: `파일은 최대 ${NOTICE_MAX_FILES}개까지 업로드할 수 있습니다.` }); return;
+    }
+
+    for (const f of files) {
+      if (typeof f.client_id !== "string" || f.client_id.length === 0 || f.client_id.length > 64) {
+        res.status(400).json({ error: "client_id가 유효하지 않습니다." }); return;
+      }
+      if (typeof f.file_type !== "string" || !NOTICE_ALLOWED_MIMES.has(f.file_type)) {
+        res.status(400).json({ error: `허용되지 않는 파일 형식: ${f.file_type}` }); return;
+      }
+      const sz = Number(f.file_size ?? 0);
+      if (!Number.isFinite(sz) || sz <= 0 || sz > NOTICE_MAX_FILE_BYTES) {
+        res.status(400).json({ error: "파일 크기가 유효하지 않습니다." }); return;
+      }
+    }
+
+    // Optional quota guard (same fast-path as the multipart /uploads route)
+    if (poolId) {
+      const [poolRow] = (await superAdminDb.execute(sql`
+        SELECT upload_blocked FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (poolRow?.upload_blocked) {
+        res.status(403).json({ error: "저장공간이 가득 차 업로드가 제한됩니다.", code: "UPLOAD_BLOCKED" }); return;
+      }
+    }
+
+    const t0 = Date.now();
+    const items: Array<{
+      client_id: string;
+      object_key: string;
+      upload_url: string;
+      headers: { "Content-Type": string };
+    }> = [];
+
+    for (const f of files as Array<{ client_id: string; file_type: string; file_size: number }>) {
+      // Normalise extension: heic → heic, image/jpeg → jpg, etc.
+      const rawExt = f.file_type.split("/")[1] ?? "jpg";
+      const ext = rawExt === "jpeg" ? "jpg" : rawExt;
+      const uuid = crypto.randomUUID();
+      // Use the same path prefix that the multipart route uses so that
+      // GET /uploads/:key continues to serve these files without changes.
+      const useV2Path = false; // presigned always uses notices/ prefix for now
+      const objectKey = `notices/${poolId ?? "global"}/${uuid}.${ext}`;
+
+      const { ok, url, error } = await getPresignedPutUrl(
+        objectKey,
+        f.file_type,
+        f.file_size,
+        NOTICE_PRESIGNED_TTL_S,
+      );
+      if (!ok || !url) {
+        res.status(500).json({ error: `presigned URL 생성 실패: ${error}` }); return;
+      }
+
+      items.push({
+        client_id: f.client_id,
+        object_key: objectKey,
+        upload_url: url,
+        headers: { "Content-Type": f.file_type },
+      });
+    }
+
+    console.log(`[uploads/presigned] files=${items.length} latency=${Date.now() - t0}ms pool=${poolId ?? "none"}`);
+    res.json({ items });
+  } catch (err) {
+    console.error("[uploads/presigned]", err);
+    res.status(500).json({ error: "presigned URL 생성 중 오류가 발생했습니다." });
+  }
 });
 
 router.get(/^\/(.+)$/, async (req: Request, res: Response) => {

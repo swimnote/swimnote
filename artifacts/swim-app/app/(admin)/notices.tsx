@@ -1,7 +1,8 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Pencil, SquareCheck } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import { compressImageIfNeeded } from "../../utils/compressImage";
+import { compressPhotoAsset } from "../../utils/compressImage";
+import * as FileSystemLegacy from "expo-file-system/legacy";
 import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {ActivityIndicator, Alert, Image, Modal, Platform,
@@ -46,7 +47,7 @@ export default function NoticesScreen() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: "", content: "", is_pinned: false });
-  const [pickedImages, setPickedImages] = useState<{ uri: string; key?: string; file?: File }[]>([]);
+  const [pickedImages, setPickedImages] = useState<{ uri: string; key?: string; file?: File; mimeType?: string; fileSize?: number }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -139,7 +140,14 @@ export default function NoticesScreen() {
     });
     if (!result.canceled) {
       const added = result.assets.slice(0, MAX_IMAGES - pickedImages.length);
-      setPickedImages(prev => [...prev, ...added.map(a => ({ uri: a.uri }))]);
+      setPickedImages(prev => [
+        ...prev,
+        ...added.map(a => ({
+          uri: a.uri,
+          mimeType: a.mimeType ?? undefined,
+          fileSize: a.fileSize ?? undefined,
+        })),
+      ]);
     }
   }
 
@@ -150,29 +158,89 @@ export default function NoticesScreen() {
   async function uploadImages(): Promise<string[]> {
     if (pickedImages.length === 0) return [];
     setUploading(true);
+    const t0 = Date.now();
     try {
-      const formData = new FormData();
-      for (const img of pickedImages) {
+      // ── Step 1: compress all images ─────────────────────────────────────
+      const compressed: Array<{ uri: string; mimeType: string; fileSize: number; clientId: string }> = [];
+      for (let i = 0; i < pickedImages.length; i++) {
+        const img = pickedImages[i];
         if (img.file) {
-          formData.append("images", img.file, img.file.name);
-        } else {
-          const compressedUri = await compressImageIfNeeded(img.uri);
-          const filename = compressedUri.split("/").pop() || "photo.jpg";
-          const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
-          const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
-          formData.append("images", { uri: compressedUri, name: filename, type: mimeType } as any);
+          // Web platform (file input) — keep as-is
+          compressed.push({ uri: img.uri, mimeType: "image/jpeg", fileSize: img.file.size, clientId: `ni_${i}` });
+          continue;
+        }
+        const { uri, mimeType, fileSize } = await compressPhotoAsset({
+          uri: img.uri,
+          mimeType: img.mimeType,
+          fileSize: img.fileSize,
+        });
+        compressed.push({ uri, mimeType, fileSize, clientId: `ni_${i}` });
+      }
+
+      const totalOrigBytes = pickedImages.reduce((s, img) => s + (img.fileSize ?? 0), 0);
+      const totalCompBytes = compressed.reduce((s, c) => s + c.fileSize, 0);
+      console.log(`[notice-upload] compress: ${pickedImages.length} files, ${Math.round(totalOrigBytes / 1024)}KB → ${Math.round(totalCompBytes / 1024)}KB`);
+
+      // ── Step 2: get presigned PUT URLs ──────────────────────────────────
+      const sessionRes = await fetch(`${API_BASE}/uploads/presigned`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          files: compressed.map(c => ({
+            client_id: c.clientId,
+            file_type: c.mimeType,
+            file_size: c.fileSize,
+          })),
+        }),
+      });
+      if (!sessionRes.ok) {
+        const d = await sessionRes.json().catch(() => ({})) as any;
+        throw new Error(d?.error ?? "이미지 업로드 준비 실패");
+      }
+      const { items } = await sessionRes.json() as {
+        items: Array<{ client_id: string; object_key: string; upload_url: string; headers: Record<string, string> }>;
+      };
+
+      // ── Step 3: PUT each file directly to R2 (concurrency ≤ 4) ─────────
+      const clientIdToItem = new Map(items.map(it => [it.client_id, it]));
+
+      async function putOne(c: typeof compressed[0]) {
+        const slot = clientIdToItem.get(c.clientId);
+        if (!slot) throw new Error(`슬롯 없음: ${c.clientId}`);
+        const task = FileSystemLegacy.createUploadTask(
+          slot.upload_url,
+          c.uri,
+          {
+            httpMethod: "PUT",
+            uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
+            headers: slot.headers,
+            sessionType: FileSystemLegacy.FileSystemSessionType.FOREGROUND,
+          }
+        );
+        const result = await task.uploadAsync();
+        if (!result || result.status < 200 || result.status >= 300) {
+          throw new Error(`이미지 PUT 실패 (${result?.status})`);
         }
       }
-      const res = await fetch(`${API_BASE}/uploads`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "이미지 업로드에 실패했습니다.");
-      if (!Array.isArray(data.urls) || data.urls.length === 0) throw new Error("이미지 업로드 결과를 받지 못했습니다.");
-      return data.urls as string[];
-    } finally { setUploading(false); }
+
+      // Run up to 4 PUTs in parallel (bounded; notice max = 5 images)
+      const CONCURRENCY = 4;
+      let idx = 0;
+      async function worker() {
+        while (idx < compressed.length) {
+          const i = idx++;
+          await putOne(compressed[i]);
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, compressed.length) }, worker));
+
+      console.log(`[notice-upload] done: ${items.length} files in ${Date.now() - t0}ms`);
+
+      // Return object keys in original order
+      return compressed.map(c => clientIdToItem.get(c.clientId)!.object_key);
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handleCreate() {
