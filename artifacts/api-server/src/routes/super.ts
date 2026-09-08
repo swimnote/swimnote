@@ -4419,7 +4419,7 @@ router.patch(
         const afterForce = Boolean((updatedRes.rows[0] as any).x_force_disabled);
         const afterEff = (xPaid || xManual) && !afterForce;
 
-        const action = disabled ? "X_FORCE_DISABLE" : "X_FORCE_RESTORE";
+        const action = "update"; // audit_logs constraint: create|update|delete only; change_type captured in before/after data
         const vRes = await tx.execute(sql`
           SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
         `);
