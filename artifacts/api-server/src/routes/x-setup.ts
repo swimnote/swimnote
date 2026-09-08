@@ -37,7 +37,10 @@ import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { TEMPLATE_VERSIONS, getTemplateR2Key, type TemplateType } from "../lib/xSetupTemplates.js";
-import { processAndActivateLocalCurriculum } from "../lib/curriculum-orchestration.js";
+import {
+  processLocalCurriculumForReview,
+  approveAndActivateLocalCurriculum,
+} from "../lib/curriculum-orchestration.js";
 
 const router = Router();
 
@@ -231,18 +234,17 @@ router.post("/x-setup/upload/curriculum", requireAuth, requireRole("pool_admin")
         WHERE pool_id = ${poolId}
       `);
 
-      // ── One-click Auto-Apply ─────────────────────────────────────────────
-      // 업로드 완료 후 PARSE → STRUCTURE → APPROVE → ACTIVATE LOCAL 자동 실행.
+      // ── Parse / Structure / Validate (사람 검수 대기) ───────────────────────
+      // 업로드 후 자동 허용: SAVE → PARSE → STRUCTURE → VALIDATE → REVIEW_PENDING
+      // approve / activate / READY 는 super_admin 승인 후에만 수행.
       // 실패(HARD_BLOCKED)해도 업로드 자체는 성공 — 기존 active 버전 유지.
-      // actorId: 업로드한 pool_admin userId
       const actorId = req.user!.userId;
-      let orchestration: Awaited<ReturnType<typeof processAndActivateLocalCurriculum>> | null = null;
+      let reviewResult: Awaited<ReturnType<typeof processLocalCurriculumForReview>> | null = null;
       try {
-        orchestration = await processAndActivateLocalCurriculum(poolId, actorId);
+        reviewResult = await processLocalCurriculumForReview(poolId, actorId);
       } catch (orchErr) {
-        // orchestration 오류는 업로드 응답을 막지 않음 (기존 active 보존 원칙)
-        console.error("[x-setup/upload/curriculum] orchestration error:", orchErr);
-        orchestration = null;
+        console.error("[x-setup/upload/curriculum] review-parse error:", orchErr);
+        reviewResult = null;
       }
 
       res.json({
@@ -250,14 +252,15 @@ router.post("/x-setup/upload/curriculum", requireAuth, requireRole("pool_admin")
         file_id: fileId,
         version,
         r2_key: r2Key,
-        curriculum: orchestration
+        curriculum: reviewResult
           ? {
-              status: orchestration.status,
-              activated_version_id: orchestration.activated_version_id,
-              canonical_node_count: orchestration.canonical_node_count,
-              soft_review_count: orchestration.soft_review_count,
-              hard_error_count: orchestration.hard_error_count,
-              idempotent: orchestration.idempotent,
+              status: reviewResult.status,
+              canonical_node_count: reviewResult.canonical_node_count,
+              soft_review_count: reviewResult.soft_review_count,
+              hard_error_count: reviewResult.hard_error_count,
+              idempotent: reviewResult.idempotent,
+              version_id: reviewResult.version_id,
+              block_message: reviewResult.block_message,
             }
           : { status: "ORCHESTRATION_ERROR" },
       });
@@ -626,6 +629,8 @@ router.post("/super/x-setup/:poolId/revisions", requireAuth, requireRole("super_
 });
 
 // ── PATCH /super/x-setup/:poolId/sections/:section/approve ────────────────
+// curriculum section 승인 시: x_setup_submissions 상태 갱신 + activate + READY
+// 다른 section(website/logo/photos) 승인은 submission 상태 갱신만
 router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   const { poolId, section } = req.params;
   const VALID_SECTIONS = ["curriculum", "website", "logo", "photos"];
@@ -639,7 +644,7 @@ router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, re
     `)).rows as any[];
     if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
 
-    // explicit switch (sql injection 방어)
+    // submission 섹션 상태 갱신 (explicit switch — SQL injection 방어)
     if (section === "curriculum") {
       await superAdminDb.execute(sql`UPDATE x_setup_submissions SET curriculum_status='APPROVED', updated_at=NOW() WHERE pool_id=${poolId}`);
     } else if (section === "website") {
@@ -663,7 +668,25 @@ router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, re
       `);
     }
 
-    res.json({ ok: true, section, new_status: "APPROVED" });
+    // ── curriculum section 승인 시에만: approve + activate + READY ──────────
+    // 사람 검수 후 실제 activation을 여기서 수행 (upload 시에는 수행하지 않음)
+    let activationResult: { status: string; block_message?: string } | null = null;
+    if (section === "curriculum") {
+      const superAdminId = req.user!.userId;
+      try {
+        activationResult = await approveAndActivateLocalCurriculum(poolId, superAdminId);
+      } catch (actErr) {
+        console.error("[super/x-setup/approve] activation error:", actErr);
+        activationResult = { status: "ACTIVATION_ERROR", block_message: String(actErr) };
+      }
+    }
+
+    res.json({
+      ok: true,
+      section,
+      new_status: "APPROVED",
+      ...(activationResult ? { activation: activationResult } : {}),
+    });
   } catch (err) {
     console.error("[super/x-setup/approve]", err);
     res.status(500).json({ error: "서버 오류" });

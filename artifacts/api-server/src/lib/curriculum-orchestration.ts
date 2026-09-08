@@ -1,15 +1,19 @@
 /**
  * curriculum-orchestration.ts
  *
- * One-click Curriculum Auto-Apply Orchestration
- * ─────────────────────────────────────────────
- * 파일 업로드 1회 → PARSE → STRUCTURE → APPROVE → ACTIVATE LOCAL → READY
+ * X Curriculum Review-Gate Pipeline
+ * ─────────────────────────────────
+ * 정책 (2026-09-09 확정):
+ *   UPLOAD → PARSE → STRUCTURE → VALIDATE → [REVIEW_PENDING]
+ *                                             ↓  (super_admin only)
+ *                                          APPROVE → ACTIVATE → READY
  *
- * 정책 (2026-09-08):
- * - REVIEW_REQUIRED는 soft review — activation blocker 아님
- * - HARD BLOCK만 abort (parse 실패, count 0, declared≠parsed, duplicate key, etc.)
- * - content_hash idempotency: 동일 hash가 이미 ACTIVE → 현재 결과 반환
- * - activation 실패 시 atomic ROLLBACK — 기존 active 보존
+ * 업로드만으로는 절대 APPROVED / ACTIVE / READY 상태가 되지 않는다.
+ * 사람 검수(super_admin) 이후에만 approve/activate/READY 전환 가능.
+ *
+ * HARD BLOCK 조건에 해당하면 approve 불가 (검수 화면에서 이유 확인 가능).
+ * 기존 ACTIVE version은 새 version 승인 전까지 유지됨.
+ * 기존 READY pool은 이번 변경 영향 없음 (배포 후 회귀 0).
  */
 
 import crypto from "crypto";
@@ -18,27 +22,27 @@ import { sql } from "drizzle-orm";
 import { downloadFromR2 } from "./objectStorage.js";
 import { parseCurriculumDocx } from "./docxParser.js";
 
-// ── HARD BLOCK 조건 목록 ────────────────────────────────────────────────────
-// 이 조건에 해당하면 activation 금지 (IMPORT_FAILED 반환)
-// soft review (level_order IS NULL 등)는 이 목록에 없음 → activation 허용
-
+// ── HARD BLOCK 조건 ──────────────────────────────────────────────────────────
 export const HARD_BLOCK_REASONS = [
-  "parse_failed",            // parseCurriculumDocx throw
-  "canonical_count_zero",   // searchable_items.length === 0
-  "declared_count_mismatch",// declared != parsed (FINAL_IMPORT 전용, 파서 내부 throw)
-  "duplicate_canonical_key",// canonical_key 중복
-  "db_transaction_failed",  // activate TX rollback
+  "parse_failed",
+  "canonical_count_zero",
+  "declared_count_mismatch",
+  "duplicate_canonical_key",
+  "db_transaction_failed",
 ] as const;
 
 export type HardBlockReason = (typeof HARD_BLOCK_REASONS)[number];
 
-export type OrchestrationResult = {
-  /** READY = activation 완료 / HARD_BLOCKED = activation 금지 (기존 버전 유지) */
-  status: "READY" | "HARD_BLOCKED";
-  /** 새로 활성화된 version id */
-  activated_version_id?: string;
-  /** 기존에 deactivate/archive된 version id */
-  deactivated_version_id?: string | null;
+// ── Result types ─────────────────────────────────────────────────────────────
+
+/**
+ * processLocalCurriculumForReview 결과
+ * - REVIEW_PENDING  : parse/structure 성공, 사람 검수 대기
+ * - HARD_BLOCKED    : parse/validate 실패, approve 불가
+ * - IDEMPOTENT_READY: 동일 content_hash가 이미 ACTIVE → 재처리 불필요
+ */
+export type ReviewResult = {
+  status: "REVIEW_PENDING" | "HARD_BLOCKED" | "IDEMPOTENT_READY";
   /** structured 된 canonical node 수 */
   canonical_node_count?: number;
   /** level_order IS NULL 인 soft review node 수 */
@@ -47,15 +51,35 @@ export type OrchestrationResult = {
   hard_error_count: number;
   /** hard block 이유 목록 */
   hard_errors?: HardBlockReason[];
-  /** true = 동일 content_hash의 ACTIVE version이 이미 존재 → 재처리 불필요 */
+  /** hard block 또는 오류 메시지 */
+  block_message?: string;
+  /** idempotent hit — 동일 hash 이미 ACTIVE */
   idempotent?: boolean;
   /** idempotent hit 시의 기존 active version id */
   existing_active_version_id?: string;
-  /** HARD_BLOCKED 시의 추가 메시지 */
-  block_message?: string;
+  /** 구조화된 버전 id (REVIEW_PENDING 시) */
+  version_id?: string;
 };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+/**
+ * approveAndActivateLocalCurriculum 결과
+ * - READY       : activation 완료
+ * - HARD_BLOCKED: activation 금지 (기존 active version 보존)
+ */
+export type OrchestrationResult = {
+  status: "READY" | "HARD_BLOCKED";
+  activated_version_id?: string;
+  deactivated_version_id?: string | null;
+  canonical_node_count?: number;
+  soft_review_count?: number;
+  hard_error_count: number;
+  hard_errors?: HardBlockReason[];
+  block_message?: string;
+  idempotent?: boolean;
+  existing_active_version_id?: string;
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getPoolRow(poolId: string): Promise<any | null> {
   const res = await superAdminDb.execute(
@@ -92,23 +116,25 @@ async function insertAuditLog(
   }
 }
 
-// ── Core Orchestration Function ──────────────────────────────────────────────
+// ── Step 1–5: Parse / Structure / Validate (upload 후 자동 실행) ─────────────
 
 /**
- * processAndActivateLocalCurriculum
+ * processLocalCurriculumForReview
  *
- * 하나의 함수로 전체 pipeline 실행:
- * DOWNLOAD → PARSE → STRUCTURE (versions/items) → APPROVE → ACTIVATE → READY
+ * 업로드 직후 자동 실행 허용 단계:
+ *   DOWNLOAD → SHA-256 → PARSE → HARD_BLOCK_VALIDATE → STRUCTURE → REVIEW_PENDING
  *
- * @param poolId     대상 수영장 ID
- * @param actorId    audit 기록용 actor (system 자동 처리 시 "system")
- * @returns          OrchestrationResult
+ * approve/activate/READY 는 수행하지 않는다.
+ * 기존 ACTIVE version 을 건드리지 않는다.
+ *
+ * @param poolId   대상 수영장 ID
+ * @param actorId  audit 기록용 (업로더 userId)
  */
-export async function processAndActivateLocalCurriculum(
+export async function processLocalCurriculumForReview(
   poolId: string,
-  actorId = "system"
-): Promise<OrchestrationResult> {
-  console.log(`[curriculum-orchestration] START pool=${poolId} actor=${actorId}`);
+  actorId: string
+): Promise<ReviewResult> {
+  console.log(`[curriculum-orchestration] REVIEW_PARSE START pool=${poolId} actor=${actorId}`);
 
   const pool = await getPoolRow(poolId);
   if (!pool) {
@@ -120,7 +146,7 @@ export async function processAndActivateLocalCurriculum(
     };
   }
 
-  // ── Step 1: current curriculum file 조회 ─────────────────────────────────
+  // ── Step 1: current curriculum file 조회 ──────────────────────────────────
   const fileRes = await superAdminDb.execute(sql`
     SELECT id, r2_key, submission_version
     FROM x_setup_files
@@ -142,7 +168,7 @@ export async function processAndActivateLocalCurriculum(
     };
   }
 
-  // ── Step 2: content_hash 계산 + idempotency 체크 ─────────────────────────
+  // ── Step 2: content_hash 계산 + idempotency 체크 ──────────────────────────
   const dlRes = await downloadFromR2(curriculumFile.r2_key, "photo");
   if (!dlRes.ok || !dlRes.data) {
     return {
@@ -158,7 +184,7 @@ export async function processAndActivateLocalCurriculum(
     .update(dlRes.data)
     .digest("hex");
 
-  // 동일 hash가 이미 ACTIVE인지 확인
+  // 동일 hash가 이미 ACTIVE인지 확인 → 재처리 불필요
   const alreadyActiveRes = await superAdminDb.execute(sql`
     SELECT id FROM curriculum_versions
     WHERE swimming_pool_id    = ${pool.id}
@@ -173,15 +199,19 @@ export async function processAndActivateLocalCurriculum(
     console.log(
       `[curriculum-orchestration] IDEMPOTENT: 동일 hash 이미 ACTIVE pool=${pool.id} version=${alreadyActiveId}`
     );
+    await insertAuditLog("CURRICULUM_UPLOAD_IDEMPOTENT", actorId, pool.id, {
+      existing_active_version_id: alreadyActiveId,
+      content_hash: contentHash,
+    });
     return {
-      status: "READY",
+      status: "IDEMPOTENT_READY",
       hard_error_count: 0,
       idempotent: true,
       existing_active_version_id: alreadyActiveId,
     };
   }
 
-  // 동일 hash의 DRAFT가 있으면 재사용 (중복 생성 금지)
+  // 동일 hash의 DRAFT가 있으면 재사용
   const existingDraftRes = await superAdminDb.execute(sql`
     SELECT id FROM curriculum_versions
     WHERE swimming_pool_id    = ${pool.id}
@@ -193,7 +223,7 @@ export async function processAndActivateLocalCurriculum(
   `);
   const existingDraftId = (existingDraftRes as any).rows?.[0]?.id as string | undefined;
 
-  // ── Step 3: PARSE ────────────────────────────────────────────────────────
+  // ── Step 3: PARSE ──────────────────────────────────────────────────────────
   let structured: ReturnType<typeof parseCurriculumDocx>;
   try {
     structured = parseCurriculumDocx(dlRes.data);
@@ -204,6 +234,7 @@ export async function processAndActivateLocalCurriculum(
         SET status = 'FAILED', parse_error = ${msg}, updated_at = NOW()
       WHERE pool_id = ${pool.id}
     `);
+    await insertAuditLog("CURRICULUM_PARSE_FAILED", actorId, pool.id, { error: msg });
     return {
       status: "HARD_BLOCKED",
       hard_error_count: 1,
@@ -212,14 +243,13 @@ export async function processAndActivateLocalCurriculum(
     };
   }
 
-  // ── Step 4: HARD BLOCK validation ────────────────────────────────────────
+  // ── Step 4: HARD BLOCK validation ─────────────────────────────────────────
   const hardErrors: HardBlockReason[] = [];
 
   if (structured.searchable_items.length === 0) {
     hardErrors.push("canonical_count_zero");
   }
 
-  // duplicate canonical_key 체크
   if (structured.searchable_items.length > 0) {
     const canonicalKeys = structured.searchable_items
       .map((i) => i.canonical_key)
@@ -238,6 +268,9 @@ export async function processAndActivateLocalCurriculum(
             updated_at = NOW()
       WHERE pool_id = ${pool.id}
     `);
+    await insertAuditLog("CURRICULUM_HARD_BLOCKED", actorId, pool.id, {
+      hard_errors: hardErrors,
+    });
     return {
       status: "HARD_BLOCKED",
       hard_error_count: hardErrors.length,
@@ -246,7 +279,7 @@ export async function processAndActivateLocalCurriculum(
     };
   }
 
-  // ── Step 5: STRUCTURE — x_curriculum_profiles + levels + versions + items ─
+  // ── Step 5: STRUCTURE ──────────────────────────────────────────────────────
   const versionName = `x-local-${contentHash.slice(0, 12)}`;
 
   // Mark PROCESSING
@@ -257,7 +290,7 @@ export async function processAndActivateLocalCurriculum(
       status = 'PROCESSING', parse_error = NULL, updated_at = NOW()
   `);
 
-  // Profile UPDATE to STRUCTURED
+  // Profile → STRUCTURED (검수 대기 — approve 아님)
   await superAdminDb.execute(sql`
     UPDATE x_curriculum_profiles SET
       status                 = 'STRUCTURED',
@@ -266,6 +299,8 @@ export async function processAndActivateLocalCurriculum(
       total_declared_levels  = ${structured.total_declared_levels},
       template_version       = ${structured.template_version},
       structured_at          = NOW(),
+      reviewed_at            = NULL,
+      reviewed_by            = NULL,
       updated_at             = NOW()
     WHERE pool_id = ${pool.id}
   `);
@@ -316,7 +351,6 @@ export async function processAndActivateLocalCurriculum(
   let resolvedVersionId: string | undefined = existingDraftId;
 
   if (!resolvedVersionId) {
-    // Global overwrite 방지
     let finalVersionName = versionName;
     const globalCheck = await superAdminDb.execute(sql`
       SELECT id FROM curriculum_versions
@@ -350,9 +384,8 @@ export async function processAndActivateLocalCurriculum(
     resolvedVersionId = (newVer as any).rows?.[0]?.id as string | undefined;
   }
 
-  // items 삽입 (기존 DRAFT items 재삽입 — 동일 sort_order CONFLICT DO NOTHING)
+  // items 삽입 (신규 version만)
   if (resolvedVersionId && !existingDraftId) {
-    // 신규 version만 items 삽입 (기존 DRAFT 재사용 시 items 이미 존재)
     for (const item of structured.searchable_items) {
       const levelOrderVal =
         item.level_order != null && item.level_order > 0 ? item.level_order : null;
@@ -387,31 +420,164 @@ export async function processAndActivateLocalCurriculum(
     (i) => i.level_order == null || i.level_order <= 0
   ).length;
 
-  // ── Step 6: APPROVE ──────────────────────────────────────────────────────
-  // STRUCTURED 또는 REVIEW_REQUIRED 모두 approve 허용 (soft review policy)
+  await insertAuditLog("CURRICULUM_STRUCTURED_FOR_REVIEW", actorId, pool.id, {
+    version_id: resolvedVersionId,
+    canonical_node_count: canonicalCount,
+    soft_review_count: softReviewCount,
+    content_hash: contentHash,
+  });
+
+  console.log(
+    `[curriculum-orchestration] REVIEW_PENDING pool=${pool.id} version=${resolvedVersionId} nodes=${canonicalCount}`
+  );
+
+  return {
+    status: "REVIEW_PENDING",
+    hard_error_count: 0,
+    canonical_node_count: canonicalCount,
+    soft_review_count: softReviewCount,
+    version_id: resolvedVersionId,
+  };
+}
+
+// ── Step 6–7: Approve + Activate (super_admin 승인 후에만 호출) ──────────────
+
+/**
+ * approveAndActivateLocalCurriculum
+ *
+ * super_admin 이 승인 액션을 취할 때만 호출.
+ * - profile APPROVED (reviewed_by = 실제 super_admin)
+ * - curriculum version approved_at 기록
+ * - atomic TX: 기존 active deactivate → 새 version active
+ * - swimming_pools.xmode_config_status = 'READY'
+ *
+ * 기존 ACTIVE version 은 TX 성공 전까지 유지됨.
+ *
+ * @param poolId          대상 수영장 ID
+ * @param superAdminId    실제 super_admin userId (audit 기록)
+ */
+export async function approveAndActivateLocalCurriculum(
+  poolId: string,
+  superAdminId: string
+): Promise<OrchestrationResult> {
+  console.log(
+    `[curriculum-orchestration] APPROVE_ACTIVATE START pool=${poolId} superAdmin=${superAdminId}`
+  );
+
+  const pool = await getPoolRow(poolId);
+  if (!pool) {
+    return {
+      status: "HARD_BLOCKED",
+      hard_error_count: 1,
+      hard_errors: ["parse_failed"],
+      block_message: `수영장 없음: ${poolId}`,
+    };
+  }
+
+  // profile + version 조회 (STRUCTURED or REVIEW_REQUIRED 상태여야 함)
+  const profileRes = await superAdminDb.execute(sql`
+    SELECT id, status, curriculum_version_id
+    FROM x_curriculum_profiles
+    WHERE pool_id = ${pool.id}
+    LIMIT 1
+  `);
+  const profile = (profileRes as any).rows?.[0] ?? null;
+
+  if (!profile) {
+    return {
+      status: "HARD_BLOCKED",
+      hard_error_count: 1,
+      hard_errors: ["parse_failed"],
+      block_message: "커리큘럼 프로필이 없습니다. 먼저 파일을 업로드해주세요.",
+    };
+  }
+
+  const allowedStatuses = ["STRUCTURED", "REVIEW_REQUIRED", "APPROVED", "ACTIVATED"];
+  if (!allowedStatuses.includes(profile.status)) {
+    return {
+      status: "HARD_BLOCKED",
+      hard_error_count: 1,
+      hard_errors: ["parse_failed"],
+      block_message: `승인 불가 상태입니다: ${profile.status}. 파일 업로드 후 다시 시도하세요.`,
+    };
+  }
+
+  const resolvedVersionId: string | undefined = profile.curriculum_version_id ?? undefined;
+
+  if (!resolvedVersionId) {
+    return {
+      status: "HARD_BLOCKED",
+      hard_error_count: 1,
+      hard_errors: ["db_transaction_failed"],
+      block_message: "승인할 커리큘럼 버전이 없습니다.",
+    };
+  }
+
+  // version이 DRAFT 상태인지 확인 (ACTIVE는 이미 처리됨)
+  const versionRes = await superAdminDb.execute(sql`
+    SELECT id, is_active, import_status, source_content_hash
+    FROM curriculum_versions
+    WHERE id = ${resolvedVersionId}
+      AND swimming_pool_id = ${pool.id}
+      AND is_global_reference = false
+    LIMIT 1
+  `);
+  const version = (versionRes as any).rows?.[0] ?? null;
+
+  if (!version) {
+    return {
+      status: "HARD_BLOCKED",
+      hard_error_count: 1,
+      hard_errors: ["db_transaction_failed"],
+      block_message: "커리큘럼 버전을 찾을 수 없습니다.",
+    };
+  }
+
+  // 이미 ACTIVE이면 idempotent
+  if (version.is_active === true) {
+    console.log(
+      `[curriculum-orchestration] IDEMPOTENT: 이미 ACTIVE pool=${pool.id} version=${resolvedVersionId}`
+    );
+    return {
+      status: "READY",
+      hard_error_count: 0,
+      idempotent: true,
+      existing_active_version_id: resolvedVersionId,
+    };
+  }
+
+  // item 수 조회 (로그/응답용)
+  const countRes = await superAdminDb.execute(sql`
+    SELECT COUNT(*)::int AS cnt FROM curriculum_items
+    WHERE curriculum_version_id = ${resolvedVersionId}
+  `);
+  const canonicalCount = Number((countRes as any).rows?.[0]?.cnt ?? 0);
+
+  // ── Step 6: APPROVE ────────────────────────────────────────────────────────
+  // reviewed_by = 실제 super_admin (uploader 자신이 아님)
   await superAdminDb.execute(sql`
     UPDATE x_curriculum_profiles SET
-      status       = 'APPROVED',
-      reviewed_at  = NOW(),
-      reviewed_by  = ${actorId},
-      updated_at   = NOW()
+      status      = 'APPROVED',
+      reviewed_at = NOW(),
+      reviewed_by = ${superAdminId},
+      updated_at  = NOW()
     WHERE pool_id = ${pool.id}
       AND status IN ('STRUCTURED', 'REVIEW_REQUIRED', 'APPROVED')
   `);
 
-  if (resolvedVersionId) {
-    await superAdminDb.execute(sql`
-      UPDATE curriculum_versions
-        SET approved_at = NOW(), updated_at = NOW()
-      WHERE id = ${resolvedVersionId}
-        AND is_global_reference = false
-    `);
-  }
+  await superAdminDb.execute(sql`
+    UPDATE curriculum_versions
+      SET approved_at = NOW(), updated_at = NOW()
+    WHERE id = ${resolvedVersionId}
+      AND is_global_reference = false
+  `);
 
-  // ── Step 7: ACTIVATE LOCAL (Atomic TX) ──────────────────────────────────
-  // uniq_curriculum_versions_one_active: (swimming_pool_id) WHERE is_active=true
-  // → pool에 is_active=true인 version이 1개뿐이어야 함
-  //   Global Reference version도 is_active=true일 수 있으므로 모두 조회
+  await insertAuditLog("CURRICULUM_APPROVED_BY_SUPER_ADMIN", superAdminId, pool.id, {
+    version_id: resolvedVersionId,
+    canonical_node_count: canonicalCount,
+  });
+
+  // ── Step 7: ACTIVATE (Atomic TX) ──────────────────────────────────────────
   const oldActiveRes = await superAdminDb.execute(sql`
     SELECT id, is_global_reference FROM curriculum_versions
     WHERE swimming_pool_id = ${pool.id}
@@ -422,20 +588,10 @@ export async function processAndActivateLocalCurriculum(
   const oldVersionId: string | null =
     (oldActiveRows.find((r: any) => !r.is_global_reference)?.id) ?? null;
 
-  if (!resolvedVersionId) {
-    return {
-      status: "HARD_BLOCKED",
-      hard_error_count: 1,
-      hard_errors: ["db_transaction_failed"],
-      block_message: "version id 결정 실패",
-    };
-  }
-
   try {
     await superAdminDb.execute(sql`BEGIN`);
 
-    // 기존 active version 모두 deactivate (Local + Global Reference)
-    // archived_at은 Local에만 설정 (Global Reference는 archive 안 함)
+    // 기존 active version 모두 deactivate
     for (const row of oldActiveRows) {
       await superAdminDb.execute(sql`
         UPDATE curriculum_versions SET
@@ -446,6 +602,7 @@ export async function processAndActivateLocalCurriculum(
       `);
     }
 
+    // 새 version activate
     await superAdminDb.execute(sql`
       UPDATE curriculum_versions SET
         is_active     = true,
@@ -455,6 +612,7 @@ export async function processAndActivateLocalCurriculum(
       WHERE id = ${resolvedVersionId}
     `);
 
+    // pool READY 전환
     await superAdminDb.execute(sql`
       UPDATE swimming_pools SET
         xmode_config_status = 'READY',
@@ -462,6 +620,7 @@ export async function processAndActivateLocalCurriculum(
       WHERE id = ${pool.id}
     `);
 
+    // profile ACTIVATED
     await superAdminDb.execute(sql`
       UPDATE x_curriculum_profiles SET
         status     = 'ACTIVATED',
@@ -474,24 +633,21 @@ export async function processAndActivateLocalCurriculum(
     await superAdminDb.execute(sql`ROLLBACK`).catch(() => {});
     return {
       status: "HARD_BLOCKED",
-      canonical_node_count: canonicalCount,
-      soft_review_count: softReviewCount,
       hard_error_count: 1,
       hard_errors: ["db_transaction_failed"],
       block_message: String(txErr?.message ?? txErr),
     };
   }
 
-  await insertAuditLog("ONE_CLICK_CURRICULUM_ACTIVATED", actorId, pool.id, {
+  await insertAuditLog("CURRICULUM_ACTIVATED_AFTER_APPROVAL", superAdminId, pool.id, {
     activated_version_id: resolvedVersionId,
     deactivated_version_id: oldVersionId,
     canonical_node_count: canonicalCount,
-    soft_review_count: softReviewCount,
     xmode_config_status: "READY",
   });
 
   console.log(
-    `[curriculum-orchestration] DONE pool=${pool.id} version=${resolvedVersionId} nodes=${canonicalCount} soft_review=${softReviewCount}`
+    `[curriculum-orchestration] READY pool=${pool.id} version=${resolvedVersionId} nodes=${canonicalCount} approvedBy=${superAdminId}`
   );
 
   return {
@@ -499,8 +655,46 @@ export async function processAndActivateLocalCurriculum(
     activated_version_id: resolvedVersionId,
     deactivated_version_id: oldVersionId,
     canonical_node_count: canonicalCount,
-    soft_review_count: softReviewCount,
     hard_error_count: 0,
     idempotent: false,
+  };
+}
+
+// ── Deprecated: legacy one-click wrapper (호환성 유지, 신규 코드에서 사용 금지) ─
+// 기존 READY pool에 영향 없도록 export 유지하나 내부에서 호출되지 않음
+/** @deprecated processLocalCurriculumForReview + approveAndActivateLocalCurriculum 사용 */
+export async function processAndActivateLocalCurriculum(
+  poolId: string,
+  actorId = "system"
+): Promise<OrchestrationResult> {
+  // upload path에서는 더 이상 호출되지 않음 (x-setup.ts 참조)
+  // 이 wrapper는 혹시 남아있는 외부 호출자를 위해 보존
+  console.warn(
+    "[curriculum-orchestration] processAndActivateLocalCurriculum is DEPRECATED. " +
+    "Use processLocalCurriculumForReview (upload) + approveAndActivateLocalCurriculum (super_admin approve)."
+  );
+  // 기존 동작 대신 review-only 실행 (auto-activate 제거)
+  const reviewResult = await processLocalCurriculumForReview(poolId, actorId);
+  if (reviewResult.status === "HARD_BLOCKED") {
+    return {
+      status: "HARD_BLOCKED",
+      hard_error_count: reviewResult.hard_error_count,
+      hard_errors: reviewResult.hard_errors,
+      block_message: reviewResult.block_message,
+    };
+  }
+  if (reviewResult.status === "IDEMPOTENT_READY") {
+    return {
+      status: "READY",
+      hard_error_count: 0,
+      idempotent: true,
+      existing_active_version_id: reviewResult.existing_active_version_id,
+    };
+  }
+  // REVIEW_PENDING — 더 이상 자동 activate하지 않음
+  return {
+    status: "HARD_BLOCKED",
+    hard_error_count: 0,
+    block_message: "REVIEW_PENDING: 사람 검수 후 super_admin 승인이 필요합니다.",
   };
 }
