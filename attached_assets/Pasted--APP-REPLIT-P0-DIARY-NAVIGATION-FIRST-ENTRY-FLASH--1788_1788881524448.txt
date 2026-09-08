@@ -1,0 +1,165 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — DIARY NAVIGATION FIRST-ENTRY FLASH 제거]
+
+현재 실기기에서 아래 버그 확인됨.
+
+재현:
+
+1. 스케줄러에서 날짜 선택
+2. "수업일지" 진입
+3. 첫 진입 시
+   일간스케줄 화면이 중간에 한 번 노출됨
+4. 이후 일지 목록으로 이동
+5. 같은 흐름을 두 번째 실행하면
+   일간스케줄 없이 바로 일지 목록으로 이동
+
+이 중간 일간스케줄 화면은 절대 나오면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기대 동작
+━━━━━━━━━━━━━━━━━━━━━━
+
+항상:
+
+스케줄러
+→ 날짜 선택
+→ 수업일지
+→ canonical 일지목록
+
+직행.
+
+첫 진입/두 번째 진입 동작이 완전히 같아야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 조사할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 route/navigation code에서 아래 확인:
+
+- first mount redirect
+- useEffect redirect
+- default route
+- router.push 후 router.replace
+- backTo 처리
+- search params 초기화
+- selectedDate 초기 state
+- diary-index / daily schedule 경유
+- layout redirect
+- auth/role redirect
+- stale navigation state
+
+특히
+"일단 일간스케줄 route를 열고 나중에 일지목록으로 보내는 코드"
+가 있으면 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 진입 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+스케줄에서 이미 날짜를 선택했으면
+그 date param을 그대로 canonical diary list에 전달.
+
+중간 route 사용 금지.
+
+예:
+
+my-schedule
+→ diary-index?date=YYYY-MM-DD&backTo=my-schedule
+
+또는 현재 canonical diary list route에
+직접 date 전달.
+
+실제 현재 구조에 맞는 route 사용.
+
+중요:
+중간 daily schedule 화면 mount 자체가 발생하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 첫 진입 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 재실행 후 최초 1회에서도
+바로 일지목록으로 가야 함.
+
+검증:
+
+A.
+앱 완전 종료
+→ 재실행
+→ 스케줄
+→ 날짜 선택
+→ 수업일지
+
+결과:
+중간 화면 0
+
+B.
+뒤로가기
+→ 다시 같은 날짜
+→ 수업일지
+
+결과:
+중간 화면 0
+
+C.
+다른 날짜 선택
+→ 수업일지
+
+결과:
+중간 화면 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 회귀 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+- 날짜 context 유지
+- 반 context
+- 일지목록
+- 상세
+- 뒤로가기
+- diary 상단 날짜변경
+- scheduler 복귀
+
+전부 유지.
+
+새 화면 생성 금지.
+API/DB 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP only 수정.
+
+release/v2.0.0
+→ 테스트
+→ preflight
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. root cause
+2. 첫 진입이 어떤 route를 경유했는지
+3. 수정 후 direct route
+4. 앱 완전 종료 후 첫 진입 결과
+5. 두 번째 진입 결과
+6. 다른 날짜 진입 결과
+7. 중간 일간스케줄 노출 횟수
+8. 수정 파일
+9. OTA ID
+10. 잔존 blocker
+
+PASS 조건:
+
+중간 일간스케줄 노출 = 0
+첫 진입/재진입 동작 동일
+일지목록 직행
+
+완료 후 STOP.
