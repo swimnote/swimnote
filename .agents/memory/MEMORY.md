@@ -74,3 +74,4 @@
 - [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA pending; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
 - [500 Pool Curriculum Scale 완료](500pool-curriculum-scale-done.md) — SHA 6c07c6bc; approved_at binding+rollback injection 129TC; Render LIVE 6c07c6bc 확인
 - [P0 MASTER Super Admin Web Console 완료](p0-master-super-admin-done.md) — SHA 9450f655; carousel+가격+공지이미지+SuperNotices/Ads; Render LIVE; OTA 01a08217
+- [Super Admin Control Center SQL 스키마 버그 패턴](super-admin-sql-schema-bugs.md) — control-center 7개 스키마 불일치 수정; audit_logs action constraint 'update'만 허용
