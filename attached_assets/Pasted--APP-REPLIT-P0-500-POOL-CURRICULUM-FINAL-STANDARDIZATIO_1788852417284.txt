@@ -1,0 +1,486 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — 500 POOL CURRICULUM FINAL STANDARDIZATION]
+
+현재 보고 판정 HOLD.
+
+목표:
+Toykids 새 Local DOCX 업로드 전에
+500개 신규 수영장이 모두 동일하게
+
+파일 업로드 → 검토 → 적용
+
+3단계만으로 끝나는 canonical runtime을 완성한다.
+
+새 기능 확장 금지.
+아래 3개 구조 모순만 해결한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SCA OPTIONAL 정책과 Candidate Search 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+- SCA = OPTIONAL
+- curriculum-confirmation-engine에는
+  SCA 없으면 pool active Local version fallback 존재
+
+하지만 현재 searchCurriculumCandidates Local layer는:
+
+SCA
+→ Local version
+→ items
+
+구조로 보고됨.
+
+이 모순 해결.
+
+최종 canonical Local Curriculum Resolver:
+
+1.
+학생에게 active SCA가 있고
+그 SCA가 is_global_reference=false Local version을 가리키면
+→ 해당 version 사용
+
+2.
+SCA가 없으면
+→ pool의 active Local version 사용
+
+조건:
+
+is_global_reference=false
+AND swimming_pool_id=poolId
+AND is_active=true
+AND import_status='ACTIVE'
+AND archived_at IS NULL
+
+3.
+둘 다 없으면
+→ NO_ACTIVE_LOCAL_CURRICULUM
+
+이 resolver를:
+
+- searchCurriculumCandidates
+- curriculum-confirmation-engine
+- Manual Diary resolver
+- AI Diary candidate search
+
+가 동일하게 사용하게 한다.
+
+서로 다른 fallback 구현 금지.
+
+500 pool 기본정책:
+
+SCA 생성 필요 없음.
+
+SCA는 향후
+한 pool 안에서 학생별 다른 curriculum을 쓸 때만
+override 기능으로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Structure와 Activation 역할 완전 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 structure 단계에서
+curriculum_version을 is_active=true로 만드는 구조 제거.
+
+정상 상태:
+
+UPLOAD
+→ file 저장
+
+STRUCTURE
+→ 새 Local version 생성
+→ is_active=false
+→ import_status=DRAFT / VALIDATED 등 현재 허용상태 사용
+
+APPROVE
+→ APPROVED profile
+→ 아직 is_active=false
+
+ACTIVATE
+→ 여기서만 is_active=true
+
+즉:
+
+structure/approve 단계에서는
+현재 운영중 Local에 아무 영향 없음.
+
+activate-local TX에서만:
+
+1. 새 approved Local 확인
+2. 기존 active Local deactivate/archive
+3. 새 Local activate + import_status='ACTIVE'
+4. xmode_config_status='READY'
+5. 필요한 transition 작업
+6. 전부 하나의 transaction
+
+실패 시 전체 rollback.
+
+부분 activation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. version_name 고정 UPSERT 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+version_name='x-curriculum-v1'
++
+ON CONFLICT UPDATE
++
+items DELETE/INSERT
+
+구조는 version history를 파괴한다.
+
+신규 업로드는 반드시 새 Local curriculum_version을 생성.
+
+각 import마다 안정적인 version identity 사용.
+
+예시 방향:
+
+x-curriculum-{sequence}
+또는
+source/canonical hash 기반 version id/name
+
+실제 repository 스타일에 맞게 구현.
+
+중요:
+
+동일 파일 재업로드는
+content_hash로 감지.
+
+A. 동일 content_hash
+→ 이미 구조화된 동일 import가 있으면
+duplicate로 반환하거나 기존 결과 재사용
+
+B. 다른 hash
+→ 새 Local version 생성
+
+기존 Local row overwrite 금지.
+
+기존 curriculum_items DELETE 후 교체 금지.
+
+과거 version/items 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. content_hash / import idempotency
+━━━━━━━━━━━━━━━━━━━━━━
+
+x_setup_files 또는 적절한 import metadata에
+content_hash 저장.
+
+동일 pool + 동일 파일 hash:
+
+→ 구조화 중복실행 금지
+→ 동일 canonical 결과 재사용 가능
+
+다른 hash:
+
+→ 새 import batch
+→ 새 curriculum version
+
+Global version은 어떠한 Local import에서도
+UPSERT target이 될 수 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. activate-local 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /super/x-setup/:poolId/activate-local
+
+실제 구현.
+
+입력은 가능한 한 최소화.
+
+운영자가 version id를 수동 입력하지 않아도
+해당 pool의 최신 APPROVED/미활성 Local version을
+정확히 선택 가능하게 한다.
+
+단 여러 APPROVED 후보가 있을 수 있으면
+안전하게 명확한 import/version identity 사용.
+
+TX 안에서:
+
+- target Local lock
+- old active Local lock
+- old deactivate/archive
+- new activate
+- READY 설정
+- transition 기록
+
+SCA는 기본 생성하지 않는다.
+
+기존 SCA가 존재하는 학생만
+새 Local로 transition해야 하는지
+현재 제품정책 기준으로 처리.
+
+신규 pool은 SCA 0건이어도 정상 작동해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. READY 조건 단순화
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool READY의 source of truth:
+
+- Local profile APPROVED
+- active Local version 존재
+- X entitlement/plan 정상
+
+Global Reference나 global template 상태는
+pool별 DB prerequisite로 묶지 않는다.
+
+Global 시스템 자산 자체가 비정상일 경우:
+
+SYSTEM_CURRICULUM_NOT_READY
+
+같은 시스템 health/config error로 분리.
+
+특정 pool을 CURRICULUM_PENDING에 영구 고착시키지 말 것.
+
+즉:
+
+Pool setup state
+≠
+Global system health
+
+완전히 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Global / Local Search 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 완료된 2-layer 규칙 유지:
+
+GLOBAL:
+is_global_reference=true
+AND import_status='ACTIVE'
+
+LOCAL:
+resolved active Local version
+
+candidate:
+source_scope =
+POOL_LOCAL / GLOBAL_REFERENCE
+
+Global-only:
+AI grounding only
+progress 금지
+
+Local:
+progress target 가능
+
+기존 2중 progress 차단 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Normal/AI/Manual 모두 단일 Search 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서에서
+diary-template-search.ts의 별도 pool-only search가 남아 있음.
+
+500 pool 표준에서는
+각 기능이 별도 curriculum search를 갖지 않게 한다.
+
+가능한 범위에서:
+
+searchCurriculumCandidates
+또는 공통 CurriculumSearchService
+
+하나로 통일.
+
+최소한:
+
+- AI Diary
+- Manual Diary
+- Parent curriculum search
+
+가 동일 Local Resolver + Global layer를 사용.
+
+Normal mode에서 Global grounding이 필요하지 않은 정책이면
+명시적 옵션으로 끄고,
+별도 구현을 유지하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Toykids 기존 데이터 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업 중:
+
+- 기존 Global 50 items
+- teacher_manual growth_events 194
+- CPO 140
+- SCP 146
+- 기존 SCA 231
+
+삭제/초기화 금지.
+
+Toykids 새 Local DOCX 아직 업로드 금지.
+
+기존 SCA 231은
+새 Local activation 단계에서 처리할 예정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트 — 반드시 실제 상태전이 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+신규 pool
+SCA=0
+active Local 있음
+→ Local candidate 정상 검색
+
+B.
+SCA 있음
+→ SCA Local 우선
+
+C.
+SCA가 Global 가리킴
+→ 무시하고 pool active Local fallback
+
+D.
+Local 없음
+→ Global grounding만 가능
+→ progress 0 change
+
+E.
+structure
+→ new version is_active=false
+
+F.
+approve
+→ 여전히 is_active=false
+→ 기존 active Local 유지
+
+G.
+activate-local 성공
+→ old inactive/archive
+→ new active
+→ READY
+→ atomic success
+
+H.
+activate-local 중간 실패
+→ old Local 그대로 active
+→ READY 변화 없음
+→ partial state 0
+
+I.
+동일 DOCX 재업로드
+→ duplicate safe
+→ version/item 중복 생성 0
+
+J.
+변경 DOCX 업로드
+→ 새 version 생성
+→ old version 보존
+
+K.
+Pool A Local이 Pool B에 노출 0
+
+L.
+Global은 모든 pool에서 동일 검색
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 100+ Pool Simulation
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 100 pool mock:
+
+- SCA 없는 pool들
+- 서로 다른 Local curriculum
+- Global 공통
+- version update 반복
+- 동일파일 재업로드
+- activate 실패
+
+검증:
+
+tenant leakage = 0
+active Local >1 per pool = 0
+manual DB action = 0
+duplicate version corruption = 0
+Global progress contamination = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 성능 최소 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에 필요한 index만 추가:
+
+- global reference lookup
+- local active lookup
+
+CPO mapper N+1은
+이번 작업에 직접 필요하면 batch 개선.
+아니면 잔존 P2로 명시하고 건드리지 말 것.
+
+Global cache도 출시 blocker 아니면
+이번 작업에서 추가하지 말 것.
+
+과설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 운영 흐름:
+
+신규 수영장:
+
+파일 업로드
+→ 자동 구조화
+→ 검토/승인
+→ 적용 버튼
+
+끝.
+
+운영자 DB 작업 = 0
+
+SCA 수동 생성 = 0
+
+READY 수동 PATCH = 0
+
+version id 수동 관리 = 0
+
+Global 수동 연결 = 0
+
+Toykids 전용 코드 = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최종 Local Resolver
+2. SCA fallback 실제 코드
+3. SCA 없는 신규 pool AI candidate 결과
+4. structure 후 version 상태
+5. approve 후 version 상태
+6. activate-local TX 구조
+7. version naming/version identity 정책
+8. content_hash 정책
+9. 동일 파일 재업로드 결과
+10. 다른 파일 재업로드 결과
+11. READY source of truth
+12. Global system health 분리
+13. Search 단일화 결과
+14. tenant isolation
+15. 100+ pool simulation
+16. 운영자 DB 작업 수
+17. 관련 테스트
+18. main SHA
+19. Render LIVE SHA
+20. Toykids Local DOCX 업로드 준비 YES/NO
+21. 잔존 blocker
+
+아래 모두 충족해야 PASS:
+
+운영자 DB 작업 = 0
+SCA 없이 신규 pool 정상
+파일업로드 → 검토 → 적용 완료
+version history 보존
+부분 activation 0
+tenant leakage 0
+Toykids special-case 코드 0
+
+완료 후 STOP.

@@ -3863,7 +3863,9 @@ router.get("/reports/summary",
 
       // ── period_start 범위 (해당 월 전체) ─────────────
       const periodFrom = `${year}-${String(month).padStart(2,"0")}-01`;
-      const periodTo   = `${year}-${String(month).padStart(2,"0")}-31`; // DB는 실제 날짜로 자름
+      // 월말 = 다음 달 1일에서 1일 빼기 (9월→31 등 잘못된 날짜 방지)
+      const periodToDate = new Date(year, month, 0); // month는 1-based이므로 month,0 = 해당 월 마지막 날
+      const periodTo = `${periodToDate.getFullYear()}-${String(periodToDate.getMonth()+1).padStart(2,"0")}-${String(periodToDate.getDate()).padStart(2,"0")}`;
 
       // ── 한국어 초성 → LIKE 패턴 변환 ─────────────────
       // Unicode 가나다 초성 범위: 각 초성 시작 코드포인트
@@ -4637,13 +4639,13 @@ router.get(
           SELECT COUNT(DISTINCT student_id)::int AS cnt
           FROM attendance
           WHERE swimming_pool_id = ${poolId}
-            AND date >= (NOW() - INTERVAL '30 days')::date
+            AND date::date >= (NOW() - INTERVAL '30 days')::date
         `),
         db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM class_groups
           WHERE swimming_pool_id = ${poolId}
-            AND (is_active = true OR is_active IS NULL)
+            AND is_deleted IS NOT TRUE
         `),
         db.execute(sql`
           SELECT COUNT(*)::int AS cnt
@@ -4798,7 +4800,7 @@ router.get(
           (
             SELECT MAX(a.date)::text FROM attendance a
             WHERE a.student_id = s.id AND a.swimming_pool_id = ${poolId}
-              AND a.date <= CURRENT_DATE
+              AND a.date::date <= CURRENT_DATE
           ) AS last_attendance_date,
           (
             SELECT COUNT(*)::int FROM growth_events ge

@@ -1,0 +1,170 @@
+[보낼 곳: APP REPLIT]
+
+[영구 작업 규칙 변경 — Render Production 자동 배포까지 Replit 책임]
+
+지금부터 APP/API 서버 코드가 수정되는 모든 작업에서
+Render Production 배포는 사용자 수동 작업으로 넘기지 않는다.
+
+Replit 작업 범위에 기본 포함한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기본 실행 체인
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 코드 변경이 있는 작업은 항상:
+
+코드 수정
+→ 관련 테스트
+→ git main push
+→ Render Production deploy trigger
+→ Render deploy 완료 대기
+→ /health 확인
+→ LIVE commit == 최종 main SHA 확인
+→ Production API smoke
+
+까지 한 작업으로 완료한다.
+
+"GitHub push 완료"
+"Render 배포 트리거됨"
+"수동 배포 필요"
+
+상태에서 완료보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Render 배포 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 연결된 Render Production service의
+정상 자동배포/배포 hook/API/기존 배포 방식 중
+repository에서 실제 사용 가능한 canonical 방법을 사용한다.
+
+불필요하게 사용자의 Render 대시보드 조작을 요구하지 않는다.
+
+배포가 자동으로 시작되지 않으면
+Replit이 사용 가능한 기존 배포 방식으로 직접 trigger.
+
+새 배포 구조를 임의로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 완료 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 변경 작업의 PASS 조건:
+
+main HEAD = X
+AND
+Render LIVE /health commit = X
+
+두 SHA가 일치해야 한다.
+
+예:
+
+main HEAD:
+4dea2178
+
+/health commit:
+4dea2178...
+
+→ PASS
+
+다르면 HOLD/FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Migration이 포함된 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB migration이 필요한 서버 변경은:
+
+migration 실행
+→ schema 검증
+→ 코드 push
+→ Render deploy
+→ /health SHA
+→ Production smoke
+
+순서 또는 migration 특성에 맞는 안전한 순서로
+Replit이 끝까지 수행.
+
+사용자에게:
+
+"migration 수동 실행 필요"
+"Render 수동 배포 필요"
+
+라고 넘기지 말 것.
+
+단 실제 권한/credential 부재로 기술적으로 실행 불가능한 경우에만
+정확한 blocker와 필요한 사용자 액션을 보고.
+
+추측으로 수동 작업 요구 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실패 시
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render build/deploy 실패 시:
+
+- build log 확인
+- 정확한 원인 특정
+- 이번 변경 범위 내 최소 수정
+- 재테스트
+- 재배포
+- /health 재확인
+
+까지 수행.
+
+광범위 리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OTA와 Render 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render 서버 배포와
+iOS OTA는 별개다.
+
+서버 코드만 변경:
+→ Render deploy
+→ OTA 하지 않음
+
+APP JS/TS 변경:
+→ canonical release/v2.0.0 반영
+→ 필요 시 iOS OTA
+
+서버 + APP 동시 변경:
+→ Render LIVE 먼저 확정
+→ Production API smoke
+→ 이후 OTA
+
+Android OTA는 별도 지시 없으면 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고 기본 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 서버 변경 작업 완료보고에는 반드시:
+
+1. main HEAD SHA
+2. migration 실행 여부
+3. Render deploy 결과
+4. Render LIVE SHA
+5. /health commit
+6. Production smoke 결과
+7. APP 변경 여부
+8. OTA 필요 여부/OTA ID
+9. 잔존 blocker
+
+포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 영구 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로:
+
+코드 수정됨 ≠ PASS
+Git push ≠ PASS
+Render deploy triggered ≠ PASS
+
+Render LIVE SHA 확인까지 완료되어야
+서버 작업 PASS.
+
+이 규칙을 이후 모든 APP/API 작업에 적용.

@@ -184,12 +184,19 @@ export async function getCurriculumLevels(poolId: string): Promise<{
       .map(r => [r.level_order, r.level_name]),
   );
 
-  const levels: CurriculumLevel[] = (countRows.rows as any[]).map(r => ({
-    level_order: Number(r.level_order),
-    level_name:  settingsMap.get(Number(r.level_order)) ?? `Level ${r.level_order}`,
-    node_count:  Number(r.node_count),
-    test_count:  Number(r.test_count),
-  }));
+  const levels: CurriculumLevel[] = (countRows.rows as any[]).map(r => {
+    const lo = r.level_order === null ? null : Number(r.level_order);
+    const levelName =
+      lo === null
+        ? "레벨 미지정"
+        : (settingsMap.get(lo) ?? `Level ${lo}`);
+    return {
+      level_order: lo,
+      level_name:  levelName,
+      node_count:  Number(r.node_count),
+      test_count:  Number(r.test_count),
+    };
+  });
 
   return { version, levels };
 }
@@ -323,14 +330,15 @@ export async function searchCurriculumForDiary(
     return emptyResult();
   }
 
-  // source_trace를 검색 텍스트로 로드 (is_test_item=false, LIMIT 550)
+  // curriculum items 로드 (is_test_item=false, LIMIT 600)
+  // source_trace가 없는 Local CV items도 포함 — scoreCurriculumNode에서 title/atomic_skill로 fallback
   const rows = await db.execute(sql`
     SELECT id, stroke, domain, skill_group, atomic_skill, source_trace, title
     FROM curriculum_items
     WHERE curriculum_version_id = ${version.id}
       AND is_active = true
       AND NOT is_test_item
-      AND source_trace IS NOT NULL
+      AND (source_trace IS NOT NULL OR title IS NOT NULL OR atomic_skill IS NOT NULL)
     ORDER BY sort_order ASC
     LIMIT 600
   `);

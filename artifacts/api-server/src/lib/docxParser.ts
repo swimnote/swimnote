@@ -63,6 +63,9 @@ export interface CurriculumLevel {
 /**
  * curriculum_items에 저장될 검색 단위 항목.
  * PRE-WP-X: docxParser가 item 분리까지 담당.
+ *
+ * FINAL_IMPORT 포맷의 canonical fields는 optional로 추가됨.
+ * 기존 v1.0 legacy parser는 이 필드를 생성하지 않는다.
  */
 export interface SearchableItem {
   /** 검색 텍스트 (curriculum_items.title) */
@@ -76,8 +79,26 @@ export interface SearchableItem {
   sort_order: number;
   /** 출처 필드 — 품질 감사/디버깅용 */
   field_source: string;
-  /** 레벨 순서 */
+  /** 레벨 순서 (-1 = TBD/미지정) */
   level_order: number;
+
+  // ── FINAL_IMPORT canonical fields (optional) ──────────────────────────────
+  /** 표시 번호 (예: L1-001, TBD-001). FINAL_IMPORT 전용. */
+  display_no?: string;
+  /** 정규 식별자 키 */
+  canonical_key?: string;
+  /** 원본 소스 키 */
+  source_key?: string;
+  /** 영법 (general, backstroke, freestyle, breaststroke, butterfly, mixed) */
+  stroke?: string;
+  /** 동작 도메인 */
+  domain?: string;
+  /** 기술 그룹 */
+  skill_group?: string;
+  /** 원자 기술 설명 */
+  atomic_skill?: string;
+  /** TBD(레벨 미지정) 여부 */
+  is_review_required?: boolean;
 }
 
 export interface CurriculumStructured {
@@ -560,10 +581,155 @@ function parseWebsiteV1(elements: DocElement[]): WebsiteStructured {
   };
 }
 
+// ── FINAL_IMPORT parser ───────────────────────────────────────────────────────
+
+/**
+ * <w:t> 런을 평탄하게 추출한 texts 배열.
+ * XML entity &amp; 등은 그대로 유지 (DOCX 텍스트 콘텐츠 그대로).
+ */
+function extractAllTexts(bodyXml: string): string[] {
+  return (bodyXml.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) ?? [])
+    .map(m => m.replace(/<[^>]+>/g, "").trim())
+    .filter(Boolean);
+}
+
+/**
+ * FINAL_IMPORT DOCX 포맷 파서.
+ *
+ * 규칙:
+ * - FILE_TYPE=FINAL_IMPORT 를 감지한 경우에만 호출.
+ * - Section 3 "Canonical Nodes - Identity & Taxonomy" 테이블 10열 그대로 읽기.
+ * - 교육 내용 재해석, stroke/domain/skill_group 재분류, 레벨 추론 금지.
+ * - parsed count !== declared count → throw (partial import 금지).
+ * - off-by-one 수정: 마지막 노드(i === SEC4 - COL3) 포함.
+ */
+function parseFinalImportDocx(bodyXml: string): CurriculumStructured {
+  const texts = extractAllTexts(bodyXml);
+
+  // ── 1. FILE_TYPE 재확인 ──────────────────────────────────────────────────
+  const ftIdx = texts.findIndex(t => t === "FILE_TYPE");
+  const fileType = ftIdx >= 0 ? texts[ftIdx + 1] : "";
+  if (fileType !== "FINAL_IMPORT") {
+    throw new Error(`[FINAL_IMPORT] FILE_TYPE 불일치: '${fileType}'. FINAL_IMPORT 전용 파서.`);
+  }
+
+  // ── 2. CANONICAL_STATUS ──────────────────────────────────────────────────
+  const csIdx = texts.findIndex(t => t === "CANONICAL_STATUS");
+  const canonicalStatus = csIdx >= 0 ? texts[csIdx + 1] : "UNKNOWN";
+
+  // ── 3. Validation Summary — declared canonical_node_count ────────────────
+  const cncIdx = texts.findIndex(t => t === "canonical_node_count");
+  if (cncIdx < 0) {
+    throw new Error("[FINAL_IMPORT] Validation Summary의 canonical_node_count를 찾을 수 없음.");
+  }
+  const declaredCount = parseInt(texts[cncIdx + 1] ?? "", 10);
+  if (isNaN(declaredCount) || declaredCount <= 0) {
+    throw new Error(`[FINAL_IMPORT] canonical_node_count 파싱 실패: '${texts[cncIdx + 1]}'`);
+  }
+
+  // ── 4. Section 3 boundary 감지 ───────────────────────────────────────────
+  // texts 배열의 섹션 헤더는 XML entity 그대로 (&amp; 유지)
+  const SEC3_HEADER = "3. Canonical Nodes - Identity &amp; Taxonomy";
+  const SEC4_HEADER = "4. Canonical Nodes - Instruction &amp; Completion";
+  const sec3Idx = texts.findIndex(t => t === SEC3_HEADER);
+  const sec4Idx = texts.findIndex(t => t === SEC4_HEADER);
+
+  if (sec3Idx < 0 || sec4Idx < 0) {
+    throw new Error(
+      `[FINAL_IMPORT] Section 3/4 경계 감지 실패. ` +
+      `SEC3=${sec3Idx}, SEC4=${sec4Idx}. 문서 섹션 헤더를 확인하십시오.`
+    );
+  }
+
+  // ── 5. Canonical nodes 추출 ──────────────────────────────────────────────
+  // 레이아웃: [sec3 헤더] [헤더 행 10개] [데이터 행 각 10개] [sec4 헤더]
+  const COL3 = 10; // 10열: display_no, canonical_key, source_key, level_order, level_name, section, stroke, domain, skill_group, atomic_skill
+  const dataStart = sec3Idx + 1 + COL3; // +1 for header text itself, +COL3 for column header row
+
+  const nodes: SearchableItem[] = [];
+
+  // off-by-one fix: i <= sec4Idx - COL3 (마지막 노드 행 포함)
+  for (let i = dataStart; i <= sec4Idx - COL3; i += COL3) {
+    const row = texts.slice(i, i + COL3);
+    if (row.length < COL3) break;
+
+    const [display_no, canonical_key, source_key, level_order_str, level_name, section, stroke, domain, skill_group, atomic_skill] = row;
+
+    // 헤더 행 재등장 방지 (display_no가 컬럼명이면 건너뜀)
+    if (display_no === "display_no") continue;
+
+    // 유효한 display_no 패턴: L숫자-숫자 또는 TBD-숫자
+    if (!display_no.match(/^(?:[A-Z]\d|-?TBD)[A-Z0-9\-]*/)) continue;
+
+    const levelOrderNum =
+      level_order_str === "TBD" ? -1 : parseInt(level_order_str, 10);
+
+    nodes.push({
+      title: atomic_skill,
+      description: `${level_name} / ${section} / ${stroke}::${domain}::${skill_group}`,
+      sort_order: nodes.length,
+      field_source: "canonical",
+      level_order: isNaN(levelOrderNum) ? -1 : levelOrderNum,
+      // canonical fields
+      display_no,
+      canonical_key,
+      source_key,
+      stroke,
+      domain,
+      skill_group,
+      atomic_skill,
+      is_review_required: level_order_str === "TBD",
+    });
+  }
+
+  // ── 6. Count validation (partial import 방지) ────────────────────────────
+  if (nodes.length !== declaredCount) {
+    throw new Error(
+      `[FINAL_IMPORT] canonical_node_count 불일치 — ` +
+      `declared=${declaredCount}, parsed=${nodes.length}. ` +
+      `Partial import 금지. 문서 섹션 경계를 확인하십시오.`
+    );
+  }
+
+  const reviewRequiredCount = nodes.filter(n => n.is_review_required).length;
+
+  return {
+    template_version: "FINAL_IMPORT",
+    basic_info: {
+      notes: `CANONICAL_STATUS=${canonicalStatus} | canonical_node_count=${declaredCount} | review_required=${reviewRequiredCount}`,
+    },
+    teaching_summary: {},
+    levels: [],
+    total_declared_levels: 0,
+    parse_warnings:
+      canonicalStatus === "REVIEW_REQUIRED"
+        ? [`CANONICAL_STATUS=REVIEW_REQUIRED: ${reviewRequiredCount}개 TBD 노드 포함. approve 전 레벨 귀속 검토 필요.`]
+        : [],
+    searchable_items: nodes,
+  };
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * 버퍼에서 FILE_TYPE=FINAL_IMPORT 여부를 감지한다.
+ * 파서를 선택하기 전 빠른 사전 체크에 사용.
+ */
+export function detectFinalImport(bodyXml: string): boolean {
+  const texts = extractAllTexts(bodyXml);
+  const idx = texts.findIndex(t => t === "FILE_TYPE");
+  return idx >= 0 && texts[idx + 1] === "FINAL_IMPORT";
+}
 
 export function parseCurriculumDocx(buffer: Buffer): CurriculumStructured {
   const { bodyXml, templateVersion } = extractDocxBody(buffer);
+
+  // FINAL_IMPORT 포맷 우선 감지 (template version과 무관하게 작동)
+  if (detectFinalImport(bodyXml)) {
+    return parseFinalImportDocx(bodyXml);
+  }
+
+  // Legacy v1.0 template 파서
   const elements = parseDocumentElements(bodyXml);
   if (templateVersion === "1.0") return parseCurriculumV1(elements);
   const result = parseCurriculumV1(elements);

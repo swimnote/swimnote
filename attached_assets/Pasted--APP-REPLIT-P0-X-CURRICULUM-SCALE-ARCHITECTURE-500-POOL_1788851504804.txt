@@ -1,0 +1,497 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — X CURRICULUM SCALE ARCHITECTURE / 500 POOLS ONE-CLICK STANDARDIZATION]
+
+목표:
+
+현재 Toykids용으로 정리 중인
+Global Reference + Pool Local Curriculum 구조를
+
+향후 500개 이상의 신규 수영장이
+별도 DB 작업/수동 연결/override 없이
+간단하게 바로 적용할 수 있는
+표준 onboarding architecture로 정리한다.
+
+이번 작업의 최우선 기준:
+
+"수영장 하나 추가할 때 운영자가 DB를 만질 일이 없어야 한다."
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 운영자가 보는 흐름은 3단계만
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 X 수영장:
+
+1. Curriculum DOCX 업로드
+2. 구조화 결과 검토/승인
+3. 적용
+
+끝.
+
+운영자에게 아래 작업 요구 금지:
+
+- curriculum_version ID 선택
+- SCA 직접 생성
+- READY 직접 변경
+- global curriculum 연결
+- global/local duplicate 정리
+- SQL 실행
+- management override
+- manual entitlement로 setup 우회
+
+이 모든 것은 서버 내부 자동화.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Global Reference는 시스템 단일 자산
+━━━━━━━━━━━━━━━━━━━━━━
+
+Global Reference Curriculum은
+수영장별로 생성/복사하지 않는다.
+
+시스템에 공통 1세트 또는 versioned global set으로 존재.
+
+모든 pool은 자동으로 검색에 접근.
+
+Global 사용에:
+
+- SCA 불필요
+- pool별 assignment 불필요
+- pool별 activation 불필요
+
+검색 기준:
+
+is_global_reference=true
+AND import_status='ACTIVE'
+
+Global은:
+
+- AI grounding
+- 의미 보강
+- 부실 Local 보완
+
+에만 사용.
+
+Global item이 직접
+CPO/SCP progress target이 되는 것 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Local Curriculum은 pool당 active 1개
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 pool:
+
+0 또는 1개의 active Local Curriculum.
+
+Local 기준:
+
+is_global_reference=false
+AND swimming_pool_id=poolId
+AND import_status='ACTIVE'
+AND is_active=true
+
+신규 upload 승인 시:
+
+기존 Local active
+→ archive/deactivate
+
+새 Local
+→ active
+
+를 서버가 자동 처리.
+
+관리자가 version 상태 직접 조정하지 않게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SCA 자동화
+━━━━━━━━━━━━━━━━━━━━━━
+
+student_curriculum_assignments가
+실제 runtime에 필요하다면
+절대 수동 생성 구조로 두지 않는다.
+
+Local Curriculum activate 시 서버가 자동:
+
+현재 재원학생
+→ active Local version assignment 생성
+
+신규 학생 등록 시 자동:
+
+student created/enrolled
+→ 현재 active Local version assignment 생성
+
+퇴원/비활성 처리 시
+기존 history는 유지하되 active assignment 정책 자동 적용.
+
+Local version 변경 시:
+
+기존 active SCA deactivate
+→ 새 Local version assignment 생성
+
+모든 작업 idempotent.
+
+ON CONFLICT 또는 equivalent로
+중복 0 보장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SCA가 정말 필요하지 않다면 제거 방향 검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+현재 코드에서 SCA가:
+
+A. 학생별 서로 다른 curriculum을 지원하기 위해 실제 필요
+또는
+B. 모든 학생이 동일 pool active version을 쓰는데도
+중간 lookup으로만 존재
+
+중 어느 것인지 확인.
+
+만약 B라면
+500개 pool 운영을 단순화하기 위해
+
+student
+→ pool active Local version
+
+직접 fallback을 canonical source로 삼는 것이
+더 단순한지 검토.
+
+단 기존 기능 깨지지 않는 범위에서 판단.
+
+즉:
+불필요한 assignment table 의존을
+운영 필수조건으로 만들지 말 것.
+
+최종 보고에서:
+SCA REQUIRED / OPTIONAL
+명확히 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. READY 상태 자동화
+━━━━━━━━━━━━━━━━━━━━━━
+
+xmode_config_status는
+운영자가 직접 조정하는 값이 아니라
+setup pipeline 결과로 자동 결정.
+
+정상 flow:
+
+NOT_CONFIGURED
+→ upload
+→ CURRICULUM_PENDING
+→ structure
+→ validate
+→ approve
+→ READY
+
+READY 조건은
+실제 runtime에 필요한 것만 포함.
+
+Global Reference는 시스템 공통 자산이므로
+pool마다 별도 prerequisite처럼 취급하지 않는다.
+
+global_template_sets ACTIVE=0 때문에
+특정 pool READY가 막히는 구조라면
+그 dependency가 정말 필요한지 재검토.
+
+500 pool onboarding에서
+전역 상태 하나 때문에 모든 신규 pool이 막히는
+fragile 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Local + Global 검색 API 단일화
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 Diary/Curriculum Search는
+하나의 canonical service 사용:
+
+CurriculumSearchService
+
+내부:
+
+LocalSearch(poolId, studentId)
++
+GlobalReferenceSearch()
+
+→ Merge
+→ Rank
+
+출력 candidate에는:
+
+source_scope:
+POOL_LOCAL
+GLOBAL_REFERENCE
+
+필수.
+
+UI/Diary/Parent/Growth가
+각자 별도 search 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Progress 규칙 단순화
+━━━━━━━━━━━━━━━━━━━━━━
+
+Progress target은 무조건 Local.
+
+조건:
+
+candidate.source_scope == POOL_LOCAL
+
+일 때만:
+
+growth_event
+→ CPO
+→ SCP
+
+Global-only:
+
+AI grounding only
+progress 0 change
+
+이 조건은:
+
+- growth_event insert
+- CPO mapper
+
+두 곳에서 방어.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Local Curriculum이 부실해도 시스템은 작동
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 수영장이:
+
+5개
+10개
+20개
+
+정도의 부실한 curriculum만 제공해도
+setup 자체는 실패하지 않게 한다.
+
+Local은 공식 진도 구조.
+
+Global은 AI 이해 보강.
+
+단 Local에 없는 기술을
+Global이 Local progress item으로 자동 창작 금지.
+
+즉:
+
+부실한 Local
+≠ onboarding 실패
+
+부실한 Local
+→ AI 품질은 Global로 보완
+→ 공식 progress는 Local 범위 내에서만
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Importer idempotency
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 파일을 두 번 올려도
+DB가 꼬이지 않아야 한다.
+
+필수:
+
+- source hash
+- canonical hash
+- pool_id
+- version
+- import batch id
+
+기준으로 중복 처리.
+
+동일 파일 재업로드:
+
+- duplicate detection
+또는
+- safe new version
+
+중 현재 제품정책에 맞게 하나로 고정.
+
+절대 기존 Global row overwrite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Version transition 자동화
+━━━━━━━━━━━━━━━━━━━━━━
+
+Local v1
+→ Local v2
+
+변경 시 서버가 자동:
+
+1. 새 version 생성
+2. validation
+3. activate
+4. old version deactivate/archive
+5. student assignments transition
+6. progress transition policy 적용
+7. rollback 가능 상태 유지
+
+사용자가 DB version ID를 다룰 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 실패 시 atomic rollback
+━━━━━━━━━━━━━━━━━━━━━━
+
+DOCX upload/structure/approve 중 실패하면
+중간 상태로 운영이 꼬이지 않게 한다.
+
+예:
+
+새 curriculum parse 실패
+→ 기존 active Local 그대로 유지
+
+새 version validation 실패
+→ 기존 Local 그대로 유지
+
+SCA transition 실패
+→ 새 Local activation 완료 처리 금지
+
+즉 "부분 성공" 상태 금지.
+
+가능한 한 transaction / staged activation 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. onboarding 상태 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자에게 내부 DB 상태를 노출하지 말고
+단순 상태만:
+
+- 파일 업로드 필요
+- 분석 중
+- 검토 필요
+- 적용 준비 완료
+- 적용 완료
+- 오류
+
+정도로 표시.
+
+CURRICULUM_PENDING / SCA / version_id 같은
+내부 용어를 운영 UI에 노출하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 500 POOL 시뮬레이션
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 500 row 생성할 필요는 없지만
+테스트 또는 script로 최소 아래 검증:
+
+- pool 100개 이상 mock
+- 각 pool local version
+- Global 공통 1세트
+- pool별 candidate isolation
+- Local progress isolation
+- Global cross-pool search
+- SCA 중복 0
+- version activation collision 0
+
+특히 tenant leakage 0 필수.
+
+Pool A Local curriculum이
+Pool B 검색/progress에 노출되면 FAIL.
+
+Global만 cross-pool 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. DB/Index 성능
+━━━━━━━━━━━━━━━━━━━━━━
+
+500 pools 기준으로 확인:
+
+curriculum_versions
+curriculum_items
+student assignments
+growth_events
+CPO
+SCP
+
+주요 query에
+pool/version/student 기준 index가 충분한지 확인.
+
+N+1 query 금지.
+
+Global search가 pool 수에 비례해
+중복 로드되지 않게 한다.
+
+Global Reference는 캐시/공유 조회 가능한 구조 권장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 최종 운영 Source of Truth
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 반드시 문서화:
+
+SYSTEM:
+Global Reference Curriculum
+
+POOL:
+Active Local Curriculum
+
+STUDENT:
+Active curriculum context
+(필요하면 assignment,
+불필요하면 pool active fallback)
+
+PROGRESS:
+Local curriculum only
+
+AI:
+Local + Global
+
+이 5개 source-of-truth 외
+별도 임시 상태 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Toykids는 표준 flow의 첫 실제 적용 사례
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids도 특수 예외로 남기지 않는다.
+
+새 Toykids Local DOCX를 올릴 때
+다른 신규 pool과 동일한 flow 사용.
+
+Toykids 전용 SQL
+Toykids 전용 branch
+Toykids override
+
+금지.
+
+Toykids가 성공하면
+동일 flow를 2번째, 3번째, 500번째 pool에도
+그대로 사용할 수 있어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최종 Global source of truth
+2. 최종 Local source of truth
+3. SCA REQUIRED/OPTIONAL 판정
+4. 신규 pool onboarding 3-step flow
+5. READY 자동 transition
+6. Local activation 자동화
+7. student assignment 자동화
+8. version transition 자동화
+9. Local+Global search 단일 service
+10. Global-only progress 차단
+11. importer idempotency
+12. failure rollback
+13. tenant isolation test
+14. 100+ pool simulation 결과
+15. 필요한 index
+16. 운영자가 직접 해야 하는 DB 작업 수
+17. Toykids special-case 존재 여부
+18. 500 pool 확장 가능 여부
+19. 잔존 blocker
+
+최종 목표:
+
+운영자 수동 DB 작업 = 0
+수영장 onboarding = 파일 업로드 → 검토 → 적용
+Toykids special-case = 0
+
+이 세 조건 충족 시 PASS.
+
+완료 후 STOP.

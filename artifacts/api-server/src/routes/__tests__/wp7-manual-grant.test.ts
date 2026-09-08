@@ -43,12 +43,16 @@ type DbOpts = {
   poolExists?: boolean;
   activeSetCount?: number;
   xGlobalTemplateCount?: number;
+  // 500 Pool Standard: READY requires active local curriculum
+  hasActiveLocalCurriculum?: boolean;
   // upload history presence (must be irrelevant)
   hasSetupSubmission?: boolean;
   hasCurriculumFile?: boolean;
 };
 
 function makeMockDb(opts: DbOpts) {
+  // hasActiveLocalCurriculum defaults to true for backward compat (existing pools assumed to have local)
+  const localActive = opts.hasActiveLocalCurriculum !== false;
   return {
     execute: async (q: any) => {
       const raw = sqlStr(q);
@@ -57,6 +61,13 @@ function makeMockDb(opts: DbOpts) {
       if (raw.includes("swimming_pools") && raw.includes("approval_status") && !raw.includes("UPDATE")) {
         if (opts.poolExists === false) return { rows: [], rowCount: 0 };
         return { rows: [{ id: "pool_test", approval_status: "approved" }], rowCount: 1 };
+      }
+
+      // Local active curriculum check (500 Pool Standard invariant)
+      if (raw.includes("curriculum_versions") && raw.includes("is_global_reference") && raw.includes("is_active")) {
+        return localActive
+          ? { rows: [{ id: "cv_test_local" }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
       }
 
       // global_template_sets ACTIVE count
@@ -71,8 +82,6 @@ function makeMockDb(opts: DbOpts) {
 
       // x_setup_submissions (must NOT be checked by checkXPrerequisite)
       if (raw.includes("x_setup_submissions")) {
-        // If this is called, the test for upload-history-irrelevance fails
-        // Return data to track it's being called
         return { rows: opts.hasSetupSubmission ? [{ id: "sub_1", submitted_at: new Date() }] : [], rowCount: 0 };
       }
 
@@ -114,11 +123,14 @@ describe("Test 1: X-ready pool without upload history → READY", () => {
 // TEST 2: non-X-ready pool → BLOCK (422)
 // ════════════════════════════════════════════════════════════════════════════
 describe("Test 2: non-X-ready pool → BLOCK NOT_READY", () => {
-  it("No active global_template_sets → NOT_READY with ACTIVE_TEMPLATE_SET missing", async () => {
+  it("No active local curriculum → NOT_READY with LOCAL_CURRICULUM_NOT_ACTIVE missing", async () => {
+    // 500 Pool Standard: Local curriculum 없는 pool은 READY 불가
+    // activate-local TX가 유일한 READY setter임
     const db = makeMockDb({
       poolExists: true,
-      activeSetCount: 0,          // no active template set
-      xGlobalTemplateCount: 0,    // no x_global templates
+      hasActiveLocalCurriculum: false,   // Local curriculum 없음
+      activeSetCount: 1,
+      xGlobalTemplateCount: 1050,
     });
 
     const result = await checkXPrerequisite("pool_not_xready", db);
@@ -126,37 +138,33 @@ describe("Test 2: non-X-ready pool → BLOCK NOT_READY", () => {
     expect(result.status).toBe("NOT_READY");
     expect(result.ready).toBe(false);
     expect(result.reason).toBeTruthy();
-    expect(result.missing.some(m => m.includes("ACTIVE_TEMPLATE_SET"))).toBe(true);
+    expect(result.missing.some(m => m.includes("LOCAL_CURRICULUM_NOT_ACTIVE"))).toBe(true);
   });
 
-  it("Active set exists but 0 x_global templates → NOT_READY", async () => {
+  it("Active local curriculum → READY (global templates = informational only)", async () => {
+    // global_template_sets / diary_templates = Global system health (pool READY 차단 금지)
+    // Pool READY는 pool 존재 + active local curriculum만으로 충족
     const db = makeMockDb({
       poolExists: true,
-      activeSetCount: 1,
-      xGlobalTemplateCount: 0,    // templates not loaded
+      hasActiveLocalCurriculum: true,    // Local curriculum 있음
+      activeSetCount: 0,                 // global templates 없음 — 경고만, 차단 안 함
+      xGlobalTemplateCount: 0,
     });
 
-    const result = await checkXPrerequisite("pool_empty_templates", db);
-
-    expect(result.status).toBe("NOT_READY");
-    expect(result.ready).toBe(false);
-    expect(result.missing.some(m => m.includes("X_GLOBAL_TEMPLATES"))).toBe(true);
+    const result = await checkXPrerequisite("pool_local_curriculum_no_global", db);
+    expect(result.status).toBe("READY");
+    expect(result.ready).toBe(true);
+    // Global template count는 참고용으로 반환됨 (missing에는 없음)
+    expect(result.missing.some(m => m.includes("ACTIVE_TEMPLATE_SET"))).toBe(false);
+    expect(result.missing.some(m => m.includes("X_GLOBAL_TEMPLATES"))).toBe(false);
+    expect(result.active_template_set_count).toBe(0); // 참고용 반환 확인
   });
 
-  it("global templates exist but wrong scope (scope=global not x_global) → checkXPrerequisite still NOT_READY", async () => {
-    // This test verifies we query scope='x_global' specifically, not scope='global'
-    // If we queried scope='global' and got 1050, we'd return READY incorrectly
-    // By mocking xGlobalTemplateCount=0, we simulate: scope='global' records exist but
-    // scope='x_global' records don't → checkXPrerequisite correctly returns NOT_READY
-    const db = makeMockDb({
-      poolExists: true,
-      activeSetCount: 1,
-      xGlobalTemplateCount: 0,    // x_global scope = 0 (different from scope='global')
-    });
-
-    const result = await checkXPrerequisite("pool_wrong_scope", db);
+  it("Pool not found → NOT_READY with POOL_NOT_FOUND", async () => {
+    const db = makeMockDb({ poolExists: false });
+    const result = await checkXPrerequisite("pool_missing", db);
     expect(result.status).toBe("NOT_READY");
-    expect(result.x_global_template_count).toBe(0);
+    expect(result.missing.some(m => m.includes("POOL_NOT_FOUND"))).toBe(true);
   });
 });
 
@@ -182,31 +190,37 @@ describe("Test 3: upload history irrelevant to READY decision", () => {
     expect(checkSrc).not.toContain("x_setup_files");
   });
 
-  it("Pool WITH upload history blocked by 0 x_global templates → NOT_READY (history irrelevant)", async () => {
+  it("Pool WITH upload history but no active local curriculum → NOT_READY (history irrelevant)", async () => {
+    // Upload history alone (x_setup_submissions/x_setup_files) is NOT sufficient for READY.
+    // 500 Pool Standard: activate-local TX 완료 후에만 READY.
     const db = makeMockDb({
       poolExists: true,
+      hasActiveLocalCurriculum: false, // no active local → NOT_READY
       activeSetCount: 0,
       xGlobalTemplateCount: 0,
-      hasSetupSubmission: true,   // has upload history
-      hasCurriculumFile: true,    // has curriculum file
+      hasSetupSubmission: true,        // has upload history — irrelevant
+      hasCurriculumFile: true,
     });
 
-    const result = await checkXPrerequisite("pool_has_history_but_no_xdata", db);
-    // Upload history alone is not enough — x_global data must exist
+    const result = await checkXPrerequisite("pool_has_history_but_no_local", db);
+    // Upload history alone is not enough — active local curriculum required
     expect(result.status).toBe("NOT_READY");
+    expect(result.missing.some(m => m.includes("LOCAL_CURRICULUM_NOT_ACTIVE"))).toBe(true);
   });
 
-  it("Pool WITHOUT upload history but WITH x_global data → READY (history irrelevant)", async () => {
+  it("Pool WITHOUT upload history but WITH active local curriculum → READY (history irrelevant)", async () => {
+    // activate-local TX가 READY를 설정하므로 별도 upload history 확인 불필요
     const db = makeMockDb({
       poolExists: true,
+      hasActiveLocalCurriculum: true,  // active local → READY
       activeSetCount: 1,
       xGlobalTemplateCount: 1050,
-      hasSetupSubmission: false,  // no upload history
-      hasCurriculumFile: false,   // no curriculum file
+      hasSetupSubmission: false,       // no upload history — irrelevant
+      hasCurriculumFile: false,
     });
 
-    const result = await checkXPrerequisite("pool_no_history_but_xdata", db);
-    // x_global data is sufficient — no upload history needed
+    const result = await checkXPrerequisite("pool_no_history_but_active_local", db);
+    // active local curriculum is sufficient — upload history not needed
     expect(result.status).toBe("READY");
   });
 });

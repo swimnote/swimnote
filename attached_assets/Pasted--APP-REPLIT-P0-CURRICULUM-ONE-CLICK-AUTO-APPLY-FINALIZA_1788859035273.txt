@@ -1,0 +1,417 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — CURRICULUM ONE-CLICK AUTO APPLY FINALIZATION]
+
+제품 정책을 최종 변경한다.
+
+SWIMNOTE X에서 수영장 운영자가 커리큘럼 파일을 업로드한 뒤
+개발자/운영자/관리자가 별도로:
+
+structure
+→ review
+→ approve
+→ activate-local
+
+를 수동 실행하는 방식은 사용하지 않는다.
+
+목표:
+
+"파일 업로드 1회 → 자동 처리 → 바로 적용"
+
+500개 수영장 공통 표준 flow로 만든다.
+
+Toykids도 이 동일 flow를 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 사용자 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 행동:
+
+커리큘럼 DOCX 업로드
+
+끝.
+
+서버 내부 자동 chain:
+
+UPLOAD
+→ PARSE
+→ STRUCTURE
+→ VALIDATE
+→ APPROVE
+→ ACTIVATE LOCAL
+→ READY
+
+전부 하나의 orchestration flow에서 자동 수행.
+
+사용자에게 version id 선택,
+approve 버튼,
+activate 버튼,
+DB 작업을 요구하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 기존 endpoint는 내부 primitive로 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+/upload/curriculum
+/structure
+/structured/approve
+/activate-local
+
+기능 자체는 삭제하지 않아도 된다.
+
+하지만 일반 운영 flow에서는
+업로드 완료 후 서버가 위 단계를 자동으로 이어서 실행한다.
+
+가능하면 canonical orchestration 함수:
+
+processAndActivateLocalCurriculum(poolId, uploadedFileId)
+
+형태로 공통화.
+
+endpoint끼리 HTTP 재호출하는 구조보다
+기존 service/function을 내부에서 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. REVIEW_REQUIRED 정책 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+REVIEW_REQUIRED는 더 이상
+전체 curriculum activation blocker가 아니다.
+
+다음과 같은 soft review:
+
+- 일부 level 미지정
+- taxonomy confidence 낮음
+- derived field 존재
+- source에서 직접 명시되지 않은 세부 classification
+- Global Reference를 이용한 하위 atomic decomposition
+
+은 내부 review metadata로만 남긴다.
+
+Local Curriculum은 정상 activation 가능.
+
+예:
+
+review_required_count=161
+
+이어도 canonical 자체가 유효하면 activation 가능.
+
+각 node에는 필요하면:
+
+review_required=true
+review_reason
+confidence
+
+유지.
+
+하지만 pool 전체는 READY 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. HARD BLOCK 조건만 별도 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+자동 activation을 막는 것은 아래와 같은
+실제 import failure만.
+
+- 파일 parse 실패
+- canonical node count = 0
+- declared count != parsed count
+- duplicate canonical key
+- broken canonical structure
+- APP/AI canonical identity mismatch
+- pool/tenant mismatch
+- unsupported/corrupt document
+- DB transaction failure
+- activation transaction failure
+
+이 경우에만:
+
+IMPORT_FAILED 또는 REVIEW_BLOCKED
+
+상태로 정지.
+
+soft taxonomy/review 문제로 전체 activation 금지하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. FINAL_IMPORT 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 생성된 FINAL_IMPORT 파일은:
+
+FILE_TYPE=FINAL_IMPORT
+
+감지 후 기존 canonical parser 사용.
+
+문서 canonical data를 재해석하지 않고 그대로 structure.
+
+Validation 통과하면:
+
+자동 APPROVE
+→ 자동 activate-local.
+
+CANONICAL_STATUS=REVIEW_REQUIRED라도
+그 이유가 soft review 항목뿐이면 activation 허용.
+
+단 HARD BLOCK validation error가 있으면 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 일반 수영장 원본 DOCX
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 신규 수영장은
+FINAL_IMPORT 파일을 직접 만들지 않는다.
+
+운영자가 자기 수영장 원본 커리큘럼 DOCX를 업로드하면
+기존/향후 canonical structuring pipeline이:
+
+원본 이해
+→ Local scope 추출
+→ atomic skill 구조화
+→ Global Reference 보강
+→ canonical 생성
+→ APP/AI projection 생성
+→ validation
+→ activation
+
+까지 자동 처리해야 한다.
+
+운영자에게 교육 taxonomy를 수정하게 하지 않는다.
+
+이번 APP 작업에서는 기존 구현 범위를 확인하고
+APP가 담당하는 orchestration 부분을 완성한다.
+
+AI ENGINE 처리가 필요한 부분을 임의로 APP에 재구현하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Toykids 현재 Draft 즉시 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정상 생성된 Toykids Local:
+
+version:
+cv_3052fb8454754cadb917379eb85cffda
+
+items:
+332
+
+is_active=false
+import_status=DRAFT
+approved_at=NULL
+
+canonical validation:
+332/332
+APP/AI diff=0
+review_required=161
+HARD validation error=0
+
+이 version은 새로운 정책상
+soft review만 존재하므로 activation 가능.
+
+먼저 실제 DB 상태를 재검증한 후:
+
+approve
+→ activate-local
+
+을 canonical service를 통해 수행.
+
+직접 SQL로 active 변경 금지.
+
+결과:
+
+new Toykids Local:
+is_active=true
+import_status=ACTIVE
+approved_at != NULL
+
+pool:
+xmode_config_status=READY
+
+profile:
+ACTIVATED
+
+기존 Legacy Local:
+정상 archive/deactivate
+
+Global Reference:
+유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 progress 데이터
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids 기존:
+
+SCA 231
+growth_events teacher_manual 194
+CPO 140
+SCP 146
+
+삭제/초기화 금지.
+
+새 Local activation 자체로
+기존 progress row를 임의 재작성하지 않는다.
+
+향후 신규 Diary부터 canonical Local resolver를 통해
+새 active Local에 evidence가 누적되게 한다.
+
+기존 기록 transition이 별도로 필요하면
+이번 작업에서 추측 처리하지 말고 보고만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 업로드 API 최종 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 pool 기준 최종 결과는 하나의 사용자 액션으로:
+
+POST curriculum upload
+
+성공 응답 또는 async job 완료 시:
+
+status = READY
+active_local_version_id
+canonical_node_count
+soft_review_count
+hard_error_count = 0
+
+을 확인할 수 있게 한다.
+
+사용자는 별도 approve/activate 호출을 할 필요 없어야 한다.
+
+처리 시간이 길 경우 async job이어도 되지만
+사용자 액션은 업로드 1회여야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Idempotency
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 파일 재업로드:
+
+같은 content_hash
+→ 이미 동일 version이 ACTIVE면
+새 version 생성/재activation 불필요
+→ 현재 ACTIVE 결과 반환.
+
+같은 hash DRAFT가 남아 있고 valid하면
+중복 생성 없이 이어서 activation.
+
+다른 파일:
+→ 신규 version
+→ validate
+→ successful activation 시 old version archive.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 실패 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 파일 처리/validation 실패 시:
+
+기존 active Local 절대 건드리지 않는다.
+
+새 version validation 성공 후에만
+activation TX 진입.
+
+activation 실패 시 rollback.
+
+항상 기존 정상 curriculum이 계속 사용 가능해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 flow 테스트:
+
+A.
+신규 pool + SCA=0 + 정상 DOCX 업로드
+→ 별도 수동 호출 없이 READY
+→ active Local 1개
+
+B.
+soft review 포함 DOCX
+→ review metadata 유지
+→ READY
+→ active Local 정상
+
+C.
+hard validation failure
+→ activation 안 됨
+→ 기존 active Local 유지
+
+D.
+동일 파일 재업로드
+→ duplicate version 0
+→ 기존 ACTIVE 반환
+
+E.
+변경 파일 업로드
+→ 신규 version
+→ 성공 후 old archive
+→ active Local 정확히 1개
+
+F.
+Toykids 332-node version
+→ 자동 approve/activate
+→ READY
+
+G.
+Global Reference 50 보존
+
+H.
+tenant isolation
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정
+→ 테스트
+→ main push
+→ Render Production 자동 배포
+→ LIVE 완료 확인
+→ /health commit == main HEAD
+→ Production smoke
+
+까지 Replit 책임.
+
+deploy triggered에서 완료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. one-click orchestration 구현 위치
+2. 사용자 최종 API flow
+3. soft review / hard block 기준
+4. REVIEW_REQUIRED activation 정책
+5. Toykids active Local version
+6. Toykids 332 items 확인
+7. Toykids READY 확인
+8. 기존 Legacy Local 상태
+9. Global 50 보존
+10. SCA/growth/CPO/SCP 보존
+11. 신규 pool SCA=0 one-click 테스트
+12. soft review 자동 activation 테스트
+13. hard failure rollback 테스트
+14. 동일 파일 idempotency
+15. 변경 파일 version transition
+16. 관련 테스트
+17. main SHA
+18. Render LIVE SHA
+19. /health commit
+20. 잔존 blocker
+
+최종 목표:
+
+수영장 운영자는
+"커리큘럼 파일 업로드"
+한 번만 하면 끝.
+
+수동 approve = 0
+수동 activate = 0
+수동 DB 작업 = 0
+
+완료 후 STOP.

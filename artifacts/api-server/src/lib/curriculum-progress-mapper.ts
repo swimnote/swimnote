@@ -145,7 +145,7 @@ export async function upsertSessionObservation(
     // curriculum_items는 curriculum_version에 속하고
     // curriculum_versions는 swimming_pool_id를 가짐 → cross-pool 차단
     const versionRows = await db.execute(sql`
-      SELECT id, swimming_pool_id, is_active
+      SELECT id, swimming_pool_id, is_active, is_global_reference
       FROM curriculum_versions
       WHERE id = ${ge.curriculum_version_id}
         AND swimming_pool_id = ${poolId}
@@ -160,7 +160,18 @@ export async function upsertSessionObservation(
       id: string;
       swimming_pool_id: string;
       is_active: boolean;
+      is_global_reference: boolean;
     };
+
+    // 2-b-2. Global Reference guard (2차 방어)
+    // source_scope='GLOBAL_REFERENCE' candidate가 잘못된 caller를 통해
+    // CPO 생성을 시도해도 차단한다.
+    if (version.is_global_reference) {
+      skipReasons.push(
+        `${ge.id}: version=${ge.curriculum_version_id} is_global_reference=true → CPO 생성 금지 (GLOBAL_REFERENCE)`
+      );
+      continue;
+    }
 
     // 2-c. classify evidence
     const classified = classifyObservationType({

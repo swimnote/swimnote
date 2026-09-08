@@ -1,0 +1,244 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL CLOSE — Production migration + Render LIVE + activation invariants 검증]
+
+현재 500 POOL CURRICULUM STANDARDIZATION 구조는 유지한다.
+새 기능 추가/리팩터링 금지.
+
+목표:
+현재 HOLD 사유만 제거하고 Toykids Local DOCX 업로드 직전 상태로 완전히 닫는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production migration 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+wp-500pool-curriculum-scale.ts migration을
+Production DB에 실제 실행.
+
+확인:
+
+- curriculum_versions.source_content_hash 컬럼 존재
+- 필요한 unique/index 존재
+- is_global_reference lookup index 존재
+- active Local uniqueness 관련 index/constraint 존재
+
+migration 재실행 멱등성 확인.
+
+실제 schema 결과 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Render LIVE 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render가 실제:
+
+main SHA = 4dea2178
+
+로 LIVE인지 확인.
+
+GET /health
+
+commit이 반드시 4dea2178로 시작해야 함.
+
+"deploy triggered"로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. READY invariant 수정/검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+READY는 단순:
+
+pool exists
+
+만으로 성립하면 안 된다.
+
+최종 invariant:
+
+xmode_config_status='READY'
+
+는 반드시 아래가 모두 참일 때만 가능:
+
+- pool 존재
+- 해당 pool의 Local curriculum 존재
+- is_global_reference=false
+- profile.status='APPROVED' 또는 activation 직후 'ACTIVATED'
+- target curriculum_version이 activation TX에서 ACTIVE 전환 성공
+- transaction commit 성공
+
+Global system health는 READY blocker가 아니지만
+Local curriculum 자체가 없는 pool이 READY가 되는 것은 금지.
+
+checkXPrerequisite / activate-local / 기타 READY setter를 전수 확인해서
+이 invariant와 충돌하는 경로가 없는지 확인.
+
+직접 READY UPDATE 우회 경로가 남아 있으면 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. activate-local target 선택 deterministic 보장
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+APPROVED + DRAFT Local version 자동 선택
+
+이라고 되어 있음.
+
+동시에 후보가 2개 이상일 때
+어떤 version이 선택되는지 명확히 고정.
+
+권장 원칙:
+
+해당 pool의
+가장 최근 APPROVED import batch/version
+또는
+profile이 명시적으로 참조하는 curriculum_version
+
+실제 schema에 맞는 canonical source 사용.
+
+ORDER BY 없이 first row 선택 금지.
+
+가능하면 target version/profile 관계를
+DB에서 명확히 추적.
+
+운영자가 version id를 직접 입력할 필요는 없어야 함.
+
+테스트:
+
+APPROVED DRAFT 2개 존재
+→ 정확히 의도한 최신/연결 version 1개만 활성화.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Activation atomicity 실제 DB 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 test transaction으로 검증:
+
+A.
+old active Local 존재
+new approved DRAFT 존재
+
+activate-local 성공:
+
+old:
+is_active=false
+archived_at != null
+
+new:
+is_active=true
+import_status='ACTIVE'
+activated_at != null
+
+pool:
+xmode_config_status='READY'
+
+profile:
+status='ACTIVATED'
+
+active Local count = 1
+
+B.
+TX 중간 실패 강제
+
+결과:
+
+old active 그대로
+new inactive
+READY 변경 없음
+profile 변경 없음
+
+partial activation = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. SCA=0 실제 Production-like E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 pool:
+
+SCA = 0
+active Local 있음
+
+searchCurriculumCandidates
+
+→ POOL_LOCAL candidate 정상 반환.
+
+그리고:
+
+Local match
+→ growth_event
+→ CPO
+→ SCP
+
+정상.
+
+SCA가 없어도 전체 progress pipeline이 동작해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Global-only 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Local 없는 test pool에서:
+
+Global Reference 검색은 가능.
+
+하지만:
+
+growth_event progress evidence = 0
+CPO = 0
+SCP 변화 = 0
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Toykids 데이터는 아직 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids 새 DOCX 업로드 금지.
+
+기존:
+
+Global 50
+SCA 231
+teacher_manual growth_events 194
+CPO 140
+SCP 146
+
+보존 확인만.
+
+삭제/transition/backfill 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Production migration 결과
+2. source_content_hash 실제 존재
+3. 관련 index/constraint
+4. Render LIVE SHA
+5. /health commit
+6. READY 최종 invariant
+7. READY 우회 setter 존재 여부
+8. activate-local target 선택 규칙
+9. APPROVED 후보 2개 테스트
+10. activation 성공 DB 상태
+11. activation rollback DB 상태
+12. SCA=0 Local candidate 결과
+13. SCA=0 progress E2E
+14. Global-only progress 0 확인
+15. Toykids 기존 데이터 보존
+16. 잔존 blocker
+17. Toykids Local DOCX 업로드 준비 YES/NO
+
+아래 모두 만족해야 PASS:
+
+- Render LIVE = 4dea2178
+- Production migration 완료
+- Local 없는 pool READY 불가
+- activation target deterministic
+- partial activation 0
+- SCA 없이 정상
+- Global-only progress 0
+- Toykids 기존 데이터 보존
+
+완료 후 STOP.

@@ -1,0 +1,181 @@
+[보낼 곳: APP REPLIT]
+
+[FINAL E2E ONLY — 코드 수정 금지]
+
+현재 코드/OTA 작업 완료.
+
+추가 수정, 새 OTA, 리팩터링 금지.
+실제 Production E2E 검증만 수행한다.
+
+현재 기준:
+
+- iOS OTA: 01a07f50
+- runtimeVersion: 2.1.0
+- release/v2.0.0: 2d7b49e6
+- Render LIVE: 0086949a
+- AI provenance 수정: 완료
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. OTA 실제 적용 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+build 255 실제 iPhone에서:
+
+앱 완전 종료
+→ 재실행
+→ OTA 감지
+→ 재시작 모달
+→ 적용
+→ reload
+
+확인:
+
+OTA 01a07f50 실제 적용 여부.
+
+모달이 이미 이전 실행에서 적용되어
+다시 안 나오는 경우에는
+현재 실행 중 update ID가 01a07f50인지 확인.
+
+새 OTA 발행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 AI Diary 1건 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+Toykids X mode에서
+실제 테스트 가능한 수업/학생으로 AI 일지 1건 작성.
+
+커리큘럼 후보가 확실히 나오는 내용 사용:
+
+예:
+"평영 팔동작을 연습했고 동작이 안정되었습니다."
+
+실제 흐름:
+
+AI 생성
+→ 결과 삽입
+→ 저장
+
+중간 조작 없이 실제 사용자 흐름 그대로 테스트.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. AI provenance 실측
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 1건에 대해 실제 확인:
+
+AI generate response:
+- request_id
+- curriculum_matches count
+- match_token 존재 여부
+
+APP save body:
+- ai_request_id
+- curriculum_matches
+- ai_generated 관련 field
+
+Server:
+- verifyAiOrigin result = true/false
+
+DB:
+- class_diaries.ai_generated
+- class_diaries.ai_trace_id
+
+기대:
+
+ai_generated = true
+ai_trace_id IS NOT NULL
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Curriculum progress downstream
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 AI Diary 저장 후:
+
+growth_events 확인.
+
+기대:
+source = match_token
+
+그리고:
+
+growth_event
+→ CPO
+→ SCP
+
+실제 생성/업데이트 여부 확인.
+
+curriculum_matches가 실제로 >0인데
+growth_event가 없으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Manual Diary regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 수동 일지 파이프라인은 수정하지 않는다.
+
+현재 Production DB에서 기존:
+
+teacher_manual growth_events
+CPO
+SCP
+
+가 그대로 존재하는지만 확인.
+
+새 수동일지 테스트는 필수 아님.
+
+기존 데이터 삭제/재생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. verifyAiOrigin registry 안전성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정하지 말고 구조만 보고.
+
+verifyAiOrigin이 사용하는 in-memory registry가:
+
+A. 동일 API process 메모리만 사용하는지
+B. Redis/DB/shared store인지
+C. Render 재시작 시 사라지는지
+D. 멀티 인스턴스일 경우 다른 instance에서 save되면 miss 가능한지
+
+확인.
+
+현재 Production이 단일 instance라서
+이번 릴리즈에서 안전하면 그렇게 명시.
+
+재시작/멀티 인스턴스에서 provenance가 유실될 구조라면
+잔존 리스크로 보고만 하고
+이번 E2E 중 임의 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 보고:
+
+1. OTA 01a07f50 실제 적용 여부
+2. AI request_id
+3. curriculum_matches count
+4. match_token 존재 여부
+5. POST /diaries ai_request_id
+6. verifyAiOrigin result
+7. DB ai_generated
+8. DB ai_trace_id
+9. growth_event source
+10. CPO 결과
+11. SCP 결과
+12. in-memory registry 저장 방식
+13. Render 재시작 시 registry 유지 여부
+14. 멀티 instance risk 여부
+15. 잔존 FAIL
+
+위 실제 AI Diary 1건이
+ai_generated=true
+AND ai_trace_id 존재
+AND growth_event source=match_token
+AND CPO/SCP 정상
+
+이면 PASS.
+
+완료 후 STOP.

@@ -6,7 +6,7 @@
 - [앱·웹 운영 헌법](app-web-constitution.md) — 앱 우선 원칙·공유 콘텐츠 단일 소스·홈페이지 업데이트 범위·테스트 환경 규칙
 - [Production 서버 작업 원칙](production-server-rule.md) — 최우선 원칙: 실제 앱은 swimnote.kr(Render.com) 연결, Replit API 서버는 개발 전용, 서버 수정은 반드시 GitHub push→Render.com 배포 완료까지
 - [Production URL 실제 라우팅](production-url-routing.md) — swimnote.kr=Replit배포(재배포 필요), Render=swimnote-api.onrender.com(push→자동빌드); 둘은 별개
-- [Render 배포 수동 전용](render-deploy-manual-only.md) — RENDER_API_KEY 사용·요청 금지; repo+branch+SHA만 보고하고 멈춤
+- [★ Render 배포 Replit 책임 (영구)](render-deploy-manual-only.md) — 2026-09-08 영구 변경: 서버 코드 수정 시 Render LIVE SHA 확인까지 Replit 책임; RENDER_API_KEY로 직접 trigger; PASS 기준=main HEAD SHA==LIVE SHA
 - [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
 - [API_BASE 소스 규칙](api-base-source.md) — 실기기에서 /api fallback 사용 금지; 반드시 AuthContext에서 import
 - [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
@@ -71,7 +71,5 @@
 - [WP11 Admin Notes MVP 완료](wp11-admin-notes-done-state.md) — SHA e2d4ac0f; admin_member_notes+CRUD+audit+SectionG; Staging PASS; 30TC
 - [WP12 Marketing MVP 완료](wp12-marketing-done-state.md) — SHA dc768326; marketing-audience.ts+super.ts 3routes+scheduler+App UI; 36TC
 - [WP13 Data Integrity Checker 완료](wp13-integrity-done-state.md) — SHA 96295ec3; integrity-checker.ts 22 checks+super.ts 3routes+App UI; 36TC
-- [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA c03446bd; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
-- [WP16 AI ENGINE OTA 완료](wp16-ai-engine-ota-done.md) — SHA 5deba2f8; GROUNDED_BASE+contract_version 1.0 fix; OTA iOS production-v2 01a07292
-- [WP15 Version/Runtime Freeze 완료](wp15-version-freeze-done-state.md) — SHA aff68b8a; v2.0.1 Store/runtime 2.1.0 explicit/build256/vCode240; 15TC
-- [WP18-C Production Backup CLOSED](wp18c-closed-state.md) — Render Cron Job 실제 실행 성공; snap_b249344dcc3e VERIFIED; swimnote-worker 사망 유지; R2 정책 영구 적용
+- [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA pending; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
+- [500 Pool Curriculum Scale 완료](500pool-curriculum-scale-done.md) — SHA 6c07c6bc; approved_at binding+rollback injection 129TC; Render LIVE 6c07c6bc 확인

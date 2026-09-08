@@ -68,11 +68,12 @@ export default function CurriculumProgressGauge({ data, loading, currentLevel }:
   if (loading) return null;
 
   // ── Empty state 판단 ──────────────────────────────────────────────────────
-  // 세션 3회 미만 또는 display=0 → 대기 문구만 표시 (0%를 크게 보이지 않음)
+  // data가 없을 때만 "진행 정보가 쌓이는 중" 표시
+  // pct=0이면 0% 게이지 표시 (API 성공인데 fallback 금지)
   const hasData = !!data;
   const sessionCount = data?.observation_session_count ?? 0;
   const displayPct   = data?.display_confirmed_pct ?? 0;
-  const isEmpty      = !hasData || sessionCount < 3 || displayPct <= 0;
+  const isEmpty      = !hasData;
 
   const displayInt = toDisplayInt(displayPct);
   const barWidth   = toBarWidth(displayPct);

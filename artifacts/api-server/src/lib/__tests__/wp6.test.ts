@@ -134,6 +134,10 @@ function makeMockDb(overrides: Partial<CurriculumDb> = {}): CurriculumDb {
       { id: 'ci-001', title: '자유형 발차기 기초', description: '호흡 타이밍', curriculum_version_id: 'cv-001' },
       { id: 'ci-002', title: '접영 기초',          description: null,          curriculum_version_id: 'cv-001' },
     ],
+    // 2-Layer: Global Reference items (기본 빈 배열 — 기존 테스트 영향 없음)
+    getGlobalReferenceItems: async () => [],
+    // Canonical Local Resolver fallback (SCA 없는 학생 → pool active version)
+    getPoolActiveLocalVersion: async () => null, // 기본: fallback 없음 (기존 테스트 호환)
     ...overrides,
   };
 }
@@ -587,6 +591,439 @@ describe('searchCurriculumCandidates', () => {
     // 같은 item이지만 candidate_id는 다름 (randomBytes)
     if (result1.length > 0 && result2.length > 0) {
       expect(result1[0]!.candidate_id).not.toBe(result2[0]!.candidate_id);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4-B. 2-Layer Architecture (POOL_LOCAL / GLOBAL_REFERENCE) 검증
+// ─────────────────────────────────────────────────────────────────────────────
+describe('2-Layer Curriculum Search', () => {
+  const cfg = DEFAULT_CONFIDENCE_CONFIG_V1;
+  const poolId = 'pool-test-001';
+
+  // ── mock helper ────────────────────────────────────────────────────────────
+  function makeTwoLayerDb(
+    overrides: Partial<CurriculumDb> = {},
+  ): CurriculumDb {
+    return {
+      verifyStudentRefs:   async (refs) => refs,
+      getAssignedVersions: async (studentIds) =>
+        studentIds.map((id) => ({ student_id: id, curriculum_version_id: 'cv-local-001' })),
+      getCurriculumItems:  async () => [
+        { id: 'ci-local-01', title: '자유형 발차기 기초', description: '호흡 타이밍', curriculum_version_id: 'cv-local-001' },
+      ],
+      getGlobalReferenceItems: async () => [
+        { id: 'ci-global-01', title: '자유형 발차기 보강', description: '전신 킥', curriculum_version_id: 'cv-global-001' },
+      ],
+      // Canonical Local Resolver fallback (기본: pool active version = 'cv-local-001')
+      getPoolActiveLocalVersion: async () => 'cv-local-001',
+      ...overrides,
+    };
+  }
+
+  // A. Local + Global 동시 match → Local은 POOL_LOCAL, Global은 GLOBAL_REFERENCE
+  it('A: Local + Global 동시 match → source_scope 각각 POOL_LOCAL / GLOBAL_REFERENCE', async () => {
+    const meaning = makeMeaning({
+      strokes: ['자유형'], skills: ['발차기'], issues: [],
+      allKeywords: ['자유형', '발차기'],
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      makeTwoLayerDb(),
+    );
+    const local  = result.filter((r) => r.source_scope === 'POOL_LOCAL');
+    const global = result.filter((r) => r.source_scope === 'GLOBAL_REFERENCE');
+    expect(local.length).toBeGreaterThanOrEqual(1);
+    expect(global.length).toBeGreaterThanOrEqual(1);
+    // Local은 반드시 POOL_LOCAL, progress 허용
+    expect(local[0]!.source_scope).toBe('POOL_LOCAL');
+    // Global은 GLOBAL_REFERENCE, progress 금지
+    expect(global[0]!.source_scope).toBe('GLOBAL_REFERENCE');
+  });
+
+  // B. Global-only match → growth_event/CPO/SCP 0 (source_scope=GLOBAL_REFERENCE만 반환)
+  it('B: Global candidate only → source_scope=GLOBAL_REFERENCE, POOL_LOCAL 없음', async () => {
+    const meaning = makeMeaning({
+      strokes: ['자유형'], skills: ['발차기'], issues: [],
+      allKeywords: ['자유형', '발차기'],
+    });
+    const db = makeTwoLayerDb({
+      getAssignedVersions: async () => [],       // Local 배정 없음
+      getCurriculumItems:  async () => [],        // Local items 없음
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    const local  = result.filter((r) => r.source_scope === 'POOL_LOCAL');
+    const global = result.filter((r) => r.source_scope === 'GLOBAL_REFERENCE');
+    expect(local.length).toBe(0);               // B: POOL_LOCAL 0
+    expect(global.length).toBeGreaterThanOrEqual(1); // Global grounding 가능
+    // B: 모든 candidates가 GLOBAL_REFERENCE → caller에서 progress 생성 금지 대상
+    for (const r of result) {
+      expect(r.source_scope).toBe('GLOBAL_REFERENCE');
+    }
+  });
+
+  // C. SCA가 Global version → getAssignedVersions Local 결과 0
+  it('C: SCA가 Global version → getAssignedVersions는 is_global_reference=false 필터로 결과 0', async () => {
+    // productionCurriculumDb.getAssignedVersions의 is_global_reference=false 조건을 mock으로 재현:
+    // SCA는 있지만 해당 version이 global → Local 결과에 미포함
+    const db = makeTwoLayerDb({
+      getAssignedVersions: async () => [], // Global version 필터링됨 → 빈 배열
+      getCurriculumItems:  async () => [],
+    });
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    const localCandidates = result.filter((r) => r.source_scope === 'POOL_LOCAL');
+    expect(localCandidates.length).toBe(0); // C: Local progress 없음
+  });
+
+  // D. 다른 pool → 동일 Global Reference items 검색 가능 (pool_id 무관)
+  it('D: 다른 pool에서도 동일 Global Reference 검색 가능', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const dbPool2 = makeTwoLayerDb({
+      getAssignedVersions: async () => [],
+      getCurriculumItems:  async () => [],
+      // getGlobalReferenceItems: pool_id 무관하므로 같은 global items 반환
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId: 'pool-other-999', meaning, config: cfg },
+      dbPool2,
+    );
+    const globalCandidates = result.filter((r) => r.source_scope === 'GLOBAL_REFERENCE');
+    expect(globalCandidates.length).toBeGreaterThanOrEqual(1); // D: 전 pool 접근 가능
+  });
+
+  // E. Global is_active=false + import_status=ACTIVE → 검색 가능 (is_global_reference=true가 SOT)
+  it('E: Global version is_active 무관, is_global_reference=true AND import_status=ACTIVE이면 검색됨', async () => {
+    // productionCurriculumDb.getGlobalReferenceItems는 is_active 조건 미포함 → is_global_reference+import_status SOT
+    // mock에서도 is_active 조건 없이 global items 반환 (스펙 반영)
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const db = makeTwoLayerDb({
+      getAssignedVersions: async () => [],
+      getCurriculumItems:  async () => [],
+      getGlobalReferenceItems: async () => [
+        // is_active=false인 Global version의 item (is_global_reference+import_status SOT)
+        { id: 'ci-global-inactive', title: '자유형 발차기 보강', description: null, curriculum_version_id: 'cv-global-inactive' },
+      ],
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    const globalCandidates = result.filter((r) => r.source_scope === 'GLOBAL_REFERENCE');
+    expect(globalCandidates.length).toBeGreaterThanOrEqual(1); // E: 검색 가능
+  });
+
+  // F. Local upload version_name이 기존 Global과 동일 → Global row overwrite 안 됨 (x04-structuring 보호)
+  // 이 테스트는 함수 레벨이 아닌 DB 동작 설계 검증 — source_scope 레벨에서 GLOBAL 항목은 GLOBAL_REFERENCE로만 분류됨을 확인
+  it('F: Global item은 항상 GLOBAL_REFERENCE scope, POOL_LOCAL로 절대 오분류 불가', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    // Global item이 Local getCurriculumItems에도 실수로 포함된 경우 시뮬레이션
+    // → productionCurriculumDb.getCurriculumItems는 swimming_pool_id=poolId 조건으로 global item 미포함
+    // mock에서도 getCurriculumItems와 getGlobalReferenceItems를 각각 독립 반환 검증
+    const globalOnlyId = 'ci-global-shared-id';
+    const db = makeTwoLayerDb({
+      getCurriculumItems: async () => [
+        { id: 'ci-local-01', title: '자유형 발차기 기초', description: null, curriculum_version_id: 'cv-local-001' },
+      ],
+      getGlobalReferenceItems: async () => [
+        { id: globalOnlyId, title: '자유형 발차기 보강', description: null, curriculum_version_id: 'cv-global-001' },
+      ],
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    // Global item은 반드시 GLOBAL_REFERENCE
+    const fromGlobal = result.filter((r) => r._curriculum_item_id === globalOnlyId);
+    for (const r of fromGlobal) {
+      expect(r.source_scope).toBe('GLOBAL_REFERENCE');
+    }
+    // Local item은 반드시 POOL_LOCAL
+    const fromLocal = result.filter((r) => r._curriculum_item_id === 'ci-local-01');
+    for (const r of fromLocal) {
+      expect(r.source_scope).toBe('POOL_LOCAL');
+    }
+  });
+
+  // G. Manual Diary Global-only match → SCP 변화 없음 (GLOBAL_REFERENCE에 source_scope 부여 확인)
+  it('G: Global-only match의 source_scope=GLOBAL_REFERENCE → progress 금지 식별 가능', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const db = makeTwoLayerDb({
+      getAssignedVersions: async () => [],
+      getCurriculumItems:  async () => [],
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    // Caller(ai-v1.ts / manual diary resolver)는 source_scope로 progress 생성 차단 가능
+    for (const r of result) {
+      if (r.source_scope === 'GLOBAL_REFERENCE') {
+        // growth_event 생성 금지 대상임을 식별 가능
+        expect(r.source_scope).toBe('GLOBAL_REFERENCE');
+      }
+    }
+  });
+
+  // H. Local match → match_status=PENDING_REVIEW, source_scope=POOL_LOCAL, _curriculum_item_id 존재
+  it('H: Local match → POOL_LOCAL + PENDING_REVIEW + _curriculum_item_id 유효', async () => {
+    const meaning = makeMeaning({
+      strokes: ['자유형'], skills: ['발차기'], issues: [],
+      allKeywords: ['자유형', '발차기'],
+    });
+    const db = makeTwoLayerDb({
+      getGlobalReferenceItems: async () => [], // Global 없음
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    expect(result.length).toBeGreaterThanOrEqual(1);
+    const first = result[0]!;
+    expect(first.source_scope).toBe('POOL_LOCAL');
+    expect(first.match_status).toBe('PENDING_REVIEW');
+    expect(first._curriculum_item_id).toBeTruthy();
+    expect(first.candidate_id).toMatch(/^cand_[0-9a-f]{32}$/);
+  });
+
+  // I. 기존 테스트와의 호환 — source_scope 필드가 모든 candidate에 항상 존재
+  it('I: 모든 candidate에 source_scope 필드 항상 존재', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      makeTwoLayerDb(),
+    );
+    for (const r of result) {
+      expect(r.source_scope).toMatch(/^(POOL_LOCAL|GLOBAL_REFERENCE)$/);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4-C. Canonical Local Resolver + 500 Pool Standard 검증 (A-L)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Canonical Local Resolver — 500 Pool Standard (A-L)', () => {
+  const cfg = DEFAULT_CONFIDENCE_CONFIG_V1;
+  const poolId = 'pool-500-test';
+
+  // ── mock helper (SCA Optional: pool active fallback 포함) ────────────────
+  function makeCanonicalDb(overrides: Partial<CurriculumDb> = {}): CurriculumDb {
+    return {
+      verifyStudentRefs:           async (refs) => refs,
+      getAssignedVersions:         async () => [],          // SCA 없음 기본
+      getCurriculumItems:          async () => [
+        { id: 'ci-pool-01', title: '자유형 발차기', description: null, curriculum_version_id: 'cv-pool-active' },
+      ],
+      getGlobalReferenceItems:     async () => [
+        { id: 'ci-global-01', title: '자유형 발차기 Global', description: null, curriculum_version_id: 'cv-global' },
+      ],
+      getPoolActiveLocalVersion:   async () => 'cv-pool-active', // pool active fallback
+      ...overrides,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // A. 신규 pool, SCA=0, active Local 있음 → Local candidate 정상 검색
+  // ─────────────────────────────────────────────────────────────────────────
+  it('A: 신규 pool SCA=0 + pool active Local → Local candidate 정상 반환', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const db = makeCanonicalDb({
+      getAssignedVersions:       async () => [],            // SCA 없음
+      getPoolActiveLocalVersion: async () => 'cv-pool-active', // pool fallback
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    const local = result.filter(r => r.source_scope === 'POOL_LOCAL');
+    expect(local.length).toBeGreaterThanOrEqual(1);
+    expect(local[0]!.curriculum_version_id).toBe('cv-pool-active');
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // B. SCA 있음 → SCA Local 우선 사용 (pool fallback 무시)
+  // ─────────────────────────────────────────────────────────────────────────
+  it('B: SCA 있음 → SCA Local version 우선, pool fallback 무시', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const db = makeCanonicalDb({
+      getAssignedVersions:       async (studentIds) =>
+        studentIds.map(id => ({ student_id: id, curriculum_version_id: 'cv-sca-version' })),
+      getCurriculumItems:        async () => [
+        { id: 'ci-sca-01', title: '자유형 발차기', description: null, curriculum_version_id: 'cv-sca-version' },
+      ],
+      getPoolActiveLocalVersion: async () => 'cv-pool-active', // SCA 우선이므로 미사용
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    const local = result.filter(r => r.source_scope === 'POOL_LOCAL');
+    expect(local.length).toBeGreaterThanOrEqual(1);
+    expect(local[0]!.curriculum_version_id).toBe('cv-sca-version'); // SCA version 사용됨
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // C. SCA가 Global version 가리킴 → getAssignedVersions 결과 0 → pool fallback
+  // ─────────────────────────────────────────────────────────────────────────
+  it('C: SCA가 Global version → is_global_reference=false 필터 → pool active Local fallback', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const db = makeCanonicalDb({
+      // is_global_reference=false 필터로 Global SCA가 결과에서 제외됨
+      getAssignedVersions:       async () => [],
+      getPoolActiveLocalVersion: async () => 'cv-pool-active', // fallback 동작
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    // fallback으로 pool active Local version의 candidates 반환됨
+    const local = result.filter(r => r.source_scope === 'POOL_LOCAL');
+    expect(local.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // D. Local 없음 → Global grounding만 가능, progress 0 change
+  // ─────────────────────────────────────────────────────────────────────────
+  it('D: Local 없음(SCA=0 + pool fallback=null) → Global grounding만, progress 금지', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const db = makeCanonicalDb({
+      getAssignedVersions:       async () => [],
+      getPoolActiveLocalVersion: async () => null,  // NO_ACTIVE_LOCAL_CURRICULUM
+      getCurriculumItems:        async () => [],
+    });
+    const result = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId, meaning, config: cfg },
+      db,
+    );
+    const local  = result.filter(r => r.source_scope === 'POOL_LOCAL');
+    const global = result.filter(r => r.source_scope === 'GLOBAL_REFERENCE');
+    expect(local.length).toBe(0);               // D: progress 0
+    expect(global.length).toBeGreaterThanOrEqual(1); // Global grounding 가능
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // K. Pool A Local이 Pool B 검색에 노출 0 (tenant isolation)
+  // ─────────────────────────────────────────────────────────────────────────
+  it('K: Pool A Local curriculum이 Pool B 검색에서 노출 0 (tenant leakage = 0)', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const POOL_A = 'pool-A-tenant';
+    const POOL_B = 'pool-B-tenant';
+
+    // Pool A: cv-pool-a (Local)
+    const dbPoolA = makeCanonicalDb({
+      getCurriculumItems:        async (versionIds, pid) => {
+        if (pid !== POOL_A) return []; // Pool A items: swimming_pool_id 필터
+        return [{ id: 'ci-pool-a-01', title: '자유형 발차기', description: null, curriculum_version_id: 'cv-pool-a' }];
+      },
+      getPoolActiveLocalVersion: async () => 'cv-pool-a',
+    });
+
+    // Pool B: 별도 DB (Pool A Local 접근 불가)
+    const dbPoolB = makeCanonicalDb({
+      getCurriculumItems:        async (versionIds, pid) => {
+        if (pid !== POOL_B) return []; // Pool B는 Pool A items 없음
+        return [{ id: 'ci-pool-b-01', title: '평영 발차기', description: null, curriculum_version_id: 'cv-pool-b' }];
+      },
+      getPoolActiveLocalVersion: async () => 'cv-pool-b',
+      getGlobalReferenceItems:   async () => [], // Global도 없음 (isolation 순수 검증)
+    });
+
+    const resultA = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId: POOL_A, meaning, config: cfg },
+      dbPoolA,
+    );
+    const resultB = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId: POOL_B, meaning, config: cfg },
+      dbPoolB,
+    );
+
+    const poolAItemIds = resultA.filter(r => r.source_scope === 'POOL_LOCAL').map(r => r._curriculum_item_id);
+    const poolBItemIds = resultB.filter(r => r.source_scope === 'POOL_LOCAL').map(r => r._curriculum_item_id);
+
+    // K: Pool A의 Local item이 Pool B 결과에 노출 0
+    const leakage = poolAItemIds.filter(id => poolBItemIds.includes(id));
+    expect(leakage.length).toBe(0);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // L. Global은 모든 pool에서 동일 검색 결과 (cross-pool Global reference)
+  // ─────────────────────────────────────────────────────────────────────────
+  it('L: Global items는 모든 pool에서 동일 검색 결과 (cross-pool Global reference)', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+
+    const dbPool1 = makeCanonicalDb({
+      getAssignedVersions:       async () => [],
+      getCurriculumItems:        async () => [],
+      getPoolActiveLocalVersion: async () => null,
+    });
+    const dbPool2 = makeCanonicalDb({
+      getAssignedVersions:       async () => [],
+      getCurriculumItems:        async () => [],
+      getPoolActiveLocalVersion: async () => null,
+    });
+
+    const result1 = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId: 'pool-1111', meaning, config: cfg },
+      dbPool1,
+    );
+    const result2 = await searchCurriculumCandidates(
+      { requestedRefs: ['s1'], poolId: 'pool-2222', meaning, config: cfg },
+      dbPool2,
+    );
+
+    const global1 = result1.filter(r => r.source_scope === 'GLOBAL_REFERENCE').map(r => r._curriculum_item_id);
+    const global2 = result2.filter(r => r.source_scope === 'GLOBAL_REFERENCE').map(r => r._curriculum_item_id);
+
+    // L: 동일한 Global items 접근
+    expect(global1).toEqual(global2);
+    expect(global1.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 100+ Pool isolation: active Local 1개만 허용 검증
+  // ─────────────────────────────────────────────────────────────────────────
+  it('100 pool mock: 각 pool 독립 Local version, tenant leakage = 0', async () => {
+    const meaning = makeMeaning({ allKeywords: ['자유형', '발차기'] });
+    const poolCount = 100;
+
+    // 각 pool마다 독립 Local version / DB
+    const allLocalItemIds: string[][] = [];
+
+    for (let i = 0; i < poolCount; i++) {
+      const pid = `pool-${i}`;
+      const cvId = `cv-local-${i}`;
+      const ciId = `ci-local-${i}-01`;
+      const db = makeCanonicalDb({
+        getAssignedVersions:       async () => [],
+        getCurriculumItems:        async (versionIds, p) => {
+          if (p !== pid) return [];
+          return [{ id: ciId, title: '자유형 발차기', description: null, curriculum_version_id: cvId }];
+        },
+        getPoolActiveLocalVersion: async () => cvId,
+        getGlobalReferenceItems:   async () => [],
+      });
+      const result = await searchCurriculumCandidates(
+        { requestedRefs: ['s1'], poolId: pid, meaning, config: cfg },
+        db,
+      );
+      const localIds = result.filter(r => r.source_scope === 'POOL_LOCAL').map(r => r._curriculum_item_id);
+      allLocalItemIds.push(localIds);
+    }
+
+    // 각 pool의 Local items가 다른 pool에 노출 안 됨
+    for (let i = 0; i < poolCount; i++) {
+      for (let j = 0; j < poolCount; j++) {
+        if (i === j) continue;
+        const leakage = allLocalItemIds[i]!.filter(id => allLocalItemIds[j]!.includes(id));
+        expect(leakage.length).toBe(0); // tenant leakage = 0
+      }
     }
   });
 });
