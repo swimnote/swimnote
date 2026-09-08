@@ -454,7 +454,18 @@ function PushNavSync() {
             router.push("/(parent)/home" as any);
           }
         } else if (kind === "admin") {
-          router.push(isTeacher ? "/(teacher)/diary" as any : "/(admin)/diary-teacher-entries" as any);
+          const diaryId = (data?.diaryId as string | undefined) ?? "";
+          if (isTeacher) {
+            // Teacher: diaryId 있으면 해당 일지 상세 진입, 없으면 오늘 스케줄로
+            if (diaryId) {
+              router.push(`/(teacher)/diary?editDiaryId=${encodeURIComponent(diaryId)}&viewOnly=true` as any);
+            } else {
+              router.push("/(teacher)/today-schedule" as any);
+            }
+          } else {
+            // pool_admin: 일지 목록으로 진입
+            router.push("/(admin)/diary-hub" as any);
+          }
         }
         return;
       }

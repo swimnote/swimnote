@@ -25,7 +25,7 @@ const SECTIONS: { title: string; items: MenuItem[] }[] = [
       { label: "수업 스케줄",   icon: "calendar",    color: "#16A34A", route: "/(admin)/classes",                desc: "반별 수업 일정 및 달력 관리" },
       { label: "반 관리",       icon: "layers",      color: "#0369A1", route: "/(admin)/class-management",      desc: "반 생성 · 수정 · 배정" },
       { label: "출결 관리",     icon: "clipboard",   color: "#EA580C", route: "/(admin)/attendance",            desc: "출석 현황 및 결석 처리" },
-      { label: "수업 일지",     icon: "book",        color: "#7C3AED", route: "/(admin)/diary-teacher-entries", desc: "선생님별 수업 일지 열람" },
+      { label: "수업 일지",     icon: "book",        color: "#7C3AED", route: "/(admin)/diary-hub",             desc: "수업 일지 열람 및 관리" },
       { label: "공지사항",      icon: "file-text",   color: "#0369A1", route: "/(admin)/notices",               desc: "학부모 · 선생님 공지 관리" },
     ],
   },
