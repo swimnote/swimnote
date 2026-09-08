@@ -3860,7 +3860,7 @@ router.patch(
       return;
     }
 
-    const actorId = req.user!.id;
+    const actorId = req.user!.userId;
     try {
       await superAdminDb.transaction(async (tx) => {
         // Before
@@ -4019,7 +4019,7 @@ router.patch(
       return;
     }
 
-    const actorId = req.user!.id;
+    const actorId = req.user!.userId;
     const grant = xmode_entitlement; // true=부여, false=회수
 
     // ── Plan key validation (grant 시 필수) ──────────────────────────────────
@@ -4218,7 +4218,7 @@ router.patch(
       return;
     }
 
-    const actorId = req.user!.id;
+    const actorId = req.user!.userId;
 
     try {
       await superAdminDb.transaction(async (tx) => {

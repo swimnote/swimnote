@@ -84,7 +84,7 @@ router.post(
   requireRole("super_admin"),
   async (req: Request, res: Response) => {
     const { poolId } = req.params;
-    const actorId = (req as any).user?.id;
+    const actorId = (req as any).user?.userId;
     try {
       const pool = await getPoolRow(poolId);
       if (!pool) return res.status(404).json({ error: "수영장을 찾을 수 없습니다." });
@@ -172,16 +172,38 @@ router.post(
           // ── PRE-WP-X: curriculum_versions upsert + curriculum_items 생성 ──
           //
           // 원칙:
-          //   - X managed version_name = 'x-curriculum-v1' (고정)
+          //   - X managed version_name = 'x-curriculum-v1' (기본값)
           //   - UNIQUE(swimming_pool_id, version_name) ON CONFLICT DO NOTHING
           //   - 해당 version_id 범위의 curriculum_items만 DELETE → INSERT (idempotent)
           //   - pool-wide DELETE 금지 — X version scope만 교체
           //   - 다른 version의 items는 절대 변경하지 않음
+          //   - [2-Layer 방어] is_global_reference=true row는 UPSERT 대상 불가
+          //     → 동일 version_name이 Global Reference면 타임스탬프 suffix로 Local 이름 생성
           //
           if (structured.searchable_items.length > 0) {
-            const X_VERSION_NAME = "x-curriculum-v1";
+            let xVersionName = "x-curriculum-v1"; // 기본값 (let — Global 충돌 시 변경)
 
-            // 1. X managed curriculum_version upsert
+            // [2-Layer 방어] Global overwrite 방지:
+            // version_name이 이미 is_global_reference=true인 row와 일치하면
+            // Local 전용 새 이름을 사용한다.
+            const globalOverwriteCheck = await superAdminDb.execute(sql`
+              SELECT id FROM curriculum_versions
+              WHERE swimming_pool_id = ${pool.id}
+                AND version_name     = ${xVersionName}
+                AND is_global_reference = true
+              LIMIT 1
+            `);
+            if ((globalOverwriteCheck as any).rows?.length > 0) {
+              // Global row overwrite 방지: Local 전용 이름 생성
+              xVersionName = `x-curriculum-local-${Date.now()}`;
+              console.warn(
+                `[x04-structuring] Global overwrite 방지: version_name 충돌 → ${xVersionName} (pool=${pool.id})`
+              );
+            }
+
+            const X_VERSION_NAME = xVersionName;
+
+            // 1. X managed curriculum_version upsert (Local only)
             await superAdminDb.execute(sql`
               INSERT INTO curriculum_versions (swimming_pool_id, version_name, is_active, activated_at)
               VALUES (${pool.id}, ${X_VERSION_NAME}, true, NOW())
@@ -189,6 +211,7 @@ router.post(
                 is_active = true,
                 activated_at = COALESCE(curriculum_versions.activated_at, NOW()),
                 updated_at = NOW()
+              WHERE curriculum_versions.is_global_reference = false
             `);
 
             const versionRes = await superAdminDb.execute(sql`
@@ -353,7 +376,7 @@ router.patch(
   requireRole("super_admin"),
   async (req: Request, res: Response) => {
     const { poolId } = req.params;
-    const actorId = (req as any).user?.id;
+    const actorId = (req as any).user?.userId;
     const { basic_info, teaching_summary, levels } = req.body;
     try {
       const pool = await getPoolRow(poolId);
@@ -434,7 +457,7 @@ router.patch(
   requireRole("super_admin"),
   async (req: Request, res: Response) => {
     const { poolId } = req.params;
-    const actorId = (req as any).user?.id;
+    const actorId = (req as any).user?.userId;
     try {
       const pool = await getPoolRow(poolId);
       if (!pool) return res.status(404).json({ error: "수영장을 찾을 수 없습니다." });
@@ -505,7 +528,7 @@ router.post(
   requireRole("super_admin"),
   async (req: Request, res: Response) => {
     const { poolId } = req.params;
-    const actorId = (req as any).user?.id;
+    const actorId = (req as any).user?.userId;
     const { type } = req.body; // "curriculum" | "website" | "both"
     if (!type || !["curriculum","website","both"].includes(type)) {
       return res.status(400).json({ error: "type은 curriculum|website|both 중 하나여야 합니다." });

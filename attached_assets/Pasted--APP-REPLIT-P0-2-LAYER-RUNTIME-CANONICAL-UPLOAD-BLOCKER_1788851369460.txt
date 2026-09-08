@@ -1,0 +1,364 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — 2-LAYER RUNTIME 완성 + CANONICAL UPLOAD BLOCKER 제거]
+
+현재 Toykids 새 Local Curriculum DOCX 업로드는 아직 하지 않는다.
+
+현재 상태:
+
+- 기존 50 items version:
+  cv_bw6pee53qf4l2ipi
+- is_global_reference = true
+- 아직 is_active = true
+- 기존 SCA 231건이 이 version을 가리킴
+- growth_events/CPO/SCP 기존 데이터 보존
+- 2-layer runtime 코드는 아직 미완성
+
+목표:
+
+새 Toykids Local DOCX를 올리기 전에
+GLOBAL REFERENCE와 POOL LOCAL을 runtime에서 완전히 구분한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Global scope 규칙 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+scope 기준은:
+
+GLOBAL:
+is_global_reference = true
+
+LOCAL:
+is_global_reference = false
+AND swimming_pool_id = current pool
+
+로 고정.
+
+import_status에
+GLOBAL_REFERENCE라는 신규 상태 추가 금지.
+
+scope와 lifecycle 상태를 섞지 않는다.
+
+Global version은:
+
+is_global_reference=true
+import_status='ACTIVE'
+
+로 검색 가능하게 한다.
+
+is_active는 기존
+"pool당 active local version 1개"
+제약 때문에 Local activation 이후 false가 될 수 있다.
+
+따라서 Global 검색은
+is_active=true에 의존하지 말고:
+
+is_global_reference=true
+AND import_status='ACTIVE'
+
+기준으로 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. swimming_pool_id 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 global version의:
+
+swimming_pool_id =
+pool_1780849364252_l9k44rbk3
+
+는 이번 작업에서 변경하지 않는다.
+
+'SYSTEM' sentinel 삽입 금지.
+가짜 system pool 생성 금지.
+
+runtime scope 판정은
+is_global_reference를 source of truth로 사용.
+
+장기 schema cleanup은 별도 작업.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Candidate Search 2-layer 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+curriculum-candidate-search.ts 수정.
+
+LOCAL:
+
+student
+→ SCA
+→ curriculum_version
+→ is_global_reference=false 확인
+→ 해당 Local items 검색
+
+GLOBAL:
+
+curriculum_versions
+WHERE
+is_global_reference=true
+AND import_status='ACTIVE'
+
+→ 모든 pool에서 공통 reference items 검색
+
+pool_id는 Global 검색 조건으로 사용하지 않는다.
+
+각 candidate에 반드시:
+
+source_scope:
+POOL_LOCAL
+GLOBAL_REFERENCE
+
+를 내부 metadata로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Local 우선 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일/유사 기술이 Local + Global에 동시에 있으면:
+
+1. Local candidate가 정상 threshold 충족
+   → Local을 progress target
+
+2. Global도 같이 적합
+   → Global은 grounding/support only
+
+3. Global만 적합
+   → AI grounding에는 사용 가능
+   → Local curriculum progress에는 반영 금지
+
+단순 score가 Global이 더 높다는 이유로
+Local progress target을 Global item으로 교체하지 않는다.
+
+Local은 해당 수영장의 공식 교육과정이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Global → Progress 차단을 2중으로 방어
+━━━━━━━━━━━━━━━━━━━━━━
+
+첫 번째 방어:
+AI/growth-event 생성 단계에서
+
+source_scope='GLOBAL_REFERENCE'
+
+candidate는 progress growth_event 생성 금지.
+
+두 번째 방어:
+curriculum-progress-mapper.ts의
+upsertSessionObservation() 입구에서도
+
+대상 curriculum_version.is_global_reference=true이면
+CPO 생성 금지.
+
+즉 잘못된 caller가 들어와도
+Global item으로 SCP가 올라갈 수 없게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 Manual Diary Resolver도 동일 규칙 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+Manual Diary:
+
+CurriculumEvidenceResolver
+→ Local + Global search 가능
+
+하지만 최종 progress evidence는
+Local item만 허용.
+
+Global match만 존재하면:
+
+- AI 의미 보강 가능
+- progress 변화 없음
+
+기존 teacher_manual
+growth_events/CPO/SCP를 삭제하거나 재작성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 231 SCA 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 231 SCA는 아직
+cv_bw6pee53qf4l2ipi(Global)를 가리킨다.
+
+이번 코드 변경에서는
+SCA를 수정/삭제/재생성하지 않는다.
+
+중요:
+2-layer runtime 배포 직후에는
+Local curriculum이 아직 없으므로
+
+SCA가 Global version을 가리킨다고 해서
+그 version을 Local로 오인해서는 안 된다.
+
+getAssignedVersions()에서 반드시
+is_global_reference=false 조건 적용.
+
+따라서 Toykids는 새 Local 업로드 전까지:
+
+Local progress target 없음
++
+Global grounding 가능
+
+상태가 정상이다.
+
+기존 이미 생성된 progress 데이터는
+그대로 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. canonical approve 500 버그 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고된:
+
+req.user!.id
+vs
+req.user!.userId
+
+불일치를 실제 코드 전수 확인.
+
+특히 Toykids 새 Local DOCX의 canonical flow:
+
+upload
+→ structure
+→ approve
+
+에서 호출되는 super route가
+현재 인증 객체와 정확히 맞도록 최소 수정.
+
+super.ts 전체를 무조건 문자열 치환하지 말고
+실제 auth user type/claims를 확인 후
+잘못된 참조만 수정.
+
+정상 super_admin으로:
+
+structured/approve
+
+route가 2xx까지 가는 테스트 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 새 Local version 이름 충돌 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Global:
+
+version_name =
+toykids-curriculum-canonical-v2.0
+
+새 Toykids Local DOCX가
+동일 version_name을 사용하면
+ON CONFLICT로 기존 Global을 업데이트할 위험이 있다.
+
+Importer에서
+Global version을 Local import 대상으로
+절대 update하지 못하게 방어.
+
+조건:
+
+existing.is_global_reference=true
+이면
+Local upload가 해당 row를 UPSERT target으로 사용 금지.
+
+새 Local은 반드시 별도 curriculum_version 생성.
+
+version name이 우연히 동일해도
+Global row overwrite 금지.
+
+필요하면 Local version_name에
+pool/import version 기반 안전한 이름 생성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수 테스트:
+
+A.
+Local candidate + Global candidate
+→ Local progress target
+
+B.
+Global candidate only
+→ grounding 가능
+→ growth_event/CPO/SCP 변화 0
+
+C.
+SCA가 Global version을 가리킴
+→ getAssignedVersions Local 결과에는 포함되지 않음
+
+D.
+다른 pool
+→ 동일 Global Reference 검색 가능
+
+E.
+Global is_active=false
++ import_status=ACTIVE
+→ Global Reference 검색 가능
+
+F.
+Local upload version_name이 기존 Global과 동일
+→ Global row overwrite되지 않음
+
+G.
+Manual Diary Global-only match
+→ SCP 변화 없음
+
+H.
+AI Diary Local match
+→ match_token
+→ growth_event
+→ CPO/SCP 정상
+
+I.
+structured/approve 인증 route 2xx
+
+관련 신규 FAIL 0 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 배포 및 현재 데이터 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 후:
+
+main push
+→ Render 최신 SHA LIVE
+→ /health commit 확인
+
+아직 Toykids 새 DOCX 업로드 금지.
+
+아직:
+
+- Global is_active 변경 금지
+- 기존 SCA 231 수정 금지
+- progress transition 금지
+- backfill 재실행 금지
+- OTA 불필요하면 발행 금지
+
+이번 작업은
+"새 Local 업로드를 안전하게 받을 수 있는 서버 구조 완성"
+까지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Global 조회 최종 조건
+2. Local 조회 최종 조건
+3. source_scope 구현
+4. Local/Global merge 규칙
+5. Global-only progress 차단 2중 방어
+6. Manual Diary 적용 결과
+7. 현재 Global SCA가 Local로 오인되지 않는지
+8. Global version overwrite 방어
+9. approve 500 root cause / 수정
+10. approve route test
+11. 관련 테스트 결과
+12. main SHA
+13. Render LIVE SHA
+14. 기존 194 growth_events 보존
+15. 기존 CPO/SCP 보존
+16. 새 Toykids Local DOCX 업로드 준비상태 YES/NO
+17. 잔존 blocker
+
+업로드 준비상태 YES이고
+잔존 blocker 0일 때만 PASS.
+
+완료 후 STOP.
