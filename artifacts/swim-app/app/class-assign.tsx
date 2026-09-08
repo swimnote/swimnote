@@ -8,6 +8,7 @@
  */
 import { router, useLocalSearchParams } from "expo-router";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { RegisterModal } from "@/components/admin/members/RegisterModal";
 import { CircleX, Minus, Plus, Search, User, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
@@ -116,6 +117,9 @@ export default function ClassAssignScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  const [showRegister, setShowRegister] = useState(false);
+  const [registerAssigning, setRegisterAssigning] = useState(false);
 
   const [weeklyPicker, setWeeklyPicker] = useState<Student | null>(null);
   const [timingTarget, setTimingTarget] = useState<Student | null>(null);
@@ -255,6 +259,28 @@ export default function ClassAssignScreen() {
     setLessonDateTarget({ student, weekly });
     setLessonDate(new Date().toISOString().slice(0, 10));
     setLessonDateVisible(true);
+  }
+
+  // ── 신규등록 후 자동 배정 ──────────────────────────────────────────
+  async function handleRegisterSuccess(student: StudentMember) {
+    if (!classId) return;
+    setRegisterAssigning(true);
+    try {
+      const weekly = student.weekly_count ?? 1;
+      const newIds = [classId];
+      const res = await apiRequest(token, `/students/${student.id}/assign`, {
+        method: "PATCH",
+        body: JSON.stringify({ assigned_class_ids: newIds, weekly_count: weekly, first_lesson_date: lessonDate }),
+      });
+      if (res.ok) {
+        const updated: Student = await res.json();
+        const newStudent: Student = { ...updated, id: student.id, name: student.name, assigned_class_ids: newIds, weekly_count: weekly, status: updated.status || "active", parent_phone: student.parent_phone ?? null, parent_name: student.parent_name ?? null, birth_year: student.birth_year ? Number(student.birth_year) : null };
+        setAllStudents(prev => [...prev, newStudent]);
+        setAssigned(prev => [...prev, newStudent]);
+        setHasChanges(true);
+      }
+    } catch { /* 실패해도 load()로 복구 */ }
+    finally { setRegisterAssigning(false); }
   }
 
   async function doAssign(student: Student, weeklyCount: number, firstLessonDate?: string) {
@@ -461,7 +487,16 @@ export default function ClassAssignScreen() {
 
         <View style={s.sectionHeader}>
           <Text style={[s.sectionTitle, { color: C.text }]}>배정 가능 회원</Text>
-          <Text style={[s.sectionCount, { color: C.textMuted }]}>{assignable.length}명</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={[s.sectionCount, { color: C.textMuted }]}>{assignable.length}명</Text>
+            <Pressable
+              onPress={() => setShowRegister(true)}
+              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: C.brandSoft, borderRadius: 8 }]}
+            >
+              <LucideIcon name="user-plus" size={13} color={C.brandStrong} />
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>신규등록</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={[s.searchWrap, { backgroundColor: C.card, borderColor: C.border }]}>
@@ -725,6 +760,18 @@ export default function ClassAssignScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {showRegister && (
+        <RegisterModal
+          token={token}
+          showTeacherHint
+          onSuccess={(student) => {
+            handleRegisterSuccess(student).catch(() => {});
+            setShowRegister(false);
+          }}
+          onClose={() => setShowRegister(false)}
+        />
+      )}
     </View>
   );
 }

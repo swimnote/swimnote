@@ -426,7 +426,7 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
 });
 
 // ── POST / — 학생 등록 ────────────────────────────────────────────
-router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
   const {
     name, phone, birth_date, birth_year, parent_name, parent_phone,
     parent_user_id, class_group_id, memo, weekly_count = 1,

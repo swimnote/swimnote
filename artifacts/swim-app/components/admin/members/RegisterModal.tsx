@@ -17,14 +17,16 @@ const C = Colors.light;
 
 interface RegisterModalProps {
   token: string | null;
-  poolName: string;
+  poolName?: string;
   onSuccess: (student: StudentMember) => void;
   onClose: () => void;
   initialParentPhone?: string;
   initialParentName?: string;
+  /** Teacher 모드에서 학부모 전화번호 입력 유도 힌트 표시 */
+  showTeacherHint?: boolean;
 }
 
-export function RegisterModal({ token, poolName, onSuccess, onClose, initialParentPhone, initialParentName }: RegisterModalProps) {
+export function RegisterModal({ token, poolName = "", onSuccess, onClose, initialParentPhone, initialParentName, showTeacherHint }: RegisterModalProps) {
   const [names,       setNames]       = useState(["", "", ""]);
   const [birthYear,   setBirthYear]   = useState("");
   const [parentName,  setParentName]  = useState(initialParentName || "");
@@ -214,10 +216,17 @@ export function RegisterModal({ token, poolName, onSuccess, onClose, initialPare
                   })}
                 </View>
               </View>
-              <View style={reg.notice}>
-                <LucideIcon name="info" size={13} color={C.textMuted} />
-                <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
-              </View>
+              {showTeacherHint ? (
+                <View style={reg.notice}>
+                  <LucideIcon name="info" size={13} color={C.textMuted} />
+                  <Text style={reg.noticeText}>학부모 전화번호를 입력하면 학부모 가입 시 자녀 연결이 더 빠르게 진행됩니다.</Text>
+                </View>
+              ) : (
+                <View style={reg.notice}>
+                  <LucideIcon name="info" size={13} color={C.textMuted} />
+                  <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
+                </View>
+              )}
               <Pressable style={[reg.saveBtn, { backgroundColor: C.primaryAction }]} onPress={() => submit(false)} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={reg.saveBtnText}>등록하기</Text>}
               </Pressable>

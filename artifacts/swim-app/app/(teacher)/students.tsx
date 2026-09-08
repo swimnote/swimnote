@@ -7,6 +7,7 @@
  * 상태변경 → student-detail 내부 Section B / H (MemberStatusChangeModal)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { RegisterModal } from "@/components/admin/members/RegisterModal";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -93,11 +94,12 @@ export default function WaitingListScreen() {
   const { mode } = useMode();
   const isX = isXMode(mode);
 
-  const [tab,        setTab]        = useState<TabKey>("all");
-  const [list,       setList]       = useState<TeacherMember[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [search,     setSearch]     = useState("");
+  const [tab,               setTab]               = useState<TabKey>("all");
+  const [list,              setList]              = useState<TeacherMember[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [refreshing,        setRefreshing]        = useState(false);
+  const [search,            setSearch]            = useState("");
+  const [showRegister,      setShowRegister]      = useState(false);
   const [tabCounts,  setTabCounts]  = useState<Record<TabKey, number>>({
     all: 0, unassigned: 0, suspend_pending: 0, withdraw_pending: 0, suspended: 0, withdrawn: 0,
   });
@@ -179,7 +181,19 @@ export default function WaitingListScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }} edges={[]}>
-      <SubScreenHeader title="회원관리" homePath="/(teacher)/today-schedule" />
+      <SubScreenHeader
+        title="회원관리"
+        homePath="/(teacher)/today-schedule"
+        rightSlot={
+          <Pressable
+            onPress={() => setShowRegister(true)}
+            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: C.brandSoft, borderRadius: 10 }]}
+          >
+            <LucideIcon name="user-plus" size={14} color={C.brandStrong} />
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>신규등록</Text>
+          </Pressable>
+        }
+      />
 
       {/* 탭 */}
       <View style={s.tabRow}>
@@ -261,6 +275,15 @@ export default function WaitingListScreen() {
           <LucideIcon name="check-circle" size={14} color="#fff" />
           <Text style={s.toastText}>{toastMsg}</Text>
         </Animated.View>
+      )}
+
+      {showRegister && (
+        <RegisterModal
+          token={token}
+          showTeacherHint
+          onSuccess={() => { load(tab); }}
+          onClose={() => setShowRegister(false)}
+        />
       )}
     </SafeAreaView>
   );
