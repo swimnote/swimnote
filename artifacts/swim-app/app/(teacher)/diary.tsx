@@ -115,6 +115,11 @@ export default function TeacherDiaryScreen() {
   const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
   const pendingSessionRef = useRef<DiarySession | null>(null);
   const handledParamKey = useRef<string | undefined>(undefined);
+  // [FIX-2] classGroupId/editDiaryId param이 있을 때 load() 완료 전 WeeklySchedule flash 방지.
+  // ref 기반 waitingForAutoSelect 대신 state로 관리 → finally에서 setLoading과 배치로 false 처리.
+  const [autoSelectPending, setAutoSelectPending] = useState(
+    !!(params.classGroupId || params.editDiaryId)
+  );
   // [FIX] expo-router가 동일 route 인스턴스를 재사용할 때 targetDate가 stale 상태로 남는 버그 방지.
   // params.classGroupId / params.editDiaryId 가 변경되면(= 새 내비게이션) lessonDate를 재동기화.
   const lastNavKeyRef = useRef(`${params.classGroupId ?? ""}|${params.editDiaryId ?? ""}|${params.lessonDate ?? ""}`);
@@ -127,6 +132,10 @@ export default function TeacherDiaryScreen() {
       }
       if (params.startTime) setStartTime(params.startTime);
       setSelectedGroup(null);
+      // 새 params로 재진입 시 autoSelectPending 재활성화
+      if (params.classGroupId || params.editDiaryId) {
+        setAutoSelectPending(true);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.classGroupId, params.editDiaryId, params.lessonDate, params.startTime]);
@@ -260,7 +269,7 @@ export default function TeacherDiaryScreen() {
         }
       }
     } catch (e) { if (__DEV__) console.error('[load] error:', e); }
-    finally { setLoading(false); setRefreshing(false); }
+    finally { setAutoSelectPending(false); setLoading(false); setRefreshing(false); }
   }, [token, targetDate, params.classGroupId, params.editDiaryId]);
   useEffect(() => { load(); }, [load]);
   // overrideDate: session switch 시 targetDate가 아직 React state 반영 전일 때 명시적으로 전달
@@ -1521,14 +1530,10 @@ export default function TeacherDiaryScreen() {
   }
   const statusMap: Record<string, SlotStatus> = {};
   groups.forEach(g => { statusMap[g.id] = { attChecked: attMap[g.id] || 0, diaryDone: diarySet.has(`${g.id}_${targetDate}`), hasPhotos: false }; });
-  // classGroupId / editDiaryId param이 있으면 load()가 처리를 마칠 때까지 spinner 유지.
-  // - load() 완료 후 handledParamKey가 설정되면 대기 해제 (found=null 케이스도 포함)
-  // - load() 완료 전(loading=true)에는 이 조건과 무관하게 위의 loading guard에서 막힘
-  // - found=null이면 handledParamKey가 설정된 뒤 selectedGroup=null → WeeklySchedule fallback
-  const _autoSelectParamKey = params.classGroupId ?? params.editDiaryId;
-  const waitingForAutoSelect = !selectedGroup && !!_autoSelectParamKey
-    && handledParamKey.current !== _autoSelectParamKey;
-  if (loading || waitingForAutoSelect) {
+  // [FIX-2] autoSelectPending state: classGroupId/editDiaryId param이 있을 때
+  // finally에서 setLoading(false)와 배치로 처리 → WeeklySchedule flash 원천 차단
+  // autoSelectPending=true 동안은 selectedGroup 상태와 무관하게 항상 spinner 유지
+  if (loading || autoSelectPending) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title="수업 일지" homePath="/(teacher)/today-schedule" />

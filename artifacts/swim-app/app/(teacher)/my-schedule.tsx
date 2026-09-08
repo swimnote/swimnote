@@ -201,7 +201,9 @@ export default function MyScheduleScreen() {
     setDetailGroup(null);
     setSelectedDate(null);
     if (dateToRestore) pendingRestoreDateRef.current = dateToRestore;
-    setTimeout(navigate, 350);
+    // [FIX] 350ms delay 제거 — bottom sheet 닫힘 animation 대기 없이 즉시 navigate
+    // diary.tsx autoSelectPending guard가 WeeklySchedule flash를 차단하므로 delay 불필요
+    navigate();
   }
 
   function handleDaySheetMakeup() {
