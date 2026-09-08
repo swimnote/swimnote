@@ -1,0 +1,436 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FIX — X CURRICULUM HUMAN REVIEW GATE ALIGNMENT ONLY]
+
+최종 제품정책은 Option A로 확정.
+
+정책을 현재 코드에 맞춰 완화하지 않는다.
+
+최종 canonical flow:
+
+UPLOAD
+→ SAVE ORIGINAL
+→ PARSE
+→ STRUCTURE
+→ VALIDATE
+→ REVIEW WAIT
+→ SUPER ADMIN REVIEW
+→ APPROVE
+→ ACTIVATE
+→ READY
+
+이번 작업은
+X Curriculum의 auto-approve / auto-activate / auto-READY만
+정책과 맞게 수정한다.
+
+온보딩 구현은 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+업로드 성공
+≠ 승인
+≠ 활성화
+≠ READY
+
+사람 검수 전에는 절대로:
+
+- profile APPROVED
+- curriculum version approved
+- is_active=true
+- import_status=ACTIVE
+- xmode_config_status=READY
+
+가 되면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 업로드 직후 자동으로 허용되는 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /x-setup/upload/curriculum 후 자동 처리 허용:
+
+- 원본 R2 저장
+- x_setup_files version 생성
+- 이전 version is_current=false
+- SHA-256 계산
+- DOCX parse
+- structure
+- duplicate/empty 검증
+- hard block 검증
+- curriculum preview/review용 구조 생성
+- 검수 가능한 DB 상태 저장
+
+여기까지.
+
+사람 승인 없이 activate 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. processAndActivateLocalCurriculum 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 이 함수 안에서:
+
+- profile auto-approve
+- version auto-approve
+- activate
+- READY
+
+까지 수행되는 구조를 분리.
+
+가능하면 기존 함수명을 실제 역할에 맞게 정리하거나
+내부 단계를 분리하되
+불필요한 대규모 refactor 금지.
+
+권장 구조:
+
+processLocalCurriculumForReview()
+→ parse / structure / validate
+→ review-ready 상태까지만
+
+approveAndActivateLocalCurriculum()
+→ super_admin 승인 후에만 호출
+→ approved
+→ activate
+→ READY
+
+실제 기존 코드와 가장 적은 변경으로 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. UPLOAD 후 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 업로드 + parse/validation 성공 시:
+
+READY 금지.
+
+최종적으로
+"검수 대기"를 의미하는 canonical 상태가 되어야 한다.
+
+현재 상태체계 중:
+
+SUBMITTED
+UNDER_REVIEW
+또는 적절한 기존 상태
+
+를 재사용.
+
+새 상태를 불필요하게 만들지 말 것.
+
+단 상태 의미가 모호하면
+현재 x_setup_submissions와 curriculum profile/version 상태를
+정확히 연결.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. REVIEW REQUEST 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 "검토 요청" UI/API와
+실제 curriculum activation pipeline이 분리되어 있음.
+
+이 둘을 연결.
+
+수영장:
+
+업로드
+→ 검토 요청
+
+Super Admin:
+
+검토 대기 목록
+→ 파일/구조화 결과 확인
+
+이 흐름이 실제 same submission/version을 가리켜야 함.
+
+검토 요청과 unrelated orchestration이 따로 움직이면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. SUPER ADMIN APPROVE
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+PATCH /super/x-setup/:poolId/sections/:section/approve
+
+또는 현재 canonical super_admin approve action을 확인.
+
+최종 승인 액션에서만:
+
+- curriculum profile APPROVED
+- curriculum version approved_at
+- approved_by / reviewed_by = 실제 super_admin
+- activate
+- READY
+
+수행.
+
+uploader 자신이 reviewed_by가 되는 현재 auto-approve 구조 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. REVISION REQUEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin이 수정 요청하면:
+
+- READY 금지
+- 현재 active curriculum이 이미 있으면
+  기존 active version은 유지
+- 새 업로드 candidate만 revision state
+
+수영장이 재업로드하면:
+
+- 새 R2 object
+- 새 version
+- 이전 원본 보존
+- 다시 parse/structure/validate
+- 다시 review 대기
+
+기존 원본 overwrite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 ACTIVE CURRICULUM 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+이미 정상 운영 중인 pool이
+새 curriculum version을 재업로드한다고 해서
+
+기존 active version이
+검수 전에 내려가면 안 됨.
+
+최종 승인/activate 성공 전까지:
+
+현재 active curriculum 계속 사용.
+
+새 candidate version은 별도로 review.
+
+승인 시 atomic하게 active version 교체.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. HARD BLOCK
+━━━━━━━━━━━━━━━━━━━━━━
+
+parse 실패
+empty
+duplicate canonical item
+validation hard block
+
+등 기존 차단 로직 유지.
+
+이 경우:
+
+- approve 불가
+- activate 불가
+- READY 불가
+
+검수 화면에서 실패 이유 확인 가능해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. X MODE
+━━━━━━━━━━━━━━━━━━━━━━
+
+canonical semantics 유지:
+
+mode === 'x'
+≠ paid
+
+X 활성 조건:
+
+entitlement
+AND
+xmode_config_status='READY'
+AND
+not force_disabled
+
+현재 canonical resolver 변경 금지.
+
+이번 작업은
+READY가 사람 승인 이후에만 발생하게 만드는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 기존 READY POOL 회귀 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production에서 이미 READY인 정상 pool은
+이번 변경 때문에 갑자기 x_pending으로 떨어지면 안 됨.
+
+기존 approved/active/READY 상태는 보존.
+
+새 업로드 또는 새 version부터
+사람 review gate 적용.
+
+필요하면 migration 없이
+현재 상태를 그대로 존중.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. ORIGINAL FILE 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 잘 되어 있는 부분 유지:
+
+R2:
+x-setup/{poolId}/curriculum/v{N}_...
+
+DB:
+x_setup_files
+
+보존:
+
+- pool_id
+- original_filename
+- r2_key
+- byte size
+- mime
+- uploaded_by
+- uploaded_at
+- submission_version
+- is_current
+
+재업로드 시 이전 원본 삭제 금지.
+
+Super Admin download 기능 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. AUDIT
+━━━━━━━━━━━━━━━━━━━━━━
+
+사람 검수 관련 이벤트는 추적 가능해야 함.
+
+최소:
+
+- upload
+- review request
+- revision request
+- approve
+- activate
+- READY transition
+
+actor 기록.
+
+특히:
+
+reviewed_by = uploader
+
+같은 잘못된 auto-review 기록 제거.
+
+실제 super_admin actor가 남아야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. TEST CASES
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A — 신규 정상 파일
+
+upload
+→ parse success
+→ review pending
+→ READY 아님
+→ X 활성 아님
+
+CASE B — Super Admin approve
+
+review pending
+→ approve
+→ activate
+→ READY
+→ entitlement 있으면 mode=x
+
+CASE C — revision request
+
+upload
+→ review
+→ revision requested
+→ READY 아님
+→ 수정본 재업로드
+→ review pending
+
+CASE D — 기존 active curriculum + 새 version
+
+기존 active 유지
+→ 새 파일 review pending
+→ 승인 전 기존 X 정상
+→ 승인 후 새 version으로 교체
+
+CASE E — validation fail
+
+upload
+→ hard blocked
+→ approve/activate/READY 모두 불가
+
+CASE F — 기존 READY pool
+
+배포 후 기존 상태 유지
+→ 회귀 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. SERVER DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+server 변경이므로:
+
+release/v2.0.0
+→ code/test
+→ main push
+→ Render Production deploy
+→ LIVE 대기
+→ /health commit == main HEAD
+→ Production smoke
+
+"deploy triggered"만으로 완료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. APP 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+검토 상태 표시/UI 수정이 실제로 필요한 경우만 APP 수정.
+
+불필요한 onboarding UI 추가 금지.
+
+온보딩 구현은 별도 다음 작업.
+
+APP 변경이 있다면:
+
+iOS production-v2 OTA only
+runtime 2.1.0
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 제거한 auto-approve 코드
+2. 제거한 auto-activate 코드
+3. upload 후 최종 상태
+4. review request 연결
+5. Super Admin approve 실제 endpoint
+6. approve 후 activation flow
+7. READY 전환 위치
+8. revision request flow
+9. 기존 active version 보호
+10. 기존 READY pool 보호
+11. reviewed_by / approved_by 최종 actor
+12. 원본 file version 보존
+13. audit log
+14. 테스트 결과 A~F
+15. 수정 파일
+16. main HEAD
+17. Render LIVE commit
+18. APP 변경 여부
+19. OTA ID (있으면)
+20. blocker
+
+PASS 조건:
+
+- upload만으로 READY 불가
+- 사람 승인 없이 approve 불가
+- 사람 승인 없이 activate 불가
+- 검토 요청과 실제 version 연결
+- revision 정상
+- 기존 active curriculum 유지
+- 기존 READY pool 회귀 0
+- 원본 파일 보존
+- super_admin actor 기록
+- blocker 0
+
+완료 후 STOP.
