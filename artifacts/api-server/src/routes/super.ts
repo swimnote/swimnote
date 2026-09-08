@@ -118,7 +118,7 @@ router.get(
             (SELECT COUNT(*)::int FROM class_diaries WHERE COALESCE(is_deleted, false) = false) AS total_diaries,
             (SELECT COUNT(*)::int FROM class_diaries WHERE ai_generated = true AND COALESCE(is_deleted, false) = false) AS total_ai_diaries,
             (SELECT COUNT(DISTINCT cv.swimming_pool_id)::int FROM curriculum_versions cv WHERE cv.is_active = true) AS curriculum_ready_pools,
-            (SELECT COUNT(*)::int FROM operational_errors WHERE severity IN ('WARNING','ERROR') AND created_at >= NOW() - INTERVAL '24 hours') AS recent_warnings
+            (SELECT COUNT(*)::int FROM event_logs WHERE level IN ('WARNING','ERROR','CRITICAL') AND created_at >= NOW() - INTERVAL '24 hours') AS recent_warnings
         `).catch(() => ({ rows: [{}] })),
         // 승인 대기
         superAdminDb.execute(sql`
