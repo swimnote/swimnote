@@ -1,11 +1,16 @@
 /**
  * (admin)/diary-hub.tsx — 수업일지 (통합 canonical 목록)
  *
- * - 전체 / AI / 일반 필터 탭
- * - params: aiFilter=true (X Dashboard AI 클릭 시 AI 자동 선택)
- *           studentId=xxx  (회원관리 학생 진입 시 해당 학생 필터)
- *           backTo=xxx     (뒤로가기 경로)
- * - 일지 card → (teacher)/diary viewOnly (Home 이동 금지)
+ * Layout: FlatList 1개를 메인 스크롤로 사용.
+ *   ListHeaderComponent 안에 A~F 영역을 순서대로 배치:
+ *   A. KPI 카드 / B. AI 필터 탭 / C. 날짜 버튼 / D. 날짜 라벨
+ *   E. 검색바 / F. 결과 수
+ *   → absolute/fixed/negative-margin/zIndex 없음 → 겹침 구조적으로 불가
+ *
+ * params:
+ *   aiFilter=true   X Dashboard AI 클릭 시 AI 탭 자동 선택
+ *   studentId=xxx   회원관리 학생 진입 시 해당 학생 필터
+ *   backTo=xxx      (예약, 현재 미사용)
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -18,7 +23,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -31,8 +35,8 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 const C = Colors.light;
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
-type DateRange  = "today" | "yesterday" | "week" | "custom";
-type AiFilter   = "all" | "ai" | "normal";
+type DateRange = "today" | "yesterday" | "week" | "custom";
+type AiFilter  = "all" | "ai" | "normal";
 
 interface DiaryRow {
   diary_id: string;
@@ -94,48 +98,38 @@ function getWeekRange(dateStr: string): { from: string; to: string } {
   mon.setDate(d.getDate() + diffToMon);
   const sun = new Date(mon);
   sun.setDate(mon.getDate() + 6);
-  return {
-    from: mon.toISOString().slice(0, 10),
-    to:   sun.toISOString().slice(0, 10),
-  };
+  return { from: mon.toISOString().slice(0, 10), to: sun.toISOString().slice(0, 10) };
 }
 
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
 export default function DiaryHubScreen() {
   const { token } = useAuth();
   const params = useLocalSearchParams<{
-    aiFilter?: string;   // "true" → AI 탭 자동 선택 (X Dashboard에서 진입)
-    studentId?: string;  // 회원관리에서 진입 시 해당 학생 필터
-    backTo?: string;     // 뒤로가기 경로 (미사용 시 기본 뒤로가기)
+    aiFilter?: string;
+    studentId?: string;
+    backTo?: string;
   }>();
 
-  // ─── AI 필터 탭 — 초기값: params.aiFilter===true 이면 "ai" ──────────────
   const [aiFilter, setAiFilter] = useState<AiFilter>(
     params.aiFilter === "true" ? "ai" : "all"
   );
-
-  // 학생 필터 (회원관리 진입 시)
   const studentIdParam = params.studentId ?? "";
 
-  // 날짜 index
   const [dateRange,     setDateRange]     = useState<DateRange>("today");
   const [customDate,    setCustomDate]    = useState<string>(todayKst());
   const [showDateModal, setShowDateModal] = useState(false);
   const [dateInput,     setDateInput]     = useState<string>(todayKst());
 
-  // 검색
   const [searchText, setSearchText] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 반/선생님 필터 모달
-  const [showFilter,      setShowFilter]      = useState(false);
-  const [filterGroupId,   setFilterGroupId]   = useState("");
-  const [filterTeacherId, setFilterTeacherId] = useState("");
-  const [pendingGroupId,  setPendingGroupId]  = useState("");
-  const [pendingTeacherId,setPendingTeacherId]= useState("");
+  const [showFilter,       setShowFilter]       = useState(false);
+  const [filterGroupId,    setFilterGroupId]    = useState("");
+  const [filterTeacherId,  setFilterTeacherId]  = useState("");
+  const [pendingGroupId,   setPendingGroupId]   = useState("");
+  const [pendingTeacherId, setPendingTeacherId] = useState("");
 
-  // 데이터
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
   const [summary,     setSummary]     = useState<Summary>({ total_diaries: 0, total_notes: 0 });
@@ -146,14 +140,14 @@ export default function DiaryHubScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const pageRef = useRef(1);
 
-  // ─── 검색 debounce ─────────────────────────────────────────────────────
+  // 검색 debounce
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => setDebouncedQ(searchText.trim()), 350);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [searchText]);
 
-  // ─── API 파라미터 계산 ───────────────────────────────────────────────────
+  // API 파라미터
   const getApiParams = useCallback((): URLSearchParams => {
     const today = todayKst();
     let date = today;
@@ -165,11 +159,8 @@ export default function DiaryHubScreen() {
       case "custom":    date = customDate;    range = "day";  break;
     }
     const p = new URLSearchParams({ date, range, page: "1", limit: "30" });
-
-    // AI 필터 — "ai"=true만 전달, "normal"=false 전달, "all"=파라미터 없음
     if (aiFilter === "ai")     p.set("ai_only", "true");
     if (aiFilter === "normal") p.set("ai_only", "false");
-
     if (filterGroupId)   p.set("class_group_id", filterGroupId);
     if (filterTeacherId) p.set("teacher_id",      filterTeacherId);
     if (debouncedQ)      p.set("q",               debouncedQ);
@@ -177,15 +168,15 @@ export default function DiaryHubScreen() {
     return p;
   }, [dateRange, customDate, aiFilter, filterGroupId, filterTeacherId, debouncedQ, studentIdParam]);
 
-  // ─── 데이터 로드 ────────────────────────────────────────────────────────
+  // 데이터 로드
   const fetchData = useCallback(async (reset = true) => {
     if (!token) return;
     if (reset) { setLoading(true); setError(null); pageRef.current = 1; }
-    else { setLoadingMore(true); }
+    else       { setLoadingMore(true); }
     try {
-      const params2 = getApiParams();
-      if (!reset) { params2.set("page", String(pageRef.current + 1)); }
-      const res = await apiRequest(token, `/admin/diaries/summary?${params2.toString()}`);
+      const p2 = getApiParams();
+      if (!reset) p2.set("page", String(pageRef.current + 1));
+      const res = await apiRequest(token, `/admin/diaries/summary?${p2.toString()}`);
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "조회 실패"); }
       const data = await res.json();
       if (reset) {
@@ -207,12 +198,9 @@ export default function DiaryHubScreen() {
     }
   }, [token, getApiParams]);
 
-  // 의존성 변경 시 새로 로드
-  useEffect(() => {
-    fetchData(true);
-  }, [dateRange, customDate, aiFilter, filterGroupId, filterTeacherId, debouncedQ]);
+  useEffect(() => { fetchData(true); }, [dateRange, customDate, aiFilter, filterGroupId, filterTeacherId, debouncedQ]);
 
-  // ─── 날짜 인덱스 표시 라벨 ───────────────────────────────────────────────
+  // 날짜 라벨
   const dateIndexLabel = (): string => {
     switch (dateRange) {
       case "today":     return "오늘";
@@ -221,11 +209,10 @@ export default function DiaryHubScreen() {
         const { from, to } = getWeekRange(todayKst());
         return `${formatDateKo(from)} ~ ${formatDateKo(to)}`;
       }
-      case "custom":    return formatDateFull(customDate);
+      case "custom": return formatDateFull(customDate);
     }
   };
 
-  // ─── 커스텀 날짜 확인 ───────────────────────────────────────────────────
   const confirmCustomDate = () => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) return;
     setCustomDate(dateInput);
@@ -233,7 +220,6 @@ export default function DiaryHubScreen() {
     setShowDateModal(false);
   };
 
-  // ─── 필터 적용 ──────────────────────────────────────────────────────────
   const applyFilter = () => {
     setFilterGroupId(pendingGroupId);
     setFilterTeacherId(pendingTeacherId);
@@ -250,38 +236,25 @@ export default function DiaryHubScreen() {
     setShowFilter(true);
   };
 
-  // 활성 필터 수 (반/선생님만)
   const activeFilterCount = [filterGroupId, filterTeacherId].filter(Boolean).length;
-
-  // ─── 반 중복 제거 필터 옵션 ─────────────────────────────────────────────
   const uniqueGroups   = groups.filter((g, i, arr) => arr.findIndex(x => x.id === g.id) === i);
   const uniqueTeachers = Array.from(
     new Map(groups.map(g => [g.teacher_id, { id: g.teacher_id, name: g.teacher_name }])).values()
   );
 
-  // ─── row 탭 → diary detail (viewOnly) — Home 이동 금지 ─────────────────
   const onRowPress = (row: DiaryRow) => {
     router.push({
       pathname: "/(teacher)/diary" as any,
-      params: {
-        editDiaryId:  row.diary_id,
-        classGroupId: row.class_group_id,
-        viewOnly:     "true",
-      },
+      params: { editDiaryId: row.diary_id, classGroupId: row.class_group_id, viewOnly: "true" },
     });
   };
 
-  // ─── AI 필터 탭 라벨 ────────────────────────────────────────────────────
   const AI_TABS: { key: AiFilter; label: string }[] = [
     { key: "all",    label: "전체" },
     { key: "ai",     label: "AI" },
     { key: "normal", label: "일반" },
   ];
-
-  // ─── KPI 라벨 ────────────────────────────────────────────────────────────
   const kpiLabel = aiFilter === "ai" ? "AI 일지" : aiFilter === "normal" ? "일반 일지" : "수업 일지";
-
-  // ─── 제목 ──────────────────────────────────────────────────────────────
   const screenTitle = studentIdParam ? "학생 수업일지" : "수업일지";
 
   // ─── row 렌더 ───────────────────────────────────────────────────────────
@@ -289,13 +262,11 @@ export default function DiaryHubScreen() {
     <Pressable style={s.row} onPress={() => onRowPress(item)}>
       <View style={s.rowTop}>
         <Text style={s.rowTime}>
-          {item.lesson_date} {item.schedule_time ? `· ${item.schedule_time.slice(0, 5)}` : ""}
+          {item.lesson_date}{item.schedule_time ? ` · ${item.schedule_time.slice(0, 5)}` : ""}
         </Text>
         <View style={s.rowTopRight}>
           {item.ai_generated && (
-            <View style={s.aiChip}>
-              <Text style={s.aiChipText}>AI</Text>
-            </View>
+            <View style={s.aiChip}><Text style={s.aiChipText}>AI</Text></View>
           )}
           <Text style={s.rowClass}>{item.class_name ?? "반 미정"}</Text>
         </View>
@@ -339,39 +310,55 @@ export default function DiaryHubScreen() {
     </Pressable>
   );
 
-  // ─── 로딩 스켈레톤 ──────────────────────────────────────────────────────
-  const renderSkeleton = () => (
-    <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 10 }}>
-      {[1,2,3,4,5].map(i => (
-        <View key={i} style={[s.row, { opacity: 0.4 }]}>
-          <View style={{ height: 13, width: 160, backgroundColor: C.border, borderRadius: 6, marginBottom: 6 }} />
-          <View style={{ height: 11, width: 220, backgroundColor: C.border, borderRadius: 6, marginBottom: 6 }} />
-          <View style={{ height: 11, width: 120, backgroundColor: C.border, borderRadius: 6 }} />
+  // ─── ListEmptyComponent ─────────────────────────────────────────────────
+  const renderEmpty = () => {
+    if (loading) {
+      return (
+        <View style={s.skeletonWrap}>
+          {[1, 2, 3, 4, 5].map(i => (
+            <View key={i} style={[s.row, s.skeletonRow]}>
+              <View style={s.skeletonLine1} />
+              <View style={s.skeletonLine2} />
+              <View style={s.skeletonLine3} />
+            </View>
+          ))}
         </View>
-      ))}
-    </View>
-  );
-
-  // ─── EMPTY 메시지 ───────────────────────────────────────────────────────
-  const emptyTitle = () => {
-    if (debouncedQ || filterGroupId || filterTeacherId) return "필터 결과 없음";
-    if (aiFilter === "ai")     return "AI 일지 없음";
-    if (aiFilter === "normal") return "일반 일지 없음";
-    return "수업일지 없음";
+      );
+    }
+    if (error) {
+      return (
+        <View style={s.centerBox}>
+          <LucideIcon name="alert-circle" size={32} color={C.error} />
+          <Text style={s.errorText}>{error}</Text>
+          <Pressable style={s.retryBtn} onPress={() => fetchData(true)}>
+            <Text style={s.retryBtnText}>다시 시도</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    const emptyTitle =
+      debouncedQ || filterGroupId || filterTeacherId ? "필터 결과 없음"
+      : aiFilter === "ai"     ? "AI 일지 없음"
+      : aiFilter === "normal" ? "일반 일지 없음"
+      : "수업일지 없음";
+    const emptyDesc =
+      debouncedQ || filterGroupId || filterTeacherId ? "다른 조건으로 조회해 보세요."
+      : aiFilter === "ai"     ? "해당 날짜에 AI로 작성된 일지가 없습니다."
+      : aiFilter === "normal" ? "해당 날짜에 일반 작성 일지가 없습니다."
+      : "해당 날짜에 작성된 수업일지가 없습니다.";
+    return (
+      <View style={s.centerBox}>
+        <LucideIcon name="book-open" size={36} color={C.border} />
+        <Text style={s.emptyTitle}>{emptyTitle}</Text>
+        <Text style={s.emptyDesc}>{emptyDesc}</Text>
+      </View>
+    );
   };
-  const emptyDesc = () => {
-    if (debouncedQ || filterGroupId || filterTeacherId) return "다른 조건으로 조회해 보세요.";
-    if (aiFilter === "ai")     return "해당 날짜에 AI로 작성된 일지가 없습니다.";
-    if (aiFilter === "normal") return "해당 날짜에 일반 작성 일지가 없습니다.";
-    return "해당 날짜에 작성된 수업일지가 없습니다.";
-  };
 
-  // ─── 렌더 ───────────────────────────────────────────────────────────────
-  return (
-    <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title={screenTitle} homePath="/(admin)/dashboard" />
-
-      {/* KPI */}
+  // ─── ListHeaderComponent — A~F 영역 ──────────────────────────────────────
+  const renderHeader = () => (
+    <View>
+      {/* A. KPI 카드 */}
       <View style={s.kpiRow}>
         <View style={s.kpiCard}>
           <Text style={s.kpiValue}>{summary.total_diaries}</Text>
@@ -383,7 +370,7 @@ export default function DiaryHubScreen() {
         </View>
       </View>
 
-      {/* AI 필터 탭 */}
+      {/* B. AI 필터 탭 */}
       <View style={s.aiTabRow}>
         {AI_TABS.map(tab => (
           <Pressable
@@ -397,8 +384,12 @@ export default function DiaryHubScreen() {
         ))}
       </View>
 
-      {/* DATE INDEX */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.dateIndexBar} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+      {/* C. 날짜 버튼 */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={s.dateIndexBar}
+        contentContainerStyle={s.dateIndexContent}>
         {(["today", "yesterday", "week"] as const).map(r => (
           <Pressable key={r} style={[s.dateBtn, dateRange === r && s.dateBtnActive]} onPress={() => setDateRange(r)}>
             <Text style={[s.dateBtnText, dateRange === r && s.dateBtnTextActive]}>
@@ -416,10 +407,10 @@ export default function DiaryHubScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* 날짜 범위 표시 */}
+      {/* D. 날짜 라벨 */}
       <Text style={s.dateLabel}>{dateIndexLabel()}</Text>
 
-      {/* 검색 + 필터 */}
+      {/* E. 검색바 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <LucideIcon name="search" size={14} color={C.textSecondary} />
@@ -443,38 +434,35 @@ export default function DiaryHubScreen() {
         </Pressable>
       </View>
 
-      {/* 결과 수 */}
+      {/* F. 결과 수 */}
       {!loading && !error && (
         <Text style={s.resultCount}>{total.toLocaleString()}건</Text>
       )}
+    </View>
+  );
 
-      {/* 메인 컨텐츠 */}
-      {loading ? renderSkeleton() : error ? (
-        <View style={s.centerBox}>
-          <LucideIcon name="alert-circle" size={32} color={C.error} />
-          <Text style={s.errorText}>{error}</Text>
-          <Pressable style={s.retryBtn} onPress={() => fetchData(true)}>
-            <Text style={s.retryBtnText}>다시 시도</Text>
-          </Pressable>
-        </View>
-      ) : diaries.length === 0 ? (
-        <View style={s.centerBox}>
-          <LucideIcon name="book-open" size={36} color={C.border} />
-          <Text style={s.emptyTitle}>{emptyTitle()}</Text>
-          <Text style={s.emptyDesc}>{emptyDesc()}</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={diaries}
-          keyExtractor={item => item.diary_id}
-          renderItem={renderRow}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 12 }}
-          ItemSeparatorComponent={() => <View style={s.separator} />}
-          onEndReached={() => { if (hasMore && !loadingMore) fetchData(false); }}
-          onEndReachedThreshold={0.3}
-          ListFooterComponent={loadingMore ? <ActivityIndicator color={C.primary} style={{ marginVertical: 16 }} /> : null}
-        />
-      )}
+  // ─── 렌더 ───────────────────────────────────────────────────────────────
+  return (
+    <SafeAreaView style={s.safe} edges={[]}>
+      <SubScreenHeader title={screenTitle} homePath="/(admin)/dashboard" />
+
+      <FlatList
+        data={loading || error ? [] : diaries}
+        keyExtractor={item => item.diary_id}
+        renderItem={renderRow}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={s.listContent}
+        ItemSeparatorComponent={() => <View style={s.separator} />}
+        onEndReached={() => { if (hasMore && !loadingMore) fetchData(false); }}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          loadingMore
+            ? <ActivityIndicator color={C.primary} style={{ marginVertical: 16 }} />
+            : null
+        }
+        keyboardShouldPersistTaps="handled"
+      />
 
       {/* 날짜 선택 모달 */}
       <Modal visible={showDateModal} transparent animationType="fade" onRequestClose={() => setShowDateModal(false)}>
@@ -503,8 +491,10 @@ export default function DiaryHubScreen() {
               <Pressable style={s.modalCancelBtn} onPress={() => setShowDateModal(false)}>
                 <Text style={s.modalCancelBtnText}>취소</Text>
               </Pressable>
-              <Pressable style={[s.modalConfirmBtn, { opacity: /^\d{4}-\d{2}-\d{2}$/.test(dateInput) ? 1 : 0.4 }]}
-                onPress={confirmCustomDate} disabled={!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)}>
+              <Pressable
+                style={[s.modalConfirmBtn, { opacity: /^\d{4}-\d{2}-\d{2}$/.test(dateInput) ? 1 : 0.4 }]}
+                onPress={confirmCustomDate}
+                disabled={!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)}>
                 <Text style={s.modalConfirmBtnText}>확인</Text>
               </Pressable>
             </View>
@@ -519,7 +509,6 @@ export default function DiaryHubScreen() {
             <View style={s.filterModalHandle} />
             <Text style={s.filterModalTitle}>필터</Text>
 
-            {/* 반 */}
             <Text style={s.filterSection}>반</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 4 }}>
@@ -536,7 +525,6 @@ export default function DiaryHubScreen() {
               </View>
             </ScrollView>
 
-            {/* 선생님 */}
             <Text style={s.filterSection}>선생님</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
               <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 4 }}>
@@ -572,43 +560,50 @@ export default function DiaryHubScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.background },
 
-  // KPI
-  kpiRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 12, marginBottom: 8, gap: 10 },
+  // FlatList 전체 contentContainer
+  listContent: { paddingHorizontal: 16, paddingBottom: 40 },
+
+  // A. KPI
+  kpiRow: { flexDirection: "row", marginTop: 12, marginBottom: 12, gap: 10 },
   kpiCard: {
-    flex: 1, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border,
+    flex: 1, backgroundColor: "#fff", borderRadius: 12,
+    borderWidth: 1, borderColor: C.border,
     paddingVertical: 14, paddingHorizontal: 16,
   },
   kpiCardRight: {},
   kpiValue: { fontSize: 24, fontFamily: "Pretendard-Bold", color: C.textPrimary, marginBottom: 2 },
   kpiLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
-  // AI 필터 탭
-  aiTabRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 4, marginBottom: 14, gap: 6 },
+  // B. AI 필터 탭
+  aiTabRow: { flexDirection: "row", marginBottom: 12, gap: 6 },
   aiTab: {
-    paddingHorizontal: 16, paddingVertical: 10,
+    paddingHorizontal: 16, paddingVertical: 9,
     borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
   aiTabActive: { backgroundColor: C.primary, borderColor: C.primary },
-  aiTabText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  aiTabText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   aiTabTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
 
-  // Date index
-  dateIndexBar: { marginBottom: 14, paddingVertical: 2 },
+  // C. 날짜 버튼 — marginHorizontal: -16 으로 paddingHorizontal 16 상쇄 후 full-width
+  dateIndexBar:     { marginHorizontal: -16, marginBottom: 12 },
+  dateIndexContent: { paddingHorizontal: 16, paddingVertical: 4, gap: 8 },
   dateBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
     height: 34, paddingHorizontal: 12,
     borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
-  dateBtnActive: { backgroundColor: C.primary, borderColor: C.primary },
-  dateBtnText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  dateBtnActive:     { backgroundColor: C.primary, borderColor: C.primary },
+  dateBtnText:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   dateBtnTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
+
+  // D. 날짜 라벨
   dateLabel: {
     fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary,
-    marginLeft: 18, marginTop: 6, marginBottom: 4,
+    marginBottom: 8,
   },
 
-  // Search row
-  searchRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 10, marginTop: 10 },
+  // E. 검색바
+  searchRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
   searchBox: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: C.border,
@@ -627,101 +622,91 @@ const s = StyleSheet.create({
     fontSize: 11, fontFamily: "Pretendard-Bold", color: "#fff",
     backgroundColor: "#3B82F6", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1,
   },
+
+  // F. 결과 수
   resultCount: {
     fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary,
-    marginLeft: 18, marginBottom: 4,
+    marginBottom: 8,
   },
+
+  // 로딩 스켈레톤
+  skeletonWrap: { gap: 8, marginTop: 4 },
+  skeletonRow:  { opacity: 0.4 },
+  skeletonLine1: { height: 13, width: 160, backgroundColor: C.border, borderRadius: 6, marginBottom: 6 },
+  skeletonLine2: { height: 11, width: 220, backgroundColor: C.border, borderRadius: 6, marginBottom: 6 },
+  skeletonLine3: { height: 11, width: 120, backgroundColor: C.border, borderRadius: 6 },
 
   // Row
-  row: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14 },
+  row:      { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14 },
   separator: { height: 8 },
-  rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  rowTop:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   rowTopRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-  rowTime: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  rowClass: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.primary },
+  rowTime:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  rowClass: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
   aiChip: {
-    backgroundColor: "#EFF6FF", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2,
+    backgroundColor: "#EFF6FF", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1,
   },
-  aiChipText: { fontSize: 10, fontFamily: "Pretendard-Bold", color: "#3B82F6" },
-  rowContent: {
-    fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary,
-    marginBottom: 6, lineHeight: 18,
-  },
-  rowMid: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
-  rowTeacher: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
-  rowSep: { fontSize: 13, color: C.border },
-  rowNoteCount: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  rowStats: { flexDirection: "row", gap: 10 },
+  aiChipText: { fontSize: 10, fontFamily: "Pretendard-Bold", color: C.primary },
+  rowContent: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 19, marginBottom: 8 },
+  rowMid:   { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 },
+  rowTeacher:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  rowNoteCount: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  rowSep:   { fontSize: 12, color: C.border },
+  rowStats: { flexDirection: "row", gap: 8, alignItems: "center" },
   statChip: { flexDirection: "row", alignItems: "center", gap: 3 },
-  statText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  statNone: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.border },
+  statText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  statNone: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.border },
 
-  // Center (loading/empty/error)
-  centerBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 32 },
-  errorText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.error, textAlign: "center" },
-  retryBtn: {
-    marginTop: 4, paddingHorizontal: 20, paddingVertical: 10,
-    backgroundColor: C.primary, borderRadius: 10,
-  },
+  // Empty / Error
+  centerBox: { alignItems: "center", paddingVertical: 40, gap: 8 },
+  emptyTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
+  emptyDesc:  { fontSize: 13, fontFamily: "Pretendard-Regular",  color: C.textSecondary, textAlign: "center" },
+  errorText:  { fontSize: 14, fontFamily: "Pretendard-Regular",  color: C.error },
+  retryBtn:   { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: C.primary, borderRadius: 8 },
   retryBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
-  emptyTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
-  emptyDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
 
   // 날짜 선택 모달
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center" },
   dateModalBox: {
-    backgroundColor: "#fff", borderRadius: 16, padding: 20, width: 300,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8,
+    width: 300, backgroundColor: "#fff", borderRadius: 16, padding: 20,
   },
-  modalTitle: { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.textPrimary, marginBottom: 16, textAlign: "center" },
-  dateNavRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  modalTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textPrimary, marginBottom: 16, textAlign: "center" },
+  dateNavRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
   dateInputField: {
-    flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textPrimary,
-    borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingVertical: 8, marginHorizontal: 8,
+    flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular",
+    color: C.textPrimary, borderBottomWidth: 1, borderColor: C.border, paddingVertical: 4, marginHorizontal: 8,
   },
-  modalBtnRow: { flexDirection: "row", gap: 10 },
-  modalCancelBtn: {
-    flex: 1, paddingVertical: 11, borderRadius: 10,
-    borderWidth: 1, borderColor: C.border, alignItems: "center",
-  },
+  modalBtnRow:      { flexDirection: "row", gap: 8 },
+  modalCancelBtn:   { flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
   modalCancelBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
-  modalConfirmBtn: {
-    flex: 1, paddingVertical: 11, borderRadius: 10,
-    backgroundColor: C.primary, alignItems: "center",
-  },
+  modalConfirmBtn:  { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: C.primary, alignItems: "center" },
   modalConfirmBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 
   // 반/선생님 필터 모달
   filterModal: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, paddingBottom: 40,
+    padding: 20, paddingBottom: 36,
   },
   filterModalHandle: {
-    width: 40, height: 4, backgroundColor: C.border, borderRadius: 2,
+    width: 36, height: 4, borderRadius: 2, backgroundColor: C.border,
     alignSelf: "center", marginBottom: 16,
   },
-  filterModalTitle: { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.textPrimary, marginBottom: 16 },
-  filterSection: {
-    fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary,
-    marginBottom: 8,
-  },
+  filterModalTitle: { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textPrimary, marginBottom: 16 },
+  filterSection:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textPrimary, marginBottom: 8 },
   filterChip: {
-    paddingHorizontal: 14, paddingVertical: 8,
+    paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
-  filterChipActive: { backgroundColor: C.primary, borderColor: C.primary },
-  filterChipText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  filterChipActive:     { backgroundColor: C.primary, borderColor: C.primary },
+  filterChipText:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterChipTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
-  filterActionRow: { flexDirection: "row", gap: 10 },
-  filterResetBtn: {
+  filterActionRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  filterResetBtn:  {
     flex: 1, paddingVertical: 12, borderRadius: 10,
     borderWidth: 1, borderColor: C.border, alignItems: "center",
   },
   filterResetBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
-  filterApplyBtn: {
-    flex: 2, paddingVertical: 12, borderRadius: 10,
-    backgroundColor: C.primary, alignItems: "center",
-  },
+  filterApplyBtn:  { flex: 2, paddingVertical: 12, borderRadius: 10, backgroundColor: C.primary, alignItems: "center" },
   filterApplyBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });
