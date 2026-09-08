@@ -32,7 +32,6 @@ function darkenHex(hex: string, ratio = 0.35): string {
   return `rgb(${r},${g},${b})`;
 }
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import OnboardingTooltip from "@/components/common/OnboardingTooltip";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
 import { WeeklySchedule } from "@/components/teacher/WeeklySchedule";
 import { TeacherClassGroup, SlotStatus } from "@/components/teacher/types";
@@ -750,14 +749,6 @@ export default function ClassesScreen() {
               <Text style={s.emptyHintText}>등록된 수업이 없습니다</Text>
             </View>
           )}
-          <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
-            <OnboardingTooltip
-              storageKey="@swimnote:tooltip_weekly_v1"
-              title="주간 시간표 보기"
-              message="각 칸을 탭하면 반 상세 정보와 학생 명단을 확인할 수 있습니다. 오늘 출결 현황도 함께 표시됩니다."
-              accentColor="#7C3AED"
-            />
-          </View>
           <WeeklyTimetableV2
             groups={groups}
             onSelectClass={setDetailGroup}

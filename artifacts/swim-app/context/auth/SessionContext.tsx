@@ -548,27 +548,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     if (k === "parent") {
-      const parentId = pa?.id ?? null;
-      if (parentId) {
-        const done = await AsyncStorage.getItem(`@swimnote:onboarded_${parentId}_parent`).catch(() => "1");
-        if (!done) return "/(auth)/onboarding-parent";
-      }
       return (await consumeResumeRoute(["/(parent)/"])) ?? "/(parent)/home";
     }
     if (k === "admin" && user) {
-      const { role, swimming_pool_id, id: userId } = user;
+      const { role, swimming_pool_id } = user;
 
-      // super 계정군 — 온보딩/정책 체크 없음
+      // super 계정군 — 정책 체크 없음
       if (role === "super_admin" || role === "platform_admin" || role === "super_manager") {
         return (await consumeResumeRoute(["/(super)/"])) ?? "/(super)/dashboard";
       }
 
       // teacher
       if (role === "teacher") {
-        if (userId) {
-          const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_teacher`).catch(() => "1");
-          if (!done) return "/(auth)/onboarding-teacher";
-        }
         return (await consumeResumeRoute(["/(teacher)/", "/(admin)/"])) ?? "/(teacher)/today-schedule";
       }
 
@@ -576,7 +567,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (role === "pool_admin" || role === "sub_admin") {
         if (!swimming_pool_id) return "/pool-apply";
 
-        // 1순위: pool_admin 환불 정책 미동의 (sub_admin 제외 — 정책 서명 권한 없음)
+        // pool_admin 환불 정책 미동의 체크 (sub_admin 제외)
         // 5초 AbortController 타임아웃: 느린 서버가 loadStored() 전체를 블로킹하지 않도록
         if (role === "pool_admin" && authToken) {
           try {
@@ -598,21 +589,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 return "/(auth)/policy-agreement";
               }
             } else if (policyRes.status === 403) {
-              // 진단 기록
               try {
                 const rawT = await policyRes.text();
                 if (!_loginDiagnostic) storeDiag("REFUND_POLICY", "GET", `${API_BASE}/admin/refund-policy`, policyRes, rawT);
               } catch {}
             }
           } catch {
-            // 네트워크 오류 또는 5초 타임아웃 시 정책 체크 스킵 → 온보딩/홈 판단으로 계속
+            // 네트워크 오류 또는 5초 타임아웃 시 정책 체크 스킵 → 홈으로 계속
           }
-        }
-
-        // 2순위: 온보딩 미완료 (pool_admin + sub_admin 공통)
-        if (userId) {
-          const done = await AsyncStorage.getItem(`@swimnote:onboarded_${userId}_admin`).catch(() => "1");
-          if (!done) return "/(auth)/onboarding-admin";
         }
 
         return (await consumeResumeRoute(["/(admin)/", "/(teacher)/"])) ?? "/(admin)/dashboard";
