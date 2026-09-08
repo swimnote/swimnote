@@ -45,7 +45,10 @@ function toIsoOrNull(v: unknown): string | null {
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString();
   if (typeof v === "string") {
     // 1) 공백 → T, 2) .NNNNNN(6자리) → .NNN(3자리) truncate
-    const normalized = v.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
+    const normalized = v
+      .replace(" ", "T")                         // PostgreSQL space → T
+      .replace(/(\.\d{3})\d+/, "$1")             // microseconds(6) → ms(3)
+      .replace(/([+-])(\d{2})$/, "$1$2:00");     // +00 → +00:00 (ISO 8601 필수)
     const d = new Date(normalized);
     return isNaN(d.getTime()) ? null : d.toISOString();
   }
