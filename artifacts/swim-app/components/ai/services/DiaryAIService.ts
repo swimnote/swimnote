@@ -162,6 +162,12 @@ export interface DiaryInsertResult {
   students:           StudentDiaryNote[];
   /** X mode + contract 1.3 일 때만 존재. 빈 배열이면 undefined로 처리. */
   curriculumMatches?: CurriculumMatch[];
+  /**
+   * AI Engine이 발급한 request_id (externalRequestId).
+   * diary save 시 ai_request_id로 서버에 전달 → verifyAiOrigin → isAiGenerated=true.
+   * 없으면 undefined (non-AI draft 또는 V1 hook).
+   */
+  requestId?:         string;
 }
 
 /** Service 오류 구조체 — Hook이 상태 전환에 사용 */
