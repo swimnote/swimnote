@@ -36,12 +36,17 @@ const db = superAdminDb;
 
 const router = Router();
 
-/** DB에서 반환된 timestamp (Date | string | null) → ISO 8601 string | null */
+/** DB에서 반환된 timestamp (Date | string | null) → ISO 8601 string | null
+ *  PostgreSQL micro-seconds(6자리) → JS Date는 milli-seconds(3자리)만 지원
+ *  "2026-09-07 08:42:52.368157+00" → "2026-09-07T08:42:52.368+00"
+ */
 function toIsoOrNull(v: unknown): string | null {
   if (!v) return null;
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString();
   if (typeof v === "string") {
-    const d = new Date(v.replace(" ", "T")); // PostgreSQL space → T
+    // 1) 공백 → T, 2) .NNNNNN(6자리) → .NNN(3자리) truncate
+    const normalized = v.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
+    const d = new Date(normalized);
     return isNaN(d.getTime()) ? null : d.toISOString();
   }
   return null;

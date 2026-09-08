@@ -171,11 +171,12 @@ export default function AdminReportDetailScreen() {
     const reviewedAt = detail.teacher_reviewed_at
       ? new Date(detail.teacher_reviewed_at).toLocaleDateString("ko-KR")
       : null;
-    // PostgreSQL timestamp("2026-09-07 08:42:52+00") 또는 ISO string 모두 안전 파싱
+    // PostgreSQL timestamp("2026-09-07 08:42:52.368157+00") 안전 파싱
+    // iOS JavaScriptCore: space→T 필수, microseconds(6자리) → milli(3자리) truncate 필수
     const parseDateSafe = (s?: string | null): Date | null => {
       if (!s) return null;
-      // ISO 8601: 공백 → T 치환 후 파싱 (iOS 호환)
-      const d = new Date(s.replace(" ", "T"));
+      const normalized = s.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
+      const d = new Date(normalized);
       return isNaN(d.getTime()) ? null : d;
     };
     const publishedAt = parseDateSafe(detail.published_at)?.toLocaleDateString("ko-KR") ?? null;
