@@ -3,8 +3,12 @@
  *
  * 2-Layer 검색 흐름:
  *   Layer 1 (POOL_LOCAL):
- *     student_ref → SCA → LOCAL curriculum_version (is_global_reference=false)
- *       → pool items → confidence → CurriculumCandidateResult[source_scope='POOL_LOCAL']
+ *     Canonical Local Resolver:
+ *       1. student에게 active SCA가 있고 is_global_reference=false Local version → 해당 version 사용
+ *       2. SCA 없으면 → pool의 active Local version fallback 사용
+ *          조건: is_global_reference=false AND swimming_pool_id=poolId AND is_active=true
+ *                AND import_status='ACTIVE' AND archived_at IS NULL
+ *       3. 둘 다 없으면 → NO_ACTIVE_LOCAL_CURRICULUM (candidate 0)
  *
  *   Layer 2 (GLOBAL_REFERENCE):
  *     curriculum_versions WHERE is_global_reference=true AND import_status='ACTIVE'
@@ -12,8 +16,13 @@
  *
  * Local 우선 규칙:
  *   - Local progress target: source_scope='POOL_LOCAL' candidate만 허용
- *   - Global-only match: AI grounding에만 사용, growth_event/CPO/SCP 생성 금지
- *   - 동일 기술 Local+Global 동시 match → Local 우선 (score 무관)
+ *   - Global-only match: AI grounding/context에만 사용, growth_event/CPO/SCP 생성 금지
+ *   - 동일 기술 Local+Global 동시 match → Local 우선 (source_scope 구분으로 caller 처리)
+ *
+ * SCA Optional 정책 (500 Pool Standard):
+ *   - SCA 없는 신규 pool도 pool active Local version fallback으로 정상 작동
+ *   - SCA는 한 pool 내 학생별 다른 curriculum이 필요한 경우의 override 기능
+ *   - AI Diary / Manual Diary / Parent / Growth 모두 동일 Local Resolver 사용
  *
  * 설계 결정:
  *   - student_ref = students.id (동일값, 앱 코드 ref:s.id 확인)
@@ -76,8 +85,9 @@ export interface CurriculumDb {
   /** pool 소속 + deleted_at IS NULL 검증 후 실재하는 student_id 목록 반환 */
   verifyStudentRefs(refs: string[], poolId: string): Promise<string[]>;
   /**
-   * 검증된 학생들의 활성 LOCAL curriculum_version 배정 목록 반환.
+   * 검증된 학생들의 활성 LOCAL curriculum_version 배정 목록 반환 (SCA 기반).
    * is_global_reference=true인 version은 반드시 제외한다 (Global이 SCA를 가리켜도 Local로 오인 불가).
+   * SCA가 없는 학생은 반환 목록에서 제외됨 (getPoolActiveLocalVersion fallback 사용).
    */
   getAssignedVersions(
     studentIds: string[],
@@ -94,6 +104,23 @@ export interface CurriculumDb {
    * pool_id 조건 없음 — 전 수영장 공통 reference.
    */
   getGlobalReferenceItems(): Promise<{ id: string; title: string; description: string | null; curriculum_version_id: string }[]>;
+  /**
+   * pool의 active Local version ID 반환 (SCA 없는 학생의 fallback).
+   *
+   * Canonical Local Resolver Step 2:
+   *   SCA가 없는 학생은 pool의 단일 active Local version을 사용한다.
+   *
+   * 조건:
+   *   is_global_reference = false
+   *   AND swimming_pool_id = poolId
+   *   AND is_active        = true
+   *   AND import_status    = 'ACTIVE'
+   *   AND archived_at      IS NULL
+   *
+   * pool당 active Local version은 최대 1개 (UNIQUE INDEX 보장).
+   * 없으면 null 반환 → NO_ACTIVE_LOCAL_CURRICULUM.
+   */
+  getPoolActiveLocalVersion(poolId: string): Promise<string | null>;
 }
 
 // ── 운영 DB 구현 ─────────────────────────────────────────────────────────────
@@ -170,6 +197,23 @@ const productionCurriculumDb: CurriculumDb = {
       curriculum_version_id: string;
     }[];
   },
+
+  async getPoolActiveLocalVersion(poolId) {
+    // Canonical Local Resolver Step 2:
+    // SCA 없는 학생의 fallback — pool의 단일 active Local version.
+    // UNIQUE INDEX (swimming_pool_id) WHERE is_active=true 보장: 최대 1개.
+    const result = await superAdminDb.execute(sql`
+      SELECT id
+      FROM curriculum_versions
+      WHERE swimming_pool_id   = ${poolId}
+        AND is_global_reference = false
+        AND is_active            = true
+        AND import_status        = 'ACTIVE'
+        AND archived_at          IS NULL
+      LIMIT 1
+    `);
+    return ((result.rows as any[])[0]?.id as string) ?? null;
+  },
 };
 
 // ── candidate_id 생성 ─────────────────────────────────────────────────────────
@@ -183,6 +227,11 @@ function newCandidateId(): string {
 
 /**
  * 검증된 학생 ref 목록에 대해 curriculum candidate를 검색합니다.
+ *
+ * Canonical Local Resolver (AI Diary / Manual Diary / Parent / Growth 공통):
+ *   1. SCA 있는 학생 → SCA Local version 사용
+ *   2. SCA 없는 학생 → pool active Local version fallback
+ *   3. 둘 다 없으면 → Local candidate 0건 (Global grounding만 가능)
  *
  * @param params.requestedRefs 요청의 students[].ref (= students.id)
  * @param params.poolId JWT 검증된 pool_id
@@ -210,10 +259,33 @@ export async function searchCurriculumCandidates(
     const verifiedIds = await db.verifyStudentRefs(requestedRefs, poolId);
     if (verifiedIds.length === 0) return [];
 
-    // ── Layer 1 (POOL_LOCAL): SCA → LOCAL version → items ────────────────────
-    // getAssignedVersions는 is_global_reference=false 조건 포함 (Global SCA 무시)
+    // ── Layer 1 (POOL_LOCAL): Canonical Local Resolver ────────────────────────
+    //
+    // Step 1-A: SCA 배정 (is_global_reference=false 조건 포함 — Global SCA 무시)
     const assignments = await db.getAssignedVersions(verifiedIds, poolId);
-    const allLocalVersionIds = [...new Set(assignments.map((a) => a.curriculum_version_id))];
+
+    // Step 1-B: SCA 없는 학생을 위한 pool active Local version fallback
+    const poolFallbackVersionId = await db.getPoolActiveLocalVersion(poolId);
+
+    // Step 1-C: 학생별 최종 Local version ID 결정
+    //   SCA 있는 학생 → SCA version (우선)
+    //   SCA 없는 학생 → pool active fallback
+    //   둘 다 없으면 → Map에 미포함 (Local candidate 0)
+    const studentVersionMap = new Map<string, string>(); // student_id → version_id
+
+    for (const a of assignments) {
+      studentVersionMap.set(a.student_id, a.curriculum_version_id);
+    }
+    if (poolFallbackVersionId) {
+      for (const id of verifiedIds) {
+        if (!studentVersionMap.has(id)) {
+          studentVersionMap.set(id, poolFallbackVersionId);
+        }
+      }
+    }
+
+    // Step 1-D: 모든 고유 Local version IDs → items 일괄 조회 (N+1 방지)
+    const allLocalVersionIds = [...new Set(studentVersionMap.values())];
     const localItems = allLocalVersionIds.length > 0
       ? await db.getCurriculumItems(allLocalVersionIds, poolId)
       : [];
@@ -222,37 +294,35 @@ export async function searchCurriculumCandidates(
     // pool_id 무관 — 전 수영장 공통 reference
     const globalItems = await db.getGlobalReferenceItems();
 
-    // ── Step 3: 학생별 candidate 생성 (LOCAL 우선) ───────────────────────────
+    // ── Step 3: 학생별 candidate 생성 ────────────────────────────────────────
 
     const results: CurriculumCandidateResult[] = [];
 
     for (const ref of verifiedIds) {
-      // 이 학생에게 배정된 LOCAL version ids 집합
-      const assignedLocalVersionIds = new Set(
-        assignments
-          .filter((a) => a.student_id === ref)
-          .map((a) => a.curriculum_version_id),
-      );
+      // 이 학생에게 배정된 Local version ID (SCA 또는 pool fallback)
+      const studentVersionId = studentVersionMap.get(ref);
 
       // LOCAL candidates
-      for (const item of localItems) {
-        if (!assignedLocalVersionIds.has(item.curriculum_version_id)) continue;
+      if (studentVersionId) {
+        for (const item of localItems) {
+          if (item.curriculum_version_id !== studentVersionId) continue;
 
-        const conf = computeCurriculumConfidence(meaning, item, config);
-        if (!conf) continue;
+          const conf = computeCurriculumConfidence(meaning, item, config);
+          if (!conf) continue;
 
-        results.push({
-          student_ref:                ref,
-          candidate_id:               newCandidateId(),
-          display_label:              item.title,
-          description:                item.description,
-          curriculum_version_id:      item.curriculum_version_id,
-          confidence:                 conf.confidence,
-          match_status:               "PENDING_REVIEW", // AUTO_ACCEPTED 금지
-          matching_algorithm_version: MATCHING_ALGORITHM_VERSION,
-          source_scope:               "POOL_LOCAL",     // progress 허용
-          _curriculum_item_id:        item.id,          // match_token 전용, 응답 미포함
-        });
+          results.push({
+            student_ref:                ref,
+            candidate_id:               newCandidateId(),
+            display_label:              item.title,
+            description:                item.description,
+            curriculum_version_id:      item.curriculum_version_id,
+            confidence:                 conf.confidence,
+            match_status:               "PENDING_REVIEW", // AUTO_ACCEPTED 금지
+            matching_algorithm_version: MATCHING_ALGORITHM_VERSION,
+            source_scope:               "POOL_LOCAL",     // progress 허용
+            _curriculum_item_id:        item.id,          // match_token 전용, 응답 미포함
+          });
+        }
       }
 
       // GLOBAL candidates — AI grounding 전용

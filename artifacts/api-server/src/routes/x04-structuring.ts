@@ -14,6 +14,7 @@
  * All routes: super_admin only
  * ORIGINAL files (x_setup_files): read-only, never mutated here
  */
+import crypto from "crypto";
 import { Router, type Request, type Response } from "express";
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -169,79 +170,95 @@ router.post(
             }
           }
 
-          // ── PRE-WP-X: curriculum_versions upsert + curriculum_items 생성 ──
+          // ── PRE-WP-X: curriculum_versions 생성 + curriculum_items 생성 ──
           //
-          // 원칙:
-          //   - X managed version_name = 'x-curriculum-v1' (기본값)
-          //   - UNIQUE(swimming_pool_id, version_name) ON CONFLICT DO NOTHING
-          //   - 해당 version_id 범위의 curriculum_items만 DELETE → INSERT (idempotent)
-          //   - pool-wide DELETE 금지 — X version scope만 교체
-          //   - 다른 version의 items는 절대 변경하지 않음
-          //   - [2-Layer 방어] is_global_reference=true row는 UPSERT 대상 불가
-          //     → 동일 version_name이 Global Reference면 타임스탬프 suffix로 Local 이름 생성
+          // 원칙 (500 Pool Standard):
+          //   - 신규 업로드마다 새 Local curriculum_version 생성 (UPSERT 덮어쓰기 금지)
+          //   - version_name = 'x-local-{content_hash[:12]}' (hash 기반 고유 이름)
+          //   - content_hash = SHA-256(DOCX buffer) — idempotency source of truth
+          //   - 동일 content_hash이 이미 이 pool에 존재하면 → 기존 version 재사용 (duplicate skip)
+          //   - 새 version은 is_active=false, import_status='DRAFT' 로 생성
+          //   - activate-local TX에서만 is_active=true, import_status='ACTIVE' 로 전환
+          //   - 기존 items DELETE 금지 — 과거 version/items 보존
+          //   - is_global_reference=true row는 절대 생성/변경 불가
           //
           if (structured.searchable_items.length > 0) {
-            let xVersionName = "x-curriculum-v1"; // 기본값 (let — Global 충돌 시 변경)
+            // 1. DOCX 버퍼 content_hash 계산 (SHA-256)
+            const contentHash = crypto
+              .createHash("sha256")
+              .update(dlRes.data)
+              .digest("hex");
+            const versionName = `x-local-${contentHash.slice(0, 12)}`;
 
-            // [2-Layer 방어] Global overwrite 방지:
-            // version_name이 이미 is_global_reference=true인 row와 일치하면
-            // Local 전용 새 이름을 사용한다.
-            const globalOverwriteCheck = await superAdminDb.execute(sql`
+            // 2. 동일 content_hash가 이 pool에 이미 존재하면 → duplicate skip
+            const existingCheck = await superAdminDb.execute(sql`
               SELECT id FROM curriculum_versions
-              WHERE swimming_pool_id = ${pool.id}
-                AND version_name     = ${xVersionName}
-                AND is_global_reference = true
+              WHERE swimming_pool_id     = ${pool.id}
+                AND source_content_hash  = ${contentHash}
+                AND is_global_reference  = false
               LIMIT 1
             `);
-            if ((globalOverwriteCheck as any).rows?.length > 0) {
-              // Global row overwrite 방지: Local 전용 이름 생성
-              xVersionName = `x-curriculum-local-${Date.now()}`;
-              console.warn(
-                `[x04-structuring] Global overwrite 방지: version_name 충돌 → ${xVersionName} (pool=${pool.id})`
+            const existingVersionId = (existingCheck as any).rows?.[0]?.id as string | undefined;
+
+            if (existingVersionId) {
+              console.log(
+                `[x04-structuring] duplicate content_hash → 기존 version 재사용 (pool=${pool.id}, version=${existingVersionId})`
               );
-            }
-
-            const X_VERSION_NAME = xVersionName;
-
-            // 1. X managed curriculum_version upsert (Local only)
-            await superAdminDb.execute(sql`
-              INSERT INTO curriculum_versions (swimming_pool_id, version_name, is_active, activated_at)
-              VALUES (${pool.id}, ${X_VERSION_NAME}, true, NOW())
-              ON CONFLICT (swimming_pool_id, version_name) DO UPDATE SET
-                is_active = true,
-                activated_at = COALESCE(curriculum_versions.activated_at, NOW()),
-                updated_at = NOW()
-              WHERE curriculum_versions.is_global_reference = false
-            `);
-
-            const versionRes = await superAdminDb.execute(sql`
-              SELECT id FROM curriculum_versions
-              WHERE swimming_pool_id = ${pool.id} AND version_name = ${X_VERSION_NAME}
-              LIMIT 1
-            `);
-            const xVersionId = (versionRes as any).rows?.[0]?.id as string | undefined;
-
-            if (xVersionId) {
-              // 2. X managed version scope 내 기존 items만 삭제 (다른 version 보호)
-              await superAdminDb.execute(sql`
-                DELETE FROM curriculum_items
-                WHERE curriculum_version_id = ${xVersionId}
+              // items 이미 존재 — 재생성 불필요
+            } else {
+              // 3. 새 Local version 생성 (is_active=false — activate-local TX에서만 활성화)
+              //    Global overwrite 방지: version_name 충돌 시 타임스탬프 suffix
+              let finalVersionName = versionName;
+              const globalOverwriteCheck = await superAdminDb.execute(sql`
+                SELECT id FROM curriculum_versions
+                WHERE swimming_pool_id   = ${pool.id}
+                  AND version_name       = ${finalVersionName}
+                  AND is_global_reference = true
+                LIMIT 1
               `);
-
-              // 3. searchable_items → curriculum_items INSERT (batch)
-              for (const item of structured.searchable_items) {
-                await superAdminDb.execute(sql`
-                  INSERT INTO curriculum_items
-                    (curriculum_version_id, swimming_pool_id, sort_order, title, description, is_active)
-                  VALUES
-                    (${xVersionId}, ${pool.id}, ${item.sort_order},
-                     ${item.title}, ${item.description}, true)
-                `);
+              if ((globalOverwriteCheck as any).rows?.length > 0) {
+                finalVersionName = `x-local-${contentHash.slice(0, 8)}-${Date.now()}`;
+                console.warn(
+                  `[x04-structuring] Global overwrite 방지: version_name 충돌 → ${finalVersionName} (pool=${pool.id})`
+                );
               }
 
-              console.log(
-                `[x04-structuring] curriculum_items: ${structured.searchable_items.length}개 생성 (pool=${pool.id}, version=${xVersionId})`
-              );
+              await superAdminDb.execute(sql`
+                INSERT INTO curriculum_versions
+                  (swimming_pool_id, version_name, is_active, import_status, source_content_hash)
+                VALUES
+                  (${pool.id}, ${finalVersionName}, false, 'DRAFT', ${contentHash})
+                ON CONFLICT (swimming_pool_id, version_name)
+                  DO UPDATE SET
+                    source_content_hash = EXCLUDED.source_content_hash,
+                    updated_at = NOW()
+                  WHERE curriculum_versions.is_global_reference = false
+              `);
+
+              const newVersionRes = await superAdminDb.execute(sql`
+                SELECT id FROM curriculum_versions
+                WHERE swimming_pool_id = ${pool.id} AND version_name = ${finalVersionName}
+                LIMIT 1
+              `);
+              const newVersionId = (newVersionRes as any).rows?.[0]?.id as string | undefined;
+
+              if (newVersionId) {
+                // 4. searchable_items → curriculum_items INSERT
+                //    (기존 version의 items는 절대 변경하지 않음)
+                for (const item of structured.searchable_items) {
+                  await superAdminDb.execute(sql`
+                    INSERT INTO curriculum_items
+                      (curriculum_version_id, swimming_pool_id, sort_order, title, description, is_active)
+                    VALUES
+                      (${newVersionId}, ${pool.id}, ${item.sort_order},
+                       ${item.title}, ${item.description}, true)
+                    ON CONFLICT (curriculum_version_id, sort_order) DO NOTHING
+                  `);
+                }
+                console.log(
+                  `[x04-structuring] 새 Local version 생성 (is_active=false): pool=${pool.id}, version=${newVersionId}, items=${structured.searchable_items.length}개`
+                );
+              }
             }
           }
 
@@ -515,6 +532,136 @@ router.patch(
       res.json({ ok: true, updated: updates });
     } catch (err) {
       console.error("[super/x-setup/website/structured PATCH]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ── POST /super/x-setup/:poolId/activate-local ───────────────────────────────
+// Canonical activation TX:
+//   1. 해당 pool의 APPROVED Local curriculum version 확인
+//   2. 기존 active Local → deactivate/archive (TX)
+//   3. 새 version → is_active=true, import_status='ACTIVE' (TX)
+//   4. xmode_config_status = 'READY' (TX)
+//   5. 전체 실패 시 atomic rollback (부분 activation 금지)
+//
+// 운영자 DB 직접 조작 불필요:
+//   - version id 수동 입력 불필요 (pool의 최신 APPROVED + DRAFT version 자동 선택)
+//   - SCA 자동 생성 없음 (pool active version fallback으로 정상 작동)
+//   - Global system health (global_template_sets / diary_templates) 체크는
+//     pool setup state와 분리 → SYSTEM_CURRICULUM_NOT_READY 별도 경고만 반환
+
+router.post(
+  "/super/x-setup/:poolId/activate-local",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: Request, res: Response) => {
+    const { poolId } = req.params;
+    const actorId = (req as any).user?.userId;
+    try {
+      const pool = await getPoolRow(poolId);
+      if (!pool) return res.status(404).json({ error: "수영장을 찾을 수 없습니다." });
+
+      // ── Step 1: APPROVED Local curriculum profile + 연결된 version 확인 ──
+      // x_curriculum_profiles.status = 'APPROVED' AND
+      // 해당 pool에 is_active=false AND is_global_reference=false AND import_status='DRAFT' 인
+      // Local version이 존재해야 함 (structure 단계에서 생성, approve 후 미활성 상태)
+      const approvedVersionRes = await superAdminDb.execute(sql`
+        SELECT cv.id AS version_id, cv.version_name, xcp.id AS profile_id
+        FROM curriculum_versions cv
+        JOIN x_curriculum_profiles xcp
+          ON xcp.pool_id = cv.swimming_pool_id
+        WHERE cv.swimming_pool_id    = ${pool.id}
+          AND cv.is_global_reference = false
+          AND cv.is_active           = false
+          AND cv.import_status       IN ('DRAFT', 'VALIDATED')
+          AND cv.archived_at         IS NULL
+          AND xcp.status             = 'APPROVED'
+        ORDER BY cv.created_at DESC
+        LIMIT 1
+      `);
+      const targetRow = (approvedVersionRes as any).rows?.[0];
+      if (!targetRow) {
+        return res.status(409).json({
+          error: "활성화 가능한 APPROVED Local curriculum version이 없습니다.",
+          hint: "structure → approve 단계를 먼저 완료하세요.",
+        });
+      }
+      const targetVersionId: string = targetRow.version_id;
+
+      // ── Step 2: 기존 active Local version 조회 (deactivate 대상) ──
+      const oldActiveRes = await superAdminDb.execute(sql`
+        SELECT id FROM curriculum_versions
+        WHERE swimming_pool_id   = ${pool.id}
+          AND is_global_reference = false
+          AND is_active           = true
+          AND archived_at         IS NULL
+        LIMIT 1
+      `);
+      const oldVersionId: string | null = (oldActiveRes as any).rows?.[0]?.id ?? null;
+
+      // ── Step 3: Atomic TX — deactivate old / activate new / set READY ──
+      // superAdminDb는 drizzle-orm 기반 — raw BEGIN/COMMIT으로 transaction 처리
+      await superAdminDb.execute(sql`BEGIN`);
+      try {
+        // 3-a: 기존 active Local deactivate + archive
+        if (oldVersionId) {
+          await superAdminDb.execute(sql`
+            UPDATE curriculum_versions SET
+              is_active   = false,
+              archived_at = NOW(),
+              updated_at  = NOW()
+            WHERE id = ${oldVersionId}
+          `);
+        }
+
+        // 3-b: 새 version activate
+        await superAdminDb.execute(sql`
+          UPDATE curriculum_versions SET
+            is_active      = true,
+            import_status  = 'ACTIVE',
+            activated_at   = NOW(),
+            updated_at     = NOW()
+          WHERE id = ${targetVersionId}
+        `);
+
+        // 3-c: pool xmode_config_status = 'READY'
+        await superAdminDb.execute(sql`
+          UPDATE swimming_pools SET
+            xmode_config_status = 'READY',
+            updated_at          = NOW()
+          WHERE id = ${pool.id}
+        `);
+
+        // 3-d: curriculum profile status 업데이트
+        await superAdminDb.execute(sql`
+          UPDATE x_curriculum_profiles SET
+            status     = 'ACTIVATED',
+            updated_at = NOW()
+          WHERE pool_id = ${pool.id}
+        `);
+
+        await superAdminDb.execute(sql`COMMIT`);
+      } catch (txErr) {
+        await superAdminDb.execute(sql`ROLLBACK`).catch(() => {});
+        throw txErr;
+      }
+
+      // ── Step 4: Audit 기록 ──
+      await insertAuditLog("LOCAL_CURRICULUM_ACTIVATED", actorId, pool.id, {
+        activated_version_id: targetVersionId,
+        deactivated_version_id: oldVersionId,
+        xmode_config_status: "READY",
+      });
+
+      res.json({
+        ok: true,
+        activated_version_id: targetVersionId,
+        deactivated_version_id: oldVersionId,
+        xmode_config_status: "READY",
+      });
+    } catch (err) {
+      console.error("[super/x-setup/activate-local POST]", err);
       res.status(500).json({ error: "서버 오류" });
     }
   }

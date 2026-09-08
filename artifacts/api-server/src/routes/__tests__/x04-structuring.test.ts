@@ -740,7 +740,7 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
     { title: "6비트 킥",         description: "자유형 2단계 / detailed_skills", sort_order: 2, field_source: "detailed_skills", level_order: 2 },
   ];
 
-  // PRE-WP-X-10: searchable_items 존재 시 curriculum_versions upsert + curriculum_items INSERT
+  // PRE-WP-X-10: searchable_items 존재 시 curriculum_versions 생성 + curriculum_items INSERT
   it("PRE-WP-X-10: searchable_items 존재 시 curriculum_versions upsert + curriculum_items INSERT", async () => {
     (superAdminDb.execute as any).mockReset();
     (superAdminDb.execute as any)
@@ -753,15 +753,16 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
       .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] }) // 6. SELECT profile id
       .mockResolvedValueOnce({ rows: [] })                                   // 7. DELETE x_curriculum_levels
       .mockResolvedValueOnce({ rows: [] })                                   // 8. INSERT x_curriculum_levels (level 1)
-      // PRE-WP-X new:
-      .mockResolvedValueOnce({ rows: [] })                                   // 9.  cv upsert
-      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] })          // 10. SELECT version id
-      .mockResolvedValueOnce({ rows: [] })                                   // 11. DELETE curriculum_items
-      .mockResolvedValueOnce({ rows: [] })                                   // 12. INSERT item 0
-      .mockResolvedValueOnce({ rows: [] })                                   // 13. INSERT item 1
-      .mockResolvedValueOnce({ rows: [] })                                   // 14. INSERT item 2
-      .mockResolvedValueOnce({ rows: [] })                                   // 15. audit version
-      .mockResolvedValueOnce({ rows: [] });                                   // 16. audit insert
+      // 500 Pool Standard — new version-per-import flow:
+      .mockResolvedValueOnce({ rows: [] })                                   // 9.  SELECT content_hash (not found → new version)
+      .mockResolvedValueOnce({ rows: [] })                                   // 10. SELECT global overwrite check
+      .mockResolvedValueOnce({ rows: [] })                                   // 11. INSERT new curriculum_version (is_active=false)
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] })          // 12. SELECT new version id
+      .mockResolvedValueOnce({ rows: [] })                                   // 13. INSERT item 0 (ON CONFLICT DO NOTHING)
+      .mockResolvedValueOnce({ rows: [] })                                   // 14. INSERT item 1
+      .mockResolvedValueOnce({ rows: [] })                                   // 15. INSERT item 2
+      .mockResolvedValueOnce({ rows: [] })                                   // 16. audit version
+      .mockResolvedValueOnce({ rows: [] });                                   // 17. audit insert
 
     (parseCurriculumDocx as any).mockReturnValue({
       template_version: "1.0",
@@ -849,10 +850,11 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
       .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
       .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
       .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
-      .mockResolvedValueOnce({ rows: [] }) // cv upsert
-      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT version
-      .mockResolvedValueOnce({ rows: [] }) // DELETE curriculum_items
-      .mockResolvedValueOnce({ rows: [] }) // INSERT item 0
+      .mockResolvedValueOnce({ rows: [] }) // SELECT content_hash (not found)
+      .mockResolvedValueOnce({ rows: [] }) // SELECT global overwrite check
+      .mockResolvedValueOnce({ rows: [] }) // INSERT new curriculum_version (is_active=false)
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT new version id
+      .mockResolvedValueOnce({ rows: [] }) // INSERT item 0 (ON CONFLICT DO NOTHING)
       .mockResolvedValueOnce({ rows: [] }) // audit version
       .mockResolvedValueOnce({ rows: [] }); // audit insert
 
@@ -883,52 +885,79 @@ describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
     expect(hasPoolWideDelete).toBe(false);
   });
 
-  // PRE-WP-X-13: idempotent — DELETE → INSERT 패턴으로 누적 없음
-  it("PRE-WP-X-13: idempotent — DELETE → INSERT 패턴으로 누적 없음", async () => {
-    for (let run = 0; run < 2; run++) {
-      (superAdminDb.execute as any).mockReset();
-      (superAdminDb.execute as any)
-        .mockResolvedValueOnce(mockPoolLookup())
-        .mockResolvedValueOnce({ rows: [{ id: MOCK_SUBMISSION_ID }] })
-        .mockResolvedValueOnce({ rows: [{ file_type: "curriculum",
-            r2_key: "x-setup/c.docx", submission_version: 1, is_current: true }] })
-        .mockResolvedValueOnce({ rows: [] }) // PROCESSING
-        .mockResolvedValueOnce({ rows: [] }) // STRUCTURED
-        .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
-        .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
-        .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
-        .mockResolvedValueOnce({ rows: [] }) // cv upsert
-        .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] })
-        .mockResolvedValueOnce({ rows: [] }) // DELETE curriculum_items
-        .mockResolvedValueOnce({ rows: [] }) // INSERT item 0
-        .mockResolvedValueOnce({ rows: [] }) // audit version
-        .mockResolvedValueOnce({ rows: [] }); // audit insert
+  // PRE-WP-X-13: idempotent — content_hash 기반 동일 파일 재업로드 → 새 version 미생성
+  it("PRE-WP-X-13: idempotent — 동일 content_hash 재업로드 시 기존 version 재사용 (새 version/item 생성 0)", async () => {
+    // Run 1: 새 content_hash → 새 version 생성
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      .mockResolvedValueOnce(mockPoolLookup())
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_SUBMISSION_ID }] })
+      .mockResolvedValueOnce({ rows: [{ file_type: "curriculum",
+          r2_key: "x-setup/c.docx", submission_version: 1, is_current: true }] })
+      .mockResolvedValueOnce({ rows: [] }) // PROCESSING
+      .mockResolvedValueOnce({ rows: [] }) // STRUCTURED
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
+      .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
+      .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
+      .mockResolvedValueOnce({ rows: [] }) // SELECT content_hash → [] (not found, new version needed)
+      .mockResolvedValueOnce({ rows: [] }) // SELECT global overwrite check
+      .mockResolvedValueOnce({ rows: [] }) // INSERT new curriculum_version (is_active=false)
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT new version id
+      .mockResolvedValueOnce({ rows: [] }) // INSERT item 0 (ON CONFLICT DO NOTHING)
+      .mockResolvedValueOnce({ rows: [] }) // audit version
+      .mockResolvedValueOnce({ rows: [] }); // audit insert
 
-      (parseCurriculumDocx as any).mockReturnValue({
-        template_version: "1.0",
-        basic_info: {},
-        teaching_summary: {},
-        levels: [{ level_order: 1, level_name: "기초" }],
-        total_declared_levels: 1,
-        parse_warnings: [],
-        searchable_items: [
-          { title: "발차기 기초", description: "기초 / detailed_skills", sort_order: 0, field_source: "detailed_skills", level_order: 1 },
-        ],
-      });
+    (parseCurriculumDocx as any).mockReturnValue({
+      template_version: "1.0",
+      basic_info: {},
+      teaching_summary: {},
+      levels: [{ level_order: 1, level_name: "기초" }],
+      total_declared_levels: 1,
+      parse_warnings: [],
+      searchable_items: [
+        { title: "발차기 기초", description: "기초 / detailed_skills", sort_order: 0, field_source: "detailed_skills", level_order: 1 },
+      ],
+    });
 
-      const res = await request(app)
-        .post(`/super/x-setup/${MOCK_POOL_ID}/structure`)
-        .set("Authorization", "Bearer super_token");
+    const res1 = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/structure`)
+      .set("Authorization", "Bearer super_token");
+    expect(res1.status).toBe(200);
 
-      expect(res.status).toBe(200);
+    // Run 2: 동일 content_hash → 기존 version 재사용 (new INSERT 없음)
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      .mockResolvedValueOnce(mockPoolLookup())
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_SUBMISSION_ID }] })
+      .mockResolvedValueOnce({ rows: [{ file_type: "curriculum",
+          r2_key: "x-setup/c.docx", submission_version: 1, is_current: true }] })
+      .mockResolvedValueOnce({ rows: [] }) // PROCESSING
+      .mockResolvedValueOnce({ rows: [] }) // STRUCTURED
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
+      .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
+      .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
+      // duplicate content_hash detected → skip new version/items
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT content_hash → found!
+      .mockResolvedValueOnce({ rows: [] }) // audit version
+      .mockResolvedValueOnce({ rows: [] }); // audit insert
 
-      const calls = (superAdminDb.execute as any).mock.calls;
-      // 매 run: curriculum_items DELETE 정확히 1회 → 누적 없음
-      const itemDeletes = calls.filter((c: any[]) => {
-        const q = getSqlText(c);
-        return q.includes("DELETE") && q.includes("curriculum_items");
-      });
-      expect(itemDeletes).toHaveLength(1);
-    }
+    const res2 = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/structure`)
+      .set("Authorization", "Bearer super_token");
+    expect(res2.status).toBe(200);
+
+    const calls = (superAdminDb.execute as any).mock.calls;
+    // Run 2: curriculum_versions INSERT 없음 (기존 version 재사용)
+    const hasVersionInsert = calls.some((c: any[]) => {
+      const q = getSqlText(c);
+      return q.includes("INSERT INTO") && q.includes("curriculum_versions") && !q.includes("curriculum_items");
+    });
+    expect(hasVersionInsert).toBe(false); // 재사용: 새 version INSERT 0
+    // Run 2: curriculum_items INSERT 없음 (기존 version의 items 보존)
+    const hasItemInsert = calls.some((c: any[]) => {
+      const q = getSqlText(c);
+      return q.includes("INSERT INTO") && q.includes("curriculum_items");
+    });
+    expect(hasItemInsert).toBe(false); // 재사용: 새 items INSERT 0
   });
 });

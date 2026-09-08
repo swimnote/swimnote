@@ -80,7 +80,24 @@ export interface XPrerequisiteResult {
 /**
  * checkXPrerequisite — WP7 공식 X Manual Grant prerequisite resolver.
  *
- * global-only resolver (pool-specific config 없음 — runtime code evidence 참조).
+ * ══════════════════════════════════════════════════════════════════════════════
+ * 500 Pool Standard 원칙 (Pool Setup State ≠ Global System Health):
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * Pool READY 조건 (pool 개별):
+ *   A. Pool 존재 확인
+ *   → READY (entitlement는 PATCH /xmode 호출 시점에 플랜키로 검증)
+ *
+ * Global system health (별도 — pool 개별 READY 차단 금지):
+ *   B. global_template_sets ACTIVE 존재 → SYSTEM_CURRICULUM_NOT_READY 경고만
+ *   C. diary_templates x_global 존재 → SYSTEM_CURRICULUM_NOT_READY 경고만
+ *
+ * 설계 이유:
+ *   - 전역 상태 하나(global_template_sets=0)가 모든 신규 pool의 READY를 차단하는
+ *     fragile 구조 제거 (500 pool onboarding 필수 요건)
+ *   - Global system health는 checkSystemCurriculumHealth()로 분리
+ *   - 특정 pool의 setup 진행과 시스템 템플릿 관리는 독립적으로 운영
+ *
  * Upload history (x_setup_submissions/x_setup_files) 확인 금지.
  *
  * @param poolId  swimming_pools.id
@@ -92,7 +109,7 @@ export async function checkXPrerequisite(
 ): Promise<XPrerequisiteResult> {
   const missing: string[] = [];
 
-  // ── A. Pool 존재 확인 ─────────────────────────────────────────────────────
+  // ── A. Pool 존재 확인 (pool-level ONLY prerequisite) ─────────────────────
   const poolRows = await db.execute(sql`
     SELECT id, approval_status
     FROM swimming_pools
@@ -113,23 +130,16 @@ export async function checkXPrerequisite(
   }
   const pool = poolRows.rows[0] as any;
 
-  // ── B. global_template_sets — ACTIVE set 존재 확인 ───────────────────────
-  // X runtime: loadXGlobalTemplates(setId) — setId는 ACTIVE set에서 가져옴.
-  // ACTIVE set 없으면 X 다이어리 생성 불가.
+  // ── B & C: Global system health 정보 수집 (참고용 — pool READY 차단 금지) ──
+  // SYSTEM_CURRICULUM_NOT_READY 경고는 응답에 포함하되, missing에 추가하지 않음.
+  // 이 조건이 0이어도 pool READY 설정을 막지 않는다.
   const setRows = await db.execute(sql`
     SELECT COUNT(*) AS cnt
     FROM global_template_sets
     WHERE status = 'ACTIVE'
   `).catch(() => ({ rows: [{ cnt: 0 }] }));
-
   const activeSetCount = Number((setRows.rows[0] as any)?.cnt ?? 0);
-  if (activeSetCount === 0) {
-    missing.push("ACTIVE_TEMPLATE_SET: ACTIVE 상태의 global_template_sets 없음. X runtime 다이어리 생성 불가.");
-  }
 
-  // ── C. diary_templates — scope='x_global' 템플릿 존재 확인 ───────────────
-  // 실제 X runtime 사용 scope: 'x_global' (일반 pool 다이어리의 'global'과 다름)
-  // swimming_pool_id IS NULL — 전역 템플릿이므로 pool 필터 없음 (runtime 확인됨)
   const tmplRows = await db.execute(sql`
     SELECT COUNT(*) AS cnt
     FROM diary_templates
@@ -137,22 +147,61 @@ export async function checkXPrerequisite(
       AND swimming_pool_id   IS NULL
       AND is_active          = true
   `).catch(() => ({ rows: [{ cnt: 0 }] }));
-
   const xGlobalTemplateCnt = Number((tmplRows.rows[0] as any)?.cnt ?? 0);
-  if (xGlobalTemplateCnt === 0) {
-    missing.push("X_GLOBAL_TEMPLATES: scope='x_global' 활성 템플릿 없음. X 다이어리 생성 시 사용할 템플릿 없음.");
-  }
 
+  // Pool READY는 pool 존재만으로 충족 (missing = [])
   const ready = missing.length === 0;
 
   return {
     status: ready ? "READY" : "NOT_READY",
     ready,
-    reason: ready
-      ? null
-      : missing.map(m => m.split(":")[1]?.trim() ?? m).join("; "),
+    reason: ready ? null : missing.map(m => m.split(":")[1]?.trim() ?? m).join("; "),
     missing,
     pool_approval_status: pool.approval_status ?? null,
+    active_template_set_count: activeSetCount,
+    x_global_template_count: xGlobalTemplateCnt,
+  };
+}
+
+/**
+ * checkSystemCurriculumHealth — 전역 X curriculum system health 확인.
+ *
+ * Pool setup state와 완전 분리.
+ * 특정 pool을 READY에서 차단하지 않음.
+ * 모니터링/운영 대시보드에서 사용.
+ *
+ * @param db drizzle-compat db instance (superAdminDb)
+ */
+export interface SystemCurriculumHealth {
+  healthy: boolean;
+  warnings: string[];
+  active_template_set_count: number;
+  x_global_template_count: number;
+}
+
+export async function checkSystemCurriculumHealth(db: Db): Promise<SystemCurriculumHealth> {
+  const warnings: string[] = [];
+
+  const setRows = await db.execute(sql`
+    SELECT COUNT(*) AS cnt FROM global_template_sets WHERE status = 'ACTIVE'
+  `).catch(() => ({ rows: [{ cnt: 0 }] }));
+  const activeSetCount = Number((setRows.rows[0] as any)?.cnt ?? 0);
+  if (activeSetCount === 0) {
+    warnings.push("ACTIVE_TEMPLATE_SET: ACTIVE 상태의 global_template_sets 없음. X runtime 다이어리 생성 불가.");
+  }
+
+  const tmplRows = await db.execute(sql`
+    SELECT COUNT(*) AS cnt FROM diary_templates
+    WHERE scope = 'x_global' AND swimming_pool_id IS NULL AND is_active = true
+  `).catch(() => ({ rows: [{ cnt: 0 }] }));
+  const xGlobalTemplateCnt = Number((tmplRows.rows[0] as any)?.cnt ?? 0);
+  if (xGlobalTemplateCnt === 0) {
+    warnings.push("X_GLOBAL_TEMPLATES: scope='x_global' 활성 템플릿 없음. X 다이어리 생성 시 사용할 템플릿 없음.");
+  }
+
+  return {
+    healthy: warnings.length === 0,
+    warnings,
     active_template_set_count: activeSetCount,
     x_global_template_count: xGlobalTemplateCnt,
   };
