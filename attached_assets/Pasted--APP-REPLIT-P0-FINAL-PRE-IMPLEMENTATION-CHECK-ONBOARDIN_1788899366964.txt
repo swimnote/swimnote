@@ -1,0 +1,310 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL PRE-IMPLEMENTATION CHECK — ONBOARDING CONTENT TRUTH CORRECTION]
+
+기존 PRE-DESIGN의:
+
+- 디자인 시스템
+- SWIMNOTE/X theme 분리
+- 좌측 상단 logo
+- TYPE A/B/C/D 구조
+- Admin/Teacher/Parent/X 전수 onboarding map
+- 기능 진입 시 분산 노출
+
+은 승인한다.
+
+하지만 아직 구현 금지.
+
+현재 보고서 일부 기능 설명이
+최신 확정 제품정책과 충돌하거나
+구형 flow일 가능성이 있으므로
+ONBOARDING CONTENT만 최종 사실검증한다.
+
+코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. AI INSIGHT REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정책:
+
+AI Insight Report reference price = ₩79,000
+BUT purchase = HOLD.
+
+따라서 onboarding에서:
+
+- 구매 가능
+- 지금 구매
+- 구매 후 즉시 열람
+
+표현 금지.
+
+현재 실제 Production purchase route/CTA/API를 확인.
+
+HOLD라면:
+
+기능 존재/목적까지만 설명하고
+구매 가능한 것처럼 설명하지 않는다.
+
+최종 문구 다시 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. AI GROWTH REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확정 정책을 기준으로 다시 작성.
+
+무료 AI 성장리포트:
+
+- 전월 수업기록 기반
+- 전월 재등록 회원 대상
+- 다음 달 5일 자동 발급
+- 앱 내 제공
+- PDF 저장 가능
+
+실제 코드/현재 정책과 다시 대조.
+
+퇴원생/미재등록자 정책까지
+온보딩에 꼭 필요한 부분만 정확하게 반영.
+
+"정기 발행" 같은 모호한 표현만 사용하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. X LOCAL CURRICULUM
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical 구현을 다시 확인.
+
+확정 architecture:
+
+upload
+→ parse
+→ structure
+→ validate
+→ approve
+→ activate
+→ READY
+
+현재 Production에서 one-click pipeline이
+어떻게 사용자에게 보이는지 확인.
+
+기존 보고서의:
+
+- 템플릿 다운로드 필수
+- 심사 신청
+- AI 처리 수일
+- 수정 요청 후 재업로드
+
+등이 실제 현재 flow와 다르면 전부 제거.
+
+현재 코드 기준 최종 설명 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. X READY
+━━━━━━━━━━━━━━━━━━━━━━
+
+READY가 정확히 무엇을 의미하는지
+canonical resolver / route / API 기준 확인.
+
+"X 기능 전체 활성"
+
+같은 포괄표현은
+실제로 모든 X 기능이 열리는 경우에만 사용.
+
+READY 이후 실제 활성되는 기능을
+정확하게 나열.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. X AI DIARY
+━━━━━━━━━━━━━━━━━━━━━━
+
+"더 정확한"
+"품질 향상"
+
+같은 성능 우월 표현은
+검증 근거 없으면 제거.
+
+실제 기능이:
+
+Pool Local Curriculum
+학생 단계
+기타 X context
+
+를 grounding에 사용하는지 확인.
+
+가능하면:
+
+"수영장의 커리큘럼 정보를 반영해 작성합니다."
+
+처럼 실제 동작만 설명.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PARENT AUTO LINK
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 조사 내용은 승인.
+
+첫 연결 canonical 조건:
+
+- 동일 pool
+- 자녀 이름 match
+- parent phone match
+- active student
+
+mismatch/pending 흐름 유지.
+
+단:
+
+"보통 1~2일 이내"
+
+같은 처리시간 보장 표현은
+실제 SLA가 없으면 제거.
+
+최종 문구:
+
+정보가 일치하지 않으면
+수영장 확인 후 연결됩니다.
+
+정도로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ADDITIONAL GUARDIAN
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 조사:
+
+approved parent
+→ additional guardian phone 등록
+→ students.parent_phone2/3/4
+→ 해당 번호 가입 시 auto-link
+
+실제 코드와 최종 재확인.
+
+이름 matching 없이 전화번호 기준인지도
+다시 확인 후 문구 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. ADMIN / TEACHER / PARENT 나머지 CONTENT
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 67개 onboarding entry 각각에 대해
+설명문 안에 아래 위험표현이 있는지 검사:
+
+- 자동
+- 즉시
+- 무제한
+- 무료
+- 유료
+- 승인
+- AI 분석
+- 정확도 향상
+- 전체 활성
+- 저장 가능
+- 공유
+- 알림 발송
+- 자동 생성
+
+이 표현들은
+실제 current code/API가 보장할 때만 유지.
+
+각 onboarding copy를
+현재 route/API에 재대조.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. ONBOARDING VERSION SOT 재설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 제안:
+
+모든 onboarding state를
+AsyncStorage만 사용
+
+→ 수정 검토.
+
+사용자 요구:
+
+새 onboarding version 공개 시
+기존 가입자도 각 역할의 핵심 onboarding을
+최소 1회 반드시 봐야 함.
+
+권장 구조를 비교:
+
+A.
+Global/Role core onboarding:
+SERVER ACCOUNT BASED VERSION
+
+B.
+작은 feature first-use / coach mark:
+AsyncStorage version
+
+하이브리드 방식 검토.
+
+목표:
+
+- 계정별 core onboarding 1회 보장
+- 여러 기기에서 불필요한 반복 최소화
+- 재설치 반복 최소화
+- 기능 크게 변경 시 version bump 가능
+- DB 과도하게 복잡하게 만들지 않음
+
+기존 DB에 활용 가능한 metadata/preferences 구조가 있으면 우선 재사용.
+
+신규 table/column 필요 여부만 보고.
+아직 migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. DESIGN은 변경하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 승인:
+
+SWIMNOTE:
+#1683A3 / #25B7CF 기반
+
+X:
+#1A4070 / #2A5EA8 기반
+
+공통:
+좌측 상단 공식 SWIMNOTE logo
+X는 공식 X wordmark/theme
+공통 spacing/typography/template
+
+유지.
+
+새 색상 창작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 없이:
+
+1. AI Insight 최종 정확한 상태
+2. AI Insight 최종 onboarding 문구
+3. AI Growth Report 실제 정책
+4. Growth 최종 문구
+5. X Curriculum 실제 current flow
+6. X Curriculum 최종 문구
+7. READY 정확한 의미
+8. READY 최종 문구
+9. X AI Diary 실제 grounding
+10. X AI Diary 최종 문구
+11. Parent auto-link 최종 문구
+12. Additional guardian 최종 문구
+13. "1~2일" 제거 여부
+14. 나머지 67개 설명 위험표현 검사 결과
+15. 수정 필요한 onboarding entry 목록
+16. 수정된 최종 copy
+17. Core onboarding server versioning 가능 구조
+18. Feature guide AsyncStorage 구조
+19. DB migration 필요 여부
+20. 최종 구현 준비 여부 PASS/HOLD
+
+중요:
+
+이번 결과 승인 전
+onboarding 구현 금지.
+
+완료 후 STOP.
