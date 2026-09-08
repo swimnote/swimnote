@@ -267,14 +267,25 @@ describe("TC10: teacher_manual → ACTUAL_TAUGHT true (explicit selection)", () 
     expect(r.matchedRule).toBe("TEACHER_MANUAL_EXPLICIT_SELECTION");
   });
 
-  it("teacher_manual + text 있어도 ACTUAL_TAUGHT", () => {
+  it("teacher_manual + text 있으면 텍스트 기반 분류 (자동 매핑 경로)", () => {
+    // evidenceText 있음 → Manual Diary auto-resolve 경로 → 텍스트 패턴으로 분류
+    // "다음 시간에 배울 예정" → FUTURE_PLAN (미래 의도) → isGaugeEligible=false
     const r = classifyObservationType({
-      evidenceText: "다음 시간에 배울 예정입니다.", // FUTURE_PLAN 문구여도 teacher_manual이면 무시
+      evidenceText: "다음 시간에 배울 예정입니다.",
+      evidenceSource: "teacher_manual",
+    });
+    expect(r.observationType).toBe("FUTURE_PLAN");
+    expect(r.isGaugeEligible).toBe(false);
+  });
+
+  it("teacher_manual + 긍정 수행 text → ACTUAL_TAUGHT (텍스트 기반)", () => {
+    // 긍정 수행 텍스트 → ACTUAL_TAUGHT eligible
+    const r = classifyObservationType({
+      evidenceText: "오늘 평영 발차기를 연습했습니다.",
       evidenceSource: "teacher_manual",
     });
     expect(r.observationType).toBe("ACTUAL_TAUGHT");
     expect(r.isGaugeEligible).toBe(true);
-    expect(r.matchedRule).toBe("TEACHER_MANUAL_EXPLICIT_SELECTION");
   });
 });
 

@@ -632,15 +632,18 @@ describe("TC11: teacher_ai + empty evidence → UNVERIFIED → gauge 제외", ()
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("TC12: teacher_manual explicit selection → ACTUAL_TAUGHT eligible", () => {
+  // evidenceText=null (explicit selection) → ACTUAL_TAUGHT
+  // evidenceText=positive text (auto-resolve) → text-based classification
   beforeEach(() => {
     resetDb();
     addVersion();
     addItems(30);
-    const noteId = addNote(SESSION_ID, STUDENT_ID, "다음 시간에 배울 예정");
+    // null evidence_text → explicit selection → ACTUAL_TAUGHT
+    const noteId = addNote(SESSION_ID, STUDENT_ID, null);
     addEvent(noteId, "ci_20", "teacher_manual", 1.0);
   });
 
-  it("teacher_manual → ACTUAL_TAUGHT, eligible, confidence=1.0", async () => {
+  it("teacher_manual + null evidenceText → ACTUAL_TAUGHT, eligible, confidence=1.0", async () => {
     const r = await upsertSessionObservation(buildMockDb(), { studentId: STUDENT_ID, poolId: POOL_ID, lessonSessionId: SESSION_ID });
     expect(r.status).toBe("UPSERTED");
     expect(r.observationType).toBe("ACTUAL_TAUGHT");
