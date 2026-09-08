@@ -1,0 +1,223 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — DIARY DIRECT ENTRY 무한로딩 수정]
+
+현재 실기기 버그:
+
+기존:
+스케줄 날짜 선택
+→ 일간스케줄 화면
+→ 일지 목록
+
+에서
+
+중간 일간스케줄 화면을 제거한 뒤:
+
+스케줄 날짜 선택
+→ 일지 목록 직행
+
+으로 바꿨더니
+수업 일지 화면에서 무한로딩 발생.
+
+중요:
+일간스케줄 화면을 다시 노출시키는 방식으로 해결 금지.
+
+목표:
+중간 화면 없이
+스케줄 → 일지 목록 직행이 정상 동작하게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Root Cause 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 일간스케줄 화면이 mount될 때
+어떤 초기화/상태/param을 세팅했는지 확인.
+
+특히:
+
+- selectedDate
+- classGroupId
+- teacherId
+- schedule context
+- day-of-week
+- auth/pool context
+- diary query params
+- store/context initialization
+- cache hydration
+- useEffect side effect
+- router params normalization
+
+중 무엇을 일간스케줄 화면이 대신 준비했는지 실제 코드 기준으로 확인.
+
+무한로딩 조건도 정확히 확인:
+
+- loading flag가 false로 안 내려감
+- required param 없음
+- API 호출 자체 미실행
+- API 요청이 pending
+- useEffect dependency loop
+- redirect loop
+- stale route param
+
+추측 보고만 하지 말고 바로 수정까지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Direct Entry 계약 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+스케줄에서 "수업일지" 누르면
+canonical 일지 목록에 필요한 값을 직접 넘긴다.
+
+최소:
+
+date = 선택 날짜
+backTo = scheduler route
+
+필요하면 현재 코드 기준으로:
+teacherId / classGroupId / scheduleId
+
+전달.
+
+단,
+목록 진입 전에 일간스케줄 route를 mount하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 중간 화면 초기화 제거/이관
+━━━━━━━━━━━━━━━━━━━━━━
+
+일간스케줄 화면에서 하던
+필수 초기화가 있다면:
+
+- 공용 helper/service
+또는
+- canonical diary list의 진입 initialization
+
+으로 이동.
+
+navigation screen의 mount side effect에
+일지 목록이 의존하지 않게 수정.
+
+즉:
+
+"특정 화면을 한 번 거쳐야 다음 화면이 작동하는 구조"
+
+완전히 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Loading 종료 보장
+━━━━━━━━━━━━━━━━━━━━━━
+
+canonical diary list는 모든 경우에:
+
+SUCCESS
+EMPTY
+ERROR
+
+중 하나로 반드시 종료.
+
+무한 spinner 금지.
+
+필수 param 누락 시:
+무한로딩 대신 안전한 empty/error 상태.
+
+API 실패 시:
+spinner 유지 금지.
+
+finally 등 실제 로딩 종료 경로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 재현 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 반드시:
+
+A.
+앱 완전 종료
+→ 재실행
+→ 스케줄
+→ 날짜 선택
+→ 수업일지
+
+결과:
+중간 화면 0
+무한로딩 0
+일지 목록 정상
+
+B.
+뒤로가기
+→ 같은 날짜
+→ 다시 수업일지
+
+정상
+
+C.
+다른 날짜 선택
+→ 수업일지
+
+정상
+
+D.
+일지가 없는 날짜
+
+spinner 무한유지 금지
+정상 empty state
+
+E.
+네트워크/API 오류
+
+spinner 무한유지 금지
+오류 상태 표시
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 UX 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 날짜 변경은 diary 화면 상단
+- 다른 반은 scheduler로 복귀
+- 중간 일간스케줄 화면 노출 금지
+- Home 튕김 금지
+- 기존 일지 상세/필터/검색 유지
+
+API/DB 구조 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP only 우선.
+
+release/v2.0.0
+→ 관련 테스트
+→ preflight
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+서버 수정은 실제 API 문제가 확인된 경우만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 무한로딩 root cause
+2. 일간스케줄 화면이 기존에 하던 필수 초기화
+3. 해당 초기화 이관 위치
+4. direct route + 전달 params
+5. 앱 완전 종료 후 첫 진입 결과
+6. 같은 날짜 재진입 결과
+7. 다른 날짜 결과
+8. empty state 결과
+9. 무한 spinner 발생 수
+10. 수정 파일
+11. OTA ID
+12. 잔존 blocker
+
+PASS 조건:
+
+- 중간 일간스케줄 노출 0
+- 무한로딩 0
+- 앱 첫 진입부터 일지 목록 직행
+- 일지 없는 날짜도 정상 종료
+- 기존 기능 회귀 없음
+
+완료 후 STOP.
