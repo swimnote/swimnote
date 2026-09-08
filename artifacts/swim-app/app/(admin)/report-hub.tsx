@@ -654,7 +654,7 @@ export default function ReportHubScreen() {
       <View style={s.countRow}>
         {!loading && (
           <Text style={s.totalCount}>
-            {filterStatuses ? `${displayRows.length}건 (전체 ${total}명)` : `총 ${total}명`}
+            {filterStatuses ? `${displayRows.length}건 (전체 ${total}건)` : `총 ${total}건`}
           </Text>
         )}
         {kpi.ready > 0 && (

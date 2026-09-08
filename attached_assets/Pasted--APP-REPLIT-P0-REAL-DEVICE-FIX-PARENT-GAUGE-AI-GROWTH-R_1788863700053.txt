@@ -1,0 +1,148 @@
+[보낼 곳: APP REPLIT]
+
+[P0 REAL DEVICE FIX — PARENT GAUGE + AI GROWTH REPORT + AI CURRICULUM]
+
+실기기 Production iOS build 255에서 실제 오류 확인됨.
+
+새 구조/리팩터링 금지.
+아래 3개 화면만 실제 앱 기준으로 즉시 연결/수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Parent Home 교육과정 진행도
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기:
+"교육과정 진행도"
+→ 게이지 미표시
+→ "진행 정보가 쌓이는 중입니다"만 표시
+
+서버에는 SCP 데이터가 존재하고
+Local progress pipeline도 정상임.
+
+실제 Parent 화면이 어떤 endpoint를 호출하는지 확인하고
+canonical parent curriculum-progress API에 연결.
+
+반드시 실제 자녀 기준으로:
+
+display_confirmed_pct
+observation_session_count
+active_curriculum_version_id
+
+를 받아서 게이지 표시.
+
+조건:
+- pct > 0이면 실제 게이지 표시
+- pct = 0이면 0% 게이지 표시 가능
+- API 성공인데 "진행 정보가 쌓이는 중"으로 fallback 금지
+- Local curriculum 기준
+- Global progress 직접 사용 금지
+
+실기기에서 숫자/게이지 실제 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. AI 성장리포트 화면 서버 오류
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기:
+AI 성장리포트
+→ "서버 오류가 발생했습니다."
+
+API smoke 200 보고와 불일치.
+
+실제 앱 route에서 호출하는 endpoint,
+query params,
+auth role,
+month/year,
+response shape 확인.
+
+원인 찾으면 바로 최소 수정.
+
+목표:
+- 화면 진입 시 500/server error 없음
+- 0건이면 정상 empty state
+- 실제 report가 있으면 정상 목록
+- 상단 통계도 response 기준 정상 표시
+- "서버 오류가 발생했습니다" 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. AI 커리큘럼 화면 서버 오류
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기:
+AI 커리큘럼
+→ 학생 탐색 영역에서 "서버 오류가 발생했습니다."
+
+실제 앱이 호출하는 endpoint를 확인.
+
+이미 정상인:
+GET /admin/curriculum/summary
+GET /curriculum/diary/levels
+등과
+현재 화면 호출 경로가 다르면 canonical endpoint로 연결.
+
+목표:
+- 재원학생/최근출석/운영반/커리큘럼 수 정상
+- 학생 목록 정상 로딩
+- 검색 정상
+- 학생 클릭 시 progress/curriculum 정상
+- 서버 오류 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실기기 우선
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업 PASS는 API unit/smoke만으로 금지.
+
+반드시 Production iOS build 255에서 확인:
+
+A. Parent Home
+→ 교육과정 진행도 게이지 실제 표시
+
+B. Admin AI 성장리포트
+→ 서버 오류 없음
+
+C. Admin AI 커리큘럼
+→ 서버 오류 없음 + 학생 목록 표시
+
+스크린/API 둘 다 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 변경 시:
+test → main push → Render auto deploy
+→ /health SHA == main
+
+APP JS/TS 변경 시:
+release/v2.0.0
+→ preflight
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Parent gauge root cause
+2. Parent gauge 실제 값
+3. AI 성장리포트 root cause
+4. AI 성장리포트 실기기 결과
+5. AI 커리큘럼 root cause
+6. AI 커리큘럼 학생 목록 결과
+7. HTTP 500 수
+8. server error UI 수
+9. 수정 파일
+10. main/Render SHA
+11. OTA ID
+12. 실기기 확인 결과
+13. 잔존 blocker
+
+PASS 조건:
+- Parent 게이지 실제 표시
+- AI 성장리포트 서버오류 0
+- AI 커리큘럼 서버오류 0
+- 실기기 확인 완료
+
+완료 후 STOP.

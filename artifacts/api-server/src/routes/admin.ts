@@ -3854,7 +3854,7 @@ router.get("/reports/summary",
       const teacherId   = (req.query.teacher_id    as string) || null;
       const statusFilter= (req.query.status         as string) || null;
       const page  = Math.max(1, parseInt((req.query.page  as string) || "1",  10));
-      const limit = Math.min(50, Math.max(10, parseInt((req.query.limit as string) || "30", 10)));
+      const limit = Math.min(500, Math.max(10, parseInt((req.query.limit as string) || "30", 10)));
       const offset = (page - 1) * limit;
 
       if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
