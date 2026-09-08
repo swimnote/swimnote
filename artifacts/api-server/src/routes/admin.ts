@@ -4104,6 +4104,7 @@ router.get(
         range = "day",
         class_group_id,
         teacher_id,
+        student_id,
         q,
         page = "1",
         limit = "30",
@@ -4143,14 +4144,20 @@ router.get(
         : sql`AND cd.lesson_date >= ${fromDate} AND cd.lesson_date <= ${toDate}`;
       const classFilter   = class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``;
       const teacherFilter = teacher_id     ? sql`AND cd.teacher_id = ${teacher_id}`          : sql``;
-      // ai_only 피드: content + teacher 검색; 일반 피드: student name 검색
-      const nameFilter    = q && ai_only === "true"
+      // student_id 필터 — 해당 학생이 포함된 일지 (class_diary_student_notes JOIN)
+      const studentFilter = student_id
+        ? sql`AND EXISTS (SELECT 1 FROM class_diary_student_notes csn_s WHERE csn_s.diary_id = cd.id AND csn_s.student_id = ${student_id} AND csn_s.is_deleted = false)`
+        : sql``;
+      // ai_only=true → AI만, ai_only=false → 일반만, 없음 → 전체
+      const nameFilter    = q
         ? sql`AND (cd.common_content ILIKE ${'%' + q + '%'} OR cd.teacher_name ILIKE ${'%' + q + '%'})`
-        : q
-          ? sql`AND (cd.teacher_name ILIKE ${'%' + q + '%'} OR cd.common_content ILIKE ${'%' + q + '%'})`
-          : sql``;
+        : sql``;
       // COALESCE: ai_generated 컬럼 미존재 pool DB 대비 (WP9 미적용 pool)
-      const aiFilter      = ai_only === "true" ? sql`AND COALESCE(cd.ai_generated, false) = true` : sql``;
+      const aiFilter      = ai_only === "true"
+        ? sql`AND COALESCE(cd.ai_generated, false) = true`
+        : ai_only === "false"
+          ? sql`AND COALESCE(cd.ai_generated, false) = false`
+          : sql``;
 
       // cd2 alias용 필터 — KPI 내 중첩 서브쿼리에서 외부 alias 충돌 방지
       const dateFilter2    = fromDate === toDate
@@ -4158,7 +4165,14 @@ router.get(
         : sql`AND cd2.lesson_date >= ${fromDate} AND cd2.lesson_date <= ${toDate}`;
       const classFilter2   = class_group_id ? sql`AND cd2.class_group_id = ${class_group_id}` : sql``;
       const teacherFilter2 = teacher_id     ? sql`AND cd2.teacher_id = ${teacher_id}`          : sql``;
-      const aiFilter2      = ai_only === "true" ? sql`AND COALESCE(cd2.ai_generated, false) = true` : sql``;
+      const studentFilter2 = student_id
+        ? sql`AND EXISTS (SELECT 1 FROM class_diary_student_notes csn_s2 WHERE csn_s2.diary_id = cd2.id AND csn_s2.student_id = ${student_id} AND csn_s2.is_deleted = false)`
+        : sql``;
+      const aiFilter2      = ai_only === "true"
+        ? sql`AND COALESCE(cd2.ai_generated, false) = true`
+        : ai_only === "false"
+          ? sql`AND COALESCE(cd2.ai_generated, false) = false`
+          : sql``;
 
       // ── KPI (date range, class/teacher/ai filter 반영, 검색어 제외) ────
       const kpiRow = await db.execute(sql`
@@ -4176,6 +4190,7 @@ router.get(
                     ${dateFilter2}
                     ${classFilter2}
                     ${teacherFilter2}
+                    ${studentFilter2}
                     ${aiFilter2}
                 )
             ) t
@@ -4186,6 +4201,7 @@ router.get(
           ${dateFilter}
           ${classFilter}
           ${teacherFilter}
+          ${studentFilter}
           ${aiFilter}
       `);
       const kpi = (kpiRow.rows[0] as any) ?? {};
@@ -4199,6 +4215,7 @@ router.get(
           ${dateFilter}
           ${classFilter}
           ${teacherFilter}
+          ${studentFilter}
           ${nameFilter}
           ${aiFilter}
       `);
@@ -4238,6 +4255,7 @@ router.get(
           ${dateFilter}
           ${classFilter}
           ${teacherFilter}
+          ${studentFilter}
           ${nameFilter}
           ${aiFilter}
         ORDER BY cd.lesson_date DESC, cg.schedule_time ASC, cd.id DESC

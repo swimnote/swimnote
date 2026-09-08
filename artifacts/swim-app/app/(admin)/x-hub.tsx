@@ -243,7 +243,7 @@ export default function XHubScreen() {
               icon="book-open" iconBg="#EFF6FF" iconColor="#2563EB"
               label="AI 일지"
               value={monthly.ai_diary_count != null ? `${monthly.ai_diary_count}건` : "—"}
-              onPress={() => router.push("/(admin)/diary-hub?backTo=x-hub" as any)}
+              onPress={() => router.push("/(admin)/diary-hub?aiFilter=true&backTo=x-hub" as any)}
             />
             <View style={s.divider} />
             {/* 학부모 커리큘럼 검색 */}
@@ -398,7 +398,7 @@ export default function XHubScreen() {
               { icon: "book-open"      as const, label: "커리큘럼 세팅", route: "/(admin)/x-setup" },
               { icon: "credit-card"    as const, label: "구독 관리",     route: "/(admin)/subscription" },
               { icon: "file-text"      as const, label: "AI 리포트",     route: "/(admin)/report-hub?backTo=x-hub" },
-              { icon: "book-open"      as const, label: "AI 일지",       route: "/(admin)/diary-hub?backTo=x-hub" },
+              { icon: "book-open"      as const, label: "AI 일지",       route: "/(admin)/diary-hub?aiFilter=true&backTo=x-hub" },
               { icon: "graduation-cap" as const, label: "커리큘럼",      route: "/(admin)/curriculum-hub?backTo=x-hub" },
             ].map(item => (
               <Pressable key={item.route} style={s.quickItem}

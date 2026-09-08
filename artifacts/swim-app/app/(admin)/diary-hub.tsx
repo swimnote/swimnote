@@ -1,13 +1,11 @@
 /**
- * (admin)/diary-hub.tsx — AI 일지피드
+ * (admin)/diary-hub.tsx — 수업일지 (통합 canonical 목록)
  *
- * WP9 변경 (2026-09-04):
- *   - class_diaries 기반 피드 (student notes가 0이어도 diary row 표시)
- *   - ai_only=true 파라미터: AI 생성 일지만 조회
- *   - sliders-horizontal → sliders (ICON_MAP 지원 이름 사용)
- *   - 날짜 필터 버튼: height: 34 고정 (font 로딩 후 resize 없음)
- *   - LOADING / EMPTY / ERROR 명확 구분 (동시 표시 금지)
- *   - 검색: 내용 또는 선생님명
+ * - 전체 / AI / 일반 필터 탭
+ * - params: aiFilter=true (X Dashboard AI 클릭 시 AI 자동 선택)
+ *           studentId=xxx  (회원관리 학생 진입 시 해당 학생 필터)
+ *           backTo=xxx     (뒤로가기 경로)
+ * - 일지 card → (teacher)/diary viewOnly (Home 이동 금지)
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -24,7 +22,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -33,7 +31,8 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 const C = Colors.light;
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
-type DateRange = "today" | "yesterday" | "week" | "custom";
+type DateRange  = "today" | "yesterday" | "week" | "custom";
+type AiFilter   = "all" | "ai" | "normal";
 
 interface DiaryRow {
   diary_id: string;
@@ -104,24 +103,37 @@ function getWeekRange(dateStr: string): { from: string; to: string } {
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
 export default function DiaryHubScreen() {
   const { token } = useAuth();
+  const params = useLocalSearchParams<{
+    aiFilter?: string;   // "true" → AI 탭 자동 선택 (X Dashboard에서 진입)
+    studentId?: string;  // 회원관리에서 진입 시 해당 학생 필터
+    backTo?: string;     // 뒤로가기 경로 (미사용 시 기본 뒤로가기)
+  }>();
+
+  // ─── AI 필터 탭 — 초기값: params.aiFilter===true 이면 "ai" ──────────────
+  const [aiFilter, setAiFilter] = useState<AiFilter>(
+    params.aiFilter === "true" ? "ai" : "all"
+  );
+
+  // 학생 필터 (회원관리 진입 시)
+  const studentIdParam = params.studentId ?? "";
 
   // 날짜 index
-  const [dateRange,   setDateRange]   = useState<DateRange>("today");
-  const [customDate,  setCustomDate]  = useState<string>(todayKst());
+  const [dateRange,     setDateRange]     = useState<DateRange>("today");
+  const [customDate,    setCustomDate]    = useState<string>(todayKst());
   const [showDateModal, setShowDateModal] = useState(false);
-  const [dateInput,   setDateInput]   = useState<string>(todayKst());
+  const [dateInput,     setDateInput]     = useState<string>(todayKst());
 
   // 검색
-  const [searchText,    setSearchText]    = useState("");
-  const [debouncedQ,    setDebouncedQ]    = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 필터 모달
-  const [showFilter,     setShowFilter]     = useState(false);
-  const [filterGroupId,  setFilterGroupId]  = useState("");
-  const [filterTeacherId,setFilterTeacherId]= useState("");
-  const [pendingGroupId, setPendingGroupId] = useState("");
-  const [pendingTeacherId,setPendingTeacherId]=useState("");
+  // 반/선생님 필터 모달
+  const [showFilter,      setShowFilter]      = useState(false);
+  const [filterGroupId,   setFilterGroupId]   = useState("");
+  const [filterTeacherId, setFilterTeacherId] = useState("");
+  const [pendingGroupId,  setPendingGroupId]  = useState("");
+  const [pendingTeacherId,setPendingTeacherId]= useState("");
 
   // 데이터
   const [loading,     setLoading]     = useState(true);
@@ -152,13 +164,18 @@ export default function DiaryHubScreen() {
       case "week":      date = today;         range = "week"; break;
       case "custom":    date = customDate;    range = "day";  break;
     }
-    // ai_only=true: AI 생성 일지만 조회
-    const p = new URLSearchParams({ date, range, page: "1", limit: "30", ai_only: "true" });
+    const p = new URLSearchParams({ date, range, page: "1", limit: "30" });
+
+    // AI 필터 — "ai"=true만 전달, "normal"=false 전달, "all"=파라미터 없음
+    if (aiFilter === "ai")     p.set("ai_only", "true");
+    if (aiFilter === "normal") p.set("ai_only", "false");
+
     if (filterGroupId)   p.set("class_group_id", filterGroupId);
     if (filterTeacherId) p.set("teacher_id",      filterTeacherId);
     if (debouncedQ)      p.set("q",               debouncedQ);
+    if (studentIdParam)  p.set("student_id",      studentIdParam);
     return p;
-  }, [dateRange, customDate, filterGroupId, filterTeacherId, debouncedQ]);
+  }, [dateRange, customDate, aiFilter, filterGroupId, filterTeacherId, debouncedQ, studentIdParam]);
 
   // ─── 데이터 로드 ────────────────────────────────────────────────────────
   const fetchData = useCallback(async (reset = true) => {
@@ -166,9 +183,9 @@ export default function DiaryHubScreen() {
     if (reset) { setLoading(true); setError(null); pageRef.current = 1; }
     else { setLoadingMore(true); }
     try {
-      const params = getApiParams();
-      if (!reset) { params.set("page", String(pageRef.current + 1)); }
-      const res = await apiRequest(token, `/admin/diaries/summary?${params.toString()}`);
+      const params2 = getApiParams();
+      if (!reset) { params2.set("page", String(pageRef.current + 1)); }
+      const res = await apiRequest(token, `/admin/diaries/summary?${params2.toString()}`);
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "조회 실패"); }
       const data = await res.json();
       if (reset) {
@@ -183,7 +200,7 @@ export default function DiaryHubScreen() {
       setTotal(data.pagination?.total ?? 0);
       setHasMore(data.pagination?.has_more ?? false);
     } catch (e: any) {
-      setError(e?.message || "AI 일지 현황을 불러오지 못했습니다.");
+      setError(e?.message || "일지 현황을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -193,7 +210,7 @@ export default function DiaryHubScreen() {
   // 의존성 변경 시 새로 로드
   useEffect(() => {
     fetchData(true);
-  }, [dateRange, customDate, filterGroupId, filterTeacherId, debouncedQ]);
+  }, [dateRange, customDate, aiFilter, filterGroupId, filterTeacherId, debouncedQ]);
 
   // ─── 날짜 인덱스 표시 라벨 ───────────────────────────────────────────────
   const dateIndexLabel = (): string => {
@@ -233,28 +250,41 @@ export default function DiaryHubScreen() {
     setShowFilter(true);
   };
 
-  // 활성 필터 수
+  // 활성 필터 수 (반/선생님만)
   const activeFilterCount = [filterGroupId, filterTeacherId].filter(Boolean).length;
 
   // ─── 반 중복 제거 필터 옵션 ─────────────────────────────────────────────
-  const uniqueGroups = groups.filter((g, i, arr) => arr.findIndex(x => x.id === g.id) === i);
+  const uniqueGroups   = groups.filter((g, i, arr) => arr.findIndex(x => x.id === g.id) === i);
   const uniqueTeachers = Array.from(
     new Map(groups.map(g => [g.teacher_id, { id: g.teacher_id, name: g.teacher_name }])).values()
   );
 
-  // ─── row 탭 → diary detail (viewOnly) ───────────────────────────────────
+  // ─── row 탭 → diary detail (viewOnly) — Home 이동 금지 ─────────────────
   const onRowPress = (row: DiaryRow) => {
     router.push({
       pathname: "/(teacher)/diary" as any,
       params: {
-        editDiaryId: row.diary_id,
+        editDiaryId:  row.diary_id,
         classGroupId: row.class_group_id,
-        viewOnly: "true",
+        viewOnly:     "true",
       },
     });
   };
 
-  // ─── row 렌더 (diary 기준 — student notes 없어도 표시) ──────────────────
+  // ─── AI 필터 탭 라벨 ────────────────────────────────────────────────────
+  const AI_TABS: { key: AiFilter; label: string }[] = [
+    { key: "all",    label: "전체" },
+    { key: "ai",     label: "AI" },
+    { key: "normal", label: "일반" },
+  ];
+
+  // ─── KPI 라벨 ────────────────────────────────────────────────────────────
+  const kpiLabel = aiFilter === "ai" ? "AI 일지" : aiFilter === "normal" ? "일반 일지" : "수업 일지";
+
+  // ─── 제목 ──────────────────────────────────────────────────────────────
+  const screenTitle = studentIdParam ? "학생 수업일지" : "수업일지";
+
+  // ─── row 렌더 ───────────────────────────────────────────────────────────
   const renderRow = ({ item }: { item: DiaryRow }) => (
     <Pressable style={s.row} onPress={() => onRowPress(item)}>
       <View style={s.rowTop}>
@@ -322,21 +352,49 @@ export default function DiaryHubScreen() {
     </View>
   );
 
+  // ─── EMPTY 메시지 ───────────────────────────────────────────────────────
+  const emptyTitle = () => {
+    if (debouncedQ || filterGroupId || filterTeacherId) return "필터 결과 없음";
+    if (aiFilter === "ai")     return "AI 일지 없음";
+    if (aiFilter === "normal") return "일반 일지 없음";
+    return "수업일지 없음";
+  };
+  const emptyDesc = () => {
+    if (debouncedQ || filterGroupId || filterTeacherId) return "다른 조건으로 조회해 보세요.";
+    if (aiFilter === "ai")     return "해당 날짜에 AI로 작성된 일지가 없습니다.";
+    if (aiFilter === "normal") return "해당 날짜에 일반 작성 일지가 없습니다.";
+    return "해당 날짜에 작성된 수업일지가 없습니다.";
+  };
+
   // ─── 렌더 ───────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="AI 일지피드" homePath="/(admin)/dashboard" />
+      <SubScreenHeader title={screenTitle} homePath="/(admin)/dashboard" />
 
       {/* KPI */}
       <View style={s.kpiRow}>
         <View style={s.kpiCard}>
           <Text style={s.kpiValue}>{summary.total_diaries}</Text>
-          <Text style={s.kpiLabel}>AI 일지</Text>
+          <Text style={s.kpiLabel}>{kpiLabel}</Text>
         </View>
         <View style={[s.kpiCard, s.kpiCardRight]}>
           <Text style={s.kpiValue}>{summary.total_notes}</Text>
           <Text style={s.kpiLabel}>학생 노트</Text>
         </View>
+      </View>
+
+      {/* AI 필터 탭 */}
+      <View style={s.aiTabRow}>
+        {AI_TABS.map(tab => (
+          <Pressable
+            key={tab.key}
+            style={[s.aiTab, aiFilter === tab.key && s.aiTabActive]}
+            onPress={() => setAiFilter(tab.key)}>
+            <Text style={[s.aiTabText, aiFilter === tab.key && s.aiTabTextActive]}>
+              {tab.label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
       {/* DATE INDEX */}
@@ -379,7 +437,6 @@ export default function DiaryHubScreen() {
             </Pressable>
           )}
         </View>
-        {/* sliders (ICON_MAP에 존재하는 이름) */}
         <Pressable style={[s.filterBtn, activeFilterCount > 0 && s.filterBtnActive]} onPress={openFilter}>
           <LucideIcon name="sliders" size={14} color={activeFilterCount > 0 ? "#fff" : C.textSecondary} />
           {activeFilterCount > 0 && <Text style={s.filterCount}>{activeFilterCount}</Text>}
@@ -391,7 +448,7 @@ export default function DiaryHubScreen() {
         <Text style={s.resultCount}>{total.toLocaleString()}건</Text>
       )}
 
-      {/* 메인 컨텐츠 — LOADING / EMPTY / ERROR 명확 구분 (동시 표시 금지) */}
+      {/* 메인 컨텐츠 */}
       {loading ? renderSkeleton() : error ? (
         <View style={s.centerBox}>
           <LucideIcon name="alert-circle" size={32} color={C.error} />
@@ -403,14 +460,8 @@ export default function DiaryHubScreen() {
       ) : diaries.length === 0 ? (
         <View style={s.centerBox}>
           <LucideIcon name="book-open" size={36} color={C.border} />
-          <Text style={s.emptyTitle}>
-            {debouncedQ || filterGroupId || filterTeacherId ? "필터 결과 없음" : "AI 일지 없음"}
-          </Text>
-          <Text style={s.emptyDesc}>
-            {debouncedQ || filterGroupId || filterTeacherId
-              ? "다른 조건으로 조회해 보세요."
-              : "해당 날짜에 작성된 AI 일지가 없습니다."}
-          </Text>
+          <Text style={s.emptyTitle}>{emptyTitle()}</Text>
+          <Text style={s.emptyDesc}>{emptyDesc()}</Text>
         </View>
       ) : (
         <FlatList
@@ -461,7 +512,7 @@ export default function DiaryHubScreen() {
         </Pressable>
       </Modal>
 
-      {/* 필터 모달 */}
+      {/* 반/선생님 필터 모달 */}
       <Modal visible={showFilter} transparent animationType="slide" onRequestClose={() => setShowFilter(false)}>
         <Pressable style={s.modalOverlay} onPress={() => setShowFilter(false)}>
           <Pressable style={s.filterModal} onPress={e => e.stopPropagation()}>
@@ -531,10 +582,19 @@ const s = StyleSheet.create({
   kpiValue: { fontSize: 24, fontFamily: "Pretendard-Bold", color: C.textPrimary, marginBottom: 2 },
   kpiLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
+  // AI 필터 탭
+  aiTabRow: { flexDirection: "row", marginHorizontal: 16, marginBottom: 8, gap: 6 },
+  aiTab: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
+  },
+  aiTabActive: { backgroundColor: C.primary, borderColor: C.primary },
+  aiTabText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  aiTabTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
+
   // Date index
   dateIndexBar: { marginBottom: 0 },
   dateBtn: {
-    // height: 34 고정 — 폰트 로딩 전후 resize 없음 (WP9 bug fix)
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
     height: 34, paddingHorizontal: 12,
     borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
@@ -572,7 +632,7 @@ const s = StyleSheet.create({
     marginLeft: 18, marginBottom: 4,
   },
 
-  // Row — diary 기준 (student note 없어도 표시)
+  // Row
   row: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14 },
   separator: { height: 8 },
   rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
@@ -631,23 +691,23 @@ const s = StyleSheet.create({
   },
   modalConfirmBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 
-  // 필터 모달
+  // 반/선생님 필터 모달
   filterModal: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 32,
+    padding: 20, paddingBottom: 40,
   },
   filterModalHandle: {
-    width: 36, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 14,
+    width: 40, height: 4, backgroundColor: C.border, borderRadius: 2,
+    alignSelf: "center", marginBottom: 16,
   },
-  filterModalTitle: {
-    fontSize: 16, fontFamily: "Pretendard-Bold", color: C.textPrimary, marginBottom: 16,
-  },
+  filterModalTitle: { fontSize: 16, fontFamily: "Pretendard-Bold", color: C.textPrimary, marginBottom: 16 },
   filterSection: {
-    fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 8,
+    fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary,
+    marginBottom: 8,
   },
   filterChip: {
-    paddingHorizontal: 14, paddingVertical: 7,
+    paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
   filterChipActive: { backgroundColor: C.primary, borderColor: C.primary },
@@ -655,13 +715,13 @@ const s = StyleSheet.create({
   filterChipTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
   filterActionRow: { flexDirection: "row", gap: 10 },
   filterResetBtn: {
-    flex: 1, paddingVertical: 13, borderRadius: 12,
+    flex: 1, paddingVertical: 12, borderRadius: 10,
     borderWidth: 1, borderColor: C.border, alignItems: "center",
   },
-  filterResetBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  filterResetBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
   filterApplyBtn: {
-    flex: 2, paddingVertical: 13, borderRadius: 12,
+    flex: 2, paddingVertical: 12, borderRadius: 10,
     backgroundColor: C.primary, alignItems: "center",
   },
-  filterApplyBtnText: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  filterApplyBtnText: { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });
