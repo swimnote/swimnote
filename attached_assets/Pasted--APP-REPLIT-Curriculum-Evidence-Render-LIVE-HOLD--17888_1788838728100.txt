@@ -1,0 +1,165 @@
+[보낼 곳: APP REPLIT]
+
+[다음 작업 — Curriculum Evidence 품질 검증 + Render LIVE + 실측]
+
+현재 판정 HOLD.
+
+구현 방향은 유지.
+기존 AI Diary 경로도 그대로 유지.
+
+이번에는 새 기능 추가하지 말고
+현재 evidence resolver의 품질과 실제 Production 결과만 검증/보정한다.
+
+1. no_candidates 221건 분석
+
+221건을 전수 유형화:
+
+- 실제 curriculum과 무관한 일지
+- 너무 짧은 일지
+- 학생 개별 내용이 아닌 공통 내용
+- 텍스트 정규화 실패
+- search threshold 때문에 탈락
+- stroke/domain/skill은 맞지만 후보 score 부족
+- 기타
+
+샘플 30건 이상 실제 내용 마스킹해서 분류.
+
+중요:
+threshold를 무작정 낮추지 말 것.
+false positive 늘리는 수정 금지.
+
+2. strong_negative 12건 재검토
+
+현재 "못함/실패/거부" 패턴이면 skip한다고 했는데
+이게 제품 요구상 맞는지 확인.
+
+원칙:
+
+- negative evidence는 COMPLETED 근거가 아님
+- 하지만 실제 수업 관찰 evidence일 수 있음
+- 필요하면 CPO에
+  observation_type=IN_PROGRESS / NEGATIVE / NOT_MASTERED
+  형태로 남기되
+  confirmed progress는 올리지 않도록
+
+현재 schema/classifier가 이를 지원하는지 확인.
+
+지원한다면
+negative evidence를 통째로 버리지 말고
+관찰 근거로 보존하는 쪽으로 보정.
+
+지원 안 하면
+현재 skip이 왜 안전한지 설명.
+
+3. 194개 growth_events 품질 샘플 검증
+
+최소 30건 랜덤 샘플:
+
+- diary text
+- matched curriculum item
+- confidence
+- observation type
+- CPO rank
+- SCP 영향
+
+사람이 봐도 맞는 매핑인지 검토.
+
+오매핑률 보고.
+
+4. 학생 3명 실제 progress 확인
+
+실제 학생:
+
+A. diary 많음
+B. diary 중간
+C. diary 적음
+
+각각:
+
+diary count
+mapped growth_events
+CPO count
+SCP display_confirmed_pct
+Admin progress
+Parent progress
+
+Admin == Parent 실제값 비교.
+
+5. 기존 146명 SCP 상태 분포
+
+보고:
+
+- SCP row 학생 수
+- 0%
+- 1~25%
+- 26~50%
+- 51~75%
+- 76~99%
+- 100%
+- observation_session_count >= 3 학생 수
+
+분포가 비정상적으로 한쪽에 몰렸는지 확인.
+
+6. Render LIVE
+
+SHA:
+852855cc
+
+Render에서 실제 LIVE 확인.
+
+LIVE SHA가 정확히 852855cc인지 확인.
+
+7. Production API smoke
+
+Render LIVE 후 실제:
+
+- member detail
+- parent curriculum-progress
+- admin curriculum progress
+- x-hub/summary
+
+각각 authenticated Production HTTP 확인.
+
+8. 실기기
+
+실제 iPhone에서:
+
+- 회원상세 정상
+- Parent gauge 실제 표시
+- Admin progress 표시
+- X Dashboard KPI 표시
+
+9. 테스트 실패 분리
+
+현재:
+44 failed → 41개 기존 실패
+
+정확히 보고:
+
+- 이번 변경으로 새로 생긴 실패 수
+- 기존부터 있던 실패 수
+- 이번 변경 관련 테스트 실패 수
+
+이번 변경 관련 신규 실패가 1개라도 있으면 PASS 금지.
+
+10. OTA
+
+위 검증 끝난 뒤에만 iOS Production OTA 1회.
+
+Android OTA 금지.
+
+완료보고:
+
+1. no_candidates 221건 유형분포
+2. strong_negative 12건 처리 정책
+3. 30건 mapping quality 결과
+4. 학생 3명 Admin/Parent 실제 %
+5. SCP 전체 분포
+6. X Dashboard 실제 KPI
+7. member detail Production 결과
+8. Render LIVE SHA
+9. 신규 테스트 실패 수
+10. OTA ID
+11. 잔존 FAIL
+
+PASS / HOLD / FAIL

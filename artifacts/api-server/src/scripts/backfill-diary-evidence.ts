@@ -158,26 +158,53 @@ async function main() {
   }
 
   // 7. CPO/SCP 재계산 (실제 실행 시)
+  // !! 반드시 upsertSessionObservation(per diary) → computeConfirmedProgress(per student) 순서
   if (!DRY_RUN && mapped > 0) {
-    console.log(`\n\n🔄 Running CPO/SCP pipeline for affected students...`);
-    const affectedStudents = new Set(
-      notes
-        .filter(n => !alreadyMapped.has(n.note_id))
-        .map(n => n.student_id)
-    );
-    let cpoOk = 0, cpoFail = 0;
-    for (const studentId of affectedStudents) {
-      try {
-        // diary별 CPO 재계산은 upsertSessionObservation에 diaryId 하나씩
-        // 여기서는 backfill이므로 student 단위로 최신 diary를 기준으로 재계산
-        await computeConfirmedProgress(db as any, studentId, POOL_ID);
-        cpoOk++;
-      } catch (e: any) {
-        cpoFail++;
-        console.error(`  CPO/SCP error student=${studentId}: ${e.message}`);
+    console.log(`\n\n🔄 Running CPO/SCP pipeline for affected diaries...`);
+    // diary_id → student_ids 매핑 수집
+    const diaryStudentPairs: Array<{ diaryId: string; studentId: string }> = [];
+    for (const [diaryId, diaryNotes] of byDiary) {
+      for (const n of diaryNotes) {
+        if (!alreadyMapped.has(n.note_id)) {
+          diaryStudentPairs.push({ diaryId, studentId: n.student_id });
+        }
       }
     }
-    console.log(`  CPO/SCP OK=${cpoOk} FAIL=${cpoFail} students=${affectedStudents.size}`);
+
+    let cpoOk = 0, cpoFail = 0;
+    // Step 1: diary별 upsertSessionObservation (CPO 생성)
+    const seenPairs = new Set<string>();
+    for (const { diaryId, studentId } of diaryStudentPairs) {
+      const pairKey = `${studentId}:${diaryId}`;
+      if (seenPairs.has(pairKey)) continue;
+      seenPairs.add(pairKey);
+      try {
+        const cpo = await upsertSessionObservation(db as any, { studentId, poolId: POOL_ID, lessonSessionId: diaryId });
+        if (cpo.status === "UPSERTED") cpoOk++;
+        else if (cpo.status === "NO_ELIGIBLE_EVIDENCE" || cpo.status === "INVALIDATED") {
+          // growth_event exists but classifier marked ineligible → expected
+          cpoOk++;
+        }
+      } catch (e: any) {
+        cpoFail++;
+        console.error(`  CPO error diary=${diaryId} student=${studentId}: ${e.message}`);
+      }
+    }
+    console.log(`  CPO upsert: OK=${cpoOk} FAIL=${cpoFail} pairs=${seenPairs.size}`);
+
+    // Step 2: student별 computeConfirmedProgress (SCP 재계산)
+    const affectedStudents = new Set(diaryStudentPairs.map(p => p.studentId));
+    let scpOk = 0, scpFail = 0;
+    for (const studentId of affectedStudents) {
+      try {
+        await computeConfirmedProgress(db as any, studentId, POOL_ID);
+        scpOk++;
+      } catch (e: any) {
+        scpFail++;
+        console.error(`  SCP error student=${studentId}: ${e.message}`);
+      }
+    }
+    console.log(`  SCP confirm: OK=${scpOk} FAIL=${scpFail} students=${affectedStudents.size}`);
   }
 
   // 8. Dry-run 후보 상세 출력
