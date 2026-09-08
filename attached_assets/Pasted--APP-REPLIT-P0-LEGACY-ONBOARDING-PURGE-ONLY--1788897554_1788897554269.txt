@@ -1,0 +1,321 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — LEGACY ONBOARDING PURGE ONLY]
+
+중요:
+
+이번 작업에서는
+새 온보딩을 절대 구현하지 않는다.
+
+새 onboarding route
+새 setup-status
+새 wizard
+새 step 화면
+새 DB/API
+
+전부 금지.
+
+이번 목표는 오직:
+
+"기존 SWIMNOTE 온보딩 찌꺼기 완전 제거"
+
+이다.
+
+제거가 완전히 끝난 뒤
+새 온보딩은 별도 작업으로 다시 설계/구현한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 삭제 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 legacy onboarding:
+
+- app/(auth)/onboarding-admin.tsx
+- app/(auth)/onboarding-teacher.tsx
+- app/(auth)/onboarding-parent.tsx
+
+제거.
+
+관련 route registration도 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. LOGIN REDIRECT 분기 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+SessionContext / computeLoginDest 등에서:
+
+@swimnote:onboarded_{userId}_admin
+@swimnote:onboarded_{userId}_teacher
+@swimnote:onboarded_{parentId}_parent
+
+체크 및 redirect 분기 전부 제거.
+
+신규 로그인/회원가입 후
+legacy onboarding route로 보내는 코드 = 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. AsyncStorage legacy key 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 legacy onboarding key를
+더 이상 read/write하지 않게 제거:
+
+- @swimnote:onboarded_*_admin
+- @swimnote:onboarded_*_teacher
+- @swimnote:onboarded_*_parent
+
+기존 사용자 기기에 값이 남아 있어도
+앱이 더 이상 참조하지 않으면 됨.
+
+기기 storage를 강제로 전체 삭제하는 코드 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Parent nickname 강제 onboarding 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+parent-onboard-nickname을
+로그인/가입 후 강제 거치는 onboarding 단계에서 제거.
+
+중요:
+
+nickname/호칭 데이터 기능 자체가
+다른 화면에서 사용된다면 데이터 구조는 삭제하지 말 것.
+
+이번에는:
+
+Parent 가입/로그인
+→ nickname onboarding 강제 이동
+
+만 제거.
+
+새 nickname 설정 화면을 이번에 만들지 말 것.
+
+필요 시 나중에 Parent 프로필/설정에 흡수한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 사소한 기존 onboarding도 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 요구한 것은
+"기존 onboarding 찌꺼기 0"이다.
+
+따라서 아래도 제거 대상:
+
+- dashboard 첫 방문 OnboardingTooltip
+- classes 첫 방문 OnboardingTooltip
+- 기능소개성 first-run tooltip
+- welcome
+- tutorial
+- intro slide
+- 첫 로그인 기능설명
+- old setup guide
+
+OnboardingTooltip component가
+더 이상 아무 곳에서도 사용되지 않으면
+component 자체도 제거.
+
+단순 일반 설명문/empty-state까지
+무조건 삭제하지는 말고,
+"첫 방문에 한 번 뜨는 legacy onboarding 성격"만 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. AI Diary 안내는 별도 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+@swimnote:ai_diary_onboard_seen 기반
+AI Diary 첫 사용 안내는
+기능 자체의 안전한 사용설명인지 확인.
+
+이번 legacy onboarding purge에서는
+앱 전체 onboarding과 분리해서 판단.
+
+단:
+
+오래된 기능설명
+또는 현재 AI Diary 동작과 불일치하면
+그대로 유지 금지.
+
+새 설명으로 고치는 것도 이번 작업에서는 금지.
+
+현재 기능과 불일치하면 우선 비노출 처리하고
+새 온보딩/기능설명 작업에서 다시 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 절대 삭제하면 안 되는 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래는 onboarding이 아니므로 유지:
+
+- policy-agreement
+- pool-deactivated
+- rejected
+- org-role-select
+- OTA resume logic
+- auth/security/legal flow
+
+이걸 legacy onboarding으로 착각해 제거하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. pool-apply 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool-apply는 현재 pool 없는 admin이
+실제 수영장 신청/생성에 사용하는 기능이므로
+이번 purge에서 삭제 금지.
+
+새 onboarding 구현 전까지
+현재 정상 signup/pool flow를 유지.
+
+즉:
+
+legacy tutorial은 제거하지만
+실제 가입/수영장 신청 기능은 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 제거 후 임시 로그인 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 onboarding을 아직 만들지 않으므로
+legacy 제거 후 현재 정상 기능 기준으로 이동.
+
+Teacher:
+로그인
+→ 기존 Teacher 기본 진입 화면
+
+Parent:
+로그인
+→ 기존 Parent Home 또는 canonical parent destination
+
+기존 운영 Pool Admin:
+로그인
+→ 기존 Admin Dashboard
+
+pool 없는 Admin:
+→ 기존 pool-apply
+
+policy 미동의:
+→ policy-agreement
+
+pending/rejected/deactivated:
+→ 기존 상태 화면
+
+새 onboarding route로 보내는 코드 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 잔존 문자열/route 전수검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현 후 전수검색:
+
+- onboarding-admin
+- onboarding-teacher
+- onboarding-parent
+- parent-onboard-nickname redirect
+- @swimnote:onboarded_
+- OnboardingTooltip
+- welcome
+- tutorial
+- first-run 관련 redirect
+
+실제 legacy onboarding 참조 0 확인.
+
+단 일반 변수명이나 unrelated docs까지
+억지로 삭제하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 기존 Admin 로그인
+→ legacy onboarding 0
+→ 정상 Dashboard
+
+B. Teacher 로그인
+→ legacy onboarding 0
+→ 정상 Teacher 화면
+
+C. Parent 로그인
+→ legacy onboarding 0
+→ 정상 Parent 화면
+
+D. 신규 Teacher signup
+→ legacy onboarding 0
+
+E. 신규 Parent signup
+→ legacy onboarding 0
+
+F. pool 없는 Admin
+→ pool-apply 정상
+
+G. policy 미동의 Admin
+→ policy-agreement 정상
+
+H. rejected/deactivated
+→ 상태화면 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 작업에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- 새 onboarding UI
+- 새 setup wizard
+- 새 setup-status API
+- 새 onboarding DB
+- 새 step route
+- 새 설명문 작성
+- subscription/curriculum onboarding 구현
+- Super Admin 수정
+
+이번에는 PURGE만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 중심 변경.
+
+관련 테스트
+→ release/v2.0.0
+→ preflight
+→ iOS production-v2 OTA
+
+서버 변경이 실제로 필요 없으면
+Render 건드리지 말 것.
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 삭제한 onboarding 파일
+2. 제거한 route
+3. 제거한 SessionContext 분기
+4. 제거한 AsyncStorage key 참조
+5. Parent nickname 강제 route 제거 결과
+6. 제거한 tooltip/first-run UI
+7. AI Diary 안내 최종 처리 상태
+8. 유지한 법적/상태 route
+9. Admin 로그인 결과
+10. Teacher 로그인 결과
+11. Parent 로그인 결과
+12. pool-apply 결과
+13. legacy onboarding 전수검색 결과
+14. 수정 파일
+15. OTA ID
+16. 잔존 blocker
+
+PASS 조건:
+
+- 기존 onboarding slide 0
+- 가입 직후 old onboarding 0
+- legacy AsyncStorage onboarding 분기 0
+- first-run legacy tooltip 0
+- 기존 사용자 로그인 회귀 0
+- 실제 가입/법적/상태 flow 정상
+- 새 onboarding 구현 0
+- blocker 0
+
+완료 후 STOP.
