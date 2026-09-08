@@ -583,7 +583,7 @@ const s = StyleSheet.create({
   kpiLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   // AI 필터 탭
-  aiTabRow: { flexDirection: "row", marginHorizontal: 16, marginBottom: 20, gap: 6 },
+  aiTabRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 4, marginBottom: 14, gap: 6 },
   aiTab: {
     paddingHorizontal: 16, paddingVertical: 10,
     borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
@@ -593,7 +593,7 @@ const s = StyleSheet.create({
   aiTabTextActive: { color: "#fff", fontFamily: "Pretendard-SemiBold" },
 
   // Date index
-  dateIndexBar: { marginBottom: 4 },
+  dateIndexBar: { marginBottom: 14, paddingVertical: 2 },
   dateBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
     height: 34, paddingHorizontal: 12,
@@ -608,7 +608,7 @@ const s = StyleSheet.create({
   },
 
   // Search row
-  searchRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 6, marginTop: 6 },
+  searchRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 10, marginTop: 10 },
   searchBox: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: C.border,
