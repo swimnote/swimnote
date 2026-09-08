@@ -175,7 +175,10 @@ export default function AdminReportDetailScreen() {
     // iOS JavaScriptCore: space→T 필수, microseconds(6자리) → milli(3자리) truncate 필수
     const parseDateSafe = (s?: string | null): Date | null => {
       if (!s) return null;
-      const normalized = s.replace(" ", "T").replace(/(\.\d{3})\d+/, "$1");
+      const normalized = s
+        .replace(" ", "T")                       // PostgreSQL space → T
+        .replace(/(\.\d{3})\d+/, "$1")           // microseconds(6) → ms(3)
+        .replace(/([+-])(\d{2})$/, "$1$2:00");   // +00 → +00:00 (ISO 8601 필수)
       const d = new Date(normalized);
       return isNaN(d.getTime()) ? null : d;
     };
