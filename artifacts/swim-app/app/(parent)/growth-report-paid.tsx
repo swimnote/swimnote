@@ -555,13 +555,10 @@ export default function InsightReportHub() {
         <View style={[s.heroCard, { backgroundColor: NAVY }]}>
           <Text style={s.heroTitle}>AI 인사이트 전략 리포트</Text>
           <Text style={s.heroDesc}>
-            수업 기록과 누적 성장 데이터,{"\n"}
-            학부모가 제공한 관찰정보를 함께 분석해{"\n\n"}
-            아이에게 반복해서 나타나는 행동 단서와{"\n"}
-            배우는 방식, 잘 되는 조건, 변화의 흐름을 추적합니다.{"\n\n"}
-            그 과정에서 성장에 긍정적으로 작용할 수 있는{"\n"}
-            인사이트를 찾아{"\n"}
-            현재보다 더 좋은 방향으로 성장할 수 있도록 돕습니다.
+            잘 발견하고, 잘 살피는 것.{"\n"}
+            인사이트 리포트의 분석 방향입니다.{"\n\n"}
+            우리 아이가 더 괜찮은 사람으로{"\n"}
+            성장할 수 있도록 돕겠습니다.
           </Text>
 
           {/* 핵심 카피 */}
