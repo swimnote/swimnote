@@ -36,6 +36,17 @@ const db = superAdminDb;
 
 const router = Router();
 
+/** DB에서 반환된 timestamp (Date | string | null) → ISO 8601 string | null */
+function toIsoOrNull(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString();
+  if (typeof v === "string") {
+    const d = new Date(v.replace(" ", "T")); // PostgreSQL space → T
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return null;
+}
+
 // ─── helper ──────────────────────────────────────────────────────────────────
 
 function parsePoolAdmin(req: AuthRequest): string | null {
@@ -277,9 +288,9 @@ router.get(
         analysis_status:  report.analysis_status,
         report_period:    report.report_period,
         version_number:   report.version_number ?? 1,
-        published_at:     report.published_at instanceof Date ? report.published_at.toISOString() : (report.published_at ?? null),
-        created_at:       report.created_at instanceof Date ? report.created_at.toISOString() : (report.created_at ?? null),
-        teacher_reviewed_at:        report.teacher_reviewed_at instanceof Date ? report.teacher_reviewed_at.toISOString() : (report.teacher_reviewed_at ?? null),
+        published_at:     toIsoOrNull(report.published_at),
+        created_at:       toIsoOrNull(report.created_at),
+        teacher_reviewed_at:        toIsoOrNull(report.teacher_reviewed_at),
         teacher_review_action:      report.teacher_review_action,
         teacher_review_reason_code: report.teacher_review_reason_code,
         teacher_review_note:        report.teacher_review_note,
