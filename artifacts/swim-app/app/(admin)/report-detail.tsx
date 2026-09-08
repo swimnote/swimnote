@@ -171,9 +171,14 @@ export default function AdminReportDetailScreen() {
     const reviewedAt = detail.teacher_reviewed_at
       ? new Date(detail.teacher_reviewed_at).toLocaleDateString("ko-KR")
       : null;
-    const publishedAt = detail.published_at
-      ? new Date(detail.published_at).toLocaleDateString("ko-KR")
-      : null;
+    // PostgreSQL timestamp("2026-09-07 08:42:52+00") 또는 ISO string 모두 안전 파싱
+    const parseDateSafe = (s?: string | null): Date | null => {
+      if (!s) return null;
+      // ISO 8601: 공백 → T 치환 후 파싱 (iOS 호환)
+      const d = new Date(s.replace(" ", "T"));
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const publishedAt = parseDateSafe(detail.published_at)?.toLocaleDateString("ko-KR") ?? null;
 
     const sections = parseSections(detail.report_content);
     // 빈 evidence 섹션 숨김 (앱 정책)
