@@ -8,9 +8,9 @@
  *
  * 확정 가격표 (2026-09-05):
  *   SWIMNOTE  : ₩9,900/월  (BASE PLAN)
- *   X300      : ₩119,000/월, 300명  (X PLAN)
- *   X500      : ₩189,000/월, 500명  (X PLAN)
- *   X1000     : ₩349,000/월, 1000명 (X PLAN)
+ *   X300      : ₩129,000/월, 300명  (X PLAN)
+ *   X500      : ₩199,000/월, 500명  (X PLAN)
+ *   X1000     : ₩359,000/월, 1000명 (X PLAN)
  *   DATA100   : ₩7,900/월  (DATA ADD-ON)
  *   DATA300   : ₩22,900/월 (DATA ADD-ON)
  */
@@ -70,8 +70,8 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     plan_key:              "x300",
     display_name:          "SWIMNOTE X300",
     plan_type:             "x",
-    monthly_price_krw:     119000,
-    price_label:           "₩119,000/월",
+    monthly_price_krw:     129000,
+    price_label:           "₩129,000/월",
     member_limit:          300,
     storage_add_gb:        null,
     active:                true,
@@ -83,8 +83,8 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     plan_key:              "x500",
     display_name:          "SWIMNOTE X500",
     plan_type:             "x",
-    monthly_price_krw:     189000,
-    price_label:           "₩189,000/월",
+    monthly_price_krw:     199000,
+    price_label:           "₩199,000/월",
     member_limit:          500,
     storage_add_gb:        null,
     active:                true,
@@ -95,8 +95,8 @@ export const OFFICIAL_PLAN_CATALOG: readonly OfficialPlanDef[] = [
     plan_key:              "x1000",
     display_name:          "SWIMNOTE X1000",
     plan_type:             "x",
-    monthly_price_krw:     349000,
-    price_label:           "₩349,000/월",
+    monthly_price_krw:     359000,
+    price_label:           "₩359,000/월",
     member_limit:          1000,
     storage_add_gb:        null,
     active:                true,

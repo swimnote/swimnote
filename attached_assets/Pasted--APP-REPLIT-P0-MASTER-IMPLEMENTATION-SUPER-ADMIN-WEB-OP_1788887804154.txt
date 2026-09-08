@@ -1,0 +1,974 @@
+[보낼 곳: APP REPLIT]
+
+[P0 MASTER IMPLEMENTATION — SUPER ADMIN WEB OPERATIONS CONSOLE + PRICING + NOTICE + PARENT BANNER]
+
+PRE-DESIGN REVIEW 승인.
+
+핵심 blocker 결정:
+
+옵션 B 확정.
+
+기존 artifacts/swimnote-web 안에
+보호된 Super Admin Web Operations Console을 구현한다.
+
+신규 artifact 생성 금지.
+
+경로는 기존 마케팅 페이지와 명확히 분리된
+/super-admin
+또는 현재 routing 구조상 동등한 protected internal route 사용.
+
+공개 마케팅 navigation에서 노출 금지.
+
+이번 작업은 추가 PRE-DESIGN 없이
+코드 → 테스트 → Production 검증까지 한 번에 진행한다.
+
+작업을 Phase 1/2 완료보고로 쪼개지 말고
+최종 완료보고 1회만 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최우선 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin은:
+
+SWIMNOTE 전국 운영 콘솔
+
+이다.
+
+PC에서 상시 띄워놓고 실제 운영할 수 있어야 한다.
+
+기존 앱 Super Admin UI를 억지로 확장하는 것이 아니라
+Web Console을 canonical 운영화면으로 만든다.
+
+단:
+
+- 기존 API
+- 기존 DB
+- 기존 auth
+- 기존 audit
+- 기존 mode resolver
+
+최대한 재사용.
+
+멀쩡한 backend 재작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 구현 전 CANONICAL SOURCE 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRE-DESIGN 보고서 일부 source 이름이
+현재 canonical 구조와 다를 가능성이 있다.
+
+구현 시작 시 실제 현재 Production code/schema를 확인하고
+canonical source만 사용.
+
+특히:
+
+A. Diary
+보고서의 diary_entries를 무조건 신뢰하지 말 것.
+
+현재 실제 diary canonical이
+class_diaries / class_diary_student_notes인지
+Production schema/code로 확인 후 사용.
+
+AI Diary 역시 실제 ai_generated source 확인.
+
+B. Curriculum
+
+현재 canonical Global Reference는
+curriculum_versions.is_global_reference=true
+구조를 우선 확인.
+
+global_curriculum_versions 같은
+stale/legacy table을 새 source로 사용 금지.
+
+Pool Local:
+현재 active Local curriculum resolver와
+cv_* version 구조 그대로 사용.
+
+C. Student / Teacher / Parent count
+
+학생이 users role인지 students table인지
+실제 schema 확인.
+
+가짜 count/잘못된 JOIN 금지.
+
+이 확인 때문에 별도 조사보고 하지 말고
+바로 구현하면서 canonical source로 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. SUPER ADMIN WEB AUTH
+━━━━━━━━━━━━━━━━━━━━━━
+
+/super-admin 전체 route는
+Super Admin 전용 인증/권한 필수.
+
+일반:
+
+- Parent
+- Teacher
+- Pool Admin
+- 비로그인 사용자
+
+접근 차단.
+
+프론트 route hide만으로 끝내지 말고
+서버 endpoint도 기존 Super Admin role guard 유지.
+
+세션 만료 시
+안전하게 로그인/인증 흐름으로 이동.
+
+마케팅 홈페이지 사용자에게
+Super Admin navigation 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 WEB IA
+━━━━━━━━━━━━━━━━━━━━━━
+
+메뉴:
+
+- Overview
+- 수영장
+- 구독/결제
+- 공지
+- 광고
+- 시스템
+
+PC에서는 sidebar 기반 권장.
+
+너무 좁은 중앙 column 금지.
+
+Desktop content width를 충분히 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 source가 확인된 KPI만 표시.
+
+최소:
+
+- 전체 수영장
+- 활성 수영장
+- BASE
+- X
+- X Paid
+- X Manual
+- X Management Override
+- X Forced Off
+- 전체 학생
+- Teacher
+- Parent
+- 오늘/이번달 Diary
+- AI Diary
+- Curriculum READY / 문제
+- Subscription 정상 / 문제
+- 최근 운영 Warning/Error
+
+mode 판정은 반드시 canonical computeMode/resolver 사용.
+
+mode === x = paid 로 계산 금지.
+
+KPI 클릭 시 가능한 경우 해당 filtered Pool List로 연결.
+
+placeholder/fake KPI = 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. POOL LIST
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC 운영형 TABLE로 구성.
+
+최소:
+
+- 수영장명
+- pool_id
+- 활성상태
+- BASE/X
+- 플랜
+- Paid/Manual/Override/Force Disabled
+- 학생
+- Teacher
+- Parent
+- Local Curriculum
+- READY
+- 최근 활동
+- 구독상태
+- 다음 갱신일
+- Warning/Error
+
+검색:
+
+- 수영장명
+- pool_id
+- 관리자/연락처
+
+필터:
+
+- BASE/X
+- plan
+- paid/unpaid
+- active/inactive
+- curriculum READY/not READY
+- subscription issue
+- health warning
+
+필터와 검색은 목록에서 상세로 갔다 돌아와도 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. POOL CONTROL DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool row 클릭:
+
+→ /super-admin/pools/{poolId}
+또는 현재 router에 맞는 detail route
+
+한 수영장의 전체 상태를 한 화면에서 관리.
+
+A. 기본정보
+
+- pool name
+- pool id
+- admin
+- 연락처
+- 생성/가입일
+- 활성상태
+- 최근 활동
+
+B. MODE
+
+- resolved BASE/X
+- x_paid_entitlement
+- x_manual_entitlement
+- x_management_override
+- x_force_disabled
+- x_plan_key
+- xmode_config_status
+
+C. 구독/결제
+
+- current product
+- current official price
+- status
+- trial
+- first purchase — 실제 source 있을 때만
+- last payment — 실제 source 있을 때만
+- next renewal
+- expiration
+- cancellation
+- payment_failed_at
+- auto renew
+- RC app user id
+- last_sync_at
+
+없는 날짜를 추측 생성 금지.
+
+D. 사용현황
+
+- students
+- teachers
+- parents
+- class count
+- Diary
+- AI Diary
+- storage
+- last activity
+
+E. CURRICULUM
+
+Pool Local 기준:
+
+- active Local version
+- version name/id
+- item count
+- approved_at
+- activated_at
+- source_content_hash/source hash 실제 컬럼
+- READY
+- review/unresolved count
+- CPO
+- SCP
+- progress population
+
+Global Reference:
+현재 canonical Global status만 별도 표시.
+
+Global을 Local progress denominator로 사용 금지.
+
+F. AI
+
+- AI Diary count
+- Parent AI Curriculum usage
+- Growth Report 상태
+- 최근 AI error
+- Engine health
+- trace가 실제 존재할 때 request/trace id
+
+G. HEALTH
+
+실제 검증 가능한 rule만 사용:
+
+NORMAL
+WARNING
+ERROR
+
+예:
+
+- subscription billing issue
+- Local Curriculum missing/inactive
+- READY false
+- engine failure
+- entitlement inconsistency
+- activation failure
+- 최근 operational error
+
+가짜 0~100 health score 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. POOL CONTROL ACTIONS
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 실제 endpoint만 우선 사용.
+
+허용:
+
+- pool active/inactive
+- X manual entitlement grant/revoke
+- management override
+- force disable
+- 기존 approve/reject/restrict 중 현재 운영에 필요한 것
+
+중요 action:
+
+- confirmation
+- server authorization
+- audit log
+
+필수.
+
+금지:
+
+- raw DB delete
+- 결제상태 직접 조작
+- student bulk destructive delete
+- curriculum destructive reset
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 현재 공식 가격표 — 이것만 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+공식 현재 가격:
+
+SWIMNOTE
+₩9,900 / month
+
+X300
+₩129,000 / month
+
+X500
+₩199,000 / month
+
+X1000
+₩359,000 / month
+
+DATA100
+₩7,900 / month
+
+DATA300
+₩22,900 / month
+
+Product IDs:
+
+com.swimnote.swimnote.monthly
+com.swimnote.x300.monthly
+com.swimnote.x500.monthly
+com.swimnote.x1000.monthly
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+X entitlement:
+x_mode
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. LEGACY SUBSCRIPTION PRICING 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+전수 제거 대상:
+
+Coach30
+Coach50
+Coach100
+Premier200
+Premier300
+Premier500
+Premier1000
+
+및
+
+₩1,900
+₩2,900
+₩5,900
+₩27,000
+₩43,000
+₩79,000
+
+등 구 subscription price.
+
+또한 X legacy:
+
+119,000
+189,000
+349,000
+
+→ 공식:
+
+129,000
+199,000
+359,000
+
+으로 통일.
+
+수정 대상:
+
+- subscription-products.tsx
+- admin subscription.tsx legacy SOLO/CENTER branches
+- officialPlanCatalog.ts
+- xPlanCatalog.ts
+- subscriptionService mappings
+- x-billing mappings
+- 기타 검색되는 user-facing / operational fallback
+
+중요:
+
+RevenueCat historical transaction 원본 삭제 금지.
+
+migration history 삭제 금지.
+
+old transaction amount를 조작하지 말 것.
+
+현재 상품 catalog/UI/business config만 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. AI INSIGHT REPORT 79,000원 주의
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI Insight Report의 79,000원은
+legacy subscription price가 아니다.
+
+현재 별도 상품 정책이다.
+
+따라서
+"79,000 문자열 검색됨"이라는 이유로 삭제 금지.
+
+현재 정책:
+
+AI Insight Strategy Report
+reference price = ₩79,000
+purchase = HOLD
+
+현재 purchase 기능이 미구현이면
+실제 구매 가능한 것처럼 보이는 placeholder는 제거/비활성화.
+
+하지만 상품 정책 가격 자체를
+legacy subscription으로 삭제하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DATA/STORAGE 가격
+━━━━━━━━━━━━━━━━━━━━━━
+
+storage.tsx의
+문맥 잘못된 ₩9,900/월 ~
+같은 추정/legacy 표기 제거.
+
+DATA add-on을 표시하는 곳이라면
+official catalog의:
+
+DATA100 ₩7,900
+DATA300 ₩22,900
+
+를 참조.
+
+가격 하드코딩 중복 최소화.
+
+canonical plan catalog 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. BILLING SOT
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 운영 콘솔의 billing SOT:
+
+pool_subscriptions
++
+RevenueCat webhook sync data
+
+기존 구조 사용.
+
+매 화면마다 RevenueCat live API 직접 호출 금지.
+
+표시:
+
+- tier/product
+- status
+- trial_end
+- expires/next renewal
+- billing issue
+- auto renew
+- RC user id
+- last sync
+
+freshness도 last_sync_at이 있으면 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 공지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin Web에서 공지 CRUD를 운영 가능하게 한다.
+
+현재 기존 endpoint 재사용.
+
+지원되는 실제 대상만 UI 제공:
+
+- 전체
+- 특정 pool
+- 실제 지원 role target
+
+공지 pipeline:
+
+작성
+→ 이미지
+→ 저장
+→ 발송
+→ In-app
+→ 실제 상세
+
+정상 연결.
+
+Push는 실제 기존 코드 조사 후
+현재 지원되는 경우 반드시 정상 연결.
+
+지원되지 않으면
+가짜 "Push 완료" UI 만들지 말고
+실제 구현 또는 정확한 상태만 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 공지 이미지
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Admin 정상 pipeline 재사용:
+
+ImagePicker/Web file select
+→ 기존 /uploads
+→ image_urls[]
+→ notice API
+→ 사용자 앱 notice-detail
+
+Super Admin용 새 media storage 금지.
+
+Web Console에서:
+
+- 이미지 선택
+- preview
+- remove before send
+- upload progress/error
+- 저장
+
+지원.
+
+Parent/Teacher/Admin 실제 notice 상세에서
+이미지가 보여야 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 광고 범위 — 절대 확대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 광고 위치는 정확히 한 곳:
+
+Parent Home의
+ParentAdBanner
+PARENT_HOME_BANNER
+
+이 슬롯만 광고 슬롯으로 운영.
+
+별도 ParentPromoStrip은
+이번 광고 재구성 대상 아님.
+
+새 광고 위치 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. MULTI BANNER CAROUSEL
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin Web에서
+Parent Home banner를 여러 개 등록.
+
+Parent 앱의 한 슬롯에서:
+
+- 한 번에 1장
+- horizontal swipe
+- 여러 배너 carousel
+- page indicator
+- 1개면 일반 single banner
+- 0개면 component null / 공간 0
+
+자동 slide:
+5초 수준 사용 가능.
+AppState/background에서 timer 정리.
+사용자 swipe와 충돌하지 않게 구현.
+
+FlatList/paging 구조 권장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. BANNER MANAGEMENT
+━━━━━━━━━━━━━━━━━━━━━━
+
+Web 광고 관리:
+
+- 관리용 제목
+- 이미지
+- 링크/deep link
+- active/inactive
+- 시작일
+- 종료일
+- sort order
+- 추가
+- 수정
+- 삭제
+
+Target:
+
+- 전체 Parent
+- 특정 Pool Parent
+
+정도만.
+
+성별/나이/BASE/X 타기팅 금지.
+
+특정 pool target이 실제 필요하므로
+platform_banners.target_pool_id nullable 컬럼
+최소 migration 허용.
+
+NULL = 전체.
+
+기존 target field는 깨지지 않게 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. IMPRESSION / CLICK
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 ParentAdBanner의
+impression/click 기록 기능 유지.
+
+multi creative에서
+각 banner id 기준으로 올바르게 기록.
+
+carousel slide 됐다고 무조건 impression 남발하지 말고
+실제 노출 정책에 맞게 기존 semantics 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. AUDIT LOG
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 audit_logs 재사용.
+
+반드시 audit:
+
+- pool status
+- X entitlement
+- management override
+- force disable
+- announcement create/update/delete/send
+- ad create/update/delete/activate
+
+actor
+target
+before/after 가능 범위
+timestamp
+
+기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. RESPONSIVE / 겹침 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin Web은
+PC 공간을 넓게 사용.
+
+Desktop:
+sidebar + wide content
+
+Table:
+horizontal overflow가 필요하면
+의도적인 scroll container 사용 가능.
+
+버튼:
+
+normal flow
+flex wrap
+gap
+min height
+responsive grid
+
+사용.
+
+금지:
+
+negative margin
+translate hack
+absolute positioning으로 action button 배치
+zIndex로 겹침 숨기기
+버튼을 좁은 한 줄에 우겨넣기
+
+겹칠 공간이면
+줄바꿈하거나 영역을 넓힌다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. BACK / NAVIGATION 처음부터 정상 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool List
+→ Pool Detail
+→ Back
+→ 동일 list
+
+검색
+필터
+pagination
+
+유지.
+
+Notice List
+→ Detail/Edit/Create
+→ Back
+→ 이전 목록
+
+Ad List
+→ Edit/Create
+→ Back
+→ 이전 목록
+
+Home 강제 replace 금지.
+
+중간 redirect screen mount 금지.
+
+특정 screen mount side effect에
+다음 화면 initialization 의존 금지.
+
+Web에서는 query params 또는
+안정적인 route state를 이용해
+filter/page를 복원.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 기존 앱 SUPER ADMIN
+━━━━━━━━━━━━━━━━━━━━━━
+
+Web Console을 canonical 운영화면으로 만든다.
+
+기존 앱 Super Admin은
+이번에 모든 Web 기능을 이중 구현하지 말 것.
+
+단:
+
+- 기존 앱 route가 빌드를 깨지 않게 유지
+- 잘못된 legacy 가격 노출 제거
+- 명백한 dead/placeholder 노출 정리
+
+필요한 최소 수정만.
+
+운영 핵심 기능은 Web Console에 집중.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. SERVER 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요 최소 변경:
+
+- /super/operators list에 canonical subscription/curriculum summary 추가
+- /super/operators/:id detail에 운영 dashboard 데이터 추가
+- /parent/ad-slot PARENT_HOME_BANNER를 creatives[] 반환 가능하게 확장
+- notice audit
+- banner audit
+- target_pool_id
+- pricing canonical correction
+
+기존 client 호환성이 필요한 endpoint는
+breaking response 변경 금지.
+
+특히 /parent/ad-slot은
+기존 앱 version이 아직 creative 단일 객체를 기대할 수 있음.
+
+Production backward compatibility 검토.
+
+안전한 방식 예:
+
+기존 creative 유지 +
+새 creatives[] 추가
+
+후 신규 앱이 creatives[] 사용.
+
+기존 설치 앱이 깨지는 breaking response 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. DB MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요하면:
+
+platform_banners.target_pool_id nullable FK
+
+추가.
+
+가격 DB update도
+현재 Production schema/catalog 필요 시 최소 적용.
+
+migration:
+
+- idempotent
+- rollback 고려
+- 기존 banner 보존
+- 기존 subscription history 보존
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 검증:
+
+A.
+Super Admin Web 로그인/접근 통제
+
+B.
+Overview KPI 실제 DB 대조
+
+C.
+Pool List 검색/필터
+
+D.
+Pool Detail 전체 7섹션
+
+E.
+BASE/X semantics 정확
+
+F.
+Toykids 등 실제 pool의 Local Curriculum 상태 정확
+
+G.
+현재 플랜/가격 정확
+
+H.
+legacy subscription 가격 user-facing 노출 0
+
+I.
+Pool control action + audit
+
+J.
+공지 작성 + 이미지
+→ 실제 Parent 앱 표시
+
+K.
+배너 2개 등록
+→ Parent iPhone
+→ 한 슬롯에서 carousel
+
+L.
+배너 click/impression
+
+M.
+특정 pool targeting
+
+N.
+배너 0개
+→ 빈 공간 0
+
+O.
+목록 → 상세 → Back
+→ filter 유지
+
+P.
+Desktop 좁힘/Tablet width
+→ button overlap 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server 변경:
+
+test
+→ main
+→ Render Production
+→ LIVE 대기
+→ /health commit == main HEAD
+→ authenticated smoke
+
+Web:
+
+현재 swimnote-web Production deployment 절차 확인 후
+Production deploy.
+
+App 변경:
+
+release/v2.0.0
+→ test
+→ preflight
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+이번 작업이 끝난 뒤 Android build 작업으로 넘어간다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고 1회:
+
+1. Web Console URL/path
+2. auth/role guard
+3. final IA
+4. Overview KPI + source
+5. Pool List fields/filter
+6. Pool Control 7 sections
+7. canonical mode resolver
+8. canonical diary source
+9. canonical curriculum source
+10. billing SOT
+11. official pricing 최종값
+12. 삭제한 legacy pricing 위치/값
+13. AI Insight 79k 처리
+14. notice E2E
+15. notice image E2E
+16. ParentAdBanner endpoint final contract
+17. carousel 결과
+18. target_pool_id migration
+19. impression/click
+20. audit
+21. button overlap test
+22. back/filter-state test
+23. server tests
+24. Web tests
+25. iOS tests
+26. main HEAD
+27. Render LIVE commit
+28. Web Production deploy
+29. iOS OTA ID
+30. Production E2E 결과
+31. 잔존 blocker
+
+PASS 조건:
+
+- PC용 Super Admin Web Console 운영 가능
+- 실제 데이터만 표시
+- Pool 하나 클릭해 전체 상태/제어 가능
+- 공식 가격만 현재 가격으로 노출
+- legacy subscription 가격 노출 0
+- 공지+이미지 실제 E2E
+- Parent Home 한 슬롯 multi-banner carousel
+- 광고 0개면 공간 0
+- button overlap 0
+- Back/filter state 정상
+- audit 정상
+- Production 배포 정상
+
+완료 후 STOP.

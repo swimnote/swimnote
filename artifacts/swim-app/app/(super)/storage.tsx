@@ -363,7 +363,7 @@ export default function StorageScreen() {
                 <LucideIcon name="plus-circle" size={20} color={GREEN} />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>추가 용량 구매</Text>
-                  <Text style={m.ctaOptionDesc}>10GB 단위 추가 · 예상 ₩9,900/월 ~</Text>
+                  <Text style={m.ctaOptionDesc}>10GB 단위 추가 · DATA100(₩7,900) / DATA300(₩22,900)</Text>
                 </View>
                 <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
                   onPress={() => { setCtaModal(null); setEditOp(ctaModal); setNewStorageGb("10"); }}>

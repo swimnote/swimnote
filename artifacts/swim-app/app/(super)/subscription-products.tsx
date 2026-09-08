@@ -245,18 +245,19 @@ function rowToSubscriptionPlan(row: ApiPlanRow): SubscriptionPlan {
   };
 }
 
-// ── 확정 플랜 정보 (DB 초기값 기준) ─────────────────────────────
+// ── 공식 플랜 가격 (2026 확정) ─────────────────────────────────
 const PLAN_GUIDE = [
-  { group: "Coach (개인 선생님)", color: P, plans: [
-    { name: "Coach30",  price: "₩1,900", members: "30명",    storage: "300MB", video: false },
-    { name: "Coach50",  price: "₩2,900", members: "50명",    storage: "500MB", video: false },
-    { name: "Coach100", price: "₩5,900", members: "100명",   storage: "1GB",   video: false },
+  { group: "BASE", color: G, plans: [
+    { name: "SWIMNOTE", price: "₩9,900", members: "무제한", storage: "—", video: false },
   ]},
-  { group: "Premier (수영장/센터)", color: "#F59E0B", plans: [
-    { name: "Premier200",  price: "₩19,000",  members: "200명",  storage: "5GB",  video: true },
-    { name: "Premier300",  price: "₩27,000",  members: "300명",  storage: "10GB", video: true },
-    { name: "Premier500",  price: "₩43,000",  members: "500명",  storage: "20GB", video: true },
-    { name: "Premier1000", price: "₩79,000",  members: "1000명", storage: "50GB", video: true },
+  { group: "X PLAN", color: "#002F5F", plans: [
+    { name: "X300",  price: "₩129,000", members: "300명",  storage: "—", video: true },
+    { name: "X500",  price: "₩199,000", members: "500명",  storage: "—", video: true },
+    { name: "X1000", price: "₩359,000", members: "1000명", storage: "—", video: true },
+  ]},
+  { group: "DATA ADD-ON", color: P, plans: [
+    { name: "DATA100", price: "₩7,900",  members: "—", storage: "100GB", video: false },
+    { name: "DATA300", price: "₩22,900", members: "—", storage: "300GB", video: false },
   ]},
 ];
 
@@ -275,7 +276,7 @@ export default function SubscriptionProductsScreen() {
   async function handleReinit() {
     Alert.alert(
       "플랜 기준값 초기화",
-      "모든 플랜을 확정 기준값(Coach 30/50/100 · Premier 200/300/500/1000)으로 덮어씁니다.\n폐기 플랜(엔터프라이즈 등)은 삭제됩니다.\n계속하시겠습니까?",
+      "모든 플랜을 확정 기준값으로 초기화합니다.\n계속하시겠습니까?",
       [
         { text: "취소", style: "cancel" },
         { text: "초기화", style: "destructive", onPress: async () => {
@@ -349,7 +350,7 @@ export default function SubscriptionProductsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="구독 플랜 설정" subtitle="Coach · Premier 플랜 관리" homePath="/(super)/dashboard" />
+      <SubScreenHeader title="구독 플랜 설정" subtitle="SWIMNOTE · X · DATA 플랜 관리" homePath="/(super)/dashboard" />
 
       <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 8 }}>
         <Pressable style={[s.createBtn, { flex: 1 }]} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>

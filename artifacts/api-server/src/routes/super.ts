@@ -7607,6 +7607,7 @@ router.post(
           (id, title, content, notice_type, audience_scope,
            target_roles, target_pools, target_plan_types,
            send_push, show_banner, starts_at, ends_at, deep_link,
+           image_urls,
            author_user_id, created_at, updated_at)
         VALUES
           (gen_random_uuid()::text,
@@ -7619,6 +7620,7 @@ router.post(
            ${startsAtDate ? startsAtDate.toISOString() : null}::timestamptz,
            ${endsAtDate  ? endsAtDate.toISOString()  : null}::timestamptz,
            ${deep_link ?? null},
+           ${Array.isArray((req.body as any).image_urls) ? JSON.stringify((req.body as any).image_urls.slice(0, 5)) : '{}'}::text[],
            ${req.user!.userId},
            NOW(), NOW())
         RETURNING id, title, created_at

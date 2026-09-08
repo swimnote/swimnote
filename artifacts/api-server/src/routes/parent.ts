@@ -2207,23 +2207,57 @@ router.delete("/guardians", requireAuth, requireParent, async (req: AuthRequest,
 
 // ── WP15.5-C Fix: Ad Slot (PARENT_HOME_BANNER) ───────────────────────────────
 // GET /parent/ad-slot?placement=PARENT_HOME_BANNER
-// - 활성 Creative 1개 반환만. impression 기록은 앱이 직접 POST /parent/ad-events/impression
+// - platform_banners(slider) 기반 creatives[] 배열 반환
+// - backward compat: creative (단일, 첫 번째 항목) 도 유지
+// - impression 기록은 앱이 직접 POST /parent/ad-events/impression
 router.get("/ad-slot", requireAuth, requireParent, async (req: AuthRequest, res) => {
   try {
-    const placement = (req.query.placement as string) || "PARENT_HOME_BANNER";
+    // Parent 사용자의 pool_id 확인 (targeting 용)
+    const userId = (req.user as any)?.userId ?? (req.user as any)?.id;
+    let poolId: string | null = null;
+    try {
+      const poolRow = await db.execute(sql`
+        SELECT swimming_pool_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (poolRow.rows[0] as any)?.swimming_pool_id ?? null;
+    } catch { /* ignore */ }
 
-    const result = await db.execute(sql`
-      SELECT id, placement, creative_type, headline, body_text,
-             image_url, destination_url, effect_type
-      FROM ad_creatives
-      WHERE placement   = ${placement}
-        AND is_active   = true
-      ORDER BY display_order ASC, created_at DESC
-      LIMIT 1
+    const now = new Date().toISOString();
+
+    // platform_banners에서 slider, active, 기간 내, (전체 대상 OR 해당 pool 대상) 배너 조회
+    const bannerResult = await db.execute(sql`
+      SELECT id, title, description, image_url, image_key, link_url, link_label,
+             color_theme, target, target_pool_id, sort_order, status
+      FROM platform_banners
+      WHERE banner_type  = 'slider'
+        AND status       = 'active'
+        AND display_start <= NOW()
+        AND display_end   >= NOW()
+        AND (
+          target_pool_id IS NULL
+          OR ${poolId ? sql`target_pool_id = ${poolId}` : sql`FALSE`}
+        )
+      ORDER BY sort_order ASC, created_at DESC
     `);
 
-    const creative = (result.rows[0] as any) ?? null;
-    res.json({ creative });
+    const banners = bannerResult.rows as any[];
+
+    // platform_banners → creative 형태로 변환 (앱 호환)
+    const creatives = banners.map((b: any) => ({
+      id:              b.id,
+      placement:       "PARENT_HOME_BANNER",
+      creative_type:   b.image_url ? "IMAGE" : "TEXT",
+      headline:        b.title ?? null,
+      body_text:       b.description ?? null,
+      image_url:       b.image_url ?? null,
+      destination_url: b.link_url ?? null,
+      effect_type:     "FADE",
+    }));
+
+    // backward compat: creative = 첫 번째 항목 (구 앱 버전용)
+    const creative = creatives[0] ?? null;
+
+    res.json({ creative, creatives });
   } catch (err: any) {
     console.error("[parent/ad-slot] error:", err?.message);
     res.status(500).json({ error: "광고 슬롯 조회 실패" });

@@ -141,7 +141,7 @@ router.get("/super/banners", requireAuth, async (req: AuthRequest, res) => {
 router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
   if (!requireSuper(req, res)) return;
   const { title, description, image_url, image_key, link_url, link_label,
-          color_theme, target, status, display_start, display_end, sort_order, banner_type } = req.body;
+          color_theme, target, target_pool_id, status, display_start, display_end, sort_order, banner_type } = req.body;
   if (!title) return err(res, 400, "제목이 필요합니다.");
   if (!display_start || !display_end) return err(res, 400, "노출 기간이 필요합니다.");
   const finalType = (banner_type ?? "slider") as "strip" | "slider";
@@ -149,24 +149,27 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
   if (!titleCheck.ok) return err(res, 400, titleCheck.message!);
   try {
     const id = `banner_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
-    const [row] = await superAdminDb.insert(platformBannersTable).values({
-      id,
-      banner_type:  banner_type ?? "slider",
-      title:        title.trim(),
-      description:  description?.trim() ?? null,
-      image_url:    image_url ?? null,
-      image_key:    image_key ?? null,
-      link_url:     link_url?.trim() ?? null,
-      link_label:   link_label?.trim() ?? null,
-      color_theme:  color_theme ?? "teal",
-      target:       target ?? "all",
-      status:       status ?? "inactive",
-      display_start: new Date(display_start),
-      display_end:  new Date(display_end),
-      sort_order:   sort_order ?? 0,
-      created_by:   req.user!.id,
-    } as any).returning();
-    return res.status(201).json({ success: true, banner: row });
+    const [row] = await superAdminDb.execute(sql`
+      INSERT INTO platform_banners
+        (id, banner_type, title, description, image_url, image_key, link_url, link_label,
+         color_theme, target, target_pool_id, status, display_start, display_end, sort_order, created_by, created_at, updated_at)
+      VALUES
+        (${id}, ${banner_type ?? "slider"}, ${title.trim()}, ${description?.trim() ?? null},
+         ${image_url ?? null}, ${image_key ?? null}, ${link_url?.trim() ?? null}, ${link_label?.trim() ?? null},
+         ${color_theme ?? "teal"}, ${target ?? "all"}, ${target_pool_id ?? null},
+         ${status ?? "inactive"}, ${new Date(display_start).toISOString()}::timestamptz,
+         ${new Date(display_end).toISOString()}::timestamptz,
+         ${sort_order ?? 0}, ${req.user!.id}, NOW(), NOW())
+      RETURNING *
+    `);
+    const banner = (row.rows[0] as any) ?? null;
+    // audit log
+    await superAdminDb.execute(sql`
+      INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, after_data)
+      VALUES ('platform_banner', ${id}, 'create', 'super_admin', ${req.user!.id},
+              ${JSON.stringify({ title: title.trim(), status: status ?? "inactive", target: target ?? "all", target_pool_id: target_pool_id ?? null })}::jsonb)
+    `).catch(() => {});
+    return res.status(201).json({ success: true, banner });
   } catch (e: any) {
     console.error("[super-banners] 생성 오류:", e);
     return err(res, 500, "서버 오류");
@@ -205,6 +208,7 @@ router.put("/super/banners/:id", requireAuth, async (req: AuthRequest, res) => {
     if (link_label !== undefined)    patch.link_label = link_label?.trim() ?? null;
     if (color_theme !== undefined)   patch.color_theme = color_theme;
     if (target !== undefined)        patch.target = target;
+    if ("target_pool_id" in req.body) patch.target_pool_id = req.body.target_pool_id ?? null;
     if (status !== undefined)        patch.status = status;
     if (display_start !== undefined) patch.display_start = new Date(display_start);
     if (display_end !== undefined)   patch.display_end = new Date(display_end);
@@ -217,6 +221,12 @@ router.put("/super/banners/:id", requireAuth, async (req: AuthRequest, res) => {
       .where(eq(platformBannersTable.id, id))
       .returning();
     if (!row) return err(res, 404, "배너를 찾을 수 없습니다.");
+    // audit log
+    await superAdminDb.execute(sql`
+      INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, after_data)
+      VALUES ('platform_banner', ${id}, 'update', 'super_admin', ${req.user!.id},
+              ${JSON.stringify(patch)}::jsonb)
+    `).catch(() => {});
     return res.json({ success: true, banner: row });
   } catch (e: any) {
     console.error("[super-banners] 수정 오류:", e);
@@ -249,7 +259,16 @@ router.delete("/super/banners/:id", requireAuth, async (req: AuthRequest, res) =
   if (!requireSuper(req, res)) return;
   const { id } = req.params;
   try {
+    // before state for audit
+    const [before] = await superAdminDb.select({ title: platformBannersTable.title, status: platformBannersTable.status })
+      .from(platformBannersTable).where(eq(platformBannersTable.id, id));
     await superAdminDb.delete(platformBannersTable).where(eq(platformBannersTable.id, id));
+    // audit log
+    await superAdminDb.execute(sql`
+      INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, before_data)
+      VALUES ('platform_banner', ${id}, 'delete', 'super_admin', ${req.user!.id},
+              ${JSON.stringify({ title: (before as any)?.title, status: (before as any)?.status })}::jsonb)
+    `).catch(() => {});
     return res.json({ success: true });
   } catch (e: any) {
     console.error("[super-banners] 삭제 오류:", e);

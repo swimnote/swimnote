@@ -344,6 +344,7 @@ export async function initSuperDb(db: MigrationDb): Promise<void> {
     // 컬럼 추가 (기존 테이블에 누락된 컬럼 보완)
     await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS banner_type text NOT NULL DEFAULT 'slider'`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS image_key text`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS target_pool_id text REFERENCES swimming_pools(id) ON DELETE SET NULL`)).catch(() => {});
     await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS platform_banners_status_idx ON platform_banners (status, display_start, display_end);
     `)).catch(() => {});
