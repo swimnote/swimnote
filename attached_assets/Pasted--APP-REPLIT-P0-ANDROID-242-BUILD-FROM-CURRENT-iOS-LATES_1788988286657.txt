@@ -1,0 +1,273 @@
+[보낼 곳: APP REPLIT]
+
+[P0 ANDROID 242 — BUILD FROM CURRENT iOS-LATEST HEAD]
+
+목표:
+Android Internal Testing용 새 AAB를
+"현재 iOS production-v2 최신 업데이트까지 모두 반영된 최신 앱 상태"
+기준으로 생성한다.
+
+241은 구버전 JS bundle이 포함되어
+- legacy Coach/Premier 가격표 노출
+- 최신 AI/OpenAI GPT 브랜딩 푸터 누락
+- 최근 UI 수정 일부 누락
+
+이 확인됨.
+
+따라서 242는 특정 개별 commit만 골라 넣는 방식 금지.
+
+반드시:
+현재 iOS production-v2에서 최신으로 배포된 앱 코드
++
+그 이후 main/release HEAD의 최신 수정
+전체를 포함한 current HEAD 기준 fresh Android build.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE 기준 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+build 시작 전에 현재 canonical branch 확인:
+
+release/v2.0.0
+
+반드시:
+- git clean
+- origin exact
+- current HEAD 확인
+
+그리고 현재 iOS production-v2 최신 OTA에 포함된 commit/update와
+현재 HEAD 관계 확인.
+
+Android 242 source는
+"현재 iOS 최신 상태보다 뒤처지면 안 됨."
+
+즉 최신 iOS에서 보이는 기능/UI는
+Android 242에도 모두 동일하게 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 반드시 포함할 최근 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 아래 최근 수정 전부 포함 확인:
+
+A. 최신 공식 구독 UI
+- SWIMNOTE ₩9,900
+- X300 ₩129,000
+- X500 ₩199,000
+- X1000 ₩359,000
+- Coach/Premier 현재 판매 UI 비노출
+
+B. Android RevenueCat billing mapping
+- swimnote_monthly
+- x_monthly
+- x300/x500/x1000
+- Android :monthly identifiers
+- localized priceString
+- DATA HOLD
+
+C. 72h X Trial 최신 정책
+- app-native exact 72h
+- trial 중 유료 구매 가능
+- trial→paid 우선
+
+D. BASE → X/TRIAL 기능/데이터 보존
+
+E. Diary Safety Gate 최신 전체
+- durable provenance
+- request scope
+- teacher/class/student binding
+- unsupported fact guard
+- explicit teacher confirmation
+- duplicate/replay guard
+
+F. Local storage leak fixes
+- media temp cleanup
+- legacy cleanup
+- SDImageCache/ImagePicker/ImageManipulator cleanup
+
+G. SWIMNOTE AI / OpenAI GPT Branding 7곳
+ADMIN:
+- 홈
+- 수업관리
+- 운영관리
+- 설정
+TEACHER:
+- 홈
+- AI 일지 작성
+- 설정
+
+문구:
+Powered by SWIMNOTE AI with OpenAI GPT
+
+H. Parent Insight promo entry fix
+- BASE/TRIAL/X 모두 소개화면 진입
+- 실제 purchase/paid guard는 HOLD 유지
+
+I. Auth Identity Integrity
+- parent login_id global unique server/DB protection
+- 회원가입 중복확인 UI
+- pool join request 중복확인 UI
+
+J. 최근 onboarding / parent / teacher / admin 수정 중
+현재 iOS 최신 OTA에 포함된 모든 JS 변경
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. iOS 최신과 Android 242 기능 parity 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+current iOS production-v2 최신 update에서 제공되는
+JS/UI 기능 목록과
+Android fresh export를 비교.
+
+목표:
+
+iOS 최신에 있는데
+Android 242 bundle에 없는 기능 = 0
+
+플랫폼 고유 기능 제외.
+
+특히 확인:
+
+- 구독화면
+- 홈 푸터 브랜딩
+- 설정 브랜딩
+- AI 일지 브랜딩
+- Parent Insight entry
+- 회원가입 아이디 중복확인
+- X Trial UI
+- Diary Safety UI
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. FRESH BUNDLE 강제
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 빌드에서 가장 중요.
+
+반드시 fresh Metro Android bundle 생성.
+
+금지:
+- 기존 dist 재사용
+- 이전 export 재사용
+- 241 bundle 재사용
+- stale --skip-bundler artifact 재사용
+
+build 전에 clean export 수행.
+
+AAB에 들어갈 JS bundle이
+현재 HEAD 기준인지 검증 후 build.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. BUNDLE STRING / ROUTE 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+fresh Android bundle에서 최소 확인:
+
+반드시 포함:
+- "Powered by SWIMNOTE AI with OpenAI GPT"
+- "SWIMNOTE X300"
+- "SWIMNOTE X500"
+- "SWIMNOTE X1000"
+- Parent Insight promo 최신 문구/route
+- login ID duplicate UI 관련 문자열
+
+현재 판매 UI에서 비노출:
+- Coach30
+- Coach50
+- Coach100
+- Premier200
+- Premier300
+- Premier500
+- Premier1000
+
+legacy code/string이 repo에 남아있을 수는 있으나
+현재 subscription route에서 렌더되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. BUILD VERSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android:
+
+versionCode:
+242
+
+versionName:
+2.0.1
+
+runtimeVersion:
+2.1.0
+
+applicationId:
+com.swimnote.app
+
+iOS version/runtime 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. SERVER 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production server 최신 상태 유지.
+
+불필요한 server 재수정 금지.
+
+단 build 전 현재 앱이 의존하는 server API가
+main/Render LIVE와 일치하는지만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. DATA
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA100 / DATA300:
+계속 HOLD.
+
+현재 Android 판매 UI에서 실제 구매 활성화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+preflight PASS 후:
+
+EAS production Android AAB fresh build.
+
+Google Play Production 출시 금지.
+Internal Testing용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. current source branch
+2. current source HEAD
+3. iOS production-v2 latest OTA ID
+4. iOS latest OTA source commit
+5. Android 242 source commit
+6. iOS 최신 대비 Android 기능 parity 결과
+7. fresh Metro bundle 증거
+8. official subscription UI 포함
+9. Coach/Premier 현재 UI 비노출
+10. branding 7곳 포함
+11. Parent Insight promo 포함
+12. Auth duplicate UI 포함
+13. Diary Safety Gate 포함
+14. X Trial 최신 정책 포함
+15. storage cleanup 포함
+16. DATA HOLD
+17. versionCode
+18. versionName
+19. runtimeVersion
+20. build ID
+21. AAB artifact
+22. blocker
+23. 최종 PASS/HOLD
+
+PASS 조건:
+
+- Android 242 = 현재 iOS 최신 앱 상태와 동급
+- 최신 HEAD 전체 포함
+- fresh bundle
+- versionCode 242
+- AAB build 성공
+- blocker 0
+
+완료 후 STOP.
