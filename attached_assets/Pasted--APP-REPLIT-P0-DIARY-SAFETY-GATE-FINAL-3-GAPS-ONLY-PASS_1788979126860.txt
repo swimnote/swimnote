@@ -1,0 +1,184 @@
+[보낼 곳: APP REPLIT]
+
+[P0 DIARY SAFETY GATE — FINAL 3 GAPS ONLY]
+
+현재 구현 대부분 PASS.
+재감사/재설계 금지.
+
+아래 3개 허점만 최소 수정하고 종료한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. LEGACY TRACE SCOPE BYPASS 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+ai_request_id 존재
++
+event_logs trace 존재
++
+trace metadata에 class_id / lesson_date / student_ids 없음
+
+→ warning 후 scope binding skip
+
+이 동작 금지.
+
+앞으로 새로운 POST /diaries 요청에서는:
+
+AI request_id가 존재하는데
+필수 scope를 검증할 수 없으면
+
+409 AI_TRACE_SCOPE_UNVERIFIED
+
+로 저장 거부.
+
+이미 DB에 저장된 과거 diary는 영향 없음.
+기존 row migration 필요 없음.
+
+manual diary(ai_request_id 없음)는 기존대로 정상 저장.
+
+필수 AI trace scope:
+
+- pool_id
+- teacher_id
+- class_id
+- lesson_date
+- student_ids[]
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. TEACHER SCOPE LOCK
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI trace durable scope에 teacher_id를 확실히 저장.
+
+generate 당시 authenticated teacher id 사용.
+
+POST /diaries 저장 시:
+
+authenticated user.id
+===
+trace.teacher_id
+
+검증.
+
+다르면:
+
+409 DIARY_TEACHER_SCOPE_MISMATCH
+
+저장 금지.
+
+반드시 실제 테스트:
+
+Teacher A
+→ same pool에서 AI generate
+→ request_id 생성
+
+Teacher B
+→ SAME POOL
+→ Teacher A request_id로 diary save 시도
+
+기대:
+409 DIARY_TEACHER_SCOPE_MISMATCH
+
+pool mismatch로 대신 테스트하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. AI STUDENT NOTES EXPLICIT CONFIRMATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 AI student note banner는 유지.
+
+추가:
+
+aiRequestId 존재
++
+student-specific note 1개 이상
++
+아직 해당 생성 결과에 대해 confirmation 안 함
+
+상태에서 저장 버튼 최초 탭 시:
+
+Alert:
+
+"AI가 학생별 일지 N건을 작성했습니다.
+내용을 확인하셨나요?"
+
+[취소]
+[확인하고 저장]
+
+확인 후에만 실제 POST /diaries 실행.
+
+COMMON만 있는 AI 일지는 이 확인 불필요.
+
+manual diary는 영향 없음.
+
+SUSPICIOUS_DUPLICATE_STUDENT_NOTES의
+기존 별도 확인 flow는 유지.
+
+이 확인은 UI 세션 내 1회면 충분.
+복잡한 DB schema 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE M
+old/scope-less AI trace
+→ new diary save
+→ 409 AI_TRACE_SCOPE_UNVERIFIED
+
+CASE N
+Teacher A generate
+→ same pool Teacher B save
+→ 409 DIARY_TEACHER_SCOPE_MISMATCH
+
+CASE O
+AI student notes 존재
+→ 저장 최초 탭
+→ confirmation 없이 POST 발생 0
+
+CASE P
+confirmation 선택
+→ 정확히 1회 저장
+
+CASE Q
+AI common only
+→ 추가 confirmation 없이 정상 저장
+
+CASE R
+manual diary
+→ 영향 없음
+
+기존 CASE A~L 회귀 PASS 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+server 수정:
+test → main → Render LIVE → health SHA exact
+
+app 수정:
+release/v2.0.0
+→ preflight
+→ iOS production-v2 OTA
+→ Android OTA 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. scope-less trace 처리
+2. durable teacher_id 저장
+3. same-pool cross-teacher 테스트
+4. explicit teacher confirmation UX
+5. CASE M~R
+6. 기존 CASE A~L regression
+7. 수정 파일
+8. main HEAD
+9. Render LIVE SHA
+10. OTA ID
+11. blocker
+12. 최종 PASS/HOLD
+
+완료 후 STOP.

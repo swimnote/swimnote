@@ -112,6 +112,8 @@ export default function TeacherDiaryScreen() {
   const [aiRequestId, setAiRequestId] = useState<string | null>(null);
   /** §8: SUSPICIOUS_DUPLICATE_STUDENT_NOTES — teacher 확인 후 force_suspicious_save=true로 재시도 */
   const [forceSuspiciousSave, setForceSuspiciousSave] = useState(false);
+  /** Gap 3: AI student notes explicit confirmation — 세션 내 1회 확인으로 충분 */
+  const [aiStudentNotesConfirmed, setAiStudentNotesConfirmed] = useState(false);
   const [startTime, setStartTime] = useState<string>(params.startTime ?? "");
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
@@ -930,7 +932,7 @@ export default function TeacherDiaryScreen() {
   // ── 작성 세션 전체 초기화 (나가기 확정 시 호출) ──────────────────────────
   const resetWriteSession = useCallback(() => {
     setCommonContent(""); setStudentNotes([]); setNoteInput(""); setAddNoteStudent(null);
-    setAiCurriculumMatches([]); setAiRequestId(null); setForceSuspiciousSave(false);
+    setAiCurriculumMatches([]); setAiRequestId(null); setForceSuspiciousSave(false); setAiStudentNotesConfirmed(false);
     setGroupMedia([]); setStudentMedia({}); setMediaUploading(null);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
@@ -1080,6 +1082,27 @@ export default function TeacherDiaryScreen() {
       const hasAnyContent = commonContent.trim().length > 0 || effectiveNotes.some(n => n.note_content?.trim()) || hasAnyMedia;
       if (!hasAnyContent) { setFormError("전체 일지 또는 개인 일지 내용이나 사진/영상을 추가해주세요."); return; }
     }
+    // Gap 3: AI student notes explicit confirmation — 최초 탭 시 Alert 확인 후에만 POST
+    // 조건: aiRequestId 존재 + student-specific note 1개+ + 아직 미확인 + 첫 시도
+    if (!isRetry && aiRequestId && !aiStudentNotesConfirmed && effectiveNotes.some(n => n.note_content?.trim())) {
+      const noteCount = effectiveNotes.filter(n => n.note_content?.trim()).length;
+      Alert.alert(
+        'AI 학생별 일지 확인',
+        `AI가 학생별 일지 ${noteCount}건을 작성했습니다.\n내용을 확인하셨나요?`,
+        [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '확인하고 저장',
+            onPress: () => {
+              setAiStudentNotesConfirmed(true);
+              setTimeout(() => handleSave(), 100);
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     setFormError(null); setSaving(true);
     try {
       if (__DEV__) console.log(`[handleSave] START isRetry=${isRetry} albumPhotoCount=${selectedAlbumIds.length} studentAlbumCount=${Object.keys(studentAlbumPhotos).length} noteCount=${effectiveNotes.length}`);

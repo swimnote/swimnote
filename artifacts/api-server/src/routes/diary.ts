@@ -891,8 +891,40 @@ router.post("/diaries",
             }
           }
         } else {
-          // scope 없음: 구버전 trace (class_id/lesson_date 미저장) — binding 스킵 (경고만)
-          console.log(`[diary-create] scope_binding_skipped (no scope in trace) request_id=${candidateRequestId.slice(0,8)}`);
+          // Gap 1: scope 없음 → 409 AI_TRACE_SCOPE_UNVERIFIED (skip 금지)
+          // 새 요청에서 scope 검증 불가 → 저장 거부. 이미 저장된 과거 diary에는 영향 없음.
+          console.warn(`[diary-create] AI_TRACE_SCOPE_UNVERIFIED — scope(class_id/lesson_date/student_ids) absent in trace request_id=${candidateRequestId.slice(0,8)}`);
+          return res.status(409).json({
+            error:     'AI_TRACE_SCOPE_UNVERIFIED',
+            retryable: true,
+            message:   'AI 일지 출처 정보를 확인할 수 없습니다. AI 일지를 다시 생성한 후 저장해 주세요.',
+          });
+        }
+
+        // Gap 2: TEACHER SCOPE LOCK — generate 당시 teacher_id와 저장 요청자 일치 검증
+        // event_logs.actor_id = generate 시 authenticated teacher id (saveAiTrace에서 저장)
+        try {
+          const actorRow = await superAdminDb.execute(sql`
+            SELECT actor_id FROM event_logs
+            WHERE target   = ${candidateRequestId}
+              AND category = 'AI'
+              AND metadata->>'feature' = 'teacher_diary'
+              AND metadata->>'status'  = 'SUCCESS'
+            LIMIT 1
+          `);
+          if (actorRow.rows.length > 0) {
+            const traceActorId = (actorRow.rows[0] as any).actor_id as string | null;
+            if (traceActorId && traceActorId !== userId) {
+              console.warn(`[diary-create] DIARY_TEACHER_SCOPE_MISMATCH trace_actor=${traceActorId} req_user=${userId} request_id=${candidateRequestId.slice(0,8)}`);
+              return res.status(409).json({
+                error:     'DIARY_TEACHER_SCOPE_MISMATCH',
+                retryable: false,
+                message:   '본인이 생성한 AI 일지만 저장할 수 있습니다. AI 일지를 다시 생성해 주세요.',
+              });
+            }
+          }
+        } catch (tErr) {
+          console.warn('[diary-create] teacher_scope_check_failed — continuing', (tErr as Error)?.message);
         }
 
         // §7 IDEMPOTENCY: 동일 request_id로 이미 diary가 저장됐는지 확인
