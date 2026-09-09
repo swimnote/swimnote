@@ -616,37 +616,50 @@ router.post(
           },
         };
 
-        // WP9-P1: 응답 직전 in-memory registry 동기 등록 (race condition 방지)
-        // - saveAiTrace는 void(fire-and-forget)로 응답 후 비동기 → registry가 선점
-        // - diary save(POST /diaries)가 즉시 도달해도 registry에서 검증 가능
+        // P0-PROVENANCE FIX: trace를 응답 전에 durable하게 저장.
+        // 저장 실패 시 503 반환 — 응답 없이 출처 불명 결과가 클라이언트에 전달되는 것을 방지.
+        // in-memory registry는 trace 확정 후 보조 캐시로만 등록.
+        try {
+          await saveAiTrace({
+            status:                   'SUCCESS',
+            request_id:               externalRequestId,
+            internal_id:              internalId,
+            pool_id:                  poolId,
+            actor_id:                 req.user?.id,
+            contract_version:         contractVersion,
+            feature:                  'teacher_diary',
+            pool_mode:                poolMode,
+            student_count:            normalizedStudents.length,
+            trigger_type:             'USER_ACTION',
+            service:                  'gpt',
+            generation_mode,
+            model:                    AI_MODEL.DIARY,
+            latency_ms:               elapsedMs,
+            input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
+            output_tokens:            _capturedUsage?.completion_tokens ?? 0,
+            total_tokens:             _capturedUsage?.total_tokens      ?? 0,
+            template_candidate_count: searchResult.candidateCount,
+            selected_template_id:     searchResult.usedTemplates[0]?.id ?? undefined,
+            curriculum_match_count:   undefined,
+            knowledge_hit_count:      0,
+          });
+        } catch (traceErr: unknown) {
+          // trace 저장 실패 → 200 반환 금지 (출처 오염 방지)
+          console.error(`[AI/v1:${internalId}] TRACE_SAVE_FAILED — refusing 200 response`, {
+            request_id: externalRequestId.slice(0, 8) + '...',
+            error: (traceErr as Error)?.message ?? traceErr,
+          });
+          res.status(503).json(
+            errBody(contractVersion, externalRequestId, 'TRACE_SAVE_FAILED',
+              'AI 일지 결과를 안전하게 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.', true),
+          );
+          return;
+        }
+        // trace 확정 후 in-memory registry 등록 (verifyAiOrigin fast-path 보조)
         registerAiOrigin(externalRequestId, poolId, req.user?.id ?? null);
 
         console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.0`);
         res.status(200).json(responseBody);
-        // WP10: trace 저장 (응답 후 비동기 — 응답 지연 없음)
-        void saveAiTrace({
-          status:                   'SUCCESS',
-          request_id:               externalRequestId,
-          internal_id:              internalId,
-          pool_id:                  poolId,
-          actor_id:                 req.user?.id,
-          contract_version:         contractVersion,
-          feature:                  'teacher_diary',
-          pool_mode:                poolMode,
-          student_count:            normalizedStudents.length,
-          trigger_type:             'USER_ACTION',
-          service:                  'gpt',
-          generation_mode,
-          model:                    AI_MODEL.DIARY,
-          latency_ms:               elapsedMs,
-          input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
-          output_tokens:            _capturedUsage?.completion_tokens ?? 0,
-          total_tokens:             _capturedUsage?.total_tokens      ?? 0,
-          template_candidate_count: searchResult.candidateCount,
-          selected_template_id:     searchResult.usedTemplates[0]?.id ?? undefined,
-          curriculum_match_count:   undefined,
-          knowledge_hit_count:      0,
-        }).catch((traceErr: unknown) => console.error(`[AI/trace] save failed internal_id=${internalId}`, traceErr));
         return;
       }
 
@@ -673,38 +686,50 @@ router.post(
         curriculum_matches: curriculumMatches,  // [] | null
       };
 
-      // WP9-P1: 응답 직전 in-memory registry 동기 등록 (contract 1.3 경로)
+      // P0-PROVENANCE FIX: contract 1.3 경로 — 동일 원칙 적용
+      try {
+        await saveAiTrace({
+          status:                   'SUCCESS',
+          request_id:               externalRequestId,
+          internal_id:              internalId,
+          pool_id:                  poolId,
+          actor_id:                 req.user?.id,
+          contract_version:         contractVersion,
+          pipeline_version:         PIPELINE_VERSION_V2,
+          feature:                  'teacher_diary',
+          pool_mode:                poolMode,
+          student_count:            normalizedStudents.length,
+          trigger_type:             'USER_ACTION',
+          service:                  'gpt',
+          generation_mode,
+          model:                    AI_MODEL.DIARY,
+          latency_ms:               elapsedMs,
+          input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
+          output_tokens:            _capturedUsage?.completion_tokens ?? 0,
+          total_tokens:             _capturedUsage?.total_tokens      ?? 0,
+          template_candidate_count: searchResult.candidateCount,
+          selected_template_id:     searchResult.usedTemplates[0]?.id ?? null,
+          ...(xTemplateStatus   != null ? { x_template_status:      xTemplateStatus  } : {}),
+          ...(xActiveSetId      != null ? { active_template_set_id: xActiveSetId     } : {}),
+          curriculum_match_count:   curriculumMatches?.length ?? undefined,
+          knowledge_hit_count:      0,
+        });
+      } catch (traceErr: unknown) {
+        console.error(`[AI/v1:${internalId}] TRACE_SAVE_FAILED (1.3) — refusing 200 response`, {
+          request_id: externalRequestId.slice(0, 8) + '...',
+          error: (traceErr as Error)?.message ?? traceErr,
+        });
+        res.status(503).json(
+          errBody(contractVersion, externalRequestId, 'TRACE_SAVE_FAILED',
+            'AI 일지 결과를 안전하게 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.', true),
+        );
+        return;
+      }
+      // trace 확정 후 in-memory registry 등록 (verifyAiOrigin fast-path 보조)
       registerAiOrigin(externalRequestId, poolId, req.user?.id ?? null);
 
       console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.3 pool_mode=${poolMode} curriculum_matches=${curriculumMatches?.length ?? 'null'}`);
       res.status(200).json(responseBody13);
-      // WP10: trace 저장 (응답 후 비동기)
-      void saveAiTrace({
-        status:                   'SUCCESS',
-        request_id:               externalRequestId,
-        internal_id:              internalId,
-        pool_id:                  poolId,
-        actor_id:                 req.user?.id,
-        contract_version:         contractVersion,
-        pipeline_version:         PIPELINE_VERSION_V2,
-        feature:                  'teacher_diary',
-        pool_mode:                poolMode,
-        student_count:            normalizedStudents.length,
-        trigger_type:             'USER_ACTION',
-        service:                  'gpt',
-        generation_mode,
-        model:                    AI_MODEL.DIARY,
-        latency_ms:               elapsedMs,
-        input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
-        output_tokens:            _capturedUsage?.completion_tokens ?? 0,
-        total_tokens:             _capturedUsage?.total_tokens      ?? 0,
-        template_candidate_count: searchResult.candidateCount,
-        selected_template_id:     searchResult.usedTemplates[0]?.id ?? null,
-        ...(xTemplateStatus   != null ? { x_template_status:      xTemplateStatus  } : {}),
-        ...(xActiveSetId      != null ? { active_template_set_id: xActiveSetId     } : {}),
-        curriculum_match_count:   curriculumMatches?.length ?? undefined,
-        knowledge_hit_count:      0,
-      }).catch((traceErr: unknown) => console.error(`[AI/trace] save failed internal_id=${internalId}`, traceErr));
 
     } catch (e: any) {
       const elapsedMs = Date.now() - startMs;
@@ -839,6 +864,18 @@ ${templateBlock}
 - 발차기, 호흡, 자세, 턴, 스트로크, 태도, 향상, 다음 수업 계획 등은 메모에 명시된 경우에만 사용합니다.
 - 특정 학생에 대한 관찰은 common에 포함하지 않습니다.
 - 학생 칭찬·격려·추론·교정 방법은 메모에 없으면 생성하지 않습니다.
+
+[P0 UNSUPPORTED FACT GUARD — 절대 원칙]
+강사 메모에 명시되지 않은 사실·관찰·평가를 학생 개인에게 귀속시키는 문장을 절대 생성하지 않습니다.
+특히 다음 유형의 표현은 강사 메모에 해당 근거가 있는 경우에만 허용됩니다. 근거 없으면 DROP합니다:
+- 향상·개선: "좋아졌습니다", "향상되었습니다", "나아졌습니다", "발전하고 있습니다"
+- 신체·기술 상태: "힘이 좋아졌습니다", "유연성이 늘었습니다", "자세가 좋아졌습니다"
+- 심리·태도 평가: "자신감이 생겼습니다", "익숙해졌습니다", "잘 따라오고 있습니다"
+- 교사 개인 관찰: 강사가 메모하지 않은 신체·기술·태도 상태 전반
+
+학생별 메모(students)에서: 강사 메모에 해당 학생 이름 + 구체적 관찰 내용이 모두 있어야 포함 가능합니다.
+학생 이름만 있거나 학생 이름이 전혀 없으면 students는 반드시 빈 배열([])입니다.
+수업 주제만 있고 학생 개인 관찰이 없을 때 학생 이름에 수업 주제를 붙여 문장을 만드는 것은 금지입니다.
 
 [응답 규칙]
 - 반드시 JSON 형식으로만 응답합니다. 마크다운이나 다른 텍스트를 포함하지 않습니다.

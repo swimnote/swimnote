@@ -713,17 +713,34 @@ router.post("/diaries",
       ]);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      // WP9-P1: AI origin server verification
-      // - client가 보낸 ai_request_id를 서버가 in-memory registry + event_logs로 검증
-      // - fake "fake-id" → registry miss + event_logs miss → FALSE
-      // - cross-pool valid id → pool_id mismatch → FALSE
-      // - 정상 AI flow → registry hit (res.json() 직전 등록) → TRUE
-      // - 일반 저장(ai_request_id 없음) → FALSE
+      // P0-PROVENANCE FIX: AI origin server verification (3-state semantics)
+      // - VERIFIED_AI:   request_id provided + DB trace confirmed → isAiGenerated=true
+      // - VERIFIED_HUMAN: request_id absent → human written → isAiGenerated=false
+      // - UNVERIFIED:    request_id provided + trace missing → 저장 거부(409)
+      //                  "검증 실패" ≠ "사람이 작성" — 이 구분은 절대 혼용 금지
+      //
+      // trace가 존재하지 않는 경우: P0-FIX 이후 saveAiTrace가 응답 전 durable 저장을
+      // 보장하므로 정상 flow에서 UNVERIFIED는 발생하지 않아야 함.
+      // 발생 시: 클라이언트가 AI 재생성(GET /generate) 후 재저장해야 함.
       const candidateRequestId = typeof ai_request_id === "string" ? ai_request_id.trim() : "";
-      const isAiGenerated = candidateRequestId.length > 0
-        ? await verifyAiOrigin(candidateRequestId, poolId, userId)
-        : false;
-      console.log(`[diary-create] ai_origin_verify request_id=${candidateRequestId ? candidateRequestId.slice(0,8)+"..." : "(none)"} pool=${poolId} verified=${isAiGenerated}`);
+      let isAiGenerated = false;
+      if (candidateRequestId.length > 0) {
+        const verified = await verifyAiOrigin(candidateRequestId, poolId, userId);
+        console.log(`[diary-create] ai_origin_verify request_id=${candidateRequestId.slice(0, 8)}... pool=${poolId} verified=${verified}`);
+        if (!verified) {
+          // UNVERIFIED: request_id 있으나 DB trace 없음 — false로 떨어뜨리지 않고 거부
+          console.warn(`[diary-create] AI_ORIGIN_UNVERIFIED — rejecting save to prevent provenance misclassification request_id=${candidateRequestId.slice(0, 8)}... pool=${poolId}`);
+          return res.status(409).json({
+            error:     "AI_ORIGIN_UNVERIFIED",
+            retryable: true,
+            message:   "AI 생성 출처를 확인할 수 없습니다. AI 일지를 다시 생성한 후 저장해 주세요.",
+          });
+        }
+        isAiGenerated = true;
+      } else {
+        // request_id 없음 → 사람이 직접 작성 (VERIFIED_HUMAN)
+        console.log(`[diary-create] ai_origin_verify no request_id → human written`);
+      }
 
       const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
       if (!class_group_id || (!common_content?.trim() && !hasStudentNotes)) {
