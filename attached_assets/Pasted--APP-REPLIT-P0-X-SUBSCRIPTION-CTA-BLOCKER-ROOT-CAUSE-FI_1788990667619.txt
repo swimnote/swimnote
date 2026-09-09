@@ -1,0 +1,304 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — X SUBSCRIPTION CTA "준비 중" BLOCKER ROOT CAUSE + FIX]
+
+문제:
+현재 X300/X500/X1000 구독 화면에서
+일부 상태에서 CTA가 "구독 신청 준비 중"으로 막혀 있음.
+
+사용자 확정 정책:
+
+SWIMNOTE 기본 구독을 먼저 결제할 필요 없음.
+
+신규/기존 수영장 모두 바로:
+
+- X300
+- X500
+- X1000
+
+중 하나를 직접 구매 가능해야 함.
+
+즉:
+
+SWIMNOTE 선구독
+≠
+X 구매 prerequisite
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 CTA 차단 조건 전수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 문자열/조건 전수검색:
+
+"구독 신청 준비 중"
+"준비 중"
+disabled
+canPurchase
+isPurchaseReady
+hasSubscription
+hasBaseSubscription
+currentPlan
+subscription_tier
+center entitlement
+swimnote entitlement
+x_mode
+x_paid_entitlement
+x_trial
+mode === 'x'
+mode === 'normal'
+
+특히:
+
+app/(admin)/subscription.tsx
+x-subscription 관련 화면
+billing/purchase helper
+RevenueCat package resolver
+
+에서 실제 버튼 disabled 조건 확정.
+
+완료보고에:
+
+- 파일
+- line
+- 조건
+- 왜 차단되는지
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. X 구매 prerequisite 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300/X500/X1000 구매 조건에서:
+
+- SWIMNOTE 기본 구독 보유
+- center entitlement 보유
+- subscription_tier 존재
+- 기존 paid plan 존재
+
+등을 prerequisite로 사용하는 조건이 있으면 제거.
+
+허용 대상:
+
+A. 완전 신규 pool
+B. BASE 무료/미구독 pool
+C. SWIMNOTE paid pool
+D. X Trial pool
+E. manual/HQ 상태 pool
+
+단:
+x_force_disabled 정책은 기존 의미 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. RevenueCat package 존재만으로 구매 가능
+━━━━━━━━━━━━━━━━━━━━━━
+
+구매 CTA 활성 조건은 원칙적으로:
+
+- RevenueCat configured
+- offering x_monthly fetch 성공
+- package x300/x500/x1000 존재
+- user/admin 권한 정상
+- 실제 purchase 진행 가능
+
+이면 활성.
+
+SWIMNOTE 기본 상품 구매 이력은 조건 아님.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 신규 X 직접구매 flow
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 pool이 현재 paid subscription 0인 상태에서:
+
+X300 버튼 탭
+→ RevenueCat purchasePackage(x300)
+→ Google Play/App Store 결제
+→ 성공
+→ x_paid_entitlement=true
+→ x_plan_key=x300
+→ mode=x
+
+정상 동작 확인.
+
+X500/X1000 동일.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SWIMNOTE → X upgrade flow
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 SWIMNOTE paid 사용자가 X 구매하는 것도 허용.
+
+중요:
+이중결제 정책을 조사하되
+이번 작업에서 임의로 복잡한 subscription replacement 시스템 만들지 말 것.
+
+현재 RevenueCat/스토어 구조에서
+SWIMNOTE와 X가 별도 subscription group/product라
+동시 활성 가능성이 있는지 확인.
+
+결과를 보고:
+
+A. 실제 스토어 레벨에서 replacement/upgrade 가능
+B. 별도 구독으로 동시 결제 위험 있음
+
+중 하나로 정확히 보고.
+
+동시결제 위험이 있으면
+이번 작업에서 자동 취소 로직 임의 구현 금지.
+출시 blocker 여부와 최소 대응만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X TRIAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+x_trial 활성 상태에서도
+X300/X500/X1000 구매 버튼 활성.
+
+trial→paid 성공 시:
+
+paid > trial 우선
+
+유지.
+
+Google Play/App Store 무료체험 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. SWIMNOTE 기본상품
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE ₩9,900 상품은 그대로 독립 구매 가능.
+
+단:
+
+"SWIMNOTE를 먼저 가입해야 X 이용 가능"
+
+문구/로직이 있으면 제거.
+
+X는 BASE 전체 기능 + X 추가 기능이므로
+X 직접 가입 시 BASE 기능도 자동 사용 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 "준비 중" 문구 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+"구독 신청 준비 중"은
+정말 결제 인프라가 없는 기능에만 사용.
+
+현재 HOLD:
+DATA100 / DATA300
+AI Insight Report
+
+이들은 준비 중/HOLD 유지.
+
+하지만:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+은 출시 판매 상품이므로
+"준비 중"이면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+미구독 신규 pool
+→ X300 CTA 활성
+→ purchase 시작 가능
+
+CASE B
+미구독 신규 pool
+→ X500 CTA 활성
+
+CASE C
+미구독 신규 pool
+→ X1000 CTA 활성
+
+CASE D
+SWIMNOTE paid
+→ X purchase CTA 활성
+
+CASE E
+X Trial
+→ X purchase CTA 활성
+
+CASE F
+X paid
+→ 현재 plan 표시 정상
+
+CASE G
+DATA100/300
+→ HOLD 유지
+
+CASE H
+AI Insight
+→ HOLD 유지
+
+CASE I
+RevenueCat offering/package fetch 실패
+→ 명확한 오류/재시도
+→ "기본구독 필요"로 오판 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제 원인 확정 후 최소 수정.
+
+APP 수정:
+latest current HEAD
+→ preflight
+→ iOS production-v2 OTA
+
+Android:
+현재 242 build가 이미 진행/업로드 중이면
+이 수정은 242에 포함됐는지 먼저 확인.
+
+242 source에 미포함이면
+다음 Android build에 포함 필요 여부만 보고.
+임의 재빌드 금지.
+
+SERVER 수정 필요 시:
+test
+→ main
+→ Render LIVE
+→ health SHA exact
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. "구독 신청 준비 중" 정확한 원인
+2. 차단 조건 위치
+3. SWIMNOTE prerequisite 존재 여부
+4. 제거한 조건
+5. 신규 pool X300 직접구매
+6. 신규 pool X500 직접구매
+7. 신규 pool X1000 직접구매
+8. SWIMNOTE→X flow
+9. trial→X paid
+10. 이중결제 위험 여부
+11. DATA HOLD
+12. Insight HOLD
+13. 수정 파일
+14. tests
+15. main HEAD
+16. Render LIVE SHA
+17. iOS OTA ID
+18. Android 242 포함 여부
+19. blocker
+20. 최종 PASS/HOLD
+
+PASS 조건:
+
+- SWIMNOTE 선구독 없이 X 직접구매 가능
+- X300/X500/X1000 CTA 활성
+- trial 중 구매 가능
+- DATA/Insight HOLD 유지
+- blocker 0
+
+완료 후 STOP.
