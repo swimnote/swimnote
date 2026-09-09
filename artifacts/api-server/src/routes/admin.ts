@@ -59,6 +59,8 @@ router.patch("/pools/:id/approve", requireAuth, requirePermission("canApprovePoo
     const [pool] = await superAdminDb.select().from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, id)).limit(1);
     if (!pool) return res.status(404).json({ success: false, message: "수영장을 찾을 수 없습니다.", error: "pool not found" });
 
+    const beforeStatus = (pool as any).approval_status ?? null;
+
     // 승인 처리
     const [updated] = await superAdminDb.update(swimmingPoolsTable)
       .set({ approval_status: "approved", subscription_status: "trial", updated_at: new Date() })
@@ -74,6 +76,19 @@ router.patch("/pools/:id/approve", requireAuth, requirePermission("canApprovePoo
       console.log(`[INFO] 관리자 계정 활성화: ${adminEmail} (pool: ${id})`);
     }
 
+    // Audit log — pool approve before/after
+    superAdminDb.execute(sql`
+      INSERT INTO audit_logs
+        (id, entity_type, entity_id, action, actor_type, actor_id, pool_id,
+         before_data, after_data, created_at)
+      VALUES
+        (${`al_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`},
+         'swimming_pool', ${id}, 'pool_approve', 'user', ${req.user!.userId}, ${id},
+         ${JSON.stringify({ approval_status: beforeStatus })}::jsonb,
+         '{"approval_status":"approved","subscription_status":"trial"}'::jsonb,
+         NOW())
+    `).catch((e: any) => console.error("[audit] pool_approve 기록 실패:", e?.message));
+
     res.json({ success: true, data: updated });
   } catch (err) {
     console.error(err);
@@ -85,11 +100,30 @@ router.patch("/pools/:id/reject", requireAuth, requirePermission("canApprovePool
   const { id } = req.params;
   const { reason } = req.body;
   try {
+    // before 상태 캡처
+    const [beforePool] = await superAdminDb.select().from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, id)).limit(1);
+    const beforeStatus = (beforePool as any)?.approval_status ?? null;
+
     const [pool] = await superAdminDb.update(swimmingPoolsTable)
       .set({ approval_status: "rejected", rejection_reason: reason || "기준 미달", updated_at: new Date() })
       .where(eq(swimmingPoolsTable.id, id))
       .returning();
     if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
+
+    // Audit log — pool reject before/after
+    superAdminDb.execute(sql`
+      INSERT INTO audit_logs
+        (id, entity_type, entity_id, action, actor_type, actor_id, pool_id,
+         before_data, after_data, reason, created_at)
+      VALUES
+        (${`al_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`},
+         'swimming_pool', ${id}, 'pool_reject', 'user', ${req.user!.userId}, ${id},
+         ${JSON.stringify({ approval_status: beforeStatus })}::jsonb,
+         ${JSON.stringify({ approval_status: "rejected" })}::jsonb,
+         ${reason || "기준 미달"},
+         NOW())
+    `).catch((e: any) => console.error("[audit] pool_reject 기록 실패:", e?.message));
+
     res.json(pool);
   } catch (err) {
     res.status(500).json({ error: "서버 오류가 발생했습니다." });

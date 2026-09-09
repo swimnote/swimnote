@@ -26,16 +26,20 @@
  *   - Photo MIME: image/jpeg | image/png | image/webp
  *   - 원본 파일 보관 (X 구독 해지/만료 후에도 보존)
  *
- * Versioning:
- *   - 재업로드 시 이전 파일 is_current=false, 신규 파일 is_current=true
- *   - photo는 max 10장 (current만 카운트)
+ * Durability (P0 fixes):
+ *   - DB transaction: is_current=false + INSERT + submission_update atomic
+ *   - Advisory lock: pg_advisory_xact_lock prevents version race per (pool, file_type)
+ *   - R2 compensating cleanup: DB transaction 실패 시 신규 R2 object 삭제 시도
+ *   - UNIQUE partial index on (pool_id, file_type, submission_version) WHERE type!=photo
+ *   - raw_original_filename: 원본 파일명 별도 보존
+ *   - audit_logs: 업로드/재업로드/삭제/제출/승인/revision 전 action 기록
  */
 import { Router } from "express";
 import multer from "multer";
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
-import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
+import { uploadToR2, getPresignedUrl, deleteFromR2 } from "../lib/objectStorage.js";
 import { TEMPLATE_VERSIONS, getTemplateR2Key, type TemplateType } from "../lib/xSetupTemplates.js";
 import {
   processLocalCurriculumForReview,
@@ -130,14 +134,156 @@ async function ensureSubmission(poolId: string): Promise<void> {
   `);
 }
 
-// ── 현재 version 번호 계산 ────────────────────────────────────────────────────
-async function nextVersion(poolId: string, fileType: string): Promise<number> {
-  const [r] = (await superAdminDb.execute(sql`
-    SELECT COALESCE(MAX(submission_version), 0) AS v
-    FROM x_setup_files
-    WHERE pool_id = ${poolId} AND file_type = ${fileType}
-  `)).rows as any[];
-  return (r?.v ?? 0) + 1;
+// ── Audit log 헬퍼 ───────────────────────────────────────────────────────────
+/**
+ * X setup 관련 action을 audit_logs에 기록한다.
+ * fire-and-forget — 실패해도 업로드 자체는 중단하지 않는다.
+ */
+async function logXSetupAudit(params: {
+  action: string;
+  poolId: string;
+  actorId: string;
+  actorType?: string;
+  fileId?: string;
+  fileType?: string;
+  version?: number;
+  meta?: Record<string, unknown>;
+}): Promise<void> {
+  const entityId = params.fileId ?? params.poolId;
+  const afterData = JSON.stringify({
+    file_type: params.fileType,
+    version: params.version,
+    ...params.meta,
+  });
+  await superAdminDb.execute(sql`
+    INSERT INTO audit_logs
+      (id, entity_type, entity_id, action, actor_type, actor_id, pool_id, after_data, created_at)
+    VALUES
+      (${genId("al")}, 'x_setup_file', ${entityId}, ${params.action},
+       ${params.actorType ?? "user"}, ${params.actorId}, ${params.poolId},
+       ${afterData}::jsonb, NOW())
+  `).catch((e: any) => console.error(`[x-setup audit] ${params.action} 기록 실패:`, e?.message));
+}
+
+// ── R2 orphan 보상 cleanup ───────────────────────────────────────────────────
+/**
+ * DB transaction 실패 시 방금 업로드한 신규 R2 object를 삭제 시도한다.
+ * 기존/과거 R2 object는 절대 삭제하지 않는다.
+ * cleanup 실패 시 audit_logs에 r2_orphan_cleanup_failed로 기록한다.
+ */
+async function compensatingR2Cleanup(params: {
+  r2Key: string;
+  bucket: "photo" | "video";
+  poolId: string;
+  actorId: string;
+  fileType: string;
+}): Promise<void> {
+  try {
+    await deleteFromR2(params.r2Key, params.bucket);
+    console.warn(`[x-setup] R2 compensating cleanup 성공: ${params.r2Key}`);
+  } catch (cleanupErr: any) {
+    console.error(`[x-setup] R2 compensating cleanup 실패: ${params.r2Key}`, cleanupErr?.message);
+    // 추적 가능한 orphan 로그
+    await superAdminDb.execute(sql`
+      INSERT INTO audit_logs
+        (id, entity_type, entity_id, action, actor_type, actor_id, pool_id, after_data, created_at)
+      VALUES
+        (${genId("al")}, 'x_setup_orphan', ${params.r2Key}, 'r2_orphan_cleanup_failed',
+         'system', ${params.actorId}, ${params.poolId},
+         ${JSON.stringify({ r2_key: params.r2Key, file_type: params.fileType, error: cleanupErr?.message })}::jsonb,
+         NOW())
+    `).catch((e: any) => console.error("[x-setup] orphan log 실패:", e?.message));
+  }
+}
+
+// ── Versioned file atomic upload (curriculum / website / logo) ───────────────
+/**
+ * P0-A + P0-B + P0-C 동시 해결:
+ *   - advisory lock: (pool_id, file_type) 쌍으로 직렬화 → version race 불가
+ *   - transaction: is_current=false UPDATE + INSERT + submission UPDATE 원자적
+ *   - compensating cleanup: DB 실패 시 신규 R2 object 삭제
+ *   - raw_original_filename: 원본 파일명 별도 보존
+ */
+async function uploadVersionedFile(params: {
+  poolId: string;
+  actorId: string;
+  fileType: "curriculum" | "website" | "logo";
+  r2Key: string;
+  rawOriginalFilename: string;
+  safeName: string;
+  mimeType: string;
+  fileSize: number;
+  templateVersion?: string | null;
+  submissionStatusCol: string;
+  submissionStatusValue: string;
+}): Promise<{ fileId: string; version: number }> {
+  const {
+    poolId, actorId, fileType, r2Key,
+    rawOriginalFilename, safeName, mimeType, fileSize,
+    templateVersion, submissionStatusCol, submissionStatusValue,
+  } = params;
+
+  const fileId = genId("xsf");
+  let version = 0; // transaction 내부에서 설정됨
+
+  await superAdminDb.transaction(async (tx) => {
+    // 1. Advisory lock — 같은 (pool, fileType)에서 동시 업로드 직렬화
+    //    pg_advisory_xact_lock은 transaction 종료 시 자동 해제
+    const lockKey = `${poolId}:${fileType}`;
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
+
+    // 2. Version 계산 (lock 안에서 → race 불가)
+    const [vr] = (await tx.execute(sql`
+      SELECT COALESCE(MAX(submission_version), 0) + 1 AS v
+      FROM x_setup_files
+      WHERE pool_id = ${poolId} AND file_type = ${fileType}
+    `)).rows as any[];
+    version = Number(vr?.v ?? 1);
+
+    // 3. 기존 current 파일 is_current=false (rollback되면 원복됨)
+    await tx.execute(sql`
+      UPDATE x_setup_files SET is_current = false
+      WHERE pool_id = ${poolId} AND file_type = ${fileType}
+    `);
+
+    // 4. 신규 파일 INSERT
+    await tx.execute(sql`
+      INSERT INTO x_setup_files
+        (id, pool_id, file_type, r2_key, original_filename, raw_original_filename,
+         mime_type, file_size_bytes, submission_version, is_current,
+         template_version, uploaded_by, uploaded_at)
+      VALUES
+        (${fileId}, ${poolId}, ${fileType}, ${r2Key}, ${safeName}, ${rawOriginalFilename},
+         ${mimeType}, ${fileSize}, ${version}, true,
+         ${templateVersion ?? null}, ${actorId}, NOW())
+    `);
+
+    // 5. Submission 상태 갱신
+    if (submissionStatusCol === "curriculum_status") {
+      await tx.execute(sql`
+        UPDATE x_setup_submissions
+        SET curriculum_status = ${submissionStatusValue},
+            setup_status = CASE WHEN setup_status = 'NOT_STARTED' THEN 'IN_PROGRESS' ELSE setup_status END,
+            updated_at = NOW()
+        WHERE pool_id = ${poolId}
+      `);
+    } else if (submissionStatusCol === "website_status") {
+      await tx.execute(sql`
+        UPDATE x_setup_submissions
+        SET website_status = ${submissionStatusValue},
+            setup_status = CASE WHEN setup_status = 'NOT_STARTED' THEN 'IN_PROGRESS' ELSE setup_status END,
+            updated_at = NOW()
+        WHERE pool_id = ${poolId}
+      `);
+    } else if (submissionStatusCol === "logo_status") {
+      await tx.execute(sql`
+        UPDATE x_setup_submissions SET logo_status = ${submissionStatusValue}, updated_at = NOW()
+        WHERE pool_id = ${poolId}
+      `);
+    }
+  });
+
+  return { fileId, version };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -162,7 +308,7 @@ router.get("/x-setup/status", requireAuth, requireRole("pool_admin"), async (req
     `)).rows as any[];
 
     const files = (await superAdminDb.execute(sql`
-      SELECT id, file_type, original_filename, mime_type, file_size_bytes,
+      SELECT id, file_type, original_filename, raw_original_filename, mime_type, file_size_bytes,
              submission_version, photo_order, photo_title, photo_category,
              template_version, uploaded_at
       FROM x_setup_files
@@ -217,55 +363,50 @@ router.post("/x-setup/upload/curriculum", requireAuth, requireRole("pool_admin")
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // X entitlement guard — x_pending 포함 허용, BASE 차단
     if (!(await hasXEntitlement(poolId).catch(() => false))) {
       res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
     }
 
+    const actorId = req.user!.userId;
+
     try {
       await ensureSubmission(poolId);
-      const version = await nextVersion(poolId, "curriculum");
+
+      // R2 key는 timestamp + genId로 고유성 보장 (version은 DB에서 관리)
       const safeName = sanitizeFilename(file.originalname);
-      const r2Key = `x-setup/${poolId}/curriculum/v${version}_${Date.now()}_${safeName}`;
+      const r2Key = `x-setup/${poolId}/curriculum/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
 
-      const { ok, error } = await uploadToR2(r2Key, file.buffer, DOCX_MIME, "photo");
-      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: error }); return; }
+      // ── Step 1: R2 upload ─────────────────────────────────────────────────
+      const { ok, error: r2Err } = await uploadToR2(r2Key, file.buffer, DOCX_MIME, "photo");
+      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: r2Err }); return; }
 
-      // 이전 curriculum 파일 is_current=false
-      await superAdminDb.execute(sql`
-        UPDATE x_setup_files SET is_current = false
-        WHERE pool_id = ${poolId} AND file_type = 'curriculum'
-      `);
+      // ── Step 2: Atomic DB transaction (advisory lock + versioning) ────────
+      let fileId: string;
+      let version: number;
+      try {
+        ({ fileId, version } = await uploadVersionedFile({
+          poolId, actorId, fileType: "curriculum", r2Key,
+          rawOriginalFilename: file.originalname,
+          safeName, mimeType: DOCX_MIME, fileSize: file.size,
+          templateVersion: (req.body?.template_version as string | undefined) ?? null,
+          submissionStatusCol: "curriculum_status",
+          submissionStatusValue: "SUBMITTED",
+        }));
+      } catch (dbErr) {
+        // DB 실패 → 신규 R2 object 보상 삭제
+        await compensatingR2Cleanup({ r2Key, bucket: "photo", poolId, actorId, fileType: "curriculum" });
+        throw dbErr; // → 500 반환
+      }
 
-      const fileId = genId("xsf");
-      await superAdminDb.execute(sql`
-        INSERT INTO x_setup_files
-          (id, pool_id, file_type, r2_key, original_filename, mime_type,
-           file_size_bytes, submission_version, is_current,
-           template_version, uploaded_by, uploaded_at)
-        VALUES (${fileId}, ${poolId}, 'curriculum', ${r2Key}, ${safeName},
-                ${DOCX_MIME}, ${file.size}, ${version}, true,
-                ${(req.body?.template_version as string | undefined) ?? null},
-                ${req.user!.userId}, NOW())
-      `);
+      // ── Step 3: Audit log ─────────────────────────────────────────────────
+      const isReupload = version > 1;
+      await logXSetupAudit({
+        action: isReupload ? "x_setup_reupload" : "x_setup_upload",
+        poolId, actorId, fileId, fileType: "curriculum", version,
+        meta: { safe_name: safeName, file_size: file.size, r2_key: r2Key },
+      });
 
-      // setup_status 갱신 (NOT_STARTED → IN_PROGRESS)
-      await superAdminDb.execute(sql`
-        UPDATE x_setup_submissions
-        SET curriculum_status = 'SUBMITTED',
-            setup_status = CASE
-              WHEN setup_status = 'NOT_STARTED' THEN 'IN_PROGRESS'
-              ELSE setup_status
-            END,
-            updated_at = NOW()
-        WHERE pool_id = ${poolId}
-      `);
-
-      // ── Parse / Structure / Validate (사람 검수 대기) ───────────────────────
-      // 업로드 후 자동 허용: SAVE → PARSE → STRUCTURE → VALIDATE → REVIEW_PENDING
-      // approve / activate / READY 는 super_admin 승인 후에만 수행.
-      // 실패(HARD_BLOCKED)해도 업로드 자체는 성공 — 기존 active 버전 유지.
-      const actorId = req.user!.userId;
+      // ── Step 4: Parse / Review (실패해도 원본 보존) ──────────────────────
       let reviewResult: Awaited<ReturnType<typeof processLocalCurriculumForReview>> | null = null;
       try {
         reviewResult = await processLocalCurriculumForReview(poolId, actorId);
@@ -310,47 +451,43 @@ router.post("/x-setup/upload/website", requireAuth, requireRole("pool_admin"),
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // X entitlement guard — x_pending 포함 허용, BASE 차단
     if (!(await hasXEntitlement(poolId).catch(() => false))) {
       res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
     }
 
+    const actorId = req.user!.userId;
+
     try {
       await ensureSubmission(poolId);
-      const version = await nextVersion(poolId, "website");
+
       const safeName = sanitizeFilename(file.originalname);
-      const r2Key = `x-setup/${poolId}/website/v${version}_${Date.now()}_${safeName}`;
+      const r2Key = `x-setup/${poolId}/website/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
 
-      const { ok, error } = await uploadToR2(r2Key, file.buffer, DOCX_MIME, "photo");
-      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: error }); return; }
+      const { ok, error: r2Err } = await uploadToR2(r2Key, file.buffer, DOCX_MIME, "photo");
+      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: r2Err }); return; }
 
-      await superAdminDb.execute(sql`
-        UPDATE x_setup_files SET is_current = false
-        WHERE pool_id = ${poolId} AND file_type = 'website'
-      `);
+      let fileId: string;
+      let version: number;
+      try {
+        ({ fileId, version } = await uploadVersionedFile({
+          poolId, actorId, fileType: "website", r2Key,
+          rawOriginalFilename: file.originalname,
+          safeName, mimeType: DOCX_MIME, fileSize: file.size,
+          templateVersion: (req.body?.template_version as string | undefined) ?? null,
+          submissionStatusCol: "website_status",
+          submissionStatusValue: "SUBMITTED",
+        }));
+      } catch (dbErr) {
+        await compensatingR2Cleanup({ r2Key, bucket: "photo", poolId, actorId, fileType: "website" });
+        throw dbErr;
+      }
 
-      const fileId = genId("xsf");
-      await superAdminDb.execute(sql`
-        INSERT INTO x_setup_files
-          (id, pool_id, file_type, r2_key, original_filename, mime_type,
-           file_size_bytes, submission_version, is_current,
-           template_version, uploaded_by, uploaded_at)
-        VALUES (${fileId}, ${poolId}, 'website', ${r2Key}, ${safeName},
-                ${DOCX_MIME}, ${file.size}, ${version}, true,
-                ${(req.body?.template_version as string | undefined) ?? null},
-                ${req.user!.userId}, NOW())
-      `);
-
-      await superAdminDb.execute(sql`
-        UPDATE x_setup_submissions
-        SET website_status = 'SUBMITTED',
-            setup_status = CASE
-              WHEN setup_status = 'NOT_STARTED' THEN 'IN_PROGRESS'
-              ELSE setup_status
-            END,
-            updated_at = NOW()
-        WHERE pool_id = ${poolId}
-      `);
+      const isReupload = version > 1;
+      await logXSetupAudit({
+        action: isReupload ? "x_setup_reupload" : "x_setup_upload",
+        poolId, actorId, fileId, fileType: "website", version,
+        meta: { safe_name: safeName, file_size: file.size, r2_key: r2Key },
+      });
 
       res.json({ ok: true, file_id: fileId, version, r2_key: r2Key });
     } catch (err) {
@@ -372,41 +509,42 @@ router.post("/x-setup/upload/logo", requireAuth, requireRole("pool_admin"),
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // X entitlement guard — x_pending 포함 허용, BASE 차단
     if (!(await hasXEntitlement(poolId).catch(() => false))) {
       res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
     }
 
+    const actorId = req.user!.userId;
+
     try {
       await ensureSubmission(poolId);
-      const version = await nextVersion(poolId, "logo");
+
       const safeName = sanitizeFilename(file.originalname);
-      const r2Key = `x-setup/${poolId}/logo/v${version}_${Date.now()}_${safeName}`;
+      const r2Key = `x-setup/${poolId}/logo/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${safeName}`;
 
-      const { ok, error } = await uploadToR2(r2Key, file.buffer, file.mimetype, "photo");
-      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: error }); return; }
+      const { ok, error: r2Err } = await uploadToR2(r2Key, file.buffer, file.mimetype, "photo");
+      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: r2Err }); return; }
 
-      await superAdminDb.execute(sql`
-        UPDATE x_setup_files SET is_current = false
-        WHERE pool_id = ${poolId} AND file_type = 'logo'
-      `);
+      let fileId: string;
+      let version: number;
+      try {
+        ({ fileId, version } = await uploadVersionedFile({
+          poolId, actorId, fileType: "logo", r2Key,
+          rawOriginalFilename: file.originalname,
+          safeName, mimeType: file.mimetype, fileSize: file.size,
+          submissionStatusCol: "logo_status",
+          submissionStatusValue: "SUBMITTED",
+        }));
+      } catch (dbErr) {
+        await compensatingR2Cleanup({ r2Key, bucket: "photo", poolId, actorId, fileType: "logo" });
+        throw dbErr;
+      }
 
-      const fileId = genId("xsf");
-      await superAdminDb.execute(sql`
-        INSERT INTO x_setup_files
-          (id, pool_id, file_type, r2_key, original_filename, mime_type,
-           file_size_bytes, submission_version, is_current, uploaded_by, uploaded_at)
-        VALUES (${fileId}, ${poolId}, 'logo', ${r2Key}, ${safeName},
-                ${file.mimetype}, ${file.size}, ${version}, true,
-                ${req.user!.userId}, NOW())
-      `);
-
-      await superAdminDb.execute(sql`
-        UPDATE x_setup_submissions
-        SET logo_status = 'SUBMITTED',
-            updated_at = NOW()
-        WHERE pool_id = ${poolId}
-      `);
+      const isReupload = version > 1;
+      await logXSetupAudit({
+        action: isReupload ? "x_setup_reupload" : "x_setup_upload",
+        poolId, actorId, fileId, fileType: "logo", version,
+        meta: { safe_name: safeName, file_size: file.size, r2_key: r2Key },
+      });
 
       res.json({ ok: true, file_id: fileId, version, r2_key: r2Key });
     } catch (err) {
@@ -428,10 +566,11 @@ router.post("/x-setup/upload/photo", requireAuth, requireRole("pool_admin"),
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // X entitlement guard — x_pending 포함 허용, BASE 차단
     if (!(await hasXEntitlement(poolId).catch(() => false))) {
       res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
     }
+
+    const actorId = req.user!.userId;
 
     try {
       await ensureSubmission(poolId);
@@ -451,32 +590,48 @@ router.post("/x-setup/upload/photo", requireAuth, requireRole("pool_admin"),
 
       const safeName = sanitizeFilename(file.originalname);
       const r2Key = `x-setup/${poolId}/photos/${Date.now()}_${safeName}`;
-      const { ok, error } = await uploadToR2(r2Key, file.buffer, file.mimetype, "photo");
-      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: error }); return; }
 
+      // ── Step 1: R2 upload ─────────────────────────────────────────────────
+      const { ok, error: r2Err } = await uploadToR2(r2Key, file.buffer, file.mimetype, "photo");
+      if (!ok) { res.status(503).json({ error: "파일 저장에 실패했습니다.", detail: r2Err }); return; }
+
+      // ── Step 2: Atomic DB insert + submission update ──────────────────────
       const photoOrder = currentCount + 1;
       const photoTitle    = (req.body?.title as string | undefined) ?? null;
       const photoCategory = (req.body?.category as string | undefined) ?? null;
-
       const fileId = genId("xsf");
-      await superAdminDb.execute(sql`
-        INSERT INTO x_setup_files
-          (id, pool_id, file_type, r2_key, original_filename, mime_type,
-           file_size_bytes, submission_version, is_current,
-           photo_order, photo_title, photo_category,
-           uploaded_by, uploaded_at)
-        VALUES (${fileId}, ${poolId}, 'photo', ${r2Key}, ${safeName},
-                ${file.mimetype}, ${file.size}, 1, true,
-                ${photoOrder}, ${photoTitle}, ${photoCategory},
-                ${req.user!.userId}, NOW())
-      `);
 
-      await superAdminDb.execute(sql`
-        UPDATE x_setup_submissions
-        SET photos_status = 'SUBMITTED',
-            updated_at = NOW()
-        WHERE pool_id = ${poolId}
-      `);
+      try {
+        await superAdminDb.transaction(async (tx) => {
+          await tx.execute(sql`
+            INSERT INTO x_setup_files
+              (id, pool_id, file_type, r2_key, original_filename, raw_original_filename,
+               mime_type, file_size_bytes, submission_version, is_current,
+               photo_order, photo_title, photo_category, uploaded_by, uploaded_at)
+            VALUES
+              (${fileId}, ${poolId}, 'photo', ${r2Key}, ${safeName}, ${file.originalname},
+               ${file.mimetype}, ${file.size}, 1, true,
+               ${photoOrder}, ${photoTitle}, ${photoCategory}, ${actorId}, NOW())
+          `);
+
+          await tx.execute(sql`
+            UPDATE x_setup_submissions
+            SET photos_status = 'SUBMITTED', updated_at = NOW()
+            WHERE pool_id = ${poolId}
+          `);
+        });
+      } catch (dbErr) {
+        // DB 실패 → 신규 R2 object 보상 삭제
+        await compensatingR2Cleanup({ r2Key, bucket: "photo", poolId, actorId, fileType: "photo" });
+        throw dbErr;
+      }
+
+      // ── Step 3: Audit log ─────────────────────────────────────────────────
+      await logXSetupAudit({
+        action: "x_setup_photo_upload",
+        poolId, actorId, fileId, fileType: "photo",
+        meta: { safe_name: safeName, photo_order: photoOrder, file_size: file.size },
+      });
 
       res.json({ ok: true, file_id: fileId, photo_order: photoOrder, r2_key: r2Key, total_count: currentCount + 1 });
     } catch (err) {
@@ -492,10 +647,11 @@ router.delete("/x-setup/photos/:fileId", requireAuth, requireRole("pool_admin"),
   const poolId = await getPoolId(req.user!.userId);
   if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-  // X entitlement guard — x_pending 포함 허용, BASE 차단
   if (!(await hasXEntitlement(poolId).catch(() => false))) {
     res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
   }
+
+  const actorId = req.user!.userId;
 
   try {
     // cross-pool 방어: pool_id 일치 확인
@@ -522,6 +678,13 @@ router.delete("/x-setup/photos/:fileId", requireAuth, requireRole("pool_admin"),
         WHERE pool_id = ${poolId}
       `);
     }
+
+    // Audit log
+    await logXSetupAudit({
+      action: "x_setup_photo_delete",
+      poolId, actorId, fileId, fileType: "photo",
+    });
+
     res.json({ ok: true });
   } catch (err) {
     console.error("[x-setup/photos/delete]", err);
@@ -530,25 +693,24 @@ router.delete("/x-setup/photos/:fileId", requireAuth, requireRole("pool_admin"),
 });
 
 // ── POST /x-setup/submit ───────────────────────────────────────────────────
-// body: { sections?: string[] }  — 전달 시 해당 섹션만, 없으면 전체 제출 상태로 SUBMITTED 마킹
 router.post("/x-setup/submit", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
   const poolId = await getPoolId(req.user!.userId);
   if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-  // X entitlement guard — x_pending 포함 허용, BASE 차단
   if (!(await hasXEntitlement(poolId).catch(() => false))) {
     res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
   }
 
+  const actorId = req.user!.userId;
+
   try {
     await ensureSubmission(poolId);
 
-    // 전체 SUBMITTED로 전환 (각 섹션 상태 유지, overall만 변경)
     await superAdminDb.execute(sql`
       UPDATE x_setup_submissions
       SET setup_status = 'SUBMITTED',
           submitted_at = COALESCE(submitted_at, NOW()),
-          submitted_by = ${req.user!.userId},
+          submitted_by = ${actorId},
           updated_at = NOW()
       WHERE pool_id = ${poolId}
     `);
@@ -556,6 +718,12 @@ router.post("/x-setup/submit", requireAuth, requireRole("pool_admin"), async (re
     const [sub] = (await superAdminDb.execute(sql`
       SELECT * FROM x_setup_submissions WHERE pool_id = ${poolId}
     `)).rows as any[];
+
+    // Audit log
+    await logXSetupAudit({
+      action: "x_setup_submit", poolId, actorId,
+      meta: { setup_status: "SUBMITTED" },
+    });
 
     res.json({ ok: true, submission: sub });
   } catch (err) {
@@ -572,7 +740,6 @@ router.post("/x-setup/submit", requireAuth, requireRole("pool_admin"), async (re
 router.get("/super/x-setup/:poolId", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   const { poolId } = req.params;
   try {
-    // pool 존재 확인
     const [pool] = (await superAdminDb.execute(sql`
       SELECT id, name, x_paid_entitlement, x_manual_entitlement, xmode_config_status
       FROM swimming_pools WHERE id = ${poolId} LIMIT 1
@@ -583,9 +750,9 @@ router.get("/super/x-setup/:poolId", requireAuth, requireRole("super_admin"), as
       SELECT * FROM x_setup_submissions WHERE pool_id = ${poolId} LIMIT 1
     `)).rows as any[];
 
-    // 현재 파일 (삭제 포함) — 버전 이력
+    // 현재 파일 + 이력 (삭제 포함) — raw_original_filename 포함
     const allFiles = (await superAdminDb.execute(sql`
-      SELECT id, file_type, original_filename, mime_type, file_size_bytes,
+      SELECT id, file_type, original_filename, raw_original_filename, mime_type, file_size_bytes,
              submission_version, is_current, photo_order, photo_title, photo_category,
              template_version, uploaded_by, uploaded_at, deleted_at
       FROM x_setup_files
@@ -608,11 +775,13 @@ router.get("/super/x-setup/:poolId", requireAuth, requireRole("super_admin"), as
 });
 
 // ── GET /super/x-setup/:poolId/files/:fileId/download ─────────────────────
+// soft-deleted 파일도 Super Admin forensic 목적으로 download 허용
 router.get("/super/x-setup/:poolId/files/:fileId/download", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   const { poolId, fileId } = req.params;
   try {
+    // deleted_at 필터 없음 — soft-deleted 원본도 접근 가능 (forensic)
     const [file] = (await superAdminDb.execute(sql`
-      SELECT id, r2_key, original_filename, mime_type, pool_id
+      SELECT id, r2_key, original_filename, raw_original_filename, mime_type, pool_id, deleted_at
       FROM x_setup_files WHERE id = ${fileId} AND pool_id = ${poolId} LIMIT 1
     `)).rows as any[];
     if (!file) { res.status(404).json({ error: "파일을 찾을 수 없습니다." }); return; }
@@ -620,7 +789,17 @@ router.get("/super/x-setup/:poolId/files/:fileId/download", requireAuth, require
     const { ok, url, error } = await getPresignedUrl(file.r2_key, "photo", 300);
     if (!ok || !url) { res.status(503).json({ error: "다운로드 URL 생성 실패", detail: error }); return; }
 
-    res.json({ url, filename: file.original_filename, mime_type: file.mime_type });
+    // 원본 파일명 우선 반환 (raw_original_filename이 있으면), 없으면 sanitized
+    const displayFilename = file.raw_original_filename ?? file.original_filename;
+
+    res.json({
+      url,
+      filename: displayFilename,
+      original_filename: file.original_filename,
+      raw_original_filename: file.raw_original_filename ?? null,
+      mime_type: file.mime_type,
+      is_deleted: !!file.deleted_at,
+    });
   } catch (err) {
     console.error("[super/x-setup/download]", err);
     res.status(500).json({ error: "서버 오류" });
@@ -640,6 +819,9 @@ router.post("/super/x-setup/:poolId/revisions", requireAuth, requireRole("super_
     res.status(400).json({ error: `section은 ${VALID_SECTIONS.join(", ")} 중 하나여야 합니다.` });
     return;
   }
+
+  const actorId = req.user!.userId;
+
   try {
     const [pool] = (await superAdminDb.execute(sql`
       SELECT id FROM swimming_pools WHERE id = ${poolId} LIMIT 1
@@ -650,17 +832,10 @@ router.post("/super/x-setup/:poolId/revisions", requireAuth, requireRole("super_
     await superAdminDb.execute(sql`
       INSERT INTO x_setup_revision_requests
         (id, pool_id, section, message, requested_by, requested_at, status)
-      VALUES (${revId}, ${poolId}, ${section}, ${message.trim()}, ${req.user!.userId}, NOW(), 'PENDING')
+      VALUES (${revId}, ${poolId}, ${section}, ${message.trim()}, ${actorId}, NOW(), 'PENDING')
     `);
 
     // 섹션 상태 → REVISION_REQUESTED
-    const colMap: Record<string, string> = {
-      curriculum: "curriculum_status",
-      website:    "website_status",
-      logo:       "logo_status",
-      photos:     "photos_status",
-    };
-    // 섹션별 컬럼 업데이트 (sql.raw 대신 explicit switch로 SQL injection 방어)
     if (section === "curriculum") {
       await superAdminDb.execute(sql`UPDATE x_setup_submissions SET curriculum_status='REVISION_REQUESTED', setup_status='REVISION_REQUESTED', updated_at=NOW() WHERE pool_id=${poolId}`);
     } else if (section === "website") {
@@ -673,6 +848,13 @@ router.post("/super/x-setup/:poolId/revisions", requireAuth, requireRole("super_
       await superAdminDb.execute(sql`UPDATE x_setup_submissions SET setup_status='REVISION_REQUESTED', updated_at=NOW() WHERE pool_id=${poolId}`);
     }
 
+    // Audit log
+    await logXSetupAudit({
+      action: "x_setup_revision",
+      poolId, actorId,
+      meta: { section, message: message.trim(), revision_id: revId },
+    });
+
     res.json({ ok: true, revision_id: revId });
   } catch (err) {
     console.error("[super/x-setup/revisions]", err);
@@ -681,8 +863,6 @@ router.post("/super/x-setup/:poolId/revisions", requireAuth, requireRole("super_
 });
 
 // ── PATCH /super/x-setup/:poolId/sections/:section/approve ────────────────
-// curriculum section 승인 시: x_setup_submissions 상태 갱신 + activate + READY
-// 다른 section(website/logo/photos) 승인은 submission 상태 갱신만
 router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
   const { poolId, section } = req.params;
   const VALID_SECTIONS = ["curriculum", "website", "logo", "photos"];
@@ -690,13 +870,21 @@ router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, re
     res.status(400).json({ error: `section은 ${VALID_SECTIONS.join(", ")} 중 하나여야 합니다.` });
     return;
   }
+
+  const actorId = req.user!.userId;
+
   try {
     const [pool] = (await superAdminDb.execute(sql`
       SELECT id FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
     if (!pool) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
 
-    // submission 섹션 상태 갱신 (explicit switch — SQL injection 방어)
+    // 승인 전 현재 상태 캡처 (audit before/after)
+    const [subBefore] = (await superAdminDb.execute(sql`
+      SELECT curriculum_status, website_status, logo_status, photos_status, setup_status
+      FROM x_setup_submissions WHERE pool_id = ${poolId} LIMIT 1
+    `)).rows as any[];
+
     if (section === "curriculum") {
       await superAdminDb.execute(sql`UPDATE x_setup_submissions SET curriculum_status='APPROVED', updated_at=NOW() WHERE pool_id=${poolId}`);
     } else if (section === "website") {
@@ -707,31 +895,41 @@ router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, re
       await superAdminDb.execute(sql`UPDATE x_setup_submissions SET photos_status='APPROVED', updated_at=NOW() WHERE pool_id=${poolId}`);
     }
 
-    // 전체 승인 여부 확인 (curriculum + website 둘 다 APPROVED → setup_status=APPROVED)
     const [sub] = (await superAdminDb.execute(sql`
       SELECT curriculum_status, website_status, logo_status, photos_status
       FROM x_setup_submissions WHERE pool_id = ${poolId} LIMIT 1
     `)).rows as any[];
     if (sub?.curriculum_status === "APPROVED" && sub?.website_status === "APPROVED") {
       await superAdminDb.execute(sql`
-        UPDATE x_setup_submissions
-        SET setup_status = 'APPROVED', updated_at = NOW()
+        UPDATE x_setup_submissions SET setup_status = 'APPROVED', updated_at = NOW()
         WHERE pool_id = ${poolId}
       `);
     }
 
     // ── curriculum section 승인 시에만: approve + activate + READY ──────────
-    // 사람 검수 후 실제 activation을 여기서 수행 (upload 시에는 수행하지 않음)
     let activationResult: { status: string; block_message?: string } | null = null;
     if (section === "curriculum") {
-      const superAdminId = req.user!.userId;
       try {
-        activationResult = await approveAndActivateLocalCurriculum(poolId, superAdminId);
+        activationResult = await approveAndActivateLocalCurriculum(poolId, actorId);
       } catch (actErr) {
         console.error("[super/x-setup/approve] activation error:", actErr);
         activationResult = { status: "ACTIVATION_ERROR", block_message: String(actErr) };
       }
     }
+
+    // Audit log (approve + 선택적 activate)
+    await logXSetupAudit({
+      action: section === "curriculum" && activationResult?.status !== "ACTIVATION_ERROR"
+        ? "x_setup_activate"
+        : "x_setup_approve",
+      poolId, actorId,
+      meta: {
+        section,
+        before_status: (subBefore as any)?.[`${section}_status`] ?? null,
+        after_status: "APPROVED",
+        ...(activationResult ? { activation_status: activationResult.status } : {}),
+      },
+    });
 
     res.json({
       ok: true,
@@ -752,6 +950,13 @@ import("../migrations/pool-db-x-setup.js")
     return runXSetupMigration(superAdminDb);
   })
   .catch((e: any) => console.error("[x-setup-init] migration failed:", e?.message));
+
+import("../migrations/p0-file-durability.js")
+  .then(async ({ runP0FileDurabilityMigration }) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return runP0FileDurabilityMigration(superAdminDb);
+  })
+  .catch((e: any) => console.error("[x-setup-init] p0-durability migration failed:", e?.message));
 
 import("../lib/xSetupTemplates.js")
   .then(({ ensureXSetupTemplates }) => ensureXSetupTemplates())
