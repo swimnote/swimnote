@@ -1,0 +1,529 @@
+[보낼 곳: APP REPLIT]
+
+[P0/P1 RELEASE BLOCKER FIX — BASE/X GATES + ROLE ROUTE CORRECTION]
+
+P0 FINAL USER APP AUDIT 결과 확인.
+
+현재 상태: HOLD.
+
+이번 작업은 감사에서 확인된
+P0 전부 + 출시 전 핵심 P1만 수정한다.
+
+금지:
+- 광범위한 UI 개편
+- P2 정리
+- Super Admin 전체 개편
+- DB migration
+- unrelated refactor
+- Android OTA
+- native rebuild
+
+목표:
+BASE 사용자가 X 전용 기능에 직접 접근하는 문제 제거,
+역할 간 잘못된 route 이동 제거,
+X setup server guard 보강,
+공지 AI gate 정합성 확보.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. P0 — Parent Growth Report UI GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(parent)/growth-report.tsx
+app/(parent)/growth-report-paid.tsx
+
+현재 문제:
+
+BASE parent가 deep link / 직접 route 접근으로
+X 전용 Growth/Insight 화면에 진입 가능.
+
+수정:
+
+canonical ModeContext 사용.
+
+X 전용 화면은
+mode === 'x' 또는 실제 허용 canonical condition일 때만 접근.
+
+가능하면 공통 XModeGuard 사용.
+
+단:
+
+AI Insight Report는 purchase HOLD이므로
+X 사용자도 현재 HOLD UI만 보여야 함.
+
+BASE에서는 화면 자체 접근 금지.
+
+직접 route 접근 시:
+- 정상 back/home redirect
+또는
+- canonical locked state
+
+현재 앱 UX에 맞는 한 가지 방식으로 통일.
+
+blank/error screen 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. P0 — SERVER GROWTH REPORT X GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/api-server/src/routes/parent.ts
+
+감사에서
+parent growth-report endpoint가 requireAuth만 있고
+X entitlement/mode guard가 불확실/부재로 확인됨.
+
+반드시 실제 endpoint 전수 확인:
+
+- growth report list
+- growth report detail
+- growth report history
+- paid/insight 관련 read/preflight
+- 기타 parent growth-report-* route
+
+X 전용 데이터는
+BASE parent가 직접 API 호출해도 접근 불가해야 함.
+
+canonical server-side X eligibility helper / requireXMode가 있으면 재사용.
+
+클라이언트 UI guard만 믿지 말 것.
+
+테스트:
+
+BASE parent token
+→ X Growth endpoint = 403 또는 canonical not-eligible response
+
+X parent token
+→ 정상 200
+
+다른 child/pool access 기존 보호 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. P1 — ADMIN X HUB GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(admin)/x-hub.tsx
+
+BASE admin 직접 접근 금지.
+
+공통 XModeGuard 사용.
+
+x_pending 정책은 실제 canonical UX 확인:
+
+- setup을 위해 x_pending에서 일부 X 화면 접근이 필요하면 허용
+- READY 이후 전용 기능은 mode=x에서만
+
+무조건 isXMode 하나로 덮어버리지 말고
+화면 목적에 맞게 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. P1 — ADMIN X MODE HUB GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(admin)/x-mode-hub.tsx
+
+BASE 직접 접근 금지.
+
+단 X 신청/설정 진입용 화면이면
+x_pending 허용 여부 실제 현재 flow 기준으로 처리.
+
+canonical ModeContext 외
+별도 entitlement 로컬 계산 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. P1 — X SETUP CLIENT + SERVER GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(admin)/x-setup.tsx
+artifacts/api-server/src/routes/x-setup.ts
+
+문제:
+
+client mode guard 없음
++
+server가 pool_admin role만 확인해서
+BASE pool_admin도 X setup submit 가능.
+
+수정:
+
+CLIENT:
+- canonical X entitlement/setup eligibility 확인
+- BASE admin 직접 접근 차단
+- direct fetch 사용 중이면 기존 apiRequest/auth wrapper로 통일 가능 여부 확인
+- 불필요한 대규모 refactor 금지
+
+SERVER:
+- X setup endpoint에
+  canonical entitlement/eligibility guard 추가
+- BASE pool_admin upload/submit/review-request 불가
+
+중요:
+
+x_pending은
+X entitlement는 있으나 setup 미완료 상태이므로
+X setup 접근이 정상이어야 함.
+
+따라서 단순 requireXMode(mode='x') 사용으로
+x_pending까지 막으면 FAIL.
+
+필요 조건:
+
+X entitlement 있음
+AND force_disabled 아님
+
+setup은 READY 이전에도 접근 가능.
+
+즉:
+"X feature runtime guard"와
+"X setup eligibility guard"를 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. P1 — TEACHER ATTENDANCE ROLE ROUTE
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(teacher)/attendance.tsx
+
+현재 여러 위치에서:
+
+/(admin)/member-detail
+
+로 이동.
+
+Teacher가 Admin route에 진입하면 안 됨.
+
+Teacher canonical student detail route로 수정.
+
+예:
+현재 실제 teacher student-detail route 확인 후 사용.
+
+4개 위치 전부 수정.
+
+기능 손실 없이:
+
+attendance
+→ student detail
+
+정상 이동.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. P1 — ADMIN DIARY ROLE ROUTE
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(admin)/diary-hub.tsx
+
+현재 Admin 화면에서 Teacher route로 이동하는 구간 존재.
+
+Admin canonical diary detail/write/history route를 확인하고
+Admin role 안에서만 이동하도록 수정.
+
+Teacher route 재사용 금지.
+
+기존 일지:
+- 조회
+- 수정
+- 과거 일지 접근
+- teacher 작성 일지 조회
+
+기능 회귀 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. P1 — NOTICES AI FEATURE GATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(admin)/notices.tsx
+
+현재 AI 작성 / Whisper가
+billing feature gate 없이 노출된 것으로 감사됨.
+
+먼저 현재 공식 제품정책 확인:
+
+- BASE SWIMNOTE에서도 notices AI를 제공하는 기능인지
+- X 전용인지
+- 별도 AI entitlement인지
+
+추측 금지.
+
+기존 subscription/feature gate source가 있으면 재사용.
+
+정책상 X/유료 전용이면:
+정확한 gate 추가.
+
+정책상 BASE 포함 기능이면:
+코드 변경하지 말고
+감사 항목을 false positive로 보고.
+
+임의로 막지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. P1 — DASHBOARD x_pending 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(admin)/dashboard.tsx
+
+감사 위치:
+mode !== 'x'
+
+문제:
+x_pending에서 BASE 타일이 표시되어
+X UI style과 기능 상태가 혼합될 수 있음.
+
+현재 의도 확인.
+
+표현용 X identity라면:
+isXMode(mode) 사용.
+
+실제 READY 기능 tile이라면:
+mode === 'x' 또는 x_trial 기준 유지.
+
+무조건 치환 금지.
+
+타일별 목적 기준으로 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. operatorsStore CANONICAL MODE
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+store/operatorsStore.ts
+
+현재 entitlement + config_status를 로컬 재계산해서
+ModeContext canonical resolver를 우회.
+
+가능하면 현재 screen/runtime에서
+canonical mode result를 그대로 사용하도록 정리.
+
+단 대규모 store refactor 금지.
+
+이번 출시 차단 흐름에 실제 영향 없으면
+P2로 남겨도 됨.
+
+완료보고에서:
+FIXED 또는 DEFERRED 명확히 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. PARENT CURRICULUM CHAT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 server eligibility guard는 정상.
+
+client XModeGuard는 없음.
+
+P1로 확인됐으므로
+직접 route 접근 시 UX만 정리.
+
+BASE:
+blank/error 대신
+canonical locked/not-available 처리.
+
+X:
+정상.
+
+server guard는 기존 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. DEEP LINK / DIRECT ROUTE TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 테스트:
+
+BASE ADMIN:
+- /x-hub
+- /x-mode-hub
+- /x-setup
+
+직접 접근 시
+X 설정/기능 실행 불가.
+
+X PENDING ADMIN:
+- /x-setup 접근 가능
+- runtime X-only 기능은 잠금
+
+X READY ADMIN:
+- 정상 접근
+
+BASE PARENT:
+- growth-report
+- growth-report-paid
+- curriculum-chat
+
+직접 접근 시
+X 전용 데이터/기능 사용 불가.
+
+X PARENT:
+정상.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. SERVER SECURITY TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+BASE pool_admin token:
+
+POST /x-setup/upload/curriculum
+→ 차단
+
+X entitled + pending:
+→ 허용
+
+X READY:
+→ 허용 또는 현재 정책에 맞는 정상 결과
+
+BASE parent:
+growth report X endpoints
+→ 차단
+
+X parent:
+→ 정상
+
+UI 숨김만으로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. ROLE NAVIGATION TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher attendance:
+학생 탭
+→ Teacher student-detail
+→ Admin route 0
+
+Admin diary:
+일지 탭/상세
+→ Admin route
+→ Teacher route 0
+
+검색:
+
+"/(admin)/member-detail"
+within teacher routes → 잔존 0
+
+"/(teacher)/"
+within admin diary navigation → 잘못된 잔존 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. BASE/X REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+BASE:
+
+- Members
+- Classes
+- Attendance
+- Makeups
+- Diary
+- Photos
+- Notices
+- Parent requests
+- Curriculum
+- Subscription
+
+정상 유지.
+
+X:
+
+위 BASE 기능 전부 유지
++
+X 기능 정상.
+
+X 전환으로 BASE 기능 사라짐 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. P2는 이번에 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 DEFER:
+
+- dashboard wizard "3단계" 문구
+- home raw mode 비교 cleanup
+- settings raw comparison cleanup
+- diary raw mode cleanup
+- x-subscription raw comparison cleanup
+- x-pc-dashboard predicate cleanup
+- x-hub report CTA 중복
+
+실제 P0/P1 fix에 꼭 필요할 때만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. TEST / DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER 변경 있음:
+
+test
+→ main push
+→ Render Production deploy
+→ LIVE
+→ /health SHA == main HEAD
+→ authenticated smoke
+
+APP 변경 있음:
+
+release/v2.0.0
+→ tests/preflight
+→ app 2.0.1
+→ runtime 2.1.0
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+native dependency 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Parent growth-report UI guard 결과
+2. Parent growth-report-paid UI guard 결과
+3. Parent growth API server guard 결과
+4. BASE parent direct API 결과
+5. X parent direct API 결과
+6. x-hub guard 결과
+7. x-mode-hub guard 결과
+8. x-setup client guard 결과
+9. x-setup server guard 결과
+10. BASE admin x-setup submit 차단 결과
+11. x_pending admin x-setup 허용 결과
+12. Teacher attendance route 수정 결과
+13. Admin diary route 수정 결과
+14. notices AI gate 최종 판정
+15. dashboard x_pending 수정 여부
+16. curriculum-chat direct route 결과
+17. operatorsStore 처리 (FIXED/DEFERRED)
+18. BASE regression
+19. X regression
+20. 수정 파일
+21. tests
+22. main HEAD
+23. Render LIVE SHA
+24. iOS OTA ID
+25. native rebuild 여부
+26. blocker
+
+PASS 조건:
+
+- BASE Parent X Growth 직접 접근 0
+- BASE Parent X Growth API 접근 0
+- BASE Admin X setup submit 0
+- x_pending Admin setup 가능
+- X READY 정상
+- Teacher→Admin route 0
+- Admin→Teacher diary route 0
+- BASE/X 공통 기능 회귀 0
+- blocker 0
+
+완료 후 STOP.

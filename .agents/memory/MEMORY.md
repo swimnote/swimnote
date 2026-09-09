@@ -77,3 +77,4 @@
 - [Super Admin Control Center SQL 스키마 버그 패턴](super-admin-sql-schema-bugs.md) — control-center 7개 스키마 불일치 수정; audit_logs action constraint 'update'만 허용
 - [Photo Upload Performance Optimization](photo-upload-perf-optimization.md) — smart compress(HEIC/no-upscale/2MB)+presigned R2 direct upload for notices+group; photo-upload.tsx 미변경(batch multi-student)
 - [Onboarding Feature Guides 연결 완료](onboarding-feature-guides-done.md) — 13개 가이드 9개 화면 연결; ce4a8e07; iOS OTA 01a08437; bomb prevention+mode mutual exclusion 적용
+- [P0P1 X Gate Fix 완료](p0p1-x-gate-fix-done.md) — SHA 482a65f7; growth-report-paid+x-hub+x-setup client guard+server hasXEntitlement×10routes; Render live; OTA 01a08504
