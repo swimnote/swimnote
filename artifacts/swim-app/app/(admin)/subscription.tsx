@@ -906,11 +906,15 @@ export default function SubscriptionScreen() {
                     <Text style={[s.cardActionText, { color: X_ACCENT }]}>구독 시작</Text>
                   </Pressable>
                 ) : (
-                  /* Normal / Subscription_Required: 구독 신청 준비 중 */
-                  <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
-                    <LucideIcon name="clock" size={13} color={C.textMuted} />
-                    <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>구독 신청 준비 중</Text>
-                  </View>
+                  /* Normal / SWIMNOTE paid / 신규 pool: X 직접구매 가능 (prerequisite 없음)
+                     handleXPlanChange 내부에서 policyAgreed / offeringsLoading / pkg 존재 검사. */
+                  <Pressable
+                    style={({ pressed }) => [s.cardAction, { backgroundColor: X_LIGHT, borderColor: X_ACCENT + "40", opacity: pressed ? 0.8 : 1 }]}
+                    onPress={() => handleXPlanChange(plan)}
+                    disabled={isPurchasing}
+                  >
+                    <Text style={[s.cardActionText, { color: X_ACCENT }]}>구독 시작</Text>
+                  </Pressable>
                 )}
               </View>
             );
