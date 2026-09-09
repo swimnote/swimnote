@@ -1296,6 +1296,7 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       plan_name: resolved.planName,
       white_label_enabled: resolved.whiteLabelEnabled,
       price_per_month: resolved.pricePerMonth,
+      x_plan_key: resolved.xPlanKey,    // canonical X plan key — null for non-X pools
       // 스토리지 표시·제한 통일 필드
       display_storage:        displayStorage,
       storage_mb:             storageMb,

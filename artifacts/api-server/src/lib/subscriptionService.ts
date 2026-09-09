@@ -101,8 +101,8 @@ export type SubscriptionStatus =
   | "payment_failed" | "pending_deletion" | "deleted" | "cancelled";
 
 export interface ResolvedSubscription {
-  planCode:            string;   // internal tier code (DO NOT display in UI)
-  planName:            string;   // display name e.g. "Premier 500"
+  planCode:            string;   // internal tier code — X 활성 시 "x300"/"x500"/"x1000"
+  planName:            string;   // display name e.g. "SWIMNOTE X1000"
   status:              SubscriptionStatus;
   source:              SubscriptionSource;
   memberLimit:         number;
@@ -123,6 +123,8 @@ export interface ResolvedSubscription {
   pendingTier:         string | null;   // 예약된 다운그레이드 tier
   pendingPlanName:     string | null;   // 예약된 플랜 표시명
   downgradeAt:         string | null;   // 다운그레이드 적용 예정일
+  /** canonical X plan key ("x300"|"x500"|"x1000") — set when X is active via any source */
+  xPlanKey:            string | null;
 }
 
 export interface ApplyOptions {
@@ -152,7 +154,11 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     SELECT subscription_tier, subscription_status, subscription_source,
            subscription_start_at, subscription_end_at, trial_end_at,
            white_label_enabled, video_storage_limit_mb, member_limit,
-           COALESCE(base_manual_entitlement, false) AS base_manual_entitlement
+           COALESCE(base_manual_entitlement, false) AS base_manual_entitlement,
+           x_plan_key,
+           COALESCE(x_paid_entitlement,    false) AS x_paid_entitlement,
+           COALESCE(x_manual_entitlement,  false) AS x_manual_entitlement,
+           COALESCE(x_management_override, false) AS x_management_override
     FROM swimming_pools WHERE id = ${poolId} LIMIT 1
   `)).rows as any[];
 
@@ -161,7 +167,21 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
   `)).rows as any[];
 
-  const effectiveTier = normalizeTier(pool?.subscription_tier ?? "free");
+  // ── X 플랜 우선순위 결정 ─────────────────────────────────────────────────
+  // 원인: subscription_tier="max"(Premier1000) 상태에서 X가 부여된 경우
+  //       legacy tier가 current_plan으로 노출되는 버그 방지.
+  // 권위: swimming_pools.x_plan_key = "x300"|"x500"|"x1000" (super admin 부여 시 저장)
+  // 조건: X 활성(management_override OR paid OR manual) + canonical x_plan_key 존재
+  const CANONICAL_X_KEYS = new Set(["x300", "x500", "x1000"]);
+  const xActive  = Boolean(pool?.x_management_override) ||
+                   Boolean(pool?.x_paid_entitlement)    ||
+                   Boolean(pool?.x_manual_entitlement);
+  const xPlanKey = (pool?.x_plan_key as string | null | undefined) ?? null;
+
+  const effectiveTier = (xActive && xPlanKey && CANONICAL_X_KEYS.has(xPlanKey))
+    ? xPlanKey
+    : normalizeTier(pool?.subscription_tier ?? "free");
+
   const plan = await fetchPlan(effectiveTier);
 
   // ── source ──
@@ -247,6 +267,7 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     pendingTier:     rawPendingTier,
     pendingPlanName,
     downgradeAt:     rcSub?.downgrade_at ? String(rcSub.downgrade_at).slice(0, 10) : null,
+    xPlanKey:        (xActive && xPlanKey && CANONICAL_X_KEYS.has(xPlanKey)) ? xPlanKey : null,
   };
 }
 

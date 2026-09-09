@@ -531,7 +531,12 @@ export default function SubscriptionScreen() {
   }
 
   // ── 계산 값 ────────────────────────────────────────────────────────────────
-  const isLegacySubscriber = currentTier != null && isLegacyTier(currentTier) && currentTier !== "free";
+  // X mode 활성 시 legacy 카드 표시 억제 (안전망).
+  // 주 source-of-truth: server /billing/status → current_plan = x_plan_key 기반
+  // 이 클라이언트 guard는 서버 응답이 과도기적으로 legacy tier를 반환해도 표시 방지.
+  const xModeActive        = mode === "x" || mode === "x_pending" || mode === "x_trial";
+  const isLegacySubscriber = currentTier != null && isLegacyTier(currentTier) && currentTier !== "free"
+    && !xModeActive; // X 모드에서는 legacy 카드 표시 금지
   const isNewPlanUser      = currentTier != null && !isLegacyTier(currentTier);
   const legacyPlan         = isLegacySubscriber ? ALL_LEGACY_PLANS.find(p => p.tier === currentTier) : null;
 

@@ -1,0 +1,528 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — CURRENT PLAN CANONICALIZATION / REMOVE LEGACY PLAN FROM CURRENT UI]
+
+ONBOARDING WP는 CLOSED.
+
+다음 P0는 구독/플랜 표시 정확성.
+
+현재 실제 iOS 구독관리 화면에서
+X1000 강제 적용 상태인데도
+
+"현재 구독 플랜"
+영역에
+
+Premier1000
+₩79,000/월
+
+같은 과거 legacy plan이 표시되고 있다.
+
+이것은 현재 제품정책과 맞지 않고
+사용자에게 혼란을 준다.
+
+이번 작업 목표:
+
+1. 현재 공식 플랜만 현재 플랜 UI에 표시
+2. X mode/entitlement와 실제 X300/X500/X1000 플랜을 정확히 연결
+3. Premier / Coach 등 legacy plan은 현재 플랜 영역에서 완전히 제거
+4. 과거 결제기록은 필요하면 history에서만 보존
+5. Super Admin에서도 현재 공식 플랜 상태를 정확히 볼 수 있게 canonical source 확인
+
+광범위한 Super Admin 개편 금지.
+이번에는 "플랜 정확성"만 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 공식 플랜
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 공식 상품:
+
+BASE:
+SWIMNOTE
+₩9,900 / month
+
+X:
+X300
+₩129,000 / month
+
+X500
+₩199,000 / month
+
+X1000
+₩359,000 / month
+
+ADD-ON:
+DATA100
+₩7,900 / month
+
+DATA300
+₩22,900 / month
+
+중요:
+
+DATA100 / DATA300은
+base/X plan과 별도 add-on.
+
+한 plan selector 그룹으로 섞지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. LEGACY PLAN
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 예전 상품은
+현재 공식 판매 plan이 아니다.
+
+예:
+- Coach*
+- Premier*
+- Premier1000
+- 기타 구형 plan
+
+원칙:
+
+현재 플랜 카드
+현재 구독 상태
+현재 가격표
+현재 업그레이드/다운그레이드 UI
+
+에서 legacy plan 노출 금지.
+
+단:
+
+과거 결제 이력/감사 목적으로 DB에서
+legacy record 자체를 삭제할 필요는 없음.
+
+"historical payment"
+영역이 따로 있다면 거기서만 유지 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 현재 화면 버그 재현
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 증상:
+
+X1000 강제/override 상태인데
+구독관리 하단:
+
+현재 구독 플랜
+→ Premier1000
+→ ₩79,000
+→ 최대 1,000명 / 50GB
+
+표시됨.
+
+이 상태는 FAIL.
+
+실제 route/component/API/data source를 추적:
+
+- subscription screen
+- current plan card
+- RevenueCat state
+- server subscription state
+- X entitlement
+- manual entitlement
+- HQ override
+- plan code
+- legacy fallback
+
+어디에서 Premier1000을 current plan으로 결정하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. X MODE SEMANTICS
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대:
+
+mode === 'x'
+= paid
+
+로 단순화 금지.
+
+현재 canonical semantics 유지:
+
+feature access:
+canonical mode resolver
+
+paid:
+x_paid_entitlement
+
+manual:
+x_manual_entitlement
+
+HQ:
+x_management_override
+
+forced disabled:
+x_force_disabled
+
+X plan 표시에서는
+실제 current X tier를 별도로 정확히 해석.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. X PLAN은 인원수 포함
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300 / X500 / X1000은
+각각 자체 회원수 plan을 포함한다.
+
+따라서 예:
+
+X1000 활성 상태에서
+
+X1000
++
+Premier1000
+
+두 개를 current plan처럼 동시에 표시하면 안 됨.
+
+X1000 하나가
+현재 main subscription plan.
+
+DATA add-on이 있으면
+그것만 별도 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CURRENT PLAN RESOLVER
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면마다
+서로 다른 legacy subscription row를 읽지 않도록
+
+"현재 공식 플랜" 판단 source를 확인.
+
+가능하면 existing canonical resolver/service를 사용.
+
+없다면 최소 범위로
+current official plan resolver를 한 곳에 통합.
+
+판단 결과 예:
+
+BASE → SWIMNOTE
+X tier 300 → X300
+X tier 500 → X500
+X tier 1000 → X1000
+
+DATA는 별도 addon state.
+
+legacy subscription row는
+현재 공식 plan resolver보다 우선하면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. HQ / MANUAL OVERRIDE
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 현재 test/운영 pool처럼
+HQ 또는 manual로 X1000이 강제 적용된 경우 확인.
+
+UI는:
+
+현재 플랜: X1000
+
+으로 표시해야 한다.
+
+필요하면 보조 상태:
+
+"관리자 적용"
+"수동 적용"
+
+정도는 내부/Super Admin에서 구분 가능.
+
+사용자 앱에서는
+legacy Premier1000으로 fallback 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. SUPER ADMIN 현재 플랜
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 Super Admin 전체 개편 금지.
+
+다만 pool detail/list에서
+현재 plan이 표시되는 부분이 있다면
+동일 canonical resolver를 사용하도록 확인.
+
+목표:
+
+한 pool에 대해
+
+APP 구독관리
+Super Admin
+
+이 서로 다른 현재 plan을 표시하지 않음.
+
+예:
+
+APP = X1000
+Super Admin = Premier1000
+
+이면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. STORAGE 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 공식 plan별 storage 정책을
+실제 current source에서 확인.
+
+임의로 기존 Premier의
+50GB 같은 legacy 용량을
+X1000에 가져오지 말 것.
+
+DATA100 / DATA300은
+추가 저장공간 add-on으로 별도 합산.
+
+현재 화면의:
+
+"사용량 / 전체 N GB"
+
+계산이
+공식 base/X storage + DATA addon 기준인지 확인.
+
+정책이 코드에 명확하지 않으면
+임의 값 생성하지 말고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PRICE 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 공식 가격 외:
+
+₩79,000 Premier1000
+기타 legacy price
+
+현재 구독 화면에서 0.
+
+X1000이면:
+
+₩359,000/월
+
+현재 공식 plan card 기준.
+
+단,
+HQ/manual/free override로 실제 결제 금액이 0이거나
+결제 상태와 plan entitlement가 다른 경우
+
+"실제 청구액"과
+"현재 적용 플랜 기준가"
+
+를 혼동하지 말 것.
+
+필요하면 표시 구조를 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DATA ADD-ON
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA100
+DATA300
+
+현재 화면에 별도 add-on으로 존재하는 구조는 유지 가능.
+
+단 실제 구매 HOLD/준비중 상태라면
+현재 구현 상태 그대로 정확히 표시.
+
+이번 작업에서
+DATA billing 신규 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 삭제 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+삭제 대상:
+
+- current UI의 Premier/Coach legacy price card
+- current plan resolver의 legacy fallback
+- 현재 공식 가격표에 섞여 있는 legacy entries
+- Super Admin current-status에서 legacy current plan 노출
+
+삭제 금지:
+
+- historical billing records
+- audit history
+- 과거 receipt
+- RevenueCat historical transaction
+- DB migration history
+
+과거 기록 보존.
+
+현재 상태에서만 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. TEST CASES
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A — SWIMNOTE
+
+current plan:
+SWIMNOTE
+
+표시:
+₩9,900
+
+legacy 0.
+
+CASE B — X300
+
+current:
+X300
+₩129,000
+
+Premier/Coach 0.
+
+CASE C — X500
+
+X500
+₩199,000
+
+legacy 0.
+
+CASE D — X1000 paid
+
+X1000
+₩359,000
+
+legacy 0.
+
+CASE E — X1000 HQ/manual override
+
+현재 적용 plan:
+X1000
+
+Premier1000으로 fallback 0.
+
+실제 결제금액과 기준가 혼동 0.
+
+CASE F — DATA100
+
+main plan 유지
++
+DATA100 addon 별도.
+
+CASE G — legacy historical account
+
+과거 Premier transaction이 있어도
+현재 official plan이 X이면
+
+current card에는 X만 표시.
+
+history가 있으면 과거 기록만 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 현재 스크린샷 기준 PASS
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제 화면에서 최종적으로:
+
+"현재 구독 플랜"
+
+Premier1000
+₩79,000
+
+카드는 사라져야 한다.
+
+대신 실제 canonical 상태가 X1000이면:
+
+현재 플랜
+X1000
+최대 1,000명
+[현재 공식 storage 정책]
+₩359,000/월 기준
+
+처럼 현재 공식 플랜 기준으로 표시.
+
+단 HQ/manual override인 경우
+실제 결제가 ₩359,000이라고 거짓 표시하지 말 것.
+
+필요하면:
+
+X1000
+관리자 적용
+
+처럼 적용상태와 기준가를 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 구현 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 조사만 하고 멈추는 작업이 아니다.
+
+현재 source 추적
+→ 정확한 원인 확인
+→ 최소 수정
+→ test
+→ Production 반영
+
+까지 한 번에 진행.
+
+단 storage 정책처럼
+확정되지 않은 값이 발견되면
+그 부분만 HOLD하고 임의 결정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. SERVER 변경 시
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP/API server 변경이 있으면:
+
+test
+→ main
+→ Render Production deploy
+→ LIVE
+→ /health commit == main HEAD
+→ authenticated smoke
+
+"deploy triggered"로 완료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. APP 변경 시
+━━━━━━━━━━━━━━━━━━━━━━
+
+release/v2.0.0
+→ clean/origin exact
+→ tests/preflight
+→ app 2.0.1
+→ runtime 2.1.0
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+native 변경 없으면 rebuild 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Premier1000 표시 원인
+2. current plan 기존 source
+3. canonical current plan 최종 source
+4. SWIMNOTE 표시 결과
+5. X300 결과
+6. X500 결과
+7. X1000 결과
+8. HQ/manual X1000 결과
+9. DATA addon 결과
+10. legacy plan 현재 UI 잔존 개수
+11. legacy history 보존 결과
+12. storage 계산 source
+13. Super Admin current plan 결과
+14. APP/Super Admin plan 일치 여부
+15. 수정 파일
+16. tests
+17. main HEAD
+18. Render LIVE SHA
+19. OTA ID
+20. native rebuild 여부
+21. blocker
+
+PASS 조건:
+
+- current UI legacy plan = 0
+- current 가격표 legacy price = 0
+- X1000 + Premier1000 중복 = 0
+- X tier 정확
+- DATA addon 분리
+- historical records 보존
+- APP/Super Admin current plan 일치
+- manual/HQ와 paid 의미 혼동 0
+- blocker 0
+
+완료 후 STOP.

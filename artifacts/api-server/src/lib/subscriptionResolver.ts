@@ -45,8 +45,8 @@ export type SubscriptionStatus =
 
 export interface ResolvedSubscription {
   source:           SubscriptionSource;
-  planCode:         string;        // tier (e.g. "max", "starter")
-  planName:         string;        // "Premier 1000"
+  planCode:         string;        // tier (e.g. "x1000", "swimnote", "max")
+  planName:         string;        // "SWIMNOTE X1000"
   memberLimit:      number;
   storageGb:        number;
   displayStorage:   string;        // "500MB", "130GB" 등
@@ -62,6 +62,8 @@ export interface ResolvedSubscription {
   effectiveReason:  string;
   pricePerMonth:    number;
   nextBillingAt:    string | null;
+  /** canonical X plan key ("x300"|"x500"|"x1000") — set when X is active via any source */
+  xPlanKey:         string | null;
 }
 
 /**
@@ -81,7 +83,11 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
       trial_end_at,
       white_label_enabled,
       video_storage_limit_mb,
-      member_limit
+      member_limit,
+      x_plan_key,
+      COALESCE(x_paid_entitlement,    false) AS x_paid_entitlement,
+      COALESCE(x_manual_entitlement,  false) AS x_manual_entitlement,
+      COALESCE(x_management_override, false) AS x_management_override
     FROM swimming_pools
     WHERE id = ${poolId}
     LIMIT 1
@@ -96,8 +102,20 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   `)).rows as any[];
 
   // 3. 유효 tier 결정
-  const rawTier      = pool?.subscription_tier ?? "free";
-  const effectiveTier = normalizeTier(rawTier);
+  // ── X 플랜 우선순위: X가 활성이고 canonical x_plan_key가 있으면 legacy tier 무시 ──
+  // 이유: subscription_tier="max"(Premier1000) 상태에서 X가 부여된 경우
+  //       legacy tier가 current_plan으로 노출되는 버그 방지.
+  // 권위: swimming_pools.x_plan_key = "x300"|"x500"|"x1000" (super admin 부여 시 저장)
+  const CANONICAL_X_KEYS = new Set(["x300", "x500", "x1000"]);
+  const xActive  = Boolean(pool?.x_management_override) ||
+                   Boolean(pool?.x_paid_entitlement)    ||
+                   Boolean(pool?.x_manual_entitlement);
+  const xPlanKey = (pool?.x_plan_key as string | null | undefined) ?? null;
+  const rawTier  = pool?.subscription_tier ?? "free";
+  // X 활성 + canonical plan key → X 플랜을 effective tier로 사용
+  const effectiveTier = (xActive && xPlanKey && CANONICAL_X_KEYS.has(xPlanKey))
+    ? xPlanKey
+    : normalizeTier(rawTier);
 
   // 4. subscription_plans 조회 (storage_mb 기준 GB 환산)
   const [plan] = (await db.execute(sql`
@@ -190,6 +208,7 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
     effectiveReason,
     pricePerMonth:       Number(plan?.price_per_month ?? 0),
     nextBillingAt:       rcSub?.next_billing_at ?? null,
+    xPlanKey:            (xActive && xPlanKey && CANONICAL_X_KEYS.has(xPlanKey)) ? xPlanKey : null,
   };
 }
 
