@@ -99,6 +99,23 @@ async function getPoolId(userId: string): Promise<string | null> {
   return u?.swimming_pool_id ?? null;
 }
 
+// ── X entitlement 헬퍼 ────────────────────────────────────────────────────────
+/**
+ * X setup은 x_pending(설정 중)도 접근 가능 — entitlement 보유 여부만 체크.
+ * x_paid_entitlement OR x_manual_entitlement OR x_management_override
+ */
+async function hasXEntitlement(poolId: string): Promise<boolean> {
+  const [row] = (await superAdminDb.execute(sql`
+    SELECT (
+      COALESCE(x_paid_entitlement, false) OR
+      COALESCE(x_manual_entitlement, false) OR
+      COALESCE(x_management_override, false)
+    ) AS has_x
+    FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+  `)).rows as any[];
+  return row?.has_x === true;
+}
+
 // ── generateId 헬퍼 ──────────────────────────────────────────────────────────
 function genId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -132,6 +149,11 @@ router.get("/x-setup/status", requireAuth, requireRole("pool_admin"), async (req
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    // X entitlement guard — x_pending 포함 허용, BASE(normal) 차단
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
+    }
 
     await ensureSubmission(poolId);
 
@@ -194,6 +216,11 @@ router.post("/x-setup/upload/curriculum", requireAuth, requireRole("pool_admin")
 
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    // X entitlement guard — x_pending 포함 허용, BASE 차단
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
+    }
 
     try {
       await ensureSubmission(poolId);
@@ -283,6 +310,11 @@ router.post("/x-setup/upload/website", requireAuth, requireRole("pool_admin"),
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
+    // X entitlement guard — x_pending 포함 허용, BASE 차단
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
+    }
+
     try {
       await ensureSubmission(poolId);
       const version = await nextVersion(poolId, "website");
@@ -340,6 +372,11 @@ router.post("/x-setup/upload/logo", requireAuth, requireRole("pool_admin"),
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
+    // X entitlement guard — x_pending 포함 허용, BASE 차단
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
+    }
+
     try {
       await ensureSubmission(poolId);
       const version = await nextVersion(poolId, "logo");
@@ -390,6 +427,11 @@ router.post("/x-setup/upload/photo", requireAuth, requireRole("pool_admin"),
 
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    // X entitlement guard — x_pending 포함 허용, BASE 차단
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
+    }
 
     try {
       await ensureSubmission(poolId);
@@ -450,6 +492,11 @@ router.delete("/x-setup/photos/:fileId", requireAuth, requireRole("pool_admin"),
   const poolId = await getPoolId(req.user!.userId);
   if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
+  // X entitlement guard — x_pending 포함 허용, BASE 차단
+  if (!(await hasXEntitlement(poolId).catch(() => false))) {
+    res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
+  }
+
   try {
     // cross-pool 방어: pool_id 일치 확인
     const [row] = (await superAdminDb.execute(sql`
@@ -487,6 +534,11 @@ router.delete("/x-setup/photos/:fileId", requireAuth, requireRole("pool_admin"),
 router.post("/x-setup/submit", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
   const poolId = await getPoolId(req.user!.userId);
   if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+  // X entitlement guard — x_pending 포함 허용, BASE 차단
+  if (!(await hasXEntitlement(poolId).catch(() => false))) {
+    res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" }); return;
+  }
 
   try {
     await ensureSubmission(poolId);

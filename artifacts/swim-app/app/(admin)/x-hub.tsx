@@ -32,6 +32,7 @@ import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
 import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { useMode } from "@/context/ModeContext";
 
 const C = Colors.light;
 const SCREEN_TITLE = "SWIMNOTE X 운영현황";
@@ -146,6 +147,15 @@ export default function XHubScreen() {
   const { shouldShow: showXEntryGuide, markSeen: markXEntryGuideSeen } = useFeatureGuide(adminUser?.id, "x_entry");
   const xEntryGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.x_entry.title, body: GUIDE_CONTENT.x_entry.body }];
   const router    = useRouter();
+
+  // ─── X mode guard: mode !== "x" 이면 대시보드로 redirect ──────────────────
+  const { mode: xhubMode, status: xhubModeStatus } = useMode();
+  useEffect(() => {
+    if (xhubModeStatus === "loading" || xhubModeStatus === "idle") return;
+    if (xhubMode !== "x") {
+      router.replace("/(admin)/dashboard");
+    }
+  }, [xhubMode, xhubModeStatus, router]);
 
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);

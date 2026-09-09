@@ -29,6 +29,8 @@ import { useFeatureGuide } from "@/hooks/useOnboarding";
 import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
 import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { useParent } from "@/context/ParentContext";
+import { useMode } from "@/context/ModeContext";
+import { isXMode } from "@/constants/xTheme";
 
 const C    = Colors.light;
 const NAVY = "#0C1A2E";
@@ -434,6 +436,17 @@ export default function InsightReportHub() {
   const insightGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.parent_insight_report.title, body: GUIDE_CONTENT.parent_insight_report.body }];
   const { selectedStudent, students } = useParent();
   const params = useLocalSearchParams<{ studentId?: string }>();
+
+  // ── X mode guard: AI 인사이트 리포트는 X 전용 ──────────────────────────────
+  const { mode: insightMode, status: insightModeStatus } = useMode();
+  useEffect(() => {
+    if (insightModeStatus === "loading" || insightModeStatus === "idle") return;
+    if (!isXMode(insightMode)) {
+      if (router.canGoBack()) router.back();
+      else router.replace("/(parent)/home" as any);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insightMode, insightModeStatus]);
 
   // Resolve target student: param > selectedStudent > first child
   const targetStudentId = params.studentId || selectedStudent?.id || students[0]?.id;

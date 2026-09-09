@@ -45,6 +45,24 @@ import { assemblePaidInsightSnapshot } from "../lib/paid-insight-snapshot.js";
 const router = Router();
 const db = superAdminDb;
 
+// ─── X entitlement helper ─────────────────────────────────────────────────────
+/**
+ * paid-insight는 SWIMNOTE X 전용.
+ * x_pending(설정 중) 풀은 아직 X 서비스 미개시이므로 entitlement 체크로 충분히 차단.
+ * x_paid_entitlement OR x_manual_entitlement OR x_management_override 중 하나라도 true여야 함.
+ */
+async function hasXEntitlement(poolId: string): Promise<boolean> {
+  const [row] = (await db.execute(sql`
+    SELECT (
+      COALESCE(x_paid_entitlement, false) OR
+      COALESCE(x_manual_entitlement, false) OR
+      COALESCE(x_management_override, false)
+    ) AS has_x
+    FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+  `)).rows as any[];
+  return row?.has_x === true;
+}
+
 // ─── Ownership helper ─────────────────────────────────────────────────────────
 
 async function resolveOwnership(
@@ -164,6 +182,12 @@ router.post(
       return;
     }
     const { poolId } = ownership;
+
+    // X entitlement guard — paid insight는 X 전용
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" });
+      return;
+    }
 
     const requestId = `pi_q_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
 
@@ -288,6 +312,12 @@ router.post(
       return;
     }
     const { poolId } = ownership;
+
+    // X entitlement guard — paid insight는 X 전용
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" });
+      return;
+    }
 
     // Payment gate — must be explicitly verified.
     // Until Payment Stage: body.payment_verified = true required for non-test env.
@@ -448,6 +478,12 @@ router.get(
     }
     const { poolId } = ownership;
 
+    // X entitlement guard — paid insight는 X 전용
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" });
+      return;
+    }
+
     try {
       const reportRow = await db.execute(sql`
         SELECT id, product_status, content, created_at, published_at
@@ -519,6 +555,12 @@ router.get(
       return;
     }
     const { poolId } = ownership;
+
+    // X entitlement guard — paid insight는 X 전용
+    if (!(await hasXEntitlement(poolId).catch(() => false))) {
+      res.status(403).json({ error: "SWIMNOTE X 전용 기능입니다.", code: "XMODE_REQUIRED" });
+      return;
+    }
 
     const limit  = Math.min(Number(req.query.limit  ?? 24), 50);
     const offset = Math.max(Number(req.query.offset ?? 0),   0);

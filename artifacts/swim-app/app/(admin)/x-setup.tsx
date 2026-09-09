@@ -31,6 +31,8 @@ import { useFeatureGuide } from "@/hooks/useOnboarding";
 import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
 import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 const NAVY        = "#23415C";
@@ -133,6 +135,18 @@ export default function AdminXSetupScreen() {
   const { shouldShow: showXCurriculumGuide, markSeen: markXCurriculumGuideSeen } = useFeatureGuide(adminUser?.id, "admin_x_curriculum");
   const xCurriculumGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.admin_x_curriculum.title, body: GUIDE_CONTENT.admin_x_curriculum.body }];
   const { backTo } = useLocalSearchParams<{ backTo?: string }>();
+
+  // ── X mode guard: x_pending + x 허용, BASE(normal) redirect ───────────────
+  const { mode: setupMode, status: setupModeStatus } = useMode();
+  useEffect(() => {
+    if (setupModeStatus === "loading" || setupModeStatus === "idle") return;
+    if (!isXMode(setupMode)) {
+      // BASE admin: X setup 불가 → settings로 redirect
+      if (router.canGoBack()) router.back();
+      else router.replace("/(admin)/settings" as any);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setupMode, setupModeStatus]);
 
   const [data, setData] = useState<XSetupStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
