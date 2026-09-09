@@ -9,7 +9,7 @@
  */
 import React, { createContext, useContext } from "react";
 import { Platform } from "react-native";
-import Purchases from "react-native-purchases";
+import Purchases, { GoogleProductChangeInfo } from "react-native-purchases";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
 
@@ -186,6 +186,23 @@ function useSubscriptionContext() {
     onSuccess: () => customerInfoQuery.refetch(),
   });
 
+  // Android product change 전용 mutation — googleProductChangeInfo 포함
+  // iOS에서는 호출 불가 (subscription.tsx에서 Platform.OS === "android" guard 필수)
+  const purchaseWithChangeMutation = useMutation({
+    mutationFn: async ({ pkg, googleProductChangeInfo }: {
+      pkg: any;
+      googleProductChangeInfo: GoogleProductChangeInfo | null;
+    }) => {
+      const { customerInfo } = await Purchases.purchasePackage(
+        pkg,
+        null,
+        googleProductChangeInfo,
+      );
+      return customerInfo;
+    },
+    onSuccess: () => customerInfoQuery.refetch(),
+  });
+
   const restoreMutation = useMutation({
     mutationFn: () => Purchases.restorePurchases(),
     onSuccess:  () => customerInfoQuery.refetch(),
@@ -207,27 +224,34 @@ function useSubscriptionContext() {
     ? `[${offeringsErrorObj?.code ?? offeringsErrorObj?.underlyingErrorMessage ?? "unknown"}] ${offeringsErrorObj?.message ?? String(offeringsErrorObj)}`
     : null;
 
+  // 현재 활성 구독 product identifier 목록 (Android product change에서 oldProductIdentifier 소스)
+  const activeSubscriptions: string[] = Array.from(
+    customerInfoQuery.data?.activeSubscriptions ?? [],
+  );
+
   return {
-    customerInfo:        customerInfoQuery.data ?? null,
-    soloOffering:        offeringsQuery.data?.solo ?? null,
-    centerOffering:      offeringsQuery.data?.center ?? null,
-    xOffering:           offeringsQuery.data?.x ?? null,
-    swimnoteOffering:    offeringsQuery.data?.swimnote ?? null,
+    customerInfo:           customerInfoQuery.data ?? null,
+    soloOffering:           offeringsQuery.data?.solo ?? null,
+    centerOffering:         offeringsQuery.data?.center ?? null,
+    xOffering:              offeringsQuery.data?.x ?? null,
+    swimnoteOffering:       offeringsQuery.data?.swimnote ?? null,
     isSubscribed,
     isSoloSubscribed,
     isCenterSubscribed,
     activePackageId,
-    isLoading:           customerInfoQuery.isLoading || offeringsQuery.isLoading,
-    offeringsLoading:    offeringsQuery.isLoading || offeringsQuery.isFetching,
-    offeringsError:      offeringsQuery.isError,
+    activeSubscriptions,
+    isLoading:              customerInfoQuery.isLoading || offeringsQuery.isLoading,
+    offeringsLoading:       offeringsQuery.isLoading || offeringsQuery.isFetching,
+    offeringsError:         offeringsQuery.isError,
     offeringsErrorDetail,
-    refetchOfferings:    offeringsQuery.refetch,
-    purchase:            purchaseMutation.mutateAsync,
-    restore:             restoreMutation.mutateAsync,
-    isPurchasing:        purchaseMutation.isPending,
-    isRestoring:         restoreMutation.isPending,
-    purchaseError:       purchaseMutation.error,
-    refetchCustomerInfo: customerInfoQuery.refetch,
+    refetchOfferings:       offeringsQuery.refetch,
+    purchase:               purchaseMutation.mutateAsync,
+    purchaseWithChange:     purchaseWithChangeMutation.mutateAsync,
+    restore:                restoreMutation.mutateAsync,
+    isPurchasing:           purchaseMutation.isPending || purchaseWithChangeMutation.isPending,
+    isRestoring:            restoreMutation.isPending,
+    purchaseError:          purchaseMutation.error,
+    refetchCustomerInfo:    customerInfoQuery.refetch,
   };
 }
 

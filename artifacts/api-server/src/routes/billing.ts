@@ -560,9 +560,26 @@ router.post("/revenuecat-webhook", async (req, res) => {
         const changeTier = RC_PRODUCT_TIER_MAP[productId] ?? null;
         if (changeTier) {
           const [curSubWh] = (await db.execute(sql`
-            SELECT tier, next_billing_at FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
+            SELECT tier, next_billing_at, x_paid_entitlement FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
           `)).rows as any[];
           const curTierWh = normalizeTier(curSubWh?.tier ?? "free");
+
+          // ── SUBSCRIPTION_DOUBLE_ACTIVE_WARNING 감지 ──────────────────────
+          // PRODUCT_CHANGE가 store-level product change가 아닌 독립 신규 구독으로
+          // 잘못 생성된 경우: X entitlement가 active이면서 non-X 상품으로 PRODUCT_CHANGE 수신
+          // 또는 non-X 구독이 active이면서 X 상품으로 PRODUCT_CHANGE 수신
+          const isXTier = (t: string) => ["x300", "x500", "x1000"].includes(t);
+          const currentIsX = isXTier(curTierWh) || Boolean(curSubWh?.x_paid_entitlement);
+          const targetIsX  = isXTier(changeTier);
+          if (currentIsX !== targetIsX) {
+            console.warn(
+              `[rc-webhook] SUBSCRIPTION_DOUBLE_ACTIVE_WARNING: pool=${poolId} | cur=${curTierWh}(xPaid=${curSubWh?.x_paid_entitlement}) → target=${changeTier} | X/non-X 크로스 PRODUCT_CHANGE 감지. Store subscription group 동일 여부 확인 필요.`,
+            );
+            logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+              description: `[WARNING] X/non-X 크로스 PRODUCT_CHANGE: ${curTierWh} → ${changeTier} — 이중구독 가능성`,
+              metadata: { eventType, productId, from: curTierWh, to: changeTier, xPaidBefore: curSubWh?.x_paid_entitlement } }).catch(console.error);
+          }
+          // ─────────────────────────────────────────────────────────────────
 
           if (isDowngradeTier(curTierWh, changeTier) && curSubWh?.next_billing_at) {
             // 다운그레이드 → 예약

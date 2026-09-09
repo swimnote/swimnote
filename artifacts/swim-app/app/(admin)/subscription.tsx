@@ -19,6 +19,7 @@ import {
   ActivityIndicator, Linking, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
+import Purchases from "react-native-purchases";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -134,10 +135,55 @@ export default function SubscriptionScreen() {
 
   const {
     soloOffering, centerOffering, xOffering, swimnoteOffering,
-    isSubscribed, activePackageId,
-    purchase, isPurchasing, refetchCustomerInfo,
+    isSubscribed, activePackageId, activeSubscriptions,
+    purchase, purchaseWithChange, isPurchasing, refetchCustomerInfo,
     offeringsLoading, offeringsError, offeringsErrorDetail, refetchOfferings,
   } = useSubscription();
+
+  // ── Android product change 헬퍼 ────────────────────────────────────────────
+  // Google Play에서 기존 구독이 있는 상태로 다른 상품 구매 시
+  // googleProductChangeInfo 없이 purchasePackage를 호출하면 독립 신규 구독이 생성됨.
+  // tier 순서: swimnote < x300 < x500 < x1000
+  const PLAN_TIER_RANK: Record<string, number> = { swimnote: 0, x300: 1, x500: 2, x1000: 3 };
+  function normalizeProdId(id: string): string {
+    return id.replace(/^com\.swimnote\./, "").replace(/\.monthly(:monthly)?$/, "");
+  }
+  function buildAndroidChangeInfo(targetProductId: string): import("react-native-purchases").GoogleProductChangeInfo | null {
+    if (Platform.OS !== "android") return null;
+    // activeSubscriptions에서 현재 swimnote/x 계열 product 찾기
+    const currentProductId = activeSubscriptions.find(id => {
+      const base = normalizeProdId(id);
+      return base in PLAN_TIER_RANK;
+    }) ?? null;
+    if (!currentProductId) return null;
+    const oldBase = normalizeProdId(currentProductId);
+    const newBase = normalizeProdId(targetProductId);
+    const oldRank = PLAN_TIER_RANK[oldBase] ?? -1;
+    const newRank = PLAN_TIER_RANK[newBase] ?? -1;
+    const isDowngrade = newRank < oldRank;
+    const prorationMode = isDowngrade
+      ? Purchases.PRORATION_MODE.DEFERRED                           // 다음 갱신 적용
+      : Purchases.PRORATION_MODE.IMMEDIATE_AND_CHARGE_FULL_PRICE;  // 즉시 업그레이드
+    console.log(`[Android product change] ${oldBase} → ${newBase} | ${isDowngrade ? "DEFERRED" : "IMMEDIATE_FULL"} | oldId=${currentProductId}`);
+    return { oldProductIdentifier: currentProductId, prorationMode };
+  }
+  // Android에서 현재 paid subscription 존재 시 단순 purchasePackage 금지 guard
+  function androidHasPaidSub(): boolean {
+    if (Platform.OS !== "android") return false;
+    return activeSubscriptions.some(id => {
+      const base = normalizeProdId(id);
+      return base in PLAN_TIER_RANK;
+    });
+  }
+  // Android에서 안전한 구매: 기존 구독 있으면 purchaseWithChange 사용
+  async function safePurchase(pkg: any): Promise<any> {
+    const targetId: string = pkg.product?.productIdentifier ?? "";
+    const changeInfo = buildAndroidChangeInfo(targetId);
+    if (changeInfo) {
+      return purchaseWithChange({ pkg, googleProductChangeInfo: changeInfo });
+    }
+    return purchase(pkg);
+  }
 
   const rcPriceMap = useMemo(() => {
     const all = [
@@ -374,7 +420,7 @@ export default function SubscriptionScreen() {
       `${priceStr}/월 · 무제한 회원 · ${swimnotePlan.display_storage}\n\n결제 수단: ${STORE_NAME}`,
       async () => {
         try {
-          const info = await purchase(pkg);
+          const info = await safePurchase(pkg);
           // 서버 동기화 — DB tier=swimnote 갱신 (RC entitlement 없음, productId 기반)
           await syncRcToServer(info, pkg.product?.productIdentifier ?? "com.swimnote.swimnote.monthly");
           await refetchCustomerInfo();
@@ -461,7 +507,7 @@ export default function SubscriptionScreen() {
         : `${priceStr}/월 · 최대 ${plan.max_members.toLocaleString()}명 · ${plan.display_storage}\n\nX AI 기능 포함 · 결제 수단: ${STORE_NAME}`,
       async () => {
         try {
-          const info = await purchase(pkg);
+          const info = await safePurchase(pkg);
           // 서버 동기화 — x_mode entitlement + pool 갱신
           await syncRcToServer(info, pkg.product?.productIdentifier ?? plan.tier);
           await refetchCustomerInfo();
@@ -518,7 +564,7 @@ export default function SubscriptionScreen() {
         : `${priceStr}/월 · 최대 ${plan.limit.toLocaleString()}명 · ${plan.storage}\n\n결제 수단: ${STORE_NAME}`,
       async () => {
         try {
-          const info = await purchase(pkg);
+          const info = await safePurchase(pkg);
           await syncRcToServer(info, plan.rcPackageId ?? undefined);
           await refetchCustomerInfo();
           await refreshPool();
