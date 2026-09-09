@@ -1,0 +1,535 @@
+[보낼 곳: APP REPLIT]
+
+[P0 ANDROID BILLING FINAL INTEGRATION + RELEASE BUILD]
+
+목표:
+Google Play / RevenueCat에 새로 생성 및 연결 완료된
+Android 공식 상품 4개를 앱/서버에 최종 연결하고,
+실제 Play Internal Testing용 Android AAB를 생성한다.
+
+이번 작업은 Android 출시용 결제 연동 최종 단계.
+
+DATA100 / DATA300은 HOLD.
+이번 작업에서 절대 활성화하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 확정 Android 상품
+━━━━━━━━━━━━━━━━━━━━━━
+
+Google Play + RevenueCat 연결 완료:
+
+SWIMNOTE
+Product:
+com.swimnote.swimnote.monthly
+Base plan:
+monthly
+
+RevenueCat Android identifier:
+com.swimnote.swimnote.monthly:monthly
+
+Price:
+KRW 9,900 / month
+
+Entitlement:
+center
+
+Offering:
+swimnote_monthly
+Package:
+swimnote
+
+
+X300
+Product:
+com.swimnote.x300.monthly
+Base plan:
+monthly
+
+RevenueCat Android identifier:
+com.swimnote.x300.monthly:monthly
+
+Price:
+KRW 129,000 / month
+
+Entitlement:
+x_mode
+
+Offering:
+x_monthly
+Package:
+x300
+
+
+X500
+Product:
+com.swimnote.x500.monthly
+Base plan:
+monthly
+
+RevenueCat Android identifier:
+com.swimnote.x500.monthly:monthly
+
+Price:
+KRW 199,000 / month
+
+Entitlement:
+x_mode
+
+Offering:
+x_monthly
+Package:
+x500
+
+
+X1000
+Product:
+com.swimnote.x1000.monthly
+Base plan:
+monthly
+
+RevenueCat Android identifier:
+com.swimnote.x1000.monthly:monthly
+
+Price:
+KRW 359,000 / month
+
+Entitlement:
+x_mode
+
+Offering:
+x_monthly
+Package:
+x1000
+
+
+Google Play free trial / offer:
+NONE
+
+3일 무료체험:
+기존 SWIMNOTE app-native exact 72h trial 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. ANDROID REVENUECAT CONFIG
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 확인:
+
+- Android RevenueCat public SDK key
+- package/bundle id
+- react-native-purchases 초기화
+- Android Play Billing 연동
+- offering fetch
+- package selection
+- purchasePackage
+- restorePurchases
+
+iOS 동작 변경 금지.
+
+Android에서 실제 RevenueCat app이
+현재 Project의 SwimNote Android 앱을 사용하도록 확인.
+
+잘못된/legacy API key 사용 시 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. OFFERING / PACKAGE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱에서 실제 사용하는 identifier 확인.
+
+일반:
+Offering = swimnote_monthly
+Package = swimnote
+
+X:
+Offering = x_monthly
+
+Packages:
+x300
+x500
+x1000
+
+Android에서도 iOS와 동일 package identifier로
+platform-specific product를 RevenueCat이 반환해야 함.
+
+앱 코드에서 Apple product ID를 직접 비교해
+Android 상품을 누락시키는 코드가 있는지 전수 확인.
+
+금지 예:
+
+product.identifier ===
+"com.swimnote.x300.monthly"
+
+만으로 Android 상품을 판별.
+
+Android identifier는 Base Plan 때문에
+`com.swimnote.x300.monthly:monthly`
+형태일 수 있음.
+
+가급적 package identifier / canonical product resolver 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SERVER REVENUECAT WEBHOOK MAPPING
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+RevenueCat webhook/server billing resolver가
+Android 신규 product identifier 4개를
+정확히 인식하는지 확인.
+
+반드시 지원:
+
+com.swimnote.swimnote.monthly
+com.swimnote.swimnote.monthly:monthly
+
+com.swimnote.x300.monthly
+com.swimnote.x300.monthly:monthly
+
+com.swimnote.x500.monthly
+com.swimnote.x500.monthly:monthly
+
+com.swimnote.x1000.monthly
+com.swimnote.x1000.monthly:monthly
+
+RevenueCat event에서
+store_product_id / product_id 형태가 어떤 값으로 오는지
+현재 webhook contract 기준으로 확인.
+
+Android 구매 후 canonical 결과:
+
+SWIMNOTE
+→ normal paid subscription
+→ x_paid_entitlement = false
+→ current plan = swimnote
+
+X300
+→ x_paid_entitlement = true
+→ x_plan_key = x300
+
+X500
+→ x_paid_entitlement = true
+→ x_plan_key = x500
+
+X1000
+→ x_paid_entitlement = true
+→ x_plan_key = x1000
+
+X300/500/1000을 모두 단순 x_mode 하나로만 처리해서
+plan tier를 잃으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. TRIAL → PAID ANDROID
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 app-native 72h trial 유지.
+
+Android trial 중에도:
+
+- SWIMNOTE/X300/X500/X1000 구매 CTA 표시
+- Google Play purchase 가능
+- X plan 성공 구매 시 paid가 trial보다 우선
+- trial expires 후 paid X 유지
+
+Google Play free trial 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PRICE DISPLAY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android에서는 하드코딩 가격보다
+RevenueCat/Google Play에서 반환된 localized price를 우선.
+
+실제 한국 계정에서:
+
+SWIMNOTE → ₩9,900
+X300 → ₩129,000
+X500 → ₩199,000
+X1000 → ₩359,000
+
+표시 확인.
+
+iOS 가격 표시 regression 금지.
+
+DATA100/DATA300 UI는 HOLD 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ENTITLEMENT
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반 SWIMNOTE:
+center entitlement
+
+X300/X500/X1000:
+x_mode entitlement
+
+다만 제품 플랜 판정은 entitlement만으로 하지 말고
+실제 purchased product/package를 이용해
+x300/x500/x1000 구분 유지.
+
+기존 원칙:
+
+mode === 'x'
+≠ paid
+
+유지.
+
+paid:
+x_paid_entitlement
+
+trial:
+x_trial
+
+manual:
+x_manual_entitlement
+
+HQ:
+x_management_override
+
+force off:
+x_force_disabled
+
+의미 혼합 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. RESTORE PURCHASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android restore 확인.
+
+동일 Google 계정에서 앱 재설치/기기 변경 후:
+
+restorePurchases
+→ RevenueCat entitlement 복구
+→ 서버 current plan 동기화
+
+확인.
+
+SWIMNOTE/X 각 플랜 구분 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. PURCHASE ERROR / CANCEL
+━━━━━━━━━━━━━━━━━━━━━━
+
+Google Play 결제:
+
+- 사용자 취소
+- pending
+- 실패
+- 이미 소유
+- 네트워크 오류
+
+처리 확인.
+
+결제 실패/취소 시
+서버 paid entitlement를 임의 활성화하면 FAIL.
+
+구매 성공 + RevenueCat 검증된 상태에서만 paid 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. ANDROID NOTIFICATIONS
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 빌드에서 Android 기본 출시 preflight도 같이 확인.
+
+최소:
+
+- POST_NOTIFICATIONS Android 13+
+- FCM config
+- push token registration
+- notification deep link
+
+기존 기능 깨짐 여부만 확인.
+
+대규모 push refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. ANDROID CONFIG
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 현재 설정 확인:
+
+- Android applicationId/package
+- versionName
+- versionCode
+- runtimeVersion
+- EAS production profile
+- google-services.json 연결
+- RevenueCat Android SDK/native dependency
+
+현재 Play Console에 업로드된 최고 versionCode를
+확인 가능한 프로젝트 정보와 비교.
+
+새 build의 versionCode는
+반드시 기존보다 커야 함.
+
+임의로 과거 기억값 112를 고정하지 말고
+실제 current config 기준으로 결정.
+
+versionName은 현재 출시 정책과 일치하도록 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. TEST MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+Android offerings fetch
+→ swimnote + x300/x500/x1000 모두 반환
+
+B.
+한국 localized price
+→ 9,900 / 129,000 / 199,000 / 359,000
+
+C.
+SWIMNOTE 구매
+→ center entitlement
+→ normal paid plan
+
+D.
+X300 구매
+→ x_mode
+→ x_plan_key=x300
+
+E.
+X500 구매
+→ x_plan_key=x500
+
+F.
+X1000 구매
+→ x_plan_key=x1000
+
+G.
+trial → X paid
+→ paid 우선
+
+H.
+purchase cancel
+→ entitlement 변화 없음
+
+I.
+restore purchase
+→ 기존 plan 복원
+
+J.
+iOS offering/product regression 없음
+
+K.
+DATA 구매 CTA HOLD 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. WEBHOOK TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production 결제를 하지 말고
+RevenueCat sandbox/test event 또는
+안전한 fixture로 Android product mapping 검증.
+
+최소:
+
+INITIAL_PURCHASE
+RENEWAL
+CANCELLATION
+EXPIRATION
+
+에서 Android identifiers 처리.
+
+특히 INITIAL_PURCHASE 시
+Super Admin PAID_PLAN_ACTIVATED notification도
+Android 신규 상품에서 정상 생성되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 수정 후 DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server 수정이 있으면:
+
+test
+→ main
+→ Render Production
+→ LIVE
+→ /health SHA == main HEAD
+→ billing smoke
+
+App 수정:
+
+release/v2.0.0
+→ clean/origin exact
+→ tests/preflight
+
+Android는 이번 작업에서
+OTA가 아니라 NEW NATIVE BUILD가 목표.
+
+iOS OTA 임의 배포 금지.
+iOS native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. ANDROID AAB BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 P0 통과 후:
+
+EAS production Android AAB build.
+
+반드시 제출:
+
+- build ID
+- versionName
+- versionCode
+- runtimeVersion
+- applicationId
+- AAB artifact URL/path
+- build status
+
+아직 Google Play Production 직접 출시 금지.
+
+다음 단계는
+Google Play Internal Testing 업로드/검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Android package/applicationId
+2. versionName
+3. 기존 versionCode
+4. 새 versionCode
+5. RevenueCat Android API key
+   (실제 key 값 노출 금지, configured/invalid만)
+6. offerings 결과
+7. swimnote package product
+8. x300 package product
+9. x500 package product
+10. x1000 package product
+11. localized prices
+12. server Android product mapping
+13. SWIMNOTE entitlement
+14. X entitlement + x_plan_key mapping
+15. trial→paid
+16. restore purchase
+17. cancel/failure
+18. webhook Android mapping
+19. Super Admin paid notification
+20. DATA HOLD
+21. Android notification preflight
+22. tests A~K
+23. 수정 파일
+24. main HEAD
+25. Render LIVE SHA
+26. Android build ID
+27. AAB
+28. blocker
+29. 최종 PASS/HOLD
+
+PASS 조건:
+
+- Android 4개 official product 정상 fetch
+- Google Play 실제 localized price 정상
+- SWIMNOTE/X300/X500/X1000 구분 정확
+- X plan tier 손실 없음
+- trial→paid 정상
+- restore 정상
+- 취소/실패 시 paid 오활성화 0
+- DATA HOLD 유지
+- AAB build 성공
+- blocker 0
+
+완료 후 STOP.

@@ -47,7 +47,8 @@ export function getXPlanKeyFromProductId(productId: string): string | null {
     if (
       productId === key ||
       productId === `${key}:monthly` ||
-      productId === `com.swimnote.${key}.monthly`
+      productId === `com.swimnote.${key}.monthly` ||
+      productId === `com.swimnote.${key}.monthly:monthly`  // Android base plan suffix
     ) {
       return key;
     }

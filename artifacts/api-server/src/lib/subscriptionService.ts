@@ -82,6 +82,15 @@ export const RC_PRODUCT_TIER_MAP: Record<string, string> = {
   "com.swimnote.x1000.monthly":    "x1000",
   "com.swimnote.data100.monthly":  "data100",
   "com.swimnote.data300.monthly":  "data300",
+
+  // ── Android Google Play base plan 변형 (com.swimnote.*.monthly:monthly) ──
+  // RevenueCat Android: product_id = "{productId}:{basePlanId}"
+  "com.swimnote.swimnote.monthly:monthly": "swimnote",
+  "com.swimnote.x300.monthly:monthly":     "x300",
+  "com.swimnote.x500.monthly:monthly":     "x500",
+  "com.swimnote.x1000.monthly:monthly":    "x1000",
+  "com.swimnote.data100.monthly:monthly":  "data100",
+  "com.swimnote.data300.monthly:monthly":  "data300",
 };
 
 // ── 티어 정규화 (레거시 코드명 → 현행 코드명) ──────────────────────────
