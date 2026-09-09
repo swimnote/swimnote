@@ -1,0 +1,333 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL PHYSICAL/API E2E — ONBOARDING CLOSEOUT / NO MORE CODE AUDIT]
+
+현재 상태: HOLD.
+
+중요:
+코드 재검토 반복 금지.
+정적 코드 분석으로 PASS 대체 금지.
+기존 구현 재작성 금지.
+
+이번 작업은 오직
+"실제 실행 결과"를 확인한다.
+
+버그가 실제로 발견된 경우에만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. ADMIN CORE — 실제 앱 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 Admin 테스트 계정 사용.
+
+필요하면 해당 계정 admin_core completed row만
+테스트 전 안전하게 초기화.
+
+실제 앱:
+
+login
+→ dashboard
+→ admin_core 화면 실제 표시
+→ 완료 버튼
+→ POST /onboarding/complete 실제 성공
+→ DB row 확인
+→ logout
+→ login
+→ admin_core 재노출 0
+
+제출:
+- 실제 표시 여부
+- API status
+- DB completed_version
+- 재로그인 결과
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. TEACHER CORE — 실제 앱 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일.
+
+login
+→ today-schedule
+→ teacher_core 표시
+→ 완료
+→ DB
+→ logout/login
+→ 재노출 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PARENT CORE — 실제 앱 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일.
+
+login
+→ parent home
+→ parent_core 표시
+→ 완료
+→ user_kind='parent' DB row
+→ logout/login
+→ 재노출 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. FEATURE GUIDE 4종 — 실제 화면 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 앱에서 각각:
+
+A. admin_members
+B. teacher_ai_diary
+C. parent_additional_guardian
+D. x_curriculum
+
+검증:
+
+첫 진입
+→ 실제 guide 표시
+
+닫기/완료
+→ AsyncStorage key 생성
+
+화면 이탈
+→ 재진입
+→ guide 재노출 0
+
+코드 pattern 확인으로 대체 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PARENT AUTO-LINK — 실제 API E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실사용 데이터 건드리지 말고
+안전한 테스트 pool/student/parent 사용.
+
+CASE 1
+same pool
++ name match
++ phone match
+→ 실제 parent registration/link API
+→ parent_students.status='approved'
+
+CASE 2
+name match
++ phone mismatch
+→ 실제 API
+→ pending
+→ pending_reason='phone_mismatch'
+
+CASE 3
+duplicate name
+→ 실제 API
+→ pending_reason='duplicate_name'
+
+CASE 4
+phone2/3/4 등록
+→ 해당 번호 parent 가입/link
+→ 실제 approved auto-link
+
+각 CASE 후 DB 결과 제출.
+
+테스트 데이터 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ADDITIONAL GUARDIAN — 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Parent 테스트 계정으로:
+
+approved Parent
+→ additional guardian 추가
+
+확인:
+
+- 정상 번호 저장
+- 자기 번호 실제 거절
+- 중복 번호 실제 거절
+- phone2/3/4 최대 슬롯
+- 등록 번호의 다른 Parent 가입/link
+→ 실제 auto-link
+
+서버 코드 읽기로 대체 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X CURRICULUM — 실제 TEST POOL E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실운영 pool 금지.
+안전한 test pool/version 사용.
+
+실제 DOCX upload API/UI:
+
+upload
+→ DB candidate 상태 확인
+→ REVIEW_PENDING
+
+이 시점:
+
+- candidate APPROVED 아님
+- candidate ACTIVE 아님
+- 신규 candidate 때문에 READY 전환 안 됨
+
+그 후 실제 Super Admin approve endpoint 실행:
+
+→ APPROVED
+→ ACTIVE
+→ READY
+
+기존 active version이 있는 테스트면
+승인 전 기존 active 유지도 확인.
+
+코드 흐름 설명으로 대체 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. GROWTH REPORT — 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test report 사용.
+
+실제 DB/report 상태:
+READY_TO_SEND
+
+실제 Admin 발급 액션/API:
+POST /admin/growth-reports/:id/send
+
+확인:
+
+→ 200
+→ product_status='PUBLISHED'
+→ published_at 기록
+→ Parent API에서 실제 조회 가능
+
+가능하면 테스트 Parent 계정 앱에서
+실제 report detail 열림까지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. PARENT NOTIFICATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 발급 후:
+
+notifyGrowthReportPublished 호출 여부만
+코드로 보지 말고,
+
+가능한 현재 notification 저장구조가 있으면:
+→ 실제 notification row/event 생성 확인
+
+테스트 기기에 push 수신 가능하면:
+→ 실제 push 수신까지 확인
+
+외부 push delivery까지 환경상 확인 불가능하면
+정확히 구분해서 보고:
+
+A. notification 생성 PASS
+B. provider dispatch PASS
+C. physical device receipt NOT VERIFIED
+
+거짓 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. SMALL IPHONE — 실제 렌더링
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 iOS simulator 또는
+small viewport/device에서 실제 렌더.
+
+최소:
+
+- Admin core
+- Teacher core
+- Parent core
+- OnboardingSheet 3-slide
+- 긴 설명 1개
+
+확인:
+
+- logo clipping 0
+- title/body clipping 0
+- CTA 가림 0
+- SafeArea 정상
+- Scroll 정상
+- dots 정상
+
+static source inspection만으로 대체 금지.
+
+Android는 아직 release 전이므로
+이번에는 static/layout 검증 유지 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. VERSION BUMP
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 DB 직접 검증은 승인.
+
+다만 한 역할만이라도 실제 앱에서:
+
+completed_version=1
+test required_version=2
+→ 실제 core 재노출
+→ 완료
+→ v2
+→ 재진입 0
+
+Production 전체 required version 변경 금지.
+
+테스트 전용 안전한 방식 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 수정 발생 시만 재배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 E2E PASS이고 코드 수정 0:
+→ 새 deploy/OTA 금지.
+
+버그 수정 발생 시에만:
+→ 해당 영역 test
+→ main
+→ Render if server changed
+→ iOS production-v2 OTA if app changed
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 아래만 제출.
+
+1. Admin core 실제 앱 E2E
+2. Teacher core 실제 앱 E2E
+3. Parent core 실제 앱 E2E
+4. 재로그인 재노출 결과
+5. 실제 app version bump 결과
+6. admin_members 실제 guide 결과
+7. teacher_ai_diary 실제 guide 결과
+8. parent_additional_guardian 실제 guide 결과
+9. x_curriculum 실제 guide 결과
+10. Parent auto-link CASE 1~4 실제 API/DB 결과
+11. Additional Guardian 실제 결과
+12. X Curriculum 실제 upload/review/approve/READY 결과
+13. Growth Report 실제 send/PUBLISHED/Parent 조회 결과
+14. notification 생성/dispatch/device receipt 각각 상태
+15. small iPhone 실제 렌더 결과
+16. 발견 버그
+17. 수정 파일 (없으면 없음)
+18. main HEAD
+19. Render LIVE SHA
+20. OTA ID (새 수정 있을 때만)
+21. blocker
+
+최종 PASS 조건:
+
+- 실제 앱에서 role core 3종 작동
+- 재로그인 재노출 0
+- 실제 feature guide 반복노출 0
+- Parent auto-link 실제 결과 일치
+- Additional Guardian 실제 결과 일치
+- X Curriculum 실제 human review gate 작동
+- Growth Report 실제 관리자 발급 작동
+- Parent 실제 조회 가능
+- notification 최소 생성/dispatch 경로 정상
+- small iPhone 실제 UI blocker 0
+- blocker 0
+
+완료 후 STOP.
