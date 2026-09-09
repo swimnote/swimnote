@@ -16,6 +16,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
+import { isXMode } from "@/constants/xTheme";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { UnwrittenScheduleSheet } from "@/components/teacher/diary/UnwrittenScheduleSheet";
 
@@ -94,7 +99,20 @@ function groupEntries(entries: DiaryIndexEntry[]): DiaryGroup[] {
    메인 컴포넌트
    ════════════════════════════════════════════════════════════════ */
 export default function DiaryIndexScreen() {
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
+  const { mode } = useMode();
+  const inXMode = isXMode(mode);
+
+  // Feature Guide: teacher_ai_diary (normal) / teacher_x_ai_diary (X mode) — 중복 노출 방지
+  const { shouldShow: showAiDiaryGuide, markSeen: markAiDiaryGuideSeen } = useFeatureGuide(adminUser?.id, "teacher_ai_diary");
+  const { shouldShow: showXAiDiaryGuide, markSeen: markXAiDiaryGuideSeen } = useFeatureGuide(adminUser?.id, "teacher_x_ai_diary");
+  // X모드: teacher_x_ai_diary만 표시; 일반 모드: teacher_ai_diary만 표시 (동시 노출 0)
+  const activeGuideSlides = inXMode
+    ? [{ icon: undefined, title: GUIDE_CONTENT.teacher_x_ai_diary.title, body: GUIDE_CONTENT.teacher_x_ai_diary.body }]
+    : [{ icon: undefined, title: GUIDE_CONTENT.teacher_ai_diary.title, body: GUIDE_CONTENT.teacher_ai_diary.body }];
+  const showActiveGuide = inXMode ? showXAiDiaryGuide : showAiDiaryGuide;
+  const markActiveGuideSeen = inXMode ? markXAiDiaryGuideSeen : markAiDiaryGuideSeen;
+
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const { studentId: paramStudentId, studentName: paramStudentName } = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
@@ -406,6 +424,13 @@ export default function DiaryIndexScreen() {
         token={token}
         onClose={() => setShowQuickWrite(false)}
         backTo="diary-index"
+      />
+
+      {/* Feature Guide: X모드=teacher_x_ai_diary / 일반=teacher_ai_diary (중복 노출 0) */}
+      <OnboardingSheet
+        visible={showActiveGuide}
+        onDismiss={markActiveGuideSeen}
+        slides={activeGuideSlides}
       />
     </SafeAreaView>
   );

@@ -1,0 +1,532 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL CLOSEOUT — ONBOARDING MISSING GUIDES + PRODUCTION E2E ONLY]
+
+현재 판정: FAIL
+
+이유:
+온보딩 시스템 기반 구현은 완료됐지만
+중요 feature guide 미연결 항목이 남아 있고,
+최종 Production E2E 증빙도 일부 누락됐다.
+
+이번 작업은 절대 재설계하지 않는다.
+
+금지:
+- 공통 onboarding framework 재작성
+- DB 구조 변경
+- 기존 core onboarding 재작성
+- 색상/theme 재설계
+- unrelated refactor
+- Super Admin 다른 기능 작업
+- Android OTA
+
+목표:
+남은 guide 연결 + 실제 검증만 하고
+온보딩 WP를 최종 CLOSED 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 미연결 GUIDE 전부 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 guide는 이미 content/guide 정의가 존재하지만
+실제 화면 연결이 안 된 것으로 보고됨.
+
+모두 실제 route/component에 연결.
+
+TEACHER
+
+1. teacher_today
+2. teacher_ai_diary
+3. teacher_x_ai_diary
+
+PARENT
+
+4. parent_growth_report
+5. parent_insight_report
+6. parent_ai_curriculum_search
+
+X
+
+7. x_entry
+8. x_ready
+9. x_curriculum
+10. x_ai_diary
+11. x_growth_event
+12. x_growth_report
+
+ADMIN
+
+13. admin_growth_report
+
+중요:
+기존 정의 copy를 무조건 붙이지 말고
+이미 완료된 Content Truth Audit의
+최종 확정 문구만 사용.
+
+새 copy 창작 최소화.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. GUIDE 중복 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 기능을:
+
+- 일반 role guide
+- X guide
+
+양쪽에서 설명할 경우
+동일 내용을 두 번 연속 보여주면 안 됨.
+
+예:
+
+teacher_ai_diary
+teacher_x_ai_diary
+
+둘 다 필요한 경우:
+
+일반 AI Diary 첫 사용
+→ 기본 기능 설명
+
+X mode 사용자:
+X 차이점은 같은 진입에서
+연속 modal로 띄우지 말고
+inline 또는 이후 적절한 시점에 1회.
+
+중복/연속 노출 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CORE PRODUCTION E2E — 실제 인증 계정
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 존재 확인만으로 PASS 금지.
+
+안전한 실제 테스트 계정으로 각각 확인.
+
+ADMIN
+
+required_version > completed_version
+→ dashboard 진입
+→ admin_core 실제 표시
+→ 완료
+→ POST /onboarding/complete
+→ DB row 생성/업데이트
+→ logout/login
+→ 재노출 0
+
+TEACHER
+
+동일:
+today-schedule
+→ teacher_core
+→ 완료
+→ DB 저장
+→ 재로그인
+→ 재노출 0
+
+PARENT
+
+동일:
+home
+→ parent_core
+→ 완료
+→ DB 저장
+→ 재로그인
+→ 재노출 0
+
+각 역할별:
+- account identifier는 보고서에서 마스킹
+- DB completed_version
+- onboarding_key
+- 재노출 결과
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. VERSION BUMP 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 전체 required_version 변경 금지.
+
+테스트 계정/안전한 테스트 방식으로:
+
+completed_version = 1
+required_version = 2
+
+→ core 다시 1회 노출
+
+완료:
+completed_version = 2
+
+→ 재진입/재로그인 시 재노출 0
+
+그리고:
+
+completed_version 2 상태에서
+POST version 1
+→ DB 2 유지
+
+실제 API/DB 결과 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. FEATURE GUIDE 1회 노출 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 아래 실제 화면에서 확인.
+
+A.
+admin_members
+→ 첫 진입 guide
+→ 닫기/완료
+→ 재진입 0
+
+B.
+teacher_ai_diary
+→ 첫 AI 사용 guide
+→ 이후 바로 기능 진입
+→ 재사용 시 guide 0
+
+C.
+parent_additional_guardian
+→ 첫 진입 guide
+→ 재진입 0
+
+D.
+x_curriculum
+→ 첫 진입 guide
+→ 재진입 0
+
+AsyncStorage key:
+@swimnote:guide:{userId}:{guide_id}:{version}
+
+실제 생성 확인.
+
+다른 계정으로 전환했을 때
+state 섞임 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ONBOARDING 폭탄 방지 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+대표적으로:
+
+Admin login
+→ admin_core 1개만 표시
+
+core 닫는 즉시
+같은 화면의 다른 feature guide가
+바로 이어서 뜨면 FAIL.
+
+Teacher/Parent도 동일.
+
+한 화면에 둘 이상의 guide 조건이 true여도:
+
+- 동시 modal 0
+- 연속 즉시 modal 0
+
+확인.
+
+필요 시 최소 queue/priority guard만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PARENT AUTO-LINK 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서는 코드 로직 검증 중심.
+
+가능한 안전한 test data로 실제 API E2E 확인.
+
+CASE 1
+same pool
++ child name match
++ phone match
+→ approved
+
+CASE 2
+name match
++ phone mismatch
+→ pending
+reason phone_mismatch
+
+CASE 3
+duplicate name
+→ pending
+reason duplicate_name
+
+CASE 4
+registered phone2/3/4
+→ corresponding parent signup/link
+→ approved auto-link
+
+테스트 데이터는 종료 후 정리.
+
+실사용 데이터 훼손 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. ADDITIONAL GUARDIAN E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 확인:
+
+- approved Parent만 등록 가능
+- phone2/3/4 사용
+- 최대 3명
+- 자기 번호 거절
+- 중복 번호 거절
+- same pool + registered phone → auto-link
+
+onboarding 문구와 결과 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. X CURRICULUM PRODUCTION E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+human review gate가 코드상 존재하는 것 외에
+실제 안전한 test pool/version으로 확인.
+
+upload
+→ REVIEW_PENDING
+
+승인 전:
+
+- profile APPROVED 아님
+- candidate ACTIVE 아님
+- candidate 때문에 READY 전환 안 됨
+
+Super Admin approve
+→ APPROVED
+→ ACTIVATE
+→ READY
+
+기존 active curriculum이 있는 경우:
+승인 전까지 기존 active 유지.
+
+실사용 pool의 curriculum 훼손 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. GROWTH REPORT PRODUCTION E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 이번에 검증.
+
+기존 안전한 test report 또는 test account 이용.
+
+READY_TO_SEND
+→ 관리자 화면에서 검수/발급
+→ POST /send
+→ PUBLISHED
+→ Parent API/화면에서 visible
+→ Parent notification 생성/발송 경로 확인
+
+자동 publish 없어야 함.
+
+온보딩 문구:
+
+Admin:
+"검토 후 발급"
+
+Parent:
+"수영장에서 발행하면 확인"
+
+실제 동작과 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. PDF 실제 Parent 호출 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+growthReportExport.ts 존재만으로 PASS 금지.
+
+Parent의 실제 published Growth Report 화면에서:
+
+PDF 저장 버튼/액션
+→ growthReportExport 호출
+→ expo-print
+→ share/save flow
+
+실제로 연결됐는지 확인.
+
+연결 안 되어 있으면
+온보딩에서 "PDF 저장 가능" 문구를 제거하거나
+기존 계획대로 최소 연결.
+
+어느 쪽을 했는지 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. INSIGHT HOLD GUIDE
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 연결 후 최종 확인.
+
+Guide에서 금지:
+
+- 구매 가능
+- 지금 구매
+- 즉시 열람
+- 별도 결제
+- 79,000원 구매
+- PDF 지원 확정
+
+현재 HOLD에 맞는 설명만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. SMALL SCREEN / LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 static/runtime 검증:
+
+- small iPhone width
+- 일반 iPhone
+- Android small width
+
+공통 components:
+
+OnboardingSheet
+OnboardingFullScreen
+CoachMark
+OnboardingInlineHelp
+
+확인:
+
+- logo clipping 0
+- title/body clipping 0
+- CTA 가림 0
+- SafeArea 정상
+- ScrollView 정상
+- dots 정상
+- landscape 치명적 overlap 0
+
+실제 Android 기기 테스트를 하지 않았다면
+정확히 "static/layout validation only"라고 보고.
+
+거짓 실기기 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. API AUTHORIZATION 최종 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+401 확인만으로 끝내지 말 것.
+
+GET /onboarding/state:
+인증 사용자가 자기 state만 반환하는지 확인.
+
+POST /onboarding/complete:
+body에 user_id를 주입해서
+다른 사용자 state를 변경할 수 없어야 함.
+
+검증:
+
+User A token
+→ User B state read 불가
+→ User B completion write 불가
+
+Parent/user_kind namespace collision 0.
+
+arbitrary onboarding_key가
+보안상 다른 기능 권한에 영향을 주지 않는 것도 확인.
+
+필요하면 allowlist는 최소 적용.
+onboarding state가 feature entitlement로 사용되면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. NATIVE DEPENDENCY
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 onboarding 구현으로:
+
+새 native package
+Pod
+Expo native module
+
+추가됐는지 확인.
+
+없으면:
+
+native rebuild = NO
+
+명시.
+
+Android 공통 React Native 코드 호환 여부도 보고.
+
+Android OTA 금지 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 수정 발생 시 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 누락 guide 연결 때문에 APP 수정 필수.
+
+APP:
+release/v2.0.0
+→ tests
+→ clean/origin exact
+→ app 2.0.1
+→ runtime 2.1.0
+→ production-v2 iOS OTA
+
+SERVER 수정이 발생한 경우만:
+
+main push
+→ Render deploy
+→ LIVE
+→ health SHA == main HEAD
+
+서버 수정 없으면
+불필요한 Render 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래만 명확하게 제출.
+
+1. 신규 연결한 13개 guide 결과
+2. 최종 Admin guide 전체 목록/개수
+3. 최종 Teacher guide 전체 목록/개수
+4. 최종 Parent guide 전체 목록/개수
+5. 최종 X guide 전체 목록/개수
+6. 남은 미연결 guide 수
+7. Admin core 실제 E2E
+8. Teacher core 실제 E2E
+9. Parent core 실제 E2E
+10. Core DB row 증빙
+11. version bump 실제 테스트
+12. downgrade 방지 실제 테스트
+13. feature guide 4종 실제 1회 테스트
+14. 계정전환 state 분리
+15. onboarding 폭탄 테스트
+16. Parent auto-link CASE 1~4 실제 E2E
+17. Additional Guardian 실제 E2E
+18. X Curriculum 실제 E2E
+19. Growth Report 실제 E2E
+20. PDF 실제 Parent 연결 결과
+21. Insight HOLD guide 결과
+22. small iPhone 결과
+23. Android layout 결과
+24. API cross-user authorization
+25. native dependency/rebuild
+26. 수정 파일
+27. tests
+28. main HEAD
+29. Render LIVE SHA
+30. iOS OTA ID
+31. blocker
+
+최종 PASS 조건:
+
+- 미연결 중요 guide = 0
+- Admin/Teacher/Parent core 실제 1회 동작
+- 완료 후 재노출 0
+- version bump 정상
+- 계정 상태 혼선 0
+- onboarding 폭탄 0
+- Parent auto-link 실제 E2E 일치
+- Additional Guardian 실제 E2E 일치
+- X Curriculum review gate 실제 일치
+- Growth Report 검수→발급 실제 일치
+- PDF 문구와 실제 기능 일치
+- Insight HOLD 정확
+- small-screen 치명적 UI 문제 0
+- cross-user onboarding state 접근 0
+- native blocker 0
+- remaining blocker 0
+
+완료 후 STOP.

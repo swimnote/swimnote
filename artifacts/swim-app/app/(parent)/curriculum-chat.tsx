@@ -49,6 +49,9 @@ import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { useMode } from "@/context/ModeContext";
 import { useParent, type ChildStudent } from "@/context/ParentContext";
 import { useToast } from "@/components/common/Toast";
@@ -196,7 +199,10 @@ function UnavailableView({ eligibility }: { eligibility: Eligibility }) {
 
 export default function CurriculumChatScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, parentAccount } = useAuth();
+  const parentUserId = (parentAccount as any)?.id;
+  const { shouldShow: showCurriculumGuide, markSeen: markCurriculumGuideSeen } = useFeatureGuide(parentUserId, "parent_ai_curriculum_search");
+  const curriculumGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.parent_ai_curriculum_search.title, body: GUIDE_CONTENT.parent_ai_curriculum_search.body }];
   const { mode } = useMode();
   const { students } = useParent();
   const { showToast, ToastComponent } = useToast();
@@ -908,6 +914,12 @@ export default function CurriculumChatScreen() {
 
       {renderStudentPicker()}
       <ToastComponent />
+
+      <OnboardingSheet
+        visible={showCurriculumGuide}
+        onDismiss={markCurriculumGuideSeen}
+        slides={curriculumGuideSlides}
+      />
     </>
   );
 }

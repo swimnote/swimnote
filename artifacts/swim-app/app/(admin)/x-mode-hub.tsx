@@ -5,6 +5,9 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { useMode } from "@/context/ModeContext";
 import { X as XT } from "@/constants/xTheme";
 import { router, useLocalSearchParams } from "expo-router";
@@ -31,6 +34,9 @@ export default function XModeHubScreen() {
   const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
   const { mode, status } = useMode();
+  // x_ready guide: X가 실제로 활성화됐을 때만 노출
+  const { shouldShow: showXReadyGuide, markSeen: markXReadyGuideSeen } = useFeatureGuide(adminUser?.id, "x_ready");
+  const xReadyGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.x_ready.title, body: GUIDE_CONTENT.x_ready.body }];
   const { backTo } = useLocalSearchParams<{ backTo?: string }>();
   const isPoolAdmin = adminUser?.role === "pool_admin";
 
@@ -233,6 +239,13 @@ export default function XModeHubScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Feature Guide: x_ready — X가 실제로 활성화됐을 때만 노출 */}
+      <OnboardingSheet
+        visible={mode === "x" && showXReadyGuide}
+        onDismiss={markXReadyGuideSeen}
+        slides={xReadyGuideSlides}
+      />
     </View>
   );
 }

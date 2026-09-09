@@ -29,6 +29,9 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { GrowthEventCard } from "@/components/x/GrowthEventCard";
 import { GrowthEventDetail } from "@/components/x/GrowthEventDetail";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { useGrowthEvents, type GrowthEvent } from "@/hooks/useGrowthEvents";
 import Colors from "@/constants/colors";
 
@@ -63,7 +66,9 @@ const SOURCE_FILTER_OPTIONS = [
 
 export default function AdminXGrowthScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
+  const { shouldShow: showXGrowthEventGuide, markSeen: markXGrowthEventGuideSeen } = useFeatureGuide(adminUser?.id, "x_growth_event");
+  const xGrowthEventGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.x_growth_event.title, body: GUIDE_CONTENT.x_growth_event.body }];
   const { preselect_student_id } = useLocalSearchParams<{ preselect_student_id?: string }>();
 
   // 학생 목록
@@ -304,6 +309,11 @@ export default function AdminXGrowthScreen() {
           canReview
           onReviewSuccess={handleReviewSuccess}
         />
+      <OnboardingSheet
+        visible={showXGrowthEventGuide}
+        onDismiss={markXGrowthEventGuideSeen}
+        slides={xGrowthEventGuideSlides}
+      />
       </View>
     </XModeGuard>
   );

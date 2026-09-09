@@ -25,6 +25,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { useParent } from "@/context/ParentContext";
 
 const C    = Colors.light;
@@ -425,7 +428,10 @@ function PreflightSheet({
 
 export default function InsightReportHub() {
   const insets   = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, parentAccount } = useAuth();
+  const parentUserId = (parentAccount as any)?.id;
+  const { shouldShow: showInsightGuide, markSeen: markInsightGuideSeen } = useFeatureGuide(parentUserId, "parent_insight_report");
+  const insightGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.parent_insight_report.title, body: GUIDE_CONTENT.parent_insight_report.body }];
   const { selectedStudent, students } = useParent();
   const params = useLocalSearchParams<{ studentId?: string }>();
 
@@ -707,6 +713,12 @@ export default function InsightReportHub() {
 
       <ReportPreviewSheet visible={showPreview}   onClose={() => setShowPreview(false)} />
       <PreflightSheet     visible={showPreflight} onClose={() => setShowPreflight(false)} readiness={readiness} />
+
+      <OnboardingSheet
+        visible={showInsightGuide}
+        onDismiss={markInsightGuideSeen}
+        slides={insightGuideSlides}
+      />
     </View>
   );
 }

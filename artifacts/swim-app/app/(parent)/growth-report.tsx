@@ -15,6 +15,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
@@ -59,7 +62,10 @@ function AttBar({ month }: { month: MonthlyAtt }) {
 
 /* ════════════════════════════════════════════════════════════════ */
 export default function GrowthReportScreen() {
-  const { token } = useAuth();
+  const { token, parentAccount } = useAuth();
+  const parentUserId = (parentAccount as any)?.id;
+  const { shouldShow: showGrowthGuide, markSeen: markGrowthGuideSeen } = useFeatureGuide(parentUserId, "parent_growth_report");
+  const growthGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.parent_growth_report.title, body: GUIDE_CONTENT.parent_growth_report.body }];
   const { selectedStudent } = useParent();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ studentId?: string }>();
@@ -306,6 +312,12 @@ export default function GrowthReportScreen() {
 
         <View style={{ height: insets.bottom + 24 }} />
       </ScrollView>
+
+      <OnboardingSheet
+        visible={showGrowthGuide}
+        onDismiss={markGrowthGuideSeen}
+        slides={growthGuideSlides}
+      />
     </View>
   );
 }

@@ -27,6 +27,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { LucideIcon } from "@/components/common/LucideIcon";
 
@@ -139,7 +142,9 @@ function KpiRow({
 
 // ─── 메인 컴포넌트 ───────────────────────────────────────────────────────────
 export default function XHubScreen() {
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
+  const { shouldShow: showXEntryGuide, markSeen: markXEntryGuideSeen } = useFeatureGuide(adminUser?.id, "x_entry");
+  const xEntryGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.x_entry.title, body: GUIDE_CONTENT.x_entry.body }];
   const router    = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -413,6 +418,12 @@ export default function XHubScreen() {
         </View>
 
       </ScrollView>
+
+      <OnboardingSheet
+        visible={showXEntryGuide}
+        onDismiss={markXEntryGuideSeen}
+        slides={xEntryGuideSlides}
+      />
     </SafeAreaView>
   );
 }

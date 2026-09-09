@@ -103,6 +103,12 @@ export const PARENT_CORE_SLIDES = [
 // ── Feature guide copy ───────────────────────────────────────────────────────
 
 export const GUIDE_CONTENT = {
+  // Teacher: 오늘 수업 (today-schedule)
+  teacher_today: {
+    title: "오늘 수업",
+    body: "오늘 담당 반과 학생 출결을\n이 화면에서 바로 확인하고 처리할 수 있습니다.\n\n수업 후 메모를 입력하면\nAI 일지 작성에 사용됩니다.",
+  },
+
   // Admin: 학부모 전화번호 inline help
   admin_parent_phone_inline: {
     text: "학부모 전화번호를 정확히 입력하면,\n학부모 가입 시 자녀 이름과 전화번호가 일치할 때\n자동으로 연결됩니다.",

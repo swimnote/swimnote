@@ -35,6 +35,11 @@ import { SubScreenHeader }  from "@/components/common/SubScreenHeader";
 import { LucideIcon }       from "@/components/common/LucideIcon";
 import { ConfirmModal }     from "@/components/common/ConfirmModal";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useMode } from "@/context/ModeContext";
+import { isXMode } from "@/constants/xTheme";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
@@ -158,7 +163,17 @@ const BATCH_STATUS_LABEL: Record<string, { label: string; color: string }> = {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function ReportHubScreen() {
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
+  const { mode } = useMode();
+  const inX = isXMode(mode);
+  // Growth report guide: X모드 = x_growth_report, 일반 = admin_growth_report (중복 노출 0)
+  const { shouldShow: showAdminGrowthGuide, markSeen: markAdminGrowthGuideSeen } = useFeatureGuide(adminUser?.id, "admin_growth_report");
+  const { shouldShow: showXGrowthGuide, markSeen: markXGrowthGuideSeen } = useFeatureGuide(adminUser?.id, "x_growth_report");
+  const activeReportGuideSlides = inX
+    ? [{ icon: undefined, title: GUIDE_CONTENT.x_growth_report.title, body: GUIDE_CONTENT.x_growth_report.body }]
+    : [{ icon: undefined, title: GUIDE_CONTENT.admin_growth_report.title, body: GUIDE_CONTENT.admin_growth_report.body }];
+  const showActiveReportGuide = inX ? showXGrowthGuide : showAdminGrowthGuide;
+  const markActiveReportGuideSeen = inX ? markXGrowthGuideSeen : markAdminGrowthGuideSeen;
   const now = new Date();
 
   // ── 날짜 상태 ──────────────────────────────────────────────────────────────
@@ -810,6 +825,13 @@ export default function ReportHubScreen() {
         message={`발송 대기 중인 ${kpi.ready}건을 모두 발송하시겠습니까?\n발송 후에는 학부모에게 즉시 알림이 전송됩니다.\n이미 PUBLISHED/DISCARDED 상태는 제외됩니다.`}
         onConfirm={onBulkSend}
         onCancel={() => setBulkSendConfirm(false)}
+      />
+
+      {/* Feature Guide: X모드=x_growth_report / 일반=admin_growth_report (중복 0) */}
+      <OnboardingSheet
+        visible={showActiveReportGuide}
+        onDismiss={markActiveReportGuideSeen}
+        slides={activeReportGuideSlides}
       />
     </SafeAreaView>
   );

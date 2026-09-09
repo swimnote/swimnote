@@ -19,8 +19,8 @@ import { useBrand } from "@/context/BrandContext";
 import { useMode } from "@/context/ModeContext";
 
 import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
-import { useCoreOnboarding } from "@/hooks/useOnboarding";
-import { TEACHER_CORE_SLIDES } from "@/constants/onboardingContent";
+import { useCoreOnboarding, useFeatureGuide } from "@/hooks/useOnboarding";
+import { TEACHER_CORE_SLIDES, GUIDE_CONTENT } from "@/constants/onboardingContent";
 import ScheduleCard from "@/components/teacher/today-schedule/ScheduleCard";
 import { ScheduleCardSkeleton } from "@/components/common/SkeletonBox";
 import { haptic } from "@/utils/haptic";
@@ -53,6 +53,11 @@ export default function TodayScheduleScreen() {
     shouldShow: showOnboarding,
     markComplete: markOnboardingComplete,
   } = useCoreOnboarding(token, "teacher_core");
+
+  // Feature Guide: teacher_today (bomb 방지 — core 닫힌 후에만 노출)
+  const { shouldShow: showTodayGuide, markSeen: markTodayGuideSeen } = useFeatureGuide(adminUser?.id, "teacher_today");
+  const todayGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.teacher_today.title, body: GUIDE_CONTENT.teacher_today.body }];
+
   const { themeColor } = useBrand();
   const { mode } = useMode();
   const insets = useSafeAreaInsets();
@@ -343,6 +348,12 @@ export default function TodayScheduleScreen() {
         primaryLabel="시작하기"
         xTheme={isX}
         logo={isX ? "x" : "swimnote"}
+      />
+      {/* Feature Guide: teacher_today — core 닫힌 후에만 노출 (bomb 방지) */}
+      <OnboardingSheet
+        visible={!showOnboarding && showTodayGuide}
+        onDismiss={markTodayGuideSeen}
+        slides={todayGuideSlides}
       />
       {/* 헤더: X모드 = 네이비, Normal = 기본 */}
       <View style={[
