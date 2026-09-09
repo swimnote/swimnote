@@ -589,12 +589,10 @@ export default function TodayScheduleScreen() {
               );
             })}
 
-            {/* AI Branding */}
-            {sortedItems.length > 0 && (
-              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#AAAAAA", textAlign: "center", paddingVertical: 16 }}>
-                Powered by SWIMNOTE AI with OpenAI GPT
-              </Text>
-            )}
+            {/* AI Branding — 수업 유무와 무관하게 항상 노출 */}
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#AAAAAA", textAlign: "center", paddingVertical: 16 }}>
+              Powered by SWIMNOTE AI with OpenAI GPT
+            </Text>
           </ScrollView>
         </View>
       </View>
