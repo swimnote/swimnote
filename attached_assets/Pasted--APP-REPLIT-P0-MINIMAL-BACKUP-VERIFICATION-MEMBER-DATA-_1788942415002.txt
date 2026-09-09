@@ -1,0 +1,199 @@
+[보낼 곳: APP REPLIT]
+
+[P0 MINIMAL BACKUP VERIFICATION — MEMBER DATA ONLY]
+
+목표:
+출시 전 백업 범위를 최소화한다.
+
+이번 작업에서 중요한 것은
+사진/영상/R2 전체 재해복구 시스템이 아니다.
+
+오직:
+
+"회원 관련 핵심 DB 정보가 사고 시 복구 가능한 상태"
+
+인지 검증한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 백업 대상 핵심 데이터
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+- swimming_pools
+- users / pool admins
+- teachers
+- students / members
+- classes
+- class assignments
+- schedules
+- attendance
+- absences
+- makeups
+- parent_accounts
+- parent_students
+- additional guardian 관련 phone fields
+- diary metadata/text
+- notices metadata
+- subscription/X state
+- onboarding state
+- 기타 회원 운영에 필요한 핵심 FK 데이터
+
+실제 production schema 기준으로
+정확한 table명을 전부 나열.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 백업 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production DB:
+
+Supabase/PostgreSQL
+
+에 대해 확인:
+
+- daily backup 존재 여부
+- 최근 성공 백업 시각
+- 최근 backup/snapshot identifier
+- 보존 기간
+- 자동 실행 주기
+- 실패 여부
+- 현재 production DB 전체를 복구 가능한 backup인지
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 복구 가능성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+백업이 있다는 것만으로 끝내지 말 것.
+
+최소 확인:
+
+- backup에서 DB 전체 restore 가능
+- 특정 시점 snapshot 복구 가능
+- 별도 temporary/staging DB로 restore 가능한지
+- 원 production을 덮어쓰지 않고 검증 restore 가능한지
+
+실제 restore를 production에 실행하지 말 것.
+
+가능하면 최근 backup을
+temporary/backup DB에서 read-only 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 핵심 데이터 존재 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+복구 snapshot 또는 backup metadata 기준으로:
+
+- students
+- parent_students
+- classes
+- attendance
+- makeups
+
+등 핵심 table이 backup 대상에 포함되는지 확인.
+
+최소 몇 개 row count/sample ID가
+production과 논리적으로 대응되는지 확인.
+
+PII 실제 값은 보고서에서 마스킹.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. R2 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는:
+
+- 사진
+- 영상
+- 일반 앨범 media
+
+복구 보장 대상에서 제외.
+
+R2 전체 backup 신규 구현 금지.
+
+단 DB가 R2 key를 가진 경우
+그 metadata는 DB backup에 포함되는지만 확인.
+
+파일 object 자체 복구는
+이번 출시 blocker가 아니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X 원본 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+curriculum / website / logo 원본은
+현재 R2에 versioned object로 보존되고 있음.
+
+이번에는 별도 backup system 만들지 않는다.
+
+현재 코드상:
+- overwrite 안 됨
+- 이전 version 유지
+- raw filename 신규 보존
+- DB reference 보존
+
+이면 충분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 복구 절차 문서화
+━━━━━━━━━━━━━━━━━━━━━━
+
+사고 시 최소 복구 순서만 작성:
+
+1. production DB 장애 확인
+2. 최신 정상 backup 선택
+3. temporary DB restore
+4. 핵심 table 검증
+5. 필요 시 production restore
+6. API 연결 확인
+7. 로그인/회원/반/출결 smoke test
+
+복잡한 DR 자동화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 이번에 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Super Admin 회원 편집 기능 개발
+- R2 실시간 이중화
+- 별도 backup cluster
+- WORM
+- object versioning 대규모 설정
+- 사진/영상 백업
+- UI 수정
+- Android
+- OTA
+- 신규 build
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 핵심 member-related table 전체 목록
+2. 현재 DB backup 방식
+3. backup 주기
+4. 최근 정상 backup
+5. 보존 기간
+6. restore 가능한 범위
+7. temporary restore 가능 여부
+8. students 포함 여부
+9. parent_students 포함 여부
+10. attendance/makeup 포함 여부
+11. subscription/X state 포함 여부
+12. 실제 복구 절차
+13. R2 media 제외 확인
+14. blocker
+15. 최종 판정
+
+PASS 조건:
+
+- 핵심 회원 DB가 정기 백업됨
+- 최근 정상 backup 존재
+- 사고 시 DB restore 가능
+- 핵심 회원/반/출결/학부모 연결 데이터 복구 가능
+- production 데이터를 건드리지 않고 복구 검증 가능
+- blocker 0
+
+완료 후 STOP.
