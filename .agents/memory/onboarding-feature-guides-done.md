@@ -27,6 +27,13 @@ description: 13개 미연결 feature guide를 실제 화면에 연결한 작업 
 - parentAccount?.id / adminUser?.id userId 패턴
 - teacher_today content onboardingContent.ts에 추가
 
+## E2E 검증 완료 (2026-09-09)
+- DB T1~T10 전체 PASS (SUPABASE_DATABASE_URL)
+- PDF 버그 수정: parent_growth_report guide에서 PDF 문구 제거 (growth-report.tsx에 PDF 없음)
+- main HEAD: d3e7e33c (origin/main)
+- iOS OTA: 01a08463 (bug fix OTA)
+- Render LIVE SHA: cdd650c1 (서버 변경 없음)
+
 ## 미연결 (의도적 결정)
 - x_ai_diary: x-hub.tsx에 연결하지 않음 (x_entry와 bomb 방지); diary-index.tsx X mode에서 teacher_x_ai_diary로 커버됨
 - x_curriculum: x-setup.tsx에 이전 세션에서 이미 연결됨
