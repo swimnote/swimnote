@@ -1,0 +1,661 @@
+[보낼 곳: APP REPLIT]
+
+[P0 SUPER ADMIN RELEASE OPERATIONS — FINAL BUNDLED IMPLEMENTATION]
+
+목표:
+출시 전에 Super Admin에서 실제 운영에 필요한 기능만 한 번에 끝낸다.
+
+이번 작업은 Super Admin 전체 개편이 아니다.
+
+반드시 이번 한 작업에서:
+
+1. X Curriculum 운영/검수
+2. 수영장 가입/승인/결제/현재 플랜 조회
+3. 고객센터 문의 조회/답변
+
+을 실제 Production 운영 가능한 상태까지 확인하고,
+누락/버그가 있으면 바로 최소 수정한다.
+
+조사만 하고 STOP 금지.
+확인 → 수정 → 테스트 → Production 반영까지 한 번에 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 이번 작업에서 절대 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- Super Admin 전체 UI redesign
+- 메뉴 전체 재구성
+- 회원 개별정보 전체 수정 콘솔
+- 회원 강제 이동/삭제
+- 출결/보강 Super Admin 직접 수정
+- 광고/배너
+- 공지 디자인 개편
+- 통계/analytics
+- 고급 검색 시스템
+- Android 작업
+- Google Play 작업
+- 신규 native build
+- 백업 시스템 추가 확장
+- 사진/영상 R2 backup
+
+목표는 "운영 가능"이지 "완벽한 ERP"가 아니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. X CURRICULUM — 전체 운영 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서 각 수영장별로
+아래 정보와 작업이 실제 가능해야 한다.
+
+조회:
+
+- pool name
+- pool id
+- current X state
+- x_pending / READY
+- curriculum upload 존재 여부
+- original filename
+- raw original filename 가능 시 표시/조회
+- uploaded_at
+- uploaded_by
+- submission_version
+- current/old version
+- review status
+- current active curriculum
+- approval state
+
+작업:
+
+- 원본 download
+- review
+- revision request
+- approve
+- activate
+- READY 전환 확인
+
+실제 E2E:
+
+Pool Admin
+→ curriculum upload
+→ REVIEW_PENDING
+
+Super Admin
+→ 해당 pool에서 파일 확인
+→ 원본 download
+→ 검토
+
+CASE A:
+revision request
+→ pool에서 수정 필요 상태 확인
+
+CASE B:
+approve
+→ curriculum APPROVED
+→ activate
+→ X READY 조건 충족 시 READY
+
+중요:
+
+- 업로드만으로 자동 approve 금지
+- 업로드만으로 자동 READY 금지
+- 기존 active curriculum은 신규 승인 전까지 유지
+- source file/version 추적 가능
+- 방금 구현한 durability 구조 재작성 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. X CURRICULUM — SUPER ADMIN 화면 최소 요구
+━━━━━━━━━━━━━━━━━━━━━━
+
+UI를 예쁘게 만들 필요 없음.
+
+하지만 운영자는 최소 한 화면/흐름에서:
+
+- 어느 수영장인지
+- 어떤 파일인지
+- 몇 번째 버전인지
+- 언제 업로드했는지
+- 누가 올렸는지
+- 검수 대기인지
+- 수정 요청인지
+- 승인인지
+- 현재 적용 버전인지
+
+를 이해할 수 있어야 한다.
+
+버튼 최소:
+
+- 다운로드
+- 수정 요청
+- 승인
+
+필요하면 활성화/READY는 승인 흐름에 포함.
+
+중복된 Super Admin X setup 화면이 있다면
+이번에 대규모 통합하지 말고
+실제 canonical operational route 하나만 명확히 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 수영장 가입 목록
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서 가입한 모든 pool을 확인 가능해야 한다.
+
+최소 컬럼/정보:
+
+- pool name
+- pool id
+- 신청일/가입일
+- 대표자/관리자
+- 연락처
+- 승인 상태
+- approved_at
+- rejected 여부
+- rejection reason 가능 시
+- BASE/X 상태
+- x_pending
+- x READY
+
+실제 가입 pool이 목록에서 누락되면 FAIL.
+
+DB row count와
+Super Admin 목록 count가 논리적으로 맞는지도 확인.
+
+pagination이 있으면 전체 조회 가능해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 가입 승인 / 반려
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서:
+
+- 승인
+- 반려
+
+가 실제 작동해야 한다.
+
+확인:
+
+승인
+→ swimming_pools 실제 상태 변경
+→ approved_at 기록
+→ 로그인/운영 가능 상태 반영
+
+반려
+→ rejected 상태/reason 저장
+→ 해당 pool 상태에 반영
+
+audit_logs:
+actor/action/before/after 기록 확인.
+
+UI가 투박해도 동작만 정확하면 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 플랜 — canonical only
+━━━━━━━━━━━━━━━━━━━━━━
+
+최근 수정된 canonical resolver를 그대로 사용.
+
+현재 공식 plan:
+
+SWIMNOTE
+₩9,900
+
+X300
+₩129,000
+
+X500
+₩199,000
+
+X1000
+₩359,000
+
+DATA100
+DATA300
+= addon 별도
+
+Super Admin 각 pool에서 최소:
+
+- current plan
+- plan_name
+- x_plan_key
+- x_paid_entitlement
+- x_manual_entitlement
+- x_management_override
+- x_force_disabled
+- X mode/status
+
+확인 가능해야 함.
+
+Legacy:
+
+- Coach
+- Premier
+- Premier1000
+- max
+
+등이 현재 플랜으로 표시되면 FAIL.
+
+과거 payment/history에는 남아도 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 결제 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin이 최소한
+"이 수영장이 실제 결제 중인지 / 수동 적용인지 / HQ 강제인지"
+구분 가능해야 한다.
+
+확인할 정보:
+
+- RevenueCat actual subscription 여부
+- payment/subscription active 상태
+- paid entitlement
+- manual entitlement
+- HQ management override
+- 현재 적용 X tier
+- last payment / relevant payment status 가능 범위
+
+중요:
+
+current plan = X1000
+라고 해서
+실제 결제도 ₩359,000이라고 단정 금지.
+
+다음은 구분:
+
+A. 현재 적용 플랜
+B. 실제 paid 여부
+C. manual/HQ 적용 여부
+
+Super Admin 화면/API에서
+최소 이 세 가지를 판단할 수 있어야 한다.
+
+이번 작업에서 payment mutation 기능 만들지 말 것.
+
+조회만 정확하면 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실제 Production pool 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 known pool 하나 이상 사용.
+
+특히 기존:
+
+pool_1780849364252_l9k44rbk3
+
+이 현재:
+
+x_plan_key = x1000
+manual/HQ 적용 상태
+
+라면 Super Admin에서:
+
+current plan = X1000
+
+paid/manual/HQ 구분도 정확히 보여야 함.
+
+Premier1000 표시 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 고객센터 — 현재 실제 구조 전수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 문의 시스템의 실제 table/API/route를 먼저 정확히 확인.
+
+Admin / Teacher / Parent 중
+어디에서 문의를 생성하는지 모두 확인.
+
+문의마다 최소 저장:
+
+- inquiry id
+- sender id
+- sender type
+- pool id
+- subject/title
+- body/content
+- created_at
+- status
+- answered_at
+- answered_by
+- answer/reply
+
+첨부가 실제 있으면 metadata 포함.
+
+문의 submit 성공 응답 전에
+DB INSERT 완료되어야 함.
+
+문의 원문은 답변 후에도 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. SUPER ADMIN 고객센터 목록
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서 최소:
+
+- 전체 문의
+- 미답변
+- 답변완료
+
+를 구분해서 볼 수 있어야 한다.
+
+각 row:
+
+- 날짜
+- 사용자
+- 역할
+- 수영장
+- 제목/본문 preview
+- 상태
+
+최소 제공.
+
+count가 있다면:
+
+unanswered badge/count
+==
+실제 unanswered list 수
+
+여야 한다.
+
+count mismatch면 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 문의 상세
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin이 문의 하나를 열면:
+
+- 사용자
+- pool
+- 역할
+- 문의 시각
+- 원문 전체
+- 기존 답변
+- 상태
+
+를 확인할 수 있어야 한다.
+
+다른 문의와 내용 섞임 금지.
+
+다른 pool/user 잘못 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Super Admin 답변
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+Super Admin
+→ 답변 입력
+→ 저장
+
+DB에:
+
+- answer/reply
+- answered_by
+- answered_at
+- status='answered'
+
+또는 현재 canonical equivalent
+
+저장.
+
+답변 수정 기능은 현재 있으면 유지.
+없으면 이번 출시 blocker 아님.
+
+답변 삭제 기능도 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 사용자 답변 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+답변 후 실제 사용자 앱에서:
+
+- 문의 목록 또는 고객센터
+- 문의 상세
+
+에서 Super Admin 답변을 조회할 수 있어야 함.
+
+Admin/Teacher/Parent 공통 고객센터가 있으면
+각 역할 route 확인.
+
+최소 하나의 실제 test inquiry E2E 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 고객센터 알림
+━━━━━━━━━━━━━━━━━━━━━━
+
+답변 완료 시 현재 notification 기능이 있으면:
+
+- notification row 생성
+- push enqueue/dispatch
+
+확인.
+
+push physical device receipt까지는
+이번 blocker 아님.
+
+notification 기능이 현재 전혀 없다면
+답변 조회가 확실히 가능하면
+이번 출시에서 P1로 둘 수 있음.
+
+단 사용자에게 답변이 왔다는 것을
+영원히 알 방법이 없는 구조면 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 고객센터 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 안전한 test user로:
+
+1. 문의 작성
+2. API 성공
+3. DB row 확인
+4. Super Admin 목록 노출
+5. unanswered count 반영
+6. 상세 열기
+7. 답변 작성
+8. DB answered 확인
+9. unanswered count 감소
+10. 사용자 앱/API에서 답변 조회
+11. notification 생성 여부 확인
+
+테스트 데이터는 종료 후 정리 가능.
+
+코드 읽기만으로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 문의 유실 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 문의 submit DB commit 전 success 반환 금지
+- reply DB commit 전 success 반환 금지
+- answer 후 inquiry 원문 보존
+- pool/user relation 보존
+- timestamp 보존
+
+사진 첨부가 있다면
+R2 원본 durability는 이번 blocker 아님.
+DB metadata만 정상이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. BACKUP 최종 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 backup 코드는 수정하지 말 것.
+
+출시 기준을 다음으로 고정:
+
+DB backup 대상:
+
+- 회원
+- 학생
+- 반
+- 수업/스케줄
+- 출결
+- 보강
+- 학부모 연결
+- 일지
+- 성장리포트
+- curriculum DB
+- 구독/X 상태
+- 공지/알림
+- audit/log
+- 기타 PostgreSQL 운영정보
+
+제외:
+
+- 사진 R2 object 본체
+- 영상 R2 object 본체
+
+현재 검증 결과를
+완료보고에 한 줄만 재확인.
+
+추가 backup system 구축 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 필요 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제가 발견되면 이번 작업에서 바로 수정.
+
+단:
+
+- 가장 작은 수정
+- 기존 canonical API/service 재사용
+- 새 중복 system 만들지 않음
+- UI 전체 redesign 없음
+
+Server 변경:
+→ test
+→ main
+→ Render Production deploy
+→ LIVE
+→ /health SHA == main HEAD
+→ authenticated smoke
+
+APP 변경:
+→ release/v2.0.0
+→ clean/origin exact
+→ preflight
+→ app 2.0.1
+→ runtime 2.1.0
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+native dependency 없으면 build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 출시 PASS 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+SUPER ADMIN X:
+
+- pool upload 조회 가능
+- 원본 download 가능
+- review 가능
+- revision 가능
+- approve 가능
+- activate/READY 가능
+- human review gate 유지
+
+POOL OPERATIONS:
+
+- 가입 pool 전부 조회
+- approve/reject
+- BASE/X 상태
+- current plan 정확
+- paid/manual/HQ 구분
+- legacy current plan 0
+
+SUPPORT:
+
+- 문의 유실 0
+- Super Admin 목록
+- unanswered count 정확
+- 문의 상세
+- 답변
+- answered state
+- 사용자 답변 조회
+- 최소 E2E PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. X CURRICULUM
+
+1. Super Admin pool curriculum 목록
+2. 파일/version 정보
+3. original download
+4. review
+5. revision request
+6. approve
+7. activate
+8. READY
+9. 실제 E2E 결과
+
+B. POOL / PAYMENT
+
+10. 가입 pool 목록
+11. 목록 count 정확성
+12. approve
+13. reject
+14. BASE/X 상태
+15. x_pending/READY
+16. current plan
+17. paid entitlement
+18. manual entitlement
+19. HQ override
+20. force disabled
+21. actual payment/subscription status
+22. legacy current plan 잔존 수
+23. Production X1000 검증
+
+C. SUPPORT
+
+24. 문의 table/API 구조
+25. 사용자 문의 작성
+26. DB 저장
+27. Super Admin 목록
+28. unanswered count
+29. 문의 상세
+30. 답변 저장
+31. answered_by/answered_at
+32. 사용자 답변 조회
+33. notification
+34. 실제 E2E 결과
+
+D. RELEASE
+
+35. backup 최종 상태
+36. 발견 P0
+37. 발견 P1
+38. 수정 파일
+39. tests
+40. main HEAD
+41. Render LIVE SHA
+42. OTA ID
+43. native rebuild 여부
+44. blocker
+45. 최종 PASS/HOLD
+
+완료 후 STOP.
+
+이번 완료보고가 PASS이면
+Super Admin 출시 필수 운영 기능은 CLOSED.
+
+그 다음 작업은:
+
+Android 가격/상품 최종 정리
+→ Android 새 build
+→ iOS 필요 시 최종 build
+→ Store update
+
+로 넘어간다.
