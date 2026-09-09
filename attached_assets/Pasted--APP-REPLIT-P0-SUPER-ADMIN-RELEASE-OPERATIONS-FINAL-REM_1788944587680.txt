@@ -1,0 +1,397 @@
+[보낼 곳: APP REPLIT]
+
+[P0 SUPER ADMIN RELEASE OPERATIONS — FINAL REMAINING ONLY]
+
+P0-A / P0-B는 PASS/CLOSED.
+
+재작업 금지:
+
+- Super Admin pool list canonical plan 수정
+- InquiryInbox 신규 구현
+- 문의 목록/상세/reply 기본 구조
+
+이번 작업은 남은 출시 필수 운영 기능만 최종 확인하고,
+실제 누락이 있으면 최소 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. X CURRICULUM — SUPER ADMIN 실제 운영 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test pool 또는 기존 test data 사용.
+
+실제 흐름:
+
+Pool Admin
+→ curriculum upload
+→ REVIEW_PENDING
+
+Super Admin
+→ 해당 pool 조회
+→ 업로드 파일 확인
+
+반드시 화면/API에서 확인 가능한 정보:
+
+- pool name / pool id
+- original/raw filename
+- uploaded_at
+- uploaded_by
+- submission_version
+- current/old version
+- review status
+- active curriculum 여부
+
+실제 작업:
+
+A. 원본 download
+B. revision request
+C. approve
+D. activate
+E. READY 확인
+
+검증:
+
+- upload만으로 APPROVED 안 됨
+- upload만으로 READY 안 됨
+- revision 요청 상태 실제 저장
+- approve 전 기존 active 유지
+- approve/activate 후 READY
+- source file/version 추적 가능
+
+이미 구현한 durability/human-review 구조 재작성 금지.
+
+UI 예쁘게 수정 금지.
+운영 가능 여부만 본다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 가입한 수영장 전체 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서 실제 Production pool 목록 확인.
+
+최소:
+
+- pool name
+- 가입/신청 시점
+- owner/admin
+- contact
+- 승인 상태
+- approved_at
+- rejected 상태/reason
+- BASE/X 상태
+- x_pending
+- READY
+
+확인.
+
+Production swimming_pools row와
+Super Admin 목록이 pagination 포함 전체 조회 가능한지 확인.
+
+목록 일부 누락이면 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 승인 / 반려 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test pool 사용.
+
+Super Admin:
+
+approve
+→ 실제 DB 상태 변경
+→ approved_at
+→ audit_logs actor/before/after
+
+reject
+→ rejected 상태
+→ reason
+→ audit_logs actor/before/after
+
+실사용 pool 상태 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 현재 플랜 / X 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서 각 pool에 대해 최소 확인 가능:
+
+- current plan
+- x_plan_key
+- x_paid_entitlement
+- x_manual_entitlement
+- x_management_override
+- x_force_disabled
+- current X mode/status
+- subscription/payment status
+
+공식 현재 플랜:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+DATA는 addon 별도.
+
+legacy:
+Coach / Premier / Premier1000 / max
+
+가 current plan으로 표시되면 FAIL.
+
+이미 P0-A에서 canonical name 수정했으므로
+다시 다른 resolver 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PAYMENT 상태 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin 운영자가 최소 다음을 구분할 수 있어야 함.
+
+A. 현재 적용 플랜
+B. 실제 paid 여부
+C. manual entitlement 여부
+D. HQ management override 여부
+
+중요:
+
+X1000 적용
+≠
+실제 월 ₩359,000 결제 중
+
+으로 단정 금지.
+
+실제 RevenueCat/payment/subscription 상태를
+현재 존재하는 데이터 범위에서 확인 가능해야 함.
+
+Payment mutation 기능 신규 개발 금지.
+
+조회만 정확하면 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 X1000 운영 pool 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production:
+
+pool_1780849364252_l9k44rbk3
+
+read-only 확인.
+
+기대:
+
+current plan:
+SWIMNOTE X1000
+
+legacy Premier1000:
+0
+
+manual/HQ 상태:
+실제 DB와 Super Admin 표시 일치
+
+paid 여부:
+실제 값과 구분
+
+절대 상태 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. CUSTOMER SUPPORT — 남은 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+InquiryInbox 기본 구현은 완료됐으므로
+다시 만들지 말 것.
+
+이제 실제 end-to-end만 확인.
+
+안전한 test account:
+
+1. 사용자 앱/API에서 문의 작성
+2. DB row commit
+3. Super Admin 문의함 표시
+4. 미답변 필터/개수 반영
+5. 상세 조회
+6. Super Admin reply
+7. DB status replied/answered
+8. 답변 내용 보존
+9. answered_by / answered_at 또는 현재 equivalent
+10. 사용자 앱/API에서 답변 조회
+
+특히 10번 중요.
+
+Super Admin에서 답변만 저장되고
+사용자가 자기 답변을 볼 수 없으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 Production 미답변 2건
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 발견된 실제 미답변 문의 2건은:
+
+- 삭제 금지
+- 테스트 답변 금지
+- 내용 변조 금지
+
+운영 문의로 그대로 보존.
+
+목록/상세에서 정상 조회 가능한지만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 문의 count
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin 문의함:
+
+전체
+미답변
+답변완료
+
+필터 결과와 count가 실제 DB 상태와 일치하는지 확인.
+
+예:
+
+미답변 count
+==
+실제 unanswered/replied=false rows
+
+불일치면 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 문의 답변 알림
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현에 reply notification이 있으면:
+
+- notification row
+- push enqueue/dispatch
+
+확인.
+
+없더라도:
+
+사용자 앱에서 문의 상태/답변을 확실히 조회할 수 있으면
+출시 P0 blocker로 보지 않는다.
+
+다만 완료보고에:
+
+NOTIFICATION:
+AVAILABLE / NOT IMPLEMENTED
+
+정확히 명시.
+
+새 push 시스템 개발 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. BACKUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+백업은 재감사 금지.
+
+현재 출시 기준:
+
+사진/영상 R2 object 본체 제외
++
+PostgreSQL 운영 데이터 전체:
+
+- 회원
+- 수업/반
+- 출결/보강
+- 학부모
+- 일지
+- 성장리포트
+- curriculum DB
+- 구독/X
+- 공지/알림
+- audit/log
+
+복구 대상.
+
+완료보고에:
+BACKUP = PASS
+한 줄만 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 조사만 하고 끝내지 않는다.
+
+문제 발견:
+→ 최소 수정
+→ test
+→ Production 반영
+
+단 불필요한 UI redesign 금지.
+
+SERVER 변경:
+test
+→ main
+→ Render
+→ LIVE
+→ health SHA exact
+
+WEB Super Admin 변경도 Production 반영 확인.
+
+APP 변경 발생 시에만:
+iOS production-v2 OTA
+
+Android OTA 금지.
+
+native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. X curriculum upload
+2. REVIEW_PENDING
+3. Super Admin 파일 조회
+4. original download
+5. revision
+6. approve
+7. activate
+8. READY
+9. source/version trace
+10. pool 전체 목록
+11. pool count
+12. approve E2E
+13. reject E2E
+14. BASE/X 상태
+15. current plan
+16. paid
+17. manual
+18. HQ
+19. force disabled
+20. X1000 Production read-only 결과
+21. legacy current plan 잔존
+22. 문의 작성
+23. DB 저장
+24. Super Admin 목록
+25. 미답변 count
+26. 상세
+27. reply
+28. answered_by/answered_at
+29. 사용자 답변 조회
+30. notification 상태
+31. 기존 미답변 2건 보존
+32. BACKUP = PASS
+33. 발견 P0
+34. 발견 P1
+35. 수정 파일
+36. tests
+37. main HEAD
+38. Render LIVE SHA
+39. OTA ID (앱 수정 시만)
+40. blocker
+41. 최종 PASS/HOLD
+
+PASS 조건:
+
+- X Curriculum Super Admin 운영 E2E 완전
+- 가입 pool 전체 확인 가능
+- approve/reject 운영 가능
+- 현재 plan 정확
+- paid/manual/HQ 구분 가능
+- legacy current plan 0
+- 문의 생성→Super 조회→답변→사용자 조회 완전
+- 기존 문의 유실 0
+- blocker 0
+
+완료 후 STOP.
