@@ -164,7 +164,7 @@ export const GUIDE_CONTENT = {
   // Parent: Growth Report
   parent_growth_report: {
     title: "AI 성장 리포트",
-    body: "선생님의 수업 기록을 바탕으로\nAI가 성장 리포트를 만듭니다.\n\n수영장에서 내용을 확인한 뒤 발행하면\n앱에서 확인할 수 있습니다.\n\n발행된 리포트는 PDF로 저장할 수 있습니다.",
+    body: "선생님의 수업 기록을 바탕으로\nAI가 성장 리포트를 만듭니다.\n\n수영장에서 내용을 확인한 뒤 발행하면\n앱에서 확인할 수 있습니다.",
   },
 
   // Parent: Insight Report (HOLD)

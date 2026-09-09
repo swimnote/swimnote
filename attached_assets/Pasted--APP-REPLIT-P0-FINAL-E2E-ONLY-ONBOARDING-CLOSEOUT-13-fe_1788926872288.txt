@@ -1,0 +1,360 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL E2E ONLY — ONBOARDING CLOSEOUT]
+
+13개 미연결 feature guide 연결은 승인.
+해당 부분 재작업 금지.
+
+이번 작업은 코드 재설계가 아니라
+남은 실제 E2E 검증만 수행한다.
+
+실제 버그가 발견된 경우에만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CORE AUTHENTICATED E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 테스트 계정으로 각각 실제 확인.
+
+ADMIN
+required_version 미완료
+→ dashboard
+→ admin_core 실제 1회 표시
+→ 완료
+→ POST /onboarding/complete
+→ DB completed row
+→ logout/login
+→ 재노출 0
+
+TEACHER
+동일:
+today-schedule
+→ teacher_core
+→ 완료
+→ DB
+→ 재로그인
+→ 재노출 0
+
+PARENT
+동일:
+home
+→ parent_core
+→ 완료
+→ DB
+→ 재로그인
+→ 재노출 0
+
+코드 존재 확인만으로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. VERSION BUMP
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 전체 사용자 version 변경 금지.
+
+안전한 테스트 방식으로:
+
+completed_version=1
+required_version=2
+→ 다시 1회 노출
+
+완료 후:
+completed_version=2
+→ 재노출 0
+
+2 상태에서 version 1 POST
+→ DB 2 유지
+
+실제 결과 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FEATURE GUIDE 실제 1회 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+- admin_members
+- teacher_ai_diary
+- parent_additional_guardian
+- x_curriculum
+
+각각:
+
+첫 진입 → 표시
+닫기/완료 → AsyncStorage 저장
+재진입 → 재노출 0
+
+다른 account 로그인:
+state 혼선 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. BOMB / 중복 노출 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin / Teacher / Parent 각각:
+
+login
+→ core 1개만
+
+core 종료 직후
+같은 화면 feature guide가
+즉시 연속으로 뜨지 않아야 함.
+
+Teacher diary:
+teacher_ai_diary
+vs
+teacher_x_ai_diary
+동시 0.
+
+Admin report:
+admin_growth_report
+vs
+x_growth_report
+동시 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PARENT AUTO-LINK 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test data/API로 실제 검증.
+
+CASE 1
+same pool + child name + phone match
+→ approved
+
+CASE 2
+name match + phone mismatch
+→ pending / phone_mismatch
+
+CASE 3
+duplicate name
+→ pending / duplicate_name
+
+CASE 4
+phone2/3/4 등록 번호
+→ additional parent auto-link
+
+테스트 데이터 종료 후 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ADDITIONAL GUARDIAN 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- approved parent만 가능
+- phone2/3/4
+- 최대 3명
+- 자기 번호 거절
+- 중복 거절
+- same pool + 등록 전화번호 → auto-link
+
+guide 문구와 실제 동작 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X CURRICULUM 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test pool/version 사용.
+
+upload
+→ REVIEW_PENDING
+
+승인 전:
+- APPROVED 아님
+- candidate ACTIVE 아님
+- 신규 upload 때문에 READY 전환 안 됨
+
+Super Admin approve
+→ APPROVED
+→ ACTIVATE
+→ READY
+
+기존 active curriculum이 있으면
+승인 전까지 기존 active 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. GROWTH REPORT 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test report 사용.
+
+READY_TO_SEND
+→ Admin 검수
+→ 발급 버튼
+→ POST /send
+→ PUBLISHED
+→ Parent visible
+→ Parent notification
+
+자동 publish 없음.
+
+Admin guide:
+"검토 후 발급"
+
+Parent guide:
+"수영장에서 발행하면 확인"
+
+실제 동작과 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. PDF 실제 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+growthReportExport.ts 존재만 확인하지 말 것.
+
+실제 Parent published report 화면에서:
+
+PDF 저장 버튼
+→ export 함수 호출
+→ expo-print/share flow
+
+실제로 연결됐는지 확인.
+
+연결 안 되어 있으면:
+
+A. 최소 연결
+또는
+B. onboarding의 PDF 저장 문구 제거
+
+중 실제 제품정책과 맞는 쪽으로 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. INSIGHT HOLD
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 연결된 parent_insight_report guide 확인.
+
+금지 표현 0:
+
+- 지금 구매
+- 구매 가능
+- 구매 후 즉시
+- 별도 결제
+- 79,000원 구매
+- PDF 지원 확정
+
+현재 HOLD 상태와 정확히 일치.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. API CROSS-USER AUTHORIZATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+401만 확인하면 부족.
+
+User A token으로:
+
+- User B onboarding state read 불가
+- User B completed state write 불가
+
+POST body에 user_id를 임의로 넣어도
+서버가 authenticated subject만 사용해야 함.
+
+parent/user namespace collision 0.
+
+onboarding state가
+feature entitlement/권한 판정에 사용되지 않음 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. SMALL SCREEN
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- small iPhone
+- 일반 iPhone
+- Android small-width static/layout
+
+OnboardingSheet
+OnboardingFullScreen
+CoachMark
+OnboardingInlineHelp
+
+결과:
+
+- logo clipping 0
+- text clipping 0
+- CTA 가림 0
+- SafeArea 정상
+- dots 정상
+- Scroll 정상
+- 치명적 overlap 0
+
+Android 실기기 테스트를 안 했으면
+"static/layout only"라고 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. NATIVE
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 onboarding 작업으로
+새 native dependency / Expo native module / Pod 추가 여부 확인.
+
+없으면:
+
+native rebuild = NO
+
+명시.
+
+Android OTA 금지 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+버그 수정이 없으면:
+새 OTA / Render deploy 하지 말 것.
+
+실제 수정이 발생한 경우만
+해당 영역 재배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Admin core 실제 E2E
+2. Teacher core 실제 E2E
+3. Parent core 실제 E2E
+4. DB completed row
+5. version bump
+6. downgrade 방지
+7. feature guide 4종 실제 재노출 테스트
+8. account state 분리
+9. bomb 테스트
+10. Parent auto-link CASE 1~4
+11. Additional Guardian
+12. X Curriculum E2E
+13. Growth Report E2E
+14. PDF 실제 연결
+15. Insight HOLD
+16. cross-user API authorization
+17. small iPhone
+18. Android layout
+19. native rebuild 여부
+20. 수정 파일
+21. tests
+22. main HEAD
+23. Render LIVE SHA
+24. OTA ID (수정했을 때만)
+25. blocker
+
+PASS 조건:
+
+- core 실제 1회
+- 완료 후 재노출 0
+- version bump 정상
+- feature guide 반복 0
+- account 혼선 0
+- bomb 0
+- Parent auto-link 실제 일치
+- Additional Guardian 실제 일치
+- X Curriculum human review 실제 일치
+- Growth Report 관리자 발급 실제 일치
+- PDF 문구/기능 일치
+- Insight HOLD 정확
+- cross-user 접근 0
+- small-screen blocker 0
+- native blocker 0
+- blocker 0
+
+완료 후 STOP.
