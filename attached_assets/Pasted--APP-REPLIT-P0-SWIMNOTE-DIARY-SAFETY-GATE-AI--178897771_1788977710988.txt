@@ -1,0 +1,356 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — SWIMNOTE DIARY SAFETY GATE]
+
+목표:
+앞으로 AI/수동/분배 과정에서
+다른 학생의 일지가 섞이거나
+AI가 근거 없는 학생별 사실을 만들어 저장하는 사고를
+구조적으로 차단한다.
+
+기존 provenance fix는 유지.
+이번 작업은 그 위에 DIARY SAFETY GATE를 추가한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. REQUEST SCOPE LOCK
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI Diary generate 시 durable trace에 최소 저장:
+
+- request_id
+- pool_id
+- teacher_id
+- class_id
+- lesson_date
+- student_ids[]
+- created_at
+
+AI response와 동일 scope를 묶는다.
+
+저장 시 다른 pool/teacher/class/date/student로
+request_id 재사용 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. STUDENT ID BINDING
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI student result는 이름 문자열이 아니라
+canonical student ref/id를 사용.
+
+각 student note 저장 전:
+
+student_id ∈ request.student_ids
+
+확인.
+
+없으면:
+409 DIARY_STUDENT_SCOPE_MISMATCH
+
+저장 금지.
+
+array index/order 기반 매핑 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. INDIVIDUAL NOTE EVIDENCE RULE
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님 입력에서 특정 학생이 명시적으로 언급되지 않았다면
+학생별 note 생성 금지.
+
+예:
+
+"오늘 자유형 발차기 연습"
+→ common만
+→ students=[]
+
+학생별 note는
+학생 이름/ref + 개인 관찰 근거가 존재할 때만 생성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. UNSUPPORTED FACT VALIDATOR
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI 결과에서 개인 factual claim을 검증.
+
+예:
+
+- 좋아졌다
+- 향상됐다
+- 안정됐다
+- 힘이 좋아졌다
+- 자신감이 생겼다
+- 익숙해졌다
+- 어려워한다
+
+등.
+
+각 claim은 아래 source 중 하나가 있어야 함:
+
+- teacher memo
+- voice/STT teacher input
+- 명시적으로 허용된 verified observation
+
+source 없으면 해당 문장 DROP.
+
+프롬프트만 의존하지 말고
+가능하면 post-generation validation 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PROVENANCE GATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 3-state 유지:
+
+VERIFIED_AI
+VERIFIED_HUMAN
+UNVERIFIED
+
+request_id 있음 + durable trace 없음
+→ 409 AI_ORIGIN_UNVERIFIED
+
+절대 human=false로 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. SAVE-TIME INTEGRITY GATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /diaries 직전 검증:
+
+- authenticated teacher == request.teacher_id
+- pool_id 일치
+- class_id 일치
+- lesson_date 일치
+- student_id들이 해당 class roster에 존재
+- request.student_ids 범위 내
+- teacher가 해당 class 접근 권한 보유
+
+하나라도 실패:
+409/422
+저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. IDEMPOTENCY
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 AI request의 중복 저장 방지.
+
+현재 schema에 맞는
+idempotency constraint/index 적용.
+
+목표:
+
+같은 request_id + 같은 diary scope
+→ 1회 저장.
+
+retry/double tap으로 중복 diary 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. CROSS-STUDENT SIMILARITY CHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+한 diary save payload의 student notes끼리
+문장 유사도를 검사.
+
+특히 학생 3명 이상에서
+동일/거의 동일한 개인관찰 문장이 반복되면:
+
+SUSPICIOUS_DUPLICATE_STUDENT_NOTES
+
+상태 반환.
+
+자동 저장 금지 또는
+teacher confirmation_required=true 반환.
+
+정확한 threshold는
+단순 exact normalized duplicate부터 시작 가능.
+
+복잡한 embedding 시스템 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. TEACHER CONFIRMATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI가 student-specific notes를 생성한 경우
+앱 저장 전 최소 확인 UX.
+
+표시:
+
+"AI가 학생별 일지 N건을 작성했습니다.
+내용을 확인한 후 저장해주세요."
+
+각 student name + note preview.
+
+COMMON만 생성된 경우
+불필요한 확인 화면 추가하지 않아도 됨.
+
+UI 대개편 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. POST-SAVE INTEGRITY WATCH
+━━━━━━━━━━━━━━━━━━━━━━
+
+최근 diary save를 서버에서 lightweight 검사.
+
+조건 예:
+
+- 동일 teacher
+- 짧은 시간 범위
+- 서로 다른 student/class
+- normalized student note exact duplicate 다수
+
+이면:
+
+DIARY_INTEGRITY_WARNING
+
+Super Admin persistent notification 생성.
+
+자동 delete 금지.
+
+metadata:
+
+- pool_id
+- teacher_id
+- diary_ids
+- affected student count
+- reason
+- created_at
+
+기존 super_admin_notifications 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. MANUAL DIARY 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+수동 작성 일지까지 AI gate로 막지 말 것.
+
+ai_request_id 없음
++
+정상 authenticated manual flow
+
+→ VERIFIED_HUMAN
+
+기존 manual Diary 정상 저장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. COMMON 분배 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+COMMON text는 공통일지.
+
+COMMON을 student note로 자동 복제 금지.
+
+학생별 note는
+명시적으로 학생 scope가 있을 때만.
+
+"전체" 전환 후 previous student target carry-over 0.
+
+parser currentTarget reset 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+공통 주제만 입력
+→ student notes 0
+
+CASE B
+학생 A만 언급
+→ A note만 생성
+
+CASE C
+A note를 B student_id로 저장
+→ 409
+
+CASE D
+다른 class request_id 재사용
+→ 409
+
+CASE E
+다른 teacher request_id 재사용
+→ 409
+
+CASE F
+근거 없는 improvement claim
+→ DROP
+
+CASE G
+근거 있는 improvement claim
+→ 허용
+
+CASE H
+동일 request retry
+→ duplicate 저장 0
+
+CASE I
+학생 4명에게 동일 개인 note
+→ suspicious duplicate detection
+
+CASE J
+COMMON + A + B + 전체
+→ scope 정확
+
+CASE K
+server restart 후 save
+→ durable trace로 정상 AI 확인
+
+CASE L
+manual diary
+→ 정상 저장
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server 변경:
+test
+→ main
+→ Render LIVE
+→ health SHA exact
+→ authenticated smoke
+
+APP confirmation UI 변경 시:
+release/v2.0.0
+→ preflight
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. request scope schema
+2. student binding 방식
+3. individual evidence rule
+4. unsupported fact validator
+5. save-time integrity checks
+6. idempotency 방식
+7. duplicate student-note detection
+8. teacher confirmation UX
+9. post-save integrity warning
+10. manual diary 영향
+11. common parser 영향
+12. CASE A~L
+13. 수정 파일
+14. migration
+15. tests
+16. main HEAD
+17. Render LIVE SHA
+18. OTA ID
+19. blocker
+20. 최종 PASS/HOLD
+
+PASS 조건:
+
+- 다른 student/class/teacher scope 저장 차단
+- request replay 중복 0
+- 근거 없는 학생별 사실 저장 0
+- common→학생 자동복제 0
+- 동일 학생노트 대량복제 탐지
+- teacher 최종 확인
+- 이상 패턴 Super Admin 경보
+- manual diary 정상
+- blocker 0
+
+완료 후 STOP.

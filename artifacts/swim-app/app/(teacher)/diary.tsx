@@ -110,6 +110,8 @@ export default function TeacherDiaryScreen() {
   const [aiCurriculumMatches, setAiCurriculumMatches] = useState<CurriculumMatch[]>([]);
   /** CASE A Fix: AI request_id — diary save 시 ai_request_id로 서버에 전달 → verifyAiOrigin → isAiGenerated=true */
   const [aiRequestId, setAiRequestId] = useState<string | null>(null);
+  /** §8: SUSPICIOUS_DUPLICATE_STUDENT_NOTES — teacher 확인 후 force_suspicious_save=true로 재시도 */
+  const [forceSuspiciousSave, setForceSuspiciousSave] = useState(false);
   const [startTime, setStartTime] = useState<string>(params.startTime ?? "");
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
@@ -928,7 +930,7 @@ export default function TeacherDiaryScreen() {
   // ── 작성 세션 전체 초기화 (나가기 확정 시 호출) ──────────────────────────
   const resetWriteSession = useCallback(() => {
     setCommonContent(""); setStudentNotes([]); setNoteInput(""); setAddNoteStudent(null);
-    setAiCurriculumMatches([]); setAiRequestId(null);
+    setAiCurriculumMatches([]); setAiRequestId(null); setForceSuspiciousSave(false);
     setGroupMedia([]); setStudentMedia({}); setMediaUploading(null);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
@@ -1098,10 +1100,32 @@ export default function TeacherDiaryScreen() {
             ...(aiCurriculumMatches.length > 0 && { curriculum_matches: aiCurriculumMatches }),
             // CASE A Fix: ai_request_id → verifyAiOrigin → class_diaries.ai_generated=true
             ...(aiRequestId && { ai_request_id: aiRequestId }),
+            // §8: duplicate 경고 확인 후 재시도 플래그
+            ...(forceSuspiciousSave && { force_suspicious_save: true }),
           }),
         });
         const data = await r.json();
         if (__DEV__) console.log(`[handleSave] Step1 - POST /diaries response ok=${r.ok} status=${r.status}`);
+        // §8: SUSPICIOUS_DUPLICATE_STUDENT_NOTES — 교사 확인 후 force 재시도
+        if (!r.ok && r.status === 409 && data?.error === 'SUSPICIOUS_DUPLICATE_STUDENT_NOTES') {
+          setSaving(false);
+          const dupCount = data?.duplicate_count ?? 3;
+          Alert.alert(
+            '개인 일지 중복 감지',
+            `학생 ${dupCount}명에게 동일한 개인 일지가 작성되었습니다.\n내용을 확인하신 후 저장하시겠습니까?`,
+            [
+              { text: '취소', style: 'cancel' },
+              {
+                text: '확인 후 저장',
+                onPress: () => {
+                  setForceSuspiciousSave(true);
+                  setTimeout(() => handleSave(), 100);
+                },
+              },
+            ],
+          );
+          return;
+        }
         if (!r.ok) throw new Error(data?.error || "저장 실패");
         diaryId = data.diary_id || data.id;
         noteMap = {};
@@ -1696,6 +1720,22 @@ export default function TeacherDiaryScreen() {
             <Pressable onPress={discardDraft} hitSlop={8}>
               <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#93C5FD" }}>삭제</Text>
             </Pressable>
+          </View>
+        )}
+        {/* §9 TEACHER CONFIRMATION: AI가 학생별 일지를 생성한 경우 저장 전 확인 안내 */}
+        {subView === "write" && aiRequestId !== null && studentNotes.filter(n => n.note_content?.trim()).length > 0 && (
+          <View style={{ backgroundColor: "#FFFBEB", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: "#FDE68A" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <LucideIcon name="alert-triangle" size={14} color="#B45309" />
+              <Text style={{ flex: 1, fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#92400E" }}>
+                {`AI가 학생별 일지 ${studentNotes.filter(n => n.note_content?.trim()).length}건을 작성했습니다. 내용을 확인한 후 저장해주세요.`}
+              </Text>
+            </View>
+            {studentNotes.filter(n => n.note_content?.trim()).map(n => (
+              <Text key={n.student_id} style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#78350F", marginTop: 2, marginLeft: 22 }} numberOfLines={1}>
+                {`· ${n.student_name}: ${n.note_content.slice(0, 28)}${n.note_content.length > 28 ? "…" : ""}`}
+              </Text>
+            ))}
           </View>
         )}
         {subView === "write" ? (

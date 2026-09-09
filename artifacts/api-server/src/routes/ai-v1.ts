@@ -630,6 +630,10 @@ router.post(
             feature:                  'teacher_diary',
             pool_mode:                poolMode,
             student_count:            normalizedStudents.length,
+            // §1 REQUEST SCOPE LOCK — POST /diaries 시 binding 검증에 사용
+            class_id:                 classId,
+            lesson_date:              lessonDate,
+            student_ids:              normalizedStudents.map(s => s.ref),
             trigger_type:             'USER_ACTION',
             service:                  'gpt',
             generation_mode,
@@ -699,6 +703,10 @@ router.post(
           feature:                  'teacher_diary',
           pool_mode:                poolMode,
           student_count:            normalizedStudents.length,
+          // §1 REQUEST SCOPE LOCK — POST /diaries 시 binding 검증에 사용
+          class_id:                 classId,
+          lesson_date:              lessonDate,
+          student_ids:              normalizedStudents.map(s => s.ref),
           trigger_type:             'USER_ACTION',
           service:                  'gpt',
           generation_mode,

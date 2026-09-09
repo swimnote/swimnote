@@ -628,6 +628,113 @@ async function verifyAiOrigin(
   }
 }
 
+// ── §1 REQUEST SCOPE LOCK: AI trace scope 조회 ───────────────────────────────
+// verifyAiOrigin이 VERIFIED_AI를 확인한 이후, POST /diaries에서 class/date/student binding
+// 검증에 사용. in-memory registry가 아닌 event_logs에서 직접 읽음 (재시작 후에도 안전).
+interface AiTraceScope {
+  class_id:    string;
+  lesson_date: string;
+  student_ids: string[];  // internal student refs (= student_id in DB)
+}
+
+async function fetchAiTraceScope(requestId: string): Promise<AiTraceScope | null> {
+  try {
+    const result = await superAdminDb.execute(sql`
+      SELECT metadata FROM event_logs
+      WHERE target   = ${requestId}
+        AND category = 'AI'
+        AND metadata->>'feature' = 'teacher_diary'
+        AND metadata->>'status'  = 'SUCCESS'
+      LIMIT 1
+    `);
+    if (result.rows.length === 0) return null;
+    const meta = (result.rows[0] as any).metadata as Record<string, unknown>;
+    const class_id    = typeof meta.class_id    === 'string' ? meta.class_id    : null;
+    const lesson_date = typeof meta.lesson_date === 'string' ? meta.lesson_date : null;
+    const student_ids = Array.isArray(meta.student_ids)
+      ? (meta.student_ids as unknown[]).filter((s): s is string => typeof s === 'string')
+      : [];
+    if (!class_id || !lesson_date) return null;
+    return { class_id, lesson_date, student_ids };
+  } catch (err) {
+    console.warn('[fetchAiTraceScope] failed — scope binding skipped', { requestId: requestId.slice(0,8), error: (err as Error)?.message });
+    return null;
+  }
+}
+
+// ── §8 CROSS-STUDENT SIMILARITY CHECK ────────────────────────────────────────
+// 학생별 note content 정규화 (학생 이름 prefix 제거 + 공백·구두점 정규화)
+function normalizeNoteContent(content: string): string {
+  // 학생 이름 도입부("XXX는/은/이/가") 제거 후 나머지 정규화
+  return content
+    .replace(/^[가-힣]{2,5}[은는이가](\s+)/, '')
+    .toLowerCase()
+    .replace(/[.,!?。\s]+/g, ' ')
+    .trim();
+}
+
+// ── §10 POST-SAVE INTEGRITY WATCH ─────────────────────────────────────────────
+// 저장 완료 후 fire-and-forget으로 실행. 같은 teacher, 짧은 시간 내, 다른 class에
+// 동일 개인 노트가 3건 이상 발견되면 super_admin_notifications 생성.
+async function watchDiarySaveIntegrity(params: {
+  poolId:      string;
+  teacherId:   string;
+  diaryId:     string;
+  lessonDate:  string;
+  savedNotes:  { id: string; student_id: string; note_content: string }[];
+}): Promise<void> {
+  const { poolId, teacherId, diaryId, savedNotes } = params;
+  if (savedNotes.length < 2) return;
+
+  const windowStart = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const result = await superAdminDb.execute(sql`
+    SELECT d.id AS diary_id, n.student_id, n.note_content
+    FROM class_diaries d
+    JOIN class_diary_student_notes n ON n.diary_id = d.id
+    WHERE d.teacher_id       = ${teacherId}
+      AND d.swimming_pool_id = ${poolId}
+      AND d.created_at       >= ${windowStart}
+      AND d.is_deleted       = false
+      AND n.is_deleted       = false
+      AND d.id               != ${diaryId}
+  `);
+  if (result.rows.length === 0) return;
+
+  const currentNormed = new Set(savedNotes.map(n => normalizeNoteContent(n.note_content)));
+  const matches = (result.rows as any[]).filter(r =>
+    currentNormed.has(normalizeNoteContent(r.note_content))
+  );
+  if (matches.length < 3) return;
+
+  const affectedCount = savedNotes.length + matches.length;
+  const idKey = `diary_integrity:${teacherId}:${params.lessonDate}:${diaryId.slice(-8)}`;
+
+  // idempotency 확인 후 INSERT
+  const existing = await superAdminDb.execute(sql`
+    SELECT id FROM super_admin_notifications WHERE idempotency_key = ${idKey} LIMIT 1
+  `);
+  if (existing.rows.length > 0) return;
+
+  const notifId = genId('san');
+  await superAdminDb.execute(sql`
+    INSERT INTO super_admin_notifications
+      (id, type, title, body, pool_id, ref_id, ref_type, is_read, idempotency_key, created_at)
+    VALUES (
+      ${notifId},
+      ${'DIARY_INTEGRITY_WARNING'},
+      ${'AI 일지 중복 패턴 감지'},
+      ${`교사 ID ${teacherId}: 30분 내 ${affectedCount}개 학생 노트에 동일 내용 감지. 일지 ID: ${diaryId}`},
+      ${poolId},
+      ${diaryId},
+      ${'class_diary'},
+      false,
+      ${idKey},
+      NOW()
+    )
+  `);
+  console.warn(`[integrity-watch] DIARY_INTEGRITY_WARNING created notif=${notifId} teacher=${teacherId} pool=${poolId} affectedCount=${affectedCount}`);
+}
+
 // ── WP9: AI diary snapshot refresh ────────────────────────────────────────
 // WP10의 refreshCurriculumSearchSnapshot과 동일 패턴.
 // raw source(class_diaries) recount → UPSERT overwrite (ai_diary_count, ai_diary_teacher_count만).
@@ -703,6 +810,7 @@ router.post("/diaries",
         class_group_id, lesson_date, common_content,
         student_notes, curriculum_matches, ai_request_id,
         ai_generated: clientAiGenerated,
+        force_suspicious_save,    // §8: teacher가 duplicate 경고 확인 후 재시도
       } = req.body;
 
       // pool/teacher 정보는 최우선 취득 — verifyAiOrigin 및 이후 로그에서 poolId를 사용하므로
@@ -740,6 +848,69 @@ router.post("/diaries",
       } else {
         // request_id 없음 → 사람이 직접 작성 (VERIFIED_HUMAN)
         console.log(`[diary-create] ai_origin_verify no request_id → human written`);
+      }
+
+      // ── §2 STUDENT ID BINDING + §6 SAVE-TIME INTEGRITY GATE ─────────────────
+      // AI request_id가 있고 VERIFIED_AI인 경우, 저장 요청의 scope를 trace에 저장된
+      // scope와 대조 (class_id / lesson_date / student_ids).
+      // 서버 재시작 후에도 event_logs DB trace로 검증 가능.
+      if (isAiGenerated && candidateRequestId) {
+        const scope = await fetchAiTraceScope(candidateRequestId);
+        if (scope) {
+          // §6-1: class_group_id 일치 검증
+          if (scope.class_id && scope.class_id !== class_group_id) {
+            console.warn(`[diary-create] DIARY_CLASS_SCOPE_MISMATCH scope=${scope.class_id} req=${class_group_id} request_id=${candidateRequestId.slice(0,8)}`);
+            return res.status(409).json({
+              error:     'DIARY_CLASS_SCOPE_MISMATCH',
+              retryable: false,
+              message:   'AI 일지 생성 반과 저장 요청 반이 다릅니다. AI 일지를 다시 생성해 주세요.',
+            });
+          }
+          // §6-2: lesson_date 일치 검증
+          const reqDate = lesson_date || new Date().toISOString().slice(0, 10);
+          if (scope.lesson_date && scope.lesson_date !== reqDate) {
+            console.warn(`[diary-create] DIARY_DATE_SCOPE_MISMATCH scope=${scope.lesson_date} req=${reqDate} request_id=${candidateRequestId.slice(0,8)}`);
+            return res.status(409).json({
+              error:     'DIARY_DATE_SCOPE_MISMATCH',
+              retryable: false,
+              message:   'AI 일지 생성 날짜와 저장 요청 날짜가 다릅니다. AI 일지를 다시 생성해 주세요.',
+            });
+          }
+          // §2: student_id binding — 각 student note의 student_id ∈ scope.student_ids
+          if (scope.student_ids.length > 0 && Array.isArray(student_notes)) {
+            for (const n of student_notes as any[]) {
+              if (n.student_id && !scope.student_ids.includes(n.student_id)) {
+                console.warn(`[diary-create] DIARY_STUDENT_SCOPE_MISMATCH student_id=${n.student_id} scope_ids=[${scope.student_ids.join(',')}]`);
+                return res.status(409).json({
+                  error:      'DIARY_STUDENT_SCOPE_MISMATCH',
+                  retryable:  false,
+                  student_id: n.student_id,
+                  message:    'AI 일지에 포함되지 않은 학생 ID가 감지됐습니다. AI 일지를 다시 생성해 주세요.',
+                });
+              }
+            }
+          }
+        } else {
+          // scope 없음: 구버전 trace (class_id/lesson_date 미저장) — binding 스킵 (경고만)
+          console.log(`[diary-create] scope_binding_skipped (no scope in trace) request_id=${candidateRequestId.slice(0,8)}`);
+        }
+
+        // §7 IDEMPOTENCY: 동일 request_id로 이미 diary가 저장됐는지 확인
+        const idempotentCheck = await db.execute(sql`
+          SELECT id FROM class_diaries
+          WHERE ai_trace_id = ${candidateRequestId} AND is_deleted = false
+          LIMIT 1
+        `);
+        if (idempotentCheck.rows.length > 0) {
+          const existingId = (idempotentCheck.rows[0] as any).id;
+          console.log(`[diary-create] IDEMPOTENT_DUPLICATE request_id=${candidateRequestId.slice(0,8)} existing_diary=${existingId}`);
+          return res.status(409).json({
+            error:     'IDEMPOTENT_DUPLICATE',
+            retryable: false,
+            diary_id:  existingId,
+            message:   '이미 저장된 AI 일지입니다.',
+          });
+        }
       }
 
       const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
@@ -821,6 +992,30 @@ router.post("/diaries",
         console.log(`[diary-create] student_notes: input=${allNotes.length} after_absent_filter=${notes.length}`);
       }
       console.log(`[diary-create] student_notes input count=${notes.length}`);
+
+      // ── §8 CROSS-STUDENT SIMILARITY CHECK ──────────────────────────────────
+      // 동일 diary save payload에서 학생 3명 이상이 같은 개인 note를 가지면 의심 패턴.
+      // force_suspicious_save=true일 때 bypass (teacher 확인 후 재시도).
+      if (!force_suspicious_save) {
+        const validNotes = notes.filter((n: any) => n.note_content?.trim());
+        if (validNotes.length >= 3) {
+          const freq = new Map<string, number>();
+          for (const n of validNotes) {
+            const key = normalizeNoteContent(n.note_content);
+            freq.set(key, (freq.get(key) ?? 0) + 1);
+          }
+          const maxDup = Math.max(...freq.values());
+          if (maxDup >= 3) {
+            console.warn(`[diary-create] SUSPICIOUS_DUPLICATE_STUDENT_NOTES maxDup=${maxDup} class=${class_group_id}`);
+            return res.status(409).json({
+              error:                'SUSPICIOUS_DUPLICATE_STUDENT_NOTES',
+              confirmation_required: true,
+              duplicate_count:      maxDup,
+              message:              `학생 ${maxDup}명에게 동일한 개인 일지가 감지됐습니다. 내용을 확인하신 후 저장해주세요.`,
+            });
+          }
+        }
+      }
       const savedNotes: any[] = [];
 
       // 트랜잭션: 일지 + 학생별 노트 원자적 생성
@@ -945,6 +1140,20 @@ router.post("/diaries",
           actorId: userId, actorName: teacherName, actorRole: role, poolId,
         });
       }
+
+      // ── §10 POST-SAVE INTEGRITY WATCH (fire-and-forget) ─────────────────────
+      // TX 외부: 저장 완료 후 30분 내 동일 teacher의 중복 노트 패턴 감지 → super_admin_notifications
+      void watchDiarySaveIntegrity({
+        poolId:     poolId!,
+        teacherId:  userId,
+        diaryId,
+        lessonDate: dateStr,
+        savedNotes: (savedNotes as any[]).map((n: any) => ({
+          id: n.id, student_id: n.student_id, note_content: n.note_content,
+        })),
+      }).catch((e: unknown) => {
+        console.error(`[integrity-watch] failed diary=${diaryId}`, (e as Error)?.message ?? e);
+      });
 
       // 학부모 푸시 알림
       const cgRow = await db.execute(sql`SELECT name FROM class_groups WHERE id = ${class_group_id}`);

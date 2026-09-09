@@ -55,6 +55,15 @@ export interface AiTraceContext {
   pool_mode?:        string | null;
   student_count?:    number;
 
+  // §1 REQUEST SCOPE LOCK: AI diary 생성 시 scope를 trace에 durable 저장
+  // POST /diaries 시 이 scope로 class/date/student binding 검증
+  /** AI diary scope: 생성 요청의 class_group_id */
+  class_id?:    string | null;
+  /** AI diary scope: 생성 요청의 lesson_date (YYYY-MM-DD) */
+  lesson_date?: string | null;
+  /** AI diary scope: 생성 요청의 student refs (= internal student IDs) */
+  student_ids?: string[];
+
   // CS-PA1: 공통 계측 확장 (metadata JSONB 활용 — DB column 추가 없음)
   /** 실제 인증 role (teacher/parent/pool_admin/super_admin 등). 알 수 없으면 null. */
   user_role?:        string | null;
@@ -189,6 +198,11 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
   };
 
   if (params.pipeline_version  != null) metadata.pipeline_version  = params.pipeline_version;
+
+  // §1 REQUEST SCOPE LOCK: class/date/student_ids in trace for binding at POST /diaries
+  if (params.class_id    != null) metadata.class_id    = params.class_id;
+  if (params.lesson_date != null) metadata.lesson_date = params.lesson_date;
+  if (params.student_ids != null && params.student_ids.length > 0) metadata.student_ids = params.student_ids;
 
   // CS-PA1: 공통 계측 확장 필드 (metadata JSONB 활용)
   if (params.user_role         != null) metadata.user_role         = params.user_role;
