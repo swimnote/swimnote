@@ -1,0 +1,216 @@
+[보낼 곳: APP REPLIT]
+
+[P0 ANDROID 243 — CURRENT PRODUCTION HEAD FRESH BUILD]
+
+목표:
+현재 iOS Production 최신 상태와 동일한 코드로
+Android Internal Test용 새 AAB를 fresh build 한다.
+
+기존 Android 242는 최신 결제/구독 수정이 누락되어 있으므로
+release candidate로 사용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+canonical branch:
+release/v2.0.0
+
+반드시:
+
+git fetch
+git checkout release/v2.0.0
+git status clean 확인
+origin/release/v2.0.0 과 exact 확인
+
+빌드 기준 HEAD는 최소:
+
+42104ef7
+
+현재 origin HEAD가 42104ef7보다 이후라면
+최신 origin HEAD를 사용.
+
+과거 Android source:
+b02d94b2
+
+기준으로 돌아가거나 cherry-pick 조립 금지.
+
+현재 production branch 전체 상태 그대로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 반드시 포함되어야 하는 최근 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android 243에는 최소 다음이 모두 포함되어야 함:
+
+- X300/X500/X1000 "구독 신청 준비 중" 제거
+- 신규 pool normal → X 직접 구매
+- SWIMNOTE → X 구매
+- trial → X paid 구매
+- X → SWIMNOTE downgrade CTA
+- Android Google Play product replacement
+- upgrade:
+  IMMEDIATE_AND_CHARGE_FULL_PRICE
+- downgrade:
+  DEFERRED
+- double subscription 방지
+- PAYMENT_SUSPENDED lifecycle
+- grace 처리
+- 결제 만료 후 suspension screen/gate
+- admin subscription recovery route
+- SWIMNOTE AI with OpenAI GPT branding
+- Parent AI Insight BASE promo entry
+- Auth global unique/debounce UI
+- Diary Safety Gate
+- local storage/temp cleanup
+- BASE/X/trial preservation
+- 현재 iOS 최신 production 코드 전체
+
+DATA100/DATA300 구매:
+HOLD 유지
+
+AI Insight 구매:
+HOLD 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FRESH BUNDLE 절대조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+과거 stale dist 사고 재발 금지.
+
+반드시 fresh Metro/Expo bundle 생성.
+
+금지:
+
+- 기존 dist 재사용
+- 이전 export 재사용
+- stale bundle 사용
+- 검증 없는 --skip-bundler
+
+빌드 직전 fresh bundle에서 최소 문자열 확인:
+
+"Powered by SWIMNOTE AI with OpenAI GPT"
+
+공식 플랜:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+구형 Coach/Premier 판매 UI가
+현재 subscription route bundle에 남아 있지 않은지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ANDROID VERSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+applicationId:
+com.swimnote.app
+
+versionName:
+2.0.1
+
+versionCode:
+243
+
+runtimeVersion:
+2.1.0
+
+EAS production profile 사용.
+
+RevenueCat Android production key 설정 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android AAB fresh production build.
+
+목적:
+Google Play Internal Test
+
+Play Production rollout 금지.
+
+iOS 빌드/OTA 추가 작업 금지.
+
+서버 변경 없으면 Render 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. STATIC / BUNDLE PREFLIGHT
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+A.
+SWIMNOTE product
+com.swimnote.swimnote.monthly:monthly
+
+B.
+X300
+com.swimnote.x300.monthly:monthly
+
+C.
+X500
+com.swimnote.x500.monthly:monthly
+
+D.
+X1000
+com.swimnote.x1000.monthly:monthly
+
+E.
+SWIMNOTE→X:
+Google product change info 포함
+
+F.
+X→SWIMNOTE:
+DEFERRED replacement 포함
+
+G.
+X plan CTA:
+정적 "구독 신청 준비 중" 분기로 막히지 않음
+
+H.
+DATA/Insight HOLD 유지
+
+I.
+payment_suspended route 포함
+
+J.
+GPT branding 포함
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. branch
+2. source HEAD
+3. origin exact 여부
+4. git clean 여부
+5. fresh bundle 증거
+6. stale dist 미사용 확인
+7. versionName
+8. versionCode
+9. runtimeVersion
+10. applicationId
+11. 공식 4개 product ID 확인
+12. Android product replacement 포함 여부
+13. payment suspension 포함 여부
+14. branding 포함 여부
+15. Parent Insight 포함 여부
+16. AAB build ID
+17. build status
+18. AAB 생성 성공 여부
+19. Google Play upload 여부
+   - 직접 업로드하지 말고 준비 상태만 보고
+20. blocker
+21. 최종 PASS/HOLD
+
+PASS 조건:
+- source HEAD >= 42104ef7
+- fresh bundle
+- versionCode 243
+- AAB build SUCCESS
+- blocker 0
+
+완료 후 STOP.
