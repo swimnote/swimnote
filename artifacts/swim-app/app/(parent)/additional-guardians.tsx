@@ -9,6 +9,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 
 const C = Colors.light;
 const TEAL = C.brandStrong;
@@ -30,7 +33,9 @@ interface StudentGuardian {
 
 export default function AdditionalGuardiansScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, parentAccount } = useAuth();
+  const { shouldShow: showGuardianGuide, markSeen: markGuardianGuideSeen } = useFeatureGuide((parentAccount as any)?.id, "parent_additional_guardian");
+  const guardianGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.parent_additional_guardian.title, body: GUIDE_CONTENT.parent_additional_guardian.body }];
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [students, setStudents] = useState<StudentGuardian[]>([]);
@@ -334,6 +339,12 @@ export default function AdditionalGuardiansScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      <OnboardingSheet
+        visible={showGuardianGuide}
+        onDismiss={markGuardianGuideSeen}
+        slides={guardianGuideSlides}
+      />
     </View>
   );
 }

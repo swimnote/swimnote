@@ -17,6 +17,9 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
@@ -73,7 +76,9 @@ function teacherColor(name: string) {
 }
 
 export default function AdminDiaryAllScreen() {
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
+  const { shouldShow: showDiaryGuide, markSeen: markDiaryGuideSeen } = useFeatureGuide(adminUser?.id, "admin_ai_diary");
+  const diaryGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.admin_ai_diary.title, body: GUIDE_CONTENT.admin_ai_diary.body }];
   const { themeColor } = useBrand();
 
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -462,6 +467,12 @@ export default function AdminDiaryAllScreen() {
         destructive
         onConfirm={executeDelete}
         onCancel={() => { setShowConfirm(false); setPendingMode(null); }}
+      />
+
+      <OnboardingSheet
+        visible={showDiaryGuide}
+        onDismiss={markDiaryGuideSeen}
+        slides={diaryGuideSlides}
       />
     </SafeAreaView>
   );

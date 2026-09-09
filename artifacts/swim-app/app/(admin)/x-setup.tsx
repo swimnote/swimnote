@@ -27,6 +27,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useAuth, API_BASE } from "@/context/AuthContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
@@ -126,7 +129,9 @@ function formatDate(iso: string): string {
 // ── Component ────────────────────────────────────────────────────────────────
 export default function AdminXSetupScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, adminUser } = useAuth();
+  const { shouldShow: showXCurriculumGuide, markSeen: markXCurriculumGuideSeen } = useFeatureGuide(adminUser?.id, "admin_x_curriculum");
+  const xCurriculumGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.admin_x_curriculum.title, body: GUIDE_CONTENT.admin_x_curriculum.body }];
   const { backTo } = useLocalSearchParams<{ backTo?: string }>();
 
   const [data, setData] = useState<XSetupStatusResponse | null>(null);
@@ -414,6 +419,12 @@ export default function AdminXSetupScreen() {
           </>
         )}
       </ScrollView>
+
+      <OnboardingSheet
+        visible={showXCurriculumGuide}
+        onDismiss={markXCurriculumGuideSeen}
+        slides={xCurriculumGuideSlides}
+      />
     </View>
   );
 }

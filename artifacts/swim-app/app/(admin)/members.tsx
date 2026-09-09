@@ -12,6 +12,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useFeatureGuide } from "@/hooks/useOnboarding";
+import { OnboardingSheet } from "@/components/onboarding/OnboardingSheet";
+import { GUIDE_CONTENT } from "@/constants/onboardingContent";
 import { ScreenLayout }  from "@/components/common/ScreenLayout";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { FilterChips, FilterChipItem } from "@/components/common/FilterChips";
@@ -47,7 +50,9 @@ const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
 ];
 
 export default function MembersScreen() {
-  const { token, pool } = useAuth();
+  const { token, pool, adminUser } = useAuth();
+  const { shouldShow: showMembersGuide, markSeen: markMembersGuideSeen } = useFeatureGuide(adminUser?.id, "admin_members");
+  const membersGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.admin_members.title, body: GUIDE_CONTENT.admin_members.body }];
   const { themeColor }  = useBrand();
   const insets          = useSafeAreaInsets();
   const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
@@ -654,6 +659,12 @@ export default function MembersScreen() {
         cancelText="닫기"
         onConfirm={() => { setShowMemberLimitModal(false); router.push("/(admin)/billing" as any); }}
         onCancel={() => setShowMemberLimitModal(false)}
+      />
+
+      <OnboardingSheet
+        visible={showMembersGuide}
+        onDismiss={markMembersGuideSeen}
+        slides={membersGuideSlides}
       />
     </>
   );
