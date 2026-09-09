@@ -152,9 +152,236 @@ function roleLabel(role: string): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+// ── Inquiry inbox types ───────────────────────────────────────────────────────
+
+interface Inquiry {
+  id: string;
+  sender_uuid: string;
+  sender_role: string;
+  sender_name: string;
+  pool_id: string | null;
+  pool_name: string | null;
+  target: string;
+  title: string;
+  content: string;
+  status: string;
+  created_at: string;
+  reply_count?: number;
+  replies?: InquiryReply[];
+}
+
+interface InquiryReply {
+  id: string;
+  inquiry_id: string;
+  replier_uuid: string;
+  replier_role: string;
+  replier_name: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+const INQ_STATUS_LABEL: Record<string, { label: string; cls: string }> = {
+  unread:  { label: "미확인", cls: "bg-red-50 text-red-600 border border-red-200" },
+  read:    { label: "확인",   cls: "bg-gray-50 text-gray-500 border border-gray-200" },
+  replied: { label: "답변완료", cls: "bg-green-50 text-green-700 border border-green-200" },
+  closed:  { label: "종료",   cls: "bg-gray-100 text-gray-400 border border-gray-200" },
+};
+
+// ── InquiryInbox sub-component ────────────────────────────────────────────────
+
+function InquiryInbox() {
+  const [inquiries, setInquiries]     = useState<Inquiry[]>([]);
+  const [loading, setLoading]         = useState(false);
+  const [selectedInq, setSelectedInq] = useState<Inquiry | null>(null);
+  const [detail, setDetail]           = useState<Inquiry | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [replyText, setReplyText]     = useState("");
+  const [replySending, setReplySending] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<"all" | "unread" | "replied">("all");
+
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await api.get<Inquiry[]>("/inquiries/received");
+      setInquiries(rows ?? []);
+    } catch { setInquiries([]); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchList(); }, [fetchList]);
+
+  const openDetail = async (inq: Inquiry) => {
+    setSelectedInq(inq);
+    setDetailLoading(true);
+    setReplyText("");
+    try {
+      const d = await api.get<Inquiry>(`/inquiries/${inq.id}`);
+      setDetail(d);
+      // mark read
+      api.patch(`/inquiries/${inq.id}/read`, {}).catch(() => {});
+    } catch { setDetail(null); } finally { setDetailLoading(false); }
+  };
+
+  const sendReply = async () => {
+    if (!selectedInq || !replyText.trim()) return;
+    setReplySending(true);
+    try {
+      await api.post(`/inquiries/${selectedInq.id}/reply`, { content: replyText.trim() });
+      setReplyText("");
+      const d = await api.get<Inquiry>(`/inquiries/${selectedInq.id}`);
+      setDetail(d);
+      // refresh list (status may change)
+      fetchList();
+    } catch (e: any) { alert(e?.message ?? "전송 실패"); }
+    finally { setReplySending(false); }
+  };
+
+  const filtered = inquiries.filter(i => {
+    if (filterStatus === "unread") return i.status === "unread" || i.status === "read";
+    if (filterStatus === "replied") return i.status === "replied";
+    return true;
+  });
+
+  const unansweredCount = inquiries.filter(i => i.status === "unread" || i.status === "read").length;
+
+  return (
+    <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* Left: list */}
+      <div className="w-[300px] shrink-0 flex flex-col border-r border-[#eee] bg-[#fafafa]">
+        <div className="p-3 border-b border-[#eee] flex items-center justify-between gap-2">
+          <div className="flex gap-1 flex-wrap">
+            {(["all", "unread", "replied"] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
+                  filterStatus === s ? "bg-[#002F5F] text-white" : "bg-white border border-[#e5e5e5] text-[#888]"
+                }`}
+              >
+                {s === "all" ? `전체 ${inquiries.length}` : s === "unread" ? `미답변 ${unansweredCount}` : `답변완료`}
+              </button>
+            ))}
+          </div>
+          <button onClick={fetchList} className="text-[11px] text-[#aaa] hover:text-[#555]">↻</button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <p className="text-[12px] text-[#bbb] p-4">로딩 중...</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-[12px] text-[#bbb] p-4">문의 없음</p>
+          ) : filtered.map(inq => {
+            const stl = INQ_STATUS_LABEL[inq.status] ?? INQ_STATUS_LABEL.read;
+            const isActive = selectedInq?.id === inq.id;
+            return (
+              <div
+                key={inq.id}
+                onClick={() => openDetail(inq)}
+                className={`px-3 py-2.5 border-b border-[#f0f0f0] cursor-pointer transition-all ${
+                  isActive ? "bg-blue-50 border-l-2 border-l-[#002F5F]" : "hover:bg-white"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 mb-0.5">
+                  <span className="text-[11px] font-semibold text-[#333] truncate">{inq.title || "(제목 없음)"}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full shrink-0 ${stl.cls}`}>{stl.label}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-[#888]">{roleLabel(inq.sender_role)}</span>
+                  {inq.pool_name && <span className="text-[10px] text-[#bbb] truncate">· {inq.pool_name}</span>}
+                </div>
+                <div className="text-[10px] text-[#bbb] mt-0.5">{fmtDate(inq.created_at)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Right: detail */}
+      <div className="flex-1 flex flex-col min-w-0 bg-white">
+        {!selectedInq ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-[13px] text-[#bbb]">문의를 선택하세요</p>
+          </div>
+        ) : detailLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-[13px] text-[#bbb]">로딩 중...</p>
+          </div>
+        ) : (
+          <>
+            {/* Detail header */}
+            <div className="px-5 py-3 border-b border-[#eee] shrink-0">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[14px] font-bold text-[#111]">{detail?.title || selectedInq.title}</p>
+                  <div className="flex items-center gap-2 mt-1 text-[11px] text-[#888]">
+                    <span>{roleLabel(detail?.sender_role ?? selectedInq.sender_role)}</span>
+                    {(detail?.pool_name ?? selectedInq.pool_name) && (
+                      <span>· {detail?.pool_name ?? selectedInq.pool_name}</span>
+                    )}
+                    <span>· {fmtDate(detail?.created_at ?? selectedInq.created_at)}</span>
+                  </div>
+                </div>
+                <span className={`text-[10px] px-2 py-1 rounded-full border shrink-0 ${
+                  (INQ_STATUS_LABEL[detail?.status ?? "read"] ?? INQ_STATUS_LABEL.read).cls
+                }`}>
+                  {(INQ_STATUS_LABEL[detail?.status ?? "read"] ?? INQ_STATUS_LABEL.read).label}
+                </span>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {/* Original inquiry */}
+              <div className="bg-[#f9f9f9] rounded-xl p-3">
+                <p className="text-[10px] text-[#bbb] mb-1 font-medium">원문 문의</p>
+                <p className="text-[13px] text-[#222] whitespace-pre-wrap">{detail?.content ?? selectedInq.content}</p>
+              </div>
+              {/* Replies */}
+              {(detail?.replies ?? []).map(r => {
+                const isSuperReply = r.replier_role === "super_admin";
+                return (
+                  <div key={r.id} className={`flex ${isSuperReply ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[80%] rounded-xl p-3 ${
+                      isSuperReply ? "bg-[#002F5F] text-white" : "bg-[#f3f4f6] text-[#111]"
+                    }`}>
+                      <p className={`text-[10px] mb-1 font-medium ${isSuperReply ? "text-[#8ab0d4]" : "text-[#888]"}`}>
+                        {r.replier_name} ({roleLabel(r.replier_role)}) · {fmtDate(r.created_at)}
+                      </p>
+                      <p className="text-[13px] whitespace-pre-wrap">{r.content}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Reply input */}
+            <div className="px-5 py-3 border-t border-[#eee] shrink-0">
+              <div className="flex gap-2">
+                <textarea
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  placeholder="답변을 입력하세요..."
+                  rows={2}
+                  className="flex-1 text-[13px] border border-[#e5e5e5] rounded-xl px-3 py-2 resize-none focus:outline-none focus:border-[#002F5F]"
+                />
+                <button
+                  onClick={sendReply}
+                  disabled={replySending || !replyText.trim()}
+                  className="px-4 py-2 bg-[#002F5F] text-white text-[12px] font-semibold rounded-xl disabled:opacity-40 hover:bg-[#00234a] transition-all"
+                >
+                  {replySending ? "전송 중" : "답변"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SuperSupport() {
   // ── Tab state
-  const [tab, setTab] = useState<"inbox" | "knowledge" | "faq">("inbox");
+  const [tab, setTab] = useState<"inbox" | "inquiries" | "knowledge" | "faq">("inbox");
 
   // ── Inbox filters
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -327,7 +554,8 @@ export default function SuperSupport() {
       {/* Top tabs */}
       <div className="flex gap-0 px-6 mb-0 shrink-0 border-b border-[#eee]">
         {([
-          { id: "inbox",     label: "상담" },
+          { id: "inbox",     label: "AI 상담" },
+          { id: "inquiries", label: "문의함" },
           { id: "knowledge", label: "Knowledge DB" },
           { id: "faq",       label: "FAQ" },
         ] as const).map(({ id, label }) => (
@@ -344,6 +572,13 @@ export default function SuperSupport() {
           </button>
         ))}
       </div>
+
+      {/* ── Inquiries tab ── */}
+      {tab === "inquiries" && (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <InquiryInbox />
+        </div>
+      )}
 
       {/* ── Knowledge / FAQ tabs ── */}
       {(tab === "knowledge" || tab === "faq") && (
@@ -606,8 +841,8 @@ export default function SuperSupport() {
                     ["런타임 버전",  detail.context?.runtime_version ?? "—"],
                     ["현재 화면",    detail.context?.current_route ?? "—"],
                     ["기기/OS",      detail.context?.device_os ?? "—"],
-                    ["문의 시작",    fmtDate(detail.created_at)],
-                    ["마지막 업데이트", fmtDate(detail.updated_at)],
+                    ["문의 시작",    fmtDate(detail.case?.created_at)],
+                    ["마지막 업데이트", fmtDate(detail.case?.updated_at)],
                     ["총 메시지",    String(detail.messages.length)],
                   ].map(([k, v]) => (
                     <div key={k} className="flex justify-between text-[11px] py-0.5">

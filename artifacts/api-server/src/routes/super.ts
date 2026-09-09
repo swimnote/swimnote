@@ -323,7 +323,12 @@ router.get(
           COALESCE(u.phone, '')                 AS admin_phone,
           -- 구독 스냅샷 (swimming_pools 직접 저장값)
           COALESCE(p.subscription_tier,  'free')            AS sub_tier,
-          COALESCE(p.subscription_plan_name, p.subscription_tier, 'Free') AS sub_plan_name,
+          -- x_plan_key가 있으면 canonical X 플랜명 우선 표시 (legacy tier 덮어쓰기 방지)
+          CASE
+            WHEN p.x_plan_key IS NOT NULL
+              THEN 'SWIMNOTE ' || UPPER(p.x_plan_key)
+            ELSE COALESCE(p.subscription_plan_name, p.subscription_tier, 'Free')
+          END                                               AS sub_plan_name,
           COALESCE(p.subscription_status, 'trial')          AS sub_status,
           COALESCE(p.subscription_source, 'free_default')   AS sub_source,
           COALESCE(p.member_limit, 10)                      AS sub_member_limit,
@@ -365,6 +370,7 @@ router.get(
           COALESCE(p.x_manual_entitlement, false)     AS x_manual,
           COALESCE(p.x_management_override, false)    AS x_override,
           COALESCE(p.x_force_disabled, false)         AS x_force_disabled,
+          p.x_plan_key                                AS x_plan_key,
           (
             SELECT MAX(u2.last_login_at) FROM users u2
             WHERE u2.swimming_pool_id = p.id
@@ -416,6 +422,7 @@ router.get(
         x_manual:            Boolean(r.x_manual ?? false),
         x_override:          Boolean(r.x_override ?? false),
         x_force_disabled:    Boolean(r.x_force_disabled ?? false),
+        x_plan_key:          r.x_plan_key ?? null,
         teacher_count:       Number(r.teacher_count ?? 0),
         parent_count:        Number(r.parent_count ?? 0),
         diary_count:         Number(r.diary_count ?? 0),
