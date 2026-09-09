@@ -1,0 +1,305 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL ADDENDUM — BASE→X/TRIAL PRESERVATION + TRIAL FEATURE POLICY ONLY]
+
+현재 X Trial 구현 대부분 PASS.
+
+재작업 금지:
+- 72h trial 구조
+- notification N1~N5
+- Super Admin trial badge
+- x-hub/x-subscription 수정
+- billing/trial DB 구조
+
+이번 작업은 사용자가 추가로 확정한 정책만 검증한다.
+
+핵심 원칙:
+
+SWIMNOTE X
+=
+기존 SWIMNOTE 전체 기능
++
+X 추가 기능
+
+X TRIAL
+=
+기존 SWIMNOTE 전체 기능
++
+trial 허용 X 기능
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. BASE → X TRIAL 데이터 보존 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test pool/account 사용.
+
+trial 시작 전 BASE 상태에서 실제 존재하는:
+
+- student/member
+- class_group
+- attendance
+- makeup
+- diary
+- diary student note
+- parent_student link
+
+최소 1건씩 기준값 확인.
+
+그 후:
+
+BASE
+→ X TRIAL 시작
+
+확인:
+
+- 동일 student 조회
+- 동일 class 조회
+- 동일 attendance 조회
+- 동일 makeup 조회
+- 동일 diary 조회
+- 동일 parent link 조회
+
+row 삭제/재생성/초기화 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ADMIN BASE 기능 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+X TRIAL / X PAID에서 기존 Admin 기능이 그대로 존재하는지 확인.
+
+최소:
+
+- dashboard
+- members
+- member detail
+- classes
+- schedule
+- attendance
+- makeups
+- teachers
+- diary
+- manual diary
+- AI diary
+- photos
+- notices
+- parent requests
+- subscription
+- settings
+
+BASE에는 있었는데
+X/TRIAL에서 사라진 메뉴/CTA/route가 있으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. TEACHER BASE 기능 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+X TRIAL / X PAID에서 최소:
+
+- today schedule
+- students
+- student detail
+- attendance
+- makeups
+- diary
+- manual diary
+- AI diary
+- voice/STT
+- photos/video
+- messages/requests
+
+그대로 유지.
+
+X 때문에 기존 Teacher route가
+다른 legacy route로 축소되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PARENT BASE 기능 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+X TRIAL / X PAID에서 최소:
+
+- home
+- child switch
+- add child
+- additional guardian
+- diary
+- album
+- notices
+- attendance
+- makeup/request
+- notifications
+- program
+
+그대로 유지.
+
+특히:
+
+BASE 상태에서 이미 존재하는 과거 diary
+→ X TRIAL
+→ 조회 가능
+
+X TRIAL 종료
+→ BASE
+→ 동일 diary 다시 조회 가능
+
+실제 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. TRIAL 종료 후 BASE 복귀
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial expired
++
+paid/manual/HQ 없음
+
+→ BASE
+
+확인:
+
+- 회원 그대로
+- 반 그대로
+- 출결 그대로
+- 보강 그대로
+- 일지 그대로
+- 학부모 연결 그대로
+
+X-only 접근만 닫힘.
+
+데이터 삭제 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X PAID에서도 BASE 기능 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+X paid 상태에서:
+
+BASE 기능 전체
++
+X 기능
+
+인지 확인.
+
+X 전환으로 기존 기능이 대체/삭제되는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. TRIAL FEATURE POLICY 재검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고서:
+
+x-growth
+parent-paid-insight
+= paid only
+
+라고 되어 있음.
+
+둘을 같은 이유로 묶지 말 것.
+
+각 기능을 실제 제품정책 기준으로 다시 분류.
+
+A. AI Diary
+trial 허용.
+Local curriculum 없으면 기본 AI 생성 가능.
+
+B. X Growth
+Local Curriculum이 있어야 성립하는 기능인지 확인.
+
+만약:
+trial + curriculum READY
+상태에서 실제 X 체험 기능으로 제공하는 것이 제품정책과 맞다면
+paid-only guard 제거하고 trial+READY 허용.
+
+반대로 별도 유료 전용 기능이면
+paid-only 근거를 명시.
+
+C. AI Insight Report
+현재 별도 유료 79,000원 상품이며 purchase HOLD.
+
+이 기능은
+X trial이라고 자동 제공하면 안 됨.
+
+trial access와 paid Insight product를 혼동 금지.
+
+D. Parent AI Curriculum Search
+Local Curriculum dependency와 trial 정책을 확인.
+
+결제 여부 때문이 아니라
+실제 curriculum dependency 기준으로 판단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 최종 MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 코드 기준 표 제출.
+
+기능                        BASE | TRIAL no curriculum | TRIAL READY | PAID X
+
+기본 회원/반/출결/일지
+AI Diary
+X Curriculum
+Parent AI Curriculum Search
+X Growth
+AI Growth Report
+AI Insight Report
+
+각 칸:
+
+ALLOW
+LOCK
+HOLD
+
+그리고 이유 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제 없으면 코드 수정 0.
+
+실제 BASE 기능 누락이나
+trial gate 오분류가 있을 때만 최소 수정.
+
+APP 수정 시:
+release/v2.0.0
+→ preflight
+→ runtime 2.1.0
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. BASE→TRIAL 기존 DB 데이터 결과
+2. Admin BASE 기능 보존
+3. Teacher BASE 기능 보존
+4. Parent BASE 기능 보존
+5. Parent 과거 diary BASE→TRIAL→BASE
+6. trial 종료 후 BASE 데이터
+7. X paid에서 BASE 기능 보존
+8. X Growth trial 정책
+9. Parent AI Curriculum Search trial 정책
+10. AI Insight trial 정책
+11. 최종 4-column feature matrix
+12. 발견 누락
+13. 수정 파일
+14. tests
+15. main HEAD
+16. Render LIVE SHA
+17. OTA ID
+18. blocker
+19. 최종 PASS/HOLD
+
+PASS 조건:
+
+- BASE→TRIAL 기능 손실 0
+- BASE→X PAID 기능 손실 0
+- 기존 데이터 손실 0
+- X/TRIAL 종료 후 BASE 정상
+- AI Diary trial 허용
+- curriculum dependency와 payment dependency 구분 정확
+- Insight 별도 유료/HOLD 정책 유지
+- blocker 0
+
+완료 후 STOP.

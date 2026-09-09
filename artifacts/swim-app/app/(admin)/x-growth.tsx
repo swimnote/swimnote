@@ -183,7 +183,7 @@ export default function AdminXGrowthScreen() {
   };
 
   return (
-    <XModeGuard allowedKind="admin" allowedRole="pool_admin">
+    <XModeGuard allowedKind="admin" allowedRole="pool_admin" trialAllowed>
       <View style={{ flex: 1, backgroundColor: C.background }}>
 
         {/* 헤더 */}

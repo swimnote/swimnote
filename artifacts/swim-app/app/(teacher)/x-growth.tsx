@@ -150,7 +150,7 @@ export default function TeacherXGrowthScreen() {
   };
 
   return (
-    <XModeGuard allowedKind="admin" allowedRole="teacher">
+    <XModeGuard allowedKind="admin" allowedRole="teacher" trialAllowed>
       <View style={{ flex: 1, backgroundColor: C.background }}>
 
         {/* 헤더 */}

@@ -31,7 +31,7 @@ export default function ParentXGrowthScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <XModeGuard allowedKind="parent">
+    <XModeGuard allowedKind="parent" trialAllowed>
       <View style={{ flex: 1, backgroundColor: C.background }}>
         {/* 헤더 */}
         <View style={[s.header, { paddingTop: insets.top + 14 }]}>
