@@ -52,6 +52,35 @@ description: 72H X Trial gate fix + Super Admin notifications 5종 구현 완료
 - subscription.tsx 검토 결과: mode=x_trial 시 X plan CTA 카드 표시 정상
 - trial active 상태에서 X300/X500/X1000 구매 버튼 차단 없음 (기존 코드 정상)
 
+## E2E FINAL CLOSEOUT 결과 (2026-09-09)
+
+### 앱 추가 수정 (SHA 10e09c4c)
+- x-hub.tsx: mode !== 'x' → mode !== 'x' && mode !== 'x_trial' (**P0 fix**)
+- x-subscription.tsx: mode === 'x' → mode === 'x' || mode === 'x_trial'
+- iOS OTA: production-v2 / 01a085aa / 0c48d5ca
+
+### E2E 검증 항목 결과
+| 항목 | 결과 |
+|---|---|
+| x-hub x_trial 진입 | FIXED + PASS ✅ |
+| trial activation (결제 없이 72h) | billing.ts NOW()+72h ✅ |
+| double-start 방지 | 409 TRIAL_ALREADY_ACTIVE/USED ✅ |
+| expired restart 방지 | 409 TRIAL_ALREADY_USED ✅ |
+| trial→BASE (data preserved) | mode compute only, no delete ✅ |
+| trial→PAID | x_paid_entitlement=true → mode=x ✅ |
+| no-curriculum AI Diary | requireAuth only, no XMode guard ✅ |
+| curriculum-dependent gate | parent-paid-insight hasXEntitlement (paid only) ✅ |
+| trial subscription 화면 | mode x_trial → 구독 fetch 허용 ✅ |
+| N1~N5 삽입 | 5/5 PASS ✅ |
+| idempotency | PASS ✅ (ON CONFLICT partial index) |
+| login immediate unread | mount 즉시 fetchUnread() 호출 ✅ |
+| browser OS push | 미구현 (blocker 아님) ✅ |
+
+### 알림 아키텍처 요약
+- A. Persistent notification DB = YES ✅
+- B. Login immediate unread delivery = YES ✅ (mount에서 즉시 fetch)
+- C. Web browser OS-level push = NO (blocker 아님)
+
 ## 주의사항
 - trial 만료 후 paid 없으면 normal로 lazy expiration (no background worker 필요)
 - trial + no curriculum: AI diary (teacher-diary/generate) 는 requireAuth만 → 허용
