@@ -1,0 +1,575 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FIX — POOL INPUT / X SETUP FILE DURABILITY CORE]
+
+Super Admin durability audit 결과 HOLD.
+
+이번 작업 목표:
+
+수영장이 입력하거나 업로드한 정보가
+중간 실패/동시 업로드 때문에
+참조를 잃거나 current 상태가 깨지는 위험을 제거한다.
+
+이번 작업에서는 Super Admin UI 개편 금지.
+
+우선 코드/DB에서 통제 가능한
+P0 + 핵심 audit만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 보호 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+수영장이 업로드한 원본은:
+
+- R2 object 보존
+- DB reference 보존
+- version 보존
+- uploader 보존
+- uploaded_at 보존
+- 이전 version 보존
+
+되어야 한다.
+
+아래 상태는 절대 허용하지 않는다.
+
+A.
+정상 upload 응답을 받았는데
+DB reference 없음
+
+B.
+신규 version insert 실패 때문에
+기존 current 파일까지 current=false가 됨
+
+C.
+동시 upload 때문에 동일 submission_version 생성
+
+D.
+재업로드가 기존 원본 object를 overwrite
+
+E.
+parse/structure 실패 때문에 원본 자체 삭제
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 알려진 P0
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 audit에서 확인:
+
+P0-A
+R2 upload 성공
+→ DB insert 실패
+→ R2 orphan 가능
+
+P0-B
+기존 is_current=false UPDATE 성공
+→ 신규 INSERT 실패
+→ current file 0 가능
+
+P0-C
+MAX(submission_version)+1
+→ 동시 upload race
+→ 동일 version 가능
+
+P0-D
+수영장 기본정보
+name/address/phone/owner 등
+update 전 값 이력 없음
+
+이번 작업에서 A~D 해결.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FILE DB WRITE — ATOMIC 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+- curriculum
+- website
+- logo
+- photo
+
+현재 upload 흐름을 정확히 확인한 뒤
+DB mutation은 transaction으로 묶는다.
+
+특히 curriculum/website/logo:
+
+기존:
+
+1. R2 upload
+2. 기존 is_current=false
+3. 신규 x_setup_files INSERT
+
+를 그대로 독립 실행하지 말 것.
+
+DB transaction 안에서 최소:
+
+- 신규 file row INSERT
+- 이전 current row UPDATE
+- 관련 submission 상태 UPDATE
+
+가 함께 commit되게 한다.
+
+신규 insert 실패 시:
+
+기존 current 상태 rollback.
+
+즉:
+
+current file 0 상태가 생기면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. R2 UPLOAD → DB FAILURE 보상
+━━━━━━━━━━━━━━━━━━━━━━
+
+R2와 PostgreSQL을
+하나의 transaction으로 묶을 수 없으므로
+compensating action을 구현한다.
+
+권장 흐름:
+
+1. R2 object upload
+2. DB transaction 실행
+3. DB transaction 성공
+   → 완료
+4. DB transaction 실패
+   → 방금 업로드한 신규 R2 object cleanup 시도
+   → 실패 로그/audit 남김
+   → 사용자에게 upload 실패 반환
+
+중요:
+
+기존/과거 R2 object는 절대 삭제 금지.
+
+cleanup 대상은
+이번 request가 방금 생성한
+신규 uncommitted object 하나뿐.
+
+cleanup 실패하더라도
+기존 데이터 손상 금지.
+
+그리고 cleanup failure는
+추적 가능한 error/event log를 남긴다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. VERSION RACE 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+SELECT MAX(submission_version)+1
+
+만으로 version 부여하는 구조는 금지.
+
+동시 요청에도 같은 pool/file_type에서
+version 번호가 절대 중복되지 않게 수정.
+
+가능한 최소 안전 구조 선택:
+
+A.
+DB advisory lock / row lock
+
+또는
+
+B.
+transaction + locked sequence source
+
+또는
+
+C.
+UNIQUE(pool_id,file_type,submission_version)
++
+safe retry
+
+현재 schema/Drizzle 구조에 가장 적은 변경으로 구현.
+
+반드시 DB UNIQUE constraint 추가 권장:
+
+(pool_id, file_type, submission_version)
+
+단 photo가 현재 version=1 고정이라면
+그대로 UNIQUE를 걸면 여러 photo가 충돌하므로
+photo 정책을 별도로 고려.
+
+따라서:
+
+- curriculum
+- website
+- logo
+
+의 versioned file과
+photo multi-file 구조를 구분해서 설계.
+
+임의로 photo 기능 파손 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PHOTO 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+photo는 여러 장이므로
+curriculum과 동일한
+single-current-version 의미를 강제로 적용하지 말 것.
+
+현재:
+
+- timestamp key
+- R2 overwrite 없음
+- DB soft delete
+- R2 원본 유지
+
+장점 유지.
+
+다만:
+
+R2 success → DB fail
+
+보상 cleanup은 동일하게 적용.
+
+photo submission_version=1 고정은
+이번 작업에서 기능상 문제가 없다면
+불필요하게 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. RAW ORIGINAL FILENAME
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DB에는 sanitized filename만 남는다.
+
+앞으로 신규 upload부터:
+
+- raw_original_filename
+- sanitized/storage filename
+
+을 구분해서 보존하는 방법 검토 후 구현.
+
+보안상 storage key에는 sanitized name 사용.
+
+사용자 원본 파일명은 metadata로 보존.
+
+기존 데이터 backfill 불가능하면
+NULL 허용.
+
+migration 최소.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. POOL BASIC INFO HISTORY
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상 최소:
+
+- name
+- address
+- phone
+- owner_name
+- approval/rejection
+- 중요 운영상태 변경
+
+현재값 자체를 별도 history table로 복제 남발하지 말고
+기존 audit_logs 구조를 우선 검토.
+
+가능하면 audit_logs에:
+
+entity_type = swimming_pool
+entity_id = pool_id
+action
+actor
+before
+after
+created_at
+
+형태로 기록.
+
+필수:
+
+pool 기본정보 update 전/후 추적 가능.
+
+approve/reject도 actor + before/after 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. X SETUP AUDIT
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 아래 action 기록:
+
+- curriculum upload
+- curriculum reupload
+- website upload
+- logo upload
+- photo upload
+- photo soft-delete
+- submit
+- revision request
+- approve
+- activate
+
+각 로그에 가능한 범위:
+
+- pool_id
+- actor
+- action
+- file_id
+- file_type
+- submission_version
+- timestamp
+- before/after 또는 metadata
+
+기존 audit_logs/event_logs 중
+canonical 한 곳을 우선 사용.
+
+새 로그 시스템 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. EXISTING ORIGINALS 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Production 원본:
+
+- R2 object 삭제 금지
+- x_setup_files 삭제 금지
+- 기존 version renumber 금지
+- historical is_current 조작 금지
+
+새 안전 로직은
+신규 upload부터 적용 가능.
+
+기존 데이터 migration 때문에
+원본을 재작성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. FAILURE TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 fault injection 또는 안전한 테스트 방식으로:
+
+CASE A
+
+R2 upload 성공
+→ DB INSERT 강제 실패
+
+기대:
+- request 실패
+- 기존 current 그대로
+- 신규 DB row 없음
+- 신규 R2 object cleanup 성공
+  또는 cleanup 실패가 로그로 추적됨
+
+CASE B
+
+신규 DB INSERT 실패
+
+기대:
+기존 is_current=true 유지.
+
+CASE C
+
+같은 pool에서 curriculum 동시 upload 2건
+
+기대:
+- version 서로 다름
+- current 정확히 하나
+- R2 key 서로 다름
+
+CASE D
+
+parse 실패
+
+기대:
+- 원본 DB/R2 보존
+- 기존 active curriculum 유지
+- READY/ACTIVE 잘못 변경 없음
+
+CASE E
+
+photo DB insert 실패
+
+기대:
+- 신규 R2 object orphan 방지
+- 기존 photo 영향 없음
+
+CASE F
+
+pool basic info 변경
+
+기대:
+- current value 변경
+- audit에서 before/after 확인 가능
+
+CASE G
+
+approve/reject
+
+기대:
+actor + action + before/after 추적.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. ORPHAN 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 현재 Production에 이미 존재할 수 있는
+orphan을 안전하게 탐지만 한다.
+
+A.
+x_setup_files.r2_key
+→ R2 object 존재 여부
+
+B.
+x-setup prefix R2 objects
+→ 대응 DB row 존재 여부
+
+중요:
+
+자동 삭제 금지.
+
+기존 orphan 후보가 발견되면
+파일 목록만 보고.
+
+사람 확인 전 삭제 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. SUPER ADMIN DOWNLOAD
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 download 기능 유지.
+
+확인:
+
+- curriculum
+- website
+- logo
+- photo
+
+각 원본을 Super Admin에서
+실제 file_id 기준으로 추적/download 가능한지.
+
+soft-deleted 원본도
+보존 목적의 Super Admin forensic access가 필요한 경우
+canonical endpoint에서 가능하도록 통일 검토.
+
+이번 범위에서 아주 작은 수정으로 가능하면 처리.
+
+UI 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. R2 BACKUP은 별도
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+이번 코드 작업 완료만으로:
+
+"원본 절대 유실 방지 완료"
+
+라고 보고 금지.
+
+Cloudflare R2의:
+
+- object versioning
+- backup bucket
+- lifecycle
+- delete protection
+- restore
+
+실제 account 설정은
+코드와 별도로 확인해야 한다.
+
+이번 작업에서는
+현재 Replit secret/API로
+Cloudflare 설정을 실제 조회할 수 있는지 확인.
+
+접근 가능하면 read-only 확인만.
+
+설정 변경은 하지 말 것.
+
+접근 불가능하면:
+
+R2 PROVIDER CONFIG = NOT VERIFIED
+
+라고 명확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. DB MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요 시 최소 migration 허용:
+
+- version uniqueness
+- raw_original_filename
+- audit 관련 최소 schema
+
+기존 x_setup_files 데이터
+파괴적 변경 금지.
+
+migration 전에
+Production 데이터 호환성 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP/API server 변경이면:
+
+code
+→ tests
+→ migration
+→ main push
+→ Render Production deploy
+→ LIVE 대기
+→ health SHA == main HEAD
+→ Production smoke
+
+앱 화면 변경이 없으면
+iOS OTA 금지.
+
+Android 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. R2→DB 최종 upload flow
+2. DB transaction 범위
+3. R2 compensating cleanup
+4. cleanup 실패 추적
+5. is_current atomicity
+6. version race 해결 방식
+7. UNIQUE/index 변경
+8. photo 처리
+9. raw filename 보존
+10. pool basic info audit
+11. approve/reject audit
+12. X setup upload audit
+13. review/approve/activate audit
+14. CASE A~G 결과
+15. Production orphan scan 결과
+16. 기존 원본 영향 여부
+17. Super Admin download 결과
+18. migration
+19. R2 provider setting 조회 가능 여부
+20. R2 versioning 상태
+21. R2 backup 상태
+22. 수정 파일
+23. tests
+24. main HEAD
+25. Render LIVE SHA
+26. APP 변경 여부
+27. OTA 여부
+28. blocker
+29. 최종 판정
+
+PASS 조건:
+
+- R2 success + DB fail로 신규 orphan 발생 방지
+- 신규 insert 실패 시 기존 current 보존
+- 동시 upload version collision 0
+- 기존 원본/active 데이터 손상 0
+- pool 중요정보 before/after 추적
+- X setup 중요 action actor 추적
+- raw filename 신규 보존
+- blocker 0
+
+단:
+
+R2 provider backup/versioning 미검증이면
+코드 P0는 PASS 가능하지만
+"원본 절대 유실 보장" 전체 판정은 HOLD 유지.
+
+완료 후 STOP.

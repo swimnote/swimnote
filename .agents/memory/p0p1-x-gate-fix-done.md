@@ -1,37 +1,30 @@
 ---
-name: P0/P1 X Gate Fix
-description: P0/P1 release blocker fix — X mode client guards + server X entitlement guards
+name: P0/P1 X Gate Fix + P0 File Durability
+description: P0/P1 release blocker fix + P0 file durability — X mode client guards + server X entitlement guards + atomic file upload
 ---
 
-## SHA: 482a65f7
+## SHA: 482a65f7 (X Gate Fix)
+- (parent)/growth-report-paid.tsx: useMode + isXMode guard
+- (admin)/x-hub.tsx: useMode guard
+- (admin)/x-setup.tsx: useMode + isXMode guard (x_pending allowed)
+- parent-paid-insight.ts: hasXEntitlement() on 4 routes
+- x-setup.ts: hasXEntitlement() on 6 pool_admin routes
+- iOS OTA: 01a08504
 
-## Client Changes (iOS OTA 01a08504)
-- `(parent)/growth-report-paid.tsx`: useMode + isXMode guard, BASE redirect back/home
-- `(admin)/x-hub.tsx`: useMode guard, mode!=='x' → dashboard redirect  
-- `(admin)/x-setup.tsx`: useMode + isXMode guard, x_pending allowed, BASE→settings redirect
+## SHA: b71a9a7a (P0 File Durability)
+- x-setup.ts: DB transaction atomic (advisory lock + is_current + INSERT + submission)
+- x-setup.ts: R2 compensating cleanup on DB failure
+- x-setup.ts: raw_original_filename column added
+- x-setup.ts: audit_logs for all upload/reupload/submit/approve/revision/activate/photo-delete
+- admin.ts: pool_approve/pool_reject audit_logs with before/after
+- migration: p0-file-durability.ts (raw_original_filename col + UNIQUE partial index)
+- Tests: 14TC CASE A~G all passed
+- Render LIVE: b71a9a7a
+- OTA: 없음 (앱 화면 변경 없음)
 
-## Server Changes (Render live)
-- `parent-paid-insight.ts`: hasXEntitlement() on all 4 routes (questions/analysis/status/history)
-- `x-setup.ts`: hasXEntitlement() on all 6 pool_admin routes (status/upload×4/submit/delete)
-
-## hasXEntitlement() Pattern
-```sql
-SELECT (COALESCE(x_paid_entitlement,false) OR COALESCE(x_manual_entitlement,false) OR COALESCE(x_management_override,false)) AS has_x
-FROM swimming_pools WHERE id = $poolId
-```
-Returns 403 XMODE_REQUIRED if false.
-
-## Key Rules
-- x-setup server: x_pending allowed (submit setup docs)
-- x-hub client: mode==='x' only (operational KPI)  
-- paid-insight: X entitlement required (no x_pending allowed)
-- x-setup client: isXMode (x|x_pending) allowed
-
-## False Positives (no fix)
-- growth-report.tsx (BASE content), attendance.tsx (correct route already)
-- x-mode-hub.tsx (intentional all-mode X purchase hub)
-- notices.tsx AI (BASE-included, no policy gate defined)
-- dashboard.tsx:591 x_pending badge (intentional)
-
-## Deferred
-- diary-hub.tsx → /(teacher)/diary viewOnly: no admin diary-view route exists; low security risk
+## Key Patterns
+- uploadVersionedFile(): advisory lock (pg_advisory_xact_lock(hashtext(poolId+fileType))) in transaction → version race 불가
+- Compensating cleanup: deleteFromR2() on DB failure → orphan 방지; cleanup 실패도 audit_logs에 r2_orphan_cleanup_failed 기록
+- UNIQUE partial index: (pool_id, file_type, submission_version) WHERE file_type != 'photo'
+- photo: version=1 고정 유지 (multi-file), transaction 내 INSERT + submission update atomic
+- raw_original_filename: file.originalname 그대로, original_filename은 sanitized
