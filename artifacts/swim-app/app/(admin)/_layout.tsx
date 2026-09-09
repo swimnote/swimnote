@@ -1,5 +1,5 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { Tabs, router, useFocusEffect } from "expo-router";
+import { Tabs, router, useFocusEffect, usePathname } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -94,11 +94,15 @@ export default function AdminLayout() {
   }, [mode]);
 
   // 결제 정지 게이트 — PAYMENT_SUSPENDED 상태: 서비스 정지 화면으로 유도
+  // payment-suspended / subscription 화면은 게이트에서 제외 (redirect loop 방지)
+  const pathname = usePathname();
+  const PAYMENT_GATE_SAFE = ["/payment-suspended", "/subscription"];
   useEffect(() => {
-    if (payment_suspended) {
+    if (payment_suspended && !PAYMENT_GATE_SAFE.some(s => pathname?.endsWith(s))) {
       router.replace("/(admin)/payment-suspended" as any);
     }
-  }, [payment_suspended]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payment_suspended, pathname]);
 
   function makeTabListener(tabName: string) {
     return ({ navigation }: { navigation: any; route: any }) => ({

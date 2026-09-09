@@ -481,7 +481,9 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "CANCELLATION": {
-        // 취소 예약 — 만료일까지 현재 플랜 유지, pending_tier=free 예약
+        // 취소 예약 — 만료일까지 현재 플랜 유지 (ACTIVE 상태 유지)
+        // 실제 EXPIRATION 발생 시 → PAYMENT_SUSPENDED 처리
+        // 자동 BASE 다운그레이드 / 데이터 삭제 예약 금지
         const [curPool] = (await db.execute(sql`
           SELECT subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
         `)).rows as any[];
@@ -489,80 +491,36 @@ router.post("/revenuecat-webhook", async (req, res) => {
         await applySubscriptionState(poolId, curTier, "revenuecat", "active", {
           endsAt: expiresAt,
         });
-        // free 다운그레이드 예약: 만료일까지 현재 플랜 유지 후 free 전환
-        if (expiresAt && curTier !== "free") {
-          const applyAt = String(expiresAt).slice(0, 10);
-          await db.execute(sql`
-            UPDATE pool_subscriptions
-            SET pending_tier = 'free', downgrade_at = ${applyAt}, updated_at = now()
-            WHERE swimming_pool_id = ${poolId}
-          `);
-        }
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `구독 취소 예약 (${expiresAt ?? "만료일 미상"} 이후 free 전환)`,
-          metadata: { eventType, productId, expiresAt, pendingFree: curTier !== "free" } }).catch(console.error);
+          description: `구독 취소 예약 (${expiresAt ?? "만료일 미상"} 까지 ACTIVE 유지, EXPIRATION 시 정지)`,
+          metadata: { eventType, productId, expiresAt } }).catch(console.error);
         break;
       }
 
       case "EXPIRATION": {
-        // 결제 실패(payment_failed_at 있음) 후 유예기간 종료 → PAYMENT_SUSPENDED (데이터 보존)
-        // 정상 취소 후 만료 → 기존 cancelled + 삭제 예약 flow
-        const [expPool] = (await db.execute(sql`
-          SELECT payment_failed_at, subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
-        `)).rows as any[];
-
-        if (expPool?.payment_failed_at) {
-          // 결제 미납 유예기간 종료 → 서비스 정지 (삭제 없음, 복구 가능)
-          await db.execute(sql`
-            UPDATE swimming_pools
-            SET subscription_status = 'payment_suspended',
-                payment_suspended_at = now(),
-                is_readonly = true, upload_blocked = true,
-                readonly_reason = 'payment_suspended',
-                updated_at = now()
-            WHERE id = ${poolId}
-          `);
-          logEvent({ pool_id: poolId, category: "결제", actor_id: "revenuecat", actor_name: "RevenueCat",
-            description: `결제 유예기간 종료 → 서비스 정지 (PAYMENT_SUSPENDED, 데이터 보존)`,
-            metadata: { eventType, productId } }).catch(console.error);
-          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
-            createOpsAlert({
-              type: "subscription_expired",
-              title: "구독 정지 (결제 미완료)",
-              message: `${poolId} 수영장 — 결제 유예기간 종료, 서비스 정지. 재결제 시 즉시 복구.`,
-              severity: "critical",
-              relatedPoolId: poolId,
-            }).catch(console.error);
+        // 유료 구독 실제 만료 → PAYMENT_SUSPENDED (만료 원인 무관)
+        // 자동 BASE 다운그레이드 금지 / 데이터 삭제 예약 금지 / 회원 데이터 보존
+        await db.execute(sql`
+          UPDATE swimming_pools
+          SET subscription_status = 'payment_suspended',
+              payment_suspended_at = now(),
+              is_readonly = true, upload_blocked = true,
+              readonly_reason = 'payment_suspended',
+              updated_at = now()
+          WHERE id = ${poolId}
+        `);
+        logEvent({ pool_id: poolId, category: "결제", actor_id: "revenuecat", actor_name: "RevenueCat",
+          description: `구독 만료 → 서비스 정지 PAYMENT_SUSPENDED (데이터 보존, 재결제 시 즉시 복구)`,
+          metadata: { eventType, productId, payment_failed_at: "preserved" } }).catch(console.error);
+        import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+          createOpsAlert({
+            type: "subscription_expired",
+            title: "구독 만료 → 서비스 정지",
+            message: `${poolId} 수영장 구독 만료. 서비스 정지 (데이터 보존). 재결제 시 즉시 복구.`,
+            severity: "critical",
+            relatedPoolId: poolId,
           }).catch(console.error);
-        } else {
-          // 정상 취소 후 만료 → 기존 cancelled + 삭제 예약 flow
-          const useV2Policy = await isFeatureEnabled("new_subscription_policy", poolId).catch(() => true);
-          const graceDays = useV2Policy ? 90 : 7;
-          const deletionDate = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000).toISOString();
-          await applySubscriptionState(poolId, "free", "free_default", "cancelled", { endsAt: null });
-          await db.execute(sql`
-            UPDATE swimming_pools
-            SET is_readonly = true, upload_blocked = true,
-                readonly_reason = 'cancelled',
-                subscription_status = 'cancelled',
-                deactivated_at = NOW(),
-                deletion_scheduled_at = ${deletionDate}::timestamptz,
-                updated_at = NOW()
-            WHERE id = ${poolId}
-          `);
-          logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-            description: `구독 만료 → 비활성화 처리 (${graceDays}일 후 ${deletionDate.slice(0,10)} 영구삭제 예약, 정책: v${useV2Policy ? 2 : 1})`,
-            metadata: { eventType, productId, deletion_scheduled_at: deletionDate, grace_days: graceDays } }).catch(console.error);
-          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
-            createOpsAlert({
-              type: "subscription_expired",
-              title: "구독 만료 → 비활성화",
-              message: `${poolId} 수영장 구독 만료. ${graceDays}일 후 (${deletionDate.slice(0,10)}) 영구 삭제 예정.`,
-              severity: "warning",
-              relatedPoolId: poolId,
-            }).catch(console.error);
-          }).catch(console.error);
-        }
+        }).catch(console.error);
         break;
       }
 
@@ -1982,10 +1940,13 @@ cron.schedule("0 * * * *", async () => {
 
     // 다운그레이드 예약 처리: downgrade_at이 오늘 이하인 레코드에 pending_tier 적용
     const pendingDowngrades = (await db.execute(sql`
-      SELECT swimming_pool_id, pending_tier FROM pool_subscriptions
-      WHERE pending_tier IS NOT NULL
-        AND downgrade_at IS NOT NULL
-        AND downgrade_at <= CURRENT_DATE
+      SELECT ps.swimming_pool_id, ps.pending_tier
+      FROM pool_subscriptions ps
+      JOIN swimming_pools sp ON sp.id = ps.swimming_pool_id
+      WHERE ps.pending_tier IS NOT NULL
+        AND ps.downgrade_at IS NOT NULL
+        AND ps.downgrade_at <= CURRENT_DATE
+        AND COALESCE(sp.subscription_status, '') != 'payment_suspended'
     `)).rows as any[];
 
     for (const row of pendingDowngrades) {

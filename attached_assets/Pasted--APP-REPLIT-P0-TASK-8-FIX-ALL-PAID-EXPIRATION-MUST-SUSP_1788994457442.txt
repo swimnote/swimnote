@@ -1,0 +1,187 @@
+[보낼 곳: APP REPLIT]
+
+[P0 TASK 8 FIX — ALL PAID EXPIRATION MUST SUSPEND]
+
+현재 Task 8 구현은 거의 완료됐으나
+EXPIRATION 처리에 정책 누락이 있음.
+
+현재 보고:
+
+non-X EXPIRATION:
+- payment_failed_at 있으면 payment_suspended
+- 없으면 기존 cancelled + 삭제 예약
+
+X EXPIRATION:
+- xmode_payment_failed_at 있으면 payment_suspended
+- 없으면 x_paid_entitlement=false만 처리
+
+이 구조는 수정 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+유료 subscription의 paid-through date가 실제 종료되어
+더 이상 active entitlement가 없으면,
+
+만료 원인과 무관하게:
+
+- billing failure 후 만료
+- 사용자가 자동갱신 취소 후 정상 만료
+- Store에서 최종 expiration
+
+모두 pool을 PAYMENT_SUSPENDED 상태로 전환.
+
+자동 BASE downgrade 금지.
+
+데이터 삭제 예약 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. CANCELLATION과 EXPIRATION 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+CANCELLATION 이벤트:
+
+아직 paid-through date 전이면
+→ ACTIVE 유지
+→ suspension 금지
+→ 데이터 삭제 금지
+
+실제 EXPIRATION 이벤트:
+
+active entitlement가 더 이상 없으면
+→ PAYMENT_SUSPENDED
+
+payment_failed_at 존재 여부를
+suspension 조건으로 사용하지 말 것.
+
+payment_failed_at은
+"결제 실패 원인/GRACE 추적" 용도로만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. X EXPIRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300/X500/X1000 실제 만료:
+
+→ x_paid_entitlement false 처리 가능
+→ 동시에 pool PAYMENT_SUSPENDED
+
+단:
+
+x_manual_entitlement=true
+또는
+x_management_override=true
+
+같은 유효한 비결제 권한이 있으면
+payment suspension 하지 말 것.
+
+canonical entitlement resolver 기준으로 판정.
+
+x_force_disabled 의미와도 혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SWIMNOTE BASE PAID EXPIRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE ₩9,900 실제 만료:
+
+→ PAYMENT_SUSPENDED
+
+기존 cancelled → 데이터 삭제 예약 흐름 제거/비활성.
+
+회원/반/출결/일지/사진/리포트 등
+운영 데이터 삭제 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. X → SWIMNOTE 예약 DOWNGRADE 예외
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+X가 expire되는 시점에
+정상 예약된 SWIMNOTE target subscription이
+같은 Store product change로 즉시 active 되는 경우:
+
+→ PAYMENT_SUSPENDED를 거치면 안 됨
+→ 새 SWIMNOTE entitlement ACTIVE 적용
+
+즉 Store event 순서 차이 때문에
+순간적으로 suspension이 생기지 않게
+pending_tier / active target entitlement를 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━
+
+PAYMENT_SUSPENDED 상태에서
+유효한 SWIMNOTE/X entitlement가 다시 active:
+
+→ suspension 즉시 해제
+→ 원래 데이터 그대로 사용
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ROUTE GATE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin PAYMENT_SUSPENDED 상태에서:
+
+- payment-suspended 화면
+- 구독 갱신에 필요한 subscription/billing route
+
+는 redirect loop 없이 접근 가능해야 함.
+
+"구독 갱신하기" CTA 눌렀는데
+다시 payment-suspended 화면으로 튕기는 구조면 FAIL.
+
+Teacher/Parent는 billing route 접근 불필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. TEST 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+L. X500 사용자 정상 cancellation
+→ paid-through date까지 정상 사용
+
+M. paid-through date 도달 / EXPIRATION
+→ PAYMENT_SUSPENDED
+→ BASE 자동전환 0
+→ 회원 500명 보존
+
+N. SWIMNOTE 사용자 cancellation 후 최종 expiration
+→ PAYMENT_SUSPENDED
+→ 데이터 삭제 예약 0
+
+O. X1000 → SWIMNOTE 정상 예약 downgrade
+→ X expiry와 SWIMNOTE activation 사이
+잘못된 suspension 0
+
+P. manual/HQ X 권한 존재 + Store expiry
+→ PAYMENT_SUSPENDED 되지 않음
+
+Q. 관리자 "구독 갱신하기"
+→ 실제 구독관리 화면 접근 가능
+→ redirect loop 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. cancellation 처리
+2. expiration 처리
+3. 데이터 삭제 예약 제거 여부
+4. X expiration 처리
+5. manual/HQ 예외
+6. pending downgrade 예외
+7. admin renewal route 접근
+8. tests L~Q
+9. 수정 파일
+10. DB 추가 변경 여부
+11. main HEAD
+12. Render LIVE SHA
+13. iOS OTA
+14. Android next build 반영 여부
+15. blocker
+16. 최종 PASS/HOLD
+
+완료 후 STOP.

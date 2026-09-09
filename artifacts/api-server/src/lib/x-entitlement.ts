@@ -110,9 +110,13 @@ export async function handleXEntitlementEvent(
     await superAdminDb.execute(sql`
       SELECT xmode_config_status, xmode_purchased_at,
              xmode_subscription_end_at,
-             COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
-             COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
-             COALESCE(x_force_disabled,    false) AS x_force_disabled
+             xmode_payment_failed_at,
+             COALESCE(x_paid_entitlement,    false) AS x_paid_entitlement,
+             COALESCE(x_manual_entitlement,  false) AS x_manual_entitlement,
+             COALESCE(x_force_disabled,      false) AS x_force_disabled,
+             COALESCE(x_management_override, false) AS x_management_override,
+             subscription_status,
+             subscription_tier
       FROM swimming_pools
       WHERE id = ${poolId}
       LIMIT 1
@@ -184,9 +188,6 @@ export async function handleXEntitlementEvent(
 
     case "EXPIRATION": {
       newPaid = false;
-      // x_manual_entitlement가 true이면 effective는 여전히 true일 수 있음 (collision safety)
-      // xmode_payment_failed_at 있으면 → PAYMENT_SUSPENDED (데이터 보존, 복구 가능)
-      const wasPaymentFailed = currentPool.xmode_payment_failed_at != null;
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
         SET x_paid_entitlement        = false,
@@ -194,8 +195,20 @@ export async function handleXEntitlementEvent(
             updated_at               = NOW()
         WHERE id = ${poolId}
       `);
-      if (wasPaymentFailed) {
-        // 결제 실패 후 X 유예기간 종료 → PAYMENT_SUSPENDED
+
+      // PAYMENT_SUSPENDED 조건:
+      //   - x_manual_entitlement=false AND x_management_override=false (비결제 유효 권한 없음)
+      //   - 풀 BASE subscription이 active 상태가 아님
+      //     (X→SWIMNOTE 예약 다운그레이드: BASE가 이미 활성화됐으면 정지 스킵)
+      const hasManualOverride =
+        Boolean(currentPool.x_manual_entitlement) ||
+        Boolean(currentPool.x_management_override);
+      const baseIsActive =
+        String(currentPool.subscription_status ?? "") === "active" &&
+        Boolean(currentPool.subscription_tier) &&
+        currentPool.subscription_tier !== "free";
+
+      if (!hasManualOverride && !baseIsActive) {
         await superAdminDb.execute(sql`
           UPDATE swimming_pools
           SET subscription_status = 'payment_suspended',
@@ -205,6 +218,11 @@ export async function handleXEntitlementEvent(
               updated_at = NOW()
           WHERE id = ${poolId}
         `);
+      } else {
+        console.log(
+          `[x-entitlement] EXPIRATION: PAYMENT_SUSPENDED 스킵 ` +
+          `(hasManualOverride=${hasManualOverride}, baseIsActive=${baseIsActive}) pool=${poolId}`,
+        );
       }
       break;
     }
