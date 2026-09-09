@@ -277,9 +277,9 @@ async function downloadTemplate() {
   }
 
   // 네이티브(iOS/Android): FileSystem + Sharing
+  const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? "";
+  const path = baseDir + "스윔노트_회원등록_양식.csv";
   try {
-    const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory ?? "";
-    const path = baseDir + "스윔노트_회원등록_양식.csv";
     await FileSystem.writeAsStringAsync(path, csv);
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
@@ -293,6 +293,8 @@ async function downloadTemplate() {
     }
   } catch (e: any) {
     Alert.alert("오류", "양식 파일 생성에 실패했습니다.\n" + (e?.message ?? ""));
+  } finally {
+    FileSystem.deleteAsync(path, { idempotent: true }).catch(() => {}); // temp cleanup
   }
 }
 

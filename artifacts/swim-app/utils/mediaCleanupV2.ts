@@ -34,7 +34,7 @@ const V2_FLAG_KEY = "@swimnote:media_cleanup_v2";
  * 이 값을 bump하면 모든 기기에서 cleanup이 정확히 1회 재실행됨.
  * 현재: r1
  */
-const MEDIA_CLEANUP_REVISION = "r2"; // r2: 영상 temp 5GB 누적 문제 대응 — 전체 재청소
+const MEDIA_CLEANUP_REVISION = "r3"; // r3: Messenger photo/attachment + CSV cache 누적 정리
 const V3_FLAG_KEY = `@swimnote:media_cleanup:${MEDIA_CLEANUP_REVISION}`;
 
 // 동시 실행 방지 lock
@@ -206,7 +206,7 @@ export async function runMediaCleanupV3(
 
       // Step 4: legacy documentDirectory patterns (앱이 직접 생성한 파일만)
       if (docDir) {
-        const SAFE_PATTERNS = [
+        const DOC_SAFE_PATTERNS = [
           /^diary_\w+\.jpg$/,
           /^diary_all_\w+\.jpg$/,
           /^swim_\w+\.jpg$/,
@@ -215,8 +215,31 @@ export async function runMediaCleanupV3(
         try {
           const files = await FileSystem.readDirectoryAsync(docDir);
           for (const f of files) {
-            if (SAFE_PATTERNS.some(re => re.test(f))) {
+            if (DOC_SAFE_PATTERNS.some(re => re.test(f))) {
               await FileSystem.deleteAsync(`${docDir}${f}`, { idempotent: true }).catch(() => {});
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Step 5: cacheDirectory 루트 패턴 — MessengerScreen photo/attachment temp + CSV
+      // r3: MessengerScreen / bulk-register 가 생성하는 share-staging 파일 정리
+      //   photo_<timestamp>.jpg   (MessengerScreen 사진 공유)
+      //   스윔노트_회원등록_양식.csv (bulk-register CSV)
+      //   file.<ext>              (MessengerScreen 첨부파일 공유 — 고정 확장자)
+      // 향후: 위 호출부에 finally { deleteAsync } 추가 완료(r3 이후 신규 누적 없음)
+      // 기존 기기 잔존 파일 1회 정리용.
+      if (cacheDir) {
+        const CACHE_ROOT_PATTERNS = [
+          /^photo_\d+\.jpg$/,                    // MessengerScreen photo share
+          /^스윔노트_회원등록_양식\.csv$/,          // bulk-register CSV
+          /^file\.(pdf|png|jpg|jpeg|gif|csv|docx|xlsx|txt|zip|mp4|mov|m4v|mp3|m4a|aac|wav|heic|heif)$/i, // MessengerScreen attachment
+        ];
+        try {
+          const cacheFiles = await FileSystem.readDirectoryAsync(cacheDir);
+          for (const f of cacheFiles) {
+            if (CACHE_ROOT_PATTERNS.some(re => re.test(f))) {
+              await FileSystem.deleteAsync(`${cacheDir}${f}`, { idempotent: true }).catch(() => {});
             }
           }
         } catch (_) {}

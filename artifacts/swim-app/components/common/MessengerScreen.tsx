@@ -1191,9 +1191,13 @@ function GalleryBubble({
       reader.onloadend = async () => {
         const b64 = (reader.result as string).split(",")[1];
         const uri = `${FileSystem.cacheDirectory}photo_${Date.now()}.jpg`;
-        await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
-        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: "image/jpeg" });
-        setSharing(null);
+        try {
+          await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
+          if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: "image/jpeg" });
+        } finally {
+          FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {}); // temp cleanup
+          setSharing(null);
+        }
       };
       reader.readAsDataURL(blob);
     } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); setSharing(null); }
@@ -1310,10 +1314,10 @@ function AttachFileBubble({
       const blob = await downloadRes.blob();
       const reader = new FileReader();
       reader.onloadend = async () => {
+        const filename = extra.attachment_name || `file.${ext.toLowerCase()}`;
+        const fileUri = `${FileSystem.cacheDirectory}${filename}`;
         try {
           const base64 = (reader.result as string).split(",")[1];
-          const filename = extra.attachment_name || `file.${ext.toLowerCase()}`;
-          const fileUri = `${FileSystem.cacheDirectory}${filename}`;
           await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
           if (await Sharing.isAvailableAsync()) {
             await Sharing.shareAsync(fileUri, { mimeType: extra.attachment_mime || "application/octet-stream" });
@@ -1324,6 +1328,7 @@ function AttachFileBubble({
           Alert.alert("오류", "파일 저장에 실패했습니다.");
         } finally {
           setDownloading(false);
+          FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {}); // temp cleanup
         }
       };
       reader.readAsDataURL(blob);
