@@ -1,0 +1,388 @@
+[보낼 곳: APP REPLIT]
+
+[P0 SUPER ADMIN — POOL INPUT / UPLOADED FILE DURABILITY AUDIT ONLY]
+
+USER APP:
+Admin / Teacher / Parent × SWIMNOTE / SWIMNOTE X
+release blocker fix는 CLOSED.
+
+이제 Super Admin 작업을 시작한다.
+
+중요:
+이번 작업은 Super Admin UI 전체 개편이 아니다.
+메뉴정리/디자인개편/광고/공지/고객센터 작업 금지.
+
+첫 번째 P0는:
+
+"각 수영장이 입력한 정보와 업로드한 파일이
+절대 유실되지 않고,
+Super Admin에서 추적 가능한 상태인지"
+
+를 확인하는 것이다.
+
+이번 작업은 우선 AUDIT ONLY.
+코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 검사 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 pool에서 들어오는 데이터/파일 중 최소:
+
+- 수영장 기본정보
+- 가입/신청 정보
+- 관리자 입력정보
+- curriculum DOCX
+- curriculum 재업로드 version
+- logo
+- website 자료
+- 사진
+- 기타 X setup 업로드 파일
+- 설정값
+- pool 상태
+- 승인/검수 상태
+
+를 전수 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 가장 중요한 질문
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 항목마다:
+
+1. 어디서 입력되는가
+2. 어떤 API로 들어오는가
+3. DB 어디에 저장되는가
+4. 파일이면 R2 어디에 저장되는가
+5. pool_id와 연결되는가
+6. uploader가 기록되는가
+7. uploaded_at이 있는가
+8. 원본 filename이 남는가
+9. version이 남는가
+10. 재업로드 시 overwrite 되는가
+11. 이전 version이 보존되는가
+12. hash가 있는가
+13. 삭제 시 실제 파일도 삭제되는가
+14. Super Admin에서 추적 가능한가
+15. 복구 가능한가
+
+를 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CURRICULUM ORIGINAL — 최우선
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된 구조:
+
+R2:
+x-setup/{poolId}/curriculum/v{N}_...
+
+DB:
+x_setup_files
+
+이미 known:
+
+- 새 version 생성
+- 기존 is_current=false
+- R2 overwrite 안 함
+- original filename
+- uploaded_by
+- uploaded_at
+- submission_version
+- r2_key
+
+존재.
+
+이번에는 실제 Production 구조에서 다시 확인:
+
+- 원본 DOCX 삭제되지 않는지
+- revision/reupload 이전 원본 유지
+- Super Admin download 가능
+- approved version과 source file 추적 가능
+- active curriculum과 source file 관계 확인
+- orphan file 가능성
+- orphan DB row 가능성
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. FILE LOSS 관점
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 찾을 것:
+
+A.
+DB row는 있는데 R2 object 없음
+
+B.
+R2 object는 있는데 DB reference 없음
+
+C.
+재업로드가 overwrite
+
+D.
+delete/update에서 과거 원본 삭제
+
+E.
+parse 실패 시 원본까지 사라짐
+
+F.
+processing 실패 시 upload 자체 rollback
+
+G.
+pool 탈퇴/비활성화 시 원본 삭제
+
+H.
+Super Admin에서 source 추적 불가능
+
+I.
+파일 key가 pool 간 충돌 가능
+
+J.
+version race condition
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 R2 BACKUP 한계
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+현재 전체 시스템에서
+DB daily backup은 존재하지만
+R2 originals는 별도 backup/recovery guarantee가 없는 것으로 알고 있다.
+
+이번 감사에서 정확히 확인:
+
+- R2 bucket versioning 여부
+- object lifecycle rule
+- delete protection
+- accidental overwrite protection
+- provider redundancy
+- 별도 backup bucket 존재 여부
+- restore 방법
+- 현재 "원본 절대 유실 방지" 수준을 실제로 만족하는지
+
+추측 금지.
+
+현재 구조가 단순히
+"R2에 저장돼 있으니 안전"
+수준이면 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. POOL BASIC INPUT
+━━━━━━━━━━━━━━━━━━━━━━
+
+수영장 기본정보:
+
+- pool name
+- owner/admin
+- address
+- contact
+- plan
+- mode
+- X setup state
+- 기타 signup/application 입력
+
+각 값이:
+
+- 어느 table
+- 어떤 API
+- update history 여부
+- audit log 여부
+- Super Admin 조회 가능 여부
+
+확인.
+
+중요 입력이 update 시
+과거값 없이 덮어쓰기만 되는 경우도 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X SETUP FILE TYPES
+━━━━━━━━━━━━━━━━━━━━━━
+
+curriculum 외:
+
+- website
+- logo
+- photo
+- 기타 실제 file_type
+
+모두 확인.
+
+각 file type마다:
+
+- endpoint
+- MIME/size validation
+- R2 path
+- DB table
+- versioning
+- overwrite 여부
+- previous preservation
+- delete semantics
+- review relation
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. SUPER ADMIN TRACEABILITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서 최소한 추적 가능해야 할 정보:
+
+- pool
+- file type
+- original filename
+- upload time
+- uploader
+- current/old version
+- status
+- review state
+- download
+
+현재 실제 UI/API에서 가능한 것과
+불가능한 것을 구분.
+
+이번에는 UI 만들지 말고
+현재 상태만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. AUDIT LOG
+━━━━━━━━━━━━━━━━━━━━━━
+
+업로드/검수 관련:
+
+- upload
+- reupload
+- submit
+- revision request
+- approve
+- activate
+- delete
+
+가 audit/event/log 어디에 남는지 확인.
+
+로그 없는 중요 action 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. FAILURE PATH
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 실제 실패 흐름 검사:
+
+upload success
+→ parse fail
+
+upload success
+→ validation fail
+
+upload success
+→ review rejected/revision
+
+upload success
+→ server restart
+
+upload success
+→ DB insert fail
+
+R2 upload fail
+→ DB insert
+
+DB insert fail
+→ R2 orphan
+
+각 경우:
+
+원본이 남는지
+사용자가 다시 올려야 하는지
+orphan이 생기는지
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DB BACKUP과 FILE BACKUP 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서에서 반드시 별도 판정:
+
+A. DB durability
+B. R2 original-file durability
+
+둘을 합쳐서 PASS 주지 말 것.
+
+현재 DB daily backup이
+R2 file loss를 복구해주지 못하면
+명확히 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 심각도
+━━━━━━━━━━━━━━━━━━━━━━
+
+P0:
+실제 원본 유실 가능
+pool 간 파일 혼선
+overwrite
+복구 불가
+중요 DB write loss
+
+P1:
+추적성 부족
+audit 부족
+Super Admin에서 원본 확인 어려움
+
+P2:
+UI 편의
+필터/정렬/표시 개선
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 이번 감사에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정
+- DB migration
+- R2 설정 변경
+- Super Admin UI 수정
+- 메뉴정리
+- 광고
+- 공지
+- 고객센터
+- Android
+- OTA
+- Render deploy
+
+먼저 사실만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. pool input 전체 source map
+2. upload file type 전체 목록
+3. 각 upload endpoint
+4. 각 DB 저장 위치
+5. 각 R2 key 규칙
+6. original filename 보존
+7. uploader 보존
+8. uploaded_at 보존
+9. version 보존
+10. overwrite 여부
+11. previous version 보존
+12. delete semantics
+13. curriculum source 추적
+14. Super Admin download 가능 여부
+15. orphan DB 가능성
+16. orphan R2 가능성
+17. parse fail 시 원본 보존
+18. validation fail 시 원본 보존
+19. review/revision 시 원본 보존
+20. audit log coverage
+21. DB backup 상태
+22. R2 backup 상태
+23. R2 recovery 가능 여부
+24. "원본 절대 유실 방지" 현재 충족 여부
+25. P0
+26. P1
+27. P2
+28. 수정 예상 파일
+29. DB migration 필요 여부
+30. R2/provider 설정 변경 필요 여부
+31. 최종 판정 PASS/HOLD
+
+완료 후 STOP.
