@@ -39,6 +39,8 @@ export default function ParentRegisterScreen() {
   const [parentName, setParentName] = useState("");
   const [phone, setPhone]           = useState(prefillPhone || "");
   const [loginId, setLoginId]       = useState("");
+  const [loginIdStatus, setLoginIdStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const loginIdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [password, setPassword]     = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [showPw, setShowPw]         = useState(false);
@@ -57,6 +59,27 @@ export default function ParentRegisterScreen() {
   const [poolSearchError, setPoolSearchError] = useState("");
   const poolSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const poolSearchAbortRef = useRef<AbortController | null>(null);
+
+  // ── login_id 사용 가능 여부 debounce 확인 ────────────────────────────────
+  useEffect(() => {
+    const lid = loginId.trim();
+    if (!lid) { setLoginIdStatus("idle"); return; }
+    if (lid.length < 3) { setLoginIdStatus("idle"); return; }
+    if (loginIdTimerRef.current) clearTimeout(loginIdTimerRef.current);
+    setLoginIdStatus("checking");
+    loginIdTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/check-login-id`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ login_id: lid }),
+        });
+        const data = await res.json();
+        setLoginIdStatus(data.available ? "available" : "taken");
+      } catch { setLoginIdStatus("idle"); }
+    }, 400);
+    return () => { if (loginIdTimerRef.current) clearTimeout(loginIdTimerRef.current); };
+  }, [loginId]);
 
   // ── Pool 검색 (debounce 300ms) ─────────────────────────────────────────
   useEffect(() => {
@@ -112,6 +135,8 @@ export default function ParentRegisterScreen() {
     if (!phone.trim())       { setError("전화번호를 입력해주세요."); return; }
     // [2.0.0 POOL-FIRST] pool_id 필수 — 미선택 시 400 사전 차단
     if (!selectedPool)       { setError("수영장을 검색하여 선택해주세요."); return; }
+    // login_id 중복 검사 — "taken" 상태면 서버 요청 차단
+    if (loginId.trim() && loginIdStatus === "taken") { setError("이미 사용 중인 아이디입니다. 다른 아이디를 입력해주세요."); return; }
     if (!childName.trim())   { setError("우리 아이 이름을 입력해주세요."); return; }
     if (!password)           { setError("비밀번호를 입력해주세요."); return; }
     if (password.length < 4) { setError("비밀번호는 4자리 이상이어야 합니다."); return; }
@@ -342,7 +367,10 @@ export default function ParentRegisterScreen() {
 
           {/* 아이디 (선택) */}
           <Field label="아이디 (선택 — 로그인에 사용)">
-            <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.card }]}>
+            <View style={[styles.inputRow, {
+              borderColor: loginIdStatus === "taken" ? C.error : loginIdStatus === "available" ? "#22C55E" : C.border,
+              backgroundColor: C.card,
+            }]}>
               <LucideIcon name="at-sign" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
@@ -350,7 +378,16 @@ export default function ParentRegisterScreen() {
                 placeholder="영문/숫자 3자 이상 (미입력 시 전화번호로 로그인)" placeholderTextColor={C.textMuted}
                 autoCapitalize="none" autoCorrect={false}
               />
+              {loginIdStatus === "checking" && <ActivityIndicator size="small" color={C.textMuted} />}
+              {loginIdStatus === "available" && <LucideIcon name="check-circle" size={16} color="#22C55E" />}
+              {loginIdStatus === "taken" && <LucideIcon name="x-circle" size={16} color={C.error} />}
             </View>
+            {loginIdStatus === "available" && (
+              <Text style={[styles.fieldHint, { color: "#22C55E", marginTop: 4 }]}>사용 가능한 아이디입니다.</Text>
+            )}
+            {loginIdStatus === "taken" && (
+              <Text style={[styles.fieldHint, { color: C.error, marginTop: 4 }]}>이미 사용 중인 아이디입니다.</Text>
+            )}
           </Field>
 
           {/* 비밀번호 */}

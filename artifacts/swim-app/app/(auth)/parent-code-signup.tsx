@@ -38,12 +38,34 @@ export default function ParentCodeSignupScreen() {
 
   const [parentName, setParentName] = useState("");
   const [loginId, setLoginId] = useState("");
+  const [loginIdStatus, setLoginIdStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const loginIdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ── login_id 사용 가능 여부 debounce 확인 ────────────────────────────────
+  useEffect(() => {
+    const lid = loginId.trim();
+    if (!lid || lid.length < 3) { setLoginIdStatus("idle"); return; }
+    if (loginIdTimerRef.current) clearTimeout(loginIdTimerRef.current);
+    setLoginIdStatus("checking");
+    loginIdTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/check-login-id`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ login_id: lid }),
+        });
+        const data = await res.json();
+        setLoginIdStatus(data.available ? "available" : "taken");
+      } catch { setLoginIdStatus("idle"); }
+    }, 400);
+    return () => { if (loginIdTimerRef.current) clearTimeout(loginIdTimerRef.current); };
+  }, [loginId]);
 
   async function verifyCode() {
     if (code.trim().length < 4) { setError("코드를 올바르게 입력해주세요."); return; }
@@ -68,6 +90,7 @@ export default function ParentCodeSignupScreen() {
     if (!parentName.trim()) { setError("학부모 이름을 입력해주세요."); return; }
     if (!loginId.trim()) { setError("아이디를 입력해주세요."); return; }
     if (loginId.trim().length < 3) { setError("아이디는 3자 이상이어야 합니다."); return; }
+    if (loginIdStatus === "taken") { setError("이미 사용 중인 아이디입니다. 다른 아이디를 입력해주세요."); return; }
     if (!password || password.length < 4) { setError("비밀번호는 4자리 이상이어야 합니다."); return; }
     if (password !== passwordConfirm) { setError("비밀번호가 일치하지 않습니다."); return; }
     setLoading(true); setError("");
@@ -238,7 +261,10 @@ export default function ParentCodeSignupScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디 (3자 이상)</Text>
-              <View style={[styles.inputRow, { borderColor: loginId ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+              <View style={[styles.inputRow, {
+                borderColor: loginIdStatus === "taken" ? C.error : loginIdStatus === "available" ? "#22C55E" : loginId ? C.brandStrong : C.border,
+                backgroundColor: C.background,
+              }]}>
                 <LucideIcon name="at-sign" size={15} color={loginId ? C.brandStrong : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
@@ -251,7 +277,16 @@ export default function ParentCodeSignupScreen() {
                   returnKeyType="next"
                   onSubmitEditing={() => pwRef.current?.focus()}
                 />
+                {loginIdStatus === "checking" && <ActivityIndicator size="small" color={C.textMuted} />}
+                {loginIdStatus === "available" && <LucideIcon name="check-circle" size={15} color="#22C55E" />}
+                {loginIdStatus === "taken" && <LucideIcon name="x-circle" size={15} color={C.error} />}
               </View>
+              {loginIdStatus === "available" && (
+                <Text style={[styles.fieldHint ?? styles.fieldLabel, { color: "#22C55E", fontSize: 12, marginTop: 4 }]}>사용 가능한 아이디입니다.</Text>
+              )}
+              {loginIdStatus === "taken" && (
+                <Text style={[styles.fieldHint ?? styles.fieldLabel, { color: C.error, fontSize: 12, marginTop: 4 }]}>이미 사용 중인 아이디입니다.</Text>
+              )}
             </View>
 
             <View style={styles.field}>

@@ -1025,6 +1025,27 @@ router.post("/simple-parent-register", signupLimiter, async (req, res) => {
   }
 });
 
+// ── 학부모 login_id 사용 가능 여부 확인 (전역 UNIQUE 체크) ───────────────
+// 회원가입 화면 debounce에서 사용. normalization: TRIM only (case-sensitive).
+// 이미 사용 중 → { available: false, error_code: "LOGIN_ID_ALREADY_EXISTS" }
+// 사용 가능   → { available: true }
+router.post("/check-login-id", async (req, res) => {
+  const { login_id } = req.body;
+  if (!login_id || typeof login_id !== "string") return res.json({ available: false, error_code: "INVALID_LOGIN_ID" });
+  const lid = login_id.trim();
+  if (lid.length < 3) return res.json({ available: false, error_code: "TOO_SHORT" });
+  try {
+    const [row] = (await superAdminDb.execute(sql`
+      SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1
+    `)).rows as any[];
+    if (row) return res.json({ available: false, error_code: "LOGIN_ID_ALREADY_EXISTS" });
+    return res.json({ available: true });
+  } catch (e) {
+    console.error("[check-login-id] error:", e);
+    return res.status(500).json({ available: false, error_code: "SERVER_ERROR" });
+  }
+});
+
 // ── 아이디 존재 여부 확인 ───────────────────────────────────────────────
 router.post("/check-id", async (req, res) => {
   const { identifier, pool_id } = req.body;
@@ -1196,6 +1217,25 @@ router.post("/unified-login", loginLimiter, async (req, res) => {
     // ── 2) parent_accounts 테이블 (login_id → phone) ──────────────
     // [2.0.0] pool_id 제공 시 해당 pool만 조회. 미제공 시 1.6.3 호환(LIMIT 1).
     const uPoolId = ((req.body as any).pool_id || "").trim() || null;
+
+    // [AUTH_IDENTITY_INTEGRITY] login_id 중복 row 감지 — DB UNIQUE 적용 전 기간 방어.
+    // count > 1이면 임의 LIMIT 1 선택 금지. 로그인 실패 + AUTH_IDENTITY_CONFLICT 기록.
+    const loginIdConflictCheck = uPoolId
+      ? (await superAdminDb.execute(sql`SELECT COUNT(*) AS cnt FROM parent_accounts WHERE login_id = ${id} AND swimming_pool_id = ${uPoolId}`)).rows[0] as any
+      : (await superAdminDb.execute(sql`SELECT COUNT(*) AS cnt FROM parent_accounts WHERE login_id = ${id}`)).rows[0] as any;
+    if (Number(loginIdConflictCheck?.cnt ?? 0) > 1) {
+      console.error("[AUTH_IDENTITY_CONFLICT] login_id 중복 row 감지", {
+        login_id_masked: id.slice(0, 2) + "***",
+        pool_id: uPoolId,
+        cnt: loginIdConflictCheck.cnt,
+      });
+      return res.status(409).json({
+        success: false,
+        error_code: "AUTH_IDENTITY_CONFLICT",
+        error: "계정 식별 오류가 발생했습니다. 고객센터에 문의해주세요.",
+      });
+    }
+
     const parentByLoginId = uPoolId
       ? await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} AND swimming_pool_id = ${uPoolId} LIMIT 1`)
       : await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);

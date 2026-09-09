@@ -1,0 +1,169 @@
+[보낼 곳: APP REPLIT]
+
+[P1 — PARENT AI INSIGHT PROMO ENTRY ACCESS FIX]
+
+문제:
+현재 Parent 일반 SWIMNOTE 모드에서는
+"AI 인사이트 전략 리포트" 버튼이 비활성/클릭 불가.
+
+X모드 Parent에서는 클릭 가능.
+
+사용자 확정 정책:
+
+AI 인사이트 전략 리포트 버튼은
+X 기능 접근 버튼이라기보다
+상품 소개/홍보 진입 버튼에 가깝다.
+
+따라서:
+
+BASE Parent
+X Trial Parent
+X Paid Parent
+
+모두 동일하게 버튼을 눌러
+AI 인사이트 전략 리포트 소개/정보 화면까지
+진입 가능해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. ENTRY ACCESS
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent 홈/관련 화면의
+AI 인사이트 전략 리포트 CTA에서
+
+mode === 'x'
+x entitlement
+paid entitlement
+
+등으로 버튼 자체를 disable하거나
+navigation을 막는 조건 제거.
+
+모든 Parent mode에서:
+
+버튼 활성
+→ 동일 Insight 소개/정보 화면으로 navigation
+
+허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 상품 권한은 기존 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+"소개 화면 진입 가능"
+≠
+"리포트 이용 가능"
+
+기존 AI Insight Report 정책 유지:
+
+- 별도 유료 상품
+- 기준 가격 79,000원
+- purchase 현재 HOLD
+- trial이라고 무료 제공 금지
+- BASE라고 실제 report 접근 허용 금지
+- X paid라고 자동 포함 금지
+
+서버의 실제 report generation/access/payment guard는
+이번 작업에서 완화하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 소개 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+BASE/X/TRIAL 모두 같은 화면 사용.
+
+보여줄 수 있는 것:
+
+- AI 인사이트 전략 리포트 명칭
+- 리포트 설명
+- 주요 분석 내용
+- 샘플/안내 UI
+- 가격 안내가 기존 UI에 있다면 유지
+
+구매 기능이 HOLD이면:
+
+CTA:
+"준비 중"
+또는 현재 기존 HOLD UI 유지.
+
+실제 결제 route 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- parent-paid-insight 서버 paid guard 제거 금지
+- Insight 생성 API 일반모드에 개방 금지
+- X entitlement 자동부여 금지
+- purchase 기능 활성화 금지
+- 기존 X Parent 동작 깨기 금지
+
+이번 수정은
+"소개 화면 진입"만 일반모드에도 허용하는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+BASE Parent
+→ Insight 버튼 활성
+→ 정보 화면 진입 성공
+
+CASE B
+X Trial Parent
+→ 정보 화면 진입 성공
+
+CASE C
+X Paid Parent
+→ 정보 화면 진입 성공
+
+CASE D
+BASE Parent가 실제 Insight 생성/API 직접 접근
+→ 기존 paid guard 유지
+
+CASE E
+purchase CTA
+→ HOLD 유지
+
+CASE F
+기존 Parent 다른 리포트/성장리포트 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP UI/navigation 수정만이면:
+
+release/v2.0.0
+→ preflight
+→ iOS production-v2 OTA
+
+Android는 현재 새 build 진행 중이므로
+이 변경이 Android bundle에도 반드시 포함되어야 함.
+
+현재 Android build 241가 아직 완료 전이면
+최신 commit 포함 여부 확인.
+
+이미 build가 시작되어 이전 commit 기준이면
+새 Android build 필요 여부 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 기존 버튼 차단 조건
+2. BASE Parent 진입 결과
+3. X Trial 진입 결과
+4. X Paid 진입 결과
+5. 실제 Insight paid guard 유지
+6. purchase HOLD 유지
+7. 수정 파일
+8. main HEAD
+9. iOS OTA ID
+10. Android build 영향
+11. blocker
+12. 최종 PASS/HOLD
+
+완료 후 STOP.
