@@ -196,9 +196,9 @@ export default function XSubscriptionScreen() {
     // normal/null → IDLE 유지
   }, [mode]);
 
-  // X02-D2: mode==="x" 시 구독 상태 세부 정보 fetch
+  // X02-D2: mode==="x" 또는 "x_trial" 시 구독 상태 세부 정보 fetch
   useEffect(() => {
-    if (mode !== "x" || !token) return;
+    if ((mode !== "x" && mode !== "x_trial") || !token) return;
     let cancelled = false;
     const fetch = async () => {
       setIsLoadingStatus(true);

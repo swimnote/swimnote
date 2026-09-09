@@ -1,0 +1,430 @@
+[보낼 곳: APP REPLIT]
+
+[P0 X TRIAL FINAL CLOSEOUT — MISSING E2E ONLY]
+
+현재 상태: HOLD.
+
+이미 완료된 내용 재작성 금지.
+
+완료된 것으로 인정:
+- requireXMode x_trial 지원
+- resolveReportXAccess trial+READY 처리
+- Super Admin trial badge
+- super_admin_notifications 구조
+- N1~N5 notification hook
+- notification inbox / unread UI
+- Render LIVE 4283dae2
+
+이번에는 무료체험 실제 사용자 흐름과
+알림 실제 E2E만 마무리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. X HUB TRIAL GUARD — 최우선
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 코드에서:
+
+(admin)/x-hub.tsx
+mode !== 'x'
+→ dashboard redirect
+
+였음.
+
+현재도 그렇다면
+x_trial 사용자가 X Hub에 진입하지 못하므로 P0 버그.
+
+확인 후 수정:
+
+- mode='x' → 허용
+- mode='x_trial' → 허용
+- BASE → 차단
+- x_pending은 현재 제품정책에 맞게 기존 처리 유지
+
+무료체험 사용자가
+실제로 X 체험 영역에 진입할 수 있어야 한다.
+
+앱 내 다른 X route도
+mode === 'x' 하드코딩 때문에
+x_trial이 튕기는 곳이 있는지
+trial 관련 route만 빠르게 검색.
+
+광범위한 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 무료체험 시작 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test pool 사용.
+
+유료 entitlement:
+false
+
+manual:
+false
+
+HQ:
+false
+
+상태에서 실제:
+
+"3일 무료체험 시작"
+→ activation API
+→ 200
+→ mode=x_trial
+→ X 화면 진입
+
+확인.
+
+결제를 먼저 요구하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 정확히 72시간
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 trial DB 필드 기준 검증.
+
+T1:
+start = T
+ends = T + 72h 정확히
+
+T2:
+T + 71h59m59s
+→ active
+
+T3:
+T + 72h
+→ expired
+
+timezone/day boundary와 무관하게
+72시간 차이여야 함.
+
+서버 시간 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 재사용/연장 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 API로 확인.
+
+첫 시작:
+→ 성공
+
+즉시 두 번째 시작:
+→ ends_at 변화 0
+
+만료 후 다시 시작:
+→ 신규 72시간 지급 0
+
+trial_used/history가 유지되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. TRIAL → BASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial expired
++
+paid/manual/HQ 없음
+
+→ canonical mode BASE
+
+확인:
+
+회원/반/출결/일지 등 BASE 기능 유지.
+
+데이터 삭제 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. TRIAL → PAID
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial active 중
+sandbox/test billing mechanism으로 검증.
+
+실제 Production charge 금지.
+
+X300 또는 테스트 가능한 X tier entitlement 활성화
+→ paid=true
+→ current plan canonical X tier
+
+그 후 trial_ends_at을 과거로 둬도:
+→ X 유지
+
+trial expiry가 paid access를 끊으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. TRIAL AI DIARY — 실제 호출
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+CASE A:
+trial active
++ Local Curriculum 없음
+
+실제 AI Diary 생성 API 호출
+
+기대:
+→ AI Diary 기본 생성 성공
+
+curriculum_matches:
+없음/empty/unavailable 가능
+
+하지만 AI Diary 전체 403/실패는 금지.
+
+CASE B:
+trial active
++ Local Curriculum READY
+
+→ AI Diary 성공
+→ curriculum tag/match 정상 가능
+
+CASE C:
+BASE no trial
+→ X-only 기능은 기존 정책대로 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. CURRICULUM DEPENDENCY GATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+requireXMode에서 x_trial을 허용했다고
+모든 X 기능이 무조건 열리면 안 됨.
+
+trial 관련 X API를 분류:
+
+A. TRIAL_ALLOWED
+- Local Curriculum 없이 성립하는 AI/체험 기능
+
+B. CURRICULUM_REQUIRED
+- Local Curriculum 없으면 의미 없는 기능
+
+C. PAID_ONLY
+- 실제 존재한다면 명시
+
+특히:
+- Growth
+- Growth Report
+- Parent AI Curriculum
+- curriculum progress
+
+가 READY dependency를 잃지 않았는지 확인.
+
+문제가 있으면 최소 guard 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. TRIAL 중 결제 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 trial account에서:
+
+subscription screen 진입
+
+확인:
+- SWIMNOTE
+- X300
+- X500
+- X1000
+
+공식 상품 표시
+
+X300/X500/X1000 구매 CTA 정상.
+
+trial 때문에 CTA hide/disable 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. SUPER ADMIN TRIAL 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 test trial pool:
+
+Super Admin pool list/detail에서
+
+무료체험 중
++
+종료시각 또는 남은 시간
+
+실제 표시 확인.
+
+paid=false와 혼동 0.
+
+trial 종료 후:
+체험완료 또는 해당 canonical 상태 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. N1~N5 실제 알림 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+각각 안전한 test event 1개 생성.
+
+N1
+pool signup
+→ POOL_SIGNUP 1개
+
+N2
+target=super inquiry
+→ INQUIRY_RECEIVED 1개
+
+N3
+trial start
+→ X_TRIAL_STARTED 1개
+
+N4
+RevenueCat INITIAL_PURCHASE test/webhook
+→ PAID_PLAN_ACTIVATED 1개
+
+N5
+curriculum upload
+→ CURRICULUM_UPLOADED 1개
+
+각각 확인:
+
+- DB row
+- correct pool/entity
+- unread
+- title/body
+- target route
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 알림 중복 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 event를 동일 idempotency key/request로 재시도.
+
+기대:
+
+1 event
+=
+notification 1 row
+
+특히:
+- trial double tap
+- RC webhook replay
+- curriculum request retry
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. SUPER ADMIN 로그인 알림
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 요구:
+Super Admin이 로그인했을 때
+운영 알림을 바로 확인할 수 있어야 함.
+
+실제 검증:
+
+로그아웃 상태에서 test notification 생성
+→ Super Admin 로그인
+→ unread count > 0
+→ bell에 숫자 표시
+→ inbox에서 해당 알림 표시
+→ 클릭 target 정상
+→ read 처리
+→ unread count 감소
+
+1분 polling만 기다려야 하는 구조라면
+로그인/초기 mount 시 즉시 fetch가 되는지 확인.
+
+로그인 후 최대 1분 기다려야만 보이면
+가능하면 initial fetch 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. PUSH 의미 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+명확히 구분:
+
+A.
+Persistent notification DB = YES/NO
+
+B.
+Login immediate unread delivery = YES/NO
+
+C.
+Web browser OS-level push = YES/NO
+
+사용자 출시 요구의 최소 PASS는:
+
+A = YES
+B = YES
+
+C는 현재 별도 Web Push 인프라가 없다면
+출시 blocker 아님.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 수정 발생 시만 배포.
+
+SERVER 변경:
+test → main → Render LIVE → health SHA exact
+
+WEB 변경:
+Production web deploy
+
+APP 변경:
+release/v2.0.0
+→ preflight
+→ runtime 2.1.0
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+native dependency 없으면 build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. x-hub x_trial 진입
+2. 기타 trial route guard 문제
+3. 결제 없이 trial 시작
+4. started_at
+5. ends_at
+6. 72h 정확성
+7. double-start 방지
+8. expired restart 방지
+9. trial→BASE
+10. trial→paid
+11. trial 만료 후 paid 유지
+12. no-curriculum AI Diary 실제 결과
+13. READY curriculum AI Diary 결과
+14. curriculum-dependent API gate
+15. trial subscription 화면
+16. X300/X500/X1000 CTA
+17. Super Admin trial badge 실제 결과
+18. N1 결과
+19. N2 결과
+20. N3 결과
+21. N4 결과
+22. N5 결과
+23. notification duplicate 결과
+24. login immediate unread
+25. unread count/read 처리
+26. browser OS push 여부
+27. 수정 파일
+28. tests
+29. main HEAD
+30. Render LIVE SHA
+31. web deploy
+32. iOS OTA
+33. blocker
+34. 최종 PASS/HOLD
+
+PASS 조건:
+
+- 결제 없이 72시간 X trial 시작
+- x_trial 사용자가 실제 X 화면 진입
+- 72시간 정확
+- 재사용/연장 0
+- curriculum 없어도 AI Diary 사용 가능
+- curriculum-dependent 기능만 제한
+- trial 중 유료 가입 가능
+- paid 전환 후 trial 만료 영향 0
+- Super Admin trial 상태 정확
+- N1~N5 실제 알림 생성
+- 로그인 즉시 unread 확인
+- duplicate notification 0
+- blocker 0
+
+완료 후 STOP.

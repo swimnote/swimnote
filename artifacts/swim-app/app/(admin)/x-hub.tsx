@@ -148,11 +148,11 @@ export default function XHubScreen() {
   const xEntryGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.x_entry.title, body: GUIDE_CONTENT.x_entry.body }];
   const router    = useRouter();
 
-  // ─── X mode guard: mode !== "x" 이면 대시보드로 redirect ──────────────────
+  // ─── X mode guard: mode === "x" 또는 "x_trial" 허용, 나머지는 대시보드 redirect ─
   const { mode: xhubMode, status: xhubModeStatus } = useMode();
   useEffect(() => {
     if (xhubModeStatus === "loading" || xhubModeStatus === "idle") return;
-    if (xhubMode !== "x") {
+    if (xhubMode !== "x" && xhubMode !== "x_trial") {
       router.replace("/(admin)/dashboard");
     }
   }, [xhubMode, xhubModeStatus, router]);
