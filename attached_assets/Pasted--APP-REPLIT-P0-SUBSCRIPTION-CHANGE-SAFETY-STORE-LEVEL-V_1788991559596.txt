@@ -1,0 +1,209 @@
+[보낼 곳: APP REPLIT]
+
+[P0 SUBSCRIPTION CHANGE SAFETY — STORE-LEVEL VERIFY ONLY]
+
+현재 코드에서 X→SWIMNOTE downgrade CTA 연결은 완료.
+
+하지만 실제 Store-level product change가 안전하게 동작하는지 미확인.
+
+목표:
+SWIMNOTE / X300 / X500 / X1000 사이 변경이
+절대 이중구독/이중결제로 이어지지 않게 검증 및 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. iOS SUBSCRIPTION GROUP 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+App Store Connect 설정을 코드만으로 추정하지 말 것.
+
+현재 RevenueCat/App Store Connect 구성에서
+다음 4개가 동일 subscription group인지 실제 확인:
+
+- com.swimnote.swimnote.monthly
+- com.swimnote.x300.monthly
+- com.swimnote.x500.monthly
+- com.swimnote.x1000.monthly
+
+같은 group이어야 함.
+
+또한 subscription level/rank 확인:
+
+SWIMNOTE < X300 < X500 < X1000
+
+의도한 upgrade/downgrade 관계가 되도록 Store 설정 확인.
+
+결과:
+- SAME_GROUP_CONFIRMED
+또는
+- DIFFERENT_GROUP / UNKNOWN
+
+UNKNOWN이면 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. iOS X→SWIMNOTE
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 subscription group 확인 후:
+
+X1000 → SWIMNOTE purchasePackage
+
+가 StoreKit에서 실제 downgrade로 인식되어
+다음 renewal부터 적용되는지 sandbox/test 검증.
+
+확인:
+
+- 새 독립 구독 생성 0
+- 현재 X entitlement 즉시 종료 0
+- pending product change 확인
+- 다음 갱신 시 SWIMNOTE 전환
+
+X300/X500도 같은 구조.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. iOS SWIMNOTE→X
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE paid → X300/X500/X1000 구매도
+동일 subscription group product change로 처리되는지 확인.
+
+목표:
+기존 SWIMNOTE와 새 X가 동시에 active 되는 상태 0.
+
+StoreKit upgrade 정책에 따라
+새 X가 즉시 시작되는 것은 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ANDROID PRODUCT CHANGE
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+Google Play custom purchase flow에서
+다른 subscription product 변경 시
+단순 Purchases.purchasePackage(targetPackage)만 호출하면
+별도 구독이 동시에 생성될 위험이 있음.
+
+현재 react-native-purchases SDK 버전/지원 API 확인.
+
+기존 paid subscription이 있으면 Android에서는:
+
+- old product identifier
+- replacement mode
+
+를 명시하는 product-change purchase flow 사용.
+
+정책:
+
+UPGRADE:
+SWIMNOTE → X
+X300 → X500/X1000
+X500 → X1000
+
+→ 현재 제품 정책에 맞는 upgrade replacement mode 사용.
+
+DOWNGRADE:
+X1000 → X500/X300/SWIMNOTE
+X500 → X300/SWIMNOTE
+X300 → SWIMNOTE
+
+→ DEFERRED
+즉 현재 결제기간 종료 후 target plan 시작.
+
+RevenueCat/Google Play 현재 SDK에서
+DEFERRED 지원 방식 정확히 확인 후 구현.
+
+지원되지 않으면 임의 purchasePackage 금지.
+그 경우 Android downgrade CTA는 안전한 management flow로 전환하고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DOUBLE-SUBSCRIPTION GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱/서버에서 기존 paid subscription이 있는데
+target product를 독립 신규구독으로 생성할 가능성이 있는 flow 금지.
+
+Store product change임이 확인되지 않으면:
+
+purchase 실행 금지
+→ 사용자에게 안전한 안내
+→ 기존 구독 상태 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. WEBHOOK
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+PRODUCT_CHANGE
+→ pending target 기록
+
+실제 target activation event
+→ canonical tier 변경
+
+예약만으로 기존 X 권한 즉시 제거 금지.
+
+이전 product와 target product가
+동시에 active로 들어오는 비정상 상태 감지 시
+SUBSCRIPTION_DOUBLE_ACTIVE_WARNING 로그/알림 추가 검토.
+
+대규모 구조 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. TEST MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. iOS X1000 → SWIMNOTE
+→ deferred downgrade
+→ 이중구독 0
+
+B. iOS SWIMNOTE → X300
+→ Store upgrade
+→ 이중구독 0
+
+C. Android X1000 → SWIMNOTE
+→ product replacement/deferred
+→ 이중구독 0
+
+D. Android SWIMNOTE → X300
+→ product replacement
+→ 이중구독 0
+
+E. Android X500 → X1000
+→ upgrade 정상
+
+F. Android X1000 → X500
+→ downgrade deferred
+
+G. store cancel/error
+→ 기존 plan 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. iOS subscription group 실제 확인
+2. iOS subscription rank
+3. iOS X→BASE sandbox 결과
+4. iOS BASE→X sandbox 결과
+5. Android SDK version
+6. Android product change API
+7. Android replacement mode
+8. Android X→BASE 결과
+9. Android BASE→X 결과
+10. 이중구독 가능성 최종 판정
+11. webhook 처리
+12. 수정 파일
+13. main HEAD
+14. iOS OTA 필요 여부
+15. Android 다음 build 포함 여부
+16. blocker
+17. 최종 PASS/HOLD
+
+PASS 조건:
+- iOS 동일 subscription group 확인
+- Android product replacement 확인
+- 이중구독 가능성 0
+- downgrade 시 기존 plan 종료일까지 유지
+- blocker 0
+
+완료 후 STOP.
