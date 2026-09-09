@@ -1,0 +1,142 @@
+[보낼 곳: APP REPLIT]
+
+[P0 — BRANDING OTA NOT APPLIED ON REAL DEVICE]
+
+실기기 확인 결과:
+최종 branding OTA `01a0878b`가 실제 iPhone 화면에 반영되지 않음.
+
+현재 보고상:
+- main HEAD: dd2a1d58
+- iOS OTA: 01a0878b
+- branch/channel: production-v2
+- runtime: 2.1.0
+
+코드 추가수정부터 하지 말 것.
+
+먼저 실제 실기기가 어떤 update를 실행 중인지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. OTA DELIVERY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 01a0878b가 실제 production-v2 channel에 연결되어 있는지
+- branch production-v2 최신 update가 01a0878b인지
+- runtimeVersion = 2.1.0인지
+- platform = iOS인지
+- app version 2.0.1 / build 255와 호환되는지
+- rollout/percentage 제한 없는지
+
+정확한 EAS update 상태 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. INSTALLED BUILD COMPATIBILITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 기준:
+
+- app version
+- build number
+- runtimeVersion
+- channel
+- updateId
+
+를 확인할 수 있는 기존 debug/log 경로가 있으면 확인.
+
+실기기가 실제로:
+production-v2
+runtime 2.1.0
+build 255
+
+인지 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. BUNDLE CONTENT 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 01a0878b bundle 안에 실제로 다음 문구가 포함되어 있는지 확인:
+
+Powered by SWIMNOTE AI with OpenAI GPT
+
+그리고 수정 대상 7개 파일의 코드가
+해당 update artifact에 포함됐는지 확인.
+
+특히:
+- admin/dashboard
+- admin/class-hub
+- admin/ops-hub
+- admin/settings
+- teacher/today-schedule
+- DiaryAIModalV2
+- teacher/settings
+
+main에만 있고 OTA export bundle에 빠졌으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. REAL ROUTE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 화면이 실제로
+수정한 파일을 사용하는지 확인.
+
+특히:
+- Admin Home이 app/(admin)/dashboard.tsx가 맞는지
+- Teacher Home이 app/(teacher)/today-schedule.tsx가 맞는지
+- AI Diary가 DiaryAIModalV2를 실제 사용 중인지
+- Settings가 수정한 settings.tsx를 실제 route로 쓰는지
+
+legacy/duplicate route가 있으면 정확히 식별.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. OTA CACHE / CHECK BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱이 startup에서 update check/fetch/reload를 어떻게 하는지 확인.
+
+다음 확인:
+- checkAutomatically 설정
+- fallbackToCacheTimeout
+- updates.enabled
+- channel/runtime mismatch
+- fetchUpdateAsync만 하고 reload 안 하는 구조인지
+
+기존 production OTA 정책과 비교.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인 확인 전 UI 재수정 금지.
+
+A. OTA 배포 문제면
+→ 동일 코드로 올바른 production-v2 OTA 재배포
+
+B. route mismatch면
+→ 실제 사용 route에 최소 수정 후 OTA
+
+C. runtime/channel mismatch면
+→ 원인 정확히 보고 후 조치
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 01a0878b production-v2 연결 여부
+2. latest iOS update ID
+3. runtimeVersion
+4. build compatibility
+5. bundle 내 branding 문구 존재 여부
+6. 실제 Admin/Teacher route
+7. OTA startup check 동작
+8. 정확한 원인
+9. 수정 파일
+10. 새 OTA ID
+11. blocker
+12. 최종 PASS/HOLD
+
+실기기에서 실제 표시 확인 전 PASS 금지.
+
+완료 후 STOP.
