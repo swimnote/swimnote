@@ -371,6 +371,16 @@ router.get(
           COALESCE(p.x_management_override, false)    AS x_override,
           COALESCE(p.x_force_disabled, false)         AS x_force_disabled,
           p.x_plan_key                                AS x_plan_key,
+          -- X Trial 필드
+          p.x_trial_started_at,
+          p.x_trial_ends_at,
+          p.x_trial_used_at,
+          CASE
+            WHEN p.x_trial_started_at IS NOT NULL
+             AND p.x_trial_ends_at IS NOT NULL
+             AND p.x_trial_ends_at > NOW()
+            THEN TRUE ELSE FALSE
+          END                                         AS x_trial_active,
           (
             SELECT MAX(u2.last_login_at) FROM users u2
             WHERE u2.swimming_pool_id = p.id
@@ -423,6 +433,10 @@ router.get(
         x_override:          Boolean(r.x_override ?? false),
         x_force_disabled:    Boolean(r.x_force_disabled ?? false),
         x_plan_key:          r.x_plan_key ?? null,
+        x_trial_active:      Boolean(r.x_trial_active ?? false),
+        x_trial_ends_at:     r.x_trial_ends_at ? new Date(r.x_trial_ends_at).toISOString() : null,
+        x_trial_started_at:  r.x_trial_started_at ? new Date(r.x_trial_started_at).toISOString() : null,
+        x_trial_used:        r.x_trial_used_at !== null && r.x_trial_used_at !== undefined,
         teacher_count:       Number(r.teacher_count ?? 0),
         parent_count:        Number(r.parent_count ?? 0),
         diary_count:         Number(r.diary_count ?? 0),
@@ -7804,6 +7818,91 @@ router.get(
     } catch (e: any) {
       console.error("[WP12] GET /super/marketing/notices 오류:", e?.message);
       return res.status(500).json({ error: "LIST_FAILED", message: e?.message });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════
+// GET  /super/notifications              — 슈퍼 어드민 알림 목록 (최신순)
+// GET  /super/notifications/unread-count — 미읽음 카운트
+// POST /super/notifications/:id/read    — 단건 읽음 처리
+// POST /super/notifications/read-all    — 전체 읽음 처리
+// ════════════════════════════════════════════════════════════════
+
+router.get(
+  "/super/notifications",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const limit  = Math.min(Number(req.query.limit  ?? 50), 100);
+      const offset = Number(req.query.offset ?? 0);
+      const unreadOnly = req.query.unread === "1" || req.query.unread === "true";
+
+      const rows = (await db.execute(sql`
+        SELECT id, type, title, body, pool_id, ref_id, ref_type, is_read, created_at
+        FROM super_admin_notifications
+        ${unreadOnly ? sql`WHERE is_read = FALSE` : sql``}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `)).rows;
+
+      const total = (await db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM super_admin_notifications
+        ${unreadOnly ? sql`WHERE is_read = FALSE` : sql``}
+      `)).rows[0] as any;
+
+      res.json({ notifications: rows, total: Number(total?.cnt ?? 0), limit, offset });
+    } catch (e: any) {
+      console.error("[super/notifications GET]", e);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+router.get(
+  "/super/notifications/unread-count",
+  requireAuth, requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const row = (await db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM super_admin_notifications WHERE is_read = FALSE
+      `)).rows[0] as any;
+      res.json({ unread: Number(row?.cnt ?? 0) });
+    } catch (e: any) {
+      console.error("[super/notifications/unread-count]", e);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+router.post(
+  "/super/notifications/:id/read",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await db.execute(sql`
+        UPDATE super_admin_notifications SET is_read = TRUE WHERE id = ${req.params.id}
+      `);
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[super/notifications/:id/read]", e);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+router.post(
+  "/super/notifications/read-all",
+  requireAuth, requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      await db.execute(sql`
+        UPDATE super_admin_notifications SET is_read = TRUE WHERE is_read = FALSE
+      `);
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[super/notifications/read-all]", e);
+      res.status(500).json({ error: "서버 오류" });
     }
   }
 );

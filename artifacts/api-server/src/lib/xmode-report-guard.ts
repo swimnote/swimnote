@@ -97,11 +97,15 @@ export async function resolveReportXAccess(
     return { allowed: false, reason: "POOL_NOT_FOUND", poolId };
   }
 
-  if (!modeResult.xmode_entitlement) {
+  // x_trial: trial 활성 상태(mode=x_trial, curriculum READY)도 report 접근 허용
+  const isTrialAccess = modeResult.mode === "x_trial" && modeResult.x_trial_active
+    && modeResult.xmode_config_status === "READY";
+
+  if (!modeResult.xmode_entitlement && !isTrialAccess) {
     return { allowed: false, reason: "XMODE_NOT_ENTITLED", poolId, modeResult };
   }
 
-  if (modeResult.mode !== "x") {
+  if (modeResult.mode !== "x" && !isTrialAccess) {
     return { allowed: false, reason: "XMODE_NOT_READY", poolId, modeResult };
   }
 

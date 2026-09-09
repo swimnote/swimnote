@@ -1,6 +1,55 @@
-import { db } from "@workspace/db";
+import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { sendPushToUser } from "../lib/push-service.js";
+import { sendPushToUser, sendPushToSuperAdmins } from "../lib/push-service.js";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Super Admin Notification — 슈퍼 어드민 전용 알림 (5종)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SuperAdminNotifType =
+  | "POOL_SIGNUP"          // 수영장 신규 가입
+  | "INQUIRY_RECEIVED"     // 문의사항 접수
+  | "X_TRIAL_STARTED"      // X 무료체험 시작
+  | "PAID_PLAN_ACTIVATED"  // 유료 플랜 결제 성공
+  | "CURRICULUM_UPLOADED"; // 커리큘럼 파일 업로드
+
+/**
+ * notifySuperAdmin — super_admin_notifications에 알림 삽입 (fire-and-forget)
+ *
+ * 중복 방지: idempotency_key UNIQUE. 같은 키로 두 번 호출 시 두 번째는 무시.
+ */
+export async function notifySuperAdmin(params: {
+  type: SuperAdminNotifType;
+  title: string;
+  body?: string;
+  poolId?: string | null;
+  refId?: string | null;
+  refType?: string | null;
+  /** 멱등성 키 (같은 이벤트 중복 방지). 미전달 시 자동 생성 (dedup 없음). */
+  idempotencyKey?: string;
+}): Promise<void> {
+  try {
+    const { type, title, body = "", poolId, refId, refType, idempotencyKey } = params;
+    const id = `san_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const ikey = idempotencyKey ?? null;
+
+    await superAdminDb.execute(sql`
+      INSERT INTO super_admin_notifications
+        (id, type, title, body, pool_id, ref_id, ref_type, is_read, idempotency_key, created_at)
+      VALUES
+        (${id}, ${type}, ${title}, ${body}, ${poolId ?? null}, ${refId ?? null},
+         ${refType ?? null}, FALSE, ${ikey}, NOW())
+      ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL
+      DO NOTHING
+    `);
+
+    // 앱 push (fire-and-forget, 실패해도 DB 저장은 유지)
+    sendPushToSuperAdmins(title, body || title, { type, pool_id: poolId ?? undefined, ref_id: refId ?? undefined })
+      .catch(e => console.error("[notifySuperAdmin] push 오류:", e));
+  } catch (err) {
+    console.error("[notifySuperAdmin] 오류:", err);
+  }
+}
 
 interface NotifPayload {
   recipientId:   string;

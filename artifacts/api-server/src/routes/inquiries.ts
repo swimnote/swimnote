@@ -116,6 +116,21 @@ router.post("/inquiries", requireAuth, async (req: AuthRequest, res) => {
         (${id}, ${userId}, ${role}, ${name}, ${pool_id}, ${pool_name}, ${target}, ${title.trim()}, ${content.trim()}, 'unread')
     `);
 
+    // ── N2: Super Admin 알림 — 문의사항 접수 (target=super 만) ────────────
+    if (target === "super") {
+      import("../utils/notify.js").then(({ notifySuperAdmin }) => {
+        notifySuperAdmin({
+          type: "INQUIRY_RECEIVED",
+          title: "새 문의가 접수됐습니다",
+          body: `${pool_name || name} — ${title.trim()}`,
+          poolId: pool_id ?? undefined,
+          refId: id,
+          refType: "inquiry",
+          idempotencyKey: `inquiry_received_${id}`,
+        }).catch(console.error);
+      }).catch(console.error);
+    }
+
     res.json({ success: true, id });
   } catch (e) {
     console.error("[POST /inquiries]", e);

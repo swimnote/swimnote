@@ -1,0 +1,1024 @@
+[보낼 곳: APP REPLIT]
+
+[P0 RELEASE FINAL — 72H X TRIAL + SUPER ADMIN OPERATIONS NOTIFICATION]
+
+중요:
+출시 직전 P0 수정.
+
+이번 작업은 아래를 한 번에 끝낸다.
+
+1. 3일 X 무료체험을 정확히 72시간으로 구현/검증
+2. 무료체험 중 X 진입 및 AI 사용 정책 정리
+3. 무료체험 중 유료 플랜 결제 가능 여부 검증/수정
+4. Super Admin에 "무료체험 중" 상태 표시
+5. Super Admin 필수 운영 알림 5종 구현/검증
+
+광범위한 UI 개편 금지.
+현재 구조 재사용.
+조사만 하고 STOP 금지.
+확인 → 최소 수정 → test → Production 반영까지 한 번에.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 무료체험 최종 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책을 다음으로 고정한다.
+
+사용자가:
+
+"3일 무료체험 시작"
+
+버튼을 누르면
+
+유료 플랜 가입 여부와 무관하게
+즉시 X 체험 상태가 시작된다.
+
+시작 시각:
+trial_started_at
+
+종료 시각:
+trial_ends_at = trial_started_at + 정확히 72시간
+
+예:
+
+9월 9일 18:30 시작
+→
+9월 12일 18:30 종료
+
+달력 기준 3일/자정 종료 금지.
+
+정확히 72시간.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 무료체험은 PAID ENTITLEMENT가 아님
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대:
+
+trial = x_paid_entitlement
+
+로 저장하거나 해석하지 말 것.
+
+상태를 분리.
+
+예:
+
+x_trial_active
+trial_started_at
+trial_ends_at
+
+또는 현재 이미 존재하는 canonical trial 필드가 있으면
+그것을 그대로 사용.
+
+유료 여부:
+
+x_paid_entitlement
+
+수동:
+
+x_manual_entitlement
+
+HQ:
+
+x_management_override
+
+무료체험:
+
+trial active
+
+각 의미를 섞지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. MODE RESOLVER
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical mode resolver를 조사.
+
+무료체험 활성 상태에서는
+사용자가 실제 X 기능에 들어갈 수 있어야 한다.
+
+원칙:
+
+PAID/MANUAL/HQ + READY
+→ x
+
+TRIAL ACTIVE
+→ x_trial 또는 현재 canonical equivalent
+
+단 UI/feature gate에서는
+trial을 실제 X 체험 가능 상태로 취급.
+
+중요:
+
+mode === "x"
+만 체크해서
+trial 사용자를 BASE로 보내는 코드가 있으면 수정.
+
+그러나:
+
+trial을 paid라고 표시하면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 무료체험 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 서버 시간을 기준으로:
+
+now >= trial_ends_at
+
+이면 체험 종료.
+
+클라이언트 local clock만 신뢰 금지.
+
+종료 후:
+
+- paid/manual/HQ entitlement 없음
+→ BASE로 복귀
+
+단:
+
+- 회원
+- 반
+- 출결
+- 일지
+- 사진
+- 학부모 연결
+- 기존 BASE 데이터
+
+삭제/변경 절대 금지.
+
+X 체험 중 생성된 데이터도
+임의 삭제 금지.
+
+단 X 전용 기능 접근만 종료.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 체험 재시작 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책:
+
+한 수영장이 무료체험을 이미 사용했다면
+버튼을 반복 눌러 72시간을 계속 연장할 수 없어야 한다.
+
+현재 정책/DB에 trial_used 또는 started_at history가 있으면 사용.
+
+없으면 최소 안전 장치 구현.
+
+조건:
+
+- 최초 1회만 시작
+- 시작 후 다시 누르기 → 종료시간 연장 안 됨
+- 종료 후 다시 누르기 → 신규 72시간 지급 안 됨
+
+Super Admin이 향후 수동 trial 재부여하는 기능은
+이번 범위 아님.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 무료체험 중 사용할 수 있는 기능
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료체험의 목적은
+X 기능을 실제로 체험하게 하는 것.
+
+따라서 커리큘럼 원본이 없어도 가능한
+X/AI 기능은 사용 가능하게 한다.
+
+특히 현재 앱에서 사용 가능한 AI 중
+Pool Local Curriculum 자체가 필수 입력이 아닌 기능은
+trial에서도 허용.
+
+예:
+
+- AI Diary 기본 생성
+- 일반 AI 기반 보조 기능
+- 기타 curriculum dependency 없는 AI
+
+현재 실제 코드/API를 기준으로 전수 확인.
+
+"유료 결제 안 했으니 AI 차단"
+
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 무료체험 중 제한할 기능
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Pool Local Curriculum이 존재해야만
+논리적으로 성립하는 기능은
+자료가 없으면 제한 가능.
+
+예:
+
+- Local Curriculum 기반 progress
+- curriculum_matches가 실제 Local 데이터에 의존하는 기능
+- Local curriculum 기반 Growth 계산
+- Local curriculum 기반 report
+- curriculum-dependent Parent AI 기능
+
+중요:
+
+제한 사유는
+
+"무료체험이라서"
+
+가 아니라
+
+"수영장 커리큘럼 준비가 필요해서"
+
+여야 한다.
+
+즉:
+
+trial + curriculum 없음
+→ curriculum-dependent 기능만 잠금
+
+trial + curriculum 준비됨/승인됨
+→ 해당 X 기능 사용 가능
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. X AI DIARY — TRIAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 X AI Diary 차이:
+
+생성된 일지에
+수영장 커리큘럼 연결 태그 제공.
+
+확인:
+
+trial 중 AI Diary 기본 생성은 가능해야 함.
+
+Local Curriculum이 아직 없다면:
+
+- 기본 AI Diary 생성은 허용
+- curriculum_matches/tag만 unavailable 또는 empty
+
+로 처리 가능.
+
+AI Diary 전체를 막지 말 것.
+
+"X 무료체험인데 AI를 못 써보는 상태"
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 무료체험 중 결제
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+무료체험 상태에서도
+구독/결제 화면에 정상 진입 가능해야 한다.
+
+확인:
+
+trial active
+→ subscription screen
+→ SWIMNOTE / X300 / X500 / X1000
+현재 공식 상품 표시
+
+유료 가입 가능.
+
+무료체험이 활성 상태라고:
+
+- 구매 CTA 숨김
+- 결제 route redirect
+- RevenueCat purchase 차단
+
+하면 FAIL.
+
+사용자는 72시간 종료 전에라도
+원하면 바로 유료 X 가입 가능해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. TRIAL → PAID 전환
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료체험 도중 X300/X500/X1000 결제 성공 시:
+
+- paid entitlement 정상 활성
+- current plan canonical X tier
+- trial_ends_at이 남아 있어도
+  paid access가 우선
+
+trial 종료 시각이 와도
+paid 사용자는 X에서 튕기면 안 됨.
+
+즉 access resolver 우선순위는
+현재 canonical semantics에 맞게:
+
+force disabled
+등 기존 상위 정책
++
+paid/manual/HQ
++
+trial
+
+을 정확히 처리.
+
+trial 때문에 paid 상태가 downgrade되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. TRIAL → BASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+72시간 종료 후
+paid/manual/HQ 없음:
+
+→ BASE SWIMNOTE
+
+확인:
+
+- 로그인 정상
+- 회원 정상
+- 반 정상
+- 출결 정상
+- Diary 정상
+- 사진 정상
+- 학부모 연결 정상
+
+X-only CTA/route/API는 잠금.
+
+기존 데이터를 삭제하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. SUPER ADMIN — 무료체험 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin pool 목록/상세에서
+무료체험 중인 수영장을 즉시 식별 가능해야 한다.
+
+최소 표시:
+
+"무료체험 중"
+
+그리고 가능하면:
+
+남은 시간 또는 종료일시
+
+예:
+
+무료체험 중
+09/12 18:30 종료
+
+UI 대개편 금지.
+
+기존 badge 체계에 최소 추가.
+
+Super Admin에서 다음 상태를 서로 구분:
+
+- BASE
+- X 무료체험
+- X paid
+- X manual
+- X HQ override
+- force disabled
+- x_pending/READY
+
+무료체험을 Paid badge로 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. SUPER ADMIN 필수 알림 5종
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 운영 이벤트는
+Super Admin이 반드시 알 수 있어야 한다.
+
+1. 수영장 신규 가입
+2. 문의사항 접수
+3. X 3일 무료체험 시작
+4. 유료 플랜 가입/결제 성공
+5. 커리큘럼 등록파일 업로드
+
+각 이벤트마다
+Super Admin notification 생성.
+
+가능한 canonical notification system 재사용.
+
+새 알림 시스템 중복 구축 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 알림 1 — 수영장 가입
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 swimming pool/signup/application 생성이
+정상 commit된 뒤:
+
+Super Admin notification 생성.
+
+예:
+
+제목:
+새 수영장이 가입했습니다
+
+내용:
+{수영장명}의 가입 신청이 접수되었습니다.
+
+최소 metadata:
+
+- pool_id
+- event type
+- created_at
+- target route
+
+클릭 시
+Super Admin 해당 수영장 또는 가입목록으로 이동 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 알림 2 — 문의사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 target='super' 문의 제출
+DB commit 성공 후:
+
+Super Admin notification.
+
+예:
+
+새 문의가 접수되었습니다
+{수영장명 또는 사용자명}
+
+클릭:
+Super Admin InquiryInbox 해당 문의.
+
+기존 실제 문의 저장 구조 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 알림 3 — 무료체험 시작
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료체험 시작 transaction 성공 후:
+
+Super Admin notification.
+
+예:
+
+X 무료체험이 시작되었습니다
+{수영장명}
+72시간 체험
+
+metadata:
+
+- pool_id
+- trial_started_at
+- trial_ends_at
+
+중복 버튼 탭 등으로
+동일 trial 시작 알림 여러 개 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 알림 4 — 플랜 가입
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat/webhook 또는 현재 canonical billing path에서
+실제 유료 subscription entitlement 확정 후:
+
+Super Admin notification.
+
+예:
+
+새 플랜 가입
+{수영장명} · X500
+
+중요:
+
+purchase 화면 진입이나
+결제 시도만으로 생성 금지.
+
+실제 entitlement/payment 성공 기준.
+
+manual/HQ override는
+"플랜 가입" 알림으로 처리 금지.
+
+필요하면 별도 내부 event지만
+이번 필수 5종에는 포함 안 해도 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 알림 5 — 커리큘럼 파일 업로드
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool Admin이 curriculum original file upload
++
+DB commit 성공 후:
+
+Super Admin notification.
+
+예:
+
+새 커리큘럼 파일이 등록되었습니다
+{수영장명}
+파일명
+
+클릭:
+해당 pool X Curriculum review 화면.
+
+재업로드도 새로운 검수 필요이므로
+알림 생성 가능.
+
+단 같은 request retry로
+중복 notification 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. SUPER ADMIN 알림 저장
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin notification이
+일회성 toast만이면 안 됨.
+
+로그인하지 않았던 동안 발생한 이벤트도
+로그인 후 확인 가능해야 한다.
+
+즉 DB 영구 저장 필요.
+
+최소:
+
+- id
+- notification type
+- title
+- body
+- pool_id
+- entity_id
+- created_at
+- read_at 또는 is_read
+- route/deep-link metadata
+
+현재 notifications 또는
+Super Admin 전용 기존 notification storage가 있으면
+재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. "로그인하면 알림 들어오기"
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 요구:
+
+Super Admin이 로그인하면
+운영 알림을 확인할 수 있어야 한다.
+
+구현 목표:
+
+A.
+로그인하지 않은 동안 발생
+→ DB에 알림 누적
+
+B.
+Super Admin 로그인
+→ unread notification 조회
+
+C.
+알림 badge/count 표시
+
+D.
+알림 목록 확인
+
+E.
+읽음 처리
+
+가능하면 현재 Web Push/Push infrastructure가
+Super Admin web에 이미 존재하면
+browser push까지 연결.
+
+하지만 browser push가 새 대형 작업이라면
+출시 P0 최소 기준은:
+
+"로그인 즉시 unread 알림이 앱/웹 Super Admin 화면에 확실히 표시"
+
+이다.
+
+중요:
+단순 console log/email로 대체 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. SUPER ADMIN PUSH 가능성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Super Admin이 웹 기반이라면
+기존 push_tokens가 mobile Expo token 전용인지 확인.
+
+Web Push가 이미 없다면
+새 브라우저 Push/PWA 인프라를
+무리하게 크게 만들지 말 것.
+
+우선:
+
+persistent notification
++
+login fetch
++
+unread badge
++
+notification inbox
+
+를 P0로 구현.
+
+기존 Web Push가 쉽게 재사용 가능하면 추가.
+
+완료보고에는 명확히:
+
+PHYSICAL/WEB PUSH:
+YES / NO
+
+LOGIN UNREAD DELIVERY:
+YES / NO
+
+를 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 알림 중복 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+5개 이벤트 모두
+retry/replay로 중복 생성되는 문제 확인.
+
+특히:
+
+- signup retry
+- RevenueCat webhook retry
+- trial start double tap
+- curriculum upload retry
+- inquiry retry
+
+canonical event id / entity id / unique key
+또는 기존 idempotency 구조 사용.
+
+같은 실제 이벤트 하나에
+Super Admin notification 1개.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. TRIAL API SERVER GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+X 기능 서버 route에서도
+trial access를 인식해야 한다.
+
+UI만 X처럼 보이고
+API가 XMODE_REQUIRED 403이면 FAIL.
+
+전수 확인 최소:
+
+- AI Diary 관련
+- X AI 기능
+- Parent AI
+- X Growth
+- report
+- curriculum-dependent APIs
+
+각 API를:
+
+TRIAL_ALLOWED
+CURRICULUM_REQUIRED
+PAID_ONLY
+
+로 분류.
+
+임의로 전부 trial 허용하지 말고
+실제 제품정책 기준.
+
+이번 정책:
+
+무료체험에서 AI 체험 가능.
+
+따라서 "결제가 없어서" 막히는 AI route는 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. TRIAL + CURRICULUM 상태 MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 matrix 작성.
+
+A.
+BASE
+→ BASE 기능
+
+B.
+TRIAL + NO LOCAL CURRICULUM
+→ BASE 전체
+→ trial 허용 AI
+→ curriculum-dependent X 기능 제한
+
+C.
+TRIAL + LOCAL CURRICULUM READY
+→ X 체험 기능 사용
+
+D.
+PAID X + READY
+→ 전체 X
+
+E.
+TRIAL EXPIRED + NO PAID
+→ BASE
+
+F.
+TRIAL 중 PAID 전환
+→ 유료 X 지속
+
+각 실제 route/API와 일치해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 무료체험 CTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 무료체험 버튼 검사.
+
+최초:
+"3일 무료체험 시작"
+
+시작 후:
+"무료체험 중"
+
+반복 시작 버튼 없음.
+
+가능하면 남은 시간 표시.
+
+종료 후:
+무료체험 다시 시작 버튼 없음.
+
+유료플랜 보기/가입 CTA 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. TEST — 72시간
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 시간을 72시간 기다리지 말고
+test clock/DB fixture로 검증.
+
+CASE T1
+trial 시작
+→ started_at = now
+→ ends_at = now + 72h
+
+CASE T2
+71h59m
+→ active
+
+CASE T3
+72h00m
+→ expired
+
+CASE T4
+trial 중 paid 가입
+→ 72h 지나도 X 유지
+
+CASE T5
+trial 종료 + paid 없음
+→ BASE
+
+CASE T6
+trial 버튼 두 번
+→ 종료시간 연장 0
+
+CASE T7
+trial 종료 후 재시작
+→ 불가
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. TEST — AI
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+trial + no curriculum
+→ AI Diary 기본 생성 PASS
+
+CASE B
+trial + no curriculum
+→ curriculum tag 없음/제한
+→ AI Diary 전체 실패 금지
+
+CASE C
+trial + READY curriculum
+→ curriculum-linked X 기능 PASS
+
+CASE D
+BASE no trial
+→ X-only API/route 차단
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. TEST — 결제
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial active 상태에서:
+
+- subscription screen 진입
+- SWIMNOTE 표시
+- X300
+- X500
+- X1000
+- 구매 CTA
+
+정상.
+
+테스트 purchase sandbox/current test mechanism으로
+가능하면:
+
+trial → X tier entitlement
+
+전환 확인.
+
+실제 Production 결제 발생 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. TEST — SUPER ADMIN 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial test pool:
+
+Super Admin 목록/상세
+
+→ "무료체험 중"
+→ paid=false
+→ trial=true
+→ 종료시간 정확
+
+paid 전환:
+
+→ trial 표시보다 paid/current plan 우선
+→ 실제 상태 정확.
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. TEST — SUPER ADMIN 알림 5종
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 test data로 각각 1건:
+
+N1 pool signup
+→ Super notification 1
+
+N2 inquiry
+→ Super notification 1
+
+N3 trial start
+→ Super notification 1
+
+N4 successful paid subscription event
+→ Super notification 1
+
+N5 curriculum upload
+→ Super notification 1
+
+확인:
+
+- DB 저장
+- unread
+- Super Admin login fetch
+- count
+- list
+- click target
+- read 처리
+- retry 중복 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. 기존 운영 데이터 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈 등 실제 pool:
+
+trial 상태 임의 변경 금지.
+
+실제 RevenueCat entitlement 변경 금지.
+
+실제 가입/결제 이벤트 생성 금지.
+
+안전한 test pool/account 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. DB / MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 trial / notification schema가 충분하면 재사용.
+
+없을 때만 최소 migration.
+
+필요할 수 있는 것:
+
+trial_started_at
+trial_ends_at
+trial_used_at
+
+또는 equivalent.
+
+Super Admin notifications도
+기존 canonical notifications table 재사용 우선.
+
+중복 notification table 신규 생성은
+정말 필요한 경우만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER 변경:
+
+test
+→ migration
+→ main
+→ Render Production
+→ LIVE
+→ /health SHA == main HEAD
+→ authenticated smoke
+
+WEB Super Admin 변경:
+Production 배포 확인.
+
+APP 변경:
+
+release/v2.0.0
+→ clean/origin exact
+→ preflight
+→ app 2.0.1
+→ runtime 2.1.0
+→ iOS production-v2 OTA
+
+Android OTA 금지.
+
+native dependency 없으면
+new native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+34. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. TRIAL
+
+1. 기존 trial 구현 원인/문제
+2. canonical trial state
+3. 시작 API
+4. started_at
+5. ends_at
+6. 정확히 72시간
+7. 재시작 방지
+8. 종료 처리
+9. trial→BASE
+10. trial→paid
+11. mode resolver 결과
+
+B. AI / X FEATURES
+
+12. trial AI Diary
+13. no curriculum 동작
+14. curriculum-dependent 제한
+15. READY curriculum 동작
+16. trial API server guards
+17. 최종 feature matrix
+
+C. PAYMENT
+
+18. trial 중 subscription 화면
+19. X300/X500/X1000 구매 가능
+20. paid 전환
+21. paid/trial 의미 분리
+
+D. SUPER ADMIN
+
+22. 무료체험 badge
+23. 종료시간 표시
+24. paid/manual/HQ/trial 구분
+
+E. SUPER ADMIN NOTIFICATION
+
+25. signup notification
+26. inquiry notification
+27. trial notification
+28. plan subscription notification
+29. curriculum upload notification
+30. DB persistent storage
+31. login unread delivery
+32. unread count
+33. notification list
+34. read 처리
+35. click target
+36. duplicate prevention
+37. web/browser physical push 여부
+
+F. TEST/DEPLOY
+
+38. T1~T7 결과
+39. AI CASE A~D
+40. notification N1~N5
+41. 수정 파일
+42. migration
+43. tests
+44. main HEAD
+45. Render LIVE SHA
+46. web deploy
+47. iOS OTA
+48. native rebuild 여부
+49. blocker
+50. 최종 PASS/HOLD
+
+PASS 조건:
+
+- 결제 없이 trial 즉시 X 진입
+- trial 정확히 72시간
+- 반복/재사용으로 기간 연장 불가
+- trial 중 AI 사용 가능
+- curriculum 없다는 이유로 필요한 기능만 제한
+- trial 중 유료 가입 가능
+- paid 전환 후 trial 만료 영향 없음
+- trial 종료 + paid 없음 → BASE
+- Super Admin 무료체험 상태 확인 가능
+- signup/inquiry/trial/payment/curriculum upload 알림 5종
+- Super Admin 로그인 시 unread 알림 확인 가능
+- 알림 중복 0
+- blocker 0
+
+완료 후 STOP.

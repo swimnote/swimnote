@@ -408,6 +408,21 @@ router.post("/revenuecat-webhook", async (req, res) => {
           description: `${eventType}: ${productId} → ${tier} (${resolved?.planName})`,
           metadata: { eventType, productId, tier } }).catch(console.error);
 
+        // ── N4: Super Admin 알림 — 유료 플랜 결제 성공 (INITIAL_PURCHASE) ──
+        if (eventType === "INITIAL_PURCHASE") {
+          import("../utils/notify.js").then(({ notifySuperAdmin }) => {
+            notifySuperAdmin({
+              type: "PAID_PLAN_ACTIVATED",
+              title: "유료 플랜 결제 성공",
+              body: `${poolInfo?.name ?? poolId} — ${resolved?.planName ?? tier} 구독 시작`,
+              poolId,
+              refId: poolId,
+              refType: "pool",
+              idempotencyKey: `paid_plan_${event.id ?? `${poolId}_${Date.now()}`}`,
+            }).catch(console.error);
+          }).catch(console.error);
+        }
+
         // ── 크레딧 자동 차감 (credit_auto_apply 플래그) ───────────────────
         if (eventType === "RENEWAL" || eventType === "INITIAL_PURCHASE") {
           isFeatureEnabled("credit_auto_apply", poolId).then(async (creditEnabled) => {
@@ -826,6 +841,21 @@ router.post("/x-trial-activate", requireAuth, requireRole("pool_admin"), async (
     }
 
     const activated = activateResult.rows[0] as any;
+
+    // ── N3: Super Admin 알림 — X 무료체험 시작 ──────────────────────────
+    import("../utils/notify.js").then(async ({ notifySuperAdmin }) => {
+      const [poolRow] = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows as any[];
+      notifySuperAdmin({
+        type: "X_TRIAL_STARTED",
+        title: "X 무료체험 시작",
+        body: `${poolRow?.name ?? poolId} 수영장이 X 3일 무료체험을 시작했습니다.`,
+        poolId,
+        refId: poolId,
+        refType: "pool",
+        idempotencyKey: `x_trial_started_${poolId}`,
+      }).catch(console.error);
+    }).catch(console.error);
+
     res.status(201).json({
       ok: true,
       x_trial_active: true,

@@ -67,6 +67,7 @@ const SuperKnowledgeReview    = lazy(() => import("@/pages/super/SuperKnowledgeR
 const SuperKnowledgeCandidates = lazy(() => import("@/pages/super/SuperKnowledgeCandidates"));
 const SuperNotices             = lazy(() => import("@/pages/super/SuperNotices"));
 const SuperAds                 = lazy(() => import("@/pages/super/SuperAds"));
+const SuperNotifications       = lazy(() => import("@/pages/super/SuperNotifications"));
 
 // ── QueryClient ──────────────────────────────────────────────────────────────
 const queryClient = new QueryClient();
@@ -181,6 +182,9 @@ function Router() {
         </Route>
         <Route path="/super/ads">
           <SuperPage><SuperAds /></SuperPage>
+        </Route>
+        <Route path="/super/notifications">
+          <SuperPage><SuperNotifications /></SuperPage>
         </Route>
         <Route path="/super/overview">
           <SuperPage><SuperOverview /></SuperPage>

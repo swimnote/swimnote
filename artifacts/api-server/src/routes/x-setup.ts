@@ -415,6 +415,22 @@ router.post("/x-setup/upload/curriculum", requireAuth, requireRole("pool_admin")
         reviewResult = null;
       }
 
+      // ── N5: Super Admin 알림 — 커리큘럼 파일 업로드 ────────────────────
+      import("../utils/notify.js").then(async ({ notifySuperAdmin }) => {
+        try {
+          const [poolRow] = (await superAdminDb.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows as any[];
+          notifySuperAdmin({
+            type: "CURRICULUM_UPLOADED",
+            title: "커리큘럼 파일 업로드",
+            body: `${poolRow?.name ?? poolId} — v${version} (${isReupload ? "재업로드" : "신규"})`,
+            poolId,
+            refId: fileId,
+            refType: "curriculum",
+            idempotencyKey: `curriculum_upload_${fileId}`,
+          }).catch(console.error);
+        } catch { /* 알림 실패는 무시 */ }
+      }).catch(console.error);
+
       res.json({
         ok: true,
         file_id: fileId,

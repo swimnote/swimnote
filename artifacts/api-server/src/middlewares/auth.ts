@@ -365,11 +365,14 @@ export function requireXMode(
         res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
         return;
       }
-      if (!result.xmode_entitlement) {
+      // x_trial: trial 활성 상태도 X 기능 접근 허용 (paid 없는 trial 포함)
+      // xmode_entitlement(paid/manual) 또는 x_trial 중 하나이면 통과
+      const hasTrialAccess = result.mode === "x_trial" && result.x_trial_active;
+      if (!result.xmode_entitlement && !hasTrialAccess) {
         res.status(403).json({ success: false, error: "XMODE_NOT_ENTITLED", message: "X 모드가 활성화되지 않은 수영장입니다." });
         return;
       }
-      if (result.mode !== "x") {
+      if (result.mode !== "x" && result.mode !== "x_trial") {
         res.status(403).json({ success: false, error: "XMODE_NOT_READY", message: "X 모드 설정이 완료되지 않았습니다." });
         return;
       }

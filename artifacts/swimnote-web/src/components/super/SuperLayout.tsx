@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+import { NotificationBell } from "@/pages/super/SuperNotifications";
 
 const NAV_ITEMS = [
   { path: "/super/overview",   label: "Overview" },
@@ -186,9 +187,12 @@ export default function SuperLayout({ children }: { children: React.ReactNode })
           ))}
         </nav>
 
-        {/* User / logout */}
+        {/* User / logout + 알림 벨 */}
         <div className="px-4 py-3 border-t border-[#e5e5e5]">
-          <div className="text-[11px] text-[#999] mb-1 truncate">{user?.name}</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[11px] text-[#999] truncate">{user?.name}</div>
+            <NotificationBell />
+          </div>
           <button
             onClick={handleLogout}
             className="text-[11px] text-[#aaa] hover:text-[#333] transition-colors"

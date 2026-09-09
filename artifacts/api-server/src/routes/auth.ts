@@ -367,6 +367,19 @@ router.post("/register", signupLimiter, async (req, res) => {
         }).catch(console.error);
       }).catch(console.error);
 
+      // ── N1: Super Admin 알림 — 수영장 신규 가입 ─────────────────────────
+      import("../utils/notify.js").then(({ notifySuperAdmin }) => {
+        notifySuperAdmin({
+          type: "POOL_SIGNUP",
+          title: "수영장 신규 가입",
+          body: `${pool_name.trim()} 수영장이 새로 가입했습니다.`,
+          poolId: poolId,
+          refId: poolId,
+          refType: "pool",
+          idempotencyKey: `pool_signup_${poolId}`,
+        }).catch(console.error);
+      }).catch(console.error);
+
       res.status(201).json({
         success: true,
         token,

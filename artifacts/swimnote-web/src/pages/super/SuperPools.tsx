@@ -35,6 +35,10 @@ interface PoolRow {
   x_manual: boolean;
   x_override: boolean;
   x_force_disabled: boolean;
+  x_trial_active: boolean;
+  x_trial_ends_at: string | null;
+  x_trial_started_at: string | null;
+  x_trial_used: boolean;
   created_at: string;
   updated_at: string;
   admin: { user_id: string | null; name: string; phone: string };
@@ -83,7 +87,16 @@ function fmtDT(d: string | null) {
 function modeLabel(row: PoolRow) {
   if (row.x_force_disabled) return { label: "X-OFF", cls: "bg-red-100 text-red-700" };
   if (row.xmode_entitlement) return { label: "X", cls: "bg-[#002F5F] text-white" };
+  if (row.x_trial_active)    return { label: "체험", cls: "bg-purple-100 text-purple-700" };
   return { label: "BASE", cls: "bg-[#f3f4f6] text-[#555]" };
+}
+function fmtTrialEnd(d: string | null) {
+  if (!d) return "";
+  const dt = new Date(d);
+  const now = new Date();
+  const diffH = Math.max(0, Math.round((dt.getTime() - now.getTime()) / 3600000));
+  if (diffH < 24) return `${diffH}h 남음`;
+  return `${Math.ceil(diffH / 24)}일 남음`;
 }
 function subStatusCls(s: string) {
   return s === "active" ? "bg-green-100 text-green-700"
@@ -280,7 +293,15 @@ export default function SuperPools() {
                         {row.x_manual && <Badge text="Manual" cls="bg-blue-100 text-blue-700" />}
                         {row.x_override && <Badge text="Override" cls="bg-amber-100 text-amber-700" />}
                         {row.x_force_disabled && <Badge text="Force-Off" cls="bg-red-100 text-red-700" />}
-                        {!row.x_paid && !row.x_manual && !row.x_override && !row.x_force_disabled && <span className="text-[#bbb]">—</span>}
+                        {row.x_trial_active && (
+                          <span title={`체험 종료: ${row.x_trial_ends_at ? new Date(row.x_trial_ends_at).toLocaleString("ko-KR") : "-"}`}>
+                            <Badge text={`무료체험 중 · ${fmtTrialEnd(row.x_trial_ends_at)}`} cls="bg-purple-100 text-purple-700" />
+                          </span>
+                        )}
+                        {!row.x_trial_active && row.x_trial_used && (
+                          <Badge text="체험완료" cls="bg-gray-100 text-gray-400" />
+                        )}
+                        {!row.x_paid && !row.x_manual && !row.x_override && !row.x_force_disabled && !row.x_trial_active && !row.x_trial_used && <span className="text-[#bbb]">—</span>}
                       </div>
                     </td>
                     {/* 학생 */}
