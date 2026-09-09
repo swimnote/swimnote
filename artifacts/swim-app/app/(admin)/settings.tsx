@@ -451,6 +451,9 @@ export default function SettingsScreen() {
         <View style={{ alignItems: "center", paddingVertical: 16, gap: 2 }}>
           <Text style={s.versionApp}>SWIMNOTE</Text>
           <Text style={s.versionNum}>관리자 설정</Text>
+          <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#BBBBBB", marginTop: 6 }}>
+            Powered by SWIMNOTE AI with OpenAI GPT
+          </Text>
         </View>
       </ScrollView>
 

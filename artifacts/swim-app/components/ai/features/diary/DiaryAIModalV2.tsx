@@ -136,6 +136,10 @@ export default function DiaryAIModalV2({
       case 'RECORDING':
         return (
           <View style={styles.contentPad}>
+            {/* AI Branding — "💡 AI 일지 작성 방법" 카드 위 */}
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#AAAAAA", textAlign: "center", paddingBottom: 14 }}>
+              Powered by SWIMNOTE AI with OpenAI GPT
+            </Text>
             <AIInputArea
               value={hook.inputText}
               onChangeText={hook.setInputText}

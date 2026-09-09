@@ -757,6 +757,11 @@ export default function DashboardScreen() {
 
           </>
         )}
+
+        {/* AI Branding */}
+        <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#AAAAAA", textAlign: "center", paddingVertical: 20 }}>
+          Powered by SWIMNOTE AI with OpenAI GPT
+        </Text>
       </ScrollView>
 
       {/* ── 검색 모달 ── */}

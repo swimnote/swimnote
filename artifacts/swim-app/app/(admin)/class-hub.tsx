@@ -88,6 +88,11 @@ export default function ClassHubScreen() {
             </View>
           </View>
         ))}
+
+        {/* AI Branding */}
+        <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#AAAAAA", textAlign: "center", paddingVertical: 16 }}>
+          Powered by SWIMNOTE AI with OpenAI GPT
+        </Text>
       </ScrollView>
     </View>
   );
