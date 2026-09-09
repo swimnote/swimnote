@@ -55,6 +55,17 @@ export interface PoolModeResult {
    * Super Admin 전용 — 클라이언트에서 활성화 불가.
    */
   x_management_override: boolean;
+  /**
+   * 결제 실패 후 유예기간 종료로 서비스 정지된 상태.
+   * true → 앱 진입 차단 (관리자: 결제 갱신 CTA, 선생님/학부모: 안내만)
+   * 데이터는 보존되며 재결제 시 즉시 복구.
+   */
+  payment_suspended: boolean;
+  /**
+   * 결제 실패 후 스토어 유예기간 진행 중.
+   * true → 서비스 정상 운영, 관리자에게만 경고 배너 표시
+   */
+  payment_grace: boolean;
 }
 
 // ── effective entitlement 계산 (단일 source of truth) ─────────────────────
@@ -173,7 +184,8 @@ export async function resolvePoolMode(
            x_trial_ends_at,
            x_trial_used_at,
            subscription_tier,
-           subscription_status
+           subscription_status,
+           payment_suspended_at
     FROM swimming_pools
     WHERE id = ${poolId}
     LIMIT 1
@@ -200,6 +212,10 @@ export async function resolvePoolMode(
     ? new Date(row.x_trial_used_at).toISOString() : null;
   const trialActive = !!(trialStartedAt && trialEndsAt && new Date(trialEndsAt) > new Date());
 
+  const subStatus: string = row.subscription_status ? String(row.subscription_status) : "";
+  const paymentSuspended = subStatus === "payment_suspended";
+  const paymentGrace     = subStatus === "grace";
+
   return {
     pool_id: row.id,
     mode: computeMode({
@@ -211,7 +227,7 @@ export async function resolvePoolMode(
       x_trial_ends_at:         trialEndsAt,
       // Amendment A1: subscription_required 판정용
       subscription_tier:       row.subscription_tier  ? String(row.subscription_tier)  : null,
-      subscription_status:     row.subscription_status ? String(row.subscription_status) : null,
+      subscription_status:     subStatus || null,
       // BASE manual: Super Admin 직접부여 → subscription_required 건너뜀
       base_manual_entitlement: Boolean(row.base_manual_entitlement),
       // Management override (최우선 — computeMode 최상단 분기)
@@ -226,5 +242,8 @@ export async function resolvePoolMode(
     x_trial_used:       trialUsedAt !== null,
     // Management override
     x_management_override: managementOverride,
+    // 결제 정지 / 유예 상태
+    payment_suspended: paymentSuspended,
+    payment_grace:     paymentGrace,
   };
 }

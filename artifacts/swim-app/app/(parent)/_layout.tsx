@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentProvider } from "@/context/ParentContext";
 import { useAuth } from "@/context/AuthContext";
+import { useMode } from "@/context/ModeContext";
 
 const C = Colors.light;
 
@@ -132,13 +133,45 @@ function ParentStack() {
   );
 }
 
+function PaymentSuspendedParent() {
+  const insets = useSafeAreaInsets();
+  const { logout } = useAuth();
+  return (
+    <View style={[g.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+      <View style={g.content}>
+        <View style={[g.iconBox, { backgroundColor: "#FEE2E2" }]}>
+          <LucideIcon name="credit-card" size={40} color="#DC2626" />
+        </View>
+        <Text style={g.title}>서비스가 일시 정지되었습니다</Text>
+        <Text style={g.message}>
+          수영장의 구독 결제가 완료되지 않아{"\n"}
+          서비스가 일시 정지되었습니다.{"\n\n"}
+          관리자에게 문의해 주세요.
+        </Text>
+        <View style={[g.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <InfoRow icon="shield" color="#2E9B6F" text="데이터는 안전하게 보존됩니다" />
+          <InfoRow icon="refresh-cw" color={C.brandStrong} text="결제 완료 후 즉시 복구됩니다" />
+        </View>
+      </View>
+      <Pressable onPress={logout}>
+        <Text style={g.logoutText}>로그아웃</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function ParentLayout() {
   const { kind, isLoading, parentJoinStatus } = useAuth();
+  const { payment_suspended } = useMode();
 
   if (isLoading || kind !== "parent") return null;
 
   if (parentJoinStatus && BLOCKED_STATUSES.includes(parentJoinStatus)) {
     return <ApprovalPendingScreen status={parentJoinStatus} />;
+  }
+
+  if (payment_suspended) {
+    return <PaymentSuspendedParent />;
   }
 
   return (

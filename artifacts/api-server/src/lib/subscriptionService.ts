@@ -345,10 +345,13 @@ export async function applySubscriptionState(
   }
 
   // ── 읽기전용 해제 (구매/갱신 시) ──
+  // payment_suspended_at도 함께 초기화 (PAYMENT_SUSPENDED 복구 포함)
   if (resetReadonly) {
     await db.execute(sql`
       UPDATE swimming_pools
-      SET is_readonly = false, upload_blocked = false, readonly_reason = NULL, payment_failed_at = NULL, updated_at = now()
+      SET is_readonly = false, upload_blocked = false, readonly_reason = NULL,
+          payment_failed_at = NULL, payment_suspended_at = NULL,
+          updated_at = now()
       WHERE id = ${poolId}
     `);
   }

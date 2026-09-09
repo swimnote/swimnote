@@ -125,6 +125,10 @@ import("./migrations/curriculum-app-master-init.js")
 import("./migrations/super-admin-notifications.js")
   .then(m => m.runSuperAdminNotificationsMigration())
   .catch((e) => console.error("[super-admin-notifications] migration 오류:", e.message));
+// Payment Suspended: swimming_pools.payment_suspended_at 컬럼 추가 (결제 정지 시각)
+import("./migrations/payment-suspended.js")
+  .then(m => m.runPaymentSuspendedMigration())
+  .catch((e) => console.error("[payment-suspended] migration 오류:", e.message));
 // GR-Interactions: readiness-critical — Promise.all로 이동됨 (위 참조)
 // GR1B: gr_analysis_status_enum에 DATA_ACCUMULATING 추가 (additive, 멱등)
 // gr1b migration (DATA_ACCUMULATING enum)은 수동 실행 전용.

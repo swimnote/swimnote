@@ -47,12 +47,21 @@ export default function TeacherLayout() {
     return () => { if (messengerTimerRef.current) clearInterval(messengerTimerRef.current); };
   }, [fetchMessengerBadge]));
 
+  const { payment_suspended } = useMode();
+
   // Amendment A1: SUBSCRIPTION_REQUIRED global gate (teacher layout)
   useEffect(() => {
     if (mode === "subscription_required") {
       router.replace("/(admin)/subscription" as any);
     }
   }, [mode]);
+
+  // 결제 정지 게이트 (teacher layout)
+  useEffect(() => {
+    if (payment_suspended) {
+      router.replace("/(admin)/payment-suspended" as any);
+    }
+  }, [payment_suspended]);
 
   // 권한 보호: teacher 이외 역할이 teacher 화면에 직접 접근 시 올바른 홈으로 리다이렉트
   // 역할별 라우팅 규칙:

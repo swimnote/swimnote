@@ -505,54 +505,79 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "EXPIRATION": {
-        // new_subscription_policy 플래그: ON → 90일 유예 (v2), OFF → 즉시 비활성화 (v1)
-        const useV2Policy = await isFeatureEnabled("new_subscription_policy", poolId).catch(() => true);
-        const graceDays = useV2Policy ? 90 : 7; // v1은 7일 유예
-        const deletionDate = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000).toISOString();
-        await applySubscriptionState(poolId, "free", "free_default", "cancelled", {
-          endsAt: null,
-        });
-        await db.execute(sql`
-          UPDATE swimming_pools
-          SET is_readonly = true, upload_blocked = true,
-              readonly_reason = 'cancelled',
-              subscription_status = 'cancelled',
-              deactivated_at = NOW(),
-              deletion_scheduled_at = ${deletionDate}::timestamptz,
-              updated_at = NOW()
-          WHERE id = ${poolId}
-        `);
-        logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `구독 만료 → 비활성화 처리 (${graceDays}일 후 ${deletionDate.slice(0,10)} 영구삭제 예약, 정책: v${useV2Policy ? 2 : 1})`,
-          metadata: { eventType, productId, deletion_scheduled_at: deletionDate, grace_days: graceDays } }).catch(console.error);
+        // 결제 실패(payment_failed_at 있음) 후 유예기간 종료 → PAYMENT_SUSPENDED (데이터 보존)
+        // 정상 취소 후 만료 → 기존 cancelled + 삭제 예약 flow
+        const [expPool] = (await db.execute(sql`
+          SELECT payment_failed_at, subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `)).rows as any[];
 
-        import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
-          createOpsAlert({
-            type: "subscription_expired",
-            title: "구독 만료 → 비활성화",
-            message: `${poolId} 수영장 구독 만료. 90일 후 (${deletionDate.slice(0,10)}) 영구 삭제 예정.`,
-            severity: "warning",
-            relatedPoolId: poolId,
+        if (expPool?.payment_failed_at) {
+          // 결제 미납 유예기간 종료 → 서비스 정지 (삭제 없음, 복구 가능)
+          await db.execute(sql`
+            UPDATE swimming_pools
+            SET subscription_status = 'payment_suspended',
+                payment_suspended_at = now(),
+                is_readonly = true, upload_blocked = true,
+                readonly_reason = 'payment_suspended',
+                updated_at = now()
+            WHERE id = ${poolId}
+          `);
+          logEvent({ pool_id: poolId, category: "결제", actor_id: "revenuecat", actor_name: "RevenueCat",
+            description: `결제 유예기간 종료 → 서비스 정지 (PAYMENT_SUSPENDED, 데이터 보존)`,
+            metadata: { eventType, productId } }).catch(console.error);
+          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+            createOpsAlert({
+              type: "subscription_expired",
+              title: "구독 정지 (결제 미완료)",
+              message: `${poolId} 수영장 — 결제 유예기간 종료, 서비스 정지. 재결제 시 즉시 복구.`,
+              severity: "critical",
+              relatedPoolId: poolId,
+            }).catch(console.error);
           }).catch(console.error);
-        }).catch(console.error);
+        } else {
+          // 정상 취소 후 만료 → 기존 cancelled + 삭제 예약 flow
+          const useV2Policy = await isFeatureEnabled("new_subscription_policy", poolId).catch(() => true);
+          const graceDays = useV2Policy ? 90 : 7;
+          const deletionDate = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000).toISOString();
+          await applySubscriptionState(poolId, "free", "free_default", "cancelled", { endsAt: null });
+          await db.execute(sql`
+            UPDATE swimming_pools
+            SET is_readonly = true, upload_blocked = true,
+                readonly_reason = 'cancelled',
+                subscription_status = 'cancelled',
+                deactivated_at = NOW(),
+                deletion_scheduled_at = ${deletionDate}::timestamptz,
+                updated_at = NOW()
+            WHERE id = ${poolId}
+          `);
+          logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+            description: `구독 만료 → 비활성화 처리 (${graceDays}일 후 ${deletionDate.slice(0,10)} 영구삭제 예약, 정책: v${useV2Policy ? 2 : 1})`,
+            metadata: { eventType, productId, deletion_scheduled_at: deletionDate, grace_days: graceDays } }).catch(console.error);
+          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+            createOpsAlert({
+              type: "subscription_expired",
+              title: "구독 만료 → 비활성화",
+              message: `${poolId} 수영장 구독 만료. ${graceDays}일 후 (${deletionDate.slice(0,10)}) 영구 삭제 예정.`,
+              severity: "warning",
+              relatedPoolId: poolId,
+            }).catch(console.error);
+          }).catch(console.error);
+        }
         break;
       }
 
       case "BILLING_ISSUE": {
-        // 결제 실패 — tier 유지, 상태 변경 + 읽기전용
-        const [curPool2] = (await db.execute(sql`
-          SELECT subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
-        `)).rows as any[];
-        const curTier2 = curPool2?.subscription_tier ?? "free";
-        await applySubscriptionState(poolId, curTier2, "revenuecat", "payment_failed");
+        // 결제 실패 → GRACE 상태: tier 유지, is_readonly 미설정 (스토어 유예기간 동안 서비스 정상)
+        // EXPIRATION 발생 시 PAYMENT_SUSPENDED로 전환됨
         await db.execute(sql`
           UPDATE swimming_pools
-          SET is_readonly = true, upload_blocked = true,
-              readonly_reason = 'payment_failed', payment_failed_at = now(), updated_at = now()
+          SET subscription_status = 'grace',
+              payment_failed_at = now(),
+              updated_at = now()
           WHERE id = ${poolId}
         `);
         logEvent({ pool_id: poolId, category: "결제", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `결제 실패 (RevenueCat): ${productId}`, metadata: { eventType, productId } }).catch(console.error);
+          description: `결제 실패 (RevenueCat) → GRACE 상태 시작: ${productId}`, metadata: { eventType, productId } }).catch(console.error);
         break;
       }
 

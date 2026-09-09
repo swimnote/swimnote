@@ -44,6 +44,10 @@ export interface PoolModeResult {
   x_trial_started_at?: string | null;
   x_trial_ends_at?: string | null;
   x_trial_used?: boolean;
+  /** 결제 실패 후 유예기간 종료로 서비스 정지 (재결제 시 즉시 복구) */
+  payment_suspended?: boolean;
+  /** 결제 실패 후 스토어 유예기간 진행 중 (서비스 정상, 관리자 경고만) */
+  payment_grace?: boolean;
 }
 
 export type ModeLoadState = "idle" | "loading" | "ready" | "error";
@@ -70,6 +74,10 @@ export interface ModeContextValue {
   x_trial_active: boolean;
   x_trial_ends_at: string | null;
   x_trial_used: boolean;
+  /** 결제 실패 후 유예기간 종료, 서비스 정지 중. 앱 진입 차단 + 재결제 안내. */
+  payment_suspended: boolean;
+  /** 결제 실패 후 스토어 유예기간 진행 중. 서비스 정상, 관리자에게만 경고 배너 표시. */
+  payment_grace: boolean;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -84,6 +92,8 @@ const DEFAULT_VALUE: ModeContextValue = {
   x_trial_active: false,
   x_trial_ends_at: null,
   x_trial_used: false,
+  payment_suspended: false,
+  payment_grace: false,
 };
 
 const ModeContext = createContext<ModeContextValue>(DEFAULT_VALUE);
@@ -305,6 +315,9 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     x_trial_active:   state.result?.x_trial_active  ?? false,
     x_trial_ends_at:  state.result?.x_trial_ends_at ?? null,
     x_trial_used:     state.result?.x_trial_used    ?? false,
+    // 결제 정지 / 유예 상태
+    payment_suspended: state.result?.payment_suspended ?? false,
+    payment_grace:     state.result?.payment_grace     ?? false,
   };
 
   return (

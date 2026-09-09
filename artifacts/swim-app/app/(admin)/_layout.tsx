@@ -80,6 +80,8 @@ export default function AdminLayout() {
     }
   }, [isLoading, kind, adminUser?.role]);
 
+  const { payment_suspended, payment_grace } = useMode();
+
   // Amendment A1: SUBSCRIPTION_REQUIRED global gate
   // mode=subscription_required → 구독 필요 화면으로 유도
   // 허용: subscription 화면 (이미 이 레이아웃 내에 존재)
@@ -90,6 +92,13 @@ export default function AdminLayout() {
       router.replace("/(admin)/subscription" as any);
     }
   }, [mode]);
+
+  // 결제 정지 게이트 — PAYMENT_SUSPENDED 상태: 서비스 정지 화면으로 유도
+  useEffect(() => {
+    if (payment_suspended) {
+      router.replace("/(admin)/payment-suspended" as any);
+    }
+  }, [payment_suspended]);
 
   function makeTabListener(tabName: string) {
     return ({ navigation }: { navigation: any; route: any }) => ({
@@ -115,6 +124,13 @@ export default function AdminLayout() {
       <View style={[wdStyle.banner, { top: insets.top }]}>
         <Text style={wdStyle.bannerText}>
           계정 탈퇴 유예 중 — {daysLeft}일 후 자동 삭제 · 재구독 시 복구 가능 (읽기 전용)
+        </Text>
+      </View>
+    )}
+    {payment_grace && !isWithdrawing && (
+      <View style={[wdStyle.banner, wdStyle.graceBanner, { top: insets.top }]}>
+        <Text style={wdStyle.bannerText}>
+          구독 결제 확인이 필요합니다. 결제 수단을 확인해주세요.
         </Text>
       </View>
     )}
@@ -277,6 +293,8 @@ export default function AdminLayout() {
       <Tabs.Screen name="x-subscription"         options={{ href: null }} />
       {/* CS-02R — AI 문의 (고객센터) */}
       <Tabs.Screen name="support-chat"           options={{ href: null }} />
+      {/* 결제 정지 화면 — PAYMENT_SUSPENDED 상태 전용 */}
+      <Tabs.Screen name="payment-suspended"      options={{ href: null }} />
     </Tabs>
     </View>
   );
@@ -292,6 +310,9 @@ const wdStyle = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 16,
     alignItems: "center",
+  },
+  graceBanner: {
+    backgroundColor: "#DC2626",
   },
   bannerText: {
     color: "#fff",

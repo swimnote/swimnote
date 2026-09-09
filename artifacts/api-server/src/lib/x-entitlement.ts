@@ -145,6 +145,7 @@ export async function handleXEntitlementEvent(
       // xmode_config_status: 절대 수정 안 함
       // x_manual_entitlement: 수정 금지
       // x_auto_renew_cancelled: 갱신/재구독 시 false 복원
+      // payment_suspended_at: PAYMENT_SUSPENDED 복구 시 초기화
       //
       // [WP3] x_plan_key: RC product ID에서 plan key를 결정할 수 있으면 갱신
       // 결정 불가(null)이면 기존값 유지 (COALESCE)
@@ -157,6 +158,7 @@ export async function handleXEntitlementEvent(
         SET x_paid_entitlement        = true,
             xmode_subscription_end_at = ${expiresAt ?? null},
             xmode_payment_failed_at   = NULL,
+            payment_suspended_at      = NULL,
             xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
             x_auto_renew_cancelled    = false${planKeyFragment},
             updated_at                = NOW()
@@ -183,6 +185,8 @@ export async function handleXEntitlementEvent(
     case "EXPIRATION": {
       newPaid = false;
       // x_manual_entitlement가 true이면 effective는 여전히 true일 수 있음 (collision safety)
+      // xmode_payment_failed_at 있으면 → PAYMENT_SUSPENDED (데이터 보존, 복구 가능)
+      const wasPaymentFailed = currentPool.xmode_payment_failed_at != null;
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
         SET x_paid_entitlement        = false,
@@ -190,6 +194,18 @@ export async function handleXEntitlementEvent(
             updated_at               = NOW()
         WHERE id = ${poolId}
       `);
+      if (wasPaymentFailed) {
+        // 결제 실패 후 X 유예기간 종료 → PAYMENT_SUSPENDED
+        await superAdminDb.execute(sql`
+          UPDATE swimming_pools
+          SET subscription_status = 'payment_suspended',
+              payment_suspended_at = NOW(),
+              is_readonly = true, upload_blocked = true,
+              readonly_reason = 'payment_suspended',
+              updated_at = NOW()
+          WHERE id = ${poolId}
+        `);
+      }
       break;
     }
 

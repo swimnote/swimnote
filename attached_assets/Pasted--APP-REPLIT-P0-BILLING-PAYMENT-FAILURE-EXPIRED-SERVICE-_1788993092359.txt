@@ -1,0 +1,305 @@
+[보낼 곳: APP REPLIT]
+
+[P0 BILLING — PAYMENT FAILURE / EXPIRED SERVICE SUSPENSION]
+
+목표:
+X 구독 갱신 결제가 실패했을 때
+데이터를 삭제하지 않고,
+유예기간 이후 완전 만료 시 pool 단위로 SWIMNOTE 서비스 이용을 일시중지한다.
+
+중요:
+결제 실패 ≠ 즉시 BASE 전환
+결제 실패 ≠ 회원 데이터 삭제
+결제 완전 만료 후에는 관리자/선생님/학부모 앱 사용을 제한한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 상태 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 상태:
+
+ACTIVE
+GRACE
+PAYMENT_SUSPENDED
+RECOVERED
+
+정책:
+
+ACTIVE
+→ 정상 사용
+
+갱신 결제 실패 + Store grace period 유효
+→ GRACE
+→ 기존 X 기능 유지
+→ 관리자에게 결제수단 확인 안내
+
+grace period 종료 + entitlement 비활성/만료
+→ PAYMENT_SUSPENDED
+
+결제 복구
+→ RECOVERED
+→ 즉시 기존 정상 플랜/권한 복구
+
+자동 BASE downgrade 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PAYMENT_SUSPENDED 동작
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool 단위 suspension.
+
+기존 데이터:
+- 회원
+- 반
+- 출결
+- 보강
+- 일정
+- 공지
+- 일지
+- 사진/영상 메타
+- 커리큘럼
+- 성장리포트
+- X 관련 데이터
+
+삭제/퇴원/초기화 0.
+
+단, 신규 운영 비용 발생 기능은 차단:
+
+- 신규 회원 생성
+- 신규 반 생성
+- 출결/일지 신규 저장
+- 사진/영상 신규 업로드
+- AI 호출
+- 성장리포트 생성
+- Parent AI
+- X AI
+- 신규 push 생성
+- 기타 write API
+
+가능하면 서버 공통 guard로 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. APP ENTRY GATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+로그인 성공 후 / 앱 foreground 진입 시
+현재 pool billing suspension 상태 확인.
+
+PAYMENT_SUSPENDED면
+기존 홈 화면으로 진입하지 않고
+전용 suspension screen 표시.
+
+관리자 문구:
+
+"SWIMNOTE 이용이 일시 중지되었습니다"
+
+"구독 결제가 완료되지 않아 서비스 이용이 중지되었습니다.
+기존 회원 및 수업 데이터는 안전하게 보관되어 있습니다.
+구독을 갱신하면 기존 상태 그대로 다시 이용할 수 있습니다."
+
+CTA:
+"구독 갱신하기"
+
+관리자만 결제/구독 관리 화면 접근 허용.
+
+선생님 문구:
+
+"SWIMNOTE 서비스 이용이 일시 중지되었습니다"
+
+"수영장의 구독 상태를 확인해주세요."
+
+학부모 문구:
+
+"SWIMNOTE 서비스 이용이 일시 중지되었습니다"
+
+"수영장의 서비스 이용이 재개되면 기존 기록을 다시 확인할 수 있습니다."
+
+선생님/학부모는 홈/기능 진입 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. API SERVER GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+클라이언트 화면만 막는 방식 금지.
+
+PAYMENT_SUSPENDED pool은
+결제 복구/인증/필수 billing endpoint 제외하고
+운영 write API를 서버에서도 차단.
+
+표준 응답 예:
+
+HTTP 402 또는 기존 정책에 맞는 상태코드
+
+{
+  "code": "POOL_SUBSCRIPTION_SUSPENDED"
+}
+
+read API도 비용 절감을 위해
+선생님/학부모 일반 기능은 차단 가능.
+
+관리자는 billing recovery에 필요한 최소 read만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. GRACE PERIOD
+━━━━━━━━━━━━━━━━━━━━━━
+
+BILLING_ISSUE 발생 즉시 서비스 정지 금지.
+
+Store/RevenueCat entitlement가 grace period 동안 active이면:
+→ GRACE
+→ X 유지
+
+관리자에게만 상단 경고:
+
+"구독 결제 확인이 필요합니다.
+결제수단을 확인해주세요."
+
+선생님/학부모는 정상 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. REVENUECAT WEBHOOK
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 webhook 이벤트 기준으로 상태 전환 확인.
+
+예상:
+
+BILLING_ISSUE
+→ grace/entitlement 상태 확인
+→ GRACE
+
+RENEWAL / recovery
+→ ACTIVE
+→ suspension 해제
+
+EXPIRATION / entitlement inactive after grace
+→ PAYMENT_SUSPENDED
+
+CANCELLATION은 즉시 suspension 아님.
+현재 paid-through date까지 ACTIVE 유지.
+
+PRODUCT_CHANGE도 즉시 suspension 아님.
+
+Store event 이름/필드는
+현재 실제 RevenueCat webhook schema 기준으로 확인 후 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. MEMBER LIMIT 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+X500 사용 중 회원 500명인데 결제 만료됐다고
+SWIMNOTE 기본플랜으로 자동 전환 금지.
+
+500명 데이터 그대로 보존.
+
+PAYMENT_SUSPENDED 상태 유지.
+
+사용자가 나중에 직접 SWIMNOTE 기본플랜으로 변경하려면
+target plan member limit 검증.
+
+현재 회원 수가 target plan limit 초과면
+downgrade 거부.
+
+예:
+
+"SWIMNOTE 기본플랜은 최대 N명까지 이용할 수 있습니다.
+현재 등록 회원 수가 N명을 초과하여 변경할 수 없습니다."
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 결제수단 수정 또는 재구독 완료:
+
+RevenueCat entitlement active
+→ 기존 X plan 복구
+→ PAYMENT_SUSPENDED 해제
+→ 앱 재진입/refresh 시 즉시 정상 사용
+
+데이터 복구 migration 필요 없어야 함.
+애초에 삭제하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. COST PROTECTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+PAYMENT_SUSPENDED 동안:
+
+- AI API 호출 0
+- 신규 media upload 0
+- 신규 push fanout 최소/0
+- background costly jobs 제외
+- growth report 자동 생성 제외
+- scheduled X jobs 제외
+
+기존 DB/R2 데이터는 보관.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. X500 ACTIVE
+→ 전체 정상
+
+B. BILLING_ISSUE + grace active
+→ GRACE
+→ X 유지
+→ 관리자 경고만 표시
+
+C. grace 종료 + entitlement inactive
+→ PAYMENT_SUSPENDED
+
+D. 관리자 앱 재실행
+→ suspension screen
+→ 구독 갱신 CTA만 사용 가능
+
+E. 선생님 앱 재실행
+→ suspension screen
+→ 기능 진입 불가
+
+F. 학부모 앱 재실행
+→ suspension screen
+→ 기능 진입 불가
+
+G. 직접 API write 호출
+→ 서버 차단
+
+H. 회원 500명 데이터
+→ 삭제 0
+
+I. 결제 복구
+→ 기존 X500 즉시 복구
+→ 회원 500명 그대로
+
+J. cancellation
+→ paid-through date까지 ACTIVE 유지
+
+K. manual/HQ entitlement
+→ 결제 suspension 로직과 충돌하지 않게 canonical resolver 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 상태 저장 위치
+2. webhook 이벤트별 상태 전환
+3. grace 판정 방식
+4. suspension server guard
+5. admin screen
+6. teacher screen
+7. parent screen
+8. billing recovery route
+9. member limit downgrade guard
+10. cost protection
+11. manual/HQ entitlement 영향
+12. tests
+13. 수정 파일
+14. DB migration 여부
+15. main HEAD
+16. Render LIVE SHA
+17. iOS OTA
+18. Android next build 포함 여부
+19. blocker
+20. 최종 PASS/HOLD
+
+완료 후 STOP.
