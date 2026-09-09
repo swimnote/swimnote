@@ -941,12 +941,18 @@ export default function SubscriptionScreen() {
                 현재 결제기간 종료 후 SWIMNOTE(₩9,900/월)로 전환됩니다.{"\n"}
                 X 기능은 결제기간 종료일까지 유지됩니다.
               </Text>
-              <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB", marginTop: 6 }]}>
-                <LucideIcon name="clock" size={13} color={C.textMuted} />
-                <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>
-                  다음 결제일부터 SWIMNOTE로 변경 (준비 중)
+              {/* [P0 2026-09-10] handleSwimnoteSubscribe 재사용 — RC purchasePackage → Store가 다음 갱신 시 SWIMNOTE로 전환.
+                  서버 PRODUCT_CHANGE webhook이 pending_tier 예약 처리 (X 즉시 차단 없음). */}
+              <Pressable
+                style={({ pressed }) => [s.cardAction, { backgroundColor: "#F0F4FF", borderColor: NAVY + "30", marginTop: 6, opacity: pressed ? 0.8 : 1 }]}
+                onPress={handleSwimnoteSubscribe}
+                disabled={isPurchasing}
+              >
+                <LucideIcon name="arrow-down-circle" size={13} color={NAVY} />
+                <Text style={[s.cardActionText, { color: NAVY, marginLeft: 4 }]}>
+                  다음 결제일부터 SWIMNOTE로 변경
                 </Text>
-              </View>
+              </Pressable>
             </View>
           )}
 
