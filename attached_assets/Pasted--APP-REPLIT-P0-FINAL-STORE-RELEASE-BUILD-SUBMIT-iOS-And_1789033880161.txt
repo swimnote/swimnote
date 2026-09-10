@@ -1,0 +1,336 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL STORE RELEASE BUILD + SUBMIT — iOS / Android]
+
+목표:
+최종 P0 smoke PASS 상태의 최신 release/v2.0.0 전체 코드를 기준으로
+
+1. iOS 최종 Production native build
+2. iOS App Store Connect 제출
+3. Android 최종 Production AAB build 245
+
+까지 진행한다.
+
+중요:
+- 새 기능 추가 금지
+- 리팩터링 금지
+- 실제 Production P0가 아닌 수정 금지
+- stale source / stale bundle 사용 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE LOCK
+━━━━━━━━━━━━━━━━━━━━━━
+
+branch:
+
+release/v2.0.0
+
+실행:
+
+git fetch origin
+git checkout release/v2.0.0
+git pull --ff-only
+
+반드시:
+
+HEAD == origin/release/v2.0.0
+
+최소 기준:
+
+2e53eced
+
+2e53eced 이후 정상 commit이 origin에 존재하면
+최신 origin HEAD 사용.
+
+tracked working tree clean 확인.
+
+untracked attached_assets 등은
+native build archive/context에 포함되지 않도록 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. FINAL CONTENT VERIFY
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 source에 반드시 포함:
+
+- PURCHASE_SUBSCRIPTION_REFUND v1.0
+- 신규 pool_admin 정책 동의 gate
+- 기존 admin 로그인 차단 없음
+- trial 전 정책 동의
+- purchase 전 정책 동의
+- Super Admin consent read-only
+- swimnote.admin@gmail.com
+- subscription shortcut
+- DATA100 / DATA300 항상 표시 + 구매 HOLD
+- Store localized price 적용
+- X Trial exact 72h
+- XRestartRequiredModal
+- SWIMNOTE → X upgrade
+- X → SWIMNOTE deferred downgrade
+- PAYMENT_SUSPENDED
+- Powered by SWIMNOTE AI with OpenAI GPT
+- Diary provenance/safety
+- BASE/X 데이터 보존
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FRESH BUNDLE
+━━━━━━━━━━━━━━━━━━━━━━
+
+iOS / Android 둘 다 fresh Metro bundle.
+
+절대 금지:
+
+- --skip-bundler
+- 기존 dist 재사용
+- 기존 export 재사용
+- build 244 bundle 재사용
+- 과거 OTA bundle 재사용
+
+fresh bundle에서 최소 문자열 확인:
+
+"구매·구독·환불 정책"
+
+"swimnote.admin@gmail.com"
+
+"X 무료체험 적용 완료"
+
+"X 모드 적용 완료"
+
+"구독 관리"
+
+"요금제 및 결제 관리"
+
+"DATA100"
+
+"DATA300"
+
+"Powered by SWIMNOTE AI with OpenAI GPT"
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. iOS FINAL PRODUCTION BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준:
+
+App version:
+2.0.1
+
+runtimeVersion:
+2.1.0
+
+bundleIdentifier:
+현재 Production com.swimnote.app 설정 유지
+
+기존 Production iOS buildNumber:
+255
+
+따라서 새 native build는
+buildNumber를 충돌 없는 다음 값으로 증가.
+
+권장:
+256
+
+단 App Store Connect에 이미 256이 존재하면
+다음 사용 가능한 번호 사용.
+
+EAS production profile.
+
+Production env/API/RevenueCat 설정 사용.
+
+iOS OTA production-v2의 최신 수정사항이
+native source에도 전부 포함되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. iOS BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+EAS iOS Production build 실행.
+
+조건:
+
+- fresh source
+- fresh Metro bundle
+- native/runtime compatible
+- App Store 배포용 signing
+- Development/TestFlight 전용 설정 금지
+
+Build SUCCESS까지 대기.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. iOS APP STORE CONNECT SUBMIT
+━━━━━━━━━━━━━━━━━━━━━━
+
+iOS build SUCCESS 후
+해당 새 Production build를 App Store Connect에 제출.
+
+EAS Submit 사용 가능하면 그대로 사용.
+
+목표:
+
+App Store Connect
+→ SWIMNOTE 2.0.1
+→ 새 build 업로드 완료
+
+중요:
+
+자동으로 App Review 제출 버튼까지 눌러
+심사를 시작하는 기능이 별도 단계라면
+임의로 심사 제출하지 말 것.
+
+여기서 "제출"의 범위는:
+
+EAS build
+→ App Store Connect binary upload
+
+까지.
+
+App Store Connect에 새 build가
+Processing / Ready to Submit 상태로 들어간 것까지 확인.
+
+만약 기존 release metadata와 연결하여
+실제 Review submission까지 자동으로 안전하게 가능한
+기존 확정 workflow가 이미 있다면 보고 후 진행.
+
+불확실하면 binary upload까지만 하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ANDROID FINAL BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+applicationId:
+
+com.swimnote.app
+
+versionName:
+
+2.0.1
+
+versionCode:
+
+245
+
+runtimeVersion:
+
+2.1.0
+
+EAS production profile.
+
+Android Production AAB fresh build.
+
+Google Play official products:
+
+com.swimnote.swimnote.monthly:monthly
+com.swimnote.x300.monthly:monthly
+com.swimnote.x500.monthly:monthly
+com.swimnote.x1000.monthly:monthly
+
+product replacement 정책 유지:
+
+upgrade:
+IMMEDIATE_AND_CHARGE_FULL_PRICE
+
+downgrade:
+DEFERRED
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. ANDROID 제출 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android:
+
+AAB build SUCCESS까지 진행.
+
+Google Play Production rollout은
+자동 실행 금지.
+
+Play Console upload도
+별도 지시 전에는 하지 말 것.
+
+AAB artifact 생성 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. RELEASE SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+다시 광범위한 QA/audit 하지 말 것.
+
+다음만 blocker 확인:
+
+- compile failure
+- native dependency incompatibility
+- signing failure
+- RevenueCat production config missing
+- Production env missing
+- bundle generation failure
+- App Store upload rejection
+- Android AAB build failure
+
+사소한 warning은 blocker로 확대하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로 보고:
+
+1. branch
+2. final HEAD
+3. origin exact
+4. tracked tree clean
+5. untracked build 제외 확인
+6. fresh bundle 확인
+7. stale dist/export 미사용
+
+[iOS]
+8. app version
+9. buildNumber
+10. runtimeVersion
+11. bundleIdentifier
+12. EAS iOS build ID
+13. iOS build status
+14. IPA artifact 생성 여부
+15. App Store Connect submit/upload status
+16. App Store Connect에서 확인된 build number
+17. Processing / Ready 상태
+18. iOS warning/error
+19. iOS blocker
+
+[Android]
+20. versionName
+21. versionCode
+22. runtimeVersion
+23. applicationId
+24. EAS Android build ID
+25. Android build status
+26. AAB artifact 생성 여부
+27. AAB size
+28. Android warning/error
+29. Android blocker
+
+[FINAL]
+30. policy v1.0 포함
+31. swimnote.admin@gmail.com 포함
+32. Store localized price 포함
+33. DATA100/300 표시 + HOLD 포함
+34. X Trial/restart 포함
+35. PAYMENT_SUSPENDED 포함
+36. branding 포함
+37. 최종 PASS/HOLD/FAIL
+
+PASS 조건:
+
+iOS:
+- latest HEAD
+- fresh Production native build SUCCESS
+- App Store Connect binary upload SUCCESS
+
+Android:
+- latest HEAD
+- fresh Production AAB SUCCESS
+- versionCode 245
+- Production rollout 미실행
+
+전체 blocker:
+0
+
+완료 후 STOP.

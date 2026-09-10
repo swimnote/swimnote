@@ -1,0 +1,319 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL STORE RELEASE BUILD — ANDROID 245]
+
+목표:
+최종 P0 smoke PASS 상태인 최신 release/v2.0.0 전체 코드를
+누락 없이 Android 출시용 native AAB로 fresh build한다.
+
+이 빌드 이후:
+실제 새로운 Production P0가 발견되지 않는 한
+추가 기능 개발/리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE LOCK
+━━━━━━━━━━━━━━━━━━━━━━
+
+canonical branch:
+
+release/v2.0.0
+
+실행:
+
+git fetch origin
+git checkout release/v2.0.0
+git pull --ff-only
+
+반드시 확인:
+
+HEAD == origin/release/v2.0.0
+
+최소 기준 HEAD:
+
+2e53eced
+
+origin에 2e53eced 이후 정상 commit이 있다면
+가장 최신 origin HEAD 사용.
+
+working tree의 실제 tracked 변경:
+0
+
+중요:
+untracked attached_assets 등이 존재하면
+Android build archive/context에 포함되지 않는지 확인.
+
+필요 없는 사용자 첨부/테스트 asset을
+빌드에 포함시키지 말 것.
+
+과거:
+244 source
+243 source
+stale checkout
+cherry-pick 조립
+
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. FINAL RELEASE CONTENT VERIFY
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 source에 아래가 모두 포함되어야 함.
+
+[정책]
+
+- PURCHASE_SUBSCRIPTION_REFUND v1.0
+- 신규 pool_admin 가입 후 정책 동의 → onboarding
+- 기존 admin 로그인 강제차단 없음
+- trial 전 최신 정책 동의 확인
+- 유료구매 전 최신 정책 동의 확인
+- Super Admin 동의 상태 read-only 조회
+- 기존 refund-policy 데이터 보존
+- 환불/구독 문의:
+  앱 내 고객센터 또는
+  swimnote.admin@gmail.com
+
+[구독]
+
+- SWIMNOTE
+- X300
+- X500
+- X1000
+
+실제 판매 가격 source:
+
+RevenueCat StoreProduct
+pkg.product.priceString
+
+Android 현재 실가격:
+
+X300 ₩130,000
+X500 ₩200,000
+X1000 ₩360,000
+
+SWIMNOTE도 Google Play priceString 사용.
+
+앱 카드
+=
+정책 구매 modal
+=
+confirmation
+=
+Store 실제가격
+
+[Google Play product IDs]
+
+com.swimnote.swimnote.monthly:monthly
+com.swimnote.x300.monthly:monthly
+com.swimnote.x500.monthly:monthly
+com.swimnote.x1000.monthly:monthly
+
+[X 결제변경]
+
+SWIMNOTE → X:
+oldProductIdentifier
++
+IMMEDIATE_AND_CHARGE_FULL_PRICE
+
+X 하위플랜 / X → SWIMNOTE:
+DEFERRED
+
+이중구독 방지 유지.
+
+[X TRIAL]
+
+- exact 72h
+- 1회
+- 자동결제 없음
+- 신규 pool 가능
+- false failure fix
+- no-cache verify
+- retry
+- infinite spinner fix
+- XRestartRequiredModal
+- Updates.reloadAsync()
+- 재실행 후 x_trial
+- X AI Diary/Growth 등 trial 허용 feature
+- paid entitlement와 trial 분리
+
+[PAYMENT LIFECYCLE]
+
+- GRACE
+- PAYMENT_SUSPENDED
+- recovery
+- cancellation은 paid-through까지 이용
+- expiration 후 자동 BASE downgrade 금지
+- 데이터 삭제 금지
+- admin/teacher/parent suspension gate
+- manual/HQ 예외
+
+[DATA]
+
+DATA100
++100GB
+₩7,900/월
+준비 중
+
+DATA300
++300GB
+₩22,900/월
+준비 중
+
+BASE / X Trial / X Paid 모두 카드 표시.
+
+Store purchase 호출:
+0
+
+[기타]
+
+- 설정 첫 화면 구독 관리 shortcut
+- 기존 운영 및 정책 → 구독 관리 유지
+- Powered by SWIMNOTE AI with OpenAI GPT
+- Auth unique/debounce
+- Diary Safety
+- AI provenance protection
+- storage/temp cleanup
+- BASE/X 데이터 보존
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FRESH BUNDLE
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대조건:
+
+fresh Metro/Expo bundle.
+
+금지:
+
+- 기존 dist 재사용
+- 기존 export 재사용
+- --skip-bundler
+- Android 244 bundle 재사용
+- stale JS bundle
+
+빌드 전에 fresh bundle에서 최소 확인:
+
+"구매·구독·환불 정책"
+
+"swimnote.admin@gmail.com"
+
+"X 무료체험 적용 완료"
+
+"X 모드 적용 완료"
+
+"구독 관리"
+
+"요금제 및 결제 관리"
+
+"DATA100"
+
+"DATA300"
+
+"Powered by SWIMNOTE AI with OpenAI GPT"
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ANDROID RELEASE VERSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+applicationId:
+
+com.swimnote.app
+
+versionName:
+
+2.0.1
+
+versionCode:
+
+245
+
+runtimeVersion:
+
+2.1.0
+
+EAS production profile.
+
+RevenueCat Android production key/config 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PREBUILD SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- official 4 products 정상
+- Coach/Premier 구형 판매 UI 없음
+- DATA purchase HOLD
+- AI Insight purchase HOLD
+- policy consent와 paid entitlement 분리
+- API URL Production
+- AI Engine URL Production
+- runtime/native compatibility 정상
+- debug/test endpoint 또는 dev-only flag가 Production 기능을 대체하지 않음
+
+광범위한 새로운 audit 금지.
+
+현재 release blocker만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android AAB fresh production build.
+
+versionCode:
+245
+
+목적:
+Google Play Store 출시용 최종 binary.
+
+단:
+
+빌드 완료 직후 자동 Production rollout 금지.
+
+먼저 AAB SUCCESS 및 source 확인 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. branch
+2. final source HEAD
+3. origin exact 여부
+4. tracked working tree clean 여부
+5. attached_assets 등 untracked build 제외 여부
+6. 2e53eced 포함 여부
+7. fresh bundle 증거
+8. stale dist/export 미사용
+9. versionName
+10. versionCode
+11. runtimeVersion
+12. applicationId
+13. policy v1.0 포함
+14. swimnote.admin@gmail.com 포함
+15. Store localized price 적용 포함
+16. DATA100/300 표시 + HOLD 포함
+17. X Trial/restart 포함
+18. Android product replacement 포함
+19. PAYMENT_SUSPENDED 포함
+20. branding 포함
+21. AAB build ID
+22. build status
+23. artifact 생성 여부
+24. artifact size
+25. build warning/error
+26. blocker
+27. 최종 PASS/HOLD
+
+PASS 조건:
+
+- HEAD == 최신 origin/release/v2.0.0
+- HEAD >= 2e53eced
+- fresh bundle
+- versionCode 245
+- AAB SUCCESS
+- blocker 0
+
+PASS 후:
+자동 Google Play Production rollout 하지 말고 STOP.
