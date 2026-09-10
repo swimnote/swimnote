@@ -251,41 +251,50 @@ export default function SubscriptionScreen() {
     // NEED_VERIFY       — POST 성공 / 네트워크 예외 / ALREADY_USED 모두 포함
     let confirmedReject = false;
     let rejectMsg: string | null = null;
+    let isActive = false;
 
     try {
-      const res = await apiRequest(token, "/billing/x-trial-activate", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const code = data?.error ?? "";
-        // ALREADY_USED / ALREADY_ACTIVE: 이전 요청이 이미 성공했을 수 있음 → verify
-        if (code !== "TRIAL_ALREADY_USED" && code !== "TRIAL_ALREADY_ACTIVE") {
-          confirmedReject = true;
-          rejectMsg = trialErrorMessage(code);
+      try {
+        const res = await apiRequest(token, "/billing/x-trial-activate", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const code = data?.error ?? "";
+          // ALREADY_USED / ALREADY_ACTIVE: 이전 요청이 이미 성공했을 수 있음 → verify
+          if (code !== "TRIAL_ALREADY_USED" && code !== "TRIAL_ALREADY_ACTIVE") {
+            confirmedReject = true;
+            rejectMsg = trialErrorMessage(code);
+          }
         }
+        // res.ok 이면 fall-through → verify
+      } catch {
+        // 네트워크 예외 — POST 서버 성공 가능 → verify
       }
-      // res.ok 이면 fall-through → verify
-    } catch {
-      // 네트워크 예외 — POST 서버 성공 가능 → verify
-    }
 
-    if (confirmedReject) {
-      setTrialError(rejectMsg);
+      if (confirmedReject) {
+        setTrialError(rejectMsg);
+        return; // finally가 setTrialActivating(false) 처리
+      }
+
+      // 성공 여부 확인 (캐시 bypass + 최대 3회 retry: 0 / 500ms / 1500ms)
+      isActive = await verifyTrialActive();
+
+      if (!isActive) {
+        // UNKNOWN: 네트워크 문제로 서버 상태를 확인할 수 없음
+        setTrialError("무료체험 상태를 확인하지 못했습니다. 앱을 재실행하면 정상 반영됩니다.");
+      }
+      // isActive === true 이면 에러 없음 — trial banner가 ModeContext 갱신 후 자동 표시
+    } finally {
+      // ── 반드시 spinner 해제 (모든 경로: success/reject/unknown/throw) ─────
       setTrialActivating(false);
-      return;
+      // ModeContext 갱신 + billing state 갱신은 fire-and-forget:
+      // await하면 network 30s timeout 동안 spinner가 유지됨.
+      // forceRefreshMode() 완료 후 mode/x_trial_active 업데이트 → banner 자동 표시.
+      forceRefreshMode().catch(() => {});
+      if (isActive) {
+        // 성공 시에만 billing state(currentTier/endsAt 등) 재조회
+        loadData().catch(() => {});
+      }
     }
-
-    // 성공 여부 확인 (캐시 bypass + 최대 3회 retry: 0 / 500ms / 1500ms)
-    const isActive = await verifyTrialActive();
-    if (isActive) {
-      // CONFIRMED_SUCCESS 또는 RECOVERED_SUCCESS — 에러 없음
-      await forceRefreshMode().catch(() => {});
-    } else {
-      // UNKNOWN: 네트워크 문제로 서버 상태를 확인할 수 없음
-      // "체험 시작 실패" 대신 UNKNOWN 안내
-      setTrialError("무료체험 상태를 확인하지 못했습니다. 앱을 재실행하면 정상 반영됩니다.");
-      await forceRefreshMode().catch(() => {});
-    }
-    setTrialActivating(false);
   }
 
   // ── 데이터 로드 ─────────────────────────────────────────────────────────────
