@@ -408,6 +408,7 @@ export default function ParentAlbumScreen() {
                 source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
                 style={st.lbImage}
                 contentFit="contain"
+                cachePolicy="memory"
               />
             ) : null}
           </View>
@@ -474,6 +475,7 @@ export default function ParentAlbumScreen() {
                   source={{ uri: videoDetail.thumbnail_presigned_url }}
                   style={st.vdThumb}
                   contentFit="cover"
+                  cachePolicy="memory"
                 />
                 <View style={st.vdPlayOverlay}>
                   <LucideIcon name="play" size={36} color="#fff" fill="#fff" />
