@@ -244,6 +244,18 @@ export default function SubscriptionScreen() {
       // 구버전 mode(normal)가 남는 버그가 있음. forceRefreshMode()로 즉시 반영.
       await forceRefreshMode().catch(() => {});
     } catch {
+      // POST가 서버에서 성공했지만 네트워크 단절로 클라이언트에서 예외가 발생한 경우
+      // (Render cold-start, 응답 스트림 중단 등) DB는 실제로 업데이트됐을 수 있음.
+      // /pools/x-mode 재조회로 실제 activation 여부를 확인한 뒤 에러 표시 결정.
+      try {
+        await forceRefreshMode().catch(() => {});
+        const checkRes = await apiRequest(token, "/pools/x-mode");
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkRes.ok && checkData?.mode === "x_trial") {
+          // 서버에서는 성공 — 에러 메시지 표시하지 않음
+          return;
+        }
+      } catch {}
       setTrialError("체험 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setTrialActivating(false);

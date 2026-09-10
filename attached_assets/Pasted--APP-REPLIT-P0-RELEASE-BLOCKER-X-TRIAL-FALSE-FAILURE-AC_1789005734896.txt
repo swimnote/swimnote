@@ -1,0 +1,388 @@
+[보낼 곳: APP REPLIT]
+
+[P0 RELEASE BLOCKER — X TRIAL FALSE FAILURE + ACTUAL X_TRIAL ACCESS NOT APPLIED]
+
+실기기 iOS 신규 계정에서 실제 재현됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+실제 증상
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 신규 계정 / 신규 pool 생성
+2. 구독관리 → "3일 AI 기능 무료체험"
+3. "무료체험 시작하기" 클릭
+4. 앱 화면:
+   "체험 시작에 실패했습니다. 잠시 후 다시 시도해주세요."
+5. 앱 완전 종료 후 재실행
+6. 구독관리에서는:
+   "X AI 기능 무료체험 중"
+   종료일
+   "체험 중"
+   정상 표시
+7. 그러나 실제 관리자 앱은 여전히 일반 SWIMNOTE처럼 동작하며
+   X Trial 기능 상태가 전체 앱에 적용되지 않음.
+
+따라서 현재 문제는 2개가 동시에 존재할 가능성이 높음:
+
+A. 서버 trial activation은 실제 성공했는데
+   client가 성공 이후 과정의 오류를 activation 실패로 잘못 표시
+
+B. canonical mode=x_trial 상태를
+   실제 feature access / admin UI가 완전하게 사용하지 않음
+
+이전 refreshMode lock 수정만 다시 제출하지 말 것.
+실제 Production 신규 계정 재현 기준으로 끝까지 추적.
+
+Android 새 native build는 이 P0 해결 전 보류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. FALSE FAILURE 정확한 원인 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료체험 버튼 handler 전체 실행 순서를 추적:
+
+POST /billing/x-trial-activate
+→ response
+→ forceRefreshMode
+→ subscription refetch
+→ query invalidation
+→ state update
+→ navigation/UI update
+
+각 단계별 성공/실패를 분리.
+
+반드시 확인:
+
+- POST 실제 HTTP status
+- response body/error code
+- DB UPDATE 성공 여부
+- POST 성공 이후 어떤 코드가 throw하는지
+- catch 범위가 너무 넓어서 refresh/UI 오류까지
+  "체험 시작 실패"로 표시하는지
+
+핵심:
+
+DB trial activation이 성공했다면
+그 이후 refresh/UI 오류 때문에
+"체험 시작에 실패했습니다"라고 표시하면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 성공/실패 경계 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+activation 결과와
+post-activation refresh 결과를 분리.
+
+예:
+
+ACTIVATION FAILURE
+→ 서버 POST 자체가 실패
+→ "체험 시작 실패"
+
+ACTIVATION SUCCESS + REFRESH FAILURE
+→ trial 자체는 성공
+→ 실패 메시지 표시 금지
+→ canonical mode 재조회/retry
+→ 필요하면
+   "무료체험이 시작되었습니다. 화면을 새로고침합니다."
+   수준 처리
+
+서버에서 201/2xx + trial timestamps 저장 성공했는데
+generic failure banner가 뜨는 상태는 FAIL.
+
+연속 탭으로 두 번째 activate 요청 보내지 않게 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production 신규 pool DB 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실패 메시지가 뜬 신규 pool에서 확인:
+
+- x_trial_started_at
+- x_trial_ends_at
+- x_trial_used_at
+- x_paid_entitlement
+- x_manual_entitlement
+- x_management_override
+- x_force_disabled
+- payment_suspended_at
+- subscription_status
+- subscription_tier
+
+그리고 실제:
+
+GET /pools/x-mode
+
+응답 전체에서:
+
+mode
+trial_active
+trial_ends_at
+payment_suspended
+
+확인.
+
+기대값:
+
+mode = x_trial
+trial_active = true
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. X_TRIAL을 실제 FEATURE ACCESS로 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 전체에서 targeted search:
+
+mode === "x"
+mode !== "x"
+isXMode
+isX
+xmode
+requireX
+XModeGuard
+canUseX
+featureAccess
+x_paid_entitlement
+
+각 gate를 반드시 분류:
+
+A. FEATURE ACCESS
+B. PAID/BILLING
+
+FEATURE ACCESS 의미인 곳은
+정책상 x_trial 허용 여부를 확인하여 수정.
+
+PAID/BILLING 의미인 곳에는
+x_trial 절대 포함 금지.
+
+확정 의미:
+
+paid X:
+x_paid_entitlement
+
+trial:
+mode === "x_trial"
+
+manual:
+x_manual_entitlement
+
+HQ:
+x_management_override
+
+feature access:
+canonical X mode/access resolver
+
+mode === "x" 를 paid와 feature access 양쪽 의미로
+혼용하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ADMIN HOME 실제 문제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기에서 trial banner는 구독관리에서 보이나
+관리자 HOME은 일반 SWIMNOTE처럼 보임.
+
+(admin)/home.tsx 및 관련 component 확인.
+
+실제 paid X mode에서 관리자 홈에 추가되는:
+
+- X Mode Hub 진입
+- X AI 관련 entry
+- 성장관리/X 성장 entry
+- X 상태 카드/배지
+- 기타 X feature access UI
+
+목록화.
+
+그중 trial 허용 기능은
+x_trial에서도 반드시 표시/진입 가능.
+
+단 paid-only 표시는 trial에 노출 금지.
+
+전체 홈 redesign 금지.
+기존 X paid UI 분기에 x_trial이 빠진 것만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. TRIAL에서 반드시 열려야 하는 기능
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 확정 trial 범위 최소:
+
+- BASE 모든 기능
+- X AI Diary
+- trial 허용 Growth 기능
+- AI Growth Report trial + READY
+- X Mode Hub
+- 관리자 홈의 trial 허용 X entry
+- 학부모 홈의 trial 허용 X 표시
+- 일지 저장 시 growth_event
+- 학부모 성장보고서 상세 trial access
+
+trial에서 열리면 안 되는 것:
+
+- x_paid_entitlement 전용 처리
+- DATA purchase
+- AI Insight purchase
+- paid 계약 전용 기능
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 서버 FEATURE GUARD 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP UI만 수정하고 끝내지 말 것.
+
+trial 허용 endpoint 중
+서버에서 paid X만 허용하는 guard가 남아있는지 확인.
+
+trial 허용 기능:
+canonical feature access 기준
+
+결제/paid endpoint:
+paid entitlement 기준
+
+특히:
+
+AI Diary
+growth event
+growth report
+X trial 관련 endpoint
+
+실제 호출까지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. ONE-TIME 72H 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 정책 유지:
+
+첫 성공 시:
+
+x_trial_started_at = NOW
+x_trial_ends_at = NOW + exact 72h
+x_trial_used_at = NOW
+
+두 번째 activation:
+차단
+
+앱 재설치:
+재시작 불가
+
+logout/login:
+남은 기존 trial 유지
+
+실패 UI가 떴다고 trial 시간을 다시 시작하거나
+timestamps 덮어쓰기 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. PAYMENT_SUSPENDED
+━━━━━━━━━━━━━━━━━━━━━━
+
+payment_suspended pool:
+trial activation 차단 유지.
+
+trial로 결제 정지를 우회하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PRODUCTION 실기기/실API 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 clean Production test pool로 반드시 검증.
+
+CASE A
+신규 normal pool
+→ 무료체험 클릭
+→ POST 2xx
+→ 실패 banner 0
+→ 즉시 "체험 중"
+
+CASE B
+DB
+→ started_at / ends_at / used_at 정상
+→ exact 72h
+
+CASE C
+GET /pools/x-mode
+→ mode=x_trial
+
+CASE D
+관리자 HOME
+→ 앱 재실행 없이 X Trial 상태 반영
+
+CASE E
+X Mode Hub
+→ 진입 가능
+
+CASE F
+X AI Diary
+→ 실제 진입 및 호출 가능
+
+CASE G
+trial 허용 Growth
+→ 실제 진입 가능
+
+CASE H
+BASE 회원/반/출결/운영 기능
+→ 그대로 유지
+
+CASE I
+X300/X500/X1000
+→ "구독 시작" 유지
+→ trial을 paid로 오인하지 않음
+
+CASE J
+logout/login
+→ x_trial 유지
+
+CASE K
+두 번째 무료체험 시작
+→ 명시적 already-used 차단
+
+CASE L
+trial expiry
+→ BASE 복귀
+
+CASE M
+payment_suspended
+→ trial 시작 차단
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. "실패"가 떴는데 DB는 성공한 정확한 root cause
+2. POST 실제 HTTP status/body
+3. 성공 후 throw 발생 위치
+4. catch/error handling 수정
+5. Production 신규 pool DB before/after
+6. GET /pools/x-mode 실제 결과
+7. 잘못된 feature gate 전체 목록
+8. admin home gate 수정 목록
+9. server guard 수정 목록
+10. paid/trial 분리 확인
+11. CASE A~M 결과
+12. 수정 파일
+13. tests
+14. main HEAD
+15. Render LIVE SHA
+16. iOS OTA
+17. Android OTA
+18. 다음 Android native build 포함 여부
+19. blocker
+20. 최종 PASS/HOLD
+
+PASS 조건:
+
+- 신규 pool에서 첫 클릭 시 실패 메시지 0
+- POST 실제 성공
+- exact 72h DB 저장
+- 즉시 mode=x_trial
+- 앱 재실행 없이 X Trial UI/기능 반영
+- 관리자 HOME도 trial 상태 반영
+- X AI Diary 실제 사용 가능
+- trial Growth 실제 사용 가능
+- BASE 기능 유지
+- paid entitlement false
+- 재사용 차단
+- blocker 0
+
+완료 후 STOP.
