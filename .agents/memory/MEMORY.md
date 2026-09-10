@@ -26,6 +26,7 @@
 - [ScrollView contentContainerStyle flexGrow:0 버그](scrollview-flexgrow-bug.md) — contentContainerStyle에 flexGrow:0 넣으면 스크롤 불가; padding 값만 넣을 것
 - [standby-sync jsonb 배열 버그](standby-sync-jsonb-array-bug.md) — serializeForPg(v, pgType) + colTypes Map; students/parent_accounts/diary_messages 복제 검증 완료
 - [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송; diary_templates 1050개 global 존재
+- [★ AI 일지 데이터 소스 영구 원칙](ai-diary-data-source-rule.md) — 일지AI = curriculum+diary_templates 항상 병합; curriculum존재 여부와 무관; X mode만 별도; 2026-09-11 확정 불변
 - [업무 대화 스레드 구조](request-thread-structure.md) — parent_request_messages 테이블 auto-create 패턴; system message helper; teacher/parent 공통 API
 - [Production DB 연결 방법](prod-db-connection-method.md) — executeSql=NeonDB(Replit내장); 실제운영DB=SUPABASE_DATABASE_URL; /tmp tsx스크립트+buildConfig+pg Pool로 직접 연결
 - [Grounded support escalation](grounded-support-escalation.md) — GPT·Human 전환은 동일 Case의 반복·검증 근거·명시적 미해결 확인을 모두 거쳐야 함
