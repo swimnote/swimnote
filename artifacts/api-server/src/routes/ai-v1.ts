@@ -6,14 +6,14 @@
  * ╔══════════════════════════════════════════════════════════════════════════╗
  * ║  ★ 영구 불변 아키텍처 원칙 (2026-09-11 확정, 변경 금지)                 ║
  * ║                                                                          ║
- * ║  1. 일지 생성 시 curriculum_items + diary_templates 항상 병합 사용       ║
- * ║     - curriculum은 학부모 게이지(진도 추적) 목적과 겸용                  ║
- * ║     - 일지 AI는 모든 데이터 소스를 최대한 활용해 품질 극대화             ║
- * ║     - curriculum 존재 여부와 무관하게 diary_templates도 반드시 조회      ║
+ * ║  1. 일지 생성 AI는 diary_templates(AI 엔진 DB)만 사용 — 변경 금지        ║
+ * ║     - curriculum_items는 학부모 게이지·학생 레벨 전용                    ║
+ * ║     - 일지 생성에 curriculum_items를 관여시키지 않음                     ║
+ * ║     - 모든 수영장이 동일한 엔진 DB를 공유 → 전국 공통 품질 극대화        ║
  * ║                                                                          ║
- * ║  2. 검색 우선순위: curriculum_items 우선 → diary_templates 보충          ║
- * ║     - curriculum 결과가 있어도 diary_templates를 추가로 검색해 보충      ║
- * ║     - 중복 ID 제거 후 병합                                               ║
+ * ║  2. 검색: diary_templates 단독 사용 (Normal mode)                        ║
+ * ║     - hasCurriculumBasedDiary 분기 없음                                  ║
+ * ║     - 엔진 DB 콘텐츠 추가 시 즉시 전 수영장에 반영됨                     ║
  * ║                                                                          ║
  * ║  3. X mode는 별도 경로 유지 (x_global templates 전용, 이 원칙 비적용)   ║
  * ║                                                                          ║
@@ -294,40 +294,9 @@ router.post(
           (xTemplateStatus !== 'FOUND' ? ` fallback_reason=${xTemplateStatus}` : ''),
         );
       } else {
-        // Normal mode: ACTIVE Curriculum 있으면 curriculum_items 기반 검색 + diary_templates 보충 병합
-        //              Curriculum 없으면 legacy diary_templates만 사용
-        const hasCurriculum = await hasCurriculumBasedDiary(poolId);
-        if (hasCurriculum) {
-          // curriculum + diary_templates 병렬 검색 후 병합 (curriculum 우선)
-          const [curriculumResult, templateResult] = await Promise.all([
-            searchCurriculumForDiary(poolId, meaning),
-            searchTemplates(poolId, meaning),
-          ]);
-          // curriculum 결과 우선, diary_templates로 중복 없이 보충
-          const mergedTemplates = [...curriculumResult.usedTemplates];
-          for (const t of templateResult.usedTemplates) {
-            if (!mergedTemplates.some(m => m.id === t.id)) {
-              mergedTemplates.push(t);
-            }
-          }
-          searchResult = {
-            ...curriculumResult,
-            usedTemplates:  mergedTemplates,
-            usedCount:      mergedTemplates.length,
-            candidateCount: curriculumResult.candidateCount + templateResult.candidateCount,
-            candidateIds:   [...curriculumResult.candidateIds, ...templateResult.candidateIds],
-          };
-          console.log(
-            `[AI/v1:${internalId}] CURRICULUM_SEARCH_ROUTED` +
-            ` pool=${poolId} hasCurriculum=true` +
-            ` curriculum_used=${curriculumResult.usedCount}` +
-            ` template_supplement=${templateResult.usedCount}` +
-            ` merged_used=${mergedTemplates.length}` +
-            ` top_score=${searchResult.topScore.toFixed(2)}`,
-          );
-        } else {
-          searchResult = await searchTemplates(poolId, meaning);
-        }
+        // Normal mode: 항상 diary_templates(AI 엔진 DB)만 사용 — 전 수영장 공통 최대 품질
+        // curriculum_items는 학부모 게이지·학생 레벨 전용 (일지 생성에 관여하지 않음)
+        searchResult = await searchTemplates(poolId, meaning);
       }
       const template_ms = Date.now() - t_template;
 
