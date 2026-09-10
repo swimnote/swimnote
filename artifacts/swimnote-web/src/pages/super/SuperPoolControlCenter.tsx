@@ -3449,6 +3449,89 @@ function SupportTab({ poolId, prefillSubjectType, prefillSubjectId }: {
   );
 }
 
+// ─────────────────── Member Files Tab ──────────────────
+function MemberFilesTab({ poolId }: { poolId: string }) {
+  const [files, setFiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get<any>(`/super/pools/${poolId}/control-center/member-files`)
+      .then(d => setFiles(d.files ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [poolId]);
+
+  const download = async (file: any) => {
+    setDownloading(file.id);
+    try {
+      const r = await api.get<any>(
+        `/super/pools/${poolId}/control-center/member-files/${file.id}/download`
+      );
+      const a = document.createElement("a");
+      a.href = r.url;
+      a.download = r.filename ?? file.original_filename ?? "members.xlsx";
+      a.target = "_blank";
+      a.click();
+    } catch {
+      alert("다운로드 실패");
+    }
+    setDownloading(null);
+  };
+
+  const statusBadge = (s: string) =>
+    s === "success" ? <Badge color="green" text="성공" /> :
+    s === "failed"  ? <Badge color="red"   text="실패" /> :
+                      <Badge color="gray"  text="처리중" />;
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="space-y-4">
+      <Section title="회원 명단 업로드 이력">
+        {files.length === 0 ? (
+          <Empty text="업로드된 파일이 없습니다" />
+        ) : (
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="py-2 pr-4">파일명</th>
+                <th className="py-2 pr-4">업로드 일시</th>
+                <th className="py-2 pr-4">상태</th>
+                <th className="py-2 pr-4">행 수</th>
+                <th className="py-2">다운로드</th>
+              </tr>
+            </thead>
+            <tbody>
+              {files.map((f: any) => (
+                <tr key={f.id} className="border-b hover:bg-gray-50">
+                  <td className="py-2 pr-4 font-mono text-xs max-w-[200px] truncate" title={f.original_filename}>
+                    {f.original_filename}
+                  </td>
+                  <td className="py-2 pr-4 whitespace-nowrap text-gray-500">
+                    {new Date(f.created_at).toLocaleString("ko-KR")}
+                  </td>
+                  <td className="py-2 pr-4">{statusBadge(f.status)}</td>
+                  <td className="py-2 pr-4">{f.row_count ?? "—"}</td>
+                  <td className="py-2">
+                    <button
+                      onClick={() => download(f)}
+                      disabled={downloading === f.id}
+                      className="text-blue-600 hover:underline disabled:opacity-50 text-xs"
+                    >
+                      {downloading === f.id ? "..." : "다운로드"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Section>
+    </div>
+  );
+}
+
 // ─────────────────── Main Component ────────────────────
 const TABS = [
   { key: "overview",        label: "Overview" },
@@ -3465,6 +3548,7 @@ const TABS = [
   { key: "storage",         label: "Storage" },
   { key: "audit",           label: "Audit" },
   { key: "support",         label: "Support" },
+  { key: "member-files",    label: "Member Files" },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -3565,6 +3649,7 @@ export default function SuperPoolControlCenter() {
         {tab === "storage"        && <StorageTab poolId={poolId!} />}
         {tab === "audit"          && <AuditTab poolId={poolId!} />}
         {tab === "support"        && <SupportTab poolId={poolId!} />}
+        {tab === "member-files"   && <MemberFilesTab poolId={poolId!} />}
       </div>
     </div>
   );

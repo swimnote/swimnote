@@ -13,6 +13,7 @@ import {
 } from "../utils/historyUtils.js";
 import { isValidCalendarDate, validateMakeupDateRange } from "../lib/makeup-date-range.js";
 import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
+import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { deleteGrowthReport } from "../lib/growth-report-service.js";
 
 const router = Router();
@@ -5264,6 +5265,84 @@ router.delete(
     } catch (e) {
       console.error("[admin/notes/delete]", e);
       return res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  },
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 회원 엑셀 파일 저장 (업로드 시도마다 R2에 보관)
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.post(
+  "/upload-member-excel",
+  requireAuth,
+  requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { filename, content_b64, file_size } = req.body as {
+        filename: string;
+        content_b64: string;
+        file_size?: number;
+      };
+      if (!filename || !content_b64) return res.status(400).json({ error: "filename/content_b64 필수" });
+
+      const poolId = req.user!.poolId;
+      const buffer = Buffer.from(content_b64, "base64");
+
+      // R2 저장
+      const safeDate = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const rand = Math.random().toString(36).slice(2, 8);
+      const r2Key = `member-files/${poolId}/${safeDate}_${rand}_${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const mime = filename.endsWith(".csv") ? "text/csv"
+        : filename.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "application/octet-stream";
+
+      const { ok, error: upErr } = await uploadToR2(r2Key, buffer, mime, "photo");
+      if (!ok) throw new Error(upErr?.message ?? "R2 업로드 실패");
+
+      // DB 기록
+      const fileId = `mfu_${Date.now()}_${rand}`;
+      await superAdminDb.execute(sql`
+        INSERT INTO member_file_uploads
+          (id, pool_id, r2_key, original_filename, file_size_bytes, uploaded_by, status)
+        VALUES
+          (${fileId}, ${poolId}, ${r2Key}, ${filename},
+           ${file_size ?? buffer.byteLength}, ${req.user!.userId}, 'pending')
+      `);
+
+      return res.json({ success: true, file_id: fileId });
+    } catch (e: any) {
+      console.error("[upload-member-excel]", e);
+      return res.status(500).json({ error: "파일 저장 실패" });
+    }
+  },
+);
+
+// 배치 등록 완료 후 파일 상태 업데이트
+router.patch(
+  "/member-files/:fileId/status",
+  requireAuth,
+  requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { fileId } = req.params;
+      const { status, row_count, error_detail } = req.body as {
+        status: "success" | "failed";
+        row_count?: number;
+        error_detail?: string;
+      };
+      await superAdminDb.execute(sql`
+        UPDATE member_file_uploads
+        SET status = ${status},
+            row_count = ${row_count ?? null},
+            error_detail = ${error_detail ?? null},
+            updated_at = NOW()
+        WHERE id = ${fileId} AND pool_id = ${req.user!.poolId}
+      `);
+      return res.json({ success: true });
+    } catch (e) {
+      console.error("[member-files/status]", e);
+      return res.status(500).json({ error: "상태 업데이트 실패" });
     }
   },
 );

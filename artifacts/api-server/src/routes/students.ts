@@ -280,6 +280,8 @@ router.delete("/teacher-requests/:id/reject", requireAuth, requireRole("pool_adm
 
 // ── POST /batch — 학생 일괄 등록 ─────────────────────────────────
 router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
+  // 신형 { file_id, students: [...] } 또는 구형 [...] 배열 모두 허용
+  const isNew = req.body && !Array.isArray(req.body) && Array.isArray(req.body.students);
   const items: Array<{
     name: string;
     birth_year?: string | null;
@@ -287,7 +289,7 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     parent_phone?: string | null;
     weekly_count?: number;
     memo?: string | null;
-  }> = req.body;
+  }> = isNew ? req.body.students : req.body;
 
   if (!Array.isArray(items) || items.length === 0)
     return err(res, 400, "등록할 학생 데이터가 없습니다.");

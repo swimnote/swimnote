@@ -312,6 +312,7 @@ export default function BulkRegisterScreen() {
   const [showGuide, setShowGuide] = useState(true);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [capacity, setCapacity] = useState<{ limit: number; current: number; available: number } | null>(null);
+  const [fileB64, setFileB64] = useState<string | null>(null); // R2 보관용 원본 파일 base64
 
   const validRows   = rows.filter(r => !r._rowError && !r._autoSkipped);
   const errorRows   = rows.filter(r => !!r._rowError);
@@ -387,12 +388,14 @@ export default function BulkRegisterScreen() {
         const b64 = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
+        setFileB64(b64);
         wb = XLSX.read(b64, { type: "base64" });
       } else {
         // 네이티브 CSV: base64로 읽어 SheetJS 자동 감지 (UTF-8 BOM 처리)
         const b64 = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
+        setFileB64(b64);
         wb = XLSX.read(b64, { type: "base64" });
         // 헤더 미인식이면 EUC-KR(codepage 949)로 재시도
         if (parseWorkbookDebug(wb).rows.length === 0) {
@@ -452,38 +455,91 @@ export default function BulkRegisterScreen() {
     setUploadResult(null);
     setStep("processing");
 
+    // ── 파일 R2 보관 (성공/실패 무관하게 먼저 저장) ──────────
+    let fileId: string | null = null;
+    if (fileB64 && fileName) {
+      try {
+        const uploadRes = await apiRequest(token, "/admin/upload-member-excel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: fileName, content_b64: fileB64 }),
+        });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json().catch(() => ({}));
+          fileId = uploadData.file_id ?? null;
+        }
+      } catch { /* 파일 저장 실패는 무시 — 등록은 계속 */ }
+    }
+
+    // ── 배치 등록 ─────────────────────────────────────────────
     try {
       const apiRes = await apiRequest(token, "/students/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validRows.map(r => ({
-          name:          r.name,
-          birth_year:    r.birth_year    ?? null,
-          parent_name:   r.parent_name   ?? null,
-          parent_phone:  r.parent_phone  ?? null,
-          parent_phone2: r.parent_phone2 ?? null,
-          parent_phone3: r.parent_phone3 ?? null,
-          weekly_count:  r.weekly_count  ?? 1,
-          memo:          r.memo          ?? null,
-        }))),
+        body: JSON.stringify({
+          file_id: fileId,
+          students: validRows.map(r => ({
+            name:          r.name,
+            birth_year:    r.birth_year    ?? null,
+            parent_name:   r.parent_name   ?? null,
+            parent_phone:  r.parent_phone  ?? null,
+            parent_phone2: r.parent_phone2 ?? null,
+            parent_phone3: r.parent_phone3 ?? null,
+            weekly_count:  r.weekly_count  ?? 1,
+            memo:          r.memo          ?? null,
+          })),
+        }),
       });
 
       const data: UploadResult = await apiRes.json().catch(() => ({
         success: false, message: "서버 응답을 파싱할 수 없습니다.",
       }));
+
+      // 파일 상태 업데이트
+      if (fileId) {
+        apiRequest(token, `/admin/member-files/${fileId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: data.success ? "success" : "failed",
+            row_count: validRows.length,
+            error_detail: data.success ? null : (data.message ?? null),
+          }),
+        }).catch(() => {});
+      }
+
+      if (!data.success) {
+        data.message = "명단 업로드에 실패했습니다. 고객센터로 자동 불편 접수가 되었습니다.";
+        // 운영자 SMS 알림
+        apiRequest(token, "/admin/report-upload-issue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ error_type: "server", error_detail: data.message }),
+        }).catch(() => {});
+      }
+
       setUploadResult(data);
       setStep("done");
     } catch (e: any) {
-      setUploadResult({ success: false, message: "네트워크 오류가 발생했습니다." });
+      if (fileId) {
+        apiRequest(token, `/admin/member-files/${fileId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "failed", error_detail: "network" }),
+        }).catch(() => {});
+      }
+      setUploadResult({
+        success: false,
+        message: "명단 업로드에 실패했습니다. 고객센터로 자동 불편 접수가 되었습니다.",
+      });
       setStep("done");
-      // 운영자 알림 (백그라운드, 실패 무시)
       apiRequest(token, "/admin/report-upload-issue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ error_type: "network", error_detail: e?.message ?? "" }),
       }).catch(() => {});
     }
-  }, [canUpload, overLimit, validRows, token]);
+  }, [canUpload, overLimit, validRows, token, fileB64, fileName]);
 
   const resetAll = () => {
     setStep("pick");
@@ -492,6 +548,7 @@ export default function BulkRegisterScreen() {
     setParseError("");
     setUploadResult(null);
     setCapacity(null);
+    setFileB64(null);
   };
 
   // ══════════════════════════════════════════════════════════════

@@ -7962,6 +7962,60 @@ router.post(
   }
 );
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 슈퍼관리자 — 수영장별 회원 엑셀 파일 목록 / 다운로드
+// ══════════════════════════════════════════════════════════════════════════════
+
+router.get(
+  "/pools/:poolId/control-center/member-files",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { poolId } = req.params;
+      const rows = await superAdminDb.execute(sql`
+        SELECT mf.id, mf.original_filename, mf.file_size_bytes,
+               mf.status, mf.row_count, mf.error_detail,
+               mf.created_at, u.name AS uploader_name
+        FROM member_file_uploads mf
+        LEFT JOIN users u ON u.id = mf.uploaded_by
+        WHERE mf.pool_id = ${poolId}
+        ORDER BY mf.created_at DESC
+        LIMIT 100
+      `);
+      return res.json({ files: rows.rows });
+    } catch (e) {
+      console.error("[super/member-files]", e);
+      return res.status(500).json({ error: "조회 실패" });
+    }
+  },
+);
+
+router.get(
+  "/pools/:poolId/control-center/member-files/:fileId/download",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { poolId, fileId } = req.params;
+      const rows = await superAdminDb.execute(sql`
+        SELECT r2_key, original_filename
+        FROM member_file_uploads
+        WHERE id = ${fileId} AND pool_id = ${poolId}
+        LIMIT 1
+      `);
+      const file = rows.rows[0] as any;
+      if (!file?.r2_key) return res.status(404).json({ error: "FILE_NOT_FOUND" });
+
+      const url = await generateR2SignedUrl(file.r2_key, 300);
+      return res.json({ url, filename: file.original_filename });
+    } catch (e) {
+      console.error("[super/member-files/download]", e);
+      return res.status(500).json({ error: "다운로드 실패" });
+    }
+  },
+);
+
 export default router;
 
 
