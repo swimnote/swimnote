@@ -66,6 +66,12 @@ export interface ModeContextValue {
   /** 명시적 재조회 (foreground 복귀, WP4 등). 동시 호출 자동 차단. */
   refreshMode: () => Promise<void>;
   /**
+   * 강제 재조회 — 진행 중인 요청을 폐기하고 즉시 새 fetch 시작.
+   * trial activate, 구독 변경 등 DB 변경 직후 반드시 반영해야 할 때 사용.
+   * isRefreshingRef lock 우회 + seqRef 증가(in-flight 폐기) 후 refreshMode 호출.
+   */
+  forceRefreshMode: () => Promise<void>;
+  /**
    * 첫 번째 서버 mode 응답이 완료된 이후 true.
    * cold start 시 Normal 화면 flash 방지용 — true 이전에는 skeleton/loading 처리 권장.
    */
@@ -88,6 +94,7 @@ const DEFAULT_VALUE: ModeContextValue = {
   status: "idle",
   error: null,
   refreshMode: async () => {},
+  forceRefreshMode: async () => {},
   modeInitialized: false,
   x_trial_active: false,
   x_trial_ends_at: null,
@@ -302,6 +309,22 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   // refreshMode 의도적 제외: 안정적 useCallback이지만 포함 시 finally 블록의
   // isRefreshingRef 해제와 상호작용하여 불필요한 재실행 가능성이 있음
 
+  // ─── forceRefreshMode: lock 무시 + in-flight 폐기 + 즉시 새 fetch ────────
+  //
+  // 용도: trial activate, 구독 변경 등 DB write 직후 반드시 최신 mode를 받아야 할 때.
+  // 일반 refreshMode() 는 isRefreshingRef lock 으로 in-flight 요청이 있으면
+  // silently no-op 반환하여 stale mode 가 남는 버그가 발생함.
+  // forceRefreshMode: seqRef 증가(in-flight 응답 폐기) + lock 해제 → refreshMode 호출.
+  //
+  const forceRefreshMode = useCallback(async () => {
+    // in-flight 요청이 있으면 해당 응답을 stale 처리 (seqRef 증가로 폐기)
+    seqRef.current++;
+    // lock 강제 해제 — refreshMode 진입 허용
+    isRefreshingRef.current = false;
+    if (__DEV__) console.log("[XMODE] FORCE_REFRESH", { poolId: poolIdRef.current });
+    await refreshMode();
+  }, [refreshMode]);
+
   // ─── Context 값 ──────────────────────────────────────────────────────────
   const value: ModeContextValue = {
     mode: state.result?.mode ?? null,
@@ -310,6 +333,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     status: state.status,
     error: state.error,
     refreshMode,
+    forceRefreshMode,
     modeInitialized,
     // WP2B additive trial fields (서버 응답 기준)
     x_trial_active:   state.result?.x_trial_active  ?? false,

@@ -781,7 +781,8 @@ router.post("/x-trial-activate", requireAuth, requireRole("pool_admin"), async (
         COALESCE(x_force_disabled,    false) AS x_force_disabled,
         xmode_purchased_at,
         x_trial_used_at,
-        x_trial_ends_at
+        x_trial_ends_at,
+        subscription_status
       FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
 
@@ -791,6 +792,10 @@ router.post("/x-trial-activate", requireAuth, requireRole("pool_admin"), async (
     }
 
     // ── 사전 조건 검사 (명확한 error code 반환) ──────────────────────────
+    if (pool.subscription_status === "payment_suspended") {
+      res.status(403).json({ error: "TRIAL_NOT_AVAILABLE_PAYMENT_SUSPENDED", message: "결제 정지 상태에서는 무료체험을 시작할 수 없습니다. 구독을 먼저 갱신해주세요." });
+      return;
+    }
     if (Boolean(pool.x_force_disabled)) {
       res.status(403).json({ error: "TRIAL_FORCE_DISABLED", message: "운영 차단 상태에서는 체험을 시작할 수 없습니다." });
       return;
