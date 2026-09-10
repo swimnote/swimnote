@@ -448,7 +448,7 @@ export default function DiaryWriteView({
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} alwaysBounceHorizontal={false} contentContainerStyle={[s.mediaPreviewRow, { marginTop: 6 }]}>
                   {(studentAlbumPhotos[addNoteStudent.id] ?? []).map((p) => (
                     <Pressable key={p.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumPhoto(addNoteStudent.id, p.id)}>
-                      <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                      <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" cachePolicy="memory" />
                       <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
                         <LucideIcon name="x-circle" size={14} color="#fff" />
                       </View>
@@ -457,7 +457,7 @@ export default function DiaryWriteView({
                   {(studentAlbumVideos[addNoteStudent.id] ?? []).map((v) => (
                     <Pressable key={v.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumVideo(addNoteStudent.id, v.id)}>
                       {v.thumbnail_presigned_url ? (
-                        <ExpoImage source={{ uri: v.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                        <ExpoImage source={{ uri: v.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" cachePolicy="memory" />
                       ) : (
                         <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
                           <LucideIcon name="video" size={14} color="#94A3B8" />

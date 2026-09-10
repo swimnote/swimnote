@@ -23,7 +23,7 @@ import { ModeProvider, useMode } from "@/context/ModeContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 import { runLegacyMediaCleanup } from "@/utils/mediaStorageCleanup";
-import { runMediaCleanupV2, runMediaCleanupV3 } from "@/utils/mediaCleanupV2";
+import { runMediaCleanupV2, runMediaCleanupV3, runMediaCleanupWeekly } from "@/utils/mediaCleanupV2";
 import { DevOtaRestartModal } from "@/components/common/DevOtaRestartModal";
 
 // 1.6.3+: 명시적으로 "true"일 때만 점검 화면 진입. 기본값 = 정상 진입.
@@ -674,6 +674,9 @@ function RootNav() {
     const appVersion = Constants.expoConfig?.version ?? "unknown";
     runMediaCleanupV3(appVersion, false).catch(() => {});
   }, []);
+  // WEEKLY: 7일마다 SDWebImage disk cache + ImagePicker/Manipulator 정기 정리
+  // V1~V3는 1회성이라 완료 후 새 캐시를 방치 → 주기적 정리로 30GB 누적 방지
+  useEffect(() => { runMediaCleanupWeekly(false).catch(() => {}); }, []);
 
   // 백그라운드 복귀 처리 (V2)
   // - OTA 다운로드 완료 + 30분+ background: silent reload

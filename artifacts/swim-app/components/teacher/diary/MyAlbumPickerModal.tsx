@@ -443,6 +443,7 @@ export default function MyAlbumPickerModal({
             source={{ uri }}
             style={{ width: "100%", height: "100%", borderRadius: 4 }}
             contentFit="cover"
+            cachePolicy="memory"
           />
         ) : (
           <View style={[s.cellEmpty, { backgroundColor: bgColor }]}>
