@@ -81,6 +81,7 @@ function trialErrorMessage(code: string): string {
     case "TRIAL_NOT_AVAILABLE_FOR_PAID_X":          return "이미 SWIMNOTE X를 이용 중입니다.";
     case "TRIAL_NOT_AVAILABLE_FOR_PREVIOUS_X_BUYER":return "이전 X 구독 이력이 있는 센터는 체험을 이용할 수 없습니다.";
     case "TRIAL_FORCE_DISABLED":                    return "현재 X 체험을 이용할 수 없습니다.";
+    case "TRIAL_NOT_AVAILABLE_PAYMENT_SUSPENDED":   return "결제 정지 상태에서는 무료체험을 시작할 수 없습니다. 구독을 먼저 갱신해주세요.";
     default:                                        return "체험 시작에 실패했습니다. 잠시 후 다시 시도해주세요.";
   }
 }
@@ -231,14 +232,17 @@ export default function SubscriptionScreen() {
       if (!res.ok) {
         const code = data?.error ?? "";
         if (code === "TRIAL_ALREADY_ACTIVE") {
-          // 이미 활성 → mode refetch 후 trial UI 자동 반영
-          await refreshMode().catch(() => {});
+          // 이미 활성 → 강제 mode 재조회 (lock 해제 후 즉시 반영)
+          await forceRefreshMode().catch(() => {});
           return;
         }
         setTrialError(trialErrorMessage(code));
         return;
       }
-      await refreshMode().catch(() => {});
+      // DB 기록 성공 → 강제 재조회:
+      // refreshMode()는 in-flight 요청이 있으면 silently no-op 반환하여
+      // 구버전 mode(normal)가 남는 버그가 있음. forceRefreshMode()로 즉시 반영.
+      await forceRefreshMode().catch(() => {});
     } catch {
       setTrialError("체험 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
