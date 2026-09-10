@@ -5269,6 +5269,60 @@ router.delete(
 );
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 엑셀 업로드 실패 시 운영자 SMS 알림
+// ══════════════════════════════════════════════════════════════════════════════
+router.post(
+  "/report-upload-issue",
+  requireAuth,
+  requireRole("pool_admin", "sub_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { error_type, error_detail } = req.body as {
+        error_type: "parse" | "server" | "network";
+        error_detail?: string;
+      };
+
+      const operatorPhone = process.env["OPERATOR_ALERT_PHONE"];
+      if (!operatorPhone) {
+        return res.json({ success: true, skipped: true });
+      }
+
+      // 수영장 이름 + 원장 이름 조회
+      const poolRow = await db.execute(sql`
+        SELECT sp.name AS pool_name, u.name AS admin_name, u.phone AS admin_phone
+        FROM swimming_pools sp
+        LEFT JOIN users u ON u.id = ${req.user!.userId}
+        WHERE sp.id = ${req.user!.poolId}
+        LIMIT 1
+      `);
+      const info = poolRow.rows[0] as any;
+      const poolName  = info?.pool_name  ?? "수영장 미확인";
+      const adminName = info?.admin_name ?? "원장 미확인";
+      const adminPhone = info?.admin_phone ?? "";
+
+      const errorLabel =
+        error_type === "parse"   ? "파일 파싱 오류" :
+        error_type === "network" ? "네트워크 오류" : "서버 오류";
+
+      const { sendSms } = await import("../lib/sms/sendSms.js");
+      await sendSms({
+        phone: operatorPhone,
+        message:
+          `[SwimNote] 엑셀 업로드 실패\n` +
+          `수영장: ${poolName}\n` +
+          `원장: ${adminName}${adminPhone ? ` (${adminPhone})` : ""}\n` +
+          `오류: ${errorLabel}${error_detail ? `\n${error_detail.slice(0, 50)}` : ""}`,
+      });
+
+      return res.json({ success: true });
+    } catch (e) {
+      console.error("[report-upload-issue]", e);
+      return res.json({ success: true }); // 알림 실패가 업로드 UX를 막으면 안 됨
+    }
+  },
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
 
 export default router;
 

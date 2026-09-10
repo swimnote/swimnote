@@ -420,14 +420,20 @@ export default function BulkRegisterScreen() {
         }
       } catch { /* 한도 조회 실패 시 무시 */ }
     } catch (e: any) {
+      const detail = e?.message ?? "";
       setParseError(
-        "파일을 읽는 중 오류가 발생했습니다.\n지원 형식: xlsx, xls, csv\n" +
-        (e?.message ?? "")
+        "파일을 읽는 중 오류가 발생했습니다.\n지원 형식: xlsx, xls, csv\n" + detail
       );
+      // 운영자 알림 (백그라운드, 실패 무시)
+      apiRequest(token, "/admin/report-upload-issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error_type: "parse", error_detail: detail }),
+      }).catch(() => {});
     } finally {
       setLoadingFile(false);
     }
-  }, []);
+  }, [token]);
 
   // ── 등록 실행 (전체 한 번에 전송, 전체 거부 방식) ──────────────
   const handleSubmit = useCallback(async () => {
@@ -470,6 +476,12 @@ export default function BulkRegisterScreen() {
     } catch (e: any) {
       setUploadResult({ success: false, message: "네트워크 오류가 발생했습니다." });
       setStep("done");
+      // 운영자 알림 (백그라운드, 실패 무시)
+      apiRequest(token, "/admin/report-upload-issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error_type: "network", error_detail: e?.message ?? "" }),
+      }).catch(() => {});
     }
   }, [canUpload, overLimit, validRows, token]);
 
