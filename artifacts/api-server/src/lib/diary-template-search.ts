@@ -39,13 +39,13 @@ export const CANDIDATE_MIN_CONCEPT_OVERLAP = 0.30;
 
 /**
  * 실제 사용 최소 점수 (strokeMatch+focusMatch+conceptOverlap+observationMatch).
- * 1.40 이상이어야 프롬프트에 포함.
- * 영법 단독(strokeMatch=1, conceptOverlap=0) = 1.0 → 미달 → INPUT_ONLY
+ * 1.0 이상이어야 프롬프트에 포함.
+ * 영법 매칭만 있어도(strokeMatch=1) 통과 → AI 엔진 활용 극대화
  */
-export const USAGE_MIN_SCORE = 1.40;
+export const USAGE_MIN_SCORE = 1.0;
 
-/** 프롬프트에 실제 사용할 최대 템플릿 수 */
-export const TOP_K_USAGE = 1;
+/** 프롬프트에 실제 사용할 최대 템플릿 수 (AI 엔진 활용 극대화) */
+export const TOP_K_USAGE = 3;
 
 /** 한 번에 로드할 템플릿 최대 수 (pool 전체 로드, 인메모리 scoring) */
 const TEMPLATE_LOAD_LIMIT = 500;
