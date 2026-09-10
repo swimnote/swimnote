@@ -103,9 +103,11 @@ export const X = {
   pendingLight:       '#F8EED8',
 } as const;
 
-/** mode 값으로 X 모드인지 확인하는 헬퍼 */
+/** mode 값으로 X 모드인지 확인하는 헬퍼
+ * x_trial: 체험 중에도 X UI/feature 섹션 표시 (paid entitlement 판정에는 사용 금지)
+ */
 export function isXMode(mode: string | null | undefined): boolean {
-  return mode === 'x' || mode === 'x_pending';
+  return mode === 'x' || mode === 'x_pending' || mode === 'x_trial';
 }
 
 /** X 모드에서 헤더 배경색 */

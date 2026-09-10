@@ -1,0 +1,195 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL UX — X ENTITLEMENT APPLIED → APP RESTART REQUIRED MODAL]
+
+목표:
+무료체험 또는 실제 X 구독으로
+현재 pool의 X entitlement/mode가 새로 적용된 경우,
+즉시 앱 내에서 모든 상태를 억지로 hot-swap하지 않고
+"앱 재시작 필요" 모달을 띄운 뒤
+사용자가 확인하면 앱을 재실행하여 X 모드로 시작하게 한다.
+
+적용 대상:
+- X 3일 무료체험 시작 성공
+- SWIMNOTE → X300/X500/X1000 신규 구독/업그레이드 성공
+- normal → X300/X500/X1000 신규 구독 성공
+- 결제 복구로 PAYMENT_SUSPENDED → X ACTIVE 복귀 시 필요하면 동일 정책 적용
+
+제외:
+- X→SWIMNOTE downgrade 예약
+  → 즉시 mode 변경이 아니므로 재시작 모달 금지
+- X300→X500/X1000에서 Store 적용이 즉시인 경우는 entitlement 실제 변경 확인 후만 표시
+- 결제 취소/실패/UNKNOWN 상태에서는 표시 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 모달 표시 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버/RevenueCat 기준으로 실제 entitlement 적용이 확인된 경우만 표시.
+
+예:
+- trial activate 성공 + GET /pools/x-mode = x_trial
+- purchase 성공 + canonical mode = x
+- recovery 성공 + canonical mode = x
+
+단순 purchase sheet 종료만으로 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 모달 문구
+━━━━━━━━━━━━━━━━━━━━━━
+
+제목:
+"X 모드 적용 완료"
+
+본문:
+"SWIMNOTE X 기능이 적용되었습니다.
+앱을 재시작하면 X 모드로 이용할 수 있습니다."
+
+버튼:
+"앱 재시작"
+
+무료체험도 동일 문구 사용 가능.
+원하면 trial인 경우 제목만:
+"X 무료체험 적용 완료"
+로 구분 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 동작
+━━━━━━━━━━━━━━━━━━━━━━
+
+"앱 재시작" 버튼 클릭 시
+현재 플랫폼에서 지원되는 안전한 앱 reload/restart 방식 사용.
+
+Expo/React Native 현재 환경에서
+production 지원 가능한 방식 확인 후 구현.
+
+우선순위:
+1. 기존 프로젝트에 안전한 reload helper가 있으면 재사용
+2. expo-updates reloadAsync 등 현재 runtime에서 공식 지원되는 방식 검토
+3. native rebuild가 필요한 새 패키지 추가는 피할 것
+
+재시작 후:
+- ModeContext fresh load
+- /pools/x-mode fresh fetch
+- X Trial 또는 X paid 상태로 정상 진입
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실패 대비
+━━━━━━━━━━━━━━━━━━━━━━
+
+reload 호출 실패 시:
+
+"앱을 완전히 종료한 뒤 다시 실행해주세요."
+
+fallback 안내.
+
+entitlement 자체는 유지.
+
+재시작 실패 때문에:
+- trial rollback
+- purchase rollback
+- paid entitlement false
+처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. TRIAL FLOW 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+무료체험 시작
+→ spinner
+→ activation 성공
+→ forceRefreshMode
+→ 현재 화면 hot-swap
+
+변경:
+무료체험 시작
+→ activation 성공 확인
+→ spinner 종료
+→ restart-required modal
+→ 사용자가 "앱 재시작"
+→ reload
+→ X Trial로 시작
+
+즉 hot-swap을 성공 조건으로 요구하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PAID X PURCHASE FLOW 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+normal/SWIMNOTE → X purchase 성공 후:
+
+- RevenueCat purchase success
+- server sync 성공
+- canonical entitlement/mode 확인
+→ restart-required modal 표시
+
+X paid가 실제 적용되기 전에는 모달 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 중복 모달 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 entitlement change에 대해
+모달 1회만 표시.
+
+앱 재실행 후 다시 같은 모달이 뜨지 않게
+ephemeral/local guard 또는 기존 state transition 기준 사용.
+
+단 entitlement 영구 상태를 local flag로 위조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 신규 pool → X 무료체험
+→ 성공
+→ restart modal
+→ 앱 재시작
+→ x_trial
+
+B. SWIMNOTE → X300
+→ purchase success
+→ restart modal
+→ 재시작
+→ x
+
+C. normal → X500
+→ 동일
+
+D. payment cancel
+→ restart modal 0
+
+E. purchase error
+→ restart modal 0
+
+F. X→SWIMNOTE downgrade 예약
+→ restart modal 0
+
+G. reload 실패
+→ 수동 종료/재실행 안내
+→ entitlement 유지
+
+H. 재실행 후 동일 모달 반복 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 사용한 app reload 방식
+2. trial flow 변경
+3. paid X purchase flow 변경
+4. modal trigger 조건
+5. downgrade 제외 확인
+6. reload failure fallback
+7. 중복 모달 방지 방식
+8. 테스트 A~H
+9. 수정 파일
+10. main HEAD
+11. iOS OTA
+12. Android OTA
+13. next native build 포함 여부
+14. blocker
+15. 최종 PASS/HOLD
+
+완료 후 STOP.

@@ -33,7 +33,7 @@ const INFO_ITEMS: InfoItem[] = [
 export default function XModeHubScreen() {
   const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
-  const { mode, status } = useMode();
+  const { mode, status, x_trial_ends_at } = useMode();
   // x_ready guide: X가 실제로 활성화됐을 때만 노출
   const { shouldShow: showXReadyGuide, markSeen: markXReadyGuideSeen } = useFeatureGuide(adminUser?.id, "x_ready");
   const xReadyGuideSlides = [{ icon: undefined, title: GUIDE_CONTENT.x_ready.title, body: GUIDE_CONTENT.x_ready.body }];
@@ -52,6 +52,22 @@ export default function XModeHubScreen() {
             <Text style={st.statusDesc}>SWIMNOTE X 기능을 정상적으로 이용하고 있습니다.</Text>
           </View>
           <LucideIcon name="check-circle" size={20} color={X_ACCENT} />
+        </View>
+      );
+    }
+
+    if (mode === "x_trial") {
+      const endsLabel = x_trial_ends_at
+        ? new Date(x_trial_ends_at).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })
+        : "";
+      return (
+        <View style={[st.statusCard, { backgroundColor: "#F0F4FF", borderColor: "#355C7D30" }]}>
+          <View style={[st.statusDot, { backgroundColor: "#355C7D" }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={[st.statusTitle, { color: "#355C7D" }]}>X AI 기능 무료체험 중</Text>
+            <Text style={st.statusDesc}>{endsLabel ? `${endsLabel}까지 X AI 기능을 체험할 수 있습니다.` : "X AI 기능 체험 기간입니다."}</Text>
+          </View>
+          <LucideIcon name="clock" size={20} color="#355C7D" />
         </View>
       );
     }
@@ -142,6 +158,22 @@ export default function XModeHubScreen() {
           <View style={s.section}>
             <Text style={s.sectionTitle}>이용 신청</Text>
             <View style={[s.card, { backgroundColor: C.card }]}>
+              {mode === "x_trial" && (
+                <Pressable
+                  style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
+                  onPress={() => router.push("/(admin)/subscription" as any)}
+                >
+                  <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
+                    <LucideIcon name="credit-card" size={18} color={X_ACCENT} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rowLabel}>구독 및 요금제 관리</Text>
+                    <Text style={s.rowDesc}>체험 중 · 정기결제로 전환 가능</Text>
+                  </View>
+                  <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                </Pressable>
+              )}
+
               {(mode === null || mode === "normal") && (
                 <Pressable
                   style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}

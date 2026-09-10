@@ -1,0 +1,342 @@
+[보낼 곳: APP REPLIT]
+
+[P0 ANDROID 244 — FINAL RELEASE CANDIDATE FRESH BUILD]
+
+목표:
+현재 iOS Production에서 실기기 검증된 최신 전체 코드를
+누락 없이 Android native build에 포함하여
+Google Play Internal Test용 FINAL RELEASE CANDIDATE AAB를 생성한다.
+
+이번 빌드는 출시 전 마지막 Android native candidate다.
+
+절대 과거 Android 243 source를 기준으로 만들지 말 것.
+과거 dist/export/bundle 재사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE — 최신 HEAD 절대조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+canonical branch:
+
+release/v2.0.0
+
+실행:
+
+git fetch origin
+git checkout release/v2.0.0
+git pull --ff-only
+git status
+
+반드시 확인:
+
+- branch = release/v2.0.0
+- working tree clean
+- HEAD == origin/release/v2.0.0
+- source HEAD >= f1833b73
+
+현재 origin HEAD가 f1833b73 이후라면
+가장 최신 origin HEAD를 그대로 사용.
+
+금지:
+
+- b02d94b2
+- 243 build source
+- 과거 checkout
+- cherry-pick 조립
+- 일부 커밋만 선택
+- 이전 dist 재사용
+
+현재 release/v2.0.0 전체 상태 그대로 빌드.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 반드시 포함되어야 하는 최근 핵심 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+빌드 전 실제 source에 아래가 모두 존재하는지 확인.
+
+[SUBSCRIPTION]
+
+- SWIMNOTE ₩9,900
+- X300 ₩129,000
+- X500 ₩199,000
+- X1000 ₩359,000
+- 신규 normal pool → X 직접구매
+- SWIMNOTE → X upgrade
+- X → SWIMNOTE downgrade
+- Android Google Play product replacement
+- upgrade = IMMEDIATE_AND_CHARGE_FULL_PRICE
+- downgrade = DEFERRED
+- 이중구독 방지
+- DATA100/DATA300 purchase HOLD
+- AI Insight purchase HOLD
+
+[X TRIAL]
+
+- exact 72h one-time trial
+- 신규 pool에서 무료체험 가능
+- trial false-failure fix
+- x-mode GET cache bypass verify
+- loading finally fix
+- x_trial feature gates
+- 관리자 HOME X Trial UI
+- X AI Diary trial
+- Growth trial
+- Parent trial access
+- growth_event trial
+- trial expiry → BASE
+- payment_suspended trial 차단
+
+[X MODE RESTART UX]
+
+무료체험 또는 실제 X entitlement 적용 성공 후:
+
+- XRestartRequiredModal
+- "X 무료체험 적용 완료" 또는 "X 모드 적용 완료"
+- "앱 재시작"
+- Updates.reloadAsync()
+- reload 실패 fallback
+- 재실행 후 중복 모달 0
+
+중요:
+이 기능은 commit 4b54a0e1 이후 코드가 포함되어야 함.
+
+[PAYMENT LIFECYCLE]
+
+- ACTIVE
+- GRACE
+- PAYMENT_SUSPENDED
+- recovery
+- cancellation paid-through 유지
+- expiration → PAYMENT_SUSPENDED
+- 자동 BASE 강등 금지
+- 데이터 삭제 예약 금지
+- admin payment recovery route
+- teacher/parent suspension gate
+- manual/HQ entitlement 예외
+
+[OTHER RELEASE P0]
+
+- Diary Safety Gate
+- AI Diary provenance safety
+- storage/temp cleanup
+- Auth global unique/debounce
+- Parent AI Insight BASE promo entry
+- Powered by SWIMNOTE AI with OpenAI GPT branding
+- BASE/X/trial 데이터 보존
+- 최신 onboarding/current production fixes
+
+[FINAL UX]
+
+- 신규 가입 직후 기존 환불정책 자동 modal/redirect 제거
+- 기존 정책 DB/이력 유지
+- 설정 첫 화면:
+  로그인 설정 아래
+  "구독 관리 / 요금제 및 결제 관리"
+  shortcut 추가
+- pool_admin만 노출
+- 기존 운영 및 정책 → 구독 관리 경로 유지
+
+최소 commit f1833b73 포함 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FRESH JS BUNDLE — 절대조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+과거 stale bundle 사고가 있었으므로
+반드시 새 Metro/Expo bundle을 생성.
+
+금지:
+
+- 기존 dist
+- 기존 export
+- stale JS bundle
+- 검증 없는 --skip-bundler
+- 이전 Android 243 bundle reuse
+
+빌드 직전 fresh bundle에서 실제 문자열/코드 존재 확인:
+
+"Powered by SWIMNOTE AI with OpenAI GPT"
+
+"X 무료체험 적용 완료"
+
+"X 모드 적용 완료"
+
+"구독 관리"
+
+"요금제 및 결제 관리"
+
+"SWIMNOTE X300"
+
+"SWIMNOTE X500"
+
+"SWIMNOTE X1000"
+
+구형 Coach/Premier 판매 UI는
+현재 subscription route에서 판매 상태로 노출되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ANDROID VERSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+applicationId:
+com.swimnote.app
+
+versionName:
+2.0.1
+
+versionCode:
+244
+
+runtimeVersion:
+2.1.0
+
+EAS production profile.
+
+RevenueCat Android production configuration 유지.
+
+Google Play production product:
+
+com.swimnote.swimnote.monthly:monthly
+com.swimnote.x300.monthly:monthly
+com.swimnote.x500.monthly:monthly
+com.swimnote.x1000.monthly:monthly
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. STATIC PREFLIGHT
+━━━━━━━━━━━━━━━━━━━━━━
+
+빌드 전에 반드시 확인.
+
+A.
+normal 신규 pool에서 X300/X500/X1000 CTA
+"구독 신청 준비 중" 아님.
+
+B.
+trial start 성공 후
+restart-required modal 존재.
+
+C.
+paid X purchase 성공 후
+restart-required modal 존재.
+
+D.
+X→SWIMNOTE deferred downgrade에는
+즉시 restart modal 없음.
+
+E.
+Android product change에
+oldProductIdentifier + prorationMode 사용.
+
+F.
+PAYMENT_SUSPENDED gate 존재.
+
+G.
+설정 첫 화면 구독관리 shortcut 존재.
+
+H.
+신규가입 환불정책 강제 redirect 비활성.
+
+I.
+DATA/Insight purchase HOLD 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android AAB fresh native build.
+
+versionCode:
+244
+
+목적:
+Google Play Internal Test only.
+
+Google Play Production rollout 금지.
+
+iOS build/OTA 추가 작업 금지.
+
+서버 변경 없으면 Render 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. BUILD 완료 후 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 보고:
+
+- EAS build source commit
+- fresh bundle 여부
+- build logs상 versionCode
+- runtimeVersion
+- applicationId
+- AAB build SUCCESS
+- AAB artifact 생성
+
+빌드가 성공했다고
+기능 PASS로 선언하지 말 것.
+
+최종 기능 PASS는 Google Play Internal Test 실기기 확인 후 결정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Internal Test에서 사용자가 확인할 최종 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 AAB 업로드 후 사용자 실기기에서 확인 예정:
+
+1. 최신 설정 화면
+2. 설정 첫 화면 구독관리 shortcut
+3. 신규가입 환불정책 강제 modal 없음
+4. SWIMNOTE ₩9,900 결제시트
+5. X300 ₩129,000 결제시트
+6. X500 ₩199,000 결제시트
+7. X1000 ₩359,000 결제시트
+8. 무료체험 시작
+9. 무료체험 성공 후 재시작 modal
+10. 재시작 후 X Trial 정상
+11. X AI 기능 접근
+12. SWIMNOTE→X 변경
+13. X→SWIMNOTE downgrade
+14. 최신 GPT branding
+15. 기존 BASE 운영 기능 smoke
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. branch
+2. source HEAD
+3. origin exact 여부
+4. git clean 여부
+5. f1833b73 포함 여부
+6. 4b54a0e1 포함 여부
+7. fresh bundle 증거
+8. stale dist 미사용 확인
+9. versionName
+10. versionCode
+11. runtimeVersion
+12. applicationId
+13. 공식 4 product 확인
+14. Android product replacement 확인
+15. X trial 최신 수정 포함
+16. X restart modal 포함
+17. payment suspension 포함
+18. settings subscription shortcut 포함
+19. refund-policy auto redirect 제거 포함
+20. branding 포함
+21. AAB build ID
+22. build status
+23. AAB artifact 생성 여부
+24. Google Play upload 여부
+   - 직접 Production rollout 금지
+25. blocker
+26. 최종 PASS/HOLD
+
+PASS 조건:
+
+- HEAD == 최신 origin/release/v2.0.0
+- HEAD >= f1833b73
+- fresh bundle
+- versionCode 244
+- AAB SUCCESS
+- blocker 0
+
+완료 후 STOP.

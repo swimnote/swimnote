@@ -1,0 +1,189 @@
+[보낼 곳: APP REPLIT]
+
+[P0 BLOCKER — X_TRIAL ACTIVE BUT X FEATURES STILL ACT LIKE BASE]
+
+실기기 iOS 확인:
+
+구독관리 화면에는 정상적으로
+- "X AI 기능 무료체험 중"
+- 종료일
+- "체험 중"
+
+이 표시됨.
+
+따라서 trial activation / DB / ModeContext 문제는 해결됨.
+
+그러나 사용자가 앱을 사용할 때 여전히 일반 SWIMNOTE처럼 동작한다고 확인.
+
+목표:
+mode=x_trial 상태에서
+정책상 trial 허용된 모든 X 기능이 실제로 활성화되게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 원인 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱/서버 전체에서 다음 패턴을 targeted search:
+
+mode === "x"
+mode !== "x"
+isXMode
+xmode
+requireX
+X entitlement guard
+
+등.
+
+특히 feature access를
+paid X와 잘못 동일시한 곳 확인.
+
+절대:
+
+mode === "x" = paid
+
+로 해석하지 말 것.
+
+확정 의미:
+
+feature access:
+canonical mode resolver 기준
+
+paid:
+x_paid_entitlement
+
+manual:
+x_manual_entitlement
+
+HQ:
+x_management_override
+
+trial:
+mode === "x_trial"
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. X_TRIAL 기능 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+x_trial은:
+
+BASE 기능 전체 유지
++
+trial 허용 X 기능 활성
+
+최소 기존 확정 trial 범위:
+
+- X AI Diary
+- X Growth 관련 trial 허용 기능
+- AI Growth Report trial+READY
+- X UI/설정 중 trial에서 보여야 하는 영역
+
+단:
+
+- paid entitlement 전용 기능
+- AI Insight 유료 구매
+- DATA add-on
+- 정식 X 계약/결제 상태 전용 기능
+
+은 trial로 위조하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 공통 ACCESS RESOLVER
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 canonical feature-access helper가 있으면 그것을 사용.
+
+없으면 대규모 refactor 금지.
+
+최소한 반복되는:
+
+mode === "x"
+
+조건에서
+feature access 의미인 경우만:
+
+mode === "x" || mode === "x_trial" || 기존 허용 상태
+
+로 canonical 정책에 맞게 수정.
+
+중요:
+billing/paid 판정 조건까지 x_trial을 포함시키면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SERVER GUARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 X 기능 endpoint 중
+trial 허용 기능이 paid X만 허용하는 곳 확인.
+
+trial 허용 endpoint는
+canonical feature access 기준으로 허용.
+
+반대로 결제/유료 entitlement endpoint는
+x_trial 허용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실기기 기대 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 테스트 pool은 이미 active x_trial 상태.
+
+수정 후 재시작 시:
+
+- trial banner 유지
+- BASE 기능 전부 유지
+- trial 허용 X 기능 실제 접근 가능
+- X AI Diary 접근 가능
+- trial 허용 Growth 기능 접근 가능
+- paid X로 표시되지 않음
+- X300/X500/X1000은 여전히 "구독 시작"
+- trial 재시작 버튼 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. normal
+→ BASE only
+
+B. x_trial
+→ BASE + trial X features
+
+C. x paid
+→ BASE + full paid X
+
+D. x_manual
+→ 정책상 X access 유지
+
+E. HQ override
+→ 정책상 X access 유지
+
+F. x_force_disabled
+→ X access 차단
+
+G. x_trial
+→ paid entitlement false 유지
+
+H. trial expiry
+→ BASE 복귀
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. trial인데 BASE처럼 보인 정확한 root cause
+2. 잘못된 mode==="x" gate 위치
+3. 수정한 feature gates
+4. server guards
+5. paid/trial 분리 확인
+6. tests
+7. 수정 파일
+8. main HEAD
+9. Render LIVE SHA
+10. iOS OTA
+11. Android next build 포함 여부
+12. blocker
+13. 최종 PASS/HOLD
+
+Android 243/244 새 build는 이 문제 해결 전 보류.
+
+완료 후 STOP.

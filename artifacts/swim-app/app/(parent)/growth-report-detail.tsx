@@ -430,7 +430,7 @@ export default function GrowthReportDetailScreen() {
   const isGenerating = isPdfGenerating || isShareGenerating;
 
   return (
-    <XModeGuard allowedKind="parent">
+    <XModeGuard allowedKind="parent" trialAllowed>
     <View style={s.root}>
       {header}
 

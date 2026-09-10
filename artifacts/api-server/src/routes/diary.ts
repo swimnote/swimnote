@@ -985,7 +985,7 @@ router.post("/diaries",
       let isXMode = false;
       try {
         const pmResult = await resolvePoolMode(poolId!);
-        isXMode = pmResult?.mode === "x";
+        isXMode = pmResult?.mode === "x" || pmResult?.mode === "x_trial";
         console.log(
           `[diary-create] X_MODE_CHECK poolId=${poolId} mode=${pmResult?.mode} isXMode=${isXMode}`,
         );

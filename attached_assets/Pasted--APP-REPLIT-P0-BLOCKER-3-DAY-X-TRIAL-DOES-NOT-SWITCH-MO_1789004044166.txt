@@ -1,0 +1,205 @@
+[보낼 곳: APP REPLIT]
+
+[P0 BLOCKER — 3-DAY X TRIAL DOES NOT SWITCH MODE ON iOS/ANDROID]
+
+실기기 확인 결과:
+
+- iOS: "3일 무료체험" 실행 후에도 계속 SWIMNOTE mode
+- Android도 동일 증상 관찰
+- 따라서 Android stale build 문제만이 아니라 shared production bug
+
+Android 243 build는 이 버그 해결 전 보류.
+
+목표:
+3일 무료체험 버튼을 누르면 즉시 canonical mode가 x_trial로 전환되고
+앱 전체에서 X Trial 상태가 반영되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 Production 상태 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료체험 버튼 클릭 시 정확히 추적:
+
+A. 어떤 handler 호출
+B. 어떤 API endpoint 호출
+C. API request body
+D. response status/body
+E. swimming_pools 실제 DB 값:
+- x_trial_started_at
+- x_trial_ends_at
+- x_trial_used
+- x_paid_entitlement
+- x_manual_entitlement
+- x_management_override
+- x_force_disabled
+- 현재 mode 관련 컬럼
+
+Production 실제 테스트 pool 기준으로 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. TRIAL START SERVER CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 시작 시 반드시:
+
+x_trial_started_at = NOW
+x_trial_ends_at = NOW + exact 72 hours
+x_trial_used = true
+
+그리고 paid/manual/HQ/force-disabled 정책과 충돌 없이
+canonical mode resolver가:
+
+mode = "x_trial"
+
+을 반환해야 함.
+
+중요:
+x_trial ≠ paid X
+x_trial은 별도 mode.
+
+trial 시작 후 mode가 swimnote/normal로 남으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CANONICAL MODE RESOLVER 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+resolver 우선순위 재검증:
+
+forced off 정책
+paid X
+manual X
+HQ override
+active X trial
+BASE/SWIMNOTE
+
+기존 확정 정책을 훼손하지 말고
+active trial이 BASE보다 우선하도록 확인.
+
+active trial 조건:
+
+x_trial_used = true
+AND x_trial_started_at IS NOT NULL
+AND x_trial_ends_at > NOW
+
+정확한 기존 resolver 구조에 맞춰 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CLIENT REFRESH
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial start API 2xx 성공 직후:
+
+- refreshMode()
+- 필요한 pool/subscription state invalidate/refetch
+- stale cached mode 제거
+
+를 await 처리.
+
+버튼 누른 직후 앱 재실행 없이
+화면에서 바로 X Trial 상태가 보여야 함.
+
+필요하다면 router replace/reset은 최소로 사용.
+
+단순 local state만 x_trial로 위조 금지.
+서버 canonical mode를 다시 받아서 반영할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. UI EXPECTED RESULT
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial 시작 직후:
+
+- 구독관리 화면에서 X Trial 상태 표시
+- "3일 무료체험" 재시작 버튼 제거/비활성
+- X Trial 허용 기능 활성
+- BASE 기능 전부 유지
+- paid X로 오인 금지
+
+trial 종료 후 paid/manual/HQ 없으면
+BASE/SWIMNOTE로 정상 복귀.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ONE-TIME TRIAL 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 x_trial_used=true인 pool은 재시작 금지.
+
+연속 탭 / 중복 API / 재로그인 / 앱 재설치로
+72시간이 재설정되면 FAIL.
+
+started_at/ends_at 기존 값 덮어쓰기 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PAYMENT_SUSPENDED와 충돌 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+payment_suspended pool이
+무료체험으로 suspension을 우회하면 안 됨.
+
+trial start 허용 정책이 별도로 없다면
+PAYMENT_SUSPENDED 상태에서는 trial 시작 차단.
+
+기존 manual/HQ entitlement 정책 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. PRODUCTION TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production test pool에서:
+
+A.
+BASE/SWIMNOTE → 3일 무료체험
+→ API 2xx
+→ DB trial timestamps 기록
+
+B.
+즉시 GET /pools/x-mode
+→ mode=x_trial
+
+C.
+iOS 앱에서 재실행 없이
+→ X Trial UI 반영
+
+D.
+logout/login
+→ x_trial 유지
+
+E.
+두 번째 trial start
+→ 차단
+
+F.
+72h expiry simulated/unit test
+→ BASE 복귀
+
+G.
+BASE 기능/데이터 손실 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 정확한 root cause
+2. trial start endpoint
+3. Production DB before/after
+4. resolver 문제 여부
+5. client refresh 문제 여부
+6. 수정 파일
+7. tests
+8. Production API verification
+9. main HEAD
+10. Render LIVE SHA
+11. iOS OTA ID
+12. Android next build 포함 여부
+13. blocker
+14. 최종 PASS/HOLD
+
+PASS 조건:
+- 실제 Production에서 trial start 후 GET /pools/x-mode = x_trial
+- iOS 실기기에서 즉시 X Trial 반영 가능
+- one-time 72h 보장
+- blocker 0
+
+완료 후 STOP.

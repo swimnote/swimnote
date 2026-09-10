@@ -3,10 +3,11 @@ name: Task8 결제 정지 라이프사이클 완료
 description: BILLING_ISSUE→GRACE→PAYMENT_SUSPENDED→RECOVERY 구현 완료 상태 및 핵심 결정
 ---
 
-## 완료 상태
-- main HEAD: 5f8a2577
-- Render LIVE: 5f8a2577 ✅
-- iOS OTA: 01a0885f (production-v2)
+## 완료 상태 (FIX 포함 최종)
+- main HEAD: 42104ef7
+- Render LIVE: 42104ef7 ✅
+- iOS OTA: 01a08867 (production-v2)
+- 11TC (L~Q) PASS
 
 ## 핵심 아키텍처 결정
 
@@ -38,4 +39,15 @@ description: BILLING_ISSUE→GRACE→PAYMENT_SUSPENDED→RECOVERY 구현 완료 
 - swimming_pools.payment_suspended_at TIMESTAMPTZ (ADD COLUMN IF NOT EXISTS)
 - index.ts에 마이그레이션 자동 실행 등록
 
+### FIX: 만료 원인 무관 정책 (42104ef7)
+- billing.ts CANCELLATION: pending_tier='free' 예약 제거 (EXPIRATION이 처리)
+- billing.ts EXPIRATION(non-X): payment_failed_at 조건 제거 → 항상 PAYMENT_SUSPENDED / 데이터 삭제 예약 제거
+- x-entitlement.ts SELECT: x_management_override, subscription_status, subscription_tier 추가
+- x-entitlement.ts EXPIRATION: xmode_payment_failed_at 조건 제거 → 항상 PAYMENT_SUSPENDED
+  - 예외: x_manual_entitlement=true OR x_management_override=true → 정지 스킵
+  - 예외: subscription_status='active' AND tier≠'free' (X→SWIMNOTE 예약 다운그레이드) → 정지 스킵
+- billing cron: pending_tier 다운그레이드 시 payment_suspended 풀 제외 가드
+- admin layout: usePathname으로 /payment-suspended,/subscription 화면 redirect gate 제외
+
 **Why:** RC 스토어 유예기간 동안 즉시 차단하면 안 됨; BILLING_ISSUE=GRACE(정상운영), EXPIRATION=PAYMENT_SUSPENDED(정지).
+만료 원인(결제 실패 vs 정상 취소)과 무관하게 모든 유료 만료 → PAYMENT_SUSPENDED (데이터 삭제 금지).

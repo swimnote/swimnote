@@ -79,3 +79,4 @@
 - [Onboarding Feature Guides 연결 완료](onboarding-feature-guides-done.md) — 13개 가이드 9개 화면 연결; ce4a8e07; iOS OTA 01a08437; bomb prevention+mode mutual exclusion 적용
 - [P0P1 X Gate Fix 완료](p0p1-x-gate-fix-done.md) — SHA 482a65f7; growth-report-paid+x-hub+x-setup client guard+server hasXEntitlement×10routes; Render live; OTA 01a08504
 - [Task8 결제 정지 라이프사이클](task8-payment-lifecycle-done.md) — BILLING_ISSUE→GRACE, EXPIRATION→PAYMENT_SUSPENDED, 402/403분리, 앱 진입게이트; SHA 5f8a2577; OTA 01a0885f
+- [P0 X Trial forceRefreshMode Fix](p0-x-trial-fix-done.md) — refreshMode lock bug; forceRefreshMode 추가; SHA 2532e05b; Render LIVE; OTA 01a088e7

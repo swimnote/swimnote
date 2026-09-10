@@ -1,0 +1,301 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL BLOCKER — X TRIAL START SUCCEEDS BUT APP STILL SHOWS FALSE FAILURE]
+
+실기기 iOS 최신 OTA에서 재확인:
+
+1. 신규 정상 pool
+2. "무료체험 시작하기" 클릭
+3. 앱:
+   "체험 시작에 실패했습니다. 잠시 후 다시 시도해주세요." 표시
+4. 앱 완전 종료 후 재실행
+5. X Trial 정상 활성화
+6. 관리자 홈/X 기능도 실제 X 체험판으로 정상 동작
+
+따라서 현재 확정:
+
+- trial DB 저장 정상
+- exact 72h 정상
+- computeMode=x_trial 정상
+- 앱 재실행 후 ModeContext 정상
+- X trial feature access 정상
+
+남은 유일한 버그:
+
+"서버에서는 activation 성공했는데 현재 요청 cycle에서 client가 성공을 확인하지 못해 거짓 실패 메시지를 표시"
+
+이것만 최소 수정한다.
+
+Android native build는 이 수정 완료 후 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 가설 재검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서에서는:
+
+POST 성공
+→ response stream/network exception
+→ catch
+→ forceRefreshMode
+→ GET /pools/x-mode 확인
+→ x_trial이면 success 처리
+
+로 수정했다고 했지만,
+
+실기기에서 여전히 false failure가 발생함.
+
+따라서 실제 Production 로그로 이번 클릭의 흐름을 다시 확인:
+
+- POST가 실제 client에서 어떤 예외로 종료됐는지
+- timeout인지
+- AbortError인지
+- network request failed인지
+- response parsing 오류인지
+- forceRefreshMode도 실패했는지
+- fallback GET /pools/x-mode도 실패했는지
+- fallback check가 실행은 됐는지
+- checkData 구조가 실제 response contract와 맞는지
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. SUCCESS CONFIRMATION을 견고하게 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST 결과가 불확실한 경우
+즉시 generic failure를 표시하지 말 것.
+
+POST exception 발생 시:
+
+1차:
+GET /pools/x-mode 직접 확인
+
+mode === "x_trial"
+→ ACTIVATION_SUCCESS
+
+아니면 짧은 retry:
+
+예:
+0ms
+500ms
+1500ms
+
+총 2~3회 이내.
+
+각 retry마다:
+
+GET /pools/x-mode
+
+mode === "x_trial"
+→ 성공 처리
+→ failure banner 0
+
+서버 부하를 만드는 장시간 polling 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. forceRefreshMode와 VERIFY 요청 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+forceRefreshMode() 자체가 실패하거나
+ModeContext 내부 lock/state 때문에
+trial 성공 판정을 못 하게 만들지 말 것.
+
+trial 성공 확인용 네트워크 요청은
+ModeContext refresh와 별도로 명확하게 수행.
+
+권장 흐름:
+
+POST activate
+↓
+POST success이면
+↓
+verifyTrialState()
+↓
+forceRefreshMode()
+↓
+UI success
+
+POST가 throw해도
+↓
+verifyTrialStateWithRetry()
+↓
+x_trial 확인되면 SUCCESS
+↓
+forceRefreshMode()
+
+즉:
+
+"서버 activation 성공 여부 확인"
+와
+"앱 Context 갱신"
+
+을 별도 단계로 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ALREADY_USED도 복구 가능한 성공으로 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 중요.
+
+첫 POST는 서버에서 성공했지만
+client가 timeout난 뒤
+어떤 이유로 재요청이 발생하면:
+
+두 번째 POST
+→ TRIAL_ALREADY_USED
+
+가 올 수 있음.
+
+이 경우 무조건 실패 처리 금지.
+
+TRIAL_ALREADY_USED 수신 시:
+
+GET /pools/x-mode
+
+현재 mode === "x_trial"
+→ 이미 첫 요청이 성공한 것
+→ SUCCESS 처리
+→ "이미 사용함" 오류 표시 금지
+
+반대로 trial이 만료됐거나 active가 아니면
+정상 already-used 안내.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. UI 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+버튼 클릭 직후:
+
+"무료체험 시작 중..."
+
+loading 상태.
+
+성공 확인되면:
+
+- error banner 0
+- 즉시 trial banner 표시
+- X Trial HOME 반영
+- 버튼 중복 클릭 방지
+
+확인이 잠시 지연되더라도
+DB 성공 가능성이 있는 network exception에서
+즉시 빨간 "실패"를 띄우지 말 것.
+
+verify retry까지 모두 실패해서
+정말 상태를 확인할 수 없는 경우에는:
+
+"무료체험 상태를 확인하고 있습니다. 잠시 후 다시 확인해주세요."
+
+처럼 UNKNOWN 상태를 표시.
+
+"체험 시작 실패"는
+서버가 명시적으로 activation을 거절/실패한 경우에만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ERROR CLASSIFICATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 분류:
+
+A. CONFIRMED_SUCCESS
+POST 2xx 또는 GET mode=x_trial
+→ 성공
+
+B. RECOVERED_SUCCESS
+POST exception / already-used
+하지만 GET mode=x_trial
+→ 성공
+
+C. CONFIRMED_REJECT
+payment_suspended
+forbidden
+정책상 trial 불가
+→ 명시적 오류
+
+D. UNKNOWN
+network 실패 + verify retries도 전부 실패
+→ "상태 확인 중/다시 확인"
+→ 거짓 activation failure 금지
+
+E. CONFIRMED_SERVER_FAILURE
+서버 명시적 5xx + verify 결과 x_trial 아님
+→ 실제 실패 메시지
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이번에는 실제 Production 재현 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 clean Production pool로 실기기 재검증.
+
+CASE A
+무료체험 첫 클릭
+→ 실패 banner 0
+→ 즉시 체험 중
+
+CASE B
+POST response가 정상인 경우
+→ 즉시 x_trial
+
+CASE C
+POST 성공 후 client network exception을 테스트/mock
+→ verify GET
+→ x_trial이면 성공 처리
+
+CASE D
+POST 성공 후 duplicate retry
+→ TRIAL_ALREADY_USED
+→ GET x_trial
+→ 성공 처리
+
+CASE E
+verify 첫 요청 실패
+→ retry 후 x_trial
+→ 성공 처리
+
+CASE F
+POST/GET 모두 네트워크 불명
+→ generic "체험 시작 실패" 금지
+→ UNKNOWN 안내
+
+CASE G
+진짜 payment_suspended
+→ 명시적 차단
+
+CASE H
+앱 재실행 없이 관리자 HOME X Trial 반영
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 이번 실기기 false failure의 실제 exception
+2. fallback GET가 왜 성공 판정하지 못했는지
+3. GET /pools/x-mode 실제 response shape
+4. verifyTrialState 구현
+5. retry 횟수/간격
+6. ALREADY_USED recovery 처리
+7. UNKNOWN 상태 처리
+8. Production 실기기 CASE A~H
+9. 수정 파일
+10. tests
+11. main HEAD
+12. Render LIVE SHA
+13. iOS OTA
+14. Android OTA
+15. 다음 native build 포함 여부
+16. blocker
+17. 최종 PASS/HOLD
+
+PASS 조건:
+
+- 신규 pool 첫 클릭에서 거짓 실패 메시지 0
+- 서버 성공이면 앱 재실행 없이 X Trial 전환
+- timeout/response-loss여도 mode=x_trial이면 성공으로 복구
+- duplicate/already-used false failure 0
+- 실제 정책 거절만 오류 표시
+- blocker 0
+
+완료 후 STOP.

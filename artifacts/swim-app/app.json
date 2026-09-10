@@ -46,7 +46,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 243,
+      "versionCode": 244,
       "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",

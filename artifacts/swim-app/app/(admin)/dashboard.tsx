@@ -588,7 +588,7 @@ export default function DashboardScreen() {
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: XT.accent, letterSpacing: 0.3 }}>
                     SWIMNOTE X
                   </Text>
-                  {mode !== "x" && (
+                  {mode !== "x" && mode !== "x_trial" && (
                     <View style={{ backgroundColor: XT.pendingLight, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
                       <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.pending }}>설정 필요</Text>
                     </View>

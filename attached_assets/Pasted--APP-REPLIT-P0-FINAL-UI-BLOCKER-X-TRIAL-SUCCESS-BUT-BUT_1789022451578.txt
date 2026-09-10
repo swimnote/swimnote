@@ -1,0 +1,215 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL UI BLOCKER — X TRIAL SUCCESS BUT BUTTON STUCK IN INFINITE LOADING]
+
+실기기 iOS 최신 OTA에서 재현:
+
+1. 신규 trial 미사용 pool
+2. "무료체험 시작하기" 클릭
+3. 서버에서는 trial activation 성공
+4. 실패 메시지는 더 이상 안 뜸
+5. 그러나 버튼 spinner가 계속 돌아가며 무한 loading
+6. 앱 완전 종료 후 재실행하면 X Trial이 정상 활성화되어 있음
+
+따라서 현재 확정:
+
+- POST activation 성공
+- DB exact 72h 저장 성공
+- mode=x_trial 성공
+- trial feature access 성공
+- false failure 문제는 개선됨
+
+남은 유일한 문제:
+
+"성공 후 현재 화면의 loading state가 해제되지 않고,
+subscription UI가 즉시 trial-active 상태로 전환되지 않음"
+
+서버/DB/resolver 다시 수정하지 말 것.
+CLIENT UI state lifecycle만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. LOADING STATE 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+doActivateTrial()의 모든 경로에서:
+
+- setTrialLoading(true)
+- success return
+- recovered success return
+- already-used recovered success
+- unknown
+- reject
+- catch
+- finally
+
+를 정확히 추적.
+
+특히 다음 패턴 확인:
+
+if (verified) return;
+
+같은 early return 때문에
+setTrialLoading(false) 또는 finally가 실행되지 않는 구조가 있는지 확인.
+
+또는:
+
+forceRefreshMode()
+await ...
+return
+
+뒤에 local loading reset이 누락됐는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 반드시 FINALLY로 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+trial activation 버튼의 loading state는
+최종적으로 반드시 finally에서 해제.
+
+원칙:
+
+setTrialLoading(true)
+
+try {
+  ...
+} catch {
+  ...
+} finally {
+  setTrialLoading(false)
+}
+
+success/recovered success/confirmed reject/unknown
+어떤 경로에서도 spinner가 영구 유지되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SUCCESS 후 즉시 UI 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+verifyTrialActive() === true이면:
+
+1. forceRefreshMode() await
+2. subscription 관련 local/query state refresh
+3. trial banner 재렌더
+4. start button 제거
+5. loading=false
+
+앱 재실행 없이 현재 화면에서 바로:
+
+"X AI 기능 무료체험 중"
+종료일
+"체험 중"
+
+상태로 전환되어야 함.
+
+필요하면 query invalidation/refetch 사용.
+
+단 local state로 mode를 임의 위조하지 말고
+서버 canonical x_trial을 반영할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 화면 전환 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+subscription.tsx에서
+trial CTA 표시 조건과
+active trial banner 표시 조건이
+같은 최신 ModeContext/state를 보고 있는지 확인.
+
+가능한 stale source:
+
+- mode
+- trialActive
+- xTrialActive
+- local subscription data
+- cached pool mode response
+
+성공 후 하나는 갱신됐는데 다른 하나가 stale이라면
+현재 화면이 loading/start CTA에 남을 수 있음.
+
+한 소스만 refresh되고 나머지가 stale인 구조를 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 성공 후 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 흐름:
+
+무료체험 시작하기
+→ 버튼 loading
+→ activation success
+→ mode=x_trial 확인
+→ loading 해제
+→ 즉시 trial-active card 표시
+
+실패/unknown일 때만
+loading 해제 + 메시지.
+
+절대:
+- 무한 spinner
+- 성공했는데 start CTA 유지
+- 앱 재실행 필요
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+POST 201
+→ loading 해제
+→ 즉시 trial banner
+
+CASE B
+POST throw + verify success
+→ loading 해제
+→ 즉시 trial banner
+
+CASE C
+ALREADY_USED + verify active
+→ loading 해제
+→ trial banner
+
+CASE D
+payment_suspended reject
+→ loading 해제
+→ 명시적 오류
+
+CASE E
+verify all fail
+→ loading 해제
+→ UNKNOWN 안내
+
+CASE F
+success path early return
+→ finally 실행 확인
+
+CASE G
+앱 재실행 없이 admin home에서도 X Trial 반영
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 무한 loading 정확한 root cause
+2. 누락된 loading reset 위치
+3. success early-return 여부
+4. finally 구조
+5. subscription state refresh 방식
+6. CASE A~G 결과
+7. 수정 파일
+8. tests
+9. main HEAD
+10. iOS OTA
+11. Android OTA
+12. next native build 포함 여부
+13. blocker
+14. 최종 PASS/HOLD
+
+PASS 조건:
+- 첫 클릭 후 spinner 정상 종료
+- 앱 재실행 없이 trial banner 표시
+- admin home도 즉시 X Trial 반영
+- false failure 0
+- blocker 0
+
+완료 후 STOP.

@@ -14,11 +14,12 @@
  *  - 환불정책 배너, 취소 예약 배너
  *  - 구독 현황 관리 버튼
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Linking, Platform, Pressable, ScrollView,
+  ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
+import * as Updates from "expo-updates";
 import Purchases from "react-native-purchases";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -221,32 +222,81 @@ export default function SubscriptionScreen() {
   const [trialError,      setTrialError]      = useState<string | null>(null);
   const [showTrialConfirm, setShowTrialConfirm] = useState(false);
 
+  // ── X Entitlement 적용 완료 → 앱 재시작 안내 모달 ─────────────────────────
+  const [showXRestartModal, setShowXRestartModal] = useState(false);
+  const [xRestartIsTrial,   setXRestartIsTrial]   = useState(false);
+  const xReloadingRef = useRef(false);
+
+  // ── X trial activation 성공 여부 직접 확인 (캐시 bypass + retry) ─────────
+  // 핵심: _bustRelated는 /billing/* 캐시만 bust → /pools/x-mode 캐시가
+  // stale(mode:normal)로 남음. _noCache:true로 강제 network 요청, 3회 retry.
+  async function verifyTrialActive(): Promise<boolean> {
+    const DELAYS = [0, 500, 1500];
+    for (let i = 0; i < DELAYS.length; i++) {
+      if (DELAYS[i] > 0) await new Promise<void>(r => setTimeout(r, DELAYS[i]));
+      try {
+        const checkRes = await apiRequest(token, "/pools/x-mode", { _noCache: true } as any);
+        if (!checkRes.ok) continue;
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkData?.mode === "x_trial") return true;
+      } catch {
+        // network still recovering — next retry
+      }
+    }
+    return false;
+  }
+
   async function doActivateTrial() {
     if (trialActivating) return;
     setTrialActivating(true);
     setTrialError(null);
     setShowTrialConfirm(false);
+
+    // 결과 분류:
+    // CONFIRMED_REJECT  — 서버가 정책상 명시적 거절 (payment_suspended 등)
+    // NEED_VERIFY       — POST 성공 / 네트워크 예외 / ALREADY_USED 모두 포함
+    let confirmedReject = false;
+    let rejectMsg: string | null = null;
+    let isActive = false;
+
     try {
-      const res = await apiRequest(token, "/billing/x-trial-activate", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const code = data?.error ?? "";
-        if (code === "TRIAL_ALREADY_ACTIVE") {
-          // 이미 활성 → 강제 mode 재조회 (lock 해제 후 즉시 반영)
-          await forceRefreshMode().catch(() => {});
-          return;
+      try {
+        const res = await apiRequest(token, "/billing/x-trial-activate", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const code = data?.error ?? "";
+          // ALREADY_USED / ALREADY_ACTIVE: 이전 요청이 이미 성공했을 수 있음 → verify
+          if (code !== "TRIAL_ALREADY_USED" && code !== "TRIAL_ALREADY_ACTIVE") {
+            confirmedReject = true;
+            rejectMsg = trialErrorMessage(code);
+          }
         }
-        setTrialError(trialErrorMessage(code));
-        return;
+        // res.ok 이면 fall-through → verify
+      } catch {
+        // 네트워크 예외 — POST 서버 성공 가능 → verify
       }
-      // DB 기록 성공 → 강제 재조회:
-      // refreshMode()는 in-flight 요청이 있으면 silently no-op 반환하여
-      // 구버전 mode(normal)가 남는 버그가 있음. forceRefreshMode()로 즉시 반영.
-      await forceRefreshMode().catch(() => {});
-    } catch {
-      setTrialError("체험 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
+
+      if (confirmedReject) {
+        setTrialError(rejectMsg);
+        return; // finally가 setTrialActivating(false) 처리
+      }
+
+      // 성공 여부 확인 (캐시 bypass + 최대 3회 retry: 0 / 500ms / 1500ms)
+      isActive = await verifyTrialActive();
+
+      if (!isActive) {
+        // UNKNOWN: 네트워크 문제로 서버 상태를 확인할 수 없음
+        setTrialError("무료체험 상태를 확인하지 못했습니다. 앱을 재실행하면 정상 반영됩니다.");
+      }
+      // isActive === true 이면 에러 없음 — trial banner가 ModeContext 갱신 후 자동 표시
     } finally {
+      // ── 반드시 spinner 해제 (모든 경로: success/reject/unknown/throw) ─────
       setTrialActivating(false);
+      if (isActive) {
+        // 성공 → hot-swap 대신 재시작 모달: 앱 재실행 후 fresh ModeContext 보장
+        setXRestartIsTrial(true);
+        setShowXRestartModal(true);
+      }
     }
   }
 
@@ -516,8 +566,9 @@ export default function SubscriptionScreen() {
           await syncRcToServer(info, pkg.product?.productIdentifier ?? plan.tier);
           await refetchCustomerInfo();
           await refreshPool();
-          await refreshMode().catch(() => {});
-          showConfirm("구독 완료", `${plan.name} 구독이 성공적으로 시작되었습니다!`, () => {});
+          // X 플랜: hot-swap 대신 재시작 모달 — 재실행 후 fresh ModeContext 보장
+          setXRestartIsTrial(false);
+          setShowXRestartModal(true);
         } catch (e: any) {
           if (e?.userCancelled) return;
           const serverCode = e?.code ?? "";
@@ -1173,9 +1224,137 @@ export default function SubscriptionScreen() {
         onConfirm={() => { setConfirmVisible(false); confirmAction?.(); }}
         onCancel={() => setConfirmVisible(false)}
       />
+
+      {/* ── X Entitlement 적용 완료 → 앱 재시작 안내 모달 ── */}
+      <XRestartRequiredModal
+        visible={showXRestartModal}
+        isTrial={xRestartIsTrial}
+        reloadingRef={xReloadingRef}
+        onClose={() => setShowXRestartModal(false)}
+      />
     </View>
   );
 }
+
+// ── X Entitlement 적용 완료 → 앱 재시작 안내 모달 ────────────────────────
+// Updates.reloadAsync(): expo-updates OTA 환경에서 앱 번들을 재로드.
+// 실패 시(non-OTA simulator 등) fallback 안내 텍스트 표시.
+// 중복 실행 방지: reloadingRef lock.
+function XRestartRequiredModal({
+  visible, isTrial, reloadingRef, onClose,
+}: {
+  visible: boolean;
+  isTrial: boolean;
+  reloadingRef: React.MutableRefObject<boolean>;
+  onClose: () => void;
+}) {
+  const C2 = Colors.light;
+  const [isReloading, setIsReloading]     = useState(false);
+  const [reloadFailed, setReloadFailed]   = useState(false);
+
+  async function handleRestart() {
+    if (reloadingRef.current) return;
+    reloadingRef.current = true;
+    setIsReloading(true);
+    setReloadFailed(false);
+    try {
+      await Updates.reloadAsync();
+      // reloadAsync 이후 코드는 앱 재시작으로 실행되지 않음
+    } catch {
+      reloadingRef.current = false;
+      setIsReloading(false);
+      setReloadFailed(true);
+    }
+  }
+
+  // 모달 닫힐 때 내부 상태 초기화
+  function handleClose() {
+    if (isReloading) return; // reload 중 닫기 방지
+    reloadingRef.current = false;
+    setIsReloading(false);
+    setReloadFailed(false);
+    onClose();
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={handleClose}
+    >
+      <View style={xrm.overlay}>
+        <View style={xrm.card}>
+          {/* 아이콘 */}
+          <View style={xrm.iconWrap}>
+            <View style={xrm.iconBox}>
+              <Text style={{ fontSize: 26 }}>✨</Text>
+            </View>
+            <Text style={xrm.title}>
+              {isTrial ? "X 무료체험 적용 완료" : "X 모드 적용 완료"}
+            </Text>
+          </View>
+
+          {/* 본문 */}
+          {reloadFailed ? (
+            <Text style={xrm.body}>
+              앱 재시작에 실패했습니다.{"\n"}
+              앱을 완전히 종료한 뒤 다시 실행해주세요.{"\n\n"}
+              결제/체험 내역은 정상적으로 저장되었습니다.
+            </Text>
+          ) : (
+            <Text style={xrm.body}>
+              SWIMNOTE X 기능이 적용되었습니다.{"\n"}
+              앱을 재시작하면 X 모드로 이용할 수 있습니다.
+            </Text>
+          )}
+
+          {/* 재시작 버튼 */}
+          {!reloadFailed && (
+            <Pressable
+              onPress={handleRestart}
+              disabled={isReloading}
+              style={({ pressed }) => [
+                xrm.btn,
+                isReloading
+                  ? { backgroundColor: "#93C5FD" }
+                  : pressed
+                  ? { backgroundColor: "#1D4ED8" }
+                  : { backgroundColor: C2.brandStrong },
+              ]}
+            >
+              {isReloading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : null}
+              <Text style={xrm.btnText}>
+                {isReloading ? "재시작 중..." : "앱 재시작"}
+              </Text>
+            </Pressable>
+          )}
+
+          {/* 나중에 / 닫기 */}
+          <Pressable onPress={handleClose} style={xrm.laterBtn}>
+            <Text style={xrm.laterText}>나중에</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const xrm = StyleSheet.create({
+  overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  card:      { backgroundColor: "#fff", borderRadius: 20, padding: 28, width: "100%", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10, gap: 0 },
+  iconWrap:  { alignItems: "center", marginBottom: 16, gap: 12 },
+  iconBox:   { width: 56, height: 56, borderRadius: 16, backgroundColor: X_LIGHT, alignItems: "center", justifyContent: "center" },
+  title:     { fontSize: 17, fontFamily: "Pretendard-SemiBold", color: NAVY, textAlign: "center" },
+  body:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: Colors.light.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 20 },
+  btn:       { borderRadius: 12, height: 50, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, marginBottom: 8 },
+  btnText:   { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  laterBtn:  { alignItems: "center", paddingVertical: 8 },
+  laterText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: Colors.light.textMuted },
+});
 
 // ── 공통 MetaChip ──────────────────────────────────────────────────────────
 function MetaChip({ icon, label }: { icon: string; label: string }) {

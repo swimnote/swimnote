@@ -584,10 +584,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               clearTimeout(policyTimer);
             }
             if (policyRes.ok) {
-              const policyData = await policyRes.json();
-              if (policyData.success && (!policyData.agreed || policyData.needs_reagree)) {
-                return "/(auth)/policy-agreement";
-              }
+              // [출시 전 UX 정리] 신규 가입 시 자동 환불정책 모달 제거.
+              // 기존 동의 이력·정책 데이터는 유지; 설정 > 환불 정책 확인 메뉴도 유지.
+              // 추후 새 정책 시스템 작업 시 명시적 동의 구조로 재구현 예정.
+              //
+              // const policyData = await policyRes.json();
+              // if (policyData.success && (!policyData.agreed || policyData.needs_reagree)) {
+              //   return "/(auth)/policy-agreement";
+              // }
             } else if (policyRes.status === 403) {
               try {
                 const rawT = await policyRes.text();
