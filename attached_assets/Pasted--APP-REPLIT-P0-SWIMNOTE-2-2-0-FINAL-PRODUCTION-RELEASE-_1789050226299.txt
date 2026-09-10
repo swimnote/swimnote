@@ -1,0 +1,909 @@
+[보낼 곳: APP REPLIT]
+
+[P0 SWIMNOTE 2.2.0 FINAL PRODUCTION RELEASE — SOURCE CONSOLIDATION + VERIFY + NATIVE BUILD + STORE UPLOAD]
+
+이번 작업은 개발용 V2 작업의 연장이 아니다.
+
+지금까지 release/v2.0.0 브랜치에서 개발해 온 모든 기능과
+기존 Production OTA로 수정해 온 최신 내용을 하나도 빠짐없이 통합하여,
+
+SWIMNOTE 공식 신규 Production 배포버전:
+
+2.2.0
+
+으로 확정하여 출시하는 최종 작업이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. RELEASE DEFINITION — 반드시 먼저 이해
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 실제 운영 배포버전:
+
+1.6.3
+
+은 과거 Production release다.
+
+이번 출시가 시작되면 앞으로 운영 기준은:
+
+SWIMNOTE 2.2.0
+
+하나로 전환한다.
+
+과거 개발 과정에서 사용한:
+
+- V2
+- 2.0.1
+- 2.1.0
+- runtime 2.1.0
+- iOS build 255/256
+- Android 244/245
+
+등은 개발/RC/과거 build 이력으로만 남긴다.
+
+앞으로 신규 Production 기준:
+
+Public App Version:
+2.2.0
+
+Expo runtimeVersion:
+2.2.0
+
+iOS buildNumber:
+300부터
+
+Android versionCode:
+300부터
+
+중요:
+
+release/v2.0.0은 Git 브랜치 이름일 뿐이다.
+브랜치 이름 때문에 실제 앱 버전을 2.0.x로 해석하지 말 것.
+
+이번 결과물은 명백하게:
+
+SWIMNOTE Production 2.2.0
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 가장 중요한 원칙 — OLD OTA 의존 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 2.1.0 runtime에서 여러 Production OTA가 배포되어 있다.
+
+최종 2.2.0 native binary가 설치된 뒤
+예전 2.1.0 OTA를 받아야만 최신 기능이 완성되는 구조는 절대 금지.
+
+runtimeVersion이 2.2.0이 되므로
+기존 runtime 2.1.0 OTA는 2.2.0 native에 적용되지 않는다.
+
+따라서 최종 native source 자체에:
+
+지금까지 Git에 저장된 모든 최신 기능
++
+지금까지 Production OTA에 포함된 모든 최신 P0 수정
+
+이 완전히 포함되어 있어야 한다.
+
+즉:
+
+Store에서 2.2.0을 새로 설치한 사용자도
+OTA를 한 번도 받지 않은 상태에서
+최신 SWIMNOTE 기능 전체가 정상이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. SOURCE LOCK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+canonical branch:
+
+release/v2.0.0
+
+실행:
+
+git fetch origin
+git checkout release/v2.0.0
+git pull --ff-only
+
+확인:
+
+HEAD == origin/release/v2.0.0
+
+기준상 최소 포함되어야 하는 최근 P0 HEAD:
+
+2e53eced
+
+단 이후 정상 commit이 존재하면
+무조건 최신 origin HEAD를 사용한다.
+
+tracked working tree:
+clean 필수
+
+untracked attached_assets / 사용자 첨부 / 임시 파일 등은
+Production native build archive에 포함시키지 않는다.
+
+과거 commit으로 checkout 금지.
+과거 binary source 재사용 금지.
+과거 dist/export 재사용 금지.
+임의 cherry-pick 조립 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. FINAL SOURCE CONSOLIDATION 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 HEAD가 지금까지 확정된 최신 Production 기능 전체를
+실제로 포함하는지 source 기준으로 확인한다.
+
+단 광범위한 신규 refactor/audit를 하라는 의미가 아니다.
+
+누락 여부만 확인한다.
+
+[구매/정책]
+
+- PURCHASE_SUBSCRIPTION_REFUND v1.0
+- 신규 pool_admin 가입 후 정책 동의 → onboarding
+- 체크 전 진행 불가
+- 서버 동의 저장 성공 후에만 진행
+- 기존 pool_admin 로그인 강제 정책 gate 없음
+- Teacher/Parent 가입 gate 없음
+- 무료체험 시작 전 미동의 시 정책 동의
+- 유료구매 전 미동의 시 정책 동의
+- Super Admin 정책동의 상태 read-only
+- 기존 consent 이력 보존
+- 구형 refund-policy 자동 redirect/modal 없음
+- 문의처:
+  swimnote.admin@gmail.com
+- support@swimnote.app가 구독/환불 정책 공식 문의처로 남아 있지 않음
+
+[구독]
+
+공식 판매 상품:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+카드 가격은 하드코딩 우선이 아니라:
+
+RevenueCat
+pkg.product.priceString
+
+실제 Store localized price가 canonical source.
+
+동일 가격 source 적용:
+
+- subscription card
+- purchase policy modal
+- confirmation dialog
+
+Android 현재 확인값:
+
+X300 = ₩130,000
+X500 = ₩200,000
+X1000 = ₩360,000
+
+SWIMNOTE도 Google Play가 반환한 실제 가격 사용.
+
+iOS는 App Store 반환 priceString 사용.
+
+[Android 공식 products]
+
+com.swimnote.swimnote.monthly:monthly
+com.swimnote.x300.monthly:monthly
+com.swimnote.x500.monthly:monthly
+com.swimnote.x1000.monthly:monthly
+
+[Plan change]
+
+Android upgrade:
+oldProductIdentifier
++
+IMMEDIATE_AND_CHARGE_FULL_PRICE
+
+Android downgrade:
+DEFERRED
+
+iOS:
+동일 Subscription Group의 Apple 정책 사용.
+
+이중구독 방지 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. X TRIAL 최신 상태 전부 포함
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 최종 native source에 포함:
+
+- exact 72h
+- one-time trial
+- 결제수단 요구 없음
+- 자동유료전환 없음
+- x_trial과 x_paid_entitlement 분리
+- trial 시작 DB 성공 후 stale GET false failure 수정
+- _noCache verification
+- retry logic
+- spinner finally 종료
+- 무한 spinner 없음
+- false "체험 시작 실패" 없음
+- ALREADY_USED recovery
+- XRestartRequiredModal
+- "X 무료체험 적용 완료"
+- "앱 재시작"
+- Updates.reloadAsync()
+- reload 실패 시 완전종료/재실행 안내
+- 재실행 후 canonical x_trial
+- X admin home 표시
+- X Mode Hub
+- trial 허용 AI Diary
+- trial 허용 Growth 기능
+- BASE 기능 보존
+
+중요:
+
+mode === x
+를 paid 판정으로 사용하지 말 것.
+
+canonical semantics 유지:
+
+feature access = canonical mode resolver
+paid = x_paid_entitlement
+manual = x_manual_entitlement
+HQ = x_management_override
+forced off = x_force_disabled
+trial = x_trial
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. X PAID / PAYMENT LIFECYCLE 포함
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 native/server contract에 포함:
+
+- paid entitlement 적용 후 XRestartRequiredModal
+- 앱 재시작 후 X mode 적용
+- cancellation과 expiration 구분
+- paid-through 기간까지 서비스 유지
+- payment grace 처리
+- 실제 expiration 후 자동 BASE downgrade 금지
+- PAYMENT_SUSPENDED
+- 데이터 삭제 금지
+- Admin recovery screen
+- Teacher suspended screen
+- Parent suspended screen
+- 비싼 AI/media/write 제한
+- 정상 결제복구 후 기존 데이터 그대로 복원
+- manual/HQ entitlement 예외
+- voluntary X→SWIMNOTE deferred 전환 시 transient suspend 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. DATA100 / DATA300
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BASE / X Trial / X Paid에서 모두 표시.
+
+DATA100
++100GB
+₩7,900/월
+준비 중
+
+DATA300
++300GB
+₩22,900/월
+준비 중
+
+구매:
+HOLD
+
+Store 호출:
+0
+
+실제 판매 활성화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최근 P0/운영 수정 전체 포함 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음도 최종 source에 포함되어야 한다.
+
+- 설정 첫 화면 "구독 관리 / 요금제 및 결제 관리"
+- 기존 운영 및 정책 → 구독관리 경로 유지
+- Powered by SWIMNOTE AI with OpenAI GPT
+- Admin / Teacher / Parent 필요한 위치 반영
+- Auth global unique 최신 정책
+- admin/teacher email lowercase unique
+- parent login_id legacy case-sensitive 정책 유지
+- login ID availability check/debounce
+- AI Diary provenance protection
+- teacher/class/date/student scope protection
+- explicit teacher confirmation
+- replay/duplicate/mismatch guard
+- durable trace
+- 최신 Diary safety
+- temporary media/image/video/share file cleanup
+- BASE/X 데이터 보존
+- X mode 변경 시 기존 회원/반/일지 데이터 삭제/초기화 없음
+- Parent AI Insight promo 진입
+- AI Insight 실제 구매 HOLD
+- DATA purchase HOLD
+- 최신 성장리포트 관련 기존 구현 손상 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. BACKEND PRODUCTION 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+APP API:
+
+https://swimnote-api.onrender.com
+
+AI ENGINE:
+
+https://swimnote-professional-engine.onrender.com
+
+Production API가 최신 앱 contract와 호환되는지 확인.
+
+Render:
+
+- Production service LIVE
+- health 정상
+- 필요한 server-side 최신 P0 commit이 LIVE 상태
+- 앱 최신 client-only commit 때문에 불필요한 server redeploy는 하지 말 것
+
+DB:
+
+Production Supabase:
+
+mrgkiussgbbmxfnkjgqy
+
+에 필요한 최신 schema/migration이 적용된 상태인지 확인.
+
+중요:
+
+새로운 DB 변경을 발명하지 말 것.
+현재 앱이 요구하는 이미 확정된 migration만 존재 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. VERSION SYSTEM 완전 통일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Production release의 canonical 값:
+
+Expo public version:
+2.2.0
+
+Expo runtimeVersion:
+2.2.0
+
+iOS:
+
+CFBundleShortVersionString:
+2.2.0
+
+CFBundleVersion:
+300
+
+Android:
+
+versionName:
+2.2.0
+
+versionCode:
+300
+
+단 Store에서 300이 이미 사용되어 재사용 불가능하면
+임의로 낮추지 말고 다음 사용 가능한 번호 301 이상을 사용.
+
+그 경우 완료보고에 정확한 실제 값을 명시.
+
+확인 대상:
+
+- app.json
+- app.config.*
+- Expo resolved config
+- eas.json
+- EAS remote version source
+- ios native config
+- android native config
+- Info.plist/project settings
+- Gradle
+- package/build scripts
+
+실제 Production EAS build에 적용되는
+canonical source를 정확히 확인.
+
+중복 설정 충돌 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. VERSION 변경 COMMIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기능 source 누락이 없음을 확인한 뒤
+버전 변경만 최소 수정한다.
+
+Public version:
+2.2.0
+
+runtime:
+2.2.0
+
+iOS:
+300
+
+Android:
+300
+
+버전 변경 commit 생성.
+
+push:
+
+release/v2.0.0
+
+최종:
+
+HEAD == origin/release/v2.0.0
+
+tracked working tree clean.
+
+이 commit 이후 새로운 기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. RESOLVED CONFIG PRECHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 EAS build 시작 전에
+resolved Expo config 기준으로 출력/확인:
+
+version = 2.2.0
+runtimeVersion = 2.2.0
+
+ios.bundleIdentifier = com.swimnote.app
+ios.buildNumber = 300 이상 실제값
+
+android.package = com.swimnote.app
+android.versionCode = 300 이상 실제값
+
+이 값이 다르면 build 시작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. FRESH BUNDLE — 절대조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+iOS / Android 둘 다:
+
+fresh Metro bundle 생성.
+
+금지:
+
+--skip-bundler
+기존 dist 사용
+기존 export 사용
+기존 native bundle 사용
+build 244/245 bundle 사용
+runtime 2.1.0 export 재사용
+캐시 때문에 과거 JS가 들어가는 방식
+
+필요 시 build cache를 안전하게 무효화하여
+현재 HEAD를 실제 bundle하도록 할 것.
+
+fresh bundle에서 최소 아래 문자열 존재 확인:
+
+구매·구독·환불 정책
+
+swimnote.admin@gmail.com
+
+X 무료체험 적용 완료
+
+X 모드 적용 완료
+
+앱 재시작
+
+구독 관리
+
+요금제 및 결제 관리
+
+DATA100
+
+DATA300
+
+Powered by SWIMNOTE AI with OpenAI GPT
+
+그리고 Store localized price 코드 경로가
+bundle에 포함되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. FINAL AUTOMATED RELEASE SMOKE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+광범위한 새 QA 금지.
+
+단 build 전에 release blocker 여부를 마지막으로 확인.
+
+최소:
+
+- TypeScript/compile
+- production bundle
+- route resolution
+- signup policy gate
+- subscription screen
+- trial flow 주요 코드 경로
+- purchase callbacks
+- DATA 표시
+- payment suspension route
+- Admin/Teacher/Parent 핵심 routes
+
+확인 목적은:
+
+P0 blocker 0
+
+이다.
+
+사소한 UI/spacing/text 취향 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. iOS 2.2.0 FINAL NATIVE BUILD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EAS Production iOS build.
+
+최종:
+
+Version:
+2.2.0
+
+runtimeVersion:
+2.2.0
+
+buildNumber:
+300 이상 실제 유효값
+
+bundleIdentifier:
+com.swimnote.app
+
+Production signing
+Production RevenueCat
+Production API
+Production AI Engine
+
+fresh native build 실행.
+
+Build SUCCESS까지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. ANDROID 2.2.0 FINAL NATIVE BUILD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EAS Production Android AAB build.
+
+최종:
+
+versionName:
+2.2.0
+
+runtimeVersion:
+2.2.0
+
+versionCode:
+300 이상 실제 유효값
+
+applicationId:
+com.swimnote.app
+
+Production RevenueCat
+Production API
+Production AI Engine
+
+fresh AAB build.
+
+Build SUCCESS까지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 2.2.0 PRODUCTION OTA BASELINE 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+새 native build와 동일한 FINAL HEAD에서:
+
+production-v2
+
+channel에
+
+runtimeVersion:
+2.2.0
+
+Production OTA를 새로 publish한다.
+
+목적:
+
+Store native binary와
+Production OTA baseline을
+처음부터 동일 source로 맞추기 위함.
+
+즉:
+
+2.2.0 native bundled source
+=
+2.2.0 Production OTA baseline source
+
+가 되어야 한다.
+
+이 OTA가 없으면 native 앱이 불완전한 것은 아니다.
+
+Native binary 자체가 이미 최신 완성본이어야 한다.
+
+OTA는 앞으로 2.2.0 운영의 기준점이다.
+
+iOS/Android 모두
+runtime 2.2.0 compatible update 확인.
+
+기존 runtime 2.1.0 OTA를
+2.2.0용으로 재사용/복사한 것으로 간주하지 말 것.
+
+반드시 FINAL HEAD에서 fresh publish.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. NATIVE ↔ OTA SOURCE EQUALITY 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 세 개가 동일 FINAL HEAD인지 확인:
+
+iOS Production native build source HEAD
+
+Android Production native build source HEAD
+
+runtime 2.2.0 Production OTA source HEAD
+
+세 개 중 하나라도 HEAD가 다르면 HOLD.
+
+또한 native build가 OTA 없이 설치되어도
+최신 기능 전체 포함인지 다시 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. iOS APP STORE CONNECT UPLOAD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+iOS build SUCCESS 후:
+
+해당 SWIMNOTE 2.2.0 Production binary를
+App Store Connect에 upload/submit.
+
+확인:
+
+Version:
+2.2.0
+
+Build:
+300 이상 실제값
+
+binary processing 정상.
+
+App Store Connect에서
+2.2.0 새 build가 확인될 때까지 진행.
+
+단:
+
+App Review 실제 심사 제출,
+수동 release,
+자동 release 설정 변경 등
+
+스토어 공개를 즉시 발생시키는 단계는
+사용자의 별도 승인 없이 임의 실행하지 말 것.
+
+여기서는:
+
+최종 binary를 App Store Connect에 올려
+배포 준비 상태까지 만드는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. ANDROID STORE UPLOAD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Android AAB SUCCESS 후:
+
+Google Play Console에 올릴 수 있는
+최종 Production artifact임을 확인.
+
+기존 workflow상 안전하게
+Internal/Closed track에 upload하는 자동화가 이미 있다면
+Production rollout이 아닌 검증 가능한 track까지만 업로드 가능.
+
+단:
+
+Production rollout
+사용자 공개
+release percentage 설정
+
+자동 실행 금지.
+
+불확실하면 AAB 생성까지만 하고
+artifact/build ID를 보고.
+
+절대로 Production 공개를 임의 시작하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 1.6.3 운영 전환 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.6.3의 과거 배포/빌드/OTA 이력 삭제 금지.
+
+하지만 이번 2.2.0 출시 이후 개발/운영 기준은:
+
+2.2.0 / runtime 2.2.0
+
+하나로 한다.
+
+새 P0 hotfix가 필요하면:
+
+2.2.0 runtime용 Production OTA
+
+또는 필요 시
+2.2.0의 다음 native build number
+
+로만 관리.
+
+1.6.3용 신규 OTA 제작 금지.
+
+2.0.1 / runtime 2.1.0 계열 신규 OTA 제작 금지.
+
+명시적 rollback 비상상황이 아니면
+과거 runtime으로 돌아가지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. RELEASE STOP CONDITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 있으면 자동 진행 중단하고 HOLD:
+
+- source HEAD 불일치
+- origin과 local 불일치
+- dirty tracked files
+- 최종 P0 fix 누락
+- old OTA에만 존재하고 Git source에 없는 수정 발견
+- version/runtime 불일치
+- iOS/Android 실제 build number 충돌
+- stale bundle 의심
+- Production env 누락
+- RevenueCat Production config 오류
+- compile 실패
+- native dependency 오류
+- signing 오류
+- App Store upload reject
+- Android AAB build 실패
+- DATA 실제 purchase 활성화
+- AI Insight purchase 활성화
+- Store displayed price source 회귀
+- 정책 gate 회귀
+- X Trial 회귀
+- PAYMENT_SUSPENDED 회귀
+- 데이터 손실 가능성
+- native source와 2.2.0 OTA HEAD 불일치
+
+HOLD이면 억지 수정/우회 금지.
+정확한 blocker만 보고하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고는 아래 항목을 정확히 작성.
+
+[RELEASE IDENTITY]
+
+1. 공식 Production version
+2. runtimeVersion
+3. iOS buildNumber
+4. Android versionCode
+5. Git branch
+6. FINAL HEAD
+7. origin exact 여부
+8. tracked tree clean 여부
+
+[SOURCE CONSOLIDATION]
+
+9. 기존 2.1.0 Production OTA의 최신 수정이 Git/native source에 모두 포함됐는지
+10. old OTA 의존 기능 존재 여부
+11. 2e53eced 이후 최신 P0 commit 포함 여부
+12. 정책/이메일 fix 포함 여부
+13. Store localized price 포함 여부
+14. DATA 표시/HOLD 포함 여부
+15. Trial 최신 fix 포함 여부
+16. X restart 적용 포함 여부
+17. Payment Suspended 포함 여부
+18. Diary provenance/safety 포함 여부
+19. Auth/storage/branding 포함 여부
+
+[CONFIG]
+
+20. resolved Expo version
+21. resolved runtimeVersion
+22. resolved ios.buildNumber
+23. resolved android.versionCode
+24. bundleIdentifier
+25. applicationId
+26. Production API URL
+27. Production AI Engine URL
+
+[BUNDLE]
+
+28. fresh Metro bundle 여부
+29. --skip-bundler 미사용
+30. stale dist/export 미사용
+31. required strings 확인
+32. build archive에 attached_assets 등 불필요 파일 제외
+
+[iOS]
+
+33. EAS build ID
+34. iOS build source HEAD
+35. Version/Build
+36. build status
+37. artifact 생성
+38. App Store Connect upload status
+39. App Store Connect에서 확인된 version/build
+40. Processing/Ready 상태
+41. warning
+42. blocker
+
+[ANDROID]
+
+43. EAS build ID
+44. Android build source HEAD
+45. versionName/versionCode
+46. build status
+47. AAB 생성
+48. AAB size
+49. Play upload 여부/track
+50. Production rollout 미실행 확인
+51. warning
+52. blocker
+
+[OTA 2.2.0 BASELINE]
+
+53. channel
+54. runtimeVersion
+55. OTA source HEAD
+56. iOS update ID
+57. Android update ID
+58. native source와 OTA source 동일 여부
+59. 기존 runtime 2.1.0 OTA 재사용 안 함 확인
+
+[FINAL]
+
+60. 신규 설치 2.2.0이 OTA 없이 완전한 최신 기능인지
+61. iOS native = Android native = OTA FINAL HEAD 동일 여부
+62. release blocker 개수
+63. 최종 PASS / HOLD / FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. FINAL PASS 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PASS는 아래를 전부 만족해야 한다.
+
+- 공식 배포버전 2.2.0
+- runtimeVersion 2.2.0
+- iOS buildNumber >= 300
+- Android versionCode >= 300
+- 최신 origin HEAD 사용
+- 모든 최신 P0 source 포함
+- 기존 OTA에만 남은 수정 0
+- fresh native bundle
+- iOS Production build SUCCESS
+- Android Production AAB SUCCESS
+- runtime 2.2.0 Production OTA fresh publish SUCCESS
+- native와 OTA source HEAD 동일
+- iOS App Store Connect binary upload SUCCESS
+- Android Production rollout은 아직 시작하지 않음
+- 신규 설치만으로 최신 기능 완전 동작
+- blocker 0
+
+PASS 후:
+
+새 기능 추가 금지.
+대규모 refactor 금지.
+과거 runtime으로 회귀 금지.
+
+SWIMNOTE Production 기준을:
+
+2.2.0 / runtime 2.2.0 / build 300계열
+
+로 확정하고 STOP.
