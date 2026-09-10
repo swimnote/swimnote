@@ -3,10 +3,27 @@
  *
  * POST /v1/teacher-diary/generate
  *
+ * ╔══════════════════════════════════════════════════════════════════════════╗
+ * ║  ★ 영구 불변 아키텍처 원칙 (2026-09-11 확정, 변경 금지)                 ║
+ * ║                                                                          ║
+ * ║  1. 일지 생성 시 curriculum_items + diary_templates 항상 병합 사용       ║
+ * ║     - curriculum은 학부모 게이지(진도 추적) 목적과 겸용                  ║
+ * ║     - 일지 AI는 모든 데이터 소스를 최대한 활용해 품질 극대화             ║
+ * ║     - curriculum 존재 여부와 무관하게 diary_templates도 반드시 조회      ║
+ * ║                                                                          ║
+ * ║  2. 검색 우선순위: curriculum_items 우선 → diary_templates 보충          ║
+ * ║     - curriculum 결과가 있어도 diary_templates를 추가로 검색해 보충      ║
+ * ║     - 중복 ID 제거 후 병합                                               ║
+ * ║                                                                          ║
+ * ║  3. X mode는 별도 경로 유지 (x_global templates 전용, 이 원칙 비적용)   ║
+ * ║                                                                          ║
+ * ║  향후 이 파일 수정 시 위 원칙을 깨는 방향으로 변경 불가.                 ║
+ * ╚══════════════════════════════════════════════════════════════════════════╝
+ *
  * Pipeline:
  *   1. Request 검증 (V1 / V2 Contract)
  *   2. Meaning Extraction — 키워드 기반 파싱, GPT 불필요
- *   3. Template Search  — diary_templates DB 검색 (CANDIDATE_MIN_CONCEPT_OVERLAP=0.30)
+ *   3. Template Search  — curriculum_items + diary_templates 병합 검색
  *   4. Ranking          — USAGE_MIN_SCORE=1.40 통과, TOP_K_USAGE=1 선택
  *   5. Prompt Build     — 선택된 템플릿을 참고 예문으로 포함
  *   6. GPT 호출         — gpt-4o-mini
