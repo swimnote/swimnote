@@ -221,45 +221,71 @@ export default function SubscriptionScreen() {
   const [trialError,      setTrialError]      = useState<string | null>(null);
   const [showTrialConfirm, setShowTrialConfirm] = useState(false);
 
+  // ── X trial activation 성공 여부 직접 확인 (캐시 bypass + retry) ─────────
+  // 핵심: _bustRelated는 /billing/* 캐시만 bust → /pools/x-mode 캐시가
+  // stale(mode:normal)로 남음. _noCache:true로 강제 network 요청, 3회 retry.
+  async function verifyTrialActive(): Promise<boolean> {
+    const DELAYS = [0, 500, 1500];
+    for (let i = 0; i < DELAYS.length; i++) {
+      if (DELAYS[i] > 0) await new Promise<void>(r => setTimeout(r, DELAYS[i]));
+      try {
+        const checkRes = await apiRequest(token, "/pools/x-mode", { _noCache: true } as any);
+        if (!checkRes.ok) continue;
+        const checkData = await checkRes.json().catch(() => ({}));
+        if (checkData?.mode === "x_trial") return true;
+      } catch {
+        // network still recovering — next retry
+      }
+    }
+    return false;
+  }
+
   async function doActivateTrial() {
     if (trialActivating) return;
     setTrialActivating(true);
     setTrialError(null);
     setShowTrialConfirm(false);
+
+    // 결과 분류:
+    // CONFIRMED_REJECT  — 서버가 정책상 명시적 거절 (payment_suspended 등)
+    // NEED_VERIFY       — POST 성공 / 네트워크 예외 / ALREADY_USED 모두 포함
+    let confirmedReject = false;
+    let rejectMsg: string | null = null;
+
     try {
       const res = await apiRequest(token, "/billing/x-trial-activate", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const code = data?.error ?? "";
-        if (code === "TRIAL_ALREADY_ACTIVE") {
-          // 이미 활성 → 강제 mode 재조회 (lock 해제 후 즉시 반영)
-          await forceRefreshMode().catch(() => {});
-          return;
+        // ALREADY_USED / ALREADY_ACTIVE: 이전 요청이 이미 성공했을 수 있음 → verify
+        if (code !== "TRIAL_ALREADY_USED" && code !== "TRIAL_ALREADY_ACTIVE") {
+          confirmedReject = true;
+          rejectMsg = trialErrorMessage(code);
         }
-        setTrialError(trialErrorMessage(code));
-        return;
       }
-      // DB 기록 성공 → 강제 재조회:
-      // refreshMode()는 in-flight 요청이 있으면 silently no-op 반환하여
-      // 구버전 mode(normal)가 남는 버그가 있음. forceRefreshMode()로 즉시 반영.
-      await forceRefreshMode().catch(() => {});
+      // res.ok 이면 fall-through → verify
     } catch {
-      // POST가 서버에서 성공했지만 네트워크 단절로 클라이언트에서 예외가 발생한 경우
-      // (Render cold-start, 응답 스트림 중단 등) DB는 실제로 업데이트됐을 수 있음.
-      // /pools/x-mode 재조회로 실제 activation 여부를 확인한 뒤 에러 표시 결정.
-      try {
-        await forceRefreshMode().catch(() => {});
-        const checkRes = await apiRequest(token, "/pools/x-mode");
-        const checkData = await checkRes.json().catch(() => ({}));
-        if (checkRes.ok && checkData?.mode === "x_trial") {
-          // 서버에서는 성공 — 에러 메시지 표시하지 않음
-          return;
-        }
-      } catch {}
-      setTrialError("체험 시작에 실패했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setTrialActivating(false);
+      // 네트워크 예외 — POST 서버 성공 가능 → verify
     }
+
+    if (confirmedReject) {
+      setTrialError(rejectMsg);
+      setTrialActivating(false);
+      return;
+    }
+
+    // 성공 여부 확인 (캐시 bypass + 최대 3회 retry: 0 / 500ms / 1500ms)
+    const isActive = await verifyTrialActive();
+    if (isActive) {
+      // CONFIRMED_SUCCESS 또는 RECOVERED_SUCCESS — 에러 없음
+      await forceRefreshMode().catch(() => {});
+    } else {
+      // UNKNOWN: 네트워크 문제로 서버 상태를 확인할 수 없음
+      // "체험 시작 실패" 대신 UNKNOWN 안내
+      setTrialError("무료체험 상태를 확인하지 못했습니다. 앱을 재실행하면 정상 반영됩니다.");
+      await forceRefreshMode().catch(() => {});
+    }
+    setTrialActivating(false);
   }
 
   // ── 데이터 로드 ─────────────────────────────────────────────────────────────
