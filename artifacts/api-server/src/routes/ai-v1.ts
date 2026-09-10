@@ -277,15 +277,35 @@ router.post(
           (xTemplateStatus !== 'FOUND' ? ` fallback_reason=${xTemplateStatus}` : ''),
         );
       } else {
-        // Normal mode: ACTIVE Curriculum 있으면 curriculum_items 기반 검색, 없으면 legacy diary_templates
+        // Normal mode: ACTIVE Curriculum 있으면 curriculum_items 기반 검색 + diary_templates 보충 병합
+        //              Curriculum 없으면 legacy diary_templates만 사용
         const hasCurriculum = await hasCurriculumBasedDiary(poolId);
         if (hasCurriculum) {
-          searchResult = await searchCurriculumForDiary(poolId, meaning);
+          // curriculum + diary_templates 병렬 검색 후 병합 (curriculum 우선)
+          const [curriculumResult, templateResult] = await Promise.all([
+            searchCurriculumForDiary(poolId, meaning),
+            searchTemplates(poolId, meaning),
+          ]);
+          // curriculum 결과 우선, diary_templates로 중복 없이 보충
+          const mergedTemplates = [...curriculumResult.usedTemplates];
+          for (const t of templateResult.usedTemplates) {
+            if (!mergedTemplates.some(m => m.id === t.id)) {
+              mergedTemplates.push(t);
+            }
+          }
+          searchResult = {
+            ...curriculumResult,
+            usedTemplates:  mergedTemplates,
+            usedCount:      mergedTemplates.length,
+            candidateCount: curriculumResult.candidateCount + templateResult.candidateCount,
+            candidateIds:   [...curriculumResult.candidateIds, ...templateResult.candidateIds],
+          };
           console.log(
             `[AI/v1:${internalId}] CURRICULUM_SEARCH_ROUTED` +
             ` pool=${poolId} hasCurriculum=true` +
-            ` candidates=${searchResult.candidateCount}` +
-            ` used=${searchResult.usedCount}` +
+            ` curriculum_used=${curriculumResult.usedCount}` +
+            ` template_supplement=${templateResult.usedCount}` +
+            ` merged_used=${mergedTemplates.length}` +
             ` top_score=${searchResult.topScore.toFixed(2)}`,
           );
         } else {
