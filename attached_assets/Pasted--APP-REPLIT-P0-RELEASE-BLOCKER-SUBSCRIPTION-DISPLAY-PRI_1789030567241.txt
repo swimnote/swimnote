@@ -1,0 +1,224 @@
+[보낼 곳: APP REPLIT]
+
+[P0 RELEASE BLOCKER — SUBSCRIPTION DISPLAY PRICE MUST MATCH STORE PRICE]
+
+실기기 Android Google Play Internal Test에서 실제 확인:
+
+앱 표시:
+X300 = ₩129,000/월
+X500 = ₩199,000/월
+X1000 = ₩359,000/월
+
+Google Play 실제 결제 sheet:
+X300 = ₩130,000/month
+X500 = ₩200,000/month
+X1000 = ₩360,000/month
+
+따라서 앱 표시가격과 실제 Store 청구가격 불일치.
+
+출시 전 반드시 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+구독 화면의 실제 판매가격을
+앱 하드코딩값으로 표시하지 말 것.
+
+App Store / Google Play에서 RevenueCat SDK를 통해 받은
+실제 localized store price를 canonical display price로 사용.
+
+예:
+
+package.product.localizedPriceString
+또는 현재 react-native-purchases 9.7.2의 정확한 StoreProduct 필드.
+
+SDK 실제 타입 확인 후 사용.
+
+추측 필드명 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 공식 상품
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+각 플랫폼에서 해당 package가 정상 load된 경우:
+
+앱 카드 가격
+=
+StoreProduct localized price
+
+가 되어야 함.
+
+예상 Android 현재 실가격:
+
+SWIMNOTE:
+Google Play 실제 값 확인 후 그대로 표시
+
+X300:
+₩130,000
+
+X500:
+₩200,000
+
+X1000:
+₩360,000
+
+iOS는 App Store가 반환하는 현재 실제 가격을 그대로 표시.
+
+따라서 플랫폼별 가격 차이는 허용.
+
+중요:
+앱에서 억지로 Android도 129,000으로 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FALLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat offering/package loading 전에는
+거짓 가격을 확정 가격처럼 표시하지 말 것.
+
+기존 하드코딩 가격이 필요하면
+fallback/placeholder 용도로만 사용 가능하나,
+
+Store package가 load되면 반드시
+localized store price로 교체.
+
+구매 CTA 활성 상태에서는
+앱 표시가격과 Store 가격이 일치해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 정책 본문 가격
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+PURCHASE_SUBSCRIPTION_REFUND v1.0 정책에
+현재 고정 가격이 본문에 들어가 있음.
+
+실제 플랫폼별 가격이 다를 수 있으므로
+정책 본문을 특정 금액의 법적 확정 청구값으로 오해하지 않게 수정 검토.
+
+권장:
+
+"앱 내 구독관리 화면에 표시되는 가격 및
+Apple App Store 또는 Google Play 결제화면에 표시되는
+최종 가격을 기준으로 합니다."
+
+상품 예시가격을 유지한다면
+"표시 가격은 플랫폼/지역/세금 등에 따라 달라질 수 있으며
+결제화면의 금액이 최종 청구금액입니다."
+
+명시.
+
+단 현재 policy version 변경/재동의 필요 여부는
+문구 변경 범위를 검토해서 보고.
+임의 version 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PURCHASE MODAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책 동의 purchase modal에서 해당 상품 가격을 표시할 경우에도
+하드코딩값 금지.
+
+현재 구매하려는 package의 localized store price 사용.
+
+즉:
+
+subscription card
+purchase policy modal
+confirmation dialog
+
+모두 같은 StoreProduct 가격 source 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. DATA
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA100 / DATA300은 현재 PURCHASE HOLD.
+
+이 상품은 Store 구매가 비활성이라
+기존 예정가격:
+
+DATA100 ₩7,900
+DATA300 ₩22,900
+
+표시 유지 가능.
+
+버튼:
+준비 중
+
+Store purchase 호출 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. Android SWIMNOTE
+앱 표시가격 == Google Play sheet 실제가격
+
+B. Android X300
+앱 표시 == ₩130,000
+Play sheet == ₩130,000
+
+C. Android X500
+앱 표시 == ₩200,000
+Play sheet == ₩200,000
+
+D. Android X1000
+앱 표시 == ₩360,000
+Play sheet == ₩360,000
+
+E. iOS
+각 상품 앱 표시가격 == App Store purchase sheet 가격
+
+F. purchase policy modal
+해당 상품 Store localized price와 동일
+
+G. offering loading/error
+잘못된 확정가격으로 구매 유도하지 않음
+
+H. DATA100/300
+예정가격 표시 + 구매 HOLD 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 기존 하드코딩 가격 위치
+2. RevenueCat 실제 사용 price field
+3. Android SWIMNOTE actual localized price
+4. Android X300 actual localized price
+5. Android X500 actual localized price
+6. Android X1000 actual localized price
+7. iOS 가격 source 확인
+8. subscription card 수정
+9. policy purchase modal 수정
+10. confirmation dialog 수정
+11. DATA HOLD 영향 없음
+12. 정책 본문 가격 문구 영향
+13. 수정 파일
+14. main HEAD
+15. Render LIVE SHA
+16. iOS OTA
+17. Android OTA
+18. next Android native build 포함 여부
+19. blocker
+20. 최종 PASS/HOLD
+
+PASS 조건:
+
+- 구매 가능한 모든 상품에서 앱 표시가격 == Store 결제가격
+- 플랫폼별 가격 차이를 정상 반영
+- 하드코딩 가격이 실제 구매가격 source로 사용되지 않음
+- DATA HOLD 유지
+- blocker 0
+
+완료 후 STOP.
