@@ -196,10 +196,30 @@ export default function SubscriptionScreen() {
     ];
     const map: Record<string, string> = {};
     for (const pkg of all) {
-      if (pkg.product.priceString) map[pkg.identifier] = pkg.product.priceString;
+      if (pkg.product?.priceString) {
+        map[pkg.identifier] = pkg.product.priceString;
+        // product identifier도 키로 등록 (fallback 탐색용)
+        if (pkg.product.productIdentifier) map[pkg.product.productIdentifier] = pkg.product.priceString;
+      }
     }
     return map;
   }, [soloOffering, centerOffering, xOffering, swimnoteOffering]);
+
+  // Store localized price 우선 — offering 미로드 시 하드코딩 fallback 표시.
+  // PASS 기준: Store package load 완료 시 표시가격 = Store 실가격.
+  const resolveStorePrice = useCallback((tier: string, fallbackKrw: number): string => {
+    const candidates = [
+      tier,
+      `${tier}:monthly`,
+      `com.swimnote.${tier}.monthly`,
+      `com.swimnote.${tier}.monthly:monthly`,
+    ];
+    for (const key of candidates) {
+      if (rcPriceMap[key]) return rcPriceMap[key];
+    }
+    // fallback: 하드코딩값. offering loading 중이면 placeholder로만 표시.
+    return fmtKrw(fallbackKrw);
+  }, [rcPriceMap]);
 
   // ── 구매·구독·환불 정책 동의 (PURCHASE_SUBSCRIPTION_REFUND) ──────────────────
   const [purchasePolicyConsent, setPurchasePolicyConsent] = useState<{
@@ -449,9 +469,14 @@ export default function SubscriptionScreen() {
       setPurchasePolicyChecked(false);
       setPurchasePolicyModalError(null);
       const swimnotePlan = SUBSCRIPTION_PLANS_DEF.find(p => p.tier === "swimnote");
+      const swimnotePriceDisplay = swimnotePlan
+        ? resolveStorePrice("swimnote", swimnotePlan.price_monthly_krw)
+        : null;
       setPurchasePolicyModalCtx({
         source: "purchase",
-        productName: swimnotePlan ? `${swimnotePlan.name} — ₩${swimnotePlan.price_monthly_krw?.toLocaleString("ko-KR") ?? "9,900"}/월` : "SWIMNOTE",
+        productName: swimnotePlan
+          ? `${swimnotePlan.name} — ${swimnotePriceDisplay}/월`
+          : "SWIMNOTE",
         onAgreed: () => handleSwimnoteSubscribe(),
       });
       setShowPurchasePolicyModal(true);
@@ -536,7 +561,7 @@ export default function SubscriptionScreen() {
       setPurchasePolicyModalError(null);
       setPurchasePolicyModalCtx({
         source: "purchase",
-        productName: `${plan.name} — ₩${plan.price_monthly_krw?.toLocaleString("ko-KR") ?? ""}/월`,
+        productName: `${plan.name} — ${resolveStorePrice(plan.tier, plan.price_monthly_krw)}/월`,
         onAgreed: () => handleXPlanChange(plan),
       });
       setShowPurchasePolicyModal(true);
@@ -921,7 +946,7 @@ export default function SubscriptionScreen() {
               <Text style={s.planName}>SWIMNOTE</Text>
               <View>
                 <Text style={[s.planPrice, { color: NAVY }]}>
-                  {fmtKrw(swimnotePlan.price_monthly_krw)}
+                  {resolveStorePrice("swimnote", swimnotePlan.price_monthly_krw)}
                   <Text style={s.planPriceSub}>/월</Text>
                 </Text>
               </View>
@@ -1020,7 +1045,7 @@ export default function SubscriptionScreen() {
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={[s.planPrice, { color: X_ACCENT }]}>
-                      {fmtKrw(plan.price_monthly_krw)}
+                      {resolveStorePrice(plan.tier, plan.price_monthly_krw)}
                       <Text style={s.planPriceSub}>/월</Text>
                     </Text>
                   </View>
