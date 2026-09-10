@@ -34,7 +34,7 @@ const V2_FLAG_KEY = "@swimnote:media_cleanup_v2";
  * 이 값을 bump하면 모든 기기에서 cleanup이 정확히 1회 재실행됨.
  * 현재: r1
  */
-const MEDIA_CLEANUP_REVISION = "r3"; // r3: Messenger photo/attachment + CSV cache 누적 정리
+const MEDIA_CLEANUP_REVISION = "r4"; // r4: cachePolicy 누락 컴포넌트 fix + 기존 SDWebImage disk cache 1회 전면 정리
 const V3_FLAG_KEY = `@swimnote:media_cleanup:${MEDIA_CLEANUP_REVISION}`;
 
 // 동시 실행 방지 lock
@@ -253,6 +253,51 @@ export async function runMediaCleanupV3(
   } catch (e) {
     console.warn("[media-cleanup-v3] error:", e);
     _v2Running = false;
+  }
+}
+
+/**
+ * Media Cleanup WEEKLY — 7일마다 반복 실행.
+ *
+ * V1~V3는 1회성 flag 방식이어서, 완료 후 새로 쌓이는 캐시를 방치함.
+ * 이 함수는 마지막 실행으로부터 7일이 지나면 자동 재실행.
+ * 내용:
+ *   - expo-image SDWebImage disk cache (Image.clearDiskCache)
+ *   - cacheDirectory/ImagePicker/  (picker temp copies)
+ *   - cacheDirectory/ImageManipulator/ (compress 중간 결과)
+ *
+ * 안전 원칙: upload 진행 중이면 ImagePicker 삭제 건너뜀.
+ */
+const WEEKLY_CLEANUP_KEY = "@swimnote:media_cleanup_weekly_ts";
+const WEEKLY_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7일
+
+export async function runMediaCleanupWeekly(
+  isUploadActive: boolean
+): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(WEEKLY_CLEANUP_KEY);
+    const lastRun = raw ? parseInt(raw, 10) : 0;
+    const now = Date.now();
+    if (now - lastRun < WEEKLY_INTERVAL_MS) return; // 7일 미경과 → skip
+
+    // SDWebImage disk cache — cachePolicy="memory" 누락 이미지 누적분 제거
+    try { await Image.clearDiskCache(); } catch (_) {}
+
+    // ImagePicker temp
+    const cacheDir = FileSystem.cacheDirectory;
+    if (!isUploadActive && cacheDir) {
+      for (const sub of ["ImagePicker/", "ImageManipulator/"]) {
+        try {
+          const info = await FileSystem.getInfoAsync(`${cacheDir}${sub}`);
+          if (info.exists) await FileSystem.deleteAsync(`${cacheDir}${sub}`, { idempotent: true });
+        } catch (_) {}
+      }
+    }
+
+    await AsyncStorage.setItem(WEEKLY_CLEANUP_KEY, String(now));
+    console.log(`[media-cleanup-weekly] done uploadActive=${isUploadActive}`);
+  } catch {
+    // 주기적 cleanup 실패는 조용히 무시
   }
 }
 

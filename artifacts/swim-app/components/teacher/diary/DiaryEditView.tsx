@@ -143,6 +143,7 @@ export default function DiaryEditView({
                           source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
                           style={{ width: "100%", height: "100%", borderRadius: 6 }}
                           contentFit="cover"
+                          cachePolicy="memory"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveLinkedPhoto(photo.id)} hitSlop={6}>
                           <LucideIcon name="x-circle" size={16} color="#fff" fill="#DC2626" />
@@ -162,6 +163,7 @@ export default function DiaryEditView({
                           source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
                           style={{ width: "100%", height: "100%", borderRadius: 6 }}
                           contentFit="cover"
+                          cachePolicy="memory"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveNewAlbumPhoto(photo.id)} hitSlop={6}>
                           <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
@@ -187,6 +189,7 @@ export default function DiaryEditView({
                             source={{ uri: video.thumbnail_presigned_url }}
                             style={{ width: "100%", height: "100%", borderRadius: 6 }}
                             contentFit="cover"
+                            cachePolicy="memory"
                           />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
@@ -212,6 +215,7 @@ export default function DiaryEditView({
                             source={{ uri: video.thumbnail_presigned_url }}
                             style={{ width: "100%", height: "100%", borderRadius: 6 }}
                             contentFit="cover"
+                            cachePolicy="memory"
                           />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>

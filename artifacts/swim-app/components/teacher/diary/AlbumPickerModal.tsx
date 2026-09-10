@@ -94,7 +94,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
         style={[s.item, isSel && s.itemSelected]}
       >
         {uri ? (
-          <ExpoImage source={{ uri }} style={s.image} contentFit="cover" />
+          <ExpoImage source={{ uri }} style={s.image} contentFit="cover" cachePolicy="memory" />
         ) : (
           <View style={[s.image, { backgroundColor: C.backgroundSoft }]} />
         )}
@@ -113,7 +113,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
     return (
       <Pressable onPress={() => toggleVideo(item.id)} style={[s.item, isSel && s.itemSelected]}>
         {thumbUri ? (
-          <ExpoImage source={{ uri: thumbUri }} style={s.image} contentFit="cover" />
+          <ExpoImage source={{ uri: thumbUri }} style={s.image} contentFit="cover" cachePolicy="memory" />
         ) : (
           <View style={[s.image, { backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }]}>
             <LucideIcon name="play" size={20} color="#94A3B8" fill="#94A3B8" />

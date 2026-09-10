@@ -84,7 +84,7 @@ function VideoDetailModal({
             <LucideIcon name="x" size={20} color="#fff" />
           </Pressable>
           {tn ? (
-            <Image source={{ uri: tn }} style={s.fullImg} contentFit="contain" />
+            <Image source={{ uri: tn }} style={s.fullImg} contentFit="contain" cachePolicy="memory" />
           ) : (
             <View style={[s.fullImg, { backgroundColor: "#0F2742", alignItems: "center", justifyContent: "center" }]}>
               <LucideIcon name="play" size={52} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />

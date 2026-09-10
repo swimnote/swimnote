@@ -213,6 +213,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
                       source={{ uri }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
+                      cachePolicy="memory"
                     />
                   ) : (
                     <View style={s.photoPlaceholder}>
