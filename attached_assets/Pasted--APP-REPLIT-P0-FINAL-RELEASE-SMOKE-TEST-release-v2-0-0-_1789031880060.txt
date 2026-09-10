@@ -1,0 +1,423 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL RELEASE SMOKE TEST — 출시 전 마지막 버그 확인]
+
+목표:
+현재 최신 release/v2.0.0 전체 상태에서
+출시를 막는 P0 버그만 마지막으로 확인한다.
+
+중요:
+- 새 기능 추가 금지
+- 대규모 audit/refactor 금지
+- UI polish 금지
+- 발견된 실제 P0만 최소 수정
+- 현재 최신 origin/release/v2.0.0 기준
+- 과거 Android 244 source로 되돌아가지 말 것
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+git fetch origin
+git checkout release/v2.0.0
+git pull --ff-only
+
+확인:
+
+- HEAD == origin/release/v2.0.0
+- working tree clean
+- 최신 가격 표시 수정 포함
+- 구매·구독·환불 정책 v1.0 포함
+- 환불 문의:
+  앱 내 문의 또는
+  swimnote.admin@gmail.com
+- DATA100/DATA300 표시 복구 포함
+- X Trial 최신 수정 포함
+- XRestartRequiredModal 포함
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 신규 관리자 가입
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+
+신규 pool_admin 가입
+
+기대:
+
+가입 완료
+→ "구매·구독·환불 정책" 화면
+→ 체크 전 진행 불가
+→ 체크 후 서버 동의 저장
+→ onboarding 시작
+
+확인:
+
+- 기존 구형 환불정책 자동 modal/redirect 없음
+- 새 PURCHASE_SUBSCRIPTION_REFUND v1.0만 사용
+- 동의 저장 실패 시 onboarding 진입 금지
+- 로그아웃 가능
+- 재로그인 시 동의 완료 계정은 반복 gate 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 관리자 영향
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE B
+
+기존 pool_admin 로그인
+
+기대:
+
+- 정책 미동의여도 단순 로그인/기존 운영은 차단하지 않음
+- 무료체험 또는 구매 시에만 최신 정책 동의 요구
+
+Teacher / Parent:
+
+- 구매정책 가입 gate 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 설정 → 구독관리
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE C
+
+관리자 설정 첫 화면에서:
+
+"로그인 후 선생님 모드로 시작"
+
+바로 아래:
+
+"구독 관리"
+"요금제 및 결제 관리"
+
+표시.
+
+탭:
+→ 기존 /(admin)/subscription 정상 진입
+
+기존:
+운영 및 정책 → 구독 관리
+
+경로도 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 구독 가격 — STORE SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+구매 가능한 4개 상품:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+앱 카드 가격은
+RevenueCat pkg.product.priceString 우선.
+
+확인:
+
+Android 실제 예상:
+- X300 ₩130,000
+- X500 ₩200,000
+- X1000 ₩360,000
+- SWIMNOTE도 Google Play 실제 priceString 사용
+
+iOS:
+- App Store priceString 사용
+
+다음 3곳이 같은 가격 source여야 함:
+
+1. subscription card
+2. purchase policy modal
+3. confirmation dialog
+
+하드코딩 가격이 실제 구매가격 source로 우선되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 무료체험
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE D
+
+trial 미사용 정상 pool:
+
+무료체험 시작
+→ 정책 동의 필요 시 modal
+→ 동의 저장
+→ trial activate
+→ 실패 메시지 0
+→ 무한 spinner 0
+→ X 무료체험 적용 완료 modal
+→ "앱 재시작"
+→ Updates.reloadAsync()
+→ 재실행 후 X Trial
+
+확인:
+
+- exact 72h
+- one-time
+- 자동결제 없음
+- paid entitlement=false
+- trial 재시작 불가
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X TRIAL 기능
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE E
+
+재시작 후 x_trial:
+
+- 관리자 HOME X Trial 상태 반영
+- X Mode Hub 진입
+- X AI Diary 진입
+- trial 허용 Growth 진입
+- Parent trial 허용 화면 접근
+- BASE 회원/반/출결/운영 기능 그대로 유지
+
+paid-only 기능을 trial로 오인하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 유료 결제 라인
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE F
+
+normal/SWIMNOTE 상태에서:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+CTA가 실제 활성.
+
+금지:
+"구독 신청 준비 중"
+
+X purchase 성공 시:
+
+→ server sync
+→ XRestartRequiredModal
+→ 앱 재시작
+→ canonical X mode
+
+결제 취소:
+→ entitlement 변경 0
+→ restart modal 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 플랜 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE G
+
+SWIMNOTE → X300/X500/X1000
+
+Android:
+oldProductIdentifier +
+IMMEDIATE_AND_CHARGE_FULL_PRICE
+
+iOS:
+동일 subscription group upgrade
+
+이중구독 0.
+
+CASE H
+
+X → SWIMNOTE
+
+Android:
+DEFERRED
+
+iOS:
+동일 subscription group downgrade
+
+기대:
+현재 paid-through까지 X 유지
+→ 다음 갱신부터 SWIMNOTE
+
+즉시 X 권한 제거 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PAYMENT_SUSPENDED
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE I
+
+실제 entitlement expiration 상태 simulation/test:
+
+- 자동 BASE downgrade 금지
+- PAYMENT_SUSPENDED
+- 데이터 삭제 0
+
+Admin:
+→ 정지 화면
+→ 구독 갱신 접근 가능
+
+Teacher:
+→ 정지 안내
+
+Parent:
+→ 정지 안내
+
+결제 복구:
+→ 기존 데이터 그대로 정상 복귀
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DATA100 / DATA300
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE J
+
+BASE / X Trial / X Paid 모두:
+
+추가 저장공간 영역 표시.
+
+DATA100:
++100GB
+₩7,900/월
+준비 중
+
+DATA300:
++300GB
+₩22,900/월
+준비 중
+
+중요:
+- UI 표시
+- 구매는 HOLD
+- Store purchase 호출 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 정책 본문 / 문의처
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE K
+
+구매·구독·환불 정책 화면에서:
+
+환불 및 구독 관련 문의:
+앱 내 고객센터 또는
+swimnote.admin@gmail.com
+
+확인.
+
+support@swimnote.app 등
+구형 환불 문의 주소가
+구매·구독·환불 정책 관련 화면에 남아 있으면 FAIL.
+
+policy version:
+1.0 유지.
+
+기존 consent 삭제/초기화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. SUPER ADMIN
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE L
+
+Super Admin에서 pool/admin 정책 동의 상태 확인:
+
+- 동의 / 미동의
+- policy version
+- agreed_at
+- source
+- 필요 시 platform
+
+read-only.
+
+대신 동의/수정 기능 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 기본 운영 SMOKE
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 주요 기능 파손 여부만 짧게 확인:
+
+Admin:
+- 회원 목록
+- 반/수업
+- 출결
+- 일지
+- 설정
+
+Teacher:
+- 로그인
+- 스케줄
+- 출결
+- 일지
+- AI 일지 진입
+
+Parent:
+- 로그인
+- 홈
+- 일지
+- 공지/앨범
+
+새로운 세부 QA 확장 금지.
+
+화면이 열리고 기본 요청이 정상인지 정도만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. RELEASE BLOCKER 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+P0로 처리할 것:
+
+- 가입 불가
+- 로그인 불가
+- 정책 gate 우회/무한루프
+- 실제 결제 불가
+- 표시가격 ≠ Store 가격
+- 무료체험 실패/무한로딩
+- X 적용 실패
+- 데이터 손실
+- PAYMENT_SUSPENDED 우회
+- 서버 5xx 반복
+- 핵심 운영 기능 사용 불가
+
+P0가 아닌 것:
+
+- 사소한 간격
+- 문구 취향
+- 아이콘 위치
+- 미세 UI polish
+- 출시 후 개선 가능한 UX
+
+P0 아닌 것은 수정하지 말고 기록도 최소화.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로만 보고:
+
+1. branch
+2. HEAD
+3. origin exact / clean
+4. CASE A~L PASS/FAIL
+5. 기본 운영 smoke 결과
+6. 발견된 P0 목록
+7. 수정이 있었다면 수정 파일
+8. 최종 main HEAD
+9. Render LIVE SHA
+10. iOS OTA
+11. Android OTA
+12. 최종 Android native build 필요 여부
+13. blocker
+14. 최종 PASS/HOLD/FAIL
+
+PASS 조건:
+
+- CASE A~L 전부 PASS
+- 핵심 운영 smoke PASS
+- P0 blocker 0
+- 데이터 손실 0
+- 결제/무료체험/정책 정상
+
+PASS이면:
+추가 기능 개발/리팩터링 금지.
+출시용 최종 native build 지시를 기다리고 STOP.
