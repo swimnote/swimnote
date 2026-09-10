@@ -388,6 +388,19 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        {/* ── 3-B. 구독 관리 바로가기 (pool_admin 전용) ─────────────────── */}
+        {adminUser?.role === "pool_admin" && (
+          <View style={[s.card, { marginBottom: 12 }]}>
+            <SectionRow
+              icon="credit-card"
+              label="구독 관리"
+              desc="요금제 및 결제 관리"
+              last
+              onPress={() => router.push("/(admin)/subscription" as any)}
+            />
+          </View>
+        )}
+
         {/* ── 4. 핵심 설정 ───────────────────────────────────────────────── */}
         <View style={[s.card, { marginBottom: 12 }]}>
           <Text style={s.sectionLabel}>핵심 설정</Text>
