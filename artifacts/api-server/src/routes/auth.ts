@@ -1580,6 +1580,20 @@ router.post("/teacher-self-signup", signupLimiter, async (req, res) => {
         VALUES (${inviteId}, ${pool_id}, ${name.trim()}, ${cleanedPhone},
                 'joinedPendingApproval', ${userId}, ${userId}, now(), now())
       `);
+      // 원장에게 즉시 푸시 알림 — 승인 대기 인지 즉시 가능하게
+      try {
+        const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+        await sendPushToPoolAdmins(
+          pool_id,
+          "teacher_join_request",
+          "선생님 가입 요청",
+          `${name.trim()}님이 가입을 요청했습니다. 승인 후 수업을 시작할 수 있습니다.`,
+          { type: "teacher_join_request", userId },
+          userId,
+        );
+      } catch (pushErr) {
+        console.error("[teacher-self-signup] push 실패 (무시):", pushErr);
+      }
     }
 
     // 승인 여부에 관계없이 토큰 발급 (미승인 선생님도 제한 모드로 앱 진입 허용)
