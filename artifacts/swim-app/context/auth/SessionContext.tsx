@@ -567,8 +567,48 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (role === "pool_admin" || role === "sub_admin") {
         if (!swimming_pool_id) return "/pool-apply";
 
-        // pool_admin 환불 정책 미동의 체크 (sub_admin 제외)
-        // 5초 AbortController 타임아웃: 느린 서버가 loadStored() 전체를 블로킹하지 않도록
+        // ── 구매·구독·환불 정책 신규 가입 게이트 ─────────────────────────────────
+        // 조건: pool_admin + AsyncStorage에 purchase_policy_gate 플래그 존재
+        // (signup.tsx가 가입 성공 후 플래그를 설정; 기존 재로그인은 플래그 없음)
+        // 앱 강제종료/재로그인 후에도 플래그가 남아있으면 게이트 재진입.
+        // 동의 완료 시 purchase-policy-agreement.tsx가 플래그 제거.
+        if (role === "pool_admin" && authToken) {
+          try {
+            const gateFlag = await AsyncStorage.getItem("@swimnote:purchase_policy_gate");
+            if (gateFlag) {
+              // 서버에서 실제 동의 여부 확인 (race condition 방지)
+              const consentController = new AbortController();
+              const consentTimer = setTimeout(() => consentController.abort(), 5000);
+              let alreadyAgreed = false;
+              try {
+                const consentRes = await fetch(`${API_BASE}/admin/purchase-policy/consent`, {
+                  headers: { Authorization: `Bearer ${authToken}` },
+                  cache: "no-store",
+                  signal: consentController.signal,
+                });
+                if (consentRes.ok) {
+                  const cd = await consentRes.json().catch(() => ({}));
+                  alreadyAgreed = !!cd.agreed;
+                }
+              } finally {
+                clearTimeout(consentTimer);
+              }
+              if (alreadyAgreed) {
+                // 이미 동의 완료 → 플래그 제거 후 정상 진입
+                await AsyncStorage.removeItem("@swimnote:purchase_policy_gate").catch(() => {});
+              } else {
+                return "/(auth)/purchase-policy-agreement";
+              }
+            }
+          } catch {
+            // 네트워크 오류 시 스킵 → 정상 진입 (게이트 플래그 유지됨)
+          }
+        }
+
+        // ── 기존 환불 정책 체크 (비활성 유지) ────────────────────────────────────
+        // [출시 전 UX 정리] 신규 가입 시 자동 환불정책 모달 제거.
+        // 기존 동의 이력·정책 데이터는 유지; 설정 > 환불 정책 확인 메뉴도 유지.
+        // (새 구매정책 시스템으로 교체됨)
         if (role === "pool_admin" && authToken) {
           try {
             const policyController = new AbortController();
@@ -583,23 +623,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             } finally {
               clearTimeout(policyTimer);
             }
-            if (policyRes.ok) {
-              // [출시 전 UX 정리] 신규 가입 시 자동 환불정책 모달 제거.
-              // 기존 동의 이력·정책 데이터는 유지; 설정 > 환불 정책 확인 메뉴도 유지.
-              // 추후 새 정책 시스템 작업 시 명시적 동의 구조로 재구현 예정.
-              //
-              // const policyData = await policyRes.json();
-              // if (policyData.success && (!policyData.agreed || policyData.needs_reagree)) {
-              //   return "/(auth)/policy-agreement";
-              // }
-            } else if (policyRes.status === 403) {
+            if (!policyRes.ok && policyRes.status === 403) {
               try {
                 const rawT = await policyRes.text();
                 if (!_loginDiagnostic) storeDiag("REFUND_POLICY", "GET", `${API_BASE}/admin/refund-policy`, policyRes, rawT);
               } catch {}
             }
           } catch {
-            // 네트워크 오류 또는 5초 타임아웃 시 정책 체크 스킵 → 홈으로 계속
+            // 네트워크 오류 시 스킵
           }
         }
 

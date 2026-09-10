@@ -3842,6 +3842,102 @@ router.post("/refund-policy/agree", requireAuth, requireRole("super_admin", "poo
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+// 구매·구독·환불 정책 (PURCHASE_SUBSCRIPTION_REFUND) 동의 API
+// ════════════════════════════════════════════════════════════════════════════
+
+const PURCHASE_POLICY_KEY = "PURCHASE_SUBSCRIPTION_REFUND";
+
+// 현재 active 정책 버전 + 동의 여부 조회
+// GET /admin/purchase-policy/consent
+router.get("/purchase-policy/consent", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    let poolId: string | null = null;
+    let userId: string = req.user!.userId;
+    if (req.user!.role === "super_admin") {
+      poolId = (req.query.pool_id as string) ?? null;
+      if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+    } else {
+      const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+        .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      poolId = u?.swimming_pool_id ?? null;
+    }
+    if (!poolId) { res.status(400).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    // 현재 active 정책 버전 조회
+    const versionRes = await superAdminDb.execute(sql`
+      SELECT id, version FROM policy_versions
+      WHERE policy_key = ${PURCHASE_POLICY_KEY} AND is_active = TRUE
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const activeRow = versionRes.rows[0] as any;
+    if (!activeRow) {
+      // 정책이 아직 seed되지 않은 경우 — 동의 없는 것으로 처리
+      res.json({ policy_key: PURCHASE_POLICY_KEY, current_version: null, agreed: false, agreed_version: null, needs_reagree: false, agreed_at: null });
+      return;
+    }
+    const currentVersion = activeRow.version;
+
+    // 이 수영장의 최신 동의 조회
+    const consentRes = await superAdminDb.execute(sql`
+      SELECT policy_version, agreed_at
+      FROM purchase_policy_consents
+      WHERE swimming_pool_id = ${poolId} AND policy_key = ${PURCHASE_POLICY_KEY}
+      ORDER BY agreed_at DESC LIMIT 1
+    `);
+    const consentRow = consentRes.rows[0] as any;
+    const agreedVersion = consentRow?.policy_version ?? null;
+    const agreedAt = consentRow?.agreed_at ?? null;
+    const agreed = !!agreedVersion && agreedVersion === currentVersion;
+    const needsReagree = !!agreedVersion && agreedVersion !== currentVersion;
+
+    res.json({ policy_key: PURCHASE_POLICY_KEY, current_version: currentVersion, agreed, agreed_version: agreedVersion, needs_reagree: needsReagree, agreed_at: agreedAt });
+  } catch (e) { console.error("[purchase-policy/consent GET]", e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
+// 동의 기록 저장 (source: signup | trial | purchase)
+// POST /admin/purchase-policy/consent
+router.post("/purchase-policy/consent", requireAuth, requireRole("pool_admin", "sub_admin"), async (req: AuthRequest, res) => {
+  try {
+    const { source, platform, app_version } = req.body ?? {};
+    const VALID_SOURCES = ["signup", "trial", "purchase"];
+    if (!VALID_SOURCES.includes(source)) {
+      res.status(400).json({ error: "source는 signup | trial | purchase 중 하나여야 합니다." }); return;
+    }
+
+    const userId = req.user!.userId;
+    const userRole = req.user!.role;
+    const [u] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    const poolId = u?.swimming_pool_id ?? null;
+    if (!poolId) { res.status(400).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+    // 현재 active 정책 버전 확인 (클라이언트 임의 version 금지)
+    const versionRes = await superAdminDb.execute(sql`
+      SELECT id, version FROM policy_versions
+      WHERE policy_key = ${PURCHASE_POLICY_KEY} AND is_active = TRUE
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const activeRow = versionRes.rows[0] as any;
+    if (!activeRow) {
+      res.status(503).json({ error: "정책 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요." }); return;
+    }
+    const policyVersion = activeRow.version;
+
+    const consentId = `ppc_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    await superAdminDb.execute(sql`
+      INSERT INTO purchase_policy_consents
+        (id, user_id, swimming_pool_id, role, policy_key, policy_version,
+         agreed_at, source, platform, app_version, created_at)
+      VALUES
+        (${consentId}, ${userId}, ${poolId}, ${userRole}, ${PURCHASE_POLICY_KEY}, ${policyVersion},
+         NOW(), ${source ?? "signup"}, ${platform ?? null}, ${app_version ?? null}, NOW())
+    `);
+
+    res.json({ success: true, message: "구매·구독·환불 정책에 동의했습니다.", agreed_version: policyVersion });
+  } catch (e) { console.error("[purchase-policy/consent POST]", e); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
+});
+
 // ── 전화번호로 학부모 계정 삭제 (슈퍼어드민 전용) ──────────────────────────
 // DELETE /admin/maintenance/delete-parent-by-phone?phone=010-7787-1507&pool_id=pool_toykids_swim_club
 router.delete("/maintenance/delete-parent-by-phone", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {

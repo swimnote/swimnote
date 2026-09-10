@@ -7891,6 +7891,61 @@ router.post(
   }
 );
 
+// ── GET /super/purchase-policy/consent?pool_id=... — 슈퍼관리자 읽기 전용 조회 ─
+router.get(
+  "/super/purchase-policy/consent",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const poolId = (req.query.pool_id as string || "").trim();
+    if (!poolId) { res.status(400).json({ error: "pool_id가 필요합니다." }); return; }
+    try {
+      // 현재 active 정책 버전
+      const versionRes = await superAdminDb.execute(sql`
+        SELECT version FROM policy_versions
+        WHERE policy_key = 'PURCHASE_SUBSCRIPTION_REFUND' AND is_active = TRUE
+        ORDER BY created_at DESC LIMIT 1
+      `);
+      const currentVersion = (versionRes.rows[0] as any)?.version ?? null;
+
+      // 이 수영장의 최신 동의
+      const latestRes = await superAdminDb.execute(sql`
+        SELECT policy_version, agreed_at, source, platform, app_version, user_id, role
+        FROM purchase_policy_consents
+        WHERE swimming_pool_id = ${poolId} AND policy_key = 'PURCHASE_SUBSCRIPTION_REFUND'
+        ORDER BY agreed_at DESC LIMIT 1
+      `);
+      const latest = latestRes.rows[0] as any ?? null;
+
+      // 동의 이력 전체 (최대 20건, 오래된 것부터)
+      const historyRes = await superAdminDb.execute(sql`
+        SELECT policy_version, agreed_at, source, platform, app_version
+        FROM purchase_policy_consents
+        WHERE swimming_pool_id = ${poolId} AND policy_key = 'PURCHASE_SUBSCRIPTION_REFUND'
+        ORDER BY agreed_at DESC LIMIT 20
+      `);
+
+      const agreedVersion = latest?.policy_version ?? null;
+      const agreed = !!agreedVersion && agreedVersion === currentVersion;
+      const needsReagree = !!agreedVersion && agreedVersion !== currentVersion;
+
+      res.json({
+        policy_key: "PURCHASE_SUBSCRIPTION_REFUND",
+        current_version: currentVersion,
+        agreed,
+        agreed_version: agreedVersion,
+        needs_reagree: needsReagree,
+        agreed_at: latest?.agreed_at ?? null,
+        latest_source: latest?.source ?? null,
+        latest_platform: latest?.platform ?? null,
+        history: historyRes.rows,
+      });
+    } catch (e: any) {
+      console.error("[super/purchase-policy/consent]", e);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
 router.post(
   "/super/notifications/read-all",
   requireAuth, requireRole("super_admin"),

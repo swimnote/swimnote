@@ -201,7 +201,22 @@ export default function SubscriptionScreen() {
     return map;
   }, [soloOffering, centerOffering, xOffering, swimnoteOffering]);
 
-  // ── 정책 동의 ──────────────────────────────────────────────────────────────
+  // ── 구매·구독·환불 정책 동의 (PURCHASE_SUBSCRIPTION_REFUND) ──────────────────
+  const [purchasePolicyConsent, setPurchasePolicyConsent] = useState<{
+    agreed: boolean; needs_reagree: boolean; current_version: string | null;
+  } | null>(null);
+  // purchase policy modal 상태
+  const [showPurchasePolicyModal, setShowPurchasePolicyModal] = useState(false);
+  const [purchasePolicyModalCtx, setPurchasePolicyModalCtx] = useState<{
+    source: "trial" | "purchase";
+    productName?: string;
+    onAgreed: () => void;
+  } | null>(null);
+  const [purchasePolicyChecked, setPurchasePolicyChecked] = useState(false);
+  const [purchasePolicyAgreeing, setPurchasePolicyAgreeing] = useState(false);
+  const [purchasePolicyModalError, setPurchasePolicyModalError] = useState<string | null>(null);
+
+  // ── 기존 환불 정책 동의 (refund_policy 호환 유지) ──────────────────────────
   const [policyAgreed,  setPolicyAgreed]  = useState<boolean | null>(null);
   const [policyVersion, setPolicyVersion] = useState<string>("v1.0");
 
@@ -303,10 +318,11 @@ export default function SubscriptionScreen() {
   // ── 데이터 로드 ─────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [statusRes, policyRes, storageRes] = await Promise.all([
+      const [statusRes, policyRes, storageRes, purchasePolicyRes] = await Promise.all([
         apiRequest(token, "/billing/status"),
         apiRequest(token, "/admin/refund-policy").catch(() => null),
         apiRequest(token, "/admin/storage-overview").catch(() => null),
+        apiRequest(token, "/admin/purchase-policy/consent").catch(() => null),
       ]);
       if (statusRes.ok) {
         const d = await statusRes.json();
@@ -324,6 +340,14 @@ export default function SubscriptionScreen() {
           setPolicyAgreed(d.agreed && !d.needs_reagree);
           setPolicyVersion(d.version ?? "v1.0");
         }
+      }
+      if (purchasePolicyRes?.ok) {
+        const d = await purchasePolicyRes.json().catch(() => ({}));
+        setPurchasePolicyConsent({
+          agreed: !!d.agreed && !d.needs_reagree,
+          needs_reagree: !!d.needs_reagree,
+          current_version: d.current_version ?? null,
+        });
       }
       if (storageRes?.ok) {
         const d = await storageRes.json();
@@ -420,15 +444,20 @@ export default function SubscriptionScreen() {
 
   // SWIMNOTE 기본플랜 구매 핸들러 — RC swimnote_monthly offering 연결
   async function handleSwimnoteSubscribe() {
-    // 환불 정책 동의 확인
-    if (policyAgreed === false) {
-      showConfirm(
-        "환불 정책 동의 필요",
-        `유료 결제를 진행하려면 환불 정책 동의가 필요합니다.\n현재 버전: ${policyVersion}`,
-        () => router.push("/(admin)/refund-policy" as any),
-      );
+    // 구매·구독·환불 정책 동의 gate (PURCHASE_SUBSCRIPTION_REFUND)
+    if (!purchasePolicyConsent?.agreed || purchasePolicyConsent?.needs_reagree) {
+      setPurchasePolicyChecked(false);
+      setPurchasePolicyModalError(null);
+      const swimnotePlan = SUBSCRIPTION_PLANS_DEF.find(p => p.tier === "swimnote");
+      setPurchasePolicyModalCtx({
+        source: "purchase",
+        productName: swimnotePlan ? `${swimnotePlan.name} — ₩${swimnotePlan.price_monthly_krw?.toLocaleString("ko-KR") ?? "9,900"}/월` : "SWIMNOTE",
+        onAgreed: () => handleSwimnoteSubscribe(),
+      });
+      setShowPurchasePolicyModal(true);
       return;
     }
+    // (기존 refund_policy 게이트는 유지하지 않음 — 새 정책으로 대체)
 
     // swimnote_monthly offering 로드 확인
     if (offeringsLoading) {
@@ -501,13 +530,16 @@ export default function SubscriptionScreen() {
       return;
     }
 
-    // 환불 정책 동의 확인
-    if (policyAgreed === false) {
-      showConfirm(
-        "환불 정책 동의 필요",
-        `유료 결제를 진행하려면 환불 정책 동의가 필요합니다.\n현재 버전: ${policyVersion}`,
-        () => router.push("/(admin)/refund-policy" as any),
-      );
+    // 구매·구독·환불 정책 동의 gate (PURCHASE_SUBSCRIPTION_REFUND)
+    if (!purchasePolicyConsent?.agreed || purchasePolicyConsent?.needs_reagree) {
+      setPurchasePolicyChecked(false);
+      setPurchasePolicyModalError(null);
+      setPurchasePolicyModalCtx({
+        source: "purchase",
+        productName: `${plan.name} — ₩${plan.price_monthly_krw?.toLocaleString("ko-KR") ?? ""}/월`,
+        onAgreed: () => handleXPlanChange(plan),
+      });
+      setShowPurchasePolicyModal(true);
       return;
     }
 
@@ -762,7 +794,20 @@ export default function SubscriptionScreen() {
               </View>
               <Pressable
                 style={({ pressed }) => [s.trialBtn, { opacity: pressed ? 0.8 : 1 }]}
-                onPress={() => setShowTrialConfirm(true)}
+                onPress={() => {
+                  // 구매·구독·환불 정책 동의 gate
+                  if (!purchasePolicyConsent?.agreed || purchasePolicyConsent?.needs_reagree) {
+                    setPurchasePolicyChecked(false);
+                    setPurchasePolicyModalError(null);
+                    setPurchasePolicyModalCtx({
+                      source: "trial",
+                      onAgreed: () => setShowTrialConfirm(true),
+                    });
+                    setShowPurchasePolicyModal(true);
+                    return;
+                  }
+                  setShowTrialConfirm(true);
+                }}
                 disabled={trialActivating}
               >
                 {trialActivating
@@ -1232,9 +1277,224 @@ export default function SubscriptionScreen() {
         reloadingRef={xReloadingRef}
         onClose={() => setShowXRestartModal(false)}
       />
+
+      {/* ── 구매·구독·환불 정책 동의 모달 (trial / purchase 공통) ── */}
+      {showPurchasePolicyModal && purchasePolicyModalCtx && (
+        <PurchasePolicyModal
+          source={purchasePolicyModalCtx.source}
+          productName={purchasePolicyModalCtx.productName}
+          policyVersion={purchasePolicyConsent?.current_version ?? "1.0"}
+          checked={purchasePolicyChecked}
+          onCheck={() => setPurchasePolicyChecked(v => !v)}
+          agreeing={purchasePolicyAgreeing}
+          errorMsg={purchasePolicyModalError}
+          onAgree={async () => {
+            if (!purchasePolicyChecked || purchasePolicyAgreeing) return;
+            setPurchasePolicyAgreeing(true);
+            setPurchasePolicyModalError(null);
+            try {
+              const Constants = (await import("expo-constants")).default;
+              const appVersion = Constants.expoConfig?.version ?? "unknown";
+              const res = await apiRequest(token, "/admin/purchase-policy/consent", {
+                method: "POST",
+                body: JSON.stringify({
+                  source: purchasePolicyModalCtx.source,
+                  platform: Platform.OS,
+                  app_version: appVersion,
+                }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                setPurchasePolicyModalError(data?.error ?? "처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+                return;
+              }
+              // 동의 상태 갱신
+              setPurchasePolicyConsent(prev => prev ? { ...prev, agreed: true, needs_reagree: false } : null);
+              setShowPurchasePolicyModal(false);
+              purchasePolicyModalCtx.onAgreed();
+            } catch {
+              setPurchasePolicyModalError("서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.");
+            } finally {
+              setPurchasePolicyAgreeing(false);
+            }
+          }}
+          onClose={() => setShowPurchasePolicyModal(false)}
+        />
+      )}
     </View>
   );
 }
+
+// ── 구매·구독·환불 정책 동의 모달 (trial | purchase 공통) ──────────────────
+// 규칙: 체크박스 기본 선택 금지, 서버 저장 성공 전 진행 금지, 자동 동의 금지.
+function PurchasePolicyModal({
+  source, productName, policyVersion, checked, onCheck,
+  agreeing, errorMsg, onAgree, onClose,
+}: {
+  source: "trial" | "purchase";
+  productName?: string;
+  policyVersion: string | null;
+  checked: boolean;
+  onCheck: () => void;
+  agreeing: boolean;
+  errorMsg: string | null;
+  onAgree: () => void;
+  onClose: () => void;
+}) {
+  const C2 = Colors.light;
+  const NAVY2 = "#002F5F";
+  const isTrial = source === "trial";
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={pms.overlay} onPress={onClose} />
+      <View style={pms.sheet}>
+        {/* 핸들 */}
+        <View style={pms.handle} />
+
+        {/* 헤더 */}
+        <View style={pms.header}>
+          <Text style={pms.title}>구매·구독·환불 정책 동의</Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <LucideIcon name="x" size={20} color={C2.textMuted} />
+          </Pressable>
+        </View>
+
+        <ScrollView style={pms.scroll} showsVerticalScrollIndicator={false}>
+          {/* 오류 메시지 */}
+          {errorMsg && (
+            <View style={pms.errorBox}>
+              <Text style={pms.errorTxt}>{errorMsg}</Text>
+            </View>
+          )}
+
+          {/* 상품 정보 (purchase 컨텍스트) */}
+          {!isTrial && productName && (
+            <View style={pms.productBox}>
+              <LucideIcon name="package" size={16} color={NAVY2} />
+              <View style={{ flex: 1 }}>
+                <Text style={pms.productName}>{productName}</Text>
+                <Text style={pms.productSub}>월 자동갱신 · {Platform.OS === "ios" ? "App Store" : "Google Play"} 결제</Text>
+              </View>
+            </View>
+          )}
+
+          {/* 핵심 사항 */}
+          {isTrial ? (
+            <View style={pms.infoBox}>
+              <Text style={pms.infoTitle}>무료체험 핵심 안내</Text>
+              {[
+                "무료체험은 시작 시점부터 72시간입니다.",
+                "결제정보 등록이 필요하지 않습니다.",
+                "무료체험 종료 후 자동으로 유료 구독으로 전환되지 않습니다.",
+              ].map((t, i) => (
+                <View key={i} style={pms.infoRow}>
+                  <LucideIcon name="check-circle" size={14} color="#2E7D32" />
+                  <Text style={pms.infoText}>{t}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={pms.infoBox}>
+              <Text style={pms.infoTitle}>유료 구독 핵심 안내</Text>
+              {[
+                "해지 시 현재 결제기간 종료일까지 이용 가능합니다.",
+                "환불은 관계 법령 및 해당 결제 플랫폼 정책이 적용됩니다.",
+                "플랜 한도 초과만을 이유로 운영 데이터를 삭제하지 않습니다.",
+              ].map((t, i) => (
+                <View key={i} style={pms.infoRow}>
+                  <LucideIcon name="check-circle" size={14} color="#2E7D32" />
+                  <Text style={pms.infoText}>{t}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <View style={pms.policyNote}>
+            <LucideIcon name="shield-check" size={13} color="#0369A1" />
+            <Text style={pms.policyNoteText}>
+              {`구매·구독·환불 정책 v${policyVersion ?? "1.0"} — 정책 전문은 설정 > 구독 관리 > 구매·구독·환불 정책에서 확인할 수 있습니다.`}
+            </Text>
+          </View>
+
+          <View style={{ height: 16 }} />
+        </ScrollView>
+
+        {/* 체크박스 + CTA */}
+        <View style={pms.footer}>
+          <Pressable style={pms.checkRow} onPress={onCheck}>
+            <View style={[pms.checkbox, checked && pms.checkboxOn]}>
+              {checked && <LucideIcon name="check" size={13} color="#fff" />}
+            </View>
+            <Text style={pms.checkLabel}>
+              <Text style={{ color: "#DC2626" }}>[필수] </Text>
+              {isTrial
+                ? "구매·구독·환불 정책 및 무료체험 조건에 동의합니다."
+                : "구매·구독·환불 정책을 확인하고 동의합니다."}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[pms.agreeBtn, (!checked || agreeing) && pms.agreeBtnOff]}
+            onPress={onAgree}
+            disabled={!checked || agreeing}
+          >
+            {agreeing
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={pms.agreeTxt}>
+                  {isTrial ? "동의하고 체험 계속" : "동의하고 결제 계속"}
+                </Text>
+            }
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const pms = StyleSheet.create({
+  overlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet:      { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
+                borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "80%",
+                paddingBottom: 32 },
+  handle:     { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2,
+                alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                paddingHorizontal: 20, paddingVertical: 14,
+                borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  title:      { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#002F5F" },
+  scroll:     { paddingHorizontal: 20 },
+
+  errorBox:   { backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12, marginTop: 14,
+                borderWidth: 1, borderColor: "#FECACA" },
+  errorTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#DC2626" },
+
+  productBox: { flexDirection: "row", gap: 10, alignItems: "flex-start",
+                backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14, marginTop: 14 },
+  productName:{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#002F5F" },
+  productSub: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4B6A8A", marginTop: 2 },
+
+  infoBox:    { backgroundColor: "#F0FDF4", borderRadius: 12, padding: 14, marginTop: 14 },
+  infoTitle:  { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#166534", marginBottom: 8 },
+  infoRow:    { flexDirection: "row", gap: 8, alignItems: "flex-start", marginBottom: 6 },
+  infoText:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#166534", lineHeight: 18 },
+
+  policyNote: { flexDirection: "row", gap: 8, alignItems: "flex-start",
+                backgroundColor: "#EFF6FF", borderRadius: 10, padding: 12, marginTop: 12 },
+  policyNoteText: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular",
+                color: "#0369A1", lineHeight: 17 },
+
+  footer:     { paddingHorizontal: 20, paddingTop: 14, gap: 12,
+                borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  checkRow:   { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
+                alignItems: "center", justifyContent: "center", marginTop: 1, flexShrink: 0 },
+  checkboxOn: { backgroundColor: "#002F5F", borderColor: "#002F5F" },
+  checkLabel: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#1E293B", lineHeight: 20 },
+  agreeBtn:   { backgroundColor: "#002F5F", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  agreeBtnOff:{ opacity: 0.35 },
+  agreeTxt:   { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+});
 
 // ── X Entitlement 적용 완료 → 앱 재시작 안내 모달 ────────────────────────
 // Updates.reloadAsync(): expo-updates OTA 환경에서 앱 번들을 재로드.
