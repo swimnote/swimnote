@@ -710,8 +710,10 @@ export default function SubscriptionScreen() {
   // X Active에서 SWIMNOTE downgrade action 표시
   const showXToSwimnoteDowngrade = mode === "x";
 
-  // DATA pack 표시 — X/X_Pending/X_Trial 또는 storage critical/full
-  const showDataPack = mode === "x" || mode === "x_trial" || mode === "x_pending" || warnLevel === "critical" || warnLevel === "full";
+  // DATA pack 안내 카드는 BASE / X Trial / X Paid 전 플랜에서 항상 표시.
+  // 구매 CTA는 "준비 중" 비활성 상태 유지 (PURCHASE HOLD).
+  // 정책: UI 숨김 ≠ 구매 HOLD — 카드는 보이고 CTA만 비활성.
+  const showDataPack = true;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
