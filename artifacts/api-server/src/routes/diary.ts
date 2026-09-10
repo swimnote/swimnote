@@ -1028,11 +1028,27 @@ router.post("/diaries",
       // ── §8 CROSS-STUDENT SIMILARITY CHECK ──────────────────────────────────
       // 동일 diary save payload에서 학생 3명 이상이 같은 개인 note를 가지면 의심 패턴.
       // force_suspicious_save=true일 때 bypass (teacher 확인 후 재시도).
+      //
+      // 제외 대상 (정상 허용):
+      //   - 빈 note / 공백만 있는 note → 이미 validNotes 필터로 제외
+      //   - normalizeNoteContent 결과 길이 < 10 인 note
+      //     예: "." → normalize → "" (len=0), "-" → "" (len=0),
+      //         "특이사항 없음" → len=6 → 제외, "." 세 개 → "" → 제외
+      //   → 이런 짧은/punctuation-only note는 uniqueness 판단이 불가능하므로
+      //     학생 귀속 anomaly guard 대상에서 제외한다.
+      //
+      // 탐지 대상 (실제 anomaly):
+      //   - normalized length >= 10 인 실질적인 내용이
+      //   - 3명 이상 학생에게 완전 동일하게 나타나는 경우
       if (!force_suspicious_save) {
-        const validNotes = notes.filter((n: any) => n.note_content?.trim());
-        if (validNotes.length >= 3) {
+        // 실질적 내용을 가진 note만 대상 (normalize 후 10자 미만 제외)
+        const substantiveNotes = notes.filter((n: any) => {
+          if (!n.note_content?.trim()) return false;
+          return normalizeNoteContent(n.note_content).length >= 10;
+        });
+        if (substantiveNotes.length >= 3) {
           const freq = new Map<string, number>();
-          for (const n of validNotes) {
+          for (const n of substantiveNotes) {
             const key = normalizeNoteContent(n.note_content);
             freq.set(key, (freq.get(key) ?? 0) + 1);
           }

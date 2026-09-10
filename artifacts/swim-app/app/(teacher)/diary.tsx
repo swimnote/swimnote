@@ -1261,7 +1261,12 @@ export default function TeacherDiaryScreen() {
         setSaveMsg(null);
       }, 2000);
     } catch (e: any) {
-      setFormError(e.message || "저장 중 오류가 발생했습니다.");
+      // 내부 에러 코드를 사용자에게 raw로 노출하지 않음
+      const rawMsg: string = e.message || "";
+      const displayMsg = rawMsg === "SUSPICIOUS_DUPLICATE_STUDENT_NOTES"
+        ? "일지 저장 중 학생별 내용 확인이 필요합니다.\n내용을 확인한 뒤 다시 저장해주세요."
+        : rawMsg || "저장 중 오류가 발생했습니다.";
+      setFormError(displayMsg);
       if (selectedGroup) {
         const syncGroupId = selectedGroup.id;
         apiRequest(token, `/diaries?class_group_id=${syncGroupId}`)
@@ -1455,7 +1460,14 @@ export default function TeacherDiaryScreen() {
         else { router.back(); }
       }
       else { setSubView("history"); setEditDiary(null); await loadDiaries(selectedGroup.id); }
-    } catch (e: any) { setEditError(e.message || "저장 중 오류가 발생했습니다."); }
+    } catch (e: any) {
+      const rawEditMsg: string = e.message || "";
+      setEditError(
+        rawEditMsg === "SUSPICIOUS_DUPLICATE_STUDENT_NOTES"
+          ? "일지 저장 중 학생별 내용 확인이 필요합니다.\n내용을 확인한 뒤 다시 저장해주세요."
+          : rawEditMsg || "저장 중 오류가 발생했습니다."
+      );
+    }
     finally { setEditSaving(false); }
   }
   async function confirmDelete() {
