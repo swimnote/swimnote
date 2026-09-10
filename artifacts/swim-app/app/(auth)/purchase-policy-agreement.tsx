@@ -136,6 +136,13 @@ const POLICY_SECTIONS: { heading?: string; lines: string[] }[] = [
       "본 정책은 관계 법령, Apple App Store 또는 Google Play 정책, 서비스 또는 상품 변경에 따라 개정될 수 있습니다. 사용자에게 중대한 영향을 미치는 변경은 시행 전에 앱 내 공지 등의 방법으로 안내합니다.",
     ],
   },
+  {
+    heading: "문의처",
+    lines: [
+      "구독, 결제 및 환불 관련 문의는 앱 내 고객센터 또는 아래 이메일로 연락해주세요.",
+      "이메일: swimnote.admin@gmail.com",
+    ],
+  },
 ];
 
 export default function PurchasePolicyAgreementScreen() {
