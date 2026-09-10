@@ -431,7 +431,10 @@ function OverviewTab({ s, onNavigate }: { s: Summary; onNavigate: (tab: TabKey) 
         )}
       </Section>
 
-      {/* ── 6. Pool 기본 식별 정보 ── */}
+      {/* ── 6. 구매·구독·환불 정책 동의 (read-only) ── */}
+      <PurchasePolicyConsentSection poolId={s.pool_id} />
+
+      {/* ── 7. Pool 기본 식별 정보 ── */}
       <Section title="기본 정보">
         <Row label="pool_id" value={s.pool_id} />
         <Row label="수영장명" value={s.name} />
@@ -442,6 +445,81 @@ function OverviewTab({ s, onNavigate }: { s: Summary; onNavigate: (tab: TabKey) 
       </Section>
 
     </div>
+  );
+}
+
+// ── 구매·구독·환불 정책 동의 섹션 (Super Admin read-only) ────────────────────
+function PurchasePolicyConsentSection({ poolId }: { poolId: string }) {
+  const [data, setData] = useState<{
+    current_version: string | null;
+    agreed: boolean;
+    agreed_version: string | null;
+    needs_reagree: boolean;
+    agreed_at: string | null;
+    latest_source: string | null;
+    latest_platform: string | null;
+    history: Array<{ policy_version: string; agreed_at: string; source: string; platform: string | null; app_version: string | null }>;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get<any>(`/super/purchase-policy/consent?pool_id=${encodeURIComponent(poolId)}`)
+      .then(r => setData(r))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [poolId]);
+
+  const fmtDt = (s: string | null) => s ? s.slice(0, 16).replace("T", " ") : "—";
+
+  return (
+    <Section title="구매·구독·환불 정책 동의">
+      {loading ? (
+        <Spinner />
+      ) : !data ? (
+        <Err msg="동의 정보를 불러오지 못했습니다." />
+      ) : (
+        <>
+          <Row
+            label="상태"
+            value={data.agreed ? "동의" : data.needs_reagree ? "재동의 필요" : "미동의"}
+            valueClass={data.agreed ? "text-green-700 font-semibold" : data.needs_reagree ? "text-amber-700 font-semibold" : "text-[#aaa]"}
+          />
+          <Row label="최신 정책" value={data.current_version ? `v${data.current_version}` : "—"} />
+          <Row label="동의 버전" value={data.agreed_version ? `v${data.agreed_version}` : "—"} />
+          <Row label="동의 일시" value={fmtDt(data.agreed_at)} />
+          <Row
+            label="최근 동의 경로"
+            value={data.latest_source === "signup" ? "가입" : data.latest_source === "trial" ? "무료체험" : data.latest_source === "purchase" ? "구매" : (data.latest_source ?? "—")}
+          />
+          {data.latest_platform && <Row label="플랫폼" value={data.latest_platform} />}
+          {data.history.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setShowHistory(v => !v)}
+                className="text-[11px] text-[#0369A1] underline"
+              >
+                {showHistory ? "이력 접기" : `동의 이력 ${data.history.length}건 보기`}
+              </button>
+              {showHistory && (
+                <div className="mt-2 space-y-1">
+                  {data.history.map((h, i) => (
+                    <div key={i} className="flex gap-2 text-[10px] text-[#666] border-b border-[#f5f5f5] py-1">
+                      <span className="text-[#888]">{fmtDt(h.agreed_at)}</span>
+                      <span>v{h.policy_version}</span>
+                      <span className="text-[#0369A1]">{h.source}</span>
+                      {h.platform && <span>{h.platform}</span>}
+                      {h.app_version && <span>앱 v{h.app_version}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Section>
   );
 }
 

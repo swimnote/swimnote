@@ -488,6 +488,12 @@ export default function SignupScreen() {
 
       // 서버가 token을 바로 반환하면 바로 세션 설정, 아니면 일반 로그인
       if (data?.token && data?.user) {
+        // pool_admin 신규 가입: 구매·구독·환불 정책 게이트 플래그 설정
+        // computeLoginDest에서 이 플래그를 감지하면 정책 동의 화면으로 이동.
+        // 기존 재로그인은 이 코드를 통과하지 않으므로 플래그 없음 → 게이트 없음.
+        if (data.user?.role === "pool_admin") {
+          await AsyncStorage.setItem("@swimnote:purchase_policy_gate", "1").catch(() => {});
+        }
         await setAdminSession(data.token, data.user);
         finishLogin("admin", data.user, null, data.token);
       } else {

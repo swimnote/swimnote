@@ -1,0 +1,935 @@
+[보낼 곳: APP REPLIT]
+
+[P0 FINAL POLICY SYSTEM — PURCHASE / SUBSCRIPTION / REFUND POLICY V1.0]
+
+목표:
+SWIMNOTE 출시용 "구매·구독·환불 정책 V1.0"을 실제 앱/서버에 적용한다.
+
+이번 작업 범위:
+
+1. 신규 pool_admin 가입 후 정책 동의
+2. 동의 전 onboarding 진입 차단
+3. 무료체험/유료구매 직전 최신 정책 동의 재확인
+4. 서버에 동의 증빙 영구 저장
+5. Super Admin에서 동의 상태 확인
+6. 기존 구형 환불정책 데이터는 보존
+7. 기존 관리자 운영 방해 금지
+
+이번 작업 이후 정책 관련 신규 기능 추가 없이 출시할 예정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 기존 refund-policy DB/동의 이력 삭제 금지
+- 기존 사용자의 동의를 임의로 새 정책 동의로 변환 금지
+- local AsyncStorage만으로 동의 처리 금지
+- 서버 저장 성공 전 동의 완료 처리 금지
+- 사용자 대신 자동 동의 금지
+- 체크박스 기본 선택 금지
+- Apple/Google Store 결제·환불 권리를 앱 정책으로 제한 금지
+- "어떠한 경우에도 환불 불가" 문구 금지
+- Store purchase sheet 호출은 정책 동의 완료 후
+- Teacher / Parent에게 구매정책 가입 gate 적용 금지
+- 신규 pool_admin만 가입 직후 gate 적용
+- 기존 pool_admin은 단순 로그인만으로 강제 차단 금지
+- 기존 policy-agreement 자동 로그인 redirect 재활성화 금지
+- 불필요한 대규모 정책관리 CMS 구축 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. CANONICAL POLICY
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책명:
+
+SWIMNOTE 구매·구독·환불 정책
+
+policy_key:
+
+PURCHASE_SUBSCRIPTION_REFUND
+
+policy_version:
+
+1.0
+
+정책의 canonical source는 서버.
+
+가능하면 다음을 데이터화:
+
+- policy_key
+- version
+- title
+- body
+- effective_at
+- content_hash
+- is_active
+- created_at
+
+이미 기존 policy infrastructure가 있으면 재사용하되
+구형 refund-policy와 새 canonical policy를 혼동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 정책 전문 V1.0
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 내용을 canonical body로 사용한다.
+
+사업자정보는 현재 Production에 저장된 실제 사업자정보가 있으면 재사용.
+없는 정보는 임의 생성 금지.
+없는 항목은 placeholder로 저장하지 말고
+현재 서비스에서 실제 표시 가능한 정보만 사용하거나 별도 TODO 보고.
+
+──────────────────────
+SWIMNOTE 구매·구독·환불 정책
+──────────────────────
+
+제1조 목적
+
+본 정책은 SWIMNOTE 및 SWIMNOTE X 서비스에서 제공하는
+유료 구독, 무료체험, 앱 내 구매, 플랜 변경, 자동갱신,
+구독 해지, 결제 실패 및 환불에 관한 사항을 정합니다.
+
+본 정책과 관계 법령 또는 Apple App Store 및 Google Play의
+적용 정책이 충돌하는 경우 관계 법령 및 해당 결제 플랫폼의
+강행 규정과 정책이 우선 적용될 수 있습니다.
+
+제2조 서비스 및 상품
+
+SWIMNOTE는 수영장 운영을 위한 회원관리, 수업관리,
+출결, 일지, 사진·영상, 커리큘럼, AI 기능 등
+디지털 서비스를 제공합니다.
+
+현재 주요 월간 구독 상품은 다음과 같습니다.
+
+SWIMNOTE
+- 월 9,900원
+
+SWIMNOTE X300
+- 월 129,000원
+- 최대 300명
+- 약 300GB 저장공간
+- X 제공 기능
+
+SWIMNOTE X500
+- 월 199,000원
+- 최대 500명
+- 약 500GB 저장공간
+- X 제공 기능
+
+SWIMNOTE X1000
+- 월 359,000원
+- 최대 1,000명
+- 1TB 저장공간
+- X 제공 기능
+
+최종 결제금액, 세금, 통화 등은
+Apple App Store 또는 Google Play 결제화면에 표시되는
+금액을 기준으로 합니다.
+
+제3조 자동갱신
+
+SWIMNOTE 및 SWIMNOTE X 유료 구독은
+월 단위 자동갱신 구독입니다.
+
+사용자가 자동갱신을 해지하지 않는 경우
+결제 플랫폼의 정책에 따라 다음 이용기간의 요금이
+자동으로 결제될 수 있습니다.
+
+다음 결제일, 결제수단, 실제 청구금액 및 자동갱신 상태는
+Apple App Store 또는 Google Play의 구독관리 정보를 기준으로 합니다.
+
+제4조 X 3일 무료체험
+
+SWIMNOTE X의 3일 무료체험은
+SWIMNOTE가 자체 제공하는 1회성 무료체험입니다.
+
+- 시작 시점부터 정확히 72시간
+- 수영장당 1회
+- 결제정보 등록 불필요
+- 체험 시작에 따른 자동결제 없음
+- 체험 종료 후 X 유료구독으로 자동 전환되지 않음
+- 계속 이용하려면 사용자가 직접 X 상품을 구매해야 함
+
+무료체험 적용 후 앱의 상태를 정확히 갱신하기 위하여
+앱 재시작 안내가 표시될 수 있습니다.
+
+제5조 유료 구독 적용
+
+App Store 또는 Google Play에서 결제가 정상적으로 완료되고
+SWIMNOTE가 유효한 구독상태를 확인한 경우
+해당 구독 상품의 이용권한이 적용됩니다.
+
+X 상품 적용 후 앱 상태 갱신을 위해
+앱 재시작을 요청할 수 있습니다.
+
+앱 재시작은 추가 결제를 의미하지 않습니다.
+
+제6조 플랜 업그레이드
+
+SWIMNOTE에서 X300, X500, X1000으로 변경하거나
+X 상품 간 상위 플랜으로 변경하는 경우
+Apple 또는 Google의 구독 변경 정책에 따라 처리됩니다.
+
+상위 플랜 변경은 결제 플랫폼 정책에 따라
+즉시 적용될 수 있습니다.
+
+실제 추가 결제금액, 적용일 및 잔여기간 처리는
+구매 시 결제 플랫폼에서 표시되는 내용을 기준으로 합니다.
+
+제7조 플랜 다운그레이드
+
+X1000 → X500
+X500 → X300
+X300 → SWIMNOTE
+
+등 하위 플랜으로의 변경은
+결제 플랫폼의 구독 변경 정책에 따라
+현재 결제기간 종료 후 다음 갱신일부터 적용될 수 있습니다.
+
+하위 플랜 적용 전까지는
+현재 유효한 상위 플랜을 계속 이용할 수 있습니다.
+
+현재 이용 회원 수가 변경하려는 하위 플랜의 허용 인원을
+초과하는 경우 변경이 제한될 수 있습니다.
+
+플랜 한도 초과만을 이유로
+기존 회원이나 운영 데이터를 임의로 삭제하지 않습니다.
+
+제8조 구독 해지
+
+사용자는 Apple App Store 또는 Google Play의
+구독관리 기능에서 자동갱신을 해지할 수 있습니다.
+
+구독 해지는 다음 자동결제를 중단하는 절차이며
+이미 결제된 현재 이용기간을 즉시 종료하는 절차와는 다릅니다.
+
+정상적으로 해지한 경우에도
+현재 결제기간 종료일까지 해당 구독을 이용할 수 있습니다.
+
+앱을 삭제하는 것만으로 구독이 해지되지 않습니다.
+
+제9조 결제 실패와 유예기간
+
+카드 승인 실패 또는 결제수단 문제 등으로
+자동갱신 결제가 실패할 수 있습니다.
+
+Apple 또는 Google에서 유예기간을 제공하며
+유효한 구독권한이 유지되는 동안에는
+서비스를 계속 이용할 수 있습니다.
+
+관리자에게 결제수단 확인 또는
+결제 문제 해결 안내가 표시될 수 있습니다.
+
+결제 실패 발생만을 이유로
+회원 및 운영 데이터를 즉시 삭제하지 않습니다.
+
+제10조 결제 만료 및 서비스 이용 일시중지
+
+유효한 유료 이용기간과 결제 플랫폼의 유예기간 등이
+모두 종료되고 유효한 구독권한이 확인되지 않는 경우
+해당 수영장의 SWIMNOTE 서비스 이용이 일시중지될 수 있습니다.
+
+이 경우:
+
+- 관리자는 구독 갱신에 필요한 기능을 이용할 수 있습니다.
+- 선생님 및 학부모의 서비스 이용이 제한될 수 있습니다.
+- AI 호출이 제한됩니다.
+- 신규 사진·영상 업로드가 제한됩니다.
+- 신규 데이터 작성 등 비용을 발생시키는 기능이 제한될 수 있습니다.
+- 기존 운영 데이터는 결제 만료만을 이유로 즉시 삭제되지 않습니다.
+
+결제가 복구되면 기존 데이터를 유지한 상태로
+서비스 이용이 다시 활성화될 수 있습니다.
+
+결제 만료는 계정 삭제 또는 데이터 삭제 신청과 동일하지 않습니다.
+
+제11조 환불
+
+App Store 또는 Google Play를 통해 결제한 구매의
+결제 취소 및 환불은 각 결제 플랫폼의 절차와 정책 및
+관계 법령에 따라 처리됩니다.
+
+Apple App Store 구매의 환불은
+Apple이 제공하는 환불 절차를 통해 신청될 수 있습니다.
+
+Google Play 구매의 환불은
+Google Play가 제공하는 환불 절차 또는
+필요한 경우 SWIMNOTE 고객문의 절차를 통해 처리될 수 있습니다.
+
+환불 승인 여부는 실제 결제상태,
+이용내역, 관계 법령 및 결제 플랫폼의 정책에 따라 달라질 수 있습니다.
+
+환불이 승인되는 경우
+해당 구매로 제공된 유료 이용권한이
+회수 또는 변경될 수 있습니다.
+
+본 정책은 관계 법령에서 보장하는
+사용자의 환불, 청약철회 또는 기타 권리를 제한하지 않습니다.
+
+제12조 디지털 서비스와 청약철회
+
+SWIMNOTE의 유료 기능은
+디지털 서비스 또는 디지털콘텐츠의 성격을 포함할 수 있습니다.
+
+관계 법령에서 청약철회를 보장하는 경우
+사용자는 해당 권리를 행사할 수 있습니다.
+
+다만 디지털콘텐츠 제공이 시작되는 등
+관계 법령에서 정한 사유가 있는 경우
+청약철회가 제한될 수 있습니다.
+
+청약철회 제한이 적용되는 경우
+법령에서 요구하는 방식에 따라 관련 내용을 안내합니다.
+
+제13조 해지와 환불의 차이
+
+구독 해지는
+향후 자동갱신을 중단하는 절차입니다.
+
+환불은
+이미 이루어진 결제의 금액 반환을 요청하는 절차입니다.
+
+구독을 해지했다고 해서
+이미 결제된 이용기간의 요금이 자동으로 환불되는 것은 아닙니다.
+
+제14조 가격 변경
+
+SWIMNOTE는 서비스 운영비용, 기능 변경 또는 기타 합리적 사유로
+구독가격을 변경할 수 있습니다.
+
+기존 구독자에게 인상된 가격을 적용하는 경우
+관계 법령 및 Apple App Store / Google Play에서 요구하는
+사전 고지 및 필요한 동의 절차를 따릅니다.
+
+가격 변경 적용일 및 실제 청구가격은
+결제 플랫폼에서 확인할 수 있습니다.
+
+제15조 서비스 및 기능 변경
+
+각 플랜의 기능, 최대 회원 수, 저장공간,
+AI 기능 범위 등은 구독관리 화면에 표시됩니다.
+
+서비스의 주요 내용에 중대한 변경이 있는 경우
+관련 법령 및 서비스 정책에 따라 필요한 안내를 제공합니다.
+
+보안, 장애 대응, 관계 법령 준수 또는
+서비스 보호를 위한 긴급 변경은 필요한 범위에서
+즉시 적용될 수 있습니다.
+
+제16조 AI 기능
+
+SWIMNOTE X 등의 일부 기능에는 AI가 사용됩니다.
+
+AI 결과는 수업 및 운영을 지원하기 위한 참고·보조 정보이며
+사용자는 필요한 경우 결과를 확인하거나 수정하여 사용할 수 있습니다.
+
+AI 처리와 개인정보 및 데이터 처리에 관한 사항은
+SWIMNOTE 개인정보처리방침 등 관련 정책을 따릅니다.
+
+제17조 추가 유료상품
+
+DATA100, DATA300, AI Insight 등
+별도 상품이 향후 판매될 수 있습니다.
+
+실제 판매 활성화 시
+가격, 제공내용, 결제방식, 자동갱신 여부 및
+환불 관련 조건을 구매화면에서 별도로 안내합니다.
+
+현재 판매가 활성화되지 않은 상품에 대해서는
+사용자가 결제한 것으로 처리하지 않습니다.
+
+제18조 데이터 보존
+
+구독 해지 또는 결제 만료만으로
+회원, 반, 출결, 일지 및 기타 운영 데이터를
+즉시 삭제하지 않습니다.
+
+사용자가 서비스 탈퇴 또는 데이터 삭제를 요청하는 경우에는
+개인정보처리방침과 관계 법령 및 내부 보존정책에 따라 처리합니다.
+
+결제 및 거래 증빙 등 법률상 보존이 필요한 정보는
+정해진 기간 동안 보존될 수 있습니다.
+
+제19조 결제 오류 및 중복 결제
+
+구독 변경은 Apple 및 Google의
+구독 변경 기능을 이용하여 처리합니다.
+
+결제 오류 또는 중복 청구가 의심되는 경우
+사용자는 구매 플랫폼의 구매내역 또는
+SWIMNOTE 고객문의를 통해 확인을 요청할 수 있습니다.
+
+SWIMNOTE는 확인 가능한 결제 및 구독 연동정보를 기준으로
+문제 해결을 지원합니다.
+
+제20조 정책 변경
+
+본 정책은 관계 법령,
+Apple App Store 또는 Google Play 정책,
+서비스 또는 상품 변경에 따라 개정될 수 있습니다.
+
+사용자에게 중대한 영향을 미치는 변경은
+시행 전에 앱 내 공지 등의 방법으로 안내합니다.
+
+법령 또는 결제 플랫폼에서 별도 동의를 요구하는 사항은
+본 정책의 일반 동의와 별도로 해당 절차를 따릅니다.
+
+──────────────────────
+정책 끝
+──────────────────────
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 신규 pool_admin 가입 GATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 pool_admin 계정 생성 완료 후:
+
+정책 동의 여부 확인.
+
+최신 정책 동의 없음:
+→ onboarding 이전에 정책 동의 화면.
+
+순서:
+
+관리자 회원가입 완료
+→ 구매·구독·환불 정책 V1.0
+→ 동의
+→ onboarding
+→ 관리자 앱
+
+동의하지 않으면 onboarding 진입 금지.
+
+단:
+- 로그아웃 가능
+- 계정 삭제 기능이 이미 해당 단계에서 제공 가능하면 접근 유지
+- 앱 강제종료/재로그인으로 gate 우회 불가
+
+기존 관리자 단순 로그인에는 이 gate 적용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 가입 정책 화면 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+제목:
+
+"구매·구독·환불 정책"
+
+상단 설명:
+
+"SWIMNOTE의 무료체험, 유료 구독, 자동갱신,
+플랜 변경 및 환불에 관한 내용을 확인해주세요."
+
+정책 전문:
+스크롤 가능.
+
+하단 고정 영역:
+
+□ [필수] 구매·구독·환불 정책을 확인하고 동의합니다.
+
+버튼:
+
+"동의하고 시작하기"
+
+체크 전:
+disabled.
+
+체크 후:
+enabled.
+
+서버 동의 저장 성공 후에만 onboarding 이동.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 무료체험 전 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료체험 시작 버튼 클릭 시
+현재 user의 latest policy consent 확인.
+
+최신 v1.0 동의 있음:
+→ 즉시 기존 trial flow.
+
+미동의:
+→ 정책 동의 modal.
+
+무료체험 modal에서는 정책 전문 열람 링크와 함께
+아래 핵심사항을 반드시 표시:
+
+"무료체험은 시작 시점부터 72시간입니다."
+
+"결제정보 등록이 필요하지 않습니다."
+
+"무료체험 종료 후 자동으로 유료 구독으로 전환되지 않습니다."
+
+필수 체크:
+
+□ [필수] 구매·구독·환불 정책 및 무료체험 조건에 동의합니다.
+
+동의 저장 성공:
+→ trial activate.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 유료 구독 구매 전 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+적용:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+구매 버튼 클릭 시:
+
+latest policy consent 확인.
+
+최신 동의 있음:
+→ 기존 Store purchase flow.
+
+동의 없음:
+→ policy modal.
+
+modal 최소 표시:
+
+정책 전문 보기
+
+해당 상품:
+- 상품명
+- 월 가격
+- 월 자동갱신 상품
+- App Store 또는 Google Play 결제
+- 해지 시 현재 결제기간 종료일까지 이용
+- 환불은 관계 법령 및 해당 결제 플랫폼 정책 적용
+
+체크:
+
+□ [필수] 구매·구독·환불 정책을 확인하고 동의합니다.
+
+버튼:
+
+"동의하고 결제 계속"
+
+동의 server save 성공 전:
+Store purchase sheet 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PRODUCT SCREEN 핵심정보 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책동의가 있다고
+구독관리 화면의 상품정보를 삭제하지 말 것.
+
+계속 표시:
+
+- 상품명
+- 가격
+- 월 구독
+- 주요 기능
+- 회원 수
+- 저장공간
+- 자동갱신 안내
+- 구독관리/해지 경로
+
+Store purchase sheet가 최종 청구금액 source of truth.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. POLICY CONSENT SERVER RECORD
+━━━━━━━━━━━━━━━━━━━━━━
+
+동의 기록은 서버 영구 저장.
+
+기존 audit/policy 구조가 적절하면 재사용.
+
+없으면 최소 구조 추가.
+
+필수:
+
+id
+user_id
+swimming_pool_id
+role
+policy_key
+policy_version
+policy_content_hash
+agreed_at
+source
+platform
+app_version
+created_at
+
+source enum:
+
+signup
+trial
+purchase
+
+platform:
+
+ios
+android
+
+동일 policy/version에 여러 source 동의가 발생해도
+audit history를 훼손하지 말 것.
+
+기존 row 덮어쓰기보다
+동의 이벤트 이력이 남는 구조 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. CONSENT CHECK API
+━━━━━━━━━━━━━━━━━━━━━━
+
+canonical server endpoint 또는 기존 policy API 재사용.
+
+필요 동작:
+
+GET latest consent status
+
+응답 최소:
+
+{
+  policy_key,
+  current_version,
+  agreed,
+  agreed_version,
+  needs_reagree,
+  agreed_at
+}
+
+POST consent:
+
+{
+  policy_key,
+  policy_version,
+  source,
+  platform,
+  app_version
+}
+
+서버가 현재 active policy/version 검증.
+
+클라이언트가 임의 policy_version을 보내
+미래/과거 버전을 동의 처리할 수 없게 방어.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. POLICY VERSIONING
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+PURCHASE_SUBSCRIPTION_REFUND / 1.0
+
+향후 1.1 또는 2.0 변경 가능.
+
+purchase/trial 실행 시:
+
+agreed_version != active_version
+→ needs_reagree=true
+
+기존 관리자 전체 로그인 강제 여부는 별도 정책으로 처리.
+
+현재 출시에서는:
+- 신규 signup = latest 필수
+- trial = latest 필수
+- purchase = latest 필수
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. SUPER ADMIN
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서 최소 조회만 추가.
+
+대규모 CMS 만들지 말 것.
+
+기존 pool detail 또는 admin detail의 적절한 위치에:
+
+"구매·구독·환불 정책"
+
+표시:
+
+상태:
+동의 / 미동의
+
+최신 정책:
+v1.0
+
+동의 버전:
+v1.0 또는 -
+
+동의 일시
+
+최근 동의 경로:
+가입 / 무료체험 / 구매
+
+필요하면 platform 표시.
+
+가능하면 "동의 이력" 작은 펼침/상세에서
+과거 version/source 확인 가능.
+
+이번 출시에서 Super Admin 기능 금지:
+
+- 대신 동의
+- 동의 취소
+- 임의 동의 생성
+- agreed_at 수정
+- policy hash 수정
+
+Super Admin = read-only 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 기존 환불정책과의 관계
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 refund-policy:
+
+- DB 삭제 금지
+- 동의기록 삭제 금지
+- 기존 관리자 설정의 "환불 정책 확인" 메뉴 유지 가능
+- 기존 로그인 자동 redirect는 계속 비활성
+
+새 canonical 구매정책은 별도:
+
+PURCHASE_SUBSCRIPTION_REFUND v1.0
+
+기존 refund-policy agreed=true를
+새 정책 agreed=true로 자동 승격 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 관리자 영향
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 pool_admin:
+
+앱 실행
+→ 기존처럼 정상 진입.
+
+정책 미동의여도
+단순 운영을 막지 않는다.
+
+단:
+
+무료체험 클릭
+또는
+유료 구매 클릭
+
+시 최신 정책 동의가 없으면
+policy modal 표시.
+
+즉 기존 고객에게 갑자기 로그인 차단을 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 개인정보 / 증빙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin 및 서버 로그에
+불필요한 개인정보 저장 금지.
+
+동의 증빙에 필요한 최소 정보만 저장.
+
+권장:
+
+- internal user id
+- pool id
+- role
+- version
+- hash
+- timestamp
+- source
+- platform
+- app version
+
+정책 전문 자체를 consent row마다 복제할 필요 없음.
+policy table/hash로 특정 가능한 구조 권장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 중요 결제 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책 동의 여부와 Store entitlement는 별도.
+
+정책 동의했다고:
+→ paid=true 금지.
+
+Store 결제 성공했다고:
+→ 정책 동의 row 자동 위조 금지.
+
+구매 순서:
+
+policy consent
+→ Store purchase
+→ RevenueCat
+→ server sync
+→ entitlement
+
+무료체험:
+
+policy consent
+→ trial activate
+→ x_trial
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+신규 pool_admin
+→ 회원가입
+→ policy gate
+→ 미동의 onboarding 불가
+
+B.
+체크 후 동의 저장
+→ onboarding
+
+C.
+앱 종료/재로그인
+→ 이미 v1.0 동의했으면 signup gate 반복 없음
+
+D.
+신규 가입 당시 동의 완료
+→ 무료체험 클릭
+→ policy modal 반복 없이 trial
+
+E.
+기존 미동의 admin
+→ 무료체험 클릭
+→ modal
+→ 동의
+→ trial
+
+F.
+기존 미동의 admin
+→ SWIMNOTE 결제
+→ modal
+→ 동의
+→ Store sheet
+
+G.
+X300/X500/X1000
+→ 동일
+
+H.
+consent POST 실패
+→ onboarding/purchase/trial 진행 0
+
+I.
+Teacher
+→ signup policy gate 없음
+
+J.
+Parent
+→ signup policy gate 없음
+
+K.
+Super Admin
+→ consent status/version/time/source 조회
+
+L.
+policy version 1.1 simulation
+→ 기존 v1.0은 purchase/trial에서 needs_reagree
+
+M.
+기존 refund-policy records
+→ 삭제/변경 0
+
+N.
+기존 admin 로그인
+→ 구매행위 없으면 강제 modal 0
+
+O.
+구매 정책 동의 후 결제 취소
+→ consent 기록은 유지
+→ paid entitlement 생성 0
+
+P.
+무료체험 동의 후 trial activation 실패
+→ consent 기록은 유지
+→ trial entitlement 위조 0
+
+Q.
+동일 사용자가 재로그인
+→ 서버 canonical consent로 판정
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. RELEASE SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Android 244 EAS build가 진행 중일 수 있음.
+
+이 정책 작업 때문에
+진행 중인 244 build를 취소/변경하지 말 것.
+
+정책 작업 완료 commit은
+현재 244 source 이후가 될 수 있음.
+
+따라서:
+
+현재 244:
+→ 기존 final app 실기기 검증용으로 그대로 완료
+
+정책 구현 완료:
+→ main/release 최신 HEAD 확정
+
+정책까지 포함한 실제 Store 출시용 Android native build는
+필요하면 다음 versionCode로 한 번만 추가 빌드.
+
+기존 244에 OTA로 적용 가능한 부분이더라도
+최종 Store 제출 binary가 최신 policy code를 포함하도록
+출시용 native build 기준을 별도로 보고.
+
+iOS:
+native 변경이 없으면 production-v2 OTA 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. policy key
+2. policy version
+3. canonical policy 저장 위치
+4. 실제 적용된 정책 본문
+5. 사업자정보 처리
+6. DB migration
+7. consent record schema
+8. GET consent contract
+9. POST consent contract
+10. 신규 signup gate 위치
+11. onboarding gate
+12. trial policy gate
+13. SWIMNOTE purchase gate
+14. X purchase gate
+15. existing admin 영향
+16. teacher/parent 영향
+17. Super Admin 표시 위치
+18. 기존 refund-policy 영향
+19. version/re-agree 처리
+20. tests A~Q
+21. 수정 파일
+22. main HEAD
+23. origin exact 여부
+24. Render LIVE SHA
+25. iOS OTA
+26. Android OTA
+27. Android 244 포함 여부
+28. 최종 출시 Android native build 필요 여부
+29. blocker
+30. 최종 PASS/HOLD
+
+PASS 조건:
+
+- 신규 pool_admin 동의 전 onboarding 불가
+- 동의 서버 증빙 저장
+- 기존 admin 로그인 차단 0
+- trial/purchase 최신 동의 없으면 결제/체험 시작 전 차단
+- consent save 실패 시 purchase/trial 0
+- Super Admin에서 동의 증빙 조회 가능
+- Teacher/Parent 영향 0
+- 기존 refund-policy 데이터 손실 0
+- Store billing entitlement와 policy consent 분리
+- blocker 0
+
+이번 작업 완료 후
+새로운 기능 추가 금지.
+
+출시를 막는 P0 버그 외에는
+추가 refactor/polish 하지 말 것.
+
+완료 후 STOP.

@@ -485,6 +485,307 @@ export async function run(db: MigrationDb) {
   await exec("parent_v2_pending.pending_reason",        `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS pending_reason text`);
   await exec("parent_v2_pending.rejection_reason",      `ALTER TABLE parent_v2_pending ADD COLUMN IF NOT EXISTS rejection_reason text`);
 
+  // ════════════════════════════════════════════════════════════════
+  // §12 purchase_policy_consents — 구매·구독·환불 정책 동의 이력 테이블
+  // 기존 policy_consents(UNIQUE upsert)와 별개: 이벤트 이력 보존 구조
+  // ════════════════════════════════════════════════════════════════
+  console.log("§12 purchase_policy_consents");
+  await exec("CREATE purchase_policy_consents", `
+    CREATE TABLE IF NOT EXISTS purchase_policy_consents (
+      id                   TEXT PRIMARY KEY,
+      user_id              TEXT NOT NULL,
+      swimming_pool_id     TEXT NOT NULL,
+      role                 TEXT NOT NULL,
+      policy_key           TEXT NOT NULL,
+      policy_version       TEXT NOT NULL,
+      policy_content_hash  TEXT,
+      agreed_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      source               TEXT NOT NULL,
+      platform             TEXT,
+      app_version          TEXT,
+      created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await exec("IDX purchase_policy_consents pool_key", `
+    CREATE INDEX IF NOT EXISTS idx_ppc_pool_key
+    ON purchase_policy_consents (swimming_pool_id, policy_key, agreed_at DESC)
+  `);
+  await exec("IDX purchase_policy_consents user_key", `
+    CREATE INDEX IF NOT EXISTS idx_ppc_user_key
+    ON purchase_policy_consents (user_id, policy_key)
+  `);
+
+  // ── PURCHASE_SUBSCRIPTION_REFUND v1.0 정책 seed (멱등) ───────────────────────
+  // 이미 해당 key의 active=true row가 없을 때만 insert
+  {
+    const POLICY_KEY = "PURCHASE_SUBSCRIPTION_REFUND";
+    const POLICY_VERSION = "1.0";
+    const POLICY_BODY = `SWIMNOTE 구매·구독·환불 정책
+
+제1조 목적
+
+본 정책은 SWIMNOTE 및 SWIMNOTE X 서비스에서 제공하는
+유료 구독, 무료체험, 앱 내 구매, 플랜 변경, 자동갱신,
+구독 해지, 결제 실패 및 환불에 관한 사항을 정합니다.
+
+본 정책과 관계 법령 또는 Apple App Store 및 Google Play의
+적용 정책이 충돌하는 경우 관계 법령 및 해당 결제 플랫폼의
+강행 규정과 정책이 우선 적용될 수 있습니다.
+
+제2조 서비스 및 상품
+
+SWIMNOTE는 수영장 운영을 위한 회원관리, 수업관리,
+출결, 일지, 사진·영상, 커리큘럼, AI 기능 등
+디지털 서비스를 제공합니다.
+
+현재 주요 월간 구독 상품은 다음과 같습니다.
+
+SWIMNOTE
+- 월 9,900원
+
+SWIMNOTE X300
+- 월 129,000원
+- 최대 300명
+- 약 300GB 저장공간
+- X 제공 기능
+
+SWIMNOTE X500
+- 월 199,000원
+- 최대 500명
+- 약 500GB 저장공간
+- X 제공 기능
+
+SWIMNOTE X1000
+- 월 359,000원
+- 최대 1,000명
+- 1TB 저장공간
+- X 제공 기능
+
+최종 결제금액, 세금, 통화 등은
+Apple App Store 또는 Google Play 결제화면에 표시되는
+금액을 기준으로 합니다.
+
+제3조 자동갱신
+
+SWIMNOTE 및 SWIMNOTE X 유료 구독은
+월 단위 자동갱신 구독입니다.
+
+사용자가 자동갱신을 해지하지 않는 경우
+결제 플랫폼의 정책에 따라 다음 이용기간의 요금이
+자동으로 결제될 수 있습니다.
+
+다음 결제일, 결제수단, 실제 청구금액 및 자동갱신 상태는
+Apple App Store 또는 Google Play의 구독관리 정보를 기준으로 합니다.
+
+제4조 X 3일 무료체험
+
+SWIMNOTE X의 3일 무료체험은
+SWIMNOTE가 자체 제공하는 1회성 무료체험입니다.
+
+- 시작 시점부터 정확히 72시간
+- 수영장당 1회
+- 결제정보 등록 불필요
+- 체험 시작에 따른 자동결제 없음
+- 체험 종료 후 X 유료구독으로 자동 전환되지 않음
+- 계속 이용하려면 사용자가 직접 X 상품을 구매해야 함
+
+무료체험 적용 후 앱의 상태를 정확히 갱신하기 위하여
+앱 재시작 안내가 표시될 수 있습니다.
+
+제5조 유료 구독 적용
+
+App Store 또는 Google Play에서 결제가 정상적으로 완료되고
+SWIMNOTE가 유효한 구독상태를 확인한 경우
+해당 구독 상품의 이용권한이 적용됩니다.
+
+X 상품 적용 후 앱 상태 갱신을 위해
+앱 재시작을 요청할 수 있습니다.
+
+앱 재시작은 추가 결제를 의미하지 않습니다.
+
+제6조 플랜 업그레이드
+
+SWIMNOTE에서 X300, X500, X1000으로 변경하거나
+X 상품 간 상위 플랜으로 변경하는 경우
+Apple 또는 Google의 구독 변경 정책에 따라 처리됩니다.
+
+상위 플랜 변경은 결제 플랫폼 정책에 따라
+즉시 적용될 수 있습니다.
+
+실제 추가 결제금액, 적용일 및 잔여기간 처리는
+구매 시 결제 플랫폼에서 표시되는 내용을 기준으로 합니다.
+
+제7조 플랜 다운그레이드
+
+X1000 → X500, X500 → X300, X300 → SWIMNOTE 등
+하위 플랜으로의 변경은 결제 플랫폼의 구독 변경 정책에 따라
+현재 결제기간 종료 후 다음 갱신일부터 적용될 수 있습니다.
+
+하위 플랜 적용 전까지는 현재 유효한 상위 플랜을 계속 이용할 수 있습니다.
+
+현재 이용 회원 수가 변경하려는 하위 플랜의 허용 인원을
+초과하는 경우 변경이 제한될 수 있습니다.
+
+플랜 한도 초과만을 이유로
+기존 회원이나 운영 데이터를 임의로 삭제하지 않습니다.
+
+제8조 구독 해지
+
+사용자는 Apple App Store 또는 Google Play의
+구독관리 기능에서 자동갱신을 해지할 수 있습니다.
+
+구독 해지는 다음 자동결제를 중단하는 절차이며
+이미 결제된 현재 이용기간을 즉시 종료하는 절차와는 다릅니다.
+
+정상적으로 해지한 경우에도
+현재 결제기간 종료일까지 해당 구독을 이용할 수 있습니다.
+
+앱을 삭제하는 것만으로 구독이 해지되지 않습니다.
+
+제9조 결제 실패와 유예기간
+
+카드 승인 실패 또는 결제수단 문제 등으로
+자동갱신 결제가 실패할 수 있습니다.
+
+Apple 또는 Google에서 유예기간을 제공하며
+유효한 구독권한이 유지되는 동안에는
+서비스를 계속 이용할 수 있습니다.
+
+관리자에게 결제수단 확인 또는 결제 문제 해결 안내가 표시될 수 있습니다.
+
+결제 실패 발생만을 이유로 회원 및 운영 데이터를 즉시 삭제하지 않습니다.
+
+제10조 결제 만료 및 서비스 이용 일시중지
+
+유효한 유료 이용기간과 결제 플랫폼의 유예기간 등이
+모두 종료되고 유효한 구독권한이 확인되지 않는 경우
+해당 수영장의 SWIMNOTE 서비스 이용이 일시중지될 수 있습니다.
+
+이 경우: 관리자는 구독 갱신에 필요한 기능을 이용할 수 있습니다.
+선생님 및 학부모의 서비스 이용이 제한될 수 있습니다.
+AI 호출이 제한됩니다. 신규 사진·영상 업로드가 제한됩니다.
+기존 운영 데이터는 결제 만료만을 이유로 즉시 삭제되지 않습니다.
+
+결제가 복구되면 기존 데이터를 유지한 상태로 서비스 이용이 다시 활성화될 수 있습니다.
+결제 만료는 계정 삭제 또는 데이터 삭제 신청과 동일하지 않습니다.
+
+제11조 환불
+
+App Store 또는 Google Play를 통해 결제한 구매의
+결제 취소 및 환불은 각 결제 플랫폼의 절차와 정책 및
+관계 법령에 따라 처리됩니다.
+
+Apple App Store 구매의 환불은 Apple이 제공하는 환불 절차를 통해 신청될 수 있습니다.
+Google Play 구매의 환불은 Google Play가 제공하는 환불 절차 또는
+필요한 경우 SWIMNOTE 고객문의 절차를 통해 처리될 수 있습니다.
+
+환불 승인 여부는 실제 결제상태, 이용내역, 관계 법령 및 결제 플랫폼의 정책에 따라 달라질 수 있습니다.
+
+환불이 승인되는 경우 해당 구매로 제공된 유료 이용권한이 회수 또는 변경될 수 있습니다.
+
+본 정책은 관계 법령에서 보장하는
+사용자의 환불, 청약철회 또는 기타 권리를 제한하지 않습니다.
+
+제12조 디지털 서비스와 청약철회
+
+SWIMNOTE의 유료 기능은 디지털 서비스 또는 디지털콘텐츠의 성격을 포함할 수 있습니다.
+
+관계 법령에서 청약철회를 보장하는 경우 사용자는 해당 권리를 행사할 수 있습니다.
+
+다만 디지털콘텐츠 제공이 시작되는 등 관계 법령에서 정한 사유가 있는 경우
+청약철회가 제한될 수 있습니다.
+
+청약철회 제한이 적용되는 경우 법령에서 요구하는 방식에 따라 관련 내용을 안내합니다.
+
+제13조 해지와 환불의 차이
+
+구독 해지는 향후 자동갱신을 중단하는 절차입니다.
+환불은 이미 이루어진 결제의 금액 반환을 요청하는 절차입니다.
+구독을 해지했다고 해서 이미 결제된 이용기간의 요금이 자동으로 환불되는 것은 아닙니다.
+
+제14조 가격 변경
+
+SWIMNOTE는 서비스 운영비용, 기능 변경 또는 기타 합리적 사유로 구독가격을 변경할 수 있습니다.
+
+기존 구독자에게 인상된 가격을 적용하는 경우
+관계 법령 및 Apple App Store / Google Play에서 요구하는
+사전 고지 및 필요한 동의 절차를 따릅니다.
+
+가격 변경 적용일 및 실제 청구가격은 결제 플랫폼에서 확인할 수 있습니다.
+
+제15조 서비스 및 기능 변경
+
+각 플랜의 기능, 최대 회원 수, 저장공간, AI 기능 범위 등은 구독관리 화면에 표시됩니다.
+
+서비스의 주요 내용에 중대한 변경이 있는 경우 관련 법령 및 서비스 정책에 따라 필요한 안내를 제공합니다.
+
+보안, 장애 대응, 관계 법령 준수 또는 서비스 보호를 위한 긴급 변경은
+필요한 범위에서 즉시 적용될 수 있습니다.
+
+제16조 AI 기능
+
+SWIMNOTE X 등의 일부 기능에는 AI가 사용됩니다.
+
+AI 결과는 수업 및 운영을 지원하기 위한 참고·보조 정보이며
+사용자는 필요한 경우 결과를 확인하거나 수정하여 사용할 수 있습니다.
+
+AI 처리와 개인정보 및 데이터 처리에 관한 사항은 SWIMNOTE 개인정보처리방침 등 관련 정책을 따릅니다.
+
+제17조 추가 유료상품
+
+DATA100, DATA300, AI Insight 등 별도 상품이 향후 판매될 수 있습니다.
+
+실제 판매 활성화 시 가격, 제공내용, 결제방식, 자동갱신 여부 및 환불 관련 조건을 구매화면에서 별도로 안내합니다.
+
+현재 판매가 활성화되지 않은 상품에 대해서는 사용자가 결제한 것으로 처리하지 않습니다.
+
+제18조 데이터 보존
+
+구독 해지 또는 결제 만료만으로 회원, 반, 출결, 일지 및 기타 운영 데이터를 즉시 삭제하지 않습니다.
+
+사용자가 서비스 탈퇴 또는 데이터 삭제를 요청하는 경우에는
+개인정보처리방침과 관계 법령 및 내부 보존정책에 따라 처리합니다.
+
+결제 및 거래 증빙 등 법률상 보존이 필요한 정보는 정해진 기간 동안 보존될 수 있습니다.
+
+제19조 결제 오류 및 중복 결제
+
+구독 변경은 Apple 및 Google의 구독 변경 기능을 이용하여 처리합니다.
+
+결제 오류 또는 중복 청구가 의심되는 경우
+사용자는 구매 플랫폼의 구매내역 또는
+SWIMNOTE 고객문의를 통해 확인을 요청할 수 있습니다.
+
+SWIMNOTE는 확인 가능한 결제 및 구독 연동정보를 기준으로 문제 해결을 지원합니다.
+
+제20조 정책 변경
+
+본 정책은 관계 법령, Apple App Store 또는 Google Play 정책,
+서비스 또는 상품 변경에 따라 개정될 수 있습니다.
+
+사용자에게 중대한 영향을 미치는 변경은 시행 전에 앱 내 공지 등의 방법으로 안내합니다.
+
+법령 또는 결제 플랫폼에서 별도 동의를 요구하는 사항은
+본 정책의 일반 동의와 별도로 해당 절차를 따릅니다.`;
+
+    const existing = await superAdminDb.execute(sql`
+      SELECT id FROM policy_versions
+      WHERE policy_key = ${POLICY_KEY} AND is_active = TRUE
+      LIMIT 1
+    `);
+    if (existing.rows.length === 0) {
+      const policyId = `pv_psr_${Date.now()}`;
+      await superAdminDb.execute(sql`
+        INSERT INTO policy_versions (id, policy_key, version, value, is_active, created_at)
+        VALUES (${policyId}, ${POLICY_KEY}, ${POLICY_VERSION}, ${POLICY_BODY}, TRUE, NOW())
+        ON CONFLICT DO NOTHING
+      `);
+      console.log(`  → PURCHASE_SUBSCRIPTION_REFUND v1.0 seeded (id=${policyId})`);
+    } else {
+      console.log(`  → PURCHASE_SUBSCRIPTION_REFUND v1.0 already exists, skip seed`);
+    }
+  }
+
   console.log("\n[runtime-ddl-consolidated] ✅ Complete\n");
 }
 

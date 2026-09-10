@@ -75,10 +75,10 @@ const SECTIONS = [
     ],
   },
   {
-    title: "7. 환불 문의",
+    title: "7. 환불 및 구독 문의",
     items: [
       "환불 및 구독 관련 문의는 앱 내 고객센터 또는 이메일로 연락해 주세요.",
-      "이메일: support@swimnote.app",
+      "이메일: swimnote.admin@gmail.com",
     ],
   },
 ];
