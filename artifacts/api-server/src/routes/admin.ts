@@ -3771,7 +3771,8 @@ router.get("/refund-policy", requireAuth, requireRole("super_admin", "pool_admin
       "App Store(Apple) 결제는 Apple의 환불 정책이 우선 적용됩니다.",
       "Google Play(구글) 결제는 Google의 환불 정책이 우선 적용됩니다.",
       "[환불 문의]",
-      "환불 및 구독 관련 문의: support@swimnote.app",
+      "환불 및 구독 관련 문의는 앱 내 고객센터 또는 아래 이메일로 연락해주세요.",
+      "이메일: swimnote.admin@gmail.com",
     ].join("\n");
 
     // 현재 활성 정책 버전 조회 (없으면 기본값)
