@@ -129,6 +129,11 @@ import("./migrations/super-admin-notifications.js")
 import("./migrations/payment-suspended.js")
   .then(m => m.runPaymentSuspendedMigration())
   .catch((e) => console.error("[payment-suspended] migration 오류:", e.message));
+// Runtime DDL Consolidated: purchase_policy_consents 테이블 + PURCHASE_SUBSCRIPTION_REFUND v1.0 seed
+// (멱등 — CREATE IF NOT EXISTS + INSERT ON CONFLICT DO NOTHING)
+import("./migrations/runtime-ddl-consolidated.js")
+  .then(m => m.run(superAdminDb))
+  .catch((e) => console.error("[runtime-ddl-consolidated] migration 오류:", e.message));
 // GR-Interactions: readiness-critical — Promise.all로 이동됨 (위 참조)
 // GR1B: gr_analysis_status_enum에 DATA_ACCUMULATING 추가 (additive, 멱등)
 // gr1b migration (DATA_ACCUMULATING enum)은 수동 실행 전용.
