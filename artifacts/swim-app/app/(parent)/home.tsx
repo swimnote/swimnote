@@ -2008,7 +2008,7 @@ export default function ParentHomeScreen() {
       )}
 
       {/* ★ GAUGE-06: 교육과정 진행도 게이지 (X mode + selectedStudent + !isBlocked) */}
-      {selectedStudent && mode === "x" && !isBlocked && (
+      {selectedStudent && (mode === "x" || mode === "x_trial") && !isBlocked && (
         <CurriculumProgressGauge
           data={progressData}
           loading={progressLoading}

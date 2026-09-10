@@ -1781,7 +1781,7 @@ export default function TeacherDiaryScreen() {
             onBack={handleExitDiary}
             poolId={user?.swimming_pool_id ?? ""}
             teacherId={user?.id ?? ""}
-            onAIInsert={mode === "x" ? handleAIInsert : undefined}
+            onAIInsert={(mode === "x" || mode === "x_trial") ? handleAIInsert : undefined}
             onUploadGroupMedia={uploadGroupMedia}
             onUploadStudentMedia={uploadStudentMedia}
             onAddNote={handleAddNote}
