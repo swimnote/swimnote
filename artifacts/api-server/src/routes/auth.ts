@@ -1954,7 +1954,7 @@ router.post("/send-sms-code", passwordLimiter, async (req, res) => {
     try {
       await sendSms({
         phone:   cleaned,
-        message: `[수영노트] 인증번호는 ${digits}입니다. 3분 내 입력해주세요.`,
+        message: `[SwimNote] 인증번호는 ${digits}입니다. 타인에게 노출하지 마세요.`,
       });
     } catch (smsErr: any) {
       await superAdminDb.execute(sql`DELETE FROM phone_verifications WHERE id = ${id}`);
