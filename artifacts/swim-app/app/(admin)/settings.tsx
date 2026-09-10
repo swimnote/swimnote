@@ -185,7 +185,7 @@ export default function SettingsScreen() {
   const { adminUser, switchRole, token, logout, pool } = useAuth();
   const isPaidPlan = adminUser?.role === "pool_admin" && !!pool?.subscription_tier && pool.subscription_tier !== "free";
   const { themeColor } = useBrand();
-  const { mode } = useMode();
+  const { mode, x_trial_used, x_trial_active } = useMode();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("settings");
 
@@ -397,6 +397,23 @@ export default function SettingsScreen() {
               desc="요금제 및 결제 관리"
               last
               onPress={() => router.push("/(admin)/subscription" as any)}
+              badge={
+                !x_trial_used && !x_trial_active && mode !== "x" && mode !== "x_pending" ? (
+                  <View style={{
+                    backgroundColor: "#EEF4FA",
+                    borderRadius: 6,
+                    paddingHorizontal: 7,
+                    paddingVertical: 3,
+                    borderWidth: 1,
+                    borderColor: "#B8D0E8",
+                    marginRight: 4,
+                  }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#355C7D" }}>
+                      X모드 무료체험
+                    </Text>
+                  </View>
+                ) : undefined
+              }
             />
           </View>
         )}
