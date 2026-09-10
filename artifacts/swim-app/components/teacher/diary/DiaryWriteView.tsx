@@ -180,7 +180,7 @@ export default function DiaryWriteView({
                     {/* local URI 즉시 preview */}
                     {m.kind === "photo" ? (
                       <ExpoImage source={{ uri: m.uri }}
-                        style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                        style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" cachePolicy="memory" />
                     ) : (
                       <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
                         <LucideIcon name="play" size={16} color="#94A3B8" />
@@ -239,6 +239,7 @@ export default function DiaryWriteView({
                           source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
                           style={{ width: "100%", height: "100%", borderRadius: 6 }}
                           contentFit="cover"
+                          cachePolicy="memory"
                         />
                         <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumPhoto(photo.id)} hitSlop={6}>
                           <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
@@ -259,6 +260,7 @@ export default function DiaryWriteView({
                             source={{ uri: video.thumbnail_presigned_url }}
                             style={{ width: "100%", height: "100%", borderRadius: 6 }}
                             contentFit="cover"
+                            cachePolicy="memory"
                           />
                         ) : (
                           <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
@@ -322,7 +324,7 @@ export default function DiaryWriteView({
                             {/* local URI 즉시 preview */}
                             {m.kind === "photo" ? (
                               <ExpoImage source={{ uri: m.uri }}
-                                style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                                style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" cachePolicy="memory" />
                             ) : (
                               <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
                                 <LucideIcon name="play" size={14} color="#94A3B8" />

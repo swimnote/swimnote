@@ -1042,6 +1042,7 @@ function DiaryFeedItem({
             source={DIARY_LOGO}
             style={f.diaryLogo}
             contentFit="contain"
+            cachePolicy="memory"
           />
           <View style={f.diaryBadge}>
             <Text style={f.diaryBadgeTxt}>수업 피드</Text>

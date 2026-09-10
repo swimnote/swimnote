@@ -24,6 +24,15 @@ import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandCon
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 import { runLegacyMediaCleanup } from "@/utils/mediaStorageCleanup";
 import { runMediaCleanupV2, runMediaCleanupV3, runMediaCleanupWeekly } from "@/utils/mediaCleanupV2";
+import { Image as ExpoImageGlobal } from "expo-image";
+// ── 전역 expo-image disk cache 완전 비활성화 ────────────────────────────────
+// 개별 컴포넌트에서 cachePolicy를 빠뜨려도 disk cache가 절대 쌓이지 않도록
+// defaultProps로 전역 기본값을 memory-only로 고정한다.
+// 이 줄 하나가 "폰 용량 버그 영구 차단" 핵심.
+(ExpoImageGlobal as any).defaultProps = {
+  ...((ExpoImageGlobal as any).defaultProps ?? {}),
+  cachePolicy: "memory",
+};
 import { DevOtaRestartModal } from "@/components/common/DevOtaRestartModal";
 
 // 1.6.3+: 명시적으로 "true"일 때만 점검 화면 진입. 기본값 = 정상 진입.
