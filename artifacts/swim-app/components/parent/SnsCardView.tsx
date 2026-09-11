@@ -36,8 +36,13 @@ const LIGHT  = "#EAF4FF";
 // ── 기간 포맷 ─────────────────────────────────────────────────────────────────
 
 function formatPeriodShort(period: string): string {
-  const [y, m] = period.split("-");
-  return y && m ? `${y}년 ${Number(m)}월` : period;
+  // 발행월 기준: 데이터월 + 1
+  const parts = period.split("-").map(Number);
+  if (parts.length < 2 || !parts[0] || !parts[1]) return period;
+  const [y, m] = parts;
+  const issueM = m === 12 ? 1 : m + 1;
+  const issueY = m === 12 ? y + 1 : y;
+  return `${issueY}년 ${issueM}월`;
 }
 
 // ── Props ────────────────────────────────────────────────────────────────────
