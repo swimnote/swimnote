@@ -786,6 +786,17 @@ SWIMNOTE는 확인 가능한 결제 및 구독 연동정보를 기준으로 문�
     }
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // growth_report_batch_jobs — scheduled_push_at 컬럼 추가
+  // 푸시 알림 금지 시간대(KST 22:00~08:00) 완료 시 예약 발송용
+  // ════════════════════════════════════════════════════════════════
+  console.log("§ growth_report_batch_jobs scheduled_push_at");
+  await exec(
+    "growth_report_batch_jobs.scheduled_push_at",
+    `ALTER TABLE growth_report_batch_jobs
+     ADD COLUMN IF NOT EXISTS scheduled_push_at TIMESTAMPTZ`
+  );
+
   console.log("\n[runtime-ddl-consolidated] ✅ Complete\n");
 }
 

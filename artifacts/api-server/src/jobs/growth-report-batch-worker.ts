@@ -50,11 +50,47 @@ function isBatchEnabled(): boolean {
   return process.env["GROWTH_REPORT_BATCH_AUTO_ENABLED"] === "true";
 }
 
-// ── KST date helper ───────────────────────────────────────────────────────────
+// ── KST date helpers ──────────────────────────────────────────────────────────
 
 export function getKSTNow(utcNow: Date = new Date()): { year: number; month: number } {
   const kst = new Date(utcNow.getTime() + KST_OFFSET_MS);
   return { year: kst.getUTCFullYear(), month: kst.getUTCMonth() + 1 };
+}
+
+// 푸시 알림 금지 시간: KST 22:00 ~ 08:00
+// → 이 시간대에 완료된 배치는 다음 날(또는 당일) 08:00 KST에 예약 발송
+const PUSH_QUIET_START_H = 22;  // 22:00 KST
+const PUSH_QUIET_END_H   = 8;   // 08:00 KST
+
+/** 현재 UTC 기준으로 KST 푸시 금지 시간대인지 확인 */
+function isKSTQuietHour(utcNow: Date = new Date()): boolean {
+  const kst = new Date(utcNow.getTime() + KST_OFFSET_MS);
+  const h = kst.getUTCHours();
+  return h >= PUSH_QUIET_START_H || h < PUSH_QUIET_END_H;
+}
+
+/** 다음 KST 08:00 의 UTC Date 반환 */
+function nextKST8amUTC(utcNow: Date = new Date()): Date {
+  const kst = new Date(utcNow.getTime() + KST_OFFSET_MS);
+  const h = kst.getUTCHours();
+  // 오늘 KST 기준 08:00 UTC = kst날짜 00:00 UTC - 9h + 8h = kst날짜 -1h UTC
+  // 더 간단하게: KST 00:00 UTC = UTC 전날 15:00; KST 08:00 UTC = UTC 전날 23:00
+  const kstMidnightUTC = new Date(
+    Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate())
+    - KST_OFFSET_MS  // KST 00:00 → UTC
+  );
+  const kst8amUTC = new Date(kstMidnightUTC.getTime() + 8 * 60 * 60 * 1000);
+  // 이미 오늘 8am이 지났으면 → 내일 8am
+  if (h >= PUSH_QUIET_END_H && h < PUSH_QUIET_START_H) {
+    // 이 함수는 quiet hour에만 호출되므로 이 경우는 없지만 방어
+    return kst8amUTC;
+  }
+  if (h < PUSH_QUIET_END_H) {
+    // 자정~8시 → 오늘 8am KST
+    return kst8amUTC;
+  }
+  // 22:00 이후 → 내일 8am KST
+  return new Date(kst8amUTC.getTime() + 24 * 60 * 60 * 1000);
 }
 
 // ── getXEligiblePools ─────────────────────────────────────────────────────────
@@ -424,7 +460,7 @@ async function sendAdminReadyPush(
 ): Promise<void> {
   // idempotency check
   const r = await db.execute(sql`
-    SELECT admin_push_sent_at FROM growth_report_batch_jobs
+    SELECT admin_push_sent_at, scheduled_push_at FROM growth_report_batch_jobs
     WHERE swimming_pool_id = ${poolId}
       AND year = ${year} AND month = ${month}
       AND job_type = 'MONTHLY_AUTO'
@@ -439,7 +475,6 @@ async function sendAdminReadyPush(
     const prevYear  = month === 1 ? year - 1 : year;
     const periodLabel = `${prevYear}년 ${prevMonth}월`;
 
-    // 실패 여부 조회
     const statusRes = await db.execute(sql`
       SELECT failed_count FROM growth_report_batch_jobs
       WHERE swimming_pool_id = ${poolId}
@@ -452,22 +487,82 @@ async function sendAdminReadyPush(
       ? `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 일부 리포트는 생성에 실패했습니다. 리포트를 확인한 후 발송해 주세요.`
       : `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 리포트를 확인한 후 발송해 주세요.`;
 
-    await notifyBatchComplete({ poolId, message }).catch((e: unknown) => {
-      console.error(`[gr-batch] admin push failed pool=${poolId}:`, e);
-    });
+    const now = new Date();
+    if (isKSTQuietHour(now)) {
+      // 푸시 금지 시간대 (KST 22:00~08:00) → 다음 08:00 KST로 예약
+      const scheduledAt = nextKST8amUTC(now);
+      await db.execute(sql`
+        UPDATE growth_report_batch_jobs
+        SET scheduled_push_at = ${scheduledAt.toISOString()}::timestamptz,
+            updated_at = NOW()
+        WHERE swimming_pool_id = ${poolId}
+          AND year = ${year} AND month = ${month}
+          AND job_type = 'MONTHLY_AUTO'
+          AND admin_push_sent_at IS NULL
+      `);
+      console.log(`[gr-batch] push quiet hour — scheduled pool=${poolId} at=${scheduledAt.toISOString()}`);
+      return;
+    }
 
-    // Mark sent
-    await db.execute(sql`
-      UPDATE growth_report_batch_jobs
-      SET admin_push_sent_at = NOW(), updated_at = NOW()
-      WHERE swimming_pool_id = ${poolId}
-        AND year = ${year} AND month = ${month}
-        AND job_type = 'MONTHLY_AUTO'
-        AND admin_push_sent_at IS NULL
-    `);
+    await _doSendAdminPush(db, poolId, year, month, message);
 
   } catch (err: any) {
     console.error(`[gr-batch] admin push error pool=${poolId}:`, err.message);
+  }
+}
+
+/** 실제 push 발송 + mark sent */
+async function _doSendAdminPush(
+  db: Db,
+  poolId: string,
+  year: number,
+  month: number,
+  message: string,
+): Promise<void> {
+  await notifyBatchComplete({ poolId, message }).catch((e: unknown) => {
+    console.error(`[gr-batch] admin push failed pool=${poolId}:`, e);
+  });
+
+  await db.execute(sql`
+    UPDATE growth_report_batch_jobs
+    SET admin_push_sent_at = NOW(), updated_at = NOW()
+    WHERE swimming_pool_id = ${poolId}
+      AND year = ${year} AND month = ${month}
+      AND job_type = 'MONTHLY_AUTO'
+      AND admin_push_sent_at IS NULL
+  `);
+  console.log(`[gr-batch] admin push sent pool=${poolId} year=${year} month=${month}`);
+}
+
+// ── runScheduledPushes ────────────────────────────────────────────────────────
+// 매 5분 루프에서 호출: scheduled_push_at <= NOW() 인 미발송 배치 푸시 발송
+
+async function runScheduledPushes(db: Db): Promise<void> {
+  const pending = await db.execute(sql`
+    SELECT swimming_pool_id, year, month, failed_count
+    FROM growth_report_batch_jobs
+    WHERE scheduled_push_at IS NOT NULL
+      AND scheduled_push_at <= NOW()
+      AND admin_push_sent_at IS NULL
+      AND status IN ('COMPLETED', 'PARTIAL', 'FAILED')
+      AND job_type = 'MONTHLY_AUTO'
+  `);
+
+  for (const row of pending.rows as any[]) {
+    const { swimming_pool_id: poolId, year, month, failed_count } = row;
+    const prevMonth   = month === 1 ? 12 : month - 1;
+    const prevYear    = month === 1 ? year - 1 : year;
+    const periodLabel = `${prevYear}년 ${prevMonth}월`;
+    const failedCount = Number(failed_count ?? 0);
+
+    const message = failedCount > 0
+      ? `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 일부 리포트는 생성에 실패했습니다. 리포트를 확인한 후 발송해 주세요.`
+      : `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 리포트를 확인한 후 발송해 주세요.`;
+
+    console.log(`[gr-batch] sending scheduled push pool=${poolId} year=${year} month=${month}`);
+    await _doSendAdminPush(db, poolId, year, month, message).catch((e: any) =>
+      console.error(`[gr-batch] scheduled push error pool=${poolId}:`, e.message)
+    );
   }
 }
 
@@ -597,10 +692,13 @@ export function startGrowthReportBatchWorker(): void {
     );
   });
 
-  // 매 5분 worker loop (PENDING 배치 소화)
+  // 매 5분 worker loop (PENDING 배치 소화 + 예약 푸시 확인)
   cron.schedule("*/5 * * * *", async () => {
     await runBatchWorker(db).catch(e =>
       console.error("[gr-batch] worker error:", e.message)
+    );
+    await runScheduledPushes(db).catch(e =>
+      console.error("[gr-batch] scheduled push error:", e.message)
     );
   });
 
