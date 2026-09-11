@@ -273,7 +273,7 @@ export default function AdminReportDetailScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 14 }]}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={s.backBtn}>
+        <Pressable hitSlop={12} onPress={() => router.replace("/(admin)/report-hub" as any)} style={s.backBtn}>
           <LucideIcon name="arrow-left" size={20} color="#F0F4FF" />
         </Pressable>
         <View style={{ flex: 1 }}>
