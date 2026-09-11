@@ -55,11 +55,14 @@ interface ReportSection { title?: string; content?: string; [key: string]: unkno
 
 // 섹션 key → 한국어 라벨 매핑
 const SECTION_TITLE_MAP: Record<string, string> = {
-  core_growth:       "핵심 성장",
-  swimming_progress: "교육과정 진행",
-  success_conditions:"성공 조건",
-  parent_support:    "부모 지원 방향",
-  teacher_guidance:  "선생님 가이드",
+  core_growth:            "핵심 성장",
+  swimming_progress:      "교육과정 진행",
+  success_conditions:     "성공 조건",
+  parent_support:         "부모 지원 방향",
+  teacher_guidance:       "선생님 가이드",
+  behavioral_strengths:   "수업에서 보인 강점",
+  next_growth_direction:  "다음 성장 방향",
+  longitudinal_comparison:"성장 추이",
 };
 
 function parseSections(raw: unknown): ReportSection[] {
