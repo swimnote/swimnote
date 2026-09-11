@@ -94,16 +94,17 @@ function nextKST8amUTC(utcNow: Date = new Date()): Date {
 }
 
 // ── getXEligiblePools ─────────────────────────────────────────────────────────
-// X mode active pools (기존 growth-report-scheduler.ts와 동일 로직)
+// X mode active pools — scheduler와 동일한 FREE_GROWTH_REPORT_ELIGIBLE_SQL 사용.
+// 이전 x_pool_subscriptions JOIN은 해당 테이블이 존재하지 않아 항상 오류 발생.
 
 async function getXEligiblePools(db: Db): Promise<string[]> {
-  const r = await db.execute(sql`
-    SELECT DISTINCT sp.id
-    FROM swimming_pools sp
-    INNER JOIN x_pool_subscriptions xps ON xps.pool_id = sp.id
-    WHERE xps.status IN ('ACTIVE','TRIAL')
-      AND sp.deleted_at IS NULL
-  `);
+  const r = await db.execute(sql.raw(`
+    SELECT id FROM swimming_pools
+    WHERE (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
+      AND NOT COALESCE(x_force_disabled, false)
+      AND approval_status = 'approved'
+      AND deleted_at IS NULL
+  `));
   return (r.rows as any[]).map(row => row.id as string);
 }
 
