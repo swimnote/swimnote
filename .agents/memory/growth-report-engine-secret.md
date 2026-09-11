@@ -21,4 +21,25 @@ description: 분석 워커가 professional engine에 JWT 인증할 때 사용하
 - `startGrowthReportAnalysisWorker()` → API 서버 모드에도 추가됨 (index.ts else 분기)
 - `GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true` → Render API 서버 환경변수에 설정
 - `GROWTH_REPORT_ANALYSIS_BATCH_SIZE=50` → 5분마다 50건 처리
+- `GROWTH_REPORT_ANALYSIS_CONCURRENCY=5` → 배치 내 동시 처리 건수 (기본 5, max 20)
 - swimnote-worker(srv-d9uc5hnlk1mc73efmnu0): stuck_crashlooping으로 suspended → 의존하면 안 됨
+
+## Render PUT /env-vars 주의사항
+
+- PUT은 전체 교체(REPLACE ALL). 1개만 보내면 나머지 전부 삭제됨
+- 항상 기존 vars 전부 + 신규 vars를 합쳐서 PUT해야 함
+- Render API 서버(srv-d7bn4gogjchc73dp1ci0)에 필요한 env vars 31개
+  - GROWTH_REPORT_* 6개 + SUPABASE_* + JWT_SECRET + SESSION_SECRET + NAVER_SENS_* + CF_R2_* + OPENAI_API_KEY 등
+  - tmp_render_full.ts 패턴으로 Replit process.env에서 읽어 PUT
+
+## batch-worker x_pool_subscriptions 버그 (수정 완료)
+
+- 코드에서 `x_pool_subscriptions` 테이블을 JOIN했으나 실제 DB에 없음
+- → `FREE_GROWTH_REPORT_ELIGIBLE_SQL` (swimming_pools의 x_paid_entitlement/x_manual_entitlement 조건)으로 교체
+- SHA 659e8a9ac8 배포 완료
+
+## getXEligiblePools 결과 (2026-09-11 기준)
+
+- X-eligible pool 3개: 토이키즈스윔클럽, 샘플수영장, 스윔노트
+- 총 active 학생 212명
+- 처리 속도: 5건 동시 × 1분/건 = 50건/10분 (이론값)
