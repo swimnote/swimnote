@@ -170,6 +170,8 @@ if (IS_WORKER) {
   startStandbySyncJobs();
   startVideoExpiryCleanup();
   startOpsMonitorScheduler();
+  // 배치 워커: DB 락으로 멀티인스턴스 중복 실행 방지되므로 API 서버에서도 안전하게 실행
+  startGrowthReportBatchWorker();
 
   // ── 서버 성능 감시 + 푸시 알림 (5분마다) ───────────────────────────────────
   const SLOW_CHECK_INTERVAL = 5 * 60 * 1000;
