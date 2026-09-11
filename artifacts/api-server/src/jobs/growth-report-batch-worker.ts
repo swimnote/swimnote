@@ -576,6 +576,12 @@ async function markJobFailed(db: Db, jobId: string, reason: string): Promise<voi
     WHERE id = ${jobId}
   `);
   console.log(`[gr-batch] JOB_FAILED id=${jobId} reason=${reason}`);
+
+  // 운영자 알림 — 배치 잡 자체가 실패했을 때
+  const { sendOperatorAlert } = await import("../lib/sendOperatorAlert.js");
+  await sendOperatorAlert(
+    `성장리포트 배치 잡 실패\njob=${jobId}\n사유: ${reason.slice(0, 100)}`,
+  );
 }
 
 async function markJobComplete(db: Db, jobId: string, completed: number, failed: number): Promise<void> {

@@ -35,6 +35,7 @@ import cron from "node-cron";
 import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
+import { sendOperatorAlert } from "../lib/sendOperatorAlert.js";
 import { transitionReportStatus, InvalidTransitionError } from "../lib/growth-report-service.js";
 import { buildAnalysisSnapshot } from "../lib/growth-report-snapshot-builder.js";
 import {
@@ -589,8 +590,18 @@ export function startGrowthReportAnalysisWorker(): void {
           failed:   result.failed,
         });
       }
+      // 전체 실패 = 엔진 auth 오류 / 서비스 다운 가능성 → 운영자 즉시 알림
+      if (result.failed > 0 && result.analyzed === 0) {
+        const firstErr = result.errors[0] ?? "unknown";
+        await sendOperatorAlert(
+          `성장리포트 AI분석 전체 실패\n` +
+          `배치 ${result.failed}건 모두 실패\n` +
+          `오류: ${firstErr.slice(0, 100)}`,
+        );
+      }
     } catch (err: any) {
       console.error("[gr3-worker] cron error:", err.message);
+      await sendOperatorAlert(`성장리포트 분석 워커 오류\n${(err as Error).message.slice(0, 120)}`);
     } finally {
       await releaseLock(ANALYSIS_LOCK);
     }
