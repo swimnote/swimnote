@@ -15,6 +15,7 @@ import { isValidCalendarDate, validateMakeupDateRange } from "../lib/makeup-date
 import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
 import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { deleteGrowthReport } from "../lib/growth-report-service.js";
+import { computeAnalysisPeriod } from "../lib/growth-report-analysis-helper.js";
 
 const router = Router();
 
@@ -3977,6 +3978,8 @@ router.get("/reports/summary",
       if (!poolId) return res.status(403).json({ error: "소속된 수영장이 없습니다." });
 
       // ── 파라미터 파싱 ─────────────────────────────────
+      // ★ year/month = report_month (발행월, 외부 API 계약)
+      //   서버 내부에서 computeAnalysisPeriod로 분석월(period_start 기준) 변환.
       const now = new Date();
       const year  = parseInt((req.query.year  as string) || String(now.getFullYear()), 10);
       const month = parseInt((req.query.month as string) || String(now.getMonth() + 1), 10);
@@ -3993,11 +3996,10 @@ router.get("/reports/summary",
         return res.status(400).json({ error: "year/month 파라미터가 올바르지 않습니다." });
       }
 
-      // ── period_start 범위 (해당 월 전체) ─────────────
-      const periodFrom = `${year}-${String(month).padStart(2,"0")}-01`;
-      // 월말 = 다음 달 1일에서 1일 빼기 (9월→31 등 잘못된 날짜 방지)
-      const periodToDate = new Date(year, month, 0); // month는 1-based이므로 month,0 = 해당 월 마지막 날
-      const periodTo = `${periodToDate.getFullYear()}-${String(periodToDate.getMonth()+1).padStart(2,"0")}-${String(periodToDate.getDate()).padStart(2,"0")}`;
+      // ★ report_month → analysis_period 변환 (단일 소스)
+      const ap = computeAnalysisPeriod(year, month);
+      const periodFrom = ap.periodStart;
+      const periodTo   = ap.periodEnd;
 
       // ── 한국어 초성 → LIKE 패턴 변환 ─────────────────
       // Unicode 가나다 초성 범위: 각 초성 시작 코드포인트
@@ -4050,8 +4052,10 @@ router.get("/reports/summary",
       const kpi = kpiResult.rows[0] as any;
 
       // ── 총 건수 ───────────────────────────────────────
+      // ③ JOIN fan-out 방지: student_class_history LEFT JOIN이 다반 수강자에서
+      //    gr.id 당 복수 행 생성 → COUNT(DISTINCT gr.id) 사용.
       const countSql = `
-        SELECT COUNT(*) AS cnt
+        SELECT COUNT(DISTINCT gr.id) AS cnt
         FROM growth_reports gr
         JOIN students s ON s.id = gr.student_id
         LEFT JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL

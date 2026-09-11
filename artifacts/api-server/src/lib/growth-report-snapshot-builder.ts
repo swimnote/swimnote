@@ -72,16 +72,27 @@ export interface BuiltSnapshot {
 // ─── Diary query ──────────────────────────────────────────────────────────────
 
 /**
- * queryDiaries — fetches class_diaries rows that have a student note for
- * `studentId`.  Only this student's note is included in `student_notes`;
- * other students' private notes are excluded (privacy boundary).
- * lesson_date < cutoff date portion (cutoff is UTC ISO, date comparison is text).
+ * queryDiaries — fetches class_diaries rows that have a valid student note for
+ * `studentId` within [analysisFrom, cutoffAt).
+ *
+ * ⑨ analysis_period_start 하한 적용:
+ *   effectiveStart = max(student_created_date, analysisFrom)
+ *   → analysis_period 이전 데이터 절대 포함 금지
+ *   → 중간 입회 학생은 student_created_date 기준으로 더 좁게 적용
+ *
+ * ⑩ 빈 student note 제외:
+ *   NULL / '' / whitespace-only note_content는 일지로 인정하지 않음
+ *   NULLIF(TRIM(cdn.note_content), '') IS NOT NULL
+ *
+ * Privacy (GR3 spec §41):
+ *   Only this student's note is included; other students' notes are excluded.
  */
 async function queryDiaries(
   db: any,
   studentId: string,
   poolId: string,
   cutoffAt: string,
+  analysisFrom: string,   // ⑨ analysis_period_start ("YYYY-MM-DD")
 ): Promise<DiarySnapshotItem[]> {
   // cutoffAt is UTC ISO like "2026-08-24T15:00:00.000Z" → date "2026-08-24"
   const cutoffDate = cutoffAt.slice(0, 10);
@@ -99,13 +110,17 @@ async function queryDiaries(
       ON cdn.diary_id = cd.id
      AND cdn.student_id = ${studentId}
      AND cdn.is_deleted = false
+     AND NULLIF(TRIM(cdn.note_content), '') IS NOT NULL
     LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
     WHERE cd.swimming_pool_id = ${poolId}
       AND cd.is_deleted = false
       AND cd.lesson_date < ${cutoffDate}
-      AND cd.lesson_date >= (
-        SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
-        FROM students WHERE id = ${studentId} LIMIT 1
+      AND cd.lesson_date >= GREATEST(
+        ${analysisFrom},
+        (
+          SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
+          FROM students WHERE id = ${studentId} LIMIT 1
+        )
       )
     ORDER BY cd.lesson_date ASC
   `);
@@ -542,6 +557,15 @@ export async function buildAnalysisSnapshot(
   const cutoffAt   = cycle.analysis_cutoff_at;
   const maxPeriods = getMaxHistoryPeriods();
 
+  // ⑨ analysis_period_start 하한 계산:
+  //   cycle.report_period = "YYYY-MM" (analysis month, e.g. "2026-08")
+  //   → analysisFrom = "YYYY-MM-01"
+  //   cycle.analysis_from이 명시된 경우 그쪽이 더 좁으면 더 좁은 값 사용.
+  const periodFrom = `${cycle.report_period}-01`;
+  const analysisFrom = cycle.analysis_from
+    ? (cycle.analysis_from > periodFrom ? cycle.analysis_from : periodFrom)
+    : periodFrom;
+
   // Parallel data fetch — consistent snapshot moment
   const [
     diaries,
@@ -553,7 +577,7 @@ export async function buildAnalysisSnapshot(
     scpGauge,
     previousCurriculumPct,
   ] = await Promise.all([
-    queryDiaries(db, report.student_id, report.swimming_pool_id, cutoffAt),
+    queryDiaries(db, report.student_id, report.swimming_pool_id, cutoffAt, analysisFrom),
     queryGrowthEvents(db, report.student_id, report.swimming_pool_id, cutoffAt),
     queryAttendance(db, report.student_id, report.swimming_pool_id, cutoffAt),
     queryCurriculumState(db, report.student_id, report.swimming_pool_id),

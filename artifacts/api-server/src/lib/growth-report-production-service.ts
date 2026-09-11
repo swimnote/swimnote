@@ -23,6 +23,7 @@
 
 import { sql } from "drizzle-orm";
 import { superAdminDb }                 from "@workspace/db";
+import { computeAnalysisPeriod }        from "./growth-report-analysis-helper.js";
 import {
   transitionReportStatus,
   ReportNotFoundError,
@@ -407,18 +408,16 @@ export async function bulkSendReports(
   db: Db,
   params: {
     poolId:  string;
-    year:    number;
-    month:   number;
+    year:    number;   // report_month 발행 연도 (외부 API 계약)
+    month:   number;   // report_month 발행 월   (외부 API 계약)
     actorId: string;
   },
 ): Promise<BulkSendResult> {
   const { poolId, year, month, actorId } = params;
 
-  // 해당 pool/year/month의 READY_TO_SEND 리포트 전체 조회
-  // report_period = 'YYYY-MM' (이전달)
-  const prevMonth = month === 1 ? 12 : month - 1;
-  const prevYear  = month === 1 ? year - 1 : year;
-  const period    = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  // ★ report_month → analysis_period 단일 변환 (computeAnalysisPeriod 사용)
+  // year/month는 발행월(외부 계약). 내부에서 분석월(-1)로 변환.
+  const { reportPeriod: period } = computeAnalysisPeriod(year, month);
 
   const candidates = await db.execute(sql`
     SELECT id, student_id, report_period
@@ -501,9 +500,8 @@ export async function getMonthlyReportSummary(
   params: { poolId: string; year: number; month: number },
 ): Promise<MonthlyReportSummary> {
   const { poolId, year, month } = params;
-  const prevMonth = month === 1 ? 12 : month - 1;
-  const prevYear  = month === 1 ? year - 1 : year;
-  const period    = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  // ★ year/month = report_month (발행월). computeAnalysisPeriod로 분석월 변환.
+  const { reportPeriod: period } = computeAnalysisPeriod(year, month);
 
   // 최신 버전 집계: 동일 (student, cycle)에서 최신 version_number만
   const kpiRes = await db.execute(sql`
@@ -588,9 +586,8 @@ export async function refreshWp8Snapshot(
   params: { poolId: string; year: number; month: number },
 ): Promise<void> {
   const { poolId, year, month } = params;
-  const prevMonth = month === 1 ? 12 : month - 1;
-  const prevYear  = month === 1 ? year - 1 : year;
-  const period    = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  // ★ year/month = report_month (발행월). computeAnalysisPeriod로 분석월 변환.
+  const { reportPeriod: period } = computeAnalysisPeriod(year, month);
 
   const res = await db.execute(sql`
     WITH latest AS (

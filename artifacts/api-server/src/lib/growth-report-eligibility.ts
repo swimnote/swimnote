@@ -122,6 +122,78 @@ export function isPaidGrowthReportEligiblePool(
   throw new Error("isPaidGrowthReportEligiblePool: NOT IMPLEMENTED — see growth-report-eligibility.ts for extension guide");
 }
 
+// ── D. 학생 단위 ELIGIBILITY 판정 ─────────────────────────────────────────────
+
+/**
+ * 정책 상수
+ *   GROWTH_REPORT_MIN_ATTENDANCE_COUNT — 분석월 기준 최소 출석 횟수 (present + late)
+ *   GROWTH_REPORT_MIN_SOURCE_RECORDS   — 분석월 기준 최소 유효 일지 건수
+ */
+export const GROWTH_REPORT_MIN_ATTENDANCE_COUNT = 3;
+export const GROWTH_REPORT_MIN_SOURCE_RECORDS   = 3;
+
+/** eligibility_version — 정책 변경 시 버전을 올려 기존 판정과 구분 */
+export const GROWTH_REPORT_ELIGIBILITY_VERSION = 1;
+
+export interface StudentEligibilityResult {
+  eligible:           boolean;
+  exclusion_code:     string | null;   // null = ELIGIBLE
+  attendance_count:   number;
+  source_event_count: number;
+  reregistered:       boolean;         // report_month 시작 시점 재원 여부
+  eligibility_version: number;
+}
+
+/**
+ * evaluateStudentGrowthReportEligibility
+ *
+ * 3중 조건으로 학생 단위 발급 자격을 판정합니다.
+ *
+ * 판정 순서:
+ *   1. 재원 조건 (report_month 재원 중)
+ *   2. 출석 조건 (>= GROWTH_REPORT_MIN_ATTENDANCE_COUNT, present+late)
+ *   3. 일지 조건 (>= GROWTH_REPORT_MIN_SOURCE_RECORDS, 유효 note 포함 diary)
+ *
+ * exclusion_code 규칙:
+ *   NOT_REREGISTERED         — report_month 기준 재원 이력 없음
+ *   INSUFFICIENT_ATTENDANCE  — 출석 기준 미달
+ *   NO_SOURCE_DATA           — 유효 일지 0건
+ *   INSUFFICIENT_SOURCE_DATA — 유효 일지 1~(MIN-1)건
+ *   null                     — ELIGIBLE
+ *
+ * @param params.attendanceCount   출석 횟수 (COUNT(DISTINCT a.id) WHERE status IN ('present','late'))
+ * @param params.sourceEventCount  유효 일지 건수 (snapshot builder와 동일 predicate)
+ * @param params.reregistered      report_month 시작일 기준 재원 중 여부
+ */
+export function evaluateStudentGrowthReportEligibility(params: {
+  attendanceCount:   number;
+  sourceEventCount:  number;
+  reregistered:      boolean;
+}): StudentEligibilityResult {
+  const { attendanceCount, sourceEventCount, reregistered } = params;
+
+  let exclusion_code: string | null = null;
+
+  if (!reregistered) {
+    exclusion_code = "NOT_REREGISTERED";
+  } else if (attendanceCount < GROWTH_REPORT_MIN_ATTENDANCE_COUNT) {
+    exclusion_code = "INSUFFICIENT_ATTENDANCE";
+  } else if (sourceEventCount === 0) {
+    exclusion_code = "NO_SOURCE_DATA";
+  } else if (sourceEventCount < GROWTH_REPORT_MIN_SOURCE_RECORDS) {
+    exclusion_code = "INSUFFICIENT_SOURCE_DATA";
+  }
+
+  return {
+    eligible:            exclusion_code === null,
+    exclusion_code,
+    attendance_count:    attendanceCount,
+    source_event_count:  sourceEventCount,
+    reregistered,
+    eligibility_version: GROWTH_REPORT_ELIGIBILITY_VERSION,
+  };
+}
+
 // ── Backward-compat aliases ───────────────────────────────────────────────────
 
 /**

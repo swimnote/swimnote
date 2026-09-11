@@ -48,16 +48,9 @@ const C = Colors.light;
 
 const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 
-// ── 발행월 ↔ 데이터월 변환 헬퍼 ──────────────────────────────────────────────
-/**
- * 탭(발행월) → API 파라미터(데이터월) 변환
- * 9월 탭 → month=8 (8월 데이터 조회)
- * 1월 탭 → year-1, month=12
- */
-function toDataMonth(tabYear: number, tabMonth: number): { year: number; month: number } {
-  if (tabMonth === 1) return { year: tabYear - 1, month: 12 };
-  return { year: tabYear, month: tabMonth - 1 };
-}
+// ── API 월 계약: 외부 API는 모두 report_month (발행월) 기준 ──────────────────
+// 서버가 내부에서 computeAnalysisPeriod(reportYear, reportMonth)로 분석월(-1) 변환.
+// 앱은 탭 월(발행월)을 그대로 전송 — toDataMonth 변환 제거.
 
 /**
  * report_period("2026-08") → 발행월 라벨("2026년 9월")
@@ -251,10 +244,10 @@ export default function ReportHubScreen() {
   const kpi = useMemo(() => computeKpi(allRows), [allRows]);
 
   // ── API 호출: summary (KPI 배지용, 에러 무시) ─────────────────────────────
+  // ★ yr/mo = report_month (발행월) 그대로 전송 — 서버가 내부에서 분석월(-1) 변환
   const fetchSummary = useCallback(async (yr: number, mo: number) => {
     try {
-      const { year: dy, month: dm } = toDataMonth(yr, mo);
-      const res = await apiRequest(token, `/admin/reports/summary?year=${dy}&month=${dm}&limit=1&offset=0`);
+      const res = await apiRequest(token, `/admin/reports/summary?year=${yr}&month=${mo}&limit=1&offset=0`);
       if (!res.ok) return;
       // 서버 응답: { summary, students, pagination, ... }
       // MonthlyReportSummary 호환 형태로 변환 (batch_status 등 없으면 null)
@@ -264,17 +257,17 @@ export default function ReportHubScreen() {
   }, [token]);
 
   // ── API 호출: list (최대 200, 클라이언트 필터링) ───────────────────────────
+  // ★ yr/mo = report_month (발행월) 그대로 전송 — 서버가 내부에서 분석월(-1) 변환
   const fetchList = useCallback(async (opts: { yr?: number; mo?: number; qv?: string } = {}) => {
     const yr = opts.yr ?? year;
     const mo = opts.mo ?? month;
     const qv = opts.qv !== undefined ? opts.qv : q;
-    const { year: dy, month: dm } = toDataMonth(yr, mo);
 
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
-        year: String(dy), month: String(dm), limit: "200", offset: "0",
+        year: String(yr), month: String(mo), limit: "200", offset: "0",
       });
       if (qv) params.set("q", qv);
 
@@ -441,7 +434,7 @@ export default function ReportHubScreen() {
         token,
         `/admin/growth-reports/bulk-send`,
         { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(toDataMonth(year, month)) },
+          body: JSON.stringify({ year, month }) },
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
