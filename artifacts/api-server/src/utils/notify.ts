@@ -1,6 +1,6 @@
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { sendPushToUser, sendPushToSuperAdmins } from "../lib/push-service.js";
+import { sendPushToUser, sendPushToSuperAdmins, sendPushToPoolAdmins } from "../lib/push-service.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Super Admin Notification — 슈퍼 어드민 전용 알림 (5종)
@@ -543,7 +543,8 @@ export async function notifyBatchComplete(params: {
 
     const title = "AI 성장리포트 발송 준비 완료";
 
-    const promises = admins.map(a =>
+    // 1. DB 알림 저장
+    const dbPromises = admins.map(a =>
       sendNotification({
         recipientId:   a.user_id,
         recipientType: "user",
@@ -553,9 +554,20 @@ export async function notifyBatchComplete(params: {
         body:          message,
         refId:         poolId,
         refType:       "pool",
-      }).catch(e => console.error(`[notify] batchComplete push user=${a.user_id}:`, e))
+      }).catch(e => console.error(`[notify] batchComplete db notif user=${a.user_id}:`, e))
     );
-    await Promise.allSettled(promises);
+    await Promise.allSettled(dbPromises);
+
+    // 2. 앱 push 알림 (fire-and-forget)
+    sendPushToPoolAdmins(
+      poolId,
+      "growth_report",
+      title,
+      message,
+      { screen: "growth_report_list", pool_id: poolId },
+      "system",
+    ).catch(e => console.error("[notify] notifyBatchComplete push 오류:", e));
+
   } catch (err) {
     console.error("[notify] notifyBatchComplete 오류:", err);
   }
