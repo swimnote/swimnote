@@ -340,24 +340,29 @@ async function openCycleForPool(
   // Audit: cycle open
   await writeSchedulerAudit(db, cycleId, poolId, "PENDING", "ACTIVE", "MONTHLY_CYCLE_OPEN");
 
-  // 3. 발급 대상 학생 선정 — 3중 기준
-  //    (a) status = 'active'  (퇴원·정지 제외)
+  // 3. 발급 대상 학생 선정 — 배치 워커와 동일한 3중 기준
+  //    (a) status = 'active'  (퇴원·정지·삭제 제외)
   //    (b) deleted_at IS NULL
-  //    (c) report 기간 내 수업 이력 존재 (student_class_history):
-  //        enrolled_at <= period_end AND (left_at IS NULL OR left_at > period_start)
-  //    → 주2회 등 여러 반 수강자도 student_id 기준 1건만 생성 (ON CONFLICT DO NOTHING)
+  //    (c) student_class_history 이력:
+  //        enrolled_at <= periodStart (리포트 기간 시작일 이전 등록)
+  //        left_at IS NULL OR left_at >= nextMonth (다음 달까지 유지)
+  //    → 8월 중 신규 등록은 제외, 8/1 이전 등록 + 9월 유지만 발급
+  //    → 주2회 등 여러 반 수강자도 student_id 기준 1건만 생성
+  const [_py, _pm] = periodStart.split("-").map(Number);
+  const nextMonthStr = _pm === 12
+    ? `${_py + 1}-01-01`
+    : `${_py}-${String(_pm + 1).padStart(2, "0")}-01`;
+
   const students = await db.execute(sql`
     SELECT DISTINCT s.id, s.name
     FROM students s
-    WHERE s.swimming_pool_id = ${poolId}
+    INNER JOIN student_class_history sch ON sch.student_id = s.id
+    INNER JOIN class_groups cg ON cg.id = sch.class_group_id
+    WHERE cg.swimming_pool_id = ${poolId}
       AND s.status = 'active'
       AND s.deleted_at IS NULL
-      AND EXISTS (
-        SELECT 1 FROM student_class_history sch
-        WHERE sch.student_id = s.id
-          AND sch.enrolled_at <= ${periodEnd}::date
-          AND (sch.left_at IS NULL OR sch.left_at > ${periodStart}::date)
-      )
+      AND sch.enrolled_at <= ${periodStart}::date
+      AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonthStr}::date)
   `);
 
   // 동명이인 학부모 연결 기준 중복 감지 (경고 로그 — 발급 차단 아님)
