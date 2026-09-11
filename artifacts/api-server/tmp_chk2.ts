@@ -1,0 +1,10 @@
+import { Pool } from "pg";
+const p = new Pool({ connectionString: process.env.SUPABASE_DATABASE_URL });
+const POOL_ID = "pool_1780849364252_l9k44rbk3";
+const r = await p.query(`SELECT product_status, COUNT(*) FROM growth_reports WHERE swimming_pool_id=$1 AND report_period='2026-08' AND deleted_at IS NULL GROUP BY product_status ORDER BY product_status`, [POOL_ID]);
+console.log("8월:", r.rows);
+const ip = await p.query(`SELECT product_status, COUNT(*) FROM growth_reports WHERE product_status IN ('PREANALYZING','ANALYZING','REVIEW_REQUIRED','READY_TO_SEND','QUESTION_AVAILABLE') AND deleted_at IS NULL GROUP BY product_status`);
+console.log("전체 진행/완료:", ip.rows);
+const rr = await p.query(`SELECT gr.product_status, s.name FROM growth_reports gr JOIN students s ON s.id=gr.student_id WHERE gr.swimming_pool_id=$1 AND gr.report_period='2026-08' AND gr.deleted_at IS NULL AND gr.updated_at > '2020-01-02' ORDER BY gr.updated_at DESC LIMIT 10`, [POOL_ID]);
+console.log("업데이트된건:", rr.rows.length, "건"); rr.rows.forEach((r:any)=>console.log(` ${r.name}: ${r.product_status}`));
+await p.end();

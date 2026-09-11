@@ -27,6 +27,7 @@
 - [standby-sync jsonb 배열 버그](standby-sync-jsonb-array-bug.md) — serializeForPg(v, pgType) + colTypes Map; students/parent_accounts/diary_messages 복제 검증 완료
 - [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송; diary_templates 1050개 global 존재
 - [★ AI 일지 데이터 소스 영구 원칙](ai-diary-data-source-rule.md) — 일지AI = curriculum+diary_templates 항상 병합; curriculum존재 여부와 무관; X mode만 별도; 2026-09-11 확정 불변
+- [Growth Report Engine Secret 설정 규칙](growth-report-engine-secret.md) — GROWTH_REPORT_ENGINE_SECRET=JWT_SECRET 96자 full값 필수; Render API truncate로 60자만 보임; 불일치시 항상 401
 - [★ 성장 리포트 발급 헌법](growth-report-issuance-constitution.md) — active+enrolled_at<=period시작+left_at>=다음달; 스케줄러·배치워커 동일 조건 필수; 500개/20만명 기준 영구
 - [업무 대화 스레드 구조](request-thread-structure.md) — parent_request_messages 테이블 auto-create 패턴; system message helper; teacher/parent 공통 API
 - [Production DB 연결 방법](prod-db-connection-method.md) — executeSql=NeonDB(Replit내장); 실제운영DB=SUPABASE_DATABASE_URL; /tmp tsx스크립트+buildConfig+pg Pool로 직접 연결
