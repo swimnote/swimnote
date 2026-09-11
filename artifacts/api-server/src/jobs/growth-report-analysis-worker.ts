@@ -76,6 +76,20 @@ function getBatchSize(): number {
 }
 
 /**
+ * GROWTH_REPORT_ANALYSIS_CONCURRENCY — 1회 배치 내 동시 처리 report 수.
+ * 기본값 5. 엔진 부하에 따라 환경변수로 조절.
+ *   1  → 기존 sequential (안전 모드)
+ *   5  → 5개 동시 (기본 권장)
+ *   10 → 10개 동시 (엔진 여유 있을 때)
+ */
+function getConcurrency(): number {
+  const raw = process.env["GROWTH_REPORT_ANALYSIS_CONCURRENCY"];
+  if (raw === undefined) return 5;
+  const n = Number(raw);
+  return isNaN(n) || n < 1 ? 5 : Math.min(n, 20); // 최대 20
+}
+
+/**
  * GROWTH_REPORT_ANALYSIS_AUTO_ENABLED — auto cron 실행 허용 여부.
  * Fail-closed: 명시적으로 "true"일 때만 활성화.
  * env missing / "false" / 기타 값 → disabled.
@@ -399,6 +413,11 @@ export interface GrowthReportAnalysisWorkerResult {
 
 /**
  * runGrowthReportAnalysisWorker — processes one batch of pending reports.
+ *
+ * 동시 처리: GROWTH_REPORT_ANALYSIS_CONCURRENCY 환경변수로 제어 (기본 5).
+ * DB row lock(FOR UPDATE)과 CAS(analysis_request_id)가 각 건을 독립적으로
+ * 보호하므로 concurrent 실행이 안전함.
+ *
  * Clock-injectable `db` parameter for testing.
  */
 export async function runGrowthReportAnalysisWorker(
@@ -411,16 +430,34 @@ export async function runGrowthReportAnalysisWorker(
   const pending = await fetchPendingReports(db);
   if (pending.length === 0) return result;
 
-  for (const item of pending) {
-    try {
-      await analyzeOneReport(db, item);
-      result.analyzed++;
-    } catch (err: any) {
-      result.failed++;
-      result.errors.push(`report=${item.report.id}: ${err.message}`);
-      console.error(`[gr3-worker] unexpected error report=${item.report.id}:`, err.message);
+  const concurrency = getConcurrency();
+  console.log(`[gr3-worker] processing ${pending.length} reports (concurrency=${concurrency})`);
+
+  // concurrency 제한 병렬 처리 — p-limit 없이 직접 구현
+  let idx = 0;
+  const mutex = { analyzed: 0, failed: 0, errors: [] as string[] };
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const i = idx++;
+      if (i >= pending.length) break;
+      const item = pending[i];
+      try {
+        await analyzeOneReport(db, item);
+        mutex.analyzed++;
+      } catch (err: any) {
+        mutex.failed++;
+        mutex.errors.push(`report=${item.report.id}: ${err.message}`);
+        console.error(`[gr3-worker] unexpected error report=${item.report.id}:`, err.message);
+      }
     }
   }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, pending.length) }, worker));
+
+  result.analyzed = mutex.analyzed;
+  result.failed   = mutex.failed;
+  result.errors   = mutex.errors;
 
   return result;
 }
