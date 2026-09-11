@@ -1,0 +1,541 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+최종 발급 안정화 — HOLD 보정 작업
+
+현재 보고서는 확인했습니다.
+
+Production deploy / migration / 9월 status correction은 아직 승인하지 않습니다.
+
+전체 아키텍처 방향은 맞지만
+아래 항목을 수정·재검증한 뒤 최종 승인 여부를 결정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 dry-run 16명 수치는 잠정값
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+ELIGIBLE 16
+EXCLUDED 152
+
+결과를 최종 발급 인원으로 확정하지 마십시오.
+
+attendance_count와 source_event_count의 정의를
+아래 기준으로 수정한 뒤
+168명 전체를 다시 dry-run 하십시오.
+
+기존 16명 숫자를 코드/테스트에 하드코딩하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 출석은 DATE가 아니라 실제 수업 SESSION 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+COUNT(DISTINCT a.date)
+
+방식은 수정하십시오.
+
+같은 날 학생이 실제로
+
+정규수업 1회
++
+보강수업 1회
+
+에 참여했다면
+실제 수업 참여는 2회입니다.
+
+date 하나만 DISTINCT 처리하면
+1회로 잘못 계산됩니다.
+
+현재 attendance schema의 실제 unique/session 식별 구조를 확인하십시오.
+
+우선순위:
+
+1. 실제 lesson/session id가 있으면 그것 사용
+2. 없으면 attendance row의 canonical id 검토
+3. 현재 구조가 class_group_id + student_id + date 단위라면
+   최소 class_group_id + date 조합으로 distinct 처리
+
+단순 DISTINCT date 사용 금지.
+
+동일한 실제 수업이 DB 중복으로 2행 생겼을 때만
+1회로 계산되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. late는 실제 참여라면 출석으로 인정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 status:
+
+present
+absent
+late
+
+중
+
+present만 인정하도록 계획되어 있으나,
+late가 실제 수업에 늦게 참석한 의미라면
+성장리포트 발급정책상 실제 수업 참여입니다.
+
+따라서 실제 운영 semantics를 확인하십시오.
+
+late = 실제 참여
+
+가 맞다면:
+
+present
++
+late
+
+둘 다 attendance_count에 포함하십시오.
+
+absent는 제외.
+
+보강도 실제 참여 status이면 포함.
+
+만약 현재 시스템의 late가
+실제 참여를 뜻하지 않는 특수 상태라면
+그 근거를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 일지 3회는 "ENGINE이 실제 분석할 수 있는 수업 3회"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+source_event_count를
+단순 class_diaries row count와 별개로 정의하지 마십시오.
+
+정확한 정책:
+
+해당 학생의 Growth Report ENGINE snapshot에
+실제로 분석 원천으로 포함될 수 있는
+서로 다른 수업 event 수 >= 3
+
+이어야 합니다.
+
+즉 source count 계산 predicate와
+실제 Growth Report snapshot builder의
+source selector가 서로 달라지면 안 됩니다.
+
+반드시 현재 snapshot 생성 코드를 조사하여
+동일한 inclusion rule을 재사용하거나
+공통 helper로 분리하십시오.
+
+확인 항목:
+
+- student 일치
+- pool 일치
+- analysis period 일치
+- 삭제되지 않음
+- 실제 분석 가능한 내용 존재
+- 빈 note가 source로 세어지지 않음
+- 동일 Diary 중복 note는 1회
+- ENGINE에 실제 전달되지 않는 기록은 count하지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 가능하면 "출석한 수업의 일지"만 source로 인정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학생이 결석한 수업에
+학생 note가 잘못 남아 있는 경우를
+Growth Report source로 인정하면 안 됩니다.
+
+현재 schema에서
+attendance와 class diary를
+class/session/date 기준으로 안전하게 연결할 수 있는지 조사하십시오.
+
+안전하게 연결 가능하면:
+
+source_event_count
+=
+실제 출석한 수업 중
+유효 학생 일지가 존재하는 서로 다른 수업 수
+
+를 사용하십시오.
+
+즉 최종적으로:
+
+attendance_count >= 3
+
+AND
+
+valid_attended_diary_count >= 3
+
+이 되게 합니다.
+
+억지 JOIN으로 오히려 정상 데이터를 제거할 위험이 있다면
+임의 구현하지 말고
+정확한 schema 한계를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 발급 정책 최종 고정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI 성장리포트 발급조건은:
+
+A. report_month 재등록/재원 조건 충족
+
+AND
+
+B. analysis period 실제 수업 참여 >= 3회
+
+AND
+
+C. analysis period 실제 분석 가능한 학생 일지 >= 3회
+
+모두 만족해야 합니다.
+
+주1회 / 주2회 / 주3회 구분 없음.
+
+출석률 사용 금지.
+
+중간 입회도:
+
+실제 참여 >=3
++
+유효 일지 >=3
++
+다음달 재등록
+
+이면 발급.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 재등록 Source of Truth 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+student_class_history 날짜 조건이
+재등록 Source of Truth라고 되어 있습니다.
+
+하지만 이것이 실제:
+
+"다음 달 재등록 완료"
+
+를 의미하는지 다시 확인하십시오.
+
+Repository/DB에서 다음 계열을 검색하십시오.
+
+- payment
+- tuition
+- enrollment period
+- registration
+- renewal
+- re-registration
+- membership payment
+- monthly payment
+- 결제완료 여부
+
+실제 재등록/결제 완료를 나타내는
+더 권위 있는 데이터가 존재하면
+student_class_history보다 그것을 우선 검토하십시오.
+
+아무런 별도 Source of Truth가 없다면
+임의로 "재등록 완료"라고 부르지 말고
+
+현재 시스템에서 가능한 기준이:
+
+"report_month 시작 시점 재원"
+
+임을 명확하게 보고하십시오.
+
+그 경우 최종 Production 정책 확정은
+사용자 승인 후 진행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. report_month 외부 계약 통일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요합니다.
+
+사용자가 보는 기준은:
+
+2026년 9월 리포트
+=
+2026년 8월 수업 분석
+
+입니다.
+
+따라서 관리자 UI 및 APP/API의
+외부 월 파라미터는 전부:
+
+report_month
+
+의미로 통일하십시오.
+
+예:
+
+year=2026
+month=9
+
+→ 2026년 9월 리포트
+
+서버 내부 helper가 한 번만:
+
+2026-09
+→ analysis period 2026-08-01 ~ 2026-09-01 exclusive
+
+로 변환합니다.
+
+UI 곳곳에서 -1 month 계산하고
+서버에서도 또 -1 month 계산하는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 특히 bulk-send 월 계약 수정/검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고상:
+
+POST /admin/reports/bulk-send
+{ year, month }
+
+가 "분석월 기준"이라고 되어 있습니다.
+
+이것은 현재 APP UX와 충돌할 가능성이 있습니다.
+
+관리자 화면에서:
+
+2026년 9월 리포트
+
+를 보고
+"발송"을 누르면
+
+API 역시 의미상:
+
+report_month = 2026-09
+
+를 받아야 합니다.
+
+서버 내부에서:
+
+analysis month = 2026-08
+
+로 변환하십시오.
+
+admin summary
+admin list
+admin review
+bulk-send
+
+모두 같은 월 의미를 사용해야 합니다.
+
+한 Endpoint만 analysis month를 받고
+다른 Endpoint는 report month를 받는 구조 금지.
+
+기존 frontend 호출과 실제 request를 추적하여
+현재 한 달 밀림 bug가 존재하는지도 테스트하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. DB report_period는 그대로 유지 가능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DB:
+
+report_period = "2026-08"
+
+은 계속
+analysis/source month 의미로 유지해도 됩니다.
+
+이번 작업에서 DB rename은 하지 마십시오.
+
+단:
+
+UI/API external contract:
+report_month = 2026-09
+
+DB internal:
+report_period = 2026-08
+
+의 변환은
+단일 helper/service boundary에서만 수행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 200 원인을 추정으로 끝내지 마십시오
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+200은 캡처 시점 또는 렌더링 타이밍 차이로 보임
+
+이라고 되어 있습니다.
+
+이것은 추정이므로
+완료 판정 근거로 사용하지 마십시오.
+
+현재 동일 현상을 재현할 수 없다면:
+
+"historical 200 원인 재현 불가"
+
+로 명확하게 기록하십시오.
+
+대신 수정 후에는 반드시:
+
+API summary total
+API list total
+실제 rendered UI total
+
+세 값이 동일한지 실기기/웹 화면까지 확인하십시오.
+
+stale cache/state로 과거 숫자가 남지 않는지도 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 현재 9월 168건은 아직 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 계획된:
+
+152 → EXCLUDED
+16 → REVIEW_REQUIRED
+
+mutation은 실행하지 마십시오.
+
+attendance/session 정의
+source selector
+재등록 Source of Truth
+month API contract
+
+수정 완료 후
+
+168건 전체를 다시 dry-run 하십시오.
+
+그 결과를 새 기준의 최종 예상값으로 제출하십시오.
+
+PUBLISHED row는 계속 무변경.
+
+다른 pool도 무변경.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 안정장치는 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 기존 구조는 정상으로 판단합니다.
+
+- uq_growth_reports_student_cycle_v2
+- student_id + cycle_id idempotency
+- ON CONFLICT DO NOTHING
+- growth_report_cycles lock
+- FOR UPDATE SKIP LOCKED
+- analysis worker CAS
+- request_id 선저장
+- 학생 단위 try/catch
+- 최대 retry 3회
+
+관련 없는 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. ENGINE Contract는 이번 작업에서 변경하지 않음
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ENGINE Request에 이미:
+
+report_id
+report_period
+analysis_period_start
+analysis_period_end_exclusive
+
+가 존재하므로
+이번 APP 안정화 작업에서는 ENGINE Contract를 변경하지 마십시오.
+
+report_month가 향후 필요하면
+ENGINE async 작업 단계에서 별도로 결정합니다.
+
+현재는 APP/API의 월 의미 통일부터 완료하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Diary Fact Build integration point 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인된:
+
+POST /diaries
+PUT /diaries/:id
+DELETE /diaries/:id
+
+DB commit 직후가
+향후 ENGINE growth-fact-build integration point입니다.
+
+이번 작업에서는 실제 Fact Build 연결 금지.
+
+integration point만 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 수정 후 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다시 제출:
+
+A.
+attendance session 식별 방식
+
+B.
+late 포함 여부와 실제 semantics
+
+C.
+source_event_count가
+실제 ENGINE snapshot source와 동일한지
+
+D.
+출석수업 ↔ 일지 정합성 적용 여부
+
+E.
+재등록 Source of Truth 최종 확인
+
+F.
+summary/list/bulk-send 모두
+report_month 외부 계약으로 통일됐는지
+
+G.
+현재 168건 재계산 matrix
+
+H.
+새 ELIGIBLE 수
+
+I.
+새 EXCLUDED 수
+
+J.
+exclusion_code별 수
+
+K.
+UI Summary total
+=
+API Summary total
+=
+API List total
+=
+실제 unique report count
+
+L.
+동월 scheduler 재실행 중복 0
+
+M.
+worker retry 중복 AI 호출/저장 없음
+
+N.
+PUBLISHED 무변경
+
+O.
+다른 pool 무변경
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 이번 단계에서 허용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+- 코드 수정
+- 단위/통합 테스트
+- dry-run
+- migration 파일 작성
+- Preview/dev 검증
+
+금지:
+
+- Production deploy
+- Production migration 실행
+- 168건 실제 status 변경
+- Production bulk send
+- Production report 재생성
+
+완료보고 후 다시 멈추십시오.
