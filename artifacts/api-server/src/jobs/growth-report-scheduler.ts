@@ -340,16 +340,64 @@ async function openCycleForPool(
   // Audit: cycle open
   await writeSchedulerAudit(db, cycleId, poolId, "PENDING", "ACTIVE", "MONTHLY_CYCLE_OPEN");
 
-  // 3. pool의 non-deleted 학생들에게 report 생성 (ON CONFLICT DO NOTHING)
-  //    period_start/period_end = 이전달 첫날/마지막날 (KST 기준 날짜)
+  // 3. 발급 대상 학생 선정 — 3중 기준
+  //    (a) status = 'active'  (퇴원·정지 제외)
+  //    (b) deleted_at IS NULL
+  //    (c) report 기간 내 수업 이력 존재 (student_class_history):
+  //        enrolled_at <= period_end AND (left_at IS NULL OR left_at > period_start)
+  //    → 주2회 등 여러 반 수강자도 student_id 기준 1건만 생성 (ON CONFLICT DO NOTHING)
   const students = await db.execute(sql`
-    SELECT id FROM students
-    WHERE swimming_pool_id = ${poolId}
-      AND deleted_at IS NULL
+    SELECT DISTINCT s.id, s.name
+    FROM students s
+    WHERE s.swimming_pool_id = ${poolId}
+      AND s.status = 'active'
+      AND s.deleted_at IS NULL
+      AND EXISTS (
+        SELECT 1 FROM student_class_history sch
+        WHERE sch.student_id = s.id
+          AND sch.enrolled_at <= ${periodEnd}::date
+          AND (sch.left_at IS NULL OR sch.left_at > ${periodStart}::date)
+      )
   `);
 
+  // 동명이인 학부모 연결 기준 중복 감지 (경고 로그 — 발급 차단 아님)
+  const nameCounts = new Map<string, string[]>();
+  for (const s of students.rows as Array<{ id: string; name: string }>) {
+    const ids = nameCounts.get(s.name) ?? [];
+    ids.push(s.id);
+    nameCounts.set(s.name, ids);
+  }
+  for (const [name, ids] of nameCounts.entries()) {
+    if (ids.length < 2) continue;
+    // 학부모 연결 조회
+    const parentLinks = await db.execute(sql`
+      SELECT student_id, parent_id FROM parent_students
+      WHERE student_id = ANY(${ids}::text[])
+        AND status = 'approved'
+    `);
+    const parentMap = new Map<string, string[]>();
+    for (const row of parentLinks.rows as Array<{ student_id: string; parent_id: string }>) {
+      const pids = parentMap.get(row.student_id) ?? [];
+      pids.push(row.parent_id);
+      parentMap.set(row.student_id, pids);
+    }
+    // 학부모 연결 없는 동명이인은 경고
+    const noParent = ids.filter(id => !parentMap.has(id));
+    if (noParent.length > 0) {
+      console.warn(
+        `[gr-scheduler] DUPLICATE_NAME_NO_PARENT: pool=${poolId} name="${name}" ` +
+        `student_ids=${noParent.join(",")} — 학부모 미연결 동명이인, 수동 확인 필요`,
+      );
+    } else {
+      console.log(
+        `[gr-scheduler] DUPLICATE_NAME_PARENT_OK: pool=${poolId} name="${name}" ` +
+        `ids=${ids.join(",")} — 학부모 연결로 별개 학생 확인됨`,
+      );
+    }
+  }
+
   let reportsCreated = 0;
-  for (const s of students.rows as Array<{ id: string }>) {
+  for (const s of students.rows as Array<{ id: string; name: string }>) {
     await db.execute(sql`
       INSERT INTO growth_reports (
         student_id, swimming_pool_id, cycle_id, report_period,
