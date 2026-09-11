@@ -1,0 +1,1222 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+발급 정책 확정 + 관리자 명단/스케줄러/배치 안정화 작업
+
+이번 작업은 AI 성장리포트가
+실제 운영환경에서 월별로 원활하고 오류 없이 발급되도록
+발급대상 선정부터 관리자 검수 전 단계까지 정비하는 작업입니다.
+
+중요:
+아래 정책은 확정된 운영정책입니다.
+임의로 출석률 방식이나 다른 기준으로 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 확정 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI 성장리포트는 다음 3개 조건을
+모두 만족한 회원에게만 발급합니다.
+
+A.
+리포트 발급월에 재등록된 회원
+
+AND
+
+B.
+분석 대상월 실제 출석 3회 이상
+
+AND
+
+C.
+분석 대상월 유효 학생별 수업일지 3회 이상
+
+즉:
+
+재등록 O
++ 실제 출석 >= 3
++ 유효 수업일지 >= 3
+
+인 경우에만 발급합니다.
+
+이 정책은 절대 기준입니다.
+
+출석률 50% 같은 비율 기준은 사용하지 않습니다.
+
+주1회 / 주2회 / 주3회 회원 모두
+동일하게 절대 횟수 3회를 기준으로 합니다.
+
+예:
+
+주1회 월 4회
+→ 출석 3회 + 일지 3회면 발급
+
+주2회 월 8회
+→ 출석 3회 + 일지 3회면 발급
+
+주3회 월 12회
+→ 출석 3회 + 일지 3회면 발급
+
+중간 입회 회원도 동일합니다.
+
+예:
+
+8월 중간에 신규등록한 회원이
+
+8월 실제 출석 3회
++
+8월 유효 학생별 일지 3회
++
+9월 재등록
+
+이면
+
+9월 AI 성장리포트를 발급합니다.
+
+가입일이 월초인지 월중인지 자체는
+발급 제외 사유가 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 리포트 월과 분석 월 절대 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP 정책은 다음과 같습니다.
+
+2026년 9월 AI 성장리포트
+=
+2026년 8월 수업 분석
+
+2026년 10월 AI 성장리포트
+=
+2026년 9월 수업 분석
+
+2027년 1월 AI 성장리포트
+=
+2026년 12월 수업 분석
+
+현재 DB에서:
+
+report_period = "2026-08"
+
+은
+2026년 9월에 발급되는 리포트가 분석하는
+수업 원천월을 의미합니다.
+
+현재 DB column을 이번 작업에서
+성급하게 rename하거나 기존 의미를 변경하지 마십시오.
+
+대신 월 계산을 한 군데의 helper/service로 고정하십시오.
+
+개념:
+
+report_month
+= 사용자에게 표시되는 발급월
+
+analysis_period
+= 실제 분석하는 직전 calendar month
+
+예:
+
+report_month = 2026-09
+
+analysis_period_start = 2026-08-01
+analysis_period_end_exclusive = 2026-09-01
+
+현재 서버 실행 날짜를 보고
+분석월을 다시 추론하는 구현 금지.
+
+과거 리포트를 나중에 재처리하더라도
+원래 analysis period를 그대로 사용해야 합니다.
+
+연도 rollover 테스트 필수:
+
+2027-01 report
+→ 2026-12 analysis
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 DB에서 확인된 중복 문제 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실측:
+
+전체 growth_reports raw rows:
+175
+
+주 pool 실제 growth_reports:
+168
+
+JOIN 이후 관리자 목록:
+202
+
+active class 중복 학생:
+40명
+
+JOIN 증식:
++34 rows
+
+따라서 현재 화면 숫자는
+실제 리포트 수와 일치하지 않습니다.
+
+growth_reports 1행
+=
+학생 1명의 리포트 1건
+
+이 원칙을 모든 관리자 화면에서 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 200 / 202 / 168 원인 완전 규명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면에는:
+
+상단 전체 = 약 200
+목록 총 = 202
+
+실제 주 pool growth_reports = 168
+
+입니다.
+
+202가 class history JOIN fan-out이라는 것은 확인되었습니다.
+
+하지만 상단 숫자가
+왜 202가 아니라 200인지까지
+실제 SQL 기준으로 확인하십시오.
+
+다음을 각각 추적하십시오.
+
+A.
+상단 전체 KPI SQL
+
+B.
+목록 total SQL
+
+C.
+실제 growth_reports SQL
+
+다음 차이를 모두 조사:
+
+- JOIN 종류
+- status filter
+- NULL 제외
+- pool filter
+- student filter
+- class filter
+- 기타 WHERE condition
+
+추정하지 마십시오.
+
+완료보고에서:
+
+200의 정확한 원인
+202의 정확한 원인
+168이 실제 리포트 수인 이유
+
+를 각각 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Summary KPI 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+카운트 목적으로 불필요한
+student_class_history JOIN을 제거하십시오.
+
+growth_reports row 자체를 기준으로 계산합니다.
+
+필요 시:
+
+COUNT(DISTINCT gr.id)
+
+사용.
+
+다음 모든 상태가 동일한 집계 원칙을 사용해야 합니다.
+
+- 전체
+- 생성 전
+- 분석 중
+- 검수 대기
+- 발송 대기
+- 발행 완료
+- 제외
+- 실패
+
+수정 후:
+
+관리자 Summary 전체 수
+=
+관리자 List unique report 수
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 명단: 학생 1명 = 한 줄
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+주2회 / 주3회 회원을
+반 개수만큼 여러 줄 표시하지 마십시오.
+
+growth_reports 1행
+=
+학생 1명
+=
+목록 1줄
+
+입니다.
+
+여러 반은 하나로 묶어서 표시합니다.
+
+예:
+
+화 19:00 · 토 11:00
+
+첫 번째 반만 임의 선택하는 방식 금지.
+
+현재 반 정보는
+aggregate/subquery로 가져옵니다.
+
+teacher도 LIMIT 1로
+임의 선택하여 정보를 버리지 마십시오.
+
+여러 반에서 서로 다른 선생님이라면
+DISTINCT aggregate 또는 현재 UI에 맞는 방식으로
+모두 식별 가능하게 하십시오.
+
+예:
+
+김수연 · 유지훈
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 출석 횟수 정의
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report eligibility에 사용할
+attendance_count를 명확히 정의하십시오.
+
+attendance_count:
+
+분석 대상월에
+해당 학생이 실제로 참여 완료한
+서로 다른 수업 횟수.
+
+동일 수업이 JOIN 때문에
+2회 이상 세어지면 안 됩니다.
+
+반드시 DISTINCT lesson/session 기준을 사용하십시오.
+
+현재 시스템의 실제 출석 status enum을 조사한 뒤
+"실제 출석"에 해당하는 기존 status만 사용하십시오.
+
+다음은 출석로 세지 않습니다.
+
+- 결석
+- 취소
+- 미수업
+- 노쇼
+- 예약만 존재
+- 실제 참여하지 않은 상태
+
+보강 수업이라도
+학생이 실제 참여하여 정상 출석 처리된 수업이면
+출석 1회로 인정하십시오.
+
+임의의 새로운 attendance status를 만들지 말고
+현재 운영 DB의 실제 상태를 재사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 유효 수업일지 횟수 정의
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+source_event_count는
+단순 note row 수가 아닙니다.
+
+학생에게 실제 분석 가능한 일지가 존재하는
+서로 다른 수업 횟수입니다.
+
+현재 source:
+
+class_diary_student_notes
+→ class_diaries
+
+구조를 사용합니다.
+
+가능한 기준:
+
+COUNT(DISTINCT class_diaries.id)
+
+학생별 유효 수업일지 event를 계산할 때 최소:
+
+- student_id 일치
+- 분석 대상 기간 내부
+- diary 삭제되지 않음
+- student note 삭제되지 않음
+- 실제 분석 가능한 내용 존재
+- pool/center scope 일치
+
+를 검증하십시오.
+
+동일 Diary에서
+student note row가 중복으로 존재해도
+
+source_event_count가 2로 증가하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 가능하면 출석과 일지의 날짜 정합성 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 eligibility는:
+
+attendance_count >= 3
+
+AND
+
+source_event_count >= 3
+
+입니다.
+
+추가로,
+일지가 기록된 수업일이
+해당 학생의 실제 출석 수업과 정상적으로 대응하는지
+검증하십시오.
+
+정상 시스템이라면
+학생이 결석한 수업을
+성장리포트의 실제 학습 source로 사용하는 일이 없어야 합니다.
+
+현재 DB 모델상
+attendance와 diary를 신뢰성 있게
+수업 단위로 연결할 수 있다면:
+
+유효 source_event는
+실제 출석한 수업의 학생별 일지만 인정하는 방식을
+우선하십시오.
+
+만약 현재 schema상 이를 안전하게 연결할 수 없다면
+임의 JOIN으로 잘못된 데이터를 제거하지 말고
+
+현재 구조의 한계를 완료보고에 명확하게 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 정책 상수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 두 정책값을
+한 곳에서 관리하십시오.
+
+GROWTH_REPORT_MIN_ATTENDANCE_COUNT = 3
+
+GROWTH_REPORT_MIN_SOURCE_RECORDS = 3
+
+숫자 3을
+scheduler / worker / admin query 등
+여러 파일에 반복 하드코딩하지 마십시오.
+
+향후 정책 변경 시
+한 곳만 수정할 수 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 Eligibility 함수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+발급 조건 판단 로직을
+여러 쿼리와 worker에 중복 구현하지 마십시오.
+
+가능하면 하나의 공통 policy/helper로 분리하십시오.
+
+개념:
+
+evaluateGrowthReportEligibility({
+  reregistered,
+  attendanceCount,
+  sourceEventCount,
+  manualExcluded
+})
+
+결과:
+
+eligible: boolean
+
+exclusionCode:
+- NOT_REREGISTERED
+- INSUFFICIENT_ATTENDANCE
+- NO_SOURCE_DATA
+- INSUFFICIENT_SOURCE_DATA
+- MANUAL_EXCLUDED
+- null
+
+최종 조건:
+
+if manual excluded
+→ excluded
+
+else if not reregistered
+→ excluded
+
+else if attendance_count < 3
+→ excluded
+
+else if source_event_count === 0
+→ excluded
+
+else if source_event_count < 3
+→ excluded
+
+else
+→ eligible
+
+단,
+기존 관리자 수동 제외가 설정되어 있다면
+scheduler가 자동으로 되살리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 재등록 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+무료 AI 성장리포트는
+report_month에 재등록된 회원만 대상입니다.
+
+예:
+
+9월 AI 성장리포트:
+
+9월 재등록 O
++
+8월 출석 >= 3
++
+8월 일지 >= 3
+
+→ 발급
+
+9월 재등록 X
++
+8월 출석 10
++
+8월 일지 10
+
+→ 발급 안 함
+
+중요:
+
+"현재 active student"
+또는
+
+student_class_history.left_at IS NULL
+
+을 재등록 여부로 임의 대체하지 마십시오.
+
+현재 시스템에서 실제 재등록 완료를 판단하는
+Source of Truth를 조사하여 그대로 재사용하십시오.
+
+명확한 Source of Truth가 없다면
+추측 구현하지 말고 HOLD 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 중간 입회 학생
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+입회일을 별도의 최소 재원기간 조건으로 사용하지 않습니다.
+
+예:
+
+8월 15일 신규등록
+
+8월 출석 3회
+8월 학생별 일지 3회
+9월 재등록 완료
+
+→ 9월 AI 성장리포트 발급 대상
+
+즉:
+
+"한 달 전체를 다녔는가"
+
+가 아니라
+
+"실제 관찰 가능한 수업이 3회 이상 있었는가"
+
+를 기준으로 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. exclusion 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 discard_reason은
+관리자 수동 사유 또는 자유 입력 용도로 유지합니다.
+
+자동 eligibility 판정은
+machine-readable field를 별도로 사용하십시오.
+
+현재 동일 역할 field가 없다면
+additive migration으로:
+
+exclusion_code
+
+추가를 검토하십시오.
+
+허용 값:
+
+NOT_REREGISTERED
+INSUFFICIENT_ATTENDANCE
+NO_SOURCE_DATA
+INSUFFICIENT_SOURCE_DATA
+MANUAL_EXCLUDED
+
+기존 discard_reason rename/삭제 금지.
+
+자동 코드와 관리자 메모를 섞지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. audit용 count 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 growth_reports에:
+
+source_event_count
+
+column이 이미 있으나
+전부 0으로 저장되고 있습니다.
+
+이를 실제 값으로 저장하십시오.
+
+추가로 기존에 attendance_count column이 없다면
+현재 schema와 migration convention을 조사하여
+additive attendance_count 저장을 권장합니다.
+
+목적:
+
+나중에 관리자와 개발자가
+
+"왜 이 학생은 발급됐는가?"
+"왜 제외됐는가?"
+
+를 즉시 확인할 수 있게 하기 위함입니다.
+
+가능하면 정책 버전도 추적하십시오.
+
+예:
+
+eligibility_version =
+"attendance3_diary3_v1"
+
+기존 유사 field가 있다면 새로 만들지 말고 재사용하십시오.
+
+불필요하게 schema를 확장하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Scheduler는 생성 전에 자격을 판정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 Scheduler 흐름을 목표로 합니다.
+
+1.
+report_month 확정
+
+2.
+analysis period 확정
+
+3.
+재등록 확인
+
+4.
+attendance_count 계산
+
+5.
+source_event_count 계산
+
+6.
+eligibility 판단
+
+7.
+eligible만 AI generation 대상에 진입
+
+8.
+not eligible은 EXCLUDED + exclusion_code
+
+9.
+count 및 audit metadata 저장
+
+가능하면
+
+AI 생성
+→ 나중에 데이터 부족 발견
+
+방식이 아니라
+
+eligibility 확정
+→ AI 생성
+
+순서로 처리하십시오.
+
+불필요한 AI 호출과 비용을 막아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Scheduler 재실행 멱등성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요합니다.
+
+동일 월 Scheduler가:
+
+1회 실행
+2회 실행
+10회 재시도
+
+되어도
+
+학생당 리포트가 중복 생성되면 안 됩니다.
+
+현재 growth_reports unique constraint를 조사하십시오.
+
+개념상 동일 scope에서:
+
+pool/center
++ student_id
++ report_period
+
+는 하나의 report만 존재해야 합니다.
+
+이미 적절한 unique constraint가 있다면 유지.
+
+없다면:
+
+Production migration 전에
+기존 실제 중복 row가 있는지 먼저 검사하고
+
+중복이 없을 때만
+Repository convention에 맞는 unique index/constraint를 제안하십시오.
+
+중복이 존재한다면
+임의 삭제하지 말고 HOLD 보고하십시오.
+
+Scheduler는 INSERT blindly 하지 말고
+기존 report 존재 여부를 안전하게 처리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. Batch Worker 중복 실행 방지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+동일 growth_report가
+동시에 두 worker에 잡혀서
+
+AI가 2회 호출되거나
+결과가 서로 덮어쓰지 않도록
+현재 worker claim 방식을 조사하십시오.
+
+이미 atomic claim/lock이 있으면 유지.
+
+없다면
+현재 DB/queue convention에 맞는 방식으로
+동일 report의 동시 처리를 막으십시오.
+
+예:
+
+status compare-and-set
+transactional claim
+DB row lock
+queue idempotency
+
+중 현재 구조에 적합한 방식을 사용.
+
+새로운 대규모 queue architecture는
+이번 APP 작업에서 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 실패와 재시도
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+발급 과정에서 다음을 구분하십시오.
+
+eligibility 부족
+→ EXCLUDED
+→ 오류 아님
+→ 재시도 불필요
+
+AI/API 일시 실패
+→ FAILED 또는 기존 retry 가능 상태
+→ 재시도 가능
+
+영구적 Contract/Data 오류
+→ 실패 기록
+→ 무한 재시도 금지
+
+한 학생의 실패 때문에
+해당 월 전체 batch가 중단되면 안 됩니다.
+
+개별 report 단위로 실패를 격리하십시오.
+
+현재 retry 구조가 있으면 재사용하고,
+없으면 현재 worker에 최소 안전장치를 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 기존 9월 데이터 재평가
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 주 pool:
+
+실제 growth_reports = 168
+
+현재 REVIEW_REQUIRED row들은
+아직 학부모에게 발행되지 않은 상태입니다.
+
+이번 확정 정책으로
+다시 dry-run 하십시오.
+
+기준:
+
+9월 재등록 O
+AND
+8월 실제 출석 >= 3
+AND
+8월 유효 학생별 일지 >= 3
+
+기존 보고의:
+
+source 0건 = 45명
+source 1건 = 19명
+source >=2 = 104명
+
+수치는 이제 최종 eligibility 숫자가 아닙니다.
+
+기준이 3건으로 변경되었으므로
+전부 다시 계산하십시오.
+
+특히 다음 matrix를 제출하십시오.
+
+재등록 O / 출석 >=3 / 일지 >=3
+
+재등록 O / 출석 <3 / 일지 >=3
+
+재등록 O / 출석 >=3 / 일지 <3
+
+재등록 O / 출석 <3 / 일지 <3
+
+재등록 X / 출석 >=3 / 일지 >=3
+
+재등록 X / 나머지 조합
+
+중복 사유 때문에
+인원수가 이중 집계되지 않도록 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 현재 9월 REVIEW_REQUIRED one-time correction
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 row 삭제 금지.
+
+기존 content 삭제 금지.
+
+AI 재생성 금지.
+
+현재 정책을 만족하는 row:
+
+REVIEW_REQUIRED 유지
+
+정책을 만족하지 않는 row:
+
+EXCLUDED로 전환할 수 있는
+one-time correction plan/script를 작성하십시오.
+
+단,
+실제 Production mutation은
+완료보고 검수 전 실행하지 마십시오.
+
+먼저 dry-run 결과를 제출하십시오.
+
+PUBLISHED row는 절대 수정하지 마십시오.
+
+다른 pool 7건 역시
+정책/context가 확정되지 않았다면
+임의 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 관리자 화면 UX 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면의 상태 UX:
+
+생성 전
+분석 중
+검수 대기
+발송 대기
+발행 완료
+제외
+실패
+
+를 유지하십시오.
+
+기존 실제 product_status enum을
+이번 작업에서 새 enum으로 갈아엎지 마십시오.
+
+이번 작업의 목적은:
+
+- 숫자를 정확하게 만들고
+- 발급대상을 정확하게 만들고
+- 리포트가 중복/오발급되지 않게 하는 것
+
+입니다.
+
+UI를 재설계하는 작업이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. AI ENGINE 책임과 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+APP/API SERVER가 Growth Report 운영의
+Source of Truth입니다.
+
+APP/API SERVER 책임:
+
+- 회원/재등록 판정
+- attendance
+- Diary 원본
+- report month
+- analysis period
+- eligibility
+- growth_reports
+- scheduler
+- 관리자 list/summary
+- 검수
+- 발송
+- publish
+- excluded
+
+AI ENGINE 책임:
+
+- 분석
+- 향후 growth.fact cache
+- AI processing
+
+ENGINE에:
+
+growth_reports lifecycle
+관리자 검수
+PUBLISHED
+재등록 판정
+
+을 중복 구현하지 않습니다.
+
+이번 작업에서 ENGINE 코드를 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. 향후 ENGINE Request를 위한 기간 계약 준비
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+향후 APP/API SERVER가 ENGINE에
+Growth Report 분석을 요청할 때
+
+엔진이 현재 날짜를 보고
+분석월을 계산하게 하지 않습니다.
+
+APP/API SERVER가 명시적으로 전달할 수 있도록
+현재 Integration Contract를 조사하십시오.
+
+최종적으로 필요한 개념:
+
+report_id
+
+report_month
+
+analysis_period_start
+
+analysis_period_end_exclusive
+
+student_id/ref
+
+pool/center scope
+
+예:
+
+{
+  report_id: "...",
+  report_month: "2026-09",
+  analysis_period_start: "2026-08-01",
+  analysis_period_end_exclusive: "2026-09-01",
+  ...
+}
+
+현재 실제 ENGINE Request Contract를 먼저 조사하고
+이번 작업에서 호환성을 깨지 마십시오.
+
+다음 ENGINE 작업에서
+최종 contract를 변경/확장합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. Diary → ENGINE fact build 연결점 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+향후 처리속도 개선을 위해
+
+Diary가 저장될 때
+ENGINE growth-fact-build를 호출하여
+WP2 결과를 월중에 미리 만들어둘 예정입니다.
+
+모바일 APP에서 ENGINE을 직접 호출하게 만들지 마십시오.
+
+이번 작업에서는
+다음 authoritative server path만 정확히 조사하십시오.
+
+Diary CREATE:
+- endpoint
+- handler
+- DB save function
+- transaction boundary
+
+Diary UPDATE:
+- endpoint
+- handler
+- DB save function
+- transaction boundary
+
+Diary DELETE:
+- endpoint
+- handler
+- DB mutation
+- transaction boundary
+
+향후 구조:
+
+Mobile APP
+→ APP API SERVER Diary Save
+→ commit
+→ ENGINE Fact Build enqueue
+
+입니다.
+
+이번 작업에서는
+Fact Build 연동을 실제 구현하지 말고
+정확한 integration point만 완료보고에 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 현재 데이터 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+절대 금지:
+
+- 기존 PUBLISHED 리포트 수정
+- 기존 발행 결과 삭제
+- 기존 content 일괄 재생성
+- 168 rows 삭제
+- Production 대량 mutation
+- 다른 pool 임의 수정
+- Growth Report 전체 테이블 재설계
+- AI Engine 코드 수정
+- report_period 의미 임의 변경
+
+모든 migration은 additive 우선.
+
+기존 운영 데이터 보존이 최우선입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+주 pool raw growth_reports 실제 168 확인
+
+B.
+JOIN fan-out 제거 후 List unique 168 확인
+(상태 correction 전 기준)
+
+C.
+주2회 학생 목록 한 줄
+
+D.
+주3회 학생 목록 한 줄
+
+E.
+여러 teacher 정보 누락 없음
+
+F.
+Summary total = List total
+
+G.
+상태별 KPI 중복 없음
+
+H.
+9월 report → 8월 analysis
+
+I.
+1월 report → 전년도 12월 analysis
+
+J.
+8월 31일 수업 포함
+
+K.
+9월 1일 수업 제외
+
+L.
+실제 출석 2회
++ 일지 10회
+→ EXCLUDED / INSUFFICIENT_ATTENDANCE
+
+M.
+실제 출석 3회
++ 일지 2회
+→ EXCLUDED / INSUFFICIENT_SOURCE_DATA
+
+N.
+실제 출석 3회
++ 일지 3회
++ 재등록 O
+→ ELIGIBLE
+
+O.
+실제 출석 10회
++ 일지 3회
++ 재등록 O
+→ ELIGIBLE
+
+P.
+실제 출석 3회
++ 일지 10회
++ 재등록 X
+→ EXCLUDED / NOT_REREGISTERED
+
+Q.
+중간 입회
++ 출석 3
++ 일지 3
++ 다음달 재등록
+→ ELIGIBLE
+
+R.
+source diary duplicate note
+→ source_event_count 1회만 증가
+
+S.
+동일 attendance session JOIN 증식
+→ attendance_count 1회만 증가
+
+T.
+Scheduler 동일월 2회 실행
+→ report 중복 0건
+
+U.
+Worker 동일 report retry
+→ AI 결과 중복/덮어쓰기 없음
+
+V.
+수동 제외 row
+→ scheduler가 자동 복구하지 않음
+
+W.
+AI 단건 실패
+→ 나머지 batch 계속 진행
+
+X.
+PUBLISHED row
+→ 변경 없음
+
+Y.
+다른 pool row
+→ 변경 없음
+
+Z.
+현재 9월 데이터
+새 정책 dry-run matrix 완료
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+27. Production 실행 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 및 테스트는 진행하십시오.
+
+필요한 migration도 작성하십시오.
+
+하지만 다음은 승인 전 금지:
+
+- Production OTA
+- Production server deploy
+- Production schema migration 실행
+- 현재 9월 168건 status 실제 변경
+- Production one-time correction 실행
+
+Production DB는
+필요한 read-only 검증만 수행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+28. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+완료 후 아래 순서로 보고하고 멈추십시오.
+
+1. PASS / HOLD
+
+2. 200 / 202 / 168 각각의 정확한 원인
+
+3. 수정 파일
+
+4. Growth Report 관련 실제 DB schema
+
+5. 기존 unique constraint/index
+
+6. 신규 migration
+   - exclusion_code
+   - attendance_count
+   - eligibility_version
+   등 실제로 필요한 것만
+
+7. Summary 수정 내용
+
+8. List 수정 내용
+
+9. class aggregate 방식
+
+10. teacher aggregate 방식
+
+11. report_month / report_period의 최종 의미
+
+12. analysis period 계산 helper 위치
+
+13. 재등록 Source of Truth
+
+14. 실제 attendance status와
+    어떤 status를 출석 1회로 인정했는지
+
+15. attendance_count 계산 SQL/함수
+
+16. source_event_count 계산 SQL/함수
+
+17. Eligibility 공통 함수 위치
+
+18. 정책 상수 위치
+    - attendance >= 3
+    - diary >= 3
+
+19. exclusion_code 우선순위
+
+20. 현재 9월 168건 dry-run eligibility matrix
+
+21. 새 정책 기준 최종 예상:
+    - eligible 수
+    - excluded 수
+
+22. exclusion_code별 예상 인원
+
+23. 현재 9월 one-time correction 계획
+
+24. Scheduler idempotency 방식
+
+25. Batch worker 중복 방지 방식
+
+26. AI 실패 retry/격리 방식
+
+27. 실제 현재 ENGINE Request Contract
+
+28. 실제 ENGINE Response Contract
+
+29. Diary CREATE/UPDATE/DELETE
+    authoritative server integration point
+
+30. 관리자 검수 API Contract
+
+31. 관리자 발송/Publish API Contract
+
+32. 테스트 A~Z 결과
+
+33. 기존 PUBLISHED 무변경 확인
+
+34. 다른 pool 무변경 확인
+
+35. Production 배포/migration/mutation 여부
+
+완료보고 후 멈추십시오.
+Production 변경은 별도 승인 전 하지 마십시오.
