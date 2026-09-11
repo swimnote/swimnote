@@ -164,9 +164,14 @@ export default function AdminReportDetailScreen() {
 
     const sd = getStatus(detail.product_status);
     const stu = detail.student;
-    const periodLabel = detail.report_period
-      ? detail.report_period.slice(0, 7).replace("-", ".")
-      : "";
+    // 발행월 기준 표시: report_period(데이터월) + 1 = 발행월
+    const periodLabel = (() => {
+      if (!detail.report_period) return "";
+      const [y, m] = detail.report_period.split("-").map(Number);
+      const issueM = m === 12 ? 1 : m + 1;
+      const issueY = m === 12 ? y + 1 : y;
+      return `${issueY}.${String(issueM).padStart(2, "0")}`;
+    })();
     const verLabel = (detail.version_number ?? 1) > 1 ? ` v${detail.version_number}` : "";
     const reviewLabel = detail.teacher_review_action
       ? REVIEW_ACTION_MAP[detail.teacher_review_action] ?? detail.teacher_review_action

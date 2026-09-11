@@ -48,6 +48,31 @@ const C = Colors.light;
 
 const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
 
+// ── 발행월 ↔ 데이터월 변환 헬퍼 ──────────────────────────────────────────────
+/**
+ * 탭(발행월) → API 파라미터(데이터월) 변환
+ * 9월 탭 → month=8 (8월 데이터 조회)
+ * 1월 탭 → year-1, month=12
+ */
+function toDataMonth(tabYear: number, tabMonth: number): { year: number; month: number } {
+  if (tabMonth === 1) return { year: tabYear - 1, month: 12 };
+  return { year: tabYear, month: tabMonth - 1 };
+}
+
+/**
+ * report_period("2026-08") → 발행월 라벨("2026년 9월")
+ * 데이터월 + 1 = 발행월
+ */
+function toIssueLabel(period: string): string {
+  const parts = period.split("-");
+  if (parts.length < 2) return period;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const issueM = m === 12 ? 1 : m + 1;
+  const issueY = m === 12 ? y + 1 : y;
+  return `${issueY}년 ${issueM}월`;
+}
+
 const DISCARD_REASONS = ["글자·레이아웃 오류","내용 오류","데이터 누락","기타"] as const;
 type DiscardReason = typeof DISCARD_REASONS[number];
 
@@ -228,7 +253,8 @@ export default function ReportHubScreen() {
   // ── API 호출: summary (KPI 배지용, 에러 무시) ─────────────────────────────
   const fetchSummary = useCallback(async (yr: number, mo: number) => {
     try {
-      const res = await apiRequest(token, `/admin/reports/summary?year=${yr}&month=${mo}&limit=1&offset=0`);
+      const { year: dy, month: dm } = toDataMonth(yr, mo);
+      const res = await apiRequest(token, `/admin/reports/summary?year=${dy}&month=${dm}&limit=1&offset=0`);
       if (!res.ok) return;
       // 서버 응답: { summary, students, pagination, ... }
       // MonthlyReportSummary 호환 형태로 변환 (batch_status 등 없으면 null)
@@ -242,12 +268,13 @@ export default function ReportHubScreen() {
     const yr = opts.yr ?? year;
     const mo = opts.mo ?? month;
     const qv = opts.qv !== undefined ? opts.qv : q;
+    const { year: dy, month: dm } = toDataMonth(yr, mo);
 
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
-        year: String(yr), month: String(mo), limit: "200", offset: "0",
+        year: String(dy), month: String(dm), limit: "200", offset: "0",
       });
       if (qv) params.set("q", qv);
 
@@ -414,7 +441,7 @@ export default function ReportHubScreen() {
         token,
         `/admin/growth-reports/bulk-send`,
         { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ year, month }) },
+          body: JSON.stringify(toDataMonth(year, month)) },
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -721,7 +748,7 @@ export default function ReportHubScreen() {
                 <View style={s.emptyWrap}>
                   <LucideIcon name="file-text" size={40} color={C.textMuted} />
                   <Text style={s.emptyTitle}>리포트가 없습니다</Text>
-                  <Text style={s.emptySub}>{year}년 {month}월 AI 성장리포트가 아직 없습니다.</Text>
+                  <Text style={s.emptySub}>{year}년 {month}월 발행 예정 AI 성장리포트가 아직 없습니다.</Text>
                 </View>
               )
               : <View style={{ height: selectMode ? 100 : 40 }} />

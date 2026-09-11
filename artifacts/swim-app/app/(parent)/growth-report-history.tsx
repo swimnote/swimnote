@@ -50,10 +50,14 @@ interface HistoryResponse {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatPeriod(period: string): string {
-  // "2026-08" → "2026년 8월"
+  // "2026-08" → "2026년 9월" (발행월 = 데이터월 + 1)
   const parts = period.split("-");
   if (parts.length < 2) return period;
-  return `${parts[0]}년 ${parseInt(parts[1], 10)}월`;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const issueM = m === 12 ? 1 : m + 1;
+  const issueY = m === 12 ? y + 1 : y;
+  return `${issueY}년 ${issueM}월`;
 }
 
 function formatPublishedAt(iso: string): string {

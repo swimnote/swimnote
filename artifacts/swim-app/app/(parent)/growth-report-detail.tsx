@@ -407,8 +407,11 @@ export default function GrowthReportDetailScreen() {
   // ── 정상 렌더 ─────────────────────────────────────────────────────────
 
   const { report_period, published_at, report_content, sns_summary } = detail;
-  const [year, month] = report_period.split("-");
-  const periodLabel = year && month ? `${year}년 ${Number(month)}월` : report_period;
+  // 발행월 기준 표시: 데이터월 + 1 = 발행월
+  const [_ry, _rm] = report_period.split("-").map(Number);
+  const issueM = _rm === 12 ? 1 : _rm + 1;
+  const issueY = _rm === 12 ? _ry + 1 : _ry;
+  const periodLabel = (_ry && _rm) ? `${issueY}년 ${issueM}월` : report_period;
   // PostgreSQL timestamp는 "2026-08-26 07:35:11.368199+00" 형식(공백, T 없음)을 반환.
   // JavaScriptCore는 이 포맷을 Invalid Date로 파싱 → 공백을 T로 교체 후 파싱.
   const publishedDate = published_at
