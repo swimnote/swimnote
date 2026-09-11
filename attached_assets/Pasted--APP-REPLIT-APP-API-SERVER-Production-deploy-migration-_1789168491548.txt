@@ -1,0 +1,138 @@
+[보낼 곳: APP REPLIT]
+
+조사 결과 확인했습니다.
+
+APP/API SERVER 코드 수정 착수를 승인합니다.
+단, Production deploy / migration 실행 / 9월 168건 실제 status 변경은 계속 HOLD입니다.
+
+기존 제출한 ①~⑧ 수정계획에 아래 두 항목을 필수 추가한 뒤 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⑨ Growth Report Snapshot 분석기간 오류 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 growth-report-snapshot-builder.ts의 Diary source 조회가
+
+lesson_date < analysis_period_end_exclusive
+
+조건은 있으나
+analysis_period_start 하한 대신
+student.created_at 이후 기록을 사용하는 것으로 확인되었습니다.
+
+이 구조는 수정하십시오.
+
+Growth Report의 실제 분석 source는 반드시:
+
+lesson_date >= analysis_period_start
+
+AND
+
+lesson_date < analysis_period_end_exclusive
+
+이어야 합니다.
+
+예:
+
+report_month = 2026-09
+
+이면
+
+2026-08-01 <= lesson_date < 2026-09-01
+
+만 ENGINE snapshot에 포함합니다.
+
+7월 이하 과거 Diary가
+9월 리포트 snapshot에 들어가면 실패입니다.
+
+student.created_at은
+analysis period 하한을 대체할 수 없습니다.
+
+필요하면:
+
+effectiveStart =
+max(student_created_date, analysis_period_start)
+
+개념을 사용할 수 있으나,
+analysis_period 이전 데이터는 절대 포함하지 마십시오.
+
+중간 입회 학생의 경우:
+
+student_created_date가 2026-08-15이면
+2026-08-15 이후 8월 Diary만 사용.
+
+기존 회원이면
+2026-08-01부터 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⑩ 빈 학생 일지 Source 제외
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 snapshot builder에는
+student note 내용이 실제로 존재하는지 확인하는 조건이 없습니다.
+
+AI 성장리포트 발급정책의:
+
+"유효 학생별 일지 3회 이상"
+
+에서 빈 note는 일지로 인정하지 않습니다.
+
+다음은 source_event_count 및 ENGINE snapshot에서 제외하십시오.
+
+- NULL
+- ""
+- whitespace only
+
+Repository의 실제 content column명을 확인하여
+예를 들어 개념상:
+
+NULLIF(TRIM(note_content), '') IS NOT NULL
+
+조건을 적용하십시오.
+
+중요:
+
+eligibility source count의 predicate와
+Growth Report snapshot builder의 predicate를
+서로 다르게 구현하지 마십시오.
+
+가능하면 하나의 공통 source selector/helper를 재사용하십시오.
+
+즉:
+
+source_event_count
+=
+실제로 ENGINE snapshot에 들어가는
+서로 다른 유효 Diary event 수
+
+가 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+추가 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 후 현재 9월 168건에 대해
+다시 dry-run 하십시오.
+
+기존:
+
+ELIGIBLE 16
+EXCLUDED 152
+
+숫자는 폐기하지는 않되
+"수정 전 잠정값"으로만 기록하십시오.
+
+다시 제출:
+
+1. analysis_period_start 적용 후 ELIGIBLE 수
+2. 빈 note 제거 후 ELIGIBLE 수
+3. 최종 ELIGIBLE / EXCLUDED 수
+4. exclusion_code별 수
+5. 9월 report snapshot에 8월 이전 Diary 0건 확인
+6. 빈 student note가 snapshot에 포함되지 않음 확인
+7. source_event_count와 snapshot 실제 source event 수 일치 확인
+8. 중간 입회 학생 분석 시작일 검증
+9. bulk-send 9월 요청 → report_period=2026-08 정확히 조회 확인
+10. summary/list/bulk-send 모두 외부 month 의미가 report_month임을 확인
+
+Production 변경은 여전히 금지입니다.
+코드 수정 + 테스트 + dry-run까지만 진행하고 완료보고 후 멈추십시오.
