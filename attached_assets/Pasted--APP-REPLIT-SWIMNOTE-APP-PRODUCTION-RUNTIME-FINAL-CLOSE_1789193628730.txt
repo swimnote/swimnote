@@ -1,0 +1,458 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE APP
+PRODUCTION RUNTIME FINAL CLOSE
+
+현재 APP 코드/데이터 계약은 거의 완료되었습니다.
+
+그러나 Production 자동운영 관점에서
+아직 FINAL PASS가 아닙니다.
+
+이번 작업에서 아래 3개를 완전히 닫으십시오.
+
+1. Monthly Scheduler 실제 Production 활성화
+2. 실제 Production eligibility 함수 기준 Dry-run 확정
+3. Rolling deploy DB connection pool crash 재발 방지
+
+AI ENGINE 수정 금지.
+ToyKids 8월 Growth Report 실제 생성 금지.
+관련 없는 기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. BLOCKER — Scheduler가 현재 Production에서 죽어 있음
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+swimnote-worker = suspended
+
+그리고:
+
+startGrowthReportScheduler()
+
+는 IS_WORKER=true 경로에서만 실행됩니다.
+
+swimnote-api는 Scheduler를 실행하지 않습니다.
+
+따라서 현재 Production에서는
+Growth Report Monthly Scheduler가 실제로 실행되지 않는 상태입니다.
+
+이 상태는 절대 PASS가 아닙니다.
+
+최종 목표:
+
+사람이 아무것도 하지 않아도
+
+새 report month 도래
+→ cycle 생성/확인
+→ cohort freeze
+→ report 준비
+→ analysis worker 처리
+→ 5일 관리자 검수 대기
+
+가 자동으로 시작되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Scheduler 실행 주체를 하나로 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 Render deployment 구조를 조사하여
+다음 중 가장 안전한 구조를 선택하십시오.
+
+A.
+swimnote-worker 서비스를 정상 활성화하고
+Growth Report Scheduler 전담 실행
+
+또는
+
+B.
+swimnote-api에서도 Scheduler를 실행하고
+기존 distributed lock으로 중복 실행 방지
+
+또는
+
+C.
+별도 Scheduler process/service로 분리
+
+중요:
+
+"코드는 있지만 suspended"
+"필요할 때 사람이 켬"
+"매달 수동 실행"
+
+모두 금지입니다.
+
+Production에서 항상 살아 있는 실행 주체가 있어야 합니다.
+
+기존 distributed lock / unique cycle 보호는 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Scheduler와 Worker 역할 충돌 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote-worker를 다시 활성화할 경우
+해당 process가 무엇을 실행하는지 정확히 조사하십시오.
+
+확인:
+
+- Growth Report Scheduler
+- Analysis Worker
+- Batch Worker
+- 다른 cron jobs
+- DB connection pool 수
+- WORKER_MODE 분기
+
+API 서버와 worker 서비스가
+같은 Analysis/Batch Worker를 동시에 실행한다면
+기존 DB lock으로 안전한지 실제 확인하십시오.
+
+불필요하게 중복 process를 띄우지 마십시오.
+
+가능하면 역할을 명확히 하십시오.
+
+예:
+
+API:
+HTTP
++ Analysis Worker
++ Batch Worker
+
+WORKER:
+Monthly Scheduler
+
+또는 저장소 구조상 더 안전한 기존 방식.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Scheduler 실제 Production Runtime 증명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 선택 후 Production에서 실제로 확인하십시오.
+
+최소:
+
+- process/service ACTIVE
+- startup log 확인
+- startGrowthReportScheduler() 실행 확인
+- startup recovery 실제 실행 확인
+- scheduled cron 등록 확인
+- DB lock 획득/해제 확인
+- process restart 후 자동 재기동 확인
+
+코드 inspection만으로 PASS 금지.
+
+실제 runtime log 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Catch-up 실제 동작 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 시나리오를 fixture 또는 안전한 dry-run으로 검증하십시오.
+
+5일에 Scheduler process down
+↓
+6일 재기동
+↓
+해당 report month cycle 누락 확인
+↓
+자동 catch-up
+
+사람이 수동 버튼을 누르지 않아도 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 Production 함수 기준 Eligibility Dry-run
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+직전 완료보고의 dry-run:
+
+cohort 205
+attendance>=3 80
+source>=1 89
+ELIGIBLE 52
+
+는 단순화 SQL이어서
+Production analysis-worker의
+queryAttendanceForEligibility() 결과를 완전히 재현하지 못했다고 보고했습니다.
+
+이건 최종 증거로 인정하지 않습니다.
+
+이번에는 실제 Production 코드와 동일한 helper를 사용하십시오.
+
+반드시:
+
+queryAttendanceForEligibility()
+queryDiariesForEligibility()
+evaluateStudentGrowthReportEligibility()
+
+또는 production worker가 실제 호출하는 동일 함수 경로를
+READ-ONLY로 실행하십시오.
+
+ToyKids:
+
+report_month = 2026-09
+analysis_period =
+2026-08-01 <= date < 2026-09-01
+
+대상으로 정확한 숫자를 다시 산출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 Eligibility 숫자
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production helper 기준:
+
+- cohort
+- attendance >=3
+- source >=1
+- ELIGIBLE
+- EXCLUDED
+
+matrix:
+
+att>=3 / src>=1
+att>=3 / src=0
+att<3 / src>=1
+att<3 / src=0
+
+를 제출하십시오.
+
+이번 결과를 최종 SoT로 삼습니다.
+
+이전 84/53 또는 80/52 중
+어느 것이 맞는지 여기서 끝내십시오.
+
+추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Rolling Deploy DB Pool Crash 재발 방지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+직전 update_failed 원인이:
+
+old instance DB connection 유지
++
+new instance DB connection 동시 생성
++
+Supabase connection pool 한도 초과
++
+startup Promise.all 실패
++
+process.exit(1)
+
+였다고 확인되었습니다.
+
+이번에 우연히 old instance 종료 직후 배포해서 성공했다고
+문제를 해결한 것으로 간주하지 마십시오.
+
+다음 deploy에서도 반복될 수 있습니다.
+
+실제 startup 구조를 조사하십시오.
+
+확인:
+
+- initPoolDb
+- initSuperDb
+- runGrInteractionsMigration
+- Promise.all
+- 각 pool max connection
+- Render rolling overlap 시 총 connection 수
+- graceful shutdown
+- pool.end()
+- migration용 별도 connection 여부
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. DB Connection 안정화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소한 rolling deploy 중
+old + new instance가 잠시 겹쳐도
+DB connection 한도를 넘지 않도록 하십시오.
+
+가능한 해결은 실제 구조를 보고 선택하십시오.
+
+예:
+
+- API/worker pool max 적정화
+- startup DB init 직렬화
+- migration connection 별도/단일화
+- startup retry/backoff
+- transient connection exhaustion 시 즉시 process.exit 금지
+- graceful shutdown 확실히 보장
+
+단,
+DB 오류를 무시하고 서버를 띄우는 식으로
+안전성을 낮추면 안 됩니다.
+
+필수 DB init이 실패하면
+bounded retry/backoff 후 실패하도록 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Rolling Deploy 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 실제 Render rolling deploy를
+한 번 수행하여 확인하십시오.
+
+목표:
+
+old instance alive
++
+new instance startup
+
+상황에서도
+
+- DB init 성공
+- health 200
+- nonZeroExit 없음
+- deployment LIVE
+- connection exhaustion 없음
+
+을 확인하십시오.
+
+deploy 성공을 위해
+매번 먼저 기존 서버를 수동 restart하는 구조는 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Production 자동운영 최종 시나리오
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 아래 전체 흐름이
+수동 개입 없이 가능한지 확인하십시오.
+
+월초
+↓
+Scheduler ACTIVE
+↓
+cycle ensure
+↓
+cohort ensure
+↓
+eligibility v3
+↓
+report job 준비
+↓
+Analysis Worker
+↓
+AI ENGINE
+↓
+결과 저장
+↓
+5일 관리자 REVIEW/READY
+↓
+관리자 확인
+↓
+SEND
+↓
+PUBLISHED
+
+AI ENGINE 자체 품질은
+다음 단계에서 별도로 검증합니다.
+
+이번에는 ENGINE 호출 직전까지만 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 기존 보장 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 유지:
+
+eligibility v3
+재원 + attendance>=3 + source>=1
+
+report_month 계약
+
+2026-09 report
+→ 2026-08 analysis
+
+ToyKids existing cycle 재사용 전략 A
+
+soft-deleted old report와 신규 execution 분리
+
+새 report → 새 request_id
+
+Growth Report tests GREEN
+
+다른 pool 영향 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- ToyKids 8월 리포트 실제 재발급
+- AI ENGINE 호출
+- AI Prompt 수정
+- Growth Report 정책 변경
+- source threshold 변경
+- attendance threshold 변경
+- 기존 Diary/Attendance 원본 수정
+- 다른 pool 변경
+- Expo/RN 관련 작업
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 순서로 보고하십시오.
+
+1. PASS / HOLD
+
+2. 최종 Scheduler 실행 주체
+
+3. Scheduler Production service 상태
+
+4. startGrowthReportScheduler 실제 startup log
+
+5. Scheduler cron 실제 등록 여부
+
+6. startup recovery 실제 실행 여부
+
+7. process restart 후 자동 재기동 여부
+
+8. downtime catch-up 테스트 결과
+
+9. Analysis Worker 실행 주체
+
+10. Batch Worker 실행 주체
+
+11. 중복 Worker 발생 여부 및 lock 검증
+
+12. 실제 Production helper 기준
+    ToyKids cohort
+
+13. attendance>=3
+
+14. source>=1
+
+15. ELIGIBLE
+
+16. EXCLUDED
+
+17. 최종 matrix
+
+18. 이전 84/53 vs 80/52 차이 최종 원인
+
+19. DB rolling deploy crash root cause
+
+20. DB connection 안정화 변경사항
+
+21. rolling deploy 재검증 결과
+
+22. 최종 Production SHA
+
+23. Render deployment status
+
+24. health 안정 가동 시간
+
+25. Growth Report test
+    total / pass / fail
+
+26. 다른 pool 영향 0 확인
+
+27. 실제 ToyKids 8월 리포트 재발급 여부
+    반드시 미실행
+
+28. APP FINAL PASS 여부
+
+29. AI ENGINE으로 넘어가도 되는지
+    YES / NO
+
+보고 후 멈추십시오.
