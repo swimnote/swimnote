@@ -126,14 +126,30 @@ export function isPaidGrowthReportEligiblePool(
 
 /**
  * 정책 상수
- *   GROWTH_REPORT_MIN_ATTENDANCE_COUNT — 분석월 기준 최소 출석 횟수 (present + late)
+ *   GROWTH_REPORT_MIN_ATTENDANCE_COUNT — 분석월 기준 최소 출석 횟수
  *   GROWTH_REPORT_MIN_SOURCE_RECORDS   — 분석월 기준 최소 유효 일지 건수
+ *
+ * 출석 인정 semantics (v2 이후):
+ *   출석 = explicit present/late row 존재
+ *         OR class_diary 확인 + 재원 + 명시적 결석 없음
+ *   (queryAttendanceForEligibility 참조)
+ *
+ * source_event_count 정책 변경 이력:
+ *   v1: GROWTH_REPORT_MIN_SOURCE_RECORDS = 3  (3/3 정책)
+ *   v2: GROWTH_REPORT_MIN_SOURCE_RECORDS = 2  (3/2 정책, 2026-09-12 확정)
+ *       source=1 → INSUFFICIENT_SOURCE_DATA
+ *       source=0 → NO_SOURCE_DATA
+ *       source>=2 → source 조건 PASS
  */
 export const GROWTH_REPORT_MIN_ATTENDANCE_COUNT = 3;
-export const GROWTH_REPORT_MIN_SOURCE_RECORDS   = 3;
+export const GROWTH_REPORT_MIN_SOURCE_RECORDS   = 2;
 
-/** eligibility_version — 정책 변경 시 버전을 올려 기존 판정과 구분 */
-export const GROWTH_REPORT_ELIGIBILITY_VERSION = 1;
+/**
+ * eligibility_version — 정책 변경 시 버전을 올려 기존 판정과 구분.
+ *   1 = 3/3 정책 (MIN_SOURCE_RECORDS=3)
+ *   2 = 3/2 정책 (MIN_SOURCE_RECORDS=2) + diary 기반 attendance 보완
+ */
+export const GROWTH_REPORT_ELIGIBILITY_VERSION = 2;
 
 export interface StudentEligibilityResult {
   eligible:           boolean;

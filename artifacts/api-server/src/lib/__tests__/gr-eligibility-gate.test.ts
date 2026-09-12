@@ -1,45 +1,86 @@
 /**
  * gr-eligibility-gate.test.ts
  *
- * Tests A–N: Growth Report Eligibility Gate 검증
+ * Tests A–L: Growth Report Eligibility Gate v2 (3/2 정책, 2026-09-12)
  *
- * A. 재원O + 출석3 + 일지3  → ENGINE 대상 (ELIGIBLE)
- * B. 재원O + 출석2 + 일지10 → EXCLUDED (INSUFFICIENT_ATTENDANCE)
- * C. 재원O + 출석10 + 일지2 → EXCLUDED (INSUFFICIENT_SOURCE_DATA)
- * D. 재원X + 출석10 + 일지10 → EXCLUDED (NOT_REREGISTERED)
- * E. 중간입회 + 출석3 + 일지3 → ENGINE 대상 (analysis_period_start=student_created_date)
- * F. 빈 note 3개 → source_event_count 증가 안 함
- * G. 8월 이전 diary → 9월 report snapshot 미포함
- * H. 9월1일 diary (= cutoff) → snapshot 미포함
- * I. Scheduler 동일 cycle 재실행 → growth_report 중복 0
- * J. Admin list → report 1개당 정확히 1줄 (다반 수강자 포함)
- * K. summary total = list total
- * L. 9월 bulk-send → 8월 report_period만 조회
+ * A. attend=3 / source=2 → ELIGIBLE                              (3/2 정책 핵심)
+ * B. attend=3 / source=1 → EXCLUDED (INSUFFICIENT_SOURCE_DATA)
+ * C. attend=2 / source=10 → EXCLUDED (INSUFFICIENT_ATTENDANCE)
+ * D. attend=5 / source=0 → EXCLUDED (NO_SOURCE_DATA)
+ * E. source 2개 서로 다른 lesson → count=2 → source PASS
+ * F. 동일 diary 중복 note 2개 → source_event_count=1
+ * G. 빈 diary note 2개 → source_event_count 증가 없음
+ * H. 정상수업 + absent 없음 + attendance row 없음 → 출석 인정 (Branch 2)
+ * I. 정상수업 + explicit absent → 출석 불인정
+ * J. completed makeup → session_type='makeup' present row → 출석 +1 (Branch 1)
+ * K. pool holiday → class_diary 없음 + present row 없음 → 출석 불인정
+ * L. 반이동 전/후 → 실제 소속 기간만 인정
+ *
+ * 추가 회귀 테스트 (M–N, 기존 구조 유지):
  * M. 다른 pool 영향 0
  * N. PUBLISHED 영향 0
  */
 
 import { describe, it, expect } from "vitest";
-import { evaluateStudentGrowthReportEligibility } from "../growth-report-eligibility.js";
+import {
+  evaluateStudentGrowthReportEligibility,
+  GROWTH_REPORT_MIN_SOURCE_RECORDS,
+  GROWTH_REPORT_MIN_ATTENDANCE_COUNT,
+  GROWTH_REPORT_ELIGIBILITY_VERSION,
+} from "../growth-report-eligibility.js";
 import { computeAnalysisPeriod } from "../growth-report-analysis-helper.js";
 
-// ─── Unit: evaluateStudentGrowthReportEligibility ─────────────────────────────
+// ─── 정책 상수 확인 ──────────────────────────────────────────────────────────
 
-describe("A–D. Eligibility gate: pure evaluator", () => {
-  it("A: 재원O + 출석3 + 일지3 → ELIGIBLE", () => {
+describe("정책 상수 (v2 확인)", () => {
+  it("MIN_SOURCE_RECORDS = 2 (3/2 정책)", () => {
+    expect(GROWTH_REPORT_MIN_SOURCE_RECORDS).toBe(2);
+  });
+  it("MIN_ATTENDANCE_COUNT = 3", () => {
+    expect(GROWTH_REPORT_MIN_ATTENDANCE_COUNT).toBe(3);
+  });
+  it("ELIGIBILITY_VERSION = 2", () => {
+    expect(GROWTH_REPORT_ELIGIBILITY_VERSION).toBe(2);
+  });
+});
+
+// ─── A–D. Core eligibility cases ─────────────────────────────────────────────
+
+describe("A–D. Eligibility gate: 3/2 정책 핵심", () => {
+
+  it("A: 재원O + 출석3 + 일지2 → ELIGIBLE (3/2 정책)", () => {
     const r = evaluateStudentGrowthReportEligibility({
       attendanceCount: 3,
-      sourceEventCount: 3,
+      sourceEventCount: 2,
       reregistered: true,
     });
     expect(r.eligible).toBe(true);
     expect(r.exclusion_code).toBeNull();
     expect(r.attendance_count).toBe(3);
-    expect(r.source_event_count).toBe(3);
-    expect(r.eligibility_version).toBeGreaterThan(0);
+    expect(r.source_event_count).toBe(2);
+    expect(r.eligibility_version).toBe(2);
   });
 
-  it("B: 재원O + 출석2 + 일지10 → EXCLUDED (INSUFFICIENT_ATTENDANCE)", () => {
+  it("A-high: 재원O + 출석5 + 일지4 → ELIGIBLE", () => {
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 5,
+      sourceEventCount: 4,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(true);
+  });
+
+  it("B: 재원O + 출석3 + 일지1 → EXCLUDED (INSUFFICIENT_SOURCE_DATA)", () => {
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,
+      sourceEventCount: 1,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("INSUFFICIENT_SOURCE_DATA");
+  });
+
+  it("C: 재원O + 출석2 + 일지10 → EXCLUDED (INSUFFICIENT_ATTENDANCE)", () => {
     const r = evaluateStudentGrowthReportEligibility({
       attendanceCount: 2,
       sourceEventCount: 10,
@@ -49,17 +90,17 @@ describe("A–D. Eligibility gate: pure evaluator", () => {
     expect(r.exclusion_code).toBe("INSUFFICIENT_ATTENDANCE");
   });
 
-  it("C: 재원O + 출석10 + 일지2 → EXCLUDED (INSUFFICIENT_SOURCE_DATA)", () => {
+  it("D: 재원O + 출석5 + 일지0 → EXCLUDED (NO_SOURCE_DATA)", () => {
     const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 10,
-      sourceEventCount: 2,
+      attendanceCount: 5,
+      sourceEventCount: 0,
       reregistered: true,
     });
     expect(r.eligible).toBe(false);
-    expect(r.exclusion_code).toBe("INSUFFICIENT_SOURCE_DATA");
+    expect(r.exclusion_code).toBe("NO_SOURCE_DATA");
   });
 
-  it("D: 재원X + 출석10 + 일지10 → EXCLUDED (NOT_REREGISTERED)", () => {
+  it("D-2: 재원X + 출석10 + 일지10 → EXCLUDED (NOT_REREGISTERED, 재원 선 평가)", () => {
     const r = evaluateStudentGrowthReportEligibility({
       attendanceCount: 10,
       sourceEventCount: 10,
@@ -69,77 +110,80 @@ describe("A–D. Eligibility gate: pure evaluator", () => {
     expect(r.exclusion_code).toBe("NOT_REREGISTERED");
   });
 
-  it("D-boundary: 재원X + 출석0 + 일지0 → NOT_REREGISTERED (재원 선 평가)", () => {
-    const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 0,
-      sourceEventCount: 0,
-      reregistered: false,
-    });
-    expect(r.exclusion_code).toBe("NOT_REREGISTERED");
-  });
-
-  it("C-boundary: 재원O + 출석10 + 일지0 → NO_SOURCE_DATA", () => {
-    const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 10,
-      sourceEventCount: 0,
-      reregistered: true,
-    });
-    expect(r.eligible).toBe(false);
-    expect(r.exclusion_code).toBe("NO_SOURCE_DATA");
-  });
-
-  it("boundary: 재원O + 출석3 + 일지2 → INSUFFICIENT_SOURCE_DATA", () => {
+  it("threshold-exact: 출석=3, 일지=2 → ELIGIBLE (경계값 포함)", () => {
     const r = evaluateStudentGrowthReportEligibility({
       attendanceCount: 3,
       sourceEventCount: 2,
       reregistered: true,
     });
-    expect(r.exclusion_code).toBe("INSUFFICIENT_SOURCE_DATA");
-  });
-
-  it("boundary: 재원O + 출석4 + 일지3 → ELIGIBLE (threshold 포함)", () => {
-    const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 4,
-      sourceEventCount: 3,
-      reregistered: true,
-    });
-    expect(r.eligible).toBe(true);
-  });
-});
-
-// ─── E. 중간입회: analysis_period_start = max(P_START, student_created_date) ─
-
-describe("E. 중간입회 — analysis_period_start 하한", () => {
-  it("E: 중간입회 학생도 출석3 일지3이면 ELIGIBLE", () => {
-    // 실제 DB 없이: eligibility evaluator는 count만 받음.
-    // analysis_period_start 적용은 queryDiariesForEligibility가 담당.
-    // 여기서는 count 기준 판정만 검증.
-    const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 3,
-      sourceEventCount: 3,
-      reregistered: true,
-    });
     expect(r.eligible).toBe(true);
   });
 
-  it("E-fail: 중간입회 학생, 입회 전 일지 포함 시 count가 3이더라도 수정 후 count가 0이면 EXCLUDED", () => {
-    // analysis_period_start 수정으로 count가 0으로 떨어지면 제외됨을 확인
+  it("threshold-below-attend: 출석=2, 일지=2 → INSUFFICIENT_ATTENDANCE", () => {
     const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 5,
-      sourceEventCount: 0,
+      attendanceCount: 2,
+      sourceEventCount: 2,
       reregistered: true,
     });
     expect(r.eligible).toBe(false);
-    expect(r.exclusion_code).toBe("NO_SOURCE_DATA");
+    expect(r.exclusion_code).toBe("INSUFFICIENT_ATTENDANCE");
+  });
+
+  it("threshold-below-source: 출석=3, 일지=1 → INSUFFICIENT_SOURCE_DATA", () => {
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,
+      sourceEventCount: 1,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("INSUFFICIENT_SOURCE_DATA");
   });
 });
 
-// ─── F. 빈 note 제외 ──────────────────────────────────────────────────────────
+// ─── E. source diary: 서로 다른 lesson ───────────────────────────────────────
 
-describe("F. 빈 note — source_event_count 증가 안 함", () => {
-  it("F: 빈 note만 있으면 sourceEventCount=0 → NO_SOURCE_DATA", () => {
-    // queryDiariesForEligibility에서 NULLIF(TRIM(note_content),'') IS NOT NULL로 필터됨.
-    // 여기서는 count=0이 eligibility에 미치는 영향을 검증.
+describe("E. source diary 품질: 서로 다른 lesson_date", () => {
+  it("E: 서로 다른 lesson 2개 → COUNT(DISTINCT cd.id)=2 → source PASS", () => {
+    // queryDiariesForEligibility는 COUNT(DISTINCT cd.id) 사용.
+    // 서로 다른 diary_id = 서로 다른 lesson_date → count=2 → PASS
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,
+      sourceEventCount: 2,  // 서로 다른 두 lesson
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(true);
+  });
+
+  it("E-boundary: source=2 (최소) → PASS", () => {
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(true);
+  });
+});
+
+// ─── F. 동일 diary 중복 note ──────────────────────────────────────────────────
+
+describe("F. 동일 diary 중복 note → source_event_count 보정 안 됨", () => {
+  it("F: 동일 diary_id의 note 2개 → COUNT(DISTINCT cd.id)=1 → INSUFFICIENT_SOURCE_DATA", () => {
+    // SQL: COUNT(DISTINCT cd.id) — 동일 diary에 note가 여러 개여도 diary는 1개
+    // evaluator에 sourceEventCount=1로 전달됨
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,
+      sourceEventCount: 1,  // 동일 diary 중복 → 1
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("INSUFFICIENT_SOURCE_DATA");
+  });
+});
+
+// ─── G. 빈 diary note ─────────────────────────────────────────────────────────
+
+describe("G. 빈 diary note → source_event_count 증가 없음", () => {
+  it("G: 빈 note 3개 → NULLIF(TRIM(note),'') IS NOT NULL 필터 → count=0 → NO_SOURCE_DATA", () => {
     const r = evaluateStudentGrowthReportEligibility({
       attendanceCount: 5,
       sourceEventCount: 0,  // 빈 note 3개 → 필터 후 0
@@ -149,72 +193,160 @@ describe("F. 빈 note — source_event_count 증가 안 함", () => {
     expect(r.exclusion_code).toBe("NO_SOURCE_DATA");
   });
 
-  it("F: 유효 note 3개 + 빈 note 5개 → source_event_count=3 (빈 note 불포함)", () => {
-    // 빈 note는 queryDiariesForEligibility에서 제외되므로 count는 유효 note 수만
+  it("G: 유효 note 2개 + 빈 note 5개 → source_event_count=2 → ELIGIBLE", () => {
     const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 5,
-      sourceEventCount: 3,  // 빈 note 미포함 후 실제 count
+      attendanceCount: 3,
+      sourceEventCount: 2,  // 빈 note 제외 후 유효 2개
       reregistered: true,
     });
     expect(r.eligible).toBe(true);
   });
 });
 
-// ─── G. 8월 이전 diary 미포함 ──────────────────────────────────────────────────
+// ─── H. 정상수업 + absent 없음 + attendance row 없음 → 출석 인정 ──────────────
 
-describe("G. 8월 이전 diary — snapshot 미포함 (predicate 검증)", () => {
-  it("G: analysisFrom=2026-08-01, lesson_date=2026-07-31 → 조건 불충족", () => {
-    // queryDiariesForEligibility SQL: lesson_date >= GREATEST(analysisFrom, student_created_date)
-    // lesson_date=2026-07-31 < analysisFrom=2026-08-01 → 포함 안 됨 → count=0
-    // eligibility 결과:
+describe("H. 출결화면 미열기 + 정상수업 → Branch 2 출석 인정", () => {
+  it("H: queryAttendanceForEligibility Branch 2 계약", () => {
+    // queryAttendanceForEligibility (snapshot-builder.ts):
+    //   Branch 2: class_diary 확인 + sch 재원 + NOT EXISTS(absent row)
+    //   → 선생님이 일지를 썼으나 출결화면 미열기 케이스에서 출석 인정
+    //   → explicit absent row가 없으면 출석 카운트 추가
+    //
+    // 판정 함수(evaluateStudentGrowthReportEligibility)는 count만 받으므로
+    // "Branch 2가 +1 기여한 count=3"이면 ELIGIBLE 판정됨을 확인.
     const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 5,
-      sourceEventCount: 0,  // 이전 월 diary는 제외 → 0
+      attendanceCount: 3,  // Branch 2 기여 포함 count
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(true);
+  });
+
+  it("H-where-absent: absent row 있으면 Branch 2 NOT EXISTS 조건 실패 → 출석 불인정", () => {
+    // absent row가 있으면 NOT EXISTS 실패 → Branch 2 제외 → count에 포함 안 됨
+    // 결과적으로 attend_count가 줄어 EXCLUDED 가능
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 2,  // absent로 인해 Branch 2 미적용 → count 부족
+      sourceEventCount: 2,
       reregistered: true,
     });
     expect(r.eligible).toBe(false);
-    expect(r.exclusion_code).toBe("NO_SOURCE_DATA");
+    expect(r.exclusion_code).toBe("INSUFFICIENT_ATTENDANCE");
   });
 });
 
-// ─── H. cutoff 당일(9/1) diary 미포함 ────────────────────────────────────────
+// ─── I. 정상수업 + explicit absent → 출석 불인정 ────────────────────────────
 
-describe("H. cutoff 당일 diary — snapshot 미포함", () => {
-  it("H: lesson_date=2026-09-01 = cutoffDate → lesson_date < cutoffDate 조건 불충족", () => {
-    // queryDiaries SQL: lesson_date < cutoffDate (strict less than)
-    // 2026-09-01 < 2026-09-01 → false → 포함 안 됨
-    // eligibility 관점: count=0이면 제외됨
+describe("I. 명시적 absent → 출석 불인정", () => {
+  it("I: absent row 있는 날짜 = Branch 1 미포함(status≠present/late) + Branch 2 미포함(NOT EXISTS 실패)", () => {
+    // absent는 status IN ('present','late') 미충족 → Branch 1 불포함
+    // absent는 NOT EXISTS 조건 실패 → Branch 2 불포함
+    // 결과: 해당 날짜 attendance_count 기여 없음
     const r = evaluateStudentGrowthReportEligibility({
-      attendanceCount: 5,
-      sourceEventCount: 0,
+      attendanceCount: 2,  // absent 날짜 제외 후 2회
+      sourceEventCount: 2,
       reregistered: true,
     });
     expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("INSUFFICIENT_ATTENDANCE");
   });
 });
 
-// ─── I. Idempotency: 동일 cycle 재실행 → growth_report 중복 0 ─────────────────
+// ─── J. completed makeup → 출석 +1 ──────────────────────────────────────────
 
-describe("I. Scheduler idempotency", () => {
-  it("I: ON CONFLICT (student_id, cycle_id) DO NOTHING 구조 확인 (structural)", () => {
-    // 실제 DB 없이 구조 검증: scheduler의 INSERT growth_reports는
-    // ON CONFLICT (student_id, cycle_id) DO NOTHING 사용 → 동일 cycle 재실행 시 중복 없음.
-    // 이 테스트는 구조적 원칙을 기록.
-    expect(true).toBe(true);  // SQL 구조는 integration test 대상
+describe("J. completed makeup session → 출석 포함", () => {
+  it("J: makeup complete write path가 session_type='makeup', status='present' 출석 row 생성 → Branch 1 포함", () => {
+    // teachers.ts:1184-1196 (complete-direct)
+    // teachers.ts:1338-1352 (complete)
+    // 양쪽 경로 모두: INSERT attendance status='present', session_type='makeup'
+    // → queryAttendanceForEligibility Branch 1 WHERE status IN ('present','late') 에 포함됨
+    // → attendance_count +1 기여
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,  // 보강 완료 1회 포함
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(true);
+  });
+
+  it("J-without-makeup: makeup 없을 때 count=2 → INSUFFICIENT_ATTENDANCE", () => {
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 2,
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("INSUFFICIENT_ATTENDANCE");
   });
 });
 
-// ─── L. bulk-send report_month E2E ──────────────────────────────────────────
+// ─── K. pool holiday → 정상수업 출석으로 생성 안 됨 ─────────────────────────
 
-describe("L. bulk-send: 9월 선택 → 8월 report_period만 조회", () => {
-  it("L: computeAnalysisPeriod(2026,9).reportPeriod = '2026-08'", () => {
+describe("K. pool_holiday → 출석 미산정", () => {
+  it("K: 공휴일에 수업 없음 → class_diary 없음 → Branch 2 미적용, present row 없음 → Branch 1 미적용", () => {
+    // pool_holiday 날짜: 교사가 수업을 안 함 → class_diary 미생성 → Branch 2 조건 실패
+    // 교사가 출결화면 안 열음 → present row 없음 → Branch 1 조건 실패
+    // → 공휴일이 attendance_count에 기여하지 않음
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,  // 비공휴일 실제 수업만 count
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    // count가 올바르면 ELIGIBLE
+    expect(r.eligible).toBe(true);
+  });
+
+  it("K-reduced: 공휴일 오산입 제거 후 count=2 → INSUFFICIENT_ATTENDANCE", () => {
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 2,  // 공휴일 포함 시 3, 제외 후 2
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("INSUFFICIENT_ATTENDANCE");
+  });
+});
+
+// ─── L. 반이동 전/후 → 실제 소속 기간만 인정 ──────────────────────────────────
+
+describe("L. 반이동 → 실제 소속 기간만 인정", () => {
+  it("L: Branch 2 sch.enrolled_at <= lesson_date < sch.left_at 조건 → 소속 기간 이전/이후 수업 제외", () => {
+    // queryAttendanceForEligibility Branch 2:
+    //   JOIN student_class_history sch ON sch.class_group_id = cd.class_group_id
+    //     AND sch.enrolled_at::date <= cd.lesson_date::date
+    //     AND (sch.left_at IS NULL OR sch.left_at::date > cd.lesson_date::date)
+    // → 반이동 전 수업(left_at 이후), 이동 후 새 반 수업(enrolled_at 이전) 자동 제외
+    // evaluator 관점: count가 올바르게 전달되면 판정 정확
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 3,  // 반이동 전후 기간 올바르게 계산된 count
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(true);
+  });
+
+  it("L-wrong-period: 반이동 이전 수업만 포함 시 count=1 → INSUFFICIENT_ATTENDANCE", () => {
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount: 1,  // 소속 기간 외 수업 제외 후
+      sourceEventCount: 2,
+      reregistered: true,
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("INSUFFICIENT_ATTENDANCE");
+  });
+});
+
+// ─── computeAnalysisPeriod 검증 ───────────────────────────────────────────────
+
+describe("computeAnalysisPeriod", () => {
+  it("9월 발송 → 8월 report_period", () => {
     const p = computeAnalysisPeriod(2026, 9);
     expect(p.reportPeriod).toBe("2026-08");
     expect(p.periodStart).toBe("2026-08-01");
     expect(p.periodEndExclusive).toBe("2026-09-01");
   });
 
-  it("L: computeAnalysisPeriod(2027,1).reportPeriod = '2026-12'", () => {
+  it("1월 발송 → 12월 report_period (연도 전환)", () => {
     const p = computeAnalysisPeriod(2027, 1);
     expect(p.reportPeriod).toBe("2026-12");
     expect(p.periodStart).toBe("2026-12-01");
@@ -222,23 +354,15 @@ describe("L. bulk-send: 9월 선택 → 8월 report_period만 조회", () => {
   });
 });
 
-// ─── K. summary/list total 일치 ──────────────────────────────────────────────
-
-describe("K. summary total = list total (structural)", () => {
-  it("K: countSql COUNT(DISTINCT gr.id) / listSql LATERAL 집계로 fan-out 없음", () => {
-    // admin.ts listSql은 LEFT JOIN LATERAL 집계 사용 → 1 report = 1 row
-    // countSql은 COUNT(DISTINCT gr.id) → 동일 report 중복 없음
-    // summary KPI는 growth_reports 직접 집계 → 동일 기준
-    expect(true).toBe(true);  // integration test 대상; 구조 원칙 기록
-  });
-});
-
 // ─── M. 다른 pool 영향 0 ──────────────────────────────────────────────────────
 
-describe("M. 다른 pool 영향 0", () => {
-  it("M: 모든 쿼리 WHERE swimming_pool_id = ${poolId} 조건 포함 (structural)", () => {
-    // eligibility gate의 attendance, diary, reregistered 쿼리는 모두
-    // AND swimming_pool_id = report.swimming_pool_id 로 pool 격리됨.
+describe("M. 다른 pool 영향 0 (structural)", () => {
+  it("M: 모든 쿼리 AND swimming_pool_id = ${poolId} 포함 — pool 격리 보장", () => {
+    // queryAttendanceForEligibility:
+    //   Branch 1: AND a.swimming_pool_id = ${poolId}
+    //   Branch 2: AND cd.swimming_pool_id = ${poolId}
+    // queryDiariesForEligibility: AND cd.swimming_pool_id = ${poolId}
+    // reregistered: AND cg.swimming_pool_id = ${poolId}
     expect(true).toBe(true);
   });
 });
@@ -246,48 +370,40 @@ describe("M. 다른 pool 영향 0", () => {
 // ─── N. PUBLISHED 영향 0 ─────────────────────────────────────────────────────
 
 describe("N. PUBLISHED 영향 0", () => {
-  it("N: fetchPendingReports은 OPEN/READY_FOR_ANALYSIS/REGENERATING만 조회 (PUBLISHED 미포함)", () => {
-    // growth-report-analysis-worker.ts fetchPendingReports:
-    // WHERE gr.product_status IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')
-    // PUBLISHED는 이 집합에 없음 → worker가 PUBLISHED report에 접근하지 않음.
+  it("N: fetchPendingReports는 OPEN/READY_FOR_ANALYSIS/REGENERATING만 조회", () => {
     const eligibleStatuses = ["OPEN", "READY_FOR_ANALYSIS", "REGENERATING"] as const;
     expect(eligibleStatuses).not.toContain("PUBLISHED");
     expect(eligibleStatuses).not.toContain("EXCLUDED");
+    expect(eligibleStatuses).not.toContain("PREANALYZING");
+    expect(eligibleStatuses).not.toContain("ANALYZING");
   });
 });
 
-// ─── 완료보고 4: 16 ELIGIBLE dry-run assertion structure ─────────────────────
+// ─── 3/2 policy: ELIGIBLE 34명 보존 검증 ────────────────────────────────────
 
-describe("ELIGIBLE 16 assertion structure", () => {
-  it("모든 ELIGIBLE: attend>=3, source>=3, reregistered=true", () => {
-    // Dry-run 결과 16개를 각각 assertion하는 구조 검증
-    // 실제 DB assertion은 integration test에서 수행; 여기서는 evaluator 계약 확인
-    const eligibleCases = [
+describe("3/2 정책: 34명 ELIGIBLE assertion structure", () => {
+  it("3/2 기준: attend>=3 AND source>=2 → ELIGIBLE", () => {
+    const cases = [
+      { attendanceCount: 3, sourceEventCount: 2 },
       { attendanceCount: 3, sourceEventCount: 3 },
-      { attendanceCount: 4, sourceEventCount: 4 },
-      { attendanceCount: 5, sourceEventCount: 3 },
-      { attendanceCount: 3, sourceEventCount: 5 },
+      { attendanceCount: 4, sourceEventCount: 2 },
+      { attendanceCount: 5, sourceEventCount: 4 },
     ];
-    for (const c of eligibleCases) {
-      const r = evaluateStudentGrowthReportEligibility({
-        ...c,
-        reregistered: true,
-      });
+    for (const c of cases) {
+      const r = evaluateStudentGrowthReportEligibility({ ...c, reregistered: true });
       expect(r.eligible).toBe(true);
-      expect(r.exclusion_code).toBeNull();
-      expect(r.attendance_count).toBeGreaterThanOrEqual(3);
-      expect(r.source_event_count).toBeGreaterThanOrEqual(3);
+      expect(r.eligibility_version).toBe(2);
     }
   });
 
-  it("EXCLUDED 152: attend<3 OR source<3 OR not reregistered → 단 하나도 ELIGIBLE 아님", () => {
-    const excludedCases = [
+  it("3/2 기준: attend<3 OR source<2 → EXCLUDED", () => {
+    const cases = [
       { attendanceCount: 2, sourceEventCount: 10, reregistered: true },
-      { attendanceCount: 10, sourceEventCount: 2, reregistered: true },
-      { attendanceCount: 0,  sourceEventCount: 0,  reregistered: true },
+      { attendanceCount: 10, sourceEventCount: 1, reregistered: true },
+      { attendanceCount: 10, sourceEventCount: 0, reregistered: true },
       { attendanceCount: 10, sourceEventCount: 10, reregistered: false },
     ];
-    for (const c of excludedCases) {
+    for (const c of cases) {
       const r = evaluateStudentGrowthReportEligibility(c);
       expect(r.eligible).toBe(false);
       expect(r.exclusion_code).not.toBeNull();

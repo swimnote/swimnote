@@ -40,6 +40,7 @@ import { transitionReportStatus, InvalidTransitionError } from "../lib/growth-re
 import {
   buildAnalysisSnapshot,
   queryDiariesForEligibility,
+  queryAttendanceForEligibility,
 } from "../lib/growth-report-snapshot-builder.js";
 import {
   evaluateStudentGrowthReportEligibility,
@@ -258,17 +259,17 @@ async function analyzeOneReport(
     `);
     const reregistered = reregRows.rows.length > 0;
 
-    // (B) attendance_count — present+late, analysis period 내
-    const attendRows = await db.execute(sql`
-      SELECT COUNT(DISTINCT a.id)::int AS cnt
-      FROM attendance a
-      WHERE a.student_id       = ${report.student_id}
-        AND a.swimming_pool_id = ${report.swimming_pool_id}
-        AND a.date             >= ${periodFrom}
-        AND a.date             <  ${cutoffDate}
-        AND a.status           IN ('present', 'late')
-    `);
-    const attendanceCount = Number(attendRows.rows[0]?.cnt ?? 0);
+    // (B) attendance_count — v2 semantics (queryAttendanceForEligibility):
+    //   Branch 1: explicit present/late rows (auto-save + makeup completion 포함)
+    //   Branch 2: class_diary 확인 + 재원 + 명시적 결석 없음 (출결화면 미열기 보완)
+    //   두 branch UNION → date 기준 중복 제거
+    const attendanceCount = await queryAttendanceForEligibility(
+      db,
+      report.student_id,
+      report.swimming_pool_id,
+      periodFrom,
+      cutoffDate,
+    );
 
     // (C) source_event_count — queryDiariesForEligibility로 snapshot predicate와 완전 일치 보장
     const sourceEventCount = await queryDiariesForEligibility(

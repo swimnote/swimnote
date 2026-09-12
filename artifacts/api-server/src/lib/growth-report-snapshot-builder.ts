@@ -88,6 +88,81 @@ export interface BuiltSnapshot {
  *   Only this student's note is included; other students' notes are excluded.
  */
 /**
+ * queryAttendanceForEligibility
+ *
+ * 출석 인정 semantics (v2, 2026-09-12 확정):
+ *
+ *   출석 횟수 = COUNT(DISTINCT date) where:
+ *     Branch 1: explicit present/late row 존재
+ *               (자동출석 auto-save + 보강완료 session_type='makeup' 포함)
+ *     Branch 2: class_diary 확인 + 재원 + 명시적 결석 없음
+ *               (선생님이 수업 일지를 열었으나 출결화면 미열기 케이스 보완)
+ *
+ * 보강 완료 처리:
+ *   makeup_sessions.status='completed' → attendance row session_type='makeup', status='present'
+ *   → Branch 1에서 자동 포함 (별도 makeup 쿼리 불필요)
+ *
+ * pool_holidays:
+ *   class_diaries가 없는 날짜 = 수업 미진행 → Branch 2 제외
+ *   explicit present row 없는 날짜 → Branch 1 제외
+ *   → 공휴일 출석으로 과산정 없음
+ *
+ * 반이동 (student_class_history):
+ *   Branch 2에서 sch.enrolled_at <= lesson_date AND left_at > lesson_date 조건으로 처리
+ *
+ * @param db          drizzle-orm db instance
+ * @param studentId   학생 ID
+ * @param poolId      수영장 ID
+ * @param periodFrom  analysis_period_start ("YYYY-MM-DD")
+ * @param cutoffDate  analysis_period_end_exclusive ("YYYY-MM-DD")
+ */
+export async function queryAttendanceForEligibility(
+  db: any,
+  studentId: string,
+  poolId: string,
+  periodFrom: string,
+  cutoffDate: string,
+): Promise<number> {
+  const rows = await db.execute(sql`
+    SELECT COUNT(DISTINCT att_date)::int AS cnt
+    FROM (
+      -- Branch 1: explicit present/late rows (auto-save, makeup completion 포함)
+      SELECT a.date AS att_date
+      FROM attendance a
+      WHERE a.student_id       = ${studentId}
+        AND a.swimming_pool_id = ${poolId}
+        AND a.date             >= ${periodFrom}
+        AND a.date             <  ${cutoffDate}
+        AND a.status           IN ('present', 'late')
+
+      UNION
+
+      -- Branch 2: class_diary 확인 + 재원 + 명시적 결석 없음
+      --   선생님이 수업일지를 작성(= 수업 진행 확인)했으나 출결화면 미열기 케이스 보완
+      SELECT cd.lesson_date AS att_date
+      FROM class_diaries cd
+      JOIN student_class_history sch
+        ON  sch.class_group_id   = cd.class_group_id
+        AND sch.student_id       = ${studentId}
+        AND sch.enrolled_at::date <= cd.lesson_date::date
+        AND (sch.left_at IS NULL OR sch.left_at::date > cd.lesson_date::date)
+      WHERE cd.swimming_pool_id  = ${poolId}
+        AND cd.is_deleted        = false
+        AND cd.lesson_date       >= ${periodFrom}
+        AND cd.lesson_date       <  ${cutoffDate}
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance a2
+          WHERE a2.student_id       = ${studentId}
+            AND a2.swimming_pool_id = ${poolId}
+            AND a2.date             = cd.lesson_date
+            AND a2.status           = 'absent'
+        )
+    ) dates
+  `);
+  return Number(rows.rows[0]?.cnt ?? 0);
+}
+
+/**
  * Export for eligibility gate: worker calls this to get sourceEventCount
  * using the exact same predicate as the ENGINE snapshot.
  * Predicate identity is guaranteed by sharing this single function.
