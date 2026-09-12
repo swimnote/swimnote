@@ -911,11 +911,11 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
         throw e;
       }
 
-      // assign은 미래 날짜 전용 — 오늘·과거는 complete-direct로 처리
-      if (!validation.isFuture) {
+      // assign은 오늘·미래 날짜 허용 — 과거(어제 이전)만 거부
+      if (validation.isPast) {
         res.status(400).json({
-          error: "ASSIGN_REQUIRES_FUTURE_DATE",
-          message: "배정 예약은 미래 날짜만 선택할 수 있습니다. 오늘 또는 과거 날짜는 '직접 완료'로 처리해주세요.",
+          error: "ASSIGN_REQUIRES_TODAY_OR_FUTURE",
+          message: "배정 예약은 오늘 또는 미래 날짜만 선택할 수 있습니다. 과거 날짜는 '직접 완료'로 처리해주세요.",
         }); return;
       }
 
