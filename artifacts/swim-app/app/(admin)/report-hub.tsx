@@ -334,8 +334,8 @@ export default function ReportHubScreen() {
   // ── 선택 발송 (individual send per selected id) ────────────────────────────
   const onSelectSend = useCallback(async () => {
     if (selectedIds.size === 0) return;
-    // READY_TO_SEND 만
-    const targets = displayRows.filter(r => selectedIds.has(r.report_id) && r.product_status === "READY_TO_SEND");
+    // READY_TO_SEND + APPROVED 발송 가능
+    const targets = displayRows.filter(r => selectedIds.has(r.report_id) && ["READY_TO_SEND", "APPROVED"].includes(r.product_status));
     if (targets.length === 0) { Alert.alert("알림", "발송 가능한 상태의 리포트를 선택하세요."); return; }
     Alert.alert(
       "선택 발송",
@@ -462,12 +462,12 @@ export default function ReportHubScreen() {
     const sd = getStatusDisplay(item.product_status);
     const isLoading = actionLoading === item.report_id;
     const verLabel = item.version_number > 1 ? ` v${item.version_number}` : "";
-    const showSend    = item.product_status === "READY_TO_SEND";
-    const showDiscard = item.product_status === "READY_TO_SEND";
-    const showRegen   = item.product_status === "DISCARDED";
+    const showSend    = ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
+    const showDiscard = ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
+    const showRegen   = ["DISCARDED", "READY_TO_SEND", "APPROVED"].includes(item.product_status);
     const showAnalyzing = isAnalyzingState(item.product_status);
     const isSelected  = selectedIds.has(item.report_id);
-    const canSelect   = item.product_status === "READY_TO_SEND";
+    const canSelect   = ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
 
     return (
       <Pressable
@@ -609,14 +609,14 @@ export default function ReportHubScreen() {
         )}
 
         {/* 전체 발송 버튼 */}
-        {kpi.ready > 0 && !selectMode && (
+        {(kpi.ready + kpi.reviewing) > 0 && !selectMode && (
           <TouchableOpacity
             style={s.bulkSendBtn}
             onPress={() => setBulkSendConfirm(true)}
           >
             <LucideIcon name="send" size={14} color="#fff" />
             <Text style={s.bulkSendBtnText}>
-              대기 중 {kpi.ready}건 전체 발송
+              대기 중 {kpi.ready + kpi.reviewing}건 전체 발송
             </Text>
           </TouchableOpacity>
         )}
@@ -697,7 +697,7 @@ export default function ReportHubScreen() {
             {filterStatuses ? `${displayRows.length}건 (전체 ${total}건)` : `총 ${total}건`}
           </Text>
         )}
-        {kpi.ready > 0 && (
+        {(kpi.ready + kpi.reviewing) > 0 && (
           <TouchableOpacity
             style={[s.selectToggleBtn, selectMode && s.selectToggleBtnActive]}
             onPress={() => { setSelectMode(v => !v); setSelectedIds(new Set()); }}
@@ -759,8 +759,8 @@ export default function ReportHubScreen() {
         <View style={s.selectBar}>
           <Text style={s.selectBarTxt}>
             {selectedIds.size > 0
-              ? `${selectedIds.size}건 선택됨 (발송 가능: ${[...selectedIds].filter(id => allRows.find(r => r.report_id === id)?.product_status === "READY_TO_SEND").length}건)`
-              : "발송 대기 항목을 선택하세요"}
+              ? `${selectedIds.size}건 선택됨 (발송 가능: ${[...selectedIds].filter(id => ["READY_TO_SEND","APPROVED"].includes(allRows.find(r => r.report_id === id)?.product_status ?? "")).length}건)`
+              : "발송 대기 또는 검수 완료 항목을 선택하세요"}
           </Text>
           <TouchableOpacity
             style={[s.selectSendBtn, (selectedIds.size === 0 || selectSending) && s.actionBtnDisabled]}

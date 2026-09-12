@@ -208,9 +208,10 @@ export async function discardReportVersion(
 
   if (row.product_status === "DISCARDED") return;  // idempotent
 
-  if (row.product_status !== "READY_TO_SEND") {
+  // READY_TO_SEND 또는 APPROVED 상태에서 폐기 가능
+  if (!["READY_TO_SEND", "APPROVED"].includes(row.product_status)) {
     throw new ReportProductionError(
-      `폐기는 READY_TO_SEND 상태에서만 가능합니다. 현재: ${row.product_status}`,
+      `폐기는 READY_TO_SEND 또는 APPROVED 상태에서만 가능합니다. 현재: ${row.product_status}`,
       "DISCARD_NOT_ALLOWED",
     );
   }
@@ -271,14 +272,36 @@ export async function regenerateReport(
   const old = r.rows[0] as any;
   if (old.deleted_at) throw new ReportNotFoundError(discardedReportId);
 
-  if (old.product_status !== "DISCARDED") {
+  // DISCARDED, READY_TO_SEND, APPROVED 에서 재발급 가능.
+  // READY_TO_SEND/APPROVED인 경우 먼저 자동 폐기 후 새 버전 생성.
+  if (!["DISCARDED", "READY_TO_SEND", "APPROVED"].includes(old.product_status)) {
     throw new ReportProductionError(
-      `재발급은 DISCARDED 상태에서만 가능합니다. 현재: ${old.product_status}`,
+      `재발급은 DISCARDED, READY_TO_SEND, APPROVED 상태에서만 가능합니다. 현재: ${old.product_status}`,
       "REGEN_NOT_ALLOWED",
     );
   }
 
+  // READY_TO_SEND/APPROVED → 자동 폐기 후 재발급
+  if (old.product_status !== "DISCARDED") {
+    await transitionReportStatus({
+      db, reportId: discardedReportId,
+      toStatus:  "DISCARDED",
+      actorType: "pool_admin",
+      actorId,
+      reason:    "ADMIN_DISCARD_FOR_REGEN",
+    });
+    await db.execute(sql`
+      UPDATE growth_reports
+      SET discarded_at   = NOW(),
+          discarded_by   = ${actorId},
+          discard_reason = '재발급 요청으로 자동 폐기',
+          updated_at     = NOW()
+      WHERE id = ${discardedReportId}
+    `);
+  }
+
   // 동일 (student_id, cycle_id) ACTIVE 버전 존재 여부 확인 (중복 재발급 방지)
+  // ※ 방금 폐기한 자신(discardedReportId)은 이미 DISCARDED이므로 조회에서 제외됨
   const activeCheck = await db.execute(sql`
     SELECT id, product_status FROM growth_reports
     WHERE student_id       = ${old.student_id}
@@ -356,14 +379,16 @@ export async function sendIndividualReport(
     return { alreadyPublished: true };
   }
 
-  if (row.product_status !== "READY_TO_SEND") {
+  // READY_TO_SEND 또는 APPROVED 상태에서 발송 가능
+  // (X모드 선생님 검수 후 APPROVED된 리포트를 관리자가 직접 발송)
+  if (!["READY_TO_SEND", "APPROVED"].includes(row.product_status)) {
     throw new ReportProductionError(
-      `발송은 READY_TO_SEND 상태에서만 가능합니다. 현재: ${row.product_status}`,
+      `발송은 READY_TO_SEND 또는 APPROVED 상태에서만 가능합니다. 현재: ${row.product_status}`,
       "SEND_NOT_ALLOWED",
     );
   }
 
-  // READY_TO_SEND → PUBLISHED
+  // READY_TO_SEND 또는 APPROVED → PUBLISHED
   await transitionReportStatus({
     db, reportId,
     toStatus:  "PUBLISHED",
@@ -424,7 +449,7 @@ export async function bulkSendReports(
     FROM growth_reports
     WHERE swimming_pool_id = ${poolId}
       AND report_period    = ${period}
-      AND product_status   = 'READY_TO_SEND'
+      AND product_status   IN ('READY_TO_SEND', 'APPROVED')
       AND deleted_at IS NULL
     FOR UPDATE SKIP LOCKED
   `);
