@@ -412,10 +412,11 @@ export async function computeConfirmedProgress(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * recomputeGaugePctForLevelPatch — 레벨 변경 직후 gauge_pct를 fresh 재계산해서 SCP에 저장.
+ * recomputeGaugePctForLevelPatch — 레벨 변경 직후 gauge_pct를 fresh 재계산해서 SCP에 UPSERT.
  *
  * GREATEST 없이 새 레벨 floor를 즉시 반영.
- * active version이 없으면 SCP에 아무것도 쓰지 않고 null 반환.
+ * SCP row가 없어도 floor gauge_pct를 담은 최소 SCP row를 생성한다.
+ * active version이 전혀 없으면 null 반환 (SCP 생성 불가 — NOT NULL 제약).
  *
  * @param db        DB 인터페이스
  * @param studentId 학생 ID
@@ -431,7 +432,7 @@ export async function recomputeGaugePctForLevelPatch(
 ): Promise<number | null> {
   const range = getLevelRange(newCapLevel);
   if (!range) {
-    // null 레벨 → gauge null. SCP에서 null로 UPDATE
+    // null 레벨 → gauge null. SCP가 있으면 UPDATE, 없으면 무시
     await db.execute(sql`
       UPDATE student_curriculum_progress
       SET gauge_pct = NULL, updated_at = NOW()
@@ -440,20 +441,57 @@ export async function recomputeGaugePctForLevelPatch(
     return null;
   }
 
-  const activeVersionId = await resolveActiveVersionId(db, studentId, poolId);
-  if (!activeVersionId) return null;
+  // active version 확인 — SCP 기반 우선, 없으면 pool 직접 조회
+  let activeVersionId = await resolveActiveVersionId(db, studentId, poolId);
+  if (!activeVersionId) {
+    // SCP row 없는 학생: pool의 active curriculum version 직접 탐색
+    const poolCvRes = await db.execute(sql`
+      SELECT id FROM curriculum_versions
+      WHERE swimming_pool_id = ${poolId}
+        AND is_active = true
+        AND archived_at IS NULL
+      ORDER BY activated_at DESC NULLS LAST
+      LIMIT 1
+    `);
+    if (poolCvRes.rows.length > 0) {
+      activeVersionId = (poolCvRes.rows[0] as { id: string }).id;
+    }
+  }
+
+  if (!activeVersionId) {
+    // pool에 활성 CV도 없음 → SCP 생성 불가 (NOT NULL 제약). floor 반환은 불가.
+    return null;
+  }
 
   const freshGauge = await computeRawGaugePct(db, studentId, poolId, newCapLevel, activeVersionId);
 
-  // freshGauge가 null이면 (해석 불가) floor 적용
+  // freshGauge가 null이면 (CPO 부족 등) floor 적용
   const finalGauge = freshGauge ?? range.floor;
 
+  // UPSERT — SCP row 없는 학생도 최소 row 생성
   await db.execute(sql`
-    UPDATE student_curriculum_progress
-    SET gauge_pct  = ${finalGauge},
-        updated_at = NOW()
-    WHERE student_id       = ${studentId}
-      AND swimming_pool_id = ${poolId}
+    INSERT INTO student_curriculum_progress (
+      student_id, swimming_pool_id,
+      active_curriculum_version_id,
+      active_confirmed_rank, active_confirmed_total, active_confirmed_pct,
+      display_confirmed_pct,
+      gauge_pct,
+      confirmed_at, display_updated_at,
+      observation_session_count,
+      updated_at
+    ) VALUES (
+      ${studentId}, ${poolId},
+      ${activeVersionId},
+      0, 0, 0,
+      0,
+      ${finalGauge},
+      NOW(), NOW(),
+      0,
+      NOW()
+    )
+    ON CONFLICT (student_id, swimming_pool_id) DO UPDATE SET
+      gauge_pct  = ${finalGauge},
+      updated_at = NOW()
   `);
 
   return finalGauge;

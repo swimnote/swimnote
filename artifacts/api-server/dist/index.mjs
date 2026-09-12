@@ -4506,12 +4506,36 @@ ${n}`,`
       UPDATE student_curriculum_progress
       SET gauge_pct = NULL, updated_at = NOW()
       WHERE student_id = ${e} AND swimming_pool_id = ${s}
-    `),null;let a=await qQ(t,e,s);if(!a)return null;let i=await wN(t,e,s,n,a)??r.floor;return await t.execute(c`
-    UPDATE student_curriculum_progress
-    SET gauge_pct  = ${i},
-        updated_at = NOW()
-    WHERE student_id       = ${e}
-      AND swimming_pool_id = ${s}
+    `),null;let a=await qQ(t,e,s);if(!a){let u=await t.execute(c`
+      SELECT id FROM curriculum_versions
+      WHERE swimming_pool_id = ${s}
+        AND is_active = true
+        AND archived_at IS NULL
+      ORDER BY activated_at DESC NULLS LAST
+      LIMIT 1
+    `);u.rows.length>0&&(a=u.rows[0].id)}if(!a)return null;let i=await wN(t,e,s,n,a)??r.floor;return await t.execute(c`
+    INSERT INTO student_curriculum_progress (
+      student_id, swimming_pool_id,
+      active_curriculum_version_id,
+      active_confirmed_rank, active_confirmed_total, active_confirmed_pct,
+      display_confirmed_pct,
+      gauge_pct,
+      confirmed_at, display_updated_at,
+      observation_session_count,
+      updated_at
+    ) VALUES (
+      ${e}, ${s},
+      ${a},
+      0, 0, 0,
+      0,
+      ${i},
+      NOW(), NOW(),
+      0,
+      NOW()
+    )
+    ON CONFLICT (student_id, swimming_pool_id) DO UPDATE SET
+      gauge_pct  = ${i},
+      updated_at = NOW()
   `),i}async function oU(t,e){let s=await t.execute(c`
     SELECT
       id, active_curriculum_version_id,

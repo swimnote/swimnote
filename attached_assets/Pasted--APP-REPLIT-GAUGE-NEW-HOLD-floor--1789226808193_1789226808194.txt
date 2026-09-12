@@ -1,0 +1,226 @@
+[보낼 곳: APP REPLIT]
+
+GAUGE-NEW 완료보고 검수 결과:
+
+HOLD
+
+입니다.
+
+계산식, 레벨 floor 정책, 하위복습 제외, 단조증가 방식은 승인합니다.
+
+추가 알고리즘 개선이나 정밀화 작업은 하지 마십시오.
+
+남은 것은 GAUGE-NEW의 핵심 원칙 하나뿐입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 핵심 문제
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+이전 Production 조사 기준 ToyKids 실질 재원 중
+current_level_order가 설정된 학생은:
+
+L1 = 5
+L2 = 21
+L3 = 28
+L4 = 2
+L5 = 3
+
+총 59명이었습니다.
+
+그런데 이번 backfill 보고는:
+
+총 53명
+
+이며 대상 조건도:
+
+`current_level_order IS NOT NULL + 기존 SCP row 존재`
+
+입니다.
+
+GAUGE-NEW의 가장 중요한 원칙은:
+
+"선생님이 레벨을 설정하면
+일지/CPO가 없어도 해당 레벨 floor가 반드시 보인다"
+
+입니다.
+
+따라서 기존 SCP row가 없는 학생이
+게이지 적용에서 빠지면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 해야 할 일
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ToyKids 실질 재원 중:
+
+`current_level_order IS NOT NULL`
+
+인 학생 전체를 다시 조회하십시오.
+
+그리고 다음 두 그룹을 구분하십시오.
+
+A.
+SCP row 존재
+
+B.
+SCP row 없음
+
+B가 존재한다면,
+해당 학생도 최소한 현재 레벨 floor를 가진
+`student_curriculum_progress` row가 생성되도록 처리하십시오.
+
+예:
+
+L1 → 0%
+L2 → 20%
+L3 → 35%
+L4 → 50%
+L5+ → 65%
+
+CPO / 일지가 전혀 없어도 상관없습니다.
+
+레벨 자체가 floor의 Source of Truth입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 복잡하게 만들지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+새로운 scoring,
+새로운 상태값,
+새로운 보간,
+새로운 curriculum 분석
+
+추가 금지.
+
+단순히:
+
+current_level_order 있음
+→ SCP 없으면 생성
+→ gauge_pct = 해당 level floor
+
+이면 충분합니다.
+
+기존 SCP가 있으면 현재 계산 로직 그대로 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. level PATCH도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 처음으로 레벨을 설정하는 학생에게
+SCP row가 아직 없어도:
+
+PATCH level
+→ SCP row 생성 또는 UPSERT
+→ gauge_pct = 해당 level floor
+→ 응답
+
+이 정상 동작해야 합니다.
+
+즉 기존 SCP 존재를 전제로 만들면 안 됩니다.
+
+teacher/admin 두 PATCH 모두 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 Runtime 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 Production에서 개인정보 없이 count만 제출하십시오.
+
+* 실질 재원 current_level_order != null 학생 수
+* 그중 SCP row 보유 학생 수
+* 그중 gauge_pct NOT NULL 학생 수
+* level별 학생 수
+* level별 gauge floor 미만 학생 수
+
+최종 조건:
+
+# `level 설정 학생`
+
+# `SCP 보유 학생`
+
+`gauge_pct 존재 학생`
+
+이어야 합니다.
+
+그리고:
+
+L1 gauge < 0      → 0건
+L2 gauge < 20     → 0건
+L3 gauge < 35     → 0건
+L4 gauge < 50     → 0건
+L5+ gauge < 65    → 0건
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 구현은 다시 열지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 수정하지 마십시오.
+
+* 3-session rule
+* level range
+* 하위 CPO 필터
+* GREATEST 정책
+* 기존 progress field
+* UI 디자인
+* AI ENGINE
+* Growth Report 재발급
+
+이번 작업은 floor coverage 누락만 닫습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Android OTA도 상태만 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 완료보고에서는 OTA가 iOS only로 되어 있습니다.
+
+Android Production 앱도 동일 JS bundle을 사용하는 현재 운영 대상이라면
+왜 Android OTA가 제외됐는지만 확인하십시오.
+
+호환 가능한 동일 runtimeVersion 2.2.0이고
+Android도 이 Gauge UI 변경 대상이라면
+동일 production-v2에 Android OTA도 배포하십시오.
+
+Android가 이번 배포 대상이 아닌 명확한 이유가 있다면
+그 이유만 보고하고 임의 배포하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고에는 반드시:
+
+서버:
+
+* Repository
+* Branch
+* 작업 Commit SHA
+* Production LIVE SHA
+* Render Deploy ID
+* Runtime 확인
+
+DB:
+
+* level 설정 학생 수
+* SCP row 수
+* gauge_pct NOT NULL 수
+* floor 위반 count
+
+앱:
+
+* app version
+* runtimeVersion
+* EAS Update ID
+* platform
+* channel
+* branch
+
+를 제출하십시오.
+
+확인하지 못한 항목은
+`확인하지 못함`
+이라고 적으십시오.
+
+이번 수정 완료 후 추가 개선 제안 없이 멈추십시오.
