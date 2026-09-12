@@ -8,6 +8,7 @@ import { requireAuth, requireRole, requirePermission, requireXMode, type AuthReq
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { resolveSubscription } from "../lib/subscriptionService.js";
 import {
   kstTodayStr, closeAllActiveClassHistory,
 } from "../utils/historyUtils.js";
@@ -731,30 +732,12 @@ router.get("/storage", requireAuth, requireRole("super_admin", "pool_admin"), as
     const poolId = meRow?.swimming_pool_id ?? null;
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // subscription_plans JOIN → 항상 최신 플랜 용량 사용
-    const [poolRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(sp.subscription_tier, 'free') AS tier,
-             plans.storage_mb                        AS plan_storage_mb,
-             COALESCE(sp.extra_storage_gb, 0)        AS extra_storage_gb
-      FROM swimming_pools sp
-      LEFT JOIN subscription_plans plans
-             ON plans.tier = COALESCE(sp.subscription_tier, 'free')
-      WHERE sp.id = ${poolId} LIMIT 1
-    `)).rows as any[];
-    const activeTier = poolRow?.tier ?? "free";
-
-    // quota_bytes: 플랜 storage_mb + 추가 구매 extra_storage_gb → bytes
-    const planMb  = Number(poolRow?.plan_storage_mb ?? 102); // free fallback 100MB
-    const extraMb = Number(poolRow?.extra_storage_gb ?? 0) * 1024;
-    const totalMb = planMb + extraMb;
-    const quotaBytes = totalMb * 1024 * 1024;
-
-    // display_storage: subscription_plans 기준으로 항상 재계산
-    function storageLabel(mb: number): string {
-      if (mb >= 1024) return `${Math.round(mb / 1024)}GB`;
-      return `${Math.round(mb / 100) * 100 || Math.round(mb / 10) * 10 || mb}MB`;
-    }
-    const displayStorage: string = storageLabel(totalMb);
+    // resolveSubscription — x_plan_key / x_management_override 인식 canonical 계산기.
+    // billing/status와 동일 경로 → X 플랜(x1000=1TB 등) 정확히 반영.
+    const resolved = await resolveSubscription(poolId);
+    const activeTier     = resolved.planCode;
+    const quotaBytes     = resolved.storageGb * 1024 * 1024 * 1024;
+    const displayStorage = resolved.displayStorage ?? `${Math.round(resolved.storageGb)}GB`;
 
     // 사진·영상 사용량
     let photoBytes = 0;
