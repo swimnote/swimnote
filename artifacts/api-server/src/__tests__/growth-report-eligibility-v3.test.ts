@@ -461,20 +461,24 @@ describe("TC-U: Curriculum Gauge", () => {
 // ─── 출석 event identity 기준 (makeup §8) ─────────────────────────────────────
 
 describe("Attendance event identity (§8)", () => {
-  it("makeup session separate event: COUNT(*) not DISTINCT date", () => {
-    // queryAttendanceForEligibility가 makeup을 별도 event로 카운팅
-    // queryAttendanceForEligibility는 snapshot-builder 상단에 export됨
+  it("makeup session separate event: makeup_sessions SoT, attendance row not required", () => {
+    // queryAttendanceForEligibility가 makeup을 makeup_sessions에서 직접 조회
     const fnIdx = snapshotSrc.indexOf("queryAttendanceForEligibility");
     expect(fnIdx).toBeGreaterThan(-1);
-    // makeup 처리: session_type='makeup'
-    expect(snapshotSrc).toContain("session_type = 'makeup'");
-    // 정규수업: COUNT(DISTINCT
-    expect(snapshotSrc).toContain("COUNT(DISTINCT");
-    // makeup: COUNT(*) (별도 event)
-    const makeupIdx = snapshotSrc.indexOf("session_type = 'makeup'");
-    const makeupSection = snapshotSrc.slice(makeupIdx - 200, makeupIdx + 300);
-    // 보강 완료는 DISTINCT date 없이 event 그대로 계산
-    expect(snapshotSrc).toContain("보강 완료: COUNT(*)");
+    // Branch 1-b: makeup_sessions.status='completed' SoT
+    expect(snapshotSrc).toContain("makeup_sessions ms");
+    expect(snapshotSrc).toContain("ms.status            = 'completed'");
+    // Branch 1-b는 COUNT(ms.id) — event identity = makeup_sessions.id
+    expect(snapshotSrc).toContain("COUNT(ms.id)::int");
+    // Branch 1-a는 (class_group_id, date) event identity
+    expect(snapshotSrc).toContain("COUNT(DISTINCT (a.class_group_id, a.date::date))");
+    // Branch 2는 (cg.id, gs.d::date) event identity
+    expect(snapshotSrc).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
+    // attendance row에 의존하지 않음 — attendance.session_type='makeup' 조회 없음
+    const b1bStart = snapshotSrc.indexOf("Branch 1-b");
+    const b2Start = snapshotSrc.indexOf("Branch 2");
+    const b1bSection = snapshotSrc.slice(b1bStart, b2Start);
+    expect(b1bSection).not.toContain("session_type = 'makeup'");
   });
 });
 
@@ -506,5 +510,74 @@ describe("Eligibility gate 위치 (§9)", () => {
   it("EXCLUDED 학생은 PREANALYZING 도달 불가", () => {
     // EXCLUDED 직후 return { ok: true }
     expect(workerSrc).toContain("PREANALYZING / ANALYZING 상태를 절대 거치지 않음");
+  });
+});
+
+// ─── TC-V~AA: Attendance event identity 실 케이스 ──────────────────────────────
+
+describe("TC-V~AA: Attendance event identity per-case (§1 FINAL PROOF)", () => {
+  const snapshotFn = snapshotSrc.slice(
+    snapshotSrc.indexOf("export async function queryAttendanceForEligibility"),
+    snapshotSrc.indexOf("export async function queryDiariesForEligibility")
+  );
+
+  it("TC-V: scheduled/no attendance row/no absent → Branch 2 counts as present", () => {
+    // Branch 2: generate_series + schedule_days
+    // 명시적 absent 없고, 명시적 present 없고, schedule 날이면 +1
+    expect(snapshotFn).toContain("generate_series");
+    expect(snapshotFn).toContain("schedule_days LIKE");
+    // absent 없는 조건 확인
+    expect(snapshotFn).toContain("a2.status           = 'absent'");
+    // explicit present 없는 조건 확인
+    expect(snapshotFn).toContain("a3.status           IN ('present', 'late')");
+  });
+
+  it("TC-W: scheduled/explicit absent → NOT counted (Branch 2 excluded)", () => {
+    // Branch 2 NOT EXISTS absent 필터
+    expect(snapshotFn).toContain("AND NOT EXISTS");
+    expect(snapshotFn).toContain("a2.status           = 'absent'");
+    // absent가 있으면 Branch 2에서 제외됨
+    // Branch 1-a도 status IN ('present','late') 이므로 absent는 카운트 안 됨
+    expect(snapshotFn).toContain("AND a.status           IN ('present', 'late')");
+  });
+
+  it("TC-X: pool holiday → NOT counted (Branch 2 excluded)", () => {
+    // pool_holidays ph WHERE ph.pool_id = poolId AND ph.holiday_date::date = gs.d::date
+    expect(snapshotFn).toContain("pool_holidays ph");
+    expect(snapshotFn).toContain("ph.holiday_date::date = gs.d::date");
+    expect(snapshotFn).toContain("WHERE NOT EXISTS");
+  });
+
+  it("TC-Y: completed makeup / no attendance row → counted (Branch 1-b, makeup_sessions SoT)", () => {
+    // Branch 1-b: makeup_sessions.status='completed' — attendance row 불필요
+    expect(snapshotFn).toContain("FROM makeup_sessions ms");
+    expect(snapshotFn).toContain("ms.status            = 'completed'");
+    // completed_attendance_id 조건 없음 → NULL이어도 카운트
+    const b1bSection = snapshotFn.slice(
+      snapshotFn.indexOf("Branch 1-b"),
+      snapshotFn.indexOf("Branch 2")
+    );
+    expect(b1bSection).not.toContain("completed_attendance_id IS NOT NULL");
+  });
+
+  it("TC-Z: same day regular + completed makeup → count 2 (separate events)", () => {
+    // Branch 1-a: (class_group_id, date) → 정규 1회
+    expect(snapshotFn).toContain("COUNT(DISTINCT (a.class_group_id, a.date::date))");
+    // Branch 1-b: COUNT(ms.id) → 보강 별도 1회
+    expect(snapshotFn).toContain("COUNT(ms.id)::int");
+    // 두 브랜치는 더하기(+)로 합산 — SQL에 + 연산자가 각 branch 사이에 존재
+    const plusOps = (snapshotFn.match(/^\s*\+\s*$/gm) ?? []).length;
+    expect(plusOps).toBeGreaterThanOrEqual(2);
+  });
+
+  it("TC-AA: same date / two different class_group regular events → count 2", () => {
+    // Branch 1-a: COUNT(DISTINCT (class_group_id, date)) — 같은 날 다른 반 = 2회
+    expect(snapshotFn).toContain("COUNT(DISTINCT (a.class_group_id, a.date::date))");
+    // Branch 2: COUNT(DISTINCT (cg.id, gs.d::date)) — 같은 날 다른 반 = 2회
+    expect(snapshotFn).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
+    // date만으로 중복 제거하지 않음 — COUNT(DISTINCT a.date) 없음
+    expect(snapshotFn).not.toContain("COUNT(DISTINCT a.date)");
+    // date만으로 중복 제거하지 않음 — COUNT(DISTINCT gs.d::date) 없음
+    expect(snapshotFn).not.toContain("COUNT(DISTINCT gs.d::date)");
   });
 });
