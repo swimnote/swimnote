@@ -50,14 +50,15 @@ export default function Nav() {
         <button
           onClick={() => handleClick("/")}
           aria-label="SWIMNOTE 홈"
-          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
         >
           <img
             src={`${import.meta.env.BASE_URL}icon.png`}
             alt=""
-            style={{ width: 22, height: 22, objectFit: "contain", borderRadius: 5 }}
+            style={{ width: 24, height: 24, objectFit: "contain", borderRadius: 6 }}
           />
           <span
+            className="hidden sm:inline"
             style={{
               fontSize: 15,
               fontWeight: 600,
