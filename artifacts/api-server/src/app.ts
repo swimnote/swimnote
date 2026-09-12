@@ -79,16 +79,15 @@ app.use("/api/store-assets", express.static(path.join(__dirname, "../public/stor
 // ── WP9: 5xx 응답 추적 (event_logs → 모니터 쿼리 대상) ─────────────────────
 app.use("/api", errorTrackingMiddleware);
 
-// ── Replit 배포 promote 헬스체크 — /api 경로 명시적 처리 ─────────────────
-// Replit 배포 시스템이 /api 를 healthcheck path로 사용.
-// requireNotDeactivated 미들웨어보다 먼저 등록해야 DB 조회 없이 즉시 응답.
-app.get("/api", (_req: Request, res: Response) => {
-  const uptime = Math.floor(process.uptime());
-  if (!_serverReady) {
-    return res.status(503).json({ ok: false, reason: "initializing", uptime });
-  }
-  res.json({ ok: true, uptime, service: "swimnote-api" });
-});
+// ── Replit 배포 promote 헬스체크 — /api 및 / 경로 ───────────────────────
+// Replit 배포 시스템이 / 와 /api 두 경로 모두 healthcheck로 사용.
+// - 503을 반환하면 배포 실패로 처리되므로 서버 포트가 열리는 즉시 200 반환.
+// - requireNotDeactivated 미들웨어 이전에 등록해야 DB 조회 없이 즉시 응답.
+const _healthHandler = (_req: Request, res: Response) => {
+  res.json({ ok: true, uptime: Math.floor(process.uptime()), service: "swimnote-api", ready: _serverReady });
+};
+app.get("/api", _healthHandler);
+app.get("/", _healthHandler);
 
 // ── 구독 취소 후 90일 비활성화 수영장 전면 차단 ────────────────────────────
 app.use("/api", requireNotDeactivated);
