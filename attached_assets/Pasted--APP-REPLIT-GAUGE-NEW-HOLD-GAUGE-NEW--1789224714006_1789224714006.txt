@@ -1,0 +1,419 @@
+[보낼 곳: APP REPLIT]
+
+GAUGE-NEW 검수보고 확인했습니다.
+
+현재 판정은:
+
+HOLD
+
+입니다.
+
+보고서의 `GAUGE-NEW 구현 준비 판정: PASS`는 아직 승인하지 않습니다.
+
+이번 HOLD는 계산 방향이 틀려서가 아니라,
+Production 사실관계와 구현 방식 중 아직 증명되지 않았거나 수정이 필요한 항목이 있기 때문입니다.
+
+아직 코드 수정 / DB migration / Render 배포 / OTA 배포하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 레벨별 독립 계산 방향은 유지
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+다음 방향은 승인합니다.
+
+* current_level보다 낮은 CPO 무시
+* Level별 CPO 독립 집계
+* Level별 3-session rule 적용
+* Level별 candidate 계산
+* current level floor 보장
+* 일반 일지 누적에서는 단조 증가
+* 절대 MAX 80%
+
+즉 기존 global rank 전체 혼합 방식으로 돌아가지 마십시오.
+
+다만 실제 구현식은 현재 조사한 curriculum item 구조와 정확히 일치해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. level PATCH의 fire-and-forget 방식은 승인하지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서에는:
+
+level UPDATE
+→ res.json()
+→ 이후 비동기 computeConfirmedProgress()
+
+방식을 제안했습니다.
+
+이 방식은 사용하지 마십시오.
+
+핵심 요구조건은:
+
+"선생님이 레벨을 변경하면
+그 레벨 floor가 즉시 현재 gauge에 반영"
+
+입니다.
+
+응답을 먼저 보낸 뒤 비동기로 재계산하면:
+
+* 바로 재조회 시 이전 gauge 노출 가능
+* 재계산 실패를 API 성공으로 숨길 수 있음
+* Runtime race 가능
+
+이 생깁니다.
+
+두 level PATCH의 실제 코드를 다시 확인하고,
+
+레벨 UPDATE
+→ gauge fresh recompute 완료
+→ 정상 저장 확인
+→ response
+
+순서로 동작할 수 있는 가장 안전한 방식을 제안하십시오.
+
+가능하다면 같은 transaction 또는
+일관성이 보장되는 service 경계에서 처리하십시오.
+
+단, DB 구조상 transaction에 넣는 것이 부적절하다면 이유를 코드 기준으로 설명하십시오.
+
+`res.json()` 이후 fire-and-forget은 최종안에서 제거하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ADMIN level PATCH 실제 Route 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 설명에서는 admin 경로가:
+
+`/admin/students/:id/level`
+
+계열로 알려져 있었는데,
+
+이번 보고서에는:
+
+`/students/:id/level`
+
+이라고 적혀 있습니다.
+
+실제 Express router mount까지 포함하여
+Production 최종 URL을 확인하십시오.
+
+제출:
+
+* router 파일
+* router 내부 path
+* mount path
+* 실제 최종 HTTP path
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. current_level_order Production 숫자 증거 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서에는:
+
+L1 5
+L2 22
+L3 30
+L4 2
+L5 3
+null 201
+
+로 제출했습니다.
+
+총 263명입니다.
+
+그런데 "재원 학생 수"라고 표현되어 있으므로
+정확한 scope를 확인해야 합니다.
+
+다음 증거를 제출하십시오.
+
+* 사용한 SQL 또는 동일한 DB query 코드
+* pool_id 조건
+* deleted/withdrawn 상태 조건
+* student_class_history 또는 active enrollment 조건
+* 현재 재원만 센 것인지 전체 students row인지
+* 조회 시점
+
+개인정보는 출력하지 마십시오.
+
+학생 이름/전화번호 출력 금지.
+
+숫자 집계만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. L5+ = Masters는 사실이 아니라 정책 제안
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 사실:
+
+* L5 금색모자 학생 존재
+* L6 챔피언
+* L7 슈퍼챔피언
+
+까지는 확인 보고했습니다.
+
+그러나:
+
+L5+
+= 전부 Masters
+= floor 65
+= ceiling 80
+
+이라는 것은 코드에서 발견한 사실이 아니라
+GAUGE-NEW를 위한 정책 매핑입니다.
+
+따라서 이것을 "확정"이라고 처리하지 마십시오.
+
+일단 구현설계에서는 다음처럼 표시하십시오.
+
+L1 흰: 0~20
+L2 파랑: 20~35
+L3 빨강: 35~50
+L4 검정: 50~65
+L5/L6/L7: USER_POLICY_PENDING
+
+L5~L7의 최종 매핑은 사용자 확정 후 넣습니다.
+
+임의로 L5+를 하나의 Masters band로 확정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Growth Report Production 상태 증거 재제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서에는:
+
+2026-08
+REVIEW_REQUIRED 85
+EXCLUDED 120
+DISCARDED 6
+FAILED 1
+
+그리고:
+
+2026-08 ACTIVE cycle 3
+PENDING 2
+
+라고 제출했습니다.
+
+이 값이 어느 pool 기준인지 명확하지 않습니다.
+
+다시 조회해서 다음을 제출하십시오.
+
+A. ToyKids pool만
+B. 전체 Production pools
+
+을 분리하십시오.
+
+각각:
+
+* report_period
+* status
+* active/deleted 구분
+* count
+* cycle id
+* cycle status
+* pool 식별자는 hash 또는 안전한 식별값
+* 조회 시각
+
+특히 동일 report_period에 ACTIVE cycle이 여러 개 존재한다면:
+
+* 서로 다른 pool이라서 정상인지
+* 동일 pool 중복인지
+
+반드시 구분하십시오.
+
+`2099-12 ACTIVE`도:
+
+* 어느 pool인지
+* 실제 Production test cycle인지
+* 현재 scheduler/worker가 처리할 위험이 없는지
+
+조회만 하고 보고하십시오.
+
+삭제/수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. FAILED 1건은 지금 수정하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+FAILED 1건이 있다는 이유로
+이번 GAUGE 작업에 다른 장애수정 작업을 섞지 마십시오.
+
+지금은:
+
+* report_id/hash
+* error_code
+* retryable 여부
+* failure stage
+
+정도만 개인정보 없이 확인하십시오.
+
+GAUGE와 무관하면 별도 유지관리 이슈로 남기고
+현재 작업범위를 확장하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 필드 병렬 유지 방향 승인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 방향은 승인합니다.
+
+기존:
+
+confirmed_progress_pct
+display_confirmed_pct
+
+삭제 금지.
+
+신규:
+
+gauge_pct
+
+병렬 추가.
+
+APP 전환 초기에는:
+
+gauge_pct가 정상 숫자이면 gauge_pct 우선
+그렇지 않으면 기존 display_confirmed_pct fallback
+
+방식 사용 가능.
+
+단 최종 구현 전에
+API별 실제 response contract를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. APP → AI ENGINE 배포 순서 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현순서에는:
+
+APP snapshot contract 확장
+→ Render 배포
+→ OTA
+→ 이후 AI ENGINE 연결
+
+처럼 읽힐 가능성이 있습니다.
+
+이 순서는 ENGINE의 Snapshot Validation이
+unknown field를 거부한다면 장애를 만들 수 있습니다.
+
+현재 APP이 ENGINE으로 보내는
+Growth Report request JSON과
+ENGINE contract version 처리 방식을 확인 가능한 APP 코드 범위에서 조사하십시오.
+
+APP에서 확인할 것:
+
+* 실제 outgoing curriculum_state payload
+* contract_version
+* snapshot_version
+* 신규 field가 그대로 serialized되는지
+* feature flag 또는 backward compatible 전환 가능 여부
+
+AI ENGINE 내부 검증은 추측하지 마십시오.
+
+APP에서 확인할 수 없는 부분은:
+
+`AI ENGINE 확인 필요`
+
+라고 정확히 적으십시오.
+
+ENGINE contract 확인 전에는
+Production snapshot field 전송을 활성화하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고에 근거를 붙일 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 재보고에서는
+"확인했습니다", "정상입니다" 같은 문장만 제출하지 마십시오.
+
+각 중요 사실마다 최소 하나의 근거를 붙이십시오.
+
+허용 근거:
+
+* 파일경로 + 함수명
+* 짧은 코드구조 설명
+* SQL/query
+* 개인정보 제거된 count 결과
+* router mount 구조
+* 실제 DB schema
+* 실제 API contract
+
+학생 개인정보 / Diary 전문 / JWT / secret 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 배포번호 헌법
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계는 조사만 하므로 배포하지 마십시오.
+
+이후 구현 단계부터 모든 완료보고에는 반드시:
+
+* Repository
+* Branch
+* 작업 Commit SHA
+* 실제 LIVE SHA
+* 배포 대상 서비스
+* Preview / Production 구분
+* Render Deploy ID 또는 식별값
+* Runtime 적용 여부
+
+APP OTA가 있으면 추가:
+
+* app version
+* runtimeVersion
+* iOS buildNumber
+* Android versionCode
+* EAS Update ID
+* channel
+* branch
+
+를 제출해야 합니다.
+
+잘못된 Replit / Render service / branch / EAS channel에 배포하고
+"완료"라고 보고하는 것을 방지하기 위한 필수 검증입니다.
+
+확인할 수 없는 값은:
+
+`확인하지 못함`
+
+이라고 적으십시오.
+
+허위 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 재보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 순서로 제출하십시오.
+
+1. level별 독립 계산식 최종안
+2. teacher level PATCH 실제 최종 URL + 코드 위치
+3. admin level PATCH 실제 최종 URL + 코드 위치
+4. level PATCH 동기 gauge 재계산 방식
+5. current_level_order 집계 SQL/query + scope
+6. ToyKids current_level_order 실제 count
+7. 전체 Production current_level_order count
+8. L5/L6/L7 현재 코드상 의미
+9. L5/L6/L7 gauge band는 USER_POLICY_PENDING으로 표시
+10. 기존 progress field API contract
+11. Growth Report ToyKids 상태
+12. Growth Report 전체 Production 상태
+13. cycle 다중 ACTIVE 원인
+14. 2099-12 cycle 정체
+15. FAILED 1건 최소 분류
+16. APP→ENGINE snapshot 호환성 확인 결과
+17. 실제 구현 시 변경파일
+18. blocker
+
+마지막 판정은 Replit이 임의로 PASS하지 말고:
+
+`REPLIT 자체 판단: ...`
+
+정도로만 적으십시오.
+
+최종 PASS / HOLD / FAIL은 외부 검수에서 판정합니다.
+
+이번 단계에서 코드/DB/배포 변경 없이
+재검증 보고 후 멈추십시오.
