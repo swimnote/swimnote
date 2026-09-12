@@ -344,9 +344,9 @@ async function openCycleForPool(
   //    (a) status = 'active'  (퇴원·정지·삭제 제외)
   //    (b) deleted_at IS NULL
   //    (c) student_class_history 이력:
-  //        enrolled_at <= periodStart (리포트 기간 시작일 이전 등록)
+  //        enrolled_at <= nextMonth (report_month 시작일 이전 등록 — 중도입회 포함)
   //        left_at IS NULL OR left_at >= nextMonth (다음 달까지 유지)
-  //    → 8월 중 신규 등록은 제외, 8/1 이전 등록 + 9월 유지만 발급
+  //    → report_month_start(=nextMonth) 기준 재원 중이면 포함; 8/10 입회도 9/1 재원이면 ELIGIBLE
   //    → 주2회 등 여러 반 수강자도 student_id 기준 1건만 생성
   const [_py, _pm] = periodStart.split("-").map(Number);
   const nextMonthStr = _pm === 12
@@ -361,7 +361,7 @@ async function openCycleForPool(
     WHERE cg.swimming_pool_id = ${poolId}
       AND s.status = 'active'
       AND s.deleted_at IS NULL
-      AND sch.enrolled_at <= ${periodStart}::date
+      AND sch.enrolled_at <= ${nextMonthStr}::date
       AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonthStr}::date)
   `);
 

@@ -581,3 +581,59 @@ describe("TC-V~AA: Attendance event identity per-case (§1 FINAL PROOF)", () => 
     expect(snapshotFn).not.toContain("COUNT(DISTINCT gs.d::date)");
   });
 });
+
+// ─── TC-AB~AE: Cohort SoT — report_month_start 기준 중도입회 ─────────────────
+
+describe("TC-AB: 8월 중도입회 / 9/1 재원 / att3 / src1 → ELIGIBLE", () => {
+  it("TC-AB: enrolled 2026-08-10, left_at=null, att=3, src=1 → ELIGIBLE", () => {
+    // report_month=2026-09, analysis_period=2026-08
+    // cohort: enrolled_at <= 2026-09-01 AND (left_at IS NULL OR left_at >= 2026-09-01)
+    // 2026-08-10 입회 → enrolled_at(08-10) <= 09-01 ✓ && left_at=null ✓ → 재원
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount:  3,
+      sourceEventCount: 1,
+      reregistered:     true,  // cohort 충족
+    });
+    expect(r.eligible).toBe(true);
+    expect(r.exclusion_code).toBeNull();
+  });
+});
+
+describe("TC-AC: 8/31 입회 / 9/1 재원 / att3 / src1 → ELIGIBLE", () => {
+  it("TC-AC: enrolled 2026-08-31, left_at=null, att=3, src=1 → ELIGIBLE", () => {
+    // enrolled_at(08-31) <= 09-01 ✓ && left_at=null ✓ → 재원 → ELIGIBLE
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount:  3,
+      sourceEventCount: 1,
+      reregistered:     true,
+    });
+    expect(r.eligible).toBe(true);
+    expect(r.exclusion_code).toBeNull();
+  });
+});
+
+describe("TC-AD: 9/2 입회 → 2026-09 report cohort 제외", () => {
+  it("TC-AD: enrolled 2026-09-02 → enrolled_at > report_month_start → NOT in cohort", () => {
+    // enrolled_at(09-02) > 09-01 → cohort 제외 → reregistered=false
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount:  5,
+      sourceEventCount: 3,
+      reregistered:     false,  // cohort 미충족
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("NOT_REREGISTERED");
+  });
+});
+
+describe("TC-AE: 8월 중 입회 / left_at < 9/1 → 2026-09 report cohort 제외", () => {
+  it("TC-AE: enrolled 2026-08-10, left_at=2026-08-25 → 9/1 비재원 → NOT in cohort", () => {
+    // left_at(08-25) < 09-01 → 9/1 기준 퇴원 → cohort 제외 → reregistered=false
+    const r = evaluateStudentGrowthReportEligibility({
+      attendanceCount:  3,
+      sourceEventCount: 1,
+      reregistered:     false,  // cohort 미충족
+    });
+    expect(r.eligible).toBe(false);
+    expect(r.exclusion_code).toBe("NOT_REREGISTERED");
+  });
+});
