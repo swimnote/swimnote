@@ -21,6 +21,7 @@
 
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { resolveSubscription } from "./subscriptionService.js";
 
 export type StorageWarningLevel = "ok" | "warning" | "data_pack" | "blocked";
 
@@ -63,64 +64,36 @@ const CANONICAL_X_KEYS = new Set(["x300", "x500", "x1000"]);
 
 /**
  * Resolve the full effective storage quota for a pool.
- * Single authoritative function — all other helpers delegate here.
- *
- * Uses a two-step JS resolution pattern (mirrors subscriptionService.resolveSubscription)
- * to avoid sql.raw() which is unreliable in esbuild production bundles.
- *
- * X source priority:
- *   x_management_override  → MANAGEMENT_X
- *   x_paid_entitlement     → PAID_X
- *   x_manual_entitlement   → MANUAL_X
- *   (none)                 → BASE
+ * Delegates to resolveSubscription (the single proven canonical resolver)
+ * so that storage quota always matches what billing/status reports.
  */
 export async function resolveEffectiveStorageQuota(poolId: string): Promise<EffectiveStorageQuota> {
-  // Step 1: read pool X flags + tier + extra storage (no sql.raw needed)
-  const [pool] = (await superAdminDb.execute(sql`
-    SELECT
-      COALESCE(x_management_override, false) AS mgmt,
-      COALESCE(x_paid_entitlement,    false) AS paid,
-      COALESCE(x_manual_entitlement,  false) AS manual,
-      x_plan_key,
-      COALESCE(subscription_tier, 'free')    AS subscription_tier,
-      COALESCE(extra_storage_gb, 0)          AS extra_gb
-    FROM swimming_pools
-    WHERE id = ${poolId}
-    LIMIT 1
+  // resolveSubscription is the canonical, production-proven plan resolver.
+  // It correctly handles x_management_override / x_paid_entitlement / x_manual_entitlement
+  // including the x_plan_key → x300/x500/x1000 lookup.
+  const sub = await resolveSubscription(poolId);
+
+  // extra_storage_gb (DATA add-on) is stored on swimming_pools, not in the plan.
+  const [poolRow] = (await superAdminDb.execute(sql`
+    SELECT COALESCE(extra_storage_gb, 0) AS extra_gb FROM swimming_pools WHERE id = ${poolId} LIMIT 1
   `)).rows as any[];
 
-  // Step 2: JS-level plan resolution — identical logic to subscriptionService
-  const xActive = Boolean(pool?.mgmt) || Boolean(pool?.paid) || Boolean(pool?.manual);
-  const xPlanKey = pool?.x_plan_key as string | null | undefined;
-  const effectiveTier = (xActive && xPlanKey && CANONICAL_X_KEYS.has(xPlanKey))
-    ? xPlanKey
-    : String(pool?.subscription_tier ?? "free");
-
-  const planSource: PlanSource =
-    Boolean(pool?.mgmt)   ? "MANAGEMENT_X" :
-    Boolean(pool?.paid)   ? "PAID_X"       :
-    Boolean(pool?.manual) ? "MANUAL_X"     :
-                            "BASE";
-
-  // Step 3: fetch base storage from subscription_plans by the resolved tier
-  const [plan] = (await superAdminDb.execute(sql`
-    SELECT storage_gb
-    FROM subscription_plans
-    WHERE tier = ${effectiveTier}
-    LIMIT 1
-  `)).rows as any[];
-
-  const baseGb  = Number(plan?.storage_gb ?? 0.1);
-  const extraGb = Number(pool?.extra_gb   ?? 0);
+  const baseGb  = Number(sub.storageGb ?? 0.1);
+  const extraGb = Number(poolRow?.extra_gb ?? 0);
   const totalGb = baseGb + extraGb;
 
+  const planSource: PlanSource =
+    sub.xPlanKey
+      ? (sub.source === "manual" ? "MANAGEMENT_X" : "PAID_X")
+      : "BASE";
+
   return {
-    effectivePlanKey:  effectiveTier,
+    effectivePlanKey: sub.planCode,
     planSource,
-    baseStorageGb:     baseGb,
-    extraStorageGb:    extraGb,
-    totalStorageGb:    totalGb,
-    totalQuotaBytes:   totalGb * 1024 ** 3,
+    baseStorageGb:    baseGb,
+    extraStorageGb:   extraGb,
+    totalStorageGb:   totalGb,
+    totalQuotaBytes:  totalGb * 1024 ** 3,
   };
 }
 
