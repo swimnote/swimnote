@@ -1,108 +1,120 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
-const PRIMARY = "#002F5F";
-const SECONDARY = "#01B2F1";
-
 type NavLink = {
   label: string;
-  page?: string;
-  anchor?: string;
-  highlight?: boolean;
+  page: string;
+  external?: boolean;
 };
 
 const links: NavLink[] = [
-  { label: "소개", page: "/" },
-  { label: "교육시스템", page: "/education" },
-  { label: "스윔노트 앱", page: "/app", highlight: true },
-  { label: "도입·제휴 문의", page: "/support" },
+  { label: "소개",        page: "/" },
+  { label: "교육시스템",  page: "/education" },
+  { label: "스윔노트 앱", page: "/app" },
+  { label: "대시보드",    page: "/login" },
+  { label: "도입 문의",   page: "/support" },
 ];
 
 export default function Nav() {
   const [location, navigate] = useLocation();
   const [scrolled, setScrolled] = useState(false);
-  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 8);
+    const handler = () => setScrolled(window.scrollY > 4);
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  const handleClick = (l: NavLink) => {
-    if (l.anchor) {
-      setActiveAnchor(l.label);
-      if (location !== l.page) {
-        navigate(l.page!);
-        setTimeout(() => {
-          document.getElementById(l.anchor!)?.scrollIntoView({ behavior: "smooth" });
-        }, 150);
-      } else {
-        document.getElementById(l.anchor)?.scrollIntoView({ behavior: "smooth" });
-      }
-    } else {
-      setActiveAnchor(null);
-      navigate(l.page!);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+  const isActive = (l: NavLink) => {
+    if (l.page === "/") return location === "/";
+    return location.startsWith(l.page);
   };
 
-  const isActive = (l: NavLink) => {
-    if (l.anchor) return activeAnchor === l.label;
-    if (activeAnchor) return false;
-    if (l.page === "/") return location === "/";
-    return location.startsWith(l.page!);
+  const handleClick = (l: NavLink) => {
+    navigate(l.page);
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/96 backdrop-blur-md border-b border-[#e8e8e8]" : "bg-white"}`}>
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
-        <button onClick={() => { navigate("/"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-          <span className="flex items-center cursor-pointer select-none shrink-0">
-            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SWIMNOTE" className="h-8 sm:h-10 w-auto object-contain" onError={(e) => {
+    <header
+      className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+      style={{
+        background: scrolled ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.0)",
+        backdropFilter: scrolled ? "saturate(180%) blur(20px)" : "none",
+        WebkitBackdropFilter: scrolled ? "saturate(180%) blur(20px)" : "none",
+        borderBottom: scrolled ? "1px solid rgba(0,0,0,0.08)" : "1px solid transparent",
+      }}
+    >
+      <div className="max-w-[980px] mx-auto px-4 h-[44px] flex items-center justify-between">
+        {/* 로고 */}
+        <button
+          onClick={() => { navigate("/"); window.scrollTo({ top: 0, behavior: "instant" }); }}
+          className="shrink-0 flex items-center"
+          aria-label="SWIMNOTE 홈"
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}logo.png`}
+            alt="SWIMNOTE"
+            className="h-7 w-auto object-contain"
+            onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
               (e.currentTarget.nextSibling as HTMLElement).style.display = "block";
-            }} />
-            <span className="hidden text-[18px] font-black tracking-tight" style={{ color: PRIMARY }} translate="no">SWIMNOTE</span>
+            }}
+          />
+          <span
+            className="hidden text-[15px] font-semibold tracking-tight"
+            style={{ color: "#1d1d1f" }}
+            translate="no"
+          >
+            SWIMNOTE
           </span>
         </button>
 
-        <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-none">
+        {/* 탭 */}
+        <nav className="hidden md:flex items-center gap-0">
           {links.map((l) => {
             const active = isActive(l);
-            const isHighlight = l.highlight;
             return (
               <button
                 key={l.label}
                 onClick={() => handleClick(l)}
-                className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[13.5px] font-medium transition-all duration-150 cursor-pointer select-none whitespace-nowrap ${
-                  active
-                    ? "text-white"
-                    : isHighlight
-                    ? "hover:bg-[#f4f4f4] hover:text-[#0a0a0a]"
-                    : "text-[#555] hover:text-[#0a0a0a] hover:bg-[#f4f4f4]"
-                }`}
-                style={
-                  active
-                    ? { background: isHighlight ? SECONDARY : PRIMARY }
-                    : isHighlight
-                    ? { color: SECONDARY }
-                    : {}
-                }
+                className="px-4 h-[44px] flex items-center text-[12px] font-normal transition-colors duration-150 cursor-pointer select-none"
+                style={{ color: active ? "#000" : "#6e6e73" }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#1d1d1f"; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#6e6e73"; }}
               >
                 {l.label}
               </button>
             );
           })}
-          <a
-            href={`${import.meta.env.BASE_URL}login`}
-            className="ml-1 sm:ml-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[13.5px] font-medium border transition-all duration-150 whitespace-nowrap"
-            style={{ borderColor: PRIMARY, color: PRIMARY }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = PRIMARY; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ""; (e.currentTarget as HTMLElement).style.color = PRIMARY; }}
-          >
-            로그인
-          </a>
+        </nav>
+
+        {/* 로그인 */}
+        <a
+          href={`${import.meta.env.BASE_URL}login`}
+          className="hidden md:flex items-center text-[12px] transition-colors duration-150 shrink-0"
+          style={{ color: "#6e6e73" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#1d1d1f"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#6e6e73"; }}
+        >
+          로그인
+        </a>
+
+        {/* 모바일 메뉴 */}
+        <nav className="flex md:hidden items-center gap-3 overflow-x-auto scrollbar-none">
+          {links.map((l) => {
+            const active = isActive(l);
+            return (
+              <button
+                key={l.label}
+                onClick={() => handleClick(l)}
+                className="shrink-0 text-[11px] font-normal transition-colors py-1"
+                style={{ color: active ? "#000" : "#6e6e73" }}
+              >
+                {l.label}
+              </button>
+            );
+          })}
         </nav>
       </div>
     </header>
