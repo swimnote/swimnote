@@ -105,10 +105,18 @@ export async function computeConfirmedProgress(
   //
   // 우선순위:
   //   A. student_curriculum_assignments (student-specific assignment)
-  //      is_active=true, deactivated_at IS NULL, cv.is_active=true, cv.archived_at IS NULL
+  //      is_active=true, deactivated_at IS NULL
+  //      cv.archived_at IS NULL  ← cv.is_active 조건 없음
+  //        (pool-level CV가 비활성화됐더라도 archived 되지 않은 경우 학생 CPO 데이터를
+  //         계속 집계해야 함. is_active 비활성 = "신규 배정 불가"이지, 기존 CPO 무효화 아님)
+  //      cv.swimming_pool_id = poolId  (cross-pool 데이터 혼입 방지)
   //   B. Fallback: pool의 active curriculum_version (is_active=true, archived_at IS NULL)
   //
   // 다른 pool version 사용 금지, 임의 선택 금지.
+  //
+  // 버그 수정 (2026-09-12):
+  //   cv.is_active=true 조건이 풀 단위로 비활성화된 CV를 가진 학생을 fallback으로
+  //   빠뜨려 CPO 집계 누락 → SCP=0 표시. archived_at IS NULL로 완화.
 
   const assignmentRes = await db.execute(sql`
     SELECT sca.curriculum_version_id
@@ -119,7 +127,6 @@ export async function computeConfirmedProgress(
       AND sca.swimming_pool_id  = ${poolId}
       AND sca.is_active         = true
       AND sca.deactivated_at    IS NULL
-      AND cv.is_active          = true
       AND cv.archived_at        IS NULL
       AND cv.swimming_pool_id   = ${poolId}
     LIMIT 1

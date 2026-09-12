@@ -84,6 +84,10 @@ export interface BuiltSnapshot {
  *   NULL / '' / whitespace-only note_content는 일지로 인정하지 않음
  *   NULLIF(TRIM(cdn.note_content), '') IS NOT NULL
  *
+ * ⑪ punctuation-only note 제외 (v3):
+ *   "." "," "..." "-" 등 실질 문자/숫자 없는 note는 유효 source로 불인정
+ *   cdn.note_content ~ '[가-힣A-Za-z0-9]' — 한글/영문/숫자 최소 1자 필수
+ *
  * Privacy (GR3 spec §41):
  *   Only this student's note is included; other students' notes are excluded.
  */
@@ -110,6 +114,12 @@ export interface BuiltSnapshot {
  * 반이동 (student_class_history):
  *   Branch 2에서 sch.enrolled_at <= lesson_date AND left_at > lesson_date 조건으로 처리
  *
+ * attendance event identity 기준 (v3, §8):
+ *   - 정규수업: COUNT(DISTINCT date) where session_type IS NULL OR session_type != 'makeup'
+ *   - 보강 완료: COUNT(*) where session_type = 'makeup'  (같은 날 추가 event로 인정)
+ *   - 같은 날 정규 1회 + 보강 1회 = attendance_count 2
+ *   - Branch 2 (diary-implied): 정규수업 explicit row가 없는 날짜만 추가 카운트
+ *
  * @param db          drizzle-orm db instance
  * @param studentId   학생 ID
  * @param poolId      수영장 ID
@@ -124,40 +134,68 @@ export async function queryAttendanceForEligibility(
   cutoffDate: string,
 ): Promise<number> {
   const rows = await db.execute(sql`
-    SELECT COUNT(DISTINCT att_date)::int AS cnt
-    FROM (
-      -- Branch 1: explicit present/late rows (auto-save, makeup completion 포함)
-      SELECT a.date AS att_date
-      FROM attendance a
-      WHERE a.student_id       = ${studentId}
-        AND a.swimming_pool_id = ${poolId}
-        AND a.date             >= ${periodFrom}
-        AND a.date             <  ${cutoffDate}
-        AND a.status           IN ('present', 'late')
-
-      UNION
-
+    SELECT
+      -- Branch 1-a: 정규수업 explicit present/late (auto-save 포함)
+      --   session_type IS NULL OR session_type != 'makeup' → 정규
+      --   DISTINCT date: 같은 날 중복 정규 row는 1회로 계산
+      (
+        SELECT COUNT(DISTINCT a.date)::int
+        FROM attendance a
+        WHERE a.student_id       = ${studentId}
+          AND a.swimming_pool_id = ${poolId}
+          AND a.date             >= ${periodFrom}
+          AND a.date             <  ${cutoffDate}
+          AND a.status           IN ('present', 'late')
+          AND (a.session_type IS NULL OR a.session_type <> 'makeup')
+      )
+      +
+      -- Branch 1-b: 보강 완료 (session_type='makeup', status='present')
+      --   COUNT(*): 같은 날 정규 + 보강 각각 별도 event (§8)
+      (
+        SELECT COUNT(*)::int
+        FROM attendance a
+        WHERE a.student_id       = ${studentId}
+          AND a.swimming_pool_id = ${poolId}
+          AND a.date             >= ${periodFrom}
+          AND a.date             <  ${cutoffDate}
+          AND a.status           IN ('present', 'late')
+          AND a.session_type     = 'makeup'
+      )
+      +
       -- Branch 2: class_diary 확인 + 재원 + 명시적 결석 없음
-      --   선생님이 수업일지를 작성(= 수업 진행 확인)했으나 출결화면 미열기 케이스 보완
-      SELECT cd.lesson_date AS att_date
-      FROM class_diaries cd
-      JOIN student_class_history sch
-        ON  sch.class_group_id   = cd.class_group_id
-        AND sch.student_id       = ${studentId}
-        AND sch.enrolled_at::date <= cd.lesson_date::date
-        AND (sch.left_at IS NULL OR sch.left_at::date > cd.lesson_date::date)
-      WHERE cd.swimming_pool_id  = ${poolId}
-        AND cd.is_deleted        = false
-        AND cd.lesson_date       >= ${periodFrom}
-        AND cd.lesson_date       <  ${cutoffDate}
-        AND NOT EXISTS (
-          SELECT 1 FROM attendance a2
-          WHERE a2.student_id       = ${studentId}
-            AND a2.swimming_pool_id = ${poolId}
-            AND a2.date             = cd.lesson_date
-            AND a2.status           = 'absent'
-        )
-    ) dates
+      --   정규 explicit present row가 없는 날짜만 추가 카운트
+      --   (Branch 1-b makeup은 정규 여부와 무관 — 이미 위에서 계산됨)
+      (
+        SELECT COUNT(DISTINCT cd.lesson_date)::int
+        FROM class_diaries cd
+        JOIN student_class_history sch
+          ON  sch.class_group_id    = cd.class_group_id
+          AND sch.student_id        = ${studentId}
+          AND sch.enrolled_at::date <= cd.lesson_date::date
+          AND (sch.left_at IS NULL OR sch.left_at::date > cd.lesson_date::date)
+        WHERE cd.swimming_pool_id   = ${poolId}
+          AND cd.is_deleted         = false
+          AND cd.lesson_date        >= ${periodFrom}
+          AND cd.lesson_date        <  ${cutoffDate}
+          -- 명시적 결석 없음
+          AND NOT EXISTS (
+            SELECT 1 FROM attendance a2
+            WHERE a2.student_id       = ${studentId}
+              AND a2.swimming_pool_id = ${poolId}
+              AND a2.date             = cd.lesson_date
+              AND a2.status           = 'absent'
+          )
+          -- 정규 explicit present row도 없는 날짜만 (중복 방지)
+          AND NOT EXISTS (
+            SELECT 1 FROM attendance a3
+            WHERE a3.student_id       = ${studentId}
+              AND a3.swimming_pool_id = ${poolId}
+              AND a3.date             = cd.lesson_date
+              AND a3.status           IN ('present', 'late')
+              AND (a3.session_type IS NULL OR a3.session_type <> 'makeup')
+          )
+      )
+    AS cnt
   `);
   return Number(rows.rows[0]?.cnt ?? 0);
 }
@@ -206,6 +244,7 @@ async function queryDiaries(
      AND cdn.student_id = ${studentId}
      AND cdn.is_deleted = false
      AND NULLIF(TRIM(cdn.note_content), '') IS NOT NULL
+     AND cdn.note_content ~ '[가-힣A-Za-z0-9]'
     LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
     WHERE cd.swimming_pool_id = ${poolId}
       AND cd.is_deleted = false
@@ -358,6 +397,139 @@ async function queryScpGaugeProgress(
     active_confirmed_total:         Number(r.active_confirmed_total ?? 0),
     active_curriculum_version_id:   r.active_curriculum_version_id ?? null,
     observation_session_count:      Number(r.observation_session_count ?? 0),
+  };
+}
+
+// ─── Previous report usable judgment (§4, §6) ────────────────────────────────
+
+/**
+ * UNSAFE_DISCARD_PATTERNS — discard_reason에 이 패턴이 포함되면 재사용 금지.
+ *
+ * 안전한 DISCARD (fact 재사용 가능):
+ *   - 발행 취소 / 테스트 취소 / 관리자 미발송 / 글자·레이아웃 오류
+ *   - 단순 미발송 사유 (discard_reason IS NULL 포함)
+ *
+ * 위험한 DISCARD (fact 재사용 금지):
+ *   - 내용 오류 / 근거 오류 / 분석 실패 / 잘못된 학생 / 잘못된 기간
+ */
+const UNSAFE_DISCARD_PATTERNS = [
+  "내용 오류",
+  "근거 오류",
+  "분석 실패",
+  "잘못된 학생",
+  "잘못된 기간",
+] as const;
+
+/**
+ * isUsableDiscardedReport — DISCARDED report의 fact를 continuity context로
+ * 재사용 가능한지 판정합니다.
+ *
+ * DISCARDED여도 분석 fact 자체가 유효한 경우만 재사용 허용:
+ *   - analysis_status = 'COMPLETE'
+ *   - report_fact_package IS NOT NULL
+ *   - discard_reason가 UNSAFE_DISCARD_PATTERNS에 해당하지 않음
+ *
+ * "분석 완료 후 발행 취소"와 "내용 오류로 폐기"를 구분하는 핵심 함수.
+ */
+export function isUsableDiscardedReport(report: {
+  analysis_status: string | null;
+  report_fact_package: unknown;
+  discard_reason: string | null;
+}): boolean {
+  if (report.analysis_status !== "COMPLETE") return false;
+  if (report.report_fact_package == null) return false;
+  const reason = report.discard_reason ?? "";
+  for (const pattern of UNSAFE_DISCARD_PATTERNS) {
+    if (reason.includes(pattern)) return false;
+  }
+  return true;
+}
+
+/** Result type for queryPreviousUsableReport */
+export interface PreviousUsableReport {
+  report_id: string;
+  report_period: string;
+  product_status: string;
+  analysis_status: string;
+  report_fact_package: unknown;
+  report_content: unknown;
+  sns_summary: unknown;
+  /** true = PUBLISHED / false = DISCARDED (usable) */
+  is_published: boolean;
+}
+
+/**
+ * queryPreviousUsableReport — 직전 month usable Growth Report를 조회합니다.
+ *
+ * 우선순위:
+ *   1. PUBLISHED report (가장 신뢰할 수 있는 이전 데이터)
+ *   2. DISCARDED + analysis_status=COMPLETE + report_fact_package 존재 + safe discard_reason
+ *
+ * 매칭 조건:
+ *   - 동일 student + pool
+ *   - report_period = prevReportPeriod (직전 month)
+ *   - deleted_at IS NULL
+ *
+ * 사용 방법:
+ *   const prev = await queryPreviousUsableReport(db, studentId, poolId, "2026-08");
+ *   // 8월 분석의 직전 = 2026-07 period report
+ *
+ * 반환값:
+ *   null = 직전 usable report 없음 (Baseline 리포트)
+ */
+export async function queryPreviousUsableReport(
+  db: any,
+  studentId: string,
+  poolId: string,
+  prevReportPeriod: string,  // e.g. "2026-07" for 8월 analysis
+): Promise<PreviousUsableReport | null> {
+  const res = await db.execute(sql`
+    SELECT
+      id,
+      report_period,
+      product_status,
+      analysis_status,
+      report_fact_package,
+      report_content,
+      sns_summary,
+      discard_reason
+    FROM growth_reports
+    WHERE student_id       = ${studentId}
+      AND swimming_pool_id = ${poolId}
+      AND report_period    = ${prevReportPeriod}
+      AND deleted_at       IS NULL
+      AND analysis_status  = 'COMPLETE'
+      AND report_fact_package IS NOT NULL
+    ORDER BY
+      -- PUBLISHED 우선
+      CASE WHEN product_status = 'PUBLISHED' THEN 0 ELSE 1 END ASC,
+      created_at DESC
+    LIMIT 1
+  `);
+
+  if (!(res.rows as any[]).length) return null;
+  const r = (res.rows as any[])[0];
+
+  // DISCARDED인 경우 discard_reason 안전성 확인
+  if (r.product_status === "DISCARDED") {
+    if (!isUsableDiscardedReport({
+      analysis_status:    r.analysis_status,
+      report_fact_package: r.report_fact_package,
+      discard_reason:     r.discard_reason ?? null,
+    })) {
+      return null;
+    }
+  }
+
+  return {
+    report_id:           r.id as string,
+    report_period:       r.report_period as string,
+    product_status:      r.product_status as string,
+    analysis_status:     r.analysis_status as string,
+    report_fact_package: r.report_fact_package,
+    report_content:      r.report_content ?? null,
+    sns_summary:         r.sns_summary ?? null,
+    is_published:        r.product_status === "PUBLISHED",
   };
 }
 
@@ -655,6 +827,12 @@ export async function buildAnalysisSnapshot(
     ? (cycle.analysis_from > periodFrom ? cycle.analysis_from : periodFrom)
     : periodFrom;
 
+  // Previous report period: report_period은 analysis month (e.g. "2026-08")
+  // 직전 month = analysis month - 1 (e.g. "2026-07")
+  const [prevYear, prevMonthNum] = cycle.report_period.split("-").map(Number);
+  const prevDate = new Date(prevYear!, prevMonthNum! - 1 - 1, 1);  // -1 for 0-index, -1 for prev month
+  const prevReportPeriod = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+
   // Parallel data fetch — consistent snapshot moment
   const [
     diaries,
@@ -665,6 +843,7 @@ export async function buildAnalysisSnapshot(
     publishedHistory,
     scpGauge,
     previousCurriculumPct,
+    previousUsableReport,
   ] = await Promise.all([
     queryDiaries(db, report.student_id, report.swimming_pool_id, cutoffAt, analysisFrom),
     queryGrowthEvents(db, report.student_id, report.swimming_pool_id, cutoffAt),
@@ -686,6 +865,13 @@ export async function buildAnalysisSnapshot(
       report.swimming_pool_id,
       report.id,
     ),
+    // §4 continuity context: 직전 usable report (PUBLISHED 또는 safe-DISCARDED)
+    queryPreviousUsableReport(
+      db,
+      report.student_id,
+      report.swimming_pool_id,
+      prevReportPeriod,
+    ),
   ]);
 
   // GAUGE-07: merge gauge fields into curriculum_state snapshot
@@ -695,7 +881,37 @@ export async function buildAnalysisSnapshot(
     previousCurriculumPct,
   );
 
-  const longitudinal = buildLongitudinal(publishedHistory, maxPeriods);
+  // §4 continuity context: PUBLISHED history에 없는 직전 usable DISCARDED 리포트를
+  // previous_report_structured_results에 prepend (발행 취소된 7월 리포트 등)
+  // Natural language body는 전달하지 않음 (§14)
+  let longitudinal = buildLongitudinal(publishedHistory, maxPeriods);
+  if (
+    previousUsableReport &&
+    !previousUsableReport.is_published &&
+    longitudinal.previous_report_structured_results.every(
+      (r: any) => r.report_period !== previousUsableReport.report_period,
+    )
+  ) {
+    const rc = previousUsableReport.report_content as Record<string, unknown> | null;
+    const continuityEntry = {
+      report_period:        previousUsableReport.report_period,
+      analysis_status:      previousUsableReport.analysis_status,
+      continuity_source:    "DISCARDED_USABLE",   // ENGINE에 출처 명시
+      report_fact_package:  previousUsableReport.report_fact_package ?? null,
+      metric_states:        rc?.["metric_states"]        ?? null,
+      success_conditions:   rc?.["success_conditions"]   ?? null,
+      support_levers:       rc?.["support_levers"]        ?? null,
+      positive_signals:     rc?.["positive_growth_signals"] ?? null,
+      next_growth_targets:  rc?.["next_growth_targets"]  ?? null,
+    };
+    longitudinal = {
+      ...longitudinal,
+      previous_report_structured_results: [
+        continuityEntry,
+        ...longitudinal.previous_report_structured_results,
+      ],
+    };
+  }
 
   // Snapshot body (without payload_hash — hash computed from this)
   const snapshotBody: Omit<GrowthReportAnalysisRequest["snapshot"], "payload_hash"> = {

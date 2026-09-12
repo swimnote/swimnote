@@ -136,20 +136,36 @@ export function isPaidGrowthReportEligiblePool(
  *
  * source_event_count 정책 변경 이력:
  *   v1: GROWTH_REPORT_MIN_SOURCE_RECORDS = 3  (3/3 정책)
- *   v2: GROWTH_REPORT_MIN_SOURCE_RECORDS = 2  (3/2 정책, 2026-09-12 확정)
+ *   v2: GROWTH_REPORT_MIN_SOURCE_RECORDS = 2  (3/2 정책, 2026-09-12)
  *       source=1 → INSUFFICIENT_SOURCE_DATA
  *       source=0 → NO_SOURCE_DATA
  *       source>=2 → source 조건 PASS
+ *   v3: GROWTH_REPORT_MIN_SOURCE_RECORDS = 1  (3/1 정책, 2026-09-12 최종 확정)
+ *       source=0 → NO_SOURCE_DATA
+ *       source>=1 → source 조건 PASS
+ *       INSUFFICIENT_SOURCE_DATA는 v3 신규 판정에서 발생하지 않음
+ *       (historical compatibility 유지를 위해 enum에는 남김)
+ *
+ * source 유효성 규칙 (v3):
+ *   - 해당 student_id / swimming_pool_id / analysis_period
+ *   - diary not deleted / student note not deleted
+ *   - 실제 내용 존재: NULLIF(TRIM(note_content),'') IS NOT NULL
+ *   - 실질 문자 포함: note_content ~ '[가-힣A-Za-z0-9]'
+ *     (punctuation-only "." "," "..." "-" 등은 source로 불인정)
+ *   - 동일 diary 중복은 1 event
+ *   - COMMON 내용만으로 source 1 처리 금지 (학생별 귀속 note 필수)
  */
 export const GROWTH_REPORT_MIN_ATTENDANCE_COUNT = 3;
-export const GROWTH_REPORT_MIN_SOURCE_RECORDS   = 2;
+export const GROWTH_REPORT_MIN_SOURCE_RECORDS   = 1;
 
 /**
  * eligibility_version — 정책 변경 시 버전을 올려 기존 판정과 구분.
  *   1 = 3/3 정책 (MIN_SOURCE_RECORDS=3)
  *   2 = 3/2 정책 (MIN_SOURCE_RECORDS=2) + diary 기반 attendance 보완
+ *   3 = 3/1 정책 (MIN_SOURCE_RECORDS=1) + punctuation-only source 제외 (2026-09-12 최종)
+ *       attendance event identity 기준 계산 (makeups 별개 event)
  */
-export const GROWTH_REPORT_ELIGIBILITY_VERSION = 2;
+export const GROWTH_REPORT_ELIGIBILITY_VERSION = 3;
 
 export interface StudentEligibilityResult {
   eligible:           boolean;
@@ -167,15 +183,15 @@ export interface StudentEligibilityResult {
  *
  * 판정 순서:
  *   1. 재원 조건 (report_month 재원 중)
- *   2. 출석 조건 (>= GROWTH_REPORT_MIN_ATTENDANCE_COUNT, present+late)
- *   3. 일지 조건 (>= GROWTH_REPORT_MIN_SOURCE_RECORDS, 유효 note 포함 diary)
+ *   2. 출석 조건 (>= GROWTH_REPORT_MIN_ATTENDANCE_COUNT = 3, present+late)
+ *   3. 일지 조건 (>= GROWTH_REPORT_MIN_SOURCE_RECORDS = 1, 유효 note 포함 diary)
  *
- * exclusion_code 규칙:
+ * exclusion_code 규칙 (v3):
  *   NOT_REREGISTERED         — report_month 기준 재원 이력 없음
- *   INSUFFICIENT_ATTENDANCE  — 출석 기준 미달
- *   NO_SOURCE_DATA           — 유효 일지 0건
- *   INSUFFICIENT_SOURCE_DATA — 유효 일지 1~(MIN-1)건
- *   null                     — ELIGIBLE
+ *   INSUFFICIENT_ATTENDANCE  — 출석 기준 미달 (< 3)
+ *   NO_SOURCE_DATA           — 유효 일지 0건 (source = 0)
+ *   INSUFFICIENT_SOURCE_DATA — v3에서 신규 발생 없음; enum은 historical 호환용 유지
+ *   null                     — ELIGIBLE (재원 O + 출석>=3 + source>=1)
  *
  * @param params.attendanceCount   출석 횟수 (COUNT(DISTINCT a.id) WHERE status IN ('present','late'))
  * @param params.sourceEventCount  유효 일지 건수 (snapshot builder와 동일 predicate)
@@ -195,10 +211,11 @@ export function evaluateStudentGrowthReportEligibility(params: {
   } else if (attendanceCount < GROWTH_REPORT_MIN_ATTENDANCE_COUNT) {
     exclusion_code = "INSUFFICIENT_ATTENDANCE";
   } else if (sourceEventCount === 0) {
+    // v3: MIN_SOURCE=1 이므로 source=0만 NO_SOURCE_DATA
+    // INSUFFICIENT_SOURCE_DATA는 v3 신규 판정에서 발생하지 않음
     exclusion_code = "NO_SOURCE_DATA";
-  } else if (sourceEventCount < GROWTH_REPORT_MIN_SOURCE_RECORDS) {
-    exclusion_code = "INSUFFICIENT_SOURCE_DATA";
   }
+  // v3: source >= 1 이면 source 조건 PASS (INSUFFICIENT_SOURCE_DATA 분기 없음)
 
   return {
     eligible:            exclusion_code === null,
