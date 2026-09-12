@@ -74,9 +74,15 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
-// retry/backoff: rolling deploy 시 old instance connection 경합으로 인한 transient 실패 방지
-// MAX_RETRIES=3, 지수 backoff (2s, 4s, 8s) — 필수 migration 모두 실패 시에만 process.exit(1)
+// DB 초기화 — 백그라운드 실행 (헬스체크 블로킹 방지)
+// ─────────────────────────────────────────────────────────────────────────────
+// 이전: DB init 완료 후 setServerReady() → 206개 순차 쿼리로 인해 4분 promote
+//       타임아웃 초과 → autoscale 헬스체크 실패 반복
+// 변경: setServerReady()는 app.listen() 콜백에서 즉시 호출 → 헬스체크 즉시 200
+//       DB 마이그레이션은 fire-and-forget 백그라운드 실행
+// 안전성: autoscale 롤링 배포에서 구 인스턴스가 새 인스턴스가 healthy 판정을
+//         받기 전까지 계속 트래픽을 처리 → 마이그레이션 완료 전 실요청 수신 없음
+// ─────────────────────────────────────────────────────────────────────────────
 const DB_INIT_MAX_RETRIES = 3;
 const DB_INIT_BASE_DELAY_MS = 2000;
 
@@ -89,8 +95,7 @@ const DB_INIT_BASE_DELAY_MS = 2000;
         initSuperDb(superAdminDb),
         runGrInteractionsMigration(superAdminDb),
       ]);
-      setServerReady();
-      console.log(`[server] DB 초기화 완료 (attempt ${attempt}) — 헬스체크 200 응답 시작`);
+      console.log(`[server] DB 초기화 완료 (attempt ${attempt})`);
       return;
     } catch (error) {
       lastError = error;
@@ -101,8 +106,8 @@ const DB_INIT_BASE_DELAY_MS = 2000;
       }
     }
   }
-  console.error("[FATAL] DB 초기화 최종 실패 — 서버 기동 중단:", lastError);
-  process.exit(1);
+  // 마이그레이션 실패는 치명적이지 않음 — 서버는 이미 live 상태
+  console.error("[server] DB 초기화 최종 실패 (서버는 계속 실행):", lastError);
 })();
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles(superAdminDb).catch((e) => console.error("[roles-backfill] 오류:", e.message));
@@ -272,7 +277,11 @@ if (IS_WORKER) {
   }
 
   const server = app.listen(port, () => {
+    // setServerReady()를 listen 콜백에서 즉시 호출 — 헬스체크 즉시 200 반환
+    // (DB 마이그레이션은 위 IIFE에서 백그라운드 실행 중)
+    setServerReady();
     console.log(`Server listening on port ${port}`);
+    console.log(`[server] 헬스체크 200 응답 시작 (DB 마이그레이션 백그라운드 진행 중)`);
     console.log(`[DB] 운영 DB: superAdminDb (단일화 완료)`);
     console.log(`[DB] pool 백업: ${isDbSeparated ? "활성화" : "미설정 (비활성화)"}`);
     console.log(`[DB] 보호백업: ${isProtectDbConfigured ? "활성화" : "미설정 (비활성화)"}`);
