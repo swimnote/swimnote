@@ -1,0 +1,527 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+APP FINAL DATA CONTRACT RECONCILIATION
+
+현재 Production HEAD:
+
+dc1d9100
+
+배포/환경변수/Worker 문제는 해결된 것으로 보고 있습니다.
+
+하지만 완료보고의 수치 사이에
+논리적으로 동시에 성립할 수 없는 불일치가 발견되었습니다.
+
+이번 작업은 새로운 기능 개발이 아닙니다.
+
+현재 Production 코드와 실제 DB를 기준으로
+cohort / attendance / source / report-month 계약을
+하나의 canonical 계산으로 다시 증명하는 작업입니다.
+
+AI ENGINE 수정 금지.
+ToyKids 8월 Growth Report 실제 생성 금지.
+기존 회원/일지/출석 원본 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 모순 #1
+171 → 205인데 중도입회가 43명인 이유 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 cohort:
+
+enrolled_at <= 2026-08-01
+AND
+(left_at IS NULL OR left_at >= 2026-09-01)
+
+= 171명
+
+신규 cohort:
+
+enrolled_at <= 2026-09-01
+AND
+(left_at IS NULL OR left_at >= 2026-09-01)
+
+= 205명
+
+이라면
+
+신규 cohort - 기존 cohort
+
+는 정확히:
+
+2026-08-01 < enrolled_at <= 2026-09-01
+AND
+9/1 재원
+
+이어야 합니다.
+
+따라서 수학적으로 차이는:
+
+205 - 171 = 34명
+
+이어야 합니다.
+
+그런데 보고에는 해당 중도입회 인원이 43명으로 제출됐습니다.
+
+같은 DB snapshot과 같은 pool에서
+왜 34와 43이 발생하는지 반드시 규명하십시오.
+
+추측 금지.
+
+제출:
+
+A. OLD cohort student_id set count
+B. NEW cohort student_id set count
+C. NEW - OLD set count
+D. 8/2~9/1 입회 + 9/1 재원 set count
+E. C와 D가 동일한지
+F. 다르면 실제 차이를 만든 student_class_history row
+
+학생 개인정보는 마스킹하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. student_class_history 중복 가능성 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학생 한 명에게 여러 class history row가 있어
+JOIN에서 cohort 수가 부풀려지는지도 확인하십시오.
+
+모든 cohort 숫자는:
+
+COUNT(DISTINCT student_id)
+
+기준이어야 합니다.
+
+확인:
+
+- 한 학생 다중 class
+- 반 이동
+- 재입회
+- 동일 기간 overlapping history
+- duplicate history rows
+
+"row 수"와 "학생 수"를 혼동하지 마십시오.
+
+최종 cohort는 UNIQUE STUDENT 기준입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 모순 #2
+attendance>=3 166 → 84 원인 규명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+직전 보고:
+
+cohort 171
+attendance >=3 = 166
+source >=1 = 78
+ELIGIBLE = 75
+
+현재 보고:
+
+cohort 205
+attendance >=3 = 84
+source >=1 = 89
+ELIGIBLE = 53
+
+cohort 조건만 확장했다면
+기존 171명의 attendance 결과가
+갑자기 절반으로 줄어들 수 없습니다.
+
+현재 Production HEAD dc1d9100의
+동일 함수:
+
+queryAttendanceForEligibility()
+
+와 동일 source 판정 함수를 사용하여
+
+OLD cohort와 NEW cohort를
+지금 다시 동시에 계산하십시오.
+
+중요:
+
+과거 보고서에 저장된 숫자를 재사용하지 마십시오.
+
+현재 코드 + 현재 DB의 동일 시점 snapshot으로
+둘을 한 번에 계산하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 동일 코드 기준 비교표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 dc1d9100 코드로:
+
+OLD cohort 조건
+vs
+NEW cohort 조건
+
+각각 제출:
+
+- cohort
+- attendance >=3
+- source >=1
+- ELIGIBLE
+- EXCLUDED
+
+그리고 matrix:
+
+att>=3 / src>=1
+att>=3 / src=0
+att<3 / src>=1
+att<3 / src=0
+
+두 cohort 모두 동일 함수로 계산하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Set inclusion 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NEW cohort는 OLD cohort보다
+재원 조건만 넓힌 것입니다.
+
+따라서:
+
+OLD cohort ⊆ NEW cohort
+
+이어야 합니다.
+
+동일 analysis period와 동일 eligibility 로직이라면:
+
+OLD ELIGIBLE ⊆ NEW ELIGIBLE
+
+도 성립해야 합니다.
+
+확인하십시오.
+
+제출:
+
+- OLD cohort인데 NEW cohort에 없는 학생 수
+  expected = 0
+
+- OLD eligible인데 NEW eligible에서 사라진 학생 수
+  expected = 0
+
+0이 아니라면
+학생별로 정확한 이유를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. attendance 감소 학생 forensic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+직전 166이라는 숫자가 현재 코드에서도 재현된다면
+
+현재 84와의 차이 학생들을 조사하십시오.
+
+각 학생에 대해 마스킹하여:
+
+- class history
+- schedule_days
+- analysis period 내 scheduled events
+- holidays
+- explicit absent
+- explicit present/late
+- completed makeup
+- 최종 attendance_count
+
+를 비교하십시오.
+
+반대로 166이 현재 코드에서 재현되지 않는다면:
+
+"166 보고 자체가 어떤 잘못된 query로 생성되었는지"
+
+정확히 찾아내십시오.
+
+최종적으로 하나의 숫자만 SoT로 남겨야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Report Month 계약 실제 E2E 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요합니다.
+
+report_month:
+
+2026-09
+
+이면 실제 분석 대상은:
+
+2026-08-01
+<= event date
+< 2026-09-01
+
+이어야 합니다.
+
+다음 모든 단계에서 실제 값을 추적하십시오.
+
+Scheduler
+↓
+growth_report row
+↓
+Analysis Worker
+↓
+Snapshot Builder
+↓
+ENGINE Request Adapter
+↓
+HTTP request body
+
+최종 ENGINE Request에서 반드시:
+
+report month 의미:
+2026-09
+
+analysis_from:
+2026-08-01
+
+analysis_cutoff_at:
+2026-09-01
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. report_period 필드 의미 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 시스템에서 DB의 report_period가
+analysis month 의미를 유지하는지
+실제 schema/코드로 다시 확인하십시오.
+
+기존 계약이:
+
+2026년 9월 리포트
+→ DB report_period = 2026-08
+
+이라면 그대로 유지하십시오.
+
+외부 report_month와
+DB report_period를 섞지 마십시오.
+
+반대로 현재 migration/코드에서 의미가 이미 변경됐다면
+추측하지 말고 실제 SoT를 보고하십시오.
+
+필드 이름보다 의미가 중요합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 특히 현재 보고의 이 문장 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고에는:
+
+batch-worker / analysis-worker는
+reportPeriod="2026-09"
+→ periodStart="2026-09-01"
+로 이미 정확
+
+이라고 되어 있습니다.
+
+이 문장이 무엇을 의미하는지
+실제 코드와 Payload 기준으로 설명하십시오.
+
+만약 analysis worker가
+2026-09 리포트 분석에
+2026-09-01부터의 Diary를 조회한다면 BUG입니다.
+
+반드시 수정하십시오.
+
+2026-09 report는
+2026-08 Diary/Attendance를 분석해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 실제 Payload Fixture 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE 호출은 하지 말고
+2026-09 report용 request payload fixture를 생성하십시오.
+
+개인정보 마스킹.
+
+최소 다음 필드를 제출:
+
+context.report_period
+context.analysis_from
+context.analysis_cutoff_at
+context.timezone
+
+snapshot.diaries의 lesson_date 범위
+
+snapshot.attendance의 date 범위
+
+예상:
+
+analysis_from = 2026-08-01
+analysis_cutoff_at = 2026-09-01
+
+범위 밖 event = 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 8월 중도입회 학생 실제 예제 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 3명:
+
+A. 8월 초 중도입회
+B. 8월 중순 중도입회
+C. 8월 말 중도입회
+
+을 마스킹하여 제출하십시오.
+
+각각:
+
+- enrolled_at
+- 9/1 재원 여부
+- 8월 scheduled attendance count
+- valid source count
+- eligibility
+
+를 확인하십시오.
+
+분석월 전체를 다니지 않았다는 이유만으로
+자동 제외하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Production 코드 수정 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사에서 실제 버그가 발견된 경우에만
+최소 수정하십시오.
+
+가능한 버그 예:
+
+- cohort duplicate
+- wrong period conversion
+- worker month offset
+- attendance aggregation bug
+
+관련 없는 refactor 금지.
+
+수정이 발생하면:
+
+test
+→ commit
+→ Render deploy
+→ health commit 확인
+
+까지 다시 완료하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Regression Test
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 143/143 GREEN 유지.
+
+추가 테스트:
+
+TC-AF
+report_month=2026-09
+ENGINE analysis_from=2026-08-01
+analysis_cutoff_at=2026-09-01
+
+TC-AG
+8월 diary만 snapshot 포함
+9월 diary 제외
+
+TC-AH
+OLD cohort student set이
+NEW cohort의 subset
+
+TC-AI
+동일 eligibility 함수에서
+OLD eligible set이 NEW eligible set의 subset
+
+TC-AJ
+multi-class student가 cohort에서 1명으로 count
+
+TC-AK
+overlapping class history가 있어도
+student unique count 1
+
+전부 PASS 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 이번 단계 금지사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- ToyKids report INSERT 금지
+- ENGINE 실제 호출 금지
+- Prompt 수정 금지
+- AI ENGINE 코드 수정 금지
+- 기존 report 재발급 금지
+- 학생/일지/출석 원본 변경 금지
+- 다른 pool 변경 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 순서로 보고하십시오.
+
+1. PASS / HOLD
+
+2. 43명 vs 34명 불일치 원인
+
+3. OLD cohort 현재 재계산 수
+
+4. NEW cohort 현재 재계산 수
+
+5. NEW - OLD 실제 수
+
+6. multi-class/history 중복 영향 여부
+
+7. OLD attendance>=3
+
+8. NEW attendance>=3
+
+9. 기존 166의 재현 여부
+
+10. 166 → 84 불일치 실제 원인
+
+11. OLD source>=1
+
+12. NEW source>=1
+
+13. OLD ELIGIBLE
+
+14. NEW ELIGIBLE
+
+15. OLD eligible ⊆ NEW eligible 여부
+
+16. 최종 NEW matrix
+
+17. 8월 중도입회 3명 예제
+
+18. report_month=2026-09의
+    실제 analysis_from
+
+19. 실제 analysis_cutoff_at
+
+20. DB report_period 실제 의미/값
+
+21. Analysis Worker가 사용하는 기간
+
+22. Snapshot Builder가 사용하는 기간
+
+23. ENGINE Request payload fixture
+
+24. 범위 밖 diary/event 포함 수
+
+25. TC-AF~AK 결과
+
+26. 전체 Growth Report test
+    total/pass/fail
+
+27. 코드 수정 여부
+
+28. 수정했다면 최종 Production SHA/LIVE 확인
+
+29. 실제 ToyKids 8월 재발급 여부
+    반드시 미실행
+
+30. APP 데이터 계약 최종 PASS 여부
+
+31. AI ENGINE으로 넘어가도 되는지
+    YES / NO
+
+보고 후 멈추십시오.
+
+이 보고서가 논리적으로 모두 맞으면
+그 즉시 AI ENGINE Growth Report
+품질/안정성 수정으로 넘어갑니다.
