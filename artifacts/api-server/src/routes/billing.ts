@@ -26,6 +26,7 @@ import {
   isUpgradeTier,
 } from "../lib/subscriptionService.js";
 import { isXProduct, handleXEntitlementEvent } from "../lib/x-entitlement.js";
+import { getXPlan } from "../lib/xPlanCatalog.js";
 import {
   resolveXProductForSequence,
   reserveXSlot,
@@ -1028,16 +1029,46 @@ router.post("/restore-x-subscription", requireAuth, requireRole("pool_admin"), a
     }
 
     // entitlement 활성 확인됨 → DB 갱신
-    await superAdminDb.execute(sql`
-      UPDATE swimming_pools
-      SET x_paid_entitlement        = true,
-          xmode_subscription_end_at = ${entitlement.expiresAt ?? null},
-          xmode_payment_failed_at   = NULL,
-          xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
-          x_auto_renew_cancelled    = false,
-          updated_at                = NOW()
-      WHERE id = ${poolId}
-    `);
+    // productIdentifier → canonical plan key → storage 값 결정
+    const restoreProductId = entitlement.productIdentifier ?? null;
+    const restoreXPlanKey = restoreProductId
+      ? ({"com.swimnote.x300.monthly":"x300","com.swimnote.x500.monthly":"x500","com.swimnote.x1000.monthly":"x1000",
+          "x300":"x300","x500":"x500","x1000":"x1000"}[restoreProductId] ?? null)
+      : null;
+    const restoreXPlan = restoreXPlanKey ? getXPlan(restoreXPlanKey) : null;
+
+    if (restoreXPlan && restoreXPlanKey) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools
+        SET x_paid_entitlement        = true,
+            xmode_subscription_end_at = ${entitlement.expiresAt ?? null},
+            xmode_payment_failed_at   = NULL,
+            xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
+            x_auto_renew_cancelled    = false,
+            x_plan_key                = ${restoreXPlanKey},
+            subscription_tier         = ${restoreXPlanKey},
+            storage_mb                = ${restoreXPlan.storageMb},
+            base_storage_gb           = ${restoreXPlan.storageGb},
+            display_storage           = ${restoreXPlan.displayStorage},
+            member_limit              = ${restoreXPlan.memberLimit},
+            updated_at                = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.log(`[restore-x-subscription] pool=${poolId} plan=${restoreXPlanKey} storage=${restoreXPlan.displayStorage}`);
+    } else {
+      // product 미매핑 시 최소 필드만 (RC 웹훅이 storage 처리)
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools
+        SET x_paid_entitlement        = true,
+            xmode_subscription_end_at = ${entitlement.expiresAt ?? null},
+            xmode_payment_failed_at   = NULL,
+            xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
+            x_auto_renew_cancelled    = false,
+            updated_at                = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.warn(`[restore-x-subscription] pool=${poolId} product=${restoreProductId} 미매핑 — storage는 RC 웹훅에서 처리`);
+    }
 
     // audit 기록
     await auditXEvent({

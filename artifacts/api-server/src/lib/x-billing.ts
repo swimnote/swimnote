@@ -20,6 +20,27 @@
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { handleXEntitlementEvent } from "./x-entitlement.js";
+import { getXPlan } from "./xPlanCatalog.js";
+
+// X RC 상품 ID → canonical plan key 매핑
+// (subscriptionService.normalizeTier와 X 전용 부분만 동기화)
+const X_PRODUCT_PLAN_MAP: Record<string, string> = {
+  "com.swimnote.x300.monthly":          "x300",
+  "com.swimnote.x500.monthly":          "x500",
+  "com.swimnote.x1000.monthly":         "x1000",
+  "com.swimnote.x300.monthly:monthly":  "x300",
+  "com.swimnote.x500.monthly:monthly":  "x500",
+  "com.swimnote.x1000.monthly:monthly": "x1000",
+  "x300": "x300", "x300:monthly": "x300",
+  "x500": "x500", "x500:monthly": "x500",
+  "x1000": "x1000", "x1000:monthly": "x1000",
+};
+
+/** store_product_id 또는 productIdentifier → canonical plan key (null if not X) */
+function resolveXPlanKey(productId: string | null | undefined): string | null {
+  if (!productId) return null;
+  return X_PRODUCT_PLAN_MAP[productId] ?? null;
+}
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
 
@@ -508,9 +529,9 @@ export async function commitXPurchaseTransaction(
     purchasedAt, expiresAt, tierKey,
   } = params;
 
-  // §19 idempotency
+  // §19 idempotency — store_product_id도 함께 조회 (storage 업데이트에 사용)
   const [existing] = (await superAdminDb.execute(sql`
-    SELECT status, rc_original_transaction_id
+    SELECT status, rc_original_transaction_id, store_product_id
     FROM x_subscription_slots WHERE id = ${slotId} LIMIT 1
   `)).rows as any[];
 
@@ -533,6 +554,15 @@ export async function commitXPurchaseTransaction(
     discountEndsAt = d.toISOString();
   }
 
+  // slot store_product_id → canonical plan key → storage 값 결정
+  const storeProductId: string | null = existing?.store_product_id ?? null;
+  const xPlanKey = resolveXPlanKey(storeProductId);
+  const xPlan = xPlanKey ? getXPlan(xPlanKey) : null;
+  const storageMb      = xPlan?.storageMb      ?? null;
+  const storageGb      = xPlan?.storageGb      ?? null;
+  const displayStorage = xPlan?.displayStorage ?? null;
+  const memberLimit    = xPlan?.memberLimit    ?? null;
+
   // slot 갱신
   await superAdminDb.execute(sql`
     UPDATE x_subscription_slots
@@ -550,19 +580,43 @@ export async function commitXPurchaseTransaction(
   `);
 
   // pool 갱신 (§18: x_manual_entitlement / x_force_disabled / config_status 수정 금지)
-  await superAdminDb.execute(sql`
-    UPDATE swimming_pools
-    SET x_paid_entitlement        = true,
-        xmode_subscription_end_at = ${expiresAt ?? null},
-        xmode_purchased_at        = COALESCE(xmode_purchased_at, ${purchasedTs}),
-        x_slot_id                 = ${slotId},
-        updated_at                = NOW()
-    WHERE id = ${poolId}
-  `);
+  // x_plan_key / subscription_tier / storage 컬럼도 동기화:
+  //   RC INITIAL_PURCHASE 웹훅이 늦게 오는 경우 구매 직후 storage가 틀리는 버그 방어
+  if (xPlanKey && storageMb !== null && storageGb !== null && displayStorage !== null) {
+    await superAdminDb.execute(sql`
+      UPDATE swimming_pools
+      SET x_paid_entitlement        = true,
+          xmode_subscription_end_at = ${expiresAt ?? null},
+          xmode_purchased_at        = COALESCE(xmode_purchased_at, ${purchasedTs}),
+          x_slot_id                 = ${slotId},
+          x_plan_key                = ${xPlanKey},
+          subscription_tier         = ${xPlanKey},
+          storage_mb                = ${storageMb},
+          base_storage_gb           = ${storageGb},
+          display_storage           = ${displayStorage},
+          ${memberLimit !== null ? sql`member_limit = ${memberLimit},` : sql``}
+          updated_at                = NOW()
+      WHERE id = ${poolId}
+    `);
+    console.log(
+      `[x-billing] PURCHASED slot=${slotId} pool=${poolId} tier=${tierKey} plan=${xPlanKey} storage=${displayStorage} env=${rcEnvironment}`,
+    );
+  } else {
+    // store_product_id 매핑 실패 시 최소 필드만 업데이트 (웹훅이 storage를 처리)
+    await superAdminDb.execute(sql`
+      UPDATE swimming_pools
+      SET x_paid_entitlement        = true,
+          xmode_subscription_end_at = ${expiresAt ?? null},
+          xmode_purchased_at        = COALESCE(xmode_purchased_at, ${purchasedTs}),
+          x_slot_id                 = ${slotId},
+          updated_at                = NOW()
+      WHERE id = ${poolId}
+    `);
+    console.warn(
+      `[x-billing] PURCHASED slot=${slotId} pool=${poolId} tier=${tierKey} — store_product_id(${storeProductId}) 미매핑, storage는 RC 웹훅에서 처리`,
+    );
+  }
 
-  console.log(
-    `[x-billing] PURCHASED slot=${slotId} pool=${poolId} tier=${tierKey} env=${rcEnvironment}`,
-  );
   return { alreadySynced: false };
 }
 
