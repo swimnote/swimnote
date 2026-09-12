@@ -1,0 +1,227 @@
+[보낼 곳: APP REPLIT]
+
+[P0 STORAGE FIX — 완료보고 검증 실패 / Production 증거 제출]
+
+현재 완료보고는 승인하지 않습니다.
+
+이유:
+
+실제 사용자 화면에서 오류가 발생한 곳은
+“저장공간 현황” 화면이며
+
+사용량 3.29GB
+제공 용량 10GB
+남은 용량 6.71GB
+사용률 32.9%
+
+가 표시되었습니다.
+
+그런데 완료보고에는:
+
+저장공간 현황
+→ storage.ts /admin/storage
+→ getPoolQuotaGb 사용 ✅
+
+이라고 되어 있고,
+
+Root Cause는 별도의
+photos.ts presigned URL quota JOIN
+이라고 보고했습니다.
+
+이 둘은 논리적으로 맞지 않습니다.
+
+만약 /admin/storage가 이미 canonical getPoolQuotaGb를 사용했다면
+ToyKids X1000에서 왜 10GB가 반환되었는지 설명해야 합니다.
+
+photos.ts만 수정했다고 해서
+/admin/storage 표시가 10GB → 1TB로 변하는 구조라면
+그 실제 호출 연결 증거를 제출하십시오.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render 배포 완료 후 실제 Production 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render deploy 완료를 기다린 후
+Production API에 대해 실제 ToyKids 인증/context로 확인하십시오.
+
+반드시 다음 실제 응답을 제출:
+
+A. Current Plan API
+- endpoint
+- effective mode
+- effective X
+- x_plan_key
+- effective plan
+- plan source
+
+B. Storage Overview API
+- 정확한 endpoint
+- base quota
+- extra quota
+- total quota
+- used
+- remaining
+- usage percentage
+
+C. Photo upload quota check
+- effective quota
+
+D. Video upload quota check
+- effective quota
+
+E. Other/general upload quota check
+- effective quota
+
+ToyKids 기대값:
+
+effective plan = x1000
+base storage ≈ 1TB
+extra = 현재 실제값
+used ≈ 3.29GB
+usage ≈ 0.3%
+
+어느 한 경로라도 10GB이면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 저장공간 현황 10GB의 정확한 호출 경로 재추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 APP 화면:
+
+/(admin)/data-storage-overview
+
+에서 시작해서
+
+Component
+→ hook/service
+→ HTTP endpoint
+→ server route
+→ helper
+→ DB source
+
+를 한 줄도 생략하지 말고 제출하십시오.
+
+특히 화면의:
+
+“제공 용량 10GB”
+
+값이 배포 전 정확히 어떤 JSON field에서 왔는지 밝히십시오.
+
+예:
+
+data-storage-overview.tsx
+→ GET /admin/storage
+→ response.quotaGb
+→ storage.ts
+→ getPoolQuotaGb(poolId)
+→ ...
+→ 최종 source
+
+형태로 제출.
+
+완료보고의
+“photos.ts가 root cause”
+와
+“storage overview는 getPoolQuotaGb 사용”
+이 어떻게 동시에 성립하는지 설명하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. resolveEffectiveStorageQuota 실제 사용 여부 증명
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 함수:
+
+resolveEffectiveStorageQuota(poolId)
+
+가 실제로 다음 모두의 최종 quota source인지
+코드 호출 그래프로 증명하십시오.
+
+- storage overview
+- dashboard storage
+- billing features
+- photo presigned
+- multipart uploads
+- video uploads
+- upload blocking
+- Super Admin storage summary
+
+단순히 “같은 resolver 사용 ✅” 표로 쓰지 말고
+각 consumer의 실제 함수 호출 위치와 line/path를 제출하십시오.
+
+가능하면 모든 consumer가
+하나의 public helper로 수렴하도록 정리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production X Pool 전수 검증도 배포 후 다시 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 전 코드/DB 기준 audit가 아니라
+배포 완료된 Production runtime 기준으로 다시 검사하십시오.
+
+총 X pool = 3
+
+각 pool별:
+- source
+- plan
+- expected quota
+- storage overview quota
+- upload enforcement quota
+- MATCH / MISMATCH
+
+최종:
+
+PAID mismatch
+MANUAL mismatch
+MANAGEMENT mismatch
+
+모두 0이어야 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실제 앱 화면 확인 전 완료 선언 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 검증이 전부 PASS한 뒤
+
+앱 완전 종료
+→ 재실행
+→ 저장공간 현황
+
+실기기에서 확인하십시오.
+
+ToyKids 기대 화면:
+
+제공 용량: 약 1TB
+사용량: 약 3.29GB
+남은 용량: 약 1TB - 3.29GB
+사용률: 약 0.3%
+
+스크린샷 또는 실제 표시값 제출.
+
+“Render 완료 후 바뀔 것입니다”
+는 완료 증거가 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Root Cause 최종 확정
+2. 왜 storage overview가 10GB였는지
+3. 왜 photos.ts 수정으로 그것까지 해결되는지 또는 추가 수정 내용
+4. Production deployed SHA
+5. Render deploy SUCCESS
+6. ToyKids current-plan API 응답
+7. ToyKids storage API 응답
+8. Photo quota
+9. Video quota
+10. General upload quota
+11. Production X 3 pools runtime audit
+12. 실기기 최종 표시
+13. 테스트 결과
+14. DB 변경 여부
+15. OTA 여부
+
+이 15개 제출 후 STOP.
+
+현재 상태에서 “완료”라고 선언하지 마십시오.
