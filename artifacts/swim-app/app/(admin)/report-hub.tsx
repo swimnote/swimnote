@@ -462,12 +462,12 @@ export default function ReportHubScreen() {
     const sd = getStatusDisplay(item.product_status);
     const isLoading = actionLoading === item.report_id;
     const verLabel = item.version_number > 1 ? ` v${item.version_number}` : "";
-    const showSend    = ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
-    const showDiscard = ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
-    const showRegen   = ["DISCARDED", "READY_TO_SEND", "APPROVED"].includes(item.product_status);
+    const showSend    = ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
+    const showDiscard = ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
+    const showRegen   = ["DISCARDED", "READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
     const showAnalyzing = isAnalyzingState(item.product_status);
     const isSelected  = selectedIds.has(item.report_id);
-    const canSelect   = ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
+    const canSelect   = ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
 
     const toggleSelect = () => {
       if (!canSelect) return;

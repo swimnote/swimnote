@@ -8,6 +8,7 @@ import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { getPoolQuotaGb } from "../lib/storageQuota.js";
 
 const router = Router();
 
@@ -60,26 +61,20 @@ async function calcUserStorage(userId: string, poolId: string) {
 }
 
 // ── 구독 쿼터 조회 헬퍼
-// swimming_pools.storage_mb를 직접 읽음 (applySubscriptionState가 항상 최신 값 기록)
-async function getQuotaBytes(poolId: string): Promise<number> {
+// storageQuota.getPoolQuotaGb() 사용 — x_plan_key 인식 (X 플랜 1TB 정확히 반환)
+async function getQuotaInfo(poolId: string): Promise<{ quotaBytes: number; displayStorage: string | null }> {
   try {
+    const { quotaGb } = await getPoolQuotaGb(poolId);
+    // display_storage 문자열은 DB에서 별도로 읽음
     const [pool] = (await superAdminDb.execute(sql`
-      SELECT storage_mb, base_storage_gb, extra_storage_gb
-      FROM swimming_pools
-      WHERE id = ${poolId} LIMIT 1
+      SELECT display_storage FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
-
-    const extraMb = Number(pool?.extra_storage_gb ?? 0) * 1024;
-    if (pool?.storage_mb) {
-      // storage_mb(플랜 기본) + extra_storage_gb(추가 구매) → bytes
-      return (Number(pool.storage_mb) + extraMb) * 1024 * 1024;
-    }
-    // storage_mb 미설정 시 base_storage_gb 사용
-    const baseGb  = Number(pool?.base_storage_gb ?? 0.5);
-    const extraGb = Number(pool?.extra_storage_gb ?? 0);
-    return (baseGb + extraGb) * 1024 * 1024 * 1024;
+    return {
+      quotaBytes:     quotaGb * 1024 * 1024 * 1024,
+      displayStorage: pool?.display_storage ?? null,
+    };
   } catch {
-    return 512 * 1024 * 1024; // 기본 500MB fallback
+    return { quotaBytes: 512 * 1024 * 1024, displayStorage: null };
   }
 }
 
@@ -96,12 +91,12 @@ router.get(
       const poolId = await getPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-      const [usage, quota_bytes] = await Promise.all([
+      const [usage, { quotaBytes, displayStorage }] = await Promise.all([
         calcUserStorage(userId, poolId),
-        getQuotaBytes(poolId),
+        getQuotaInfo(poolId),
       ]);
 
-      res.json({ ...usage, quota_bytes });
+      res.json({ ...usage, quota_bytes: quotaBytes, display_storage: displayStorage });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "서버 오류" });
@@ -157,11 +152,12 @@ router.get(
           diary_bytes: 0, notice_bytes: 0, system_bytes: 0, total_bytes: 0 }
       );
 
-      const quota_bytes = await getQuotaBytes(poolId);
+      const { quotaBytes, displayStorage } = await getQuotaInfo(poolId);
 
       res.json({
         ...totals,
-        quota_bytes,
+        quota_bytes: quotaBytes,
+        display_storage: displayStorage,
         staff: perUser,
       });
     } catch (err) {

@@ -379,11 +379,11 @@ export async function sendIndividualReport(
     return { alreadyPublished: true };
   }
 
-  // READY_TO_SEND 또는 APPROVED 상태에서 발송 가능
-  // (X모드 선생님 검수 후 APPROVED된 리포트를 관리자가 직접 발송)
-  if (!["READY_TO_SEND", "APPROVED"].includes(row.product_status)) {
+  // READY_TO_SEND, APPROVED, REVIEW_REQUIRED 상태에서 발송 가능
+  // (검수 대기 상태도 관리자가 직접 발송 가능)
+  if (!["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(row.product_status)) {
     throw new ReportProductionError(
-      `발송은 READY_TO_SEND 또는 APPROVED 상태에서만 가능합니다. 현재: ${row.product_status}`,
+      `발송은 READY_TO_SEND, APPROVED, REVIEW_REQUIRED 상태에서만 가능합니다. 현재: ${row.product_status}`,
       "SEND_NOT_ALLOWED",
     );
   }
@@ -449,7 +449,7 @@ export async function bulkSendReports(
     FROM growth_reports
     WHERE swimming_pool_id = ${poolId}
       AND report_period    = ${period}
-      AND product_status   IN ('READY_TO_SEND', 'APPROVED')
+      AND product_status   IN ('READY_TO_SEND', 'APPROVED', 'REVIEW_REQUIRED')
       AND deleted_at IS NULL
     FOR UPDATE SKIP LOCKED
   `);
