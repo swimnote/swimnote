@@ -1332,52 +1332,55 @@ ${n}`;return LUe("sha256",r).update(a).digest("base64")}async function U7({phone
   `)).rows.length)return console.log(`[gr-ensure] eligibility \uC870\uAC74 \uBBF8\uCDA9\uC871 \u2014 no-op: pool=${t}`),{skipped:"NOT_ELIGIBLE"};let o=Cte(s.toISOString());return await GU(e,t,r,o),console.log(`[gr-ensure] DONE: pool=${t} period=${r.reportPeriod} created=${o.cycles_created} opened=${o.cycles_opened} reports=${o.reports_opened}`),{opened:!0,cycleId:"opened",reportsCreated:o.reports_opened}}function YU(){JFe.schedule("0 1 * * *",async()=>{if(!await At(wg,Dte)){console.log("[gr-scheduler] lock not acquired \u2014 other instance running");return}try{let e=await VU(E);await Kt(wg,{ran:!0,at:new Date().toISOString(),cycles_opened:e.cycles_opened,auto_published:e.reports_auto_published,failed:e.failed})}catch(e){console.error("[gr-scheduler] cron \uC2E4\uD589 \uC624\uB958:",e.message)}finally{await St(wg)}},{timezone:"Asia/Seoul"}),setTimeout(async()=>{if(await At(wg,Dte))try{console.log("[gr-scheduler] startup recovery run"),await VU(E)}catch(e){console.error("[gr-scheduler] startup recovery \uC624\uB958:",e.message)}finally{await St(wg)}},3e4),console.log("[gr-scheduler] Growth Report Scheduler \uC2DC\uC791 (01:00 KST daily + 30s startup recovery)")}var wg,Dte,VN=j(()=>{"use strict";B();J();fr();GN();wg="growth-report-cycle",Dte=600});var Ute={};Pe(Ute,{sendOperatorAlert:()=>XN});async function XN(t){let e=process.env.OPERATOR_ALERT_PHONE;if(!e){console.warn("[operator-alert] OPERATOR_ALERT_PHONE not set \u2014 skipping SMS");return}try{let{sendSms:s}=await Promise.resolve().then(()=>(XT(),A1));await s({phone:e,message:`[SwimNote ALERT]
 ${t}`}),console.log("[operator-alert] SMS sent:",t.slice(0,80))}catch(s){console.error("[operator-alert] SMS send failed:",s.message)}}var JU=j(()=>{"use strict"});import{createHash as eje}from"node:crypto";function nje(){return(process.env.GROWTH_REPORT_ENGINE_URL??"").trim()}function rje(){return(process.env.GROWTH_REPORT_ENGINE_SECRET??"").trim()}function aje(){let t=Number(process.env.GROWTH_REPORT_ENGINE_TIMEOUT_MS);return t>0?t:tje}function Hte(){let t=Number(process.env.GROWTH_REPORT_MAX_HISTORY_PERIODS);return t>0?t:sje}function oje(t){let e=rje();if(!e)throw new Pr("ENGINE_SECRET_NOT_CONFIGURED",0,!1,"GROWTH_REPORT_ENGINE_SECRET env var not set \u2014 cannot create service JWT");return Mte.default.sign({userId:"service:growth-report-worker",role:"platform_admin",poolId:t,tv:1},e,{algorithm:"HS256",expiresIn:"5m"})}function QU(t){if(t===null||typeof t!="object")return t;if(Array.isArray(t))return t.map(QU);let e=t;return Object.keys(e).sort().reduce((s,n)=>(s[n]=QU(e[n]),s),{})}function Wte(t){let e=QU(t),s=JSON.stringify(e);return eje("sha256").update(s,"utf8").digest("hex")}function Bte(t){if(t instanceof Pr)return t.retryable;if(t instanceof Error){let e=t.message.toLowerCase();return e.includes("timeout")||e.includes("abort")||e.includes("network")||e.includes("econnrefused")}return!1}function qte(t){return typeof t=="string"&&ije.has(t)}async function zte(t){let e=nje();if(!e)throw new Pr("ENGINE_URL_NOT_CONFIGURED",0,!1,"GROWTH_REPORT_ENGINE_URL env var not set");let s=aje(),n=new AbortController,r=setTimeout(()=>n.abort(),s),a=oje(t.context.pool_id),o=0;try{o=1;let i=await fetch(`${e}/api/v1/growth-report/analyze`,{method:"POST",headers:{"Content-Type":"application/json","X-Request-Id":t.request_id,Authorization:`Bearer ${a}`},body:JSON.stringify(t),signal:n.signal});if(!i.ok){let l="ENGINE_HTTP_ERROR",d=i.status>=500||i.status===429,p;try{let _=await i.json();p=_,typeof _?.error_code=="string"&&(l=_.error_code,d=cje.has(l))}catch{}throw new Pr(l,i.status,d,`ENGINE ${i.status}: ${l}`,p)}return{response:await i.json(),actualCallCount:o,retryCount:0}}catch(i){if(i instanceof Pr)throw i;let u=i.name==="AbortError";throw new Pr(u?"COMPOSITION_TIMEOUT":"NETWORK_ERROR",0,!0,i.message)}finally{clearTimeout(r)}}var Mte,Pte,Fte,jte,tje,sje,ije,cje,Pr,ZU,YN=j(()=>{"use strict";Mte=ae(au(),1),Pte="1.0",Fte="1.0",jte=1,tje=12e4,sje=12;ije=new Set(["COMPLETE","COMPLETE_WITH_QUESTIONS_AVAILABLE","COMPLETE_WITH_PARENT_EVIDENCE","PARTIAL","DATA_ACCUMULATING"]),cje=new Set(["COMPOSITION_PROVIDER_ERROR","COMPOSITION_TIMEOUT","NETWORK_ERROR","SERVICE_UNAVAILABLE"]),Pr=class extends Error{constructor(s,n,r,a,o){super(a);this.errorCode=s;this.statusCode=n;this.retryable=r;this.engineDetails=o;this.name="EngineCallError"}};ZU=new Set(["PASS","REVISED_PASS"])});var Yte={};Pe(Yte,{buildAnalysisSnapshot:()=>sM,isUsableDiscardedReport:()=>Vte,queryAttendanceForEligibility:()=>eM,queryDiariesForEligibility:()=>tM,queryPreviousUsableReport:()=>Xte});import{randomUUID as uje}from"node:crypto";async function eM(t,e,s,n,r){let a=await t.execute(c`
     SELECT
-      -- Branch 1-a: 정규수업 explicit present/late (auto-save 포함)
+      -- Branch 1-a: 정규수업 explicit present/late
+      --   event identity = (class_group_id, date) — 같은 날 다른 반 2개 = 2회; 같은 (cg,date) 중복 = 1회
       --   session_type IS NULL OR session_type != 'makeup' → 정규
-      --   DISTINCT date: 같은 날 중복 정규 row는 1회로 계산
+      --   NOTE: attendance.date is TEXT; cast to date for comparison
       (
-        SELECT COUNT(DISTINCT a.date)::int
+        SELECT COUNT(DISTINCT (a.class_group_id, a.date::date))::int
         FROM attendance a
         WHERE a.student_id       = ${e}
           AND a.swimming_pool_id = ${s}
-          AND a.date             >= ${n}
-          AND a.date             <  ${r}
+          AND a.date::date       >= ${n}::date
+          AND a.date::date       <  ${r}::date
           AND a.status           IN ('present', 'late')
           AND (a.session_type IS NULL OR a.session_type <> 'makeup')
       )
       +
-      -- Branch 1-b: 보강 완료: COUNT(*) — session_type='makeup', status='present'
-      --   (같은 날 정규 + 보강 각각 별도 event; §8)
+      -- Branch 1-b: 보강 완료: SoT = makeup_sessions.status='completed'
+      --   attendance row 없어도 인정 (completed_attendance_id=NULL이어도 OK)
+      --   event identity = makeup_sessions.id
+      --   날짜 기준: completed_at::date (assigned_date는 TEXT이고 null 가능)
       (
-        SELECT COUNT(*)::int
-        FROM attendance a
-        WHERE a.student_id       = ${e}
-          AND a.swimming_pool_id = ${s}
-          AND a.date             >= ${n}
-          AND a.date             <  ${r}
-          AND a.status           IN ('present', 'late')
-          AND a.session_type = 'makeup'
+        SELECT COUNT(ms.id)::int
+        FROM makeup_sessions ms
+        WHERE ms.student_id        = ${e}
+          AND ms.swimming_pool_id  = ${s}
+          AND ms.completed_at::date >= ${n}::date
+          AND ms.completed_at::date <  ${r}::date
+          AND ms.status            = 'completed'
       )
       +
-      -- Branch 2: schedule-based implied attendance (BLOCKER #1 — diary 의존 제거)
+      -- Branch 2: schedule-based implied attendance (diary 의존 완전 제거)
       --   수업 예정일(class_groups.schedule_days 기준) 중 explicit 출석 없는 날만 추가
-      --   SoT: class_groups.schedule_days 한글 요일 단일 문자(월화수목금토일)
-      --   pool_holidays 제외, 명시적 결석 제외, Branch 1-a 중복 방지
+      --   event identity = (class_group_id, date) — 같은 날 다른 반 = 별도 event
+      --   pool_holidays 제외, 명시적 결석 제외, Branch 1-a의 (cg,date) 중복 방지
+      --   NOTE: attendance.date is TEXT; cast to date for comparison
       (
-        SELECT COUNT(DISTINCT gs.d::date)::int
+        SELECT COUNT(DISTINCT (cg.id, gs.d::date))::int
         FROM generate_series(
           ${n}::date,
           ${r}::date - INTERVAL '1 day',
           INTERVAL '1 day'
         ) gs(d)
         JOIN student_class_history sch ON (
-          sch.student_id         = ${e}
+          sch.student_id           = ${e}
           AND sch.swimming_pool_id = ${s}
-          AND sch.enrolled_at::date <= gs.d::date
-          AND (sch.left_at IS NULL OR sch.left_at::date > gs.d::date)
+          AND sch.enrolled_at      <= gs.d::date
+          AND (sch.left_at IS NULL OR sch.left_at > gs.d::date)
         )
         JOIN class_groups cg ON (
-          cg.id                  = sch.class_group_id
+          cg.id                    = sch.class_group_id
           AND cg.swimming_pool_id  = ${s}
           AND cg.is_deleted        = false
           AND (cg.is_one_time IS NULL OR cg.is_one_time = false)
@@ -1398,20 +1401,22 @@ ${t}`}),console.log("[operator-alert] SMS sent:",t.slice(0,80))}catch(s){console
           WHERE ph.pool_id          = ${s}
             AND ph.holiday_date::date = gs.d::date
         )
-        -- 명시적 결석 없음
+        -- 해당 (class_group_id, date) 명시적 결석 없음
         AND NOT EXISTS (
           SELECT 1 FROM attendance a2
           WHERE a2.student_id       = ${e}
             AND a2.swimming_pool_id = ${s}
-            AND a2.date             = gs.d::date
+            AND a2.date::date       = gs.d::date
+            AND a2.class_group_id   = cg.id
             AND a2.status           = 'absent'
         )
-        -- 정규 explicit present row가 없는 날짜만 (Branch 1-a와 중복 방지)
+        -- 해당 (class_group_id, date) explicit present가 없는 경우만 (Branch 1-a와 중복 방지)
         AND NOT EXISTS (
           SELECT 1 FROM attendance a3
           WHERE a3.student_id       = ${e}
             AND a3.swimming_pool_id = ${s}
-            AND a3.date             = gs.d::date
+            AND a3.date::date       = gs.d::date
+            AND a3.class_group_id   = cg.id
             AND a3.status           IN ('present', 'late')
             AND (a3.session_type IS NULL OR a3.session_type <> 'makeup')
         )

@@ -1,0 +1,513 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+APP FINAL PROOF — 마지막 3개 검증
+
+현재 APP Growth Report 구현은 거의 완료되었습니다.
+
+이번 작업은 새 기능 개발이 아니라
+APP FINAL PASS 전 마지막 사실 검증입니다.
+
+AI ENGINE 수정 금지.
+ToyKids 8월 실제 리포트 생성 금지.
+관련 없는 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. REGULAR ATTENDANCE 실제 계산 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 완료보고에는 Attendance SoT가:
+
+class_groups.schedule_days
++ student_class_history
++ pool_holidays
++ attendance
+
+라고 되어 있습니다.
+
+그러나 실제 계산 설명은:
+
+COUNT(DISTINCT attendance.date)
+
+형태로 읽힙니다.
+
+최종 정책은 다음입니다.
+
+정상 정규수업 대상일
++
+해당 날짜 재원
++
+휴일/휴강 아님
++
+explicit absent 없음
+=
+출석 1회
+
+즉 attendance row가 아예 없어도
+정상 scheduled lesson이면 출석으로 인정해야 합니다.
+
+실제 queryAttendanceForEligibility() 코드를 다시 추적하십시오.
+
+반드시 아래 케이스가 성립해야 합니다.
+
+A.
+scheduled lesson
+attendance row 없음
+absent row 없음
+→ attendance +1
+
+B.
+scheduled lesson
+explicit present
+→ attendance +1
+
+C.
+scheduled lesson
+explicit late
+→ attendance +1
+
+D.
+scheduled lesson
+explicit absent
+→ attendance +0
+
+E.
+schedule day 아님
+→ attendance +0
+
+F.
+pool holiday
+→ attendance +0
+
+G.
+enrolled_at 이전
+→ attendance +0
+
+H.
+left_at 이후
+→ attendance +0
+
+현재 코드가 실제 schedule dates를 생성하지 않고
+attendance table row만 세고 있다면
+즉시 수정하십시오.
+
+Diary proxy로 돌아가면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. REGULAR SESSION DATE 생성 방식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+analysis period 안의 날짜를 기준으로
+
+class_groups.schedule_days
+
+와 매칭하여
+해당 학생의 scheduled regular lesson event를 생성하십시오.
+
+Asia/Seoul date semantics를 유지하십시오.
+
+schedule_days가:
+
+월화수목금토일
+
+한글 단일문자 저장 방식이면
+실제 기존 helper 또는 기존 앱 schedule parser를 재사용하십시오.
+
+새 해석 로직을 여러 곳에 중복 구현하지 마십시오.
+
+정규 session identity:
+
+student_id
++ class_group_id
++ lesson_date
+
+기준으로 중복 제거하십시오.
+
+학생이 같은 날짜에 서로 다른 실제 정규반 수업 2회를
+정말 수강 가능한 구조라면
+class_group_id가 다르므로 별도 event로 처리하십시오.
+
+단순:
+
+student_id + date
+
+만으로 합쳐서
+실제 두 수업을 1회로 줄이지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. MAKEUP 출석 Source 수정/확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보강 출석의 최종 Source of Truth는:
+
+makeup_sessions.status = 'completed'
+
+입니다.
+
+attendance row가 반드시 존재해야 하는 구조로 만들지 마십시오.
+
+아래 케이스:
+
+makeup_sessions.status='completed'
+completed_attendance_id=NULL
+attendance row도 없음
+
+이어도
+
+실제 완료된 보강이면
+attendance +1
+
+이어야 합니다.
+
+즉 보강은
+makeup_sessions 자체에서 event를 계산하십시오.
+
+attendance row는 검증/연결 자료일 수 있으나
+필수 조건이 아닙니다.
+
+makeup session identity:
+
+makeup_session.id
+
+정규수업과 같은 날짜라도:
+
+regular +1
+makeup +1
+
+합계 2가 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Attendance 최소 실데이터 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 ToyKids 데이터에서 최소 다음 사례를 찾으십시오.
+
+1.
+scheduled regular lesson
+attendance row 없음
+absent 없음
+
+→ 새 계산에서 출석 인정되는 사례
+
+2.
+scheduled regular lesson
+explicit absent 존재
+
+→ 출석 제외되는 사례
+
+3.
+completed makeup
+attendance row 존재
+
+→ 출석 인정
+
+4.
+가능하다면:
+completed makeup
+attendance row 없음
+
+→ 출석 인정
+
+각 케이스는
+학생 개인정보 마스킹 후
+
+lesson_date
+class_group_id
+attendance row 존재 여부
+absent 여부
+makeup status
+최종 event count
+
+를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 2026-08 ToyKids 최종 V3 DRY-RUN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 INSERT 없이
+ToyKids 2026-09 report_month
+= 2026-08 analysis period
+
+전체 cohort를 v3 정책으로 계산하십시오.
+
+최종 정책:
+
+report_month 시작 재원
++
+attendance_count >= 3
++
+valid source_event_count >= 1
+
+다음을 정확히 산출하십시오.
+
+- cohort
+- attendance >=3
+- source >=1
+- ELIGIBLE
+- EXCLUDED
+- NOT_REREGISTERED
+- INSUFFICIENT_ATTENDANCE
+- NO_SOURCE_DATA
+- MANUAL_EXCLUDED
+
+그리고 matrix:
+
+att>=3 / src>=1
+att>=3 / src=0
+att<3 / src>=1
+att<3 / src=0
+
+합계가 cohort와 정확히 일치해야 합니다.
+
+INSERT 금지.
+ENGINE 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 이전 210/219 차이 설명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사에서는
+8월 cohort가 210명이었습니다.
+
+현재 보고서는
+219명이라고 합니다.
+
+동일 ToyKids / 동일 report_month 기준이라면
+9명 차이의 원인을 반드시 설명하십시오.
+
+가능한 원인 예:
+
+- report_month start 재원 기준 변경
+- history 계산 변경
+- mid-month entrant 포함 방식
+- 이전 query 오류
+- soft-delete 영향
+- class membership 중복 제거 방식
+
+추측하지 말고
+학생 ID를 마스킹하여 set difference로 확인하십시오.
+
+최종 cohort SoT를 하나로 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Production 배포 완료 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SHA:
+
+8b7cf9d5
+
+가 Render Production LIVE 상태가 된 후 확인하십시오.
+
+제출:
+
+- deployment status
+- deployed SHA
+- startup timestamp
+- server 정상 health
+- scheduler startup log
+- analysis worker startup log
+- batch worker startup log
+
+배포 진행 중 상태로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Worker 실제 runtime tick 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+환경변수:
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+GROWTH_REPORT_BATCH_AUTO_ENABLED=true
+
+는 이미 설정했다고 보고했습니다.
+
+배포 완료 후
+실제 Production worker cron이
+최소 1회 tick한 로그를 확인하십시오.
+
+현재 claim 대상 report가 0건이어도 됩니다.
+
+우리가 확인할 것은:
+
+worker process가 실제 살아 있음
++
+cron callback이 실제 실행됨
++
+auto flag 때문에 skip되지 않음
++
+DB query까지 수행됨
+
+입니다.
+
+예:
+
+tick
+→ claim candidates = 0
+→ 정상 종료
+
+도 PASS입니다.
+
+실제 AI ENGINE 호출은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Scheduler runtime도 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+scheduler도 실제 runtime에서
+
+- startup recovery
+또는
+- scheduled tick
+
+중 최소 하나가 실행된 로그를 확인하십시오.
+
+코드 존재만으로 PASS하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 기존 Cycle / Reissue 상태 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 전략 A 유지:
+
+2026-08 existing cycle 재사용
++
+새 v3 growth_report rows 생성
+
+이 구조는 변경하지 마십시오.
+
+단 DRY-RUN에서 반드시:
+
+- 신규 row insert 가능
+- unique collision 0 예상
+- soft-deleted rows 영향 0
+- 신규 request_id 가능
+- old idempotency cache 영향 0
+
+을 다시 확인하십시오.
+
+실제 INSERT 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 테스트 추가
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 133/133 GREEN 유지.
+
+아래 Attendance 테스트를 추가하십시오.
+
+TC-V
+scheduled / no attendance row / no absent
+→ present
+
+TC-W
+scheduled / explicit absent
+→ absent
+
+TC-X
+holiday / no absent
+→ not counted
+
+TC-Y
+completed makeup / no attendance row
+→ counted
+
+TC-Z
+same day regular + completed makeup
+→ count 2
+
+TC-AA
+same date / two different regular class_group events
+→ 실제 두 수업이면 count 2
+
+최종 Growth Report 관련 활성 test:
+
+FAIL = 0
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 작업에서 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- ToyKids 8월 Growth Report INSERT
+- 실제 ENGINE 대량 호출
+- PUBLISHED 생성
+- Parent push
+- 기존 diary 수정
+- attendance 원본 수정
+- makeup 원본 수정
+- 다른 pool 변경
+- AI ENGINE 코드 변경
+- Prompt 변경
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 순서로 보고하십시오.
+
+1. PASS / HOLD
+
+2. Regular attendance가
+   attendance row 없이도 계산되는지 YES/NO
+
+3. 실제 regular scheduled-event 생성 코드 위치
+
+4. regular event identity
+
+5. completed makeup이
+   attendance row 없이도 계산되는지 YES/NO
+
+6. makeup event identity
+
+7. 실데이터 검증 4종 결과
+
+8. 2026-08 ToyKids cohort
+
+9. attendance>=3
+
+10. source>=1
+
+11. ELIGIBLE
+
+12. EXCLUDED 및 reason별 수
+
+13. 최종 matrix
+
+14. 기존 210명 vs 신규 cohort 차이 원인
+
+15. 최종 cohort SoT
+
+16. SHA 8b7cf9d5 Production LIVE 여부
+
+17. Production startup logs
+
+18. Analysis worker 실제 tick log
+
+19. Batch worker 실제 tick log
+
+20. Scheduler 실제 runtime 실행 log
+
+21. GROWTH_REPORT_ANALYSIS_AUTO_ENABLED 실제 runtime 값
+
+22. GROWTH_REPORT_BATCH_AUTO_ENABLED 실제 runtime 값
+
+23. cycle/reissue dry-run 재확인
+
+24. 신규 Attendance TC-V~AA 결과
+
+25. 전체 Growth Report test
+    total / pass / fail
+
+26. 실제 ToyKids 8월 Growth Report 재발급 여부
+    반드시 미실행
+
+27. APP FINAL PASS 여부
+
+28. AI ENGINE 작업으로 넘어가도 되는지
+    YES / NO
+
+보고 후 멈추십시오.
