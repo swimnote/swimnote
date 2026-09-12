@@ -98,9 +98,18 @@ export async function initSuperDb(db: MigrationDb): Promise<void> {
   console.log("[super-db-init] swimming_pools 수영정보 컬럼 보완 완료");
 
   // subscription_status enum — 결제실패/삭제대기/삭제 값 보완
-  for (const val of ["payment_failed", "pending_deletion", "deleted"]) {
-    await db.execute(sql.raw(`ALTER TYPE subscription_status ADD VALUE IF NOT EXISTS '${val}'`))
-      .catch(() => {}); // 이미 존재하면 무시
+  // lock_timeout=3s: 구 서버가 swimming_pools에 활성 트랜잭션을 보유하면
+  // ALTER TYPE ADD VALUE가 AccessShareLock 대기로 무한 블로킹 → setServerReady() 차단 → 헬스체크 타임아웃.
+  // 3초 이내 락 획득 실패 시 즉시 포기하고 서버 기동을 계속 진행한다.
+  for (const val of ["payment_failed", "pending_deletion", "deleted", "payment_suspended"]) {
+    try {
+      await db.execute(sql.raw(`SET lock_timeout = '3s'`));
+      await db.execute(sql.raw(`ALTER TYPE subscription_status ADD VALUE IF NOT EXISTS '${val}'`));
+      await db.execute(sql.raw(`RESET lock_timeout`));
+    } catch (e: any) {
+      // 이미 존재하거나 락 타임아웃 → 무시하고 계속
+      console.warn(`[super-db-init] subscription_status enum '${val}' 추가 건너뜀:`, e?.message?.slice(0, 80));
+    }
   }
 
   // backup_logs 테이블 — 백업 상태 기록 시스템

@@ -1951,7 +1951,7 @@ cron.schedule("0 * * * *", async () => {
       WHERE ps.pending_tier IS NOT NULL
         AND ps.downgrade_at IS NOT NULL
         AND ps.downgrade_at <= CURRENT_DATE
-        AND COALESCE(sp.subscription_status, '') != 'payment_suspended'
+        AND (sp.subscription_status IS NULL OR sp.subscription_status::text != 'payment_suspended')
     `)).rows as any[];
 
     for (const row of pendingDowngrades) {
