@@ -1,0 +1,343 @@
+[보낼 곳: APP REPLIT]
+
+GAUGE-NEW 설계는 방향 승인하되, 아직 구현 시작하지 마십시오.
+
+현재 제안안에는 실제 코드/DB 기준으로 먼저 닫아야 할 항목이 있습니다.
+
+추측해서 설계를 바꾸지 말고 아래 내용을 Production 코드/DB 기준으로 확인한 뒤 **수정된 최종 GAUGE-NEW 설계안**을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. LEVEL별 계산식 검증
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 제안:
+
+현재 `current_level_order` 이상의 CPO만 수집
+→ 3-session 확인
+→ confirmed item 수 / 해당 레벨 전체 item 수
+→ 레벨 구간에 반영
+
+여기서 반드시 확인할 것:
+
+예를 들어 빨간모자(Level 3) 학생에게
+Level 3 CPO와 Level 4 CPO가 동시에 존재할 경우,
+
+Level 4 item이 Level 3의 분모에 섞이는 구조가 되어서는 안 됩니다.
+
+각 curriculum item의 실제 level/order 구조를 확인하고,
+필요하다면 LEVEL별로 독립 계산하십시오.
+
+후보 방식:
+
+각 Level L >= current_level에 대해
+
+confirmed_L
+= 해당 Level에서 3-session 조건을 통과한 item 수
+
+total_L
+= 해당 Level의 전체 계산 대상 item 수
+
+ratio_L
+= MIN(confirmed_L / total_L, 1)
+
+candidate_L
+= 해당 Level floor + ratio_L × 해당 Level width
+
+최종:
+
+raw_gauge
+= MAX(
+current_level floor,
+각 Level candidate
+)
+
+gauge_pct
+= MIN(
+80,
+MAX(previous_gauge_pct, raw_gauge)
+)
+
+단, 이 공식을 무조건 구현하지 말고
+현재 CPO / curriculum rank / level 구조를 확인해서
+같은 의도를 가장 정확하게 구현하는 공식을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. current_level_order 전체 매핑 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production에서 `students.current_level_order`가 어떤 값을 사용하는지 확인하십시오.
+
+반드시 전체 매핑 제출:
+
+* 1
+* 2
+* 3
+* 4
+* 5
+* 6
+* 7
+* 그 외 존재 값
+
+특히 현재 설계에는:
+
+Level 1 흰색 = 0~20
+Level 2 파란 = 20~35
+Level 3 빨간 = 35~50
+Level 4 검정 = 50~65
+마스터즈 = 65~80
+
+만 정의되어 있습니다.
+
+Production에서 금 / 챔피언 / 슈퍼챔피언 등이 별도 `current_level_order`로 존재한다면
+이 값들이 어떤 gauge band에 매핑되는지 반드시 확정해야 합니다.
+
+임의 매핑 금지.
+
+실제 DB/UI/API 기준으로 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 레벨 변경 즉시 Gauge 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+`/teacher/students/:id/level`
+`/admin/students/:id/level`
+
+에서 `students.current_level_order`를 저장한다고 보고되어 있습니다.
+
+실제 코드를 확인하십시오.
+
+예:
+
+빨간모자
+gauge_pct = 38%
+
+→ 선생님이 검정모자로 승급
+
+검정 floor = 50%
+
+이 경우 다음 일지를 기다리지 않고
+레벨 변경 직후 gauge_pct가 최소 50%가 되어야 합니다.
+
+현재 level PATCH 뒤에 SCP 재계산이 실행되는지 확인하십시오.
+
+안 된다면 level PATCH 성공 후
+어느 service/function에서 재계산시키는 것이 안전한지 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 레벨 하향/오입력 정정 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 SCP의 `GREATEST` 단조증가를 그대로 사용하면:
+
+실수로 검정 입력
+→ gauge 50%
+→ 빨강으로 다시 정정
+
+했을 때 gauge가 50%에 고정될 수 있습니다.
+
+확인:
+
+* level downgrade가 현재 UI/API에서 가능한가
+* 실제 운영에서 downgrade가 존재하는가
+* 단순 오입력 정정이 가능한가
+
+GAUGE-NEW에서는 일반 일지 누적 시에는 단조 증가를 유지하되,
+레벨 자체가 관리자의 명시적 정정으로 변경되는 경우
+잘못된 과거 floor가 영구 고정되지 않도록 정책이 필요합니다.
+
+현재 시스템에 맞는 처리 방식을 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. gauge_pct 신규 필드 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+`student_curriculum_progress.gauge_pct NUMERIC(5,2)`
+
+추가는 가능 여부를 확인하십시오.
+
+기존:
+
+* confirmed_progress_pct
+* display_confirmed_pct
+
+는 즉시 삭제/rename하지 않습니다.
+
+각 필드의 실제 사용처를 전체 검색해 제출하십시오.
+
+APP/API 구버전 호환 때문에
+최소 전환기간 동안 기존 필드 + gauge_pct를 같이 유지해야 하는지 판단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. APP → Growth Report Snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 후보값을 Growth Report snapshot에 전달할 계획입니다.
+
+* gauge_pct
+* current_level_order
+* current_level_label
+
+현재 실제:
+
+`growth-report-snapshot-builder.ts`
+`growth-report-engine-client.ts`
+
+및 관련 타입/contract를 확인하십시오.
+
+어느 필드에 어떤 이름으로 추가해야
+기존 ENGINE contract를 깨지 않는지 제출하십시오.
+
+아직 AI ENGINE 수정하지 마십시오.
+
+APP contract를 먼저 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. AI 의미 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+`gauge_pct`는 절대로:
+
+"수영 실력 50%"
+"수영 능력 50점"
+
+이라는 뜻이 아닙니다.
+
+의미:
+
+"현재 커리큘럼/레벨 진행 위치"
+
+입니다.
+
+예:
+
+gauge_pct = 50
+current_level_order = 4
+current_level_label = 검정모자
+
+→ 검정모자 구간 시작점에 위치.
+
+이 의미가 ENGINE에 전달될 수 있도록
+APP snapshot contract에서 의미가 명확한 구조를 제안하십시오.
+
+AI ENGINE 시스템 프롬프트는 APP contract 확정 후 별도 지시합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 과거 85명 숫자 하드코딩 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 작업은 금지:
+
+`REVIEW_REQUIRED 85건 → REGENERATING`
+
+85는 과거 특정 시점 계산값일 수 있으므로
+현재 Production 대상 숫자로 고정해서 사용하지 마십시오.
+
+실제 재발급 시에는
+실행 직전 Production eligibility 계산 결과가 Source of Truth입니다.
+
+현재 Growth Report 상태는 조회만 하십시오.
+
+확인:
+
+* 현재 active report 수
+* report_period별 상태
+* soft-delete 상태
+* cycle 상태
+* ToyKids 대상 신규 전체 발급이 이미 실행되었는지
+
+기존 Report 상태 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 구현 순서도 다시 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 설계가 확정되면 예상 순서는 다음 계열이어야 합니다.
+
+1. DB migration
+2. SCP 계산 로직
+3. level 변경 시 gauge 재계산
+4. 기존 SCP gauge backfill/recompute
+5. API response
+6. Growth Report snapshot contract
+7. APP gauge UI
+8. APP report detail
+9. AI ENGINE contract/해석 연결
+10. Runtime 검증
+11. 실제 eligibility 재계산
+12. 신규 Growth Report 생성
+
+실제 dependency를 확인하고
+필요하면 순서를 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 배포/완료보고 헌법
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사 단계에서는 배포하지 마십시오.
+
+향후 구현/배포 단계의 완료보고에는 반드시 아래를 포함합니다.
+
+* Repository
+* Branch
+* 작업 Commit SHA
+* 실제 Production LIVE SHA
+* 배포 환경
+* 배포 서비스명
+* 배포 ID 또는 배포 식별값
+* Runtime Version
+* DB migration 실제 적용 확인
+* API Runtime 확인
+
+APP 배포가 포함되면 추가:
+
+* app version
+* runtimeVersion
+* iOS buildNumber
+* Android versionCode
+* EAS Update ID
+* channel / branch
+
+"배포 완료", "정상", "테스트 통과"라는 자연어 보고만으로는 완료로 인정하지 않습니다.
+
+확인하지 못한 항목은 반드시:
+
+`확인하지 못함`
+
+이라고 보고하십시오.
+
+추측해서 PASS라고 작성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 이번 단계 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 순서 그대로 보고하십시오.
+
+1. current_level_order 실제 전체 매핑
+2. curriculum/CPO의 level 연결 구조
+3. 현재 3-session rule 실제 구현
+4. Level 3 + Level 4 CPO 혼재 시 현재 계산 결과
+5. GAUGE-NEW 권장 최종 계산식
+6. 각 Level gauge range 최종 매핑
+7. level PATCH 후 재계산 현재 존재 여부
+8. downgrade/오입력 정정 정책 제안
+9. confirmed_progress_pct 실제 사용처
+10. display_confirmed_pct 실제 사용처
+11. gauge_pct 추가 시 변경 파일
+12. Growth Report snapshot 최종 contract 제안
+13. 현재 Growth Report Production 상태
+14. DB migration/backfill 방식
+15. 구현 순서
+16. blocker
+
+마지막에 반드시:
+
+`GAUGE-NEW 구현 준비 판정: PASS / HOLD / FAIL`
+
+을 작성하십시오.
+
+이번 단계에서는 조사와 최종 설계 확정만 하고
+코드 수정·DB migration·배포는 하지 마십시오.
