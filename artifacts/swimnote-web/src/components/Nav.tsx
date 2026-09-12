@@ -15,9 +15,15 @@ const links: NavLink[] = [
   { label: "도입 문의",   page: "/support" },
 ];
 
+// 검정 hero를 가진 페이지 (스크롤 전 nav 텍스트를 흰색으로)
+const DARK_HERO_PAGES = ["/"];
+
 export default function Nav() {
   const [location, navigate] = useLocation();
   const [scrolled, setScrolled] = useState(false);
+
+  const hasDarkHero = DARK_HERO_PAGES.includes(location);
+  const onDark = hasDarkHero && !scrolled;
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 4);
@@ -37,9 +43,13 @@ export default function Nav() {
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+      className="fixed top-0 left-0 right-0 z-50 transition-all duration-500"
       style={{
-        background: scrolled ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.0)",
+        background: scrolled
+          ? "rgba(255,255,255,0.82)"
+          : onDark
+          ? "rgba(0,0,0,0.0)"
+          : "rgba(255,255,255,0.0)",
         backdropFilter: scrolled ? "saturate(180%) blur(20px)" : "none",
         WebkitBackdropFilter: scrolled ? "saturate(180%) blur(20px)" : "none",
         borderBottom: scrolled ? "1px solid rgba(0,0,0,0.08)" : "1px solid transparent",
@@ -74,14 +84,17 @@ export default function Nav() {
         <nav className="hidden md:flex items-center gap-0">
           {links.map((l) => {
             const active = isActive(l);
+            const baseColor   = onDark ? "rgba(255,255,255,0.72)" : "#6e6e73";
+            const activeColor = onDark ? "#fff" : "#000";
+            const hoverColor  = onDark ? "#fff" : "#1d1d1f";
             return (
               <button
                 key={l.label}
                 onClick={() => handleClick(l)}
-                className="px-4 h-[44px] flex items-center text-[12px] font-normal transition-colors duration-150 cursor-pointer select-none"
-                style={{ color: active ? "#000" : "#6e6e73" }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#1d1d1f"; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "#6e6e73"; }}
+                className="px-4 h-[44px] flex items-center text-[12px] font-normal transition-colors duration-200 cursor-pointer select-none"
+                style={{ color: active ? activeColor : baseColor }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = hoverColor; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = baseColor; }}
               >
                 {l.label}
               </button>
@@ -92,10 +105,10 @@ export default function Nav() {
         {/* 로그인 */}
         <a
           href={`${import.meta.env.BASE_URL}login`}
-          className="hidden md:flex items-center text-[12px] transition-colors duration-150 shrink-0"
-          style={{ color: "#6e6e73" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#1d1d1f"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#6e6e73"; }}
+          className="hidden md:flex items-center text-[12px] transition-colors duration-200 shrink-0"
+          style={{ color: onDark ? "rgba(255,255,255,0.72)" : "#6e6e73" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = onDark ? "#fff" : "#1d1d1f"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = onDark ? "rgba(255,255,255,0.72)" : "#6e6e73"; }}
         >
           로그인
         </a>
@@ -109,7 +122,7 @@ export default function Nav() {
                 key={l.label}
                 onClick={() => handleClick(l)}
                 className="shrink-0 text-[11px] font-normal transition-colors py-1"
-                style={{ color: active ? "#000" : "#6e6e73" }}
+                style={{ color: active ? (onDark ? "#fff" : "#000") : (onDark ? "rgba(255,255,255,0.72)" : "#6e6e73") }}
               >
                 {l.label}
               </button>
