@@ -118,6 +118,7 @@ const STATUS_DISPLAY: Record<string, { label: string; bg: string; text: string }
   FAILED:             { label: "실패",       bg: "#FFEBEE", text: "#C62828" },
   ANALYSIS_FAILED:    { label: "분석 실패",  bg: "#FFEBEE", text: "#C62828" },
   OPEN:               { label: "대기 중",    bg: "#F5F5F5", text: "#757575" },
+  EXCLUDED:           { label: "발급 제외",  bg: "#F5F5F5", text: "#9E9E9E" },
 };
 
 function getStatusDisplay(status: string) {
@@ -138,11 +139,12 @@ interface KpiCounts {
   ready:     number;  // READY_TO_SEND
   published: number;  // PUBLISHED
   discarded: number;  // DISCARDED
+  excluded:  number;  // EXCLUDED
   failed:    number;  // FAILED, ANALYSIS_FAILED
 }
 
 function computeKpi(items: MonthlyListItem[]): KpiCounts {
-  const counts: KpiCounts = { total: items.length, beforeGen: 0, analyzing: 0, reviewing: 0, ready: 0, published: 0, discarded: 0, failed: 0 };
+  const counts: KpiCounts = { total: items.length, beforeGen: 0, analyzing: 0, reviewing: 0, ready: 0, published: 0, discarded: 0, excluded: 0, failed: 0 };
   for (const it of items) {
     const s = it.product_status;
     if (["OPEN","READY_FOR_ANALYSIS"].includes(s))          counts.beforeGen++;
@@ -151,6 +153,7 @@ function computeKpi(items: MonthlyListItem[]): KpiCounts {
     else if (s === "READY_TO_SEND")                         counts.ready++;
     else if (s === "PUBLISHED")                             counts.published++;
     else if (s === "DISCARDED")                             counts.discarded++;
+    else if (s === "EXCLUDED")                              counts.excluded++;
     else if (["FAILED","ANALYSIS_FAILED"].includes(s))      counts.failed++;
   }
   return counts;
@@ -163,6 +166,7 @@ const FILTER_OPTIONS: { label: string; value: string[] | null }[] = [
   { label: "검수 대기", value: ["REVIEW_REQUIRED","APPROVED"] },
   { label: "발송 대기", value: ["READY_TO_SEND"] },
   { label: "발행 완료", value: ["PUBLISHED"] },
+  { label: "발급 제외", value: ["EXCLUDED"] },
   { label: "제외·실패", value: ["DISCARDED","FAILED","ANALYSIS_FAILED"] },
 ];
 
@@ -597,7 +601,8 @@ export default function ReportHubScreen() {
             <View style={[s.kpiRow, { marginTop: 6 }]}>
               <KpiCard value={kpi.ready}     label="발송 대기" color="#F57C00" onPress={() => setFilterStatuses(["READY_TO_SEND"])} />
               <KpiCard value={kpi.published} label="발행 완료" color="#2E7D32" onPress={() => setFilterStatuses(["PUBLISHED"])} />
-              <KpiCard value={kpi.discarded} label="제외"      color="#B71C1C" onPress={() => setFilterStatuses(["DISCARDED"])} />
+              <KpiCard value={kpi.excluded} label="발급 제외"  color="#9E9E9E" onPress={() => setFilterStatuses(["EXCLUDED"])} />
+              <KpiCard value={kpi.discarded} label="폐기"      color="#B71C1C" onPress={() => setFilterStatuses(["DISCARDED"])} />
               <KpiCard value={kpi.failed}    label="실패"      color="#C62828" onPress={() => setFilterStatuses(["FAILED","ANALYSIS_FAILED"])} />
             </View>
           </View>

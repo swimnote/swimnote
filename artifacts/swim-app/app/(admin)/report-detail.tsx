@@ -38,6 +38,7 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string }> = 
   PUBLISHED:           { label: "발송 완료",     bg: "#E8F5E9", text: "#1B5E20" },
   DISCARDED:           { label: "폐기됨",        bg: "#FAFAFA", text: "#757575" },
   AUTO_ACCEPTED:       { label: "자동 승인",     bg: "#E8F5E9", text: "#2E7D32" },
+  EXCLUDED:            { label: "발급 제외",     bg: "#F5F5F5", text: "#9E9E9E" },
 };
 
 const REVIEW_ACTION_MAP: Record<string, string> = {

@@ -1622,6 +1622,7 @@ function statusBadgeColor(s: string | null | undefined) {
   if (u === "PENDING" || u === "NOT_OPEN" || u === "OPEN") return "gray";
   if (u === "PARTIAL") return "amber";
   if (u === "REVIEW_REQUIRED") return "amber";
+  if (u === "EXCLUDED") return "gray";
   return "gray";
 }
 
