@@ -984,8 +984,9 @@ export default function MakeupsScreen() {
         )
       )}
       {/* ── 보강반 배정 모달 ──────────────────────────────────────────────── */}
-      {assignTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => { resetOccState(); setAssignTarget(null); }} statusBarTranslucent>
+      {/* visible 조건 렌더링 대신 visible prop 사용: slide 애니메이션 완료 후 언마운트 → iOS 오버레이 잔류 방지 */}
+      <Modal visible={assignTarget !== null} animationType="slide" transparent onRequestClose={() => { resetOccState(); setAssignTarget(null); }} statusBarTranslucent>
+        {assignTarget && (
           <Pressable style={s.backdrop} onPress={() => { resetOccState(); setAssignTarget(null); }}>
             <View style={s.sheet} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
@@ -1174,11 +1175,11 @@ export default function MakeupsScreen() {
               )}
             </View>
           </Pressable>
-        </Modal>
-      )}
+        )}
+      </Modal>
       {/* ── 지난 보강 직접 완료 모달 (새 3단계 흐름) ─────────────────────── */}
-      {directCompleteTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={closeDirectCompleteModal} statusBarTranslucent>
+      <Modal visible={directCompleteTarget !== null} animationType="slide" transparent onRequestClose={closeDirectCompleteModal} statusBarTranslucent>
+        {directCompleteTarget && (
           <Pressable style={s.backdrop} onPress={closeDirectCompleteModal}>
             <View style={[s.sheet, { height: "70%" }]} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
@@ -1344,11 +1345,11 @@ export default function MakeupsScreen() {
               })()}
             </View>
           </Pressable>
-        </Modal>
-      )}
+        )}
+      </Modal>
       {/* ── 기타 보강 모달 ──────────────────────────────────────────────── */}
-      {handoverTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
+      <Modal visible={handoverTarget !== null} animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
+        {handoverTarget && (
           <Pressable style={s.backdrop} onPress={closeHandover}>
             <View style={s.sheet} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
@@ -1429,8 +1430,8 @@ export default function MakeupsScreen() {
               )}
             </View>
           </Pressable>
-        </Modal>
-      )}
+        )}
+      </Modal>
       {/* 보강 완료 확인 모달 */}
       <ConfirmModal
         visible={!!completeTarget}
@@ -1463,7 +1464,8 @@ export default function MakeupsScreen() {
       />
 
       {/* ── [DIAG] 진단 패널 ─────────────────────────────────────────────── */}
-      <Modal visible={diagVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setDiagVisible(false)}>
+      {/* 조건 렌더링: visible=false Modal도 투명 오버레이가 터치를 가로채는 iOS 버그 방지 */}
+      {diagVisible && <Modal visible transparent animationType="slide" statusBarTranslucent onRequestClose={() => setDiagVisible(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
           <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#0F2742", borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: "90%" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 }}>
@@ -1602,7 +1604,7 @@ export default function MakeupsScreen() {
             </ScrollView>
           </View>
         </View>
-      </Modal>
+      </Modal>}
       {/* ── [/DIAG] ─────────────────────────────────────────────────────────── */}
     </SafeAreaView>
   );
