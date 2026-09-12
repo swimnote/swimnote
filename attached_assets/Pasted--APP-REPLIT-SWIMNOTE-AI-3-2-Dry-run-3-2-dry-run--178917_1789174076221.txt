@@ -1,0 +1,377 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+3/2 발급정책 확정 + 최종 통합 Dry-run
+
+현재 3/2 후보 정책 dry-run 결과를 확인했습니다.
+
+판정:
+3/2 정책 PASS
+
+Growth Report 최소 발급조건을 다음으로 확정합니다.
+
+- report_month 시작 시점 재원
+- 실제 출석 인정 횟수 >= 3
+- 유효 학생별 source diary >= 2
+
+단, Production 반영은 아직 HOLD입니다.
+
+이번 단계에서는
+확정된 3/2 정책과
+운영자의 실제 출석 인정 semantics를 결합하여
+최종 발급대상 수를 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Source threshold 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+GROWTH_REPORT_MIN_SOURCE_RECORDS = 3
+
+정책을:
+
+GROWTH_REPORT_MIN_SOURCE_RECORDS = 2
+
+로 변경하는 방향으로 확정합니다.
+
+단 이번 단계에서는
+Production deploy 하지 마십시오.
+
+Eligibility 의미:
+
+source_event_count = 0
+→ NO_SOURCE_DATA
+
+source_event_count = 1
+→ INSUFFICIENT_SOURCE_DATA
+
+source_event_count >= 2
+→ source 조건 PASS
+
+attendance 조건과 재원 조건은 별도 충족해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Eligibility version 갱신
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 eligibility version을 그대로 재사용하지 마십시오.
+
+3/3 정책과 3/2 정책을
+추적 가능하게 구분해야 합니다.
+
+현재 eligibility_version column의
+실제 type/contract를 유지한 상태에서
+새 정책 버전으로 bump 하십시오.
+
+예:
+
+기존 version = 1
+신규 3/2 version = 2
+
+단 실제 schema가 text이면
+기존 형식을 따르십시오.
+
+column type 변경은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 출석 인정 semantics 결합
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 explicit present/late row만 세는 계산을
+최종 정책으로 확정하지 마십시오.
+
+운영자 확정 정책:
+
+학생에게 실제 정상 수업이 존재하고
+명시적 결석 처리가 없다면
+출석으로 인정.
+
+즉 개념상:
+
+정상 진행 정규수업
+- 명시적 결석 수업
++ 실제 완료 보강수업
+=
+attendance_count
+
+입니다.
+
+attendance row 없음은
+자동 결석 의미가 아닙니다.
+
+단,
+실제로 존재하지 않은 수업을
+요일만 보고 임의 생성하면 안 됩니다.
+
+기존 schedule / class history /
+pool holiday / 수업 진행 정보를 조사하여
+가장 안전한 실제 수업 event 계산을 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 보강 완료 의미 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사:
+
+8월 makeup_sessions.status='completed'
+= 18건
+
+completed_attendance_id
+= 전부 NULL
+
+이 확인되었습니다.
+
+status='completed'가 실제로
+학생이 보강수업에 참여 완료했다는 의미인지
+write path를 추적하십시오.
+
+실제 참여 완료 의미가 맞다면
+attendance_count +1에 포함하십시오.
+
+예약/대기/취소는 포함 금지.
+
+completed_attendance_id NULL이라는 이유만으로
+완료 보강을 제외하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 3/2 + 새 Attendance 기준 최종 Dry-run
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+주 pool 168명을 다시 계산하십시오.
+
+최종 후보 조건:
+
+재원 O
+AND
+attendance_count >= 3
+AND
+source_event_count >= 2
+
+→ ELIGIBLE
+
+나머지 → EXCLUDED
+
+기존:
+
+3/3 + explicit attendance
+= 16명
+
+3/2 + explicit attendance
+= 34명
+
+과
+
+3/2 + 최종 attendance semantics
+
+결과를 나란히 비교하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 34명 보존 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 explicit attendance에서도
+3/2 조건을 통과한 34명은
+
+새 attendance semantics에서
+특별한 데이터 오류가 없는 한
+탈락하면 안 됩니다.
+
+확인:
+
+기존 ELIGIBLE 34명
+→ 최종 계산에서도 몇 명 유지되는지
+
+탈락자가 있다면
+학생별 원인을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 새로 추가되는 학생 분석
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 3/2 explicit 방식에서는:
+
+attendance < 3
+source_event_count >= 2
+
+였지만
+
+새 attendance semantics 적용 후:
+
+attendance >= 3
+source_event_count >= 2
+
+가 되어 새로 ELIGIBLE 되는 학생 수를 제출하십시오.
+
+이 그룹을 별도로 확인하십시오.
+
+특히:
+
+- attendance row 없음
+- absent도 없음
+- 실제 정상수업 존재
+
+때문에 기존 count가 누락된 사례인지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Source 2건 품질 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+두 source diary는 반드시:
+
+- 서로 다른 실제 diary event
+- 서로 다른 lesson_date
+- 삭제 아님
+- student note 삭제 아님
+- trim 후 빈 문자열 아님
+
+이어야 합니다.
+
+일지 간 최소 날짜 간격 조건은
+추가하지 않습니다.
+
+2일 간격이어도
+서로 다른 실제 수업의 유효한 관찰이면 인정합니다.
+
+AI Report가 관찰 간격보다 강한
+성장/변화 주장을 하지 않는 문제는
+Eligibility가 아니라 Engine grounding 영역입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 이전 보고서 수치 표현 오류 정정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고:
+
+0~3일 = 3명
+4~7일 = 12명
+8~14일 = 3명
+
+인데
+
+"한 명을 제외한 나머지 17명이 7~8일"
+
+이라고 기재한 부분은 모순입니다.
+
+실제 raw calculation을 기준으로
+정확한 18명 interval 데이터를 다시 확인하고
+정정하십시오.
+
+정책에는 간격 조건을 사용하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 테스트:
+
+A.
+attendance=3 / source=2
+→ ELIGIBLE
+
+B.
+attendance=3 / source=1
+→ EXCLUDED
+
+C.
+attendance=2 / source=10
+→ EXCLUDED
+
+D.
+attendance=5 / source=0
+→ NO_SOURCE_DATA
+
+E.
+source diary 2개가 서로 다른 lesson
+→ PASS
+
+F.
+동일 diary 중복 note 2개
+→ source_event_count=1
+
+G.
+빈 diary note 2개
+→ source_event_count 증가 없음
+
+H.
+정상수업 + absent 없음 + attendance row 없음
+→ 출석 인정
+
+I.
+정상수업 + explicit absent
+→ 출석 불인정
+
+J.
+completed makeup이 실제 참여 완료 의미라면
+→ 출석 +1
+
+K.
+pool holiday
+→ 정상수업 출석으로 생성 안 됨
+
+L.
+반이동 전/후 수업
+→ 실제 소속 기간만 인정
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Production 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는:
+
+Production deploy 금지
+Migration 실행 금지
+Correction APPLY 금지
+168건 status 실제 변경 금지
+기존 attendance row 수정 금지
+기존 diary 수정 금지
+
+개발코드 + 테스트 + read-only dry-run까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. PASS / HOLD
+
+2. 3/2 threshold 코드 반영 위치
+
+3. 신규 eligibility version
+
+4. 최종 attendance 계산식
+
+5. 정규수업 event Source of Truth
+
+6. completed makeup 실제 의미
+
+7. 보강 포함 여부
+
+8. 최종 168명 attendance 분포
+
+9. source_event_count 분포
+
+10. 기존 3/3 ELIGIBLE = 16 확인
+
+11. 기존 3/2 explicit ELIGIBLE = 34 확인
+
+12. 3/2 + 최종 attendance ELIGIBLE 수
+
+13. 최종 EXCLUDED 수
+
+14. 34명 중 유지 인원
+
+15. 새 attendance semantics로 추가된 인원
+
+16. exclusion_code 분포
+
+17. source=2 신규 대상 품질 이상 여부
+
+18. 일지 간격 수치 정정 결과
+
+19. 테스트 A~L 결과
+
+20. Production 변경 여부
+
+완료보고 후 멈추십시오.
