@@ -392,10 +392,27 @@ export async function applySubscriptionState(
 //   서버 기동 시 한 번 실행하거나 /super/billing/backfill-pools 호출
 // ════════════════════════════════════════════════════════════════════
 export async function backfillPoolSubscriptionFields(): Promise<{ updated: number; errors: number }> {
+  const CANONICAL_X_KEYS_BF = new Set(["x300", "x500", "x1000"]);
+
+  // effective_tier: X 활성 풀은 x_plan_key, 나머지는 subscription_tier
   const rows = (await db.execute(sql`
-    SELECT p.id, p.subscription_tier, p.subscription_status, p.subscription_source
+    SELECT p.id, p.subscription_tier, p.subscription_status, p.subscription_source,
+           p.x_plan_key,
+           COALESCE(p.x_paid_entitlement, false)    AS x_paid_entitlement,
+           COALESCE(p.x_manual_entitlement, false)  AS x_manual_entitlement,
+           COALESCE(p.x_management_override, false) AS x_management_override
     FROM swimming_pools p
-    LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+    LEFT JOIN subscription_plans sp ON sp.tier = (
+      CASE
+        WHEN (
+          COALESCE(p.x_management_override, false)
+          OR COALESCE(p.x_paid_entitlement, false)
+          OR COALESCE(p.x_manual_entitlement, false)
+        ) AND p.x_plan_key IN ('x300','x500','x1000')
+        THEN p.x_plan_key
+        ELSE COALESCE(p.subscription_tier, 'free')
+      END
+    )
     WHERE p.subscription_plan_name IS NULL
        OR p.storage_mb = 0
        OR p.storage_mb IS NULL
@@ -406,7 +423,11 @@ export async function backfillPoolSubscriptionFields(): Promise<{ updated: numbe
   let updated = 0, errors = 0;
   for (const row of rows) {
     try {
-      const tier = normalizeTier(row.subscription_tier ?? "free");
+      const xActive = Boolean(row.x_management_override) || Boolean(row.x_paid_entitlement) || Boolean(row.x_manual_entitlement);
+      const xKey    = row.x_plan_key as string | null;
+      const tier    = (xActive && xKey && CANONICAL_X_KEYS_BF.has(xKey))
+        ? xKey
+        : normalizeTier(row.subscription_tier ?? "free");
       const plan = await fetchPlan(tier);
       const storageMb     = Number(plan?.storage_mb ?? 102);
       const storageGb     = Number(plan?.storage_gb ?? 0.1);
