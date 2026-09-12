@@ -1,21 +1,15 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
-type NavLink = {
-  label: string;
-  page: string;
-  external?: boolean;
-};
+type NavLink = { label: string; page: string };
 
 const links: NavLink[] = [
   { label: "소개",        page: "/" },
   { label: "교육시스템",  page: "/education" },
   { label: "스윔노트 앱", page: "/app" },
-  { label: "대시보드",    page: "/login" },
   { label: "도입 문의",   page: "/support" },
 ];
 
-// 검정 hero를 가진 페이지 (스크롤 전 nav 텍스트를 흰색으로)
 const DARK_HERO_PAGES = ["/"];
 
 export default function Nav() {
@@ -31,13 +25,8 @@ export default function Nav() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  const isActive = (l: NavLink) => {
-    if (l.page === "/") return location === "/";
-    return location.startsWith(l.page);
-  };
-
-  const handleClick = (l: NavLink) => {
-    navigate(l.page);
+  const handleClick = (page: string) => {
+    navigate(page);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
@@ -46,55 +35,67 @@ export default function Nav() {
       className="fixed top-0 left-0 right-0 z-50 transition-all duration-500"
       style={{
         background: scrolled
-          ? "rgba(255,255,255,0.82)"
-          : onDark
-          ? "rgba(0,0,0,0.0)"
-          : "rgba(255,255,255,0.0)",
+          ? "rgba(255,255,255,0.88)"
+          : "transparent",
         backdropFilter: scrolled ? "saturate(180%) blur(20px)" : "none",
         WebkitBackdropFilter: scrolled ? "saturate(180%) blur(20px)" : "none",
         borderBottom: scrolled ? "1px solid rgba(0,0,0,0.08)" : "1px solid transparent",
       }}
     >
-      <div className="max-w-[980px] mx-auto px-4 h-[44px] flex items-center justify-between">
+      <div
+        className="max-w-[980px] mx-auto px-5"
+        style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "space-between" }}
+      >
         {/* 로고 */}
         <button
-          onClick={() => { navigate("/"); window.scrollTo({ top: 0, behavior: "instant" }); }}
-          className="shrink-0 flex items-center"
+          onClick={() => handleClick("/")}
           aria-label="SWIMNOTE 홈"
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0 }}
         >
           <img
-            src={`${import.meta.env.BASE_URL}logo.png`}
-            alt="SWIMNOTE"
-            className="h-7 w-auto object-contain"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-              (e.currentTarget.nextSibling as HTMLElement).style.display = "block";
-            }}
+            src={`${import.meta.env.BASE_URL}icon.png`}
+            alt=""
+            style={{ width: 22, height: 22, objectFit: "contain", borderRadius: 5 }}
           />
           <span
-            className="hidden text-[15px] font-semibold tracking-tight"
-            style={{ color: "#1d1d1f" }}
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: "-0.01em",
+              color: onDark ? "#fff" : "#1d1d1f",
+              transition: "color 0.3s",
+            }}
             translate="no"
           >
             SWIMNOTE
           </span>
         </button>
 
-        {/* 탭 */}
-        <nav className="hidden md:flex items-center gap-0">
+        {/* 데스크톱 탭 */}
+        <nav style={{ display: "flex", alignItems: "center" }} className="hidden md:flex">
           {links.map((l) => {
-            const active = isActive(l);
-            const baseColor   = onDark ? "rgba(255,255,255,0.72)" : "#6e6e73";
-            const activeColor = onDark ? "#fff" : "#000";
-            const hoverColor  = onDark ? "#fff" : "#1d1d1f";
+            const active = l.page === "/" ? location === "/" : location.startsWith(l.page);
+            const textColor = onDark
+              ? (active ? "#fff" : "rgba(255,255,255,0.72)")
+              : (active ? "#1d1d1f" : "#6e6e73");
             return (
               <button
                 key={l.label}
-                onClick={() => handleClick(l)}
-                className="px-4 h-[44px] flex items-center text-[12px] font-normal transition-colors duration-200 cursor-pointer select-none"
-                style={{ color: active ? activeColor : baseColor }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = hoverColor; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = baseColor; }}
+                onClick={() => handleClick(l.page)}
+                style={{
+                  height: 44,
+                  padding: "0 12px",
+                  fontSize: 12,
+                  fontWeight: active ? 500 : 400,
+                  color: textColor,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "color 0.2s",
+                  letterSpacing: "0.01em",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = onDark ? "#fff" : "#1d1d1f"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = textColor; }}
               >
                 {l.label}
               </button>
@@ -102,27 +103,54 @@ export default function Nav() {
           })}
         </nav>
 
-        {/* 로그인 */}
-        <a
-          href={`${import.meta.env.BASE_URL}login`}
-          className="hidden md:flex items-center text-[12px] transition-colors duration-200 shrink-0"
-          style={{ color: onDark ? "rgba(255,255,255,0.72)" : "#6e6e73" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = onDark ? "#fff" : "#1d1d1f"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = onDark ? "rgba(255,255,255,0.72)" : "#6e6e73"; }}
+        {/* 도입 문의 CTA (데스크톱) */}
+        <button
+          onClick={() => handleClick("/support")}
+          className="hidden md:flex"
+          style={{
+            height: 28,
+            padding: "0 14px",
+            fontSize: 12,
+            fontWeight: 500,
+            color: onDark ? "#1d1d1f" : "#fff",
+            background: onDark ? "rgba(255,255,255,0.92)" : "#1d1d1f",
+            border: "none",
+            borderRadius: 14,
+            cursor: "pointer",
+            transition: "all 0.3s",
+            letterSpacing: "0.01em",
+            whiteSpace: "nowrap",
+            alignItems: "center",
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.8"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
         >
-          로그인
-        </a>
+          도입 문의
+        </button>
 
-        {/* 모바일 메뉴 */}
-        <nav className="flex md:hidden items-center gap-3 overflow-x-auto scrollbar-none">
+        {/* 모바일 탭 */}
+        <nav
+          className="flex md:hidden items-center gap-0 overflow-x-auto scrollbar-none"
+          style={{ flex: 1, justifyContent: "flex-end" }}
+        >
           {links.map((l) => {
-            const active = isActive(l);
+            const active = l.page === "/" ? location === "/" : location.startsWith(l.page);
             return (
               <button
                 key={l.label}
-                onClick={() => handleClick(l)}
-                className="shrink-0 text-[11px] font-normal transition-colors py-1"
-                style={{ color: active ? (onDark ? "#fff" : "#000") : (onDark ? "rgba(255,255,255,0.72)" : "#6e6e73") }}
+                onClick={() => handleClick(l.page)}
+                style={{
+                  flexShrink: 0,
+                  padding: "0 8px",
+                  fontSize: 11,
+                  fontWeight: active ? 500 : 400,
+                  color: onDark
+                    ? (active ? "#fff" : "rgba(255,255,255,0.7)")
+                    : (active ? "#1d1d1f" : "#6e6e73"),
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                }}
               >
                 {l.label}
               </button>
