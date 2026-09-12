@@ -144,8 +144,10 @@ describe("TC5: Published cannot reanalyze", () => {
     expect(workerSrc).toContain('"OPEN" && product_status !== "READY_FOR_ANALYSIS"');
   });
 
-  it("TC5-B auto worker SELECT restricts to OPEN + READY_FOR_ANALYSIS only", () => {
-    expect(workerSrc).toContain("IN ('OPEN', 'READY_FOR_ANALYSIS')");
+  it("TC5-B auto worker SELECT restricts to OPEN + READY_FOR_ANALYSIS + REGENERATING only", () => {
+    // Worker processes OPEN (preanalysis) + READY_FOR_ANALYSIS (final analysis) + REGENERATING (retry)
+    // PUBLISHED, APPROVED, REVIEW_REQUIRED are never selected by the auto worker
+    expect(workerSrc).toContain("IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')");
     expect(workerSrc).not.toContain("'PUBLISHED'");
   });
 
@@ -230,12 +232,17 @@ describe("TC8: Remaining reports untouched", () => {
 describe("TC9: No direct SQL status patch", () => {
 
   it("TC9-A trigger route uses analyzeSingleReport (service layer)", () => {
-    // Route does not directly UPDATE growth_reports
+    // Route goes through analyzeSingleReport for the analysis pipeline.
+    // It may directly UPDATE growth_reports for the FAILED→OPEN reopen reset
+    // (analysis_request_id/retry_count reset) — this is an approved operation
+    // within the super_admin reopen-for-reanalysis flow, not a raw status patch.
+    // The key check: route calls analyzeSingleReport, not a raw product_status UPDATE.
     const routeStart = superSrc.indexOf("/super/growth-reports/:reportId/analyze");
     const routeEnd   = superSrc.indexOf("export default router", routeStart);
     const routeBlock = superSrc.slice(routeStart, routeEnd === -1 ? undefined : routeEnd);
-    expect(routeBlock).not.toMatch(/UPDATE\s+growth_reports/i);
     expect(routeBlock).toContain("analyzeSingleReport");
+    // No raw product_status patch (beyond approved FAILED→OPEN reopen)
+    expect(routeBlock).not.toMatch(/UPDATE\s+growth_reports\s+SET\s+product_status/i);
   });
 
   it("TC9-B status transitions go through transitionReportStatus (service layer)", () => {

@@ -94,31 +94,33 @@ export interface BuiltSnapshot {
 /**
  * queryAttendanceForEligibility
  *
- * 출석 인정 semantics (v2, 2026-09-12 확정):
+ * 출석 인정 semantics (v3, 2026-09-12 확정 — BLOCKER #1):
  *
- *   출석 횟수 = COUNT(DISTINCT date) where:
- *     Branch 1: explicit present/late row 존재
- *               (자동출석 auto-save + 보강완료 session_type='makeup' 포함)
- *     Branch 2: class_diary 확인 + 재원 + 명시적 결석 없음
- *               (선생님이 수업 일지를 열었으나 출결화면 미열기 케이스 보완)
+ *   원칙: Diary는 "수업기록"이지 "출석의 근거"가 아님.
+ *         출석 계산에서 class_diaries 의존 완전 제거.
+ *
+ *   출석 횟수 = Branch1a + Branch1b + Branch2:
+ *
+ *     Branch 1-a: 정규수업 explicit present/late row (DISTINCT date)
+ *     Branch 1-b: 보강완료 makeup present/late row (COUNT(*) — 같은 날 별도 event)
+ *     Branch 2:   schedule-based implied attendance
+ *                 (class_groups.schedule_days 기반 수업 예정일 중
+ *                  explicit 출석 row가 없고, pool holiday가 아니며, 명시적 결석 없는 날)
+ *
+ * attendance event identity:
+ *   정규수업: (student_id, pool_id, date) — 같은 날 중복 정규 row는 1회
+ *   보강 완료: makeup_sessions.id 기준 — 같은 날 정규+보강은 각각 별도 event
+ *
+ * schedule_days SoT: class_groups.schedule_days (한글 단일 문자: 월화수목금토일)
+ *   DOW 매핑: 일=0, 월=1, 화=2, 수=3, 목=4, 금=5, 토=6 (PostgreSQL EXTRACT DOW)
+ *
+ * pool_holidays: pool_holidays.pool_id + holiday_date 기준 제외
  *
  * 보강 완료 처리:
  *   makeup_sessions.status='completed' → attendance row session_type='makeup', status='present'
- *   → Branch 1에서 자동 포함 (별도 makeup 쿼리 불필요)
+ *   → Branch 1-b에서 자동 포함
  *
- * pool_holidays:
- *   class_diaries가 없는 날짜 = 수업 미진행 → Branch 2 제외
- *   explicit present row 없는 날짜 → Branch 1 제외
- *   → 공휴일 출석으로 과산정 없음
- *
- * 반이동 (student_class_history):
- *   Branch 2에서 sch.enrolled_at <= lesson_date AND left_at > lesson_date 조건으로 처리
- *
- * attendance event identity 기준 (v3, §8):
- *   - 정규수업: COUNT(DISTINCT date) where session_type IS NULL OR session_type != 'makeup'
- *   - 보강 완료: COUNT(*) where session_type = 'makeup'  (같은 날 추가 event로 인정)
- *   - 같은 날 정규 1회 + 보강 1회 = attendance_count 2
- *   - Branch 2 (diary-implied): 정규수업 explicit row가 없는 날짜만 추가 카운트
+ * 반이동: student_class_history enrolled_at/left_at 기간 내만 계산
  *
  * @param db          drizzle-orm db instance
  * @param studentId   학생 ID
@@ -149,8 +151,8 @@ export async function queryAttendanceForEligibility(
           AND (a.session_type IS NULL OR a.session_type <> 'makeup')
       )
       +
-      -- Branch 1-b: 보강 완료 (session_type='makeup', status='present')
-      --   COUNT(*): 같은 날 정규 + 보강 각각 별도 event (§8)
+      -- Branch 1-b: 보강 완료: COUNT(*) — session_type='makeup', status='present'
+      --   (같은 날 정규 + 보강 각각 별도 event; §8)
       (
         SELECT COUNT(*)::int
         FROM attendance a
@@ -159,41 +161,65 @@ export async function queryAttendanceForEligibility(
           AND a.date             >= ${periodFrom}
           AND a.date             <  ${cutoffDate}
           AND a.status           IN ('present', 'late')
-          AND a.session_type     = 'makeup'
+          AND a.session_type = 'makeup'
       )
       +
-      -- Branch 2: class_diary 확인 + 재원 + 명시적 결석 없음
-      --   정규 explicit present row가 없는 날짜만 추가 카운트
-      --   (Branch 1-b makeup은 정규 여부와 무관 — 이미 위에서 계산됨)
+      -- Branch 2: schedule-based implied attendance (BLOCKER #1 — diary 의존 제거)
+      --   수업 예정일(class_groups.schedule_days 기준) 중 explicit 출석 없는 날만 추가
+      --   SoT: class_groups.schedule_days 한글 요일 단일 문자(월화수목금토일)
+      --   pool_holidays 제외, 명시적 결석 제외, Branch 1-a 중복 방지
       (
-        SELECT COUNT(DISTINCT cd.lesson_date)::int
-        FROM class_diaries cd
-        JOIN student_class_history sch
-          ON  sch.class_group_id    = cd.class_group_id
-          AND sch.student_id        = ${studentId}
-          AND sch.enrolled_at::date <= cd.lesson_date::date
-          AND (sch.left_at IS NULL OR sch.left_at::date > cd.lesson_date::date)
-        WHERE cd.swimming_pool_id   = ${poolId}
-          AND cd.is_deleted         = false
-          AND cd.lesson_date        >= ${periodFrom}
-          AND cd.lesson_date        <  ${cutoffDate}
-          -- 명시적 결석 없음
-          AND NOT EXISTS (
-            SELECT 1 FROM attendance a2
-            WHERE a2.student_id       = ${studentId}
-              AND a2.swimming_pool_id = ${poolId}
-              AND a2.date             = cd.lesson_date
-              AND a2.status           = 'absent'
+        SELECT COUNT(DISTINCT gs.d::date)::int
+        FROM generate_series(
+          ${periodFrom}::date,
+          ${cutoffDate}::date - INTERVAL '1 day',
+          INTERVAL '1 day'
+        ) gs(d)
+        JOIN student_class_history sch ON (
+          sch.student_id         = ${studentId}
+          AND sch.swimming_pool_id = ${poolId}
+          AND sch.enrolled_at::date <= gs.d::date
+          AND (sch.left_at IS NULL OR sch.left_at::date > gs.d::date)
+        )
+        JOIN class_groups cg ON (
+          cg.id                  = sch.class_group_id
+          AND cg.swimming_pool_id  = ${poolId}
+          AND cg.is_deleted        = false
+          AND (cg.is_one_time IS NULL OR cg.is_one_time = false)
+          -- 요일 매핑: DOW 0=일 1=월 2=화 3=수 4=목 5=금 6=토
+          AND (
+            (EXTRACT(DOW FROM gs.d::date) = 0 AND cg.schedule_days LIKE '%일%')
+            OR (EXTRACT(DOW FROM gs.d::date) = 1 AND cg.schedule_days LIKE '%월%')
+            OR (EXTRACT(DOW FROM gs.d::date) = 2 AND cg.schedule_days LIKE '%화%')
+            OR (EXTRACT(DOW FROM gs.d::date) = 3 AND cg.schedule_days LIKE '%수%')
+            OR (EXTRACT(DOW FROM gs.d::date) = 4 AND cg.schedule_days LIKE '%목%')
+            OR (EXTRACT(DOW FROM gs.d::date) = 5 AND cg.schedule_days LIKE '%금%')
+            OR (EXTRACT(DOW FROM gs.d::date) = 6 AND cg.schedule_days LIKE '%토%')
           )
-          -- 정규 explicit present row도 없는 날짜만 (중복 방지)
-          AND NOT EXISTS (
-            SELECT 1 FROM attendance a3
-            WHERE a3.student_id       = ${studentId}
-              AND a3.swimming_pool_id = ${poolId}
-              AND a3.date             = cd.lesson_date
-              AND a3.status           IN ('present', 'late')
-              AND (a3.session_type IS NULL OR a3.session_type <> 'makeup')
-          )
+        )
+        -- pool holiday 제외
+        WHERE NOT EXISTS (
+          SELECT 1 FROM pool_holidays ph
+          WHERE ph.pool_id          = ${poolId}
+            AND ph.holiday_date::date = gs.d::date
+        )
+        -- 명시적 결석 없음
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance a2
+          WHERE a2.student_id       = ${studentId}
+            AND a2.swimming_pool_id = ${poolId}
+            AND a2.date             = gs.d::date
+            AND a2.status           = 'absent'
+        )
+        -- 정규 explicit present row가 없는 날짜만 (Branch 1-a와 중복 방지)
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance a3
+          WHERE a3.student_id       = ${studentId}
+            AND a3.swimming_pool_id = ${poolId}
+            AND a3.date             = gs.d::date
+            AND a3.status           IN ('present', 'late')
+            AND (a3.session_type IS NULL OR a3.session_type <> 'makeup')
+        )
       )
     AS cnt
   `);

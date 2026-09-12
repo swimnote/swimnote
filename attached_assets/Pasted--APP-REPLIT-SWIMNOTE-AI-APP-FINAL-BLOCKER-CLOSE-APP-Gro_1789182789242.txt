@@ -1,0 +1,556 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+APP FINAL BLOCKER CLOSE
+
+현재 APP Growth Report는 대부분 완성되었으나
+Production 운용 전 반드시 닫아야 하는 4개 BLOCKER가 남아 있습니다.
+
+이번 작업에서 아래 4개만 정확히 해결하십시오.
+
+불필요한 리팩터링 금지.
+AI ENGINE 수정 금지.
+ToyKids 8월 Growth Report 실제 재발급 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. BLOCKER #1
+Attendance에서 Diary 의존 완전 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 queryAttendanceForEligibility()에 존재하는
+
+Branch 2:
+diary-implied attendance
+
+를 최종 eligibility 계산에서 제거하십시오.
+
+중요 원칙:
+
+Diary는
+"수업기록"이지
+"출석의 근거"가 아닙니다.
+
+일지를 작성하지 않았다는 이유로
+실제 출석 학생이 누락되면 안 되고,
+
+일지가 존재한다는 이유로
+특정 학생의 출석을 자동 인정해서도 안 됩니다.
+
+최종 attendance_count는 실제 수업 event 기준이어야 합니다.
+
+정규수업 출석 판단:
+
+1. 해당 학생이 해당 날짜에 해당 반 재원 상태
+2. 해당 반의 실제 schedule상 수업일
+3. pool holiday가 아님
+4. 실제 휴강/취소 데이터가 존재한다면 제외
+5. explicit absent가 있으면 불출석
+6. explicit present/late가 있으면 출석
+7. attendance row가 없어도
+   정상 수업 대상이며 explicit absent가 없으면 출석
+
+반드시 기존 APP의
+class schedule / schedule_days / lesson schedule helper를 조사하여
+기존 SoT를 재사용하십시오.
+
+새 임의 스케줄 엔진을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 수업 EVENT identity 기준 계산
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+attendance_count를 단순 DISTINCT date로 계산하지 마십시오.
+
+한 학생이 같은 날:
+
+정규수업 1회
++
+완료 보강 1회
+
+를 실제 참여했다면
+
+attendance_count = 2
+
+여야 합니다.
+
+따라서 event identity를 분리하십시오.
+
+예:
+
+REGULAR:
+class_group_id + lesson_date + scheduled_session identity
+
+MAKEUP:
+makeup_session.id
+
+실제 기존 schema에서 더 정확한 event key가 있다면 그것을 사용하십시오.
+
+같은 정규수업이 중복 row로 기록됐다고
+2회로 세면 안 됩니다.
+
+같은 실제 event는 정확히 1회만 인정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Makeup 최종 규칙 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeup_sessions.status='completed'
+
+인 실제 보강은 1회 출석 인정.
+
+completed_attendance_id가 NULL이어도
+실제 completed 상태라면 누락하지 마십시오.
+
+취소 / 대기 / 예약 / 미완료는 제외.
+
+정규수업과 보강은
+같은 날짜라도 별도 실제 수업이면 각각 인정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 Diary-implied branch 제거 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드베이스 전체에서 Growth Report eligibility가
+다음 패턴에 의존하는지 검색하십시오.
+
+- class_diaries 존재로 출석 추정
+- diary lesson_date로 출석 추정
+- MAX(explicit attendance, diary attendance)
+- diary_count 기반 attendance proxy
+
+Growth Report eligibility 경로에서는
+모두 제거하십시오.
+
+단,
+Diary는 source_event_count 계산에는 계속 사용됩니다.
+
+Attendance와 Source를 절대 섞지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. BLOCKER #2
+Production Worker 실제 ON 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드에 worker가 있다는 확인만으로 PASS하지 마십시오.
+
+Production runtime에서 실제로:
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+
+인지 확인하십시오.
+
+가능한 경우:
+
+- Render Production environment 설정
+- 실제 runtime process env
+- worker startup log
+
+3개를 교차 확인하십시오.
+
+값이 없거나 false이면
+Production 설정을 true로 변경하십시오.
+
+단,
+지금 ToyKids 8월 report rows는 모두 정리된 상태이므로
+실제 대량 생성은 발생하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Worker 실제 소비 Smoke Test
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+환경변수 true 확인 후
+Production 또는 안전한 Production-equivalent 환경에서
+
+실제 queue/job lifecycle을 확인하십시오.
+
+실제 회원 Growth Report를 생성하지 말고
+테스트용 안전한 fixture 또는
+rollback 가능한 test job으로 확인하십시오.
+
+확인:
+
+scheduler/worker process 시작
+→ worker tick 발생
+→ eligible test job claim
+→ 상태 transition
+→ 실제 consumer 실행 확인
+→ 테스트 데이터 cleanup
+
+중요:
+
+AI ENGINE 대량 호출 금지.
+
+ENGINE 호출 직전까지의
+worker consumption을 확인하거나,
+안전한 mock/stub contract로 확인하십시오.
+
+최종 보고에는 반드시:
+
+WORKER_RUNTIME_ENABLED = TRUE/FALSE
+
+를 명시하십시오.
+
+TRUE가 아니면 APP PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 서버 재기동 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production process restart 후에도
+
+startGrowthReportScheduler()
+startGrowthReportAnalysisWorker()
+startGrowthReportBatchWorker()
+
+가 자동 실행되는지 실제 로그로 확인하십시오.
+
+restart 후 별도 수동 명령이 필요하면 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. BLOCKER #3
+기존 Growth Report Cycle 재발급 방해 여부 해결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ToyKids:
+
+active growth_reports = 0
+기존 growth_report_cycles = 2
+
+상태입니다.
+
+이 2개 cycle이 추후
+ToyKids 8월 수업기록 기반 리포트를
+새 v3 정책으로 재발급할 때
+
+"이미 cycle 존재"
+
+판정으로 신규 report 생성 자체를 막을 가능성을
+실제 코드 기준으로 조사하십시오.
+
+확인:
+
+- cycle unique key
+- pool_id
+- report_month / report_period
+- lifecycle status
+- scheduler ensure logic
+- ON CONFLICT 처리
+- report ensure logic
+- soft-deleted report 재생성 가능 여부
+- eligibility_version 차이 처리
+- 동일 cycle 재사용 가능 여부
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 재발급 준비 구조 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+우리가 원하는 것은:
+
+ENGINE 최종 PASS 이후
+운영자가 승인하면
+
+ToyKids의
+2026년 8월 수업기록
+→ 2026년 9월 AI 성장리포트
+
+를
+v3 정책으로 깨끗하게 다시 생성하는 것입니다.
+
+지금 실제 재발급은 하지 마십시오.
+
+대신 아래 중 안전한 방식을 확정하십시오.
+
+A.
+기존 cycle을 안전하게 재사용하면서
+soft-deleted report 대신
+신규 v3 report rows 생성
+
+또는
+
+B.
+기존 cycle을 historical/invalidated 상태로 남기고
+새 cycle을 만들 수 있도록 구조화
+
+또는
+
+C.
+기존 cycle을 운영 데이터에서 안전하게 정리한 뒤
+승인 시 새 cycle 생성
+
+중요:
+
+단순히 unique constraint를 제거하지 마십시오.
+
+중복방지 안전장치를 약화시키면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Reissue Dry-run
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 report 생성 없이
+ToyKids 2026-09 report_month 기준으로
+
+scheduler/reissue dry-run을 실행하십시오.
+
+확인:
+
+- cycle 생성 또는 재사용 가능
+- cohort 계산 가능
+- v3 eligibility 계산 가능
+- 신규 report row 생성 예정 수 산출 가능
+- soft-deleted 과거 reports가 방해하지 않음
+- 기존 idempotency registry가 잘못 CACHED 반환하지 않음
+- 새 analysis_request_id 발급 가능
+- 다른 pool 영향 0
+
+중요:
+
+INSERT/ENGINE 호출은 하지 마십시오.
+
+READ-ONLY / transaction rollback dry-run으로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Idempotency 재발급 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+동일 report_month 재발급 시
+과거 request_id 때문에 ENGINE이나 APP이
+CACHED 결과를 반환하면 안 됩니다.
+
+실제 재발급에서는:
+
+새 report row
+새 analysis_request_id
+새 ENGINE request_id
+
+를 사용해야 합니다.
+
+단,
+같은 신규 report에 대한 retry에서는
+동일 request identity/idempotency 의미가 유지되어야 합니다.
+
+즉:
+
+과거 발급과 신규 재발급은 다른 execution
+
+신규 execution 내부 retry는 같은 logical execution
+
+으로 구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. BLOCKER #4
+기존 Red Test 7개 정리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 신규 v3:
+
+51/51 PASS
+
+는 좋습니다.
+
+하지만 기존 3개 파일에서
+7개 test failure가 남아 있습니다.
+
+"pre-existing"이라는 이유로
+그대로 남기지 마십시오.
+
+각 실패를 조사하십시오.
+
+분류:
+
+A.
+실제 Production bug
+
+B.
+코드 변경으로 expectation이 오래됨
+
+C.
+fixture/test harness 자체 문제
+
+D.
+v3와 완전히 무관한 obsolete test
+
+각 테스트마다 원인을 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Test Suite Green 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 기존 테스트를
+현재 올바른 Production contract에 맞춰 수정하고
+
+Growth Report 관련 test suite를
+모두 GREEN으로 만드십시오.
+
+실제 기능 오류를
+테스트 삭제로 숨기면 안 됩니다.
+
+테스트 자체가 obsolete라면:
+
+- 왜 obsolete인지
+- 대체 테스트가 무엇인지
+
+명확하게 남기고 제거/교체하십시오.
+
+최종적으로 Growth Report 관련
+활성 test suite는 failure 0이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 매월 5일 관리자 보고 E2E 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 scheduler가
+1~4일에 분석 준비를 하고
+5일에 관리자 검토 대기 상태로 만든다는 구조를
+실제 코드 기준으로 끝까지 확인하십시오.
+
+매월 5일 관리자에게 최소:
+
+- report_month
+- cohort
+- eligible
+- excluded
+- ready_to_send
+- review_required
+- failed
+- published
+
+가 확인 가능해야 합니다.
+
+단순 server log만 남고
+관리자가 앱/관리자 화면에서
+상태를 확인할 수 없다면 미완성입니다.
+
+확인할 최종 목표:
+
+1~4일
+분석/준비
+
+→ 5일
+관리자 화면에
+"이번 달 AI 성장리포트 발급 준비"
+상태 노출
+
+→ 실패 건 있으면
+"완료"로 위장하지 않고 실패 수 표시
+
+→ 관리자 검토
+
+→ SEND
+
+→ PUBLISHED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 이번 작업에서 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- ToyKids 8월 report 실제 재생성
+- ENGINE Prompt 수정
+- ENGINE WP 수정
+- AI 모델 변경
+- 다른 pool report 수정
+- Growth Event 삭제
+- Diary 삭제
+- Attendance 원본 수정
+- 회원 데이터 수정
+- Curriculum 추가 변경
+- 관련 없는 Expo/RN 변경
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 네 개 모두 만족해야 APP FINAL PASS입니다.
+
+1.
+Attendance가 Diary와 완전히 분리됨
+
+2.
+Production Worker가 실제 ENABLED 상태임을 확인
+
+3.
+기존 cycle/idempotency가
+ToyKids v3 재발급을 방해하지 않음을 dry-run 증명
+
+4.
+Growth Report 관련 활성 테스트 failure = 0
+
+그리고:
+
+5.
+매월 5일 관리자 발급준비 확인 경로까지 검증
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 완료 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 순서로만 보고하십시오.
+
+1. PASS / HOLD
+
+2. Attendance 최종 SoT
+
+3. 제거한 diary-implied 경로
+
+4. 정규수업 event identity 정의
+
+5. Makeup event identity 정의
+
+6. 동일 날짜 정규+보강 테스트 결과
+
+7. Production
+   GROWTH_REPORT_ANALYSIS_AUTO_ENABLED
+   실제 값
+
+8. Worker runtime startup log 확인
+
+9. 서버 restart 후 worker 자동기동 여부
+
+10. Worker smoke consume 결과
+
+11. 기존 ToyKids cycle 2개의 상태/월
+
+12. Cycle unique key
+
+13. 기존 cycle이 재발급에 미치는 영향
+
+14. 최종 reissue 전략 A/B/C 중 선택
+
+15. ToyKids 2026-09 report_month
+    재발급 dry-run 결과
+
+16. 예상 cohort
+
+17. 예상 ELIGIBLE / EXCLUDED
+    단 실제 row 생성 금지
+
+18. 새 request_id/idempotency 전략
+
+19. 기존 실패 테스트 7개 각각 원인
+
+20. Growth Report 관련 최종 test 결과
+    total / pass / fail
+
+21. 매월 5일 Admin 준비상태 확인 경로
+
+22. 5일 FAILED 존재 시 관리자 표시 방식
+
+23. 다른 pool 영향 0 확인
+
+24. 실제 ToyKids 8월 리포트 재발급 여부
+    반드시 "미실행"
+
+25. APP FINAL PASS 여부
+
+26. AI ENGINE 수정/검증으로 넘어가도 되는지
+    YES / NO
+
+보고 후 멈추십시오.
+
+APP FINAL PASS가 확인되면
+다음 단계는
+AI ENGINE Growth Report
+품질 + 안정성 + source=1 + previous continuity
+최종 수정/검증입니다.

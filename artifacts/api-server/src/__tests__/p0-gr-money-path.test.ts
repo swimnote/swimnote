@@ -209,11 +209,15 @@ describe("TC7–TC10: Eligibility Authority", () => {
 
 describe("TC11–TC16: Scheduler Safety", () => {
 
-  it("TC11 25th+ opens cycle — parentInputOpenAt threshold", () => {
+  it("TC11 1일+ opens cycle — parentInputOpenAt threshold (이전달 마지막 UTC 15:00)", () => {
+    // parentInputOpenAt = Date.UTC(year, month-1, 0, 15, 0, 0)
+    //   = 이전달 마지막일 15:00 UTC = 이번달 1일 00:00 KST
+    // 구 정책(25일)은 제거됨 (2026-09-07 정책 변경)
     expect(schedulerSrc).toContain("parentInputOpenAt");
-    expect(schedulerSrc).toContain("shouldOpenCurrentMonth");
-    // 25일 조건: openAt = 25th 00:00 KST
-    expect(schedulerSrc).toContain("24, 15, 0, 0");  // UTC equivalent
+    // 이번달 1일 00:00 KST = 이전달 마지막 15:00 UTC
+    expect(schedulerSrc).toContain("month - 1, 0, 15, 0, 0");
+    // open 여부는 shouldOpen 변수로 체크
+    expect(schedulerSrc).toContain("shouldOpen");
   });
 
   it("TC12 missed 25th recovered — PENDING cycles with past open_at are opened", () => {
@@ -223,11 +227,11 @@ describe("TC11–TC16: Scheduler Safety", () => {
     expect(schedulerSrc).toContain("parent_input_open_at");
   });
 
-  it("TC13 READY after 25th auto-recovered — ensureCurrentMonthGrowthReportCycle exported", () => {
+  it("TC13 READY after grant auto-recovered — ensureCurrentMonthGrowthReportCycle exported + called from xmode grant", () => {
     expect(schedulerSrc).toContain("export async function ensureCurrentMonthGrowthReportCycle");
     expect(schedulerSrc).toContain("BEFORE_OPEN_DATE");
     expect(schedulerSrc).toContain("NOT_ELIGIBLE");
-    // Called from PATCH /xmode after READY transition
+    // Called from PATCH /super/operators/:id/xmode after grant (background cycle bootstrap)
     expect(superSrc).toContain("ensureCurrentMonthGrowthReportCycle");
   });
 
@@ -307,12 +311,13 @@ describe("TC17–TC22: Report Generation", () => {
 
 describe("TC23–TC28: Publish & Failure Safety", () => {
 
-  it("TC23 APPROVED→PUBLISHED authorization — super_admin only scheduler endpoint, READY guard in place", () => {
+  it("TC23 APPROVED→PUBLISHED authorization — super_admin only scheduler endpoint, prerequisite guard in place", () => {
     // super_admin-only scheduler endpoint exists
     expect(superSrc).toContain("growth-report-scheduler/run");
     expect(superSrc).toContain('requireRole("super_admin")');
-    // READY guard and cycle recovery both implemented
-    expect(superSrc).toContain("READY_PREREQUISITES_NOT_MET");
+    // Prerequisite guard (X_PREREQUISITE_NOT_MET in xmode grant, X_ENTITLEMENT_UPDATE_FAILED for errors)
+    expect(superSrc).toContain("X_PREREQUISITE_NOT_MET");
+    // ensureCurrentMonthGrowthReportCycle called from xmode grant for cycle bootstrap
     expect(superSrc).toContain("ensureCurrentMonthGrowthReportCycle");
   });
 
@@ -346,13 +351,14 @@ describe("TC23–TC28: Publish & Failure Safety", () => {
     expect(GROWTH_REPORT_ELIGIBLE_SQL).toContain("x_manual_entitlement");
   });
 
-  it("TC28 super scheduler auth — super_admin only, READY guard imported", () => {
+  it("TC28 super scheduler auth — super_admin only, prerequisite guard imported + cycle bootstrap", () => {
     expect(superSrc).toContain("/super/growth-report-scheduler/run");
     expect(superSrc).toContain('requireRole("super_admin")');
-    // READY guard is in PATCH /xmode
+    // validateXModeReadiness is imported in super.ts
     expect(superSrc).toContain("validateXModeReadiness");
-    expect(superSrc).toContain("READY_PREREQUISITES_NOT_MET");
-    // ensureCurrentMonthGrowthReportCycle is triggered after READY transition
+    // Prerequisite guard (renamed from READY_PREREQUISITES_NOT_MET → X_PREREQUISITE_NOT_MET in xmode grant)
+    expect(superSrc).toContain("X_PREREQUISITE_NOT_MET");
+    // ensureCurrentMonthGrowthReportCycle is called from xmode grant (background cycle bootstrap)
     expect(superSrc).toContain("ensureCurrentMonthGrowthReportCycle");
   });
 

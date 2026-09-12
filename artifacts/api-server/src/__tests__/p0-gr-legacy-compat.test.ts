@@ -100,9 +100,10 @@ describe("TC5–TC6: X READY Validator Stays Strict", () => {
     expect(readinessSrc).toContain("x_setup_files");
     expect(readinessSrc).toContain("NO_SETUP_SUBMISSION");
     expect(readinessSrc).toContain("NO_CURRICULUM_FILE");
-    // Super READY transition uses the guard
+    // Super xmode grant uses checkXPrerequisite (from xmode-readiness) + validateXModeReadiness is imported
     expect(superSrc).toContain("validateXModeReadiness");
-    expect(superSrc).toContain("READY_PREREQUISITES_NOT_MET");
+    // Error code for prerequisite failure (X_PREREQUISITE_NOT_MET in grant path)
+    expect(superSrc).toContain("X_PREREQUISITE_NOT_MET");
     // FREE eligibility module does NOT import xmode-readiness (may mention it in comments)
     expect(eligSrc).not.toMatch(/^import.*xmode-readiness/m);
     expect(eligSrc).not.toMatch(/from ['"].*xmode-readiness/m);

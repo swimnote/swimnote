@@ -4270,6 +4270,16 @@ router.patch(
           action:                 grant ? "granted" : "revoked",
         });
       });
+
+      // ── Grant 후 즉시 cycle 보충 (cron 대기 없이) ───────────────────────
+      // grant + READY 설정 직후, 이번달 이전달 cycle이 없으면 바로 생성.
+      // 응답이 이미 전송된 뒤 background에서 실행 — 실패해도 grant 자체는 유효.
+      if (grant) {
+        const { ensureCurrentMonthGrowthReportCycle } = await import("../jobs/growth-report-scheduler.js");
+        ensureCurrentMonthGrowthReportCycle(superAdminDb, poolId).catch((err: any) => {
+          console.error(`[super] xmode grant 후 ensureCurrentMonthGrowthReportCycle 실패: pool=${poolId}`, err?.message);
+        });
+      }
     } catch (e: any) {
       console.error("[super] PATCH operators/:id/xmode 오류:", e?.message);
       res.status(500).json({ error: "X_ENTITLEMENT_UPDATE_FAILED", message: e?.message });
