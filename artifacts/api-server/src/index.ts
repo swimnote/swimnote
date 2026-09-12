@@ -75,21 +75,35 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
 }
 
 // DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
-// 핵심 2개 완료 시 헬스체크를 200으로 전환 (Render 헬스체크 실패 방지)
-// 헌법 원칙: 필수 DB Migration 실패 시 setServerReady() 미호출 + 프로세스 종료
-Promise.all([
-  initPoolDb(superAdminDb),
-  initSuperDb(superAdminDb),
-  runGrInteractionsMigration(superAdminDb),
-])
-  .then(() => {
-    setServerReady();
-    console.log("[server] DB 초기화 완료 — 헬스체크 200 응답 시작");
-  })
-  .catch((error) => {
-    console.error("[FATAL] DB 초기화 실패 — 서버 기동 중단:", error);
-    process.exit(1);
-  });
+// retry/backoff: rolling deploy 시 old instance connection 경합으로 인한 transient 실패 방지
+// MAX_RETRIES=3, 지수 backoff (2s, 4s, 8s) — 필수 migration 모두 실패 시에만 process.exit(1)
+const DB_INIT_MAX_RETRIES = 3;
+const DB_INIT_BASE_DELAY_MS = 2000;
+
+(async () => {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= DB_INIT_MAX_RETRIES; attempt++) {
+    try {
+      await Promise.all([
+        initPoolDb(superAdminDb),
+        initSuperDb(superAdminDb),
+        runGrInteractionsMigration(superAdminDb),
+      ]);
+      setServerReady();
+      console.log(`[server] DB 초기화 완료 (attempt ${attempt}) — 헬스체크 200 응답 시작`);
+      return;
+    } catch (error) {
+      lastError = error;
+      const delayMs = DB_INIT_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      console.error(`[server] DB 초기화 실패 (attempt ${attempt}/${DB_INIT_MAX_RETRIES}), ${delayMs}ms 후 재시도:`, (error as Error).message);
+      if (attempt < DB_INIT_MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+  }
+  console.error("[FATAL] DB 초기화 최종 실패 — 서버 기동 중단:", lastError);
+  process.exit(1);
+})();
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles(superAdminDb).catch((e) => console.error("[roles-backfill] 오류:", e.message));
 // Multi-Pool Membership: 테이블 생성 + 기존 사용자 backfill (멱등, ON CONFLICT DO NOTHING)
@@ -170,7 +184,10 @@ if (IS_WORKER) {
   startStandbySyncJobs();
   startVideoExpiryCleanup();
   startOpsMonitorScheduler();
-  // 배치·분석 워커: DB 락으로 멀티인스턴스 중복 실행 방지되므로 API 서버에서도 안전하게 실행
+  // Growth Report 전체 파이프라인: DB 락으로 멀티인스턴스 중복 실행 방지
+  // Scheduler: 매일 01:00 KST cycle ensure + missed-run recovery (30s startup)
+  // swimnote-worker suspended 이후 API 서버가 단독 실행 주체
+  startGrowthReportScheduler();
   startGrowthReportAnalysisWorker();
   startGrowthReportBatchWorker();
 
