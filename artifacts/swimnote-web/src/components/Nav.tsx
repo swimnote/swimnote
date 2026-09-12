@@ -15,7 +15,6 @@ const links: NavLink[] = [
   { label: "소개", page: "/" },
   { label: "교육시스템", page: "/education" },
   { label: "스윔노트 앱", page: "/app", highlight: true },
-  { label: "대한수영영법연구원", page: "/", anchor: "research" },
   { label: "도입·제휴 문의", page: "/support" },
 ];
 

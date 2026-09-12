@@ -28,19 +28,6 @@ const identity = [
   "공인 민간자격증 운영기관",
 ];
 
-const researchRoles = [
-  "WA(World Aquatics)의 수영 규칙과 영법을 지속적으로 연구합니다.",
-  "전 세계 수영 기술 자료를 수집합니다.",
-  "새로운 수영 이론을 검토합니다.",
-  "교육 시스템을 지속적으로 업데이트합니다.",
-  "민간 자격증 교육과 평가 기준을 개발합니다.",
-];
-
-const qualifications = [
-  "수영영법분석사 2급",
-  "수영영법분석사 1급",
-  "수영영법기술평가사",
-];
 
 const dtaItems = [
   {
@@ -221,78 +208,6 @@ export default function Intro() {
         </div>
       </section>
 
-      {/* ── 대한수영영법연구원 ── */}
-      <section id="research" className="py-28 px-6 border-b border-[#f0f0f0]">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
-            <div>
-              <motion.p {...inView(0)} className="text-[12px] font-semibold tracking-[0.15em] uppercase mb-6" style={{ color: SECONDARY }}>Research</motion.p>
-              <motion.h2 {...inView(0.05)} className="text-[28px] md:text-[38px] font-bold tracking-tight text-[#0a0a0a] leading-[1.25] mb-4">
-                대한수영영법연구원
-              </motion.h2>
-              <motion.p {...inView(0.1)} className="text-[14px] text-[#aaa] mb-8 font-light">SWIMNOTE에서 운영합니다.</motion.p>
-            </div>
-            <div className="space-y-4">
-              {researchRoles.map((role, i) => (
-                <motion.div key={i} {...inView(i * 0.07)} className="flex items-start gap-3">
-                  <span className="w-1.5 h-1.5 rounded-full mt-2 shrink-0" style={{ background: SECONDARY }} />
-                  <p className="text-[15px] text-[#555] leading-[1.8] font-light">{role}</p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 민간자격 ── */}
-      <section className="py-28 px-6">
-        <div className="max-w-5xl mx-auto">
-          <motion.p {...inView(0)} className="text-[12px] font-semibold tracking-[0.15em] uppercase mb-6" style={{ color: SECONDARY }}>
-            Qualification
-          </motion.p>
-          <motion.h2 {...inView(0.05)} className="text-[28px] md:text-[38px] font-bold tracking-tight text-[#0a0a0a] leading-[1.25] mb-3">
-            공인 민간자격
-          </motion.h2>
-          <motion.p {...inView(0.1)} className="text-[15px] text-[#666] font-medium mb-8">
-            SWIMNOTE 교육시스템 기반 수영 지도자 공인 민간자격 체계
-          </motion.p>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-            <motion.div {...inView(0.15)} className="space-y-5">
-              <p className="text-[15px] text-[#555] leading-[1.9] font-light">
-                SWIMNOTE 교육시스템을 기반으로 운영되는 수영 지도자 자격체계를 개발하고 있습니다.
-              </p>
-              <p className="text-[15px] text-[#555] leading-[1.9] font-light">
-                대한수영영법연구원에서는 수영 영법과 교육 기준, 평가 기준을 연구하며 SWIMNOTE 교육시스템과 연계된 자격체계를 개발하고 있습니다.
-              </p>
-            </motion.div>
-
-            <motion.div {...inView(0.2)} className="space-y-3">
-              <p className="text-[12px] font-semibold tracking-widest text-[#aaa] uppercase mb-5">개발 중인 자격체계</p>
-              {qualifications.map((q, i) => (
-                <motion.div
-                  key={i}
-                  {...inView(0.1 + i * 0.07)}
-                  className="flex items-center gap-4 p-5 border border-[#ebebeb] rounded-2xl"
-                >
-                  <span
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
-                    style={{ background: PRIMARY }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="text-[15px] font-semibold text-[#0a0a0a]">{q}</span>
-                </motion.div>
-              ))}
-
-              <motion.div {...inView(0.4)} className="mt-4 flex items-center gap-2 px-5 py-3.5 rounded-xl" style={{ background: "#f0f6ff" }}>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: SECONDARY }} />
-                <span className="text-[13px] font-medium" style={{ color: PRIMARY }}>국가공인 민간자격 추진</span>
-              </motion.div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

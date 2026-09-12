@@ -101,30 +101,6 @@ const steps = [
     body: "결과보다 과정의 완성을 확인합니다. 테스트는 아이가 다음 단계로 나아갈 준비가 됐는지를 기준으로 진행됩니다.",
     visual: "레벨 테스트 이미지",
   },
-  {
-    num: "08",
-    title: "공인 민간자격",
-    image: "/education-qualification.png",
-    sub: "SWIMNOTE 교육시스템 기반 수영 지도자 공인 민간자격 체계",
-    body: "SWIMNOTE 교육시스템을 기반으로 운영되는 수영 지도자 자격체계를 개발하고 있습니다. 대한수영영법연구원에서는 수영 영법과 교육 기준, 평가 기준을 연구하며 SWIMNOTE 교육시스템과 연계된 자격체계를 개발하고 있습니다.",
-    visual: "자격증 이미지",
-    badge: "개발 중",
-    extra: (
-      <div className="mt-6 space-y-3">
-        <p className="text-[12px] font-semibold tracking-widest text-[#aaa] uppercase mb-4">개발 중인 자격체계</p>
-        {["수영영법분석사 2급", "수영영법분석사 1급", "수영영법기술평가사"].map((q, i) => (
-          <div key={i} className="flex items-center gap-3 p-4 border border-[#ebebeb] rounded-xl bg-white">
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: PRIMARY }}>{i + 1}</span>
-            <span className="text-[14px] font-semibold text-[#0a0a0a]">{q}</span>
-          </div>
-        ))}
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl mt-2" style={{ background: "#f0f6ff" }}>
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: SECONDARY }} />
-          <span className="text-[13px] font-medium" style={{ color: PRIMARY }}>국가공인 민간자격 추진</span>
-        </div>
-      </div>
-    ),
-  },
 ];
 
 export default function Education() {
