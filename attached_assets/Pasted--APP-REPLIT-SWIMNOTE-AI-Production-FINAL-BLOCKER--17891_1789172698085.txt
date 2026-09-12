@@ -1,0 +1,251 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+Production 승인 전 FINAL BLOCKER 수정
+
+현재 완료보고 검토 결과:
+
+전체 구조와 테스트는 대부분 PASS입니다.
+다만 Production 전에 아래 2개 BLOCKER와 1개 안전성 검증이 필요합니다.
+
+Production deploy / migration / correction은 계속 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. BLOCKER — 중간 입회 Eligibility 실제 SQL 확인/수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 완료보고에는 재원 판정이:
+
+enrolled_at <= P_START
+AND
+(left_at IS NULL OR left_at >= nextMonth)
+
+라고 기재되어 있습니다.
+
+P_START가 analysis_period_start라면 잘못된 조건입니다.
+
+확정 정책:
+
+9월 리포트
+=
+8월 수업 분석
+
+중간 입회 학생도:
+
+8월 중간 입회
++ 8월 실제 출석 >= 3
++ 8월 유효 일지 >= 3
++ 9월 1일 기준 재원
+
+이면 발급 대상입니다.
+
+따라서 재원 판단 기준은
+analysis_period_start가 아니라
+
+report_month_start
+=
+analysis_period_end_exclusive
+
+이어야 합니다.
+
+개념상:
+
+enrolled_at <= report_month_start
+
+AND
+
+(
+  left_at IS NULL
+  OR left_at >= report_month_start
+)
+
+예:
+
+report_month = 2026-09
+report_month_start = 2026-09-01
+
+학생 enrolled_at = 2026-08-15
+left_at = NULL
+attendance = 3
+source_event = 3
+
+→ ELIGIBLE
+
+반드시 실제 production SQL/function을 제출하십시오.
+
+테스트 E는 단순 함수 unit test가 아니라
+실제 DB eligibility query와 동일한 조건으로 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. BLOCKER — Eligibility Gate를 분석 상태 전환보다 앞으로 이동
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+1) PREANALYZING / ANALYZING 전환
+1.5) Eligibility Gate
+
+순서는 수정하십시오.
+
+최종 순서:
+
+worker가 report claim
+↓
+재원 판정
+↓
+attendance_count 계산
+↓
+source_event_count 계산
+↓
+eligibility 평가
+↓
+미달:
+  product_status = EXCLUDED
+  exclusion_code 저장
+  counts 저장
+  ENGINE 호출 없이 return
+↓
+통과:
+  counts 저장
+  exclusion_code = NULL
+↓
+PREANALYZING
+↓
+snapshot 생성
+↓
+ANALYZING
+↓
+ENGINE 호출
+
+Eligibility 미달 학생은
+PREANALYZING / ANALYZING 상태를 거치면 안 됩니다.
+
+이유:
+
+- 관리자 화면의 거짓 "분석 중" 방지
+- eligibility 판정 전 worker crash 시 ANALYZING 고착 방지
+- 분석 대상이 아닌 학생과 AI lifecycle 완전 분리
+
+worker claim/lock 자체는 기존 안전구조를 유지하십시오.
+
+FOR UPDATE SKIP LOCKED / CAS / request_id 구조는
+불필요하게 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. student.created_at Snapshot 하한 사용 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+GREATEST(
+  analysis_period_start,
+  student_created_date
+)
+
+를 snapshot 하한으로 사용한다고 보고했습니다.
+
+students.created_at이
+실제 수영장 입회일을 의미하는지 확인하십시오.
+
+단순 DB row 생성시각이라면
+Growth Report 분석 하한으로 사용하지 마십시오.
+
+데이터 import / 이전 / 재생성 등으로
+student row 생성일이 실제 입회일보다 늦으면
+정상 Diary가 누락될 수 있습니다.
+
+기본 원칙:
+
+lesson_date >= analysis_period_start
+
+AND
+lesson_date < analysis_period_end_exclusive
+
+학생별 source이므로 이것만으로도
+분석월 이전 데이터는 차단됩니다.
+
+입회일 제한이 실제로 필요하다면
+students.created_at이 아니라
+권위 있는 enrollment field를 사용하십시오.
+
+가능 후보:
+
+student_class_history.enrolled_at
+
+단,
+다반 수강 history 때문에 source가 중복/누락되지 않도록
+실제 의미를 검증하십시오.
+
+가장 안전한 구조가 analysis_period 하한만 사용하는 것이라면
+student.created_at 제한을 제거하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 다시 Dry-run
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+위 수정 후 주 pool 168건을 다시 계산하십시오.
+
+특히 제출:
+
+A.
+중간입회 학생 fixture:
+
+enrolled_at = 2026-08-15
+report_month = 2026-09
+attendance = 3
+diary = 3
+left_at = NULL
+
+→ ELIGIBLE 확인
+
+B.
+8월 입회 학생이
+enrolled_at > 2026-08-01이라는 이유만으로
+제외되지 않음 확인
+
+C.
+9월 1일 전에 퇴원한 학생
+→ NOT_REREGISTERED/비재원 판정
+
+D.
+Eligibility 미달 학생이
+PREANALYZING / ANALYZING을
+한 번도 거치지 않는 테스트
+
+E.
+Eligibility 계산 도중 worker crash simulation
+→ report가 ANALYZING에 고착되지 않음
+
+F.
+ELIGIBLE 학생만 ENGINE 호출
+
+G.
+EXCLUDED 학생 ENGINE 호출 0건
+
+H.
+최종 ELIGIBLE / EXCLUDED 수 재제출
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. PASS / HOLD
+2. 실제 재원 판정 SQL/function
+3. P_START가 무엇이었는지
+4. 중간입회 조건 수정 결과
+5. Eligibility Gate 최종 위치
+6. 상태전환 최종 순서
+7. student.created_at 사용 유지/제거 및 근거
+8. 중간입회 실제 테스트 결과
+9. Worker crash 테스트 결과
+10. ENGINE 대상 수
+11. EXCLUDED 수
+12. 최종 168건 dry-run matrix
+13. Production 변경 여부
+
+완료보고 후 멈추십시오.
+
+Production deploy / migration / correction은
+계속 승인 전 금지합니다.
