@@ -114,7 +114,8 @@ export async function assemblePaidInsightSnapshot(
       SELECT
         scp.active_curriculum_version_id AS current_curriculum_id,
         scp.display_confirmed_pct        AS confirmed_progress_pct,
-        scp.active_confirmed_pct         AS active_progress_pct
+        scp.active_confirmed_pct         AS active_progress_pct,
+        scp.gauge_pct                    AS gauge_pct
       FROM student_curriculum_progress scp
       WHERE scp.student_id       = ${studentId}
         AND scp.swimming_pool_id = ${poolId}
@@ -128,6 +129,7 @@ export async function assemblePaidInsightSnapshot(
           ? r.confirmed_progress_pct : null,
         active_progress_pct:    typeof r.active_progress_pct === "number"
           ? r.active_progress_pct : null,
+        gauge_pct: r.gauge_pct != null ? Number(r.gauge_pct) : null,
       };
     }
   } catch (err) {

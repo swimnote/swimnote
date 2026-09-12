@@ -1,0 +1,493 @@
+[보낼 곳: APP REPLIT]
+
+재검증 보고서 확인했습니다.
+
+GAUGE-NEW는 더 정밀하게 만들지 않고 **단순화해서 진행합니다.**
+
+이 게이지는 수영 실력을 정밀 측정하는 평가점수가 아닙니다.
+
+목적은:
+
+* 학부모에게 아이가 현재 어느 교육단계에 있는지 직관적으로 보여주기
+* 레벨이 올라가면 성장했다는 느낌을 즉시 전달하기
+* 일지 데이터가 쌓이면 해당 레벨 안에서 조금씩 진행되는 모습을 보여주기
+
+입니다.
+
+따라서 가장 중요한 Source of Truth는:
+
+`students.current_level_order`
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최종 핵심 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+딱 4개만 유지합니다.
+
+1.
+
+현재 레벨에는 반드시 최소 게이지가 있습니다.
+
+2.
+
+현재 레벨보다 낮은 커리큘럼 복습 내용은 게이지에 반영하지 않습니다.
+
+3.
+
+현재 레벨 이상에서 확인된 수업내용은 현재 레벨 구간 안에서 진행도를 올릴 수 있습니다.
+
+4.
+
+일반적인 일지 누적에서는 게이지가 내려가지 않습니다.
+
+정밀한 실력평가 시스템으로 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최종 Gauge Range
+━━━━━━━━━━━━━━━━━━━━━━
+
+Level 1 / 흰색모자
+
+0% ~ 20%
+
+Level 2 / 파란모자
+
+20% ~ 35%
+
+Level 3 / 빨간모자
+
+35% ~ 50%
+
+Level 4 / 검정모자
+
+50% ~ 65%
+
+Level 5 이상
+
+65% ~ 80%
+
+즉:
+
+금색모자
+챔피언
+슈퍼챔피언
+그 이상의 센터 레벨
+
+은 모두 현재는 65~80% 상위구간으로 취급합니다.
+
+현재 L5 이상에는 curriculum item이 없으므로
+현재 상태에서는:
+
+L5 이상
+→ 기본 65%
+
+이면 됩니다.
+
+향후 상위 curriculum item이 들어오면
+그때 65~80% 안에서 진행시키면 됩니다.
+
+별도의 L5/L6/L7 세부 게이지 설계를 지금 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 복잡한 Level별 독립 candidate 계산 폐기
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서에서 제안한:
+
+for each level
+→ candidate_L
+→ level별 ratio
+→ level별 MAX 비교
+
+구조까지 갈 필요 없습니다.
+
+기존 3-session 개념을 최대한 재사용하십시오.
+
+최종 개념:
+
+current_level = students.current_level_order
+
+↓
+
+현재 레벨보다 낮은 CPO 제거
+
+즉:
+
+`curriculum_item.level_order >= current_level`
+
+만 Gauge 계산 대상.
+
+↓
+
+남은 CPO를 session별로 집계
+
+↓
+
+기존 3-session rule 적용
+
+↓
+
+confirmed 위치 산출
+
+↓
+
+현재 레벨 curriculum 안에서 어느 정도 진행했는지 계산
+
+↓
+
+현재 레벨 floor ~ ceiling 안에 매핑
+
+이 정도면 충분합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 단순 계산식
+━━━━━━━━━━━━━━━━━━━━━━
+
+예시 개념:
+
+`cap_level = current_level_order`
+
+`floor = level_range.start`
+
+`ceiling = level_range.end`
+
+`width = ceiling - floor`
+
+현재 level보다 낮은 CPO 제거:
+
+`ci.level_order >= cap_level`
+
+그 이후 기존 3-session rule을 적용하여
+`confirmed_rank`를 얻습니다.
+
+현재 level의 curriculum item만 기준으로:
+
+`confirmed_item_count`
+
+를 계산합니다.
+
+상위 레벨 rank까지 확인됐으면
+현재 level은 완료한 것으로 취급해도 됩니다.
+
+즉:
+
+`ratio = confirmed_item_count / current_level_total_items`
+
+최대:
+
+`1.0`
+
+Gauge:
+
+`raw_gauge = floor + ratio × width`
+
+일반 일지 업데이트:
+
+`gauge_pct = MIN(80, MAX(previous_gauge_pct, raw_gauge))`
+
+입니다.
+
+중요:
+
+현재 레벨보다 높은 내용이 확인됐다고
+자동으로 다음 레벨 floor까지 넘어가지 않습니다.
+
+선생님이 학생 레벨을 올려야
+다음 level floor가 적용됩니다.
+
+즉:
+
+교육레벨 결정권
+= 선생님
+
+일지/CPO
+= 해당 level 내부 진행 보조신호
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 커리큘럼 데이터가 부족해도 정상
+━━━━━━━━━━━━━━━━━━━━━━
+
+센터가 curriculum을 부실하게 넣을 수도 있습니다.
+
+아이템이 적다고 오류로 취급하지 마십시오.
+
+예를 들어 Level 2가 3개뿐이면
+각 항목의 게이지 영향이 큰 것도 허용합니다.
+
+이 게이지는 계측기나 시험점수가 아닙니다.
+
+완벽한 선형성을 만들기 위해:
+
+* 가중치 시스템
+* 보간 알고리즘
+* curriculum density normalization
+* 레벨별 별도 scoring
+* AI 추정
+* 추가 평가점수
+
+같은 것을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. current_level_order가 가장 중요
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+빨간모자 학생
+
+아무 일지 없음
+
+→ 최소 35%
+
+빨간모자 학생
+
+흰색모자 복습만 계속함
+
+→ 35%
+
+빨간모자 학생
+
+빨간모자 관련 confirmed progress 있음
+
+→ 35~50% 안에서 상승
+
+빨간모자 학생
+
+검정 수준 수업내용이 일부 관찰됨
+
+→ 빨간 구간을 최대 50%까지 채울 수 있음
+
+하지만 선생님이 검정모자로 승급시키기 전에는
+50%를 넘기지 않음.
+
+선생님이 검정모자로 변경
+
+→ 즉시 최소 50%.
+
+이게 핵심입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Level PATCH
+━━━━━━━━━━━━━━━━━━━━━━
+
+레벨 PATCH 후에는 Gauge가 즉시 새 레벨 기준을 반영해야 합니다.
+
+기존:
+
+학생 level 저장
+→ 다음 일지 때까지 gauge 이전값
+
+은 금지합니다.
+
+같은 Gauge 계산 함수를 사용하되
+Level 변경에 의한 recalculation에서는
+기존 `GREATEST(previous)` 때문에 잘못된 옛 floor가 남지 않게 하십시오.
+
+즉 명시적인 level 변경/정정은:
+
+`fresh recompute`
+
+허용.
+
+일반 Diary 누적은:
+
+`GREATEST`
+
+유지.
+
+이 두 경우만 구분하면 됩니다.
+
+과도한 별도 상태머신은 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. current_level_order=null
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고서상 level 미설정 학생이 많이 존재합니다.
+
+이 경우:
+
+`gauge_pct = null`
+
+유지합니다.
+
+임의로 흰색모자 0%로 간주하지 마십시오.
+
+선생님이 Level을 설정한 이후부터
+GAUGE-NEW를 적용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 기존 필드
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+confirmed_progress_pct
+display_confirmed_pct
+
+삭제하지 않습니다.
+
+신규:
+
+gauge_pct
+
+병렬 추가.
+
+앱:
+
+`gauge_pct != null`
+→ gauge_pct 사용
+
+아니면:
+
+→ 기존 display_confirmed_pct fallback
+
+유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. AI ENGINE은 이번 작업에서 제외
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP 조사에서
+새 curriculum_state field를 ENGINE이 허용하는지는 확인하지 못했습니다.
+
+따라서 이번 GAUGE APP 구현과
+AI ENGINE contract 작업을 섞지 마십시오.
+
+이번 단계에서는:
+
+DB
+→ Gauge 계산
+→ Level PATCH
+→ API
+→ 앱 표시
+
+까지 먼저 완료합니다.
+
+Growth Report ENGINE 연결은
+APP Gauge가 Production에서 정상 확인된 다음
+별도 AI ENGINE 지시로 진행합니다.
+
+현재 ENGINE request에
+새 field를 임의로 넣어서 Production 호출하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 우선순위
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. SCP gauge_pct 컬럼 추가
+
+2. curriculum-confirmation-engine.ts
+
+* current_level 확인
+* 하위 CPO 제외
+* 기존 3-session rule 재사용
+* 현재 level range 안에서 gauge 계산
+
+3. teacher/admin Level PATCH
+
+* 레벨 변경 직후 fresh gauge recompute
+
+4. 기존 SCP backfill
+
+5. parent/home API에 gauge_pct 추가
+
+6. 앱 Gauge UI에서 gauge_pct 우선 표시
+
+7. Growth Report 앱 화면에서도 gauge_pct 표시
+
+8. Production Runtime 검증
+
+여기까지 완료한 뒤 멈추십시오.
+
+AI ENGINE 연결 및 Growth Report 재발급은
+이번 작업에 포함하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 작업 철학
+━━━━━━━━━━━━━━━━━━━━━━
+
+GAUGE-NEW의 핵심은:
+
+"정확한 진척도 측정"
+
+이 아니라
+
+"현재 교육레벨을 기준으로 아이가 앞으로 가고 있다는 것을 학부모가 직관적으로 이해하게 만드는 것"
+
+입니다.
+
+따라서 구현하면서
+더 정확하게 만들겠다는 이유로
+새 알고리즘이나 복잡한 평가체계를 추가하지 마십시오.
+
+현재 Level floor가 가장 중요합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 배포 완료보고 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현 및 배포 후 반드시 제출:
+
+* Repository
+* Branch
+* 작업 Commit SHA
+* Production LIVE SHA
+* Render Service
+* Render Deploy ID 또는 식별값
+* migration 실제 적용 여부
+* Production DB gauge_pct 컬럼 확인
+* Production API 실제 응답
+* Runtime 검증값
+
+APP OTA가 있다면:
+
+* app version
+* runtimeVersion
+* iOS buildNumber
+* Android versionCode
+* EAS Update ID
+* channel
+* branch
+
+를 반드시 포함하십시오.
+
+잘못된 환경/branch/service/channel에 올리고
+배포 완료라고 보고하면 안 됩니다.
+
+확인하지 못한 것은:
+
+`확인하지 못함`
+
+이라고 명시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료 후 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드와 Production Runtime 기준으로:
+
+1. 최종 Gauge 계산식
+2. 수정 파일
+3. DB migration 결과
+4. backfill 결과
+5. level 변경 즉시 반영 확인
+6. 하위 level 복습 무시 확인
+7. 일반 일지 단조 증가 확인
+8. L5 이상 65% floor 확인
+9. level=null → gauge=null 확인
+10. API 실제 response
+11. 앱 실제 표시 결과
+12. 배포정보 전체
+13. 발견된 실제 blocker
+
+만 제출하십시오.
+
+추가 개선 아이디어는 제출하지 마십시오.
+
+이 설계로 구현 진행하십시오.

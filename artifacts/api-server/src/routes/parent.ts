@@ -2375,19 +2375,26 @@ router.get("/students/:studentId/curriculum-progress", requireAuth, requireParen
     // 2. SCP 조회 (student + pool 모두 매칭 — cross-pool leakage 차단)
     const scpRes = await superAdminDb.execute(sql`
       SELECT
-        student_id,
-        display_confirmed_pct,
-        active_confirmed_pct,
-        active_confirmed_rank,
-        active_confirmed_total,
-        active_curriculum_version_id,
-        observation_session_count,
-        confirmed_at,
-        display_updated_at,
-        prev_curriculum_version_id
-      FROM student_curriculum_progress
-      WHERE student_id       = ${studentId}
-        AND swimming_pool_id = ${poolId}
+        scp.student_id,
+        scp.display_confirmed_pct,
+        scp.active_confirmed_pct,
+        scp.active_confirmed_rank,
+        scp.active_confirmed_total,
+        scp.active_curriculum_version_id,
+        scp.observation_session_count,
+        scp.confirmed_at,
+        scp.display_updated_at,
+        scp.prev_curriculum_version_id,
+        scp.gauge_pct,
+        s.current_level_order,
+        pls.level_name AS cap_level_label
+      FROM student_curriculum_progress scp
+      JOIN students s ON s.id = scp.student_id
+      LEFT JOIN pool_level_settings pls
+        ON pls.pool_id   = s.swimming_pool_id
+        AND pls.level_order = s.current_level_order
+      WHERE scp.student_id       = ${studentId}
+        AND scp.swimming_pool_id = ${poolId}
       LIMIT 1
     `);
 
@@ -2404,6 +2411,9 @@ router.get("/students/:studentId/curriculum-progress", requireAuth, requireParen
         confirmed_at:                  null,
         display_updated_at:            null,
         is_version_transition:         false,
+        gauge_pct:                     null,
+        cap_level:                     null,
+        cap_level_label:               null,
       });
     }
 
@@ -2419,6 +2429,9 @@ router.get("/students/:studentId/curriculum-progress", requireAuth, requireParen
       confirmed_at:                  scp.confirmed_at ?? null,
       display_updated_at:            scp.display_updated_at ?? null,
       is_version_transition:         scp.prev_curriculum_version_id != null,
+      gauge_pct:                     scp.gauge_pct != null ? Number(scp.gauge_pct) : null,
+      cap_level:                     scp.current_level_order ?? null,
+      cap_level_label:               scp.cap_level_label ?? null,
     });
   } catch (err: any) {
     console.error("[parent/curriculum-progress] error:", err?.message);

@@ -33,6 +33,12 @@ export interface CurriculumProgressData {
   confirmed_at: string | null;
   display_updated_at: string | null;
   is_version_transition: boolean;
+  /** GAUGE-NEW: level-range 기반 게이지 (null = level 미설정) */
+  gauge_pct?: number | null;
+  /** GAUGE-NEW: current_level_order */
+  cap_level?: number | null;
+  /** GAUGE-NEW: 레벨명 (예: "빨간모자") */
+  cap_level_label?: string | null;
 }
 
 interface CurrentLevelInfo {
@@ -71,9 +77,14 @@ export default function CurriculumProgressGauge({ data, loading, currentLevel }:
   // data가 없을 때만 "진행 정보가 쌓이는 중" 표시
   // pct=0이면 0% 게이지 표시 (API 성공인데 fallback 금지)
   const hasData = !!data;
-  const sessionCount = data?.observation_session_count ?? 0;
-  const displayPct   = data?.display_confirmed_pct ?? 0;
-  const isEmpty      = !hasData;
+  const isEmpty = !hasData;
+
+  // GAUGE-NEW: gauge_pct 우선, fallback display_confirmed_pct
+  const displayPct = (() => {
+    if (!hasData) return 0;
+    if (data!.gauge_pct != null) return data!.gauge_pct;
+    return data!.display_confirmed_pct ?? 0;
+  })();
 
   const displayInt = toDisplayInt(displayPct);
   const barWidth   = toBarWidth(displayPct);

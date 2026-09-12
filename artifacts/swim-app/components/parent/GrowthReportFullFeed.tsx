@@ -194,9 +194,11 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
     }
   }
 
-  const pct        = progressData?.display_confirmed_pct;
+  // GAUGE-NEW: gauge_pct 우선, fallback display_confirmed_pct
+  const pct = progressData?.gauge_pct != null
+    ? progressData.gauge_pct
+    : progressData?.display_confirmed_pct;
   const hasProgress =
-    (progressData?.observation_session_count ?? 0) >= 3 &&
     typeof pct === "number" && pct > 0;
   const pctInt = hasProgress ? Math.round(pct!) : 0;
 
@@ -227,9 +229,11 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
       if (!d?.report_content) throw new Error("INVALID_REPORT_CONTENT");
 
       // Detail.handlePdfSave와 동일한 params 구성
-      const pct = progressData?.display_confirmed_pct;
-      const hasP = (progressData?.observation_session_count ?? 0) >= 3 &&
-                   typeof pct === "number" && pct > 0;
+      // GAUGE-NEW: gauge_pct 우선, fallback display_confirmed_pct
+      const pct = progressData?.gauge_pct != null
+        ? progressData.gauge_pct
+        : progressData?.display_confirmed_pct;
+      const hasP = typeof pct === "number" && pct > 0;
       const params: GrowthReportExportParams = {
         reportId:                  d.report_id,
         reportPeriod:              d.report_period,

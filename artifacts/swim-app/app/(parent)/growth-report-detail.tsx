@@ -254,10 +254,13 @@ export default function GrowthReportDetailScreen() {
         if (cancelled || !res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-        const pct: number = Number(data?.display_confirmed_pct ?? 0);
+        // GAUGE-NEW: gauge_pct 우선, fallback display_confirmed_pct
+        const rawPct = data?.gauge_pct != null
+          ? Number(data.gauge_pct)
+          : Number(data?.display_confirmed_pct ?? 0);
         // "48.7%" 형식; 0이면 데이터 없는 것으로 간주하여 null 유지
-        if (pct > 0) {
-          setCurriculumProgressPercent(`${pct.toFixed(1)}%`);
+        if (rawPct > 0) {
+          setCurriculumProgressPercent(`${rawPct.toFixed(1)}%`);
         }
       } catch {
         // 진도 정보 fetch 실패는 silent — fallback 문구로 처리됨

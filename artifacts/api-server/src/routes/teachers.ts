@@ -15,6 +15,7 @@ import {
   addDateDays, dayOfWeekFromDateStr, getMakeupDateRange,
   isValidDateFormat, isValidCalendarDate, validateMakeupDateRange,
 } from "../lib/makeup-date-range.js";
+import { recomputeGaugePctForLevelPatch } from "../lib/curriculum-confirmation-engine.js";
 
 const router = Router();
 
@@ -1627,8 +1628,19 @@ router.patch("/teacher/students/:id/level", requireAuth, async (req: AuthRequest
     await db.execute(sql`
       UPDATE students SET current_level_order = ${level_order}, updated_at = NOW() WHERE id = ${req.params.id}
     `);
-    // UPDATE 성공 즉시 응답 — INSERT는 비동기 처리 (테이블 미존재 등 실패해도 UX 영향 없음)
-    res.json({ ok: true, level_order, level_name: lvName });
+
+    // GAUGE-NEW: 레벨 변경 직후 gauge_pct fresh 재계산 (동기 — 응답 전에 완료)
+    let freshGaugePct: number | null = null;
+    try {
+      freshGaugePct = await recomputeGaugePctForLevelPatch(db, req.params.id, poolId, level_order);
+      console.log(`[레벨변경] gauge_pct fresh recompute student=${req.params.id} level=${level_order} gauge=${freshGaugePct}`);
+    } catch (gaugeErr) {
+      console.error("[레벨변경] gauge recompute 실패 (non-blocking):", (gaugeErr as any)?.message);
+    }
+
+    res.json({ ok: true, level_order, level_name: lvName, gauge_pct: freshGaugePct });
+
+    // 응답 이후 fire-and-forget: student_levels 로그성 INSERT + push 알림
     db.execute(sql`
       INSERT INTO student_levels (id, student_id, swimming_pool_id, level, level_order, achieved_date, note, teacher_name, created_at)
       VALUES (gen_random_uuid()::text, ${req.params.id}, ${poolId}, ${lvName}, ${level_order},
