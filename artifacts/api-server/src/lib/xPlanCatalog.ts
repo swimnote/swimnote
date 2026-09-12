@@ -29,12 +29,18 @@ export interface XPlanDef {
   /** Monthly price in KRW */
   priceMonthlyKrw: number;
   priceLabel: string;
+  /** Storage quota in MB — written to swimming_pools.storage_mb on X grant */
+  storageMb: number;
+  /** Storage quota in GB — written to swimming_pools.base_storage_gb on X grant */
+  storageGb: number;
+  /** Human-readable storage label — written to swimming_pools.display_storage on X grant */
+  displayStorage: string;
 }
 
 export const X_PLAN_CATALOG: readonly XPlanDef[] = [
-  { key: "x300",  label: "SWIMNOTE X300",  memberLimit: 300,  priceMonthlyKrw: 129000, priceLabel: "₩129,000/월" },
-  { key: "x500",  label: "SWIMNOTE X500",  memberLimit: 500,  priceMonthlyKrw: 199000, priceLabel: "₩199,000/월" },
-  { key: "x1000", label: "SWIMNOTE X1000", memberLimit: 1000, priceMonthlyKrw: 359000, priceLabel: "₩359,000/월" },
+  { key: "x300",  label: "SWIMNOTE X300",  memberLimit: 300,  priceMonthlyKrw: 129000, priceLabel: "₩129,000/월", storageMb: 307200,  storageGb: 300,  displayStorage: "300GB" },
+  { key: "x500",  label: "SWIMNOTE X500",  memberLimit: 500,  priceMonthlyKrw: 199000, priceLabel: "₩199,000/월", storageMb: 512000,  storageGb: 500,  displayStorage: "500GB" },
+  { key: "x1000", label: "SWIMNOTE X1000", memberLimit: 1000, priceMonthlyKrw: 359000, priceLabel: "₩359,000/월", storageMb: 1024000, storageGb: 1000, displayStorage: "1TB"   },
 ] as const;
 
 /** Authoritative member limits — server MUST use this, never client-supplied value */

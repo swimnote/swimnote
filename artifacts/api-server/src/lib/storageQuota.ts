@@ -33,21 +33,37 @@ export interface PoolStorageUsage {
 
 /**
  * Get effective quota in GB for a pool.
- * SoT: base from subscription_plans joined via swimming_pools.subscription_tier
+ * SoT: base from subscription_plans, using X plan key when X is active
  *       extra from swimming_pools.extra_storage_gb
+ *
+ * X 활성 + canonical x_plan_key(x300/x500/x1000) → X plan 스토리지 사용
+ * 그 외 → subscription_tier 기반 (기존 동작)
  */
 export async function getPoolQuotaGb(poolId: string): Promise<{
   baseGb:   number;
   extraGb:  number;
   quotaGb:  number;
 }> {
+  const CANONICAL_X_KEYS = new Set(["x300", "x500", "x1000"]);
+
   const [row] = (await superAdminDb.execute(sql`
     SELECT
       COALESCE(sp.storage_gb, 0.1) AS base_gb,
-      COALESCE(p.extra_storage_gb, 0)  AS extra_gb
+      COALESCE(p.extra_storage_gb, 0) AS extra_gb
     FROM swimming_pools p
-    LEFT JOIN subscription_plans sp
-           ON sp.tier = COALESCE(p.subscription_tier, 'free')
+    LEFT JOIN subscription_plans sp ON sp.tier = (
+      -- X 활성 + canonical plan key → X plan tier 사용 (subscription_tier 무시)
+      CASE
+        WHEN (
+          COALESCE(p.x_management_override, false)
+          OR COALESCE(p.x_paid_entitlement, false)
+          OR COALESCE(p.x_manual_entitlement, false)
+        )
+          AND p.x_plan_key IN ('x300', 'x500', 'x1000')
+        THEN p.x_plan_key
+        ELSE COALESCE(p.subscription_tier, 'free')
+      END
+    )
     WHERE p.id = ${poolId}
     LIMIT 1
   `)).rows as any[];

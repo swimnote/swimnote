@@ -4201,14 +4201,20 @@ router.patch(
           // x_management_override: 변경하지 않음
         }
 
-        // ── Catalog-authoritative member_limit ─────────────────────────
+        // ── Catalog-authoritative member_limit + storage ───────────────
         // 클라이언트 제공 member_limit는 절대 신뢰하지 않음.
-        // grant 시: X plan catalog 기준 member_limit 자동 설정.
-        // revoke 시: null로 초기화 (plan catalog 기본값 사용).
-        const { getXMemberLimit } = await import("../lib/xPlanCatalog.js");
+        // grant 시: X plan catalog 기준 member_limit·storage 자동 설정.
+        // revoke 시: member_limit null 초기화, storage는 subscription_plans에서 가져옴.
+        const { getXMemberLimit, getXPlan } = await import("../lib/xPlanCatalog.js");
         const newMemberLimit: number | null = grant && newPlanKey
           ? (getXMemberLimit(newPlanKey) ?? null)
           : null;
+
+        // storage 컬럼: grant 시 X plan catalog 값 / revoke 시 swimnote 기본값
+        const xPlanDef = grant && newPlanKey ? getXPlan(newPlanKey) : null;
+        const newStorageMb      = xPlanDef ? xPlanDef.storageMb      : 10240;   // swimnote fallback
+        const newBaseStorageGb  = xPlanDef ? xPlanDef.storageGb      : 10;
+        const newDisplayStorage = xPlanDef ? xPlanDef.displayStorage  : "10GB";
 
         const updatedRes = await tx.execute(sql`
           UPDATE swimming_pools
@@ -4218,6 +4224,9 @@ router.patch(
             x_plan_key           = ${newPlanKey},
             xmode_config_status  = ${newConfigStatus},
             member_limit         = ${newMemberLimit},
+            storage_mb           = ${newStorageMb},
+            base_storage_gb      = ${newBaseStorageGb},
+            display_storage      = ${newDisplayStorage},
             updated_at           = NOW()
           WHERE id = ${poolId}
           RETURNING
@@ -4226,7 +4235,10 @@ router.patch(
             COALESCE(x_force_disabled,    false) AS x_force_disabled,
             x_plan_key,
             xmode_config_status,
-            member_limit
+            member_limit,
+            storage_mb,
+            base_storage_gb,
+            display_storage
         `);
         const after = updatedRes.rows[0] as any;
 
