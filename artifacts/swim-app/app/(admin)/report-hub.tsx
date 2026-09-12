@@ -335,7 +335,7 @@ export default function ReportHubScreen() {
   const onSelectSend = useCallback(async () => {
     if (selectedIds.size === 0) return;
     // READY_TO_SEND + APPROVED 발송 가능
-    const targets = displayRows.filter(r => selectedIds.has(r.report_id) && ["READY_TO_SEND", "APPROVED"].includes(r.product_status));
+    const targets = displayRows.filter(r => selectedIds.has(r.report_id) && ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(r.product_status));
     if (targets.length === 0) { Alert.alert("알림", "발송 가능한 상태의 리포트를 선택하세요."); return; }
     Alert.alert(
       "선택 발송",
@@ -771,7 +771,7 @@ export default function ReportHubScreen() {
           <View style={s.selectBarTop}>
             {(() => {
               const selectableIds = displayRows
-                .filter(r => ["READY_TO_SEND", "APPROVED"].includes(r.product_status))
+                .filter(r => ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(r.product_status))
                 .map(r => r.report_id);
               const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
               return (
