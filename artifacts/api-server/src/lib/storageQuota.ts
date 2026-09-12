@@ -1,19 +1,31 @@
 /**
  * lib/storageQuota.ts
- * WP2A: Unified storage quota helper
+ * Canonical storage quota resolver — ONE source of truth for ALL quota consumers.
  *
- * Source of Truth:
- *  - base storage: subscription_plans.storage_gb (via swimming_pools.subscription_tier)
- *  - extra storage: swimming_pools.extra_storage_gb (LOCKED SoT — not pool_subscriptions)
- *  - photo bytes:   photo_assets_meta.file_size (is_clone=false) + student_photos.file_size_bytes
- *  - video bytes:   video_assets_meta.file_size (status='active', 14-day retention)
- *  - thumbnail bytes: NOT included (policy: thumbnail quota excluded)
+ * Priority (high → low):
+ *  1. X active (management_override | paid_entitlement | manual_entitlement)
+ *     + canonical x_plan_key (x300 | x500 | x1000) → X plan storage
+ *  2. BASE subscription_tier
+ *
+ * NEVER use:
+ *  - swimming_pools.storage_mb / base_storage_gb (stale denormalized copies)
+ *  - pool_subscriptions.tier alone (billing tier ≠ effective plan for Management/Manual X)
+ *
+ * Consumers:
+ *  - storage.ts  → /admin/storage  (저장공간 현황 화면)
+ *  - billing.ts  → /features       (billing quota display)
+ *  - photos.ts   → presigned URL   (direct upload quota gate)
+ *  - uploads.ts  → POST /uploads   (multipart upload quota gate)
+ *  - videos.ts   → upload check    (video upload quota gate)
  */
 
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 export type StorageWarningLevel = "ok" | "warning" | "data_pack" | "blocked";
+
+/** X plan source for auditing/debugging */
+export type PlanSource = "BASE" | "PAID_X" | "MANUAL_X" | "MANAGEMENT_X";
 
 export interface PoolStorageUsage {
   /** album photos (photo_assets_meta, non-clone) + notice/upload photos (student_photos) */
@@ -22,7 +34,7 @@ export interface PoolStorageUsage {
   videoBytes:    number;
   /** photoBytes + videoBytes */
   usedBytes:     number;
-  /** base_plan_storage_gb + swimming_pools.extra_storage_gb */
+  /** base plan storage + swimming_pools.extra_storage_gb */
   quotaGb:       number;
   quotaBytes:    number;
   /** 0–100+ rounded */
@@ -31,46 +43,107 @@ export interface PoolStorageUsage {
   warningLevel:  StorageWarningLevel;
 }
 
-/**
- * Get effective quota in GB for a pool.
- * SoT: base from subscription_plans, using X plan key when X is active
- *       extra from swimming_pools.extra_storage_gb
- *
- * X 활성 + canonical x_plan_key(x300/x500/x1000) → X plan 스토리지 사용
- * 그 외 → subscription_tier 기반 (기존 동작)
- */
-export async function getPoolQuotaGb(poolId: string): Promise<{
-  baseGb:   number;
-  extraGb:  number;
-  quotaGb:  number;
-}> {
-  const CANONICAL_X_KEYS = new Set(["x300", "x500", "x1000"]);
+/** Full resolution result for auditing and downstream consumers */
+export interface EffectiveStorageQuota {
+  /** The canonical plan key that drives storage (e.g. "x1000", "swimnote", "free") */
+  effectivePlanKey:  string;
+  /** How the plan was resolved */
+  planSource:        PlanSource;
+  /** Base storage from subscription_plans (excludes DATA add-on) */
+  baseStorageGb:     number;
+  /** Extra storage from swimming_pools.extra_storage_gb (DATA add-ons) */
+  extraStorageGb:    number;
+  /** baseStorageGb + extraStorageGb */
+  totalStorageGb:    number;
+  /** totalStorageGb in bytes */
+  totalQuotaBytes:   number;
+}
 
+/** The canonical effective-plan SQL expression — reused in every query */
+const EFFECTIVE_TIER_EXPR = `
+  CASE
+    WHEN (
+      COALESCE(p.x_management_override, false)
+      OR COALESCE(p.x_paid_entitlement,    false)
+      OR COALESCE(p.x_manual_entitlement,  false)
+    )
+      AND p.x_plan_key IN ('x300', 'x500', 'x1000')
+    THEN p.x_plan_key
+    ELSE COALESCE(p.subscription_tier, 'free')
+  END
+`;
+
+/**
+ * Resolve the full effective storage quota for a pool.
+ * Single authoritative function — all other helpers delegate here.
+ *
+ * X source priority:
+ *   x_management_override  → MANAGEMENT_X
+ *   x_paid_entitlement     → PAID_X
+ *   x_manual_entitlement   → MANUAL_X
+ *   (none)                 → BASE
+ */
+export async function resolveEffectiveStorageQuota(poolId: string): Promise<EffectiveStorageQuota> {
   const [row] = (await superAdminDb.execute(sql`
     SELECT
+      -- Plan source flags
+      COALESCE(p.x_management_override, false) AS mgmt,
+      COALESCE(p.x_paid_entitlement,    false) AS paid,
+      COALESCE(p.x_manual_entitlement,  false) AS manual,
+      p.x_plan_key,
+      -- Effective plan tier (canonical resolver)
+      (${sql.raw(EFFECTIVE_TIER_EXPR)}) AS effective_tier,
+      -- Base storage from subscription_plans (via effective tier)
       COALESCE(sp.storage_gb, 0.1) AS base_gb,
-      COALESCE(p.extra_storage_gb, 0) AS extra_gb
+      -- Extra storage (DATA add-ons)
+      COALESCE(p.extra_storage_gb, 0)  AS extra_gb
     FROM swimming_pools p
-    LEFT JOIN subscription_plans sp ON sp.tier = (
-      -- X 활성 + canonical plan key → X plan tier 사용 (subscription_tier 무시)
-      CASE
-        WHEN (
-          COALESCE(p.x_management_override, false)
-          OR COALESCE(p.x_paid_entitlement, false)
-          OR COALESCE(p.x_manual_entitlement, false)
-        )
-          AND p.x_plan_key IN ('x300', 'x500', 'x1000')
-        THEN p.x_plan_key
-        ELSE COALESCE(p.subscription_tier, 'free')
-      END
-    )
+    LEFT JOIN subscription_plans sp
+           ON sp.tier = (${sql.raw(EFFECTIVE_TIER_EXPR)})
     WHERE p.id = ${poolId}
     LIMIT 1
   `)).rows as any[];
 
-  const baseGb  = Number(row?.base_gb  ?? 0.1);
-  const extraGb = Number(row?.extra_gb ?? 0);
-  return { baseGb, extraGb, quotaGb: baseGb + extraGb };
+  const baseGb      = Number(row?.base_gb   ?? 0.1);
+  const extraGb     = Number(row?.extra_gb  ?? 0);
+  const totalGb     = baseGb + extraGb;
+  const effectiveTier = String(row?.effective_tier ?? "free");
+
+  const planSource: PlanSource =
+    row?.mgmt   ? "MANAGEMENT_X" :
+    row?.paid   ? "PAID_X"       :
+    row?.manual ? "MANUAL_X"     :
+                  "BASE";
+
+  return {
+    effectivePlanKey:  effectiveTier,
+    planSource,
+    baseStorageGb:     baseGb,
+    extraStorageGb:    extraGb,
+    totalStorageGb:    totalGb,
+    totalQuotaBytes:   totalGb * 1024 ** 3,
+  };
+}
+
+/**
+ * Get effective quota in GB for a pool.
+ * Thin wrapper over resolveEffectiveStorageQuota for backward compatibility.
+ */
+export async function getPoolQuotaGb(poolId: string): Promise<{
+  baseGb:       number;
+  extraGb:      number;
+  quotaGb:      number;
+  planSource:   PlanSource;
+  effectivePlanKey: string;
+}> {
+  const q = await resolveEffectiveStorageQuota(poolId);
+  return {
+    baseGb:           q.baseStorageGb,
+    extraGb:          q.extraStorageGb,
+    quotaGb:          q.totalStorageGb,
+    planSource:       q.planSource,
+    effectivePlanKey: q.effectivePlanKey,
+  };
 }
 
 /**
@@ -83,7 +156,7 @@ export async function getPoolQuotaGb(poolId: string): Promise<{
  * Video bytes from video_assets_meta WHERE status='active' only.
  */
 export async function getPoolStorageUsage(poolId: string): Promise<PoolStorageUsage> {
-  const { baseGb, extraGb, quotaGb } = await getPoolQuotaGb(poolId);
+  const { totalStorageGb: quotaGb } = await resolveEffectiveStorageQuota(poolId);
 
   // Album photos (photos.ts path) — canonical photo table; is_clone=false to exclude clones
   const [albumRow] = (await db.execute(sql`
@@ -134,7 +207,6 @@ export async function checkAndUpdateUploadBlocked(poolId: string): Promise<{
   const usage = await getPoolStorageUsage(poolId);
 
   if (usage.pct >= 100) {
-    // Set blocked
     await superAdminDb.execute(sql`
       UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}
     `).catch(() => {});

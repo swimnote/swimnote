@@ -1470,16 +1470,12 @@ router.post(
         }
       }
 
-      // ── Storage quota ─────────────────────────────────────────────────
+      // ── Storage quota (canonical resolver — x_plan_key 인식) ───────────
+      // pool_subscriptions.tier 직접 JOIN 금지: Management/Manual X는
+      // billing tier ≠ effective plan이므로 반드시 resolveEffectiveStorageQuota() 사용.
       const totalIncoming = (body.files as Array<{ file_size: number }>).reduce((s, f) => s + f.file_size, 0);
-      const [quotaRow] = (await superAdminDb.execute(sql`
-        SELECT COALESCE(sp.storage_gb, 0.5) AS storage_gb, COALESCE(p.extra_storage_gb, 0) AS extra_storage_gb
-        FROM swimming_pools p
-        LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id AND ps.status = 'active'
-        LEFT JOIN subscription_plans sp ON sp.tier = COALESCE(ps.tier, 'free')
-        WHERE p.id = ${poolId} LIMIT 1
-      `)).rows as any[];
-      const quotaBytes = (Number(quotaRow?.storage_gb ?? 0.5) + Number(quotaRow?.extra_storage_gb ?? 0)) * 1024 ** 3;
+      const { resolveEffectiveStorageQuota } = await import("../lib/storageQuota.js");
+      const { totalQuotaBytes: quotaBytes } = await resolveEffectiveStorageQuota(poolId);
 
       // ── Generate UUID-based object keys and presigned PUT URLs ────────
       // All direct uploads live under a session-scoped prefix. A future
