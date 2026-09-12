@@ -1496,28 +1496,30 @@ router.post(
         headers: { "Content-Type": string };
       }> = [];
 
-      for (const f of body.files as Array<{ client_id: string; file_type: string; file_size: number }>) {
-        const ext = extFromMime(f.file_type);
-        // UUID-based key — server generated, never derived from client-supplied filename
-        const uuid = crypto.randomUUID();
-        const objectKey = `photos/direct-staging/${poolId}/${nonce}/${uuid}.${ext}`;
+      // ── Parallel presigned URL generation (all files at once) ───────────
+      const typedFiles = body.files as Array<{ client_id: string; file_type: string; file_size: number }>;
+      const presignResults = await Promise.all(
+        typedFiles.map(async (f) => {
+          const ext = extFromMime(f.file_type);
+          const uuid = crypto.randomUUID();
+          const objectKey = `photos/direct-staging/${poolId}/${nonce}/${uuid}.${ext}`;
+          const { ok, url, error } = await getPresignedPutUrl(
+            objectKey,
+            f.file_type,
+            f.file_size,
+            SESSION_TTL_SECONDS,
+          );
+          return { f, objectKey, ok, url, error };
+        })
+      );
 
-        // ContentLength is part of the signature. R2 rejects a PUT whose
-        // actual byte length differs from the validated declaration.
-        const { ok, url, error } = await getPresignedPutUrl(
-          objectKey,
-          f.file_type,
-          f.file_size,
-          SESSION_TTL_SECONDS,
-        );
+      for (const { f, objectKey, ok, url, error } of presignResults) {
         if (!ok || !url) {
           res.status(500).json({ error: `presigned URL 생성 실패: ${error}` }); return;
         }
-
         keysMap[f.client_id] = objectKey;
         sizesMap[f.client_id] = f.file_size;
         typesMap[f.client_id] = f.file_type;
-
         uploads.push({
           client_id: f.client_id,
           object_key: objectKey,

@@ -4,9 +4,9 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
-import * as VideoThumbnails from "expo-video-thumbnails";
 import { compressPhotosParallel } from "../../utils/compressImage";
 import { directUploadPhotos } from "../../utils/directUploadPhotos";
+import { directUploadVideo } from "../../utils/directUploadVideo";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Dimensions, FlatList,
@@ -520,36 +520,23 @@ export default function TeacherPhotosScreen() {
         }
         return;
       }
-      // ── 영상: 블로킹 방식 ────────────────────────────────────────────
-      const form = new FormData();
-      for (const asset of assets) {
-        const uri = asset.uri;
-        form.append("video", {
-          uri,
-          name: asset.fileName || "video.mp4",
-          type: asset.mimeType || "video/mp4",
-        } as any);
-        try {
-          const thumb = await VideoThumbnails.getThumbnailAsync(uri, { time: 1000 });
-          form.append("thumbnail", {
-            uri: thumb.uri,
-            name: "thumbnail.jpg",
-            type: "image/jpeg",
-          } as any);
-        } catch (thumbErr) {
-          console.warn("[videos] 썸네일 생성 실패 (무시됨):", thumbErr);
-        }
-      }
-      form.append("class_id", group?.id ?? "");
-      if (sc === "private" && student?.id) form.append("student_id", student.id);
-      const videoEndpoint = sc === "group" ? "/videos/group" : "/videos/private";
-      const res = await fetch(`${API_BASE}${videoEndpoint}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token ?? ""}` },
-        body: form,
+      // ── 영상: R2 presigned 직접 업로드 (서버 경유 없음, 핸드폰 용량 불필요) ──
+      const asset = assets[0]; // 영상은 1개 선택
+      const videoResult = await directUploadVideo({
+        token: token ?? "",
+        albumType: sc,
+        classId: group?.id,
+        studentId: sc === "private" ? student?.id : undefined,
+        uri: asset.uri,
+        fileName: asset.fileName || "video.mp4",
+        mimeType: asset.mimeType || "video/mp4",
+        fileSize: (asset as any).fileSize ?? undefined,
+        onProgress: (pct) => {
+          // reuse compressProgress for video progress display
+          setCompressProgress(Math.round(pct));
+        },
       });
-      const resData = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((resData as any)?.error ?? "업로드 실패");
+      if (videoResult.error) throw new Error(videoResult.error);
       setSuccessMsg(
         sc === "group"
           ? `영상이 ${group?.name ? `${group.name} ` : ""}전체앨범에 추가됐습니다.`

@@ -278,6 +278,30 @@ export async function getPresignedPutUrl(
   }
 }
 
+/** Presigned PUT URL for the VIDEO bucket (direct upload from client) */
+export async function getPresignedPutUrlVideo(
+  key: string,
+  contentType: string,
+  contentLength: number,
+  expiresIn: number = 600,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  try {
+    const url = await getSignedUrl(
+      videoClient as any,
+      new PutObjectCommand({
+        Bucket: VIDEO_BUCKET,
+        Key: key,
+        ContentType: contentType,
+        ContentLength: contentLength,
+      }) as any,
+      { expiresIn },
+    );
+    return { ok: true, url };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+}
+
 /**
  * HEAD an object in R2 — returns size and content-type without downloading the body.
  * Returns null if the object does not exist (404).

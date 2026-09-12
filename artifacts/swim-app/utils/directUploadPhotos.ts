@@ -83,7 +83,32 @@ async function runWithConcurrency<T>(
   return results;
 }
 
+const BATCH_SIZE = 50; // MAX_FILES_PER_SESSION on server
+
+/**
+ * Split files into batches of BATCH_SIZE and merge results.
+ * Each batch is a separate session (independent presigned URLs + finalize).
+ */
 export async function directUploadPhotos(opts: DirectUploadOptions): Promise<DirectUploadItemResult[]> {
+  const { files } = opts;
+  if (files.length === 0) return [];
+
+  // Single batch: common case
+  if (files.length <= BATCH_SIZE) {
+    return directUploadPhotosBatch(opts);
+  }
+
+  // Multiple batches: large selection
+  const allResults: DirectUploadItemResult[] = [];
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batchFiles = files.slice(i, i + BATCH_SIZE);
+    const batchResults = await directUploadPhotosBatch({ ...opts, files: batchFiles });
+    allResults.push(...batchResults);
+  }
+  return allResults;
+}
+
+async function directUploadPhotosBatch(opts: DirectUploadOptions): Promise<DirectUploadItemResult[]> {
   const {
     token, albumType, classId, studentId, lessonDate, caption, files,
     onItemProgress, onItemDone, onItemError,

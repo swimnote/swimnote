@@ -101,7 +101,7 @@ export function verifyUploadToken(token: string): UploadSessionPayload {
 
 // ── Validation helpers (pure, no I/O) ───────────────────────────────────────
 
-/** Allowed MIME types for direct upload */
+/** Allowed MIME types for photo direct upload */
 export const DIRECT_UPLOAD_MIME_ALLOWLIST = new Set([
   "image/jpeg",
   "image/jpg",
@@ -111,12 +111,46 @@ export const DIRECT_UPLOAD_MIME_ALLOWLIST = new Set([
   "image/heif",
 ]);
 
+/** Allowed MIME types for video direct upload */
+export const VIDEO_DIRECT_UPLOAD_MIME_ALLOWLIST = new Set([
+  "video/mp4",
+  "video/quicktime",  // .mov (iPhone default)
+  "video/x-m4v",
+  "video/mpeg",
+  "video/webm",
+]);
+
+/** Max size for video direct upload: 500 MB */
+export const MAX_VIDEO_DIRECT_UPLOAD_BYTES = 500 * 1024 * 1024;
+
+export function validateVideoFileSize(size: unknown): { ok: true; value: number } | { ok: false; error: string } {
+  if (typeof size !== "number" || !Number.isInteger(size) || size <= 0) {
+    return { ok: false, error: "file_size는 양의 정수이어야 합니다." };
+  }
+  if (size > MAX_VIDEO_DIRECT_UPLOAD_BYTES) {
+    return { ok: false, error: `파일 크기 초과: 동영상은 최대 500MB까지 업로드할 수 있습니다.` };
+  }
+  return { ok: true, value: size };
+}
+
+export function extFromVideoMime(mime: string): string {
+  const map: Record<string, string> = {
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/x-m4v": "m4v",
+    "video/mpeg": "mpeg",
+    "video/webm": "webm",
+  };
+  return map[mime] ?? "mp4";
+}
+
 /** JPEG alias pair — image/jpg and image/jpeg are interchangeable */
 const JPEG_ALIASES = new Set(["image/jpeg", "image/jpg"]);
 
 export const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024; // 8 MB
-export const MAX_FILES_PER_SESSION = 10;
-export const SESSION_TTL_SECONDS = 5 * 60; // 5 minutes
+export const MAX_FILES_PER_SESSION = 50;
+export const SESSION_TTL_SECONDS = 10 * 60; // 10 minutes (extended for large batches)
+export const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
 export const MAX_CAPTION_LENGTH = 500;
 
 /** Safe client_id: printable ASCII only, 1–128 chars */

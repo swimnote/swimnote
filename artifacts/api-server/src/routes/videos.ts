@@ -13,7 +13,14 @@
  */
 import { Router, Response } from "express";
 import multer from "multer";
-import { uploadToR2, downloadFromR2, deleteFromR2, getPresignedUrl } from "../lib/objectStorage.js";
+import { uploadToR2, downloadFromR2, deleteFromR2, getPresignedUrl, getPresignedPutUrlVideo } from "../lib/objectStorage.js";
+import {
+  VIDEO_DIRECT_UPLOAD_MIME_ALLOWLIST,
+  validateVideoFileSize,
+  extFromVideoMime,
+  isSafeClientId,
+} from "../lib/directUploadToken.js";
+import jwt from "jsonwebtoken";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
@@ -873,6 +880,186 @@ router.delete("/videos/:videoId", requireAuth,
       await db.execute(sql`DELETE FROM video_assets_meta WHERE id = ${videoId}`);
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: "삭제 중 오류" }); }
+  }
+);
+
+// ── 동영상 직접 업로드 (R2 presigned) ─────────────────────────────────────
+// POST /videos/direct-upload/session  → { upload_token, upload_url, thumbnail_upload_url?, object_key, thumbnail_object_key? }
+// POST /videos/direct-upload/finalize → { video: { id, file_url, … } }
+
+const VIDEO_DIRECT_SESSION_TTL = 10 * 60; // 10분
+
+router.post(
+  "/videos/direct-upload/session",
+  requireAuth,
+  requireRole("pool_admin", "teacher", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { userId, role } = req.user!;
+      const body = req.body as {
+        album_type?: string;
+        class_id?: string;
+        student_id?: string;
+        caption?: string;
+        file_name?: string;
+        file_type?: string;
+        file_size?: unknown;
+      };
+
+      const { album_type, class_id, student_id, caption } = body;
+
+      if (album_type !== "group" && album_type !== "private") {
+        res.status(400).json({ error: "album_type은 'group' 또는 'private'이어야 합니다." }); return;
+      }
+      if (album_type === "private" && !class_id) {
+        res.status(400).json({ error: "개인 앨범은 class_id가 필요합니다." }); return;
+      }
+      if (album_type === "private" && !student_id) {
+        res.status(400).json({ error: "개인 앨범은 student_id가 필요합니다." }); return;
+      }
+
+      const fileType = body.file_type ?? "video/mp4";
+      if (!VIDEO_DIRECT_UPLOAD_MIME_ALLOWLIST.has(fileType)) {
+        res.status(400).json({ error: `허용되지 않는 파일 형식: ${fileType}` }); return;
+      }
+      const sizeCheck = validateVideoFileSize(body.file_size);
+      if (!sizeCheck.ok) { res.status(400).json({ error: sizeCheck.error }); return; }
+
+      // User + pool
+      const [user] = await superAdminDb.select({
+        name: usersTable.name,
+        role: usersTable.role,
+        swimming_pool_id: usersTable.swimming_pool_id,
+      }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!user) { res.status(403).json({ error: "사용자를 찾을 수 없습니다." }); return; }
+      const poolId = user.swimming_pool_id;
+      if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+      // Class ownership
+      if (class_id) {
+        if (role === "teacher" && user.role !== "pool_admin") {
+          const ok = await teacherOwnsClass(userId, class_id);
+          if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
+        }
+      }
+
+      // Storage quota
+      const check = await checkVideoUploadAllowed(poolId);
+      if (check.storageBlocked) {
+        res.status(403).json({
+          error: `저장공간 한도(${check.limitMb}MB) 초과로 업로드가 제한됩니다.`,
+          code: "VIDEO_STORAGE_EXCEEDED",
+        }); return;
+      }
+
+      // Generate object key
+      const poolSlug = await getPoolSlug(poolId);
+      const ext = extFromVideoMime(fileType);
+      const filename = genFilename(poolSlug, ext);
+      const objectKey = class_id
+        ? `videos/group/${class_id}/${filename}`
+        : `videos/pool/${poolId}/${filename}`;
+
+      // Presigned PUT URL for video
+      const { ok, url: uploadUrl, error: presignErr } = await getPresignedPutUrlVideo(
+        objectKey, fileType, sizeCheck.value, VIDEO_DIRECT_SESSION_TTL,
+      );
+      if (!ok || !uploadUrl) {
+        res.status(500).json({ error: `presigned URL 생성 실패: ${presignErr}` }); return;
+      }
+
+      // Presigned PUT URL for thumbnail (photo bucket)
+      const { getPresignedPutUrl } = await import("../lib/objectStorage.js");
+      const thumbFilename = genFilename(poolSlug, "jpg");
+      const thumbnailObjectKey = `thumbnails/video/${poolId}/${thumbFilename}`;
+      const { ok: tOk, url: thumbnailUploadUrl } = await getPresignedPutUrl(
+        thumbnailObjectKey, "image/jpeg", 500 * 1024, VIDEO_DIRECT_SESSION_TTL,
+      );
+
+      // Sign session token
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) { res.status(500).json({ error: "서버 설정 오류" }); return; }
+      const sessionPayload = {
+        userId, poolId, albumType: album_type, classId: class_id, studentId: student_id,
+        caption, objectKey, thumbnailObjectKey: tOk ? thumbnailObjectKey : undefined,
+        fileName: body.file_name ?? filename, fileType, fileSize: sizeCheck.value,
+        uploaderName: user.name,
+        exp: Math.floor(Date.now() / 1000) + VIDEO_DIRECT_SESSION_TTL,
+      };
+      const uploadToken = jwt.sign(sessionPayload, jwtSecret);
+
+      res.json({
+        upload_token: uploadToken,
+        upload_url: uploadUrl,
+        object_key: objectKey,
+        ...(tOk && thumbnailUploadUrl ? {
+          thumbnail_upload_url: thumbnailUploadUrl,
+          thumbnail_object_key: thumbnailObjectKey,
+        } : {}),
+      });
+    } catch (e: any) {
+      console.error("[video-direct-upload/session]", e?.message);
+      res.status(500).json({ error: "세션 생성 중 오류" });
+    }
+  }
+);
+
+router.post(
+  "/videos/direct-upload/finalize",
+  requireAuth,
+  requireRole("pool_admin", "teacher", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { userId } = req.user!;
+      const { upload_token, object_key, thumbnail_object_key } = req.body as {
+        upload_token?: string;
+        object_key?: string;
+        thumbnail_object_key?: string;
+      };
+
+      if (!upload_token || !object_key) {
+        res.status(400).json({ error: "upload_token, object_key가 필요합니다." }); return;
+      }
+
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) { res.status(500).json({ error: "서버 설정 오류" }); return; }
+
+      let payload: any;
+      try {
+        payload = jwt.verify(upload_token, jwtSecret);
+      } catch {
+        res.status(401).json({ error: "업로드 토큰이 만료됐거나 유효하지 않습니다." }); return;
+      }
+
+      if (payload.userId !== userId) {
+        res.status(403).json({ error: "업로드 토큰 소유자가 다릅니다." }); return;
+      }
+      if (payload.objectKey !== object_key) {
+        res.status(400).json({ error: "object_key가 세션과 일치하지 않습니다." }); return;
+      }
+
+      // Create DB row
+      const id = `video_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const rows = await db.execute(sql`
+        INSERT INTO video_assets_meta
+          (id, student_id, pool_id, uploaded_by, uploaded_by_name, object_key, file_size, album_type, class_id, caption, thumbnail_key, expires_at, status)
+        VALUES
+          (${id}, ${payload.studentId ?? null}, ${payload.poolId}, ${userId},
+           ${payload.uploaderName}, ${object_key}, ${payload.fileSize ?? 0},
+           ${payload.albumType}, ${payload.classId ?? null}, ${payload.caption ?? null},
+           ${thumbnail_object_key ?? null},
+           NOW() + INTERVAL '14 days', 'active')
+        RETURNING *
+      `);
+
+      const video = rows.rows[0] as any;
+      res.status(201).json({
+        video: { ...video, file_url: `/api/videos/${id}/file` },
+      });
+    } catch (e: any) {
+      console.error("[video-direct-upload/finalize]", e?.message);
+      res.status(500).json({ error: "완료 처리 중 오류" });
+    }
   }
 );
 

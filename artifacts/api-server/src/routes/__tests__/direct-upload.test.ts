@@ -409,11 +409,11 @@ describe("constants", () => {
   it("MAX_FILE_SIZE_BYTES is 8 MB", () => {
     expect(MAX_FILE_SIZE_BYTES).toBe(8 * 1024 * 1024);
   });
-  it("MAX_FILES_PER_SESSION is 10", () => {
-    expect(MAX_FILES_PER_SESSION).toBe(10);
+  it("MAX_FILES_PER_SESSION is 50", () => {
+    expect(MAX_FILES_PER_SESSION).toBe(50);
   });
-  it("SESSION_TTL_SECONDS is 5 minutes", () => {
-    expect(SESSION_TTL_SECONDS).toBe(300);
+  it("SESSION_TTL_SECONDS is 10 minutes", () => {
+    expect(SESSION_TTL_SECONDS).toBe(600);
   });
   it("MAX_CAPTION_LENGTH is defined and positive", () => {
     expect(MAX_CAPTION_LENGTH).toBeGreaterThan(0);
