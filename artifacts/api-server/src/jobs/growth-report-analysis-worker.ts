@@ -34,7 +34,7 @@
 import cron from "node-cron";
 import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
-import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
+import { acquireLock, releaseLock, recordHeartbeat, refreshLock } from "../lib/schedulerLock.js";
 import { sendOperatorAlert } from "../lib/sendOperatorAlert.js";
 import { transitionReportStatus, InvalidTransitionError } from "../lib/growth-report-service.js";
 import {
@@ -77,9 +77,9 @@ const LOCK_TTL_SECONDS = 600;  // 10 min (generous for slow GPT)
  */
 function getBatchSize(): number {
   const raw = process.env["GROWTH_REPORT_ANALYSIS_BATCH_SIZE"];
-  if (raw === undefined) return 30;          // default: 30
+  if (raw === undefined) return 200;         // default: 200 (Standard 인스턴스 기준)
   const n = Number(raw);
-  return isNaN(n) ? 30 : Math.max(0, n);   // 0 = disabled
+  return isNaN(n) ? 200 : Math.max(0, n);  // 0 = disabled
 }
 
 /**
@@ -91,9 +91,9 @@ function getBatchSize(): number {
  */
 function getConcurrency(): number {
   const raw = process.env["GROWTH_REPORT_ANALYSIS_CONCURRENCY"];
-  if (raw === undefined) return 10;
+  if (raw === undefined) return 20;
   const n = Number(raw);
-  return isNaN(n) || n < 1 ? 10 : Math.min(n, 20); // 최대 20
+  return isNaN(n) || n < 1 ? 20 : Math.min(n, 40); // 최대 40
 }
 
 /**
@@ -517,6 +517,44 @@ async function analyzeOneReport(
   return { ok: true };
 }
 
+// ─── Stuck report watchdog ────────────────────────────────────────────────────
+
+/**
+ * resetStuckReports — PREANALYZING/ANALYZING 상태로 멈춘 리포트를 자동 복구.
+ *
+ * ENGINE timeout = 120초. 여유 포함 180초(3분) 이상 같은 상태면 stuck으로 판단.
+ * PREANALYZING → OPEN, ANALYZING → READY_FOR_ANALYSIS 으로 리셋 후 재시도.
+ * analysis_retry_count 는 유지 (무한 리셋 방지 — max retry 초과 시 다음 배치에서 FAILED).
+ */
+async function resetStuckReports(db: any): Promise<number> {
+  const STUCK_THRESHOLD_SECONDS = 180; // 3분
+  try {
+    const res = await db.execute(sql`
+      UPDATE growth_reports
+      SET
+        product_status = CASE
+          WHEN product_status = 'PREANALYZING' THEN 'OPEN'
+          WHEN product_status = 'ANALYZING'    THEN 'READY_FOR_ANALYSIS'
+          ELSE product_status
+        END,
+        analysis_request_id = NULL,
+        updated_at          = NOW()
+      WHERE product_status IN ('PREANALYZING', 'ANALYZING')
+        AND deleted_at IS NULL
+        AND updated_at < NOW() - (${String(STUCK_THRESHOLD_SECONDS)} || ' seconds')::interval
+      RETURNING id, product_status
+    `);
+    const count = (res.rows as any[]).length;
+    if (count > 0) {
+      console.warn(`[gr3-watchdog] ${count}개 stuck 리포트 리셋 (PREANALYZING/ANALYZING → OPEN/READY_FOR_ANALYSIS)`);
+    }
+    return count;
+  } catch (err: any) {
+    console.warn("[gr3-watchdog] stuck 리셋 실패 (무시):", err.message);
+    return 0;
+  }
+}
+
 // ─── Worker run ───────────────────────────────────────────────────────────────
 
 export interface GrowthReportAnalysisWorkerResult {
@@ -717,14 +755,89 @@ export async function analyzeSingleReport(
  *   GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false → cron/startup 완전 차단
  *   GROWTH_REPORT_ANALYSIS_BATCH_SIZE=N       → 1회 실행당 N건 처리 (0=차단)
  */
+// ─── 연속 큐 드레인 ───────────────────────────────────────────────────────────
+// MAX_RUN_MS: 크론 주기(5분) 안에서 최대 실행 시간. 초과 시 루프 종료 후 다음 크론이 이어받음.
+const MAX_RUN_MS = 4.5 * 60 * 1000; // 4분 30초
+// 락 갱신 주기: 배치 하나 완료마다 갱신 (TTL 만료 방지)
+const LOCK_REFRESH_INTERVAL_MS = 60 * 1000; // 1분마다 갱신
+
+/**
+ * drainAnalysisQueue — pending 리포트가 없어질 때까지 또는 MAX_RUN_MS 초과까지
+ * 배치를 연속 실행한다. 배치 사이에 락을 갱신해 TTL 만료를 방지한다.
+ *
+ * 워치독: 각 드레인 루프 시작 전 stuck 리포트(PREANALYZING/ANALYZING 3분 초과)를 리셋.
+ */
+async function drainAnalysisQueue(db: any): Promise<{
+  totalAnalyzed: number;
+  totalFailed:   number;
+  batches:       number;
+  errors:        string[];
+}> {
+  const runStart      = Date.now();
+  let totalAnalyzed   = 0;
+  let totalFailed     = 0;
+  let batches         = 0;
+  const errors: string[] = [];
+  let lastLockRefresh = Date.now();
+
+  while (true) {
+    // 최대 실행 시간 초과 → 다음 크론에서 이어받음
+    if (Date.now() - runStart > MAX_RUN_MS) {
+      console.log(`[gr3-worker] MAX_RUN_MS 초과 (${Math.round((Date.now() - runStart) / 1000)}s) — 다음 크론에서 재개`);
+      break;
+    }
+
+    // 락 갱신 (1분 간격)
+    if (Date.now() - lastLockRefresh > LOCK_REFRESH_INTERVAL_MS) {
+      await refreshLock(ANALYSIS_LOCK, LOCK_TTL_SECONDS);
+      lastLockRefresh = Date.now();
+    }
+
+    // 워치독: stuck 리포트 복구
+    await resetStuckReports(db);
+
+    // 배치 실행
+    let result: GrowthReportAnalysisWorkerResult;
+    try {
+      result = await runGrowthReportAnalysisWorker(db);
+    } catch (err: any) {
+      console.error("[gr3-worker] drain batch error:", err.message);
+      errors.push(err.message);
+      break; // 예상치 못한 오류는 드레인 종료 (다음 크론에서 재시도)
+    }
+
+    batches++;
+    totalAnalyzed += result.analyzed;
+    totalFailed   += result.failed;
+    errors.push(...result.errors);
+
+    // pending 없음 → 큐 소진 완료
+    if (result.analyzed === 0 && result.failed === 0) {
+      console.log(`[gr3-worker] 큐 소진 완료 (batches=${batches} total=${totalAnalyzed})`);
+      break;
+    }
+
+    // 전체 실패 배치 → 엔진 다운 가능성. 루프 중단하고 알림
+    if (result.failed > 0 && result.analyzed === 0) {
+      const firstErr = result.errors[0] ?? "unknown";
+      await sendOperatorAlert(
+        `성장리포트 AI분석 전체 실패\n배치 ${result.failed}건 모두 실패\n오류: ${firstErr.slice(0, 100)}`,
+      ).catch(() => {});
+      break;
+    }
+  }
+
+  return { totalAnalyzed, totalFailed, batches, errors };
+}
+
 export function startGrowthReportAnalysisWorker(): void {
+  // 크론: 5분마다 실행. 큐에 pending이 있으면 MAX_RUN_MS(4.5분) 동안 연속 처리.
   cron.schedule("*/5 * * * *", async () => {
     if (!isAutoAnalysisEnabled()) {
       console.log("[gr3-worker] auto analysis disabled (GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false)");
       return;
     }
-    const batchSize = getBatchSize();
-    if (batchSize === 0) {
+    if (getBatchSize() === 0) {
       console.log("[gr3-worker] auto analysis disabled (GROWTH_REPORT_ANALYSIS_BATCH_SIZE=0)");
       return;
     }
@@ -734,46 +847,35 @@ export function startGrowthReportAnalysisWorker(): void {
       return;
     }
     try {
-      const result = await runGrowthReportAnalysisWorker();
-      if (result.analyzed > 0 || result.failed > 0) {
+      const { totalAnalyzed, totalFailed, batches, errors } = await drainAnalysisQueue(superAdminDb);
+      if (totalAnalyzed > 0 || totalFailed > 0) {
         await recordHeartbeat(ANALYSIS_LOCK, {
           at:       new Date().toISOString(),
-          analyzed: result.analyzed,
-          failed:   result.failed,
-        });
+          analyzed: totalAnalyzed,
+          failed:   totalFailed,
+          batches,
+        }).catch(() => {});
       }
-      // 전체 실패 = 엔진 auth 오류 / 서비스 다운 가능성 → 운영자 즉시 알림
-      if (result.failed > 0 && result.analyzed === 0) {
-        const firstErr = result.errors[0] ?? "unknown";
-        await sendOperatorAlert(
-          `성장리포트 AI분석 전체 실패\n` +
-          `배치 ${result.failed}건 모두 실패\n` +
-          `오류: ${firstErr.slice(0, 100)}`,
-        );
+      if (totalAnalyzed > 0 || totalFailed > 0) {
+        console.log(`[gr3-worker] 드레인 완료: analyzed=${totalAnalyzed} failed=${totalFailed} batches=${batches}`);
       }
+      void errors; // 개별 에러는 드레인 루프 안에서 이미 로깅됨
     } catch (err: any) {
       console.error("[gr3-worker] cron error:", err.message);
-      await sendOperatorAlert(`성장리포트 분석 워커 오류\n${(err as Error).message.slice(0, 120)}`);
+      await sendOperatorAlert(`성장리포트 분석 워커 오류\n${(err as Error).message.slice(0, 120)}`).catch(() => {});
     } finally {
       await releaseLock(ANALYSIS_LOCK);
     }
   });
 
-  // Startup run — 45 s after server start (after scheduler 30 s run)
+  // Startup run — 45 s after server start
   setTimeout(async () => {
-    if (!isAutoAnalysisEnabled()) {
-      console.log("[gr3-worker] auto analysis disabled — skipping startup run");
-      return;
-    }
-    if (getBatchSize() === 0) {
-      console.log("[gr3-worker] batch size 0 — skipping startup run");
-      return;
-    }
+    if (!isAutoAnalysisEnabled() || getBatchSize() === 0) return;
     const locked = await acquireLock(ANALYSIS_LOCK, LOCK_TTL_SECONDS);
     if (!locked) return;
     try {
-      console.log("[gr3-worker] startup analysis run");
-      await runGrowthReportAnalysisWorker();
+      console.log("[gr3-worker] startup drain run");
+      await drainAnalysisQueue(superAdminDb);
     } catch (err: any) {
       console.error("[gr3-worker] startup error:", err.message);
     } finally {
@@ -783,8 +885,10 @@ export function startGrowthReportAnalysisWorker(): void {
 
   const autoEnabled = isAutoAnalysisEnabled();
   const batchSize   = getBatchSize();
+  const concurrency = getConcurrency();
   console.log(
     `[gr3-worker] Growth Report Analysis Worker 시작 ` +
-    `(auto=${autoEnabled ? "ON" : "OFF"} batch=${batchSize} every 5min + 45s startup)`,
+    `(auto=${autoEnabled ? "ON" : "OFF"} batch=${batchSize} concurrency=${concurrency} ` +
+    `drain=${MAX_RUN_MS / 1000}s every 5min + 45s startup)`,
   );
 }

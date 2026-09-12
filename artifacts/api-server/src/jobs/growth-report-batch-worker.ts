@@ -38,7 +38,7 @@ type Db = typeof superAdminDb;
 // ── Configuration ─────────────────────────────────────────────────────────────
 
 const BATCH_LOCK    = "growth-report-batch-worker";
-const LOCK_TTL      = 300;          // 5분
+const LOCK_TTL      = 600;          // 10분 (Standard 인스턴스 처리량 증가 반영)
 const STALE_RUNNING = 30 * 60;     // 30분 이상 RUNNING → stale (재claim 가능)
 const MAX_POOL_WORKERS = 2;        // 동시 처리 pool 수 (부하 분산)
 const STUDENT_CONCURRENCY = 3;     // pool 내 학생 동시 처리 (병렬)
