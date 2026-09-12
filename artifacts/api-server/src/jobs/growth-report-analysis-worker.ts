@@ -77,9 +77,9 @@ const LOCK_TTL_SECONDS = 600;  // 10 min (generous for slow GPT)
  */
 function getBatchSize(): number {
   const raw = process.env["GROWTH_REPORT_ANALYSIS_BATCH_SIZE"];
-  if (raw === undefined) return 10;          // default: 10
+  if (raw === undefined) return 30;          // default: 30
   const n = Number(raw);
-  return isNaN(n) ? 10 : Math.max(0, n);   // 0 = disabled
+  return isNaN(n) ? 30 : Math.max(0, n);   // 0 = disabled
 }
 
 /**
@@ -91,9 +91,9 @@ function getBatchSize(): number {
  */
 function getConcurrency(): number {
   const raw = process.env["GROWTH_REPORT_ANALYSIS_CONCURRENCY"];
-  if (raw === undefined) return 5;
+  if (raw === undefined) return 10;
   const n = Number(raw);
-  return isNaN(n) || n < 1 ? 5 : Math.min(n, 20); // 최대 20
+  return isNaN(n) || n < 1 ? 10 : Math.min(n, 20); // 최대 20
 }
 
 /**

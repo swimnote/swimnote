@@ -41,7 +41,7 @@ const BATCH_LOCK    = "growth-report-batch-worker";
 const LOCK_TTL      = 300;          // 5분
 const STALE_RUNNING = 30 * 60;     // 30분 이상 RUNNING → stale (재claim 가능)
 const MAX_POOL_WORKERS = 2;        // 동시 처리 pool 수 (부하 분산)
-const STUDENT_CONCURRENCY = 1;     // pool 내 학생 동시 처리 (순차)
+const STUDENT_CONCURRENCY = 3;     // pool 내 학생 동시 처리 (병렬)
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;  // KST = UTC+9
 const MAX_BATCH_ATTEMPTS = 3;      // FAILED/PARTIAL 배치 최대 재시도 횟수
 
@@ -271,9 +271,10 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
     await markJobFailed(db, jobId, "CYCLE_MISSING");
     return;
   }
+  const resolvedCycleId: string = cycleId; // closure 내 타입 좁히기
 
   // ── 2. 대상 학생 확정 ────────────────────────────────────────────────────
-  const students = await getEligibleStudents(db, poolId, reportPeriod, cycleId);
+  const students = await getEligibleStudents(db, poolId, reportPeriod, resolvedCycleId);
 
   await db.execute(sql`
     UPDATE growth_report_batch_jobs
@@ -288,33 +289,53 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
     return;
   }
 
-  // ── 3. 학생별 report 생성/분석 (순차) ────────────────────────────────────
+  // ── 3. 학생별 report 생성/분석 (STUDENT_CONCURRENCY 병렬) ───────────────
   let completed = 0;
   let failed    = 0;
 
-  for (const { studentId, classGroupId } of students) {
-    try {
-      await processStudentReport(db, {
-        studentId, poolId, cycleId, classGroupId, reportPeriod, jobId,
-        periodStart: `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`,
-        periodEnd: new Date(
-          prevMonth === 12 ? prevYear + 1 : prevYear,
-          prevMonth === 12 ? 0 : prevMonth, 0
-        ).toISOString().slice(0, 10),
-      });
-      completed++;
-    } catch (err: any) {
-      console.error(`[gr-batch] student failed pool=${poolId} student=${studentId}:`, err.message);
-      failed++;
-    }
+  const periodStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
+  const periodEnd   = new Date(
+    prevMonth === 12 ? prevYear + 1 : prevYear,
+    prevMonth === 12 ? 0 : prevMonth, 0,
+  ).toISOString().slice(0, 10);
 
-    // 진척도 업데이트
-    await db.execute(sql`
-      UPDATE growth_report_batch_jobs
-      SET completed_count = ${completed}, failed_count = ${failed}, updated_at = NOW()
-      WHERE id = ${jobId}
-    `);
+  // concurrency-limited worker pool (p-limit 없이 직접 구현)
+  let studentIdx = 0;
+  const studentMutex = { completed: 0, failed: 0 };
+
+  async function studentWorker(): Promise<void> {
+    while (true) {
+      const i = studentIdx++;
+      if (i >= students.length) break;
+      const { studentId, classGroupId } = students[i]!;
+      try {
+        await processStudentReport(db, {
+          studentId, poolId, cycleId: resolvedCycleId, classGroupId, reportPeriod, jobId,
+          periodStart, periodEnd,
+        });
+        studentMutex.completed++;
+      } catch (err: any) {
+        console.error(`[gr-batch] student failed pool=${poolId} student=${studentId}:`, err.message);
+        studentMutex.failed++;
+        // 한 학생 오류가 전체 pool을 중단시키지 않도록 continue
+      }
+      // 진척도 업데이트 (atomic — 한 worker만 업데이트해도 됨)
+      await db.execute(sql`
+        UPDATE growth_report_batch_jobs
+        SET completed_count = ${studentMutex.completed},
+            failed_count    = ${studentMutex.failed},
+            updated_at      = NOW()
+        WHERE id = ${jobId}
+      `).catch((e: any) => console.warn(`[gr-batch] progress update warn:`, e.message));
+    }
   }
+
+  await Promise.all(
+    Array.from({ length: Math.min(STUDENT_CONCURRENCY, students.length) }, studentWorker),
+  );
+
+  completed = studentMutex.completed;
+  failed    = studentMutex.failed;
 
   // ── 4. Pool completion: REVIEW_REQUIRED → READY_TO_SEND ─────────────────
   await finalizePoolBatch(db, poolId, reportPeriod, year, month);
