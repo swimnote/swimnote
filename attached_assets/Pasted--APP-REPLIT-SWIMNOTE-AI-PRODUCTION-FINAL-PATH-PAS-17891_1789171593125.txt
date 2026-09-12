@@ -1,0 +1,395 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+PRODUCTION 승인 전 FINAL PATH 검증
+
+현재 완료보고는 확인했습니다.
+
+판정:
+코드 방향 PASS
+Production HOLD
+
+현재 16 ELIGIBLE / 152 EXCLUDED dry-run 결과는
+정책 기준상 잠정 승인합니다.
+
+다만 Production 승인 전에
+"계산 helper가 존재한다"가 아니라
+"실제 Scheduler → Worker → 관리자 화면까지
+새 정책이 완전히 연결되어 있다"는 증거가 필요합니다.
+
+관련 없는 추가 리팩터링 금지.
+아래 항목만 확인/보완하고 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Scheduler 실제 Eligibility Gate 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+growth-report-scheduler.ts의 실제 production path에서
+
+report_month 기준 재원 O
+AND
+attendance_count >= 3
+AND
+source_event_count >= 3
+
+조건을 모두 통과한 학생만
+AI 분석 대상으로 들어가는지 확인하십시오.
+
+반드시 순서가:
+
+대상 계산
+→ attendance 계산
+→ source count 계산
+→ eligibility 평가
+→ eligible만 AI 분석 queue/job 진입
+
+이어야 합니다.
+
+EXCLUDED 학생이
+ENGINE 호출 또는 AI generation 이후
+제외되는 구조이면 FAIL입니다.
+
+완료보고에 실제 함수명과 코드 흐름을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. EXCLUDED도 Growth Report row는 1개만 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정책 미달 학생도 기존 lifecycle상
+growth_reports row를 유지한다면:
+
+product_status = EXCLUDED
+exclusion_code = ...
+attendance_count = 실제 값
+source_event_count = 실제 값
+eligibility_version = attendance3_diary3_v1
+
+가 저장되는지 확인하십시오.
+
+동일 student + cycle에
+
+eligible row
+excluded row
+
+두 개가 생기면 안 됩니다.
+
+기존:
+
+uq_growth_reports_student_cycle_v2
+
+멱등성 구조를 그대로 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Count 실제 저장 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 값이 dry-run 계산에만 존재하면 안 됩니다.
+
+growth_reports.attendance_count
+growth_reports.source_event_count
+growth_reports.eligibility_version
+growth_reports.exclusion_code
+
+실제 Scheduler/Worker production code path에서
+정상적으로 저장되는지 확인하십시오.
+
+예:
+
+ELIGIBLE 학생:
+attendance_count = 4
+source_event_count = 3
+eligibility_version = attendance3_diary3_v1
+exclusion_code = NULL
+
+EXCLUDED 학생:
+attendance_count = 2
+source_event_count = 5
+eligibility_version = attendance3_diary3_v1
+exclusion_code = INSUFFICIENT_ATTENDANCE
+
+형태로 추적 가능해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Snapshot Source와 Eligibility Source 최종 동일성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+source_event_count를 계산하는 predicate와
+실제 ENGINE snapshot에 들어가는 Diary predicate가
+100% 동일한지 다시 확인하십시오.
+
+공통 조건:
+
+- 동일 student
+- 동일 pool
+- analysis_period_start 이상
+- analysis_period_end_exclusive 미만
+- student created date 이후
+- diary not deleted
+- student note not deleted
+- TRIM(note content) != ''
+- 동일 diary 중복은 1 event
+
+가능하면 공통 helper/query builder를 사용하십시오.
+
+둘이 따로 복제되어 있으면
+향후 한쪽만 수정되어 다시 숫자가 어긋날 위험이 있으므로
+최소한 동일 predicate임을 테스트로 잠그십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Admin LIST fan-out 수정 완료 증거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현 요약에는 KPI 수정은 보이나
+LIST의 반/교사 aggregation 완료 증거가 부족합니다.
+
+확인:
+
+growth_report 1개
+=
+관리자 리스트 1줄
+
+주2회/주3회 학생도 1줄.
+
+반:
+화 19:00 · 토 11:00
+
+복수 교사:
+김수연 · 유지훈
+
+형태로 실제 응답되는지 확인하십시오.
+
+실제 API response 예시를 마스킹해서 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 외부 Month Contract E2E 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 세 API를 실제 동일 기준으로 테스트하십시오.
+
+summary
+list
+bulk-send
+
+관리자가:
+
+2026년 9월
+
+을 선택하면
+세 API 모두 외부 입력 의미가:
+
+report_month = 2026-09
+
+이어야 합니다.
+
+서버 내부에서만:
+
+analysis period =
+2026-08-01 이상
+2026-09-01 미만
+
+으로 한 번 변환.
+
+특히 bulk-send에서 과거처럼
+7월로 한 번 더 밀리는 버그가 없는지
+실제 query parameter / SQL 결과로 증명하십시오.
+
+테스트:
+
+2026-09 UI
+→ report_period = 2026-08
+
+2027-01 UI
+→ report_period = 2026-12
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 16명에 대한 실제 ENGINE 진입 예상 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production 호출은 하지 마십시오.
+
+현재 168건을 대상으로
+Scheduler dry-run을 수행하여:
+
+ENGINE 분석 대상 report_id 수 = 16
+
+EXCLUDED = 152
+
+가 정확한지 확인하십시오.
+
+그리고 16개의 각 report에 대해:
+
+attendance_count >= 3
+source_event_count >= 3
+report_month 재원 O
+
+조건을 다시 assertion 하십시오.
+
+152개 중 단 하나라도
+ENGINE queue 대상으로 들어가면 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 9월 One-time Correction Script 안전성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실행은 아직 금지합니다.
+
+하지만 correction script를 최종 작성하여
+transaction-safe / repeat-safe인지 확인하십시오.
+
+조건:
+
+주 pool만
+report_period = 2026-08
+REVIEW_REQUIRED만
+deleted_at IS NULL
+
+대상.
+
+ELIGIBLE 16:
+REVIEW_REQUIRED 유지
+
+나머지 152:
+EXCLUDED 예정
+
+절대 변경 금지:
+
+content
+fact_package
+questions
+sns_summary
+PUBLISHED
+다른 pool
+
+동일 correction script를 두 번 dry-run해도
+두 번째에 추가 영향이 없어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Migration 적용 순서 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 향후 실행 순서가:
+
+1. additive migration
+2. server deploy
+3. smoke test
+4. 9월 correction dry-run 재확인
+5. 별도 승인 후 correction 실행
+
+순서가 가능한지 확인하십시오.
+
+새 server code가
+migration 전 배포되면 깨지는지,
+migration 후 구 server가 깨지는지도 확인하십시오.
+
+가능하면 additive/nullable column 구조로
+rolling-safe해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 테스트를 실제 코드 기준으로 PASS 제출:
+
+A.
+재원O + 출석3 + 일지3
+→ ENGINE 대상
+
+B.
+재원O + 출석2 + 일지10
+→ ENGINE 진입 안 함
+→ EXCLUDED
+
+C.
+재원O + 출석10 + 일지2
+→ ENGINE 진입 안 함
+→ EXCLUDED
+
+D.
+재원X + 출석10 + 일지10
+→ ENGINE 진입 안 함
+
+E.
+중간입회 + 출석3 + 일지3
+→ ENGINE 대상
+
+F.
+빈 note 3개
+→ source_event_count 증가 안 함
+
+G.
+8월 이전 diary
+→ 9월 report snapshot 미포함
+
+H.
+9월1일 diary
+→ 9월 report snapshot 미포함
+
+I.
+Scheduler 동일 cycle 재실행
+→ growth_report 중복 0
+
+J.
+Admin list
+→ report 1개당 정확히 1줄
+
+K.
+summary total = list total
+
+L.
+9월 bulk-send
+→ 8월 report_period만 조회
+
+M.
+다른 pool 영향 0
+
+N.
+PUBLISHED 영향 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. PASS / HOLD
+
+2. Scheduler eligibility 실제 진입 함수/흐름
+
+3. ENGINE 호출 직전 eligibility gate 위치
+
+4. ELIGIBLE 16만 ENGINE 대상으로 잡히는 dry-run 증거
+
+5. EXCLUDED 152가 ENGINE 대상으로 0건인 증거
+
+6. attendance_count 저장 위치
+
+7. source_event_count 저장 위치
+
+8. eligibility_version 저장 위치
+
+9. exclusion_code 저장 위치
+
+10. Admin List 실제 unique row 검증
+
+11. 주2/주3회 class aggregate 실제 예시
+
+12. 복수 teacher aggregate 실제 예시
+
+13. summary/list/bulk-send report_month E2E 결과
+
+14. 2026-09 → 2026-08 확인
+
+15. 2027-01 → 2026-12 확인
+
+16. correction script repeat-safe 결과
+
+17. migration/deploy 순서 안전성
+
+18. 테스트 A~N 결과
+
+19. Production 변경 여부
+
+Production deploy / migration / correction은
+계속 금지합니다.
+
+완료보고 후 멈추십시오.
