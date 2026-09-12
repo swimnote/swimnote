@@ -4019,9 +4019,12 @@ router.get("/reports/summary",
       }
 
       // ── WHERE 절 조각 ─────────────────────────────────
-      const qCondition          = q            ? `AND s.name ILIKE '%${q.replace(/'/g,"''")}%'` : "";
-      const classGroupCondition = classGroupId ? `AND gr.class_group_id_at_creation = '${classGroupId}'` : "";
-      const teacherCondition    = teacherId    ? `AND cg.teacher_user_id = '${teacherId}'` : "";
+      // class_group_id_at_creation 컬럼이 DB에 없으므로
+      // count 쿼리는 LEFT JOIN class_groups cg의 cg.id, list 쿼리는 LATERAL cls.class_group_id 사용
+      const qCondition               = q            ? `AND s.name ILIKE '%${q.replace(/'/g,"''")}%'` : "";
+      const classGroupCountCondition = classGroupId ? `AND cg.id = '${classGroupId}'`           : "";
+      const classGroupListCondition  = classGroupId ? `AND cls.class_group_id = '${classGroupId}'` : "";
+      const teacherCondition         = teacherId    ? `AND cg.teacher_user_id = '${teacherId}'` : "";
 
       // 상태 필터: 분석중은 5개 enum 합산
       const ANALYZING_STATUSES = ["OPEN","PREANALYZING","QUESTION_AVAILABLE","READY_FOR_ANALYSIS","ANALYZING"];
@@ -4065,7 +4068,7 @@ router.get("/reports/summary",
           AND gr.period_start >= '${periodFrom}'::date
           AND gr.period_start <= '${periodTo}'::date
           AND gr.deleted_at IS NULL
-          ${qCondition} ${chosungCondition} ${classGroupCondition} ${teacherCondition} ${statusCondition}
+          ${qCondition} ${chosungCondition} ${classGroupCountCondition} ${teacherCondition} ${statusCondition}
       `;
       const countResult = await db.execute(sql.raw(countSql));
       const total = parseInt(String((countResult.rows[0] as any)?.cnt ?? "0"), 10);
@@ -4110,7 +4113,7 @@ router.get("/reports/summary",
           AND gr.period_start >= '${periodFrom}'::date
           AND gr.period_start <= '${periodTo}'::date
           AND gr.deleted_at IS NULL
-          ${qCondition} ${chosungCondition} ${classGroupCondition} ${teacherCondition} ${statusCondition}
+          ${qCondition} ${chosungCondition} ${classGroupListCondition} ${teacherCondition} ${statusCondition}
         ORDER BY s.name ASC, gr.period_start DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
