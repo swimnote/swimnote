@@ -112,9 +112,9 @@ export async function assemblePaidInsightSnapshot(
   try {
     const cpr = await db.execute(sql`
       SELECT
-        scp.current_curriculum_id,
-        scp.display_confirmed_pct  AS confirmed_progress_pct,
-        scp.active_progress_pct
+        scp.active_curriculum_version_id AS current_curriculum_id,
+        scp.display_confirmed_pct        AS confirmed_progress_pct,
+        scp.active_confirmed_pct         AS active_progress_pct
       FROM student_curriculum_progress scp
       WHERE scp.student_id       = ${studentId}
         AND scp.swimming_pool_id = ${poolId}
