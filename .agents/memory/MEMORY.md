@@ -28,6 +28,7 @@
 - [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송; diary_templates 1050개 global 존재
 - [★ AI 일지 데이터 소스 영구 원칙](ai-diary-data-source-rule.md) — 일지AI = curriculum+diary_templates 항상 병합; curriculum존재 여부와 무관; X mode만 별도; 2026-09-11 확정 불변
 - [GR 파이프라인 스키마 불일치 수정](gr-pipeline-schema-fixes.md) — exclusion_code/attendance_count/eligibility_version 컬럼+EXCLUDED enum+admin.ts classGroup조건 분리; SHA 8d1d2de4
+- [SCP 게이지 0% 버그](scp-gauge-fix.md) — paid-insight-snapshot.ts가 존재하지 않는 컬럼 조회→catch 삼킴→null→0.0%; alias 수정; SHA 015073ba
 - [Growth Report v3 eligibility + curriculum gauge fix](growth-report-v3-done.md) — v3(MIN_SOURCE=1)+punctuation filter+previous usable context+SCP 0%버그(cv.is_active→archived_at); SHA 622b956d
 - [Growth Report Engine Secret 설정 규칙](growth-report-engine-secret.md) — GROWTH_REPORT_ENGINE_SECRET=JWT_SECRET 96자 full값 필수; Render API truncate로 60자만 보임; 불일치시 항상 401
 - [성장 리포트 엔진 업그레이드 완료 상태](gr-engine-upgrade-state.md) — Engine Standard(2vCPU/2GB)+STAGE_B=20; API BATCH=200/CONCURRENCY=20+드레인+워치독; p50 실측 후 조정 필요
