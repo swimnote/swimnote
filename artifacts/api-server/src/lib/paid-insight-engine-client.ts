@@ -106,6 +106,8 @@ export interface PiSnapshotCurriculumProgress {
   current_curriculum_id?: string | null;
   confirmed_progress_pct?: number | null;
   active_progress_pct?:    number | null;
+  /** GAUGE-NEW: level-range 기반 게이지 (0~80). null = 레벨 미설정 학생 */
+  gauge_pct?: number | null;
 }
 
 export interface PiSnapshotGrowthEvent {
