@@ -86,7 +86,8 @@ async function main() {
       `, [row.student_id, POOL_ID, P_START, P_END_EX]);
       const attendanceCount = Number(attendRes.rows[0]?.cnt ?? 0);
 
-      // (B) source_event_count (동일 predicate: GREATEST + NULLIF)
+      // (B) source_event_count — analysis_period_start 하한만 사용 (student.created_at 제거)
+      //     queryDiaries와 동일 predicate: >= P_START, < P_END_EX, NULLIF(TRIM(note),'') IS NOT NULL
       const sourceRes = await client.query<{ cnt: string }>(`
         SELECT COUNT(DISTINCT cd.id)::int AS cnt
         FROM class_diary_student_notes csn
@@ -96,16 +97,15 @@ async function main() {
           AND cd.is_deleted        = false
           AND csn.is_deleted       = false
           AND NULLIF(TRIM(csn.note_content), '') IS NOT NULL
-          AND cd.lesson_date >= GREATEST(
-            $3,
-            (SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
-             FROM students WHERE id = $1 LIMIT 1)
-          )
-          AND cd.lesson_date < $4
+          AND cd.lesson_date >= $3
+          AND cd.lesson_date <  $4
       `, [row.student_id, POOL_ID, P_START, P_END_EX]);
       const sourceEventCount = Number(sourceRes.rows[0]?.cnt ?? 0);
 
-      // (C) reregistered (report_month 기준: enrolled_at <= P_START AND left_at >= RM_START)
+      // (C) reregistered — report_month_start(RM_START=2026-09-01) 기준
+      //     enrolled_at <= RM_START : 9월 1일 이전 입회 (8월 중간입회 포함)
+      //     left_at IS NULL OR left_at >= RM_START : 9월 1일 기준 재원
+      //     수정: 이전 코드의 enrolled_at <= P_START(2026-08-01) 버그 수정
       const reregRes = await client.query(`
         SELECT 1
         FROM student_class_history sch
@@ -113,9 +113,9 @@ async function main() {
         WHERE sch.student_id      = $1
           AND cg.swimming_pool_id = $2
           AND sch.enrolled_at     <= $3::date
-          AND (sch.left_at IS NULL OR sch.left_at >= $4::date)
+          AND (sch.left_at IS NULL OR sch.left_at >= $3::date)
         LIMIT 1
-      `, [row.student_id, POOL_ID, P_START, RM_START]);
+      `, [row.student_id, POOL_ID, RM_START]);
       const reregistered = reregRes.rows.length > 0;
 
       const elig = evaluateStudentGrowthReportEligibility({

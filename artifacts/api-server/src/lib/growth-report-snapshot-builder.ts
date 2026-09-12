@@ -113,6 +113,10 @@ async function queryDiaries(
   // cutoffAt is UTC ISO like "2026-08-24T15:00:00.000Z" → date "2026-08-24"
   const cutoffDate = cutoffAt.slice(0, 10);
 
+  // ⑨ 하한: analysisFrom (= analysis_period_start) 만 사용.
+  //    students.created_at은 DB row 생성시각으로 실제 입회일과 다를 수 있어 제거.
+  //    analysis_period 범위(>= analysisFrom, < cutoffDate)가 분석월 이전 데이터를 이미 차단.
+  //    (실측: max(created_at - first_enrolled_at) = +1일 — 신뢰도 낮음)
   const rows = await db.execute(sql`
     SELECT
       cd.id,
@@ -130,14 +134,8 @@ async function queryDiaries(
     LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
     WHERE cd.swimming_pool_id = ${poolId}
       AND cd.is_deleted = false
-      AND cd.lesson_date < ${cutoffDate}
-      AND cd.lesson_date >= GREATEST(
-        ${analysisFrom},
-        (
-          SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
-          FROM students WHERE id = ${studentId} LIMIT 1
-        )
-      )
+      AND cd.lesson_date >= ${analysisFrom}
+      AND cd.lesson_date <  ${cutoffDate}
     ORDER BY cd.lesson_date ASC
   `);
 
