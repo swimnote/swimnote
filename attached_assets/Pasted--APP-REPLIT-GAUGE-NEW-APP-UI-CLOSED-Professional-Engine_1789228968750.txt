@@ -1,0 +1,151 @@
+[보낼 곳: APP REPLIT]
+
+GAUGE-NEW APP/UI 작업은 CLOSED 상태입니다.
+
+이제 Professional Engine에 GAUGE-NEW 계약 변경을 전달하기 전에
+**실제 Growth Report outgoing snapshot 상태만 확인**합니다.
+
+새로운 Gauge 알고리즘이나 UI 작업은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 Production 코드 확인
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Growth Report 생성 시 APP → Professional Engine으로 보내는:
+
+`POST /api/v1/growth-report/analyze`
+
+실제 request payload의 `curriculum_progress` 또는 `curriculum_state`를 확인하십시오.
+
+현재 다음 값이 실제 payload에 들어가는지 확인:
+
+* `gauge_pct`
+* `cap_level`
+* `cap_level_label`
+
+중요:
+
+코드 타입에 존재하는지가 아니라
+**실제로 JSON.stringify(request) 직전에 만들어진 request object에 들어가는지** 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최신 GAUGE 구현과 대조
+━━━━━━━━━━━━━━━━━━━━━━
+
+최신 GAUGE-NEW 완료보고에서는 다음까지만 Production 반영된 것으로 보고되었습니다.
+
+* SCP `gauge_pct`
+* level PATCH fresh recompute
+* parent curriculum API
+* paid-insight snapshot
+* APP Gauge UI
+* Growth Report APP 표시
+
+반면 당시 작업범위에서는:
+
+* Growth Report Engine snapshot contract
+* Professional Engine 연결
+
+을 별도 작업으로 남겼습니다.
+
+따라서 현재 실제 코드가 어느 상태인지 다시 확인하십시오.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 결과에 따른 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+### A. 이미 실제 outgoing Growth Report payload에 들어가 있다면
+
+코드 수정하지 마십시오.
+
+실제 마스킹 payload 예시를 제출하십시오.
+
+예:
+
+{
+"curriculum_progress": {
+"confirmed_progress_pct": ...,
+"gauge_pct": ...,
+"cap_level": ...,
+"cap_level_label": ...
+}
+}
+
+그리고:
+
+* 파일경로
+* 함수명
+* contract_version
+* snapshot_version
+* 실제 Production LIVE SHA
+
+를 제출하십시오.
+
+### B. 아직 들어가지 않는다면
+
+아직 Production 수정하지 마십시오.
+
+다음 3개 필드를 기존 contract에 **추가만 하는 최소 변경안**을 제출하십시오.
+
+* `gauge_pct: number | null`
+* `cap_level: number | null`
+* `cap_level_label: string | null`
+
+기존:
+
+* `confirmed_progress_pct`
+* 기타 curriculum fields
+
+삭제/rename 금지.
+
+Professional Engine contract 확인 후 양쪽을 맞춰 배포합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 중요한 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+`gauge_pct`는 실력점수가 아닙니다.
+
+의미:
+
+**현재 선생님이 설정한 교육레벨을 바닥값으로 하는 학부모용 커리큘럼 진행 위치**
+
+입니다.
+
+Professional Engine에는 가능하면 `gauge_pct`만 보내지 말고:
+
+* gauge_pct
+* cap_level
+* cap_level_label
+
+세 값을 같이 전달합니다.
+
+엔진이 `gauge_pct=50`만 보고
+임의로 "검정모자"라고 추론하게 만들지 않습니다.
+
+레벨명은 APP/DB의 실제 `pool_level_settings` 값을 Source of Truth로 사용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 단계 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. 실제 outgoing request 생성 파일/함수
+2. 현재 curriculum snapshot JSON 구조
+3. gauge_pct 실제 포함 여부
+4. cap_level 실제 포함 여부
+5. cap_level_label 실제 포함 여부
+6. contract_version
+7. snapshot_version
+8. 실제 마스킹 request 예시
+9. 현재 Production LIVE SHA
+10. 수정 필요 여부: YES / NO
+
+코드 수정/배포 없이 조사 후 멈추십시오.
+
+완료했다고 추측하지 말고,
+실제 outgoing request 기준으로 보고하십시오.
