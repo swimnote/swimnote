@@ -469,17 +469,21 @@ export default function ReportHubScreen() {
     const isSelected  = selectedIds.has(item.report_id);
     const canSelect   = ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
 
+    const toggleSelect = () => {
+      if (!canSelect) return;
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.has(item.report_id) ? next.delete(item.report_id) : next.add(item.report_id);
+        return next;
+      });
+    };
+
     return (
       <Pressable
-        style={[s.row, isSelected && s.rowSelected]}
+        style={[s.row, isSelected && s.rowSelected, selectMode && !canSelect && { opacity: 0.4 }]}
         onPress={() => {
           if (selectMode) {
-            if (!canSelect) return;
-            setSelectedIds(prev => {
-              const next = new Set(prev);
-              next.has(item.report_id) ? next.delete(item.report_id) : next.add(item.report_id);
-              return next;
-            });
+            toggleSelect();
           } else {
             router.push({
               pathname: "/(admin)/report-detail" as any,
@@ -491,9 +495,15 @@ export default function ReportHubScreen() {
         {/* 상단: 이름 + 선택 체크박스 or 상태 chip */}
         <View style={s.rowTop}>
           {selectMode ? (
-            <View style={[s.checkbox, isSelected && s.checkboxActive]}>
-              {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
-            </View>
+            <TouchableOpacity
+              activeOpacity={canSelect ? 0.7 : 1}
+              onPress={toggleSelect}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={[s.checkbox, isSelected && s.checkboxActive]}>
+                {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
+              </View>
+            </TouchableOpacity>
           ) : null}
           <Text style={[s.rowName, { flex: 1 }]}>{item.student_name}{verLabel}</Text>
           <View style={[s.chip, { backgroundColor: sd.bg }]}>
@@ -537,7 +547,7 @@ export default function ReportHubScreen() {
               >
                 {isLoading
                   ? <ActivityIndicator size={12} color="#fff" />
-                  : <LucideIcon name="Send" size={12} color="#fff" />
+                  : <LucideIcon name="send" size={12} color="#fff" />
                 }
                 <Text style={s.actionBtnPrimaryText}>발송</Text>
               </TouchableOpacity>
@@ -757,11 +767,41 @@ export default function ReportHubScreen() {
       {/* ── 선택 발송 하단 바 ── */}
       {selectMode && (
         <View style={s.selectBar}>
-          <Text style={s.selectBarTxt}>
-            {selectedIds.size > 0
-              ? `${selectedIds.size}건 선택됨 (발송 가능: ${[...selectedIds].filter(id => ["READY_TO_SEND","APPROVED"].includes(allRows.find(r => r.report_id === id)?.product_status ?? "")).length}건)`
-              : "발송 대기 또는 검수 완료 항목을 선택하세요"}
-          </Text>
+          {/* 상단: 전체선택 + 선택 카운트 */}
+          <View style={s.selectBarTop}>
+            {(() => {
+              const selectableIds = displayRows
+                .filter(r => ["READY_TO_SEND", "APPROVED"].includes(r.product_status))
+                .map(r => r.report_id);
+              const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
+              return (
+                <TouchableOpacity
+                  style={s.selectAllBtn}
+                  onPress={() => {
+                    if (allSelected) {
+                      setSelectedIds(new Set());
+                    } else {
+                      setSelectedIds(new Set(selectableIds));
+                    }
+                  }}
+                  disabled={selectableIds.length === 0}
+                >
+                  <View style={[s.checkbox, allSelected && s.checkboxActive, { marginRight: 0 }]}>
+                    {allSelected && <LucideIcon name="check" size={12} color="#fff" />}
+                  </View>
+                  <Text style={s.selectAllTxt}>
+                    {allSelected ? "전체 해제" : `전체선택 (${selectableIds.length}건)`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })()}
+            <Text style={s.selectBarTxt}>
+              {selectedIds.size > 0
+                ? `${selectedIds.size}건 선택됨`
+                : "항목을 선택하세요"}
+            </Text>
+          </View>
+          {/* 하단: 선택 발송 버튼 */}
           <TouchableOpacity
             style={[s.selectSendBtn, (selectedIds.size === 0 || selectSending) && s.actionBtnDisabled]}
             disabled={selectedIds.size === 0 || selectSending}
@@ -769,9 +809,11 @@ export default function ReportHubScreen() {
           >
             {selectSending
               ? <ActivityIndicator size={14} color="#fff" />
-              : <LucideIcon name="Send" size={14} color="#fff" />
+              : <LucideIcon name="send" size={14} color="#fff" />
             }
-            <Text style={s.selectSendTxt}>선택 발송</Text>
+            <Text style={s.selectSendTxt}>
+              {selectedIds.size > 0 ? `${selectedIds.size}건 발송` : "선택 발송"}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -981,15 +1023,24 @@ const s = StyleSheet.create({
   // 선택 발송 하단 바
   selectBar: {
     position: "absolute", bottom: 0, left: 0, right: 0,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff",
+    flexDirection: "column", gap: 10,
+    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, backgroundColor: "#fff",
     borderTopWidth: 1, borderTopColor: "#E0E0E0",
     shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 8, elevation: 8,
   },
-  selectBarTxt:  { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", flex: 1 },
-  selectSendBtn: {
+  selectBarTop: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+  },
+  selectAllBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#0C1A2E", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 20,
+    paddingVertical: 4, paddingHorizontal: 8,
+    borderRadius: 8, borderWidth: 1, borderColor: "#E0E0E0",
+  },
+  selectAllTxt: { fontSize: 12, color: C.textPrimary, fontFamily: "Pretendard-Medium" },
+  selectBarTxt:  { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", flex: 1, textAlign: "right" },
+  selectSendBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    backgroundColor: "#0C1A2E", borderRadius: 10, paddingVertical: 13, paddingHorizontal: 20,
   },
   selectSendTxt: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
