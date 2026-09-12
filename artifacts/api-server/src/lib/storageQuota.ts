@@ -59,23 +59,14 @@ export interface EffectiveStorageQuota {
   totalQuotaBytes:   number;
 }
 
-/** The canonical effective-plan SQL expression — reused in every query */
-const EFFECTIVE_TIER_EXPR = `
-  CASE
-    WHEN (
-      COALESCE(p.x_management_override, false)
-      OR COALESCE(p.x_paid_entitlement,    false)
-      OR COALESCE(p.x_manual_entitlement,  false)
-    )
-      AND p.x_plan_key IN ('x300', 'x500', 'x1000')
-    THEN p.x_plan_key
-    ELSE COALESCE(p.subscription_tier, 'free')
-  END
-`;
+const CANONICAL_X_KEYS = new Set(["x300", "x500", "x1000"]);
 
 /**
  * Resolve the full effective storage quota for a pool.
  * Single authoritative function — all other helpers delegate here.
+ *
+ * Uses a two-step JS resolution pattern (mirrors subscriptionService.resolveSubscription)
+ * to avoid sql.raw() which is unreliable in esbuild production bundles.
  *
  * X source priority:
  *   x_management_override  → MANAGEMENT_X
@@ -84,36 +75,44 @@ const EFFECTIVE_TIER_EXPR = `
  *   (none)                 → BASE
  */
 export async function resolveEffectiveStorageQuota(poolId: string): Promise<EffectiveStorageQuota> {
-  const [row] = (await superAdminDb.execute(sql`
+  // Step 1: read pool X flags + tier + extra storage (no sql.raw needed)
+  const [pool] = (await superAdminDb.execute(sql`
     SELECT
-      -- Plan source flags
-      COALESCE(p.x_management_override, false) AS mgmt,
-      COALESCE(p.x_paid_entitlement,    false) AS paid,
-      COALESCE(p.x_manual_entitlement,  false) AS manual,
-      p.x_plan_key,
-      -- Effective plan tier (canonical resolver)
-      (${sql.raw(EFFECTIVE_TIER_EXPR)}) AS effective_tier,
-      -- Base storage from subscription_plans (via effective tier)
-      COALESCE(sp.storage_gb, 0.1) AS base_gb,
-      -- Extra storage (DATA add-ons)
-      COALESCE(p.extra_storage_gb, 0)  AS extra_gb
-    FROM swimming_pools p
-    LEFT JOIN subscription_plans sp
-           ON sp.tier = (${sql.raw(EFFECTIVE_TIER_EXPR)})
-    WHERE p.id = ${poolId}
+      COALESCE(x_management_override, false) AS mgmt,
+      COALESCE(x_paid_entitlement,    false) AS paid,
+      COALESCE(x_manual_entitlement,  false) AS manual,
+      x_plan_key,
+      COALESCE(subscription_tier, 'free')    AS subscription_tier,
+      COALESCE(extra_storage_gb, 0)          AS extra_gb
+    FROM swimming_pools
+    WHERE id = ${poolId}
     LIMIT 1
   `)).rows as any[];
 
-  const baseGb      = Number(row?.base_gb   ?? 0.1);
-  const extraGb     = Number(row?.extra_gb  ?? 0);
-  const totalGb     = baseGb + extraGb;
-  const effectiveTier = String(row?.effective_tier ?? "free");
+  // Step 2: JS-level plan resolution — identical logic to subscriptionService
+  const xActive = Boolean(pool?.mgmt) || Boolean(pool?.paid) || Boolean(pool?.manual);
+  const xPlanKey = pool?.x_plan_key as string | null | undefined;
+  const effectiveTier = (xActive && xPlanKey && CANONICAL_X_KEYS.has(xPlanKey))
+    ? xPlanKey
+    : String(pool?.subscription_tier ?? "free");
 
   const planSource: PlanSource =
-    row?.mgmt   ? "MANAGEMENT_X" :
-    row?.paid   ? "PAID_X"       :
-    row?.manual ? "MANUAL_X"     :
-                  "BASE";
+    Boolean(pool?.mgmt)   ? "MANAGEMENT_X" :
+    Boolean(pool?.paid)   ? "PAID_X"       :
+    Boolean(pool?.manual) ? "MANUAL_X"     :
+                            "BASE";
+
+  // Step 3: fetch base storage from subscription_plans by the resolved tier
+  const [plan] = (await superAdminDb.execute(sql`
+    SELECT storage_gb
+    FROM subscription_plans
+    WHERE tier = ${effectiveTier}
+    LIMIT 1
+  `)).rows as any[];
+
+  const baseGb  = Number(plan?.storage_gb ?? 0.1);
+  const extraGb = Number(pool?.extra_gb   ?? 0);
+  const totalGb = baseGb + extraGb;
 
   return {
     effectivePlanKey:  effectiveTier,

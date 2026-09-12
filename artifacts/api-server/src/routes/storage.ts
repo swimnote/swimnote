@@ -60,18 +60,22 @@ async function calcUserStorage(userId: string, poolId: string) {
   };
 }
 
+// ── 쿼터 GB → 표시 문자열 변환 (DB 컬럼 불신; 항상 실시간 계산)
+function fmtQuotaGb(gb: number): string {
+  if (gb >= 1000) return `${gb / 1000 % 1 === 0 ? gb / 1000 : (gb / 1000).toFixed(1)}TB`;
+  if (gb >= 1)    return `${Math.round(gb)}GB`;
+  return `${Math.round(gb * 1024)}MB`;
+}
+
 // ── 구독 쿼터 조회 헬퍼
 // storageQuota.getPoolQuotaGb() 사용 — x_plan_key 인식 (X 플랜 1TB 정확히 반환)
+// displayStorage는 DB 컬럼(stale 가능) 대신 quotaGb에서 직접 계산
 async function getQuotaInfo(poolId: string): Promise<{ quotaBytes: number; displayStorage: string | null }> {
   try {
     const { quotaGb } = await getPoolQuotaGb(poolId);
-    // display_storage 문자열은 DB에서 별도로 읽음
-    const [pool] = (await superAdminDb.execute(sql`
-      SELECT display_storage FROM swimming_pools WHERE id = ${poolId} LIMIT 1
-    `)).rows as any[];
     return {
       quotaBytes:     quotaGb * 1024 * 1024 * 1024,
-      displayStorage: pool?.display_storage ?? null,
+      displayStorage: fmtQuotaGb(quotaGb),
     };
   } catch {
     return { quotaBytes: 512 * 1024 * 1024, displayStorage: null };
