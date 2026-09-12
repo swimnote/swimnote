@@ -411,16 +411,17 @@ async function processStudentReport(
   }
 
   // 신규 report row INSERT (OPEN 상태)
+  // class_group_id_at_creation 컬럼 운영 DB 미존재 — 제외
   await db.execute(sql`
     INSERT INTO growth_reports (
       student_id, swimming_pool_id, cycle_id,
-      class_group_id_at_creation, report_period, period_start, period_end,
+      report_period, period_start, period_end,
       product_status, version_number, batch_job_id,
       created_at, updated_at
     )
     VALUES (
       ${studentId}, ${poolId}, ${cycleId},
-      ${classGroupId}, ${reportPeriod}, ${periodStart}::date, ${periodEnd}::date,
+      ${reportPeriod}, ${periodStart}::date, ${periodEnd}::date,
       'OPEN', 1, ${jobId},
       NOW(), NOW()
     )
