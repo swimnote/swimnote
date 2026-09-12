@@ -78,6 +78,14 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
             ) : null}
           </View>
 
+          {/* 레벨 설정 안내 */}
+          <View style={inv.levelTip}>
+            <LucideIcon name="award" size={14} color="#D97706" />
+            <Text style={inv.levelTipText}>
+              {"레벨 테스트를 진행했다면 학생 상세에서 레벨을 설정해주세요.\n학부모 게이지 표시와 월별 성장 리포트에 반영됩니다."}
+            </Text>
+          </View>
+
           {/* 초대 메시지 미리보기 */}
           <View style={inv.msgBox}>
             <Text style={inv.msgText}>{msg}</Text>
@@ -124,4 +132,6 @@ const inv = StyleSheet.create({
   btn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 11, borderRadius: 12 },
   btnText:     { fontSize: 13, fontFamily: "Pretendard-Regular" },
   verifyMarker:{ fontSize: 9, color: "#C8C8C8", textAlign: "center", marginTop: 2 },
+  levelTip:     { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "#FEF3C7", padding: 12, borderRadius: 12 },
+  levelTipText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
 });
