@@ -1,0 +1,592 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE AI 성장리포트
+APP FINAL FINAL BLOCKER FIX
+
+현재 Growth Report APP 코드는 대부분 완료되었습니다.
+
+하지만 Production 전환 전에 반드시 해결해야 할
+2개의 최종 BLOCKER가 발견되었습니다.
+
+1. report_month cohort 기준 오류
+2. 최신 코드 Production 미배포
+
+이 두 개를 완전히 닫은 뒤에만
+AI ENGINE 작업으로 넘어갑니다.
+
+ToyKids 8월 Growth Report 실제 재발급은
+여전히 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. BLOCKER #1
+Cohort SoT 오류 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고된 2026-09 Growth Report cohort가:
+
+enrolled_at <= 2026-08-01
+AND
+left_at IS NULL OR left_at >= 2026-09-01
+
+로 계산되고 있습니다.
+
+이것은 최종 확정 정책과 다릅니다.
+
+최종 정책:
+
+"report_month 시작 시점에 재원 중인 학생"
+
+입니다.
+
+즉:
+
+report_month = 2026-09
+
+이면 cohort 기준일은:
+
+2026-09-01
+
+입니다.
+
+따라서 eligibility cohort의 enrollment 조건은:
+
+enrolled_at <= report_month_start
+
+AND
+
+left_at IS NULL
+OR left_at >= report_month_start
+
+입니다.
+
+2026-09 예:
+
+enrolled_at <= 2026-09-01
+AND
+(left_at IS NULL OR left_at >= 2026-09-01)
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 매우 중요 — 중도입회 허용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+분석월 중간에 입회한 학생도
+
+report_month 시작일에 재원 중이고
+
+analysis month 내:
+
+attendance_count >= 3
+AND
+valid source_event_count >= 1
+
+이면 ELIGIBLE입니다.
+
+예:
+
+2026-08-10 입회
+2026-09-01 재원
+8월 실제 출석 4회
+8월 유효 일지 1회
+
+→ 2026년 9월 Growth Report ELIGIBLE
+
+이어야 합니다.
+
+분석월 첫날부터 재원해야 한다는 조건은 없습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 분석기간과 Cohort 기준을 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+두 개를 절대 혼동하지 마십시오.
+
+report_month = 2026-09
+
+Cohort 기준:
+2026-09-01 재원 여부
+
+Analysis period:
+2026-08-01
+<= lesson/source/event
+< 2026-09-01
+
+즉:
+
+Cohort 판단 → report_month_start
+
+Diary / Attendance 분석 → analysis_period
+
+입니다.
+
+analysis_period_start를
+cohort enrollment lower bound로 사용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 관련 코드 전체 검색
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 전부 조사하십시오.
+
+- scheduler cohort query
+- report ensure
+- eligibility helper
+- manual/reissue helper
+- dry-run query
+- batch job
+- admin summary
+- correction script
+- tests
+
+다음 잘못된 패턴이 있으면 제거:
+
+enrolled_at <= analysis_period_start
+
+올바른 의미:
+
+enrolled_at <= report_month_start
+
+로 통일하십시오.
+
+월 변환은 기존
+computeAnalysisPeriod(reportMonth)
+
+계약을 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. ToyKids 2026-09 새 Dry-run
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 Production 변경 전에
+READ-ONLY로 다시 계산하십시오.
+
+대상:
+
+report_month = 2026-09
+analysis_period =
+2026-08-01 <= date < 2026-09-01
+
+cohort:
+
+2026-09-01 기준 재원
+
+제출:
+
+1. cohort 총원
+2. 8월 중도입회 후 9/1 재원 학생 수
+3. attendance >=3
+4. source >=1
+5. ELIGIBLE
+6. EXCLUDED
+7. exclusion reason
+8. matrix
+
+Matrix:
+
+att>=3 / src>=1
+att>=3 / src=0
+att<3 / src>=1
+att<3 / src=0
+
+기존 잘못된 171 / 75와
+새 결과를 비교하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 중도입회 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새 테스트 추가:
+
+TC-AB
+
+analysis month:
+2026-08
+
+report_month:
+2026-09
+
+enrolled_at:
+2026-08-10
+
+left_at:
+NULL
+
+attendance:
+3
+
+source:
+1
+
+expected:
+ELIGIBLE
+
+
+TC-AC
+
+enrolled_at:
+2026-08-31
+
+9/1 재원
+attendance:
+3
+source:
+1
+
+expected:
+ELIGIBLE
+
+
+TC-AD
+
+enrolled_at:
+2026-09-02
+
+expected:
+2026-09 report cohort 제외
+
+
+TC-AE
+
+8월 중 입회했으나
+left_at < 2026-09-01
+
+expected:
+2026-09 report cohort 제외
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 Attendance 수정 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 완료된 attendance 구조는 유지하십시오.
+
+Regular:
+
+schedule based
++
+explicit absent 제외
++
+attendance row 없어도 정상 scheduled lesson 인정
+
+Diary 사용 금지.
+
+Regular event identity:
+
+(class_group_id, lesson_date)
+
+Makeup:
+
+makeup_sessions.status='completed'
+
+event identity:
+
+makeup_session.id
+
+같은 날 regular + makeup이면 2회.
+
+이 부분을 다시 diary 기반으로 되돌리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. BLOCKER #2
+Render update_failed 실제 원인 해결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+LIVE SHA = 862c2e03
+
+목표 최신 SHA = 8783168f 또는
+이번 cohort 수정까지 포함한 신규 HEAD
+
+입니다.
+
+"Manual Deploy 버튼을 누르면 될 가능성이 높다"
+수준으로 종료하지 마십시오.
+
+update_failed의 실제 원인을 확인하고
+정상 배포까지 완료하십시오.
+
+먼저 실제 Render deployment event/log를 확인하십시오.
+
+확인할 것:
+
+- build success
+- instance startup
+- PORT bind 시점
+- health check URL
+- health check HTTP status
+- health check timeout
+- DB initialization
+- scheduler initialization
+- worker initialization
+- startup exception
+- process exit signal
+
+추측만으로 DB pool 지연이라고 결론 내리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Health/Liveness 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새 instance가 Render health check 전에
+HTTP server를 정상 bind할 수 있어야 합니다.
+
+무거운:
+
+- DB warmup
+- scheduler recovery
+- worker recovery
+- background scan
+
+때문에 HTTP listen 자체가 늦어지면 안 됩니다.
+
+필요하다면:
+
+HTTP server listen
+↓
+liveness endpoint available
+↓
+background scheduler/worker initialization
+
+순으로 안전하게 분리하십시오.
+
+단,
+DB 장애를 정상 서비스로 위장하면 안 됩니다.
+
+liveness와 readiness가 이미 분리되어 있다면
+현재 구조를 재사용하십시오.
+
+관련 없는 서버 구조 refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Production Deploy 완료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cohort 수정까지 포함한 최종 HEAD를
+Production에 정상 배포하십시오.
+
+완료 조건:
+
+/api/health 또는 승인된 health endpoint에서
+
+실제 running commit =
+최종 HEAD
+
+가 확인되어야 합니다.
+
+update_failed 상태로 종료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Runtime ENV 실제 적용 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 성공 후
+running instance에서 실제로:
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+
+GROWTH_REPORT_BATCH_AUTO_ENABLED=true
+
+인지 확인하십시오.
+
+"Render 설정에 저장되어 있음"이 아니라
+
+새 Production instance가
+실제로 읽은 값 기준으로 확인하십시오.
+
+민감정보는 출력하지 마십시오.
+
+boolean 상태만 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Worker 실제 runtime 증명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 성공 후 실제 Production 로그에서:
+
+Growth Report Scheduler startup
+Growth Report Analysis Worker startup
+Growth Report Batch Worker startup
+
+을 확인하십시오.
+
+그리고 analysis worker가
+실제로 tick을 한 기록을 확인하십시오.
+
+현재 report가 0건이라면:
+
+candidates=0
+
+이어도 정상입니다.
+
+핵심은:
+
+worker가 skip-disabled가 아니라
+실제 실행되었다는 증명입니다.
+
+필수 보고:
+
+ANALYSIS_WORKER_ENABLED=true
+BATCH_WORKER_ENABLED=true
+SCHEDULER_RUNNING=true
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Startup Recovery 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production 새 deploy/restart 후:
+
+scheduler startup recovery
+analysis worker startup recovery
+
+가 자동 실행되는지 확인하십시오.
+
+수동 command 없이 자동이어야 합니다.
+
+오늘이 5일 이후라
+특정 batch recovery가 정책상 실행되지 않는다면
+그 이유와 다음 정상 cron 시점을 명확히 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Cycle/Reissue Dry-run 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새로운 올바른 cohort 기준으로
+다시 확인하십시오.
+
+ToyKids:
+
+report_month = 2026-09
+
+기존 active reports = 0
+
+과거 soft-deleted report가
+새 v3 execution을 막지 않아야 합니다.
+
+확인:
+
+- expected new report count
+- unique collision = 0
+- new report IDs 가능
+- new analysis_request_id 가능
+- old idempotency cache 영향 0
+- 다른 pool 영향 0
+
+실제 INSERT 금지.
+
+실제 ENGINE 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Test Suite
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+139 / 139 GREEN
+
+을 유지하고
+
+새 cohort TC-AB~AE까지 추가하여
+전체 Growth Report 관련 test failure = 0
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 이번 작업 금지사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- ToyKids 8월 report 실제 생성
+- AI ENGINE 호출
+- AI ENGINE 코드 수정
+- Prompt 수정
+- 모델 변경
+- 기존 Diary 삭제/수정
+- Attendance 원본 수정
+- 다른 pool report 변경
+- Expo/RN 변경
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 순서로만 보고하십시오.
+
+1. PASS / HOLD
+
+2. 수정 전 cohort query
+
+3. 수정 후 cohort query
+
+4. report_month_start / analysis_period
+   분리 방식
+
+5. ToyKids 2026-09 새 cohort
+
+6. 그중 8월 중도입회 + 9/1 재원 인원
+
+7. attendance>=3
+
+8. source>=1
+
+9. ELIGIBLE
+
+10. EXCLUDED
+
+11. 최종 matrix
+
+12. 기존 171 / 75와 차이 원인
+
+13. TC-AB~AE 결과
+
+14. 전체 Growth Report test
+    total / pass / fail
+
+15. 최종 Production commit SHA
+
+16. Render deploy status
+    반드시 LIVE/SUCCESS 여부
+
+17. Production health 응답의 commit
+
+18. GROWTH_REPORT_ANALYSIS_AUTO_ENABLED
+    running instance 실제 값
+
+19. GROWTH_REPORT_BATCH_AUTO_ENABLED
+    running instance 실제 값
+
+20. Scheduler startup runtime 확인
+
+21. Analysis Worker startup runtime 확인
+
+22. Analysis Worker 실제 tick 확인
+
+23. Batch Worker startup runtime 확인
+
+24. Startup recovery 확인
+
+25. reissue dry-run 예상 신규 report 수
+
+26. unique/idempotency collision 수
+
+27. 다른 pool 영향 0
+
+28. 실제 ToyKids 8월 report 재발급 여부
+    반드시 미실행
+
+29. APP FINAL PASS 여부
+
+30. AI ENGINE 작업으로 넘어가도 되는지
+    YES / NO
+
+보고 후 멈추십시오.
+
+이번 보고가 PASS이면
+다음 단계는 바로:
+
+AI ENGINE Growth Report
+source=1 + previous continuity
+품질/안정성 최종 수정
+
+으로 진행합니다.
