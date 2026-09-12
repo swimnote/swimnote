@@ -131,7 +131,7 @@ async function getEligibleStudents(
     WHERE cg.swimming_pool_id = ${poolId}
       AND s.status        = 'active'
       AND s.deleted_at IS NULL
-      AND sch.enrolled_at <= ${periodStart}::date
+      AND sch.enrolled_at <= ${nextMonth}::date
       AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonth}::date)
     ORDER BY s.id
   `);
