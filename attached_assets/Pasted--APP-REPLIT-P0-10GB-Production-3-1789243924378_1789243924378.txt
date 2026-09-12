@@ -1,0 +1,313 @@
+[보낼 곳: APP REPLIT]
+
+[P0 재오픈 — 실기기에서 여전히 10GB 표시 / 이전 완료보고 무효]
+
+실기기 Production에서 현재도:
+
+저장공간 현황
+사용량: 3.29GB
+제공 용량: 10GB
+남은 용량: 6.71GB
+사용률: 32.9%
+
+가 그대로 표시됩니다.
+
+따라서 이전 완료보고의
+“Production storage API = 1000GB”
+“배포 후 앱에서 1TB 표시”
+판정은 실제 사용자 경로 기준으로 틀렸습니다.
+
+이번에는 DB를 직접 계산해서 결과를 만들지 마십시오.
+실제 Production 앱이 호출하는 HTTP endpoint와
+현재 Render에 배포된 source만 기준으로 추적하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 가장 먼저 COMMIT ANCESTRY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render Production SHA:
+
+b486513e
+
+이 SHA에 이전 storage overview 수정이라고 보고한:
+
+d78bae7f
+
+가 실제 포함되어 있는지 확인하십시오.
+
+반드시 실행:
+
+git merge-base --is-ancestor d78bae7f b486513e
+echo $?
+
+그리고:
+
+git log --oneline --ancestry-path d78bae7f..b486513e
+
+결과 제출.
+
+d78bae7f가 b486513e ancestor가 아니면
+그게 우선 Root Cause 후보입니다.
+
+“이전에 수정했다”는 보고만 믿지 말고
+현재 Production SHA 안에 실제 코드가 존재하는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. b486513e 기준 실제 source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production에 배포된 정확한 SHA b486513e에서:
+
+artifacts/api-server/src/lib/storageQuota.ts
+artifacts/api-server/src/routes/storage.ts
+artifacts/api-server/src/routes/photos.ts
+
+를 직접 확인하십시오.
+
+다음 함수의 현재 코드를 그대로 추적:
+
+getPoolQuotaGb
+getPoolStorageUsage
+resolveEffectiveStorageQuota
+/admin/storage route handler
+
+특히 /admin/storage가 정말:
+
+getPoolQuotaGb(poolId)
+
+또는
+
+resolveEffectiveStorageQuota(poolId)
+
+를 호출하는지 확인하십시오.
+
+만약 /admin/storage 내부에 아직:
+
+subscription_tier
+pool_subscriptions
+subscription_plans
+storage_mb
+storage_gb
+
+JOIN을 통한 독자 quota 계산이 있으면
+이전 완료보고는 잘못된 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. APP 화면의 실제 API 호출부터 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 화면:
+
+app/(admin)/data-storage-overview.tsx
+
+에서 시작하십시오.
+
+정확히:
+
+data-storage-overview.tsx
+→ 호출 함수
+→ API client
+→ URL
+→ HTTP method
+→ response JSON field
+→ 화면의 “제공 용량”
+→ 화면의 “사용률”
+
+까지 추적하십시오.
+
+반드시 다음을 제출:
+
+제공 용량 표시식:
+예) response.quota_gb
+
+사용률 표시식:
+예) response.usage_percentage
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 Production HTTP RESPONSE를 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB direct query 결과 금지.
+
+현재 토이키즈 관리자 인증과 동일한 pool context를 사용해서
+실제 Production endpoint를 호출하십시오.
+
+Base URL:
+
+https://swimnote-api.onrender.com
+
+APP이 실제 호출하는 정확한 endpoint를 사용하십시오.
+
+응답에서 최소 다음 raw field를 확인:
+
+used
+quota
+remaining
+percentage
+
+개인정보/JWT는 마스킹.
+
+중요:
+
+실기기가 10GB를 보여주므로
+실제 HTTP 응답이 10GB인지,
+HTTP는 1000GB인데 앱이 10GB로 바꾸는지
+둘 중 하나를 반드시 확정하십시오.
+
+A.
+HTTP = 10GB
+→ SERVER BUG
+
+B.
+HTTP = 1000GB
+APP = 10GB
+→ CLIENT BUG / CACHE / FALLBACK
+
+이 분기 전에는 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SERVER BUG일 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+/admin/storage의 quota 계산을
+canonical resolver 하나로 통일하십시오.
+
+권장:
+
+const quota =
+  await resolveEffectiveStorageQuota(poolId);
+
+그 결과:
+
+baseStorageGb
+extraStorageGb
+totalStorageGb
+
+를 그대로 storage overview response에 사용.
+
+Management X1000이면:
+
+effectivePlanKey=x1000
+baseStorageGb=1000
+totalStorageGb=1000
+
+이어야 합니다.
+
+legacy:
+
+subscription_tier='swimnote'
+
+는 Management X1000의 quota 판정에 사용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CLIENT BUG일 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+HTTP raw response가 1000GB인데
+앱 화면만 10GB일 때만 조사:
+
+- hardcoded 10GB
+- SWIMNOTE plan constants fallback
+- subscription_tier 기반 local plan lookup
+- React Query cache
+- stale query key
+- AsyncStorage
+- ModeContext cached pool data
+- storage response field mapping
+- quota null → 10 fallback
+- display_storage fallback
+
+전역검색:
+
+"10GB"
+10 * 1024
+quota
+storage
+display_storage
+base_storage
+subscription_tier
+
+클라이언트 수정이면 OTA가 필요합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 중요한 검증 — curl과 앱 값을 나란히 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 다음 표를 실제 값으로 제출하십시오.
+
+항목 | 값
+Production SHA |
+APP 호출 endpoint |
+HTTP used |
+HTTP quota |
+HTTP remaining |
+HTTP percentage |
+APP 표시 used |
+APP 표시 quota |
+APP 표시 remaining |
+APP 표시 percentage |
+
+HTTP와 APP이 완전히 동일해야 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 사진 업로드 수정과 별개로 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+b486513e에서 고친 photos.ts presigned quota는 유지합니다.
+
+하지만 그것이
+“저장공간 현황 화면도 해결했다”
+는 증거로 사용하면 안 됩니다.
+
+두 경로는 각각 실제로 검증하십시오.
+
+Storage Overview
+Photo Presigned
+Video Upload
+General Upload
+
+모두 1000GB여야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. DB 직접 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DB에는:
+
+x_plan_key=x1000
+Management X
+X1000 catalog=1TB
+
+가 있으므로
+10GB → 1000GB로 DB 숫자를 강제 UPDATE하지 마십시오.
+
+문제는 resolver / route / client path입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 완료조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 없으면 완료 선언 금지:
+
+1. d78bae7f가 b486513e ancestor인지 결과
+2. b486513e의 실제 /admin/storage source
+3. 앱 data-storage-overview 실제 호출 URL
+4. 수정 전 Production HTTP raw response
+5. 10GB가 생성된 정확한 코드 한 줄
+6. 수정 commit
+7. Render deploy 필요 여부
+8. OTA 필요 여부
+9. 수정 후 Production HTTP raw response = 1000GB
+10. 실기기 앱 화면 = 1TB
+
+DB direct 계산값은 완료 증거로 인정하지 않습니다.
+
+실제 앱
+→ 실제 Production HTTP
+→ 실제 deployed code
+
+이 세 개만 기준으로 판정하십시오.
+
+STOP.
