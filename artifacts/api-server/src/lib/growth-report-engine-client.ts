@@ -37,7 +37,9 @@ export function getEngineUrl(): string {
   return (process.env["GROWTH_REPORT_ENGINE_URL"] ?? "").trim();
 }
 export function getEngineSecret(): string {
-  return (process.env["GROWTH_REPORT_ENGINE_SECRET"] ?? "").trim();
+  // GROWTH_REPORT_ENGINE_SECRET이 없으면 JWT_SECRET으로 fallback.
+  // 엔진팀 확인: Growth Report 인증은 JWT_SECRET 공유 방식 (동일 값).
+  return (process.env["GROWTH_REPORT_ENGINE_SECRET"] ?? process.env["JWT_SECRET"] ?? "").trim();
 }
 export function getEngineTimeoutMs(): number {
   const raw = Number(process.env["GROWTH_REPORT_ENGINE_TIMEOUT_MS"]);
