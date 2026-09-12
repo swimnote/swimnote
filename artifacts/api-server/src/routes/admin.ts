@@ -4071,6 +4071,9 @@ router.get("/reports/summary",
       const total = parseInt(String((countResult.rows[0] as any)?.cnt ?? "0"), 10);
 
       // ── 메인 학생 목록 쿼리 ───────────────────────────
+      // ⑤ 다반 수강자 fan-out 방지: student_class_history LEFT JOIN 시 동일 학생에
+      //    left_at IS NULL 행이 여러 개 존재할 수 있음 → LATERAL 집계로 1 report = 1행 보장.
+      //    class_name / teacher_name은 ' · ' 구분자로 집계.
       const listSql = `
         SELECT
           gr.id                     AS report_id,
@@ -4084,15 +4087,24 @@ router.get("/reports/summary",
           gr.teacher_reviewed_at,
           gr.published_at,
           CASE WHEN gr.file_url IS NOT NULL AND gr.file_url != '' THEN true ELSE false END AS has_file,
-          sch.class_group_id,
-          COALESCE(cg.name, '') AS class_name,
-          cg.teacher_user_id   AS teacher_id,
-          COALESCE(u.name, '') AS teacher_name
+          cls.class_group_id,
+          cls.class_names  AS class_name,
+          cls.teacher_id,
+          cls.teacher_names AS teacher_name
         FROM growth_reports gr
         JOIN students s ON s.id = gr.student_id
-        LEFT JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
-        LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
-        LEFT JOIN users u ON u.id = cg.teacher_user_id
+        LEFT JOIN LATERAL (
+          SELECT
+            MIN(cg2.id)  AS class_group_id,
+            ARRAY_TO_STRING(ARRAY_AGG(DISTINCT cg2.name  ORDER BY cg2.name),  ' · ') AS class_names,
+            MIN(cg2.teacher_user_id) AS teacher_id,
+            ARRAY_TO_STRING(ARRAY_AGG(DISTINCT u2.name   ORDER BY u2.name),   ' · ') AS teacher_names
+          FROM student_class_history sch2
+          JOIN class_groups cg2 ON cg2.id = sch2.class_group_id
+            AND cg2.swimming_pool_id = '${poolId}'
+          LEFT JOIN users u2 ON u2.id = cg2.teacher_user_id
+          WHERE sch2.student_id = s.id AND sch2.left_at IS NULL
+        ) cls ON true
         WHERE gr.swimming_pool_id = '${poolId}'
           AND gr.product_status != 'NOT_OPEN'
           AND gr.period_start >= '${periodFrom}'::date
@@ -4110,6 +4122,7 @@ router.get("/reports/summary",
         READY_FOR_ANALYSIS: "분석 중", ANALYZING: "분석 중",
         REVIEW_REQUIRED: "검토 대기", APPROVED: "승인 완료",
         PUBLISHED: "발행 완료", PARTIAL: "일부 완료", FAILED: "실패",
+        EXCLUDED: "발급 제외",
       };
 
       const students = (listResult.rows as any[]).map(r => ({

@@ -87,6 +87,22 @@ export interface BuiltSnapshot {
  * Privacy (GR3 spec §41):
  *   Only this student's note is included; other students' notes are excluded.
  */
+/**
+ * Export for eligibility gate: worker calls this to get sourceEventCount
+ * using the exact same predicate as the ENGINE snapshot.
+ * Predicate identity is guaranteed by sharing this single function.
+ */
+export async function queryDiariesForEligibility(
+  db: any,
+  studentId: string,
+  poolId: string,
+  cutoffAt: string,
+  analysisFrom: string,
+): Promise<number> {
+  const items = await queryDiaries(db, studentId, poolId, cutoffAt, analysisFrom);
+  return items.length;
+}
+
 async function queryDiaries(
   db: any,
   studentId: string,

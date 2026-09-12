@@ -37,7 +37,13 @@ import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 import { sendOperatorAlert } from "../lib/sendOperatorAlert.js";
 import { transitionReportStatus, InvalidTransitionError } from "../lib/growth-report-service.js";
-import { buildAnalysisSnapshot } from "../lib/growth-report-snapshot-builder.js";
+import {
+  buildAnalysisSnapshot,
+  queryDiariesForEligibility,
+} from "../lib/growth-report-snapshot-builder.js";
+import {
+  evaluateStudentGrowthReportEligibility,
+} from "../lib/growth-report-eligibility.js";
 import {
   analyzeGrowthReport,
   isRetryableEngineError,
@@ -233,6 +239,104 @@ async function analyzeOneReport(
   }
 
   const parentInputWindowOpen = new Date() < new Date(cycle.parent_input_close_at);
+
+  // 1.5) ─── ELIGIBILITY GATE ───────────────────────────────────────────────
+  // 반드시 ENGINE 호출 전에 수행. EXCLUDED 학생은 ENGINE 진입 금지.
+  // analysis period: cycle.report_period = "YYYY-MM" (분석월)
+  //   periodFrom   = "YYYY-MM-01"
+  //   analysisFrom = max(cycle.analysis_from, periodFrom)
+  //   cutoffDate   = cycle.analysis_cutoff_at[:10]
+  {
+    const periodFrom   = `${cycle.report_period}-01`;
+    const analysisFrom = cycle.analysis_from
+      ? (cycle.analysis_from > periodFrom ? cycle.analysis_from : periodFrom)
+      : periodFrom;
+    const cutoffDate   = cycle.analysis_cutoff_at.slice(0, 10);
+
+    // (A) attendance_count — present+late, analysis period 내
+    const attendRows = await db.execute(sql`
+      SELECT COUNT(DISTINCT a.id)::int AS cnt
+      FROM attendance a
+      WHERE a.student_id       = ${report.student_id}
+        AND a.swimming_pool_id = ${report.swimming_pool_id}
+        AND a.date             >= ${periodFrom}
+        AND a.date             <  ${cutoffDate}
+        AND a.status           IN ('present', 'late')
+    `);
+    const attendanceCount = Number(attendRows.rows[0]?.cnt ?? 0);
+
+    // (B) source_event_count — queryDiariesForEligibility로 predicate 일치 보장
+    //     (queryDiaries 와 동일 SQL → snapshot source와 100% 동일)
+    const sourceEventCount = await queryDiariesForEligibility(
+      db,
+      report.student_id,
+      report.swimming_pool_id,
+      cycle.analysis_cutoff_at,
+      analysisFrom,
+    );
+
+    // (C) reregistered — report_month 기준 재원 확인
+    //     enrolled_at <= periodFrom AND (left_at IS NULL OR left_at >= nextMonth)
+    const nextMonth = new Date(periodFrom);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const nextMonthStr = nextMonth.toISOString().slice(0, 10);
+    const reregRows = await db.execute(sql`
+      SELECT 1
+      FROM student_class_history sch
+      JOIN class_groups cg ON cg.id = sch.class_group_id
+      WHERE sch.student_id        = ${report.student_id}
+        AND cg.swimming_pool_id   = ${report.swimming_pool_id}
+        AND sch.enrolled_at       <= ${periodFrom}::date
+        AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonthStr}::date)
+      LIMIT 1
+    `);
+    const reregistered = reregRows.rows.length > 0;
+
+    // (D) eligibility 판정
+    const eligResult = evaluateStudentGrowthReportEligibility({
+      attendanceCount,
+      sourceEventCount,
+      reregistered,
+    });
+
+    // (E) counts는 ELIGIBLE/EXCLUDED 모두 저장 (추적 가능성)
+    const eligVersionNum = eligResult.eligibility_version;
+    if (!eligResult.eligible) {
+      // EXCLUDED — ENGINE 진입 금지, DB 업데이트 후 즉시 반환
+      await db.execute(sql`
+        UPDATE growth_reports
+        SET product_status      = 'EXCLUDED'::gr_product_status_enum,
+            exclusion_code      = ${eligResult.exclusion_code},
+            attendance_count    = ${attendanceCount},
+            source_event_count  = ${sourceEventCount},
+            eligibility_version = ${eligVersionNum},
+            updated_at          = now()
+        WHERE id = ${report.id}
+      `);
+      console.log(
+        `[gr3-worker] report=${report.id} EXCLUDED` +
+        ` code=${eligResult.exclusion_code}` +
+        ` attend=${attendanceCount} source=${sourceEventCount}`,
+      );
+      return { ok: true };  // 의도적 제외 — 에러 아님
+    }
+
+    // ELIGIBLE: counts 저장, 이후 AI 진행
+    await db.execute(sql`
+      UPDATE growth_reports
+      SET attendance_count    = ${attendanceCount},
+          source_event_count  = ${sourceEventCount},
+          eligibility_version = ${eligVersionNum},
+          exclusion_code      = NULL,
+          updated_at          = now()
+      WHERE id = ${report.id}
+    `);
+    console.log(
+      `[gr3-worker] report=${report.id} ELIGIBLE` +
+      ` attend=${attendanceCount} source=${sourceEventCount} → ENGINE`,
+    );
+  }
+  // ─── END ELIGIBILITY GATE ──────────────────────────────────────────────────
 
   // 2) Build immutable snapshot (new requestId = new analysis attempt)
   const { request, requestId, payloadHash } = await buildAnalysisSnapshot(db, {
