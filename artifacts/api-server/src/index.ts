@@ -74,15 +74,20 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+// ── 포트를 즉시 열어 헬스체크 통과 ─────────────────────────────────────────
+// Replit 배포 시스템은 프로세스 시작 즉시 / 와 /api 를 헬스체크한다.
+// app.listen()을 스케줄러/DB 초기화보다 먼저 호출해야 connection refused 를 피함.
+// setServerReady()는 listen 콜백에서 호출 → GET /api · GET / 즉시 200 반환.
+let _httpServer: ReturnType<typeof app.listen> | null = null;
+if (!IS_WORKER) {
+  _httpServer = app.listen(port, () => {
+    setServerReady();
+    console.log(`Server listening on port ${port}`);
+    console.log(`[server] 헬스체크 200 응답 시작 (DB 마이그레이션 백그라운드 진행 중)`);
+  });
+}
+
 // DB 초기화 — 백그라운드 실행 (헬스체크 블로킹 방지)
-// ─────────────────────────────────────────────────────────────────────────────
-// 이전: DB init 완료 후 setServerReady() → 206개 순차 쿼리로 인해 4분 promote
-//       타임아웃 초과 → autoscale 헬스체크 실패 반복
-// 변경: setServerReady()는 app.listen() 콜백에서 즉시 호출 → 헬스체크 즉시 200
-//       DB 마이그레이션은 fire-and-forget 백그라운드 실행
-// 안전성: autoscale 롤링 배포에서 구 인스턴스가 새 인스턴스가 healthy 판정을
-//         받기 전까지 계속 트래픽을 처리 → 마이그레이션 완료 전 실요청 수신 없음
-// ─────────────────────────────────────────────────────────────────────────────
 const DB_INIT_MAX_RETRIES = 3;
 const DB_INIT_BASE_DELAY_MS = 2000;
 
@@ -276,16 +281,10 @@ if (IS_WORKER) {
     console.log(`[keep-alive] 자기 핑 스케줄러 시작 (4분 간격) target=${selfBase}`);
   }
 
-  const server = app.listen(port, () => {
-    // setServerReady()를 listen 콜백에서 즉시 호출 — 헬스체크 즉시 200 반환
-    // (DB 마이그레이션은 위 IIFE에서 백그라운드 실행 중)
-    setServerReady();
-    console.log(`Server listening on port ${port}`);
-    console.log(`[server] 헬스체크 200 응답 시작 (DB 마이그레이션 백그라운드 진행 중)`);
-    console.log(`[DB] 운영 DB: superAdminDb (단일화 완료)`);
-    console.log(`[DB] pool 백업: ${isDbSeparated ? "활성화" : "미설정 (비활성화)"}`);
-    console.log(`[DB] 보호백업: ${isProtectDbConfigured ? "활성화" : "미설정 (비활성화)"}`);
-  });
+  // app.listen()은 파일 상단(port 검증 직후)에서 이미 호출됨 — 헬스체크 즉시 응답
+  console.log(`[DB] 운영 DB: superAdminDb (단일화 완료)`);
+  console.log(`[DB] pool 백업: ${isDbSeparated ? "활성화" : "미설정 (비활성화)"}`);
+  console.log(`[DB] 보호백업: ${isProtectDbConfigured ? "활성화" : "미설정 (비활성화)"}`);
 
   // ── Graceful Shutdown ──────────────────────────────────────────────────────
   let isShuttingDown = false;
@@ -295,8 +294,7 @@ if (IS_WORKER) {
     isShuttingDown = true;
     console.log(`[shutdown] ${signal} 수신 — graceful shutdown 시작`);
 
-    server.close(async () => {
-      console.log("[shutdown] 모든 요청 완료 — DB 연결 종료 중");
+    const cleanup = async () => {
       try {
         await pool.end();
         console.log("[shutdown] DB 풀 종료 완료");
@@ -305,7 +303,13 @@ if (IS_WORKER) {
       }
       console.log("[shutdown] 서버 종료 완료");
       process.exit(0);
-    });
+    };
+
+    if (_httpServer) {
+      _httpServer.close(() => { void cleanup(); });
+    } else {
+      void cleanup();
+    }
 
     setTimeout(() => {
       console.error("[shutdown] 15초 초과 — 강제 종료");
