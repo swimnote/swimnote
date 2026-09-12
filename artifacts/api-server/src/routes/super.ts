@@ -3421,6 +3421,22 @@ router.post(
   },
 );
 
+// ── POST /super/growth-report-batch-worker/run — 배치 워커 수동 trigger ──
+router.post(
+  "/super/growth-report-batch-worker/run",
+  requireAuth, requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const { runBatchWorker } = await import("../jobs/growth-report-batch-worker.js");
+      await runBatchWorker(superAdminDb);
+      res.json({ ok: true, message: "batch worker run 완료" });
+    } catch (err: any) {
+      console.error("[super] growth-report-batch-worker/run 오류:", err.message);
+      res.status(500).json({ error: "BATCH_WORKER_RUN_FAILED", message: err.message });
+    }
+  },
+);
+
 // ── POST /super/growth-reports/:reportId/analyze — 단일 report AI 분석 trigger ──
 //
 // 용도:
