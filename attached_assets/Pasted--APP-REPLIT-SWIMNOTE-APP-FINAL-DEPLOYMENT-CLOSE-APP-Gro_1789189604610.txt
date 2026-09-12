@@ -1,0 +1,242 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE APP
+FINAL DEPLOYMENT CLOSE
+
+현재 APP Growth Report 데이터 계약 및 테스트는 PASS입니다.
+
+남은 BLOCKER는 단 하나입니다.
+
+Commit:
+03216540
+
+내용:
+growth-report-batch-worker.ts
+cohort bound periodStart → nextMonth 수정
+
+현재 상태:
+GitHub main 반영 완료
+Render deployment = update_failed
+
+이번 작업의 목표는
+03216540을 Production LIVE 상태로 만드는 것뿐입니다.
+
+불필요한 코드 수정 금지.
+Growth Report 정책 수정 금지.
+AI ENGINE 수정 금지.
+ToyKids 8월 리포트 재발급 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Render 배포 실패 원인 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최근 03216540 배포가
+3회 연속 update_failed 된 정확한 원인을
+Render deployment/runtime 로그에서 확인하십시오.
+
+보고된 추정:
+
+rolling update health check timeout
+
+을 실제 로그로 확인하십시오.
+
+확인:
+
+- build 성공 여부
+- process startup 성공 여부
+- PORT binding
+- health endpoint 응답 여부
+- startup latency
+- process crash 여부
+- DB 연결 지연 여부
+- scheduler/worker startup이 health check를 block하는지
+- Render health check timeout 전 응답 가능한지
+
+추측으로 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 코드 문제가 아니면 재배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드/health endpoint에 실제 문제가 없으면
+Render manual deploy 또는
+안전한 redeploy를 수행하십시오.
+
+목표 Production SHA:
+
+03216540
+또는
+03216540을 포함하는 후속 SHA
+
+반드시 batch-worker cohort 수정이 포함되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Health Check
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production LIVE 후 실제 확인:
+
+- deployment status = LIVE
+- health endpoint = 200
+- commit SHA 확인
+- uptime 증가
+- server crash loop 없음
+
+최소 5분 이상 안정적으로 유지되는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Growth Report runtime 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LIVE 후 확인:
+
+- startGrowthReportScheduler() 실행
+- startGrowthReportAnalysisWorker() 실행
+- startGrowthReportBatchWorker() 실행
+
+환경변수:
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+GROWTH_REPORT_BATCH_AUTO_ENABLED=true
+
+실제 runtime에서도 true인지 확인.
+
+현재 active ToyKids report가 없으므로
+AI 대량 호출이 발생하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Batch Worker 코드 반영 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production에 올라간 실제 코드가
+
+growth-report-batch-worker.ts
+
+에서 cohort upper bound를:
+
+analysis period 시작일이 아니라
+report_month 시작일 / nextMonth 기준
+
+으로 사용하고 있는지 확인하십시오.
+
+즉 2026-09 report_month의
+2026-08 분석 리포트에서는
+
+2026-09-01 재원 기준 cohort
+
+가 사용되어야 합니다.
+
+최종 ToyKids dry-run cohort:
+
+205명
+
+과 같은 기준이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Production Dry-run 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+INSERT 없이 확인:
+
+report_month = 2026-09
+analysis month = 2026-08
+
+ToyKids:
+
+cohort = 205
+
+attendance >=3 = 84
+
+source >=1 = 89
+
+ELIGIBLE = 53
+
+matrix:
+
+att>=3 / src>=1 = 53
+att>=3 / src=0 = 31
+att<3 / src>=1 = 36
+att<3 / src=0 = 85
+
+합계 = 205
+
+Production 코드 기준으로 동일 결과가 나오는지 확인하십시오.
+
+실제 report row 생성 금지.
+ENGINE 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 테스트 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 관련:
+
+149 / 149 PASS
+
+상태 유지 확인.
+
+새 실패가 생기면 APP FINAL PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 이번 작업에서 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- ToyKids 8월 리포트 실제 생성
+- growth_reports INSERT
+- Parent publish
+- Push
+- AI ENGINE 호출
+- Prompt 변경
+- eligibility 변경
+- attendance 정책 변경
+- cohort 정책 변경
+- 다른 pool 데이터 변경
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. PASS / HOLD
+
+2. 최종 Production SHA
+
+3. Render deployment status
+
+4. 이전 update_failed 정확한 원인
+
+5. health endpoint 결과
+
+6. 5분 이상 안정 가동 여부
+
+7. Scheduler startup 확인
+
+8. Analysis Worker startup 확인
+
+9. Batch Worker startup 확인
+
+10. 두 AUTO_ENABLED runtime 값
+
+11. Production batch-worker에
+    nextMonth cohort 수정 반영 여부
+
+12. Production dry-run:
+    cohort
+    attendance>=3
+    source>=1
+    ELIGIBLE
+    matrix
+
+13. Growth Report test
+    total / pass / fail
+
+14. 실제 ToyKids 8월 리포트 재발급 여부
+    반드시 "미실행"
+
+15. APP FINAL PASS 여부
+
+16. AI ENGINE으로 넘어가도 되는지
+    YES / NO
+
+보고 후 멈추십시오.
