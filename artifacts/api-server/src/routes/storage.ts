@@ -8,7 +8,7 @@ import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
-import { getPoolQuotaGb } from "../lib/storageQuota.js";
+import { resolveSubscription } from "../lib/subscriptionService.js";
 
 const router = Router();
 
@@ -60,22 +60,15 @@ async function calcUserStorage(userId: string, poolId: string) {
   };
 }
 
-// ── 쿼터 GB → 표시 문자열 변환 (DB 컬럼 불신; 항상 실시간 계산)
-function fmtQuotaGb(gb: number): string {
-  if (gb >= 1000) return `${gb / 1000 % 1 === 0 ? gb / 1000 : (gb / 1000).toFixed(1)}TB`;
-  if (gb >= 1)    return `${Math.round(gb)}GB`;
-  return `${Math.round(gb * 1024)}MB`;
-}
-
 // ── 구독 쿼터 조회 헬퍼
-// storageQuota.getPoolQuotaGb() 사용 — x_plan_key 인식 (X 플랜 1TB 정확히 반환)
-// displayStorage는 DB 컬럼(stale 가능) 대신 quotaGb에서 직접 계산
+// resolveSubscription 직접 사용 — billing/status와 완전히 동일한 코드 경로.
+// x_plan_key, x_management_override 등 X 플랜 로직은 resolveSubscription이 처리.
 async function getQuotaInfo(poolId: string): Promise<{ quotaBytes: number; displayStorage: string | null }> {
   try {
-    const { quotaGb } = await getPoolQuotaGb(poolId);
+    const resolved = await resolveSubscription(poolId);
     return {
-      quotaBytes:     quotaGb * 1024 * 1024 * 1024,
-      displayStorage: fmtQuotaGb(quotaGb),
+      quotaBytes:     resolved.storageGb * 1024 * 1024 * 1024,
+      displayStorage: resolved.displayStorage ?? null,
     };
   } catch {
     return { quotaBytes: 512 * 1024 * 1024, displayStorage: null };
