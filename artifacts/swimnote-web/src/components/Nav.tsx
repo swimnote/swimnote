@@ -130,8 +130,8 @@ export default function Nav() {
 
         {/* 모바일 탭 */}
         <nav
-          className="flex md:hidden items-center gap-0 overflow-x-auto scrollbar-none"
-          style={{ flex: 1, justifyContent: "flex-end" }}
+          className="flex md:hidden items-center overflow-x-auto scrollbar-none"
+          style={{ gap: 0, flexShrink: 1, minWidth: 0 }}
         >
           {links.map((l) => {
             const active = l.page === "/" ? location === "/" : location.startsWith(l.page);
@@ -141,9 +141,11 @@ export default function Nav() {
                 onClick={() => handleClick(l.page)}
                 style={{
                   flexShrink: 0,
-                  padding: "0 8px",
+                  padding: "0 7px",
                   fontSize: 11,
                   fontWeight: active ? 500 : 400,
+                  whiteSpace: "nowrap",
+                  lineHeight: "44px",
                   color: onDark
                     ? (active ? "#fff" : "rgba(255,255,255,0.7)")
                     : (active ? "#1d1d1f" : "#6e6e73"),
