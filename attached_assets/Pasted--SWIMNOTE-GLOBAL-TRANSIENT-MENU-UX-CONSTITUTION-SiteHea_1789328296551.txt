@@ -1,0 +1,472 @@
+[SWIMNOTE — GLOBAL TRANSIENT MENU UX CONSTITUTION 교체 + 현재 ⋯ 메뉴 수정]
+
+현재 SiteHeader의 ⋯ 확장 메뉴 UX가 잘못되어 있습니다.
+
+현재 문제:
+- ⋯ 메뉴에서 페이지를 클릭하여 route가 변경되어도 메뉴가 계속 열려 있음
+- 새 페이지 본문을 클릭하거나 마우스를 본문으로 이동해도 메뉴가 닫히지 않음
+- 다시 ⋯ 버튼을 눌러야만 닫힘
+
+이 동작은 폐기합니다.
+
+이번 수정으로 기존 "메뉴/드롭다운/오버레이 닫힘 규칙" 헌법을
+아래 규칙으로 완전히 교체하십시오.
+
+이 규칙은 현재 공식 홈페이지뿐 아니라
+향후 PC Dashboard 재구성 때도 동일하게 적용하는
+SWIMNOTE 전역 UX 헌법입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 새 전역 UX 헌법
+TRANSIENT UI DISMISSAL CONSTITUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE에서 다음과 같은 임시 UI:
+
+- ⋯ 확장 메뉴
+- dropdown
+- popover
+- context menu
+- profile menu
+- filter menu
+- select-like custom menu
+- floating action menu
+- temporary navigation panel
+
+은 사용자가 "닫기"를 따로 학습할 필요가 없어야 합니다.
+
+절대 원칙:
+
+"사용자의 다음 행동이 시작되면,
+이전의 임시 UI는 자동으로 사라진다."
+
+사용자가 다시 같은 버튼을 눌러야만 닫히는 구조를
+기본 동작으로 사용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. NAVIGATION 발생 시 즉시 닫힘
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요합니다.
+
+열려 있는 ⋯ 메뉴에서:
+
+- SWIMNOTE AI
+- 기술 및 개발
+- 특허/IP
+- AI 및 기술 투자
+- 회사 소개
+- 고객센터
+- 앱 설치
+- 이용약관
+- 개인정보처리방침
+
+등 어떠한 navigation item을 클릭하든:
+
+1. 메뉴 state를 즉시 close
+2. route navigation 실행
+3. 새 페이지는 메뉴가 닫힌 상태로 표시
+
+되어야 합니다.
+
+route가 실제로 변경된 뒤에도
+open state가 남아 있어서는 안 됩니다.
+
+가능하면 route/location 변화 자체도 감시하여:
+
+location pathname/search/hash 변경
+→ open=false
+
+가 되도록 안전장치를 추가하십시오.
+
+즉 메뉴 클릭 외에
+브라우저 back/forward 또는 programmatic navigation으로
+페이지가 바뀌더라도 transient menu가 남지 않아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. DESKTOP — 포인터가 메뉴 영역을 떠나면 자동 닫힘
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Desktop에서는 ⋯ 메뉴가 열린 상태에서
+마우스가 다음 영역 밖으로 이동하면 자동으로 닫습니다.
+
+"유효 메뉴 영역":
+
+SiteHeader
++
+열린 Expanded Menu Panel
+
+이 둘을 하나의 interaction region으로 취급합니다.
+
+포인터가:
+
+Header
+→ Expanded Menu
+
+사이를 이동할 때는 닫히면 안 됩니다.
+
+하지만 포인터가:
+
+Header/Menu
+→ 실제 페이지 본문
+
+으로 이동하면 자동으로 닫아야 합니다.
+
+사용자가 본문을 클릭할 필요도 없습니다.
+
+즉 대표가 요구하는 최종 동작:
+
+⋯ 클릭
+→ Mega Menu OPEN
+→ 메뉴를 살펴봄
+→ 마우스를 아래의 페이지 본문으로 이동
+→ Mega Menu 자동 CLOSE
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. HOVER CLOSE 구현 안정성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+단순히 각각의 요소에
+onMouseLeave를 무작정 붙이지 마십시오.
+
+Header와 Panel 사이를 이동하는 순간
+잘못 닫히는 flicker가 생기면 안 됩니다.
+
+권장 구현:
+
+A.
+Header + ExpandedPanel을
+하나의 공통 interaction boundary로 구성할 수 있다면
+outer wrapper의 pointer enter/leave 사용.
+
+또는
+
+B.
+headerRef / panelRef와
+event.relatedTarget을 사용하여
+다음 pointer target이 두 영역 안에 있는지 판단.
+
+또는
+
+C.
+document pointer movement를 사용하되
+header/panel containment를 정확히 판별.
+
+조건:
+- Header → Menu 이동: 유지
+- Menu → Header 이동: 유지
+- Menu/Header → Body 이동: close
+- Menu item 클릭: 즉시 close
+
+새 package 설치 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 짧은 DISMISS DELAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Desktop pointer-leave 자동 닫힘은
+실수로 경계를 1~2px 벗어났을 때 깜빡이지 않도록
+아주 짧은 delay를 둘 수 있습니다.
+
+권장:
+80~150ms
+
+절대:
+300ms 이상의 느린 delay 금지.
+
+pointer가 delay 안에
+Header/Menu 영역으로 다시 들어오면
+close timer를 취소합니다.
+
+이 delay는 "애니메이션 효과"가 아니라
+flicker 방지용입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. OUTSIDE POINTER / CLICK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 outside click close는 유지합니다.
+
+Menu가 열린 상태에서:
+
+- 페이지 본문 클릭
+- 다른 interactive element 클릭
+- header/menu 외부 pointer down
+
+→ 즉시 close
+
+되어야 합니다.
+
+즉 Desktop에서는:
+
+"마우스 이동만으로도 닫힘"
++
+"외부 클릭으로도 닫힘"
+
+둘 다 지원합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. MOBILE / TOUCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Mobile에는 hover 개념을 적용하지 않습니다.
+
+Mobile/Touch에서는:
+
+- ⋯ 버튼 tap → OPEN
+- 메뉴 item tap → 즉시 CLOSE + navigation
+- 메뉴 외부 tap → CLOSE
+- ESC 가능한 환경 → CLOSE
+- browser navigation 발생 → CLOSE
+
+로 동작합니다.
+
+메뉴 item을 탭한 뒤
+새 페이지 위에 메뉴가 계속 남아 있으면 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. ESC / FOCUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 keyboard UX 유지:
+
+ESC
+→ close
+→ ⋯ trigger로 focus 복귀
+
+Navigation item을 keyboard Enter/Space로 실행:
+→ close
+→ route navigation
+
+Tab/Shift+Tab 접근성 유지.
+
+메뉴가 닫힌 뒤 invisible panel 안에
+focus가 남아 있으면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. ⋯ TRIGGER 동작
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⋯ 버튼 자체는 toggle 가능:
+
+CLOSED
+→ click
+→ OPEN
+
+OPEN
+→ click
+→ CLOSED
+
+하지만 이것은 "추가적인 닫기 방법"일 뿐입니다.
+
+사용자가 메뉴를 닫기 위해
+반드시 ⋯ 버튼을 다시 눌러야 하는 UX는 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. ROUTE CHANGE = TRANSIENT UI RESET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 규칙을 전역 헌법에 명시하십시오.
+
+SWIMNOTE Web / PC Dashboard에서
+페이지 또는 주요 view가 전환되면:
+
+"이전 화면에서 열린 transient UI는 기본적으로 reset"
+
+합니다.
+
+예:
+
+Page A에서 Dropdown OPEN
+→ Page B 이동
+→ Dropdown CLOSED
+
+Page A에서 ⋯ Menu OPEN
+→ 다른 메뉴 선택
+→ Page B는 CLOSED 상태
+
+Dashboard 회원목록에서 Filter Popover OPEN
+→ 회원 상세 이동
+→ Filter Popover CLOSED
+
+이 원칙을 향후 Dashboard 제작에서도 사용하십시오.
+
+예외는 명시적으로 persistent UI라고 설계된 경우뿐입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. PC DASHBOARD에 적용할 헌법
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 규칙은 홈페이지 전용이 아닙니다.
+
+향후 PC Dashboard X모드 재구성 시
+다음 UI에도 동일 적용:
+
+- 프로필 메뉴
+- 더보기 메뉴
+- 회원 액션 메뉴
+- 반 액션 메뉴
+- 필터 popover
+- 정렬 menu
+- 알림 panel
+- 설정 quick menu
+- context menu
+
+원칙:
+
+ACTION COMPLETE
+→ CLOSE
+
+NAVIGATION
+→ CLOSE
+
+OUTSIDE CLICK
+→ CLOSE
+
+DESKTOP POINTER LEAVES INTERACTION REGION
+→ 필요에 따라 CLOSE
+
+ESC
+→ CLOSE
+
+새 view가 열렸는데
+이전 dropdown이 위에 그대로 남아 있는 상태 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 기존 헌법 교체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+프로젝트 내에 기존:
+
+- UX Constitution
+- Menu UX rule
+- Dropdown rule
+- Overlay rule
+- Navigation interaction rule
+
+등 관련 문서/주석/공통 규칙이 있다면
+이번 규칙을 최종 기준으로 교체하십시오.
+
+서로 충돌하는 이전 규칙은 유지하지 마십시오.
+
+만약 중앙 UX 헌법 문서가 없다면
+프로젝트의 기존 documentation 구조를 먼저 확인하고
+가장 적절한 중앙 문서에 아래 제목으로 추가하십시오.
+
+"TRANSIENT UI DISMISSAL CONSTITUTION"
+
+새 문서를 무분별하게 여러 개 만들지 마십시오.
+
+이후 구현자는 홈페이지와 PC Dashboard 모두에서
+이 헌법을 참조해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 현재 SITEHEADER 실제 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SiteHeader.tsx의 현재 ⋯ 메뉴를
+이번 헌법의 첫 적용 사례로 수정하십시오.
+
+반드시 실제 테스트:
+
+A.
+⋯ 클릭
+→ OPEN
+
+B.
+Menu item 클릭
+→ 메뉴 즉시 CLOSED
+→ 해당 페이지 이동
+PASS
+
+C.
+Menu OPEN
+→ 마우스를 메뉴 아래 실제 page body로 이동
+→ 자동 CLOSED
+PASS
+
+D.
+Menu OPEN
+→ Header와 Menu 사이 이동
+→ 닫히지 않음
+PASS
+
+E.
+Menu OPEN
+→ 외부 page click
+→ CLOSED
+PASS
+
+F.
+Menu OPEN
+→ ESC
+→ CLOSED + trigger focus
+PASS
+
+G.
+Menu OPEN
+→ browser back/forward로 route 변경
+→ CLOSED
+PASS
+
+H.
+Mobile Menu item tap
+→ CLOSED + navigation
+PASS
+
+I.
+Mobile outside tap
+→ CLOSED
+PASS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 애니메이션
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+닫힘 애니메이션 때문에
+사용자 입력이 지연되어서는 안 됩니다.
+
+route 선택 시:
+state는 즉시 close 처리.
+
+시각 transition은 기존 0.18초 수준이면 유지 가능.
+
+하지만 route가 바뀐 뒤
+panel이 눈에 오래 남는 구조는 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 다른 기능 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 메뉴 UX 헌법 + SiteHeader 수정만 합니다.
+
+금지:
+
+- HOME 디자인 변경
+- 제품 카드 변경
+- Login/Auth 변경
+- PC Dashboard 개발 시작
+- DB/API 변경
+- AI ENGINE 변경
+- Production 배포
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+짧게 다음만 보고:
+
+1. 기존 메뉴가 안 닫힌 정확한 원인
+2. 수정 파일
+3. Route change close 구현 방식
+4. Desktop pointer-leave close 구현 방식
+5. Outside click / ESC 유지 여부
+6. Mobile 동작
+7. A~I 테스트 PASS/FAIL
+8. 새 헌법 저장/교체 위치
+9. Build PASS/FAIL
+10. Production 배포 NO
+
+완료 후 중단하십시오.

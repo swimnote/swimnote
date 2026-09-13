@@ -193,15 +193,19 @@ function NavItem({ href, onClick, style, children, "aria-label": ariaLabel }: Na
 //   - Outside click: closes
 // This pattern matches ARIA APG "Navigation" disclosure pattern.
 // ─────────────────────────────────────────────────────────────────────────────
+// panelRef is lifted to SiteHeader so the header can check containment for
+// hover-leave auto-close without importing React into a child effect.
 interface ExpandedMenuProps {
   open: boolean;
   onClose: () => void;
   isDesktop: boolean;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
+  panelRef:   React.RefObject<HTMLDivElement | null>;
+  onMouseEnter?: () => void;
+  onMouseLeave?: (e: React.MouseEvent) => void;
 }
 
-function ExpandedMenu({ open, onClose, isDesktop, triggerRef }: ExpandedMenuProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
+function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseEnter, onMouseLeave }: ExpandedMenuProps) {
 
   // ── On open: focus first focusable item in panel ──────────────────────────
   useEffect(() => {
@@ -314,6 +318,8 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef }: ExpandedMenuProp
           animate={{ opacity: 1, y: 0, pointerEvents: "auto" }}
           exit={{ opacity: 0, y: -6, pointerEvents: "none" }}
           transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
         >
           {/* 메뉴 내부 어디를 클릭해도 닫힘 (표준 nav-dropdown 동작) */}
           <div
@@ -423,12 +429,45 @@ export default function SiteHeader() {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const isDesktop = useIsDesktopNav();
-  const moreRef = useRef<HTMLButtonElement>(null);
+  const moreRef   = useRef<HTMLButtonElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const panelRef  = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Route change → immediate close (안전장치) ─────────────────────────────
   useEffect(() => { setMenuOpen(false); }, [location]);
+
+  // ── Cleanup timer on unmount ──────────────────────────────────────────────
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
 
   const closeMenu  = useCallback(() => setMenuOpen(false), []);
   const toggleMenu = useCallback(() => setMenuOpen((v) => !v), []);
+
+  // ── Desktop hover-leave auto-close ────────────────────────────────────────
+  // relatedTarget-based: no flicker between header and panel
+  const isInRegion = (target: EventTarget | null): boolean => {
+    if (!target || !(target instanceof Node)) return false;
+    return !!(headerRef.current?.contains(target) || panelRef.current?.contains(target));
+  };
+
+  const scheduleClose = useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setMenuOpen(false), 100); // 100ms flicker guard
+  }, []);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+  }, []);
+
+  const handleMouseLeave = useCallback((e: React.MouseEvent) => {
+    if (!isDesktop) return;
+    if (!isInRegion(e.relatedTarget)) scheduleClose();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDesktop, scheduleClose]);
+
+  const handleMouseEnter = useCallback(() => {
+    cancelClose();
+  }, [cancelClose]);
 
   const isActive = (href: string) => location === href || location.startsWith(href + "/");
 
@@ -438,6 +477,9 @@ export default function SiteHeader() {
   return (
     <>
       <header
+        ref={headerRef}
+        onMouseLeave={menuOpen && isDesktop ? handleMouseLeave : undefined}
+        onMouseEnter={menuOpen && isDesktop ? handleMouseEnter : undefined}
         style={{
           position: "fixed",
           top: 0, left: 0, right: 0,
@@ -604,6 +646,9 @@ export default function SiteHeader() {
         onClose={closeMenu}
         isDesktop={isDesktop}
         triggerRef={moreRef}
+        panelRef={panelRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       />
 
       {/* ── Mobile scrim ───────────────────────────────────────────── */}
