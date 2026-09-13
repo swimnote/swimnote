@@ -186,56 +186,65 @@ router.post(
       const existing = existRes.rows[0] as any;
 
       if (existing) {
-        // unlike: DELETE
-        await db.execute(sql`
-          DELETE FROM growth_report_reactions
-          WHERE growth_report_id = ${reportId}
-            AND parent_id = ${parentId}
-            AND reaction_type = ${reaction_type}
-        `);
+        // ── UNLIKE: reaction DELETE + stale notification DELETE (atomic) ──
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`
+            DELETE FROM growth_report_reactions
+            WHERE growth_report_id = ${reportId}
+              AND parent_id = ${parentId}
+              AND reaction_type = ${reaction_type}
+          `);
+          await tx.execute(sql`
+            DELETE FROM notifications
+            WHERE actor_id = ${parentId}
+              AND type = 'growth_report_like'
+              AND ref_id = ${reportId}
+          `);
+        });
         res.json({ active: false });
         return;
       }
 
-      // like: INSERT (UNIQUE constraint가 race condition 방어)
-      await db.execute(sql`
-        INSERT INTO growth_report_reactions (id, growth_report_id, parent_id, reaction_type)
-        VALUES (${genId("grr")}, ${reportId}, ${parentId}, ${reaction_type})
-        ON CONFLICT (growth_report_id, parent_id, reaction_type) DO NOTHING
+      // ── LIKE: read-only prep → atomic transaction → push (비동기) ──
+      // 1. Read-only: teacher resolve + parent 이름 조회
+      const teacher = await resolveTeacherByStudent(report.student_id, report.swimming_pool_id);
+      if (!teacher) {
+        console.log(`[gr-reactions] recipient_not_found: reportId=${reportId} studentId=${report.student_id}`);
+      }
+      const pRes = await db.execute(sql`
+        SELECT name FROM parent_accounts WHERE id = ${parentId} LIMIT 1
       `);
+      const parentName = (pRes.rows[0] as any)?.name ?? "학부모";
+      const bodyText = `${parentName}님이 AI 성장 리포트에 좋아요를 눌렀습니다.`;
+      const notifId = genId("notif_grl");
+
+      // 2. Atomic transaction: reaction + notification 함께 저장
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO growth_report_reactions (id, growth_report_id, parent_id, reaction_type)
+          VALUES (${genId("grr")}, ${reportId}, ${parentId}, ${reaction_type})
+          ON CONFLICT (growth_report_id, parent_id, reaction_type) DO NOTHING
+        `);
+        if (teacher) {
+          await tx.execute(sql`
+            INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, actor_id)
+            VALUES (${notifId}, ${teacher.teacher_id}, 'user', 'growth_report_like',
+              '새 좋아요', ${bodyText}, ${reportId}, 'growth_report', ${report.swimming_pool_id}, false, ${parentId})
+            ON CONFLICT DO NOTHING
+          `);
+        }
+      });
 
       res.json({ active: true });
 
-      // 담당선생님 resolve + notification (비동기, non-blocking)
-      ;(async () => {
-        const teacher = await resolveTeacherByStudent(report.student_id, report.swimming_pool_id);
-        if (!teacher) {
-          console.log(`[gr-reactions] recipient_not_found: reportId=${reportId} studentId=${report.student_id}`);
-          return;
-        }
-
-        // parent 이름 조회
-        const pRes = await db.execute(sql`
-          SELECT name FROM parent_accounts WHERE id = ${parentId} LIMIT 1
-        `);
-        const parentName = (pRes.rows[0] as any)?.name ?? "학부모";
-
-        const bodyText = `${parentName}님이 AI 성장 리포트에 좋아요를 눌렀습니다.`;
-        const notifId = genId("notif_grl");
-
-        await db.execute(sql`
-          INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
-          VALUES (${notifId}, ${teacher.teacher_id}, 'user', 'growth_report_like',
-            '새 좋아요', ${bodyText}, ${reportId}, 'growth_report', ${report.swimming_pool_id}, false)
-          ON CONFLICT DO NOTHING
-        `);
-
+      // 3. Push: transaction 밖 비동기 (실패해도 DB 정합성에 영향 없음)
+      if (teacher) {
         sendPushToUser(
           teacher.teacher_id, false, "growth_report_like",
           "새 좋아요", bodyText,
           { type: "growth_report_like", reportId },
         ).catch(() => {});
-      })().catch((e) => console.error("[gr-reactions] notification 오류:", e.message));
+      }
     } catch (e: any) {
       console.error("[gr-reactions] POST 오류:", e.message);
       res.status(500).json({ error: "서버 오류" });

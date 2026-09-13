@@ -994,55 +994,79 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
       SELECT id FROM diary_reactions WHERE diary_id=${diaryId} AND parent_id=${userId} AND reaction_type=${reaction_type}
     `);
     if (existing.rows.length > 0) {
-      await db.execute(sql`DELETE FROM diary_reactions WHERE diary_id=${diaryId} AND parent_id=${userId} AND reaction_type=${reaction_type}`);
+      // ── UNLIKE: reaction DELETE + stale notification DELETE (atomic) ──
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`DELETE FROM diary_reactions WHERE diary_id=${diaryId} AND parent_id=${userId} AND reaction_type=${reaction_type}`);
+        // like 알림만 제거 (thanks 알림은 현재 생성 안 되지만 방어적으로 타입 한정)
+        if (reaction_type === "like") {
+          await tx.execute(sql`
+            DELETE FROM notifications
+            WHERE actor_id = ${userId}
+              AND type = 'diary_like'
+              AND ref_id = ${diaryId}
+          `);
+        }
+      });
       console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} active=false`);
       res.json({ active: false });
     } else {
-      await db.execute(sql`
-        INSERT INTO diary_reactions (diary_id, parent_id, reaction_type) VALUES (${diaryId}, ${userId}, ${reaction_type})
-        ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
-      `);
-      // Teacher 소식 생성 (non-blocking side effect)
-      ;(async () => {
-        try {
-          const [diary] = (await db.execute(sql`
-            SELECT cd.teacher_id, cd.lesson_date, cg.swimming_pool_id
-            FROM class_diaries cd
-            JOIN class_groups cg ON cg.id = cd.class_group_id
-            WHERE cd.id = ${diaryId} LIMIT 1
-          `)).rows as any[];
-          if (!diary?.teacher_id) return;
-          // thanks 알림 신규 생성 금지 — UI에서 thanks 버튼 제거됨
-          if (reaction_type !== "like") return;
-          const settingKey = "news_like";
-          const [ps] = (await db.execute(sql`
-            SELECT is_enabled FROM push_settings
-            WHERE user_id = ${diary.teacher_id} AND notification_type = ${settingKey} LIMIT 1
-          `)).rows as any[];
-          const isEnabled = ps ? Boolean(ps.is_enabled) : true;
-          const [pa] = (await db.execute(sql`SELECT name FROM parent_accounts WHERE id = ${userId} LIMIT 1`)).rows as any[];
-          const parentName = pa?.name ?? "학부모";
-          const typeLabel = reaction_type === "like" ? "좋아요" : "감사합니다";
-          const dateStr = diary.lesson_date?.slice(0, 10) ?? "";
-          const bodyText = `${parentName}님이 ${dateStr} 수업피드에 ${typeLabel}를 눌렀습니다.`;
-          const notifId = `notif_news_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-          const notifType = `diary_${reaction_type}`;
-          await db.execute(sql`
-            INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read)
-            VALUES (${notifId}, ${diary.teacher_id}, 'user', ${notifType},
-              ${'새 ' + typeLabel}, ${bodyText}, ${diaryId}, 'diary', ${diary.swimming_pool_id ?? ''}, false)
+      // ── LIKE: read-only prep → atomic transaction → push (비동기) ──
+      // 1. Read-only: diary 정보 + push_settings + parent 이름 조회
+      const [diary] = (await db.execute(sql`
+        SELECT cd.teacher_id, cd.lesson_date, cg.swimming_pool_id
+        FROM class_diaries cd
+        JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.id = ${diaryId} LIMIT 1
+      `)).rows as any[];
+
+      let isEnabled = true;
+      let notifInserted = false;
+      if (diary?.teacher_id && reaction_type === "like") {
+        const [ps] = (await db.execute(sql`
+          SELECT is_enabled FROM push_settings
+          WHERE user_id = ${diary.teacher_id} AND notification_type = 'news_like' LIMIT 1
+        `)).rows as any[];
+        isEnabled = ps ? Boolean(ps.is_enabled) : true;
+        const [pa] = (await db.execute(sql`SELECT name FROM parent_accounts WHERE id = ${userId} LIMIT 1`)).rows as any[];
+        const parentName = pa?.name ?? "학부모";
+        const dateStr = diary.lesson_date?.slice(0, 10) ?? "";
+        const bodyText = `${parentName}님이 ${dateStr} 수업피드에 좋아요를 눌렀습니다.`;
+        const notifId = `notif_news_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+        // 2. Atomic transaction: reaction + notification 함께 저장
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`
+            INSERT INTO diary_reactions (diary_id, parent_id, reaction_type)
+            VALUES (${diaryId}, ${userId}, ${reaction_type})
+            ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
+          `);
+          await tx.execute(sql`
+            INSERT INTO notifications (id, recipient_id, recipient_type, type, title, body, ref_id, ref_type, pool_id, is_read, actor_id)
+            VALUES (${notifId}, ${diary.teacher_id}, 'user', 'diary_like',
+              '새 좋아요', ${bodyText}, ${diaryId}, 'diary', ${diary.swimming_pool_id ?? ''}, false, ${userId})
             ON CONFLICT DO NOTHING
           `);
-          if (isEnabled) {
-            sendPushToUser(
-              diary.teacher_id, false, notifType as any,
-              '새 ' + typeLabel, bodyText,
-              { type: notifType, diaryId },
-            ).catch(() => {});
-          }
-        } catch (e) { console.error("[REACTION NEWS side-effect]", e); }
-      })();
-      console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} active=true`);
+        });
+        notifInserted = true;
+
+        // 3. Push: transaction 밖 비동기 (실패해도 DB 정합성에 영향 없음)
+        if (isEnabled) {
+          sendPushToUser(
+            diary.teacher_id, false, 'diary_like' as any,
+            '새 좋아요', bodyText,
+            { type: 'diary_like', diaryId },
+          ).catch(() => {});
+        }
+      } else {
+        // teacher 없거나 thanks 타입: reaction만 저장
+        await db.execute(sql`
+          INSERT INTO diary_reactions (diary_id, parent_id, reaction_type)
+          VALUES (${diaryId}, ${userId}, ${reaction_type})
+          ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
+        `);
+      }
+
+      console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} active=true notifInserted=${notifInserted}`);
       res.json({ active: true });
     }
   } catch (err: any) {
