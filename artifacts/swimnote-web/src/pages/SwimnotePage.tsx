@@ -237,8 +237,8 @@ export default function SwimnotePage() {
           {/* Hero image */}
           <div style={{ display: "flex", gap: 16, alignItems: "flex-end", overflow: "hidden" }}>
             <img
-              src={`${BASE}app-admin.jpeg`}
-              alt="SWIMNOTE 관리자 대시보드"
+              src={`${BASE}intro-overview.png`}
+              alt="SWIMNOTE 관리자 화면"
               style={{
                 width: "100%",
                 maxWidth: 820,

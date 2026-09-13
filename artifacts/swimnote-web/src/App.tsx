@@ -171,8 +171,10 @@ function Router() {
           <PublicLayout><PrivacyPage /></PublicLayout>
         </Route>
 
-        {/* Design System preview — WP1 internal only */}
-        <Route path="/design-system" component={DesignSystem} />
+        {/* Design System preview — dev only, hidden in production */}
+        {import.meta.env.DEV && (
+          <Route path="/design-system" component={DesignSystem} />
+        )}
 
         {/* 인증 */}
         <Route path="/login" component={Login} />

@@ -79,7 +79,7 @@ const tabs = [
     label: "운영자",
     subtitle: "운영자 기능",
     desc: "수영장 운영 전반을 하나의 앱에서 관리합니다.",
-    image: "/app-admin.jpeg",
+    image: "/intro-overview.png",
     features: adminFeatures,
     extra: null,
   },
@@ -264,7 +264,7 @@ export default function AppPage() {
             {/* Phone mockups */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
               className="flex justify-center items-end gap-6">
-              <div className="mb-10"><PhoneMockup label="운영자" image={`${import.meta.env.BASE_URL}app-admin.jpeg`} /></div>
+              <div className="mb-10"><PhoneMockup label="운영자" image={`${import.meta.env.BASE_URL}intro-overview.png`} /></div>
               <PhoneMockup label="선생님" image={`${import.meta.env.BASE_URL}app-teacher.jpeg`} />
               <div className="mb-10"><PhoneMockup label="학부모" image={`${import.meta.env.BASE_URL}app-parent.png`} /></div>
             </motion.div>

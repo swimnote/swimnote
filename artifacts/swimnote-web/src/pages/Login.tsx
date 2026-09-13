@@ -174,9 +174,13 @@ export default function Login() {
     e.preventDefault();
   };
 
+  // WP9/WP10: MobileGuard applies only to pool-specific 3-field login (?pool=X).
+  // General /login serves both pool_admin (step-by-step) and super_admin (TOTP).
+  // super_admin must NOT be blocked here; pool_admin is caught at /admin/* via AdminGuard.
+  const poolGuarded = !!poolId;
+
   return (
-    // WP9: Block mobile/tablet from PC Dashboard login (UX guard)
-    <MobileGuard>
+    <MobileGuard skip={!poolGuarded}>
     <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-[#f8f9fb]">
       <div className="w-full max-w-sm">
 

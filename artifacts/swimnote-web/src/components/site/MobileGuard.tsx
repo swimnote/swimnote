@@ -10,8 +10,14 @@ const BASE = import.meta.env.BASE_URL;
  * Renders a "PC only" notice on mobile/tablet — no form or admin UI shown.
  * Applied to /login and /admin/* routes.
  */
-export default function MobileGuard({ children }: { children: React.ReactNode }) {
-  if (!isMobileOrTabletDevice()) return <>{children}</>;
+interface MobileGuardProps {
+  children: React.ReactNode;
+  /** When true, bypass the guard and always render children (e.g. super_admin login). */
+  skip?: boolean;
+}
+
+export default function MobileGuard({ children, skip = false }: MobileGuardProps) {
+  if (skip || !isMobileOrTabletDevice()) return <>{children}</>;
 
   return (
     <div
