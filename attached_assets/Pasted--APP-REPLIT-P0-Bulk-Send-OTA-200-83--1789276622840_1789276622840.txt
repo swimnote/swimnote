@@ -1,0 +1,327 @@
+[APP REPLIT — P0 계속 / Bulk Send 실제 서버 오류 추적]
+
+현재 실기기에서 최신 OTA 적용은 확인됨.
+
+화면:
+- 전체 200
+- 검수 대기 83
+- 검수 확인 0
+- 발급 제외 117
+- 83건 선택
+- [83건 발송] 실행
+
+실제 결과:
+“오류 / 서버 오류”
+
+따라서 이전 완료보고는 무효입니다.
+
+이번에는 기능을 다시 설계하지 마십시오.
+AI Engine도 건드리지 마십시오.
+
+오직 아래 실제 실행 라인만 추적하십시오.
+
+APP
+→ 83건 발송 handler
+→ 실제 HTTP request
+→ Production Render route
+→ bulkSendReports
+→ DB transaction
+→ PUBLISHED
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 지금 즉시 Render Production 로그 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 오류 발생 시간:
+
+2026-09-13 약 14:14 KST
+
+Render 로그에서 해당 시각의
+bulk-send 요청을 정확히 찾으십시오.
+
+제출:
+
+- HTTP method
+- exact path
+- response status
+- server error message
+- stack trace의 최초 실패 파일/line
+- request body의 key 구조
+  (report_ids 내용은 마스킹 가능)
+
+“서버 오류”라는 앱 문구 말고
+실제 서버 exception을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. APP이 실제로 보낸 Request 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 production OTA의
+report-hub.tsx 또는 실제 handler에서
+
+83건 선택 후 보내는 요청을 그대로 제출하십시오.
+
+반드시 확인:
+
+endpoint
+method
+headers
+body
+
+예:
+
+POST /api/admin/growth-reports/bulk-send
+
+{
+  "year": 2026,
+  "month": 9,
+  "report_ids": [...]
+}
+
+실제 서버 route contract와
+필드명이 100% 동일한지 비교하십시오.
+
+다음 차이 전부 확인:
+
+report_ids vs reportIds
+year/month body vs query
+number month vs string month
+/api prefix 차이
+Content-Type
+Authorization
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 서버 Route 실제 Contract 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 main HEAD b1fdb569 기준으로
+bulk-send route의 실제 코드를 확인하십시오.
+
+제출:
+
+- route path
+- request parser
+- report_ids validation
+- year/month validation
+- pool_id 취득 방식
+- role gate
+- service 호출 함수명
+
+APP request와 한 줄씩 대조하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Service 내부의 실제 허용 status 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고에는:
+
+REVIEW_REQUIRED
+APPROVED
+READY_TO_SEND
+
+모두 발송 가능하다고 했습니다.
+
+그러나 실제 service 코드에서도
+정말 동일한지 확인하십시오.
+
+특히 이전 구현에는
+READY_TO_SEND만 허용하는 검증이 존재했습니다.
+
+전역검색:
+
+READY_TO_SEND
+REVIEW_REQUIRED
+APPROVED
+sendable
+sendIndividualReport
+bulkSendReports
+publishGrowthReports
+
+Route만 허용 status를 늘리고
+service 내부에
+
+if status !== 'READY_TO_SEND' throw ...
+
+같은 코드가 남아 있다면
+그게 원인입니다.
+
+발송 가능 판정은 하나의 helper로만 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 83건 DB 상태 READ ONLY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 83건의 실제 상태 집계:
+
+REVIEW_REQUIRED = ?
+APPROVED = ?
+READY_TO_SEND = ?
+PUBLISHED = ?
+
+그리고 다음:
+
+report_content NULL = ?
+deleted_at NOT NULL = ?
+discarded = ?
+failed = ?
+
+현재 83건이 어떤 상태라서
+send service가 실제로 거부하는지 확인하십시오.
+
+DB UPDATE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 83건 전체보다 먼저 1건으로 같은 service 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 데이터 직접 변경하지 말고
+안전한 테스트 환경/transaction rollback 또는
+허용된 test fixture에서:
+
+선택 report 1건
+→ 같은 publishGrowthReports service
+→ 성공 여부 확인.
+
+1건도 실패:
+service / SQL / audit 문제
+
+1건 성공 + 83건 실패:
+bulk SQL / parameter / transaction 문제
+
+이 분기를 먼저 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Transaction SQL 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+83개의 report_ids를 처리하는 SQL이
+PostgreSQL에서 실제 정상 실행되는지 확인하십시오.
+
+특히 확인:
+
+- ANY($n::text[]) 사용 여부
+- IN ($1) 식으로 array를 잘못 넘기지 않았는지
+- placeholder 개수 오류
+- SELECT ... FOR UPDATE
+- UPDATE ... RETURNING
+- audit_logs INSERT
+- actor_id NULL
+- enum cast 오류
+- transaction client와 global db 혼용
+- COMMIT 이전 push 호출 여부
+
+DB publish transaction 안에는
+push network call을 넣지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실패 응답을 앱에서 숨기지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱은 모든 실패를:
+
+“서버 오류”
+
+로 뭉개고 있습니다.
+
+개발/검증 중에는 서버가 반환한:
+
+error.code
+error.message
+request_id
+
+를 console 또는 안전한 debug log에 남기십시오.
+
+사용자 UI는 일반 문구 유지 가능.
+
+민감정보/stack은 사용자 UI에 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 수정 후 실제 Production API 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 후 바로 “완료” 선언하지 마십시오.
+
+Render 배포 후 실제 인증된 관리자 context로:
+
+83건과 동일한 bulk endpoint를 호출하고
+raw response 제출.
+
+기대:
+
+HTTP 200
+
+{
+  requested_count: 83,
+  published_count: 83,
+  already_published_count: 0,
+  skipped_count: 0,
+  failed_count: 0
+}
+
+실제 key 이름은 repo contract에 맞춰도 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. DB 결과 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+bulk request 성공 후:
+
+PUBLISHED = 83
+published_at NOT NULL = 83
+
+발급 제외 = 117 그대로
+
+그리고 Parent API에서
+실제 PUBLISHED report 1건 조회 성공 확인.
+
+push 성공 여부는 별도.
+
+Push 실패가 있어도:
+published_count는 감소하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. APP 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 다시:
+
+83건 선택
+→ 83건 발송
+
+최종:
+
+발송 완료
+83건 발송 완료
+0건 실패
+
+KPI:
+
+검수 대기/검수 확인 sendable = 0
+발송 완료 = 83
+발급 제외 = 117
+
+가 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 완료보고 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 Render error 로그
+2. 실패한 정확한 파일/line
+3. APP request contract
+4. SERVER route contract
+5. 83건 DB status 분포
+6. Root Cause
+7. 수정 파일
+8. 수정 commit SHA
+9. Render deploy ID/SHA
+10. 실제 Production bulk HTTP response
+11. DB PUBLISHED 83 증거
+12. 발급 제외 117 유지
+13. Parent 조회 성공
+14. Push 결과
+15. OTA 필요 여부
+
+실제 Production HTTP 200과
+실기기 83건 발송 성공 전에는
+완료라고 보고하지 마십시오.
