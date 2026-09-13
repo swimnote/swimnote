@@ -12,6 +12,7 @@ import cron from "node-cron";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
+import { onParentApproved } from "../lib/parent-approval-hooks.js";
 
 const JOB_NAME = "parent-link";
 const TTL_SECONDS = 120; // 2분
@@ -112,6 +113,10 @@ export async function runParentAutoLink(): Promise<{ checked: number; linked: nu
           `);
           pa.swimming_pool_id = stu.swimming_pool_id; // 로컬 캐시 업데이트
         }
+
+        // 소급 알림: 기존 PUBLISHED 리포트 notification 생성 (fire-and-forget)
+        onParentApproved({ parentId: pa.id, studentId: stu.id, poolId: stu.swimming_pool_id })
+          .catch((e: unknown) => console.warn("[parent-link-scheduler] approval-hook failed:", (e as any)?.message));
 
         linked++;
       }

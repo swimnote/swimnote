@@ -17,6 +17,7 @@
  */
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { onParentApproved } from "./parent-approval-hooks.js";
 
 export function normalizePhone(phone: string): string {
   return (phone || "").replace(/[^0-9]/g, "");
@@ -184,6 +185,10 @@ export async function linkParentToStudentV2(
         updated_at = NOW()
       WHERE id = ${studentId}
     `);
+
+    // 소급 알림: 기존 PUBLISHED 리포트 notification 생성 (fire-and-forget)
+    onParentApproved({ parentId, studentId, poolId })
+      .catch((e: unknown) => console.warn("[v2-link] approval-hook failed:", (e as any)?.message));
 
     return { success: true };
   } catch (e: any) {

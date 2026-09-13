@@ -3,6 +3,7 @@ import { db, superAdminDb } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
+import { onParentApproved } from "../lib/parent-approval-hooks.js";
 import { assertMemberLimitInTx, MemberLimitError, sendMemberLimitResponse } from "../lib/member-limit.js";
 import { requireAuth, requireRole, requirePermission, requireXMode, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
@@ -1681,6 +1682,9 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
           VALUES (${psId}, ${newParentUserId}, ${req.params.id}, ${poolId}, 'approved', NOW())
           ON CONFLICT DO NOTHING
         `);
+        // 소급 알림: 기존 PUBLISHED 리포트 notification 생성 (fire-and-forget)
+        onParentApproved({ parentId: newParentUserId, studentId: req.params.id, poolId })
+          .catch((e: unknown) => console.warn("[admin-student-edit] approval-hook failed:", (e as any)?.message));
       }
 
       if (changes.length > 0) {
@@ -3143,6 +3147,9 @@ router.post("/auto-link-parents", requireAuth, requireRole("super_admin","pool_a
           UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
           WHERE id = ${paId} AND swimming_pool_id IS NULL
         `);
+        // 소급 알림 (fire-and-forget)
+        onParentApproved({ parentId: paId, studentId: stu.id, poolId })
+          .catch((e: unknown) => console.warn("[admin-bulk-link] approval-hook failed:", (e as any)?.message));
         linked++;
       }
 
@@ -3327,6 +3334,9 @@ router.post("/parents/:parentId/link-student", requireAuth, requireRole("super_a
         UPDATE parent_accounts SET swimming_pool_id = ${poolId}, updated_at = NOW()
         WHERE id = ${parentId} AND swimming_pool_id IS NULL
       `);
+      // 소급 알림 (fire-and-forget)
+      onParentApproved({ parentId, studentId: student_id, poolId })
+        .catch((e: unknown) => console.warn("[admin-manual-link] approval-hook failed:", (e as any)?.message));
 
       res.json({ success: true, student_name: stu.name });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }

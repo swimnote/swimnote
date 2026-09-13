@@ -10,6 +10,7 @@ import {
   linkParentToStudentV2,
   upsertParentV2Pending,
 } from "../lib/auto-link-v2.js";
+import { onParentApproved } from "../lib/parent-approval-hooks.js";
 import { hashPassword, comparePassword, signToken, signTotpSession, verifyTotpSession } from "../lib/auth.js";
 import { assertMemberLimitInTx, MemberLimitError, sendMemberLimitResponse } from "../lib/member-limit.js";
 import { requireAuth, requireDbRoleCheck, type AuthRequest } from "../middlewares/auth.js";
@@ -928,6 +929,9 @@ router.post("/simple-parent-register", signupLimiter, async (req, res) => {
               updated_at = NOW()
           WHERE id = ${student.id}
         `);
+        // 소급 알림 (fire-and-forget)
+        onParentApproved({ parentId, studentId: student.id, poolId: student.swimming_pool_id })
+          .catch((e: unknown) => console.warn("[simple-parent-register] approval-hook failed:", (e as any)?.message));
         console.log(`[simple-parent-register] ✓ linked student=${student.id} pool=${student.swimming_pool_id}`);
       } catch (linkErr: any) {
         console.error(`[simple-parent-register] ✗ student=${student.id} error:`, linkErr?.message);
@@ -989,6 +993,9 @@ router.post("/simple-parent-register", signupLimiter, async (req, res) => {
           } else { throw limitErr; }
         }
         if (limitBlocked) continue;
+        // 트랜잭션 COMMIT 후 소급 알림 (신규 학생이므로 PUBLISHED 리포트 0건 → no-op, fire-and-forget)
+        onParentApproved({ parentId, studentId: sId, poolId: resolvedPoolId! })
+          .catch((e: unknown) => console.warn("[simple-parent-register] approval-hook(placeholder) failed:", (e as any)?.message));
         matched.push({ id: sId, swimming_pool_id: resolvedPoolId });
       }
       console.log(`[simple-parent-register] placeholder 처리 완료: ${unmatchedNames.join(", ")}`);

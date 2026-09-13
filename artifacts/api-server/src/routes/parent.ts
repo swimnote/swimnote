@@ -73,6 +73,8 @@ router.put("/me", requireAuth, requireParent, async (req: AuthRequest, res) => {
 // parentId: 연결할 학부모 ID
 // poolId: 특정 수영장 한정 매칭 시 지정 (null이면 전체 DB 검색)
 // ══════════════════════════════════════════════════════════════════════
+import { onParentApproved } from "../lib/parent-approval-hooks.js";
+
 async function autoLinkParentToStudents(parentId: string, poolId?: string | null): Promise<{ linked: number; studentIds: string[] }> {
   const [pa] = await db.select({
     phone: parentAccountsTable.phone,
@@ -194,16 +196,25 @@ async function autoLinkParentToStudents(parentId: string, poolId?: string | null
       linked++;
       studentIds.push(student.id);
       console.log(`[auto-link] ✓ linked student=${student.id} pool=${student.swimming_pool_id}`);
+      // 소급 알림: 기존 PUBLISHED 리포트 notification 생성 (fire-and-forget)
+      onParentApproved({ parentId, studentId: student.id, poolId: student.swimming_pool_id })
+        .catch((e: unknown) => console.warn("[auto-link] approval-hook failed:", (e as any)?.message));
     } catch (err: any) {
       console.error(`[auto-link] ✗ student=${student.id} error:`, err?.message);
     }
   }
 
-  // 기존 pending 레코드 → approved 승격
-  await db.execute(sql`
+  // 기존 pending 레코드 → approved 승격 (RETURNING으로 신규 승격된 학생만 hook 실행)
+  const promotedRows = (await db.execute(sql`
     UPDATE parent_students SET status='approved', approved_at=NOW()
     WHERE parent_id=${parentId} AND status != 'approved'
-  `);
+    RETURNING student_id, swimming_pool_id
+  `)).rows as Array<{ student_id: string; swimming_pool_id: string }>;
+  for (const row of promotedRows) {
+    // 이미 for-loop INSERT에서 처리된 학생과 중복될 수 있으나 ON CONFLICT DO NOTHING으로 멱등
+    onParentApproved({ parentId, studentId: row.student_id, poolId: row.swimming_pool_id })
+      .catch((e: unknown) => console.warn("[auto-link] promotion-hook failed:", (e as any)?.message));
+  }
 
   // 수영장 자동 세팅 (아직 미설정인 경우만)
   if (!pa.swimming_pool_id && matched.length > 0) {

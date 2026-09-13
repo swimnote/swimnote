@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
+import { onParentApproved } from "../lib/parent-approval-hooks.js";
 import {
   studentsTable, classGroupsTable, parentStudentsTable,
   parentAccountsTable, usersTable, attendanceTable,
@@ -420,6 +421,11 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
     for (const id of newStudentIds) {
       logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: {} }).catch(() => {});
       triggerAutoLinkOnStudentV2(id, ["parent_phone", "name", "swimming_pool_id"]).catch(() => {});
+      // 소급 알림 (신규 학생이므로 PUBLISHED 리포트 0건 → no-op, fire-and-forget)
+      if (resolvedParentUserId) {
+        onParentApproved({ parentId: resolvedParentUserId, studentId: id, poolId })
+          .catch((e: unknown) => console.warn("[students-batch] approval-hook failed:", (e as any)?.message));
+      }
     }
 
     const available = Math.max(0, limit - current);
@@ -590,6 +596,11 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
     triggerAutoLinkOnStudentV2(student.id, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
       console.error("[v2-admin-trigger] 단일등록 트리거 오류:", e?.message)
     );
+    // 소급 알림 (신규 학생이므로 PUBLISHED 리포트 0건 → no-op, fire-and-forget)
+    if (resolvedParentUserId) {
+      onParentApproved({ parentId: resolvedParentUserId, studentId: student.id, poolId: student.swimming_pool_id! })
+        .catch((e: unknown) => console.warn("[students-create] approval-hook failed:", (e as any)?.message));
+    }
     const enriched = await enrichWithClasses({ ...student, class_group_name: null });
     await logChange({ tenantId: poolId!, tableName: "students", recordId: student.id, changeType: "create", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
     logPoolEvent({
@@ -725,6 +736,9 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         VALUES (${psId}, ${resolvedParentUserId}, ${req.params.id}, ${effectivePoolId}, 'approved', NOW())
         ON CONFLICT DO NOTHING
       `);
+      // 소급 알림: 기존 PUBLISHED 리포트 notification 생성 (fire-and-forget)
+      onParentApproved({ parentId: resolvedParentUserId, studentId: req.params.id, poolId: effectivePoolId! })
+        .catch((e: unknown) => console.warn("[students-update] approval-hook failed:", (e as any)?.message));
     }
 
     const enriched = await enrichWithClasses(student);
