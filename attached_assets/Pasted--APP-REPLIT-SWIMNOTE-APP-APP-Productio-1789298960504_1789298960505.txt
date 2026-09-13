@@ -1,0 +1,133 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE APP 운영 기준 고정 — 브랜치/배포 구조 변경 금지]
+
+현재 정상 운영 기준을 다시 확정합니다.
+
+APP Production:
+- Repository: https://github.com/swimnote/swimnote
+- Canonical Production Branch: main
+- Render Service: swimnote-api
+- Production API Host: https://swimnote-api.onrender.com
+- 현재 /health SHA: be24aa14 기준 정상 live 확인
+
+AI ENGINE:
+- Repository: https://gitlab.com/swimnote-group/swimnote-project
+- Branch: main
+- Render Service: swimnote-professional-engine
+- APP 작업과 절대 혼동 금지
+
+앞으로 APP 작업에서 아래 구조를 임의로 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. APP branch 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP Production 기준 branch는 main입니다.
+
+X모드 개발 이후 Production은 main 기준으로 운영해왔고,
+Render swimnote-api도 main을 배포합니다.
+
+deploy-photo-clone은 과거 legacy branch입니다.
+
+앞으로 APP 작업에서:
+
+- main을 Production 기준으로 사용
+- 필요한 개발 branch/release branch에서 작업 후
+  최종적으로 main에 반영
+- Render Production은 main 기준 확인
+
+deploy-photo-clone으로 되돌리거나
+Production branch를 임의 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. GitLab 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 작업에서는 GitLab을 사용하지 마십시오.
+
+이번 세션에서 잘못 추가한 gitlab remote는
+APP workspace에서 제거하십시오.
+
+단:
+AI ENGINE repository 자체는 건드리지 마십시오.
+
+APP 코드:
+GitHub only
+
+AI ENGINE 코드:
+GitLab only
+
+두 저장소 코드/배포 경로를 절대 섞지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Render 서비스 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 서버 작업 배포 대상은:
+
+swimnote-api
+
+입니다.
+
+다음 서비스는 APP 작업에서 절대 배포하지 마십시오:
+
+swimnote-professional-engine
+
+swimnote-professional-engine은
+AI ENGINE 전용입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 앞으로 모든 완료보고에 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 작업 완료보고에는 항상:
+
+Target: APP
+Repository: github.com/swimnote/swimnote
+Branch: main 또는 작업 branch
+Commit SHA:
+Render target: swimnote-api
+Production /health SHA:
+OTA 필요 여부:
+
+를 명시하십시오.
+
+AI ENGINE 정보가 APP 완료보고에 섞여 나오면 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 인프라 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 명시 지시 없이 다음 변경 금지:
+
+- Production branch 변경
+- Git remote 변경
+- Render source repo 변경
+- Render service 변경
+- APP ↔ AI ENGINE repo 혼합
+- GitHub ↔ GitLab 코드 복사
+- force push
+- deploy-photo-clone 복구
+- Production API host 변경
+
+인프라 변경이 필요하다고 판단되면
+실행하지 말고 이유만 보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 상태 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정상 상태:
+
+GitHub main
+→ Render swimnote-api
+→ /health SHA 일치
+→ APP이 swimnote-api.onrender.com 호출
+
+이 구조를 그대로 유지하십시오.
+
+앞으로는 기능 개발/버그 수정만 진행하고
+브랜치/배포 구조를 임의로 재설계하거나 변경하지 마십시오.
+
+현재 인프라 상태는 FIXED BASELINE으로 간주합니다.

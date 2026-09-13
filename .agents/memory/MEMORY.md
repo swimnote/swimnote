@@ -5,6 +5,7 @@
 - [★ SWIMNOTE X 개발 통제 헌법](constitution.md) — PART 1·2·3 완료까지 불변. 10조 통제원칙. WP0 조사+WP1 설계서 대기중. 복사패널: docs/constitution-copier.html
 - [앱·웹 운영 헌법](app-web-constitution.md) — 앱 우선 원칙·공유 콘텐츠 단일 소스·홈페이지 업데이트 범위·테스트 환경 규칙
 - [Production 서버 작업 원칙](production-server-rule.md) — 최우선 원칙: 실제 앱은 swimnote.kr(Render.com) 연결, Replit API 서버는 개발 전용, 서버 수정은 반드시 GitHub push→Render.com 배포 완료까지
+- [★ APP vs AI ENGINE 인프라 고정 기준](app-infra-baseline.md) — APP=GitHub/swimnote-api, AI ENGINE=GitLab/swimnote-professional-engine; 절대 혼동 금지 (2026-09-13 확정)
 - [Production URL 실제 라우팅](production-url-routing.md) — swimnote.kr=Replit배포(재배포 필요), Render=swimnote-api.onrender.com(push→자동빌드); 둘은 별개
 - [★ Render 배포 Replit 책임 (영구)](render-deploy-manual-only.md) — 2026-09-08 영구 변경: 서버 코드 수정 시 Render LIVE SHA 확인까지 Replit 책임; RENDER_API_KEY로 직접 trigger; PASS 기준=main HEAD SHA==LIVE SHA
 - [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
