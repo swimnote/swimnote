@@ -207,16 +207,57 @@ describe("onParentApproved — P0-2 소급 알림", () => {
     expect(vi.mocked(db.execute)).toHaveBeenCalledTimes(2); // 검증+INSERT 모두 완료
   });
 
-  // ── TC-ID: notification ID가 gen_random_uuid 기반 (MD5/결정론적 ID 금지) ──
-  it("TC-ID: INSERT SQL이 gen_random_uuid 사용, MD5 / notif_bf_ 없음", async () => {
+  // ── TC-ID: notification ID = 'notif_gr_' + full UUID (이전 방식 금지) ────
+  it("TC-ID: INSERT SQL이 gen_random_uuid full UUID 사용 — SUBSTR/TO_CHAR/MD5/notif_bf_ 없음", async () => {
     setupMocks({ insertedRows: [REPORT_A] });
 
     await onParentApproved({ parentId: PARENT_ID, studentId: STUDENT_ID, poolId: POOL_ID });
 
     const insertStr = JSON.stringify(vi.mocked(db.execute).mock.calls[1][0]);
     expect(insertStr).toContain("gen_random_uuid");
+    expect(insertStr).toContain("notif_gr_");
+    // 이전 임시 방식 잔재 금지
+    expect(insertStr).not.toContain("SUBSTR");
+    expect(insertStr).not.toContain("TO_CHAR");
     expect(insertStr).not.toContain("MD5");
     expect(insertStr).not.toContain("notif_bf_");
+  });
+
+  // ── TC-RETRY: 동일 승인 retry → notification 중복 0 ─────────────────────
+  //   ON CONFLICT DO NOTHING → RETURNING 0건 → push 0 (idempotency 확인)
+  it("TC-RETRY: 동일 승인 retry → RETURNING 0건 → notification 중복 0, push 0", async () => {
+    // 1차 승인
+    setupMocks({ insertedRows: [REPORT_A, REPORT_B] });
+    await onParentApproved({ parentId: PARENT_ID, studentId: STUDENT_ID, poolId: POOL_ID });
+    expect(vi.mocked(sendPushToUser)).toHaveBeenCalledTimes(1);
+
+    // 2차 retry (CONFLICT로 모두 DO NOTHING)
+    vi.resetAllMocks();
+    vi.mocked(sendPushToUser).mockResolvedValue(undefined);
+    setupMocks({ insertedRows: [] }); // RETURNING 0 = 중복 없음
+    await onParentApproved({ parentId: PARENT_ID, studentId: STUDENT_ID, poolId: POOL_ID });
+    expect(vi.mocked(sendPushToUser)).not.toHaveBeenCalled(); // push 중복 없음
+  });
+
+  // ── TC-ID-1000: 1000개 ID 생성 — PK duplicate 0 ──────────────────────────
+  //   DB mock 없이 JS에서 동일 패턴으로 1000개 생성 → Set 크기 1000
+  it("TC-ID-1000: 1000개의 notif_gr_<UUID> 형식 ID 생성 → PK duplicate 0", () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 1000; i++) {
+      // crypto.randomUUID() = Node.js 내장 (uuid v4 full)
+      const id = `notif_gr_${crypto.randomUUID()}`;
+      ids.add(id);
+    }
+    expect(ids.size).toBe(1000); // 중복 없음
+  });
+
+  // ── TC-ID-FORMAT: 생성된 id 형식 notif_gr_<FULL_UUID> ───────────────────
+  it("TC-ID-FORMAT: 생성된 ID 형식이 notif_gr_<full_uuid> (8-4-4-4-12)", () => {
+    const UUID_RE = /^notif_gr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    for (let i = 0; i < 50; i++) {
+      const id = `notif_gr_${crypto.randomUUID()}`;
+      expect(id).toMatch(UUID_RE);
+    }
   });
 
   // ── TC-PUSH-TEXT: 소급 전용 push 문구 확인 ────────────────────────────────

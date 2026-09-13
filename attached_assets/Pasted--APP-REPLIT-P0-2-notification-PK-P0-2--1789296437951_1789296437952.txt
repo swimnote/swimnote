@@ -1,0 +1,151 @@
+[APP REPLIT — P0-2 마지막 정리 / notification PK 생성 방식 수정]
+
+현재 P0-2 보호자 승인 후 과거 성장리포트 알림 소급 기능은
+설계/테스트 기준 PASS입니다.
+
+추가 기능 변경은 하지 마십시오.
+
+이번 작업은 notification ID 생성 방식만
+불필요한 truncated UUID 방식에서 canonical full UUID 방식으로 정리하는
+마지막 안전성 보정입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 코드
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 parent-approval-hooks.ts의 notification INSERT에서:
+
+'notif_gr_' ||
+TO_CHAR(NOW(), 'YYYYMMDDHH24MISSMS') ||
+'_' ||
+SUBSTR(gen_random_uuid()::text, 1, 6)
+
+형태를 사용 중입니다.
+
+이 방식은 제거하십시오.
+
+timestamp + UUID 일부를 조합할 이유가 없습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+full UUID를 그대로 사용하십시오.
+
+권장:
+
+'notif_gr_' || gen_random_uuid()::text
+
+또는 Repository의 기존 notification PK generator가
+full UUID를 사용하는 canonical helper로 존재한다면
+그 helper를 재사용하십시오.
+
+새로운 별도 ID 규칙을 만들지 마십시오.
+
+중요:
+
+notification 중복 방지는 PK가 담당하는 것이 아닙니다.
+
+기존:
+
+(type, ref_id, recipient_id)
+WHERE type = 'GROWTH_REPORT_PUBLISHED'
+
+partial unique index
+
++
+
+ON CONFLICT DO NOTHING
+
+이 계속 exact-once/idempotency를 담당해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 절대 변경하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 수정에서 다음 로직은 건드리지 마십시오.
+
+- onParentApproved public contract
+- approval 12개 hook 연결
+- COMMIT 이후 hook 실행
+- cross-pool 검증
+- PUBLISHED + deleted_at IS NULL 조건
+- set-based INSERT
+- created_at = growth_reports.published_at
+- INSERT ... RETURNING
+- 신규 INSERT 0건이면 push 0
+- 신규 INSERT 중 최신 1건만 push
+- 기존 parent 재push 방지
+- fire-and-forget approval hook
+- 기존 unique index
+- Parent 조회 API
+- Diary 조회 API
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 P0-2 전용 13개 테스트를 전부 다시 실행하십시오.
+
+추가 확인:
+
+A.
+동일 승인 retry
+→ notification 중복 0
+
+B.
+1000개의 notification ID 생성 테스트
+→ PK duplicate 0
+
+C.
+생성된 id 형식:
+notif_gr_<FULL_UUID>
+
+D.
+코드 전체 검색:
+notif_bf_
+SUBSTR(gen_random_uuid
+MD5(report
+등 이전 임시 ID 방식이
+parent approval backfill 경로에 남아 있지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정
+→ 테스트
+→ commit
+→ push
+
+Render 재배포 필요.
+
+Production DB migration 없음.
+APP OTA 없음.
+Production backfill 없음.
+
+Render가 live 된 뒤:
+
+/health SHA = 최종 commit SHA
+
+까지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 수정 파일
+2. 변경 전 ID 방식
+3. 변경 후 ID 방식
+4. 기존 13개 테스트 PASS
+5. 추가 ID 테스트 결과
+6. commit SHA
+7. Render deploy ID
+8. Render live 확인
+9. /health SHA
+10. DB migration 없음 확인
+11. OTA 없음 확인
+
+이 작업 완료 후 P0-2는 CLOSED 처리합니다.
