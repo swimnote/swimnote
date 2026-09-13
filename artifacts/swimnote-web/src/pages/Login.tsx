@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import type { LoginResult, WebPinRequired } from "@/contexts/AuthContext";
 import { Shield, Smartphone, Globe } from "lucide-react";
+import MobileGuard from "@/components/site/MobileGuard";
 
 const PRIMARY = "#002F5F";
 const PURPLE = "#7C3AED";
@@ -174,6 +175,8 @@ export default function Login() {
   };
 
   return (
+    // WP9: Block mobile/tablet from PC Dashboard login (UX guard)
+    <MobileGuard>
     <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-[#f8f9fb]">
       <div className="w-full max-w-sm">
 
@@ -395,5 +398,6 @@ export default function Login() {
         )}
       </div>
     </div>
+    </MobileGuard>
   );
 }

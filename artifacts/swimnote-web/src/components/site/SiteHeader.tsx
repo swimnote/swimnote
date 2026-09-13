@@ -25,10 +25,18 @@ const LIVE_ROUTES = new Set([
   "/delete-account",
   "/login",
   "/design-system",
-  // WP4/5/6 — activated after page creation
+  // WP4/5/6 — product pages
   "/swimnote",
   "/swimnote-x",
   "/swimnote-office",
+  // WP7 — extended menu pages
+  "/ai",
+  "/technology",
+  "/patents",
+  "/company",
+  "/contact",
+  "/terms",
+  "/privacy",
 ]);
 
 function isLiveRoute(href: string): boolean {

@@ -1,0 +1,695 @@
+[SWIMNOTE WEB — WP7~WP9 통합 실행]
+
+현재 완료 상태:
+- WP1 Design System 완료
+- WP2 Header / Footer / Responsive Shell 완료
+- WP3 HOME 완료
+- WP4 SWIMNOTE 상세 + FAQ 완료
+- WP5 SWIMNOTE X 상세 + FAQ 완료
+- WP6 SWIMNOTE OFFICE Coming Soon 완료
+
+이번에는 한 번에:
+
+WP7 ⋯ 확장메뉴 상세페이지
+WP8 PC Dashboard Login 디자인 통합
+WP9 PC Dashboard Desktop-only Guard
+
+를 실행한다.
+
+크레딧 절약을 위해 작업 완료 후 짧게 보고한다.
+
+절대 금지:
+- APP 모바일 기능 변경
+- DB 구조 변경
+- API 기능 변경
+- AI ENGINE 접근/수정
+- 인증체계 재설계
+- 기존 Admin 기능 수정
+- Production 배포
+- Render/Git 인프라 변경
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. WP3~WP6 잔여 수정 2건 같이 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+별도 작업으로 분리하지 말고 이번에 함께 수정한다.
+
+A. HOME app-admin.jpeg 공개 데이터 문제
+
+현재 HOME SWIMNOTE 대표 이미지에
+실제 운영 데이터가 표시되어 있다면
+외부 공개 홈페이지용으로 그대로 사용하지 않는다.
+
+원칙:
+- 실제 회원 이름/전화번호/개인정보 노출 절대 금지
+- 실제 수영장 내부 운영수치도 불필요하면 공개하지 않음
+- fake UI 새로 만들지 않음
+
+현재 repo 안에 안전한 기존 asset이 있으면 교체한다.
+
+안전한 asset이 없다면
+민감정보가 전혀 없는 실제 데모/placeholder 수준으로만 처리하고
+최종 공개용 새 screenshot 필요 여부를 보고한다.
+
+이미지에 단순 CSS blur를 씌워 개인정보를 숨긴 척하는 방식은 금지.
+
+---
+
+B. AI 성장리포트 FAQ 문구 수정
+
+현재 FAQ에 내부 eligibility 조건:
+
+(x_paid OR x_manual)
+approval_status
+force_disabled
+
+같은 서버 내부 조건이 사용자 설명에 노출되어 있다면 제거한다.
+
+외부 사용자에게 보여줄 공식 설명은 다음 정책 기준이다.
+
+AI 성장리포트:
+- SWIMNOTE X 이용 수영장
+- 전월 수업기록 기반
+- 다음 달에도 계속 수강하는 재등록 대상 회원
+- 매월 5일 발급
+- 관리자 검토/발송
+- 학부모 앱에서 확인
+- PDF 저장 가능
+- 발급 알림
+
+내부 DB/eligibility 필드명을 공개 FAQ에 쓰지 않는다.
+
+문구 예시:
+
+"AI 성장리포트는 SWIMNOTE X를 이용하는 수영장의 재등록 회원을 대상으로 지난달 수업기록을 분석해 매월 5일 발급됩니다. 재등록하지 않은 회원은 해당 월 무료 성장리포트 발급 대상에서 제외됩니다."
+
+현재 실제 Production 정책과 충돌하는 부분이 발견되면
+임의로 고치지 말고 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. WP7 — ⋯ 확장 메뉴 실제 페이지 활성화
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 disabled 상태인 메뉴 중 아래 페이지를 구현한다.
+
+/ai
+/technology
+/patents
+/company
+/support
+/contact
+/terms
+/privacy
+
+각 explicit route는 반드시 /:slug보다 위에 둔다.
+
+구현된 route만 LIVE_ROUTES에 추가한다.
+
+기존 /:slug PoolHomepage 동작 절대 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 페이지 전체 디자인
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 페이지는 WP1 Design System을 그대로 사용한다.
+
+느낌:
+- Apple 계열의 절제된 IT 기업
+- Black / White / Neutral Gray 중심
+- 짧은 headline
+- 적절한 여백
+- 카드/색상 최소화
+- 같은 회사 사이트라는 통일감
+
+금지:
+- 페이지마다 색상 다르게
+- 무지개 SaaS 카드
+- gradient 남발
+- glow
+- neon
+- 과한 아이콘
+- giant hero
+- 의미 없는 긴 스크롤
+- 임의 font/radius/button
+
+SWIMNOTE / X 제품 페이지가 아닌
+회사/기술 페이지에서는 제품색 사용 최소화.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. /ai — SWIMNOTE AI
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표:
+SWIMNOTE가 AI를 어디에 사용하고
+어디까지 개발하고 있는지
+일반 고객이 이해할 수 있게 설명.
+
+영업비밀 공개 금지.
+
+공개 가능 범위 중심:
+
+- 수업기록 AI
+- 선생님 AI 일지 지원
+- 커리큘럼/교육데이터 활용
+- AI 성장리포트
+- 수영 전문 데이터 기반 AI
+- 향후 영상 기반 수영 분석 방향
+- 운영/학부모 AI 확장 방향
+
+현재 실제 구현된 기능과
+향후 개발 영역을 명확하게 구분한다.
+
+예:
+현재 제공
+개발 중
+향후 확장
+
+정도로 표현 가능.
+
+절대 공개 금지:
+- DTA 내부 계산식
+- Verification Orchestrator 세부 구조
+- Knowledge DB 내부 schema
+- Prompt
+- proprietary scoring formula
+- 내부 search/ranking 방식
+- engine architecture 세부사항
+- 경쟁사가 복제 가능한 구현 정보
+
+근거 없는:
+"정확도 99%"
+"세계 최고"
+같은 숫자/주장 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. /technology — 기술 및 개발
+━━━━━━━━━━━━━━━━━━━━━━
+
+여기는 기술 자랑 페이지이지만
+연구논문처럼 만들지 않는다.
+
+설명할 것:
+
+- SWIMNOTE가 일반 관리앱만 만드는 회사가 아니라는 점
+- 앱 / 데이터 / AI / 교육시스템을 직접 연결해 개발하고 있다는 점
+- 실제 현장 수업기록을 제품 발전에 활용하는 구조
+- 보안/권한/근거 중심 AI 개발 원칙
+- 지속적인 AI/데이터 개발 투자
+
+DTA Framework라는 이름과 내부 원리는
+공개 핵심 콘텐츠로 사용하지 마라.
+
+AI 투자 금액:
+실제 확인 가능한 공식 금액이 없으면
+숫자를 절대 만들어내지 않는다.
+
+대신:
+
+"SWIMNOTE는 앱 개발, 수영 전문 데이터베이스,
+AI 엔진, 커리큘럼 구조화, 특허/IP에 지속적으로 투자하고 있습니다."
+
+같이 사실 범위에서 표현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. /patents — 특허 / IP
+━━━━━━━━━━━━━━━━━━━━━━
+
+특허 페이지는 신뢰성 중심.
+
+현재 실제 확인 가능한 자료만 사용.
+
+원칙:
+- 출원 = 출원
+- 등록 = 등록
+- 출원 중인 것을 등록특허라고 표현 금지
+- 특허번호/출원번호를 코드나 확인 자료 없이 생성 금지
+- 개수 임의 생성 금지
+
+현재 프로젝트에서 실제 확인 가능한 범위가 있다면
+다음 분야 수준으로 일반화해 표현 가능:
+
+- 생성형 AI의 근거/권한/제약 통제 관련 기술
+- 수업기록/교육시스템 연계 관련 기술
+- 수영정보 처리/분석 관련 기술
+
+세부 청구항이나 우회설계 전략 공개 금지.
+
+확실하지 않은 데이터는
+페이지에 넣지 말고 대표 확인 필요로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. /company — 회사 소개
+━━━━━━━━━━━━━━━━━━━━━━
+
+아주 짧게.
+
+장황한 회사 연혁 필요 없음.
+
+핵심 방향:
+
+SWIMNOTE는
+수영장의 운영과 교육을
+기술로 연결하는 제품을 만듭니다.
+
+SWIMNOTE
+SWIMNOTE X
+SWIMNOTE OFFICE
+
+제품군을 간단히 보여줄 수 있음.
+
+과장된 창업스토리,
+대표 개인 이야기,
+검증되지 않은 수치
+임의 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. /support — 고객센터
+━━━━━━━━━━━━━━━━━━━━━━
+
+고객센터 전화번호 공개 금지.
+개인 휴대전화 공개 금지.
+일반 이메일 공개도 현재는 하지 않는다.
+
+기존 고객:
+
+"SWIMNOTE 이용 중 문의사항은
+앱 내 문의사항 기능을 이용해주세요."
+
+를 중심으로.
+
+왜 앱 문의를 쓰는지 장황하게 설명하지 않는다.
+
+간단히:
+- 앱 내 문의사항
+- 문의기록 확인
+- 해당 계정/수영장 기준 지원
+
+정도로 충분.
+
+전화 상담 CTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. /contact — 신규 도입 문의
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 고객센터와 신규 영업 문의를 분리한다.
+
+목적:
+아직 SWIMNOTE 앱을 사용하지 않는
+신규 수영장이 문의할 경로.
+
+현재 backend에 실제 웹 문의 저장 기능이 있는지 먼저 조사한다.
+
+A. 기존 API/저장 기능이 있다면:
+재사용 계획으로 구현 가능.
+
+B. 없다면:
+이번 WP에서 새 DB/API를 만들지 마라.
+
+그 경우 실제 동작하지 않는 가짜 Form을 만들지 말고,
+"도입 문의 준비 중"
+또는 현재 사용할 수 있는 안전한 기존 경로만 표시하고 보고.
+
+전화번호 공개 금지.
+개인 이메일 공개 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. /terms /privacy
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 repo 또는 앱에
+실제 이용약관/개인정보처리방침 원문이 존재하는지 조사.
+
+있으면:
+실제 최신 콘텐츠 재사용.
+
+없으면:
+법률 내용을 AI가 새로 창작하지 마라.
+
+빈 가짜 약관도 만들지 마라.
+
+필요 시:
+"현재 앱 내 정책 원문 연결 필요"
+상태로 두고 대표 확인 필요 보고.
+
+기존 실제 삭제계정 관련 정책/route는 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. ⋯ 메뉴 활성화
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현 완료한 실제 route만
+SiteHeader LIVE_ROUTES에 추가.
+
+최종 그룹:
+
+기술 & AI
+- SWIMNOTE AI
+- 기술 및 개발
+- 특허 / IP
+- AI 및 기술 투자
+
+회사
+- 회사 소개
+
+지원
+- 고객센터
+- 도입 문의
+- 이용약관
+- 개인정보처리방침
+
+"AI 및 기술 투자"는
+별도 신규 page를 만들 필요 없다.
+
+기존 /technology#investment
+anchor로 처리.
+
+route safety 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. WP8 — PC DASHBOARD LOGIN
+━━━━━━━━━━━━━━━━━━━━━━
+
+Header의 [PC 대시보드] 클릭 시
+마케팅 페이지가 아니라
+로그인 화면만 보여야 한다.
+
+기존 /login은 단독 Layout을 유지.
+
+즉:
+- SiteHeader 없음
+- SiteFooter 없음
+- marketing navigation 없음
+
+화면 중앙에:
+
+SWIMNOTE logo
+
+아이디
+비밀번호
+PIN 번호
+
+로그인
+
+형태의 매우 정돈된 로그인 화면.
+
+WP1:
+Input
+PasswordInput
+PinInput
+Button
+
+Design System 사용.
+
+Apple-like:
+- white/light neutral
+- 최소한의 요소
+- 과한 card shadow 금지
+- gradient 금지
+- 컬러 남발 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 기존 인증 절대 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+기존 인증 로직을 새로 만들지 않는다.
+
+현재 기존 구조를 다시 확인:
+
+- email / ID
+- password
+- web PIN
+- 앱에서 PIN 설정
+- 로그인 후 swimming_pool_id 기준 pool scope
+- 기존 JWT
+- 기존 AuthContext
+
+를 그대로 재사용.
+
+새 auth endpoint 생성 금지.
+DB auth schema 변경 금지.
+PIN 검증방식 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 공용 PC 대시보드 진입점 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+P0 조사에서는:
+
+/login
+= 일반 login / super_admin/TOTP 가능
+
+/login?pool=:poolId
+= pool 전용 3-field flow
+
+라고 확인됐다.
+
+그러나 공식 홈페이지의
+[PC 대시보드]는 특정 poolId를 미리 알지 못한다.
+
+따라서 코드를 변경하기 전에 반드시 확인:
+
+"공용 /login 화면에서
+수영장 관리자가 ID + password 입력 후
+기존 backend가 계정의 swimming_pool_id를 식별하고
+PIN 단계까지 완료한 다음
+/admin으로 이동하는 현재 경로가 실제 가능한가?"
+
+가능:
+→ 기존 구조 그대로 UI만 통합.
+
+불가능:
+→ 인증을 임의 수정하지 말고
+원인과 최소 해결안을 보고.
+그 부분만 구현 보류 가능.
+
+super_admin/TOTP flow는 절대 깨뜨리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. PIN UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+PIN은 기존 실제 backend 형식 그대로 사용.
+
+PIN 자리수를 추측해서 바꾸지 않는다.
+
+현재 단일 input이면
+기능적으로 단일 input 유지 가능.
+
+시각적으로만 정돈.
+
+안내:
+
+"PIN 번호는 SWIMNOTE 앱에서 설정할 수 있습니다."
+
+정도만.
+
+PIN을 잊었을 때
+웹에서 임의 reset 기능 새로 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. WP9 — DESKTOP ONLY
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC Dashboard:
+
+DESKTOP/LAPTOP ONLY.
+
+대상 route:
+
+/login
+/admin/*
+
+단,
+/login의 super_admin 운영 경로가 별도 운영상
+모바일 접근을 필요로 하는지 코드/현재 사용 구조를 먼저 확인.
+
+수영장 PC Dashboard에 대해서는
+반드시 mobile/tablet 제한 적용.
+
+목표:
+
+ALLOW:
+- Windows desktop
+- Windows laptop
+- Mac desktop
+- MacBook
+- 터치 지원 Windows laptop도 PC로 허용
+
+BLOCK:
+- iPhone
+- Android phone
+- iPad
+- Android tablet
+- mobile/tablet browsers
+
+단순:
+'ontouchstart' in window
+만으로 차단 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Device Guard 구현 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 React/Vite 구조에서
+최소 의존성으로 구현.
+
+권장 판단 조합:
+
+1. Mobile/Tablet User-Agent 판단
+2. iPadOS 특수처리
+   - navigator.platform === "MacIntel"
+   - navigator.maxTouchPoints > 1
+   등
+3. viewport sanity check
+4. pointer 정보 보조
+
+중요:
+
+touchscreen Windows laptop은
+터치가 된다는 이유만으로 차단하지 않는다.
+
+새 device-detection package 설치는
+꼭 필요하지 않으면 금지.
+
+공통 helper/hook으로 중앙화.
+
+이 Guard는 보안수단이 아니다.
+UX 사용환경 제한이다.
+
+기존 Auth는 그대로 필요하다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. MOBILE/TABLET 차단 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일 또는 태블릿에서
+PC Dashboard 진입 시:
+
+로그인 form이나 admin UI를 렌더링하지 않는다.
+
+동일 Design System으로:
+
+SWIMNOTE
+
+"PC 대시보드는 데스크톱에서 이용할 수 있습니다."
+
+"원활한 관리 기능 이용을 위해
+PC에서 접속해주세요."
+
+[홈으로]
+
+정도만 표시.
+
+과한 설명 금지.
+
+직접 URL 입력도 동일:
+
+/login
+/admin
+/admin/members
+/admin/...
+
+수영장 관리자 Dashboard 경로는 차단.
+
+이미 로그인된 상태에서 모바일로
+/admin URL 직접 열어도 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. ADMIN DESIGN
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서
+Admin Dashboard 전체 디자인을 갈아엎지 않는다.
+
+WP8은 LOGIN 디자인 통일이 중심.
+
+기존 /admin 기능/UI는 기능 안정성을 우선하여 유지.
+
+다만 MobileGuard가
+AdminGuard 앞/적절한 위치에서 작동하게 한다.
+
+대규모 Admin CSS 리뉴얼 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. RESPONSIVE / ROUTE QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Public pages:
+
+Desktop 1280
+Mobile 390
+
+확인:
+
+/ai
+/technology
+/patents
+/company
+/support
+/contact
+/terms
+/privacy
+
+PC Login:
+
+Desktop 1280:
+정상 login UI
+
+Mobile 390:
+Desktop-only 안내 화면
+
+Tablet 834:
+Desktop-only 안내 화면
+
+추가:
+iPad 계열 판정
+Windows touch laptop 오차단 방지 logic
+확인.
+
+Admin direct URL:
+mobile → guard
+desktop → 기존 정상 흐름.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 이번 단계에서 절대 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+- AI Engine 수정
+- 앱 OTA
+- RevenueCat 수정
+- Growth Report backend 수정
+- DB migration
+- API endpoint 신규 개발
+- Admin 기능 재개발
+- SWIMNOTE OFFICE 실제 개발
+- Production deploy
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 크레딧 절약용 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+길게 쓰지 마라.
+
+다음만 보고:
+
+1. 변경 파일
+2. 활성화 route
+3. /ai /technology /patents /company 구현 여부
+4. /support /contact /terms /privacy 상태
+5. HOME 이미지 개인정보 처리 결과
+6. 성장리포트 FAQ 수정 문구
+7. PC 공용 로그인 기존 인증 동작 확인 결과
+8. Login UI 변경 결과
+9. Desktop-only Guard 방식
+10. Desktop/Mobile/Tablet QA PASS/FAIL
+11. Build 결과
+12. 대표 확인 필요 항목
+13. Production 배포 NO
+14. DB/API/AUTH schema 변경 NO
+
+문제가 없으면 여기서 중단.
+
+WP10 이후 작업 자동 시작 금지.

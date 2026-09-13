@@ -30,6 +30,15 @@ const SwimnotePage      = lazy(() => import("@/pages/SwimnotePage"));
 const SwimnoteXPage     = lazy(() => import("@/pages/SwimnoteXPage"));
 const SwimnoteOfficePage = lazy(() => import("@/pages/SwimnoteOfficePage"));
 
+// ── WP7 확장 메뉴 페이지 (/:slug 보다 먼저 등록 필수) ────────────────────────
+const AIPage            = lazy(() => import("@/pages/AIPage"));
+const TechnologyPage    = lazy(() => import("@/pages/TechnologyPage"));
+const PatentsPage       = lazy(() => import("@/pages/PatentsPage"));
+const CompanyPage       = lazy(() => import("@/pages/CompanyPage"));
+const ContactPage       = lazy(() => import("@/pages/ContactPage"));
+const TermsPage         = lazy(() => import("@/pages/TermsPage"));
+const PrivacyPage       = lazy(() => import("@/pages/PrivacyPage"));
+
 // ── 레거시 ──────────────────────────────────────────────────────────────────
 const SuperAdmin   = lazy(() => import("@/pages/SuperAdmin"));
 const PoolAdmin    = lazy(() => import("@/pages/PoolAdmin"));
@@ -137,6 +146,29 @@ function Router() {
         </Route>
         <Route path="/delete-account">
           <PublicLayout><DeleteAccount /></PublicLayout>
+        </Route>
+
+        {/* ─── WP7 확장 메뉴 페이지 (/:slug 보다 먼저) ─── */}
+        <Route path="/ai">
+          <PublicLayout><AIPage /></PublicLayout>
+        </Route>
+        <Route path="/technology">
+          <PublicLayout><TechnologyPage /></PublicLayout>
+        </Route>
+        <Route path="/patents">
+          <PublicLayout><PatentsPage /></PublicLayout>
+        </Route>
+        <Route path="/company">
+          <PublicLayout><CompanyPage /></PublicLayout>
+        </Route>
+        <Route path="/contact">
+          <PublicLayout><ContactPage /></PublicLayout>
+        </Route>
+        <Route path="/terms">
+          <PublicLayout><TermsPage /></PublicLayout>
+        </Route>
+        <Route path="/privacy">
+          <PublicLayout><PrivacyPage /></PublicLayout>
         </Route>
 
         {/* Design System preview — WP1 internal only */}
