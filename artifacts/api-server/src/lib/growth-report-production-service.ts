@@ -402,11 +402,13 @@ export async function publishGrowthReports(
   if (reportIds.length === 0) return result;
 
   // ── Step 1: pool-scoped SELECT FOR UPDATE SKIP LOCKED ────────────────────
+  // ANY(${array}::text[]) 패턴은 이 코드베이스에서 SQL ERROR 발생 → sql.join() 사용
+  const idParams = sql.join(reportIds.map(id => sql`${id}`), sql`, `);
   const rows = (await db.execute(sql`
     SELECT id, student_id, report_period, product_status, deleted_at
     FROM growth_reports
-    WHERE id              = ANY(${reportIds}::text[])
-      AND swimming_pool_id = ${poolId}
+    WHERE id               IN (${idParams})
+      AND swimming_pool_id  = ${poolId}
     FOR UPDATE SKIP LOCKED
   `)).rows as any[];
 
