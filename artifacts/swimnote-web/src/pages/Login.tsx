@@ -3,7 +3,7 @@
 // poolId는 서버가 계정으로 자동 식별 (URL 파라미터 불필요).
 
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import type { LoginResult, WebPinRequired } from "@/contexts/AuthContext";
 import MobileGuard from "@/components/site/MobileGuard";
@@ -145,7 +145,7 @@ export default function Login() {
           </div>
 
           <p className="text-center mt-6 text-[12px] text-[#bbb]">
-            <a href="/" className="hover:text-[#888] transition-colors">← 홈으로 돌아가기</a>
+            <Link href="/" style={{ color: "inherit", textDecoration: "none" }} className="hover:text-[#888] transition-colors">← 홈으로 돌아가기</Link>
           </p>
         </div>
       </div>
