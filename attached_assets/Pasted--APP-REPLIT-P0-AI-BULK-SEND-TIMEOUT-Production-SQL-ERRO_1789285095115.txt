@@ -1,0 +1,417 @@
+[APP REPLIT — P0 계속 / AI 성장리포트 BULK SEND TIMEOUT 원인 추적 및 정상화]
+
+현재 최신 Production에서 이전 SQL ERROR는 제거된 것으로 보입니다.
+
+하지만 실기기에서:
+
+2026-09-13 약 16:21 KST
+
+83건 선택
+→ [83건 발송]
+→ 대기
+→
+
+“요청 시간이 초과됐습니다.
+네트워크 연결을 확인해주세요.”
+
+가 발생했습니다.
+
+중요:
+지금부터 APP timeout 숫자만 늘리는 수정은 금지합니다.
+
+83건 발송은 AI 생성 작업이 아닙니다.
+이미 완성된 리포트를 DB에서 PUBLISHED로 전환하는 작업이므로
+정상적으로 설계되었다면 장시간 기다릴 이유가 없습니다.
+
+먼저 실제 서버가 어디까지 처리했는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 가장 먼저 Production DB READ-ONLY 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 다시 발송 버튼을 누르기 전에
+현재 Production DB 상태부터 확인하십시오.
+
+2026년 9월 ToyKids Growth Report:
+
+PUBLISHED = ?
+REVIEW_REQUIRED = ?
+APPROVED = ?
+READY_TO_SEND = ?
+EXCLUDED = ?
+
+그리고:
+
+published_at NOT NULL = ?
+
+를 즉시 READ ONLY로 확인하십시오.
+
+두 경우를 분기하십시오.
+
+CASE A
+PUBLISHED가 이미 약 83건 증가했다.
+
+→ 서버 DB 발송은 성공했는데
+응답 반환 또는 notification/push 처리 때문에
+APP이 timeout 난 것입니다.
+
+CASE B
+PUBLISHED가 증가하지 않았다.
+
+→ DB transaction 자체가 timeout/lock/slow query로
+완료되지 않은 것입니다.
+
+CASE C
+일부만 PUBLISHED 되었다.
+
+→ bulk send가 atomic하지 않은 심각한 버그입니다.
+부분 commit 구조부터 수정하십시오.
+
+이 분기 결과 전에는 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Render 실제 요청 로그 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2026-09-13 16:21 KST 전후의
+POST /admin/growth-reports/bulk-send 요청을 찾으십시오.
+
+반드시 제출:
+
+- request 시작 시각
+- request 종료 시각
+- HTTP status
+- 실제 latency ms
+- client disconnect 여부
+- transaction BEGIN 시각
+- SELECT 완료 시각
+- UPDATE/PUBLISH 완료 시각
+- COMMIT 시각
+- notification 시작/종료 시각
+- response send 시각
+
+request_id가 없다면
+bulk-send에 request_id/trace_id를 추가하여
+다음 테스트부터 한 요청을 끝까지 추적 가능하게 하십시오.
+
+학생 이름 등 개인정보 로그 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Bulk Send 요청 안에서 무엇을 await 하는지 전수 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 호출 그래프를 실제 코드 기준으로 제출:
+
+route
+→ bulkSendReports
+→ publishGrowthReports
+→ transaction
+→ audit
+→ notification rows
+→ push-service
+→ response
+
+각 단계별로:
+
+await 여부
+DB query 횟수
+83건 반복 여부
+
+를 제출하십시오.
+
+특히 아래 패턴을 찾으십시오.
+
+for (report of reports) {
+  await ...
+}
+
+83건에 대해 다음을 순차 await하고 있다면 문제 후보:
+
+- audit INSERT 83회
+- parent 조회 83회
+- notification INSERT 83회
+- push token 조회 83회
+- sendPushToUser 83회 이상
+- PUBLISHED UPDATE 83회
+- 기타 N+1 DB query
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DB PUBLISH와 PUSH를 완전히 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Bulk Send의 HTTP 성공 기준은:
+
+“선택한 리포트가 DB에서 PUBLISHED 처리되었는가”
+
+입니다.
+
+Push 전송 완료가 아닙니다.
+
+정상 구조:
+
+POST bulk-send
+↓
+권한/ID 검증
+↓
+DB transaction
+↓
+선택된 sendable report 일괄 PUBLISHED
+↓
+published_at 기록
+↓
+audit 필요한 최소 데이터 기록
+↓
+COMMIT
+↓
+HTTP 200 즉시 반환
+↓
+notification / push 후처리
+
+Push를 모두 기다린 뒤에
+HTTP response를 반환하지 마십시오.
+
+Push:
+fire-and-forget 또는
+기존 background 처리 방식 사용.
+
+Push 실패:
+PUBLISHED 유지.
+HTTP 발송 성공을 실패로 바꾸지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 83건 DB 처리는 SET-BASED SQL 우선
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+83개를 JS loop로 하나씩:
+
+SELECT
+UPDATE
+INSERT
+
+하지 마십시오.
+
+가능하면 한 번의 set-based query로 처리하십시오.
+
+예시 구조:
+
+SELECT ...
+WHERE pool_id = ?
+AND id IN (...)
+FOR UPDATE SKIP LOCKED
+
+→ sendable IDs 확정
+
+UPDATE growth_reports
+SET
+  product_status = 'PUBLISHED',
+  published_at = COALESCE(published_at, NOW()),
+  updated_at = NOW()
+WHERE pool_id = ?
+AND id IN (...)
+AND ...
+
+RETURNING id, student_id
+
+83건 전체를 한 UPDATE로 처리.
+
+REVIEW_REQUIRED → APPROVED → PUBLISHED를
+83명 각각 두 번 UPDATE하는 구조도 피하십시오.
+
+정책상 최종 publish가 가능하다면
+canonical transition helper에서
+필요한 audit 의미를 보존하면서
+DB round-trip을 최소화하십시오.
+
+단, lifecycle/audit 의미를 없애는 편법은 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. AUDIT LOG도 N+1 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 transition마다 audit_logs를 쓰는 구조라면
+83건 × 여러 transition으로 DB 요청이 폭증할 수 있습니다.
+
+실제 수행 query 수를 측정하십시오.
+
+목표는
+83건 발송 때문에 수백 번의 순차 DB round-trip이
+발생하지 않도록 하는 것입니다.
+
+필요하다면 batch INSERT 사용.
+
+각 report별 audit row가 필요하다면:
+
+INSERT INTO audit_logs (...)
+VALUES (...), (...), (...)
+
+형태의 batch insert 고려.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. PUSH / NOTIFICATION N+1 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COMMIT 이후 후처리에서:
+
+83 reports
+× 보호자 최대 여러 명
+× push token 여러 개
+
+가 될 수 있습니다.
+
+이 작업을 HTTP 응답 전에 기다리지 마십시오.
+
+notification DB row 생성도 가능하면 batch 처리.
+
+Push는 기존 dedup/idempotency 정책 유지.
+
+중요:
+
+notification row 생성 실패 또는
+push provider 응답 지연 때문에
+bulk-send HTTP가 timeout 나면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. APP timeout은 마지막에만 검토
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP의 bulk-send timeout 값을 확인하십시오.
+
+예:
+10초 / 15초 / 30초 등.
+
+하지만 서버 bulk publish가
+정상적으로 수 초 안에 끝날 수 있는데
+timeout만 60초/120초로 늘리는 것은 금지합니다.
+
+서버 최적화 후에도
+정상 operation 시간이 현재 client timeout보다
+합리적으로 약간 길다면 그때만 조정하십시오.
+
+발송 83건이
+수십 초 걸리는 구조 자체를 정상으로 간주하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Client timeout 후 서버가 계속 처리하는 문제
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+특히 확인하십시오.
+
+APP Abort/timeout 발생 후에도
+서버 transaction이 계속 실행되어
+PUBLISHED 되는지 확인.
+
+이 경우 사용자는 실패로 보지만
+실제로는 성공하는 위험한 UX입니다.
+
+그래서 response contract와 idempotency를 유지하십시오.
+
+동일 IDs를 다시 요청했을 때:
+
+PUBLISHED는 already_published로 처리
+중복 push 없음
+중복 notification 없음
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 수정 후 성능 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Preview/Test 환경에서 최소:
+
+1건
+10건
+83건
+200건
+
+bulk-send latency를 측정하십시오.
+
+각각:
+
+DB transaction latency
+HTTP total latency
+push 제외 latency
+
+를 제출.
+
+목표:
+83건은 모바일 요청 timeout에 근접하지 않아야 함.
+
+정확한 절대 기준은 현재 infra 측정 후 정하되
+DB publish만 수십 초 걸리는 것은 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Production 실제 재시험 전 상태 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 timeout 요청이 이미 PUBLISHED를 만들었을 수 있으므로
+사용자에게 무조건 다시 누르라고 하지 마십시오.
+
+먼저 현재 DB를 확인해서:
+
+PUBLISHED가 증가했으면
+→ APP refetch/KPI 확인부터.
+
+PUBLISHED가 0이면
+→ 수정/배포 후 재발송 테스트.
+
+부분 성공이면
+→ idempotent resend로 나머지만 처리되도록 검증.
+
+DB 직접 UPDATE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. KPI 숫자 불일치는 이번 P0와 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 별도 이슈:
+
+상단 전체 = 200
+리스트 총 = 205
+
+검수대기 = 83
+DB REVIEW_REQUIRED = 85
+
+발급제외 = 117
+DB EXCLUDED = 120
+
+이 불일치는 확인되어 있지만
+이번 timeout Root Cause 수정과 섞지 마십시오.
+
+BULK SEND 정상화 후
+별도 집계 SoT 작업으로 처리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 최종 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 전부 제출 전 완료 선언 금지:
+
+1. timeout 직후 Production DB PUBLISHED count
+2. timeout 요청의 Render latency/log
+3. 실제 어느 단계에서 시간이 소비됐는지
+4. bulk 호출 전체 await graph
+5. DB query count BEFORE
+6. Root Cause
+7. 수정 파일
+8. commit SHA
+9. Render deploy ID
+10. 1/10/83/200건 latency test
+11. Production bulk HTTP response
+12. published_count
+13. already_published_count
+14. skipped_count
+15. push 결과
+16. Parent API 조회
+17. 실기기 화면 성공
+18. OTA 필요 여부
+
+최종 실기기 Acceptance:
+
+[83건 발송]
+→ timeout 없음
+→ “83건 발송 완료”
+→ KPI 발송 완료 반영
+→ 학부모 실제 조회 가능
+
+이 상태까지 확인 후 STOP.
