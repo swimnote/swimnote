@@ -1,0 +1,243 @@
+[보낼 곳: APP REPLIT]
+
+500 pools 재검증 보고서 확인했습니다.
+
+최종 판정:
+
+HOLD
+
+입니다.
+
+Pagination/OOM, batch worker, progress update, Marketing, Curriculum 문제는 이번 범위에서 더 건드리지 않습니다.
+
+다만:
+
+`지시할 수정 없음`
+
+결론은 승인하지 않습니다.
+
+500 pools 목표 전에 Growth Report Scheduler만 최소 안전수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 먼저 ACTIVE cycle early-return 경로 확인
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고서에는 서로 충돌하는 설명이 있습니다.
+
+A.
+
+기존 ACTIVE cycle이면 early return
+
+B.
+
+중간 실패 후 다음 실행에서
+`INSERT ... ON CONFLICT DO NOTHING`
+으로 남은 학생을 보완
+
+둘 다 동시에 성립할 수 없습니다.
+
+실제 `openCycleForPool()` 코드를 확인하십시오.
+
+특히:
+
+cycle 생성/ACTIVE 전환
+
+→ students 조회
+
+→ growth_reports INSERT
+
+순서와
+
+기존 ACTIVE cycle 발견 시 return 위치
+
+를 정확히 확인하십시오.
+
+중요한 종료조건:
+
+scheduler가 학생 INSERT 중간에 죽어도
+다음 실행에서 **누락 학생을 다시 ensure**할 수 있어야 합니다.
+
+기존 ACTIVE cycle이라고 해서
+학생 report row ensure 단계까지 건너뛰면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Scheduler lock heartbeat 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인된 현재 상태:
+
+* lock TTL = 600초
+* refreshLock() 함수 이미 존재
+* Scheduler에서는 호출하지 않음
+* 500 pools / 200,000 INSERT 가정 시
+  4ms/INSERT만 잡아도 약 800초
+
+따라서 500 pools 목표에서는
+TTL보다 실행시간이 길어질 가능성이 실제 존재합니다.
+
+새 lock 시스템을 만들지 마십시오.
+
+이미 존재하는:
+
+`refreshLock(...)`
+
+을 재사용하십시오.
+
+Scheduler 실행 중 약 60초 간격 또는
+pool loop의 적절한 지점에서 TTL을 갱신하십시오.
+
+조건:
+
+* 같은 scheduler lock만 갱신
+* 기존 acquire/release 구조 유지
+* refresh 실패 시 무조건 정상이라고 계속 진행하지 말 것
+* owner/token 구조가 현재 존재한다면 그대로 준수
+
+TTL 자체를 크게 늘리는 방식으로 해결하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 학생 INSERT는 pool 단위 bulk화
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+학생 1명
+→ INSERT
+→ await
+→ 다음 학생
+
+구조라면 500 pools에서 불필요하게 느립니다.
+
+전체 Scheduler를 리팩터링하지 말고
+이 INSERT 부분만 최소 변경하십시오.
+
+목표:
+
+pool 1개 학생 목록
+→ 한 번의 bulk INSERT
+
+또는 DB/parameter 제한 때문에 필요하면:
+
+예: 200~500명 단위 chunk INSERT
+
+사용.
+
+반드시 기존 의미 유지:
+
+`ON CONFLICT DO NOTHING`
+
+즉:
+
+* 기존 row 덮어쓰기 금지
+* 이미 생성된 report 보존
+* 재실행 idempotent 유지
+
+500 pools 전체를 하나의 거대한 INSERT로 만들지 마십시오.
+
+**pool 단위 또는 안전한 chunk 단위**로만 처리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 재실행 복구성이 가장 중요
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 다음 흐름을 만족해야 합니다.
+
+예:
+
+Pool A 대상 학생 400명
+
+Scheduler 실행 중
+250명 INSERT 후 프로세스 중단
+
+다음 Scheduler 실행
+
+→ 기존 cycle 재사용
+→ 이미 있는 250명은 ON CONFLICT skip
+→ 빠진 150명 생성
+→ 결과적으로 400명 전부 존재
+
+이 시나리오가 반드시 성립해야 합니다.
+
+cycle이 이미 ACTIVE라는 이유만으로
+남은 학생 ensure를 생략하면 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 변경 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 수정 허용:
+
+* growth-report-scheduler.ts
+* 필요한 경우 기존 schedulerLock helper 호출부
+
+그 외:
+
+* batch worker 변경 금지
+* concurrency 변경 금지
+* BATCH_SIZE 변경 금지
+* Engine 변경 금지
+* DB schema 변경 금지
+* Curriculum 변경 금지
+* Marketing 변경 금지
+* 새로운 queue 시스템 금지
+* scheduler 전체 재설계 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production 데이터를 파괴하는 테스트는 하지 마십시오.
+
+기존 테스트/로컬 또는 안전한 테스트 경로에서 최소 확인:
+
+A.
+신규 cycle + 학생 다수
+→ bulk/chunk INSERT 정상
+
+B.
+이미 일부 report row 존재
+→ 재실행
+→ 기존 row 유지 + 누락 row만 추가
+
+C.
+cycle 이미 ACTIVE
+→ 학생 ensure가 여전히 실행되어 누락 보완
+
+D.
+동일 scheduler 재실행
+→ 중복 report 생성 없음
+
+E.
+lock이 600초보다 긴 가상/테스트 실행 동안
+refresh되는 구조 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하십시오.
+
+1. 기존 ACTIVE cycle early-return 실제 위치
+2. 수정 후 재실행 recovery 흐름
+3. 학생 INSERT 기존 방식
+4. 수정 후 bulk/chunk 방식
+5. chunk 크기
+6. idempotency 유지 방식
+7. refreshLock 호출 위치
+8. refresh 주기
+9. 테스트 A~E 결과
+10. 수정 파일
+11. Repository
+12. Branch
+13. 작업 Commit SHA
+14. Production 배포했다면 LIVE SHA
+15. Render Deploy ID
+
+Production 배포 전에는
+코드 검증 결과를 먼저 제출하십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 `확인하지 못함`이라고 명시하십시오.
+
+추가 최적화 제안은 하지 마십시오.
