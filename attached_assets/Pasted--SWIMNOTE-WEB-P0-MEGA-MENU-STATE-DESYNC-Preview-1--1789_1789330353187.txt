@@ -1,0 +1,517 @@
+[SWIMNOTE WEB — P0 MEGA MENU STATE DESYNC 근본 수정]
+
+대표가 실제 Preview에서 재검증했습니다.
+
+현재 정확한 증상:
+
+1. ⋯ 클릭 → 메뉴 OPEN
+2. 메뉴에서 다른 페이지로 이동
+3. 새 페이지로 이동은 정상
+4. 그런데 이전 Mega Menu가 그대로 화면에 남아 있음
+5. 이 상태에서는:
+   - 본문으로 마우스를 내려도 안 닫힘
+   - 본문을 클릭/드래그해도 안 닫힘
+6. 새 페이지에서 ⋯ 버튼을 한 번 다시 누르면
+   그때부터 메뉴가 들어갔다 나왔다 정상 동작함
+
+즉 단순 outside-click 실패가 아니라:
+
+"ROUTE TRANSITION 후 MENU RENDER STATE와
+실제 menuOpen state / event lifecycle이 서로 어긋나는 문제"
+
+로 판단합니다.
+
+기존 좌표 보정 방식에 또 조건을 추가하지 마십시오.
+
+이번에는 Mega Menu 상태 구조를 단순화하여
+근본적으로 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 이전 완료 판정 전부 무효
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 문제에 대해 이전 보고된:
+
+- pointer leave PASS
+- route change close PASS
+- outside click PASS
+
+는 실제 Preview와 다르므로 무효입니다.
+
+이번 수정에서는
+"예상", "코드상", "될 것"이라는 표현으로 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. ANIMATEPRESENCE / EXIT 잔존 여부 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가장 먼저 현재 SiteHeader.tsx를 실제 조사하십시오.
+
+확인:
+
+- AnimatePresence가 Mega Menu DOM을 route transition 뒤에도 보존하는지
+- exit animation 중 element가 잔존하는지
+- open=false인데 panel DOM이 남아 있는 상태가 가능한지
+- route 전환 시 SiteHeader가 remount되는지 유지되는지
+- 이전 route의 panel과 현재 Header state가 분리되는지
+- key가 route/location에 묶여 이상한 DOM persistence를 만드는지
+
+대표 증상상
+"시각적으로는 menu가 남았는데
+현재 dismiss listener는 없는 상태"
+가능성이 높습니다.
+
+정확한 root cause를 먼저 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. MEGA MENU는 즉시 UNMOUNT 방식으로 단순화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Mega Menu에 AnimatePresence가
+상태 동기화를 복잡하게 만든다면 제거하십시오.
+
+우선순위는 animation이 아니라 정상 UX입니다.
+
+최종 구조는 가능한 단순하게:
+
+{menuOpen && (
+  <ExpandedMenu ... />
+)}
+
+형태로 구성하십시오.
+
+menuOpen === false
+→ Mega Menu DOM 자체가 즉시 unmount
+
+되어야 합니다.
+
+닫힘 animation 때문에
+old panel DOM이 route 이동 후 살아남는 구조는 금지합니다.
+
+필요하면 open animation만 CSS로 아주 약하게 적용하고,
+close는 즉시 unmount해도 됩니다.
+
+사용성 > animation 입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 단일 CLOSE 함수 사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Mega Menu를 닫는 방법을 여러 개 따로 구현하지 마십시오.
+
+SiteHeader에서 단 하나:
+
+const closeMegaMenu = () => {
+  clearDismissTimer();
+  setMenuOpen(false);
+};
+
+를 만들고 모든 dismiss trigger가 이것만 호출하도록 통일하십시오.
+
+사용처:
+
+- menu item click
+- route change
+- hash change
+- popstate
+- outside pointerdown
+- desktop pointer leave
+- ESC
+- ⋯ toggle close
+
+각각 별도 state 조작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 메뉴 ITEM은 "닫기 → 이동" 순서를 강제
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Link 동작에 onClose를 기대하지 마십시오.
+
+Mega Menu navigation item은
+클릭 시 명시적으로:
+
+1. preventDefault
+2. closeMegaMenu()
+3. navigate()
+
+순서로 처리하십시오.
+
+예:
+
+onClick={(e) => {
+  e.preventDefault();
+  closeMegaMenu();
+  navigate(href);
+}}
+
+hash가 있는 경우도 동일.
+
+중요:
+route가 먼저 이동하고 메뉴를 나중에 닫는 것이 아닙니다.
+
+무조건:
+
+CLOSE
+→ NAVIGATE
+
+순서입니다.
+
+사용자가 메뉴 항목을 누르는 순간
+panel DOM이 사라져야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. WOUTER LOCATION을 실제 STATE RESET SOURCE로 사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SiteHeader 안에서 Wouter의 실제 location을 사용하십시오.
+
+예:
+
+const [location] = useLocation();
+
+useEffect(() => {
+  closeMegaMenu();
+}, [location]);
+
+단 closeMegaMenu reference가 effect를 무한 반복시키지 않도록
+stable callback/useCallback 여부를 정상적으로 처리하십시오.
+
+즉 pathname이 변경되는 순간
+menu state는 무조건 false.
+
+별도 추측성 pathname listener보다
+실제 app router state를 우선하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. HASH NAVIGATION도 별도로 RESET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Wouter location이 hash를 포함하지 않는 구조라면:
+
+window.addEventListener("hashchange", closeMegaMenu)
+
+를 사용하십시오.
+
+따라서:
+
+/technology
+→ /technology#investment
+
+에서도 Mega Menu가 즉시 제거되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. ROUTE CHANGE 시 MENU DOM 존재 여부를 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 state 값만 보지 마십시오.
+
+실제 Runtime에서 다음을 검사하십시오.
+
+A.
+⋯ OPEN
+
+DOM:
+#site-expanded-menu 존재 = true
+
+B.
+"특허 / IP" 클릭
+
+즉시:
+menuOpen = false
+
+그리고 새 route 렌더 후:
+
+document.getElementById("site-expanded-menu")
+=== null
+
+이어야 합니다.
+
+단순히 state=false 로그만 찍고
+DOM이 남아 있으면 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. OUTSIDE DISMISS는 단순화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+route persistence 문제를 해결한 뒤
+Desktop outside interaction도 유지하십시오.
+
+메뉴 OPEN일 때 document capture phase:
+
+pointerdown
+
+을 사용.
+
+event target이:
+
+- Header 내부 아님
+- 실제 Panel 내부 아님
+
+이면 closeMegaMenu().
+
+여기에는 setTimeout 사용하지 마십시오.
+
+즉 body text에서 mouse down 하는 순간
+즉시 menu DOM 제거.
+
+pointermove leave는 보조 기능으로 유지 가능:
+
+Header/Panel 실제 rect 밖
+→ 약 100ms 후 closeMegaMenu()
+
+하지만 핵심은:
+
+NAVIGATION과 POINTERDOWN은
+delay 없이 즉시 close.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. ROUTE 전환 후 STALE TIMER/LISTENER 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+route가 변경되거나 menu가 닫힐 때:
+
+- pointermove listener cleanup
+- pointerdown listener cleanup
+- keydown listener cleanup
+- close timeout clear
+
+가 반드시 실행되어야 합니다.
+
+이전 page에서 생성한 timer/listener가
+새 page menu state를 건드리지 않게 하십시오.
+
+React effect cleanup을 실제로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. DESKTOP 최종 동작
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 UX:
+
+⋯ 클릭
+→ OPEN
+
+Menu item 클릭
+→ 즉시 panel 사라짐
+→ 새 페이지 표시
+
+⋯ OPEN
+→ body로 mouse 이동
+→ 약 100ms
+→ CLOSE
+
+⋯ OPEN
+→ body mouse down
+→ 즉시 CLOSE
+
+⋯ OPEN
+→ ESC
+→ CLOSE
+
+⋯ OPEN
+→ Browser back/forward
+→ CLOSE
+
+어떤 경우에도:
+
+"페이지가 바뀌었는데 이전 메뉴가 위에 남아 있음"
+
+상태는 존재하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. MOBILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Mobile:
+
+⋯ tap → OPEN
+
+menu item tap
+→ closeMegaMenu()
+→ navigation
+
+outside tap
+→ close
+
+route change
+→ close
+
+Desktop pointermove 로직은 mobile에서 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. UX 헌법 최종 교체
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Transient UI 헌법에서
+애매한 구현 세부사항은 제거하고
+아래를 최상위 절대규칙으로 교체하십시오.
+
+SWIMNOTE TRANSIENT UI CONSTITUTION:
+
+1. NAVIGATION START
+   → TRANSIENT UI CLOSE FIRST
+
+2. ROUTE / VIEW CHANGE
+   → TRANSIENT UI STATE RESET
+
+3. ACTION COMPLETE
+   → TRANSIENT UI CLOSE
+
+4. OUTSIDE POINTER DOWN
+   → TRANSIENT UI CLOSE
+
+5. ESC
+   → TRANSIENT UI CLOSE
+
+6. DESKTOP POINTER LEAVES ACTIVE REGION
+   → TRANSIENT UI CLOSE
+
+7. CLOSE STATE
+   → TRANSIENT UI DOM MUST BE UNMOUNTED
+
+가장 중요한 추가 헌법:
+
+"state=false인데 이전 transient UI DOM이 화면에 남아 있어서는 안 된다."
+
+향후 PC Dashboard에서도 동일 적용:
+
+- profile menu
+- filters
+- sort menu
+- more menu
+- notifications
+- member actions
+- class actions
+- context menu
+
+페이지/view 전환 전에 close하고,
+새 view에서 이전 transient DOM을 절대 유지하지 않습니다.
+
+이것이 이전 UX 헌법을 대체하는 최종 기준입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 실제 Preview 테스트 — 반드시 수행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 테스트를 실제 Preview에서 수행하십시오.
+
+TEST 1
+
+⋯ OPEN
+→ 특허/IP 클릭
+
+확인:
+- 클릭 즉시 메뉴 사라짐
+- /patents 표시
+- #site-expanded-menu === null
+
+PASS/FAIL
+
+TEST 2
+
+/patents 상태에서
+⋯ OPEN
+→ 회사 소개 클릭
+
+확인:
+- 메뉴 사라짐
+- /company 표시
+- menu DOM 없음
+
+PASS/FAIL
+
+TEST 3
+
+/company에서
+⋯ OPEN
+→ AI 및 기술 투자 클릭
+
+확인:
+- /technology#investment 이동
+- 메뉴 사라짐
+
+PASS/FAIL
+
+TEST 4
+
+새 페이지에서
+아무것도 다시 누르지 않은 상태로
+⋯ OPEN
+→ body로 마우스 이동
+
+확인:
+자동 CLOSE
+
+PASS/FAIL
+
+TEST 5
+
+⋯ OPEN
+→ body text mouse down + drag
+
+확인:
+mouse down 순간 CLOSE
+
+PASS/FAIL
+
+TEST 6
+
+⋯ OPEN
+→ browser BACK
+
+확인:
+CLOSE
+
+PASS/FAIL
+
+TEST 7
+
+Mobile:
+⋯ OPEN
+→ menu item tap
+
+확인:
+CLOSE + navigation
+
+PASS/FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료 증거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고에는:
+
+1. 정확한 root cause
+2. AnimatePresence 유지/제거 여부
+3. route item의 실제 close→navigate 코드 구조
+4. Wouter location reset 방식
+5. menuOpen=false일 때 panel DOM이 null임을 확인한 결과
+6. TEST 1~7 실제 Preview 결과
+7. Build 결과
+
+만 보고하십시오.
+
+"예상 PASS"
+"코드 근거"
+금지.
+
+실제 Preview를 조작하지 않았다면
+완료라고 보고하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은:
+
+SiteHeader Mega Menu state lifecycle
++
+Transient UI Constitution 교체
+
+만 수행.
+
+HOME/Logo/Auth/Dashboard/DB/API 변경 금지.
+
+Production 배포 금지.
+
+완료 후 중단하십시오.
