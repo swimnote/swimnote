@@ -388,7 +388,18 @@ export async function sendIndividualReport(
     );
   }
 
-  // READY_TO_SEND 또는 APPROVED → PUBLISHED
+  // REVIEW_REQUIRED → APPROVED (먼저 자동 승인 후 발송)
+  if (row.product_status === "REVIEW_REQUIRED") {
+    await transitionReportStatus({
+      db, reportId,
+      toStatus:  "APPROVED",
+      actorType: "pool_admin",
+      actorId,
+      reason:    "ADMIN_INDIVIDUAL_SEND_AUTO_APPROVE",
+    });
+  }
+
+  // APPROVED → PUBLISHED
   await transitionReportStatus({
     db, reportId,
     toStatus:  "PUBLISHED",
@@ -445,7 +456,7 @@ export async function bulkSendReports(
   const { reportPeriod: period } = computeAnalysisPeriod(year, month);
 
   const candidates = await db.execute(sql`
-    SELECT id, student_id, report_period
+    SELECT id, student_id, report_period, product_status
     FROM growth_reports
     WHERE swimming_pool_id = ${poolId}
       AND report_period    = ${period}
@@ -458,6 +469,18 @@ export async function bulkSendReports(
 
   for (const row of candidates.rows as any[]) {
     try {
+      // REVIEW_REQUIRED → APPROVED (자동 승인 후 발송)
+      if (row.product_status === "REVIEW_REQUIRED") {
+        await transitionReportStatus({
+          db,
+          reportId:  row.id,
+          toStatus:  "APPROVED",
+          actorType: "pool_admin",
+          actorId,
+          reason:    "ADMIN_BULK_SEND_AUTO_APPROVE",
+        });
+      }
+
       await transitionReportStatus({
         db,
         reportId:  row.id,
