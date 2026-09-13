@@ -36,6 +36,7 @@ const TechnologyPage    = lazy(() => import("@/pages/TechnologyPage"));
 const PatentsPage       = lazy(() => import("@/pages/PatentsPage"));
 const CompanyPage       = lazy(() => import("@/pages/CompanyPage"));
 const ContactPage       = lazy(() => import("@/pages/ContactPage"));
+const DownloadPage      = lazy(() => import("@/pages/DownloadPage"));
 const TermsPage         = lazy(() => import("@/pages/TermsPage"));
 const PrivacyPage       = lazy(() => import("@/pages/PrivacyPage"));
 
@@ -161,8 +162,13 @@ function Router() {
         <Route path="/company">
           <PublicLayout><CompanyPage /></PublicLayout>
         </Route>
+        {/* /download — 앱 설치 안내 (/:slug 보다 먼저) */}
+        <Route path="/download">
+          <PublicLayout><DownloadPage /></PublicLayout>
+        </Route>
+        {/* /contact → 기존 링크 호환: 앱 설치 페이지로 연결 */}
         <Route path="/contact">
-          <PublicLayout><ContactPage /></PublicLayout>
+          <PublicLayout><DownloadPage /></PublicLayout>
         </Route>
         <Route path="/terms">
           <PublicLayout><TermsPage /></PublicLayout>

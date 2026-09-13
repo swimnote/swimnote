@@ -1,8 +1,8 @@
 import { Link } from "wouter";
 
 const FOOTER_LINKS = [
-  { label: "고객센터",         href: "/support" },
-  { label: "도입 문의",        href: "/contact" },
+  { label: "고객센터",         href: "/support"  },
+  { label: "앱 설치",          href: "/download" },
   { label: "이용약관",         href: "/terms"   },
   { label: "개인정보처리방침", href: "/privacy"  },
 ];

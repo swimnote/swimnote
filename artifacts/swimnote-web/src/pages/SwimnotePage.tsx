@@ -194,7 +194,7 @@ export default function SwimnotePage() {
           {/* CTA */}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 48 }}>
             <a
-              href="https://apps.apple.com/app/swimnote/id6744372480"
+              href="https://apps.apple.com/app/id6761360360"
               target="_blank"
               rel="noopener noreferrer"
               style={{

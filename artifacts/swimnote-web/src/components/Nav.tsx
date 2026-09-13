@@ -7,7 +7,7 @@ const links: NavLink[] = [
   { label: "소개",        page: "/" },
   { label: "교육시스템",  page: "/education" },
   { label: "스윔노트 앱", page: "/app" },
-  { label: "도입 문의",   page: "/support" },
+  { label: "앱 설치",     page: "/download" },
 ];
 
 const DARK_HERO_PAGES = ["/"];
@@ -125,7 +125,7 @@ export default function Nav() {
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.75"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
           >
-            도입 문의
+            앱 설치
           </button>
         )}
 

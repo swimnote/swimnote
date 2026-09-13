@@ -35,6 +35,7 @@ const LIVE_ROUTES = new Set([
   "/patents",
   "/company",
   "/contact",
+  "/download",
   "/terms",
   "/privacy",
 ]);
@@ -72,8 +73,8 @@ const MENU_GROUPS = [
   {
     heading: "지원",
     items: [
-      { label: "고객센터",         href: "/support" },  // LIVE
-      { label: "도입 문의",        href: "/contact" },
+      { label: "고객센터",         href: "/support"  },  // LIVE
+      { label: "앱 설치",          href: "/download" },
       { label: "이용약관",         href: "/terms"   },
       { label: "개인정보처리방침", href: "/privacy"  },
     ],
