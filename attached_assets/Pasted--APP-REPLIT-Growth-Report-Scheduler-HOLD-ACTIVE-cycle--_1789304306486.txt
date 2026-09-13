@@ -1,0 +1,154 @@
+[보낼 곳: APP REPLIT]
+
+Growth Report Scheduler 수정 보고 검수 결과:
+
+HOLD
+
+입니다.
+
+다음은 승인합니다.
+
+* ACTIVE cycle에서도 student ensure 계속 실행
+* 중간 실패 후 누락 report 복구 가능
+* student INSERT 200명 chunk bulk화
+* ON CONFLICT DO NOTHING 유지
+* 기존 row 덮어쓰기 없음
+* 테스트 A~D PASS
+
+이 부분은 다시 수정하지 마십시오.
+
+남은 것은 2개뿐입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. refreshLock 실패 시 계속 진행 금지
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현:
+
+refreshLock 실패
+→ console.warn
+→ scheduler 계속 진행
+
+은 승인하지 않습니다.
+
+lock 갱신 실패 시 현재 실행은 안전하게 중단하십시오.
+
+목적:
+
+갱신 실패 후 TTL이 만료되어
+다른 scheduler instance가 lock을 획득한 상태에서
+기존 scheduler까지 계속 도는 상황을 피하기 위함입니다.
+
+새 lock 시스템 만들지 마십시오.
+
+최소 변경:
+
+* refreshLock 실패
+* error 로그
+* 현재 pool loop 중단
+* finally에서 기존 release 처리
+
+형태로 처리하십시오.
+
+단, refreshLock 함수가
+"UPDATE 0 rows"를 정상 성공처럼 반환할 가능성이 있다면
+그 부분도 확인하십시오.
+
+즉:
+
+`실제로 내가 보유한 lock이 갱신됐는지`
+
+확인 가능한 기존 반환값이 있다면 사용하십시오.
+
+대규모 lock refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 Render 배포 완료 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+Deploy ID:
+`dep-daj9et5g1s2s739t31kg`
+
+status:
+`build_in_progress`
+
+이므로 아직 완료 판정할 수 없습니다.
+
+현재 배포가 끝난 뒤 확인:
+
+* Render service: swimnote-api
+* Deploy ID
+* deploy status
+* 작업 Commit SHA
+* 실제 Production LIVE SHA
+* `/health` SHA
+* runtime 정상 여부
+
+작업 Commit:
+
+`dbd654defc81bef714f2eef5d48454865e34d777`
+
+과 실제 LIVE SHA가 일치해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 테스트 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 A~E는 유지하고 하나만 추가하십시오.
+
+F.
+
+refreshLock 실패 발생
+→ scheduler가 이후 pool 처리를 계속하지 않음
+→ 정상 종료/실패 처리
+→ lock release 경로 실행
+
+이것만 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 변경 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 추가 수정은 lock failure 처리만 허용합니다.
+
+다음은 다시 건드리지 마십시오.
+
+* chunk size
+* ACTIVE cycle recovery
+* report INSERT 구조
+* batch worker
+* concurrency
+* DB schema
+* Engine
+* Curriculum
+* Marketing
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하십시오.
+
+1. refreshLock 실패 처리 최종 동작
+2. UPDATE 0 rows 감지 여부
+3. 테스트 F 결과
+4. 전체 테스트 결과
+5. Repository
+6. Branch
+7. 최종 Commit SHA
+8. Render Service
+9. Render Deploy ID
+10. Deploy status
+11. Production LIVE SHA
+12. /health SHA
+13. Runtime 상태
+
+확인하지 못한 항목은
+`확인하지 못함`
+이라고 명시하십시오.
+
+실제 LIVE SHA 확인 전에는
+Production 완료라고 보고하지 마십시오.
