@@ -9,11 +9,13 @@
  * 엔드포인트:
  *   GET  /admin/growth-reports/batch-status          — batch job 현황
  *   GET  /admin/growth-reports/monthly-summary       — pool 월별 요약 (KPI bar)
- *   GET  /admin/growth-reports/monthly-list          — 학생별 목록 (최신 version)
+ *   GET  /admin/growth-reports/monthly-list          — 학생별 목록 (최신 version + admin_reviewed_at)
+ *   GET  /admin/growth-reports/:id                   — 리포트 상세 (관리자)
  *   PUT  /admin/growth-reports/:id/discard           — 폐기 (READY_TO_SEND → DISCARDED)
  *   POST /admin/growth-reports/:id/regenerate        — 재발급 (DISCARDED → new REGENERATING)
- *   POST /admin/growth-reports/:id/send              — 개별 발송 (READY_TO_SEND → PUBLISHED)
- *   POST /admin/growth-reports/bulk-send             — 일괄 발송 (pool year/month)
+ *   POST /admin/growth-reports/:id/send              — 개별 발송 (sendable → PUBLISHED)
+ *   POST /admin/growth-reports/:id/mark-reviewed     — 관리자 검수 확인 기록 (idempotent)
+ *   POST /admin/growth-reports/bulk-send             — 일괄 발송 (report_ids or year/month)
  *   POST /admin/growth-reports/trigger-batch         — 수동 배치 트리거 (super_admin only)
  */
 
@@ -161,7 +163,8 @@ router.get(
             gr.discarded_at, gr.discard_reason, gr.discarded_by,
             gr.created_at, gr.updated_at, gr.published_at,
             gr.period_start, gr.period_end,
-            gr.report_period, gr.report_content
+            gr.report_period, gr.report_content,
+            gr.admin_reviewed_at, gr.admin_reviewed_by
           FROM growth_reports gr
           WHERE gr.swimming_pool_id = ${poolId}
             AND gr.report_period    = ${period}
@@ -183,6 +186,8 @@ router.get(
           l.report_period,
           l.published_at,
           l.updated_at,
+          l.admin_reviewed_at,
+          l.admin_reviewed_by,
           cg.name             AS class_name,
           u.name              AS teacher_name,
           -- snippet for preview
@@ -433,7 +438,54 @@ router.post(
   }
 );
 
+// ─── POST /admin/growth-reports/:id/mark-reviewed ────────────────────────────
+// 관리자 검수 확인 기록 (idempotent) — 발송 상태 변경 없음
+// admin_reviewed_at = COALESCE(admin_reviewed_at, NOW()) (최초 1회만 기록)
+
+router.post(
+  "/:id/mark-reviewed",
+  requireAuth,
+  requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = parsePoolAdmin(req) ?? (parseSuperAdmin(req) ? req.user?.poolId : null);
+      if (!poolId) return res.status(403).json({ error: "pool_admin 전용" });
+
+      const reportId = req.params["id"];
+      const actorId  = req.user!.userId ?? req.user!.id ?? "unknown";
+
+      // pool isolation 확인 + 검수 마킹 (idempotent — COALESCE로 최초 1회만)
+      const r = await db.execute(sql`
+        UPDATE growth_reports
+        SET admin_reviewed_at = COALESCE(admin_reviewed_at, NOW()),
+            admin_reviewed_by = COALESCE(admin_reviewed_by, ${actorId}),
+            updated_at = NOW()
+        WHERE id = ${reportId}
+          AND swimming_pool_id = ${poolId}
+          AND deleted_at IS NULL
+        RETURNING id, admin_reviewed_at, admin_reviewed_by
+      `);
+
+      if (!r.rows.length) return res.status(404).json({ error: "REPORT_NOT_FOUND" });
+
+      const row = r.rows[0] as any;
+      return res.json({
+        ok: true,
+        report_id:        row.id,
+        admin_reviewed_at: row.admin_reviewed_at,
+        admin_reviewed_by: row.admin_reviewed_by,
+      });
+    } catch (err: any) {
+      console.error("[WP8] mark-reviewed error:", err.message);
+      return res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
 // ─── POST /admin/growth-reports/bulk-send ────────────────────────────────────
+// report_ids 지정 시 해당 ID만 발송; 미지정 시 해당 월 전체 sendable 발송
+// 응답: { ok, requested_count, published_count, already_published_count,
+//         skipped_count, push_attempted_count, push_failed_count }
 
 router.post(
   "/bulk-send",
@@ -444,17 +496,22 @@ router.post(
       const poolId = parsePoolAdmin(req);
       if (!poolId) return res.status(403).json({ error: "pool_admin 전용" });
 
-      const { year, month } = req.body as { year?: number; month?: number };
+      const { year, month, report_ids } =
+        req.body as { year?: number; month?: number; report_ids?: string[] };
 
-      const kstNow   = new Date(Date.now() + 9 * 3600 * 1000);
+      const kstNow      = new Date(Date.now() + 9 * 3600 * 1000);
       const targetYear  = year  ?? kstNow.getUTCFullYear();
       const targetMonth = month ?? (kstNow.getUTCMonth() + 1);
+      const actorId     = req.user!.userId ?? req.user!.id ?? "unknown";
 
       const result = await bulkSendReports(db, {
         poolId,
-        year:    targetYear,
-        month:   targetMonth,
-        actorId: req.user!.id ?? "unknown",
+        year:      targetYear,
+        month:     targetMonth,
+        actorId,
+        reportIds: Array.isArray(report_ids) && report_ids.length > 0
+          ? report_ids
+          : undefined,
       });
 
       // KPI refresh (background)

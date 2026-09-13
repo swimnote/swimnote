@@ -135,6 +135,14 @@ export default function AdminReportDetailScreen() {
       }
       const data = await res.json();
       setDetail(data);
+
+      // ★ 관리자 검수 확인 기록 (idempotent, fire-and-forget)
+      // 상세 화면 열람 시 admin_reviewed_at 최초 1회 기록 — 실패해도 무시
+      void apiRequest(
+        token,
+        `/admin/growth-reports/${report_id}/mark-reviewed`,
+        { method: "POST" },
+      ).catch(() => {});
     } catch {
       setError("네트워크 오류가 발생했습니다.");
     } finally {

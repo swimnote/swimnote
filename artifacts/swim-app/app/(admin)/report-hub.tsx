@@ -85,22 +85,24 @@ interface MonthlyReportSummary {
 }
 
 interface MonthlyListItem {
-  report_id:       string;
-  student_id:      string;
-  student_name:    string;
-  product_status:  string;
-  analysis_status: string | null;
-  version_number:  number;
-  discard_reason:  string | null;
-  discarded_at:    string | null;
-  period_start:    string;
-  period_end:      string;
-  report_period:   string;
-  published_at:    string | null;
-  updated_at:      string;
-  class_name:      string | null;
-  teacher_name:    string | null;
-  content_snippet: string | null;
+  report_id:          string;
+  student_id:         string;
+  student_name:       string;
+  product_status:     string;
+  analysis_status:    string | null;
+  version_number:     number;
+  discard_reason:     string | null;
+  discarded_at:       string | null;
+  period_start:       string;
+  period_end:         string;
+  report_period:      string;
+  published_at:       string | null;
+  updated_at:         string;
+  admin_reviewed_at:  string | null;  // 관리자 검수 확인 시각
+  admin_reviewed_by:  string | null;
+  class_name:         string | null;
+  teacher_name:       string | null;
+  content_snippet:    string | null;
 }
 
 // ── 상태 표시 정의 ───────────────────────────────────────────────────────────
@@ -114,14 +116,18 @@ const STATUS_DISPLAY: Record<string, { label: string; bg: string; text: string }
   PREANALYZING:       { label: "분석 중",    bg: "#E3F2FD", text: "#1565C0" },
   READY_FOR_ANALYSIS: { label: "분석 준비",  bg: "#E8EAF6", text: "#3949AB" },
   REVIEW_REQUIRED:    { label: "검수 대기",  bg: "#FFF3E0", text: "#E65100" },
-  APPROVED:           { label: "승인 완료",  bg: "#F3E5F5", text: "#6A1B9A" },
+  APPROVED:           { label: "검수 확인",  bg: "#E8F5E9", text: "#2E7D32" },  // 검수 완료 = 발송 가능
   FAILED:             { label: "실패",       bg: "#FFEBEE", text: "#C62828" },
   ANALYSIS_FAILED:    { label: "분석 실패",  bg: "#FFEBEE", text: "#C62828" },
   OPEN:               { label: "대기 중",    bg: "#F5F5F5", text: "#757575" },
   EXCLUDED:           { label: "발급 제외",  bg: "#F5F5F5", text: "#9E9E9E" },
 };
 
-function getStatusDisplay(status: string) {
+/** admin_reviewed_at 기반 검수 상태 표시 (product_status 무변경) */
+function getStatusDisplay(status: string, adminReviewedAt?: string | null) {
+  if (["REVIEW_REQUIRED", "APPROVED", "READY_TO_SEND"].includes(status) && adminReviewedAt) {
+    return { label: "검수 확인", bg: "#E8F5E9", text: "#2E7D32" };
+  }
   return STATUS_DISPLAY[status] ?? { label: status, bg: "#F5F5F5", text: "#757575" };
 }
 
@@ -132,29 +138,42 @@ function isAnalyzingState(status: string): boolean {
 // ── KPI 집계 ─────────────────────────────────────────────────────────────────
 
 interface KpiCounts {
-  total: number;
-  beforeGen: number;  // OPEN, READY_FOR_ANALYSIS
-  analyzing: number;  // PREANALYZING, ANALYZING, REGENERATING
-  reviewing: number;  // REVIEW_REQUIRED, APPROVED
-  ready:     number;  // READY_TO_SEND
-  published: number;  // PUBLISHED
-  discarded: number;  // DISCARDED
-  excluded:  number;  // EXCLUDED
-  failed:    number;  // FAILED, ANALYSIS_FAILED
+  total:        number;
+  beforeGen:    number;  // OPEN, READY_FOR_ANALYSIS
+  analyzing:    number;  // PREANALYZING, ANALYZING, REGENERATING
+  unreviewed:   number;  // sendable + admin_reviewed_at IS NULL ("검수 대기")
+  reviewed:     number;  // sendable + admin_reviewed_at IS NOT NULL ("검수 확인")
+  published:    number;  // PUBLISHED
+  discarded:    number;  // DISCARDED
+  excluded:     number;  // EXCLUDED
+  failed:       number;  // FAILED, ANALYSIS_FAILED
 }
 
 function computeKpi(items: MonthlyListItem[]): KpiCounts {
-  const counts: KpiCounts = { total: items.length, beforeGen: 0, analyzing: 0, reviewing: 0, ready: 0, published: 0, discarded: 0, excluded: 0, failed: 0 };
+  const counts: KpiCounts = {
+    total: items.length, beforeGen: 0, analyzing: 0,
+    unreviewed: 0, reviewed: 0,
+    published: 0, discarded: 0, excluded: 0, failed: 0,
+  };
   for (const it of items) {
     const s = it.product_status;
-    if (["OPEN","READY_FOR_ANALYSIS"].includes(s))          counts.beforeGen++;
-    else if (["PREANALYZING","ANALYZING","REGENERATING"].includes(s)) counts.analyzing++;
-    else if (["REVIEW_REQUIRED","APPROVED"].includes(s))    counts.reviewing++;
-    else if (s === "READY_TO_SEND")                         counts.ready++;
-    else if (s === "PUBLISHED")                             counts.published++;
-    else if (s === "DISCARDED")                             counts.discarded++;
-    else if (s === "EXCLUDED")                              counts.excluded++;
-    else if (["FAILED","ANALYSIS_FAILED"].includes(s))      counts.failed++;
+    if (["OPEN","READY_FOR_ANALYSIS"].includes(s)) {
+      counts.beforeGen++;
+    } else if (["PREANALYZING","ANALYZING","REGENERATING"].includes(s)) {
+      counts.analyzing++;
+    } else if (["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"].includes(s)) {
+      // 검수 여부 기준으로 분리
+      if (it.admin_reviewed_at) counts.reviewed++;
+      else                       counts.unreviewed++;
+    } else if (s === "PUBLISHED") {
+      counts.published++;
+    } else if (s === "DISCARDED") {
+      counts.discarded++;
+    } else if (s === "EXCLUDED") {
+      counts.excluded++;
+    } else if (["FAILED","ANALYSIS_FAILED"].includes(s)) {
+      counts.failed++;
+    }
   }
   return counts;
 }
@@ -163,8 +182,7 @@ function computeKpi(items: MonthlyListItem[]): KpiCounts {
 
 const FILTER_OPTIONS: { label: string; value: string[] | null }[] = [
   { label: "전체",     value: null },
-  { label: "검수 대기", value: ["REVIEW_REQUIRED","APPROVED"] },
-  { label: "발송 대기", value: ["READY_TO_SEND"] },
+  { label: "검수 대기", value: ["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"] },  // 발송 가능 전체
   { label: "발행 완료", value: ["PUBLISHED"] },
   { label: "발급 제외", value: ["EXCLUDED"] },
   { label: "제외·실패", value: ["DISCARDED","FAILED","ANALYSIS_FAILED"] },
@@ -331,12 +349,16 @@ export default function ReportHubScreen() {
     }
   }, [token, year, month, fetchSummary]);
 
-  // ── 선택 발송 (individual send per selected id) ────────────────────────────
+  // ── 선택 발송 (bulk-send with report_ids — 단일 요청) ─────────────────────
   const onSelectSend = useCallback(async () => {
     if (selectedIds.size === 0) return;
-    // READY_TO_SEND + APPROVED 발송 가능
-    const targets = displayRows.filter(r => selectedIds.has(r.report_id) && ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(r.product_status));
+    // sendable 상태 필터
+    const targets = displayRows.filter(
+      r => selectedIds.has(r.report_id) &&
+           ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(r.product_status)
+    );
     if (targets.length === 0) { Alert.alert("알림", "발송 가능한 상태의 리포트를 선택하세요."); return; }
+
     Alert.alert(
       "선택 발송",
       `${targets.length}건을 발송하시겠습니까?\n발송 후 학부모에게 즉시 알림이 전송됩니다.`,
@@ -347,23 +369,46 @@ export default function ReportHubScreen() {
           style: "default",
           onPress: async () => {
             setSelectSending(true);
-            let ok = 0, fail = 0;
-            for (const item of targets) {
-              try {
-                const res = await apiRequest(token, `/admin/growth-reports/${item.report_id}/send`, { method: "POST" });
-                if (res.ok) {
-                  ok++;
-                  setAllRows(prev => prev.map(r =>
-                    r.report_id === item.report_id ? { ...r, product_status: "PUBLISHED" } : r
-                  ));
-                } else { fail++; }
-              } catch { fail++; }
+            try {
+              // ★ 83개 개별 HTTP 호출 → 단일 bulk-send with report_ids
+              const res = await apiRequest(
+                token,
+                `/admin/growth-reports/bulk-send`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    year, month,
+                    report_ids: targets.map(t => t.report_id),
+                  }),
+                },
+              );
+              const d = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                Alert.alert("오류", (d as any)?.error ?? "발송에 실패했습니다.");
+                return;
+              }
+              const published = (d as any).published_count ?? (d as any).published ?? 0;
+              const alreadyOk = (d as any).already_published_count ?? 0;
+              const skipped   = (d as any).skipped_count ?? (d as any).skipped ?? 0;
+
+              // 낙관적 UI 업데이트
+              const sentIds = new Set(targets.map(t => t.report_id));
+              setAllRows(prev => prev.map(r =>
+                sentIds.has(r.report_id) ? { ...r, product_status: "PUBLISHED" } : r
+              ));
+              setSelectMode(false);
+              setSelectedIds(new Set());
+              const parts = [`${published}건 발송 완료`];
+              if (alreadyOk > 0) parts.push(`${alreadyOk}건 이미 발송됨`);
+              if (skipped > 0)   parts.push(`${skipped}건 건너뜀`);
+              Alert.alert("발송 완료", parts.join("\n"));
+              await fetchSummary(year, month);
+            } catch (e: any) {
+              Alert.alert("오류", e?.message ?? "발송에 실패했습니다.");
+            } finally {
+              setSelectSending(false);
             }
-            setSelectSending(false);
-            setSelectMode(false);
-            setSelectedIds(new Set());
-            Alert.alert("발송 완료", `${ok}건 발송 완료${fail > 0 ? `\n${fail}건 실패` : ""}`);
-            await fetchSummary(year, month);
           },
         },
       ],
@@ -430,7 +475,7 @@ export default function ReportHubScreen() {
     }
   }, [regenTarget, token, year, month, fetchList, fetchSummary]);
 
-  // ── 전체 발송 (READY_TO_SEND만, bulk-send API) ─────────────────────────────
+  // ── 전체 발송 (모든 sendable — bulk-send API, 월 전체) ───────────────────
   const onBulkSend = useCallback(async () => {
     setBulkSendLoading(true);
     try {
@@ -438,7 +483,7 @@ export default function ReportHubScreen() {
         token,
         `/admin/growth-reports/bulk-send`,
         { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ year, month }) },
+          body: JSON.stringify({ year, month }) },  // report_ids 미지정 → 월 전체
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -446,7 +491,12 @@ export default function ReportHubScreen() {
         return;
       }
       const d = await res.json();
-      Alert.alert("전체 발송 완료", `${d.published}건이 발송되었습니다.${d.errors > 0 ? `\n(오류 ${d.errors}건)` : ""}`);
+      const published = d.published_count ?? d.published ?? 0;
+      const skipped   = d.skipped_count   ?? d.skipped   ?? 0;
+      Alert.alert(
+        "전체 발송 완료",
+        `${published}건이 발송되었습니다.${skipped > 0 ? `\n(${skipped}건 건너뜀)` : ""}`,
+      );
       setBulkSendConfirm(false);
       await fetchList({ yr: year, mo: month });
       await fetchSummary(year, month);
@@ -459,7 +509,7 @@ export default function ReportHubScreen() {
 
   // ── 행 렌더링 ──────────────────────────────────────────────────────────────
   const renderRow = ({ item }: { item: MonthlyListItem }) => {
-    const sd = getStatusDisplay(item.product_status);
+    const sd = getStatusDisplay(item.product_status, item.admin_reviewed_at);
     const isLoading = actionLoading === item.report_id;
     const verLabel = item.version_number > 1 ? ` v${item.version_number}` : "";
     const showSend    = ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
@@ -606,10 +656,10 @@ export default function ReportHubScreen() {
               <KpiCard value={kpi.total}     label="전체"    color="#23415C" onPress={() => setFilterStatuses(null)} />
               <KpiCard value={kpi.beforeGen} label="생성 전"  color="#757575" onPress={() => setFilterStatuses(["OPEN","READY_FOR_ANALYSIS"])} />
               <KpiCard value={kpi.analyzing} label="분석 중"  color="#1565C0" onPress={() => setFilterStatuses(["PREANALYZING","ANALYZING","REGENERATING"])} />
-              <KpiCard value={kpi.reviewing} label="검수 대기" color="#E65100" onPress={() => setFilterStatuses(["REVIEW_REQUIRED","APPROVED"])} />
+              <KpiCard value={kpi.unreviewed} label="검수 대기" color="#E65100" onPress={() => setFilterStatuses(["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"])} />
             </View>
             <View style={[s.kpiRow, { marginTop: 6 }]}>
-              <KpiCard value={kpi.ready}     label="발송 대기" color="#F57C00" onPress={() => setFilterStatuses(["READY_TO_SEND"])} />
+              <KpiCard value={kpi.reviewed}  label="검수 확인" color="#2E7D32" onPress={() => setFilterStatuses(["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"])} />
               <KpiCard value={kpi.published} label="발행 완료" color="#2E7D32" onPress={() => setFilterStatuses(["PUBLISHED"])} />
               <KpiCard value={kpi.excluded} label="발급 제외"  color="#9E9E9E" onPress={() => setFilterStatuses(["EXCLUDED"])} />
               <KpiCard value={kpi.discarded} label="폐기"      color="#B71C1C" onPress={() => setFilterStatuses(["DISCARDED"])} />
@@ -619,14 +669,14 @@ export default function ReportHubScreen() {
         )}
 
         {/* 전체 발송 버튼 */}
-        {(kpi.ready + kpi.reviewing) > 0 && !selectMode && (
+        {(kpi.unreviewed + kpi.reviewed) > 0 && !selectMode && (
           <TouchableOpacity
             style={s.bulkSendBtn}
             onPress={() => setBulkSendConfirm(true)}
           >
             <LucideIcon name="send" size={14} color="#fff" />
             <Text style={s.bulkSendBtnText}>
-              대기 중 {kpi.ready + kpi.reviewing}건 전체 발송
+              대기 중 {kpi.unreviewed + kpi.reviewed}건 전체 발송
             </Text>
           </TouchableOpacity>
         )}
@@ -707,7 +757,7 @@ export default function ReportHubScreen() {
             {filterStatuses ? `${displayRows.length}건 (전체 ${total}건)` : `총 ${total}건`}
           </Text>
         )}
-        {(kpi.ready + kpi.reviewing) > 0 && (
+        {(kpi.unreviewed + kpi.reviewed) > 0 && (
           <TouchableOpacity
             style={[s.selectToggleBtn, selectMode && s.selectToggleBtnActive]}
             onPress={() => { setSelectMode(v => !v); setSelectedIds(new Set()); }}
@@ -889,7 +939,7 @@ export default function ReportHubScreen() {
       <ConfirmModal
         visible={bulkSendConfirm}
         title="전체 발송"
-        message={`발송 대기 중인 ${kpi.ready}건을 모두 발송하시겠습니까?\n발송 후에는 학부모에게 즉시 알림이 전송됩니다.\n이미 PUBLISHED/DISCARDED 상태는 제외됩니다.`}
+        message={`${kpi.unreviewed + kpi.reviewed}건을 모두 발송하시겠습니까?\n발송 후에는 학부모에게 즉시 알림이 전송됩니다.\n발송 가능 상태(검수 대기·검수 확인)만 처리됩니다.`}
         onConfirm={onBulkSend}
         onCancel={() => setBulkSendConfirm(false)}
       />

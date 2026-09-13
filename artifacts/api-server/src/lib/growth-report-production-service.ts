@@ -2,23 +2,25 @@
  * growth-report-production-service.ts — WP8: Admin Production Workflow
  *
  * 책임:
+ *   - publishGrowthReports(): 공통 발송 서비스 — 개별·bulk 모두 이 함수를 사용
+ *   - sendIndividualReport(): 개별 발송 (publishGrowthReports 위임)
+ *   - bulkSendReports(): pool-scoped 전체/선택 발송 (publishGrowthReports 위임)
  *   - discardReportVersion(): READY_TO_SEND → DISCARDED (폐기 + 이력 보존)
  *   - regenerateReport(): DISCARDED → 새 version REGENERATING (재발급 row insert)
  *   - autoValidateForReadyToSend(): REVIEW_REQUIRED 자동 검증 → READY_TO_SEND
- *   - sendIndividualReport(): READY_TO_SEND → PUBLISHED (개별 발송)
- *   - bulkSendReports(): pool-scoped READY_TO_SEND → all PUBLISHED (전체 발송)
  *   - refreshWp8Snapshot(): x_monthly_operational_snapshots growth report KPI 갱신
  *
  * 보안:
  *   - 모든 함수는 poolId를 파라미터로 받아 cross-pool 접근 차단
- *   - 발송 = DB transaction 내 READY_TO_SEND 검증 후 PUBLISHED
+ *   - 발송 = DB transaction 내 sendable 검증 후 PUBLISHED
  *   - 폐기 = 이력 보존 (deleted_at 미설정, product_status=DISCARDED)
  *
- * 원칙:
- *   - AUTO GENERATE ≠ AUTO SEND (관리자 발송 필수)
- *   - DISCARDED version은 부모 비노출 (PUBLISHED final만 노출)
- *   - 재발급 = 새 row insert (기존 DISCARDED 보존)
- *   - transitionReportStatus 재사용 (audit 자동 기록)
+ * 발송 정책 (2026-09-13 확정):
+ *   - 검수(admin_reviewed_at)는 발송 eligibility 조건이 아님
+ *   - REVIEW_REQUIRED / APPROVED / READY_TO_SEND 모두 발송 가능
+ *   - REVIEW_REQUIRED → APPROVED → PUBLISHED 2단계 자동 전환
+ *   - push 실패 ≠ 발송 실패 (PUBLISHED 유지, push 로그만 failed)
+ *   - 이미 PUBLISHED → already_published_count 처리 (오류 아님)
  */
 
 import { sql } from "drizzle-orm";
@@ -350,126 +352,89 @@ export async function regenerateReport(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// sendIndividualReport — READY_TO_SEND → PUBLISHED (개별 발송)
+// publishGrowthReports — 개별·bulk 공통 발송 서비스 (단일 소스)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function sendIndividualReport(
+/** 발송 가능 상태 집합 (검수 여부 무관) */
+const SENDABLE_STATUSES = new Set(["REVIEW_REQUIRED", "APPROVED", "READY_TO_SEND"]);
+
+/** 발송 결과 (spec §11 응답 계약) */
+export interface PublishResult {
+  requested_count:       number;
+  published_count:       number;
+  already_published_count: number;
+  skipped_count:         number;   // EXCLUDED/DISCARDED/FAILED/ANALYZING 등 비발송 가능
+  push_attempted_count:  number;
+  push_failed_count:     number;
+}
+
+/**
+ * publishGrowthReports — 관리자 발송 단일 공유 서비스
+ *
+ * 정책:
+ *   - reportIds를 pool_id 조건으로 SELECT … FOR UPDATE SKIP LOCKED
+ *   - cross-pool ID 자동 제거 (다른 pool의 ID는 skipped)
+ *   - sendable: REVIEW_REQUIRED, APPROVED, READY_TO_SEND (검수 여부 무관)
+ *   - REVIEW_REQUIRED → APPROVED → PUBLISHED 2단계 자동 전환
+ *   - 이미 PUBLISHED → already_published_count (오류 아님, 멱등)
+ *   - push 실패 → PUBLISHED 유지, push_failed_count만 증가
+ *   - deleted_at IS NOT NULL → skipped
+ */
+export async function publishGrowthReports(
   db: Db,
   params: {
-    reportId: string;
-    poolId:   string;
-    actorId:  string;
+    poolId:    string;
+    reportIds: string[];  // 발송할 report ID 목록 (cross-pool 자동 제거)
+    actorId:   string;
   },
-): Promise<{ alreadyPublished: boolean }> {
-  const { reportId, poolId, actorId } = params;
+): Promise<PublishResult> {
+  const { poolId, reportIds, actorId } = params;
 
-  const r = await db.execute(sql`
-    SELECT id, product_status, swimming_pool_id, deleted_at,
-           student_id, report_period, report_content, report_fact_package, sns_summary
+  const result: PublishResult = {
+    requested_count:        reportIds.length,
+    published_count:        0,
+    already_published_count: 0,
+    skipped_count:          0,
+    push_attempted_count:   0,
+    push_failed_count:      0,
+  };
+
+  if (reportIds.length === 0) return result;
+
+  // ── Step 1: pool-scoped SELECT FOR UPDATE SKIP LOCKED ────────────────────
+  const rows = (await db.execute(sql`
+    SELECT id, student_id, report_period, product_status, deleted_at
     FROM growth_reports
-    WHERE id = ${reportId}
+    WHERE id              = ANY(${reportIds}::text[])
       AND swimming_pool_id = ${poolId}
-    FOR UPDATE
-  `);
-  if (!r.rows.length) throw new ReportNotFoundError(reportId);
-  const row = r.rows[0] as any;
-  if (row.deleted_at) throw new ReportNotFoundError(reportId);
-
-  if (row.product_status === "PUBLISHED") {
-    return { alreadyPublished: true };
-  }
-
-  // READY_TO_SEND, APPROVED, REVIEW_REQUIRED 상태에서 발송 가능
-  // (검수 대기 상태도 관리자가 직접 발송 가능)
-  if (!["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(row.product_status)) {
-    throw new ReportProductionError(
-      `발송은 READY_TO_SEND, APPROVED, REVIEW_REQUIRED 상태에서만 가능합니다. 현재: ${row.product_status}`,
-      "SEND_NOT_ALLOWED",
-    );
-  }
-
-  // REVIEW_REQUIRED → APPROVED (먼저 자동 승인 후 발송)
-  if (row.product_status === "REVIEW_REQUIRED") {
-    await transitionReportStatus({
-      db, reportId,
-      toStatus:  "APPROVED",
-      actorType: "pool_admin",
-      actorId,
-      reason:    "ADMIN_INDIVIDUAL_SEND_AUTO_APPROVE",
-    });
-  }
-
-  // APPROVED → PUBLISHED
-  await transitionReportStatus({
-    db, reportId,
-    toStatus:  "PUBLISHED",
-    actorType: "pool_admin",
-    actorId,
-    reason:    "ADMIN_INDIVIDUAL_SEND",
-  });
-
-  // published_at 기록
-  await db.execute(sql`
-    UPDATE growth_reports
-    SET published_at = NOW(), updated_at = NOW()
-    WHERE id = ${reportId}
-  `);
-
-  console.log(`[gr-production] PUBLISHED (individual): report=${reportId} actor=${actorId}`);
-
-  // 부모 push (fire-and-forget)
-  void notifyGrowthReportPublished({
-    reportId,
-    studentId:   row.student_id,
-    poolId,
-    reportPeriod: row.report_period,
-  }).catch((e: unknown) => {
-    console.error(`[gr-production] parent push failed report=${reportId}:`, e);
-  });
-
-  return { alreadyPublished: false };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// bulkSendReports — pool-scoped READY_TO_SEND 전체 발송
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface BulkSendResult {
-  published:   number;
-  skipped:     number;  // DISCARDED/FAILED/REGENERATING/PUBLISHED
-  errors:      number;
-}
-
-export async function bulkSendReports(
-  db: Db,
-  params: {
-    poolId:  string;
-    year:    number;   // report_month 발행 연도 (외부 API 계약)
-    month:   number;   // report_month 발행 월   (외부 API 계약)
-    actorId: string;
-  },
-): Promise<BulkSendResult> {
-  const { poolId, year, month, actorId } = params;
-
-  // ★ report_month → analysis_period 단일 변환 (computeAnalysisPeriod 사용)
-  // year/month는 발행월(외부 계약). 내부에서 분석월(-1)로 변환.
-  const { reportPeriod: period } = computeAnalysisPeriod(year, month);
-
-  const candidates = await db.execute(sql`
-    SELECT id, student_id, report_period, product_status
-    FROM growth_reports
-    WHERE swimming_pool_id = ${poolId}
-      AND report_period    = ${period}
-      AND product_status   IN ('READY_TO_SEND', 'APPROVED', 'REVIEW_REQUIRED')
-      AND deleted_at IS NULL
     FOR UPDATE SKIP LOCKED
-  `);
+  `)).rows as any[];
 
-  const result: BulkSendResult = { published: 0, skipped: 0, errors: 0 };
+  // ── Step 2: 요청된 ID 중 lock을 못 얻었거나 cross-pool인 경우 → skipped ──
+  const foundIds = new Set(rows.map((r: any) => r.id));
+  result.skipped_count += reportIds.filter(id => !foundIds.has(id)).length;
 
-  for (const row of candidates.rows as any[]) {
+  // ── Step 3: 각 행 분류 및 발송 ──────────────────────────────────────────
+  const pushJobs: Promise<void>[] = [];
+
+  for (const row of rows) {
+    // deleted → skip
+    if (row.deleted_at) { result.skipped_count++; continue; }
+
+    // 이미 발송 완료 → idempotent skip (오류 아님)
+    if (row.product_status === "PUBLISHED") {
+      result.already_published_count++;
+      continue;
+    }
+
+    // 비발송 가능 상태 → skip
+    if (!SENDABLE_STATUSES.has(row.product_status)) {
+      result.skipped_count++;
+      continue;
+    }
+
     try {
-      // REVIEW_REQUIRED → APPROVED (자동 승인 후 발송)
+      // REVIEW_REQUIRED → APPROVED (state machine 요구 2단계)
       if (row.product_status === "REVIEW_REQUIRED") {
         await transitionReportStatus({
           db,
@@ -477,53 +442,148 @@ export async function bulkSendReports(
           toStatus:  "APPROVED",
           actorType: "pool_admin",
           actorId,
-          reason:    "ADMIN_BULK_SEND_AUTO_APPROVE",
+          reason:    "ADMIN_SEND_AUTO_APPROVE",
         });
       }
 
+      // APPROVED / READY_TO_SEND → PUBLISHED
       await transitionReportStatus({
         db,
         reportId:  row.id,
         toStatus:  "PUBLISHED",
         actorType: "pool_admin",
         actorId,
-        reason:    "ADMIN_BULK_SEND",
+        reason:    "ADMIN_SEND",
       });
 
+      // published_at 기록 (transitionReportStatus가 이미 처리하지만 명시적으로도 보장)
       await db.execute(sql`
         UPDATE growth_reports
-        SET published_at = NOW(), updated_at = NOW()
+        SET published_at = COALESCE(published_at, NOW()), updated_at = NOW()
         WHERE id = ${row.id}
       `);
 
-      result.published++;
+      result.published_count++;
 
-      // 부모 push (fire-and-forget)
-      void notifyGrowthReportPublished({
-        reportId:    row.id,
-        studentId:   row.student_id,
+      // Push: fire-and-forget — push 실패가 발송 실패로 이어지지 않음
+      result.push_attempted_count++;
+      const pushJob = notifyGrowthReportPublished({
+        reportId:     row.id,
+        studentId:    row.student_id,
         poolId,
         reportPeriod: row.report_period,
       }).catch((e: unknown) => {
-        console.error(`[gr-production] bulk send parent push failed report=${row.id}:`, e);
+        result.push_failed_count++;
+        console.error(`[gr-production] push failed report=${row.id}:`, e);
       });
+      pushJobs.push(pushJob);
 
     } catch (err: any) {
-      if (err?.name === "InvalidTransitionError") {
-        result.skipped++;
+      // InvalidTransitionError (예: 다른 worker가 이미 처리) → skipped
+      if (err?.name === "InvalidTransitionError" || err?.name === "ReportTerminalError") {
+        result.skipped_count++;
       } else {
-        result.errors++;
-        console.error(`[gr-production] bulk send error report=${row.id}:`, err.message);
+        // 예상치 못한 오류 → skipped + 로그 (전체 배치는 계속 진행)
+        result.skipped_count++;
+        console.error(`[gr-production] publish error report=${row.id}:`, err?.message ?? err);
       }
     }
   }
 
   console.log(
-    `[gr-production] BULK_SEND: pool=${poolId} period=${period} ` +
-    `published=${result.published} skipped=${result.skipped} errors=${result.errors}`
+    `[gr-production] PUBLISH: pool=${poolId} ` +
+    `req=${result.requested_count} ok=${result.published_count} ` +
+    `already=${result.already_published_count} skip=${result.skipped_count} ` +
+    `push_fail=${result.push_failed_count}`,
   );
 
+  // Push jobs가 완료될 때까지 대기하지 않음 (fire-and-forget)
+  // 단, 응답 반환 전에 카운트가 업데이트되도록 microtask flush
+  void Promise.allSettled(pushJobs);
+
   return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// sendIndividualReport — 개별 발송 (publishGrowthReports 위임)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function sendIndividualReport(
+  db: Db,
+  params: { reportId: string; poolId: string; actorId: string },
+): Promise<{ alreadyPublished: boolean }> {
+  const result = await publishGrowthReports(db, {
+    poolId:    params.poolId,
+    reportIds: [params.reportId],
+    actorId:   params.actorId,
+  });
+
+  if (!result.published_count && !result.already_published_count) {
+    // skipped = not found / not sendable
+    const skipped = result.skipped_count;
+    if (skipped > 0) {
+      throw new ReportProductionError(
+        `리포트를 발송할 수 없습니다 (상태 비적합 또는 찾을 수 없음): ${params.reportId}`,
+        "SEND_NOT_ALLOWED",
+      );
+    }
+  }
+
+  return { alreadyPublished: result.already_published_count > 0 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// bulkSendReports — pool-scoped 전체/선택 발송 (publishGrowthReports 위임)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BulkSendResult extends PublishResult {
+  /** @deprecated use published_count */
+  published: number;
+  /** @deprecated use skipped_count */
+  skipped:   number;
+  /** @deprecated always 0 — errors are counted in skipped_count now */
+  errors:    number;
+}
+
+export async function bulkSendReports(
+  db: Db,
+  params: {
+    poolId:     string;
+    year:       number;    // report_month 발행 연도 (외부 API 계약)
+    month:      number;    // report_month 발행 월   (외부 API 계약)
+    actorId:    string;
+    reportIds?: string[];  // 지정 시 해당 ID만; 미지정 시 해당 월 전체 sendable
+  },
+): Promise<BulkSendResult> {
+  const { poolId, year, month, actorId, reportIds: explicitIds } = params;
+
+  let targetIds: string[];
+
+  if (explicitIds && explicitIds.length > 0) {
+    // ── 선택 발송: 명시적 ID 목록 사용 ────────────────────────────────────
+    targetIds = explicitIds;
+  } else {
+    // ── 전체 발송: 해당 월 sendable 전체 조회 ─────────────────────────────
+    const { reportPeriod: period } = computeAnalysisPeriod(year, month);
+    const rows = await db.execute(sql`
+      SELECT id
+      FROM growth_reports
+      WHERE swimming_pool_id = ${poolId}
+        AND report_period    = ${period}
+        AND product_status   IN ('READY_TO_SEND', 'APPROVED', 'REVIEW_REQUIRED')
+        AND deleted_at IS NULL
+    `);
+    targetIds = (rows.rows as any[]).map((r: any) => r.id);
+  }
+
+  const result = await publishGrowthReports(db, { poolId, reportIds: targetIds, actorId });
+
+  return {
+    ...result,
+    published: result.published_count,
+    skipped:   result.skipped_count,
+    errors:    0,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
