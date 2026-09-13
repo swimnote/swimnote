@@ -1,6 +1,8 @@
 // /ai — SWIMNOTE AI 소개
 // 공개 가능 범위만 설명. 내부 엔진 구조/프롬프트/스코어링 공개 금지.
 
+const BASE = import.meta.env.BASE_URL;
+
 const FEATURES = [
   {
     status: "현재 제공",
@@ -46,18 +48,18 @@ export default function AIPage() {
             padding: "56px 24px 52px",
           }}
         >
-          <p
+          {/* Official SwimNote AI REPORT logo */}
+          <img
+            src={`${BASE}swimnote-ai-report-logo.png`}
+            alt="SwimNote AI REPORT"
             style={{
-              fontSize: "var(--ds-text-label)",
-              fontWeight: "var(--ds-fw-semibold)",
-              letterSpacing: "var(--ds-ls-wider)",
-              textTransform: "uppercase",
-              color: "var(--ds-n-400)",
-              marginBottom: 12,
+              height: 52,
+              width: "auto",
+              objectFit: "contain",
+              display: "block",
+              marginBottom: 28,
             }}
-          >
-            SWIMNOTE AI
-          </p>
+          />
           <h1
             style={{
               fontSize: "clamp(26px, 4vw, 40px)",

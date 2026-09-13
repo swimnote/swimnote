@@ -188,11 +188,12 @@ export default function Login() {
         {poolId ? (
           <>
             <div className="mb-8 text-center">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ background: PRIMARY }}>
-                <span className="text-white text-[22px] font-black tracking-tighter" translate="no">S</span>
-              </div>
-              <h1 className="text-[22px] font-bold text-[#0a0a0a]" translate="no">SWIMNOTE</h1>
-              <p className="text-[13px] text-[#888] mt-1">관리자 로그인</p>
+              <img
+                src={`${import.meta.env.BASE_URL}swimnote-logo-vertical.png`}
+                alt="SWIMNOTE"
+                style={{ width: 80, height: 80, objectFit: "contain", borderRadius: 16, display: "inline-block", marginBottom: 16 }}
+              />
+              <p className="text-[13px] text-[#888]">관리자 로그인</p>
             </div>
             <div className="bg-white rounded-2xl shadow-sm border border-[#ebebeb] p-8">
               <form onSubmit={handlePoolLogin} className="space-y-4">
@@ -253,11 +254,12 @@ export default function Login() {
             {step === "credentials" && (
               <>
                 <div className="mb-8 text-center">
-                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4" style={{ background: PRIMARY }}>
-                    <span className="text-white text-[22px] font-black tracking-tighter" translate="no">S</span>
-                  </div>
-                  <h1 className="text-[22px] font-bold text-[#0a0a0a]" translate="no">SWIMNOTE</h1>
-                  <p className="text-[13px] text-[#888] mt-1">관리자 로그인</p>
+                  <img
+                    src={`${import.meta.env.BASE_URL}swimnote-logo-vertical.png`}
+                    alt="SWIMNOTE"
+                    style={{ width: 80, height: 80, objectFit: "contain", borderRadius: 16, display: "inline-block", marginBottom: 16 }}
+                  />
+                  <p className="text-[13px] text-[#888]">관리자 로그인</p>
                 </div>
                 <div className="bg-white rounded-2xl shadow-sm border border-[#ebebeb] p-8">
                   <form onSubmit={handleCredentials} className="space-y-4">

@@ -175,6 +175,18 @@ export default function SwimnoteXPage() {
             }}
           >
             <div style={{ flex: "1 1 300px" }}>
+              {/* Official SWIMNOTE X logo */}
+              <img
+                src={`${BASE}swimnote-x-logo.png`}
+                alt="SWIMNOTE X"
+                style={{
+                  height: 40,
+                  width: "auto",
+                  objectFit: "contain",
+                  display: "block",
+                  marginBottom: 20,
+                }}
+              />
               <h2
                 style={{
                   fontSize: "clamp(22px, 3vw, 30px)",

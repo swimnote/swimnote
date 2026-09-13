@@ -34,14 +34,14 @@ export default function MobileGuard({ children, skip = false }: MobileGuardProps
     >
       {/* Logo */}
       <img
-        src={`${BASE}icon.png`}
+        src={`${BASE}swimnote-logo-vertical.png`}
         alt="SWIMNOTE"
         style={{
-          width: 52,
-          height: 52,
-          borderRadius: 12,
+          width: 80,
+          height: 80,
+          borderRadius: 16,
           objectFit: "contain",
-          marginBottom: 20,
+          marginBottom: 16,
         }}
       />
 
