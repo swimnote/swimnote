@@ -45,18 +45,18 @@ export async function acquireLock(jobName: string, ttlSeconds = 300): Promise<bo
 /**
  * 락 연장 (장시간 실행되는 job에서 TTL 만료 방지)
  * @param jobName  job 식별자
- * @param ttlSeconds 새 TTL
+ * @param ttlSeconds 새 TTL (미사용, 시그니처 유지용)
+ * @returns true = 갱신 성공 (1 row updated), false = lock row 없음 (UPDATE 0 rows)
+ * @throws DB 연결 오류 시 throw
  */
-export async function refreshLock(jobName: string, ttlSeconds: number): Promise<void> {
-  try {
-    await superAdminDb.execute(sql`
-      UPDATE scheduler_locks
-      SET locked_at = NOW()
-      WHERE job_name = ${jobName}
-    `);
-  } catch (e: any) {
-    console.warn(`[scheduler-lock] refreshLock(${jobName}) 오류:`, e?.message);
-  }
+export async function refreshLock(jobName: string, ttlSeconds: number): Promise<boolean> {
+  const result = await superAdminDb.execute(sql`
+    UPDATE scheduler_locks
+    SET locked_at = NOW()
+    WHERE job_name = ${jobName}
+    RETURNING job_name
+  `);
+  return (result.rows as any[]).length > 0;
 }
 
 /**

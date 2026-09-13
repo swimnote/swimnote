@@ -35,7 +35,7 @@
 import cron from "node-cron";
 import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
-import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
+import { acquireLock, releaseLock, recordHeartbeat, refreshLock } from "../lib/schedulerLock.js";
 import { transitionReportStatus } from "../lib/growth-report-service.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
 
@@ -569,11 +569,17 @@ export async function runGrowthReportScheduler(
   if (shouldOpen && xPools.length > 0) {
     for (const pool of xPools) {
       // lock heartbeat — pool loop 진입마다 TTL 갱신
-      // refreshLock 실패 시 경고만 출력하고 계속 진행 (data는 idempotent)
+      // 갱신 실패(DB 오류 또는 lock row 없음) 시 loop 중단 → finally에서 release
+      let lockRefreshed: boolean;
       try {
-        await refreshLock(SCHEDULER_LOCK, LOCK_TTL_SECONDS);
+        lockRefreshed = await refreshLock(SCHEDULER_LOCK, LOCK_TTL_SECONDS);
       } catch (refreshErr: any) {
-        console.warn(`[gr-scheduler] refreshLock 실패 (계속 진행): ${refreshErr.message}`);
+        console.error(`[gr-scheduler] refreshLock DB 오류 — loop 중단:`, refreshErr.message);
+        break;
+      }
+      if (!lockRefreshed) {
+        console.error(`[gr-scheduler] refreshLock UPDATE 0 rows — lock 만료/소멸, loop 중단`);
+        break;
       }
 
       try {

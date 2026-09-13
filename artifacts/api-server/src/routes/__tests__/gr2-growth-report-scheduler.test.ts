@@ -42,6 +42,17 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+
+// ── schedulerLock mock ─────────────────────────────────────────────────────────
+// refreshLock / acquireLock / releaseLock은 superAdminDb를 직접 사용하므로
+// 테스트에서 db mock을 우회함. vi.mock으로 모듈 전체를 stub 처리.
+vi.mock("../../lib/schedulerLock.js", () => ({
+  acquireLock: vi.fn().mockResolvedValue(true),
+  releaseLock: vi.fn().mockResolvedValue(undefined),
+  refreshLock: vi.fn().mockResolvedValue(true),   // 기본: 갱신 성공
+  recordHeartbeat: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   getKSTDate,
   computeCycleTimestamps,
@@ -59,6 +70,7 @@ import {
 import {
   resolveReportXAccess,
 } from "../../lib/xmode-report-guard.js";
+import { refreshLock } from "../../lib/schedulerLock.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mock DB factory
@@ -873,5 +885,63 @@ describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
     expect(scheduler).toMatch(/for.*xPools[\s\S]{0,500}refreshLock/);
     // TTL 그대로 재사용 (600초)
     expect(scheduler).toContain("LOCK_TTL_SECONDS");
+  });
+
+  it("AN(F): refreshLock 실패 → 이후 pool 처리 중단, lock release 경로 실행", async () => {
+    const { readFileSync } = await import("node:fs");
+    const scheduler = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
+      "utf-8",
+    );
+    const lockLib = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/lib/schedulerLock.ts",
+      "utf-8",
+    );
+
+    // ── 소스 구조 검증 ────────────────────────────────────────────────
+    // (1) refreshLock false(0 rows) → break
+    expect(scheduler).toMatch(/lockRefreshed[\s\S]{0,200}break/);
+    // (2) refreshLock throw → break
+    expect(scheduler).toMatch(/catch.*refreshErr[\s\S]{0,200}break/);
+    // (3) UPDATE 0 rows 감지: RETURNING job_name 포함 (schedulerLock.ts)
+    expect(lockLib).toContain("RETURNING job_name");
+    // (4) refreshLock이 Promise<boolean> 반환
+    expect(lockLib).toContain("Promise<boolean>");
+    // (5) finally → releaseLock 경로 존재
+    expect(scheduler).toMatch(/finally[\s\S]{0,300}releaseLock/);
+
+    // ── 런타임 동작 검증: pool 2개, 첫 번째 refreshLock → false ──────
+    // refreshLock mock: 첫 번째 호출 false(lock 만료), 이후 복구 불필요
+    vi.mocked(refreshLock).mockResolvedValueOnce(false);
+
+    let cycleOpenAttempts = 0;
+    const executeMock = vi.fn(async (query: any) => {
+      const q: string = query?.queryChunks
+        ? query.queryChunks.map((c: any) =>
+            typeof c === "string" ? c : (c?.value ?? "")
+          ).join("")
+        : String(query?.sql ?? query ?? "");
+      if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
+        return { rows: [{ id: "pool_a" }, { id: "pool_b" }] };
+      }
+      // openCycleForPool 내 cycle SELECT (pool_id 기준) — PENDING recovery 쿼리 제외
+      if (q.includes("growth_report_cycles") && q.includes("SELECT")
+          && q.includes("swimming_pool_id") && !q.includes("cycle_status = 'PENDING'")) {
+        cycleOpenAttempts++;
+        return { rows: [] };
+      }
+      if (q.includes("growth_report_cycles") && q.includes("SELECT")) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const db = { execute: executeMock } as any;
+    const now = new Date("2026-09-01T00:30:00Z");
+    const result = await runGrowthReportScheduler(db, now);
+
+    // refreshLock false → 첫 pool 진입 전 loop break → cycle open 0회
+    expect(cycleOpenAttempts).toBe(0);
+    expect(result.cycles_opened).toBe(0);
   });
 });
