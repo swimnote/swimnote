@@ -369,13 +369,17 @@ export interface PublishResult {
 }
 
 /**
- * publishGrowthReports — 관리자 발송 단일 공유 서비스
+ * publishGrowthReports — 관리자 발송 단일 공유 서비스 (set-based, 고성능)
+ *
+ * DB query 수: 2 (SELECT + UPDATE) → HTTP 200 즉시 반환
+ * Audit + Push: HTTP 반환 후 fire-and-forget
  *
  * 정책:
  *   - reportIds를 pool_id 조건으로 SELECT … FOR UPDATE SKIP LOCKED
  *   - cross-pool ID 자동 제거 (다른 pool의 ID는 skipped)
  *   - sendable: REVIEW_REQUIRED, APPROVED, READY_TO_SEND (검수 여부 무관)
- *   - REVIEW_REQUIRED → APPROVED → PUBLISHED 2단계 자동 전환
+ *   - REVIEW_REQUIRED / APPROVED / READY_TO_SEND → PUBLISHED 단일 bulk UPDATE
+ *   - audit_logs: 이전 상태 기록 포함 batch INSERT (lifecycle 의미 보존)
  *   - 이미 PUBLISHED → already_published_count (오류 아님, 멱등)
  *   - push 실패 → PUBLISHED 유지, push_failed_count만 증가
  *   - deleted_at IS NOT NULL → skipped
@@ -401,109 +405,150 @@ export async function publishGrowthReports(
 
   if (reportIds.length === 0) return result;
 
-  // ── Step 1: pool-scoped SELECT FOR UPDATE SKIP LOCKED ────────────────────
-  // ANY(${array}::text[]) 패턴은 이 코드베이스에서 SQL ERROR 발생 → sql.join() 사용
+  // ── Step 1: pool-scoped SELECT FOR UPDATE SKIP LOCKED (1 query) ──────────
+  // ANY(${array}::text[]) → SQL ERROR (이 코드베이스 known bug) → sql.join() 사용
   const idParams = sql.join(reportIds.map(id => sql`${id}`), sql`, `);
-  const rows = (await db.execute(sql`
+  const lockRows = (await db.execute(sql`
     SELECT id, student_id, report_period, product_status, deleted_at
     FROM growth_reports
-    WHERE id               IN (${idParams})
-      AND swimming_pool_id  = ${poolId}
+    WHERE id              IN (${idParams})
+      AND swimming_pool_id = ${poolId}
     FOR UPDATE SKIP LOCKED
   `)).rows as any[];
 
-  // ── Step 2: 요청된 ID 중 lock을 못 얻었거나 cross-pool인 경우 → skipped ──
-  const foundIds = new Set(rows.map((r: any) => r.id));
-  result.skipped_count += reportIds.filter(id => !foundIds.has(id)).length;
+  // ── Step 2: 행 분류 ───────────────────────────────────────────────────────
+  const foundIds   = new Set(lockRows.map((r: any) => r.id));
+  const sendable: any[]  = [];   // REVIEW_REQUIRED / APPROVED / READY_TO_SEND
+  const alreadyPub: any[] = [];  // PUBLISHED (멱등)
+  const skippedRows: any[] = []; // deleted / non-sendable
 
-  // ── Step 3: 각 행 분류 및 발송 ──────────────────────────────────────────
-  const pushJobs: Promise<void>[] = [];
-
-  for (const row of rows) {
-    // deleted → skip
-    if (row.deleted_at) { result.skipped_count++; continue; }
-
-    // 이미 발송 완료 → idempotent skip (오류 아님)
-    if (row.product_status === "PUBLISHED") {
-      result.already_published_count++;
-      continue;
-    }
-
-    // 비발송 가능 상태 → skip
-    if (!SENDABLE_STATUSES.has(row.product_status)) {
-      result.skipped_count++;
-      continue;
-    }
-
-    try {
-      // REVIEW_REQUIRED → APPROVED (state machine 요구 2단계)
-      if (row.product_status === "REVIEW_REQUIRED") {
-        await transitionReportStatus({
-          db,
-          reportId:  row.id,
-          toStatus:  "APPROVED",
-          actorType: "pool_admin",
-          actorId,
-          reason:    "ADMIN_SEND_AUTO_APPROVE",
-        });
-      }
-
-      // APPROVED / READY_TO_SEND → PUBLISHED
-      await transitionReportStatus({
-        db,
-        reportId:  row.id,
-        toStatus:  "PUBLISHED",
-        actorType: "pool_admin",
-        actorId,
-        reason:    "ADMIN_SEND",
-      });
-
-      // published_at 기록 (transitionReportStatus가 이미 처리하지만 명시적으로도 보장)
-      await db.execute(sql`
-        UPDATE growth_reports
-        SET published_at = COALESCE(published_at, NOW()), updated_at = NOW()
-        WHERE id = ${row.id}
-      `);
-
-      result.published_count++;
-
-      // Push: fire-and-forget — push 실패가 발송 실패로 이어지지 않음
-      result.push_attempted_count++;
-      const pushJob = notifyGrowthReportPublished({
-        reportId:     row.id,
-        studentId:    row.student_id,
-        poolId,
-        reportPeriod: row.report_period,
-      }).catch((e: unknown) => {
-        result.push_failed_count++;
-        console.error(`[gr-production] push failed report=${row.id}:`, e);
-      });
-      pushJobs.push(pushJob);
-
-    } catch (err: any) {
-      // InvalidTransitionError (예: 다른 worker가 이미 처리) → skipped
-      if (err?.name === "InvalidTransitionError" || err?.name === "ReportTerminalError") {
-        result.skipped_count++;
-      } else {
-        // 예상치 못한 오류 → skipped + 로그 (전체 배치는 계속 진행)
-        result.skipped_count++;
-        console.error(`[gr-production] publish error report=${row.id}:`, err?.message ?? err);
-      }
+  for (const row of lockRows) {
+    if (row.deleted_at) {
+      skippedRows.push(row);
+    } else if (row.product_status === "PUBLISHED") {
+      alreadyPub.push(row);
+    } else if (SENDABLE_STATUSES.has(row.product_status)) {
+      sendable.push(row);
+    } else {
+      skippedRows.push(row);
     }
   }
 
+  result.already_published_count = alreadyPub.length;
+  result.skipped_count = skippedRows.length + reportIds.filter(id => !foundIds.has(id)).length;
+
+  if (sendable.length === 0) {
+    console.log(
+      `[gr-production] PUBLISH: pool=${poolId} req=${result.requested_count}` +
+      ` ok=0 already=${result.already_published_count} skip=${result.skipped_count}`,
+    );
+    return result;
+  }
+
+  // ── Step 3: Bulk PUBLISH (단일 UPDATE, 트랜잭션 불필요 — 멱등) ──────────
+  const sendableIdParams = sql.join(sendable.map(r => sql`${r.id}`), sql`, `);
+  await db.execute(sql`
+    UPDATE growth_reports
+    SET product_status = 'PUBLISHED',
+        published_at   = COALESCE(published_at, NOW()),
+        updated_at     = NOW()
+    WHERE id              IN (${sendableIdParams})
+      AND swimming_pool_id = ${poolId}
+      AND deleted_at IS NULL
+      AND product_status  IN ('REVIEW_REQUIRED', 'APPROVED', 'READY_TO_SEND')
+  `);
+
+  result.published_count = sendable.length;
+
   console.log(
-    `[gr-production] PUBLISH: pool=${poolId} ` +
-    `req=${result.requested_count} ok=${result.published_count} ` +
-    `already=${result.already_published_count} skip=${result.skipped_count} ` +
-    `push_fail=${result.push_failed_count}`,
+    `[gr-production] PUBLISH: pool=${poolId} req=${result.requested_count}` +
+    ` ok=${result.published_count} already=${result.already_published_count}` +
+    ` skip=${result.skipped_count}`,
   );
 
-  // Push jobs가 완료될 때까지 대기하지 않음 (fire-and-forget)
-  // 단, 응답 반환 전에 카운트가 업데이트되도록 microtask flush
-  void Promise.allSettled(pushJobs);
+  // ── Step 4: Audit batch INSERT — fire-and-forget (HTTP response에 영향 없음) ─
+  // lifecycle 의미 보존: REVIEW_REQUIRED는 →APPROVED, →PUBLISHED 2행 기록
+  batchInsertPublishAudit(db, sendable, poolId, actorId).catch((e: unknown) => {
+    console.warn("[gr-production] audit batch failed:", (e as any)?.message ?? e);
+  });
+
+  // ── Step 5: Push — fire-and-forget ────────────────────────────────────────
+  result.push_attempted_count = sendable.length;
+  void Promise.allSettled(sendable.map(row =>
+    notifyGrowthReportPublished({
+      reportId:     row.id,
+      studentId:    row.student_id,
+      poolId,
+      reportPeriod: row.report_period,
+    }).catch((e: unknown) => {
+      console.error(`[gr-production] push failed report=${row.id}:`, (e as any)?.message ?? e);
+    }),
+  ));
 
   return result;
+}
+
+/**
+ * batchInsertPublishAudit — PUBLISHED 전환 audit를 batch INSERT
+ *
+ * lifecycle 의미 보존:
+ *   - REVIEW_REQUIRED: REVIEW_REQUIRED→APPROVED + APPROVED→PUBLISHED 2행
+ *   - APPROVED / READY_TO_SEND: →PUBLISHED 1행
+ *
+ * audit는 fire-and-forget; 실패해도 PUBLISHED 유지.
+ */
+async function batchInsertPublishAudit(
+  db: Db,
+  rows: Array<{ id: string; product_status: string }>,
+  poolId: string,
+  actorId: string,
+): Promise<void> {
+  if (rows.length === 0) return;
+
+  // audit row pairs: { reportId, fromStatus, toStatus, reason }
+  type AuditRow = { reportId: string; from: string; to: string; reason: string };
+  const auditRows: AuditRow[] = [];
+  for (const row of rows) {
+    if (row.product_status === "REVIEW_REQUIRED") {
+      auditRows.push({ reportId: row.id, from: "REVIEW_REQUIRED", to: "APPROVED",  reason: "ADMIN_SEND_AUTO_APPROVE" });
+      auditRows.push({ reportId: row.id, from: "APPROVED",        to: "PUBLISHED", reason: "ADMIN_SEND" });
+    } else {
+      auditRows.push({ reportId: row.id, from: row.product_status, to: "PUBLISHED", reason: "ADMIN_SEND" });
+    }
+  }
+
+  // version: MAX(entity_version) 기준으로 각 report 내 row 순서 반영
+  // VALUES list로 단일 INSERT
+  const valueParts = auditRows.map((r, i) => sql`
+    (
+      'growth_report',
+      ${r.reportId},
+      COALESCE(
+        (SELECT MAX(entity_version) FROM audit_logs
+         WHERE entity_type = 'growth_report' AND entity_id = ${r.reportId}),
+        0
+      ) + ${i + 1},
+      'update',
+      'pool_admin',
+      ${actorId},
+      ${poolId},
+      ${JSON.stringify({ product_status: r.from })}::jsonb,
+      ${JSON.stringify({ product_status: r.to  })}::jsonb,
+      ${r.reason},
+      NULL, NULL, NULL
+    )
+  `);
+
+  await db.execute(sql`
+    INSERT INTO audit_logs (
+      entity_type, entity_id, entity_version,
+      action, actor_type, actor_id, pool_id,
+      before_data, after_data, reason,
+      request_id, correlation_id, ip_hash
+    )
+    VALUES ${sql.join(valueParts, sql`, `)}
+    ON CONFLICT DO NOTHING
+  `);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
