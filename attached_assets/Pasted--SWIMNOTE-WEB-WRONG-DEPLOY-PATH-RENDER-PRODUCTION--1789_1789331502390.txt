@@ -1,0 +1,207 @@
+[SWIMNOTE WEB — WRONG DEPLOY PATH 중단 / 기존 RENDER PRODUCTION 배포]
+
+방금 실행된 배포 로그를 확인했습니다.
+
+중요:
+이번 배포는 Replit Hosting / Autoscale Deployment 경로를 탔습니다.
+
+로그:
+- Repl layer
+- hosting layer
+- Creating Autoscale service
+
+가 확인됩니다.
+
+이것은 SWIMNOTE의 공식 Production 배포 경로가 아닙니다.
+
+즉시 원칙을 고정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. REPLIT DEPLOY 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 이번 홈페이지에 대해:
+
+- Replit Deploy
+- Replit Autoscale
+- Replit Reserved VM
+- Replit Hosting 신규 서비스
+
+를 사용하지 마십시오.
+
+현재 실패한 Replit Deployment를
+고치거나 재시도하지 마십시오.
+
+새 hosting 설정도 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 공식 Production 경로
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE APP/Web 공식 Production 기준:
+
+Repository:
+https://github.com/swimnote/swimnote
+
+Branch:
+main
+
+Render service:
+swimnote-api
+
+Production API:
+https://swimnote-api.onrender.com
+
+최종 배포 경로:
+
+APP WEB CODE
+→ GitHub origin/main
+→ existing Render swimnote-api
+
+입니다.
+
+GitLab 사용 금지.
+AI ENGINE 접근 금지.
+새 Render service 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 방금 Build 결과는 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+방금 로그상:
+
+Vite Production Build:
+PASS
+
+API Server Build:
+PASS
+
+따라서 다음 경고를 이번 배포 실패 원인으로 취급하지 마십시오.
+
+- tooltip sourcemap warning
+- Circular chunk warning
+- chunk-admin >500kB warning
+- ignored optional dependency build scripts
+
+현재 Build 자체는 성공했습니다.
+
+이 경고를 고치기 위한
+관련 없는 코드 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 현재 Git 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 다음만 확인해서 보고:
+
+- current branch
+- current HEAD
+- git status
+- origin URL
+- GitLab remote 존재 여부
+- 홈페이지 최종 변경사항이 commit되어 있는지
+- origin/main과 local main 차이
+
+공식 기준:
+
+branch = main
+origin = https://github.com/swimnote/swimnote
+GitLab remote = 없음
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 코드 COMMIT / PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직 홈페이지 최종 변경이 commit되지 않았다면
+이번 홈페이지 관련 변경만 commit하십시오.
+
+불필요한 attached_assets / 임시파일은
+무작정 commit하지 마십시오.
+
+Production Build가 다시 PASS한 뒤:
+
+git push origin main
+
+만 수행하십시오.
+
+Replit Deploy 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 RENDER AUTO DEPLOY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+GitHub main push 후
+기존 Render `swimnote-api`가 Auto Deploy 되는 구조인지 확인하십시오.
+
+Auto Deploy가 시작됐다면
+추가 수동 deploy를 중복 실행하지 마십시오.
+
+확인:
+
+- Render service = swimnote-api
+- source repo = GitHub swimnote/swimnote
+- branch = main
+- deploy commit = 방금 push한 commit
+
+다르면 배포 중단 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. LIVE 증명
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Render 배포가 완료되면:
+
+- Render deploy ID
+- status = LIVE / SUCCESS
+- deployed commit SHA
+- /health 결과
+
+를 실제 값으로 보고하십시오.
+
+"배포 예상" 금지.
+
+그 다음 실제 Production에서:
+
+/
+ /swimnote
+ /swimnote-x
+ /download
+ /login
+
+최소 smoke test.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Replit Deployment 재시도 금지.
+Autoscale 문제 수정 금지.
+pnpm upgrade 금지.
+pnpm approve-builds 실행 금지.
+chunk warning 수정 금지.
+DB/API/Auth schema 변경 금지.
+AI ENGINE 접근 금지.
+APP OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+짧게:
+
+1. branch
+2. local HEAD
+3. origin
+4. git status
+5. Production build PASS/FAIL
+6. GitHub main push commit
+7. Render deploy ID
+8. Render deployed commit
+9. Render status
+10. /health PASS/FAIL
+11. Production site PASS/FAIL
+12. Replit Deploy 사용 여부: NO
+
+만 보고하십시오.

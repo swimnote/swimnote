@@ -1,0 +1,397 @@
+[SWIMNOTE WEB — FINAL P0 CHECK + PRODUCTION DEPLOY]
+
+대표가 홈페이지 Preview 최종 확인을 완료했고
+Production 배포를 승인합니다.
+
+이번 작업은 마지막 작업입니다.
+
+순서:
+
+1. PC Dashboard Auth P0 최종 확인
+2. Production Build
+3. GitHub main commit/push
+4. 기존 Render swimnote-api 배포
+5. 실제 Production 검증
+
+새 기능 개발 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 고정 Production 인프라
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP Repository:
+https://github.com/swimnote/swimnote
+
+Canonical Production Branch:
+main
+
+Render Service:
+swimnote-api
+
+Production API:
+https://swimnote-api.onrender.com
+
+절대 금지:
+
+- Replit Deploy 신규 생성
+- GitLab 사용
+- AI ENGINE 접근
+- deploy-photo-clone 사용
+- Render service 변경
+- Production branch 변경
+- API host 변경
+- DB migration
+- Auth schema 변경
+- 모바일 APP OTA/EAS 배포
+- RevenueCat 변경
+
+고정:
+
+APP = GitHub main → existing Render swimnote-api
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 마지막 P0 — PC Dashboard Login
+━━━━━━━━━━━━━━━━━━━━━━
+
+대표가 최종 확정한 정책:
+
+공개 홈페이지의
+[PC 대시보드]
+→ /login
+
+은 오직 "각 수영장 관리자 전용"입니다.
+
+최종 UI:
+
+아이디
+비밀번호
+PIN 번호
+
+3개 입력.
+
+PIN은 SWIMNOTE 앱에서 설정하는
+기존 Web Dashboard PIN을 그대로 사용.
+
+성공:
+
+pool_admin
++ 올바른 ID/PW/PIN
+→ 해당 swimming_pool_id scope
+→ /admin
+
+절대 금지:
+
+super_admin
+→ /login
+→ /super
+
+공개 PC 대시보드에서
+super_admin 로그인은 반드시 차단되어야 합니다.
+
+Super Admin은 별도:
+
+/super-login
+
+→ 기존 super_admin 인증/TOTP
+→ /super
+
+경로만 사용합니다.
+
+홈페이지 Header/Footer/⋯ 메뉴에는
+/super-login 링크를 노출하지 않습니다.
+
+중요:
+새 Auth API를 만들지 말고
+기존 인증/PIN/JWT 로직을 재사용하십시오.
+
+이미 이 구조가 구현되어 있다면
+코드 수정 없이 검증만 하십시오.
+
+미구현이면 이 P0만 최소 수정한 후 진행하십시오.
+
+P0 검증 실패 시 Production 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. MEGA MENU 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+대표 Preview에서 실제 동작 확인 완료:
+
+- 메뉴 item 선택 후 닫힘
+- route 이동 후 이전 메뉴 잔존 없음
+- body 이동/interaction 시 dismiss 정상
+
+현재 동작을 다시 변경하지 마십시오.
+
+Transient UI Constitution 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PRE-DEPLOY GIT 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- current branch = main
+- origin = https://github.com/swimnote/swimnote
+- GitLab remote 없음
+- 현재 HEAD 기록
+- git status 확인
+
+이번 홈페이지 작업에 필요한 변경사항만 포함하십시오.
+
+attached_assets 등 불필요한 임시파일
+무작정 commit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. FINAL PRODUCTION BUILD
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 Production Build를 실행하십시오.
+
+이번에는 부분 TypeScript 검사나 HMR을
+Build PASS로 보고하지 마십시오.
+
+실제 Production build 전체가:
+
+- exit code 0
+- TypeScript error 0
+- missing asset 0
+- broken import 0
+
+이어야 합니다.
+
+FAIL이면 배포 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 공개 내용 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 대상에 다음이 포함되는지 확인:
+
+HOME
+/swimnote
+/swimnote-x
+/swimnote-office
+/ai
+/technology
+/patents
+/company
+/support
+/download
+/contact
+/terms
+/privacy
+/login
+/super-login
+
+HOME:
+- 최종 SWIMNOTE 공식 PNG
+- 최종 SWIMNOTE X 공식 PNG
+- 앱 screenshot 없음
+- "어린이수영장 운영의 기본."
+- "수영 교육을 시스템으로."
+
+/download:
+- App Store QR
+- Google Play QR
+- 실제 Store URL
+
+/contact:
+- /download와 동일 설치안내 호환
+
+/design-system:
+Production에서 접근 불가 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. COMMIT / PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+Build PASS + P0 PASS 후:
+
+현재 홈페이지 최종 변경을
+GitHub main에 commit/push하십시오.
+
+Commit message는 명확하게 예:
+
+finalize SWIMNOTE website redesign
+
+실제 생성된 commit SHA를 기록하십시오.
+
+Push:
+origin main
+
+GitLab push 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. RENDER DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+GitHub main push가
+기존 Render swimnote-api Auto Deploy를 발생시키는 구조라면:
+
+추가 수동 deploy를 실행하지 마십시오.
+
+중복 deploy 금지.
+
+반드시 기존:
+
+swimnote-api
+
+서비스의 배포만 사용하십시오.
+
+새 Render service 생성 금지.
+새 deploy hook 생성 금지.
+Replit Deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 Production LIVE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+"배포 예상" 보고 금지.
+
+실제 Render에서:
+
+- Deploy status SUCCESS/LIVE
+- 배포 commit SHA
+- /health 정상
+
+확인하십시오.
+
+그리고 실제 Production website에서 직접 확인:
+
+/
+ /swimnote
+ /swimnote-x
+ /swimnote-office
+ /ai
+ /technology
+ /patents
+ /company
+ /support
+ /download
+ /contact
+ /terms
+ /privacy
+ /login
+
+확인:
+
+- blank page 없음
+- Header/Footer 정상
+- 공식 HOME 로고 정상
+- ⋯ Mega Menu 정상
+- 페이지 선택 후 메뉴 닫힘
+- 실제 제품 이미지 정상
+- QR 정상
+- Store link 정상
+- /:slug 기존 PoolHomepage 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. PC DASHBOARD LIVE SMOKE TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 최소 확인:
+
+Desktop:
+/login
+→ ID + PW + PIN 3-field UI
+
+Mobile:
+/login
+→ PC Desktop-only 안내
+
+/admin/*
+→ Mobile 차단
+
+그리고 코드/가능한 테스트 범위에서:
+
+super_admin
+→ /login
+→ /super 진입 불가
+
+super_admin
+→ /super-login
+→ 기존 TOTP flow 유지
+
+를 확인.
+
+실제 운영 계정 credential을
+임의로 생성하거나 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 실패 시
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면 즉시 중단:
+
+- Production build fail
+- wrong repository
+- wrong branch
+- wrong Render service
+- API health fail
+- homepage blank
+- Auth regression
+- super_admin이 공개 /login에서 진입 가능
+- assets 404
+
+다른 서비스나 AI ENGINE을 건드려 해결하려 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 짧게 보고:
+
+1. PC Dashboard P0:
+   PASS / FAIL
+
+2. /login:
+   pool_admin 전용 확인 여부
+
+3. /super-login:
+   기존 super_admin/TOTP 유지 여부
+
+4. Final Production Build:
+   PASS / FAIL
+
+5. Git:
+   branch
+   commit SHA
+   origin
+
+6. GitHub main push:
+   PASS / FAIL
+
+7. Render:
+   deploy ID
+   deploy commit
+   status
+
+8. /health:
+   PASS / FAIL
+
+9. Production 실제 주요 화면:
+   PASS / FAIL
+
+10. Mega Menu Production:
+    PASS / FAIL
+
+11. Store QR/links:
+    PASS / FAIL
+
+12. APP OTA:
+    NO
+
+13. DB/API/Auth schema 변경:
+    NO
+
+14. 최종:
+    PRODUCTION LIVE
+    또는
+    FAILED + 정확한 이유
+
+배포 완료 후 중단하십시오.
+
+PC Dashboard X모드 재구성은
+이번 홈페이지 배포와 분리된 다음 프로젝트입니다.
+자동으로 시작하지 마십시오.

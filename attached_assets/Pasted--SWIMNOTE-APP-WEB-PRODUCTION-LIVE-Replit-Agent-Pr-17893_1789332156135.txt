@@ -1,0 +1,361 @@
+[SWIMNOTE APP/WEB — PRODUCTION 배포를 실제 LIVE까지 성공시켜라]
+
+이번 작업의 목표는 설명이나 점검이 아니라
+"Replit Agent가 실제 Production 배포를 끝까지 성공시키는 것"입니다.
+
+주의:
+Replit Hosting에 배포하라는 뜻이 아닙니다.
+
+Replit Agent가 작업을 수행하되,
+SWIMNOTE 공식 Production 경로를 사용하십시오.
+
+공식 경로:
+
+GitHub
+https://github.com/swimnote/swimnote
+
+branch:
+main
+
+→ 기존 Render service:
+swimnote-api
+
+Production API:
+https://swimnote-api.onrender.com
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 작업 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드의 최종 버전을:
+
+local
+→ GitHub main
+→ Render swimnote-api
+→ LIVE
+
+까지 직접 완료하십시오.
+
+중간에서:
+
+"Build PASS"
+"Push 완료"
+"Auto Deploy 예상"
+"대표가 확인 필요"
+
+로 종료하지 마십시오.
+
+실제 Render LIVE 확인까지가 완료 조건입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. REPLIT HOSTING 사용 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 사용 금지:
+
+- Replit Deploy
+- Replit Autoscale
+- Replit Hosting
+- 새 Replit deployment 생성
+- Reserved VM 생성
+
+이전에 Replit Autoscale 경로를 사용해서
+잘못된 배포가 발생했습니다.
+
+이번에는 반복하지 마십시오.
+
+Replit은 "작업 Agent"일 뿐이고
+Production Hosting은 기존 Render입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 먼저 Git 기준 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+current branch = main
+
+origin =
+https://github.com/swimnote/swimnote.git
+
+GitLab remote 없음
+
+AI ENGINE repo 접근 금지.
+
+현재:
+- local HEAD
+- origin/main HEAD
+- git status
+
+를 확인하십시오.
+
+홈페이지/App 작업의 필요한 변경사항이
+아직 commit 안 되어 있다면
+관련 변경만 commit하십시오.
+
+attached_assets의 불필요한 임시파일은 commit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production Build
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 전체 Production Build 실행.
+
+필수:
+
+exit code = 0
+
+다음은 warning일 뿐 build failure가 아니면
+이번 배포를 막기 위해 임의 수정하지 마십시오.
+
+예:
+- sourcemap warning
+- circular chunk warning
+- >500kb chunk warning
+- optional build script warning
+
+코드를 괜히 리팩터링하지 마십시오.
+
+Build 실패가 실제 발생한 경우에만
+원인을 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. GitHub main PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+Build PASS 후:
+
+git push origin main
+
+실행.
+
+실제 push된 commit SHA를 기록하십시오.
+
+중요:
+
+local HEAD
+origin/main
+배포할 commit
+
+이 모두 동일해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. RENDER 배포를 실제로 시작시켜라
+━━━━━━━━━━━━━━━━━━━━━━
+
+GitHub main push 후:
+
+기존 Render service
+swimnote-api
+
+의 deploy 상태를 확인하십시오.
+
+Auto Deploy가 자동 시작됐다면
+그 deploy를 그대로 추적하십시오.
+
+Auto Deploy가 시작되지 않았다면:
+
+기존 Render 설정/API/deploy hook/CLI 중
+현재 프로젝트에 이미 연결되어 있는 정상적인 방법을 사용해서
+
+"기존 swimnote-api"
+
+서비스에 동일 commit을 배포하십시오.
+
+중요:
+
+새 Render service 생성 금지.
+새 Production 환경 생성 금지.
+Render source repo/branch 변경 금지.
+
+service:
+swimnote-api
+
+repo:
+swimnote/swimnote
+
+branch:
+main
+
+을 그대로 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. RENDER 인증 정보
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포에 필요한 Render credential이나 deploy hook이
+현재 Replit Secrets / project env / existing deployment config에
+이미 존재하는 경우 그것을 사용하십시오.
+
+단:
+
+- secret 값 출력 금지
+- secret 로그 출력 금지
+- 새 API key 임의 생성 금지
+- credential 코드에 hard-code 금지
+
+기존 안전한 연결만 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포 상태를 끝까지 기다려라
+━━━━━━━━━━━━━━━━━━━━━━
+
+Deploy를 시작만 하고 종료하지 마십시오.
+
+Render deploy status를 실제로 추적하여:
+
+BUILDING
+→ DEPLOYING
+→ LIVE
+
+까지 확인하십시오.
+
+실패할 경우:
+
+실패 로그를 읽고
+실제 원인을 수정하고
+다시 Production Build
+→ push
+→ deploy
+
+순서로 재시도하십시오.
+
+단,
+APP와 관계없는 AI ENGINE이나 DB를 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 성공 판정 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 조건이 전부 충족되어야
+"배포 성공"입니다.
+
+1.
+Render service = swimnote-api
+
+2.
+status = live
+
+3.
+deployed commit =
+origin/main 최신 commit
+
+4.
+/health = HTTP 200
+
+5.
+/health가 commit SHA를 제공한다면
+배포한 commit과 일치
+
+6.
+Production website HTTP 200
+
+최소 확인:
+
+/
+ /swimnote
+ /swimnote-x
+ /download
+ /login
+
+7.
+blank page 없음
+
+8.
+static asset 404 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 최근 수정 기능 Smoke Test
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 최소 확인:
+
+HOME 로드 정상
+
+SWIMNOTE / SWIMNOTE X 로고 정상
+
+⋯ 메뉴:
+OPEN
+→ 다른 페이지 선택
+→ 메뉴 즉시 CLOSE
+
+새 페이지에서 이전 menu DOM 잔존 없음
+
+/download 정상
+
+/login 정상 로드
+
+이번 smoke test 때문에
+새 기능을 개발하거나 UI를 바꾸지는 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 배포 실패 시 행동
+━━━━━━━━━━━━━━━━━━━━━━
+
+실패했다고 바로 대표에게 넘기지 마십시오.
+
+로그상 해결 가능한:
+
+- build 문제
+- missing import
+- missing asset
+- Render deploy trigger 문제
+- branch mismatch
+- stale commit
+- runtime boot 문제
+
+라면 원인을 확인하고
+이 작업 안에서 수정 후 다시 배포하십시오.
+
+단 아래가 필요한 경우에만 중단:
+
+- 대표의 새로운 credential 필요
+- Render 계정 권한 자체 없음
+- 외부 서비스 장애
+- Production 데이터 파괴 위험이 있는 변경 필요
+
+그 경우에만
+정확히 어떤 권한/정보 하나가 필요한지 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+GitLab 사용 금지
+AI ENGINE 접근 금지
+DB migration 금지
+Auth schema 임의 변경 금지
+Production branch 변경 금지
+Render service 변경 금지
+API host 변경 금지
+Replit Hosting 배포 금지
+APP OTA/EAS 배포 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 최종 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 성공 후에만 다음 형식으로 보고:
+
+1. branch:
+2. final commit SHA:
+3. origin/main SHA:
+4. Production Build: PASS
+5. GitHub push: PASS
+6. Render service: swimnote-api
+7. Render deploy ID:
+8. Render deployed commit:
+9. Render status: LIVE
+10. /health: PASS
+11. Production pages: PASS
+12. Mega Menu Production: PASS
+13. Replit Hosting 사용: NO
+14. DB migration: NO
+15. AI ENGINE 변경: NO
+
+마지막 줄:
+
+PRODUCTION DEPLOY SUCCESS
+
+실제 LIVE 전에는
+이 문구를 사용하지 마십시오.
