@@ -1,112 +1,549 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+/* ───────────────────────────────────────────────────────────
+   SWIMNOTE WEBSITE — Design System v1.0
+   Single Source of Truth: CSS Custom Properties
+   Font: Pretendard (CDN) — no package, no repo file
+   ─────────────────────────────────────────────────────────── */
+
+/* Pretendard — covers Korean + Latin, replaces Plus Jakarta Sans + Noto Sans KR */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css');
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
+/* ───────────────────────────────────────────────────────────
+   TAILWIND v4 THEME — maps Tailwind utility classes to tokens
+   ─────────────────────────────────────────────────────────── */
 @theme inline {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-card-border: hsl(var(--card-border));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-popover-border: hsl(var(--popover-border));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-primary-border: var(--primary-border);
-  --color-secondary: hsl(var(--secondary));
+  /* --- Semantic tokens (admin/app UI) --- */
+  --color-background:        hsl(var(--background));
+  --color-foreground:        hsl(var(--foreground));
+  --color-border:            hsl(var(--border));
+  --color-input:             hsl(var(--input));
+  --color-ring:              hsl(var(--ring));
+  --color-card:              hsl(var(--card));
+  --color-card-foreground:   hsl(var(--card-foreground));
+  --color-card-border:       hsl(var(--card-border));
+  --color-popover:           hsl(var(--popover));
+  --color-popover-foreground:hsl(var(--popover-foreground));
+  --color-popover-border:    hsl(var(--popover-border));
+  --color-primary:           hsl(var(--primary));
+  --color-primary-foreground:hsl(var(--primary-foreground));
+  --color-primary-border:    var(--primary-border);
+  --color-secondary:         hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-secondary-border: var(--secondary-border);
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-muted-border: var(--muted-border);
-  --color-accent: hsl(var(--accent));
+  --color-secondary-border:  var(--secondary-border);
+  --color-muted:             hsl(var(--muted));
+  --color-muted-foreground:  hsl(var(--muted-foreground));
+  --color-muted-border:      var(--muted-border);
+  --color-accent:            hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-accent-border: var(--accent-border);
-  --color-destructive: hsl(var(--destructive));
+  --color-accent-border:     var(--accent-border);
+  --color-destructive:       hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-destructive-border: var(--destructive-border);
-  --font-sans: var(--app-font-sans);
-  --font-serif: var(--app-font-serif);
-  --font-mono: var(--app-font-mono);
+  --color-destructive-border:var(--destructive-border);
+
+  /* --- Font --- */
+  --font-sans:  var(--ds-font-sans);
+  --font-serif: var(--ds-font-serif);
+  --font-mono:  var(--ds-font-mono);
+
+  /* --- Radius --- */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ───────────────────────────────────────────────────────────
+   DESIGN SYSTEM TOKENS — :root
+   All arbitrary pixel values on pages MUST reference these.
+   ─────────────────────────────────────────────────────────── */
 :root {
-  --button-outline: rgba(0,0,0,.10);
-  --badge-outline: rgba(0,0,0,.05);
-  --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(0,0,0,.03);
-  --elevate-2: rgba(0,0,0,.08);
+  /* ── FONT ─────────────────────────────────────────────── */
+  --ds-font-sans:  'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+  --ds-font-serif: Georgia, serif;
+  --ds-font-mono:  Menlo, 'Courier New', monospace;
 
-  /* SWIMNOTE Brand: Primary #002F5F */
-  --primary: 210 100% 19%;
+  /* ── TYPOGRAPHY SCALE ──────────────────────────────────── */
+  /* Home product title */
+  --ds-text-display-xl:      clamp(40px, 6vw, 56px);
+  /* Product detail hero */
+  --ds-text-display-lg:      clamp(36px, 5vw, 48px);
+  /* Section heading */
+  --ds-text-display-md:      clamp(28px, 4vw, 36px);
+  /* Subheading */
+  --ds-text-display-sm:      clamp(20px, 2.5vw, 24px);
+  /* Large body */
+  --ds-text-body-lg:         18px;
+  /* Standard body */
+  --ds-text-body-md:         16px;
+  /* Small body */
+  --ds-text-body-sm:         15px;
+  /* Caption / label */
+  --ds-text-caption:         13px;
+  /* Micro label (uppercase) */
+  --ds-text-label:           11px;
+
+  /* Font weights */
+  --ds-fw-regular:  400;
+  --ds-fw-medium:   500;
+  --ds-fw-semibold: 600;
+  --ds-fw-bold:     700;
+
+  /* Line heights */
+  --ds-lh-tight:   1.08;
+  --ds-lh-snug:    1.25;
+  --ds-lh-normal:  1.5;
+  --ds-lh-relaxed: 1.65;
+  --ds-lh-loose:   1.75;
+
+  /* Letter spacing */
+  --ds-ls-tight:  -0.025em;
+  --ds-ls-normal: -0.01em;
+  --ds-ls-wide:   0.06em;
+  --ds-ls-wider:  0.12em;
+  --ds-ls-widest: 0.16em;
+
+  /* ── NEUTRAL PALETTE ───────────────────────────────────── */
+  --ds-n-000: #ffffff;
+  --ds-n-050: #f5f5f7;   /* light section bg */
+  --ds-n-100: #e8e8ed;
+  --ds-n-200: #d1d1d6;
+  --ds-n-300: #aeaeb2;
+  --ds-n-400: #8e8e93;
+  --ds-n-500: #6e6e73;   /* secondary text */
+  --ds-n-600: #48484a;
+  --ds-n-700: #3a3a3c;
+  --ds-n-800: #2c2c2e;
+  --ds-n-900: #1d1d1f;   /* primary text */
+  --ds-n-950: #000000;
+
+  /* ── SWIMNOTE BRAND ACCENT ─────────────────────────────── */
+  /* Used ONLY within /swimnote product pages and SWIMNOTE-specific UI blocks */
+  --ds-sn-navy:   #002F5F;
+  --ds-sn-blue:   #01B2F1;
+  --ds-sn-teal:   #67F2F2;
+
+  /* ── SWIMNOTE X ACCENT ─────────────────────────────────── */
+  /* Used ONLY within /swimnote-x product pages and X-specific UI blocks */
+  --ds-x-bg:      #0A1628;
+  --ds-x-blue:    #01B2F1;  /* same blue, different context */
+
+  /* ── TEXT SEMANTIC ─────────────────────────────────────── */
+  --ds-text-primary:     var(--ds-n-900);
+  --ds-text-secondary:   var(--ds-n-500);
+  --ds-text-tertiary:    var(--ds-n-300);
+  --ds-text-on-dark:     rgba(245, 245, 247, 0.88);
+  --ds-text-muted-dark:  rgba(245, 245, 247, 0.52);
+
+  /* ── BACKGROUND SEMANTIC ───────────────────────────────── */
+  --ds-bg-white:  var(--ds-n-000);
+  --ds-bg-light:  var(--ds-n-050);
+  --ds-bg-black:  var(--ds-n-950);
+  --ds-bg-dark:   var(--ds-n-900);
+  --ds-bg-x-dark: var(--ds-x-bg);
+
+  /* ── BORDER ────────────────────────────────────────────── */
+  --ds-border-light:     rgba(0, 0, 0, 0.07);
+  --ds-border-med:       var(--ds-n-100);
+  --ds-border-strong:    var(--ds-n-200);
+  --ds-border-dark:      rgba(255, 255, 255, 0.10);
+  --ds-border-dark-med:  rgba(255, 255, 255, 0.16);
+
+  /* ── SHADOW ────────────────────────────────────────────── */
+  --ds-shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ds-shadow-md:   0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  --ds-shadow-lg:   0 12px 40px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --ds-shadow-xl:   0 24px 64px rgba(10, 22, 40, 0.12);
+  --ds-shadow-hero: 0 40px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+
+  /* ── RADIUS SCALE ──────────────────────────────────────── */
+  --ds-radius-xs:   4px;
+  --ds-radius-sm:   8px;
+  --ds-radius-md:   10px;
+  --ds-radius-lg:   16px;
+  --ds-radius-xl:   20px;
+  --ds-radius-2xl:  24px;
+  --ds-radius-pill: 999px;
+
+  /* ── SPACING SCALE ─────────────────────────────────────── */
+  /* 4px base — 16 steps */
+  --ds-space-1:    4px;
+  --ds-space-2:    8px;
+  --ds-space-3:    12px;
+  --ds-space-4:    16px;
+  --ds-space-5:    20px;
+  --ds-space-6:    24px;
+  --ds-space-8:    32px;
+  --ds-space-10:   40px;
+  --ds-space-12:   48px;
+  --ds-space-16:   64px;
+  --ds-space-20:   80px;
+  --ds-space-24:   96px;
+
+  /* ── SECTION PADDING ───────────────────────────────────── */
+  /* Mobile-first; desktop breakpoint overrides applied below */
+  --ds-section-py:       var(--ds-space-16);  /* 64px mobile default */
+  --ds-section-px:       var(--ds-space-6);   /* 24px */
+  --ds-content-max:      980px;
+  --ds-content-max-wide: 1200px;
+  --ds-content-max-text: 680px;
+
+  /* ── BUTTON HEIGHT ─────────────────────────────────────── */
+  --ds-btn-h-sm:  32px;
+  --ds-btn-h-md:  40px;
+  --ds-btn-h-lg:  46px;
+
+  /* ── TRANSITION ────────────────────────────────────────── */
+  --ds-transition-fast:   opacity 0.15s ease, transform 0.15s ease;
+  --ds-transition-base:   opacity 0.20s ease, transform 0.20s ease;
+  --ds-transition-color:  color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+
+  /* ── BREAKPOINTS (reference only — use in JS or media queries) ── */
+  /* --ds-bp-sm: 640px  */
+  /* --ds-bp-md: 768px  */
+  /* --ds-bp-lg: 980px  */
+  /* --ds-bp-xl: 1280px */
+
+  /* ── ADMIN/APP SEMANTIC TOKENS (existing — do not remove) ── */
+  --button-outline:                  rgba(0, 0, 0, 0.10);
+  --badge-outline:                   rgba(0, 0, 0, 0.05);
+  --opaque-button-border-intensity:  -8;
+  --elevate-1:                       rgba(0, 0, 0, 0.03);
+  --elevate-2:                       rgba(0, 0, 0, 0.08);
+
+  /* SWIMNOTE brand primary (used by admin UI components) */
+  --primary:            210 100% 19%;
   --primary-foreground: 0 0% 100%;
-  --primary-border: hsl(210 100% 14%);
+  --primary-border:     hsl(210 100% 14%);
 
   --background: 0 0% 100%;
-  --foreground: 0 0% 5%;
-  --border: 0 0% 91%;
-  --input: 0 0% 91%;
-  --ring: 210 100% 19%;
+  --foreground:  0 0% 5%;
+  --border:      0 0% 91%;
+  --input:       0 0% 91%;
+  --ring:        210 100% 19%;
 
-  --card: 0 0% 100%;
+  --card:            0 0% 100%;
   --card-foreground: 0 0% 5%;
-  --card-border: 0 0% 91%;
+  --card-border:     0 0% 91%;
 
-  --popover: 0 0% 100%;
+  --popover:            0 0% 100%;
   --popover-foreground: 0 0% 5%;
-  --popover-border: 0 0% 91%;
+  --popover-border:     0 0% 91%;
 
-  --secondary: 0 0% 97%;
+  --secondary:            0 0% 97%;
   --secondary-foreground: 0 0% 5%;
-  --secondary-border: hsl(0 0% 92%);
+  --secondary-border:     hsl(0 0% 92%);
 
-  --muted: 0 0% 96%;
+  --muted:            0 0% 96%;
   --muted-foreground: 0 0% 45%;
-  --muted-border: hsl(0 0% 91%);
+  --muted-border:     hsl(0 0% 91%);
 
-  /* Accent: #67F2F2 → teal-ish */
-  --accent: 180 84% 84%;
+  --accent:            180 84% 84%;
   --accent-foreground: 210 100% 19%;
-  --accent-border: hsl(180 84% 78%);
+  --accent-border:     hsl(180 84% 78%);
 
-  --destructive: 0 84% 60%;
+  --destructive:            0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --destructive-border: hsl(0 84% 54%);
+  --destructive-border:     hsl(0 84% 54%);
 
-  --app-font-sans: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
-  --app-font-serif: Georgia, serif;
-  --app-font-mono: Menlo, monospace;
+  /* Keep app-font-sans pointing to new font for admin pages */
+  --app-font-sans:  var(--ds-font-sans);
+  --app-font-serif: var(--ds-font-serif);
+  --app-font-mono:  var(--ds-font-mono);
+
   --radius: 0.75rem;
 
-  /* sidebar (admin layout) */
-  --sidebar: 210 60% 14%;
-  --sidebar-foreground: 0 0% 95%;
-  --sidebar-border: 210 50% 20%;
-  --sidebar-primary: 196 100% 47%;
+  /* Sidebar admin colors (unchanged) */
+  --sidebar:                  210 60% 14%;
+  --sidebar-foreground:       0 0% 95%;
+  --sidebar-border:           210 50% 20%;
+  --sidebar-primary:          196 100% 47%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-primary-border: hsl(196 100% 40%);
-  --sidebar-accent: 210 50% 22%;
+  --sidebar-primary-border:   hsl(196 100% 40%);
+  --sidebar-accent:           210 50% 22%;
   --sidebar-accent-foreground: 0 0% 95%;
-  --sidebar-accent-border: hsl(210 50% 27%);
-  --sidebar-ring: 196 100% 47%;
+  --sidebar-accent-border:    hsl(210 50% 27%);
+  --sidebar-ring:             196 100% 47%;
 }
 
+/* ── RESPONSIVE: Desktop section padding upgrade ─────────── */
+@media (min-width: 980px) {
+  :root {
+    --ds-section-py: var(--ds-space-24);  /* 96px desktop */
+  }
+}
+
+/* ───────────────────────────────────────────────────────────
+   BASE LAYER
+   ─────────────────────────────────────────────────────────── */
 @layer base {
   * { @apply border-border; }
-  html { scroll-behavior: smooth; }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    font-family: var(--ds-font-sans);
+    font-size: var(--ds-text-body-md);
+    line-height: var(--ds-lh-normal);
+    color: var(--ds-text-primary);
+    background: var(--ds-bg-white);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────
+   SITE COMPONENT LAYER — reusable site (not admin) classes
+   ─────────────────────────────────────────────────────────── */
+@layer components {
+  /* ── SECTION ────────────────────────────────────────────── */
+  .site-section {
+    padding: var(--ds-section-py) var(--ds-section-px);
+  }
+  .site-container {
+    max-width: var(--ds-content-max);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .site-container-wide {
+    max-width: var(--ds-content-max-wide);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .site-container-text {
+    max-width: var(--ds-content-max-text);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* ── TYPOGRAPHY ─────────────────────────────────────────── */
+  .ds-display-xl {
+    font-size: var(--ds-text-display-xl);
+    font-weight: var(--ds-fw-bold);
+    line-height: var(--ds-lh-tight);
+    letter-spacing: var(--ds-ls-tight);
+  }
+  .ds-display-lg {
+    font-size: var(--ds-text-display-lg);
+    font-weight: var(--ds-fw-bold);
+    line-height: var(--ds-lh-tight);
+    letter-spacing: var(--ds-ls-tight);
+  }
+  .ds-display-md {
+    font-size: var(--ds-text-display-md);
+    font-weight: var(--ds-fw-bold);
+    line-height: var(--ds-lh-snug);
+    letter-spacing: var(--ds-ls-normal);
+  }
+  .ds-display-sm {
+    font-size: var(--ds-text-display-sm);
+    font-weight: var(--ds-fw-semibold);
+    line-height: var(--ds-lh-snug);
+    letter-spacing: var(--ds-ls-normal);
+  }
+  .ds-section-label {
+    font-size: var(--ds-text-label);
+    font-weight: var(--ds-fw-semibold);
+    letter-spacing: var(--ds-ls-widest);
+    text-transform: uppercase;
+    color: var(--ds-text-secondary);
+  }
+  .ds-body-lg {
+    font-size: var(--ds-text-body-lg);
+    line-height: var(--ds-lh-relaxed);
+    font-weight: var(--ds-fw-regular);
+  }
+  .ds-body-md {
+    font-size: var(--ds-text-body-md);
+    line-height: var(--ds-lh-relaxed);
+    font-weight: var(--ds-fw-regular);
+  }
+  .ds-body-sm {
+    font-size: var(--ds-text-body-sm);
+    line-height: var(--ds-lh-relaxed);
+    font-weight: var(--ds-fw-regular);
+  }
+  .ds-caption {
+    font-size: var(--ds-text-caption);
+    line-height: var(--ds-lh-normal);
+    color: var(--ds-text-secondary);
+  }
+
+  /* ── BUTTON BASE ────────────────────────────────────────── */
+  .ds-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--ds-btn-h-md);
+    padding: 0 20px;
+    border-radius: var(--ds-radius-pill);
+    font-family: var(--ds-font-sans);
+    font-size: var(--ds-text-body-sm);
+    font-weight: var(--ds-fw-medium);
+    line-height: 1;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: var(--ds-transition-color);
+    white-space: nowrap;
+    outline: none;
+  }
+  .ds-btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(0, 47, 95, 0.25);
+  }
+  .ds-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* Primary: dark neutral (#1D1D1F) */
+  .ds-btn-primary {
+    background: var(--ds-n-900);
+    color: var(--ds-n-000);
+  }
+  .ds-btn-primary:hover { opacity: 0.82; }
+
+  /* Secondary light: white with neutral border */
+  .ds-btn-secondary {
+    background: var(--ds-n-000);
+    color: var(--ds-n-900);
+    border: 1px solid var(--ds-border-strong);
+  }
+  .ds-btn-secondary:hover { background: var(--ds-n-050); }
+
+  /* Secondary dark: for use on dark backgrounds */
+  .ds-btn-secondary-dark {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--ds-text-on-dark);
+    border: 1px solid var(--ds-border-dark);
+  }
+  .ds-btn-secondary-dark:hover { background: rgba(255, 255, 255, 0.14); }
+
+  /* Dashboard CTA pill (compact) */
+  .ds-btn-dashboard {
+    height: var(--ds-btn-h-sm);
+    padding: 0 14px;
+    background: var(--ds-n-900);
+    color: var(--ds-n-000);
+    font-size: 13px;
+  }
+  .ds-btn-dashboard:hover { opacity: 0.80; }
+
+  /* Text link (neutral) */
+  .ds-text-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--ds-text-body-sm);
+    font-weight: var(--ds-fw-medium);
+    color: var(--ds-text-primary);
+    cursor: pointer;
+    text-decoration: none;
+    transition: var(--ds-transition-color);
+  }
+  .ds-text-link:hover { opacity: 0.60; }
+
+  /* Text link accent (ONLY inside product detail pages) */
+  .ds-text-link-accent {
+    color: var(--ds-sn-blue);
+  }
+  .ds-text-link-accent:hover { opacity: 0.70; }
+
+  /* Sizes */
+  .ds-btn-sm { height: var(--ds-btn-h-sm); padding: 0 14px; font-size: 13px; }
+  .ds-btn-lg { height: var(--ds-btn-h-lg); padding: 0 28px; font-size: var(--ds-text-body-md); }
+
+  /* ── FORM ───────────────────────────────────────────────── */
+  .ds-input {
+    display: block;
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: var(--ds-radius-md);
+    border: 1px solid var(--ds-border-strong);
+    background: var(--ds-bg-white);
+    font-family: var(--ds-font-sans);
+    font-size: var(--ds-text-body-sm);
+    color: var(--ds-text-primary);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .ds-input::placeholder { color: var(--ds-n-300); }
+  .ds-input:focus {
+    border-color: var(--ds-sn-navy);
+    box-shadow: 0 0 0 3px rgba(0, 47, 95, 0.12);
+  }
+  .ds-input:disabled {
+    opacity: 0.50;
+    background: var(--ds-n-050);
+    cursor: not-allowed;
+  }
+  .ds-input-error {
+    border-color: #ff3b30;
+  }
+  .ds-input-error:focus {
+    border-color: #ff3b30;
+    box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.12);
+  }
+  .ds-error-text {
+    margin-top: 6px;
+    font-size: var(--ds-text-caption);
+    color: #ff3b30;
+  }
+  .ds-label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: var(--ds-text-caption);
+    font-weight: var(--ds-fw-medium);
+    color: var(--ds-text-primary);
+  }
+  /* PIN input row */
+  .ds-pin-input {
+    letter-spacing: 0.20em;
+    font-size: var(--ds-text-display-sm);
+    font-weight: var(--ds-fw-semibold);
+    text-align: center;
+  }
+
+  /* ── SURFACE / CARD ─────────────────────────────────────── */
+  /* Standard surface (light bg) */
+  .ds-surface {
+    background: var(--ds-n-000);
+    border: 1px solid var(--ds-border-med);
+    border-radius: var(--ds-radius-xl);
+  }
+  /* Subtle tinted surface */
+  .ds-surface-subtle {
+    background: var(--ds-n-050);
+    border: 1px solid var(--ds-border-light);
+    border-radius: var(--ds-radius-xl);
+  }
+  /* Product visual container (image wrapper) */
+  .ds-visual-container {
+    border-radius: var(--ds-radius-2xl);
+    overflow: hidden;
+    box-shadow: var(--ds-shadow-xl);
+  }
+  /* Dark surface (for X sections) */
+  .ds-surface-dark {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(1, 178, 241, 0.12);
+    border-radius: var(--ds-radius-xl);
+  }
+  /* FAQ surface */
+  .ds-surface-faq {
+    background: var(--ds-n-000);
+    border: 1px solid var(--ds-border-med);
+    border-radius: var(--ds-radius-lg);
+    overflow: hidden;
   }
 }

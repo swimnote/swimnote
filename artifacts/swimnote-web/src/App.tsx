@@ -11,6 +11,9 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import SuperGuard from "@/components/super/SuperGuard";
 import SuperLayout from "@/components/super/SuperLayout";
 
+// ── Design System Preview (WP1 — remove before launch) ───────────────────────
+const DesignSystem = lazy(() => import("@/pages/DesignSystem"));
+
 // ── 공개 페이지 (Public) ─────────────────────────────────────────────────────
 const Intro        = lazy(() => import("@/pages/Intro"));
 const Education    = lazy(() => import("@/pages/Education"));
@@ -129,6 +132,9 @@ function Router() {
         <Route path="/delete-account">
           <PublicLayout><DeleteAccount /></PublicLayout>
         </Route>
+
+        {/* Design System preview — WP1 internal only */}
+        <Route path="/design-system" component={DesignSystem} />
 
         {/* 인증 */}
         <Route path="/login" component={Login} />

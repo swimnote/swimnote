@@ -1,0 +1,545 @@
+[SWIMNOTE WEB 리뉴얼 — P0 계획 승인 + 수정사항 반영 + WP1 실행]
+
+P0 조사/계획서는 검토 완료했다.
+
+전체적인 방향은 승인한다.
+다만 아래 수정사항은 반드시 최종 설계 기준에 반영한 뒤
+이번에는 WP1 — DESIGN SYSTEM만 실행해라.
+
+WP2 이후 작업은 아직 시작하지 마라.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A. P0 계획 수정사항 — 절대 반영
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. HEADER에서 별도 "도입 문의" CTA 제거
+
+최종 Header 정보구조:
+
+[SWIMNOTE LOGO]
+[SWIMNOTE]
+[SWIMNOTE X]
+[SWIMNOTE OFFICE]
+
+                              [PC 대시보드] [⋯]
+
+도입 문의는 ⋯ 확장 메뉴 내부로 이동한다.
+
+상단에 별도 도입문의 버튼을 추가하지 마라.
+
+---
+
+2. MOBILE 하단 탭바 금지
+
+PC와 Mobile의 정보구조/메뉴순서를 동일하게 유지한다.
+
+Mobile에서도 별도의 bottom tab navigation을 만들지 마라.
+
+상단 Header의 동일 항목:
+
+LOGO
+SWIMNOTE
+SWIMNOTE X
+SWIMNOTE OFFICE
+PC DASHBOARD
+⋯
+
+순서를 유지한다.
+
+화면이 좁으면:
+- spacing 축소
+- typography 축소
+- 필요 시 horizontal overflow/scroll
+
+등으로 해결한다.
+
+메뉴 항목을 다른 위치로 이동하거나
+Mobile 전용 navigation 구조를 새로 만들지 마라.
+
+---
+
+3. TYPOGRAPHY 과대화 금지
+
+기존 계획의 최대 96px Display는 사용하지 않는다.
+
+이번 사이트는 기존 홈페이지의
+"지나치게 큰 글씨 + 긴 빈 공간 + keynote형 scrolling"
+문제를 없애는 것이 목적이다.
+
+기본 권장 기준:
+
+HOME Product Title
+Desktop: 약 56px
+Mobile: 약 40px
+
+Product Detail Hero
+Desktop: 약 48px
+Mobile: 약 36px
+
+Section Title
+Desktop: 약 36px
+Mobile: 약 28px
+
+Subheading
+Desktop: 약 24px
+Mobile: 약 20~21px
+
+Body Large:
+17~18px
+
+Body:
+15~16px
+
+Caption:
+12~13px
+
+필요한 경우 clamp()는 사용할 수 있지만
+위 시각적 규모를 크게 넘지 마라.
+
+Apple 스타일의 핵심은
+"큰 글씨"가 아니라
+비율 / 여백 / 타이포그래피 / 절제 / 일관성이다.
+
+---
+
+4. COMMON PRIMARY BUTTON은 BLUE가 아니다
+
+전체 Website 기본 CTA는 Neutral 디자인이다.
+
+Primary:
+- #1D1D1F 또는 이에 준하는 dark neutral
+- white text
+- pill
+
+Secondary:
+- white/transparent
+- subtle neutral border
+또는 상황에 따라 dark/light counterpart
+
+Text Link:
+- neutral 기반
+- 제품 상세 내부에서만 brand accent 허용
+
+#01B2F1을 전체 사이트의 기본 Primary CTA로 사용하지 마라.
+
+SWIMNOTE 브랜드 색상:
+
+#002F5F
+#01B2F1
+#67F2F2
+
+SWIMNOTE X 현재 색상:
+
+#0A1628
+#01B2F1
+
+은 각 PRODUCT DETAIL 페이지의
+작은 accent로만 제한적으로 사용한다.
+
+HOME / COMPANY / SUPPORT / LOGIN 등은
+Black / White / Gray 중심 Neutral Design을 유지한다.
+
+---
+
+5. DTA FRAMEWORK PUBLIC 노출 금지
+
+/technology 페이지가 존재할 수는 있다.
+
+그러나 공개 홈페이지에:
+
+- DTA 계산 구조
+- DTA Framework 세부 내용
+- 내부 엔진 설계
+- 내부 데이터 모델
+- 경쟁사가 복제할 수 있는 알고리즘 상세
+
+를 공개하지 마라.
+
+Technology/AI 공개 내용은:
+
+- SWIMNOTE가 어떤 AI 영역을 개발하는지
+- 현재 제품에서 어떤 AI 기능이 제공되는지
+- 분석 가능한 범위
+- AI를 어떤 방향으로 확장하는지
+- 데이터/AI/기술 투자
+- 특허/IP 현황
+
+등 공개 가능한 수준으로만 구성한다.
+
+---
+
+6. PC DASHBOARD DESKTOP GUARD 수정
+
+기존 제안:
+
+window.innerWidth >= 1024
+&& !('ontouchstart' in window)
+&& pointer:fine
+
+처럼 touch 지원 자체를 차단 조건으로 사용하면
+터치스크린 Windows 노트북까지 오차단될 수 있다.
+
+목표는:
+
+ALLOW:
+- 일반 Windows desktop/laptop
+- Mac desktop/laptop
+- mouse/trackpad 기반 PC 환경
+- 터치 기능이 추가된 Windows laptop도 정상 PC라면 허용
+
+BLOCK:
+- Smartphone
+- iPhone
+- Android phone
+- iPad
+- Android tablet
+
+이다.
+
+viewport / pointer capability / device detection을 조합해
+false positive를 최소화하는 방식을 WP9 전에 다시 설계한다.
+
+이 기능은 보안 인증 대체가 아니라 UX 사용환경 제한이다.
+
+WP1에서는 구현하지 마라.
+
+---
+
+7. PC DASHBOARD PUBLIC LOGIN 진입경로 추가 확인 필요
+
+P0 보고에 따르면:
+
+/login
+= 일반 로그인 / super_admin / TOTP
+
+/login?pool=:poolId
+= pool 전용 ID + PW + PIN
+
+구조가 존재한다.
+
+그런데 공식 홈페이지 Header의
+"PC 대시보드" 버튼은 특정 poolId를 미리 알 수 없는
+공용 진입점이다.
+
+따라서 WP8 구현 전에 반드시 추가 조사해서:
+
+"공용 홈페이지에서 사용자가
+ID + Password + PIN만 입력하면
+기존 backend/auth 구조 그대로
+자기 swimming_pool_id로 들어갈 수 있는지"
+
+확인한다.
+
+불가능하다면 임의로 인증체계를 바꾸지 말고
+원인을 보고한 후 대표 승인을 받아라.
+
+super_admin/TOTP 로그인도 깨뜨리지 마라.
+
+이번 WP1에서는 인증코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B. 이번 실행 범위 = WP1 ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 DESIGN SYSTEM 기반만 만든다.
+
+페이지 리뉴얼 시작 금지.
+HOME 변경 금지.
+HEADER 변경 금지.
+FOOTER 변경 금지.
+LOGIN 변경 금지.
+ADMIN 변경 금지.
+ROUTE 변경 금지.
+DB 변경 금지.
+API 변경 금지.
+AUTH 변경 금지.
+Production 배포 금지.
+
+목표:
+
+앞으로 SWIMNOTE 공식 Website와
+PC Dashboard까지 공통으로 사용할
+하나의 디자인 언어를 먼저 고정하는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+C. WP1 구현 항목
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. GLOBAL DESIGN TOKENS
+
+현재 repo 구조에 가장 자연스러운 위치에
+중앙화된 Design Token을 구축한다.
+
+반드시 다음을 중앙화:
+
+- typography
+- font weight
+- line height
+- neutral colors
+- SWIMNOTE accent colors
+- SWIMNOTE X accent colors
+- spacing
+- radius
+- border
+- shadow
+- transition
+- content max width
+- responsive breakpoint
+
+페이지에서 arbitrary value를 반복 작성하지 않도록 한다.
+
+단,
+현재 TailwindCSS v4 구조와 충돌하지 않게
+CSS variables 중심 또는 가장 자연스러운 기존 방식을 사용한다.
+
+쓸데없이 JS tokens + CSS variables를
+동시에 중복 관리하지 마라.
+
+Single Source of Truth를 우선한다.
+
+---
+
+2. FONT
+
+한글/영문 모두 시각적으로 통일되어야 한다.
+
+현재:
+- system font
+- SF Pro string
+- Pretendard inline
+- Plus Jakarta Sans
+- Noto Sans KR
+
+등이 혼재한다고 조사되었다.
+
+이를 정리한다.
+
+목표:
+하나의 대표 sans-serif typography system.
+
+Pretendard 사용이 현재 구조에서 안정적으로 가능하면
+Pretendard 중심으로 통일한다.
+
+단:
+- 불필요한 패키지 추가 금지
+- 불안정한 외부 의존성 추가 금지
+- 폰트 파일을 repo에 임의 추가 금지
+
+현재 환경을 이용해 가장 안정적으로 통일하고
+선택 이유를 보고해라.
+
+---
+
+3. TYPOGRAPHY SCALE
+
+위 A-3 기준을 Token으로 고정한다.
+
+페이지가 arbitrary font-size를 새로 생성하지 않도록 한다.
+
+font-weight도 과도하게 사용하지 않는다.
+
+권장:
+400
+500
+600
+700
+
+800/900 남발 금지.
+
+---
+
+4. COLOR SYSTEM
+
+Base:
+White / Black / Neutral Gray
+
+Product Accent:
+SWIMNOTE
+- #002F5F
+- #01B2F1
+- #67F2F2
+
+SWIMNOTE X
+- #0A1628
+- #01B2F1
+
+제품 accent는 공통 Site Theme로 사용하지 않는다.
+
+Neutral base가 항상 우선이다.
+
+---
+
+5. BUTTON SYSTEM
+
+공통 Button variants를 만든다.
+
+필수:
+
+Primary
+Secondary
+TextLink
+DashboardCTA
+
+모든 버튼:
+
+- 동일 font
+- 동일 height 체계
+- 동일 radius 체계
+- 동일 transition
+- 동일 focus state
+- 동일 disabled state
+
+공통 Primary는 dark neutral.
+
+제품별 임의 button design 금지.
+
+---
+
+6. FORM SYSTEM
+
+PC login/dashboard에서도 재사용할 수 있도록:
+
+Input
+PasswordInput style
+PIN input style
+Error
+Focus
+Disabled
+
+시각 규칙을 공통화한다.
+
+아직 Login.tsx 자체는 수정하지 마라.
+
+---
+
+7. SURFACE / CARD SYSTEM
+
+필요 최소한만 만든다.
+
+- standard surface
+- subtle bordered surface
+- product visual container
+- FAQ surface
+
+과한 shadow 금지.
+glassmorphism 금지.
+glow 금지.
+gradient 남발 금지.
+
+---
+
+8. SPACING / RADIUS SYSTEM
+
+임의 px 값 난립 방지.
+
+정해진 scale 안에서 구성한다.
+
+큰 section이라고 무조건 120px 이상의
+빈 공간을 반복하지 않는다.
+
+고급스러움은
+"빈 공간을 크게 만드는 것"이 아니라
+"일관된 공간 비율"로 만든다.
+
+---
+
+9. SHARED PRIMITIVE COMPONENTS
+
+WP1에서는 페이지 컴포넌트 전체를 만들 필요는 없지만
+앞으로 공통으로 쓸 최소 primitive를 준비한다.
+
+예:
+
+Button
+SectionLabel
+SectionTitle
+Surface/Card
+FormField/Input
+등
+
+SiteHeader/ProductBlock/FAQ 등
+실제 페이지 구조 컴포넌트는
+WP2 이후에 만들어도 된다.
+
+과도한 추상화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+D. APPLE-LIKE QUALITY 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다시 강조한다.
+
+이번 디자인의 핵심은
+Apple 사이트의 색을 복사하는 것이 아니다.
+
+원하는 인상:
+
+- 묵직함
+- 정교함
+- 절제
+- 고급스러움
+- 넓지만 낭비되지 않는 여백
+- 정확한 typography hierarchy
+- 제품이 주인공인 화면
+- 색상 절제
+- 모든 페이지의 완벽한 통일감
+
+절대 금지:
+
+- AI-generated SaaS 느낌
+- rainbow cards
+- 여러 gradient
+- neon
+- glow
+- 과한 shadow
+- oversized headline
+- random radius
+- random font-size
+- 페이지별 별도 디자인
+- 불필요한 decorative element
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+E. WP1 완료 후 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고해라.
+
+1. 변경 파일 목록
+
+2. 확정된 Design Tokens
+- font
+- typography scale
+- neutral palette
+- brand accents
+- spacing
+- radius
+- buttons
+- form styles
+- breakpoint
+
+3. 새로 만든 shared primitive 목록
+
+4. 제거/통합한 기존 중복 style
+- 무엇을 정리했는지
+- 기존 페이지 visual이 깨질 위험이 있는지
+
+5. Build/Test 결과
+
+6. Screenshot 또는 Preview에서
+Design System을 확인할 수 있는 방법
+(가능하면 isolated sample/demo만.
+HOME 전체 리뉴얼은 아직 하지 말 것.)
+
+7. Git diff 요약
+
+8. 명시:
+- HOME 변경 여부
+- HEADER 변경 여부
+- LOGIN/AUTH 변경 여부
+- DB/API 변경 여부
+- Production 배포 여부
+
+모두 정확하게 보고.
+
+WP1 완료 후 중단하고
+대표 승인 전 WP2를 시작하지 마라.
