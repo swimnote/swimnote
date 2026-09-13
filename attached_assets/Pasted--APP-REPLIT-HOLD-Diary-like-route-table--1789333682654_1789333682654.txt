@@ -1,0 +1,216 @@
+[보낼 곳: APP REPLIT]
+
+좋아요 전체 라인 조사 보고 검수 결과:
+
+HOLD
+
+입니다.
+
+다음은 승인합니다.
+
+* Diary like 저장 route/table 확인
+* Teacher news/inbox 연결 확인
+* Reaction detail이 diary_id 기준인 것 확인
+* 날짜를 key로 쓰지 않는 것 확인
+* Growth Report like 전용 reaction/notification/detail 코드 존재 확인
+* Like 가능한 콘텐츠 타입이 현재 diary / growth_report 2개인 것 확인
+
+이 부분은 다시 조사하지 마십시오.
+
+남은 것은 2개뿐입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 2026-09-03 CASE B를 사실로 증명
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고서는:
+
+notification 존재
++
+현재 diary_reactions row 없음
+
+을 근거로
+
+"부모가 unlike했다"
+
+고 결론냈습니다.
+
+하지만 현재 reaction row가 없다는 사실만으로
+실제 unlike가 발생했다고 확정할 수는 없습니다.
+
+다음 중 확인 가능한 증거를 찾으십시오.
+
+* unlike 요청 로그
+* reaction DELETE audit/event
+* 해당 endpoint access log
+* DB audit trail
+* 관련 notification/reaction timestamp sequence
+* 코드상 notification 생성 시점과 reaction INSERT 성공 순서
+
+특히 코드에서 확인:
+
+LIKE 요청 시
+
+A.
+reaction INSERT 성공
+→ notification 생성
+
+순서인지
+
+또는
+
+B.
+notification 생성
+→ reaction INSERT
+
+순서인지
+
+확인하십시오.
+
+만약 notification이 reaction 저장 성공 전에 생성될 수 있다면
+현재 사례는 단순 unlike라고 확정할 수 없습니다.
+
+실제 unlike 증거가 없으면:
+
+`CASE B 확정 불가 — 현재 active reaction 없음까지만 확인`
+
+이라고 정정하십시오.
+
+추측해서 "부모가 취소했다"고 보고하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Growth Report Like 실제 E2E 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report like는 현재:
+
+* reaction route 존재
+* notification route 존재
+* teacher recipient resolve 존재
+* teacher inbox type 포함
+* teacher interaction detail 존재
+
+까지는 확인됐습니다.
+
+하지만 Production 실제 사용 0건이므로
+OPERATION VERIFIED는 아닙니다.
+
+사용자의 요구사항은:
+
+"AI 성장리포트 좋아요도 선생님에게 표시"
+
+입니다.
+
+따라서 실제 한 번의 E2E를 확인하십시오.
+
+금지:
+
+* 가짜 Production 학생 생성
+* 가짜 Production report 생성
+* Production DB 직접 reaction INSERT
+* DB 상태를 강제로 꾸미는 테스트
+
+가능한 경우:
+
+기존 실제 PUBLISHED Growth Report
++
+권한 있는 기존 Parent/Teacher 계정
+
+을 사용하여 정상 UI/API 경로로 테스트하십시오.
+
+확인 흐름:
+
+Parent Growth Report LIKE
+→ growth_report_reactions row 생성
+→ growth_report_like notification 생성
+→ 담당 teacher recipient 정확
+→ Teacher 홈 새 소식 표시
+→ Teacher 전체 알림함 표시
+→ 알림 클릭
+→ growth-report-reactions 화면 진입
+→ 좋아요 1명 표시
+
+그 후 같은 Parent가 unlike:
+
+→ reaction row 제거
+→ 현재 reaction count 0
+
+까지 확인하십시오.
+
+실제 Production UI 테스트가 현재 불가능하면
+억지로 데이터를 만들지 말고:
+
+`OPERATION VERIFIED 못함`
+
+이라고 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 좋아요 생성 순서 안전성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary와 Growth Report 모두:
+
+reaction 저장 실패했는데
+notification만 남는 구조가 가능한지 확인하십시오.
+
+목표:
+
+notification은 실제 LIKE가 성공한 경우에만 생성.
+
+이를 위해 대규모 transaction refactor는 하지 마십시오.
+
+현재 코드가 이미 이 순서를 보장하면 수정 없음.
+
+실제 race/순서 문제를 발견한 경우에만
+최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 정상 부분 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 다시 건드리지 마십시오.
+
+* comments
+* teacher news 전체 구조
+* notifications pagination
+* reaction DB schema
+* 날짜 navigation
+* AI Engine
+* Growth Report 생성 pipeline
+
+이번 작업은:
+
+1. 9/3 사례 원인 확정
+2. Growth Report like 실제 E2E
+
+두 개만 닫습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하십시오.
+
+1. 9/3 실제 unlike 증거 존재 여부
+2. 없다면 CASE B 정정 여부
+3. Diary LIKE의 reaction 저장 → notification 생성 실제 순서
+4. Growth Report LIKE의 reaction 저장 → notification 생성 실제 순서
+5. reaction 저장 실패 시 notification만 남을 가능성
+6. Growth Report Like 실제 E2E 결과
+7. teacher recipient 결과
+8. Teacher 홈 새 소식 결과
+9. 전체 알림함 결과
+10. Reaction detail 결과
+11. Unlike 결과
+12. 수정 파일
+13. 수정이 없다면 `코드 수정 없음`
+14. 배포가 있다면 Commit / LIVE SHA / Deploy ID / OTA ID
+
+실제 Runtime 증거 없이
+`정상 작동`
+이라고 확정하지 마십시오.
+
+확인하지 못한 항목은
+`확인하지 못함`
+이라고 명시하십시오.
