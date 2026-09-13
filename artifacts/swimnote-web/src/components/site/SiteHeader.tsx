@@ -1,13 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation, Link } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "wouter";
+import { motion } from "framer-motion";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROUTE SAFETY MAP
-//
-// Only routes listed here as `live: true` will receive actual <Link> navigation.
-// All other items render as a <span> (visually identical, no navigation) until
-// the corresponding WP creates the real page and sets it to live.
+// Only routes listed here as `live: true` will receive actual navigation.
 // ─────────────────────────────────────────────────────────────────────────────
 const LIVE_ROUTES = new Set([
   "/",
@@ -104,104 +101,39 @@ function pointInRect(rect: DOMRect, x: number, y: number): boolean {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
-// ── NavItem — live route or inert span ───────────────────────────────────────
-interface NavItemProps {
-  href: string;
-  onClick?: () => void;
-  className?: string;
-  style?: React.CSSProperties;
-  children: React.ReactNode;
-  "aria-label"?: string;
-}
-
-function NavItem({ href, onClick, style, children, "aria-label": ariaLabel }: NavItemProps) {
-  const live = isLiveRoute(href);
-
-  const baseStyle: React.CSSProperties = {
-    display: "block",
-    padding: "8px 10px",
-    marginLeft: -10,
-    borderRadius: "var(--ds-radius-sm)",
-    fontSize: "var(--ds-text-body-sm)",
-    fontWeight: "var(--ds-fw-regular)",
-    color: "var(--ds-text-primary)",
-    textDecoration: "none",
-    transition: "var(--ds-transition-color)",
-    ...style,
-  };
-
-  const hoverOn  = (e: React.MouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "var(--ds-n-050)";
-    e.currentTarget.style.color = "var(--ds-n-900)";
-  };
-  const hoverOff = (e: React.MouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "transparent";
-    e.currentTarget.style.color = "var(--ds-text-primary)";
-  };
-
-  if (live) {
-    return (
-      <Link
-        href={href}
-        onClick={onClick}
-        aria-label={ariaLabel}
-        style={baseStyle}
-        onMouseEnter={hoverOn}
-        onMouseLeave={hoverOff}
-      >
-        {children}
-      </Link>
-    );
-  }
-
-  return (
-    <span
-      aria-label={ariaLabel ? `${ariaLabel} (준비 중)` : undefined}
-      aria-disabled="true"
-      style={{
-        ...baseStyle,
-        cursor: "default",
-        color: "var(--ds-n-300)",
-      }}
-      title="준비 중"
-    >
-      {children}
-    </span>
-  );
-}
-
 // ── ExpandedMenu ──────────────────────────────────────────────────────────────
 //
-// SEMANTIC DECISION: role="navigation" (not role="dialog")
-// Mega-menu overlay, not a modal — no aria-modal, focus trap is manual.
-// Dismiss logic lives in SiteHeader (coord-based pointermove + pointerdown).
+// CONSTITUTION §3: {menuOpen && <ExpandedMenu>} — AnimatePresence 없음.
+// menuOpen=false → 이 컴포넌트 자체가 unmount → DOM 즉시 제거.
+// open animation만 motion으로 적용 (close는 즉시 unmount).
+//
+// CONSTITUTION §5: menu item click = close → navigate 순서.
+// NavItem 대신 직접 <a> 핸들러로 close→navigate 강제.
 // ─────────────────────────────────────────────────────────────────────────────
 interface ExpandedMenuProps {
-  open: boolean;
   onClose: () => void;
   isDesktop: boolean;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
-  // panelRef attaches to the VISIBLE menu panel (not any wrapper).
-  // SiteHeader reads getBoundingClientRect() from this ref for coord checks.
   panelRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef }: ExpandedMenuProps) {
+function ExpandedMenu({ onClose, isDesktop, triggerRef, panelRef }: ExpandedMenuProps) {
+  const [, navigate] = useLocation();
 
-  // ── On open: focus first focusable item in panel ──────────────────────────
+  // ── On mount: focus first focusable item ─────────────────────────────────
   useEffect(() => {
-    if (!open || !panelRef.current) return;
     const id = requestAnimationFrame(() => {
-      const items = getFocusable(panelRef.current!);
+      if (!panelRef.current) return;
+      const items = getFocusable(panelRef.current);
       items[0]?.focus();
     });
     return () => cancelAnimationFrame(id);
-  }, [open]);
+  }, [panelRef]);
 
   // ── ESC + Tab focus trap ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!open || !panelRef.current) return;
     const panel = panelRef.current;
+    if (!panel) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -226,20 +158,35 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef }: Expand
 
     panel.addEventListener("keydown", onKeyDown);
     return () => panel.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose, triggerRef]);
+  }, [onClose, triggerRef, panelRef]);
 
   // ── Mobile scroll lock ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isDesktop && open) {
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
-    }
-  }, [open, isDesktop]);
+    if (isDesktop) return;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, [isDesktop]);
+
+  // ── Menu item click handler: CLOSE → NAVIGATE ────────────────────────────
+  const handleItemClick = useCallback(
+    (href: string): ((e: React.MouseEvent) => void) =>
+      (e: React.MouseEvent): void => {
+        e.preventDefault();
+        onClose(); // panel unmounts immediately (no AnimatePresence delay)
+        const [path, hash] = href.split("#");
+        navigate(path || "/");
+        if (hash) {
+          // hash scroll after navigation settles
+          requestAnimationFrame(() => {
+            window.location.hash = hash;
+          });
+        }
+      },
+    [onClose, navigate],
+  );
 
   const panelStyle: React.CSSProperties = isDesktop
     ? {
-        // Desktop: content-height only — NOT full-screen.
-        // The page body below is real page content, not overlaid.
         position: "fixed",
         top: 52,
         left: 0,
@@ -252,7 +199,6 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef }: Expand
         boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
       }
     : {
-        // Mobile: full-height sheet
         position: "fixed",
         top: 48,
         left: 0,
@@ -263,63 +209,102 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef }: Expand
         overflowY: "auto",
       };
 
+  const itemBaseStyle: React.CSSProperties = {
+    display: "block",
+    padding: "8px 10px",
+    marginLeft: -10,
+    borderRadius: "var(--ds-radius-sm)",
+    fontSize: "var(--ds-text-body-sm)",
+    fontWeight: "var(--ds-fw-regular)",
+    color: "var(--ds-text-primary)",
+    textDecoration: "none",
+    transition: "var(--ds-transition-color)",
+    cursor: "pointer",
+    background: "transparent",
+    border: "none",
+    fontFamily: "inherit",
+    textAlign: "left",
+    width: "100%",
+    boxSizing: "border-box",
+  };
+
+  const inertStyle: React.CSSProperties = {
+    ...itemBaseStyle,
+    cursor: "default",
+    color: "var(--ds-n-300)",
+  };
+
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          ref={panelRef}
-          role="navigation"
-          aria-label="사이트 전체 메뉴"
-          id="site-expanded-menu"
-          style={panelStyle}
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0, pointerEvents: "auto" }}
-          exit={{ opacity: 0, y: -6, pointerEvents: "none" }}
-          transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {/* 내부 클릭 시 닫힘 — NavItem onClick과 redundant하나 안전망 */}
-          <div
-            onClick={onClose}
-            style={{
-              maxWidth: isDesktop ? "var(--ds-content-max)" : "100%",
-              margin: "0 auto",
-              padding: isDesktop ? "32px 24px 36px" : "24px 24px 40px",
-              display: "grid",
-              gridTemplateColumns: isDesktop ? "repeat(3, 1fr)" : "1fr",
-              gap: isDesktop ? "0 48px" : "32px",
-            }}
-          >
-            {MENU_GROUPS.map((group) => (
-              <div key={group.heading}>
-                <p
-                  style={{
-                    fontSize: "var(--ds-text-label)",
-                    fontWeight: "var(--ds-fw-semibold)",
-                    letterSpacing: "var(--ds-ls-wider)",
-                    textTransform: "uppercase",
-                    color: "var(--ds-n-400)",
-                    marginBottom: 14,
-                    paddingBottom: 10,
-                    borderBottom: "1px solid var(--ds-border-light)",
-                  }}
-                >
-                  {group.heading}
-                </p>
-                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                  {group.items.map((item) => (
-                    <li key={item.label}>
-                      <NavItem href={item.href} onClick={onClose}>
+    <motion.div
+      ref={panelRef}
+      role="navigation"
+      aria-label="사이트 전체 메뉴"
+      id="site-expanded-menu"
+      style={panelStyle}
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <div
+        style={{
+          maxWidth: isDesktop ? "var(--ds-content-max)" : "100%",
+          margin: "0 auto",
+          padding: isDesktop ? "32px 24px 36px" : "24px 24px 40px",
+          display: "grid",
+          gridTemplateColumns: isDesktop ? "repeat(3, 1fr)" : "1fr",
+          gap: isDesktop ? "0 48px" : "32px",
+        }}
+      >
+        {MENU_GROUPS.map((group) => (
+          <div key={group.heading}>
+            <p
+              style={{
+                fontSize: "var(--ds-text-label)",
+                fontWeight: "var(--ds-fw-semibold)",
+                letterSpacing: "var(--ds-ls-wider)",
+                textTransform: "uppercase",
+                color: "var(--ds-n-400)",
+                marginBottom: 14,
+                paddingBottom: 10,
+                borderBottom: "1px solid var(--ds-border-light)",
+              }}
+            >
+              {group.heading}
+            </p>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+              {group.items.map((item) => {
+                const live = isLiveRoute(item.href);
+                return (
+                  <li key={item.label}>
+                    {live ? (
+                      <a
+                        href={item.href}
+                        onClick={handleItemClick(item.href)}
+                        style={itemBaseStyle}
+                        onMouseEnter={e => {
+                          (e.currentTarget as HTMLElement).style.background = "var(--ds-n-050)";
+                          (e.currentTarget as HTMLElement).style.color = "var(--ds-n-900)";
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLElement).style.background = "transparent";
+                          (e.currentTarget as HTMLElement).style.color = "var(--ds-text-primary)";
+                        }}
+                      >
                         {item.label}
-                      </NavItem>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+                      </a>
+                    ) : (
+                      <span style={inertStyle} aria-disabled="true" title="준비 중">
+                        {item.label}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        ))}
+      </div>
+    </motion.div>
   );
 }
 
@@ -335,6 +320,7 @@ interface ProductTabProps {
 
 function ProductTab({ href, label, active, isDesktop, tabActive, tabInactive }: ProductTabProps) {
   const live = isLiveRoute(href);
+  const [, navigate] = useLocation();
 
   const style: React.CSSProperties = {
     flexShrink: 0,
@@ -352,19 +338,26 @@ function ProductTab({ href, label, active, isDesktop, tabActive, tabInactive }: 
     borderBottom: active ? "2px solid var(--ds-n-900)" : "2px solid transparent",
     boxSizing: "border-box",
     cursor: live ? "pointer" : "default",
+    background: "transparent",
+    border: "none",
+    borderBottomWidth: 2,
+    borderBottomStyle: "solid",
+    borderBottomColor: active ? "var(--ds-n-900)" : "transparent",
+    fontFamily: "inherit",
   };
 
   if (live) {
     return (
-      <Link
+      <a
         href={href}
+        onClick={e => { e.preventDefault(); navigate(href); }}
         style={style}
         translate="no"
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--ds-n-700)"; }}
         onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = tabInactive; }}
       >
         {label}
-      </Link>
+      </a>
     );
   }
 
@@ -376,47 +369,83 @@ function ProductTab({ href, label, active, isDesktop, tabActive, tabInactive }: 
 }
 
 // ── SiteHeader ────────────────────────────────────────────────────────────────
+//
+// CONSTITUTION §4: 단일 closeMegaMenu 함수 — 모든 dismiss trigger가 이것만 호출.
+// CONSTITUTION §3: {menuOpen && <ExpandedMenu>} — AnimatePresence 없음.
+// CONSTITUTION §6: useLocation 변화 → closeMegaMenu (stable callback, no loop).
+// CONSTITUTION §7: hashchange → closeMegaMenu.
+// CONSTITUTION §9: pointerdown outside → 즉시 closeMegaMenu (no setTimeout).
+// CONSTITUTION §10: menuOpen=false cleanup → 모든 listener/timer 제거.
+// ─────────────────────────────────────────────────────────────────────────────
 export default function SiteHeader() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const isDesktop   = useIsDesktopNav();
-  const moreRef     = useRef<HTMLButtonElement>(null);
-  const headerRef   = useRef<HTMLElement>(null);
-  const panelRef    = useRef<HTMLDivElement>(null);
-  const closeTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDesktop  = useIsDesktopNav();
+  const moreRef    = useRef<HTMLButtonElement>(null);
+  const headerRef  = useRef<HTMLElement>(null);
+  const panelRef   = useRef<HTMLDivElement>(null);
+  const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Location change → immediate close ────────────────────────────────────
-  // Safety net: covers pathname AND back/forward via wouter's useLocation.
-  useEffect(() => { setMenuOpen(false); }, [location]);
-
-  // ── Cleanup on unmount ───────────────────────────────────────────────────
-  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
-
-  const closeMenu  = useCallback(() => setMenuOpen(false), []);
-  const toggleMenu = useCallback(() => setMenuOpen((v) => !v), []);
-
-  // ── Timer helpers ─────────────────────────────────────────────────────────
-  // scheduleClose is idempotent: once a timer is running, successive calls
-  // are no-ops so continuous pointer movement outside does NOT keep resetting
-  // the delay.
-  const scheduleClose = useCallback(() => {
-    if (closeTimer.current) return;            // already counting down
-    closeTimer.current = setTimeout(() => {
-      closeTimer.current = null;
-      setMenuOpen(false);
-    }, 100);
-  }, []);
-
-  const cancelClose = useCallback(() => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
+  // ── SINGLE close function — all dismiss triggers use only this ────────────
+  const closeMegaMenu = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
+    setMenuOpen(false);
   }, []);
 
-  // ── Desktop: pointermove coord-based hover-leave close ───────────────────
-  // Replaces unreliable relatedTarget/contains approach.
-  // Only applies to mouse pointer, not touch/stylus.
+  const toggleMenu = useCallback(() => {
+    setMenuOpen(v => !v);
+  }, []);
+
+  // ── CONSTITUTION §6: Route change → immediate close ──────────────────────
+  // closeMegaMenu is stable (useCallback, no deps), so this effect does NOT
+  // re-subscribe on every render — only when location changes.
+  useEffect(() => {
+    closeMegaMenu();
+  }, [location, closeMegaMenu]);
+
+  // ── CONSTITUTION §7: Hash navigation → close ─────────────────────────────
+  useEffect(() => {
+    if (!menuOpen) return;
+    window.addEventListener("hashchange", closeMegaMenu);
+    return () => window.removeEventListener("hashchange", closeMegaMenu);
+  }, [menuOpen, closeMegaMenu]);
+
+  // ── Browser back/forward → close ─────────────────────────────────────────
+  useEffect(() => {
+    if (!menuOpen) return;
+    window.addEventListener("popstate", closeMegaMenu);
+    return () => window.removeEventListener("popstate", closeMegaMenu);
+  }, [menuOpen, closeMegaMenu]);
+
+  // ── CONSTITUTION §9: Global pointerdown → immediate close if outside ─────
+  // No setTimeout delay — body mousedown must close instantly.
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleDown = (e: PointerEvent) => {
+      const x = e.clientX;
+      const y = e.clientY;
+      const headerRect = headerRef.current?.getBoundingClientRect();
+      const panelRect  = panelRef.current?.getBoundingClientRect();
+
+      const inHeader = headerRect ? pointInRect(headerRect, x, y) : false;
+      const inPanel  = panelRect  ? pointInRect(panelRect,  x, y) : false;
+
+      if (!inHeader && !inPanel) {
+        closeMegaMenu();
+      }
+    };
+
+    document.addEventListener("pointerdown", handleDown, { capture: true });
+    return () => document.removeEventListener("pointerdown", handleDown, { capture: true });
+  }, [menuOpen, closeMegaMenu]);
+
+  // ── Desktop: pointermove coord-based hover-leave (100ms delay) ───────────
+  // Schedules close when pointer is outside both header and panel rects.
+  // idempotent: once timer is running, successive moves don't reset it.
   useEffect(() => {
     if (!menuOpen || !isDesktop) return;
 
@@ -432,60 +461,37 @@ export default function SiteHeader() {
       const inPanel  = panelRect  ? pointInRect(panelRect,  x, y) : false;
 
       if (inHeader || inPanel) {
-        cancelClose();
+        // Back inside — cancel any pending close
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
       } else {
-        scheduleClose();
+        // Outside — schedule close (idempotent)
+        if (!timerRef.current) {
+          timerRef.current = setTimeout(() => {
+            timerRef.current = null;
+            setMenuOpen(false);
+          }, 100);
+        }
       }
     };
 
     document.addEventListener("pointermove", handleMove, { passive: true });
-    return () => document.removeEventListener("pointermove", handleMove);
-  }, [menuOpen, isDesktop, scheduleClose, cancelClose]);
-
-  // ── Global pointerdown → immediate close if outside region ───────────────
-  // Fires on any click/tap outside header+panel, including text selection.
-  // 30ms delay prevents the same pointerdown that OPENED the menu from
-  // immediately closing it.
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    const handleDown = (e: PointerEvent) => {
-      const x = e.clientX;
-      const y = e.clientY;
-      const headerRect = headerRef.current?.getBoundingClientRect();
-      const panelRect  = panelRef.current?.getBoundingClientRect();
-
-      const inHeader = headerRect ? pointInRect(headerRect, x, y) : false;
-      const inPanel  = panelRect  ? pointInRect(panelRect,  x, y) : false;
-
-      if (!inHeader && !inPanel) {
-        cancelClose();      // discard any pending 100ms timer
-        setMenuOpen(false);
+    return () => {
+      document.removeEventListener("pointermove", handleMove);
+      // Clean up timer on effect teardown (menuOpen→false or isDesktop change)
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
     };
+  }, [menuOpen, isDesktop]);
 
-    const id = setTimeout(() => {
-      document.addEventListener("pointerdown", handleDown, { capture: true });
-    }, 30);
-
-    return () => {
-      clearTimeout(id);
-      document.removeEventListener("pointerdown", handleDown, { capture: true });
-    };
-  }, [menuOpen, cancelClose]);
-
-  // ── Browser history navigation (popstate / hashchange) ───────────────────
-  // Covers: browser Back/Forward and hash-only navigation (#investment etc.)
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = () => setMenuOpen(false);
-    window.addEventListener("popstate",   close);
-    window.addEventListener("hashchange", close);
-    return () => {
-      window.removeEventListener("popstate",   close);
-      window.removeEventListener("hashchange", close);
-    };
-  }, [menuOpen]);
+  // ── Cleanup on unmount ────────────────────────────────────────────────────
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
 
   const isActive = (href: string) => location === href || location.startsWith(href + "/");
 
@@ -523,8 +529,9 @@ export default function SiteHeader() {
           }}
         >
           {/* ── Logo ──────────────────────────────────────────────── */}
-          <Link
+          <a
             href="/"
+            onClick={e => { e.preventDefault(); navigate("/"); }}
             aria-label="SWIMNOTE 홈으로"
             style={{
               display: "flex",
@@ -553,7 +560,7 @@ export default function SiteHeader() {
             >
               SWIMNOTE
             </span>
-          </Link>
+          </a>
 
           {/* ── Product tabs ──────────────────────────────────────── */}
           <nav
@@ -592,8 +599,9 @@ export default function SiteHeader() {
 
           {/* ── Right: PC Dashboard + ⋯ ──────────────────────────── */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <Link
+            <a
               href="/login"
+              onClick={e => { e.preventDefault(); navigate("/login"); }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -614,7 +622,7 @@ export default function SiteHeader() {
               aria-label="PC 대시보드 로그인"
             >
               {isDesktop ? "PC 대시보드" : "PC"}
-            </Link>
+            </a>
 
             {/* ⋯ */}
             <button
@@ -655,34 +663,30 @@ export default function SiteHeader() {
         </div>
       </header>
 
-      {/* ── Expanded menu ──────────────────────────────────────────── */}
-      <ExpandedMenu
-        open={menuOpen}
-        onClose={closeMenu}
-        isDesktop={isDesktop}
-        triggerRef={moreRef}
-        panelRef={panelRef}
-      />
+      {/* ── CONSTITUTION §3: {menuOpen && ...} — AnimatePresence 없음 ──────── */}
+      {/* menuOpen=false → 즉시 unmount → DOM 즉시 제거. Exit animation 없음. */}
+      {menuOpen && (
+        <ExpandedMenu
+          onClose={closeMegaMenu}
+          isDesktop={isDesktop}
+          triggerRef={moreRef}
+          panelRef={panelRef}
+        />
+      )}
 
       {/* ── Mobile scrim — Desktop에서는 절대 렌더링 안 됨 ─────────── */}
-      <AnimatePresence>
-        {menuOpen && !isDesktop && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            onClick={closeMenu}
-            aria-hidden="true"
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 48,
-              background: "rgba(0,0,0,0.18)",
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {menuOpen && !isDesktop && (
+        <div
+          onClick={closeMegaMenu}
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 48,
+            background: "rgba(0,0,0,0.18)",
+          }}
+        />
+      )}
     </>
   );
 }
