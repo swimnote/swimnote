@@ -964,6 +964,14 @@ export async function initPoolDb(db: MigrationDb): Promise<void> {
   // ─── notifications.deep_link (GR7 additive) ──────────────────────────────
   await db.execute(sql.raw(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS deep_link text`)).catch(() => {});
 
+  // ─── notifications.actor_id (like-notification atomicity) ────────────────
+  // LIKE 알림 발생자(parent) 추적 — UNLIKE 시 정확한 notification 삭제 key
+  await db.execute(sql.raw(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS actor_id text`)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_notifications_actor_type_ref
+      ON notifications (actor_id, type, ref_id)
+  `)).catch(() => {});
+
   // ─── payment_cards ───────────────────────────────────────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS payment_cards (
