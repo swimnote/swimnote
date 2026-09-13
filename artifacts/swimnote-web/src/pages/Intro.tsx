@@ -2,214 +2,185 @@ import { Link } from "wouter";
 
 const BASE = import.meta.env.BASE_URL;
 
-// ── Product Block ─────────────────────────────────────────────────────────────
-interface ProductBlockProps {
-  tag: string;
-  name: string;
-  headline: string;
-  desc: string;
-  ctaLabel: string;
-  ctaHref: string;
-  imageSrc: string;
-  imageAlt: string;
-  reverse?: boolean;           // image on left on desktop
-  bg?: string;
-  accentColor?: string;
+// ── Product Card ──────────────────────────────────────────────────────────────
+interface ProductCardProps {
+  iconSrc:    string;
+  iconAlt:    string;
+  iconStyle?: React.CSSProperties;
+  tag:        string;
+  headline:   string;
+  desc:       string;
+  ctaHref:    string;
 }
 
-function ProductBlock({
-  tag, name, headline, desc, ctaLabel, ctaHref,
-  imageSrc, imageAlt,
-  reverse = false,
-  bg = "var(--ds-n-000)",
-  accentColor = "var(--ds-n-900)",
-}: ProductBlockProps) {
-  const textBlock = (
+function ProductCard({
+  iconSrc, iconAlt, iconStyle,
+  tag, headline, desc, ctaHref,
+}: ProductCardProps) {
+  return (
     <div
       style={{
-        flex: "1 1 340px",
+        flex: "1 1 300px",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
-        padding: "40px 0",
+        alignItems: "flex-start",
+        padding: "40px 36px",
+        borderRadius: "var(--ds-radius-lg)",
+        border: "1px solid var(--ds-border-med)",
+        background: "var(--ds-n-000)",
       }}
     >
+      {/* Logo / Icon */}
+      <img
+        src={iconSrc}
+        alt={iconAlt}
+        style={{
+          marginBottom: 28,
+          objectFit: "contain",
+          display: "block",
+          flexShrink: 0,
+          ...iconStyle,
+        }}
+        draggable={false}
+      />
+
+      {/* Tag */}
       <p
         style={{
           fontSize: "var(--ds-text-label)",
           fontWeight: "var(--ds-fw-semibold)",
           letterSpacing: "var(--ds-ls-wider)",
           textTransform: "uppercase",
-          color: accentColor,
-          marginBottom: 12,
+          color: "var(--ds-n-400)",
+          marginBottom: 10,
         }}
         translate="no"
       >
         {tag}
       </p>
+
+      {/* Headline */}
       <h2
         style={{
-          fontSize: "clamp(26px, 3.5vw, 36px)",
+          fontSize: "clamp(22px, 2.8vw, 28px)",
           fontWeight: "var(--ds-fw-bold)",
           letterSpacing: "-0.025em",
           color: "var(--ds-n-900)",
-          marginBottom: 14,
           lineHeight: 1.2,
+          marginBottom: 12,
         }}
       >
         {headline}
       </h2>
+
+      {/* Description */}
       <p
         style={{
-          fontSize: "var(--ds-text-body)",
+          fontSize: "var(--ds-text-body-sm)",
           color: "var(--ds-text-secondary)",
-          lineHeight: 1.7,
-          maxWidth: 400,
+          lineHeight: 1.65,
           marginBottom: 28,
+          flexGrow: 1,
         }}
       >
         {desc}
       </p>
-      <div>
-        <Link
-          href={ctaHref}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            height: 40,
-            padding: "0 20px",
-            borderRadius: "var(--ds-radius-pill)",
-            background: "var(--ds-n-900)",
-            color: "var(--ds-n-000)",
-            fontSize: "var(--ds-text-body-sm)",
-            fontWeight: "var(--ds-fw-medium)",
-            textDecoration: "none",
-            transition: "opacity 0.15s",
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.78"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-        >
-          {ctaLabel}
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </Link>
-      </div>
-    </div>
-  );
 
-  const imageBlock = (
-    <div
-      style={{
-        flex: "1 1 360px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "32px 0",
-      }}
-    >
-      <img
-        src={imageSrc}
-        alt={imageAlt}
+      {/* CTA */}
+      <Link
+        href={ctaHref}
         style={{
-          width: "100%",
-          maxWidth: 420,
-          height: "auto",
-          borderRadius: "var(--ds-radius-lg)",
-          objectFit: "cover",
-          display: "block",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          fontSize: "var(--ds-text-body-sm)",
+          fontWeight: "var(--ds-fw-medium)",
+          color: "var(--ds-n-900)",
+          textDecoration: "none",
+          borderBottom: "1px solid currentColor",
+          paddingBottom: 1,
+          transition: "opacity 0.15s",
         }}
-        loading="lazy"
-      />
-    </div>
-  );
-
-  return (
-    <section style={{ background: bg }}>
-      <div
-        style={{
-          maxWidth: "var(--ds-content-max)",
-          margin: "0 auto",
-          padding: "0 24px",
-        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.55"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
       >
-        {/* Mobile: always text → image */}
-        {/* Desktop: alternating via flex-direction */}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0 56px",
-            alignItems: "center",
-          }}
-          className={reverse ? "product-block-reverse" : "product-block-normal"}
-        >
-          {reverse ? (
-            <>
-              <style>{`
-                @media (min-width: 768px) {
-                  .product-block-reverse { flex-direction: row-reverse; }
-                }
-              `}</style>
-              {textBlock}
-              {imageBlock}
-            </>
-          ) : (
-            <>
-              {textBlock}
-              {imageBlock}
-            </>
-          )}
-        </div>
-      </div>
-    </section>
+        알아보기
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </Link>
+    </div>
   );
 }
 
 // ── Intro (HOME) ──────────────────────────────────────────────────────────────
 export default function Intro() {
   return (
-    <>
-      {/* Thin divider between blocks */}
-      <style>{`
-        .home-divider {
-          height: 1px;
-          background: var(--ds-border-light);
-          margin: 0 24px;
-          max-width: calc(var(--ds-content-max) - 48px);
-          margin-left: auto;
-          margin-right: auto;
-        }
-      `}</style>
+    <section
+      style={{
+        minHeight: "calc(100vh - 52px)",
+        display: "flex",
+        alignItems: "center",
+        background: "var(--ds-n-050)",
+        padding: "56px 24px",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "var(--ds-content-max)",
+          margin: "0 auto",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+        }}
+      >
+        {/* Section label */}
+        <p
+          style={{
+            fontSize: "var(--ds-text-label)",
+            fontWeight: "var(--ds-fw-semibold)",
+            letterSpacing: "var(--ds-ls-wider)",
+            textTransform: "uppercase",
+            color: "var(--ds-n-400)",
+            marginBottom: 4,
+          }}
+          translate="no"
+        >
+          Products
+        </p>
 
-      <ProductBlock
-        tag="SWIMNOTE"
-        name="SWIMNOTE"
-        headline="수영장 운영의 모든 것."
-        desc={`회원, 수업, 출결, 보강, 일지와\n학부모 소통까지 하나의 앱으로.`}
-        ctaLabel="알아보기"
-        ctaHref="/swimnote"
-        imageSrc={`${BASE}app-basic-home.png`}
-        imageAlt="SWIMNOTE 관리자 홈 화면"
-        bg="var(--ds-n-000)"
-      />
+        {/* Two product cards */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+          }}
+        >
+          {/* SWIMNOTE */}
+          <ProductCard
+            iconSrc={`${BASE}icon.png`}
+            iconAlt="SWIMNOTE 앱 아이콘"
+            iconStyle={{ width: 52, height: 52, borderRadius: 12 }}
+            tag="SWIMNOTE"
+            headline="수영장 운영의 모든 것."
+            desc="회원, 수업, 출결, 보강, 일지와 학부모 소통까지 하나의 앱으로."
+            ctaHref="/swimnote"
+          />
 
-      <div className="home-divider" />
-
-      <ProductBlock
-        tag="SWIMNOTE X"
-        name="SWIMNOTE X"
-        headline="수영 교육을 시스템으로."
-        desc={`커리큘럼, 수업 기록과 성장 데이터를\n하나의 교육 시스템으로 연결합니다.`}
-        ctaLabel="알아보기"
-        ctaHref="/swimnote-x"
-        imageSrc={`${BASE}app-home-x.png`}
-        imageAlt="SWIMNOTE X 관리자 홈 화면"
-        bg="var(--ds-n-000)"
-        reverse={true}
-        accentColor="var(--ds-sn-navy, #002F5F)"
-      />
-    </>
+          {/* SWIMNOTE X */}
+          <ProductCard
+            iconSrc={`${BASE}swimnote-x-logo.png`}
+            iconAlt="SWIMNOTE X 로고"
+            iconStyle={{ height: 52, width: "auto", maxWidth: 160 }}
+            tag="SWIMNOTE X"
+            headline="수영 교육을 시스템으로."
+            desc="커리큘럼, 수업 기록과 성장 데이터를 하나의 교육 시스템으로 연결합니다."
+            ctaHref="/swimnote-x"
+          />
+        </div>
+      </div>
+    </section>
   );
 }

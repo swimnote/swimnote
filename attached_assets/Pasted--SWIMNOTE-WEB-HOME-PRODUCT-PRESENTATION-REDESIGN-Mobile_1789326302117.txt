@@ -1,0 +1,273 @@
+[SWIMNOTE WEB — HOME PRODUCT PRESENTATION REDESIGN]
+
+대표가 실제 Mobile Preview를 확인한 결과,
+현재 HOME에서 실제 앱 screenshot을 크게 보여주는 방식은 사용하지 않습니다.
+
+이번 수정은 HOME의 SWIMNOTE / SWIMNOTE X 제품 소개 방식만 변경합니다.
+
+다른 페이지 구조나 기능은 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. HOME에서 앱 SCREENSHOT 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HOME의:
+
+SWIMNOTE product block
+→ 실제 SWIMNOTE 앱 screenshot
+
+SWIMNOTE X product block
+→ 실제 X 앱 screenshot
+
+을 모두 제거하십시오.
+
+HOME에서는 실제 앱 내부 화면을 보여주지 않습니다.
+
+이 이미지들은 삭제하지 말고
+각 제품 상세페이지:
+
+/swimnote
+/swimnote-x
+
+에서 계속 활용합니다.
+
+HOME은 제품을 빠르게 인식시키는
+브랜드/제품 선택 화면 역할만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. HOME 제품 카드를 새로 구성
+━━━━━━━━━━━━━━━━━━━━━━
+
+HOME에는 제품 2개만 보여줍니다.
+
+각 제품은 하나의 정돈된 Product Card로 구성합니다.
+
+기본 구조:
+
+[제품 공식 Logo/Icon]
+
+제품명
+
+짧은 핵심문장
+
+1~2줄 설명
+
+[알아보기 →]
+
+끝.
+
+실제 앱 screenshot 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SWIMNOTE CARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE 공식 로고 또는 앱 아이콘을
+카드의 제품 대표 이미지로 사용합니다.
+
+현재 repository에 있는
+최신 공식 SWIMNOTE logo/icon asset 중
+HOME 카드에 가장 적합한 것을 사용하십시오.
+
+권장 콘텐츠:
+
+SWIMNOTE
+
+수영장 운영의 모든 것.
+
+회원, 수업, 출결, 보강, 일지와
+학부모 소통까지 하나의 앱으로.
+
+[알아보기 →]
+
+→ /swimnote
+
+문장은 지나치게 길게 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SWIMNOTE X CARD
+━━━━━━━━━━━━━━━━━━━━━━
+
+최신 공식 SWIMNOTE X logo를 사용합니다.
+
+권장 콘텐츠:
+
+SWIMNOTE X
+
+수영 교육을 시스템으로.
+
+커리큘럼, 수업 기록과 성장 데이터를
+하나의 교육 시스템으로 연결합니다.
+
+[알아보기 →]
+
+→ /swimnote-x
+
+IMPORTANT:
+
+SWIMNOTE와 X는
+Basic / Premium 관계가 아닙니다.
+
+두 카드 크기와 visual weight는 동일하게 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CARD DESIGN
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 홈페이지 Design System을 유지합니다.
+
+목표:
+고급스럽고 단정한 제품 선택 화면.
+
+Apple의 제품군 소개처럼
+제품 자체를 빠르게 인식할 수 있어야 합니다.
+
+Card:
+
+- White 또는 very light neutral
+- 얇은 border 또는 매우 subtle한 surface 차이
+- 과한 shadow 없음
+- gradient 없음
+- glow 없음
+- icon/logo 주변 장식 없음
+- 충분한 padding
+- radius는 기존 Design System 사용
+
+제품 logo/icon은
+앱스토어에서 제품을 인식하는 대표 이미지처럼
+정돈된 크기로 보여주십시오.
+
+너무 크게 키우지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. MOBILE
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Mobile에서 screenshot 때문에
+한 제품이 화면 대부분을 차지합니다.
+
+이를 제거하고 Mobile에서는:
+
+SWIMNOTE CARD
+↓
+SWIMNOTE X CARD
+
+두 제품이 빠르게 이어서 보이도록 합니다.
+
+한 카드가 지나치게 높지 않게 구성하십시오.
+
+목표:
+HOME에 들어왔을 때
+짧은 스크롤만으로 제품 2개를 모두 인식 가능.
+
+제품 카드 사이 여백도 과도하지 않게.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. DESKTOP
+━━━━━━━━━━━━━━━━━━━━━━
+
+Desktop에서는
+두 제품을 반드시 옆으로 붙일 필요는 없습니다.
+
+현재 전체 디자인 비율을 보고:
+
+A. 2-column 제품 카드
+또는
+B. 위아래 2개 제품 카드
+
+중 Apple-like 품질이 더 좋은 방식을 선택하십시오.
+
+단:
+
+- SWIMNOTE와 X 동일 비중
+- screenshot 없음
+- product logo가 시각적 중심
+- 설명은 짧게
+
+유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 APP 화면은 상세페이지로
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확보한 실제 앱 screenshot은
+HOME에서 제거하되 버리지 않습니다.
+
+다음에서 제품 증명 자료로 사용:
+
+/swimnote
+- 실제 SWIMNOTE 기본 앱 화면
+- 수업관리
+- 관리자/선생님 기능
+
+/swimnote-x
+- X 대표 홈
+- AI 일지
+- AI 성장리포트
+- X 교육 시스템 화면
+
+즉:
+
+HOME
+= 제품을 선택하게 하는 곳
+
+DETAIL PAGE
+= 실제 제품을 보여주는 곳
+
+으로 역할을 명확히 나눕니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. HOME 전체 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 HOME:
+
+SiteHeader
+
+SWIMNOTE Product Card
+
+SWIMNOTE X Product Card
+
+SiteFooter
+
+끝.
+
+새 hero section 추가 금지.
+WHY section 추가 금지.
+기능 목록 추가 금지.
+앱 screenshot 추가 금지.
+회사 소개 추가 금지.
+
+HOME을 다시 길게 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 후 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- HOME Mobile 390px
+- HOME Desktop 1280px
+- SWIMNOTE / X 카드 동일 visual weight
+- 제품 Logo/Icon 선명
+- 제품 설명 최대 1~2줄 중심
+- screenshot 완전 제거
+- 알아보기 정상 이동
+- /swimnote와 /swimnote-x의 기존 실제 제품 이미지 유지
+- horizontal overflow 없음
+
+Build 실행.
+
+완료 보고는 짧게:
+
+1. HOME에서 제거한 이미지
+2. 각 카드에 사용한 logo/icon asset
+3. Desktop 배치
+4. Mobile 배치
+5. /swimnote, /swimnote-x 이미지 유지 확인
+6. Build PASS/FAIL
+
+만 보고하십시오.
+
+Production 배포 금지.
+다른 페이지 수정 금지.
