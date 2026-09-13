@@ -426,6 +426,7 @@ export default function SwimnotePage() {
                 display: "flex",
                 gap: 16,
                 flexWrap: "wrap",
+                alignItems: "flex-start",
               }}
             >
               <img
@@ -441,19 +442,41 @@ export default function SwimnotePage() {
                 }}
                 loading="lazy"
               />
-              <img
-                src={`${BASE}app-basic-schedule-month.png`}
-                alt="수업 스케줄 화면"
+              {/* 학부모 앱 화면 — 실제 스크린샷 준비 후 교체 */}
+              <div
                 style={{
                   flex: "1 1 160px",
                   maxWidth: 260,
-                  height: "auto",
                   borderRadius: "var(--ds-radius-md)",
-                  objectFit: "cover",
                   border: "1px solid var(--ds-border-light)",
+                  background: "var(--ds-n-050)",
+                  padding: "28px 20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 14,
                 }}
-                loading="lazy"
-              />
+              >
+                {[
+                  { icon: "📷", text: "수업 사진 · 일지 피드" },
+                  { icon: "📅", text: "수업 일정 확인" },
+                  { icon: "🔔", text: "출결 · 보강 알림" },
+                  { icon: "💬", text: "선생님과 소통" },
+                ].map(({ icon, text }) => (
+                  <div
+                    key={text}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      fontSize: "var(--ds-text-body-sm)",
+                      color: "var(--ds-text-secondary)",
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>{icon}</span>
+                    <span>{text}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
