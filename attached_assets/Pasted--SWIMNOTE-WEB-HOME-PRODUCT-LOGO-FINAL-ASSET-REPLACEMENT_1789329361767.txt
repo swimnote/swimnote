@@ -1,0 +1,205 @@
+[SWIMNOTE WEB — HOME PRODUCT LOGO FINAL ASSET REPLACEMENT]
+
+대표가 HOME 제품 카드용 최종 PNG 2개를 직접 제공합니다.
+
+이번 작업에서는
+기존 로고 크롭/trim/optical-sizing 시도는 중단하고,
+지금 제공된 최종 PNG를 그대로 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 제공 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. SWIMNOTE HOME 공식 로고
+- 파일: 수영_기록_로고_swimnote.png
+- 아이콘 + SwimNote wordmark 포함
+- 투명 배경
+- 최종 승인본
+
+B. SWIMNOTE X HOME 공식 로고
+- 파일: 수영_기록_앱_로고_디자인.png
+- 아이콘 + SwimNote X wordmark 포함
+- 투명 배경
+- 최종 승인본
+
+이 두 파일이 HOME 카드 최종 공식 asset입니다.
+
+기존:
+- icon.png
+- swimnote-x-logomark.png
+- home-logo-swimnote.png
+- home-logo-swimnote-x.png
+- 기타 임시/파생 logo asset
+
+보다 이번 제공 파일을 우선하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. HOME 카드에 그대로 교체
+━━━━━━━━━━━━━━━━━━━━━━
+
+HOME SWIMNOTE 카드:
+→ 수영_기록_로고_swimnote.png 사용
+
+HOME SWIMNOTE X 카드:
+→ 수영_기록_앱_로고_디자인.png 사용
+
+기존 HOME용 logo 참조 제거.
+
+원본 asset을 다른 화면에서 쓰고 있다면
+무작정 삭제하지 말고 HOME 참조만 교체하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PNG 자체 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 PNG에 대해:
+
+- crop 금지
+- trim 금지
+- 배경 추가 금지
+- 색상 변경 금지
+- 아이콘 분리 금지
+- wordmark 제거 금지
+- AI 재생성 금지
+- CSS filter 금지
+- stretch 금지
+- aspect ratio 왜곡 금지
+
+그대로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 크기/정렬
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 로고는 동일한 카드 구조 안에 넣되
+원본 비율을 유지합니다.
+
+공통 logo area를 만들고:
+- display:flex
+- align-items:center
+- justify-content:flex-start
+- object-fit:contain
+
+으로 처리하십시오.
+
+단순히 두 이미지에 동일 height를 강제해서
+광학적 크기가 다시 틀어지는 방식은 금지합니다.
+
+Preview에서 실제로 보이는 크기를 확인해
+각각 width/max-height만 최소 조정하십시오.
+
+목표:
+- SWIMNOTE가 과하게 크지 않음
+- X가 과하게 작지 않음
+- 두 카드가 같은 제품군처럼 보임
+- headline 시작 y-position 동일
+- 카드 내부 vertical rhythm 동일
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 중복 PRODUCT LABEL 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 PNG 안에 이미
+SwimNote / SwimNote X wordmark가 들어있습니다.
+
+따라서 로고 아래에 별도로 있던:
+
+SWIMNOTE
+SWIMNOTE X
+
+작은 제품 라벨은 제거하십시오.
+
+최종 카드 구조:
+
+[공식 로고 PNG]
+
+[헤드라인]
+
+[설명]
+
+[알아보기]
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 카피 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE:
+
+헤드라인:
+"어린이수영장 운영의 기본."
+
+설명:
+어린이수영장 기준 유지.
+
+예:
+"회원, 반관리, 출결, 보강, 수업일지와 학부모 소통까지
+어린이수영장 운영에 필요한 기능을 하나의 앱으로 관리합니다."
+
+SWIMNOTE X:
+
+헤드라인:
+"수영 교육을 시스템으로."
+
+기존 X 설명 유지.
+
+SWIMNOTE / X를
+Basic / Premium 관계처럼 표현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 다른 영역 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 HOME product card logo 교체만 합니다.
+
+변경 금지:
+- Header logo
+- Footer logo
+- Login logo
+- /swimnote 상세 이미지
+- /swimnote-x 상세 이미지
+- AI page logo
+- HOME 구조
+- FAQ
+- Auth
+- DB/API
+- PC Dashboard
+- Production 배포
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 Preview QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Desktop에서 두 카드가 동시에 보이는 상태로 확인:
+
+- 두 로고 선명
+- 배경 없음
+- 비율 왜곡 없음
+- X만 작아 보이지 않음
+- SWIMNOTE만 커 보이지 않음
+- headline 시작 위치 균형
+- 카드 높이 동일
+
+Mobile 390:
+- 로고 잘림 없음
+- 세로 적층 정상
+- 동일한 시각 체계 유지
+
+코드상 숫자만 보고 PASS 처리 금지.
+실제 Preview에서 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+짧게 보고:
+
+1. 적용한 SWIMNOTE asset
+2. 적용한 SWIMNOTE X asset
+3. 제거된 기존 HOME logo 참조
+4. Product Label 제거 여부
+5. Desktop visual balance PASS/FAIL
+6. Mobile PASS/FAIL
+7. Build PASS/FAIL
+8. Production 배포 NO
+
+작업 후 중단하십시오.
