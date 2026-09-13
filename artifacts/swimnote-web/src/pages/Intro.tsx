@@ -190,8 +190,8 @@ export default function Intro() {
         desc={`회원, 수업, 출결, 보강, 일지와\n학부모 소통까지 하나의 앱으로.`}
         ctaLabel="알아보기"
         ctaHref="/swimnote"
-        imageSrc={`${BASE}app-schedule.png`}
-        imageAlt="SWIMNOTE 수업 스케줄러 화면"
+        imageSrc={`${BASE}app-basic-home.png`}
+        imageAlt="SWIMNOTE 관리자 홈 화면"
         bg="var(--ds-n-000)"
       />
 

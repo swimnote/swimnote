@@ -237,8 +237,8 @@ export default function SwimnotePage() {
           {/* Hero image */}
           <div style={{ display: "flex", gap: 16, alignItems: "flex-end", overflow: "hidden" }}>
             <img
-              src={`${BASE}app-schedule.png`}
-              alt="SWIMNOTE 수업 스케줄러 화면"
+              src={`${BASE}app-basic-home.png`}
+              alt="SWIMNOTE 관리자 홈 화면"
               style={{
                 width: "100%",
                 maxWidth: 820,
@@ -429,8 +429,8 @@ export default function SwimnotePage() {
               }}
             >
               <img
-                src={`${BASE}app-ai-diary.png`}
-                alt="AI 일지 작성 화면"
+                src={`${BASE}app-basic-class-mgmt.png`}
+                alt="수업관리 화면"
                 style={{
                   flex: "1 1 160px",
                   maxWidth: 260,
