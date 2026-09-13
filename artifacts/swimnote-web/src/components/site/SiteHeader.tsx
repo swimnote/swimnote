@@ -8,14 +8,6 @@ import { motion, AnimatePresence } from "framer-motion";
 // Only routes listed here as `live: true` will receive actual <Link> navigation.
 // All other items render as a <span> (visually identical, no navigation) until
 // the corresponding WP creates the real page and sets it to live.
-//
-// EXISTING routes (live):
-//   /          /education  /app  /support  /delete-account
-//   /login     /design-system   /admin/*  /super/*  /:slug (pool)
-//
-// FUTURE routes — will be activated in WP4/5/6/7:
-//   /swimnote  /swimnote-x  /swimnote-office
-//   /ai  /technology  /patents  /company  /contact  /terms  /privacy
 // ─────────────────────────────────────────────────────────────────────────────
 const LIVE_ROUTES = new Set([
   "/",
@@ -25,11 +17,9 @@ const LIVE_ROUTES = new Set([
   "/delete-account",
   "/login",
   "/design-system",
-  // WP4/5/6 — product pages
   "/swimnote",
   "/swimnote-x",
   "/swimnote-office",
-  // WP7 — extended menu pages
   "/ai",
   "/technology",
   "/patents",
@@ -41,7 +31,6 @@ const LIVE_ROUTES = new Set([
 ]);
 
 function isLiveRoute(href: string): boolean {
-  // Strip hash for lookup
   const path = href.split("#")[0];
   return LIVE_ROUTES.has(path);
 }
@@ -73,7 +62,7 @@ const MENU_GROUPS = [
   {
     heading: "지원",
     items: [
-      { label: "고객센터",         href: "/support"  },  // LIVE
+      { label: "고객센터",         href: "/support"  },
       { label: "앱 설치",          href: "/download" },
       { label: "이용약관",         href: "/terms"   },
       { label: "개인정보처리방침", href: "/privacy"  },
@@ -108,6 +97,11 @@ function useIsDesktopNav() {
     return () => window.removeEventListener("resize", handle);
   }, []);
   return isDesktop;
+}
+
+// ── rect hit-test helper ──────────────────────────────────────────────────────
+function pointInRect(rect: DOMRect, x: number, y: number): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
 // ── NavItem — live route or inert span ───────────────────────────────────────
@@ -160,8 +154,6 @@ function NavItem({ href, onClick, style, children, "aria-label": ariaLabel }: Na
     );
   }
 
-  // Future route — visually identical but not a link; not focusable via keyboard
-  // (tabIndex=-1 since it has no real destination)
   return (
     <span
       aria-label={ariaLabel ? `${ariaLabel} (준비 중)` : undefined}
@@ -169,7 +161,7 @@ function NavItem({ href, onClick, style, children, "aria-label": ariaLabel }: Na
       style={{
         ...baseStyle,
         cursor: "default",
-        color: "var(--ds-n-300)",   // subtly dimmed to indicate unavailability
+        color: "var(--ds-n-300)",
       }}
       title="준비 중"
     >
@@ -181,36 +173,24 @@ function NavItem({ href, onClick, style, children, "aria-label": ariaLabel }: Na
 // ── ExpandedMenu ──────────────────────────────────────────────────────────────
 //
 // SEMANTIC DECISION: role="navigation" (not role="dialog")
-//
-// Reason: This panel is a navigation mega-menu, not a modal dialog.
-// Using role="dialog" + aria-modal would inert the background, requiring
-// a complete focus trap — which is not appropriate for navigation overlays
-// where users expect Tab to move through menu items naturally.
-// role="navigation" is semantically correct, and we manage focus manually:
-//   - On open: first focusable item receives focus
-//   - Tab/Shift+Tab: contained within panel via keydown handler
-//   - ESC: closes + returns focus to ⋯ trigger
-//   - Outside click: closes
-// This pattern matches ARIA APG "Navigation" disclosure pattern.
+// Mega-menu overlay, not a modal — no aria-modal, focus trap is manual.
+// Dismiss logic lives in SiteHeader (coord-based pointermove + pointerdown).
 // ─────────────────────────────────────────────────────────────────────────────
-// panelRef is lifted to SiteHeader so the header can check containment for
-// hover-leave auto-close without importing React into a child effect.
 interface ExpandedMenuProps {
   open: boolean;
   onClose: () => void;
   isDesktop: boolean;
   triggerRef: React.RefObject<HTMLButtonElement | null>;
-  panelRef:   React.RefObject<HTMLDivElement | null>;
-  onMouseEnter?: () => void;
-  onMouseLeave?: (e: React.MouseEvent) => void;
+  // panelRef attaches to the VISIBLE menu panel (not any wrapper).
+  // SiteHeader reads getBoundingClientRect() from this ref for coord checks.
+  panelRef: React.RefObject<HTMLDivElement | null>;
 }
 
-function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseEnter, onMouseLeave }: ExpandedMenuProps) {
+function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef }: ExpandedMenuProps) {
 
   // ── On open: focus first focusable item in panel ──────────────────────────
   useEffect(() => {
     if (!open || !panelRef.current) return;
-    // rAF ensures panel is in DOM and animated before focus
     const id = requestAnimationFrame(() => {
       const items = getFocusable(panelRef.current!);
       items[0]?.focus();
@@ -218,7 +198,7 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseE
     return () => cancelAnimationFrame(id);
   }, [open]);
 
-  // ── Focus trap: Tab / Shift+Tab stay inside panel ─────────────────────────
+  // ── ESC + Tab focus trap ──────────────────────────────────────────────────
   useEffect(() => {
     if (!open || !panelRef.current) return;
     const panel = panelRef.current;
@@ -238,37 +218,14 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseE
       const last  = items[items.length - 1];
 
       if (e.shiftKey) {
-        // Shift+Tab at first item → wrap to last
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
       } else {
-        // Tab at last item → wrap to first
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
+        if (document.activeElement === last)  { e.preventDefault(); first.focus(); }
       }
     };
 
     panel.addEventListener("keydown", onKeyDown);
     return () => panel.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose, triggerRef]);
-
-  // ── Outside click close ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (
-        panelRef.current && !panelRef.current.contains(e.target as Node) &&
-        triggerRef.current && !triggerRef.current.contains(e.target as Node)
-      ) {
-        onClose();
-      }
-    };
-    const id = setTimeout(() => document.addEventListener("mousedown", onClick), 50);
-    return () => { clearTimeout(id); document.removeEventListener("mousedown", onClick); };
   }, [open, onClose, triggerRef]);
 
   // ── Mobile scroll lock ────────────────────────────────────────────────────
@@ -281,6 +238,8 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseE
 
   const panelStyle: React.CSSProperties = isDesktop
     ? {
+        // Desktop: content-height only — NOT full-screen.
+        // The page body below is real page content, not overlaid.
         position: "fixed",
         top: 52,
         left: 0,
@@ -293,6 +252,7 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseE
         boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
       }
     : {
+        // Mobile: full-height sheet
         position: "fixed",
         top: 48,
         left: 0,
@@ -308,8 +268,6 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseE
       {open && (
         <motion.div
           ref={panelRef}
-          // role="navigation" — mega-menu overlay, not a modal dialog
-          // (see SEMANTIC DECISION comment above)
           role="navigation"
           aria-label="사이트 전체 메뉴"
           id="site-expanded-menu"
@@ -318,10 +276,8 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef, panelRef, onMouseE
           animate={{ opacity: 1, y: 0, pointerEvents: "auto" }}
           exit={{ opacity: 0, y: -6, pointerEvents: "none" }}
           transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          onMouseEnter={onMouseEnter}
-          onMouseLeave={onMouseLeave}
         >
-          {/* 메뉴 내부 어디를 클릭해도 닫힘 (표준 nav-dropdown 동작) */}
+          {/* 내부 클릭 시 닫힘 — NavItem onClick과 redundant하나 안전망 */}
           <div
             onClick={onClose}
             style={{
@@ -413,12 +369,7 @@ function ProductTab({ href, label, active, isDesktop, tabActive, tabInactive }: 
   }
 
   return (
-    <span
-      style={style}
-      translate="no"
-      title="준비 중"
-      aria-disabled="true"
-    >
+    <span style={style} translate="no" title="준비 중" aria-disabled="true">
       {label}
     </span>
   );
@@ -428,46 +379,113 @@ function ProductTab({ href, label, active, isDesktop, tabActive, tabInactive }: 
 export default function SiteHeader() {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const isDesktop = useIsDesktopNav();
-  const moreRef   = useRef<HTMLButtonElement>(null);
-  const headerRef = useRef<HTMLElement>(null);
-  const panelRef  = useRef<HTMLDivElement>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDesktop   = useIsDesktopNav();
+  const moreRef     = useRef<HTMLButtonElement>(null);
+  const headerRef   = useRef<HTMLElement>(null);
+  const panelRef    = useRef<HTMLDivElement>(null);
+  const closeTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Route change → immediate close (안전장치) ─────────────────────────────
+  // ── Location change → immediate close ────────────────────────────────────
+  // Safety net: covers pathname AND back/forward via wouter's useLocation.
   useEffect(() => { setMenuOpen(false); }, [location]);
 
-  // ── Cleanup timer on unmount ──────────────────────────────────────────────
+  // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
 
   const closeMenu  = useCallback(() => setMenuOpen(false), []);
   const toggleMenu = useCallback(() => setMenuOpen((v) => !v), []);
 
-  // ── Desktop hover-leave auto-close ────────────────────────────────────────
-  // relatedTarget-based: no flicker between header and panel
-  const isInRegion = (target: EventTarget | null): boolean => {
-    if (!target || !(target instanceof Node)) return false;
-    return !!(headerRef.current?.contains(target) || panelRef.current?.contains(target));
-  };
-
+  // ── Timer helpers ─────────────────────────────────────────────────────────
+  // scheduleClose is idempotent: once a timer is running, successive calls
+  // are no-ops so continuous pointer movement outside does NOT keep resetting
+  // the delay.
   const scheduleClose = useCallback(() => {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setMenuOpen(false), 100); // 100ms flicker guard
+    if (closeTimer.current) return;            // already counting down
+    closeTimer.current = setTimeout(() => {
+      closeTimer.current = null;
+      setMenuOpen(false);
+    }, 100);
   }, []);
 
   const cancelClose = useCallback(() => {
-    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
   }, []);
 
-  const handleMouseLeave = useCallback((e: React.MouseEvent) => {
-    if (!isDesktop) return;
-    if (!isInRegion(e.relatedTarget)) scheduleClose();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDesktop, scheduleClose]);
+  // ── Desktop: pointermove coord-based hover-leave close ───────────────────
+  // Replaces unreliable relatedTarget/contains approach.
+  // Only applies to mouse pointer, not touch/stylus.
+  useEffect(() => {
+    if (!menuOpen || !isDesktop) return;
 
-  const handleMouseEnter = useCallback(() => {
-    cancelClose();
-  }, [cancelClose]);
+    const handleMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+
+      const x = e.clientX;
+      const y = e.clientY;
+      const headerRect = headerRef.current?.getBoundingClientRect();
+      const panelRect  = panelRef.current?.getBoundingClientRect();
+
+      const inHeader = headerRect ? pointInRect(headerRect, x, y) : false;
+      const inPanel  = panelRect  ? pointInRect(panelRect,  x, y) : false;
+
+      if (inHeader || inPanel) {
+        cancelClose();
+      } else {
+        scheduleClose();
+      }
+    };
+
+    document.addEventListener("pointermove", handleMove, { passive: true });
+    return () => document.removeEventListener("pointermove", handleMove);
+  }, [menuOpen, isDesktop, scheduleClose, cancelClose]);
+
+  // ── Global pointerdown → immediate close if outside region ───────────────
+  // Fires on any click/tap outside header+panel, including text selection.
+  // 30ms delay prevents the same pointerdown that OPENED the menu from
+  // immediately closing it.
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleDown = (e: PointerEvent) => {
+      const x = e.clientX;
+      const y = e.clientY;
+      const headerRect = headerRef.current?.getBoundingClientRect();
+      const panelRect  = panelRef.current?.getBoundingClientRect();
+
+      const inHeader = headerRect ? pointInRect(headerRect, x, y) : false;
+      const inPanel  = panelRect  ? pointInRect(panelRect,  x, y) : false;
+
+      if (!inHeader && !inPanel) {
+        cancelClose();      // discard any pending 100ms timer
+        setMenuOpen(false);
+      }
+    };
+
+    const id = setTimeout(() => {
+      document.addEventListener("pointerdown", handleDown, { capture: true });
+    }, 30);
+
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener("pointerdown", handleDown, { capture: true });
+    };
+  }, [menuOpen, cancelClose]);
+
+  // ── Browser history navigation (popstate / hashchange) ───────────────────
+  // Covers: browser Back/Forward and hash-only navigation (#investment etc.)
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener("popstate",   close);
+    window.addEventListener("hashchange", close);
+    return () => {
+      window.removeEventListener("popstate",   close);
+      window.removeEventListener("hashchange", close);
+    };
+  }, [menuOpen]);
 
   const isActive = (href: string) => location === href || location.startsWith(href + "/");
 
@@ -478,8 +496,6 @@ export default function SiteHeader() {
     <>
       <header
         ref={headerRef}
-        onMouseLeave={menuOpen && isDesktop ? handleMouseLeave : undefined}
-        onMouseEnter={menuOpen && isDesktop ? handleMouseEnter : undefined}
         style={{
           position: "fixed",
           top: 0, left: 0, right: 0,
@@ -506,7 +522,7 @@ export default function SiteHeader() {
             gap: 0,
           }}
         >
-          {/* ── Logo (always live) ──────────────────────────────── */}
+          {/* ── Logo ──────────────────────────────────────────────── */}
           <Link
             href="/"
             aria-label="SWIMNOTE 홈으로"
@@ -576,7 +592,6 @@ export default function SiteHeader() {
 
           {/* ── Right: PC Dashboard + ⋯ ──────────────────────────── */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {/* PC Dashboard — /login is live */}
             <Link
               href="/login"
               style={{
@@ -647,11 +662,9 @@ export default function SiteHeader() {
         isDesktop={isDesktop}
         triggerRef={moreRef}
         panelRef={panelRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
       />
 
-      {/* ── Mobile scrim ───────────────────────────────────────────── */}
+      {/* ── Mobile scrim — Desktop에서는 절대 렌더링 안 됨 ─────────── */}
       <AnimatePresence>
         {menuOpen && !isDesktop && (
           <motion.div
