@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -101,10 +101,11 @@ function PageFallback() {
 }
 
 // ── 레이아웃 래퍼 ─────────────────────────────────────────────────────────────
+// SiteHeader / SiteFooter는 Router()에서 단일 인스턴스로 렌더링.
+// PublicLayout은 페이지 본문 영역만 담당 (pt = fixed header 높이).
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "var(--ds-bg-white)" }}>
-      <SiteHeader />
       {/* pt matches header height: 52px desktop / 48px mobile (header is fixed) */}
       <main className="flex-1" style={{ paddingTop: 52 }}>{children}</main>
       <SiteFooter />
@@ -129,9 +130,22 @@ function SuperPage({ children }: { children: React.ReactNode }) {
   );
 }
 
+// SiteHeader를 Switch 밖 단일 인스턴스로 렌더링 — 라우트 이동 시 unmount/remount 없음.
+// useLocation()이 항상 올바르게 업데이트되므로 location 기반 close가 정상 작동.
+function PublicShell() {
+  const [location] = useLocation();
+  const isPublic = !location.startsWith("/admin") &&
+                   !location.startsWith("/super") &&
+                   location !== "/login" &&
+                   location !== "/super-login";
+  if (!isPublic) return null;
+  return <SiteHeader />;
+}
+
 function Router() {
   return (
     <Suspense fallback={<PageFallback />}>
+      <PublicShell />
       <Switch>
         {/* 공개 홈페이지 */}
         <Route path="/">
