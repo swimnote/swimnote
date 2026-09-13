@@ -1,0 +1,184 @@
+[SWIMNOTE WEB — PC DASHBOARD 연결 금지 정책 복구 / 배포 전 확인]
+
+중요한 기존 정책을 다시 확정합니다.
+
+대표가 과거 SWIMNOTE APP/API 서버를
+Replit에서 Render로 이전했기 때문에
+
+PC Dashboard는 현재 홈페이지와 연결하지 않도록
+명시적으로 보류한 상태였습니다.
+
+따라서 이전 작업 중 내려간:
+
+- /login 연결
+- pool_admin Web PIN 연결
+- /admin 진입 연결
+- /super-login 연결
+
+등을 홈페이지 배포의 필수조건으로 취급한 것은 잘못입니다.
+
+이번 작업에서는 대시보드를 새 서버에 연결하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 고정 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP/API Production:
+
+https://swimnote-api.onrender.com
+
+Render:
+swimnote-api
+
+이것이 현재 APP/API Production 서버입니다.
+
+기존 Replit APP backend로 되돌리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. WEBSITE와 DASHBOARD 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote.kr 홈페이지와
+PC Dashboard는 현재 별도 단계입니다.
+
+홈페이지는 배포할 수 있지만
+
+PC Dashboard는:
+
+- API 연결 금지
+- Auth 연결 금지
+- 기존 Replit backend 연결 금지
+- Render API에 임의 연결 금지
+- Web PIN flow 신규 연결 금지
+- Super Admin flow 수정 금지
+
+입니다.
+
+Dashboard는 홈페이지 완료 후
+서버 이전 구조를 기준으로 별도 재설계합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 현재 홈페이지 코드 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Header의:
+
+PC 대시보드
+
+버튼이 실제로 무엇을 하는지 확인하십시오.
+
+그리고 현재:
+
+/login
+/admin/*
+/super-login
+/super/*
+
+가 홈페이지 작업 중 새로 연결되거나
+수정되었는지 확인하십시오.
+
+이번에는 수정부터 하지 말고
+정확한 상태를 먼저 확인하십시오.
+
+보고할 것:
+
+- PC 대시보드 버튼 현재 href
+- /login 현재 역할
+- /login이 어떤 API host를 호출하는지
+- /admin이 어떤 API host를 사용하는지
+- /super-login 존재 여부
+- 기존 서버 이전 전 Dashboard 코드인지
+- 이번 홈페이지 작업에서 Dashboard/Auth가 변경되었는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 홈페이지 공개 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC Dashboard가 아직 안전하게 연결되지 않은 상태라면
+
+홈페이지에서:
+
+PC 대시보드 버튼
+→ 실제 Dashboard/Auth로 진입시키지 마십시오.
+
+현재 공개 방식은 다음 중
+기존 디자인에 가장 자연스러운 최소 방식으로 처리:
+
+- 비활성
+또는
+- "준비 중" 표시
+
+새 Dashboard 화면을 만들지 마십시오.
+
+대시보드 연결 작업은 별도 프로젝트입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 AUTH 코드 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 App/Auth/Super Admin 코드를
+삭제하거나 리팩터링하지 마십시오.
+
+특히:
+
+- JWT
+- swimming_pool_id
+- Web PIN
+- TOTP
+- super_admin
+- pool_admin
+- auth endpoint
+
+를 이번 홈페이지 작업에서 수정 금지.
+
+대시보드 연결을 막기 위해
+Backend/Auth를 변경하는 것이 아니라
+
+"홈페이지에서 진입 연결만 하지 않는 것"
+
+이 원칙입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 홈페이지 배포와 독립
+━━━━━━━━━━━━━━━━━━━━━━
+
+홈페이지 신규 디자인 배포는
+PC Dashboard 연결 없이 진행할 수 있습니다.
+
+즉:
+
+swimnote.kr
+→ 신규 홈페이지
+
+는 배포 가능.
+
+하지만:
+
+swimnote.kr
+→ PC Dashboard
+→ Production API/Auth
+
+연결은 현재 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이번 조사 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. PC 대시보드 버튼 현재 href:
+2. /login 현재 API host:
+3. /admin 현재 API host:
+4. /super-login 존재 여부:
+5. 홈페이지 작업 중 Dashboard/Auth 수정 여부:
+6. 기존 Replit backend 의존 여부:
+7. Dashboard 현재 연결 상태:
+   CONNECTED / DISCONNECTED / PARTIAL
+8. 현재 홈페이지만 배포 가능한가:
+   YES / NO
+9. Dashboard를 건드리지 않고 배포 가능한가:
+   YES / NO
+
+코드 수정/배포는 아직 하지 마십시오.
+
+조사 후 STOP.

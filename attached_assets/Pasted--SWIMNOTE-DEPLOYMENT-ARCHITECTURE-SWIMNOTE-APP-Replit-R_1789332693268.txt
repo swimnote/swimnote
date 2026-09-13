@@ -1,0 +1,245 @@
+[SWIMNOTE — DEPLOYMENT ARCHITECTURE 확인만 / 수정·배포 금지]
+
+대표가 과거 SWIMNOTE APP 서버를 Replit에서 Render로 이전하면서
+설정한 "Replit 배포 금지" 정책이
+홈페이지 swimnote.kr까지 잘못 확대 적용되었을 가능성을 확인하고 있습니다.
+
+이번 작업에서는 절대 배포하거나 설정을 변경하지 마십시오.
+
+오직 현재 실제 Production 구조만 조사해서 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 조사 목적
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 알려진 상태:
+
+APP/API:
+https://swimnote-api.onrender.com
+→ Render service swimnote-api
+
+Website:
+https://swimnote.kr
+→ Google Frontend
+→ 기존 Replit deployment로 추정
+
+확인해야 할 핵심:
+
+"swimnote.kr Replit deployment가
+홈페이지 Frontend 전용인지,
+아니면 과거 APP/API backend까지 같이 실행하는 deployment인지"
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. swimnote.kr 실제 연결 대상 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Replit 계정/프로젝트의 deployment 설정에서
+swimnote.kr custom domain이 연결된
+정확한 기존 deployment를 찾으십시오.
+
+다음 실제 값을 보고:
+
+- deployment name
+- deployment ID
+- deployment type
+  (Autoscale / Reserved VM / Static / 기타)
+- custom domain
+- source Repl/project
+- deployment 생성 시기 또는 현재 revision
+- 현재 status
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 현재 DEPLOYMENT의 실행 구조 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 swimnote.kr deployment의:
+
+- build command
+- run/start command
+- working directory
+- output directory
+- entrypoint
+
+를 실제 설정에서 확인하십시오.
+
+특히 다음을 판별:
+
+A.
+Vite build 결과인
+artifacts/swimnote-web/dist/public
+같은 Frontend 정적 파일만 serving하는지
+
+또는
+
+B.
+artifacts/api-server / Express server도
+같이 실행하는지
+
+정확히 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. API TRAFFIC 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote.kr 기존 Replit deployment가
+실제 APP/API 요청을 처리하는지 확인하십시오.
+
+확인 대상:
+
+- /api/*
+- auth
+- students
+- classes
+- diary
+- notifications
+- 기타 APP backend route
+
+현재 모바일 SWIMNOTE APP의
+Production API base URL이 무엇인지도
+코드/Production env 기준으로 확인하십시오.
+
+정상 기대:
+
+APP/API
+→ swimnote-api.onrender.com
+
+Website
+→ swimnote.kr
+
+Replit website deployment가
+모바일 APP Production API 서버 역할까지 하고 있다면
+반드시 별도 보고하십시오.
+
+코드나 env 수정은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. FRONTEND의 API BASE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 swimnote-web Production build가
+API 호출 시 어디를 바라보는지 확인하십시오.
+
+확인:
+
+- env variable 이름
+- 실제 Production API host
+- relative /api 사용 여부
+- same-origin proxy 사용 여부
+- Render 직접 호출 여부
+
+secret 값은 출력하지 말고
+host/route 구조만 보고하십시오.
+
+특히 신규 홈페이지를 Replit에 publish했을 때
+웹 요청이 자동으로
+구형 Replit backend로 연결될 위험이 있는지 판단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 과거 APP SERVER 이전 흔적 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Repository / deployment config / env / docs에서
+APP backend가:
+
+Replit
+→ Render swimnote-api
+
+로 이전된 흔적을 확인하십시오.
+
+확인할 수 있다면 다음을 보고:
+
+- 현재 APP Production backend
+- 과거 Replit backend deployment 존재 여부
+- 과거 backend deployment가 disabled/legacy인지
+- 현재 swimnote.kr deployment와 같은 deployment인지
+  또는 완전히 별개인지
+
+삭제/정리/변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 매우 중요한 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사 후 아래 중 하나로 판정하십시오.
+
+CASE A
+
+swimnote.kr Replit deployment =
+웹사이트 Frontend 전용
+
+APP/API =
+Render 전용
+
+→ 홈페이지는 기존 Replit deployment를
+그대로 republish해도 인프라 정책과 충돌하지 않음.
+
+
+CASE B
+
+swimnote.kr Replit deployment가
+Frontend + 과거 Backend를 함께 실행
+
+→ 그대로 republish하면 안 됨.
+Frontend와 Backend 관계를 먼저 분리해야 함.
+
+
+CASE C
+
+현재 구조가 다른 형태
+
+→ 실제 구조를 정확히 설명.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 이번 작업 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는:
+
+Replit Publish 금지
+Replit Deploy 금지
+Render Deploy 금지
+Git push 금지
+deployment 설정 변경 금지
+custom domain 변경 금지
+env 변경 금지
+API host 변경 금지
+코드 수정 금지
+DB 변경 금지
+AI ENGINE 접근 금지
+
+오직 조사만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로만 보고:
+
+1. swimnote.kr hosting provider:
+2. Replit deployment name/ID:
+3. deployment type:
+4. custom domain:
+5. build command:
+6. start/run command:
+7. working directory:
+8. Frontend serving 방식:
+9. Backend/API도 같이 실행되는가: YES/NO
+10. 모바일 APP Production API:
+11. Website Production API:
+12. Replit의 구형 APP backend 존재 여부:
+13. 현재 홈페이지 deployment와 구형 APP backend가 같은가:
+14. 판정:
+    CASE A / CASE B / CASE C
+15. 홈페이지 Replit republish 안전 여부:
+    SAFE / NOT SAFE / 추가 확인 필요
+
+실제 설정을 확인하지 못한 항목은
+"확인 불가"라고 쓰십시오.
+
+추측으로 채우지 마십시오.
+
+작업 후 STOP.
