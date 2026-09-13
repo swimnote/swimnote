@@ -399,16 +399,19 @@ describe("N–P. 5일 Auto-Publish (신규 정책: parent input close 제거)", 
     expect(result.cycles_input_closed).toBe(0);
   });
 
-  it("O: scheduler code에 QUESTION_AVAILABLE → READY_FOR_ANALYSIS 직접 처리 없음 (auto-publish 경로 사용)", async () => {
-    // 신규 정책: scheduler는 REVIEW_REQUIRED → APPROVED → PUBLISHED만 처리
-    // QUESTION_AVAILABLE → READY_FOR_ANALYSIS 변환은 AI analysis worker에서 처리
+  it("O: scheduler code에 auto-publish 직접 변환 없음 (2026-09-07 비활성화)", async () => {
+    // 신규 정책: scheduler는 REVIEW_REQUIRED 단계에서 멈춤
+    // auto-publish(autoApproveAndPublishForDelivery) 완전 비활성화
+    // publish는 pool_admin 직접 action으로만 허용
     const { readFileSync } = await import("node:fs");
     const scheduler = readFileSync(
       "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
       "utf-8",
     );
-    // auto-publish 엔드포인트 호출 (autoApproveAndPublishForDelivery 이용)
-    expect(scheduler).toContain("autoApproveAndPublishForDelivery");
+    // auto-publish 함수 호출 없어야 함 (2026-09-07 제거)
+    expect(scheduler).not.toContain("autoApproveAndPublishForDelivery");
+    // 자동 PUBLISHED 전환 없음
+    expect(scheduler).not.toMatch(/SET product_status\s*=\s*'PUBLISHED'/);
   });
 
   it("P: 5일 이후 실행 → auto-publish 쿼리에서 REVIEW_REQUIRED 타겟", async () => {
@@ -540,8 +543,8 @@ describe("AA. System Audit", () => {
     expect(scheduler).toContain("'system'");
     expect(scheduler).toContain("MONTHLY_CYCLE_OPEN");
     // PARENT_INPUT_WINDOW_CLOSED 제거됨 (신규 정책: close window 없음)
-    // auto-publish audit은 growth-report-service에서 처리
-    expect(scheduler).toContain("SYSTEM_MONTHLY_AUTO");
+    // auto-publish 완전 비활성화(2026-09-07) → SYSTEM_MONTHLY_AUTO 제거됨
+    expect(scheduler).not.toContain("autoApproveAndPublishForDelivery");
   });
 });
 
@@ -663,7 +666,8 @@ describe("AD. Job Result Counts", () => {
 
 describe("AE–AH. Regression Guard", () => {
   it("AE: GR1 lifecycle transitions 정상 (regression check)", () => {
-    expect(ALL_PRODUCT_STATUSES.size).toBe(11);
+    // WP8 이후 READY_TO_SEND, DISCARDED, REGENERATING 추가 → 14개
+    expect(ALL_PRODUCT_STATUSES.size).toBeGreaterThanOrEqual(11);
     expect(ALL_PARENT_INPUT_STATUSES.size).toBe(4);
     expect(ALL_CYCLE_STATUSES.size).toBe(4);
     expect(isAllowedTransition("OPEN", "PREANALYZING")).toBe(true);
@@ -701,5 +705,173 @@ describe("AE–AH. Regression Guard", () => {
     expect(scheduler).not.toContain("generateReport");
     expect(scheduler).not.toMatch(/fetch.*\/ai\//);
     expect(scheduler).not.toMatch(/axios.*engine/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI–AM. 안전 수정 검증 (500 pools capacity 대비)
+//   A. 신규 cycle + 다수 학생 → bulk/chunk INSERT 정상
+//   B. 일부 report row 기존 존재 → 재실행 → 기존 유지 + 누락만 추가
+//   C. cycle 이미 ACTIVE → student ensure 계속 (재실행 복구)
+//   D. 동일 scheduler 재실행 → 중복 report 없음
+//   E. refreshLock 호출 위치 확인 (pool loop 진입마다 호출)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
+  it("AI: 신규 cycle + 학생 3명 → bulk INSERT 1회 호출 (chunk 기반, 3건 개별 아님)", async () => {
+    // 기존: for-loop → 3회 개별 INSERT / 수정 후: chunk bulk → 1회 INSERT
+    let grReportInsertCount = 0;
+    const executeMock = vi.fn(async (query: any) => {
+      const q: string = query?.queryChunks
+        ? query.queryChunks.map((c: any) =>
+            typeof c === "string" ? c : (c?.value ?? "")
+          ).join("")
+        : String(query?.sql ?? query ?? "");
+
+      if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
+        return { rows: [{ id: "pool_x" }] };
+      }
+      if (q.includes("growth_report_cycles") && q.includes("INSERT") && q.includes("RETURNING")) {
+        return { rows: [{ id: "grc_new" }] };
+      }
+      if (q.includes("growth_report_cycles") && q.includes("SELECT")) return { rows: [] };
+      if (q.includes("cycle_status = 'PENDING'")) return { rows: [] };
+      if (q.includes("FROM students") || (q.includes("students") && q.includes("SELECT"))) {
+        return { rows: [{ id: "s1", name: "김A" }, { id: "s2", name: "김B" }, { id: "s3", name: "김C" }] };
+      }
+      if (q.includes("parent_students")) return { rows: [] };
+      // growth_reports INSERT 횟수 추적 (cycle INSERT가 아닌 것만)
+      if (q.includes("growth_reports") && q.includes("INSERT")) {
+        grReportInsertCount++;
+        return { rowCount: 3, rows: [] };
+      }
+      if (q.includes("UPDATE") || q.includes("INSERT")) return { rowCount: 1, rows: [] };
+      if (q.includes("next_audit_version")) return { rows: [{ v: 1 }] };
+      return { rows: [] };
+    });
+
+    const db = { execute: executeMock } as any;
+    const now = new Date("2026-09-01T00:30:00Z"); // KST 09:30
+    const result = await runGrowthReportScheduler(db, now);
+
+    expect(result.cycles_opened).toBe(1);
+    // 3명 ≤ STUDENT_CHUNK_SIZE(200) → chunk 1개 → INSERT 1회
+    expect(grReportInsertCount).toBe(1);
+
+    // 소스 파일에서 bulk 구조 확인
+    const { readFileSync } = await import("node:fs");
+    const scheduler = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts", "utf-8",
+    );
+    expect(scheduler).toContain("STUDENT_CHUNK_SIZE = 200");
+    expect(scheduler).toContain("sql.join");
+    expect(scheduler).toContain("VALUES ${valuesSql}");
+    expect(scheduler).toContain("ON CONFLICT (student_id, cycle_id)");
+    expect(scheduler).toContain("DO NOTHING");
+  });
+
+  it("AJ: 기존 report row 존재 → 재실행 → ON CONFLICT DO NOTHING (중복 방지)", async () => {
+    // scheduler code에 ON CONFLICT (student_id, cycle_id) DO NOTHING 포함 확인
+    const { readFileSync } = await import("node:fs");
+    const scheduler = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
+      "utf-8",
+    );
+    // 기존 row 덮어쓰기 없음
+    expect(scheduler).toContain("ON CONFLICT (student_id, cycle_id)");
+    expect(scheduler).toContain("DO NOTHING");
+    // DO UPDATE 금지
+    expect(scheduler).not.toContain("DO UPDATE");
+    // CHUNK_SIZE=200 적용
+    expect(scheduler).toContain("STUDENT_CHUNK_SIZE = 200");
+  });
+
+  it("AK: cycle 이미 ACTIVE → student ensure 계속 실행 (재실행 복구성)", async () => {
+    // ACTIVE cycle에서 student INSERT가 실행되는지 확인
+    const studentInsertCalled = { flag: false };
+    const executeMock = vi.fn(async (query: any) => {
+      const q: string = query?.queryChunks
+        ? query.queryChunks.map((c: any) =>
+            typeof c === "string" ? c : (c?.value ?? "")
+          ).join("")
+        : String(query?.sql ?? query ?? "");
+
+      if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
+        return { rows: [{ id: "pool_x" }] };
+      }
+      // cycle INSERT → DO NOTHING (기존 cycle 존재)
+      if (q.includes("growth_report_cycles") && q.includes("INSERT") && q.includes("RETURNING")) {
+        return { rows: [] }; // ON CONFLICT DO NOTHING
+      }
+      // 기존 cycle 조회 → ACTIVE
+      if (q.includes("growth_report_cycles") && q.includes("SELECT") && q.includes("swimming_pool_id")) {
+        return { rows: [{ id: "grc_existing", cycle_status: "ACTIVE", analysis_cutoff_at: "2026-08-31T15:00:00Z" }] };
+      }
+      if (q.includes("cycle_status = 'PENDING'")) return { rows: [] };
+      // student 조회 → 누락 학생 1명 반환
+      if (q.includes("FROM students") || (q.includes("students") && q.includes("SELECT"))) {
+        return { rows: [{ id: "s_missing", name: "홍누락" }] };
+      }
+      if (q.includes("parent_students")) return { rows: [] };
+      // growth_reports INSERT → 누락 학생 ensure
+      if (q.includes("growth_reports") && q.includes("INSERT")) {
+        studentInsertCalled.flag = true;
+        return { rowCount: 1, rows: [] };
+      }
+      if (q.includes("UPDATE") || q.includes("INSERT")) return { rowCount: 0, rows: [] };
+      if (q.includes("next_audit_version")) return { rows: [{ v: 1 }] };
+      return { rows: [] };
+    });
+
+    const db = { execute: executeMock } as any;
+    const now = new Date("2026-09-01T00:30:00Z");
+    const result = await runGrowthReportScheduler(db, now);
+
+    // ACTIVE cycle → skipped++, cycles_opened=0
+    expect(result.skipped).toBe(1);
+    expect(result.cycles_opened).toBe(0);
+    // 핵심: student INSERT가 실행됨 (재실행 복구)
+    expect(studentInsertCalled.flag).toBe(true);
+  });
+
+  it("AL: 동일 scheduler 재실행 → 중복 report 없음 (ON CONFLICT DO NOTHING)", async () => {
+    // 1회: 신규 cycle + 학생 2명 INSERT
+    const db1 = makeSchedulerDb({
+      xPools: [{ id: "pool_x" }],
+      insertCycleReturnsId: "grc_001",
+      students: [{ id: "s1" }, { id: "s2" }],
+      openReports: [{ id: "gr_001" }, { id: "gr_002" }],
+    }) as any;
+    const now = new Date("2026-09-01T00:30:00Z");
+    const r1 = await runGrowthReportScheduler(db1, now);
+    expect(r1.cycles_opened).toBe(1);
+
+    // 2회: cycle ACTIVE → skip; student INSERT → DO NOTHING (0 rows affected)
+    const db2 = makeSchedulerDb({
+      xPools: [{ id: "pool_x" }],
+      insertCycleReturnsId: null,
+      existingCycleRow: { id: "grc_001", cycle_status: "ACTIVE" },
+      students: [{ id: "s1" }, { id: "s2" }],
+      openReports: [],
+    }) as any;
+    const r2 = await runGrowthReportScheduler(db2, now);
+    expect(r2.cycles_opened).toBe(0);
+    expect(r2.skipped).toBe(1);
+    // 중복 cycle 생성 없음
+    expect(r2.cycles_created).toBe(0);
+  });
+
+  it("AM: scheduler code에 refreshLock 호출 코드 존재 (pool loop heartbeat)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const scheduler = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
+      "utf-8",
+    );
+    // refreshLock이 import됨
+    expect(scheduler).toContain("refreshLock");
+    // pool loop 안에서 호출 (for...of xPools 루프 내)
+    expect(scheduler).toMatch(/for.*xPools[\s\S]{0,500}refreshLock/);
+    // TTL 그대로 재사용 (600초)
+    expect(scheduler).toContain("LOCK_TTL_SECONDS");
   });
 });

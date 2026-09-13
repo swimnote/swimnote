@@ -277,6 +277,7 @@ async function openCycleForPool(
   `);
 
   let cycleId: string;
+  let cycleAlreadyActive = false; // true = 기존 ACTIVE cycle; student ensure는 계속 실행
 
   if (insertCycle.rows.length > 0) {
     cycleId = (insertCycle.rows[0] as any).id as string;
@@ -318,27 +319,26 @@ async function openCycleForPool(
       }
     }
 
-    // 이미 ACTIVE 이상이면 skip (idempotent)
+    // ACTIVE 이상이면 cycle 전환을 건너뜀 — 단, student ensure는 계속 실행 (재실행 복구)
     if (row.cycle_status !== "PENDING") {
+      cycleAlreadyActive = true;
       result.skipped++;
-      console.log(`[gr-scheduler] CYCLE_SKIP (status=${row.cycle_status}): cycle=${cycleId}`);
-      return cycleId; // 이미 열린 cycle — return ID for publish phase
+      console.log(`[gr-scheduler] CYCLE_ALREADY_ACTIVE (status=${row.cycle_status}): cycle=${cycleId} — student ensure 계속`);
     }
   }
 
-  result.cycles_checked++;
-
-  // 2. Cycle PENDING → ACTIVE
-  await db.execute(sql`
-    UPDATE growth_report_cycles
-    SET cycle_status = 'ACTIVE', updated_at = now()
-    WHERE id = ${cycleId}
-      AND cycle_status = 'PENDING'
-  `);
-  result.cycles_opened++;
-
-  // Audit: cycle open
-  await writeSchedulerAudit(db, cycleId, poolId, "PENDING", "ACTIVE", "MONTHLY_CYCLE_OPEN");
+  // 2. Cycle PENDING → ACTIVE (새 cycle 또는 PENDING 기존 cycle; 이미 ACTIVE면 skip)
+  if (!cycleAlreadyActive) {
+    await db.execute(sql`
+      UPDATE growth_report_cycles
+      SET cycle_status = 'ACTIVE', updated_at = now()
+      WHERE id = ${cycleId}
+        AND cycle_status = 'PENDING'
+    `);
+    result.cycles_checked++;
+    result.cycles_opened++;
+    await writeSchedulerAudit(db, cycleId, poolId, "PENDING", "ACTIVE", "MONTHLY_CYCLE_OPEN");
+  }
 
   // 3. 발급 대상 학생 선정 — 배치 워커와 동일한 3중 기준
   //    (a) status = 'active'  (퇴원·정지·삭제 제외)
@@ -401,27 +401,38 @@ async function openCycleForPool(
     }
   }
 
+  // 4. student report ensure — pool 단위 bulk chunk INSERT (ON CONFLICT DO NOTHING)
+  //    chunk 크기 200: PostgreSQL parameter 한도(65535)와 DB 부하 균형
+  //    재실행 시 기존 row는 DO NOTHING으로 건너뛰고 누락 row만 추가 (재실행 복구성 보장)
+  const STUDENT_CHUNK_SIZE = 200;
+  const studentRows = students.rows as Array<{ id: string; name: string }>;
   let reportsCreated = 0;
-  for (const s of students.rows as Array<{ id: string; name: string }>) {
+
+  for (let i = 0; i < studentRows.length; i += STUDENT_CHUNK_SIZE) {
+    const chunk = studentRows.slice(i, i + STUDENT_CHUNK_SIZE);
+    const valuesSql = sql.join(
+      chunk.map(s => sql`(
+        ${s.id}, ${poolId}, ${cycleId}, ${reportPeriod},
+        'NOT_OPEN', 'NONE', 0,
+        ${periodStart}::date, ${periodEnd}::date
+      )`),
+      sql`, `,
+    );
     await db.execute(sql`
       INSERT INTO growth_reports (
         student_id, swimming_pool_id, cycle_id, report_period,
         product_status, parent_input_status, snapshot_version,
         period_start, period_end
-      ) VALUES (
-        ${s.id}, ${poolId}, ${cycleId}, ${reportPeriod},
-        'NOT_OPEN', 'NONE', 0,
-        ${periodStart}::date, ${periodEnd}::date
-      )
+      ) VALUES ${valuesSql}
       ON CONFLICT (student_id, cycle_id)
         WHERE cycle_id IS NOT NULL AND deleted_at IS NULL
       DO NOTHING
     `);
-    reportsCreated++;
+    reportsCreated += chunk.length;
   }
 
   if (reportsCreated > 0) {
-    console.log(`[gr-scheduler] REPORTS_ENSURED: cycle=${cycleId} pool=${poolId} students=${reportsCreated}`);
+    console.log(`[gr-scheduler] REPORTS_ENSURED: cycle=${cycleId} pool=${poolId} students=${reportsCreated} chunks=${Math.ceil(reportsCreated / STUDENT_CHUNK_SIZE)}`);
   }
 
   // 4. NOT_OPEN → OPEN (bulk) — period_start/period_end도 올바르게 업데이트
@@ -557,6 +568,14 @@ export async function runGrowthReportScheduler(
 
   if (shouldOpen && xPools.length > 0) {
     for (const pool of xPools) {
+      // lock heartbeat — pool loop 진입마다 TTL 갱신
+      // refreshLock 실패 시 경고만 출력하고 계속 진행 (data는 idempotent)
+      try {
+        await refreshLock(SCHEDULER_LOCK, LOCK_TTL_SECONDS);
+      } catch (refreshErr: any) {
+        console.warn(`[gr-scheduler] refreshLock 실패 (계속 진행): ${refreshErr.message}`);
+      }
+
       try {
         await openCycleForPool(db, pool.id, ts, result);
       } catch (err: any) {
