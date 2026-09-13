@@ -442,8 +442,8 @@ export default function SwimnotePage() {
                 loading="lazy"
               />
               <img
-                src={`${BASE}app-parent-report.png`}
-                alt="학부모 앱 AI 성장 리포트 화면"
+                src={`${BASE}app-basic-schedule-month.png`}
+                alt="수업 스케줄 화면"
                 style={{
                   flex: "1 1 160px",
                   maxWidth: 260,
