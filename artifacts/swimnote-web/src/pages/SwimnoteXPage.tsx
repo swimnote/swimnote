@@ -124,8 +124,8 @@ export default function SwimnoteXPage() {
 
           {/* Hero image */}
           <img
-            src={`${BASE}education-growth.png`}
-            alt="SWIMNOTE X 성장 데이터"
+            src={`${BASE}app-home-x.png`}
+            alt="SWIMNOTE X 관리자 홈 화면"
             style={{
               width: "100%",
               maxWidth: 780,
@@ -215,8 +215,8 @@ export default function SwimnoteXPage() {
             </div>
             <div style={{ flex: "1 1 300px" }}>
               <img
-                src={`${BASE}education-level.png`}
-                alt="교육 레벨 시스템"
+                src={`${BASE}app-ai-diary.png`}
+                alt="AI 일지 작성 화면"
                 style={{
                   width: "100%",
                   maxWidth: 400,
@@ -357,8 +357,8 @@ export default function SwimnoteXPage() {
           >
             <div style={{ flex: "1 1 300px" }}>
               <img
-                src={`${BASE}education-overview.png`}
-                alt="교육 개요 화면"
+                src={`${BASE}app-report-pdf.png`}
+                alt="AI 성장 리포트 실제 문서"
                 style={{
                   width: "100%",
                   maxWidth: 420,
