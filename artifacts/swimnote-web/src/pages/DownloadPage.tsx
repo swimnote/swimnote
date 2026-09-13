@@ -1,24 +1,29 @@
 // /download — SWIMNOTE 앱 설치 안내
-// 별도 영업/도입 문의 없이 앱 설치 후 구독 선택으로 바로 이용 가능
+// QR asset: app-store-qr.png / google-play-qr.png (공식 제공)
 
-const APPSTORE_URL = "https://apps.apple.com/app/id6761360360";
-const GOOGLEPLAY_URL = "https://play.google.com/store/apps/details?id=com.swimnote.app";
+const BASE = import.meta.env.BASE_URL;
 
-function AppleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, fill: "currentColor", flexShrink: 0 }}>
-      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98l-.09.06c-.22.13-2.2 1.28-2.18 3.81.03 3.02 2.65 4.03 2.68 4.04l-.05.22zM13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-    </svg>
-  );
-}
+const APPSTORE_URL    = "https://apps.apple.com/app/id6761360360";
+const GOOGLEPLAY_URL  = "https://play.google.com/store/apps/details?id=com.swimnote.app";
 
-function PlayIcon() {
-  return (
-    <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, fill: "currentColor", flexShrink: 0 }}>
-      <path d="M3.18 23.76c.3.17.63.24.97.21l12.38-7.19-2.61-2.61-10.74 9.59zm-1.81-21.1v18.68c0 .53.15 1 .43 1.37L13.45 11.5 1.8 1.29c-.28.37-.43.84-.43 1.37zm20.23 7.91l-2.88-1.67-3.03 3.03 3.03 3.03 2.9-1.68c.83-.48.83-1.23-.02-1.71zM4.15.24l12.38 7.19-2.61 2.61L3.18.45C3.48.28 3.86.07 4.15.24z" />
-    </svg>
-  );
-}
+const STORES = [
+  {
+    key:    "appstore",
+    qr:     `${BASE}app-store-qr.png`,
+    qrAlt:  "App Store QR 코드",
+    label:  "App Store",
+    sub:    "Download on the",
+    href:   APPSTORE_URL,
+  },
+  {
+    key:    "googleplay",
+    qr:     `${BASE}google-play-qr.png`,
+    qrAlt:  "Google Play QR 코드",
+    label:  "Google Play",
+    sub:    "Get it on",
+    href:   GOOGLEPLAY_URL,
+  },
+] as const;
 
 export default function DownloadPage() {
   return (
@@ -84,153 +89,85 @@ export default function DownloadPage() {
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: 20,
+          gap: 24,
           justifyContent: "center",
           maxWidth: 560,
           width: "100%",
         }}
       >
-        {/* App Store */}
-        <a
-          href={APPSTORE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="App Store에서 SWIMNOTE 다운로드"
-          style={{
-            flex: "1 1 220px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 20,
-            padding: "32px 24px",
-            borderRadius: "var(--ds-radius-md)",
-            border: "1px solid var(--ds-border-med)",
-            background: "var(--ds-n-000)",
-            textDecoration: "none",
-            color: "inherit",
-            transition: "border-color 0.15s, box-shadow 0.15s",
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.borderColor = "var(--ds-n-400)";
-            el.style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)";
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.borderColor = "var(--ds-border-med)";
-            el.style.boxShadow = "none";
-          }}
-        >
-          <div
+        {STORES.map(({ key, qr, qrAlt, label, sub, href }) => (
+          <a
+            key={key}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${label}에서 SWIMNOTE 다운로드`}
             style={{
-              width: 52,
-              height: 52,
-              borderRadius: 12,
-              background: "var(--ds-n-900)",
+              flex: "1 1 200px",
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
+              gap: 16,
+              padding: "28px 20px 24px",
+              borderRadius: "var(--ds-radius-md)",
+              border: "1px solid var(--ds-border-med)",
+              background: "var(--ds-n-000)",
+              textDecoration: "none",
+              color: "inherit",
+              transition: "border-color 0.15s, box-shadow 0.15s",
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.borderColor = "var(--ds-n-400)";
+              el.style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)";
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.borderColor = "var(--ds-border-med)";
+              el.style.boxShadow = "none";
             }}
           >
-            <AppleIcon />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <p
+            {/* QR image — quiet zone 포함, 왜곡/crop 없음 */}
+            <img
+              src={qr}
+              alt={qrAlt}
               style={{
-                fontSize: 11,
-                fontWeight: "var(--ds-fw-medium)",
-                color: "var(--ds-n-400)",
-                letterSpacing: "0.02em",
-                margin: 0,
+                width: 160,
+                height: 160,
+                objectFit: "contain",
+                display: "block",
+                imageRendering: "pixelated",
               }}
-            >
-              Download on the
-            </p>
-            <p
-              style={{
-                fontSize: "var(--ds-text-body)",
-                fontWeight: "var(--ds-fw-semibold)",
-                color: "var(--ds-n-900)",
-                margin: 0,
-              }}
-              translate="no"
-            >
-              App Store
-            </p>
-          </div>
-        </a>
+              draggable={false}
+            />
 
-        {/* Google Play */}
-        <a
-          href={GOOGLEPLAY_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Google Play에서 SWIMNOTE 다운로드"
-          style={{
-            flex: "1 1 220px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 20,
-            padding: "32px 24px",
-            borderRadius: "var(--ds-radius-md)",
-            border: "1px solid var(--ds-border-med)",
-            background: "var(--ds-n-000)",
-            textDecoration: "none",
-            color: "inherit",
-            transition: "border-color 0.15s, box-shadow 0.15s",
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.borderColor = "var(--ds-n-400)";
-            el.style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)";
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.borderColor = "var(--ds-border-med)";
-            el.style.boxShadow = "none";
-          }}
-        >
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 12,
-              background: "#01875f",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-            }}
-          >
-            <PlayIcon />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <p
-              style={{
-                fontSize: 11,
-                fontWeight: "var(--ds-fw-medium)",
-                color: "var(--ds-n-400)",
-                letterSpacing: "0.02em",
-                margin: 0,
-              }}
-            >
-              Get it on
-            </p>
-            <p
-              style={{
-                fontSize: "var(--ds-text-body)",
-                fontWeight: "var(--ds-fw-semibold)",
-                color: "var(--ds-n-900)",
-                margin: 0,
-              }}
-              translate="no"
-            >
-              Google Play
-            </p>
-          </div>
-        </a>
+            {/* Store label */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <p
+                style={{
+                  fontSize: 11,
+                  fontWeight: "var(--ds-fw-medium)",
+                  color: "var(--ds-n-400)",
+                  letterSpacing: "0.02em",
+                  margin: 0,
+                }}
+              >
+                {sub}
+              </p>
+              <p
+                style={{
+                  fontSize: "var(--ds-text-body)",
+                  fontWeight: "var(--ds-fw-semibold)",
+                  color: "var(--ds-n-900)",
+                  margin: 0,
+                }}
+                translate="no"
+              >
+                {label}
+              </p>
+            </div>
+          </a>
+        ))}
       </div>
 
       {/* Footnote */}
