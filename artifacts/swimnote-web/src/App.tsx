@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Nav from "@/components/Nav";
-import Footer from "@/components/Footer";
+import SiteHeader from "@/components/site/SiteHeader";
+import SiteFooter from "@/components/site/SiteFooter";
 import AdminGuard from "@/components/admin/AdminGuard";
 import AdminLayout from "@/components/admin/AdminLayout";
 import SuperGuard from "@/components/super/SuperGuard";
@@ -87,10 +87,11 @@ function PageFallback() {
 // ── 레이아웃 래퍼 ─────────────────────────────────────────────────────────────
 function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <Nav />
-      <main className="flex-1">{children}</main>
-      <Footer />
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--ds-bg-white)" }}>
+      <SiteHeader />
+      {/* pt matches header height: 52px desktop / 48px mobile (header is fixed) */}
+      <main className="flex-1" style={{ paddingTop: 52 }}>{children}</main>
+      <SiteFooter />
     </div>
   );
 }
