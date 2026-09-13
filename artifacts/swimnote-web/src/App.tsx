@@ -15,15 +15,20 @@ import SuperLayout from "@/components/super/SuperLayout";
 const DesignSystem = lazy(() => import("@/pages/DesignSystem"));
 
 // ── 공개 페이지 (Public) ─────────────────────────────────────────────────────
-const Intro        = lazy(() => import("@/pages/Intro"));
-const Education    = lazy(() => import("@/pages/Education"));
-const AppPage      = lazy(() => import("@/pages/AppPage"));
-const Support      = lazy(() => import("@/pages/Support"));
-const Login        = lazy(() => import("@/pages/Login"));
-const DeleteAccount = lazy(() => import("@/pages/DeleteAccount"));
-const PoolPage     = lazy(() => import("@/pages/PoolPage"));
-const PoolHomepage = lazy(() => import("@/pages/PoolHomepage"));
-const NotFound     = lazy(() => import("@/pages/not-found"));
+const Intro             = lazy(() => import("@/pages/Intro"));
+const Education         = lazy(() => import("@/pages/Education"));
+const AppPage           = lazy(() => import("@/pages/AppPage"));
+const Support           = lazy(() => import("@/pages/Support"));
+const Login             = lazy(() => import("@/pages/Login"));
+const DeleteAccount     = lazy(() => import("@/pages/DeleteAccount"));
+const PoolPage          = lazy(() => import("@/pages/PoolPage"));
+const PoolHomepage      = lazy(() => import("@/pages/PoolHomepage"));
+const NotFound          = lazy(() => import("@/pages/not-found"));
+
+// ── WP3~WP6 제품 페이지 (/:slug 보다 먼저 등록 필수) ─────────────────────────
+const SwimnotePage      = lazy(() => import("@/pages/SwimnotePage"));
+const SwimnoteXPage     = lazy(() => import("@/pages/SwimnoteXPage"));
+const SwimnoteOfficePage = lazy(() => import("@/pages/SwimnoteOfficePage"));
 
 // ── 레거시 ──────────────────────────────────────────────────────────────────
 const SuperAdmin   = lazy(() => import("@/pages/SuperAdmin"));
@@ -267,6 +272,17 @@ function Router() {
         </Route>
         <Route path="/admin/settings/branding">
           <AdminPage><Branding /></AdminPage>
+        </Route>
+
+        {/* ─── WP4/5/6 제품 페이지 — 반드시 /:slug 보다 앞에 위치 ─── */}
+        <Route path="/swimnote">
+          <PublicLayout><SwimnotePage /></PublicLayout>
+        </Route>
+        <Route path="/swimnote-x">
+          <PublicLayout><SwimnoteXPage /></PublicLayout>
+        </Route>
+        <Route path="/swimnote-office">
+          <PublicLayout><SwimnoteOfficePage /></PublicLayout>
         </Route>
 
         {/* 수영장 관리자 (레거시) */}

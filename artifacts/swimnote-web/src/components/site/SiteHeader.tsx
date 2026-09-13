@@ -25,6 +25,10 @@ const LIVE_ROUTES = new Set([
   "/delete-account",
   "/login",
   "/design-system",
+  // WP4/5/6 — activated after page creation
+  "/swimnote",
+  "/swimnote-x",
+  "/swimnote-office",
 ]);
 
 function isLiveRoute(href: string): boolean {
