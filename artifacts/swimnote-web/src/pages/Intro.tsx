@@ -2,40 +2,20 @@ import { Link } from "wouter";
 
 const BASE = import.meta.env.BASE_URL;
 
-// ── Logo Frame ────────────────────────────────────────────────────────────────
-// 두 카드 동일 88px 높이 프레임, object-fit: contain 기준 정렬
-interface LogoFrameProps {
-  src:        string;
-  alt:        string;
-  blendMode?: React.CSSProperties["mixBlendMode"];
-}
-
-function LogoFrame({ src, alt, blendMode }: LogoFrameProps) {
+// ── Logo wrapper — 두 카드 동일 높이 영역, 로고는 각 자연 크기 기준 ─────────
+// 두 카드 모두 로고 영역 height 72px 고정 → 헤드라인 세로 정렬 기준 통일
+function LogoSlot({ children }: { children: React.ReactNode }) {
   return (
     <div
-      aria-hidden="true"
       style={{
-        width: 88,
-        height: 88,
+        height: 72,
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
+        marginBottom: 20,
         flexShrink: 0,
-        marginBottom: 24,
       }}
     >
-      <img
-        src={src}
-        alt={alt}
-        draggable={false}
-        style={{
-          maxWidth: "100%",
-          maxHeight: "100%",
-          objectFit: "contain",
-          display: "block",
-          mixBlendMode: blendMode,
-        }}
-      />
+      {children}
     </div>
   );
 }
@@ -185,13 +165,17 @@ export default function Intro() {
           }}
         >
           {/* ── SWIMNOTE ──────────────────────────────────────────── */}
-          {/* icon.png: 투명 PNG 앱 아이콘, 흰 카드에 직접 사용 */}
+          {/* icon.png: 투명 PNG 앱 아이콘 — 56px 정사각형 */}
           <ProductCard
             logo={
-              <LogoFrame
-                src={`${BASE}icon.png`}
-                alt="SWIMNOTE 앱 아이콘"
-              />
+              <LogoSlot>
+                <img
+                  src={`${BASE}icon.png`}
+                  alt="SWIMNOTE 앱 아이콘"
+                  draggable={false}
+                  style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 12, display: "block" }}
+                />
+              </LogoSlot>
             }
             tag="SWIMNOTE"
             headline="어린이수영장 운영의 기본."
@@ -200,14 +184,24 @@ export default function Intro() {
           />
 
           {/* ── SWIMNOTE X ────────────────────────────────────────── */}
-          {/* swimnote-x-logomark.png: 흰 배경 PNG, multiply로 배경 소거 */}
+          {/* swimnote-x-logomark.png: 흰 배경 PNG, multiply로 배경 소거
+              height 56px auto-width — 이미지 자연 비율 유지, SWIMNOTE 아이콘과 시각 높이 통일 */}
           <ProductCard
             logo={
-              <LogoFrame
-                src={`${BASE}swimnote-x-logomark.png`}
-                alt="SWIMNOTE X 로고"
-                blendMode="multiply"
-              />
+              <LogoSlot>
+                <img
+                  src={`${BASE}swimnote-x-logomark.png`}
+                  alt="SWIMNOTE X 로고"
+                  draggable={false}
+                  style={{
+                    height: 56,
+                    width: "auto",
+                    objectFit: "contain",
+                    display: "block",
+                    mixBlendMode: "multiply",
+                  }}
+                />
+              </LogoSlot>
             }
             tag="SWIMNOTE X"
             headline="수영 교육을 시스템으로."
