@@ -36,6 +36,7 @@ const TechnologyPage    = lazy(() => import("@/pages/TechnologyPage"));
 const PatentsPage       = lazy(() => import("@/pages/PatentsPage"));
 const CompanyPage       = lazy(() => import("@/pages/CompanyPage"));
 const ContactPage       = lazy(() => import("@/pages/ContactPage"));
+const SuperLogin        = lazy(() => import("@/pages/SuperLogin"));
 const DownloadPage      = lazy(() => import("@/pages/DownloadPage"));
 const TermsPage         = lazy(() => import("@/pages/TermsPage"));
 const PrivacyPage       = lazy(() => import("@/pages/PrivacyPage"));
@@ -183,7 +184,10 @@ function Router() {
         )}
 
         {/* 인증 */}
+        {/* /login: Pool PC Dashboard 전용 (super_admin 차단) */}
         <Route path="/login" component={Login} />
+        {/* /super-login: 내부 운영자 전용, 공개 Header/Footer 없음 */}
+        <Route path="/super-login" component={SuperLogin} />
 
         {/* ─── Super Admin (구 레거시 → redirect) ─── */}
         <Route path="/super-admin" component={SuperAdmin} />

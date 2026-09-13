@@ -1,0 +1,377 @@
+[SWIMNOTE WEB — PC DASHBOARD AUTH ENTRY 분리 P0]
+
+대표가 PC Dashboard 로그인 정책을 최종 확정했습니다.
+
+현재 문제:
+공개 홈페이지의 [PC 대시보드] → /login에서
+super_admin 계정으로도 로그인하여 /super로 진입할 수 있습니다.
+
+이것은 잘못된 동작입니다.
+
+공개 PC 대시보드는
+"각 수영장 관리자 전용 로그인"이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 로그인 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. PUBLIC PC DASHBOARD
+
+공개 홈페이지:
+[PC 대시보드]
+→ /login
+
+/login의 목적은 오직:
+
+SWIMMING POOL ADMIN LOGIN
+
+입니다.
+
+로그인 UI는 한 화면에서:
+
+아이디
+비밀번호
+PIN 번호
+
+[로그인]
+
+3개 입력을 받습니다.
+
+PIN:
+SWIMNOTE 앱에서 수영장 관리자가 설정한
+기존 Web Dashboard PIN을 사용합니다.
+
+새 PIN 체계 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. BACKEND AUTH는 기존 것을 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 인증 API를 만들지 마십시오.
+DB/Auth schema 변경 금지.
+
+현재 기존 인증이:
+
+ID/email + password
+→ /auth/login web_login:true
+→ web_session / web_pin_required
+→ PIN 검증
+→ JWT
+
+형태라면 그대로 재사용합니다.
+
+UI에서는 3개를 한 번에 입력받아도
+내부적으로 기존 2-step backend flow를 사용하는 것은 허용됩니다.
+
+예:
+
+사용자:
+ID + PASSWORD + PIN
+        ↓
+기존 /auth/login
+        ↓
+계정/role/pool 확인
+        ↓
+pool_admin이면 기존 web_session으로 PIN 검증
+        ↓
+기존 JWT
+        ↓
+/admin
+
+인증 프로토콜 자체를 새로 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SUPER ADMIN 차단 — 매우 중요
+━━━━━━━━━━━━━━━━━━━━━━
+
+/login에서 입력한 계정이:
+
+super_admin
+또는 pool 관리자가 아닌 role
+
+이면:
+
+/super로 redirect 하지 마십시오.
+
+PC Dashboard 로그인에서는 반드시 거부합니다.
+
+사용자 메시지 예:
+
+"수영장 관리자 계정만 PC 대시보드에 로그인할 수 있습니다."
+
+중요:
+password 인증 성공만으로
+super_admin에게 JWT를 주고 /super로 이동시키는
+현재 공개 로그인 동작을 제거하십시오.
+
+단, 기존 super_admin 인증 로직 자체는 삭제하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SUPER ADMIN 로그인 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+super_admin은 공개 PC Dashboard와 완전히 분리합니다.
+
+새 별도 route:
+
+/super-login
+
+을 사용하십시오.
+
+조건:
+
+- 홈페이지 Header에 링크 없음
+- Footer에 링크 없음
+- ⋯ 메뉴에 링크 없음
+- 일반 사용자에게 노출하지 않음
+- 기존 super_admin 인증 + TOTP flow 그대로 재사용
+- /super-login 성공 → 기존 /super/*
+- 새로운 super_admin 인증 방식 만들지 않음
+
+기존 /login 안에 있던
+super_admin/TOTP UI/분기 코드를
+안전하게 /super-login 쪽으로 분리하십시오.
+
+가능하면 기존 로직을 공통 함수/component로 재사용하고
+인증 코드를 복제하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 아이디 FIELD
+━━━━━━━━━━━━━━━━━━━━━━
+
+"아이디"라고 해서
+새 username 시스템을 만들지 마십시오.
+
+현재 backend가 실제 지원하는 로그인 식별자를 조사하십시오.
+
+현재 email만 지원한다면:
+
+UI label:
+아이디(이메일)
+
+또는
+아이디
+
+로 보여줄 수 있으나
+실제 backend contract는 기존 email을 그대로 사용합니다.
+
+새 username 컬럼/DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. POOL 식별
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 홈페이지에서 들어오기 때문에
+미리 poolId를 알고 있지 않습니다.
+
+기존 backend에서
+로그인 계정을 통해 swimming_pool_id를 식별할 수 있다는
+기존 조사 결과를 다시 코드로 확인하십시오.
+
+성공 조건:
+
+ID/PW
+→ 사용자 식별
+→ role = pool_admin
+→ swimming_pool_id 식별
+→ 기존 PIN 검증
+→ 해당 pool scope JWT
+→ /admin
+
+poolId를 URL에 사용자가 직접 입력하게 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PIN
+━━━━━━━━━━━━━━━━━━━━━━
+
+PIN은 기존 앱에서 설정하는 Web Dashboard PIN입니다.
+
+로그인 화면 안내:
+
+"PIN 번호는 SWIMNOTE 앱에서 설정할 수 있습니다."
+
+정도만 표시.
+
+웹에서:
+- PIN 신규 생성
+- PIN reset
+- PIN 변경
+
+기능 만들지 마십시오.
+
+기존 앱 기능을 이용합니다.
+
+PIN 자리수도 현재 backend 기준 그대로 사용합니다.
+추측해서 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. DEVICE GUARD 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+이제 login route가 분리되므로 정책도 명확합니다.
+
+/login
+= Pool PC Dashboard login
+→ Phone BLOCK
+→ iPad BLOCK
+→ Android Tablet BLOCK
+→ Desktop/Laptop ALLOW
+
+/admin/*
+→ 동일하게 Desktop/Laptop only
+
+/super-login
+→ Pool Dashboard MobileGuard 정책과 분리
+
+/super/*
+→ 기존 super admin 운영정책 유지
+
+따라서 현재:
+
+MobileGuard skip={!poolId}
+
+같이 /login 일반 진입을 모바일 허용하기 위해 넣었던
+임시 타협은 제거할 수 있습니다.
+
+/login은 이제 항상 Pool Dashboard이므로
+Desktop-only Guard를 적용하십시오.
+
+단 Windows touch laptop은 계속 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. LOGIN UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+/login 화면:
+
+공식 SWIMNOTE Logo
+
+PC 대시보드
+
+[아이디]
+[비밀번호]
+[PIN 번호]
+
+"PIN 번호는 SWIMNOTE 앱에서 설정할 수 있습니다."
+
+[로그인]
+
+정도로 단순하게 구성.
+
+한 화면에서 3개가 모두 보이게 하십시오.
+
+기존 Apple-like Design System 사용.
+
+금지:
+- poolId 입력
+- 역할 선택 dropdown
+- "관리자 / 슈퍼관리자" 선택
+- 가입 버튼
+- 복잡한 도움말
+- 새로운 인증 UI
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. SUPER LOGIN UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+/super-login은 일반 홈페이지 디자인으로 홍보할 필요 없습니다.
+
+기존 super_admin / TOTP 인증에 필요한
+최소 UI만 유지.
+
+공개 SiteHeader/Footer 사용하지 마십시오.
+
+SWIMNOTE 내부 운영자 로그인이라는 정도로만 구성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 필수 TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 코드 기준으로 확인:
+
+A.
+pool_admin
++ 올바른 ID/PW/PIN
+→ /admin PASS
+
+B.
+pool_admin
++ 잘못된 PIN
+→ 로그인 거부 PASS
+
+C.
+pool_admin
++ 잘못된 password
+→ 로그인 거부 PASS
+
+D.
+super_admin 계정
+→ /login 입력
+→ /super 진입 절대 금지
+→ "수영장 관리자 계정만..." 처리 PASS
+
+E.
+super_admin
+→ /super-login
+→ 기존 TOTP
+→ /super PASS
+
+F.
+Phone
+→ /login
+→ Desktop-only 안내 PASS
+
+G.
+Phone
+→ /admin 직접 접근
+→ Desktop-only 안내 PASS
+
+H.
+Desktop
+→ /login
+→ 3-field form PASS
+
+I.
+기존 Pool scope 유지 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB migration 금지.
+Auth schema 변경 금지.
+새 login endpoint 금지.
+PIN backend 변경 금지.
+JWT 구조 변경 금지.
+pool scope 변경 금지.
+super_admin 권한 변경 금지.
+AI ENGINE 접근 금지.
+Production 배포 금지.
+
+이번 작업은:
+
+"공개 PC Dashboard 로그인과
+Super Admin 로그인을 분리"
+
+하는 작업입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+짧게 보고:
+
+1. 기존 auth flow 조사 결과
+2. /login 최종 flow
+3. /super-login 최종 flow
+4. super_admin이 /login에서 차단되는 위치/방식
+5. PIN 기존 backend 재사용 확인
+6. Pool 자동 식별 확인
+7. MobileGuard 최종 route 정책
+8. A~I 테스트 결과
+9. 변경 파일
+10. Build PASS/FAIL
+11. DB/API/Auth schema 변경 NO
+12. Production 배포 NO
+
+완료 후 중단하십시오.
