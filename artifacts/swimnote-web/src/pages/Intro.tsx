@@ -2,13 +2,12 @@ import { Link } from "wouter";
 
 const BASE = import.meta.env.BASE_URL;
 
-// ── Logo wrapper — 두 카드 동일 높이 영역, 로고는 각 자연 크기 기준 ─────────
-// 두 카드 모두 로고 영역 height 72px 고정 → 헤드라인 세로 정렬 기준 통일
+// ── Logo wrapper — 110px 고정 높이, object-fit:contain 기준 ─────────────────
 function LogoSlot({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        height: 72,
+        height: 130,
         display: "flex",
         alignItems: "center",
         marginBottom: 20,
@@ -61,7 +60,7 @@ function ProductCard({ logo, tag, headline, desc, ctaHref }: ProductCardProps) {
         }}
         translate="no"
       >
-        {tag}
+        {tag || null}
       </p>
 
       {/* Headline */}
@@ -165,45 +164,38 @@ export default function Intro() {
           }}
         >
           {/* ── SWIMNOTE ──────────────────────────────────────────── */}
-          {/* icon.png: 투명 PNG 앱 아이콘 — 56px 정사각형 */}
+          {/* home-logo-swimnote.png: RGBA 투명 PNG, 아이콘+wordmark 포함 */}
           <ProductCard
             logo={
               <LogoSlot>
                 <img
-                  src={`${BASE}icon.png`}
-                  alt="SWIMNOTE 앱 아이콘"
+                  src={`${BASE}home-logo-swimnote.png`}
+                  alt="SwimNote"
                   draggable={false}
-                  style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 12, display: "block" }}
+                  style={{ height: "100%", width: "auto", objectFit: "contain", display: "block" }}
                 />
               </LogoSlot>
             }
-            tag="SWIMNOTE"
+            tag=""
             headline="어린이수영장 운영의 기본."
             desc="회원, 반관리, 출결, 보강, 수업일지와 학부모 소통까지 어린이수영장 운영에 필요한 기능을 하나의 앱으로 관리합니다."
             ctaHref="/swimnote"
           />
 
           {/* ── SWIMNOTE X ────────────────────────────────────────── */}
-          {/* swimnote-x-logomark.png: 흰 배경 PNG, multiply로 배경 소거
-              height 56px auto-width — 이미지 자연 비율 유지, SWIMNOTE 아이콘과 시각 높이 통일 */}
+          {/* home-logo-swimnote-x.png: RGBA 투명 PNG, 아이콘+SwimNoteX wordmark 포함 */}
           <ProductCard
             logo={
               <LogoSlot>
                 <img
-                  src={`${BASE}swimnote-x-logomark.png`}
-                  alt="SWIMNOTE X 로고"
+                  src={`${BASE}home-logo-swimnote-x.png`}
+                  alt="SwimNote X"
                   draggable={false}
-                  style={{
-                    height: 56,
-                    width: "auto",
-                    objectFit: "contain",
-                    display: "block",
-                    mixBlendMode: "multiply",
-                  }}
+                  style={{ height: "100%", width: "auto", objectFit: "contain", display: "block" }}
                 />
               </LogoSlot>
             }
-            tag="SWIMNOTE X"
+            tag=""
             headline="수영 교육을 시스템으로."
             desc="커리큘럼, 수업 기록과 성장 데이터를 하나의 교육 시스템으로 연결합니다."
             ctaHref="/swimnote-x"
