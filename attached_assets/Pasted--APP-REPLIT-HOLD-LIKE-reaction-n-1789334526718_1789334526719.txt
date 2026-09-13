@@ -1,0 +1,295 @@
+[보낼 곳: APP REPLIT]
+
+좋아요 라인 최종 검수 결과:
+
+HOLD
+
+입니다.
+
+원인은 충분히 확인됐습니다.
+
+현재 구조에서는:
+
+LIKE
+→ reaction 저장
+→ notification 생성
+
+후
+
+UNLIKE
+→ reaction DELETE
+→ notification은 그대로 유지
+
+되기 때문에
+
+Teacher 알림에는:
+`새 좋아요`
+
+가 남아 있지만
+
+Reaction Detail에는:
+`0명`
+
+으로 표시되는 상황이 실제로 발생할 수 있습니다.
+
+이 UX는 변경합니다.
+
+또한 현재 notification 생성이 non-blocking IIFE라서:
+
+reaction 저장 성공
++
+notification 생성 실패
+
+상태가 발생할 수 있습니다.
+
+사용자 요구사항은:
+
+**모든 좋아요가 관련 선생님에게 제대로 표시되어야 한다.**
+
+입니다.
+
+따라서 아래 두 가지만 최소 수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. LIKE 저장과 Notification 저장의 정합성 보장
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+* diary like
+* growth_report like
+
+현재:
+
+reaction INSERT 성공
+→ notification IIFE 비동기 실행
+→ notification 실패 가능
+
+구조를 수정하십시오.
+
+최종 목표:
+
+reaction이 active LIKE로 정상 저장된 경우
+관련 teacher notification도 DB에 정상 저장되어야 합니다.
+
+가능하면 같은 DB를 사용하는 범위에서:
+
+* teacher recipient resolve
+* reaction INSERT
+* notification INSERT
+
+을 하나의 transaction 안에서 처리하십시오.
+
+단:
+
+push 발송 자체는 transaction 밖 비동기로 처리해도 됩니다.
+
+즉:
+
+DB reaction + DB notification
+= 정합성 보장
+
+Push
+= 별도 side effect
+
+구조가 적절합니다.
+
+대규모 notification 시스템 refactor는 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. UNLIKE 시 stale LIKE notification 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+좋아요가 취소되면
+현재 좋아요를 의미하는 Teacher notification도
+더 이상 알림함에 남아 있지 않도록 합니다.
+
+대상 type:
+
+* `diary_like`
+* `growth_report_like`
+
+UNLIKE 성공 시:
+
+해당 LIKE reaction에 대응하는 notification을 제거하십시오.
+
+중요:
+
+다른 학부모의 같은 콘텐츠 좋아요 알림까지
+삭제하면 안 됩니다.
+
+먼저 notifications schema를 확인하여
+어떤 필드로:
+
+* actor / parent
+* recipient teacher
+* ref_id
+* ref_type
+* notification type
+
+을 식별할 수 있는지 확인하십시오.
+
+정확한 actor 식별자가 현재 notification row에 있다면:
+
+`recipient + actor + type + ref_id`
+
+기준으로 해당 notification만 제거합니다.
+
+현재 schema에 actor를 구분할 수 있는 값이 없다면
+임의로 전체 같은 ref_id notification을 삭제하지 마십시오.
+
+그 경우 먼저 현재 notification schema와
+최소 수정안을 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. UX 최종 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+LIKE notification은
+과거 이벤트 로그가 아니라
+
+**현재 활성 좋아요에 대응하는 Teacher 알림**
+
+로 취급합니다.
+
+따라서:
+
+Parent LIKE
+→ Teacher 새 좋아요 알림 존재
+→ Reaction Detail 1명
+
+Parent UNLIKE
+→ Teacher 해당 좋아요 알림 제거
+→ Reaction Detail 0명
+
+으로 일치해야 합니다.
+
+이미 푸시 알림이 휴대폰에 표시된 뒤의 OS Push 자체는
+회수할 수 없으므로 대상이 아닙니다.
+
+앱 내부:
+
+* 홈 새 소식
+* 알림함 전체보기
+* 반응 상세
+
+세 곳의 현재 상태가 일치하면 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. AI 성장리포트에도 동일 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary와 Growth Report를 다르게 처리하지 마십시오.
+
+Growth Report도:
+
+LIKE
+→ reaction 저장
+→ 담당 teacher notification 저장
+
+UNLIKE
+→ reaction 삭제
+→ 대응 notification 삭제
+
+가 동일하게 동작해야 합니다.
+
+담당 teacher 결정은 기존:
+
+`resolveTeacherByStudent(...)`
+
+를 그대로 사용하십시오.
+
+새로운 teacher resolve 시스템을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Comments는 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 LIKE 전용입니다.
+
+다음 수정 금지:
+
+* diary comment
+* growth report comment
+* notification pagination
+* Growth Report 생성 pipeline
+* AI ENGINE
+* reaction DB 전체 재설계
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. Diary LIKE
+
+Parent LIKE
+→ diary_reactions 1
+→ diary_like notification 1
+→ Teacher news 표시
+→ 알림함 표시
+→ Reaction Detail 1명
+
+B. Diary UNLIKE
+
+Parent UNLIKE
+→ diary_reactions 0
+→ 해당 parent의 diary_like notification 0
+→ Teacher news에서 사라짐
+→ 알림함에서 사라짐
+→ Reaction Detail 0명
+
+C. 같은 Diary에 Parent A/B 둘 다 LIKE
+
+→ reaction 2
+→ notification 각각 유지
+
+Parent A만 UNLIKE
+
+→ A reaction/notification만 제거
+→ B 것은 유지
+→ Detail 1명
+
+D. Growth Report LIKE
+
+→ growth_report_reactions 1
+→ growth_report_like notification 1
+→ 담당 teacher recipient 정확
+
+E. Growth Report UNLIKE
+
+→ reaction 0
+→ 대응 notification 제거
+
+F. notification INSERT 실패 테스트
+
+→ reaction만 남는 partial success가 발생하지 않음
+
+G. 다른 pool teacher 접근 불가 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하십시오.
+
+1. notifications table에서 actor 식별 가능한 필드
+2. Diary LIKE 최종 transaction 구조
+3. Growth Report LIKE 최종 transaction 구조
+4. UNLIKE notification 삭제 key
+5. 다른 학부모 notification 오삭제 방지 방식
+6. Push 처리 위치
+7. 테스트 A~G 결과
+8. 수정 파일
+9. Repository
+10. Branch
+11. Commit SHA
+12. Production 배포 시 LIVE SHA
+13. Render Deploy ID
+14. APP 코드 변경이 있으면 OTA 정보
+
+실제 DB notification과 reaction의
+현재 상태가 서로 일치하는지 검증하십시오.
+
+추가 기능 제안 없이
+이 좋아요 정합성 문제만 수정하십시오.
