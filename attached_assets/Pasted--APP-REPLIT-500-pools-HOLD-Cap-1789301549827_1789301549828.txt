@@ -1,0 +1,231 @@
+[보낼 곳: APP REPLIT]
+
+500 pools 재검증 보고서 확인했습니다.
+
+현재 판정:
+
+HOLD
+
+입니다.
+
+다만 대부분의 항목은 종료 가능합니다.
+
+다음은 이번 Capacity blocker에서 CLOSED 처리합니다.
+
+* eligible pool 500개 배열 → NO ISSUE
+* pool별 students 배열 → NO ISSUE
+* finalize/send 배열 → NO ISSUE
+* progress update 경쟁 → NO ISSUE
+* Curriculum transaction → SEPARATE TICKET
+* Marketing INSERT → SEPARATE TICKET
+
+새로운 pagination이나 전체 refactor는 하지 마십시오.
+
+남은 확인은 **N+1이 실제 scheduler/worker 실행시간을 얼마나 차지하는지** 하나입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 96시간 평균 QPS 계산 사용 금지
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서:
+
+약 670,000 query
+÷ 96시간
+≈ 1.9 query/sec
+
+이 계산으로 병목 여부를 판단하지 마십시오.
+
+쿼리는 96시간 동안 균등 분산되지 않을 수 있습니다.
+
+특히 확인해야 할 것은:
+
+`runMonthlyGrowthReports`
+→ pool loop
+→ `openCycleForPool`
+→ 학생별 growth_reports INSERT
+
+이 경로에서 학생 INSERT가 실제로 어느 실행 단위에 몰리는지입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. scheduler의 실제 작업 단위를 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+500 pools / 200,000 students 가정에서:
+
+한 번의 scheduler invocation이 실제로:
+
+A.
+500 pools 전체를 순회하면서
+200,000 growth_report INSERT까지 수행하는지
+
+또는
+
+B.
+pool/job을 나눠서 여러 cron tick에 분산하는지
+
+실제 코드 기준으로 확정하십시오.
+
+제출:
+
+* scheduler pool loop 구조
+* 한 invocation 최대 pool 수
+* 한 invocation 최대 student/report 수
+* MAX_RUN_MS 적용 여부
+* loop 중 시간제한을 확인하는 위치
+* 제한 도달 시 다음 tick으로 이어지는 방식
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. N+1은 QPS가 아니라 wall-clock으로 계산
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 각각의 예상 wall-clock을 계산하십시오.
+
+### scheduler student INSERT
+
+200,000건을 순차 INSERT한다면:
+
+DB round-trip을 아래 세 값으로 계산:
+
+* 5ms
+* 20ms
+* 100ms
+
+예:
+
+`200,000 × latency`
+
+형태로 단순 계산하십시오.
+
+그리고 실제 scheduler가 이 전체를 한 invocation에서 처리하는지와 대조하십시오.
+
+### batch worker student SELECT/INSERT
+
+이쪽은:
+
+* MAX_POOL_WORKERS=2
+* cron 5분
+
+구조를 반영하여
+
+500 pools가 모두 처리되는 데 필요한 tick 수와
+최소 wall-clock을 계산하십시오.
+
+예:
+
+500 pools ÷ 2 pools/tick
+= 250 ticks
+
+250 × 5분
+= 약 1,250분
+= 약 20.8시간
+
+처럼 실제 실행 구조로 계산하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 현재 Production 실측이 있으면 우선
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 Production 부하테스트를 만들지 마십시오.
+
+기존 Growth Report 실행 로그/DB timestamp만으로 확인 가능한 경우:
+
+* cycle open 시작
+* 마지막 report row 생성
+* batch job 시작
+* batch job 완료
+
+등의 timestamp 차이로 실제 시간을 계산하십시오.
+
+가능하면 ToyKids 205건 실행을 사용하십시오.
+
+새로운 테스트 데이터 생성 금지.
+
+Production 상태 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Batch Lock 판정 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된 사실:
+
+* TTL = 600초
+* refreshLock 함수 존재
+* runBatchWorker에서는 refreshLock 호출 안 함
+* 한 invocation 최대 2 pools
+
+따라서 최종 표현은:
+
+`정상 예상 처리시간에서는 TTL 위험 낮음`
+
+으로 하십시오.
+
+`TTL 초과 불가`
+라고 단정하지 마십시오.
+
+확인:
+
+`processPoolBatch`에 자체 timeout 또는
+최대 실행시간 제한이 존재하는지 확인하십시오.
+
+만약 어떠한 상한도 없고
+lock heartbeat도 없다면:
+
+P0로 바로 고치지 말고
+`P1 SAFETY`로 분류하십시오.
+
+실제 600초 초과 사례가 확인될 때만 P0로 올립니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음이면 현재 구조 유지:
+
+* scheduler가 20만 sequential INSERT를 한 invocation에서 몰아서 수행하지 않음
+  또는
+* 실제 wall-clock이 운영 요구조건 안에서 충분히 짧음
+* batch worker 전체 drain이 96시간 안에 가능
+* 현재 실제 완료 처리량이 최소 0.579 report/sec 요구를 만족
+
+반대로:
+
+scheduler 한 invocation에서
+20만 개별 DB round-trip이 직렬로 발생하여
+수십 분~수 시간 scheduler가 점유된다면
+
+그 부분만:
+
+`P0/P1 bulk INSERT 후보`
+
+로 올리십시오.
+
+전체 worker를 다시 설계하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출하십시오.
+
+1. scheduler 한 invocation 최대 pool 수
+2. scheduler 한 invocation 최대 student/report INSERT 수
+3. MAX_RUN_MS 적용 여부 및 코드 위치
+4. 20만 INSERT 시:
+
+   * 5ms 기준 wall-clock
+   * 20ms 기준 wall-clock
+   * 100ms 기준 wall-clock
+5. batch worker 500 pools 전체 drain 예상 최소시간
+6. 기존 Production에서 확인 가능한 실제 처리시간
+7. lock 600초 초과 방지 장치 존재 여부
+8. 최종 분류:
+
+   * N+1 scheduler
+   * N+1 batch worker
+   * lock heartbeat
+9. 지금 실제 수정 필요한 파일
+10. 수정 없으면:
+    `지시할 수정 없음`
+
+코드 수정·배포하지 말고 조사 후 멈추십시오.
