@@ -311,11 +311,13 @@ function ExpandedMenu({ open, onClose, isDesktop, triggerRef }: ExpandedMenuProp
           id="site-expanded-menu"
           style={panelStyle}
           initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+          animate={{ opacity: 1, y: 0, pointerEvents: "auto" }}
+          exit={{ opacity: 0, y: -6, pointerEvents: "none" }}
+          transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
         >
+          {/* 메뉴 내부 어디를 클릭해도 닫힘 (표준 nav-dropdown 동작) */}
           <div
+            onClick={onClose}
             style={{
               maxWidth: isDesktop ? "var(--ds-content-max)" : "100%",
               margin: "0 auto",
