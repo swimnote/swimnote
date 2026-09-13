@@ -66,8 +66,11 @@ export async function onParentApproved(params: {
   //
   //  - created_at = gr.published_at  ← 소급 날짜 보존
   //    (승인일 NOW()로 만들면 알림함에 수십 개가 오늘 날짜로 노출됨)
-  //  - id = 'notif_bf_' + MD5(report_id + '_' + parent_id)
-  //    — (report, parent) 고유, 결정론적 ID (중복 INSERT 시도 불필요)
+  //  - id: 기존 canonical 방식과 동일하게 DB에서 생성
+  //    'notif_gr_' + 타임스탬프 + '_' + UUID 앞 6자
+  //    중복 방지는 partial unique index가 담당:
+  //    (type, ref_id, recipient_id) WHERE type='GROWTH_REPORT_PUBLISHED'
+  //    ID 자체를 idempotency key로 사용하지 않음
   //  - ON CONFLICT DO NOTHING — partial unique index 재사용 (DB migration 없음)
   //    index: uq_notifications_gr_published on (type, ref_id, recipient_id)
   //           WHERE type = 'GROWTH_REPORT_PUBLISHED'
@@ -80,7 +83,7 @@ export async function onParentApproved(params: {
       is_read, created_at
     )
     SELECT
-      'notif_bf_' || LEFT(MD5(gr.id || '_' || ${parentId}), 22),
+      'notif_gr_' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISSMS') || '_' || SUBSTR(gen_random_uuid()::text, 1, 6),
       ${parentId},
       'parent_account',
       gr.swimming_pool_id,
