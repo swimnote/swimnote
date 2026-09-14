@@ -440,10 +440,18 @@ export default function StudentDetailScreen() {
       style={{ flex: 1, backgroundColor: C.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* ── 헤더 (homePath 없음 → Back = previous screen) ── */}
+      {/* ── 헤더 — 스택 히스토리 존중, fallback: 학생 목록 ── */}
       <SubScreenHeader
         title={student.name}
         subtitle={primaryBadge?.label}
+        onBack={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            // deep-link / push notification 직접 진입: 학생 목록으로 이동
+            router.replace("/(teacher)/students");
+          }
+        }}
       />
 
       {/* ── Long-scroll ── */}

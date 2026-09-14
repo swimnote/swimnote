@@ -362,13 +362,31 @@ router.get("/diaries/index",
         if ((chk.rows as any[]).length === 0) return apiErr(res, 403, "접근 권한이 없습니다.");
       }
 
-      // 선생님은 자신이 담당하는 반만
+      // 선생님 접근 권한 + classFilter 결정
       let classFilter = sql`true`;
       if (role === "teacher") {
-        const cgRows = await db.execute(sql`SELECT id FROM class_groups WHERE (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text)) AND swimming_pool_id = ${poolId} AND is_deleted = false`);
-        const ids = (cgRows.rows as any[]).map(r => `'${r.id}'`);
-        if (ids.length === 0) return res.json([]);
-        classFilter = sql.raw(`cd.class_group_id IN (${ids.join(",")})`);
+        if (studentIdParam) {
+          // 학생 상세 → 일지보기: 현재 담당 여부 확인 (현재 배정된 반 기준)
+          // PASS → 해당 학생에게 귀속된 전체 일지 역사 반환 (classFilter 없음)
+          const accessCheck = await db.execute(sql`
+            SELECT 1 FROM class_groups cg
+            JOIN students s ON s.class_group_id = cg.id
+            WHERE s.id = ${studentIdParam}
+              AND (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text))
+              AND cg.swimming_pool_id = ${poolId}
+              AND cg.is_deleted = false
+            LIMIT 1
+          `);
+          if ((accessCheck.rows as any[]).length === 0) return apiErr(res, 403, "접근 권한이 없습니다.");
+          // 접근 허용: classFilter 없음 → 학생의 수강 이력 전체 반 일지 조회
+          classFilter = sql`true`;
+        } else {
+          // 전체 일지 목록: 선생님 담당 반만
+          const cgRows = await db.execute(sql`SELECT id FROM class_groups WHERE (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text)) AND swimming_pool_id = ${poolId} AND is_deleted = false`);
+          const ids = (cgRows.rows as any[]).map(r => `'${r.id}'`);
+          if (ids.length === 0) return res.json([]);
+          classFilter = sql.raw(`cd.class_group_id IN (${ids.join(",")})`);
+        }
       }
 
       // 요일 필터
@@ -385,6 +403,7 @@ router.get("/diaries/index",
       // student_id 필터 — authoritative ID 기반, name search 대체
       // ① 공통 일지: 해당 학생이 속했던 반(class_group_id)으로 범위 제한
       //    + 등록일 이전 diary 차단: students.created_at KST cutoff 적용
+      //    작성 선생님 필터 없음 — 학생에 귀속된 전체 일지 역사 반환 정책
       const studentCommonFilter = studentIdParam
         ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam} AND is_deleted = false)
               AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`

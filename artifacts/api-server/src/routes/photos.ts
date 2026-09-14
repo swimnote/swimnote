@@ -317,10 +317,22 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
     const { role, userId } = req.user!;
 
     if (role === "teacher") {
-      const classId = await getStudentClassId(studentId);
-      if (!classId) { res.status(404).json({ error: "학생을 찾을 수 없습니다." }); return; }
-      const ok = await teacherOwnsClass(userId, classId);
-      if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
+      // 현재 담당 학생인지 확인: 학생의 현재 배정 반이 이 선생님(main + co-teacher) 담당인지
+      // READ 정책: 현재 접근 권한 있는 선생님 → 학생의 전체 사진 역사 조회 가능
+      const teacherPoolId = await getUserPoolId(userId);
+      const authRows = await db.execute(sql`
+        SELECT 1 FROM class_groups cg
+        JOIN students s ON s.class_group_id = cg.id
+        WHERE s.id = ${studentId}
+          AND (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text))
+          AND cg.swimming_pool_id = ${teacherPoolId}
+          AND cg.is_deleted = false
+        LIMIT 1
+      `);
+      if (authRows.rows.length === 0) {
+        res.status(403).json({ error: "현재 담당 학생이 아닙니다." });
+        return;
+      }
     } else if (role === "parent_account") {
       const ok = await parentOwnsStudent(userId, studentId);
       if (!ok) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
@@ -331,6 +343,25 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
     }
 
     const { date } = req.query;
+    // 페이지네이션: offset / limit 파라미터 지원 (기본 limit=60)
+    const limit = Math.min(Number(req.query.limit) || 60, 200);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+    const dateFilter = date ? sql`AND (
+      (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
+      OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
+    )` : sql``;
+
+    // 전체 개수 (페이지네이션용)
+    const countRows = await db.execute(sql`
+      SELECT COUNT(*)::int AS total
+      FROM photo_assets_meta sp
+      WHERE sp.album_type = 'private' AND sp.student_id = ${studentId}
+      AND sp.media_status <> 'uploading'
+      ${dateFilter}
+    `);
+    const total = (countRows.rows[0] as any)?.total ?? 0;
+
     const rows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at, sp.file_size,
@@ -339,16 +370,14 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'private' AND sp.student_id = ${studentId}
       AND sp.media_status <> 'uploading'
-      ${date ? sql`AND (
-        (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
-        OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
-      )` : sql``}
+      ${dateFilter}
       ORDER BY sp.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `);
     const photos = await batchPresign(
       (rows.rows as any[]).map(p => ({ ...p, file_url: `/api/photos/${p.id}/file` }))
     );
-    res.json(photos);
+    res.json({ photos, total, has_more: offset + photos.length < total });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

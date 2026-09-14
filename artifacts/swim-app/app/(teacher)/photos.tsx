@@ -141,6 +141,11 @@ export default function TeacherPhotosScreen() {
   const [items,       setItems]       = useState<MediaItem[]>([]);
   const [listLoading, setListLoading] = useState(false);
   const [listError,   setListError]   = useState<string | null>(null);
+  // student-scoped 페이지네이션
+  const [photoTotal,       setPhotoTotal]       = useState(0);
+  const [photoHasMore,     setPhotoHasMore]     = useState(false);
+  const [photoOffset,      setPhotoOffset]      = useState(0);
+  const [loadingMore,      setLoadingMore]      = useState(false);
   const [selectMode,  setSelectMode]  = useState(false);
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const [deleting,    setDeleting]    = useState(false);
@@ -237,16 +242,26 @@ export default function TeacherPhotosScreen() {
     const sc = forceSc !== undefined ? forceSc : scope;
     setListLoading(true);
     setListError(null);
+    setPhotoOffset(0);
+    setPhotoHasMore(false);
+    setPhotoTotal(0);
     try {
       const isPhoto = mt === "photo";
-      // student-scoped mode: GET /photos/private/:studentId (기존 backend 재사용)
+      // student-scoped mode: GET /photos/private/:studentId (pagination 지원)
       // video는 student-scoped private endpoint 없음 → teacher-all fallback
       const endpoint = (studentScopeId && isPhoto)
-        ? `/photos/private/${studentScopeId}`
+        ? `/photos/private/${studentScopeId}?limit=60&offset=0`
         : isPhoto
           ? `/photos/teacher-all?scope=${sc}`
           : `/videos/teacher-all?scope=${sc}`;
       const res = await apiRequest(token, endpoint);
+      // 403/500 등 비정상 응답은 빈 목록이 아니라 오류 상태로 처리
+      if (!res || !res.ok) {
+        const errBody = await res?.json().catch(() => ({}));
+        const errMsg = (errBody as any)?.error || `오류가 발생했습니다. (${res?.status ?? "네트워크 오류"})`;
+        if (mountedRef.current) setListError(errMsg);
+        return;
+      }
       const data = await safeJson(res);
       let raw: any[] = [];
       if (Array.isArray(data)) {
@@ -254,6 +269,14 @@ export default function TeacherPhotosScreen() {
       } else if (data && typeof data === "object") {
         const key = isPhoto ? "photos" : "videos";
         raw = Array.isArray(data[key]) ? data[key] : [];
+        // student-scoped 페이지네이션 메타
+        if (studentScopeId && isPhoto && typeof data.total === "number") {
+          if (mountedRef.current) {
+            setPhotoTotal(data.total);
+            setPhotoHasMore(!!data.has_more);
+            setPhotoOffset(raw.length);
+          }
+        }
       }
       const normalized = raw.map((r, i) => normalizeItem(r, i));
       if (mountedRef.current) {
@@ -267,7 +290,31 @@ export default function TeacherPhotosScreen() {
     } finally {
       if (mountedRef.current) setListLoading(false);
     }
-  }, [token, mediaType, scope]);
+  }, [token, mediaType, scope, studentScopeId]);
+
+  // student-scoped 더 보기
+  const loadMorePhotos = useCallback(async () => {
+    if (!studentScopeId || loadingMore || !photoHasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await apiRequest(token, `/photos/private/${studentScopeId}?limit=60&offset=${photoOffset}`);
+      if (!res || !res.ok) return;
+      const data = await safeJson(res);
+      const raw: any[] = Array.isArray(data?.photos) ? data.photos : [];
+      const normalized = raw.map((r, i) => normalizeItem(r, photoOffset + i));
+      if (mountedRef.current) {
+        setItems(prev => [...prev, ...normalized]);
+        setPhotoHasMore(!!data.has_more);
+        setPhotoOffset(prev => prev + normalized.length);
+        setPhotoTotal(data.total ?? photoTotal);
+      }
+    } catch (e) {
+      console.warn("[ALBUM LOAD MORE] ERROR:", e);
+    } finally {
+      if (mountedRef.current) setLoadingMore(false);
+    }
+  }, [token, studentScopeId, photoOffset, photoHasMore, loadingMore, photoTotal]);
+
   // student-scoped mode: 초기 진입 시 list 자동 로드
   useEffect(() => {
     if (studentScopeId) {
@@ -782,8 +829,17 @@ export default function TeacherPhotosScreen() {
         ) : safeItems.length === 0 ? (
           <View style={s.centerBox}>
             <LucideIcon name={cfg.icon} size={44} color="#D1D5DB" />
-            <Text style={s.emptyTitle}>아직 업로드된 {cfg.title}이 없습니다</Text>
-            <Text style={s.emptySubText}>아래 + 버튼으로 {cfg.title}을 업로드하세요</Text>
+            {studentScopeId ? (
+              <>
+                <Text style={s.emptyTitle}>등록된 사진이 없습니다</Text>
+                <Text style={s.emptySubText}>이 학생에게 귀속된 사진이 아직 없습니다</Text>
+              </>
+            ) : (
+              <>
+                <Text style={s.emptyTitle}>아직 업로드된 {cfg.title}이 없습니다</Text>
+                <Text style={s.emptySubText}>아래 + 버튼으로 {cfg.title}을 업로드하세요</Text>
+              </>
+            )}
           </View>
         ) : isPhoto ? (
           <View
@@ -806,6 +862,28 @@ export default function TeacherPhotosScreen() {
             removeClippedSubviews
             onScroll={e => { dragScrollYRef.current = e.nativeEvent.contentOffset.y; }}
             scrollEventThrottle={16}
+            ListFooterComponent={studentScopeId ? (
+              photoHasMore ? (
+                <Pressable
+                  onPress={loadMorePhotos}
+                  disabled={loadingMore}
+                  style={{ margin: 12, padding: 14, borderRadius: 12, backgroundColor: C.backgroundSoft, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}
+                >
+                  {loadingMore
+                    ? <ActivityIndicator size="small" color={themeColor} />
+                    : <LucideIcon name="chevron-down" size={16} color={themeColor} />}
+                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: themeColor }}>
+                    {loadingMore ? "불러오는 중…" : `더 보기 (${safeItems.length}/${photoTotal})`}
+                  </Text>
+                </Pressable>
+              ) : (
+                photoTotal > 0
+                  ? <Text style={{ textAlign: "center", padding: 16, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
+                      전체 {photoTotal}장 모두 표시됨
+                    </Text>
+                  : null
+              )
+            ) : null}
             renderItem={({ item }) => {
               if (!item) return null;
               const isSel = selected.has(item.id);
