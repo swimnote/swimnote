@@ -197,7 +197,7 @@ export default function Intro() {
             }
             tag=""
             headline="수영 교육을 시스템으로."
-            desc="커리큘럼, 수업 기록과 성장 데이터를 하나의 교육 시스템으로 연결합니다."
+            desc="강력한 AI 수영교육 시스템. 커리큘럼, 수업 기록과 성장 데이터를 하나의 교육 시스템으로 연결합니다."
             ctaHref="/swimnote-x"
           />
         </div>
