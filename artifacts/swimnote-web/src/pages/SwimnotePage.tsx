@@ -175,7 +175,7 @@ export default function SwimnotePage() {
               maxWidth: 640,
             }}
           >
-            수영장 운영의 모든 것.
+            어린이 수영장 운영의 모든 것.
           </h1>
           <p
             style={{
