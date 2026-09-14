@@ -1,0 +1,171 @@
+[SWIMNOTE PC DASHBOARD — 로그인 아이디 형식 긴급 수정]
+
+현재 Production PC 로그인 화면이 잘못 구현되어 있습니다.
+
+현상:
+- 첫 번째 입력창 라벨: "아이디(이메일)"
+- HTML input type="email"
+- 실제 SWIMNOTE 로그인 아이디는 이메일이 아님
+- 6자 이상 일반 아이디 사용
+- 예: toykids
+- 브라우저가 @ 문자가 없다는 이유로 submit 자체를 차단 중
+
+실제 SWIMNOTE APP 로그인 정책에 맞게 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 로그인 contract 먼저 확인
+━━━━━━━━━━━━━━━━━━━━
+
+기존 모바일 APP의 로그인 화면과
+POST /auth/login 서버 구현을 직접 확인.
+
+확인:
+- 로그인 아이디의 실제 DB field
+- request body field name
+- 최소 길이
+- 허용 문자 정책
+- 기존 APP validation
+
+중요:
+Backend request field 이름이 역사적으로 `email`로 되어 있더라도
+실제 값이 일반 login ID를 받는 구조라면
+API contract를 불필요하게 rename하지 마십시오.
+
+Frontend 표시/validation만 실제 의미에 맞추고
+기존 정상 Backend contract를 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+2. PC 로그인 UI 수정
+━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+아이디(이메일)
+type="email"
+
+제거.
+
+최종:
+
+라벨:
+아이디
+
+input:
+type="text"
+
+autocomplete:
+username
+
+placeholder가 필요하면:
+아이디를 입력하세요
+
+이메일 형식 검증 완전 제거.
+@ 요구 금지.
+
+실제 APP 정책이 6자 이상이면:
+최소 6자 validation 적용.
+
+6자 미만일 때만 예:
+"아이디는 6자 이상 입력해주세요."
+
+브라우저 native email validation이
+절대 발생하지 않아야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 로그인 구조 유지
+━━━━━━━━━━━━━━━━━━━━
+
+로그인은 계속:
+
+아이디
+비밀번호
+PIN 번호
+
+3개 입력.
+
+기존 two-step Web PIN flow 유지.
+
+1차 로그인
+→ web_login:true
+→ web_session / PIN required
+
+2차:
+→ PIN verify
+→ JWT
+
+PIN 로직 수정 금지.
+
+비밀번호 로직 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Backend 확인
+━━━━━━━━━━━━━━━━━━━━
+
+`toykids` 같은 실제 일반 아이디가
+기존 모바일 APP에서 정상 로그인 가능한 형태라면
+PC에서도 동일하게 전달되어야 함.
+
+Frontend에서:
+- @ 붙이기
+- 임의 이메일 변환
+- dummy domain 추가
+
+절대 금지.
+
+만약 PC LoginPage가 request body를 잘못 구성한 것이 확인되면
+모바일 APP의 정상 로그인 request와 동일하게 보정.
+
+━━━━━━━━━━━━━━━━━━━━
+5. QA
+━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+1. `toykids` 입력 시 브라우저 email 경고 없음
+2. 6자 이상 일반 아이디 submit 가능
+3. 6자 미만 validation 정상
+4. 비밀번호 입력 정상
+5. PIN 입력 정상
+6. 기존 wrong credential 오류 정상 표시
+7. Login build PASS
+
+Production credential을 코드/로그에 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━
+
+Dashboard build PASS 확인 후
+main push.
+
+현재 Render Static Site swimnote-web의
+기존 build/deploy 구조 그대로 사용.
+
+Render 설정 수정 금지.
+API 수정은 실제 contract 오류가 없는 한 금지.
+Marketing 수정 금지.
+
+배포 후:
+
+https://swimnote.kr/admin/login
+
+에서
+
+- "아이디(이메일)"이 아니라 "아이디"
+- 일반 문자열 입력 가능
+- @ validation 없음
+
+실제 확인.
+
+완료보고:
+
+A. 실제 APP 로그인 contract
+B. 원인
+C. 수정 파일
+D. request body 유지/변경 여부
+E. build
+F. commit SHA
+G. Render deploy
+H. Production 확인
+
+만 보고하고 STOP.
