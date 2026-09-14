@@ -1,0 +1,412 @@
+[보낼 곳: APP REPLIT]
+
+기존 최종 설계보고서에 대해 구현 전 마지막 보정 조사입니다.
+
+코드 수정하지 마십시오.
+push / OTA / Render deploy / migration 하지 마십시오.
+
+이번 확인이 끝나면
+보강 + 성장리포트 설계를 최종 확정하고 바로 구현 WP로 넘어갑니다.
+
+추가로 조사할 것은 딱 2개입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. MAKEUP — pool_admin + teacher 겸직 계정 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 제품 원칙:
+
+ADMIN MODE
+= 전체 현황 감독 / read-only
+
+TEACHER MODE
+= 자기 담당 범위 실제 보강 운영
+
+입니다.
+
+같은 user가:
+
+pool_admin
++
+실제 수업을 담당하는 teacher
+
+역할을 동시에 가질 수 있습니다.
+
+이 경우에도:
+
+[관리자 화면]
+
+- 자기 pool 전체 보강 현황 조회
+- 밀린 보강
+- 미배정
+- 만료 임박
+- 소멸 예정
+
+확인만 가능.
+
+관리자 화면에서는:
+
+- 배정
+- 일정변경
+- cancel
+- complete
+- transfer
+- teacher 지정
+
+등 실제 mutation은 하지 않습니다.
+
+반대로 같은 사용자가
+Teacher APP/Teacher Mode로 들어간 경우에는
+
+자기 현재 담당 학생/반의 보강에 대해서:
+
+- 일정 결정
+- 배정
+- 변경
+- 취소
+- 완료
+
+를 기존처럼 직접 수행할 수 있어야 합니다.
+
+즉:
+
+pool_admin이라는 이유로
+Teacher Mode의 자기 담당 보강 mutation까지 막히면 안 됩니다.
+
+반대로:
+
+pool_admin + teacher 겸직이라는 이유로
+Admin Mode에서 전체 pool 보강을 mutation할 수 있어도 안 됩니다.
+
+확인할 것:
+
+1. 현재 auth/JWT에서
+   pool_admin + teacher 겸직 사용자를 어떻게 표현하는지
+
+2. APP에서
+   Admin Mode / Teacher Mode 진입이 실제로 어떻게 분리되는지
+
+3. `/teacher/makeups` 및 teacher mutation endpoint가
+   pool_admin이면서 실제 담당 teacher인 사용자도
+   Teacher Mode에서는 정상 사용 가능한지
+
+4. admin mutation endpoint가 존재한다면
+   pool_admin에게 실제 서버 권한이 열려 있는지
+
+5. 최종적으로 가장 작은 수정으로:
+
+   Admin Mode = read-only
+   Teacher Mode = 담당범위 mutation 가능
+
+   을 보장하는 방법
+
+중요:
+
+단순히 UI 버튼 숨김만으로
+Admin Mode read-only를 보장하는 것이 충분한지
+아니면 API 권한도 정리해야 하는지 실제 코드 기준으로 판단하십시오.
+
+새 권한 시스템 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. GROWTH REPORT — 학생상세 최종 정보구조 결정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 학생 상세 화면에는 이미:
+
+- 일지보기
+- 사진영상보기
+
+등의 진입점이 있습니다.
+
+여기에 AI 성장리포트를 어떻게 넣는 것이
+가장 단순하고 자연스러운지 최종 결정해야 합니다.
+
+아래 두 안을 실제 현재 UI/코드 기준으로 비교하십시오.
+
+[A안]
+
+학생 상세
+
+→ 일지보기
+→ 사진영상보기
+→ 성장리포트 보기
+
+성장리포트를 독립된 교육기록 진입점으로 배치.
+
+[B안]
+
+학생 상세
+
+→ 일지보기
+
+안에
+일지 + 성장리포트를 함께 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 판단 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순히 취향으로 추천하지 마십시오.
+
+현재 구현을 기준으로 아래를 비교하십시오.
+
+1. 사용자 이해도
+
+선생님이 학생 상세를 봤을 때
+"지난 수업 일지"와
+"월간 AI 성장리포트"를
+어디에서 찾는 것이 가장 자연스러운지.
+
+2. 데이터 성격
+
+Diary:
+수업 단위 / 고빈도 기록
+
+Growth Report:
+월 단위 / PUBLISHED 결과물
+
+이라는 lifecycle 차이를 고려.
+
+3. interaction
+
+Growth Report에는:
+
+- Parent 좋아요
+- Parent 댓글
+- 공유 관련 기능
+
+이 연결될 수 있습니다.
+
+이 interaction을
+Diary 화면에 섞는 것이 자연스러운지,
+독립 Growth Report Detail에서 처리하는 것이 자연스러운지 확인.
+
+4. Notification Deep Link
+
+Parent 좋아요/댓글
+→ Teacher notification
+→ 정확한 해당 Growth Report
+
+로 들어갈 때
+
+독립 Growth Report Detail이 더 단순한지,
+Diary 내부 nested 구조가 더 단순한지 비교.
+
+5. Teacher Transfer
+
+새 담당 선생님이 학생 상세에서
+과거 PUBLISHED Growth Report History를 찾을 때
+어느 구조가 더 직관적인지.
+
+6. APP FIRST
+
+이 기능의 주 사용처는 Teacher APP입니다.
+
+PC Dashboard 구조에 맞추기 위해
+APP UX를 복잡하게 만들지 마십시오.
+
+7. 최소 변경
+
+이미 존재하는:
+
+- 학생 상세
+- Diary 화면
+- Parent Growth Report Detail
+- Teacher Review 화면
+- interaction UI
+- share UI
+
+중 무엇을 재사용할 수 있는지 확인하십시오.
+
+새 화면을 무조건 만들지 말고
+기존 컴포넌트 재사용 가능 여부도 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 좋아요 / 댓글 / 공유 실제 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Growth Report에서 실제 구현된 기능을 확인하십시오.
+
+역할별로 정확히 정리:
+
+[PARENT]
+
+- Report 열람
+- 좋아요
+- 댓글
+- 공유
+
+각 기능 존재 여부와 현재 화면/컴포넌트.
+
+[TEACHER]
+
+- PUBLISHED Report 열람
+- Parent 좋아요 확인
+- Parent 댓글 확인
+- 댓글 작성/답변 가능 여부
+- 좋아요 가능 여부
+- 공유 가능 여부
+
+실제 현재 구현 기준으로 조사하십시오.
+
+기능이 없는데 있다고 가정하지 마십시오.
+
+특히:
+
+Teacher가 Notification을 눌렀을 때
+
+Report 본문
++
+해당 Report의 좋아요/댓글
+
+을 한 화면에서 자연스럽게 확인 가능한 구조가
+가장 단순한지 검토하십시오.
+
+공유 기능도
+현재 어느 role에 존재하는지 먼저 확인하고,
+없는 기능을 이번 작업에 새로 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 우선 검토할 권장 방향
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 제품 철학상 우선 검토 방향은:
+
+학생 상세
+
+→ [일지보기]
+→ [사진영상보기]
+→ [성장리포트 보기]
+
+입니다.
+
+성장리포트 보기:
+
+→ PUBLISHED History
+→ 특정 Report Detail
+→ 해당 Report의 Parent 좋아요/댓글 확인
+
+Notification:
+
+growth_report_like/comment
+→ reportId
+→ 같은 Report Detail
+
+이렇게
+학생상세 진입과 알림 진입이
+같은 canonical Report Detail로 합쳐지는 구조를 우선 검토하십시오.
+
+단,
+
+현재 실제 UI 구조상
+Diary 안에 넣는 것이 명백하게 더 단순하다면
+근거를 제시하고 B안을 추천할 수 있습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PC Dashboard
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC는 APP 보조입니다.
+
+학생 상세에서:
+
+일지보기
+성장리포트 History
+
+를 각각 읽기전용으로 둘 수 있습니다.
+
+APP의 최종 구조를
+PC Dashboard 때문에 바꾸지 마십시오.
+
+Growth Report Operations:
+
+검수대기
+발행관리
+발행완료
+
+기존 별도 메뉴는 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+길게 다시 전체 보고서를 쓰지 마십시오.
+
+아래만 제출하십시오.
+
+A. MAKEUP DUAL ROLE
+
+- 현재 pool_admin+teacher 겸직 구조
+- Admin Mode read-only 가능 여부
+- Teacher Mode mutation 유지 가능 여부
+- 필요한 최소 수정
+- 서버 권한 수정 필요 여부
+
+B. STUDENT DETAIL CURRENT UI
+
+- 현재 학생 상세 실제 버튼/메뉴
+- 일지보기 구조
+- 사진영상보기 구조
+
+C. GROWTH REPORT IA COMPARISON
+
+A안:
+독립 `성장리포트 보기`
+
+B안:
+`일지보기` 내부 포함
+
+각각:
+
+- 장점
+- 단점
+- 알림 연결
+- interaction 연결
+- 구현 변경량
+
+D. INTERACTION CURRENT STATE
+
+Parent:
+- like
+- comment
+- share
+
+Teacher:
+- view
+- like
+- comment
+- parent reaction view
+- share
+
+각각 실제 구현 YES / NO.
+
+E. FINAL RECOMMENDATION
+
+딱 하나만 선택:
+
+1.
+학생 상세 → 성장리포트 보기 → History → Detail
+
+또는
+
+2.
+학생 상세 → 일지보기 → Growth Report 포함
+
+그리고 왜 이 방식이
+SWIMNOTE 현재 구조에서 가장 단순한지
+5줄 이내로 설명.
+
+F. FINAL IMPLEMENTATION IMPACT
+
+- APP 수정 파일
+- Dashboard 수정 파일
+- API 수정 파일
+- 신규 화면 여부
+- 기존 컴포넌트 재사용 여부
+
+추가 기능 제안하지 마십시오.
+
+이 조사 이후
+보강 + 성장리포트 설계를 최종 확정하고
+구현 WP로 넘어갑니다.
