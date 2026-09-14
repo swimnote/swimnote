@@ -147,8 +147,11 @@ export default function PublishPage() {
     queryFn: () => api.get(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=200`),
   });
 
-  // Only APPROVED are selectable
-  const approved = (data?.items ?? []).filter((r) => r.product_status === "APPROVED");
+  // APPROVED + READY_TO_SEND are both sendable
+  // READY_TO_SEND = pre-delivery state (awaiting send), not yet published to user
+  const approved = (data?.items ?? []).filter(
+    (r) => r.product_status === "APPROVED" || r.product_status === "READY_TO_SEND"
+  );
 
   const bulkSendMut = useMutation({
     mutationFn: (ids: string[]) =>

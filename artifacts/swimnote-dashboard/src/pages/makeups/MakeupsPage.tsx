@@ -123,6 +123,18 @@ function AssignDrawer({
   function handleAssign() {
     if (!selectedClass) { setFormError("반을 선택해주세요."); return; }
     if (!assignDate) { setFormError("보강 날짜를 입력해주세요."); return; }
+    // 요일 검증: selected class schedule_days vs assignDate weekday
+    if (selectedClass.schedule_days) {
+      const d = new Date(assignDate + "T00:00:00");
+      const koWeekdays = ["일", "월", "화", "수", "목", "금", "토"];
+      const assignedKo = koWeekdays[d.getDay()];
+      const classDays = selectedClass.schedule_days.split(",").map((s) => s.trim());
+      if (!classDays.includes(assignedKo)) {
+        const daysDisplay = classDays.join("·");
+        setFormError(`선택한 반은 ${daysDisplay}요일에 수업합니다. 보강 날짜를 다시 선택해주세요.`);
+        return;
+      }
+    }
     setFormError("");
     assignMut.mutate({ class_group_id: selectedClass.id, assigned_date: assignDate });
   }

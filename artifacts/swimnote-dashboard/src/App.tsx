@@ -16,6 +16,11 @@ import MakeupsPage from "@/pages/makeups/MakeupsPage";
 import PendingPage from "@/pages/growth-reports/PendingPage";
 import PublishPage from "@/pages/growth-reports/PublishPage";
 import PublishedPage from "@/pages/growth-reports/PublishedPage";
+import CurriculumPage from "@/pages/curriculum/CurriculumPage";
+import CurriculumNewPage from "@/pages/curriculum/CurriculumNewPage";
+import LevelsPage from "@/pages/curriculum/LevelsPage";
+import TemplatesPage from "@/pages/curriculum/TemplatesPage";
+import DiaryPage from "@/pages/diary/DiaryPage";
 
 function AppRoutes() {
   const { state } = useAuth();
@@ -84,23 +89,13 @@ function AppRoutes() {
         <Route path="/admin/growth-reports/published" component={PublishedPage} />
 
         {/* Curriculum */}
-        <Route path="/admin/curriculum">
-          <PlaceholderPage title="커리큘럼 관리" />
-        </Route>
-        <Route path="/admin/curriculum/new">
-          <PlaceholderPage title="커리큘럼 등록" />
-        </Route>
-        <Route path="/admin/curriculum/levels">
-          <PlaceholderPage title="레벨 / 교육과정" />
-        </Route>
-        <Route path="/admin/curriculum/templates">
-          <PlaceholderPage title="일지 템플릿" />
-        </Route>
+        <Route path="/admin/curriculum" component={CurriculumPage} />
+        <Route path="/admin/curriculum/new" component={CurriculumNewPage} />
+        <Route path="/admin/curriculum/levels" component={LevelsPage} />
+        <Route path="/admin/curriculum/templates" component={TemplatesPage} />
 
         {/* Diary */}
-        <Route path="/admin/diary">
-          <PlaceholderPage title="일지 · 피드" />
-        </Route>
+        <Route path="/admin/diary" component={DiaryPage} />
 
         {/* Teachers */}
         <Route path="/admin/teachers">

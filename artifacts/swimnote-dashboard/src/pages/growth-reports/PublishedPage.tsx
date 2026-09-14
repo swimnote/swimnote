@@ -81,8 +81,9 @@ export default function PublishedPage() {
     queryFn: () => api.get(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=200`),
   });
 
+  // READY_TO_SEND is pre-delivery (awaiting send) → belongs in PublishPage, not here
   const published = (data?.items ?? []).filter(
-    (r) => r.product_status === "PUBLISHED" || r.product_status === "READY_TO_SEND"
+    (r) => r.product_status === "PUBLISHED"
   );
 
   const filtered = published.filter((r) => {
