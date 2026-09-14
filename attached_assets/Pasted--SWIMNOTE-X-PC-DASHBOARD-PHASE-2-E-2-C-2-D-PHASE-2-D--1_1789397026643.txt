@@ -1,0 +1,1116 @@
+[SWIMNOTE X PC DASHBOARD — PHASE 2-E
+2-C/2-D 잔여보정 + 커리큘럼 + 일지·피드 실제 구현]
+
+PHASE 2-D 구현은 완료되었고,
+잔여 확인 3개가 있습니다.
+
+크레딧 절약을 위해 별도 수정 WP를 만들지 않고
+이번 PHASE 2-E 시작부에서 바로 확인/보정한 뒤
+
+1. 커리큘럼 관리
+2. 커리큘럼 등록
+3. 레벨 / 교육과정
+4. 일지 템플릿
+5. 일지 · 피드 관리자 화면
+6. 필요한 QA
+
+까지 한 번에 완료합니다.
+
+중간 설계보고 없이:
+
+실제 Backend contract 확인
+→ 잔여보정
+→ 구현
+→ QA
+→ 짧은 완료보고
+
+순서로 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 안전규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Repository:
+https://github.com/swimnote/swimnote
+
+현재 Dashboard 작업 변경사항 전부 보존.
+
+현재 보고 branch:
+temp-bugfix-deploy
+
+임의 branch 변경 금지.
+
+금지:
+
+git push
+Render deploy
+Render branch 변경
+Render rewrite 변경
+Legacy /admin 수정
+Marketing website 수정
+AI ENGINE 수정
+DB migration
+임의 schema 생성
+
+이번 WP는 local implementation + QA까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 2-D 잔여 #1
+pool_admin Growth Report 승인 route 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Dashboard 승인 API:
+
+POST /teacher/growth-reports/:id/review
+
+입니다.
+
+PC Dashboard는 pool_admin 전용이므로
+반드시 Backend route의 auth middleware와 role 조건을
+코드에서 직접 확인하십시오.
+
+확인:
+
+- pool_admin 허용 여부
+- teacher만 허용인지
+- pool isolation
+- report access validation
+
+pool_admin이 실제 허용되면:
+현 구현 유지.
+
+pool_admin이 403 구조라면:
+기존 admin용 승인/review contract가 있는지 조사.
+
+기존 정상 admin endpoint가 있으면 교체.
+
+없고 관리자 검수 workflow가 실제로 막히는 구조라면
+Frontend 우회 금지.
+
+최소 Backend 수정이 정말 필요할 경우에만
+기존 review service를 재사용하는 admin route 수준의
+최소 수정 허용.
+
+DB/schema 변경 금지.
+
+단:
+
+POST /admin/growth-reports/:id/mark-reviewed
+
+가 단순 admin_reviewed_at 기록만 하고
+실제 APPROVED transition을 하지 않는다면
+승인 대체 endpoint로 사용하지 마십시오.
+
+최종적으로:
+
+pool_admin
+→ 개별 승인
+→ 실제 APPROVED
+
+가 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 2-D 잔여 #2
+READY_TO_SEND 의미 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Published 화면에:
+
+PUBLISHED
+READY_TO_SEND
+
+둘 다 포함되어 있습니다.
+
+실제 Backend state machine을 확인하십시오.
+
+확인:
+
+READY_TO_SEND가
+
+A.
+아직 발행 전 준비완료
+
+인지
+
+B.
+실질적으로 이미 사용자 전달 완료
+
+인지.
+
+상태 의미에 따라 정확히 배치.
+
+원칙:
+
+실제 발행 완료 상태만
+/admin/growth-reports/published
+
+에 표시.
+
+아직 발행 전이면:
+publish 관리 화면으로 이동.
+
+Frontend에서 이름만 보고 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 2-C 잔여 #3
+보강 날짜 수업요일 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서버 assign endpoint는:
+
+날짜 형식
+보강 가능 기간
+정원
+status
+
+검증을 하지만
+반 schedule_days와 assigned_date 요일 일치는
+검증하지 않는 것으로 확인됐습니다.
+
+PC에서 보강 배정 시:
+
+선택한 class_group.schedule_days
++
+assigned_date의 요일
+
+을 비교.
+
+해당 반 수업요일이 아니면
+저장 버튼을 막고 명확히 표시.
+
+예:
+
+"선택한 반은 화·목요일에 수업합니다.
+보강 날짜를 다시 선택해주세요."
+
+실제 schedule_days 형식:
+
+"월,수,금"
+
+사용.
+
+서버 기존 검증은 그대로 최종 방어선.
+
+Backend 수정 불필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PHASE 2-E 목표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 Placeholder를 실제 화면으로 교체:
+
+/admin/curriculum
+/admin/curriculum/new
+/admin/curriculum/levels
+/admin/curriculum/templates
+/admin/diary
+
+목표:
+
+수영장 관리자가 PC에서
+
+- 자기 수영장 커리큘럼 확인
+- 커리큘럼 등록/수정
+- 레벨/교육과정 관리
+- 일지 템플릿 관리
+- 작성된 학생 일지/피드 조회
+
+를 할 수 있도록 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 절대 원칙 — 기존 구조 우선
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE는 이미:
+
+curriculum
+diary_templates
+levels
+X setup
+DOCX upload
+template scope
+diary/feed
+
+관련 API가 존재합니다.
+
+새로운 curriculum DB 구조를 만들지 마십시오.
+
+반드시:
+
+Backend route
+→ request schema
+→ response schema
+→ 기존 APP 사용방법
+→ Dashboard 연결
+
+순서.
+
+API 이름 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 커리큘럼 관리 화면
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/curriculum
+
+현재 pool에서 사용하는
+실제 커리큘럼 구조를 표시.
+
+가능한 실제 구조 기준:
+
+레벨
+과정
+기술/단계
+순서
+활성 상태
+
+등.
+
+실제 API field만 사용.
+
+PC에서는 카드 남발보다
+목록/Table + 계층구조가 읽기 쉽게.
+
+예:
+
+레벨
+교육과정명
+단계 수
+순서
+상태
+관리
+
+실제 schema에 맞춰 구성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Pool Local Curriculum 우선
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수영장 고유 커리큘럼이 있으면
+Pool Local Curriculum을 명확히 관리 가능해야 합니다.
+
+Global/X Template과
+Pool Local 데이터를 섞어 사용자가 착각하게 만들지 마십시오.
+
+실제 scope field가 존재하면 표시:
+
+global
+x_global
+teacher
+pool/local
+
+등 실제 값 기준.
+
+표시 이름은 관리자에게 이해되도록 한국어 변환 가능.
+
+DB값 자체는 임의 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. X Global Template
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE X의 global curriculum/template이
+읽기 전용 또는 수신 구조라면
+현재 권한 정책을 유지.
+
+Pool admin이 global 원본을
+직접 수정하도록 만들지 마십시오.
+
+필요하면:
+
+"SWIMNOTE X 기본 커리큘럼"
+
+으로 표시하고
+읽기 전용.
+
+수영장별 수정 가능 copy/local 구조가
+실제로 존재하는 경우에만 해당 기능 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 커리큘럼 등록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/curriculum/new
+
+기존 API에서 지원하는 등록 방식 사용.
+
+이미 존재하는:
+
+DOCX upload
+수동 등록
+
+중 실제 pool_admin contract를 확인.
+
+DOCX 업로드가 실제 지원되면
+PC에서 가장 중요한 등록 방법으로 제공.
+
+단:
+
+파일 업로드 후
+바로 성공 처리 금지.
+
+실제 서버 parse/import 결과를 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. DOCX 업로드
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 X setup / curriculum upload route 확인.
+
+허용 파일 형식도 실제 서버 기준.
+
+Frontend에서:
+
+.docx
+
+만 허용하는지,
+기타 파일도 되는지
+실제 contract 확인.
+
+업로드 UI:
+
+파일 선택
+→ 선택 파일명
+→ 업로드
+→ loading
+→ 결과
+
+중복 submit 방지.
+
+최대 파일 크기 제한이 서버에 있으면 UI에도 안내.
+
+가짜 progress bar 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 커리큘럼 업로드 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서버가 import 결과를 제공하면:
+
+생성 레벨 수
+생성 과정 수
+생성 항목 수
+경고
+실패
+
+등 실제 field를 표시.
+
+부분 실패를 전체 성공으로 표시 금지.
+
+실패 시 원본 파일 재선택 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 수동 커리큘럼 등록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 CRUD contract가 실제 존재한다면 제공.
+
+최소:
+
+교육과정 이름
+레벨
+내용/설명
+순서
+
+등 실제 field 기준.
+
+없으면 억지로 신규 API 만들지 말고
+DOCX/기존 방식만 제공.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 커리큘럼 순서변경
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 reorder API가 있다고 확인되어 있으므로
+실제 contract 재확인.
+
+지원되면:
+
+위/아래 버튼
+또는 drag reorder
+
+중 안정적인 방식으로 구현.
+
+드래그 UX를 위해 불필요한 대형 라이브러리 추가 금지.
+
+간단한 위/아래 이동으로 충분하면 우선.
+
+성공 후 canonical 순서를 재조회.
+
+Optimistic reorder만 믿지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 레벨 / 교육과정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/curriculum/levels
+
+기존 pool level API 사용.
+
+목표:
+
+현재 수영장 레벨 구조 확인/편집.
+
+표시 가능한 실제 정보:
+
+레벨명
+순서
+색상/모자색
+설명
+진급 기준
+
+실제 field가 존재하는 범위만.
+
+SWIMNOTE 기본 레벨을
+Frontend에서 하드코딩하지 마십시오.
+
+각 수영장 설정이 source of truth.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 레벨 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 API가 허용하는 필드만 수정.
+
+순서 변경 가능하면 연결.
+
+삭제는 위험하므로
+기존 정책 확인.
+
+회원이 사용 중인 레벨을
+무조건 hard delete하는 UI 금지.
+
+안전한 delete/disable contract가 불명확하면
+삭제 기능 생략.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 일지 템플릿 관리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/curriculum/templates
+
+기존 diary_templates API 사용.
+
+실제 scope:
+
+global
+teacher
+x_global
+기타
+
+확인.
+
+Pool admin에게 실제로 허용된
+조회/생성/수정 범위만 제공.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. Global Template 보안
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+global / x_global template는
+SWIMNOTE 시스템 자산입니다.
+
+Pool admin이:
+
+원본 수정
+원본 삭제
+
+할 수 있게 만들지 마십시오.
+
+읽기 전용이면 읽기 전용.
+
+Local template만 수정 가능하면
+그 정책 그대로.
+
+Frontend 편의를 위해 권한 확대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 템플릿 목록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PC DataTable 중심.
+
+가능한 실제 field:
+
+제목
+영법
+레벨
+범주
+scope
+작성자
+상태
+순서
+
+실제 schema에 맞게 선택.
+
+검색:
+
+제목/내용
+
+필터:
+
+scope
+레벨
+영법
+
+실제 데이터가 지원하는 범위.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 템플릿 생성/수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 CRUD가 pool_admin에게 허용되면 구현.
+
+필수값은 실제 request schema 기준.
+
+AI가 템플릿 내용을 새로 생성하는 기능은
+이번 PHASE에서 만들지 마십시오.
+
+기존 template CRUD만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 일지 · 피드
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/diary
+
+목적:
+
+관리자가 자기 수영장의
+작성된 수업일지/피드를 조회.
+
+새 일지 작성 화면이 핵심이 아닙니다.
+
+우선 조회/검색/상세 중심.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 학생 기록 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최근 확정 정책을 그대로 적용.
+
+일지와 앨범/피드는
+작성 선생님의 개인 데이터가 아니라
+학생에게 귀속되는 교육 기록입니다.
+
+pool_admin:
+
+자기 pool 학생의
+과거~현재 일지 조회 가능.
+
+teacher용 제한을
+관리자 화면에 적용하지 마십시오.
+
+다른 pool 기록 접근 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 일지 목록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 diary API contract를 확인.
+
+목록에 가능한 실제 정보:
+
+작성일
+회원명
+반
+작성 선생님
+수업내용 요약
+사진/영상 여부
+상태
+
+실제 field만.
+
+페이지네이션이 있으면 그대로 사용.
+
+전체 pool 일지를
+한 번에 무제한 가져오지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. 일지 검색 / 필터
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+회원명
+기간
+반
+선생님
+
+실제 Backend filter 지원 범위 우선.
+
+지원하지 않는 작은 필터는
+현재 page 기준 client filtering 정도만 허용.
+
+전체 데이터 다운로드 후 필터 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. 학생별 일지 조회
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+회원명 클릭 또는 행 클릭 시
+일지 상세 Drawer.
+
+필요하면:
+
+"이 학생의 일지 전체"
+
+진입 제공.
+
+학생 기준 과거~현재 이력이
+담당선생님 변경과 관계없이 보여야 함.
+
+최근 APP에서 정리한 동일 Backend contract를 재사용.
+
+PC 전용 diary relation 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 일지 상세
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Drawer에서 실제 저장된:
+
+학생
+날짜
+반
+선생님
+수업 내용
+공통 내용
+개별 내용
+사진
+영상
+
+등 실제 response 범위 표시.
+
+raw JSON 그대로 출력 금지.
+
+AI 내부 prompt/trace 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. 사진 / 영상
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+일지에 연결된 media가 있으면
+기존 signed/public URL contract 사용.
+
+썸네일 우선.
+
+원본 전체 파일을 한꺼번에 다운로드하지 마십시오.
+
+영상이 있으면
+기존 앱의 access/security policy를 재사용.
+
+다른 pool media 접근 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+27. 관리자 일지 수정 여부
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Backend에서 pool_admin이
+일지 수정/삭제 가능한지 실제 확인.
+
+지원되면 현재 정책 범위에서 연결 가능.
+
+불명확하면 이번 PHASE는
+조회 전용으로 구현.
+
+Frontend에서 임의 수정 API 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+28. Feed와 Diary 관계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE에서
+Diary와 Parent Feed가 같은 record인지
+별도 record인지 실제 schema/route를 확인.
+
+이름만 보고 하나로 합치지 마십시오.
+
+관리자 화면에서는
+실제 관계를 기준으로 표시.
+
+예:
+
+일지 작성
+→ 학부모 피드 발행
+
+구조라면 상태 표시 가능.
+
+실제 contract가 없는 경우
+"전송됨" 같은 값을 추측해서 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+29. React Query
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+의미별 key 사용.
+
+예시 개념:
+
+curriculum
+curriculum-levels
+diary-templates
+diaries
+diary-detail
+
+mutation 후
+관련 query만 invalidate.
+
+전역 invalidate 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+30. Realtime
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SSE/LISTEN-NOTIFY는 아직 PHASE 2-G.
+
+이번에는 구현하지 마십시오.
+
+PC mutation
+→ query invalidate
+
+까지만.
+
+APP/Teacher가 새 일지를 작성해
+열린 PC에 자동으로 뜨는 기능은
+2-G에서 연결.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+31. PDF Blocker
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report PDF endpoint가
+현재 서버에 없는 것으로 확인됨.
+
+이번 PHASE 2-E에서
+PDF 기능을 억지로 만들지 마십시오.
+
+Dashboard 자체 PDF renderer 생성 금지.
+
+그대로 후속 TODO 유지.
+
+API가 실제로 다른 이름으로 존재하는 것을
+이번 코드 조사 중 우연히 발견한다면 보고만 가능.
+
+별도 탐색에 크레딧 과다 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+32. 디자인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 2-A~2-D 디자인 유지.
+
+커리큘럼:
+계층/목록 중심
+
+템플릿:
+DataTable 중심
+
+일지:
+DataTable + Detail Drawer
+
+White / Off-white / Gray 중심.
+
+X Accent 절제.
+
+교육과정마다 무지개 색상 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+33. Transient UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dropdown/Popover:
+
+state=false
+→ 즉시 DOM unmount.
+
+Outside click
+ESC
+Route change
+
+모두 닫힘.
+
+Drawer:
+
+닫기 즉시 interaction 해제.
+Route change 즉시 unmount.
+
+ghost overlay가 클릭 막으면 P0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+34. Loading / Empty / Error
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+커리큘럼 없음:
+"등록된 커리큘럼이 없습니다."
+
+템플릿 없음:
+"등록된 일지 템플릿이 없습니다."
+
+일지 없음:
+"작성된 일지가 없습니다."
+
+API 실패:
+각각 "불러오지 못했습니다."
+
+Empty와 Error 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+35. Backend 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 API 최우선.
+
+Frontend 편의를 위한
+신규 endpoint 생성 금지.
+
+기존 API에 명백한 P0/P1이 있어
+정상 구현이 불가능한 경우만
+최소 Backend 수정 가능.
+
+DB migration 금지.
+AI ENGINE 수정 금지.
+
+API 수정 시 완료보고 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+36. 이번 PHASE에서 하지 않는 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+선생님 관리 본 구현
+매출/정산
+회원 대량등록
+Excel export 신규 API
+Growth Report PDF 신규 구현
+Realtime
+Render 배포
+Legacy 삭제
+
+넘어가지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+37. QA — 크레딧 절약형
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체 Dashboard 재검사 금지.
+
+이번 변경만 확인.
+
+잔여:
+
+1. pool_admin review route 권한
+2. READY_TO_SEND 실제 의미
+3. 보강 요일 validation
+
+Curriculum:
+
+4. 목록
+5. 등록
+6. DOCX upload 가능 여부
+7. reorder
+8. levels
+9. template list
+10. template edit 가능한 범위
+
+Diary:
+
+11. 일지 목록
+12. 회원 검색
+13. 기간 필터
+14. 상세 Drawer
+15. 학생 history
+16. media 표시
+17. Empty/Error
+18. pool isolation
+
+실계정 없으면:
+
+READ E2E:
+NOT TESTED
+
+WRITE E2E:
+NOT TESTED
+
+가짜 Production 데이터 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+38. Build
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+마지막:
+
+pnpm --filter @workspace/swimnote-dashboard run build
+
+PASS.
+
+그리고:
+
+pnpm --filter @workspace/swimnote-web run build
+
+regression PASS.
+
+필요 이상 전체 monorepo build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+39. 완료보고 — 짧게
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. BUILD
+
+Dashboard:
+Web:
+
+
+B. RESIDUAL FIX
+
+GR pool_admin approve:
+READY_TO_SEND:
+Makeup weekday:
+
+
+C. CURRICULUM API
+
+List:
+Create:
+DOCX:
+Update:
+Reorder:
+Levels:
+
+
+D. CURRICULUM UI
+
+관리:
+등록:
+레벨:
+Global/X 권한:
+
+
+E. TEMPLATE
+
+List:
+Create:
+Update:
+Scope protection:
+
+
+F. DIARY
+
+List:
+Filter:
+Student history:
+Detail:
+Media:
+Edit/Delete:
+
+
+G. DATA SYNC
+
+invalidate:
+
+
+H. QA
+
+Browser:
+Read E2E:
+Write E2E:
+
+
+I. BLOCKER
+
+P0:
+P1:
+후속:
+
+
+J. GIT
+
+branch:
+API 수정:
+push:
+deploy:
+범위 밖 변경:
+
+
+K. 판정
+
+PASS / HOLD / FAIL
+
+이유 3줄 이내.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+40. PASS 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] pool_admin GR 승인 contract 확정
+
+[ ] READY_TO_SEND 위치 확정
+
+[ ] 보강 요일 client validation
+
+[ ] 커리큘럼 목록
+
+[ ] 커리큘럼 등록 가능한 기존 방식 연결
+
+[ ] DOCX 기존 contract 연결 가능한 경우 구현
+
+[ ] 커리큘럼 reorder
+
+[ ] 레벨 관리
+
+[ ] 일지 템플릿
+
+[ ] Global/X template 수정권한 보호
+
+[ ] 관리자 일지 목록
+
+[ ] 회원/기간 필터
+
+[ ] 학생별 과거~현재 일지 history
+
+[ ] 일지 상세
+
+[ ] media 가능한 범위 표시
+
+[ ] pool isolation
+
+[ ] Empty/Error 구분
+
+[ ] mutation query invalidate
+
+[ ] ghost overlay 없음
+
+[ ] 가짜 API 없음
+
+[ ] 가짜 데이터 없음
+
+[ ] Dashboard build PASS
+
+[ ] Web regression PASS
+
+[ ] push 없음
+
+[ ] deploy 없음
+
+완료 후 STOP.
+
+다음은 PHASE 2-F:
+
+- 선생님
+- 매출·정산
+- 설정
+- 회원 대량등록
+- Excel Export
+- 남은 운영 부가기능
+
+입니다.
