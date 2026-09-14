@@ -5,6 +5,7 @@ import { eq, and, sql, ne } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logChange } from "../utils/change-logger.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
 
 const router = Router();
 
@@ -136,6 +137,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
     }).returning();
     await logChange({ tenantId: poolId, tableName: "class_groups", recordId: group.id, changeType: "create", payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time } });
     logPoolEvent({ pool_id: poolId, event_type: "class_create", entity_type: "class_group", entity_id: group.id, actor_id: req.user!.userId, payload: { name: group.name, schedule_days: group.schedule_days, schedule_time: group.schedule_time, level: group.level } }).catch(console.error);
+    notifyPoolEvent({ type: "class.changed", pool_id: group.swimming_pool_id, entity_id: group.id }).catch(() => {});
     res.status(201).json({ success: true, ...group, student_count: 0 });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -250,6 +252,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teac
       } catch (pushErr) { console.error("[class-groups schedule change push error]", pushErr); }
     }
 
+    notifyPoolEvent({ type: "class.changed", pool_id: group.swimming_pool_id, entity_id: group.id }).catch(() => {});
     res.json({ success: true, ...group });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -353,6 +356,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
       });
     } catch (logErr) { console.error("[change_log] delete_class error:", logErr); }
 
+    notifyPoolEvent({ type: "class.changed", pool_id: cgId }).catch(() => {});
     res.json({ success: true });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

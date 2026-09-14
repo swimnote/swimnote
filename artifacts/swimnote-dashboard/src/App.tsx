@@ -2,6 +2,8 @@ import { Switch, Route, Redirect, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { queryClient } from "@/lib/query-client";
+import { RealtimeProvider } from "@/context/RealtimeContext";
+import { getToken } from "@/lib/token";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import LoginPage from "@/pages/LoginPage";
 import HomePage from "@/pages/HomePage";
@@ -117,11 +119,20 @@ function AppRoutes() {
   );
 }
 
+function RealtimeWrapper({ children }: { children: React.ReactNode }) {
+  // Read token directly from localStorage so RealtimeContext gets updated
+  // when auth state changes — avoids threading token through context layers.
+  const token = getToken();
+  return <RealtimeProvider token={token}>{children}</RealtimeProvider>;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRoutes />
+        <RealtimeWrapper>
+          <AppRoutes />
+        </RealtimeWrapper>
       </AuthProvider>
     </QueryClientProvider>
   );

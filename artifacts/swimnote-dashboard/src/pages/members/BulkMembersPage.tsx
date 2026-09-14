@@ -133,18 +133,20 @@ export default function BulkMembersPage() {
     }
   }
 
-  // ── Commit ────────────────────────────────────────────────────────────────
+  // ── Commit (ALL-OR-NOTHING) ───────────────────────────────────────────────
+  // 오류 행이 하나라도 있으면 서버가 거부합니다 (validated.every(r => r.valid) 보장)
   async function handleCommit() {
-    if (!confirm(`${validated.filter(r => r.valid).length}명을 등록하시겠습니까?`)) return;
+    if (!allValid) return; // 버튼이 disabled 상태라도 방어
+    if (!confirm(`${validated.length}명을 모두 등록하시겠습니까?`)) return;
     setLoading(true);
     try {
-      const r = await api.post<{ created: number; failed: number; errors: string[] }>("/admin/members/bulk/commit", { rows: validated.filter(r => r.valid) });
+      const r = await api.post<{ created: number; failed: number; errors: string[] }>("/admin/members/bulk/commit", { rows: validated });
       setCommitResult(r.data);
       setStage("done");
       qc.invalidateQueries({ queryKey: ["students"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
     } catch (e: any) {
-      setParseErr(e?.response?.data?.message || "등록 실패");
+      setParseErr(e?.message || "등록 실패");
     } finally {
       setLoading(false);
     }
@@ -239,24 +241,40 @@ export default function BulkMembersPage() {
           {parseErr && <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{parseErr}</p>}
 
           {hasErrors && stage === "validated" && (
-            <div style={{ background: "#fef3c7", border: "1px solid #fbbf24", borderRadius: 6, padding: 12, marginBottom: 12 }}>
-              <p style={{ margin: 0, fontSize: 13, color: "#92400e" }}>
-                ⚠ 오류가 있는 행이 있습니다. 오류 행은 등록되지 않습니다. 수정 후 파일을 다시 업로드하거나, 유효한 행만 등록할 수 있습니다.
+            <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, padding: 12, marginBottom: 12 }}>
+              <p style={{ margin: 0, fontSize: 13, color: "#991b1b", fontWeight: 500 }}>
+                ✗ 오류가 있는 행이 있습니다.
               </p>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#991b1b" }}>
+                기본 정책: 전체 등록이 아니면 등록 불가 (ALL OR NOTHING).<br/>
+                오류 행을 수정한 후 파일을 다시 업로드하세요.
+              </p>
+            </div>
+          )}
+          {allValid && stage === "validated" && (
+            <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 6, padding: 10, marginBottom: 12 }}>
+              <p style={{ margin: 0, fontSize: 13, color: "#166534" }}>✓ 모든 행이 유효합니다. 아래 등록 버튼을 눌러 전체 등록하세요.</p>
             </div>
           )}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             {stage === "preview" && (
               <button onClick={handleValidate} disabled={loading}
-                style={{ padding: "9px 20px", borderRadius: 6, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 14 }}>
+                style={{ padding: "9px 20px", borderRadius: 6, border: "none", background: "#2563eb", color: "#fff", cursor: loading ? "not-allowed" : "pointer", fontSize: 14 }}>
                 {loading ? "검증 중…" : "서버 검증"}
               </button>
             )}
-            {stage === "validated" && validated.some(r => r.valid) && (
-              <button onClick={handleCommit} disabled={loading}
-                style={{ padding: "9px 20px", borderRadius: 6, border: "none", background: "#111827", color: "#fff", cursor: "pointer", fontSize: 14 }}>
-                {loading ? "등록 중…" : `유효 ${validated.filter(r => r.valid).length}명 등록`}
+            {stage === "validated" && (
+              <button onClick={handleCommit} disabled={loading || !allValid}
+                title={!allValid ? "오류가 있는 행이 있습니다. 파일을 수정 후 다시 업로드하세요." : undefined}
+                style={{
+                  padding: "9px 20px", borderRadius: 6, border: "none", fontSize: 14,
+                  background: allValid ? "#111827" : "#9ca3af",
+                  color: "#fff",
+                  cursor: (loading || !allValid) ? "not-allowed" : "pointer",
+                  opacity: allValid ? 1 : 0.7,
+                }}>
+                {loading ? "등록 중…" : allValid ? `${validated.length}명 전체 등록` : "오류 수정 필요"}
               </button>
             )}
           </div>
@@ -290,7 +308,8 @@ export default function BulkMembersPage() {
             <li>양식에 회원 정보를 입력하세요. 이름은 필수입니다.</li>
             <li>파일을 선택하면 내용이 미리보기로 표시됩니다.</li>
             <li>서버 검증을 실행하면 중복·반 이름 오류 등을 확인합니다.</li>
-            <li>유효한 행만 최종 등록됩니다. 오류 행은 등록되지 않습니다.</li>
+            <li><strong>오류가 하나라도 있으면 등록 불가</strong>입니다 (ALL OR NOTHING). 파일을 수정 후 다시 업로드하세요.</li>
+            <li>모든 행이 유효하면 전체 한 번에 등록됩니다.</li>
           </ol>
         </div>
       )}

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "@/lib/api-client";
 import {
   Search, X, ChevronLeft, ChevronRight, UserMinus,
-  Edit2, RefreshCw, AlertCircle, Download,
+  Edit2, RefreshCw, AlertCircle, Download, BookOpen,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -96,9 +96,10 @@ type DrawerProps = {
   onClose: () => void;
   onWithdraw: (id: string, name: string) => void;
   onEdit: (student: Student) => void;
+  onViewDiary: (studentId: string) => void;
 };
 
-function MemberDrawer({ student, classGroups, onClose, onWithdraw, onEdit }: DrawerProps) {
+function MemberDrawer({ student, classGroups, onClose, onWithdraw, onEdit, onViewDiary }: DrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -266,6 +267,26 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onEdit }: Dra
             }}
           >
             <Edit2 size={14} /> 수정
+          </button>
+          <button
+            onClick={() => { onViewDiary(student.id); onClose(); }}
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              padding: "9px",
+              borderRadius: "8px",
+              border: "1px solid #dbeafe",
+              background: "#eff6ff",
+              fontSize: "13px",
+              fontWeight: 500,
+              color: "#1d4ed8",
+              cursor: "pointer",
+            }}
+          >
+            <BookOpen size={14} /> 일지 보기
           </button>
           {student.status === "active" && (
             <button
@@ -881,6 +902,7 @@ export default function MembersPage() {
       {/* Detail Drawer */}
       <MemberDrawer
         student={selectedStudent}
+        onViewDiary={(sid) => navigate(`/admin/diary?student_id=${sid}`)}
         classGroups={classGroups}
         onClose={handleDrawerClose}
         onWithdraw={handleWithdraw}

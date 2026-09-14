@@ -1,4 +1,5 @@
 import app, { setServerReady, setBootMeta } from "./app";
+import { startListener, setRealtimeDb } from "./lib/pg-realtime.js";
 import { BOOT_ID, BOOT_STARTED_AT, COMMIT_SHA, SERVICE_VERSION } from "./lib/boot-state.js";
 import { startBackupJobs } from "./jobs/backup-batch.js";
 import { startParentLinkScheduler } from "./jobs/parent-link-scheduler.js";
@@ -21,7 +22,7 @@ import { initMembershipSchema } from "./migrations/pool-db-membership.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
-import { isDbSeparated, isProtectDbConfigured, pool, superAdminDb } from "@workspace/db";
+import { isDbSeparated, isProtectDbConfigured, pool, superAdminDb, db } from "@workspace/db";
 import { getRecentAvgResponseMs } from "./lib/responseTracker.js";
 import { createOpsAlert } from "./lib/opsAlerts.js";
 import { sendPushToSuperAdmins } from "./lib/push-service.js";
@@ -165,6 +166,12 @@ import("./migrations/runtime-ddl-consolidated.js")
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
 }, 3000);
+
+// ── Realtime: setRealtimeDb + LISTEN (API mode only) ────────────────────────
+setRealtimeDb(db);
+if (!IS_WORKER) {
+  startListener().catch((e) => console.error("[realtime] startListener error:", e?.message));
+}
 
 if (IS_WORKER) {
   // ── Worker 모드: 스케줄러만 실행, HTTP 없음 ─────────────────────────────

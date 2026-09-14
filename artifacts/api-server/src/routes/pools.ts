@@ -7,6 +7,7 @@ import { swimmingPoolsTable, usersTable, parentAccountsTable } from "@workspace/
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { resolvePoolMode } from "../lib/xmode.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
 import { resolveSubscription } from "../lib/subscriptionService.js";
@@ -702,6 +703,7 @@ router.patch("/homepage/settings", requireAuth, requireRole("pool_admin", "super
     const updated = await superAdminDb.execute(sql`
       SELECT homepage_slug, homepage_enabled FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `);
+    notifyPoolEvent({ type: "pool_settings.changed", pool_id: poolId }).catch(() => {});
     res.json({ success: true, ...(updated.rows[0] ?? {}) });
   } catch (e: any) {
     if (e?.code === "23505") { res.status(409).json({ error: "이미 사용 중인 주소입니다." }); return; }

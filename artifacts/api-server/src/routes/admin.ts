@@ -20,6 +20,8 @@ import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { deleteGrowthReport } from "../lib/growth-report-service.js";
 import { computeAnalysisPeriod } from "../lib/growth-report-analysis-helper.js";
 import { recomputeGaugePctForLevelPatch } from "../lib/curriculum-confirmation-engine.js";
+import { notifyPoolEvent, addSseClient, removeSseClient } from "../lib/pg-realtime.js";
+import { createStudentCore } from "../lib/student-create-service.js";
 
 const router = Router();
 
@@ -5569,8 +5571,9 @@ router.post("/members/bulk/validate",
 );
 
 // ══════════════════════════════════════════════════════════════════════════════
-// POST /admin/members/bulk/commit — 대량등록 최종 실행
-// (기존 POST /students 비즈니스 로직 재사용)
+// POST /admin/members/bulk/commit — 대량등록 최종 실행 (ALL-OR-NOTHING)
+// 기존 단건 등록 공통 서비스(createStudentCore) 재사용
+// 단일 DB transaction → 중간 실패 시 전체 rollback
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/members/bulk/commit",
   requireAuth, requireRole("super_admin", "pool_admin"),
@@ -5583,49 +5586,95 @@ router.post("/members/bulk/commit",
       const { rows } = req.body as { rows: Array<Record<string, any>> };
       if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "rows가 필요합니다." }); return; }
 
-      let created = 0;
-      let failed = 0;
-      const errors: string[] = [];
+      // 서버 측 최종 검증: 클라이언트가 invalid 행을 보내면 거부
+      const invalidRows = rows.filter(r => !r.valid);
+      if (invalidRows.length > 0) {
+        return res.status(400).json({
+          error: `유효하지 않은 행이 ${invalidRows.length}개 포함되어 있습니다. 파일을 수정 후 다시 업로드하세요.`,
+          invalid_count: invalidRows.length,
+        });
+      }
+      if (rows.length > 500) { res.status(400).json({ error: "한 번에 최대 500명까지 등록 가능합니다." }); return; }
 
-      for (const row of rows) {
-        if (!row.valid) continue; // only commit valid rows
-        try {
-          const name = (row.name ?? "").trim();
-          const phone = (row.phone ?? "").replace(/[^0-9]/g, "") || null;
-          const parentPhone = (row.parent_phone ?? "").replace(/[^0-9]/g, "") || null;
-          const birthYear = (row.birth_year ?? "").trim() || null;
-          const parentName = (row.parent_name ?? "").trim() || null;
-          const memo = (row.memo ?? "").trim() || null;
-          const classGroupId = row.class_group_id || null;
+      // ALL-OR-NOTHING: 단일 transaction
+      const createdIds: string[] = [];
+      try {
+        await db.transaction(async (tx) => {
+          // Member limit: 총 등록 인원 기준 한 번만 체크
+          await assertMemberLimitInTx(tx, poolId);
 
-          const studentId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const inviteCode = `INV${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
-
-          await db.execute(sql`
-            INSERT INTO students
-              (id, swimming_pool_id, name, phone, birth_year,
-               parent_name, parent_phone, class_group_id, memo,
-               status, registration_path, invite_code, weekly_count,
-               created_at, updated_at)
-            VALUES
-              (${studentId}, ${poolId}, ${name}, ${phone}, ${birthYear},
-               ${parentName}, ${parentPhone}, ${classGroupId}, ${memo},
-               'unregistered', 'admin_created', ${inviteCode}, 1,
-               NOW(), NOW())
-          `);
-
-          created++;
-        } catch (e: any) {
-          failed++;
-          errors.push(`${row._row}행 (${row.name ?? "?"}): ${e?.message ?? "등록 실패"}`);
-        }
+          for (const row of rows) {
+            const result = await createStudentCore(tx, {
+              name: (row.name ?? "").trim(),
+              phone: (row.phone ?? "").replace(/[^0-9]/g, "") || null,
+              birth_year: (row.birth_year ?? "").trim() || null,
+              parent_name: (row.parent_name ?? "").trim() || null,
+              parent_phone: (row.parent_phone ?? "").replace(/[^0-9]/g, "") || null,
+              class_group_id: row.class_group_id || null,
+              memo: (row.memo ?? "").trim() || null,
+              weekly_count: 1,
+              registration_path: "admin_created",
+              swimming_pool_id: poolId,
+            });
+            createdIds.push(result.id);
+          }
+        });
+      } catch (e: any) {
+        if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+        console.error("[members/bulk/commit] tx error:", e);
+        return res.status(500).json({ error: `등록 실패 (전체 rollback): ${e?.message ?? "서버 오류"}` });
       }
 
-      res.json({ created, failed, errors });
+      // Post-commit: fire-and-forget (auto-link, audit, notify)
+      for (const id of createdIds) {
+        const { triggerAutoLinkOnStudentV2 } = await import("../lib/auto-link-v2.js");
+        triggerAutoLinkOnStudentV2(id, ["parent_phone", "name", "swimming_pool_id"]).catch(() => {});
+      }
+      notifyPoolEvent({ type: "member.changed", pool_id: poolId }).catch(() => {});
+
+      res.json({ created: createdIds.length, failed: 0, errors: [] });
     } catch (e) {
       console.error("[members/bulk/commit]", e);
       res.status(500).json({ error: "서버 오류" });
     }
+  }
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /admin/events/stream — authenticated pool-scoped SSE
+// ══════════════════════════════════════════════════════════════════════════════
+router.get("/events/stream",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    const poolId = await getAdminPoolId(req);
+    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    // SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    // Register SSE client (pool-isolated)
+    const client = { poolId, res };
+    addSseClient(client);
+
+    // Initial connected event
+    res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+
+    // Heartbeat every 30s
+    const hb = setInterval(() => {
+      try { res.write("data: ping\n\n"); } catch { /* client gone */ }
+    }, 30_000);
+
+    // Cleanup on disconnect
+    const cleanup = () => {
+      clearInterval(hb);
+      removeSseClient(client);
+    };
+    req.on("close", cleanup);
+    req.on("aborted", cleanup);
   }
 );
 

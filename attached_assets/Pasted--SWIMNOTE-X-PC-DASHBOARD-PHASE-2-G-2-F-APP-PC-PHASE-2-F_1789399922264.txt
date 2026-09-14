@@ -1,0 +1,1293 @@
+[SWIMNOTE X PC DASHBOARD — PHASE 2-G
+2-F 잔여보정 + APP ↔ PC 실시간 동기화 최종 구현]
+
+PHASE 2-F는 조건부 완료 상태입니다.
+
+크레딧 절약을 위해 별도 수정 WP 없이
+이번 PHASE 2-G 시작부에서 아래 2-F 잔여를 먼저 보정한 뒤
+
+PostgreSQL LISTEN/NOTIFY
+→ authenticated pool-scoped SSE
+→ Dashboard React Query invalidate/refetch
+
+실시간 동기화까지 한 번에 구현합니다.
+
+이번 PHASE 완료 후 남는 것은
+PHASE 2-H 최종 Static Site 통합/Production 배포/E2E뿐입니다.
+
+중간 설계보고 금지.
+
+실제 코드 확인
+→ 잔여보정
+→ Realtime 구현
+→ QA
+→ 짧은 완료보고
+
+순서로 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 안전규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Repository:
+https://github.com/swimnote/swimnote
+
+현재 branch:
+temp-bugfix-deploy
+
+현재 Dashboard / APP bugfix 변경사항 전부 보존.
+
+임의 branch 변경 금지.
+
+이번 PHASE에서 허용:
+
+artifacts/swimnote-dashboard/**
+artifacts/api-server/** 중 Realtime 및 잔여보정 관련 최소 수정
+필요한 worker/job 관련 파일 최소 수정
+package lock 최소 변경
+
+금지:
+
+git push
+Render deploy
+Render Static Site 설정 변경
+Static Site branch 변경
+swimnote-web Legacy /admin 삭제
+Marketing website 수정
+AI ENGINE 수정
+DB migration
+DB schema 변경
+새 message broker 도입
+Redis/Kafka 신규 도입
+
+이번 PHASE는 local 구현 + 검증까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 2-F 잔여 #1
+회원 대량등록 business rule 재사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고된 bulk commit은:
+
+행별 students INSERT
+
+구조입니다.
+
+이것이 기존 단건 회원등록:
+
+POST /students
+
+의 실제 business rule을 우회하는지 반드시 확인하십시오.
+
+기존 단건 등록이 처리하는 항목을 추적:
+
+- student 생성
+- 기본 status
+- registration_path
+- 보호자 연결
+- 연락처 normalization
+- class assignment
+- level
+- memo
+- audit
+- 기타 후속처리
+
+bulk에서도 동일하게 적용되어야 합니다.
+
+단순 SQL INSERT로 일부만 저장하면 안 됩니다.
+
+가능하면 기존 단건 등록 로직을
+공통 service/function으로 추출하여:
+
+단건 등록
+bulk 등록
+
+둘 다 동일 service를 호출하도록 보정.
+
+기존 API 동작은 깨지지 않아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 2-F 잔여 #2
+Bulk Import 기본 정책 = ALL OR NOTHING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+invalid row가 있어도 valid rows만 commit
+
+구조는 폐기합니다.
+
+기본 정책:
+
+파일 전체 Parse
+→ 전체 Validation
+→ 한 행이라도 ERROR
+→ Import 버튼 비활성
+→ 사용자가 파일 수정 후 다시 업로드
+
+모든 row PASS
+→ Import 가능
+
+Commit 단계도 가능하면 하나의 DB transaction.
+
+중간 실패:
+→ 전체 rollback
+
+을 우선.
+
+즉:
+
+100명 중 1명 오류
+→ 99명 일부 등록 금지.
+
+부분 성공이 운영 기본동작이 되어서는 안 됩니다.
+
+기존 구조상 transaction이 정말 불가능하면
+왜 불가능한지 BLOCKER 보고 후 임의 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Bulk Validate / Commit 일관성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+validate에서 통과한 payload와
+commit에서 다시 사용하는 payload의 규칙이
+달라지면 안 됩니다.
+
+Backend commit에서도 최종 validation을 다시 수행.
+
+Frontend validation만 신뢰 금지.
+
+Pool scope:
+
+JWT poolId 강제.
+
+Excel 안의 임의 pool/class ID 신뢰 금지.
+
+반/레벨은 자기 pool 값으로만 resolve.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 2-F 잔여 #3
+매출·정산 = 원장용 전체 수영장 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PC Dashboard는 pool_admin 전용입니다.
+
+매출·정산 화면의 기본값은:
+
+"로그인 사용자의 개인 선생님 정산"
+
+이 아니라
+
+"해당 수영장 전체 운영 매출/정산"
+
+이어야 합니다.
+
+기존 Backend contract를 다시 확인하십시오.
+
+가능한 경우:
+
+기본:
+전체 수영장
+
+필터:
+선생님별 drill-down
+
+구조로 보정.
+
+teacher_id를 사용자가 직접 문자열 입력하는 UI는 제거.
+
+반드시:
+
+GET /teachers
+또는 실제 pool teacher source
+
+에서 선택하는 Dropdown 사용.
+
+다른 pool teacher ID 입력 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 매출 데이터 의미 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Settlement calculator의:
+
+총매출
+정규수업
+보강
+체험
+
+등 필드가 실제로
+수영장 전체 재무지표인지
+선생님 정산용 계산값인지 확인.
+
+이 둘을 혼동하지 마십시오.
+
+만약 현재 Backend에
+"수영장 전체 매출" API가 실제 없다면:
+
+선생님 정산 데이터를
+전체 매출처럼 표시하지 마십시오.
+
+그 경우 화면 명칭을 실제 의미에 맞춰:
+
+정산 현황
+
+으로 제한하고
+"전체 매출"은 후속 BLOCKER로 보고.
+
+가짜 합산 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 2-F 잔여 #4
+회원 상세 → 학생 일지 History 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 2-B Members Detail Drawer에:
+
+[일지 보기]
+
+실제 버튼/탭을 연결하십시오.
+
+클릭:
+
+해당 student_id를 사용하여
+이미 구현한 서버 학생별 History 조회로 이동.
+
+방법은 기존 Dashboard 구조에 맞게:
+
+/admin/diary?student_id=...
+
+또는 동일 페이지 내 연결.
+
+중요:
+
+사용자에게 student_id를 직접 입력시키는 UI는 제거.
+
+회원 상세
+→ 일지보기
+→ 해당 학생 과거~현재 기록
+
+자연스럽게 연결.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. PHASE 2-G 목표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구조:
+
+MOBILE APP
+→ swimnote-api
+→ Production PostgreSQL
+
+PC Dashboard
+→ swimnote-api
+→ 동일 PostgreSQL
+
+이번 PHASE에서:
+
+APP에서 데이터 변경
+→ DB commit
+→ PostgreSQL NOTIFY
+→ API LISTEN
+→ authenticated SSE
+→ 열려있는 해당 pool PC Dashboard
+→ React Query invalidate/refetch
+→ 자동 화면 갱신
+
+까지 구현.
+
+사용자가 새로고침하지 않아도
+PC가 최신 상태를 받아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 승인된 Realtime Architecture 고정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이미 설계 승인된 구조:
+
+Mutation/API/Worker
+→ PostgreSQL LISTEN/NOTIFY
+→ API SSE
+→ React Query invalidate/refetch
+
+유지.
+
+다시 재설계하지 마십시오.
+
+금지:
+
+in-process EventEmitter만 사용
+메모리 pub/sub만 사용
+polling-only
+JWT query string
+WebSocket 신규 도입
+Redis 신규 도입
+
+PostgreSQL LISTEN/NOTIFY가
+cross-process / worker / multi-instance 전달의 source.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. notify helper
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+공통 helper 구현.
+
+예시 책임:
+
+notifyPoolEvent({
+  poolId,
+  type,
+  entityId?
+})
+
+payload는 최소정보만.
+
+예:
+
+{
+  pool_id,
+  type,
+  entity_id
+}
+
+실제 학생명
+전화번호
+일지 내용
+리포트 내용
+사진 URL
+
+등 개인정보를 NOTIFY payload에 넣지 마십시오.
+
+SSE도 동일.
+
+실제 데이터는 Browser가
+기존 API를 다시 fetch.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Event Type
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dashboard가 invalidate 판단할 정도의
+coarse-grained event type만 사용.
+
+예시 개념:
+
+member.changed
+class.changed
+makeup.changed
+growth_report.changed
+diary.changed
+teacher.changed
+curriculum.changed
+revenue.changed
+pool_settings.changed
+
+이름은 프로젝트 convention에 맞게 확정.
+
+CRUD마다 지나치게 수십 개 type 생성 금지.
+
+예:
+
+member.created
+member.updated
+member.withdrawn
+member.restored
+
+을 전부 따로 만들 필요가 없다면
+member.changed 하나로 충분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. PostgreSQL NOTIFY Transaction 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+Mutation이 DB transaction 안에서 수행될 경우:
+
+가능하면 동일 transaction client로:
+
+SELECT pg_notify(...)
+
+를 COMMIT 이전에 실행하십시오.
+
+PostgreSQL NOTIFY는
+transaction commit 후 실제 전달되므로
+
+Browser가 event 받고
+API refetch 했는데
+아직 commit 전 데이터가 나오는 race를 방지할 수 있습니다.
+
+기존 transaction 구조를
+억지로 뜯지 마십시오.
+
+Transaction이 없는 단순 mutation은
+DB 성공 후 notify.
+
+DB 실패했는데 event 보내면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Dedicated LISTEN Client
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API Server에
+PostgreSQL LISTEN 전용 persistent client 사용.
+
+일반 query pool connection을
+오랫동안 LISTEN 상태로 붙잡아두는 잘못된 구조 금지.
+
+Node pg 기존 dependency 사용.
+
+예:
+
+pool_events
+
+같은 단일 channel 사용 가능.
+
+API instance 시작:
+
+LISTEN channel
+
+connection disconnect 시:
+안전한 reconnect.
+
+DB reconnect storm 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Multi-instance / Worker 대응
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render API instance가 여러 개가 되어도
+각 API instance의 listener가
+PostgreSQL NOTIFY를 받을 수 있는 구조.
+
+Worker 프로세스에서 mutation 발생:
+
+Worker
+→ PostgreSQL NOTIFY
+
+API listener
+→ 연결된 browser SSE
+
+로 전달.
+
+Worker와 API 사이
+in-memory 공유를 가정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. SSE Endpoint
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+authenticated SSE endpoint 구현.
+
+정확한 path는
+기존 route naming convention을 확인한 뒤 확정.
+
+예시 개념:
+
+GET /events/stream
+
+또는
+GET /admin/events/stream
+
+중 적절한 기존 구조 선택.
+
+필수:
+
+Authorization: Bearer JWT
+
+Browser에서 fetch streaming 또는
+Authorization header를 지원하는 안전한 client 사용.
+
+JWT를:
+
+?token=...
+
+query string으로 보내는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. SSE AUTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SSE connection 시작 시:
+
+1. JWT 검증
+2. role 검증
+3. poolId 추출
+4. X Dashboard 접근권한 확인 가능한 범위
+5. connection을 해당 pool에 귀속
+
+poolId를 query/body에서 신뢰하지 마십시오.
+
+JWT/auth context의 poolId 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Pool Isolation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+Pool A event:
+
+pool_id=A
+
+이면
+
+Pool A SSE client에만 전달.
+
+Pool B에는 절대 전달하지 않음.
+
+Browser가 event를 받아도
+다른 pool 데이터 내용은 payload에 없지만,
+
+server-side에서 애초에
+cross-pool event가 전달되지 않게 필터.
+
+이 항목 실패 = P0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. SSE Connection Lifecycle
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- Content-Type: text/event-stream
+- cache disable
+- connection keep-alive
+- initial connected event 가능
+- heartbeat 약 30초
+- client disconnect cleanup
+- AbortSignal/close cleanup
+- listener memory leak 없음
+
+heartbeat에는
+개인정보 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. Browser Reconnect
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dashboard:
+
+network 끊김
+→ 자동 reconnect.
+
+과도한 1초 무한 loop 금지.
+
+backoff 사용.
+
+예:
+
+1s
+2s
+5s
+10s
+최대 30s
+
+수준.
+
+Online 복귀 시 빠르게 reconnect 가능.
+
+로그아웃:
+즉시 SSE abort.
+
+401:
+token clear
+→ login.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. Dashboard RealtimeContext
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 2-A 설계에 있던:
+
+RealtimeContext
+
+또는 동일 책임 구조 구현.
+
+역할:
+
+- authenticated 상태에서 SSE 시작
+- event parse
+- type → React Query key mapping
+- reconnect 관리
+- logout cleanup
+
+페이지마다 SSE connection 생성 금지.
+
+Dashboard session당 1개 connection.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. Event → Query Invalidation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+event type별
+영향받는 query만 invalidate.
+
+예:
+
+member.changed
+→ students
+→ withdrawn-members
+→ dashboard-stats
+
+class.changed
+→ class-groups
+→ students 필요한 경우
+→ dashboard-stats
+
+makeup.changed
+→ makeups
+→ dashboard-stats
+
+growth_report.changed
+→ growth-reports-list
+→ dashboard-stats
+
+diary.changed
+→ diaries-admin
+→ 관련 diary detail/list
+
+teacher.changed
+→ teacher-invites
+→ teachers/class-groups 필요한 경우
+
+curriculum.changed
+→ curriculum-levels
+→ curriculum versions/templates 관련 key
+
+pool_settings.changed
+→ homepage-settings
+→ x-mode/status 필요한 경우
+
+전역 invalidate 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. Revenue Realtime
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 revenue/settlement mutation이
+현재 APP/API에서 존재하고 Dashboard에 영향을 주는 경우만:
+
+revenue.changed
+
+event 연결.
+
+조회만 있고 mutation source가 없다면
+억지 notify 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. HTTP API Mutation Notify 대상
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에 Dashboard/APP에서 공통으로 중요하게 쓰는 mutation들을 추적하여 notify 추가.
+
+최소 범위:
+
+MEMBERS
+- 회원 등록
+- 수정
+- 반 배정
+- 퇴원
+- 복원
+- bulk import
+
+CLASSES
+- 반 생성
+- 수정
+- 삭제/비활성
+- 담당자 변경
+
+MAKEUPS
+- 생성되는 실제 source
+- 배정
+- 취소
+- 상태 변화
+
+GROWTH REPORT
+- approve/review
+- discard/reanalysis
+- publish
+- regenerate/reissue
+
+DIARY
+- 생성
+- 수정
+- 삭제
+
+TEACHER
+- 초대
+- 승인
+- 비활성/재활성
+- 기타 현재 Dashboard에 표시되는 상태 변화
+
+CURRICULUM
+- X curriculum upload
+- template/level CRUD/reorder
+
+SETTINGS
+- pool/homepage 설정 변경
+
+실제 mutation endpoint를 확인해서
+성공 이후에만 notify.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. Worker Notify 대상
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 1-R2에서 확인된 Worker들을 다시 확인.
+
+Growth Report 관련:
+
+growth-report-scheduler
+growth-report-analysis-worker
+growth-report-batch-worker
+
+는 상태를 변경하므로
+growth_report.changed 반드시 고려.
+
+Makeup queue/worker가 실제
+Dashboard 보강 상태를 바꾸면:
+
+makeup.changed.
+
+Attendance worker가
+현재 Dashboard Home stats에 영향을 주면
+필요한 event 연결 검토.
+
+단 Dashboard가 사용하지 않는 worker에
+무조건 notify 남발 금지.
+
+실제 query에 영향을 줄 때만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. Growth Report Worker 특히 중요
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report는
+HTTP 버튼만으로 상태가 변하는 것이 아닙니다.
+
+예:
+
+ANALYZING
+→ REVIEW_REQUIRED
+
+REGENERATING
+→ ...
+
+등 Worker-driven transition 존재.
+
+Worker mutation commit 후:
+
+growth_report.changed
+
+NOTIFY.
+
+그러면 열려있는 PC의:
+
+검수대기
+발행관리
+발행완료
+Home stats
+
+가 자동 갱신되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. APP → PC 핵심 검증 시나리오
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실계정/실행환경이 가능하면 최소:
+
+A.
+APP 또는 API에서 회원 변경
+→ 열린 PC 회원목록 자동 refetch
+
+B.
+보강 변경
+→ 열린 PC 보강 화면 자동 refetch
+
+C.
+일지 생성/수정
+→ 열린 PC 일지 화면 자동 refetch
+
+D.
+Growth Report 상태 변경 event
+→ 열린 PC Growth Report query invalidate
+
+Production 데이터를 임의 수정하지 마십시오.
+
+실계정/안전한 데이터 없으면
+Integration test 또는 local authenticated fixture 범위로 검증.
+
+가짜 Production 기록 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. SSE 자체 Integration QA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 코드/로컬 검증:
+
+1. SSE connect
+2. JWT 없는 요청 → 401
+3. invalid JWT → 401
+4. valid auth → stream open
+5. pool A event → A client 수신
+6. pool A event → B client 미수신
+7. heartbeat
+8. client disconnect cleanup
+9. reconnect
+10. logout abort
+
+Pool isolation test는 반드시 수행 가능한 방식으로 검증.
+
+실제 다른 pool 계정이 없어도
+integration/unit 수준에서 server filter 로직 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+27. SSE Payload 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Browser가 받는 payload 예:
+
+{
+  "type": "member.changed",
+  "entity_id": "..."
+}
+
+poolId는 꼭 Browser에 보낼 필요 없음.
+
+개인정보 금지.
+
+다음 포함 금지:
+
+회원 이름
+전화번호
+보호자 정보
+일지 내용
+사진 URL
+AI 리포트 내용
+JWT
+DB raw payload
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+28. Window Focus / Route Mount Fallback
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SSE가 있어도 fallback 유지.
+
+React Query:
+
+refetchOnWindowFocus
+
+적절히 사용.
+
+페이지 최초 mount:
+정상 fetch.
+
+SSE temporary disconnect 후:
+reconnect + 필요한 query refetch.
+
+SSE만 믿어서
+초기 데이터가 없는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+29. Manual Refresh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+업무 화면에 이미 refresh가 있거나
+오류 recovery가 필요한 경우 manual retry 유지 가능.
+
+하지만 사용자가
+항상 새로고침을 눌러야 최신 데이터가 보이는 구조는 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+30. Notification Storm 방지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+한 transaction에서 동일 entity를
+여러 번 update한다고
+NOTIFY를 10회 보내지 마십시오.
+
+가능하면 업무 mutation 하나당
+의미 있는 event 1회.
+
+Browser 측에서도 같은 type 연속 수신 시
+React Query 자체 dedupe/refetch 특성을 활용.
+
+불필요한 setTimeout 난사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+31. Audit와 Realtime 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+audit_logs
+≠
+realtime events
+
+입니다.
+
+audit record를 SSE transport로 쓰지 마십시오.
+
+NOTIFY payload는 ephemeral signal.
+
+실데이터 source는 기존 DB/API.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+32. Failure Handling
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NOTIFY 실패 때문에
+본 업무 mutation 자체를 rollback시키는 구조는 신중해야 합니다.
+
+원칙:
+
+업무 DB write가 authoritative.
+
+동일 transaction pg_notify가 가능한 경우
+transactional notify 사용.
+
+별도 notify 실패 시:
+
+적절히 log
++
+window focus/manual fallback으로 회복 가능.
+
+사용자에게 회원 등록 성공 후
+"SSE 실패" 때문에 등록 실패처럼 보이면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+33. 로그
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+event type
+connection count
+pool 내부 식별을 위한 안전한 내부 ID
+reconnect/error category
+
+금지:
+
+JWT
+회원 개인정보
+일지 본문
+리포트 본문
+전화번호
+web_session
+PIN
+
+Production log 마스킹.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+34. 2-F Dashboard UI 보정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Realtime 구현과 함께 다음 UI 최종보정:
+
+A.
+Bulk Import:
+invalid row 하나라도 있으면 Import 비활성.
+
+B.
+Revenue:
+teacher_id 텍스트 입력 제거.
+Pool teacher select.
+
+C.
+Revenue 기본화면:
+실제 API가 지원하면 전체 pool.
+지원 안 하면 의미를 "정산"으로 정확히 표시.
+
+D.
+Member Detail:
+[일지 보기] 연결.
+
+이 4개가 끝나야 2-F 최종 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+35. Backend TypeScript 기존 오류
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고:
+
+pre-existing TS 오류 2건
+
+- test runner type
+- readonly-trigger EventCategory
+
+이번 변경과 무관하다면
+억지로 수정하지 마십시오.
+
+단 Realtime 변경으로
+새 TS 오류가 추가되면 FAIL.
+
+완료보고:
+
+기존 오류
+신규 오류
+
+를 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+36. 이번 PHASE에서 하지 않는 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render Static Site build merge
+/admin rewrite
+Render branch 변경
+swimnote.kr domain 전환
+Production Dashboard 배포
+Legacy /admin 제거
+Marketing 변경
+Growth Report PDF 신규 엔진
+
+전부 PHASE 2-H 또는 후속.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+37. Build
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종:
+
+pnpm --filter @workspace/swimnote-dashboard run build
+
+PASS.
+
+swimnote-web regression:
+
+pnpm --filter @workspace/swimnote-web run build
+
+PASS.
+
+API:
+이번 수정파일 기준 type/build 검사.
+
+Worker:
+수정된 worker 파일 기준 type 검사.
+
+불필요한 전체 monorepo build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+38. QA — 크레딧 절약형
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체 Dashboard를 다시 돌리지 마십시오.
+
+이번 변경만.
+
+[2-F 잔여]
+
+1. Bulk common registration rule 재사용
+2. Invalid row → commit 차단
+3. Atomic/all-or-nothing 구조
+4. Revenue 전체 pool 의미
+5. Teacher selector
+6. Member → Diary link
+
+[Realtime]
+
+7. notify helper
+8. DB LISTEN
+9. authenticated SSE
+10. heartbeat
+11. reconnect
+12. logout cleanup
+13. pool isolation
+14. member event
+15. class event
+16. makeup event
+17. growth report HTTP event
+18. growth report Worker event
+19. diary event
+20. teacher/curriculum/settings 필요한 event
+21. query mapping
+22. focus fallback
+23. 개인정보 없는 payload
+
+실계정 없으면
+Production E2E를 억지로 하지 마십시오.
+
+Local/Integration 결과로 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+39. 완료보고 — 짧게
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식만.
+
+A. BUILD
+
+Dashboard:
+Web:
+API:
+Worker:
+
+
+B. 2-F RESIDUAL
+
+Bulk registration service:
+All-or-nothing:
+Revenue scope:
+Teacher selector:
+Member→Diary:
+
+
+C. REALTIME SERVER
+
+Channel:
+Notify helper:
+Listener:
+SSE endpoint:
+Auth:
+Pool isolation:
+Heartbeat:
+Reconnect:
+
+
+D. EVENT SOURCES
+
+Members:
+Classes:
+Makeups:
+Growth HTTP:
+Growth Workers:
+Diary:
+Teachers:
+Curriculum:
+Settings:
+Revenue:
+
+
+E. DASHBOARD
+
+RealtimeContext:
+Event→Query mapping:
+Logout cleanup:
+Focus fallback:
+
+
+F. QA
+
+SSE connect:
+401:
+Pool isolation:
+Heartbeat:
+Reconnect:
+Disconnect cleanup:
+Event/refetch:
+
+
+G. SECURITY
+
+JWT query string:
+PII payload:
+Cross-pool:
+
+
+H. BUG
+
+P0:
+P1:
+Blocker:
+기존 TS 오류:
+신규 TS 오류:
+
+
+I. GIT
+
+branch:
+API 수정:
+Worker 수정:
+DB migration:
+push:
+deploy:
+범위 밖 변경:
+
+
+J. 판정
+
+PASS / HOLD / FAIL
+
+이유 3줄 이내.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+40. PASS 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Bulk import 기존 회원등록 business rule 재사용
+
+[ ] Bulk import invalid row 있으면 commit 불가
+
+[ ] 가능하면 transaction all-or-nothing
+
+[ ] Revenue 의미 정확
+
+[ ] Pool teacher selector
+
+[ ] Member Detail → Diary History
+
+[ ] PostgreSQL LISTEN/NOTIFY
+
+[ ] EventEmitter-only 아님
+
+[ ] Dedicated listener connection
+
+[ ] authenticated SSE
+
+[ ] JWT query string 없음
+
+[ ] JWT에서 pool scope
+
+[ ] Cross-pool event 차단
+
+[ ] 최소 payload
+
+[ ] heartbeat
+
+[ ] reconnect
+
+[ ] logout cleanup
+
+[ ] HTTP mutation notify
+
+[ ] Growth Worker notify
+
+[ ] Query-specific invalidate
+
+[ ] Window focus fallback
+
+[ ] DB 실패 event 없음
+
+[ ] Worker/API multi-process 대응
+
+[ ] 개인정보 payload 없음
+
+[ ] Dashboard build PASS
+
+[ ] Web regression PASS
+
+[ ] Realtime 신규 TS 오류 없음
+
+[ ] DB migration 없음
+
+[ ] push 없음
+
+[ ] deploy 없음
+
+완료 후 STOP.
+
+다음 PHASE 2-H가 마지막입니다.
+
+PHASE 2-H에서는:
+
+- branch/변경사항 안전 통합
+- Dashboard + Marketing build 병합
+- Render Static Site /admin rewrite
+- VITE_API_BASE Production 설정
+- swimnote-web.onrender.com/admin 배포
+- 실제 PC 로그인
+- APP에서 변경 → PC realtime 확인
+- 주요 화면 E2E
+- swimnote.kr/admin 연결
+- Legacy /admin 최종 교체/정리 여부 판단
+
+까지 수행합니다.

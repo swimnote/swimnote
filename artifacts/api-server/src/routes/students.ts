@@ -17,6 +17,7 @@ import {
 } from "../lib/member-limit.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logChange } from "../utils/change-logger.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import {
   kstTodayStr, validateEffectiveDate,
   closeAllActiveClassHistory, closeClassHistory,
@@ -608,6 +609,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       entity_id: student.id, actor_id: req.user!.userId,
       payload: { name: student.name, class_group_id: student.class_group_id },
     }).catch(() => {});
+    notifyPoolEvent({ type: "member.changed", pool_id: poolId!, entity_id: student.id }).catch(() => {});
     res.status(201).json({ success: true, ...enriched });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
@@ -744,6 +746,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     const enriched = await enrichWithClasses(student);
     await logChange({ tenantId: existing.swimming_pool_id, tableName: "students", recordId: student.id, changeType: "update", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id, auto_linked: !!resolvedParentUserId } });
     logPoolEvent({ pool_id: existing.swimming_pool_id, event_type: "member_update", entity_type: "student", entity_id: student.id, actor_id: req.user!.userId, payload: { name: student.name, status: student.status } }).catch(console.error);
+    notifyPoolEvent({ type: "member.changed", pool_id: existing.swimming_pool_id, entity_id: student.id }).catch(() => {});
     res.json({ success: true, ...enriched, parent_auto_linked: !existing.parent_user_id && !!resolvedParentUserId });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });

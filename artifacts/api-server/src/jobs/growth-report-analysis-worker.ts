@@ -37,6 +37,7 @@ import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat, refreshLock } from "../lib/schedulerLock.js";
 import { sendOperatorAlert } from "../lib/sendOperatorAlert.js";
 import { transitionReportStatus, InvalidTransitionError } from "../lib/growth-report-service.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import {
   buildAnalysisSnapshot,
   queryDiariesForEligibility,
@@ -486,6 +487,8 @@ async function analyzeOneReport(
       `[gr3-worker] report=${report.id} → ${persist.productStatus} ` +
       `questions=${persist.questionsCount}`,
     );
+    // Notify Dashboard SSE (fire-and-forget)
+    notifyPoolEvent({ type: "growth_report.changed", pool_id: report.swimming_pool_id, entity_id: report.id }).catch(() => {});
   } catch (persistErr) {
     if (persistErr instanceof StaleEngineResponseError) {
       await auditStaleRejected(db, report.id, report.swimming_pool_id, requestId);

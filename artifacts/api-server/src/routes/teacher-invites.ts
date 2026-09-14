@@ -16,6 +16,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { hashPassword, signToken } from "../lib/auth.js";
 import { logEvent } from "../lib/event-logger.js";
 import { logChange } from "../utils/change-logger.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
 
 const router = Router();
 
@@ -172,6 +173,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
           WHERE id = ${req.params.id}
         `);
         logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.name, description: `선생님 승인 — ${invite.name}` }).catch(console.error);
+        notifyPoolEvent({ type: "teacher.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
         res.json({ success: true, message: "선생님이 승인되었습니다.", roles: approvedRoles });
 
       } else if (action === "reject") {
@@ -190,6 +192,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
           WHERE id = ${req.params.id}
         `);
         logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.name, description: `선생님 거절 — ${invite.name} (사유: ${rejection_reason || "없음"})` }).catch(console.error);
+        notifyPoolEvent({ type: "teacher.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
         res.json({ success: true, message: "거절되었습니다." });
 
       } else if (action === "deactivate" || action === "revoke") {
@@ -198,6 +201,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         }
         await superAdminDb.execute(sql`UPDATE teacher_invites SET invite_status = 'inactive' WHERE id = ${req.params.id}`);
         logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 승인 해제 — ${invite.teacher_name}` }).catch(console.error);
+        notifyPoolEvent({ type: "teacher.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
         res.json({ success: true, message: "승인이 해제되었습니다." });
 
       } else if (action === "reactivate") {
@@ -206,6 +210,7 @@ router.patch("/admin/teacher-invites/:id", requireAuth, requireRole("pool_admin"
         }
         await superAdminDb.execute(sql`UPDATE teacher_invites SET invite_status = 'approved' WHERE id = ${req.params.id}`);
         logEvent({ pool_id: poolId, category: "선생님", actor_id: actorId, actor_name: actorName, target: invite.teacher_name, description: `선생님 재활성화 — ${invite.teacher_name}` }).catch(console.error);
+        notifyPoolEvent({ type: "teacher.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
         res.json({ success: true, message: "재활성화되었습니다." });
 
       } else if (action === "set-sub-admin") {

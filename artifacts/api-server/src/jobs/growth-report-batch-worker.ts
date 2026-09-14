@@ -27,6 +27,7 @@ import cron                                from "node-cron";
 import { sql }                             from "drizzle-orm";
 import { superAdminDb }                    from "@workspace/db";
 import { acquireLock, releaseLock }        from "../lib/schedulerLock.js";
+import { notifyPoolEvent }                from "../lib/pg-realtime.js";
 import {
   transitionToReadyToSend,
   refreshWp8Snapshot,
@@ -285,7 +286,7 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
   console.log(`[gr-batch] pool=${poolId} period=${reportPeriod} target_students=${students.length}`);
 
   if (students.length === 0) {
-    await markJobComplete(db, jobId, 0, 0);
+    await markJobComplete(db, jobId, 0, 0, poolId);
     return;
   }
 
@@ -345,16 +346,8 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
     : failed > 0 ? "PARTIAL"
     : "COMPLETED";
 
-  await db.execute(sql`
-    UPDATE growth_report_batch_jobs
-    SET status          = ${finalStatus},
-        completed_count = ${completed},
-        failed_count    = ${failed},
-        completed_at    = NOW(),
-        updated_at      = NOW()
-    WHERE id = ${jobId}
-  `);
-
+  // markJobComplete writes final status + fires SSE notify
+  await markJobComplete(db, jobId, completed, failed, poolId);
   console.log(
     `[gr-batch] DONE pool=${poolId} period=${reportPeriod} ` +
     `status=${finalStatus} completed=${completed} failed=${failed}`
@@ -607,7 +600,7 @@ async function markJobFailed(db: Db, jobId: string, reason: string): Promise<voi
   );
 }
 
-async function markJobComplete(db: Db, jobId: string, completed: number, failed: number): Promise<void> {
+async function markJobComplete(db: Db, jobId: string, completed: number, failed: number, poolId?: string): Promise<void> {
   const status = failed > 0 && completed === 0 ? "FAILED" : failed > 0 ? "PARTIAL" : "COMPLETED";
   await db.execute(sql`
     UPDATE growth_report_batch_jobs
@@ -615,6 +608,9 @@ async function markJobComplete(db: Db, jobId: string, completed: number, failed:
         completed_at = NOW(), updated_at = NOW()
     WHERE id = ${jobId}
   `);
+  if (poolId) {
+    notifyPoolEvent({ type: "growth_report.changed", pool_id: poolId }).catch(() => {});
+  }
 }
 
 // ── runMonthlyBatchCron ───────────────────────────────────────────────────────

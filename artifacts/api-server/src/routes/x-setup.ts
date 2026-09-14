@@ -40,6 +40,7 @@ import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { uploadToR2, getPresignedUrl, deleteFromR2 } from "../lib/objectStorage.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import { TEMPLATE_VERSIONS, getTemplateR2Key, type TemplateType } from "../lib/xSetupTemplates.js";
 import {
   processLocalCurriculumForReview,
@@ -431,6 +432,10 @@ router.post("/x-setup/upload/curriculum", requireAuth, requireRole("pool_admin")
         } catch { /* 알림 실패는 무시 */ }
       }).catch(console.error);
 
+      // Notify dashboard of curriculum change (fire-and-forget)
+      if (reviewResult?.status !== "ORCHESTRATION_ERROR") {
+        notifyPoolEvent({ type: "curriculum.changed", pool_id: poolId, entity_id: fileId }).catch(() => {});
+      }
       res.json({
         ok: true,
         file_id: fileId,

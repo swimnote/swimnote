@@ -21,6 +21,7 @@ import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
 import { resolvePoolMode } from "../lib/xmode.js";
 import { insertGrowthEvents, type CurriculumMatchInput } from "../lib/growth-event-service.js";
@@ -1239,6 +1240,7 @@ router.post("/diaries",
         entity_id: diaryId, actor_id: userId,
         payload: { class_group_id, lesson_date: dateStr },
       }).catch(() => {});
+      notifyPoolEvent({ type: "diary.changed", pool_id: poolId!, entity_id: diaryId }).catch(() => {});
       res.json({ success: true, diary_id: diaryId, student_notes: savedNotes });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1707,6 +1709,7 @@ router.delete("/diaries/:id",
         entity_id: diaryId, actor_id: userId,
         payload: { class_group_id: diary.class_group_id },
       }).catch(() => {});
+      notifyPoolEvent({ type: "diary.changed", pool_id: poolId!, entity_id: diaryId }).catch(() => {});
 
       // ── WP9: AI diary 삭제 시 월 KPI snapshot refresh (fire-and-forget) ───
       // is_deleted=true 커밋 후 raw recount → snapshot 감소 반영
