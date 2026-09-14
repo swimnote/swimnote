@@ -82,14 +82,13 @@ export default function Login() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-[12px] font-semibold text-[#555] mb-1.5">
-                  아이디(이메일)
+                  아이디
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(""); }}
-                  placeholder="이메일 주소 입력"
-                  required
+                  placeholder="아이디를 입력하세요"
                   autoComplete="username"
                   className="w-full px-4 py-3 rounded-xl border border-[#e5e5e5] text-[14px] focus:outline-none focus:border-[#002F5F] transition-colors"
                 />
