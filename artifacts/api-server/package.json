@@ -42,7 +42,8 @@
     "openai": "^7.0.0",
     "otplib": "^13.4.0",
     "pino-http": "^10.5.0",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "xlsx": "0.18.5"
   },
   "devDependencies": {
     "@smithy/util-stream": "^4.8.2",

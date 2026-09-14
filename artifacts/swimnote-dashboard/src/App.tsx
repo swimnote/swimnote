@@ -21,6 +21,10 @@ import CurriculumNewPage from "@/pages/curriculum/CurriculumNewPage";
 import LevelsPage from "@/pages/curriculum/LevelsPage";
 import TemplatesPage from "@/pages/curriculum/TemplatesPage";
 import DiaryPage from "@/pages/diary/DiaryPage";
+import TeachersPage from "@/pages/teachers/TeachersPage";
+import RevenuePage from "@/pages/revenue/RevenuePage";
+import BulkMembersPage from "@/pages/members/BulkMembersPage";
+import SettingsPage from "@/pages/settings/SettingsPage";
 
 function AppRoutes() {
   const { state } = useAuth();
@@ -71,9 +75,7 @@ function AppRoutes() {
         <Route path="/admin/members" component={MembersPage} />
         <Route path="/admin/members/new" component={NewMemberPage} />
         <Route path="/admin/members/withdrawn" component={WithdrawnMembersPage} />
-        <Route path="/admin/members/bulk">
-          <PlaceholderPage title="대량 등록 (PHASE 2-F)" />
-        </Route>
+        <Route path="/admin/members/bulk" component={BulkMembersPage} />
 
         {/* Schedule */}
         <Route path="/admin/schedule" component={SchedulePage} />
@@ -98,19 +100,13 @@ function AppRoutes() {
         <Route path="/admin/diary" component={DiaryPage} />
 
         {/* Teachers */}
-        <Route path="/admin/teachers">
-          <PlaceholderPage title="선생님" />
-        </Route>
+        <Route path="/admin/teachers" component={TeachersPage} />
 
         {/* Revenue */}
-        <Route path="/admin/revenue">
-          <PlaceholderPage title="매출 · 정산" />
-        </Route>
+        <Route path="/admin/revenue" component={RevenuePage} />
 
         {/* Settings */}
-        <Route path="/admin/settings">
-          <PlaceholderPage title="설정" />
-        </Route>
+        <Route path="/admin/settings" component={SettingsPage} />
 
         {/* Fallback */}
         <Route>

@@ -3106,9 +3106,16 @@ router.get("/diaries/admin/all-entries",
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      const { q = "", limit = "100", offset = "0" } = req.query as Record<string, string>;
+      const { q = "", limit = "100", offset = "0", student_id = "", from = "", to = "" } = req.query as Record<string, string>;
       const lim = Math.min(parseInt(limit) || 100, 300);
       const off = parseInt(offset) || 0;
+
+      // Date range: from/to in YYYY-MM-DD (KST)
+      const fromDate = from && /^\d{4}-\d{2}-\d{2}$/.test(from) ? from : null;
+      const toDate   = to   && /^\d{4}-\d{2}-\d{2}$/.test(to)   ? to   : null;
+
+      // student_id filter: join class_student_notes to find diaries with a note for that student
+      const sid = student_id.trim() || null;
 
       const rows = await db.execute(sql`
         SELECT
@@ -3125,15 +3132,26 @@ router.get("/diaries/admin/all-entries",
           0 AS note_count
         FROM class_diaries cd
         LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        ${sid ? sql`JOIN class_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${sid} AND csn.is_deleted = false` : sql``}
         WHERE cd.swimming_pool_id = ${poolId}
           AND cd.is_deleted = false
-        ORDER BY cd.created_at DESC
+          ${fromDate ? sql`AND cd.lesson_date >= ${fromDate}` : sql``}
+          ${toDate   ? sql`AND cd.lesson_date <= ${toDate}`   : sql``}
+          ${q        ? sql`AND (cg.name ILIKE ${`%${q}%`} OR cd.teacher_name ILIKE ${`%${q}%`} OR cd.common_content ILIKE ${`%${q}%`})` : sql``}
+        ORDER BY cd.lesson_date DESC, cd.created_at DESC
         LIMIT ${lim} OFFSET ${off}
       `);
 
       const countRow = await db.execute(sql`
-        SELECT COUNT(*)::int AS total FROM class_diaries
-        WHERE swimming_pool_id = ${poolId} AND is_deleted = false
+        SELECT COUNT(*)::int AS total
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        ${sid ? sql`JOIN class_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${sid} AND csn.is_deleted = false` : sql``}
+        WHERE cd.swimming_pool_id = ${poolId}
+          AND cd.is_deleted = false
+          ${fromDate ? sql`AND cd.lesson_date >= ${fromDate}` : sql``}
+          ${toDate   ? sql`AND cd.lesson_date <= ${toDate}`   : sql``}
+          ${q        ? sql`AND (cg.name ILIKE ${`%${q}%`} OR cd.teacher_name ILIKE ${`%${q}%`} OR cd.common_content ILIKE ${`%${q}%`})` : sql``}
       `);
 
       res.json({

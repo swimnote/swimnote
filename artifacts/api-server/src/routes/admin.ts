@@ -1,4 +1,5 @@
 import { Router, RequestHandler } from "express";
+import * as XLSX from "xlsx";
 import { db, superAdminDb } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
@@ -5424,6 +5425,208 @@ router.post(
       return res.json({ success: true }); // 알림 실패가 업로드 UX를 막으면 안 됨
     }
   },
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /admin/members/export — 회원 목록 XLSX 다운로드 (pool_admin, JWT pool scope)
+// ══════════════════════════════════════════════════════════════════════════════
+router.get("/members/export",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+      const { status, class_id } = req.query as Record<string, string>;
+
+      const rows = await db.execute(sql`
+        SELECT
+          s.id,
+          s.name,
+          s.phone,
+          s.birth_year,
+          s.parent_name,
+          s.parent_phone,
+          s.status,
+          s.memo,
+          s.created_at,
+          cg.name AS class_name,
+          s.weekly_count
+        FROM students s
+        LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+        WHERE s.swimming_pool_id = ${poolId}
+          ${status ? sql`AND s.status = ${status}` : sql``}
+          ${class_id ? sql`AND s.class_group_id = ${class_id}` : sql``}
+          AND s.status != 'deleted'
+        ORDER BY s.status, cg.name NULLS LAST, s.name
+      `);
+
+      const dataRows = (rows.rows as any[]).map((r) => ({
+        "이름": r.name ?? "",
+        "상태": r.status ?? "",
+        "반": r.class_name ?? "",
+        "주 횟수": r.weekly_count ?? "",
+        "생년": r.birth_year ?? "",
+        "학생 연락처": r.phone ?? "",
+        "보호자 이름": r.parent_name ?? "",
+        "보호자 연락처": r.parent_phone ?? "",
+        "메모": r.memo ?? "",
+        "등록일": r.created_at ? String(r.created_at).slice(0, 10) : "",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "회원목록");
+
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const filename = `SWIMNOTE_회원목록_${today}.xlsx`;
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
+      res.send(buf);
+    } catch (e) {
+      console.error("[members/export]", e);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /admin/members/bulk/validate — 대량등록 서버 검증
+// ══════════════════════════════════════════════════════════════════════════════
+router.post("/members/bulk/validate",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+      const { rows } = req.body as { rows: Array<Record<string, string>> };
+      if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "rows가 필요합니다." }); return; }
+      if (rows.length > 500) { res.status(400).json({ error: "한 번에 최대 500명까지 등록 가능합니다." }); return; }
+
+      // Load class groups for name→id mapping
+      const classRows = await db.execute(sql`
+        SELECT id, name FROM class_groups WHERE swimming_pool_id = ${poolId} AND is_deleted = false
+      `);
+      const classMap = new Map<string, string>();
+      (classRows.rows as any[]).forEach((c) => classMap.set(c.name.trim(), c.id));
+
+      const validated = await Promise.all(rows.map(async (row) => {
+        const errors: string[] = [];
+        const name = (row.name ?? "").trim();
+        if (!name) errors.push("이름이 없습니다.");
+
+        // Phone normalisation
+        const phone = (row.phone ?? "").replace(/[^0-9]/g, "") || null;
+        const parentPhone = (row.parent_phone ?? "").replace(/[^0-9]/g, "") || null;
+
+        // Class resolution
+        let class_group_id: string | undefined;
+        const className = (row.class_name ?? "").trim();
+        if (className) {
+          const matched = classMap.get(className);
+          if (!matched) errors.push(`반 이름 "${className}"을 찾을 수 없습니다.`);
+          else class_group_id = matched;
+        }
+
+        // Duplicate check (name + parent_phone)
+        let duplicate = false;
+        if (name && (phone || parentPhone)) {
+          const dupRes = await db.execute(sql`
+            SELECT id FROM students
+            WHERE swimming_pool_id = ${poolId}
+              AND name = ${name}
+              AND status NOT IN ('withdrawn', 'deleted', 'archived')
+              AND (
+                ${phone ? sql`REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${phone}` : sql`FALSE`}
+                OR ${parentPhone ? sql`REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${parentPhone}` : sql`FALSE`}
+              )
+            LIMIT 1
+          `);
+          if (dupRes.rows.length > 0) {
+            duplicate = true;
+            errors.push("동일한 학생이 이미 등록되어 있습니다.");
+          }
+        }
+
+        return {
+          ...row,
+          valid: errors.length === 0,
+          errors,
+          duplicate,
+          class_group_id,
+        };
+      }));
+
+      res.json({ rows: validated });
+    } catch (e) {
+      console.error("[members/bulk/validate]", e);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /admin/members/bulk/commit — 대량등록 최종 실행
+// (기존 POST /students 비즈니스 로직 재사용)
+// ══════════════════════════════════════════════════════════════════════════════
+router.post("/members/bulk/commit",
+  requireAuth, requireRole("super_admin", "pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+      const { userId } = req.user!;
+
+      const { rows } = req.body as { rows: Array<Record<string, any>> };
+      if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "rows가 필요합니다." }); return; }
+
+      let created = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const row of rows) {
+        if (!row.valid) continue; // only commit valid rows
+        try {
+          const name = (row.name ?? "").trim();
+          const phone = (row.phone ?? "").replace(/[^0-9]/g, "") || null;
+          const parentPhone = (row.parent_phone ?? "").replace(/[^0-9]/g, "") || null;
+          const birthYear = (row.birth_year ?? "").trim() || null;
+          const parentName = (row.parent_name ?? "").trim() || null;
+          const memo = (row.memo ?? "").trim() || null;
+          const classGroupId = row.class_group_id || null;
+
+          const studentId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const inviteCode = `INV${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+
+          await db.execute(sql`
+            INSERT INTO students
+              (id, swimming_pool_id, name, phone, birth_year,
+               parent_name, parent_phone, class_group_id, memo,
+               status, registration_path, invite_code, weekly_count,
+               created_at, updated_at)
+            VALUES
+              (${studentId}, ${poolId}, ${name}, ${phone}, ${birthYear},
+               ${parentName}, ${parentPhone}, ${classGroupId}, ${memo},
+               'unregistered', 'admin_created', ${inviteCode}, 1,
+               NOW(), NOW())
+          `);
+
+          created++;
+        } catch (e: any) {
+          failed++;
+          errors.push(`${row._row}행 (${row.name ?? "?"}): ${e?.message ?? "등록 실패"}`);
+        }
+      }
+
+      res.json({ created, failed, errors });
+    } catch (e) {
+      console.error("[members/bulk/commit]", e);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
 );
 
 // ══════════════════════════════════════════════════════════════════════════════
