@@ -567,21 +567,23 @@ export default function SiteHeader() {
             aria-label="제품 메뉴"
             style={{
               flex: 1,
+              minWidth: 0,          /* ← 필수: flex child가 right 영역 침범 방지 */
               display: "flex",
               alignItems: "center",
               justifyContent: isDesktop ? "center" : "flex-start",
-              overflowX: "auto",
+              overflowX: isDesktop ? "visible" : "auto",
+              overflowY: "hidden",
               scrollbarWidth: "none",
               msOverflowStyle: "none",
               WebkitOverflowScrolling: "touch",
               gap: 0,
               maskImage: isDesktop
                 ? "none"
-                : "linear-gradient(to right, transparent 0px, black 12px, black calc(100% - 12px), transparent 100%)",
+                : "linear-gradient(to right, transparent 0px, black 8px, black calc(100% - 8px), transparent 100%)",
               WebkitMaskImage: isDesktop
                 ? "none"
-                : "linear-gradient(to right, transparent 0px, black 12px, black calc(100% - 12px), transparent 100%)",
-              padding: isDesktop ? "0 20px" : "0 8px",
+                : "linear-gradient(to right, transparent 0px, black 8px, black calc(100% - 8px), transparent 100%)",
+              padding: isDesktop ? "0 20px" : "0 4px",
             }}
           >
             {PRODUCT_LINKS.map((item) => (
