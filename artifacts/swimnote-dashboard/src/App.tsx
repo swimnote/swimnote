@@ -13,6 +13,9 @@ import WithdrawnMembersPage from "@/pages/members/WithdrawnMembersPage";
 import SchedulePage from "@/pages/schedule/SchedulePage";
 import ClassesPage from "@/pages/schedule/ClassesPage";
 import MakeupsPage from "@/pages/makeups/MakeupsPage";
+import PendingPage from "@/pages/growth-reports/PendingPage";
+import PublishPage from "@/pages/growth-reports/PublishPage";
+import PublishedPage from "@/pages/growth-reports/PublishedPage";
 
 function AppRoutes() {
   const { state } = useAuth();
@@ -76,15 +79,9 @@ function AppRoutes() {
         <Route path="/admin/makeups/assign" component={MakeupsPage} />
 
         {/* Growth Reports */}
-        <Route path="/admin/growth-reports/pending">
-          <PlaceholderPage title="검수 대기" />
-        </Route>
-        <Route path="/admin/growth-reports/publish">
-          <PlaceholderPage title="발행 관리" />
-        </Route>
-        <Route path="/admin/growth-reports/published">
-          <PlaceholderPage title="발행 완료" />
-        </Route>
+        <Route path="/admin/growth-reports/pending" component={PendingPage} />
+        <Route path="/admin/growth-reports/publish" component={PublishPage} />
+        <Route path="/admin/growth-reports/published" component={PublishedPage} />
 
         {/* Curriculum */}
         <Route path="/admin/curriculum">

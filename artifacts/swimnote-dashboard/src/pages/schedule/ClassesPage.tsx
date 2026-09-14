@@ -96,7 +96,9 @@ function ClassForm({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [days, setDays] = useState<string[]>(
-    initial?.schedule_days ? initial.schedule_days.split("") : []
+    initial?.schedule_days
+      ? initial.schedule_days.split(",").map((d) => d.trim()).filter(Boolean)
+      : []
   );
   const [time, setTime] = useState(initial?.schedule_time ?? "");
   const [instructor, setInstructor] = useState(initial?.instructor ?? "");
@@ -113,7 +115,7 @@ function ClassForm({
     );
   }
 
-  const orderedDays = DAY_OPTIONS.filter((d) => days.includes(d)).join("");
+  const orderedDays = DAY_OPTIONS.filter((d) => days.includes(d)).join(",");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

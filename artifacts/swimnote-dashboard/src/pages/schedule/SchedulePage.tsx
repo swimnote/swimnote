@@ -38,7 +38,8 @@ function parseStartTime(time: string): number {
 }
 
 function classHasDay(cls: ClassGroup, day: Day): boolean {
-  return cls.schedule_days?.includes(day) ?? false;
+  if (!cls.schedule_days) return false;
+  return cls.schedule_days.split(",").map((d) => d.trim()).includes(day);
 }
 
 function displayTime(time: string): string {
