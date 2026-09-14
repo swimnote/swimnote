@@ -1,0 +1,55 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css');
+@import "tailwindcss";
+
+:root {
+  /* X Brand Colors */
+  --x-primary: #1A4070;
+  --x-primary-strong: #0E2A4E;
+  --x-primary-soft: #E0EAF5;
+  --x-accent: #2A5EA8;
+  --x-accent-soft: #E8F2FC;
+  --x-highlight: #01B2F1;
+
+  /* Neutral Surface */
+  --surface-white: #FFFFFF;
+  --surface-off: #F8FAFC;
+  --surface-subtle: #F1F5F9;
+  --border-default: #E2E8F0;
+  --border-strong: #CBD5E1;
+
+  /* Text */
+  --text-strong: #0F1923;
+  --text-body: #1E293B;
+  --text-muted: #64748B;
+  --text-faint: #94A3B8;
+
+  /* Semantic */
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-error: #DC2626;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+  font-size: 14px;
+  color: var(--text-body);
+  background: var(--surface-white);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }

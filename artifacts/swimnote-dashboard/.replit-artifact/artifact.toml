@@ -1,0 +1,22 @@
+kind = "web"
+  previewPath = "/admin/"
+  title = "SWIMNOTE X 대시보드"
+  version = "1.0.0"
+  id = "artifacts/swimnote-dashboard"
+  router = "path"
+
+  [[integratedSkills]]
+  name = "react-vite"
+  version = "1.0.0"
+
+  [[services]]
+  name = "web"
+  paths = [ "/admin/" ]
+  localPort = 20220
+
+  [services.development]
+  run = "pnpm --filter @workspace/swimnote-dashboard run dev"
+
+  [services.env]
+  PORT = "20220"
+  VITE_API_BASE = "https://swimnote-api.onrender.com/api"
