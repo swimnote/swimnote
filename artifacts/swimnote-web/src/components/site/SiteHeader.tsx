@@ -599,30 +599,31 @@ export default function SiteHeader() {
 
           {/* ── Right: PC Dashboard + ⋯ ──────────────────────────── */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <a
-              href="/login"
-              onClick={e => { e.preventDefault(); navigate("/login"); }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                height: 30,
-                padding: "0 13px",
-                borderRadius: "var(--ds-radius-pill)",
-                background: "var(--ds-n-900)",
-                color: "var(--ds-n-000)",
-                fontSize: 12,
-                fontWeight: "var(--ds-fw-medium)",
-                textDecoration: "none",
-                whiteSpace: "nowrap",
-                letterSpacing: "-0.005em",
-                transition: "opacity 0.15s",
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = "0.78"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-              aria-label="PC 대시보드 로그인"
-            >
-              {isDesktop ? "PC 대시보드" : "PC"}
-            </a>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  height: 30,
+                  padding: "0 13px",
+                  borderRadius: "var(--ds-radius-pill)",
+                  background: "var(--ds-n-200)",
+                  color: "var(--ds-n-500)",
+                  fontSize: 12,
+                  fontWeight: "var(--ds-fw-medium)",
+                  whiteSpace: "nowrap",
+                  letterSpacing: "-0.005em",
+                  cursor: "default",
+                  userSelect: "none",
+                }}
+                aria-disabled="true"
+              >
+                {isDesktop ? "PC 대시보드" : "PC"}
+              </span>
+              <span style={{ fontSize: 9, color: "var(--ds-n-400)", letterSpacing: "0.02em", lineHeight: 1 }}>
+                준비 중
+              </span>
+            </div>
 
             {/* ⋯ */}
             <button
