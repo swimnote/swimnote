@@ -1,0 +1,1013 @@
+[SWIMNOTE X PC DASHBOARD — PHASE 2-D
+2-C 잔여검증 + AI 성장리포트 실제 구현]
+
+PHASE 2-C는 CONDITIONAL PASS 상태입니다.
+
+크레딧 절약을 위해 별도 수정 WP를 만들지 않고
+이번 PHASE 2-D 시작부에서 잔여 2건을 확인/보정한 뒤
+AI 성장리포트 구현까지 한 번에 완료합니다.
+
+중간 설계보고 금지.
+실제 Backend contract 확인 → 구현 → QA → 짧은 완료보고까지 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 안전규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Repository:
+https://github.com/swimnote/swimnote
+
+현재 Dashboard 작업 변경사항 전부 보존.
+
+현재 branch:
+temp-bugfix-deploy
+로 보고되어 있으므로 임의 branch 이동 금지.
+
+금지:
+
+git push
+Render deploy
+Render 설정 변경
+Static Site branch 변경
+Legacy /admin 수정
+Marketing website 수정
+AI ENGINE 수정
+DB migration
+임의 schema 추가
+
+이번 WP는 local implementation + QA까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PHASE 2-C 잔여검증 #1
+schedule_days 실제 contract
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 2-C 구현에서 schedule_days를
+"월수금" 같은 string으로 처리했습니다.
+
+하지만 이전 완료보고에서
+실제 저장 형식을 추론했다고 보고했으므로
+이번에 반드시 실제 Backend/APP/DB mapping 코드로 확인하십시오.
+
+확인:
+
+- class_groups schedule_days 실제 DB type
+- API response 실제 type
+- 반 생성 request type
+- 반 수정 request type
+- 기존 APP에서 사용하는 형식
+
+실제 형식이:
+
+string
+array
+JSON
+기타
+
+중 무엇인지 확정.
+
+현재 Dashboard parser/serializer와 다르면 즉시 보정.
+
+이번 확인 후에는
+"추론" 상태가 남으면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PHASE 2-C 잔여검증 #2
+보강 assigned_date 서버 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PC에서는:
+
+eligible-classes 조회
+→ 반 선택
+→ 날짜 직접 입력
+→ PATCH /admin/makeups/:id/assign
+
+방식입니다.
+
+반드시 assign endpoint 코드에서
+assigned_date가 실제 허용되는 날짜인지
+어떤 검증을 하는지 확인하십시오.
+
+확인:
+
+- 반 운영요일 검증
+- 보강 가능 기간 검증
+- 정원 검증
+- 이미 지난 날짜 검증
+- 중복 배정 검증
+- 기타 기존 정책
+
+서버가 날짜 유효성을 충분히 검증하면 현 구조 유지.
+
+서버 검증이 부족하지만
+기존 안전한 occurrence/eligible API가 있다면
+현재 pool_admin이 실제 사용 가능한 기존 contract로 연결.
+
+단 신규 보강 정책/API를 임의 생성하지 마십시오.
+
+정상적인 기존 API만으로 해결 불가능하면
+BLOCKER 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PHASE 2-D 목표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 메뉴의 실제 화면을 구현합니다.
+
+Routes:
+
+/admin/growth-reports/pending
+/admin/growth-reports/publish
+/admin/growth-reports/published
+
+핵심 업무 흐름:
+
+PENDING_REVIEW
+→ 관리자가 리포트 1개씩 검수
+→ APPROVED
+→ 승인된 리포트만 발행 대상
+→ 선택/일괄 발행
+→ PUBLISHED
+
+중요:
+
+일괄 승인 금지.
+
+검수는 반드시 개별 리포트 단위.
+
+승인 완료된 리포트만
+발행 단계에서 복수 선택/일괄 발행 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. API CONTRACT 먼저 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Growth Report 관련 Backend를 전부 확인한 뒤 연결.
+
+PHASE 0에서 확인된 기존 기능:
+
+- report list
+- status
+- data/detail
+- review
+- approve
+- send/publish
+- reissue
+- PDF
+
+실제 route 파일과 request/response schema를 확인.
+
+예전에 확인된:
+
+/admin/growth-reports
+
+계열을 우선 추적하되
+endpoint 이름을 추측하지 마십시오.
+
+절대 원칙:
+
+Backend route
+→ request
+→ response
+→ status transition
+→ UI
+
+순서.
+
+기존 API가 있는데 새 API 만드는 것 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 상태값 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Backend status enum을 확인하십시오.
+
+개념적으로는:
+
+PENDING_REVIEW
+APPROVED
+PUBLISHED
+
+흐름을 사용하지만
+DB/API 실제 값의 대소문자/명칭을 그대로 source of truth로 사용.
+
+reject
+failed
+reissue
+generating
+
+등 추가 상태가 실제 존재하면
+현재 운영 의미를 확인하고 UI에 맞게 매핑.
+
+Frontend 전용 가짜 상태 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 검수 대기 화면
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/growth-reports/pending
+
+PC용 DataTable.
+
+실제 API에 있는 범위에서 표시:
+
+회원명
+대상 기간
+반
+담당 선생님
+생성일
+상태
+검수
+
+가능하면:
+
+재등록 대상 여부
+리포트 종류
+
+등 실제 field가 있으면 표시 가능.
+
+가짜 값 금지.
+
+기본적으로 검수 대기 상태만 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 검색 / 필터
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+회원명 검색
+대상월/기간
+상태
+
+실제 API가 지원하는 범위 우선.
+
+필요하면 작은 데이터셋에 한해
+client filter 가능.
+
+검색 결과 없음:
+"검색 결과가 없습니다."
+
+API 실패:
+"불러오지 못했습니다."
+
+Empty와 Error 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 리포트 검수 Drawer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+행 클릭 또는 [검수] 클릭:
+
+오른쪽 Review Drawer.
+
+Drawer에서 실제 리포트 내용을 충분히 검수 가능해야 합니다.
+
+실제 report detail/data API에서 제공되는 항목만 표시.
+
+예:
+
+회원 기본정보
+리포트 대상 기간
+수업 기록 요약
+성장 분석
+주요 관찰
+다음 단계/권장 내용
+기타 실제 생성 결과
+
+AI trace, 내부 prompt, token 정보,
+내부 시스템 지시문 등은 관리자 UI에 노출하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 검수 핵심 UX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+검수량이 많기 때문에 빠르게 연속 작업 가능하게 구현.
+
+Drawer 상단 또는 하단:
+
+[이전]
+[다음]
+
+지원.
+
+승인 성공 시:
+
+기본적으로 다음 검수 대기 리포트로 이동
+
+가능하도록 구현.
+
+즉:
+
+리포트 A 검수
+→ 승인
+→ 리포트 B 자동 표시
+
+검수 목록으로 매번 돌아가야 하는 구조 금지.
+
+마지막 리포트 승인 후:
+검수 완료 상태 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 개별 승인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[승인]은 리포트 1개씩만.
+
+기존 approve/review API 사용.
+
+승인 버튼:
+
+loading
+중복 클릭 방지.
+
+성공 후:
+
+pending query invalidate
+approved/publish query invalidate
+dashboard stats invalidate
+
+필요한 것만 갱신.
+
+일괄 승인 checkbox/button 절대 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 반려 / 재생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Backend가 reject / reissue / recreate를 지원하는지 확인.
+
+지원한다면 검수 Drawer에 제공.
+
+예:
+
+[재생성 요청]
+또는 실제 서버 terminology.
+
+반려 사유/재생성 사유를
+API가 받는다면 입력 UI 제공.
+
+지원하지 않는 기능을
+Frontend에서 가짜 버튼으로 만들지 마십시오.
+
+재생성은 기존 AI ENGINE contract를
+직접 Dashboard에서 호출하지 않습니다.
+
+반드시 APP API Backend의 기존 route 사용.
+
+AI ENGINE 직접 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 발행 관리 화면
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/growth-reports/publish
+
+대상:
+
+관리자 검수를 통과한
+APPROVED 상태 리포트.
+
+여기에서는 복수 선택 허용.
+
+DataTable checkbox 가능.
+
+표시:
+
+회원명
+대상 기간
+승인일
+상태
+발행 관리
+
+실제 field 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 승인된 리포트만 발행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+PENDING_REVIEW 상태를
+발행 API로 보내면 안 됩니다.
+
+Frontend와 server contract 양쪽에서
+APPROVED만 발행 가능한지 확인.
+
+발행 대상 선택 시에도
+APPROVED만 selectable.
+
+다른 상태는 선택 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 일괄 발행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+승인은 일괄 금지.
+
+하지만 승인된 리포트의
+일괄 발행은 허용.
+
+UI:
+
+전체 선택
+개별 선택
+[선택 리포트 발행]
+
+가능.
+
+Confirm 예:
+
+"승인된 성장리포트 14건을 발행합니다."
+
+대상 건수 명확히 표시.
+
+서버가 batch publish endpoint를 지원하면 사용.
+
+없고 기존 API가 개별 publish만 지원한다면
+안전한 병렬/순차 처리 전략을 사용하되
+중간 실패를 성공처럼 처리하지 마십시오.
+
+기존 batch contract가 있으면 반드시 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 발행 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+발행 성공:
+
+PUBLISHED
+또는 실제 서버 최종 상태.
+
+발행 후:
+
+publish list
+published list
+dashboard stats
+
+invalidate.
+
+부분 실패가 가능한 경우:
+
+성공 건수
+실패 건수
+
+구분.
+
+"전체 성공"으로 위장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 발행 완료 화면
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/growth-reports/published
+
+PUBLISHED 리포트 목록.
+
+표시 가능한 실제 정보:
+
+회원명
+대상 기간
+발행일
+상태
+PDF
+재발행/재발급
+
+실제 API가 제공하는 범위 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. PDF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 PDF endpoint/URL contract를 확인.
+
+발행 완료 리포트에서:
+
+[PDF 보기]
+또는
+[PDF 저장]
+
+기능 제공.
+
+기존 서버가 생성한 PDF를 사용.
+
+Dashboard에서 자체 PDF 렌더링 엔진 새로 만들지 마십시오.
+
+signed URL이 있다면
+기존 보안 방식 유지.
+
+다른 pool PDF 접근 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 재발급 / 재발행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 reissue API가 실제 존재하면 연결.
+
+재발급과 재발행의 의미가
+Backend에서 다르면 구분.
+
+위험 Action이면 Confirm.
+
+예:
+
+"김OO 회원의 2026년 8월 성장리포트를 다시 발행합니다."
+
+대상 명확히 표시.
+
+기존 contract가 불명확하면 버튼 생략하고 BLOCKER 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 무료 AI 성장리포트 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 서비스 정책:
+
+무료 공식 명칭:
+AI 성장리포트
+
+매월 5일 자동 발급 대상 생성 정책.
+
+전월 수업기록 기반.
+
+전월 이후 재등록된 대상 회원에게 무료 제공.
+
+리포트는 앱 피드로 제공되고 PDF 저장 가능.
+
+중요:
+
+PC Dashboard에서
+대상자 산정 로직을 새로 만들지 마십시오.
+
+기존 scheduler/backend가 source of truth.
+
+Dashboard는:
+
+생성된 대상
+검수
+승인
+발행
+상태 관리
+
+를 수행.
+
+자동 발급 정책 자체를 frontend에서 재구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 유료 AI 인사이트 전략 리포트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+공식 명칭:
+
+AI 인사이트 전략 리포트
+
+가격:
+29,000원
+
+단 이번 PHASE 2-D에서
+유료 구매/결제/판매 UI까지 새로 만들지 마십시오.
+
+현재 Growth Report Backend가
+무료/유료 report_type을 이미 구분하고
+관리자 검수가 필요한 구조라면
+목록에서 구분만 가능.
+
+결제시스템 신규 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 회원 상태와 리포트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+퇴원생 무료 리포트 정책 등
+대상 산정은 Backend 정책을 그대로 따릅니다.
+
+Dashboard에서:
+
+"이 사람도 무료로 줘야겠다"
+
+같은 임의 대상 생성 금지.
+
+관리자는
+이미 생성된 리포트 lifecycle만 관리.
+
+기존 수동 생성/reissue API가 별도로 있다면
+그 용도만 정확히 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 개인정보 / AI 내부정보
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dashboard에는
+업무에 필요한 학생 리포트 내용만 표시.
+
+금지:
+
+OpenAI API key
+AI ENGINE secret
+prompt 전문
+raw system prompt
+token cost 상세
+internal trace
+DB raw JSON dump
+
+관리자 업무용 결과만 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. Drawer/Dialog 헌법
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Review Drawer:
+
+닫기 시작 즉시 interaction 해제.
+
+Route change:
+즉시 unmount.
+
+ESC:
+닫힘.
+
+Outside click:
+정책상 허용한다면 닫힘.
+
+닫힌 overlay가 다른 화면 클릭을 막으면 P0.
+
+Small dropdown/menu는:
+
+state=false
+→ 즉시 DOM unmount.
+
+exit animation으로 ghost DOM 남기지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. DataTable
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3개 화면 모두 기존 Dashboard 공통 스타일 유지.
+
+Pending:
+검수 중심
+
+Publish:
+checkbox + 발행 중심
+
+Published:
+조회/PDF 중심
+
+각 화면 목적을 분리.
+
+모든 기능을 한 표에 욱여넣지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 날짜
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상 월:
+
+2026년 8월
+
+발행일:
+
+2026.09.05
+또는 기존 Dashboard 날짜 스타일
+
+처럼 일관성 있게.
+
+Invalid Date 방어.
+
+timezone 때문에 날짜 하루 밀림 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. Loading / Empty / Error
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+검수 대기 없음:
+"검수 대기 중인 성장리포트가 없습니다."
+
+발행 대기 없음:
+"발행할 승인 리포트가 없습니다."
+
+발행 완료 없음:
+"발행된 성장리포트가 없습니다."
+
+API error:
+"성장리포트를 불러오지 못했습니다."
+
+구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+27. React Query
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Query key를 의미별로 분리.
+
+예시 개념:
+
+growth-reports/pending
+growth-reports/approved
+growth-reports/published
+growth-report/detail/:id
+
+실제 key naming은 프로젝트 convention 사용.
+
+승인:
+pending + approved invalidate
+
+발행:
+approved + published + dashboard-stats invalidate
+
+재발급:
+해당 detail/list invalidate
+
+전역 invalidate 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+28. Realtime은 아직 구현 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PostgreSQL LISTEN/NOTIFY + SSE는
+PHASE 2-G에서 구현.
+
+이번에는:
+
+PC에서 mutation
+→ React Query invalidate
+
+까지만.
+
+Worker가 background에서 상태를 바꾼 경우
+window focus refetch 정도의 기존 설정은 사용 가능.
+
+가짜 SSE endpoint 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+29. Worker-driven 상태 고려
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report는 일부 상태변경이
+Worker에 의해 진행됩니다.
+
+따라서:
+
+HTTP mutation 성공 즉시
+서버가 실제 반환한 canonical status만 표시.
+
+Frontend가 임의로:
+
+APPROVED
+PUBLISHED
+
+상태를 optimistic하게 확정하지 마십시오.
+
+Background generation/reissue 중이면
+실제 status를 재조회.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+30. Backend 변경
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 API 우선.
+
+Growth Report API가 이미 상당수 존재하므로
+Frontend 편의를 위한 신규 endpoint 생성 금지.
+
+단 기존 endpoint에 명백한 P0/P1 오류가 있어
+정상 workflow 구현이 불가능하다면
+최소 API 수정 가능.
+
+DB schema 변경 금지.
+migration 금지.
+AI ENGINE 수정 금지.
+
+API 수정 시 완료보고에 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+31. Browser QA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 실제 browser에서:
+
+1. 검수 대기
+2. Review Drawer
+3. 이전/다음
+4. 발행 관리
+5. 발행 완료
+
+화면 렌더 확인.
+
+실계정 없어서 데이터 접근 불가하면
+가짜 데이터 삽입 금지.
+
+Browser unavailable이면:
+
+BROWSER E2E NOT AVAILABLE
+
+한 줄.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+32. QA — 크레딧 절약형
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체 Dashboard 재검증 금지.
+
+이번 변경만 확인.
+
+필수:
+
+[2-C]
+1. schedule_days 실제 contract 확인
+2. assigned_date 서버 validation 확인
+
+[2-D]
+3. pending list contract
+4. report detail
+5. 개별 approve
+6. 이전/다음 review
+7. bulk approve 없음
+8. approved list
+9. approved-only selection
+10. publish
+11. published list
+12. PDF
+13. reissue/reject 지원 여부
+14. mutation invalidate
+15. Empty/Error 분리
+16. ghost overlay 없음
+
+실계정이 없으면:
+
+READ E2E:
+NOT TESTED
+
+WRITE E2E:
+NOT TESTED
+
+정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+33. Build
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+마지막에:
+
+pnpm --filter @workspace/swimnote-dashboard run build
+
+PASS.
+
+그리고:
+
+pnpm --filter @workspace/swimnote-web run build
+
+regression PASS.
+
+전체 monorepo 불필요한 build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+34. 완료보고 — 짧게
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식만.
+
+A. BUILD
+
+Dashboard:
+Web:
+
+
+B. 2-C RESIDUAL
+
+schedule_days 실제 형식:
+Dashboard 보정:
+assigned_date 서버검증:
+추가 보정:
+
+
+C. API CONTRACT
+
+List:
+Detail:
+Review:
+Approve:
+Publish:
+Reissue:
+PDF:
+
+
+D. PENDING REVIEW
+
+목록:
+Drawer:
+이전/다음:
+승인:
+반려/재생성:
+일괄승인 존재 여부:
+
+
+E. PUBLISH
+
+Approved 목록:
+선택:
+일괄발행:
+부분실패 처리:
+
+
+F. PUBLISHED
+
+목록:
+PDF:
+재발급:
+
+
+G. DATA SYNC
+
+invalidate:
+Worker 상태 처리:
+
+
+H. QA
+
+Browser:
+Read E2E:
+Write E2E:
+
+
+I. BUG
+
+P0:
+P1:
+Blocker:
+
+
+J. GIT
+
+branch:
+API 수정:
+push:
+deploy:
+범위 밖 변경:
+
+
+K. 판정
+
+PASS / HOLD / FAIL
+
+이유 3줄 이내.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+35. PASS 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] schedule_days 실제 contract 확정
+
+[ ] 보강 assigned_date 검증 확인
+
+[ ] 검수 대기 목록
+
+[ ] 리포트 상세 검수
+
+[ ] 이전/다음
+
+[ ] 개별 승인
+
+[ ] 일괄 승인 없음
+
+[ ] 승인된 리포트만 발행 가능
+
+[ ] 일괄 발행
+
+[ ] 발행 완료 목록
+
+[ ] PDF
+
+[ ] 기존 reissue 기능 가능한 범위 연결
+
+[ ] Worker status 존중
+
+[ ] React Query 즉시 갱신
+
+[ ] Empty/Error 구분
+
+[ ] ghost overlay 없음
+
+[ ] 가짜 API 없음
+
+[ ] 가짜 데이터 없음
+
+[ ] Dashboard build PASS
+
+[ ] Web regression PASS
+
+[ ] push 없음
+
+[ ] deploy 없음
+
+완료 후 STOP.
+
+다음은 PHASE 2-E
+커리큘럼 + 일지·피드입니다.
