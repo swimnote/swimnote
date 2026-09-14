@@ -33,6 +33,7 @@ import {
   DISCARD_REASONS,
 }                               from "../lib/growth-report-production-service.js";
 import { runMonthlyBatchCron }  from "../jobs/growth-report-batch-worker.js";
+import { notifyPoolEvent }      from "../lib/pg-realtime.js";
 
 const db = superAdminDb;
 
@@ -359,6 +360,7 @@ router.put(
       const kstMonth = kstNow.getUTCMonth() + 1;
       void refreshWp8Snapshot(db, { poolId, year: kstYear, month: kstMonth }).catch(() => {});
 
+      notifyPoolEvent({ type: "growth_report.changed", pool_id: poolId!, entity_id: reportId }).catch(() => {});
       return res.json({ ok: true });
     } catch (err: any) {
       if (err?.code === "DISCARD_NOT_ALLOWED") return res.status(409).json({ error: err.message });
@@ -388,6 +390,7 @@ router.post(
         actorId: req.user!.id ?? "unknown",
       });
 
+      notifyPoolEvent({ type: "growth_report.changed", pool_id: poolId!, entity_id: result.newReportId }).catch(() => {});
       return res.status(201).json({
         ok: true,
         new_report_id:  result.newReportId,
@@ -428,6 +431,7 @@ router.post(
       const kstMonth = kstNow.getUTCMonth() + 1;
       void refreshWp8Snapshot(db, { poolId, year: kstYear, month: kstMonth }).catch(() => {});
 
+      notifyPoolEvent({ type: "growth_report.changed", pool_id: poolId!, entity_id: reportId }).catch(() => {});
       return res.json({ ok: true, already_published: result.alreadyPublished });
     } catch (err: any) {
       if (err?.code === "SEND_NOT_ALLOWED")   return res.status(409).json({ error: err.message });
@@ -517,6 +521,7 @@ router.post(
       // KPI refresh (background)
       void refreshWp8Snapshot(db, { poolId, year: targetYear, month: targetMonth }).catch(() => {});
 
+      notifyPoolEvent({ type: "growth_report.changed", pool_id: poolId! }).catch(() => {});
       return res.json({ ok: true, ...result });
     } catch (err: any) {
       console.error("[WP8] bulk-send error:", err.message);

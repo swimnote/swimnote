@@ -1,0 +1,1213 @@
+[SWIMNOTE X PC DASHBOARD — PHASE 2-H FINAL
+2-G CLOSURE + 브랜치 통합 + Render Static Site + Production 배포]
+
+이번이 SWIMNOTE X PC Dashboard 마지막 PHASE입니다.
+
+목표:
+
+1. PHASE 2-G Realtime 잔여 검증/보정
+2. 현재 작업 변경사항 안전 통합
+3. Production API 배포
+4. 기존 Render Static Site swimnote-web에 Dashboard 병합
+5. /admin SPA rewrite
+6. Temporary Render URL 실제 검증
+7. Marketing 회귀 확인
+8. Production 전환 준비
+9. 최종 보고
+
+까지 한 번에 진행합니다.
+
+불필요한 설계보고/중간보고 금지.
+
+단 실제 관리자 credential이 없으면
+가짜 로그인 성공을 만들지 말고
+Temporary URL 배포까지 완료한 후
+OWNER AUTH E2E REQUIRED로 정확히 보고합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 확정 Architecture
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Frontend:
+
+swimnote.kr
+→ Render Static Site
+→ service: swimnote-web
+
+/
+→ Marketing Website
+
+/admin
+/admin/*
+→ SWIMNOTE X PC Dashboard
+
+API:
+
+https://swimnote-api.onrender.com
+→ Render Web Service swimnote-api
+→ API ONLY가 최종 목표
+
+AI:
+
+https://swimnote.ai.kr
+→ 별도 AI ENGINE
+
+Dashboard Production API:
+
+VITE_API_BASE=
+https://swimnote-api.onrender.com/api
+
+same-origin /api fallback 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 작업 시작 전 LIVE 상태 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 Git/Render 상태 확인.
+
+보고용으로 기록:
+
+Git:
+- current branch
+- HEAD
+- origin/main HEAD
+- working tree
+- remotes
+
+Render API:
+- swimnote-api repo/branch/status
+- swimnote-web repo/branch/status
+- swimnote-web current Build Command
+- Publish Directory
+- Rewrite rules
+- Custom Domain 상태
+- latest deploy
+
+중요:
+
+Repository render.yaml만 보고
+실제 Render 상태를 추측하지 마십시오.
+
+Render LIVE 설정 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PHASE 2-G CLOSURE #1
+Worker Realtime 초기화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고에서:
+
+API index.ts:
+setRealtimeDb(db)
+startListener()
+
+는 확인됨.
+
+그러나 Worker에서도 notifyPoolEvent를 사용합니다.
+
+반드시 확인:
+
+growth-report-analysis-worker
+growth-report-batch-worker
+기타 notifyPoolEvent 호출 Worker
+
+각 별도 프로세스가
+notifyPoolEvent를 실제 실행할 수 있도록
+realtime DB/notifier가 초기화되는지 확인.
+
+원칙:
+
+API process:
+- notifier DB 초기화
+- LISTEN listener 시작
+
+Worker process:
+- notifier DB 초기화
+- LISTEN listener는 시작할 필요 없음
+- pg_notify는 실제 동작해야 함
+
+Worker가 API index.ts 초기화에 의존하면 FAIL.
+
+필요하면 Worker entrypoint에서
+setRealtimeDb(db) 또는 동일 책임의 초기화를
+최소 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PHASE 2-G CLOSURE #2
+Event Source 누락 전수확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 mutation이 성공한 뒤
+event가 발생하는지 확인.
+
+MEMBER
+- 등록
+- 수정
+- 반 배정
+- 퇴원
+- 복원
+- bulk import
+
+CLASS
+- 생성
+- 수정
+- 삭제/비활성
+- 담당자 변경
+
+MAKEUP
+- 생성되는 실제 source
+- 배정
+- 취소
+- Worker/자동 상태변경이 있다면 해당 transition
+
+GROWTH REPORT HTTP
+- approve
+- reanalysis
+- discard
+- send
+- bulk-send
+- regenerate/reissue
+
+GROWTH REPORT WORKER
+- scheduler가 상태를 실제 변경한다면 notify
+- analysis worker
+- batch worker
+
+DIARY
+- 생성
+- 수정
+- 삭제
+
+TEACHER
+- 초대
+- approve
+- reject
+- deactivate
+- reactivate
+
+CURRICULUM
+- curriculum upload
+- template CRUD/reorder
+- level CRUD/reorder
+
+SETTINGS
+- 실제 Dashboard 표시값 변경
+
+빠진 mutation이 있으면 이번에 추가.
+
+단 mutation 하나에 의미없는 notify 여러 번 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Transaction / COMMIT 안전성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DB transaction 안의 mutation은
+가능하면 동일 transaction connection에서
+
+pg_notify
+
+실행.
+
+PostgreSQL이 COMMIT 후 NOTIFY하도록 유지.
+
+DB write 실패했는데
+event가 먼저 전달되는 구조 금지.
+
+기존 transaction 구조를
+Realtime 때문에 대규모로 뜯지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PHASE 2-G CLOSURE #3
+Realtime Integration QA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production credential 없이 가능한 범위에서
+실제 local/integration 검증.
+
+반드시 확인:
+
+1.
+SSE endpoint 연결 가능
+
+2.
+Authorization 없음
+→ 401
+
+3.
+invalid JWT
+→ 401
+
+4.
+valid auth context
+→ stream open
+(안전한 local/integration 방법 사용 가능)
+
+5.
+Pool A event
+→ Pool A subscriber 수신
+
+6.
+Pool A event
+→ Pool B subscriber 미수신
+
+7.
+30초 heartbeat
+
+8.
+client disconnect
+→ registry cleanup
+
+9.
+browser reconnect/backoff 로직
+
+10.
+logout
+→ AbortController/SSE 종료
+
+11.
+event
+→ 해당 React Query key invalidate
+
+12.
+payload에 PII 없음
+
+실제 다른 Production pool 데이터를
+테스트용으로 건드리지 마십시오.
+
+Pool isolation은 unit/integration 수준으로라도
+반드시 증명.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 2-F 잔여 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음도 최종 확인:
+
+A.
+Bulk Import
+→ invalid row 1개라도 있으면 commit 불가
+
+B.
+Bulk commit
+→ 기존 공통 student-create-service 사용
+
+C.
+가능한 transaction ALL-OR-NOTHING
+
+D.
+Revenue
+→ teacher ID 수기입력 없음
+→ pool teacher selector
+
+E.
+Revenue/Settlement 명칭
+→ 실제 Backend 데이터 의미와 일치
+
+F.
+Member Detail
+→ [일지 보기]
+→ student_id 자동 전달
+→ 사용자 직접 ID 입력 불필요
+
+이 항목 모두 완료되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 변경사항 안전하게 COMMIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+지금까지 Dashboard/API/App bugfix 변경을
+잃으면 안 됩니다.
+
+먼저 현재 branch의 모든 의도된 변경을 검토.
+
+불필요한:
+
+attached_assets
+Pasted txt
+local temp file
+secret
+.env
+build dist
+
+commit 금지.
+
+의도된 source 변경만 commit.
+
+현재 branch에
+안전 checkpoint commit 생성 가능.
+
+commit message는 의미 있게 작성.
+
+아직 push하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. MAIN과 최신 상태 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+그 다음:
+
+git fetch origin
+
+실행.
+
+현재:
+
+origin/main
+
+이 우리가 작업을 시작한 뒤
+APP bugfix 등으로 전진했는지 확인.
+
+절대:
+
+git reset --hard로 작업 날리기
+force push
+
+금지.
+
+현재 작업 branch와 최신 origin/main의
+commit graph를 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 기존 Website branch도 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render Static Site branch:
+
+backup/web-before-render-migration-20260914
+
+의 최신 commit과
+origin/main을 비교.
+
+특히:
+
+artifacts/swimnote-web/**
+
+에서 Static Site branch에만 존재하는
+홈페이지 최종 수정이 있는지 확인.
+
+기존 완료된:
+
+- 홈페이지 디자인
+- mobile header fix
+- mega-menu fix
+- logo
+- store links
+- 기타 현재 live static website 변경
+
+누락 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Production Integration Branch 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최신 origin/main을 기준으로
+안전한 local integration branch 생성.
+
+예:
+
+release/x-dashboard-final
+
+이름은 비슷한 명확한 이름이면 가능.
+
+그 위에:
+
+A.
+현재 temp-bugfix-deploy의 의도된 변경
+
+B.
+Static Website branch에만 있는
+필요한 최신 website commit
+
+을 안전하게 통합.
+
+merge/cherry-pick 방식은
+실제 commit graph에 맞게 결정.
+
+중요:
+
+소스 결과가 정확한 것이 우선.
+
+History를 억지로 예쁘게 만들려고
+force/rewrite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 통합 후 DIFF 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 integration branch에서:
+
+- Dashboard 코드 존재
+- Realtime API 존재
+- APP bugfix 누락 없음
+- 현재 Marketing source 유지
+- Legacy admin 아직 존재
+- render.yaml 임의 Static Site 추가 없음
+- AI ENGINE 변경 없음
+- secrets 없음
+
+확인.
+
+특히:
+
+artifacts/swimnote-web
+
+이 기존 Static Site 최종본에서
+의도치 않게 후퇴하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. LOCAL BUILD FINAL GATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+push 전에 반드시:
+
+pnpm --filter @workspace/swimnote-dashboard run build
+
+PASS.
+
+pnpm --filter @workspace/swimnote-web run build
+
+PASS.
+
+API:
+이번 수정범위에서 신규 TS 오류 0.
+
+Worker:
+Realtime 수정범위 신규 TS 오류 0.
+
+기존 pre-existing 오류와
+신규 오류를 구분.
+
+신규 오류가 하나라도 있으면 push 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Dashboard Production Build Merge 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render에서 사용할 것과 동일한 구조를
+local에서 먼저 재현.
+
+최종 순서 개념:
+
+1.
+Marketing build
+
+2.
+Dashboard build
+
+3.
+Dashboard dist를
+Marketing publish directory /admin 아래로 복사
+
+정확한 publish:
+
+artifacts/swimnote-web/dist/public
+
+최종 결과:
+
+artifacts/swimnote-web/dist/public/
+  index.html
+  assets/
+  ...
+  admin/
+    index.html
+    assets/
+    ...
+
+확인.
+
+Dashboard index asset path가
+/admin/assets/... 로 정상 생성되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 최종 Render Static Site Build Command
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 환경에 맞춰
+swimnote-web Static Site Build Command를 변경.
+
+개념:
+
+pnpm --filter @workspace/swimnote-web run build &&
+pnpm --filter @workspace/swimnote-dashboard run build &&
+mkdir -p artifacts/swimnote-web/dist/public/admin &&
+cp -r artifacts/swimnote-dashboard/dist/. artifacts/swimnote-web/dist/public/admin/
+
+실제 shell/runtime에서 정상 동작하게 설정.
+
+Publish Directory는 기존:
+
+artifacts/swimnote-web/dist/public
+
+유지.
+
+render.yaml에 신규 Static Site 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Production Environment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render Static Site:
+
+swimnote-web
+
+build env에 Dashboard가 사용하는:
+
+VITE_API_BASE=https://swimnote-api.onrender.com/api
+
+가 실제 주입되는지 확인/설정.
+
+same-origin /api fallback 절대 없음.
+
+secret이 아닌 공개 frontend API base이므로
+build env 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Render Rewrite
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Static Site에 Dashboard SPA rewrite 추가.
+
+필요:
+
+/admin
+→ /admin/index.html
+
+/admin/*
+→ /admin/index.html
+
+그리고 기존 Marketing:
+
+/*
+→ /index.html
+
+유지.
+
+중요:
+
+실제 Render의 route priority/order 규칙을
+LIVE 설정/API 기준으로 확인.
+
+반드시:
+
+/admin 계열이
+Marketing catch-all보다 먼저 매칭.
+
+변경 후 Render API를 다시 조회하여
+실제 저장된 순서/priority 검증.
+
+Express API에
+/admin fallback 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. CUSTOM DOMAIN 상태에 따른 안전 분기
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render 설정 변경 전에
+swimnote-web의 Custom Domain 상태 확인.
+
+CASE A.
+
+swimnote.kr가 아직 Static Site에 연결되지 않았음:
+
+→ Temporary URL에서 먼저 안전하게 배포/검증 가능.
+
+CASE B.
+
+이미 swimnote.kr가 Static Site에 연결되어 있음:
+
+→ 이번 Static deploy는 실제 Public Production 변경임.
+
+이 경우 기존 Marketing rollback 가능 상태를
+확실히 확보한 후 진행.
+
+상태를 추측하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. MAIN PUSH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+모든 local gate PASS 후에만
+최종 통합내용을 GitHub main으로 반영.
+
+force push 금지.
+
+가능한 안전한 fast-forward/merge 정책 사용.
+
+push 후 정확한:
+
+main commit SHA
+
+기록.
+
+이 push로 swimnote-api auto-deploy가 발생할 수 있으므로
+즉시 Render API 상태 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. API PRODUCTION 배포 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render:
+
+swimnote-api
+
+가 새 main SHA를 실제 배포했는지 확인.
+
+필수:
+
+deploy ID
+commit SHA
+status = live
+
+그리고 실제:
+
+https://swimnote-api.onrender.com/api/healthz
+
+HTTP 200 확인.
+
+만약 실제 health endpoint가
+다른 prefix라면 현재 Production endpoint 기준.
+
+push 성공만으로 PASS 금지.
+
+API deploy 실패 시
+Static Dashboard 배포로 넘어가지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. Static Site branch 전환
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API Production 정상 확인 후:
+
+기존 Static Site:
+
+swimnote-web
+
+의 branch를
+
+backup/web-before-render-migration-20260914
+
+에서
+
+main
+
+으로 변경.
+
+단 다음 모두 확인된 후:
+
+- main에 website 최신본 포함
+- dashboard 포함
+- local merged build PASS
+- API live
+
+branch 변경.
+
+backup branch 삭제 금지.
+
+rollback source로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. Static Site 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote-web deploy 실행/자동실행.
+
+실제:
+
+deploy ID
+commit SHA
+status = live
+
+확인.
+
+Temporary URL:
+
+https://swimnote-web.onrender.com
+
+에서 먼저 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. PUBLIC MARKETING 회귀 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Temporary URL 기준 최소:
+
+/
+기존 주요 product route
+header/menu
+mobile header
+
+HTTP/렌더 확인.
+
+Marketing page가 Dashboard 병합 때문에
+깨지지 않았는지 확인.
+
+Mega-menu의 과거 ghost DOM 문제를
+다시 대규모 QA할 필요는 없지만
+기본 메뉴 open/close 1회 정도는 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. Dashboard Static Routing 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Temporary URL 기준:
+
+/admin
+/admin/login
+/admin/members
+/admin/schedule
+/admin/makeups
+/admin/growth-reports/pending
+/admin/curriculum
+/admin/diary
+/admin/teachers
+/admin/revenue
+/admin/settings
+
+직접 URL 요청.
+
+SPA deep route가:
+
+Marketing index가 아니라
+Dashboard index를 반환하는지 확인.
+
+특히:
+
+/admin/members
+
+새로고침
+→ Dashboard App
+
+이어야 함.
+
+Marketing Home으로 튕기면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. Dashboard asset 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/admin/index.html에서 참조하는:
+
+JS
+CSS
+assets
+
+가 HTTP 200.
+
+404 없음.
+
+base="/admin/" 오류 없음.
+
+blank screen 없음.
+
+Console에 치명적 runtime error 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. API / CORS 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dashboard origin에서:
+
+https://swimnote-api.onrender.com/api
+
+직접 호출 구조 확인.
+
+swimnote.kr/api 사용 없음.
+
+Temporary onrender origin도
+기존 *.onrender.com CORS 규칙으로 허용되는지 확인.
+
+CORS failure 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. 로그인 E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replit에 실제 관리자 credential이 없으면
+절대 임의 계정 생성 금지.
+
+다음까지만 자동 검증:
+
+- login UI 렌더
+- POST contract
+- wrong credential error
+- no token protected route
+- SSE no token 401
+
+실제:
+
+아이디
+비밀번호
+APP Web PIN
+
+로그인은 대표가 Temporary URL에서 직접 확인.
+
+credential을 보고서/로그에 요청하거나 출력하지 마십시오.
+
+따라서 실계정 없으면:
+
+OWNER AUTH E2E REQUIRED
+
+라고 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+27. 실제 로그인 전 CUSTOM DOMAIN 전환 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+만약 현재 swimnote.kr가 아직
+Static Site에 연결되지 않은 상태라면:
+
+Temporary URL에서
+대표의 실제 관리자 로그인 확인 전에는
+Custom Domain 전환을 하지 마십시오.
+
+즉:
+
+Temp deploy 완료
+→ 대표 실제 로그인
+→ 주요 화면 확인
+→ 그 다음 domain 전환
+
+이 마지막 사람 확인은
+코드 작업이 아니라 Production 안전 게이트입니다.
+
+만약 이미 swimnote.kr가 해당 Static Site에 연결되어 있다면
+현재 LIVE 상태를 보고하고 별도 domain switch 작업은 하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+28. OWNER 실기기 확인용 최소 체크
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Temporary URL 배포 후
+대표가 확인할 것은 딱 이것만:
+
+1.
+아이디 + 비밀번호 + APP PIN 로그인
+
+2.
+홈 표시
+
+3.
+회원 목록 실제 데이터
+
+4.
+회원 상세
+
+5.
+반/스케줄
+
+6.
+보강
+
+7.
+성장리포트
+
+8.
+커리큘럼
+
+9.
+일지
+
+10.
+선생님
+
+11.
+매출·정산
+
+12.
+로그아웃
+
+복잡한 QA 요구하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+29. Realtime Production 준비 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실계정 없이도 확인 가능한 것:
+
+- SSE endpoint Production 존재
+- no token → 401
+- stream headers 정상
+- Worker notifier 초기화
+- event source 코드 coverage
+- pool filter
+
+실제 APP → PC 자동갱신은
+대표가 로그인 후 확인 가능.
+
+대표 확인 시:
+
+APP에서 안전한 기존 회원 정보/메모 등 변경
+→ 열린 PC 자동 반영
+
+보강 등 가능한 항목 1개
+
+정도만 확인하면 충분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+30. LEGACY /admin
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 배포에서
+Legacy source 파일을 삭제하지 마십시오.
+
+Static Site rewrite가:
+
+/admin/*
+→ 신규 Dashboard
+
+로 연결하므로
+기존 legacy source가 build bundle에 남아있더라도
+Production route는 신규 Dashboard가 우선.
+
+정상 동작 확인 후
+Legacy source 삭제는 별도 cleanup으로 미뤄도 됨.
+
+크레딧/리스크상 지금 삭제하지 않는 것을 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+31. 기존 API Static Serving
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote-api app.ts에 남아있는
+과거 Marketing static serving 코드도
+이번 최종 배포에서 굳이 제거하지 마십시오.
+
+현재 Dashboard/Static Site 안정성을 먼저 확보.
+
+API ONLY cleanup은
+별도 후속 maintenance 가능.
+
+신규 /admin static serving만 추가하지 않으면 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+32. ROLLBACK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 전 rollback 지점 기록.
+
+API:
+이전 live deploy ID / commit SHA
+
+Static:
+이전 live deploy ID
+기존 branch:
+backup/web-before-render-migration-20260914
+
+Dashboard/Static 배포에 치명적 문제 발생 시:
+
+새 코드를 즉석에서 급하게 수정하기보다
+기존 정상 deployment/branch로 rollback 가능해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+33. P0 STOP 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면
+domain/public 전환 중단:
+
+- API health 실패
+- Marketing Home 깨짐
+- /admin deep route가 Marketing으로 감
+- Dashboard blank
+- JS/CSS 404
+- CORS failure
+- 로그인 contract 깨짐
+- cross-pool 가능성
+- SSE auth 우회
+- PII SSE payload
+- 기존 APP API 회귀
+- Growth Worker crash
+- DB migration 필요 상황 발생
+
+P0를 숨기고 계속 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+34. FINAL 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식만 사용.
+
+A. 2-G CLOSURE
+
+Worker notifier:
+Missing event sources:
+SSE integration:
+Pool isolation:
+Heartbeat/reconnect:
+PII payload:
+
+
+B. 2-F CLOSURE
+
+Bulk common service:
+Atomic import:
+Revenue scope:
+Teacher selector:
+Member→Diary:
+
+
+C. GIT INTEGRATION
+
+Original branch:
+origin/main before:
+Website branch:
+Integration method:
+Final main SHA:
+Push:
+
+
+D. API PRODUCTION
+
+Service:
+Deploy ID:
+Commit:
+Status:
+Health:
+Previous rollback:
+
+
+E. STATIC SITE
+
+Service:
+Branch:
+Build command:
+Publish directory:
+VITE_API_BASE:
+Rewrite:
+Deploy ID:
+Commit:
+Status:
+Temp URL:
+
+
+F. ROUTING
+
+/:
+/admin:
+/admin/login:
+/admin/members deep refresh:
+Assets:
+Marketing regression:
+
+
+G. AUTH
+
+Wrong login:
+Protected route:
+SSE 401:
+Real owner login:
+OWNER AUTH E2E REQUIRED / PASS
+
+
+H. REALTIME PRODUCTION
+
+Endpoint:
+Worker ready:
+APP→PC:
+PASS / OWNER TEST REQUIRED
+
+
+I. CUSTOM DOMAIN
+
+Current domain state:
+swimnote.kr points to:
+Changed:
+Reason:
+
+
+J. LEGACY
+
+Legacy source deleted:
+API static serving removed:
+
+둘 다 기본 NO.
+
+
+K. BUG
+
+P0:
+P1:
+Blocker:
+
+
+L. FINAL STATUS
+
+PASS
+TEMP DEPLOY PASS — OWNER E2E REQUIRED
+HOLD
+FAIL
+
+3줄 이내.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+35. 최종 PASS 정의
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기술적으로 다음이 모두 완료되어야 함:
+
+[ ] Worker notify 실제 초기화
+[ ] Makeup notify
+[ ] Growth HTTP notify
+[ ] Growth Worker notify
+[ ] SSE 401
+[ ] Pool isolation
+[ ] Heartbeat
+[ ] reconnect
+[ ] logout cleanup
+[ ] PII payload 없음
+
+[ ] 2-F 잔여 완료
+
+[ ] Latest main + Dashboard + Website 안전 통합
+[ ] Dashboard build PASS
+[ ] Marketing build PASS
+[ ] API 신규 오류 없음
+
+[ ] main push
+[ ] swimnote-api live
+[ ] health 200
+
+[ ] 기존 swimnote-web Static Site 사용
+[ ] 신규 Static Site 생성 없음
+[ ] Dashboard /admin 병합
+[ ] VITE_API_BASE Production
+[ ] /admin rewrites
+[ ] Marketing fallback 유지
+[ ] Static deploy live
+
+[ ] /admin deep refresh
+[ ] assets 200
+[ ] CORS 정상
+
+[ ] rollback 지점 확보
+
+실제 관리자 credential이 없어서
+실로그인만 못 한 경우:
+
+TEMP DEPLOY PASS — OWNER E2E REQUIRED
+
+로 완료 가능.
+
+그 경우 대표 확인 전
+아직 연결되지 않은 swimnote.kr Custom Domain을
+임의 전환하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+36. STOP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 PHASE 완료 후
+새 기능 개발로 넘어가지 마십시오.
+
+이것이 SWIMNOTE X PC Dashboard
+현재 계획의 마지막 WP입니다.
+
+남는 것은 필요 시:
+
+- 대표 실계정 최종 확인
+- Custom Domain 최종 연결
+- Legacy source cleanup
+- Growth Report PDF 후속
+- 운영 중 발견되는 실제 버그
+
+뿐입니다.

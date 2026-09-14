@@ -2065,6 +2065,7 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
         });
       }
       logPoolEvent({ pool_id: poolId, event_type: "makeup_assign", entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId, payload: { class_group_id, class_name: cg.name, assigned_date } }).catch(console.error);
+      notifyPoolEvent({ type: "makeup.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -2099,6 +2100,7 @@ router.patch("/makeups/:id/transfer", requireAuth, requireRole("super_admin","po
         note: `보강 이동: ${target_teacher_name} 선생님`,
       });
       logPoolEvent({ pool_id: poolId, event_type: "makeup_transfer", entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId, payload: { target_teacher_id, target_teacher_name } }).catch(console.error);
+      notifyPoolEvent({ type: "makeup.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -2154,6 +2156,7 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
         note: completedNote,
       });
       logPoolEvent({ pool_id: poolId, event_type: "makeup_complete", entity_type: "makeup_session", entity_id: req.params.id, actor_id: actor.userId, payload: { student_id: mk.student_id, student_name: mk.student_name } }).catch(console.error);
+      notifyPoolEvent({ type: "makeup.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -2197,6 +2200,7 @@ router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool
         actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
         note: `보강 대기 복귀 (이전: ${mk.status})`,
       });
+      notifyPoolEvent({ type: "makeup.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -2220,6 +2224,7 @@ router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin","pool
         actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
         note: "보강 취소",
       });
+      notifyPoolEvent({ type: "makeup.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
@@ -2560,6 +2565,7 @@ router.post("/makeups/ensure", requireAuth, requireRole("super_admin","pool_admi
         )
       `));
       console.log(`[makeups/ensure] 보강세션 생성: ${mkId}, student=${student.name}, date=${date}`);
+      notifyPoolEvent({ type: "makeup.changed", pool_id: poolId, entity_id: mkId }).catch(() => {});
       res.json({ created: true, id: mkId });
     } catch (err) { console.error("[makeups/ensure]", err); res.status(500).json({ error: "서버 오류" }); }
   }
