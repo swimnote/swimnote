@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "@/lib/api-client";
-import { AlertCircle, ChevronLeft } from "lucide-react";
+import { AlertCircle, ChevronLeft, FileSpreadsheet } from "lucide-react";
 
 type ClassGroup = {
   id: string;
@@ -122,9 +122,21 @@ export default function NewMemberPage() {
         >
           <ChevronLeft size={20} />
         </button>
-        <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: 0 }}>
+        <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: 0, flex: 1 }}>
           회원 등록
         </h1>
+        <button
+          onClick={() => navigate("/admin/members/bulk")}
+          style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            padding: "7px 14px", borderRadius: "8px",
+            border: "1px solid #D1D5DB", background: "#fff",
+            fontSize: "13px", color: "#374151", cursor: "pointer", fontWeight: 500,
+          }}
+        >
+          <FileSpreadsheet size={14} />
+          엑셀로 여러 명 등록
+        </button>
       </div>
 
       {error && (

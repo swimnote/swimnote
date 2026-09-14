@@ -63,13 +63,15 @@ function MonthPicker({ year, month, onChange }: { year: number; month: number; o
 
 // ─── PublishedPage ────────────────────────────────────────────────────────────
 
+// issueMonth: 화면에서 사용자가 선택하는 "발행월" (API에 그대로 전달)
+// API 내부: report_period = issueMonth - 1 (실제 수업월)
 export default function PublishedPage() {
   const now = new Date();
-  const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
-  const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const issueYear  = now.getFullYear();
+  const issueMonth = now.getMonth() + 1;
 
-  const [year, setYear] = useState(prevYear);
-  const [month, setMonth] = useState(prevMonth);
+  const [year, setYear] = useState(issueYear);
+  const [month, setMonth] = useState(issueMonth);
   const [search, setSearch] = useState("");
   const [confirmTarget, setConfirmTarget] = useState<ReportItem | null>(null);
   const [resendError, setResendError] = useState("");
@@ -109,6 +111,10 @@ export default function PublishedPage() {
           <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>발행 완료</h1>
           <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0" }}>
             {isLoading ? "…" : `${filtered.length}건`}
+            {" · "}
+            <span style={{ color: "#94A3B8" }}>
+              {year}년 {month}월 리포트 · {month === 1 ? year - 1 : year}년 {month === 1 ? 12 : month - 1}월 수업 기준
+            </span>
           </p>
         </div>
         <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />

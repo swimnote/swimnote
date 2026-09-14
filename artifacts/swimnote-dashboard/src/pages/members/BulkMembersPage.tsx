@@ -168,7 +168,7 @@ export default function BulkMembersPage() {
   return (
     <div style={{ padding: "24px", maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>회원 대량 등록</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>회원 엑셀 일괄등록</h2>
         <button onClick={downloadTemplate} style={{ padding: "7px 16px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontSize: 14 }}>
           📥 등록 양식 다운로드
         </button>

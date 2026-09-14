@@ -605,9 +605,37 @@ function ConfirmDialog({ title, message, confirmLabel, danger, onConfirm, onCanc
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 
+async function downloadMembersExcel(statusFilter: string, classFilter: string) {
+  const { getToken } = await import("@/lib/token");
+  const API_BASE = import.meta.env.VITE_API_BASE as string;
+  const params = new URLSearchParams();
+  if (statusFilter) params.set("status", statusFilter);
+  if (classFilter) params.set("class_id", classFilter);
+  const token = getToken();
+  const res = await fetch(`${API_BASE}/admin/members/export?${params}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message ?? body.error ?? `서버 오류 (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = cd.match(/filename="?([^"]+)"?/);
+  a.download = match?.[1] ?? `SWIMNOTE_회원목록_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function MembersPage() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
+  const [excelLoading, setExcelLoading] = useState(false);
 
   // Filter state
   const [search, setSearch] = useState("");
@@ -700,16 +728,22 @@ export default function MembersPage() {
             <RefreshCw size={13} /> 지난 회원
           </button>
           <button
-            title="서버 미지원 — PHASE 2-F에서 구현 예정"
-            disabled
+            disabled={excelLoading}
+            onClick={async () => {
+              setExcelLoading(true);
+              try { await downloadMembersExcel(statusFilter, classFilter); }
+              catch (e) { alert((e as Error).message ?? "Excel 다운로드에 실패했습니다."); }
+              finally { setExcelLoading(false); }
+            }}
             style={{
               display: "flex", alignItems: "center", gap: "5px",
               padding: "8px 14px", borderRadius: "8px",
-              border: "1px solid #E5E7EB", background: "#F9FAFB",
-              fontSize: "13px", color: "#9CA3AF", cursor: "not-allowed",
+              border: "1px solid #E5E7EB", background: excelLoading ? "#F9FAFB" : "#fff",
+              fontSize: "13px", color: excelLoading ? "#9CA3AF" : "#374151",
+              cursor: excelLoading ? "not-allowed" : "pointer",
             }}
           >
-            <Download size={13} /> Excel
+            <Download size={13} /> {excelLoading ? "다운로드 중…" : "Excel"}
           </button>
           <button
             onClick={() => navigate("/admin/members/new")}

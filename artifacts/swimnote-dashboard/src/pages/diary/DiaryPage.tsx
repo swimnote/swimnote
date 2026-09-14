@@ -238,10 +238,13 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 const PAGE_SIZE = 50;
 
 export default function DiaryPage({ initialStudentId }: { initialStudentId?: string } = {}) {
+  // Read student_id from URL search params (e.g. /admin/diary?student_id=123)
+  const urlStudentId = initialStudentId ?? new URLSearchParams(window.location.search).get("student_id") ?? "";
+
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [studentId, setStudentId] = useState(initialStudentId ?? "");
+  const [studentId, setStudentId] = useState(urlStudentId);
   const [offset, setOffset] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -301,12 +304,6 @@ export default function DiaryPage({ initialStudentId }: { initialStudentId?: str
           placeholder="선생님·반·내용 검색"
           style={{ padding: "6px 10px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", width: "180px" }}
         />
-        <input
-          value={studentId}
-          onChange={(e) => { setStudentId(e.target.value); setOffset(0); }}
-          placeholder="학생 ID (History)"
-          style={{ padding: "6px 10px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", width: "180px" }}
-        />
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
           <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setOffset(0); }}
             style={{ padding: "6px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px" }} />
@@ -330,8 +327,9 @@ export default function DiaryPage({ initialStudentId }: { initialStudentId?: str
       </div>
 
       {studentId && (
-        <div style={{ padding: "8px 12px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "6px", fontSize: "12px", color: "#1D4ED8", marginBottom: "12px" }}>
-          학생 ID <strong>{studentId}</strong>의 과거~현재 전체 일지 History (담당 선생님·반 변경과 무관)
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "6px", fontSize: "12px", color: "#1D4ED8", marginBottom: "12px" }}>
+          <span>학생 일지 기록 — 담당 선생님·반 변경과 무관한 전체 History</span>
+          <button onClick={() => { setStudentId(""); setOffset(0); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#60A5FA", fontSize: "11px", padding: "0 0 0 8px" }}>전체 보기</button>
         </div>
       )}
 
