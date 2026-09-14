@@ -1,0 +1,877 @@
+[SWIMNOTE X PC DASHBOARD — PHASE 2-B
+FOUNDATION P1 FIX + X ACCESS + 회원관리 실제 구현]
+
+크레딧 절약을 위해
+PHASE 2-A P1 수정만 별도 작업하지 않습니다.
+
+이번 작업 한 번에:
+
+1. PHASE 2-A 발견 P1 수정
+2. X MODE 접근제어 연결
+3. 회원관리 핵심 기능 구현
+4. 필요한 실제 QA
+5. 완료보고
+
+까지 수행하십시오.
+
+중간 설계보고 없이 바로 구현합니다.
+
+단 Production deploy / push는 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. GIT / 안전규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Repository:
+https://github.com/swimnote/swimnote
+
+작업 branch:
+main
+
+현재 Render Static Site branch:
+backup/web-before-render-migration-20260914
+
+Static Site branch 절대 변경 금지.
+
+금지:
+
+git push
+Render deploy
+Render branch 변경
+Render rewrite 변경
+swimnote-web Legacy /admin 삭제
+AI ENGINE 수정
+GitLab 사용
+DB migration
+
+이번 작업은 local implementation + QA까지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 PHASE 2-A P1 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Home "오늘 현황" 4개 항목이
+잘못된 endpoint/response parsing으로 전부 숨겨지고 있습니다.
+
+현재 잘못된 구현을 실제 Backend contract에 맞게 수정하십시오.
+
+발견된 문제:
+
+A. 재원 회원
+
+현재:
+GET /members?status=active&limit=1
+→ 배열 반환인데 count/total을 찾고 있음
+
+실제 API contract를 다시 확인하고
+정확한 재원 회원 수를 얻는 기존 endpoint/field가 있으면 사용.
+
+전체 회원 배열을 매번 받아 count하는 방식보다
+기존 dashboard stats endpoint가 있다면 우선 사용.
+
+B. 오늘 수업
+
+현재:
+/class-schedules?date=...
+
+→ 존재하지 않는 endpoint.
+
+기존 Dashboard/API에서
+실제 오늘 수업/반 현황을 제공하는 endpoint를 찾아 사용.
+
+C. 미배정 보강
+
+현재:
+/extra-classes 응답 구조를 잘못 parsing.
+
+실제 기존 보강 API:
+
+/admin/makeups/*
+또는 현재 Backend의 authoritative endpoint를 확인해서 사용.
+
+D. 성장리포트 검수 대기
+
+현재:
+/growth-reports
+
+→ 잘못된 route.
+
+실제:
+/admin/growth-reports
+계열 contract를 확인해서 사용.
+
+중요:
+
+endpoint 이름을 추측하지 마십시오.
+
+기존 API 코드와 Legacy Dashboard가 실제 사용하는 contract를
+확인한 뒤 연결하십시오.
+
+API 실패를 0으로 위장하지 마십시오.
+
+값을 얻지 못하면:
+"불러오지 못했습니다"
+또는 해당 summary 자체를 error 상태로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. HOME 통계 최소화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Home 통계 때문에 API를 과도하게 여러 번 호출하지 마십시오.
+
+가능하다면 기존:
+
+/admin/dashboard-stats
+/admin/dashboard-stats2
+
+등 실제 통합 stats endpoint를 최대한 재사용하십시오.
+
+한 endpoint로 여러 값을 받을 수 있다면
+불필요한 4~5회 호출 금지.
+
+최종 Home에는 실제 제공 가능한 값만 최대 5개.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. X MODE ACCESS 실제 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Foundation은:
+
+role === pool_admin
+
+이면 X 가입 여부와 무관하게 진입 가능합니다.
+
+이번 단계에서 기존 X entitlement contract를 실제 연결하십시오.
+
+이미 조사된:
+
+GET /api/pools/x-mode
+
+및 실제 x_status contract를 코드에서 재확인.
+
+새 DB field
+새 subscription system
+새 entitlement endpoint
+
+생성 금지.
+
+기존 값만 사용.
+
+최종 흐름:
+
+로그인 성공
+→ /auth/me
+→ pool_admin 확인
+→ 현재 pool X entitlement 확인
+→ X 사용 가능
+   → /admin 진입
+
+X 미사용
+→ Dashboard 업무 화면 접근 차단
+→ 깔끔한 안내 화면
+
+예:
+
+"SWIMNOTE X 이용 수영장 전용 기능입니다."
+
+정도.
+
+임의 결제/가입 페이지 구현 금지.
+
+어떤 x_status가 실제 활성 상태인지
+기존 Production 코드 기준으로 판정하십시오.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 회원관리 화면 구현
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/members
+
+기존 Placeholder를 실제 회원관리 화면으로 교체.
+
+PC 관리자 업무의 가장 중요한 화면입니다.
+
+기본 구조:
+
+회원                                    [+ 회원 등록]
+
+[검색] [반] [상태] [레벨]              [Excel 다운로드]
+
+------------------------------------------------------------
+
+회원 목록 DataTable
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 회원 목록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 실제 API 재사용:
+
+GET /students
+GET /admin/students/search
+
+등 PHASE 0에서 확인된 contract를 실제 코드 기준으로 재확인.
+
+표 기본 컬럼 후보:
+
+이름
+반
+레벨
+상태
+보호자
+연락처
+등록일
+관리
+
+실제 API에 없는 field는 억지로 표시하지 마십시오.
+
+필요하면 컬럼을 줄여도 됩니다.
+
+가짜 데이터 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 검색
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+검색 대상:
+
+이름
+전화번호
+
+기존 API가 지원하는 실제 범위 사용.
+
+300ms 전후 debounce 가능.
+
+검색 중:
+
+loading indicator
+
+결과 없음:
+
+"검색 결과가 없습니다."
+
+API error:
+
+빈 목록처럼 위장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 회원 필터
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 API에서 지원하는 것만 연결:
+
+상태
+반
+레벨
+
+Backend filter가 있으면 server-side 우선.
+
+없으면 전체 데이터를 과도하게 받아
+브라우저에서 무리하게 처리하지 말고
+현재 데이터 규모와 API 구조를 확인해서 결정.
+
+필터 UI는 익숙한 Select/Dropdown.
+
+닫힘 규칙:
+
+선택 완료
+→ 즉시 닫힘
+
+Outside click
+→ 닫힘
+
+ESC
+→ 닫힘
+
+Route 변경
+→ DOM 제거
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 회원 상세
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+회원 행 클릭 또는 "보기":
+
+오른쪽 Detail Drawer.
+
+표시 가능한 실제 정보:
+
+기본정보
+수강정보
+보호자 정보
+회원 상태
+반
+레벨
+메모
+
+실제 API data만.
+
+Drawer가 열린 상태에서:
+
+ESC
+→ 닫힘
+
+Outside click
+→ 닫힘
+
+Route change
+→ 즉시 제거
+
+닫힌 overlay가 click을 막으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 회원 등록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/members/new
+
+Home Quick Action "회원 등록"과
+Sidebar "회원 등록" 모두 이 화면으로 연결.
+
+기존:
+
+POST /students
+
+contract 재사용.
+
+입력 항목은
+Backend 실제 필수 field 기준으로 구성하십시오.
+
+기존 APP/Legacy 회원 등록 로직을 조사해서
+동일 validation contract 사용.
+
+새 필수정보 임의 생성 금지.
+
+등록:
+
+입력
+→ Validation
+→ 저장
+→ loading
+→ 중복 submit 차단
+→ API 성공
+→ canonical response
+→ members query invalidate
+→ 회원목록에서 즉시 확인 가능
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 회원 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+회원 Detail Drawer에서:
+
+[수정]
+
+제공.
+
+기존 실제 PATCH/PUT contract 사용.
+
+수정 가능한 항목은
+기존 Backend가 실제 허용하는 범위만.
+
+수정 성공:
+
+서버 canonical response
+→ member detail update
+→ member list invalidate
+→ 관련 class member query invalidate
+
+새로고침 없이 즉시 변경.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 회원 메모
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 회원 메모 field/API가 실제 존재하면
+상세 화면에서 조회/수정 가능하게 구현.
+
+기존 데이터와 같은 source 사용.
+
+PC 전용 별도 memo 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 반 배정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+회원 상세에서:
+
+현재 반 표시.
+
+기존 class membership API를 이용하여
+반 배정/이동 가능하게 구현.
+
+반 목록:
+
+실제 /class-groups contract 사용.
+
+변경 성공:
+
+회원
+반 회원목록
+필요한 schedule 관련 query
+
+invalidate.
+
+PC와 APP는 같은 서버 데이터 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 퇴원 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+POST /admin/students/:id/withdraw
+
+또는 실제 현재 contract 확인 후 사용.
+
+위험 Action이므로 Confirm 필수.
+
+Confirm 예:
+
+"김수영 회원을 퇴원 처리합니다.
+퇴원 후 지난 회원에서 다시 조회할 수 있습니다."
+
+[취소] [퇴원 처리]
+
+성공 후:
+
+회원 목록에서 즉시 제거/상태 변경
+지난 회원 query invalidate.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 지난 회원
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Route:
+
+/admin/members/withdrawn
+
+기존:
+
+GET /admin/withdrawn-members
+
+실제 contract 재사용.
+
+목록:
+
+이름
+이전 반
+퇴원일/상태
+복원
+
+실제 데이터가 제공하는 범위.
+
+복원:
+
+기존 restore endpoint 사용.
+
+Confirm 후 처리.
+
+복원 성공:
+현재 회원/지난 회원 query 모두 invalidate.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 회원 Excel Export
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+GET /admin/members/export
+
+실제 구현이 존재하므로 재사용.
+
+현재 적용된:
+
+pool
+status
+기타 지원 filter
+
+가 export에 적용되는지 확인.
+
+버튼 클릭:
+
+loading
+→ 파일 response
+→ 정상 다운로드
+
+실패:
+toast/error.
+
+이번 단계에서 Excel Import는 구현하지 않습니다.
+
+대량등록은 PHASE 2-F.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 아직 대량등록 구현 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/admin/members/bulk
+
+는 이번 단계에서 Placeholder 유지 가능.
+
+Excel/CSV import는
+PHASE 2-F에서 별도로 구현.
+
+이번 회원 WP가 커지지 않도록 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 회원별 출결/보강 이력
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 API에서
+회원별 이력을 바로 제공하는 안정적인 endpoint가 있으면
+Detail 안에 간단히 연결 가능.
+
+하지만 PHASE 0에서
+회원별 출결 조회는 없는 것으로 조사됐으므로
+
+새 API를 이번 단계에서 만들지 마십시오.
+
+필요하면:
+
+"추후 제공"
+
+같은 UI도 굳이 만들지 말고
+이번 V1 회원 상세에서 생략.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. DataTable
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+회원 화면에서 공통 DataTable 기반을 실제 구현.
+
+최소:
+
+loading
+error
+empty
+row click
+pagination 또는 현재 API pagination
+filter
+search
+
+지원.
+
+체크박스 Bulk Action은
+이번 단계에서 꼭 필요하지 않으면
+억지로 넣지 마십시오.
+
+회원 대량처리는 이후 WP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 디자인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 2-A 스타일 그대로 유지.
+
+White / Off-white / Gray 중심.
+
+X color 절제.
+
+회원 상태 Badge는:
+
+재원
+연기
+퇴원
+탈퇴
+
+등 실제 status를
+작게 구분할 수 있음.
+
+상태별 색을 너무 많이 쓰지 마십시오.
+
+DataTable이 PC 관리 프로그램처럼
+한눈에 읽혀야 합니다.
+
+과도한 카드 UI 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 실시간 Server 구현은 아직 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PostgreSQL LISTEN/NOTIFY + SSE는
+PHASE 2-G.
+
+이번에는 구현하지 않습니다.
+
+단 PC 자체 mutation 성공 후에는
+React Query invalidate를 통해
+즉시 화면 반영.
+
+APP → 열린 PC 자동반영은
+2-G에서 완성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. Browser QA 문제
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서에서
+Replit Screenshot/browser interaction이
+Artifact 미등록 때문에 불가능했습니다.
+
+이번 작업에서
+Replit의 정상 Artifact 등록이
+Dashboard 개발환경에 필요한 공식적인 최소 설정이라면
+신규 dashboard artifact 내부에서만
+필요한 등록을 수행할 수 있습니다.
+
+단:
+
+Production deploy를 위한 등록/설정 변경은 금지.
+
+목적은 local preview와 실제 click QA.
+
+가능하면 이번에는 실제 브라우저에서:
+
+로그인
+회원목록
+Drawer
+검색
+필터
+Quick Action
+Sidebar
+
+를 실제 클릭 검증하십시오.
+
+도구상 불가능하면:
+
+BROWSER E2E NOT AVAILABLE
+
+한 줄로 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. QA — 크레딧 절약형
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+모든 걸 다시 전수검사하지 마십시오.
+
+이번 WP에서 변경된 기능만 집중 QA.
+
+필수:
+
+1. Dashboard build PASS
+
+2. swimnote-web regression build PASS
+
+3. Home 오늘 현황
+   → 실제 endpoint 기준 정상 rendering
+
+4. X entitlement
+   → 기존 contract 실제 연결 확인
+
+5. 회원 목록 실제 API 호출
+
+6. 회원 검색
+
+7. 회원 상세
+
+8. 회원 등록
+
+9. 회원 수정
+
+10. 반 배정
+
+11. 퇴원
+
+12. 지난 회원
+
+13. 복원
+
+14. Excel Export
+
+실계정이 없어서 write E2E가 불가능하면
+임의 Production 데이터 생성 금지.
+
+그 경우:
+
+READ E2E:
+PASS/NOT TESTED
+
+WRITE E2E:
+PASS/NOT TESTED
+
+를 정확히 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. 실제 API Contract 우선
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 2-A에서 Home endpoint를 추측했다가
+P1이 발생했습니다.
+
+이번부터 절대 원칙:
+
+"UI를 먼저 만들고 endpoint를 추측하지 않는다."
+
+각 기능마다:
+
+Backend route 확인
+→ request schema 확인
+→ response schema 확인
+→ UI 연결
+
+순서.
+
+존재하지 않는 endpoint를 만들어서
+frontend를 맞추지 마십시오.
+
+기존 API로 해결할 수 있는 것은
+기존 API를 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. 수정 허용 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+artifacts/swimnote-dashboard/**
+
+필요한 package lock 최소 변경.
+
+금지:
+
+artifacts/swimnote-web source 수정
+artifacts/api-server 수정
+render.yaml 수정
+DB schema 수정
+
+만약 기존 API 버그 때문에
+회원 기능이 정말 구현 불가능한 부분이 발견되면
+
+API를 바로 고치지 말고
+완료보고에 BLOCKER로 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 완료보고 — 짧게
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+크레딧 절약을 위해
+완료보고를 길게 작성하지 마십시오.
+
+아래 형식만:
+
+A. BUILD
+
+Dashboard:
+Web regression:
+
+
+B. PHASE 2-A P1 FIX
+
+Home stats:
+사용 endpoint:
+
+
+C. X ACCESS
+
+contract:
+Guard:
+X 미가입 처리:
+
+
+D. MEMBERS
+
+목록:
+검색:
+필터:
+상세:
+등록:
+수정:
+반 배정:
+퇴원:
+지난 회원:
+복원:
+Excel:
+
+
+E. DATA SYNC
+
+Mutation 후 즉시 반영:
+사용 query invalidation:
+
+
+F. QA
+
+Browser:
+Read E2E:
+Write E2E:
+
+
+G. BUG
+
+P0:
+P1:
+Blocker:
+
+
+H. GIT
+
+branch:
+push:
+deploy:
+범위 밖 변경:
+
+
+I. 판정
+
+PASS / HOLD / FAIL
+
+이유 3줄 이내.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음이 구현되면 PHASE 2-B 완료:
+
+[ ] Home stats P1 해결
+
+[ ] X entitlement 기존 contract 연결
+
+[ ] 회원 목록
+
+[ ] 검색/필터
+
+[ ] 회원 상세
+
+[ ] 회원 등록
+
+[ ] 회원 수정
+
+[ ] 회원 메모 가능한 경우 연결
+
+[ ] 반 배정
+
+[ ] 퇴원
+
+[ ] 지난 회원
+
+[ ] 복원
+
+[ ] Excel export
+
+[ ] mutation 즉시 UI 반영
+
+[ ] 가짜 API 없음
+
+[ ] 가짜 회원 데이터 없음
+
+[ ] Dashboard build PASS
+
+[ ] Web regression build PASS
+
+[ ] push 없음
+
+[ ] deploy 없음
+
+완료 후 STOP.
+
+다음은 PHASE 2-C
+반 · 전체 스케줄 · 보강입니다.
