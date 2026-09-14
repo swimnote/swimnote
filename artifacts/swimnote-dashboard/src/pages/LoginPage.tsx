@@ -40,8 +40,13 @@ export default function LoginPage() {
 
     try {
       if (step.kind === "credentials") {
+        if (email.trim().length < 6) {
+          setError("아이디는 6자 이상 입력해주세요.");
+          setLoading(false);
+          return;
+        }
         const res = await publicPost<LoginResponse>("/auth/login", {
-          email: email.trim().toLowerCase(),
+          email: email.trim(),
           password,
           web_login: true,
         });
@@ -168,15 +173,14 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} noValidate>
           {step.kind === "credentials" ? (
             <>
-              <Field label="아이디 (이메일)">
+              <Field label="아이디">
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@example.com"
+                  placeholder="아이디를 입력하세요"
                   autoComplete="username"
                   autoFocus
-                  required
                   style={inputStyle}
                 />
               </Field>
