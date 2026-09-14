@@ -107,7 +107,7 @@ export default function SwimnoteXPage() {
               maxWidth: 600,
             }}
           >
-            수영 교육을 시스템으로.
+            수영 교육을 AI 시스템으로.
           </h1>
           <p
             style={{
