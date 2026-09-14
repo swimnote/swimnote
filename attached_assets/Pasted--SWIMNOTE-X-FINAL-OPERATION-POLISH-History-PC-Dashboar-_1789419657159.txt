@@ -1,0 +1,815 @@
+[SWIMNOTE X — FINAL OPERATION POLISH
+회원등록 동선 + 성장리포트 발행월 정책 + 학생소유 일지 History 정리]
+
+현재 PC Dashboard는 Production에서 실제 사용 가능한 상태입니다.
+
+이번 작업은 신규 기능 확장이 아니라
+실제 수영장 운영자가 헷갈리지 않도록
+핵심 데이터 흐름을 최종 정리하는 작업입니다.
+
+이번 한 번에 다음 4가지를 끝내십시오.
+
+1. 회원등록 → 엑셀 일괄등록 바로 연결
+2. 성장리포트 = 발행월 기준으로 통일 + 현재 API 오류 해결
+3. 일지 = 학생소유 기록으로 APP/PC 공통 정리
+4. 회원 Excel Export의 남은 구버전 비활성 UI 제거
+
+중간 설계보고 없이
+
+실제 contract 확인
+→ 필요한 최소 수정
+→ APP/PC 연결
+→ Production 배포
+→ 완료보고
+
+까지 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 핵심 운영 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업 이후 다음 기준을 SWIMNOTE의 고정 원칙으로 사용합니다.
+
+회원등록:
+- 한 명 직접 등록
+- Excel로 여러 명 일괄등록
+
+성장리포트:
+- 화면의 연/월 = "리포트 발행월"
+- 실제 분석 수업기간 = 발행월의 전월
+
+일지:
+- 작성 선생님 소유가 아님
+- 반 소유가 아님
+- 학생에게 발행/전달된 이후에는 학생의 교육기록
+- 선생님/반 변경 후에도 student_id 기준으로 계속 이어짐
+
+이 원칙과 충돌하는 기존 Dashboard UI/API가 있으면
+이번 작업에서 정리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 회원등록 동선 개선
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+홈
+→ 회원 등록
+→ 단건 회원등록 Form
+
+은 정상입니다.
+
+이 화면에서 바로 Excel 일괄등록으로 갈 수 있게 하십시오.
+
+회원등록 페이지 상단의 제목 영역 또는 자연스러운 우측 위치에
+Secondary Button 추가:
+
+[엑셀로 여러 명 등록]
+
+클릭:
+→ 기존 회원 일괄등록 화면으로 이동
+
+예:
+ /admin/members/bulk
+
+기존 Home Quick Action의
+"회원 등록"은 유지.
+
+Quick Action을 7개로 늘릴 필요 없음.
+
+회원등록 화면 안에서
+단건/일괄등록을 자연스럽게 전환하게 만드는 것이 목표.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. "대량 등록" 명칭 변경
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자에게 보이는:
+
+대량 등록
+
+이라는 명칭을
+
+엑셀 일괄등록
+
+으로 변경하십시오.
+
+Sidebar:
+대량 등록
+→ 엑셀 일괄등록
+
+페이지 제목:
+회원 대량 등록
+→ 회원 엑셀 일괄등록
+
+회원등록 화면 내부 버튼:
+→ "엑셀로 여러 명 등록"
+
+사용방법 문구도
+"대량등록"보다
+"엑셀 일괄등록" 표현을 사용.
+
+Backend route/API 이름은 변경하지 마십시오.
+
+UI 표시명만 변경.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 회원 Excel Export 남은 구버전 UI 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production 회원목록 화면에 현재:
+
+Excel 버튼이 disabled 상태이며
+
+"서버 미지원 — PHASE 2-F에서 구현 예정"
+
+이라는 과거 문구가 아직 보입니다.
+
+하지만 이후 구현에서:
+
+GET /admin/members/export
+
+또는 실제 최종 export endpoint를 구현했다고 보고되었습니다.
+
+실제 Production Backend contract를 다시 확인하십시오.
+
+endpoint가 정상 존재하고 pool_admin 사용 가능하면:
+
+- Excel 버튼 활성화
+- 과거 PHASE 문구 제거
+- 현재 검색/filter 조건 가능한 범위 전달
+- 실제 xlsx 다운로드
+
+로 연결.
+
+없는 endpoint를 가짜로 연결하지 말 것.
+
+이미 구현되어 있는데 Frontend만 구버전이면
+Frontend만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 성장리포트 월 정책 — 매우 중요
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE 성장리포트의 공식 월 기준을 다음으로 고정합니다.
+
+예:
+
+현재 날짜:
+2026년 9월
+
+Dashboard에서 선택:
+2026년 / 9월
+
+의미:
+"2026년 9월에 발행되는 AI 성장리포트"
+
+실제 수업 데이터:
+2026년 8월 수업
+
+즉:
+
+REPORT ISSUE MONTH = 2026-09
+LESSON TARGET MONTH = 2026-08
+
+입니다.
+
+화면 달력의 월을
+"수업이 있었던 달"로 사용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 월 경계 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전월 계산은 연도 경계까지 정확히 처리.
+
+예:
+
+2027년 1월 리포트
+→ 2026년 12월 수업 기준
+
+Frontend에서 단순 month-1 숫자 연산으로
+0월 같은 값 만들지 마십시오.
+
+기존 Growth Report cycle/backend가
+이미 issue month / target month를 보유한다면
+그 값을 source of truth로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Growth Report Backend 의미 먼저 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Dashboard는:
+
+GET /admin/growth-reports/monthly-list?year=&month=
+
+형태를 사용하고 있습니다.
+
+이 API의 year/month가 실제로:
+
+A. 발행월인지
+B. target lesson month인지
+
+코드/DB에서 직접 확인하십시오.
+
+Frontend에서 추측 금지.
+
+만약 endpoint가 target lesson month를 받는 구조라면:
+
+Dashboard에서 사용자가 2026-09를 선택
+→ API에는 target 2026-08을 전달
+
+하도록 adapter를 두십시오.
+
+가능하면 UI와 API 의미를 주석/함수명으로 분리:
+
+issueYear
+issueMonth
+
+targetYear
+targetMonth
+
+처럼 혼동이 없게 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 성장리포트 화면 표시
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 Growth Report 화면:
+
+검수 대기
+발행 관리
+발행 완료
+
+모두 동일한 월 정책 사용.
+
+예:
+
+[2026년] [9월]
+
+화면에 작은 설명:
+
+"2026년 9월 리포트 · 8월 수업 기준"
+
+또는 동일 의미의 자연스러운 표현.
+
+사용자가
+9월 리포트인데 왜 8월 수업내용이 나오지?
+라고 혼동하지 않도록 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 현재 Production Growth Report 오류 해결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 Production 화면에서:
+
+"성장리포트를 불러오지 못했습니다."
+
+가 나타납니다.
+
+단순 Empty가 아니라 API Error 상태입니다.
+
+반드시 실제 원인 확인.
+
+확인:
+
+- Dashboard request URL
+- selected year/month
+- Authorization
+- pool_admin permission
+- backend route
+- response status
+- response body
+- server log
+- status filtering
+
+9월 / 8월 모두 무작정 바꿔보는 식 금지.
+
+원인을 코드/contract 기준으로 잡아서 수정.
+
+정상 결과가 0건이면:
+
+"발행할 성장리포트가 없습니다."
+
+같은 Empty 상태를 보여야 하고
+
+API 실패일 때만:
+
+"성장리포트를 불러오지 못했습니다."
+
+표시.
+
+Empty와 Error를 구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Growth Report 발행 workflow 복구
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 정책:
+
+REVIEW_REQUIRED
+→ 개별 검수
+→ APPROVED
+→ 승인된 리포트 선택
+→ 발행
+→ PUBLISHED
+
+유지.
+
+현재 앱의 Growth Report와
+동일 backend report/cycle 데이터를 사용.
+
+Dashboard 전용 리포트 데이터 생성 금지.
+
+발행 성공 후:
+
+- 발행관리에서 제거
+- 발행완료로 이동
+- dashboard stats 갱신
+- realtime event 반영
+
+되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 성장리포트 공식 명칭
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+무료 리포트:
+
+AI 성장리포트
+
+유료:
+
+AI 인사이트 전략 리포트
+
+이번 작업은 무료 AI 성장리포트
+검수/발행 흐름 정리가 우선.
+
+결제 기능 신규 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 일지 데이터 모델 — 학생소유 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Dashboard의 일지 화면은
+class_diaries 중심으로 되어 있습니다.
+
+그러나 실제 운영상 가장 중요한 조회축은:
+
+학생
+
+입니다.
+
+일지를 작성하고
+특정 학생/학부모에게 발행/전달했다면
+
+그 기록은 이후:
+
+teacher_id가 바뀌어도
+class_group_id가 바뀌어도
+
+student_id에 계속 귀속되는 교육 History입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 실제 Diary → Student Feed 연결 구조 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+단순히 class_diaries에 student_notes가 있다는 이유만으로
+"학생에게 발행된 일지"라고 추정하지 마십시오.
+
+모바일 APP에서 실제:
+
+선생님 일지 작성
+→ 학생 선택
+→ 학생별 내용
+→ 학부모/학생 Feed에 전달
+
+되는 전체 write/read path를 추적하십시오.
+
+확인:
+
+- class_diaries
+- class_student_notes
+- student_id relation
+- 발행/전달 상태
+- parent feed relation
+- diary recipient mapping
+- deleted 상태
+- 실제 APP parent 화면 조회 route
+
+현재 schema에 존재하는 실제 관계만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Canonical Student Diary History
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+APP과 PC가 공통으로 사용할
+"학생 일지 History"의 의미를 확정합니다.
+
+student_id = X
+
+→ 그 학생에게 실제 귀속된
+과거~현재 일지 목록
+
+정렬:
+최신순
+
+포함:
+- 과거 반
+- 현재 반
+- 과거 담당선생님
+- 현재 담당선생님
+
+작성자 기준 필터 금지.
+
+현재 반 기준 필터 금지.
+
+Pool isolation 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 교사 권한 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher는:
+
+현재 해당 학생 상세정보를 볼 권한이 있으면
+→ 학생의 과거~현재 Diary History를 볼 수 있음.
+
+이전 담당 Teacher가
+현재 그 학생 접근권한을 잃었다면
+→ 과거에 자기가 작성했다는 이유만으로 접근 불가.
+
+즉:
+
+ACCESS 권한 = 현재 학생 접근권한
+
+DATA 귀속 = student_id
+
+입니다.
+
+이 둘을 혼동하지 마십시오.
+
+pool_admin:
+자기 pool 학생 history 전체 조회 가능.
+
+Parent:
+자기 자녀만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Dashboard 회원 상세 → 일지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Member Detail의:
+
+[일지 보기]
+
+연결을 실제 학생 History UX로 완성.
+
+클릭:
+
+student_id 자동전달
+
+→ 해당 학생 일지 History 화면
+
+상단:
+
+홍길동
+일지 기록
+
+같이 현재 대상 학생을 명확히 표시.
+
+사용자가 ID를 입력하게 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Dashboard "학생 ID (History)" 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 /admin/diary 화면에 보이는:
+
+학생 ID (History)
+
+수동 입력창은 일반 운영자용 UI에서 제거하십시오.
+
+수영장 원장이
+DB student ID를 알아야 사용할 수 있는 UI는 잘못된 UI입니다.
+
+일반 Diary 화면은:
+
+선생님/반/내용 검색
+기간
+
+등 전체 일지 탐색용으로 유지.
+
+학생별 History는:
+
+회원 상세
+→ 일지 보기
+
+동선이 canonical.
+
+필요하면 학생 이름 검색 selector를 제공할 수 있지만
+raw ID 입력은 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 학생 History 화면에 보여줄 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 field 범위에서:
+
+수업일
+반
+당시 선생님
+공통 수업내용
+학생 개별내용
+사진/영상 여부
+작성/발행일
+
+표시.
+
+특히:
+
+학생에게 전달된 개별내용
+
+이 명확하게 보여야 함.
+
+raw JSON
+AI trace
+prompt
+
+노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. Mobile APP도 동일 canonical history 사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 정리는 Dashboard 전용으로 끝내지 마십시오.
+
+모바일 Teacher의 학생 상세:
+
+→ 일지 보기
+
+도 동일 student-owned history contract를 사용하고 있는지 확인.
+
+이미 이전 수정으로 정상이라면 변경하지 않고
+같은 contract임을 확인.
+
+만약 아직:
+
+current teacher 작성분만
+current class만
+
+보는 코드가 남았다면 이번에 보정.
+
+Parent Feed 역시 기존 정상 동작을 깨지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 인수인계 시나리오 QA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드/API 기준으로 반드시 검증:
+
+학생 A
+
+1월:
+Teacher A / Class A
+
+2월:
+Teacher B / Class B
+
+3월:
+Teacher C / Class C
+
+현재 Teacher C가
+학생 A 접근권한이 있다면
+
+일지보기:
+
+1월
+2월
+3월
+
+학생에게 귀속된 기록이 모두 보여야 함.
+
+Teacher A가 현재 학생 A에 접근권한이 없다면
+접근 불가.
+
+pool_admin은 전부 조회 가능.
+
+이것이 최종 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. Realtime
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 PostgreSQL LISTEN/NOTIFY + SSE 유지.
+
+Diary 발행/수정 관련 mutation 후:
+
+diary.changed
+
+→ 학생 History query
+→ 전체 Diary query
+
+필요한 query invalidate.
+
+Growth Report 상태 변경 후:
+
+growth_report.changed
+
+→ 검수대기
+→ 발행관리
+→ 발행완료
+→ dashboard stats
+
+invalidate/refetch.
+
+새 realtime 시스템 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. UI 문구 최종 정리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 용어:
+
+"대량 등록"
+→ "엑셀 일괄등록"
+
+"회원 대량 등록"
+→ "회원 엑셀 일괄등록"
+
+단건 화면 Secondary:
+→ "엑셀로 여러 명 등록"
+
+Growth Report:
+→ 발행월을 제목 기준으로 사용
+
+예:
+"2026년 9월 AI 성장리포트"
+"8월 수업 기준"
+
+Diary History:
+→ "학생 일지"
+또는 "일지 기록"
+
+"학생 ID (History)"
+→ 제거.
+
+개발단계 용어:
+
+PHASE 2-F
+서버 미지원 예정
+구현 예정
+
+같은 문구가 Production UI에 남아 있으면 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 하지 않음:
+
+새 결제기능
+새 AI 기능
+새 Curriculum 기능
+새 DB 대규모 구조
+Growth Report PDF 엔진
+Marketing 변경
+AI ENGINE 변경
+
+이번 작업은 운영 교통정리만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. QA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production 기준 최소 확인:
+
+회원등록:
+- 단건 등록 화면
+- 엑셀로 여러 명 등록 버튼
+- Excel 일괄등록 이동
+
+회원목록:
+- Excel export 활성 여부
+
+Growth Report:
+- 현재 월 default
+- 발행월/수업월 정확
+- Error/Empty 구분
+- 검수대기 조회
+- 발행관리 조회
+- 발행완료 조회
+- publish mutation contract
+
+Diary:
+- 일반 전체 일지
+- raw student ID 입력 제거
+- Member Detail → 일지 보기
+- student-owned history
+- teacher/class 변경과 무관한 history
+- current access permission
+- APP contract 일치
+
+Build:
+Dashboard PASS
+API 수정 시 신규 TS 오류 0
+APP 수정 시 해당 bundle/type check
+Web regression 필요 시 최소 확인
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+QA PASS 후 main push.
+
+Render:
+
+swimnote-api 변경 시 API deploy live 확인.
+swimnote-web Static Site dashboard deploy live 확인.
+
+APP native 변경 없이 JS only면
+실제 현재 배포정책에 맞는 OTA 필요 여부를 판단.
+
+앱 코드를 수정하지 않았다면 OTA 금지.
+
+DB migration은 이번 작업에서 원칙적으로 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. MEMBER FLOW
+
+Single register:
+Excel bulk button:
+Sidebar name:
+Excel export:
+
+
+B. GROWTH REPORT
+
+Issue month policy:
+Target lesson month:
+API month semantics:
+Production error cause:
+Pending:
+Publish:
+Published:
+Empty/Error:
+
+
+C. STUDENT DIARY OWNERSHIP
+
+Canonical relation:
+Student history endpoint:
+Teacher access:
+Pool admin access:
+Parent relation:
+Class/teacher transfer history:
+
+
+D. DASHBOARD DIARY
+
+Member→Diary:
+Raw student ID:
+History UI:
+Media:
+
+
+E. MOBILE APP
+
+Same contract:
+Any change:
+OTA:
+
+
+F. REALTIME
+
+Diary:
+Growth report:
+
+
+G. BUILD / DEPLOY
+
+Dashboard:
+API:
+APP:
+Commit:
+API deploy:
+Static deploy:
+
+
+H. BUG
+
+P0:
+P1:
+Blocker:
+
+
+I. FINAL STATUS
+
+PASS / HOLD / FAIL
+
+완료 후 STOP.
