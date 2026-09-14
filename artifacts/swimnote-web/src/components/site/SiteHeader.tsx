@@ -599,33 +599,35 @@ export default function SiteHeader() {
             ))}
           </nav>
 
-          {/* ── Right: PC Dashboard + ⋯ ──────────────────────────── */}
+          {/* ── Right: PC Dashboard (desktop only) + ⋯ ─────────────── */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  height: 30,
-                  padding: "0 13px",
-                  borderRadius: "var(--ds-radius-pill)",
-                  background: "var(--ds-n-200)",
-                  color: "var(--ds-n-500)",
-                  fontSize: 12,
-                  fontWeight: "var(--ds-fw-medium)",
-                  whiteSpace: "nowrap",
-                  letterSpacing: "-0.005em",
-                  cursor: "default",
-                  userSelect: "none",
-                }}
-                aria-disabled="true"
-              >
-                {isDesktop ? "PC 대시보드" : "PC"}
-              </span>
-              <span style={{ fontSize: 9, color: "var(--ds-n-400)", letterSpacing: "0.02em", lineHeight: 1 }}>
-                준비 중
-              </span>
-            </div>
+            {isDesktop && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    height: 30,
+                    padding: "0 13px",
+                    borderRadius: "var(--ds-radius-pill)",
+                    background: "var(--ds-n-200)",
+                    color: "var(--ds-n-500)",
+                    fontSize: 12,
+                    fontWeight: "var(--ds-fw-medium)",
+                    whiteSpace: "nowrap",
+                    letterSpacing: "-0.005em",
+                    cursor: "default",
+                    userSelect: "none",
+                  }}
+                  aria-disabled="true"
+                >
+                  PC 대시보드
+                </span>
+                <span style={{ fontSize: 9, color: "var(--ds-n-400)", letterSpacing: "0.02em", lineHeight: 1 }}>
+                  준비 중
+                </span>
+              </div>
+            )}
 
             {/* ⋯ */}
             <button
