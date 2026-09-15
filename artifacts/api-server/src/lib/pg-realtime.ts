@@ -84,12 +84,17 @@ export function setRealtimeDb(db: any): void {
 }
 
 export async function notifyPoolEvent(event: Omit<PoolEventPayload, never>): Promise<void> {
-  if (!_db) return;
   try {
     const payload = JSON.stringify({ type: event.type, pool_id: event.pool_id, entity_id: event.entity_id ?? null });
-    // Use drizzle sql tag for safe parameterized execution
-    const { sql: dSql } = await import("drizzle-orm");
-    await _db.execute(dSql`SELECT pg_notify('pool_events', ${payload})`);
+    if (listenClient) {
+      // LISTEN 전용 direct connection에서 pg_notify 전송
+      // → 동일 PostgreSQL 인스턴스/백엔드 보장 → 즉시 수신
+      await listenClient.query("SELECT pg_notify($1, $2)", ["pool_events", payload]);
+    } else if (_db) {
+      // listenClient 미준비 시 drizzle pool fallback
+      const { sql: dSql } = await import("drizzle-orm");
+      await _db.execute(dSql`SELECT pg_notify('pool_events', ${payload})`);
+    }
   } catch (e: any) {
     // NOTIFY failure must NOT affect business mutation — just log
     console.warn(`[realtime] notify failed type=${event.type}: ${e?.message}`);
