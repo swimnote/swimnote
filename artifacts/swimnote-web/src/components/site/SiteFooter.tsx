@@ -123,7 +123,7 @@ export default function SiteFooter() {
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "var(--ds-n-600)"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--ds-n-300)"; }}
           >
-            관리자 로그인
+            SWIMNOTE AI
           </a>
         </div>
       </div>
