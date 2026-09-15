@@ -2230,6 +2230,66 @@ router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin"),
   }
 );
 
+// PATCH /admin/makeups/:id/status-override — 대기↔만료 수동 전환 (pool_admin/super_admin)
+router.patch("/makeups/:id/status-override", requireAuth, requireRole("super_admin","pool_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) { res.status(403).json({ error: "수영장 없음" }); return; }
+      const actor = req.user as any;
+      const { target_status } = req.body;
+      if (!["waiting","expired"].includes(target_status)) {
+        res.status(400).json({ error: "target_status는 waiting 또는 expired만 허용됩니다" }); return;
+      }
+      const rows = (await db.execute(sql`
+        SELECT id, status, student_id, student_name, absence_date
+        FROM makeup_sessions WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
+      const mk = rows[0];
+      const allowed = (mk.status === "waiting" && target_status === "expired") ||
+                      (mk.status === "expired" && target_status === "waiting");
+      if (!allowed) {
+        res.status(400).json({ error: `현재 상태(${mk.status})에서 ${target_status}로 변경할 수 없습니다` }); return;
+      }
+      // 만료→대기 복원: pool 보강 정책으로 expire_at 재계산 (복원 시점 기준)
+      let newExpireAt: string | null = null;
+      if (target_status === "waiting") {
+        const policyRow = (await db.execute(sql`
+          SELECT make_up_expiry_type, make_up_expiry_days FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `)).rows[0] as any;
+        const expiryType: string = policyRow?.make_up_expiry_type ?? "end_of_month";
+        const expiryDays: number | null = policyRow?.make_up_expiry_days ?? null;
+        const base = new Date();
+        if (expiryType === "fixed_days" && expiryDays && expiryDays > 0) {
+          base.setDate(base.getDate() + expiryDays);
+          newExpireAt = base.toISOString();
+        } else if (expiryType === "end_of_month") {
+          newExpireAt = new Date(base.getFullYear(), base.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        } else if (expiryType === "next_month_end") {
+          newExpireAt = new Date(base.getFullYear(), base.getMonth() + 2, 0, 23, 59, 59).toISOString();
+        }
+      }
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          status     = ${target_status},
+          expire_at  = ${newExpireAt},
+          updated_at = now()
+        WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
+      `);
+      await writeActivityLog({
+        poolId, studentId: mk.student_id, targetName: mk.student_name || req.params.id,
+        actionType: "makeup_status_override", targetType: "makeup",
+        beforeValue: mk.status, afterValue: target_status,
+        actorId: actor.userId, actorName: actor.name || "관리자", actorRole: actor.role,
+        note: `수동 상태 변경: ${mk.status} → ${target_status}${newExpireAt ? ` (새 만료일: ${newExpireAt.slice(0,10)})` : ""}`,
+      });
+      notifyPoolEvent({ type: "makeup.changed", pool_id: poolId, entity_id: req.params.id }).catch(() => {});
+      res.json({ success: true, new_status: target_status, new_expire_at: newExpireAt });
+    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // POST /admin/makeups/:id/extinguish — 결석소멸 (사유 포함)
 router.post("/makeups/:id/extinguish", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {

@@ -189,6 +189,38 @@ export default function MakeupsScreen() {
     });
   };
 
+  const requestExpire = (mk: any) => {
+    setConfirmAction({
+      title: "보강 만료 처리",
+      message: `이 보강을 만료 처리하시겠습니까?`,
+      confirmText: "만료 처리",
+      confirmColor: "#6B7280",
+      onConfirm: () => {
+        setMakeups(prev => prev.filter(m => m.id !== mk.id));
+        apiRequest(token, `/admin/makeups/${mk.id}/status-override`, {
+          method: "PATCH",
+          body: JSON.stringify({ target_status: "expired" }),
+        }).then(r => { if (!r.ok) load(); }).catch(() => load());
+      },
+    });
+  };
+
+  const requestRestore = (mk: any) => {
+    setConfirmAction({
+      title: "보강 대기 복원",
+      message: `이 보강을 다시 대기 상태로 복원하시겠습니까?\n현재 보강 정책에 따라 새로운 유효기간이 적용됩니다.`,
+      confirmText: "대기로 복원",
+      confirmColor: "#D97706",
+      onConfirm: () => {
+        setMakeups(prev => prev.filter(m => m.id !== mk.id));
+        apiRequest(token, `/admin/makeups/${mk.id}/status-override`, {
+          method: "PATCH",
+          body: JSON.stringify({ target_status: "waiting" }),
+        }).then(r => { if (!r.ok) load(); }).catch(() => load());
+      },
+    });
+  };
+
   return (
     <View style={s.root}>
       <SubScreenHeader
@@ -240,6 +272,8 @@ export default function MakeupsScreen() {
               onComplete={() => requestComplete(item)}
               onRevert={() => requestRevert(item)}
               onCancel={() => requestCancel(item)}
+              onExpire={() => requestExpire(item)}
+              onRestore={() => requestRestore(item)}
               onMemberPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id, backTo: "makeups" } })}
             />
           )}
@@ -388,10 +422,11 @@ function formatExpireAt(expireAt: string | null): { text: string; color: string 
   return { text: `만료일: ${dateStr}`, color: C.textSecondary };
 }
 
-function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, onRevert, onCancel, onMemberPress }: {
+function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, onRevert, onCancel, onExpire, onRestore, onMemberPress }: {
   item: any; tab: MkTab; themeColor: string;
   onAssign: () => void; onTransfer: () => void;
   onComplete: () => void; onRevert: () => void; onCancel: () => void;
+  onExpire: () => void; onRestore: () => void;
   onMemberPress: () => void;
 }) {
   const st = MK_STATUS[item.status] || { label: item.status, color: C.textSecondary, bg: "#FFFFFF" };
@@ -427,7 +462,14 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
         </View>
       </View>
 
-      {/* pool_admin — 보강 mutation 버튼 비노출 (READ ONLY 현황 감독용) */}
+      {/* 결석자 리스트 탭 — waiting 항목: 만료 처리 버튼 */}
+      {tab === "결석자 리스트" && item.status === "waiting" && (
+        <Pressable onPress={onExpire}
+          style={[s.overrideBtn, { borderColor: "#9CA3AF", backgroundColor: "#F9FAFB" }]}>
+          <LucideIcon name="clock" size={13} color="#6B7280" />
+          <Text style={[s.overrideTxt, { color: "#6B7280" }]}>만료 처리</Text>
+        </Pressable>
+      )}
 
       {/* 완료 기록 탭 — 읽기 전용 */}
       {tab === "완료 기록" && item.substitute_teacher_name && (
@@ -439,14 +481,21 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
         </View>
       )}
 
-      {/* 만료 탭 — 읽기 전용 */}
+      {/* 만료 탭 — 대기로 복원 버튼 */}
       {tab === "만료" && (
-        <View style={[s.completedBanner, { backgroundColor: "#F3F4F6" }]}>
-          <LucideIcon name="clock" size={12} color={C.textSecondary} />
-          <Text style={[s.completedTxt, { color: C.textSecondary }]}>
-            보강권 만료됨{item.expire_at ? ` · ${new Date(item.expire_at).toLocaleDateString("ko-KR")}` : ""}
-          </Text>
-        </View>
+        <>
+          <View style={[s.completedBanner, { backgroundColor: "#F3F4F6" }]}>
+            <LucideIcon name="clock" size={12} color={C.textSecondary} />
+            <Text style={[s.completedTxt, { color: C.textSecondary }]}>
+              보강권 만료됨{item.expire_at ? ` · ${new Date(item.expire_at).toLocaleDateString("ko-KR")}` : ""}
+            </Text>
+          </View>
+          <Pressable onPress={onRestore}
+            style={[s.overrideBtn, { borderColor: "#D97706", backgroundColor: "#FFF8EE", marginTop: 4 }]}>
+            <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
+            <Text style={[s.overrideTxt, { color: "#D97706" }]}>대기로 복원</Text>
+          </Pressable>
+        </>
       )}
     </View>
   );
@@ -478,4 +527,6 @@ const s = StyleSheet.create({
   dateInput:     { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: C.text, backgroundColor: "#FAFAFA" },
   pastWarn:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF8EE", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: "#FDE68A" },
   pastWarnTxt:   { fontSize: 12, color: "#92400E", flex: 1 },
+  overrideBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 7, borderRadius: 8, borderWidth: 1.5 },
+  overrideTxt:   { fontSize: 12, fontWeight: "600" },
 });
