@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { ApiError } from "@/lib/api-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,17 +19,6 @@ interface MakeupSession {
   is_expired: boolean;
   swimming_pool_id?: string;
   created_at?: string;
-}
-
-interface EligibleClass {
-  id: string;
-  name: string;
-  schedule_days: string;
-  schedule_time: string;
-  capacity: number | null;
-  current_members: number;
-  available_slots: number;
-  is_eligible: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -65,11 +53,6 @@ function formatDate(s: string | null): string {
   }
 }
 
-function errMsg(e: unknown): string {
-  if (e && typeof e === "object" && "message" in e) return (e as ApiError).message;
-  return "오류가 발생했습니다.";
-}
-
 // ─── StatusBadge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
@@ -84,245 +67,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ─── AssignDrawer ─────────────────────────────────────────────────────────────
-
-function AssignDrawer({
-  makeup,
-  onClose,
-}: {
-  makeup: MakeupSession;
-  onClose: () => void;
-}) {
-  const qc = useQueryClient();
-  const [selectedClass, setSelectedClass] = useState<EligibleClass | null>(null);
-  const [assignDate, setAssignDate] = useState("");
-  const [formError, setFormError] = useState("");
-
-  const { data: eligibleClasses = [], isLoading: ecLoading, isError: ecError } = useQuery<EligibleClass[]>({
-    queryKey: ["makeup-eligible-classes"],
-    queryFn: () => api.get("/admin/makeups/eligible-classes"),
-  });
-
-  const assignMut = useMutation({
-    mutationFn: (body: { class_group_id: string; assigned_date: string }) =>
-      api.patch(`/admin/makeups/${makeup.id}/assign`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["makeups"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      onClose();
-    },
-    onError: (e) => setFormError(errMsg(e)),
-  });
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  function handleAssign() {
-    if (!selectedClass) { setFormError("반을 선택해주세요."); return; }
-    if (!assignDate) { setFormError("보강 날짜를 입력해주세요."); return; }
-    // 요일 검증: selected class schedule_days vs assignDate weekday
-    if (selectedClass.schedule_days) {
-      const d = new Date(assignDate + "T00:00:00");
-      const koWeekdays = ["일", "월", "화", "수", "목", "금", "토"];
-      const assignedKo = koWeekdays[d.getDay()];
-      const classDays = selectedClass.schedule_days.split(",").map((s) => s.trim());
-      if (!classDays.includes(assignedKo)) {
-        const daysDisplay = classDays.join("·");
-        setFormError(`선택한 반은 ${daysDisplay}요일에 수업합니다. 보강 날짜를 다시 선택해주세요.`);
-        return;
-      }
-    }
-    setFormError("");
-    assignMut.mutate({ class_group_id: selectedClass.id, assigned_date: assignDate });
-  }
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", zIndex: 40 }} />
-      <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: "420px",
-        background: "#fff", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
-        zIndex: 50, display: "flex", flexDirection: "column",
-      }}>
-        <div style={{ padding: "20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B" }}>보강 배정</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#64748B" }}>×</button>
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-          {/* 대상 요약 */}
-          <div style={{ padding: "12px", background: "#F8FAFC", borderRadius: "6px", marginBottom: "20px", border: "1px solid #E2E8F0" }}>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "#1E293B", marginBottom: "4px" }}>
-              {makeup.student_name}
-            </div>
-            <div style={{ fontSize: "12px", color: "#64748B" }}>
-              원반: {makeup.original_class_group_name || "—"}
-            </div>
-            <div style={{ fontSize: "12px", color: "#64748B" }}>
-              결석일: {formatDate(makeup.absence_date)}
-            </div>
-            {makeup.expire_at && (
-              <div style={{ fontSize: "12px", color: "#94A3B8" }}>
-                보강 기한: {formatDate(makeup.expire_at)}
-              </div>
-            )}
-          </div>
-
-          {/* 반 선택 */}
-          <div style={{ marginBottom: "16px" }}>
-            <div style={{ fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "8px" }}>
-              보강 반 선택 <span style={{ color: "#EF4444" }}>*</span>
-            </div>
-            {ecLoading ? (
-              <div style={{ color: "#94A3B8", fontSize: "13px" }}>반 목록 로딩 중…</div>
-            ) : ecError ? (
-              <div style={{ color: "#EF4444", fontSize: "13px" }}>불러오지 못했습니다.</div>
-            ) : eligibleClasses.length === 0 ? (
-              <div style={{ color: "#94A3B8", fontSize: "13px" }}>가능한 반이 없습니다.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {eligibleClasses.map((ec) => {
-                  const full = ec.available_slots <= 0;
-                  const selected = selectedClass?.id === ec.id;
-                  return (
-                    <button
-                      key={ec.id}
-                      onClick={() => !full && setSelectedClass(ec)}
-                      disabled={full}
-                      style={{
-                        padding: "10px 12px", borderRadius: "6px", cursor: full ? "not-allowed" : "pointer",
-                        border: selected ? "2px solid #1D4E8F" : "1px solid #E2E8F0",
-                        background: selected ? "#EEF4FB" : full ? "#F9FAFB" : "#fff",
-                        textAlign: "left", opacity: full ? 0.6 : 1,
-                      }}
-                    >
-                      <div style={{ fontSize: "13px", fontWeight: 600, color: "#1E293B", marginBottom: "2px" }}>
-                        {ec.name}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#64748B" }}>
-                        {ec.schedule_days} / {ec.schedule_time}
-                      </div>
-                      <div style={{ fontSize: "12px", color: full ? "#DC2626" : "#64748B", marginTop: "2px" }}>
-                        {ec.current_members}{ec.capacity != null ? ` / ${ec.capacity}` : ""}명
-                        {full ? " (정원 초과)" : ec.available_slots != null ? ` · 여유 ${ec.available_slots}` : ""}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* 날짜 입력 */}
-          <div style={{ marginBottom: "16px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#475569", marginBottom: "4px" }}>
-              보강 날짜 <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <input
-              type="date"
-              value={assignDate}
-              onChange={(e) => setAssignDate(e.target.value)}
-              style={{ width: "100%", padding: "8px 10px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", boxSizing: "border-box" }}
-            />
-          </div>
-
-          {/* 최종 확인 */}
-          {selectedClass && assignDate && (
-            <div style={{ padding: "12px", background: "#F0F7FF", borderRadius: "6px", border: "1px solid #BFDBFE", marginBottom: "16px" }}>
-              <div style={{ fontSize: "12px", fontWeight: 600, color: "#1D4E8F", marginBottom: "6px" }}>배정 확인</div>
-              <div style={{ fontSize: "12px", color: "#1E40AF" }}>회원: {makeup.student_name}</div>
-              <div style={{ fontSize: "12px", color: "#1E40AF" }}>반: {selectedClass.name}</div>
-              <div style={{ fontSize: "12px", color: "#1E40AF" }}>날짜: {formatDate(assignDate)}</div>
-            </div>
-          )}
-
-          {formError && (
-            <div style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>
-              {formError}
-            </div>
-          )}
-        </div>
-
-        <div style={{ padding: "16px 20px", borderTop: "1px solid #E2E8F0" }}>
-          <button
-            onClick={handleAssign}
-            disabled={assignMut.isPending}
-            style={{
-              width: "100%", padding: "10px",
-              background: assignMut.isPending ? "#93A8C4" : "#1D4E8F",
-              color: "#fff", border: "none", borderRadius: "6px",
-              cursor: assignMut.isPending ? "not-allowed" : "pointer",
-              fontSize: "13px", fontWeight: 600,
-            }}
-          >
-            {assignMut.isPending ? "배정 중…" : "보강 배정"}
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── ConfirmModal ─────────────────────────────────────────────────────────────
-
-function ConfirmModal({
-  title,
-  body,
-  confirmLabel,
-  onConfirm,
-  onCancel,
-  loading,
-  error,
-}: {
-  title: string;
-  body: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  loading: boolean;
-  error: string;
-}) {
-  return (
-    <>
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 60 }} />
-      <div style={{
-        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-        zIndex: 70, background: "#fff", borderRadius: "10px",
-        boxShadow: "0 8px 40px rgba(0,0,0,0.16)", padding: "28px 28px 24px",
-        width: "min(380px, calc(100vw - 48px))",
-      }}>
-        <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "10px" }}>{title}</div>
-        <div style={{ fontSize: "13px", color: "#475569", marginBottom: "20px", lineHeight: 1.6 }}>{body}</div>
-        {error && (
-          <div style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>
-            {error}
-          </div>
-        )}
-        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-          <button onClick={onCancel} disabled={loading} style={{ padding: "8px 16px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}>
-            취소
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            style={{
-              padding: "8px 16px", background: loading ? "#D1D5DB" : "#DC2626",
-              color: "#fff", border: "none", borderRadius: "6px",
-              cursor: loading ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600,
-            }}
-          >
-            {loading ? "처리 중…" : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── MakeupsPage ──────────────────────────────────────────────────────────────
+// ─── Status filter options ────────────────────────────────────────────────────
 
 const STATUS_FILTER_OPTIONS = [
   { value: "", label: "전체 상태" },
@@ -333,28 +78,16 @@ const STATUS_FILTER_OPTIONS = [
   { value: "expired", label: "만료" },
 ];
 
+// ─── MakeupsPage ──────────────────────────────────────────────────────────────
+
 export default function MakeupsPage() {
-  const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("waiting");
   const [search, setSearch] = useState("");
-  const [assignTarget, setAssignTarget] = useState<MakeupSession | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<MakeupSession | null>(null);
-  const [cancelError, setCancelError] = useState("");
 
   const { data: makeups = [], isLoading, isError } = useQuery<MakeupSession[]>({
     queryKey: ["makeups", statusFilter],
     queryFn: () =>
       api.get(`/admin/makeups${statusFilter ? `?status=${statusFilter}` : ""}`),
-  });
-
-  const cancelMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/admin/makeups/${id}/cancel`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["makeups"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      setCancelTarget(null);
-    },
-    onError: (e) => setCancelError(errMsg(e)),
   });
 
   const filtered = makeups.filter((m) => {
@@ -384,7 +117,7 @@ export default function MakeupsPage() {
         <div>
           <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>보강 현황</h1>
           <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0" }}>
-            {filtered.length}건
+            {filtered.length}건 · 읽기 전용
           </p>
         </div>
       </div>
@@ -425,13 +158,13 @@ export default function MakeupsPage() {
       ) : isLoading ? (
         <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>로딩 중…</div>
       ) : sorted.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>처리할 보강이 없습니다.</div>
+        <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>표시할 보강이 없습니다.</div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: "8px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
-                {["회원", "원반", "결석일", "보강 기한", "배정 반", "보강일", "상태", "관리"].map((h) => (
+                {["회원", "원반", "결석일", "보강 기한", "배정 반", "보강일", "상태"].map((h) => (
                   <th key={h} style={{ padding: "10px 12px", fontSize: "12px", fontWeight: 600, color: "#64748B", textAlign: "left", borderBottom: "1px solid #E2E8F0" }}>
                     {h}
                   </th>
@@ -465,60 +198,11 @@ export default function MakeupsPage() {
                   <td style={{ padding: "10px 12px", borderBottom: "1px solid #F1F5F9" }}>
                     <StatusBadge status={m.status} />
                   </td>
-                  <td style={{ padding: "10px 12px", borderBottom: "1px solid #F1F5F9" }}>
-                    <div style={{ display: "flex", gap: "4px" }}>
-                      {(m.status === "waiting" || m.is_expired) && (
-                        <button
-                          onClick={() => setAssignTarget(m)}
-                          style={{ padding: "4px 8px", background: "#EEF4FB", border: "1px solid #BFDBFE", borderRadius: "4px", cursor: "pointer", fontSize: "11px", color: "#1D4E8F", fontWeight: 600 }}
-                        >
-                          배정
-                        </button>
-                      )}
-                      {m.status === "assigned" && (
-                        <>
-                          <button
-                            onClick={() => setAssignTarget(m)}
-                            style={{ padding: "4px 8px", background: "#F1F5F9", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "11px", color: "#475569" }}
-                          >
-                            변경
-                          </button>
-                          <button
-                            onClick={() => { setCancelTarget(m); setCancelError(""); }}
-                            style={{ padding: "4px 8px", background: "#FEF2F2", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "11px", color: "#DC2626" }}
-                          >
-                            취소
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Assign drawer */}
-      {assignTarget && (
-        <AssignDrawer
-          makeup={assignTarget}
-          onClose={() => setAssignTarget(null)}
-        />
-      )}
-
-      {/* Cancel confirm */}
-      {cancelTarget && (
-        <ConfirmModal
-          title="보강 배정 취소"
-          body={`${cancelTarget.student_name} 회원의 ${formatDate(cancelTarget.assigned_date)} 보강 배정을 취소합니다. 취소 후에는 다시 미배정 상태로 돌아옵니다.`}
-          confirmLabel="보강 취소"
-          onConfirm={() => cancelMut.mutate(cancelTarget.id)}
-          onCancel={() => { setCancelTarget(null); setCancelError(""); }}
-          loading={cancelMut.isPending}
-          error={cancelError}
-        />
       )}
     </div>
   );

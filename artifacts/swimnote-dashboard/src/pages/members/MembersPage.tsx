@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "@/lib/api-client";
 import {
   Search, X, ChevronLeft, ChevronRight, UserMinus,
-  Edit2, RefreshCw, AlertCircle, Download, BookOpen,
+  Edit2, RefreshCw, AlertCircle, Download, BookOpen, FileText,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -236,6 +236,8 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onEdit, onVie
               </p>
             </Section>
           )}
+
+          <GrHistorySection studentId={student.id} />
         </div>
 
         {/* Footer Actions */}
@@ -313,6 +315,74 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onEdit, onVie
         </div>
       </div>
     </>
+  );
+}
+
+// ── GR History inline section ──────────────────────────────────────────────
+
+interface GrSummaryItem {
+  report_id:     string;
+  student_id:    string;
+  report_period: string;
+  published_at:  string | null;
+  summary_text:  string | null;
+}
+
+function formatGrPeriod(period: string): string {
+  const parts = period.split("-");
+  if (parts.length < 2) return period;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const issueM = m === 12 ? 1 : m + 1;
+  const issueY = m === 12 ? y + 1 : y;
+  return `${issueY}년 ${issueM}월`;
+}
+
+function GrHistorySection({ studentId }: { studentId: string }) {
+  const { data, isLoading, isError } = useQuery<{ success: boolean; reports: GrSummaryItem[] }>({
+    queryKey: ["member-gr-history", studentId],
+    queryFn: () => api.get(`/admin/growth-reports/students/${studentId}`),
+    staleTime: 60_000,
+  });
+
+  const items = data?.reports ?? [];
+
+  return (
+    <div style={{ marginTop: "20px" }}>
+      <div style={{ fontSize: "11px", fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
+        성장리포트 발행 이력
+      </div>
+      {isLoading ? (
+        <div style={{ fontSize: "13px", color: "#9CA3AF" }}>로딩 중…</div>
+      ) : isError ? (
+        <div style={{ fontSize: "13px", color: "#EF4444" }}>불러오지 못했습니다.</div>
+      ) : items.length === 0 ? (
+        <div style={{ fontSize: "13px", color: "#9CA3AF" }}>발행된 성장리포트가 없습니다.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {items.map(item => (
+            <div
+              key={item.report_id}
+              style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: "8px 10px", borderRadius: "6px",
+                background: "#F8FAFC", border: "1px solid #E5E7EB",
+              }}
+            >
+              <FileText size={14} color="#64748B" />
+              <span style={{ flex: 1, fontSize: "13px", fontWeight: 500, color: "#1E293B" }}>
+                {formatGrPeriod(item.report_period)} 성장리포트
+              </span>
+              {item.published_at && (
+                <span style={{ fontSize: "11px", color: "#94A3B8" }}>
+                  {new Date(item.published_at).toLocaleDateString("ko-KR")} 발행
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

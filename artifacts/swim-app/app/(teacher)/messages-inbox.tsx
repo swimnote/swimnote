@@ -509,8 +509,8 @@ export default function MessagesInboxScreen() {
                     if (item.ref_id) {
                       if (item.type === "growth_report_like" || item.type === "growth_report_comment") {
                         router.push({
-                          pathname: "/(teacher)/growth-report-reactions",
-                          params: { reportId: item.ref_id, source: "news_inbox" },
+                          pathname: "/(teacher)/teacher-gr-detail",
+                          params: { reportId: item.ref_id },
                         } as any);
                       } else if (
                         item.type === "diary_comment" ||

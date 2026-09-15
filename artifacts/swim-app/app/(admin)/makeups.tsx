@@ -427,53 +427,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
         </View>
       </View>
 
-      {/* 결석자 리스트 액션 */}
-      {tab === "결석자 리스트" && (
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-          <Pressable style={[s.actBtn, { backgroundColor: C.primaryAction }]} onPress={onAssign}>
-            <Text style={s.actBtnTxt}>보강반 배정</Text>
-          </Pressable>
-          <Pressable style={[s.actBtn, { backgroundColor: "#EEDDF5" }]} onPress={onTransfer}>
-            <Text style={[s.actBtnTxt, { color: "#7C3AED" }]}>다른선생님</Text>
-          </Pressable>
-          <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]} onPress={onCancel}>
-            <Text style={[s.actBtnTxt, { color: C.textSecondary }]}>취소</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* 담당 보강 액션 */}
-      {tab === "담당 보강" && (
-        <View style={{ gap: 8, marginTop: 10 }}>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable style={[s.actBtn, { backgroundColor: C.brandSoft, flex: 1 }]} onPress={onComplete}>
-              <LucideIcon name="check-circle" size={14} color={C.brandStrong} />
-              <Text style={[s.actBtnTxt, { color: C.brandStrong }]}>보강 완료 처리</Text>
-            </Pressable>
-            <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]} onPress={onCancel}>
-              <Text style={[s.actBtnTxt, { color: C.textSecondary }]}>취소</Text>
-            </Pressable>
-          </View>
-          <Pressable style={[s.revertBtn]} onPress={onRevert}>
-            <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
-            <Text style={s.revertTxt}>보강대기자로 되돌리기</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {/* 다른선생님 탭 액션 */}
-      {tab === "다른선생님" && (
-        <View style={{ gap: 8, marginTop: 10 }}>
-          <Pressable style={[s.actBtn, { backgroundColor: C.brandSoft, flexDirection: "row", gap: 6 }]} onPress={onComplete}>
-            <LucideIcon name="check-circle" size={14} color={C.brandStrong} />
-            <Text style={[s.actBtnTxt, { color: C.brandStrong }]}>대리보강 완료</Text>
-          </Pressable>
-          <Pressable style={s.revertBtn} onPress={onRevert}>
-            <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
-            <Text style={s.revertTxt}>보강대기자로 되돌리기</Text>
-          </Pressable>
-        </View>
-      )}
+      {/* pool_admin — 보강 mutation 버튼 비노출 (READ ONLY 현황 감독용) */}
 
       {/* 완료 기록 탭 — 읽기 전용 */}
       {tab === "완료 기록" && item.substitute_teacher_name && (

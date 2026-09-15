@@ -530,6 +530,44 @@ router.post(
   }
 );
 
+// ─── GET /admin/growth-reports/students/:studentId — 학생별 PUBLISHED GR 이력 ─
+// 실제 경로: /admin/growth-reports/students/:studentId (라우터 마운트 기준)
+
+router.get(
+  "/students/:studentId",
+  requireAuth,
+  requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = parsePoolAdmin(req) ?? req.user?.poolId ?? null;
+      if (!poolId) return res.status(403).json({ error: "pool_admin 전용" });
+
+      const { studentId } = req.params as { studentId: string };
+
+      const rows = await db.execute(sql`
+        SELECT
+          gr.id AS report_id,
+          gr.student_id,
+          gr.report_period,
+          gr.published_at,
+          gr.summary_text
+        FROM growth_reports gr
+        WHERE gr.student_id        = ${studentId}
+          AND gr.swimming_pool_id  = ${poolId}
+          AND gr.product_status    = 'PUBLISHED'
+          AND gr.deleted_at        IS NULL
+        ORDER BY gr.report_period DESC
+        LIMIT 48
+      `);
+
+      return res.json({ success: true, reports: rows.rows });
+    } catch (err: any) {
+      console.error("[admin/students/:studentId/growth-reports]", err.message);
+      return res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
 // ─── POST /admin/growth-reports/trigger-batch  (super_admin only) ────────────
 
 router.post(

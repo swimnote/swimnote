@@ -1,0 +1,457 @@
+[보낼 곳: APP REPLIT]
+
+WP2 — APP + PC UI 연결 + Growth Report Navigation + 최종 E2E
+
+WP1은 CLOSED 상태입니다.
+
+이번 WP 목표는 딱 2개입니다.
+
+1. 관리자 보강 화면을 “현황 감독용 READ ONLY”로 완성
+2. 선생님이 학생 상세/알림에서 PUBLISHED 성장리포트를 자연스럽게 열람하도록 연결
+
+APP FIRST / PC ASSIST 원칙을 유지하십시오.
+
+새 기능 확대 금지.
+AI ENGINE 수정 금지.
+DB migration 금지.
+Expo/RN 업그레이드 금지.
+불필요한 refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. TEACHER APP — 학생 상세
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+학생 상세
+→ 일지 보기
+→ 사진/영상
+
+구조에 동일 레벨로:
+
+→ 성장리포트 보기
+
+를 추가하십시오.
+
+최종:
+
+학생 상세
+├ 일지 보기
+├ 사진/영상
+└ 성장리포트 보기
+
+Growth Report를 Diary 내부에 넣지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. TEACHER APP — Growth Report History
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 상세의 “성장리포트 보기” 클릭:
+
+GET /teacher/students/:studentId/growth-reports
+
+사용.
+
+표시:
+
+- PUBLISHED 리포트만
+- 최신순
+- 발행월 중심
+- 필요한 최소 요약 정보
+
+0건이면 정상 Empty 상태:
+
+“발행된 성장리포트가 없습니다.”
+
+Error와 Empty를 구분하십시오.
+
+목록 클릭:
+
+→ Teacher Growth Report Detail
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. TEACHER APP — canonical Report Detail
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher Detail은 반드시:
+
+GET /teacher/growth-reports/:reportId
+
+를 사용하십시오.
+
+학생상세 History에서 들어오든
+Notification에서 들어오든
+
+동일한 Teacher Growth Report Detail 화면을 사용합니다.
+
+기존 Parent Growth Report Detail의:
+
+- 레이아웃
+- 섹션 렌더링
+- 공개 리포트 표시 컴포넌트
+
+를 최대한 재사용하십시오.
+
+단 API와 role은 Teacher 전용으로 분리합니다.
+
+내부:
+
+- AI trace
+- prompt
+- FactPackage
+- 내부 검증 metadata
+
+노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 학부모 반응
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher Detail 하단에:
+
+“학부모 반응 보기”
+
+진입점을 둡니다.
+
+기존:
+
+teacher/growth-report-reactions
+
+화면/로직을 재사용하십시오.
+
+목표:
+
+Report Detail
+→ 학부모 반응 보기
+→ 좋아요/댓글 확인
+
+Teacher에게 새로:
+
+- 좋아요
+- 댓글 작성
+- 댓글 답변
+- 공유
+
+기능을 만들지 마십시오.
+
+Teacher 역할은:
+
+리포트 본문 열람
++
+학부모 반응 확인
+
+까지만.
+
+Parent의 기존:
+
+- 좋아요
+- 댓글
+- 공유
+
+기능은 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. NOTIFICATION → REPORT DETAIL
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+growth_report_like
+growth_report_comment
+
+알림을 클릭하면
+
+notification.ref_id = reportId
+
+를 사용하여:
+
+/teacher/growth-report-detail?reportId=...
+
+또는 현재 Expo Router 구조에 맞는 동일 역할 route
+
+로 이동시키십시오.
+
+그 화면은:
+
+GET /teacher/growth-reports/:reportId
+
+호출.
+
+studentId를 notification payload에 새로 추가하지 마십시오.
+
+reportId 하나만 canonical identifier로 사용합니다.
+
+권한이 이미 사라진 학생이면:
+
+403/404를 정상 처리하고
+
+“현재 이 학생의 성장리포트에 접근할 권한이 없습니다.”
+
+정도의 기존 UI 규칙에 맞는 메시지를 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ADMIN APP — 보강
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin Mode의 보강 화면은:
+
+“보강 운영”
+
+이 아니라
+
+“보강 현황 관리”
+
+성격으로 정리합니다.
+
+pool_admin에게 다음 mutation UI를 노출하지 마십시오.
+
+- 배정
+- 재배정
+- 일정 변경
+- 취소
+- 완료
+- transfer/handover
+- extinguish
+
+WP1에서 서버도 이미 Admin Mode read-only로 정리됐습니다.
+
+관리자 화면 목적:
+
+“어떤 보강이 밀리고 있는가?”
+
+를 빠르게 확인하는 것.
+
+기존 데이터 범위 내에서 우선 표시:
+
+- 전체 미처리
+- 아직 처리되지 않은 보강
+- 오래된 순
+- 만료 임박
+- 만료/소멸 예정
+
+가능하면 기존 필드만 사용하십시오.
+
+expire_at 등 기존 SoT가 있으면 사용.
+새 만료 계산식 만들지 마십시오.
+
+필요한 상세 정보:
+
+- 학생명
+- 담당 선생님
+- 원래 결석일
+- 현재 상태
+- 예정 보강일
+- 잔여기한/만료일(기존 데이터가 있을 때)
+
+과도한 대시보드/차트 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PC DASHBOARD — 보강
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC에서도 pool_admin 보강 화면은 READ ONLY.
+
+기존:
+
+배정
+취소
+완료
+transfer/handover
+
+등 mutation 버튼이 있다면 제거/비노출.
+
+PC의 역할은:
+
+- 전체 현황
+- 밀린 보강
+- 만료 임박
+- 예외 확인
+- 빠른 검색/필터
+
+입니다.
+
+Teacher 대신 보강 스케줄을 운영하는 화면으로 만들지 마십시오.
+
+APP이 실제 운영의 중심입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. PC DASHBOARD — 회원 상세 Growth Report
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원 상세 Drawer에 기존:
+
+일지 보기
+
+와 별도로:
+
+성장리포트 History
+
+를 추가하십시오.
+
+목적:
+
+관리자가 PC 업무 중
+해당 학생의 PUBLISHED 리포트 과거 이력을 읽기 전용으로 빠르게 확인.
+
+표시:
+
+- PUBLISHED only
+- 최신순
+- 발행월
+- 필요한 요약
+
+선택 시:
+
+→ 리포트 상세 Drawer 또는 기존 Dashboard 패턴에 맞는 읽기전용 상세
+
+새 검수/발행 기능 만들지 마십시오.
+
+기존:
+
+성장리포트
+→ 검수대기
+→ 발행관리
+→ 발행완료
+
+Operations 메뉴는 그대로 유지.
+
+즉:
+
+Operations
+= 검수/발행
+
+Student History
+= 교육기록 조회
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. UI 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 핵심은 단순함입니다.
+
+Teacher:
+
+학생상세
+→ 성장리포트
+→ History
+→ Detail
+→ 학부모 반응
+
+Notification:
+좋아요/댓글
+→ 바로 같은 Detail
+
+Admin:
+
+보강
+→ 전체 현황 확인
+
+PC:
+
+대량/조회/감독 보조
+
+이 흐름 이상으로 진입점을 늘리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. TEST / QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+크레딧 절약을 위해 필요한 대표 검증만 하십시오.
+
+[Teacher Growth Report]
+
+1. 접근 가능한 학생 상세
+→ 성장리포트 버튼 표시
+
+2. History
+→ PUBLISHED 목록 정상
+
+3. History item
+→ Detail 정상
+
+4. Detail
+→ 학부모 반응 보기 정상
+
+5. growth_report_like notification
+→ 해당 report Detail route 연결
+
+6. growth_report_comment notification
+→ 동일 Detail route 연결
+
+7. 접근권한 없는 report
+→ 정상 차단
+
+[Admin Makeup]
+
+8. Admin APP
+→ 전체 pool 보강 조회 가능
+→ mutation 버튼 없음
+
+9. PC Dashboard
+→ 전체 pool 보강 조회 가능
+→ mutation 버튼 없음
+
+[Dashboard Growth Report]
+
+10. 회원 상세
+→ Published Growth Report History 확인
+→ Detail 읽기 가능
+
+모든 permutation을 테스트하지 마십시오.
+
+실제 Production 계정/JWT가 없어 검증할 수 없는 부분은
+억지로 fake token을 만들지 말고:
+
+“OPERATION VERIFIED 대기”
+
+라고 보고하십시오.
+
+사용자가 실제 APP/PC에서 마지막 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 범위에 맞게:
+
+- APP UI 변경 → 기존 Production runtime/channel에 OTA
+- Dashboard 변경 → 현재 swimnote-web Production 배포
+- API 변경이 추가로 필요하지 않으면 API 재배포 금지
+
+APP version/runtimeVersion을 임의 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. Teacher 학생상세 Growth Report 진입
+2. History 구현
+3. canonical Detail 구현
+4. 학부모 반응 연결
+5. Notification like/comment → Detail 연결
+6. Admin APP 보강 read-only 결과
+7. PC 보강 read-only 결과
+8. Dashboard 회원상세 Growth Report History
+9. 테스트 결과
+10. 실제 Production에서 확인 못한 항목
+11. 수정 파일
+12. repo / branch
+13. full work commit SHA
+14. APP OTA 여부
+15. OTA Update ID / channel / runtimeVersion (OTA 했다면)
+16. Dashboard Production LIVE SHA / Deploy ID
+17. API를 수정했다면 API LIVE SHA / Deploy ID
+
+추가 기능 제안하지 마십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+“확인하지 못함”
+이라고 명시하고 추측해서 정상이라고 보고하지 마십시오.
+
+이 WP 완료 후
+보강 + 성장리포트 작업을 최종 CLOSED할 예정입니다.

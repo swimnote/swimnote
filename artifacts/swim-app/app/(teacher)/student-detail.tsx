@@ -781,7 +781,7 @@ export default function StudentDetailScreen() {
           {/* phone3/4: HIDDEN — teacher API 미지원 (의도적 제한) */}
         </MemberSectionCard>
 
-        {/* ── Section F: 개인 일지 / 사진 — student-scoped ── */}
+        {/* ── Section F: 개인 일지 / 사진 / 성장리포트 — student-scoped ── */}
         {/* Diary: student_id filter via class_diary_student_notes (ID 기반 관계) */}
         {/* Media: GET /photos/private/:studentId 기존 backend 재사용 */}
         <MemberSectionCard title="일지 / 사진">
@@ -801,6 +801,14 @@ export default function StudentDetailScreen() {
               <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>사진/영상</Text>
             </Pressable>
           </View>
+          {/* 성장리포트 보기 — 동일 레벨, 별도 행 */}
+          <Pressable
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "#3ECFBA40", backgroundColor: "#3ECFBA0A", marginTop: 8 }}
+            onPress={() => router.push({ pathname: "/(teacher)/teacher-gr-history", params: { studentId: student.id, studentName: student.name } } as any)}
+          >
+            <LucideIcon name="file-text" size={14} color="#0D2E5A" />
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0D2E5A" }}>성장리포트 보기</Text>
+          </Pressable>
         </MemberSectionCard>
 
         {/* Section G: WP-M5 전까지 미노출 (공개 추가정보) */}

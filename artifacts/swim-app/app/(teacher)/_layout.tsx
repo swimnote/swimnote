@@ -228,6 +228,9 @@ export default function TeacherLayout() {
       {/* terminology — 탭 노출 없이 push로만 접근 */}
       <Tabs.Screen name="terminology-search"     options={{ href: null }} />
       <Tabs.Screen name="terminology-detail"     options={{ href: null }} />
+      {/* WP2 — 선생님 학생별 GR 이력/상세 */}
+      <Tabs.Screen name="teacher-gr-history"    options={{ href: null }} />
+      <Tabs.Screen name="teacher-gr-detail"     options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );
