@@ -8,7 +8,7 @@ export default function Footer() {
               <img src={`${import.meta.env.BASE_URL}logo.png`} alt="SWIMNOTE" style={{ width: 36, height: "auto", display: "block" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
             </div>
             <span className="text-[15px] font-bold tracking-tight text-[#0a0a0a]" translate="no">SWIMNOTE</span>
-            <a href="https://swimnote-web.onrender.com/admin/super" target="_blank" rel="noopener noreferrer" className="ml-3 px-3 py-1 rounded-full border border-[#d5d5d5] text-[11px] font-medium text-[#999] hover:border-[#002F5F] hover:text-[#002F5F] transition-colors whitespace-nowrap">
+            <a href="https://swimnote-web.onrender.com/super-login" target="_blank" rel="noopener noreferrer" className="ml-3 px-3 py-1 rounded-full border border-[#d5d5d5] text-[11px] font-medium text-[#999] hover:border-[#002F5F] hover:text-[#002F5F] transition-colors whitespace-nowrap">
               SWIMNOTE AI
             </a>
           </div>

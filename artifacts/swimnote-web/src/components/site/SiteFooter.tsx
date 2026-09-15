@@ -111,7 +111,7 @@ export default function SiteFooter() {
             &copy; {new Date().getFullYear()} SWIMNOTE. All rights reserved.
           </p>
           <a
-            href="https://swimnote-web.onrender.com/admin/super"
+            href="https://swimnote-web.onrender.com/super-login"
             target="_blank"
             rel="noopener noreferrer"
             style={{
