@@ -23,6 +23,7 @@ import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { computeMode, type XModeStatus, type PoolModeResult } from "../lib/xmode.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { addSseClient, removeSseClient } from "../lib/pg-realtime.js";
 import { logEvent, logOperationalError } from "../lib/event-logger.js";
 import { Client as ObjectStorageClient } from "@replit/object-storage";
 import { runRealBackup } from "../lib/backup.js";
@@ -4615,122 +4616,123 @@ router.get(
       const pool = poolRes.rows[0] as any;
 
       // Counts + storage + recent errors + WP7 operational metrics (parallel)
+      // NOTE: catch()로 잡힌 쿼리는 _unavailable:true 마커를 반환하여 0과 구별
+      const UNAVAIL = { _unavailable: true } as const;
       const [countsRes, errorRes, aiRes, grRes, notifRes, supportRes,
              pushRes, memberLimitRes, storageRes, rcRes] = await Promise.all([
+        // canonical: is_deleted = false (active 컬럼 없음)
         superAdminDb.execute(sql`
           SELECT
             (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_members,
             (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId}) AS total_members,
             (SELECT COUNT(*) FROM users WHERE swimming_pool_id = ${poolId} AND role IN ('pool_admin', 'teacher')) AS teacher_count,
             (SELECT COUNT(*) FROM parent_accounts WHERE swimming_pool_id = ${poolId}) AS parent_count,
-            (SELECT COUNT(*) FROM class_groups WHERE swimming_pool_id = ${poolId} AND active = true) AS active_class_count
+            (SELECT COUNT(*) FROM class_groups WHERE swimming_pool_id = ${poolId} AND is_deleted = false) AS active_class_count
         `),
+        // pool_event_logs: 최근 7일 이벤트 수 (level 컬럼 없음 — event_type 기준)
         superAdminDb.execute(sql`
           SELECT COUNT(*) AS cnt, MAX(created_at) AS last_at
-          FROM event_logs
-          WHERE pool_id = ${poolId} AND level IN ('error', 'critical')
+          FROM pool_event_logs
+          WHERE pool_id = ${poolId}
             AND created_at > NOW() - INTERVAL '7 days'
-        `).catch(() => ({ rows: [{ cnt: 0, last_at: null }] })),
+        `).catch(() => UNAVAIL),
+        // x_monthly_operational_snapshots
         superAdminDb.execute(sql`
           SELECT diary_count, teacher_count AS ai_teacher_count, ai_call_count,
                  year_month
           FROM x_monthly_operational_snapshots
           WHERE swimming_pool_id = ${poolId}
           ORDER BY year_month DESC LIMIT 1
-        `).catch(() => ({ rows: [] })),
+        `).catch(() => UNAVAIL),
+        // growth_reports (30일)
         superAdminDb.execute(sql`
-          SELECT COUNT(*) FILTER (WHERE status = 'READY_TO_SEND') AS ready_count,
-                 COUNT(*) FILTER (WHERE status = 'FAILED') AS failed_count,
+          SELECT COUNT(*) FILTER (WHERE product_status = 'READY_TO_SEND') AS ready_count,
+                 COUNT(*) FILTER (WHERE product_status = 'FAILED') AS failed_count,
                  COUNT(*) AS total_count
           FROM growth_reports
           WHERE swimming_pool_id = ${poolId}
             AND batch_date >= CURRENT_DATE - INTERVAL '30 days'
-        `).catch(() => ({ rows: [{ ready_count: 0, failed_count: 0, total_count: 0 }] })),
+        `).catch(() => UNAVAIL),
         superAdminDb.execute(sql`
           SELECT COUNT(*) AS unread
           FROM notifications
           WHERE pool_id = ${poolId} AND is_read = false
             AND created_at > NOW() - INTERVAL '7 days'
-        `).catch(() => ({ rows: [{ unread: 0 }] })),
+        `).catch(() => UNAVAIL),
+        // support_cases
         superAdminDb.execute(sql`
           SELECT id, ticket_id, state, created_at, updated_at, actor_role
           FROM support_cases
           WHERE pool_id = ${poolId}
           ORDER BY created_at DESC
           LIMIT 1
-        `).catch(() => ({ rows: [] })),
-        // WP7: Push fanout queue visibility (WP5 durable tables)
+        `).catch(() => UNAVAIL),
+        // push_fanout_jobs/deliveries (정식 migration 적용 완료)
         superAdminDb.execute(sql`
           SELECT
-            COUNT(*) FILTER (WHERE status IN ('pending','claimed'))    AS pending_jobs,
-            COUNT(*) FILTER (WHERE status = 'failed')                  AS failed_jobs,
-            COUNT(*) FILTER (WHERE status = 'partial')                 AS partial_jobs,
+            COUNT(*) FILTER (WHERE status IN ('PENDING','PROCESSING'))  AS pending_jobs,
+            COUNT(*) FILTER (WHERE status = 'FAILED')                   AS failed_jobs,
+            COUNT(*) FILTER (WHERE status = 'PARTIAL_FAILED')           AS partial_jobs,
             COUNT(*) FILTER (WHERE completed_at > NOW() - INTERVAL '24 hours') AS completed_24h,
             (SELECT COUNT(*) FROM push_fanout_deliveries d
                JOIN push_fanout_jobs j ON j.job_ref = d.job_ref
-               WHERE j.pool_id = ${poolId} AND d.status = 'failed'
+               WHERE j.target_ref = ${poolId} AND d.status = 'FAILED'
                  AND d.attempted_at > NOW() - INTERVAL '24 hours'
             ) AS recent_delivery_failures
           FROM push_fanout_jobs
-          WHERE pool_id = ${poolId}
-        `).catch(() => ({ rows: [{ pending_jobs: 0, failed_jobs: 0, partial_jobs: 0, completed_24h: 0, recent_delivery_failures: 0 }] })),
-        // WP7: Member limit visibility (WP2 canonical)
+          WHERE target_ref = ${poolId}
+        `).catch(() => UNAVAIL),
+        // Member limit — canonical: swimming_pools.member_limit (pool override) + subscription_plans.member_limit
         superAdminDb.execute(sql`
           SELECT
-            member_limit,
-            x_plan_key,
+            sp.member_limit,
+            sp.x_plan_key,
+            spl.member_limit AS plan_member_limit,
             (SELECT COUNT(*) FROM students WHERE swimming_pool_id = ${poolId} AND status = 'active') AS active_count
-          FROM swimming_pools
-          WHERE id = ${poolId}
+          FROM swimming_pools sp
+          LEFT JOIN subscription_plans spl ON spl.tier = sp.subscription_tier AND spl.is_active = true
+          WHERE sp.id = ${poolId}
           LIMIT 1
-        `).catch(() => ({ rows: [{ member_limit: null, x_plan_key: null, active_count: 0 }] })),
-        // WP7: Storage quota visibility
+        `).catch(() => UNAVAIL),
+        // Storage — canonical: base_storage_gb, extra_storage_gb (bytes 환산)
         superAdminDb.execute(sql`
           SELECT
             used_storage_bytes,
-            base_storage_bytes,
-            addon_storage_bytes,
+            base_storage_gb,
+            extra_storage_gb,
             upload_blocked
           FROM swimming_pools
           WHERE id = ${poolId}
           LIMIT 1
-        `).catch(() => ({ rows: [{ used_storage_bytes: 0, base_storage_bytes: null, addon_storage_bytes: null, upload_blocked: false }] })),
-        // WP7: RevenueCat / billing state visibility
+        `).catch(() => UNAVAIL),
+        // Subscription — canonical: subscription_status, subscription_tier, subscription_end_at
         superAdminDb.execute(sql`
           SELECT
             subscription_status,
             subscription_tier,
-            subscription_expires_at,
-            payment_failed_at,
-            auto_renew_status
+            subscription_end_at,
+            payment_failed_at
           FROM swimming_pools
           WHERE id = ${poolId}
           LIMIT 1
-        `).catch(() => ({ rows: [{ subscription_status: null, subscription_tier: null, subscription_expires_at: null, payment_failed_at: null, auto_renew_status: null }] })),
+        `).catch(() => UNAVAIL),
       ]);
 
-      const counts = countsRes.rows[0] as any;
-      const errors = errorRes.rows[0] as any;
-      const ai = aiRes.rows[0] as any ?? {};
-      const gr = grRes.rows[0] as any ?? {};
-      const notif = notifRes.rows[0] as any;
-      const recentSupport = (supportRes.rows[0] as any) ?? null;
-      // WP7 operational metrics
-      const pushStats  = (pushRes.rows[0] as any) ?? {};
-      const mlRow      = (memberLimitRes.rows[0] as any) ?? {};
-      const storRow    = (storageRes.rows[0] as any) ?? {};
-      const rcRow      = (rcRes.rows[0] as any) ?? {};
+      // _unavailable marker 헬퍼
+      const isUnavail = (r: any): boolean => r && r._unavailable === true;
+      const rowOf = (r: any) => (isUnavail(r) || !r?.rows?.length) ? null : (r.rows[0] as any);
+      const firstRow = (r: any) => (isUnavail(r) || !r?.rows?.length) ? null : (r.rows[0] as any);
 
-      // Health score (rule-based)
-      const healthIssues: string[] = [];
-      if (pool.x_paid_entitlement && pool.x_force_disabled) healthIssues.push("X ENTITLEMENT CONFLICT");
-      if (Number(errors.cnt ?? 0) > 10) healthIssues.push("FREQUENT_ERRORS");
-      if (Number(gr.failed_count ?? 0) > 3) healthIssues.push("GROWTH_REPORT_FAILURES");
-      if (pool.upload_blocked) healthIssues.push("STORAGE_QUOTA");
-      if (Number(pushStats.failed_jobs ?? 0) > 0) healthIssues.push("PUSH_FANOUT_FAILURES");
-      const health: "GREEN" | "YELLOW" | "RED" =
-        healthIssues.length === 0 ? "GREEN" :
-        healthIssues.some((h) => h.includes("CONFLICT") || h.includes("STORAGE")) ? "RED" : "YELLOW";
+      const counts      = countsRes.rows[0] as any;
+      const errorRow    = firstRow(errorRes);
+      const aiRow       = firstRow(aiRes);
+      const grRow       = firstRow(grRes);
+      const notifRow    = firstRow(notifRes);
+      const supportRow  = firstRow(supportRes);
+      const pushRow     = firstRow(pushRes);
+      const mlRow       = firstRow(memberLimitRes);
+      const storRow     = firstRow(storageRes);
+      const rcRow       = firstRow(rcRes);
 
       const xPaid     = Boolean(pool.x_paid_entitlement);
       const xManual   = Boolean(pool.x_manual_entitlement);
@@ -4740,25 +4742,36 @@ router.get(
       const basePaid  = Boolean(pool.subscription_status === "active" && !pool.base_manual_entitlement);
       const baseManual = Boolean(pool.base_manual_entitlement);
       const baseEff   = basePaid || baseManual;
+      const xSource   = xOverride ? "management_override"
+                      : xManual   ? "manual"
+                      : xPaid     ? "paid"
+                      :             "none";
 
-      // WP7: member limit derived
+      // Member limit — canonical: pool override > subscription_plans
       const { getXMemberLimit } = await import("../lib/xPlanCatalog.js");
-      const effectiveMemberLimit: number | null =
-        mlRow.member_limit ?? (mlRow.x_plan_key ? (getXMemberLimit(mlRow.x_plan_key) ?? null) : null);
-      const activeMemberCount = Number(mlRow.active_count ?? counts.active_members ?? 0);
+      const poolMemberLimit   = mlRow?.member_limit != null ? Number(mlRow.member_limit) : null;
+      const planMemberLimit   = mlRow?.plan_member_limit != null ? Number(mlRow.plan_member_limit) : null;
+      const xPlanLimit        = mlRow?.x_plan_key ? (getXMemberLimit(mlRow.x_plan_key) ?? null) : null;
+      const effectiveMemberLimit: number | null = poolMemberLimit ?? xPlanLimit ?? planMemberLimit ?? null;
+      const activeMemberCount = Number(mlRow?.active_count ?? counts.active_members ?? 0);
       const memberLimitRemaining = effectiveMemberLimit != null
-        ? Math.max(0, effectiveMemberLimit - activeMemberCount)
-        : null;
+        ? Math.max(0, effectiveMemberLimit - activeMemberCount) : null;
 
-      // WP7: storage quota
-      const effectiveStorageBytes =
-        Number(storRow.base_storage_bytes ?? 0) + Number(storRow.addon_storage_bytes ?? 0) || null;
+      // Storage — canonical: base_storage_gb, extra_storage_gb (1GB = 1073741824 bytes)
+      const GB = 1073741824;
+      const baseStorGb  = Number(storRow?.base_storage_gb  ?? pool.base_storage_gb  ?? 0);
+      const extraStorGb = Number(storRow?.extra_storage_gb ?? pool.extra_storage_gb ?? 0);
+      const effectiveStorageBytes = (baseStorGb + extraStorGb) * GB || null;
 
-      // WP7: x_source (management_override > manual > paid > none)
-      const xSource = xOverride ? "management_override"
-                    : xManual   ? "manual"
-                    : xPaid     ? "paid"
-                    :             "none";
+      // Health score
+      const healthIssues: string[] = [];
+      if (pool.x_paid_entitlement && pool.x_force_disabled) healthIssues.push("X ENTITLEMENT CONFLICT");
+      if (!isUnavail(grRes) && Number(grRow?.failed_count ?? 0) > 3) healthIssues.push("GROWTH_REPORT_FAILURES");
+      if (pool.upload_blocked) healthIssues.push("STORAGE_QUOTA");
+      if (!isUnavail(pushRes) && Number(pushRow?.failed_jobs ?? 0) > 0) healthIssues.push("PUSH_FANOUT_FAILURES");
+      const health: "GREEN" | "YELLOW" | "RED" =
+        healthIssues.length === 0 ? "GREEN" :
+        healthIssues.some((h) => h.includes("CONFLICT") || h.includes("STORAGE")) ? "RED" : "YELLOW";
 
       res.json({
         pool_id:          pool.id,
@@ -4774,9 +4787,11 @@ router.get(
         base_manual:      baseManual,
         base_effective:   baseEff,
         base_source:      baseManual ? "manual" : (basePaid ? "paid" : "none"),
-        subscription_status: pool.subscription_status,
-        subscription_tier:   pool.subscription_tier,
-        // X access — WP7: separated fields (paid/manual/override distinct)
+        subscription_status:     pool.subscription_status,
+        subscription_tier:       pool.subscription_tier,
+        subscription_end_at:     rcRow?.subscription_end_at ?? pool.subscription_end_at ?? null,
+        payment_failed_at:       rcRow?.payment_failed_at ?? pool.payment_failed_at ?? null,
+        // X access
         x_paid:                xPaid,
         x_manual:              xManual,
         x_management_override: xOverride,
@@ -4785,56 +4800,58 @@ router.get(
         x_source:              xSource,
         x_plan_key:            pool.x_plan_key ?? null,
         xmode_config_status:   pool.xmode_config_status,
-        // Counts
-        active_members:   Number(counts.active_members ?? 0),
-        total_members:    Number(counts.total_members ?? 0),
-        teacher_count:    Number(counts.teacher_count ?? 0),
-        parent_count:     Number(counts.parent_count ?? 0),
+        // Counts (canonical — always available)
+        active_members:     Number(counts.active_members ?? 0),
+        total_members:      Number(counts.total_members ?? 0),
+        teacher_count:      Number(counts.teacher_count ?? 0),
+        parent_count:       Number(counts.parent_count ?? 0),
         active_class_count: Number(counts.active_class_count ?? 0),
-        // WP7: Member limit visibility
+        // Member limit
         member_limit:           effectiveMemberLimit,
         member_limit_remaining: memberLimitRemaining,
         member_limit_warn:      effectiveMemberLimit != null
           ? activeMemberCount >= effectiveMemberLimit - 10 : false,
-        // WP7: Storage visibility
-        used_storage_bytes:     Number(storRow.used_storage_bytes ?? pool.used_storage_bytes ?? 0),
-        base_storage_bytes:     storRow.base_storage_bytes ?? null,
-        addon_storage_bytes:    storRow.addon_storage_bytes ?? null,
+        member_limit_unavailable: isUnavail(memberLimitRes),
+        // Storage (canonical: base_storage_gb + extra_storage_gb)
+        used_storage_bytes:      Number(storRow?.used_storage_bytes ?? pool.used_storage_bytes ?? 0),
+        base_storage_gb:         baseStorGb,
+        extra_storage_gb:        extraStorGb,
         effective_storage_bytes: effectiveStorageBytes,
-        upload_blocked:         Boolean(storRow.upload_blocked ?? pool.upload_blocked),
-        // WP7: RevenueCat / billing state visibility
-        rc_subscription_status:    rcRow.subscription_status ?? null,
-        rc_subscription_tier:      rcRow.subscription_tier ?? null,
-        rc_subscription_expires_at: rcRow.subscription_expires_at ?? null,
-        rc_payment_failed_at:      rcRow.payment_failed_at ?? null,
-        rc_auto_renew_status:      rcRow.auto_renew_status ?? null,
-        // WP7: Push fanout queue visibility (WP5 durable)
-        push_pending_jobs:          Number(pushStats.pending_jobs ?? 0),
-        push_failed_jobs:           Number(pushStats.failed_jobs ?? 0),
-        push_partial_jobs:          Number(pushStats.partial_jobs ?? 0),
-        push_completed_24h:         Number(pushStats.completed_24h ?? 0),
-        push_recent_delivery_failures: Number(pushStats.recent_delivery_failures ?? 0),
-        // AI
-        recent_ai_diary_count: Number(ai.diary_count ?? 0),
-        recent_ai_month:       ai.year_month ?? null,
+        upload_blocked:          Boolean(storRow?.upload_blocked ?? pool.upload_blocked),
+        storage_unavailable:     isUnavail(storageRes),
+        // Push fanout
+        push_pending_jobs:             isUnavail(pushRes) ? null : Number(pushRow?.pending_jobs ?? 0),
+        push_failed_jobs:              isUnavail(pushRes) ? null : Number(pushRow?.failed_jobs ?? 0),
+        push_partial_jobs:             isUnavail(pushRes) ? null : Number(pushRow?.partial_jobs ?? 0),
+        push_completed_24h:            isUnavail(pushRes) ? null : Number(pushRow?.completed_24h ?? 0),
+        push_recent_delivery_failures: isUnavail(pushRes) ? null : Number(pushRow?.recent_delivery_failures ?? 0),
+        push_unavailable:              isUnavail(pushRes),
+        // AI (x_monthly_operational_snapshots)
+        recent_ai_diary_count:  isUnavail(aiRes) ? null : Number(aiRow?.diary_count ?? 0),
+        recent_ai_month:        isUnavail(aiRes) ? null : (aiRow?.year_month ?? null),
+        ai_unavailable:         isUnavail(aiRes),
         // Growth Report (30d)
-        gr_ready_count:   Number(gr.ready_count ?? 0),
-        gr_failed_count:  Number(gr.failed_count ?? 0),
-        gr_total_count:   Number(gr.total_count ?? 0),
-        // Errors (7d)
-        recent_error_count: Number(errors.cnt ?? 0),
-        last_error_at:    errors.last_at ?? null,
+        gr_ready_count:   isUnavail(grRes) ? null : Number(grRow?.ready_count ?? 0),
+        gr_failed_count:  isUnavail(grRes) ? null : Number(grRow?.failed_count ?? 0),
+        gr_total_count:   isUnavail(grRes) ? null : Number(grRow?.total_count ?? 0),
+        gr_unavailable:   isUnavail(grRes),
+        // Pool event log (7d — pool_event_logs canonical)
+        recent_event_count: isUnavail(errorRes) ? null : Number(errorRow?.cnt ?? 0),
+        last_event_at:      isUnavail(errorRes) ? null : (errorRow?.last_at ?? null),
+        event_log_unavailable: isUnavail(errorRes),
         // Notifications (7d unread)
-        unread_notifications: Number(notif.unread ?? 0),
-        // Recent support case (latest 1, pool-scoped)
-        recent_support: recentSupport ? {
-          id:         recentSupport.id,
-          ticket_id:  recentSupport.ticket_id,
-          state:      recentSupport.state,
-          actor_role: recentSupport.actor_role,
-          created_at: recentSupport.created_at,
-          updated_at: recentSupport.updated_at,
-        } : null,
+        unread_notifications: isUnavail(notifRes) ? null : Number(notifRow?.unread ?? 0),
+        notifications_unavailable: isUnavail(notifRes),
+        // Recent support case
+        recent_support: isUnavail(supportRes) ? null : (supportRow ? {
+          id:         supportRow.id,
+          ticket_id:  supportRow.ticket_id,
+          state:      supportRow.state,
+          actor_role: supportRow.actor_role,
+          created_at: supportRow.created_at,
+          updated_at: supportRow.updated_at,
+        } : null),
+        support_unavailable: isUnavail(supportRes),
       });
     } catch (e: any) {
       console.error("[control-center] summary 오류:", e?.message);
@@ -8054,7 +8071,40 @@ router.get(
   },
 );
 
+// ── GET /super/pools/:id/stream — Super Admin SSE (pool-scoped realtime) ──────
+// Super Admin이 특정 pool의 Control Center를 열고 있을 때 실시간 변경을 받습니다.
+// 기존 pg-realtime (LISTEN pool_events → broadcastToPool) 인프라를 재사용합니다.
+// JWT는 Authorization: Bearer 헤더 또는 ?token= 쿼리 파라미터로 전달합니다.
+// payload: { type: PoolEventType, entity_id?: string } — pool_id, 개인정보 없음.
+router.get(
+  "/super/pools/:id/stream",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const poolId = req.params.id;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    const client = { poolId, res };
+    addSseClient(client);
+
+    res.write(`data: ${JSON.stringify({ type: "connected", pool_id: poolId })}\n\n`);
+
+    const hb = setInterval(() => {
+      try { res.write("data: ping\n\n"); } catch { /* client disconnected */ }
+    }, 30_000);
+
+    const cleanup = () => {
+      clearInterval(hb);
+      removeSseClient(client);
+    };
+    req.on("close", cleanup);
+    req.on("aborted", cleanup);
+  },
+);
+
 export default router;
-
-
-
