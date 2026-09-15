@@ -1,0 +1,378 @@
+[보낼 곳: APP REPLIT]
+
+Production 재검증 결과 추가 수정이 필요합니다.
+
+이번에는 아래 3개 버그만 정확히 조사한 뒤
+같은 작업에서 Root Cause 확정 → 수정 → 테스트 → 필요한 배포까지 완료하십시오.
+
+이미 정상인 영역은 건드리지 마십시오.
+
+CLOSED / 수정 금지:
+- 보강
+- Growth Report History API 자체 (목록은 현재 정상 로드됨)
+- 좋아요 알림 → Growth Report Detail (사용자 실기기 정상 확인)
+- Parent Growth Report
+- Dashboard
+- AI ENGINE
+- DB schema
+
+현재 남은 버그는 정확히 3개입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 학생상세 → 일지보기 여전히 0건
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 실제 Production에서 다시 확인했습니다.
+
+관리자+선생님 겸직 계정
+→ /auth/switch-role
+→ Teacher Mode
+→ 현재 자기 반에 등록된 학생
+→ 학생 상세
+→ 일지 보기
+
+결과:
+
+“작성된 수업 일지가 없습니다.”
+0건
+
+하지만 해당 학생/담당 반에는 실제 일지가 존재합니다.
+
+이전 Production DB 확인에서도
+해당 담당 반 일지 5건이 존재한다고 확인했습니다.
+
+따라서 이전 수정으로 해결됐다고 판단하지 마십시오.
+
+이번에는 반드시:
+
+APP 화면
+→ request
+→ API
+→ SQL 결과
+→ response
+→ APP filtering/render
+
+전체를 한 번 연결해서 실제로 어디에서 0건이 되는지 확정하십시오.
+
+반드시 확인:
+
+1. student-detail에서 diary-index로 넘기는 실제 params
+2. studentId parameter 이름/값
+3. diary-index에서 해당 param을 실제로 읽는지
+4. 실제 요청 URL/query
+5. API HTTP status
+6. API response body의 items 수
+7. API 단계에서 이미 0건인지
+8. API는 rows를 반환하지만 APP에서 0건으로 필터되는지
+9. generic diary-index의 검색/요일/시간 필터가 student History 진입에도 적용되어 결과를 없애는지
+10. 현재 student_id에 직접 연결된 class_student_notes / diary 관계
+11. class_diaries → student note 연결
+12. 현재 반 / assigned_class_ids / student_class_history가 실제 diary rows와 어떤 관계인지
+
+중요:
+
+DB에 일지가 있다는 것만 확인하고 PASS 처리하지 마십시오.
+
+실제 화면이 사용하는 동일 studentId로
+동일 API request를 실행했을 때
+response에 해당 학생의 diary가 들어오는지 확인해야 합니다.
+
+학생상세의 “일지 보기” 목적은:
+
+현재 teacher가 해당 student에 접근 가능하면
+→ student_id 기준
+→ 해당 학생에게 귀속된 과거~현재 일지 History
+
+입니다.
+
+작성 teacher가 누구였는지는 ownership 조건이 아닙니다.
+
+일반 Teacher Diary 업무목록은 변경하지 마십시오.
+학생상세 개인 History 경로만 고치십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 성장리포트 History BACK 아직 HOME으로 이동
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production:
+
+학생상세
+→ 성장리포트 보기
+→ Growth Report History
+→ 좌측 BACK
+
+결과:
+HOME
+
+목표:
+학생상세
+
+입니다.
+
+이전 수정:
+
+canGoBack()
+? router.back()
+: router.replace(student-detail)
+
+은 해결책이 아닙니다.
+
+이유:
+
+canGoBack()가 true여도
+실제 이전 stack entry가 HOME이면
+router.back()은 HOME으로 이동하기 때문입니다.
+
+따라서 이번에는 canGoBack 여부를
+“원하는 부모화면 판단 기준”으로 사용하지 마십시오.
+
+실제 진입 source를 보존하십시오.
+
+확인:
+
+student-detail
+→ teacher-gr-history
+
+진입할 때:
+
+- router.push / replace
+- Stack/Layout 경계
+- route params
+- 현재 navigation state
+
+를 확인하십시오.
+
+최종적으로 학생상세에서 들어온 History는
+BACK 목적지가 명시적으로 해당 student-detail이어야 합니다.
+
+가장 단순한 구조 예:
+
+student-detail
+→ teacher-gr-history
+   params:
+   studentId
+   source=student-detail
+
+teacher-gr-history BACK:
+
+source === student-detail
+→ 해당 student-detail로 복귀
+
+그리고 복귀한 student-detail에서 BACK:
+→ 원래 학생목록
+
+까지 유지되어야 합니다.
+
+필요하면 student-detail에도
+returnTo/student-list 정보를 전달하십시오.
+
+목표 stack:
+
+학생목록
+→ 학생상세
+→ 성장리포트 History
+
+History BACK
+→ 학생상세
+
+학생상세 BACK
+→ 학생목록
+
+입니다.
+
+HOME은 명시적으로 HOME 버튼을 누른 경우에만 이동합니다.
+
+알림함 → Growth Report Detail은 현재 정상입니다.
+그 경로는 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 성장리포트 발행일 NaN 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 Production 화면:
+
+“2026년 9월 성장리포트”
+
+아래에:
+
+“NaN. NaN. NaN. 발행”
+
+으로 표시됩니다.
+
+Growth Report History 화면의
+실제 API response를 확인하십시오.
+
+확인:
+
+1. API에서 실제 반환되는 published_at 값
+2. 값의 실제 type/string format
+3. null 여부
+4. APP에서 기대하는 property 이름
+   - published_at
+   - publishedAt
+   등 contract mismatch 여부
+5. 현재 date parsing 코드
+6. new Date(undefined/null/invalid string) 여부
+7. report_period와 published_at을 혼동하는지
+
+반드시 실제 response 기준으로 Root Cause를 확정하십시오.
+
+발행일 의미:
+
+Report issue month / report_period
+와
+실제 published_at
+
+은 다른 값입니다.
+
+제목:
+“2026년 9월 성장리포트”
+
+는 report issue month.
+
+하단 발행일:
+실제 published_at.
+
+둘을 섞지 마십시오.
+
+정상적인 published_at이 있으면
+현재 앱 날짜 표시 규칙에 맞춰:
+
+YYYY.MM.DD 발행
+
+형태로 정상 표시하십시오.
+
+published_at이 실제 null인 legacy record라면
+임의로 report_period나 created_at을 발행일로 만들어내지 마십시오.
+
+그 경우 NaN을 표시하지 말고
+기존 UI 스타일에 맞춰:
+
+“발행일 미기록”
+
+또는 날짜 문구 자체 비노출
+
+중 가장 단순한 방식으로 처리하십시오.
+
+하지만 우선 현재 9월 리포트가
+실제로 published_at을 가지고 있는데
+APP parsing만 잘못된 것인지 먼저 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 허용:
+
+- 학생상세 Diary History 관련 APP/API
+- student-detail → teacher-gr-history navigation
+- teacher-gr-history Back handler
+- teacher-gr-history 발행일 parsing/render
+
+그 외 수정 금지.
+
+특히:
+
+- Makeup 수정 금지
+- Growth Report Detail API 수정 금지
+- Notification 수정 금지
+- Parent 수정 금지
+- Dashboard 수정 금지
+- DB migration 금지
+- 전체 navigation refactor 금지
+- Expo/RN 업그레이드 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. TARGETED TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 테스트 suite를 다시 돌릴 필요 없습니다.
+
+아래만 검증하십시오.
+
+A. DIARY
+
+실제 현재 담당 학생
+→ 학생상세
+→ 일지보기
+
+API response items > 0
+
+그리고 APP 화면에도
+실제 기존 일지 표시.
+
+“DB에 5건 있음”만으로 PASS 금지.
+
+B. NAVIGATION
+
+학생목록
+→ 학생상세
+→ 성장리포트 History
+→ BACK
+= 학생상세
+
+한 번 더 BACK
+= 학생목록
+
+C. REPORT DATE
+
+9월 PUBLISHED Growth Report History
+
+제목:
+2026년 9월 성장리포트
+
+발행일:
+실제 published_at 날짜 정상 표시
+
+NaN 금지.
+
+D. REGRESSION
+
+알림함
+→ 좋아요 Growth Report Detail
+
+기존 정상 동작 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 수정 시:
+Production Render 배포.
+
+APP 수정 시:
+production-v2 / runtimeVersion 2.2.0 기준 iOS OTA.
+
+Android는 기존 정책대로 불필요한 OTA 금지.
+
+DB migration 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 아래만 보고하십시오.
+
+1. Diary 화면 실제 0건 Root Cause
+2. 동일 Production request의 수정 전/후 item count
+3. Diary 실제 화면 표시 결과
+4. GR History BACK 실제 Root Cause
+5. 최종 route/returnTo 구조
+6. 학생상세 → GR History → BACK 결과
+7. 학생상세 BACK → 학생목록 결과
+8. NaN 실제 Root Cause
+9. 실제 published_at 값
+10. 수정 후 표시 문자열
+11. 수정 파일
+12. full work commit SHA
+13. API 수정 시 full LIVE SHA / Render Deploy ID
+14. APP 수정 시 full EAS Update ID / branch / runtimeVersion
+
+코드상 정상이라고 보고하지 마십시오.
+실제 request/response를 기준으로 확인하십시오.
+
+확인하지 못한 것은
+“확인하지 못함”
+이라고 명시하십시오.
+
+추가 기능 제안 금지.

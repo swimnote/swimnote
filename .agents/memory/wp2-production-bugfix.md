@@ -26,6 +26,12 @@ description: WP2 배포 후 발견된 Production 장애 수정 (2026-09-15)
 - Render LIVE: 33a646d4 (dep-dakfvj142hec73af25sg)
 - OTA: 없음 (서버 수정만)
 
+## Round 3 — 3개 버그 최종 수정 (2026-09-15 3차)
+- **Diary 0건 최종 Root Cause**: class_diaries.lesson_date 컬럼이 text 타입인데 ::date 캐스트 없이 date 타입 서브쿼리와 비교 → "operator does not exist: text >= date" → 500 → 0건. 이전 is_deleted 에러가 먼저 터져서 이 에러가 숨어있었음. Fix: `cd.lesson_date::date >= (SELECT ...::date)`
+- **GR History BACK 최종 Root Cause**: canGoBack()=true여도 stack에 HOME이 있으면 back()=HOME. Fix: source="student-detail" param 전달 → replace(student-detail, id=studentId) 명시적 복귀
+- **NaN published_at Root Cause**: API rows.rows 직접 반환 → id 필드가 report_id로 매핑 안됨 + published_at이 Date 객체로 직렬화될 때 형식 불일치 가능. Fix: 명시적 매핑 (report_id, published_at.toISOString())
+- SHA: 59a1729d, Render LIVE: 59a1729d, iOS OTA: 01a0a47b-3ca1-74f0-a070-1b1759fe0cf4
+
 ## Round 2 — Diary 진짜 Root Cause (2026-09-15 2차)
 - is_deleted 제거만으로 해결 안 됨
 - 진짜 원인: diary access check가 students.class_group_id JOIN만 사용
@@ -40,6 +46,10 @@ description: WP2 배포 후 발견된 Production 장애 수정 (2026-09-15)
 - router.back() 단독 사용 → canGoBack()=false 경우 HOME으로 이동
 - 수정: canGoBack() ? back() : replace(student-detail, id=studentId)
 - OTA iOS: 01a0a465-4102-71da-9ee5-fea468e1d08d, branch production-v2
+
+## class_diaries.lesson_date 타입 원칙 (영구)
+- lesson_date는 text 타입 (date 아님) → date 비교 시 반드시 cd.lesson_date::date 캐스트 필요
+- students.created_at은 timestamptz → KST date 변환: (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
 
 ## 학생 배정 방식 원칙 (영구)
 - students 배정: class_group_id(단일) OR assigned_class_ids(다중배정 jsonb array)
