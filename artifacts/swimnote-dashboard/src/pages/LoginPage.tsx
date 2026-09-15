@@ -197,27 +197,6 @@ export default function LoginPage() {
                 />
               </Field>
 
-              <Field label="PIN 번호" style={{ marginTop: "16px" }}>
-                <input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="PIN 번호 입력"
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  style={inputStyle}
-                />
-              </Field>
-
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "var(--text-faint)",
-                  marginTop: "8px",
-                }}
-              >
-                PIN 번호는 SWIMNOTE 앱에서 설정할 수 있습니다.
-              </div>
             </>
           ) : (
             <>
