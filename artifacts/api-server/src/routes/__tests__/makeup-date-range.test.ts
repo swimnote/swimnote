@@ -468,6 +468,8 @@ describe('C. teachers.ts — PATCH /teacher/makeups/:id/assign 날짜 검증 (�
         absence_date: '2026-08-01',
         expire_at: null,
         swimming_pool_id: 'pool1',
+        original_teacher_id: 'u1',
+        original_class_group_id: null,
       }],
     });
   });
@@ -567,7 +569,7 @@ describe('C. teachers.ts — PATCH /teacher/makeups/:id/assign 날짜 검증 (�
       }],
     });
     mockDbExecute
-      .mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1' }] })
+      .mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1', original_teacher_id: 'u1', original_class_group_id: null }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ cnt: 5 }] })
       .mockResolvedValue({ rows: [] });
@@ -587,6 +589,7 @@ describe('C. teachers.ts — PATCH /teacher/makeups/:id/assign 날짜 검증 (�
         student_id: 's1', student_name: '학생', status: 'expired',
         assigned_class_group_id: null, absence_date: '2026-08-01',
         expire_at: '2026-07-01', swimming_pool_id: 'pool1',
+        original_teacher_id: 'u1', original_class_group_id: null,
       }],
     });
     const { status, body } = await patchTeacherAssign('mk1', {
@@ -603,6 +606,7 @@ describe('C. teachers.ts — PATCH /teacher/makeups/:id/assign 날짜 검증 (�
         student_id: 's1', student_name: '학생', status: 'completed',
         assigned_class_group_id: null, absence_date: '2026-08-01',
         expire_at: null, swimming_pool_id: 'pool1',
+        original_teacher_id: 'u1', original_class_group_id: null,
       }],
     });
     const { status, body } = await patchTeacherAssign('mk1', {
@@ -631,7 +635,7 @@ describe('C. teachers.ts — PATCH /teacher/makeups/:id/assign 날짜 검증 (�
       }],
     });
     mockDbExecute
-      .mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: '2026-07-01', swimming_pool_id: 'pool1' }] })
+      .mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: '2026-07-01', swimming_pool_id: 'pool1', original_teacher_id: 'u1', original_class_group_id: null }] })
       .mockResolvedValueOnce({ rows: [] })         // pool_holidays
       .mockResolvedValueOnce({ rows: [{ cnt: 5 }] })  // member count (capacity=0 이므로 no-limit)
       .mockResolvedValueOnce({ rows: [] })         // UPDATE

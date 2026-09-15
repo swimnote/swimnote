@@ -432,7 +432,7 @@ describe('Date. 날짜 정책 생존 — assign Route validateMakeupDateRange', 
   function setupAssignDateMocks() {
     // 1. makeup session (prevRows)
     mockDbExecute
-      .mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1' }] })
+      .mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1', original_teacher_id: 'u1', original_class_group_id: null }] })
       // pool_holidays
       .mockResolvedValueOnce({ rows: [] })
       // member count
@@ -463,7 +463,7 @@ describe('Date. 날짜 정책 생존 — assign Route validateMakeupDateRange', 
   it('Date1 오늘 -14일 (2026-07-24, 금) → 범위 내, MAKEUP_DATE_OUT_OF_RANGE 없음 (과거이므로 ASSIGN_REQUIRES_FUTURE_DATE)', async () => {
     // 2026-07-24는 과거이므로 assign은 ASSIGN_REQUIRES_FUTURE_DATE(400) 반환.
     // 단, MAKEUP_DATE_OUT_OF_RANGE가 아니어야 함 (날짜 범위 정책 정상).
-    mockDbExecute.mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1' }] });
+    mockDbExecute.mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1', original_teacher_id: 'u1', original_class_group_id: null }] });
     mockDbExecute.mockResolvedValue({ rows: [] });
     mockSuperDbExec.mockResolvedValueOnce({ rows: [{ id: 'cg1', name: '금요반', schedule_days: '금', schedule_time: '10:00', capacity: 5, teacher_user_id: 't1', instructor: '이선생', is_mine: true }] });
 
@@ -486,7 +486,7 @@ describe('Date. 날짜 정책 생존 — assign Route validateMakeupDateRange', 
   // ─── Date3. -15일 (범위 밖) → MAKEUP_DATE_OUT_OF_RANGE ──────────────────
   it('Date3 오늘 -15일 (2026-07-23) → MAKEUP_DATE_OUT_OF_RANGE', async () => {
     // 날짜 범위 밖이면 validateMakeupDateRange가 throws → 400 응답
-    mockDbExecute.mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1' }] });
+    mockDbExecute.mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1', original_teacher_id: 'u1', original_class_group_id: null }] });
 
     const { status, body } = await patchAssign(DATE_MINUS15);
 
@@ -496,7 +496,7 @@ describe('Date. 날짜 정책 생존 — assign Route validateMakeupDateRange', 
 
   // ─── Date4. +29일 (범위 밖) → MAKEUP_DATE_OUT_OF_RANGE ──────────────────
   it('Date4 오늘 +29일 (2026-09-05) → MAKEUP_DATE_OUT_OF_RANGE', async () => {
-    mockDbExecute.mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1' }] });
+    mockDbExecute.mockResolvedValueOnce({ rows: [{ student_id: 's1', student_name: '학생', status: 'waiting', assigned_class_group_id: null, absence_date: '2026-08-01', expire_at: null, swimming_pool_id: 'pool1', original_teacher_id: 'u1', original_class_group_id: null }] });
 
     const { status, body } = await patchAssign(DATE_PLUS29);
 
