@@ -112,7 +112,28 @@ export async function startListener(): Promise<void> {
   async function connect() {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
 
-    const client = new Client({ connectionString: connStr, ssl: { rejectUnauthorized: false } });
+    // URL을 파싱하여 개별 필드로 구성 — connectionString + ssl 혼용 시 SSL 불일치 방지
+    // (drizzle pool의 buildConfig와 동일한 방식)
+    let clientConfig: any;
+    try {
+      const u = new URL(connStr!);
+      const urlPassword = decodeURIComponent(u.password);
+      clientConfig = {
+        host:     u.hostname,
+        port:     parseInt(u.port || "5432", 10),
+        user:     decodeURIComponent(u.username),
+        password: urlPassword,
+        database: u.pathname.replace(/^\//, ""),
+        ssl:      { rejectUnauthorized: false },
+        connectionTimeoutMillis: 15000,
+        keepAlive: true,
+      };
+    } catch {
+      // URL 파싱 실패 시 connectionString 방식으로 폴백
+      clientConfig = { connectionString: connStr, ssl: { rejectUnauthorized: false } };
+    }
+
+    const client = new Client(clientConfig);
 
     client.on("error", (err) => {
       console.error("[realtime] LISTEN client error:", err.message);
