@@ -1,0 +1,125 @@
+[보낼 곳: APP REPLIT]
+
+P0 검증 결과 승인합니다.
+
+DB/API 구조에 대한 추가 조사나 재설계는 하지 마십시오.
+
+현재 남은 작업은
+“슈퍼관리자 수영장 상세를 실제 Production WEB에서 최종 동작시키고 검증”
+하는 것뿐입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최신 WEB Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SuperPoolDetailPage 수정이 포함된
+release/x-dashboard-final 최신 commit을 기준으로
+
+swimnote-web Production을 배포하십시오.
+
+구버전 web build가 남아 있으면 안 됩니다.
+
+확인:
+
+https://swimnote.kr/admin
+
+에서 실제 최신 코드가 서비스되고 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 Super Admin E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production Super Admin 계정으로:
+
+수영장 관리
+→ 실제 수영장 1곳 클릭
+→ 수영장 상세
+
+를 직접 확인하십시오.
+
+필수:
+
+- SUMMARY_FAILED 없음
+- 기본정보 표시
+- 회원 수 표시
+- 선생님 수 표시
+- 반 수 표시
+- X 상태 표시
+- 구독 상태 표시
+- 저장공간 표시
+- Growth Report section 정상
+- unavailable section은 0으로 위장하지 않고 명시적 상태 표시
+
+HTTP 200만 확인하지 말고
+실제 브라우저 화면이 열리는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Realtime 실제 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+SSE endpoint 존재 여부만 확인하지 마십시오.
+
+실제 Production에서 최소 1건:
+
+Pool A 상세화면 열기
+→ Pool A의 canonical data 변경
+→ SSE event 수신
+→ React Query invalidate/refetch
+→ 페이지 새로고침 없이 Super Admin 화면 반영
+
+까지 확인하십시오.
+
+가능하면 다음 중 안전한 1개로 검증:
+
+- 반 정보
+- 회원 상태
+- X 상태
+
+테스트 후 원상복구가 필요한 값은 반드시 복구하십시오.
+
+추가로:
+
+Pool B event가
+Pool A 상세를 잘못 갱신하지 않는
+pool isolation도 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 추가 개발 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서 금지:
+
+- 새 DB migration
+- schema 재설계
+- GR 재설계
+- APP OTA
+- AI ENGINE 수정
+- Dashboard 다른 메뉴 수정
+- unrelated cleanup
+
+현재 기능을 Production에서 끝내는 것만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 제출하십시오.
+
+1. full final commit SHA
+2. API Production LIVE full SHA
+3. API Render Deploy ID
+4. WEB Production full SHA/commit
+5. swimnote-web Deploy ID
+6. https://swimnote.kr/admin 최신 배포 확인
+7. 실제 수영장 상세 OPEN PASS/FAIL
+8. SUMMARY_FAILED 재발 YES/NO
+9. 회원/선생님/반/X/구독/저장공간 표시 PASS/FAIL
+10. Realtime 실제 변경 자동반영 PASS/FAIL
+11. pool isolation PASS/FAIL
+12. unavailable 표시 PASS/FAIL
+
+모두 PASS이면 이번 Super Admin 수영장 상세 작업 종료입니다.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 “확인하지 못함”이라고 명시하십시오.
+추측해서 정상이라고 보고하지 마십시오.
