@@ -1,0 +1,364 @@
+[보낼 곳: APP REPLIT]
+
+WP1 — 보강 권한 정리 + Teacher Growth Report API + Production 500 Fix
+
+이번 WP는 서버/API만 수정합니다.
+
+목표:
+1. 관리자 보강 = 전체 현황 READ ONLY
+2. 선생님 보강 = 자기 담당범위에서만 mutation
+3. Teacher가 PUBLISHED 성장리포트 History/Detail 열람 가능
+4. 현재 Dashboard Growth Report HTTP 500 해결
+
+APP UI / Dashboard UI는 이번 WP에서 수정하지 마십시오.
+OTA 하지 마십시오.
+DB migration 하지 마십시오.
+AI ENGINE 수정 금지.
+불필요한 refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. MAKEUP — ADMIN MODE
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 정책:
+
+pool_admin JWT
+= 자기 pool 전체 보강 현황 조회만
+
+teacher JWT
+= 자기 담당범위 실제 보강 운영
+
+겸직 사용자는 기존:
+/auth/switch-role
+로 teacher JWT 전환 후 Teacher Mode를 사용합니다.
+
+[GET /admin/makeups]
+
+현재 teacher-scope 조건:
+
+callerRole !== 'super_admin'
+
+을:
+
+callerRole === 'teacher'
+
+로 수정하십시오.
+
+결과:
+
+super_admin → 전체
+pool_admin → 자기 pool 전체
+teacher → 기존 담당범위
+
+조회 권한 확대와 mutation 권한 확대를 혼동하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. /admin/makeups MUTATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 endpoint는 최종적으로:
+
+super_admin ONLY
+
+로 정리하십시오.
+
+- PATCH /admin/makeups/:id/assign
+- PATCH /admin/makeups/:id/transfer
+- POST /admin/makeups/:id/handover
+- PATCH /admin/makeups/:id/complete
+- PATCH /admin/makeups/:id/revert
+- PATCH /admin/makeups/:id/cancel
+- POST /admin/makeups/:id/extinguish
+
+pool_admin 제거.
+teacher 제거.
+
+Pool Admin은 Admin Mode에서 보강을 직접 처리하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. /teacher/makeups MUTATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 실제 보강 운영은 Teacher Mode에서 처리합니다.
+
+A.
+
+PATCH /teacher/makeups/:id/assign
+
+반드시:
+
+- requireRole(teacher)
+- pool match
+- caller가 해당 makeup의 student/class에 대한 현재 접근권한 보유
+
+를 검증하십시오.
+
+다른 teacher 담당 학생의 보강을
+임의로 assign하지 못해야 합니다.
+
+B.
+
+POST /teacher/makeups/:id/handover
+
+- requireRole(teacher) 추가
+- 기존 original_teacher_id / co_teacher_ids 검증 유지
+
+C.
+
+PATCH /teacher/makeups/:id/revert
+
+- requireRole(teacher) only
+- 기존 assigned_teacher_id / co-teacher 검증 유지
+
+D.
+
+PATCH /teacher/makeups/:id/complete
+
+- requireRole(teacher) only
+- 기존 original / assigned / transferred teacher 검증 유지
+
+E.
+
+PATCH /teacher/makeups/:id/complete-direct
+
+반드시:
+
+- requireRole(teacher)
+- pool match
+- caller가 assigned/transferred teacher이거나
+  현재 class teacher/co-teacher인지 검증
+
+다른 teacher 보강 완료처리 금지.
+
+F.
+
+POST /teacher/makeups/:id/extinguish
+
+현재 P0 권한 문제 수정.
+
+반드시:
+
+- requireRole(teacher)
+- pool match
+- ownership/current access check
+
+추가.
+
+caller가 해당 makeup의
+original/assigned teacher 또는
+현재 담당 class 범위에 속하는지 검증하십시오.
+
+다른 인증 사용자가 makeup ID만 알고 호출할 수 없어야 합니다.
+
+기존 helper가 있으면 재사용하십시오.
+새 권한 프레임워크 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. GROWTH REPORT PRODUCTION 500
+━━━━━━━━━━━━━━━━━━━━━━
+
+확정 Root Cause:
+
+GET /api/admin/growth-reports/monthly-list?year=2026&month=9
+
+HTTP 500
+
+backend:
+column l.analysis_status does not exist
+
+파일:
+
+artifacts/api-server/src/routes/admin-growth-report-production.ts
+
+monthly-list CTE `latest`의 SELECT에:
+
+gr.analysis_status
+
+가 누락되어 있습니다.
+
+CTE SELECT에 해당 컬럼을 추가하십시오.
+
+그 외 SQL 로직은 변경하지 마십시오.
+
+DB migration 없음.
+
+수정 후 실제 Production API에서:
+
+HTTP 200
+
+을 확인하십시오.
+
+데이터가 없으면 빈 목록은 정상입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. TEACHER GROWTH REPORT HISTORY API
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규:
+
+GET /teacher/students/:studentId/growth-reports
+
+목적:
+학생 상세 → 성장리포트 History.
+
+권한:
+
+teacher:
+현재 canTeacherAccessStudent(...) 통과 필수
+
+pool_admin:
+student.swimming_pool_id === JWT poolId
+
+조건:
+
+student_id = :studentId
+swimming_pool_id = JWT poolId
+product_status = 'PUBLISHED'
+deleted_at IS NULL
+
+ORDER BY report_period DESC
+
+응답은 APP 목록에 필요한 최소 필드만:
+
+- id
+- student_id
+- report_period
+- published_at
+- summary_text
+- selected_metrics
+
+내부 AI trace/prompt 등 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. TEACHER GROWTH REPORT DETAIL API
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규:
+
+GET /teacher/growth-reports/:reportId
+
+이 endpoint가 canonical Teacher Detail endpoint입니다.
+
+서버에서:
+
+reportId
+→ growth_report 조회
+→ swimming_pool_id 확인
+→ student_id 확인
+→ role별 access check
+→ PUBLISHED 여부
+→ deleted_at IS NULL
+
+검증 후 detail 반환.
+
+teacher:
+현재 canTeacherAccessStudent(...) 필수
+
+pool_admin:
+동일 pool 학생인지 확인
+
+반환 범위:
+
+학부모에게 공개되는 PUBLISHED Report 내용과
+Teacher 열람에 필요한 필드만.
+
+노출 금지:
+
+- raw AI trace
+- prompt
+- internal FactPackage
+- 내부 검증 metadata
+- 기타 생성 엔진 내부정보
+
+Notification Deep Link는 향후 WP2에서:
+
+notification.ref_id = reportId
+→ GET /teacher/growth-reports/:reportId
+
+를 사용합니다.
+
+studentId를 push payload에 추가하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 테스트:
+
+[Makeup]
+
+- pool_admin GET /admin/makeups → pool 전체 조회 가능
+- pool_admin admin mutation → 403
+- teacher admin mutation → 403
+- super_admin admin mutation → 기존 정상
+
+- teacher 자기 담당 makeup assign → 성공
+- teacher 다른 teacher 담당 makeup assign → 거부
+- teacher 다른 teacher makeup complete-direct → 거부
+- teacher 권한 없는 makeup extinguish → 거부
+- parent JWT로 teacher makeup mutation → 거부
+- pool_admin JWT로 teacher makeup mutation → 거부
+
+겸직 사용자는:
+pool_admin JWT → mutation 불가
+teacher JWT → 자기 담당범위 mutation 가능
+
+[Growth Report]
+
+- Teacher History: 현재 접근 학생 → 200
+- Teacher History: 접근권한 없는 학생 → 403/404 기존 보안정책에 맞춤
+- 다른 pool 학생 → 접근 불가
+- Detail: PUBLISHED → 정상
+- REVIEW_REQUIRED / APPROVED → Teacher Published Detail endpoint에서 노출 금지
+- deleted report → 노출 금지
+- pool_admin → 자기 pool Published 조회 가능
+- 다른 pool → 거부
+
+[Production Error]
+
+- monthly-list 기존 500 재현 확인
+- 수정 후 200 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 PASS 후:
+
+APP/API Production Render에 배포하십시오.
+
+APP code/OTA 배포는 하지 마십시오.
+
+DB migration 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. 보강 GET 수정 결과
+2. admin mutation 최종 role
+3. teacher mutation별 최종 access check
+4. Growth Report History endpoint
+5. Growth Report Detail endpoint
+6. monthly-list 500 수정 전/후 HTTP 결과
+7. 전체 테스트 결과
+8. 수정 파일
+9. repo
+10. branch
+11. full work commit SHA
+12. full Production LIVE SHA
+13. Render service
+14. Render Deploy ID
+15. deploy status
+16. runtime / health 결과
+
+work commit과 LIVE SHA가 다르면 반드시 이유를 설명하십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+‘확인하지 못함’
+이라고 명시하고 추측해서 정상이라고 보고하지 마십시오.
+
+이번 WP 외 기능 추가나 개선 제안은 하지 마십시오.
