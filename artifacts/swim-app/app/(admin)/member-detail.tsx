@@ -36,7 +36,7 @@ import {
 const C = Colors.light;
 
 export default function MemberDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, backTo } = useLocalSearchParams<{ id: string; backTo?: string }>();
   const { token, pool, adminUser } = useAuth();
   const { themeColor } = useBrand();
 
@@ -302,7 +302,7 @@ export default function MemberDetailScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: C.background }}>
-        <SubScreenHeader title="회원 정보" />
+        <SubScreenHeader title="회원 정보" onBack={() => { if (backTo === "members") router.replace("/(admin)/members" as any); else router.back(); }} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={themeColor} size="large" />
         </View>
@@ -313,7 +313,7 @@ export default function MemberDetailScreen() {
   if (!data) {
     return (
       <View style={{ flex: 1, backgroundColor: C.background }}>
-        <SubScreenHeader title="회원 정보" />
+        <SubScreenHeader title="회원 정보" onBack={() => { if (backTo === "members") router.replace("/(admin)/members" as any); else router.back(); }} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8 }}>
           <Text style={{ color: C.textMuted }}>
             {loadError ?? "회원을 찾을 수 없습니다"}
@@ -333,6 +333,7 @@ export default function MemberDetailScreen() {
         title={data.name}
         subtitle={statusMeta.label}
         rightSlot={saving ? <ActivityIndicator color={themeColor} size="small" /> : undefined}
+        onBack={() => { if (backTo === "members") router.replace("/(admin)/members" as any); else router.back(); }}
       />
 
       {/* ── Long-scroll 본문 ── */}
