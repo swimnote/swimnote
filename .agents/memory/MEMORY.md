@@ -91,3 +91,4 @@
 - [P0 X Trial forceRefreshMode Fix](p0-x-trial-fix-done.md) — refreshMode lock bug; forceRefreshMode 추가; SHA 2532e05b; Render LIVE; OTA 01a088e7
 - [P0 FINAL POLICY SYSTEM 완료](p0-policy-system-done.md) — PURCHASE_SUBSCRIPTION_REFUND v1.0; SHA 32bd8d35; Render LIVE; OTA 01a08a6b; gate(signup+trial+purchase)
 - [SWIMNOTE 2.2.0 Production Release 완료](220-release-done-state.md) — HEAD 10c94c68; iOS 25fc7e4a/bld300; Android 0e68775f/vc300; OTA 01a08bbc; ASC 제출 완료
+- [WP2 완료 상태](wp2-done-state.md) — SHA 315b3668; teacher GR navigation+admin makeup read-only+dashboard GR history; OTA 01a0a3fc
