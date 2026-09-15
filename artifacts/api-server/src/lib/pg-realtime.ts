@@ -103,11 +103,18 @@ let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30_000;
 
 export async function startListener(): Promise<void> {
-  const connStr = process.env.SUPABASE_DATABASE_URL || process.env.POOL_DATABASE_URL;
+  // REALTIME_DATABASE_URL: LISTEN 전용 direct PostgreSQL connection (pooler 우회)
+  // 일반 API DB는 기존 SUPABASE_DATABASE_URL 유지
+  const connStr = process.env.REALTIME_DATABASE_URL
+    || process.env.SUPABASE_DATABASE_URL
+    || process.env.POOL_DATABASE_URL;
   if (!connStr) {
     console.warn("[realtime] No DATABASE_URL — LISTEN disabled");
     return;
   }
+  const usingDirect = Boolean(process.env.REALTIME_DATABASE_URL);
+  console.log(`[realtime] LISTEN using ${usingDirect ? "REALTIME_DATABASE_URL (direct)" : "pooler URL"}`);
+
 
   async function connect() {
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
