@@ -1,0 +1,190 @@
+[보낼 곳: APP REPLIT]
+
+Growth Report 발행일 NaN 버그가 Production에서 여전히 재현됩니다.
+
+실제 화면:
+
+1. 학생상세 → 성장리포트 목록
+2. Growth Report Detail
+
+두 화면 모두:
+
+NaN. NaN. NaN. 발행
+
+으로 표시됩니다.
+
+이전 완료보고에서 수정됐다고 했지만 실제 기기에서는 해결되지 않았습니다.
+
+이번 작업은 발행일 표시 버그만 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 Production payload 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면에 표시되는 실제 reportId 1건을 기준으로:
+
+GET /teacher/students/:studentId/growth-reports
+
+및
+
+GET /teacher/growth-reports/:reportId
+
+응답에서 실제:
+
+- published_at
+- report_period
+- report_id / id
+
+값과 type을 확인하십시오.
+
+추측 금지.
+
+특히 published_at이 실제로:
+
+- ISO string인지
+- null인지
+- object인지
+- 다른 property name으로 내려오는지
+
+확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. APP 날짜 파싱 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 두 화면 모두 확인:
+
+- teacher-gr-history.tsx
+- teacher-gr-detail.tsx
+
+각 화면에서 published_at을 어떤 코드로 날짜 변환하는지 확인하십시오.
+
+NaN 발생 위치를 실제로 찾으십시오.
+
+예:
+
+Number(...)
+split(...)
+new Date(...)
+getFullYear()
+getMonth()
+getDate()
+
+중 어디서 invalid value가 만들어지는지 확인.
+
+API payload가 정상 ISO string이라면
+API를 다시 수정하지 말고 APP parsing만 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 공통 표시 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 화면 모두 동일한 날짜 formatter를 사용하십시오.
+
+정상 published_at:
+
+"2026-09-13T07:20:59.999Z"
+
+→ 한국 사용자 화면:
+
+"2026. 9. 13. 발행"
+
+형태.
+
+published_at이 null/undefined/invalid이면:
+
+NaN 표시 절대 금지.
+
+그 경우:
+
+- 발행일 문구 자체 비노출
+
+로 처리하십시오.
+
+report_period를 published_at 대체값으로 사용하지 마십시오.
+
+제목의:
+
+"2026년 9월 성장리포트"
+
+는 report issue month이고,
+
+발행일은 실제 published_at입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 허용:
+
+- teacher-gr-history.tsx
+- teacher-gr-detail.tsx
+- 필요 시 기존 공통 date formatter helper
+
+금지:
+
+- Growth Report API 재설계
+- DB
+- Diary
+- Makeup
+- Navigation
+- Notification
+- Parent 화면
+- Dashboard
+- AI ENGINE
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production report 1건으로:
+
+A.
+History:
+NaN 제거
+→ 실제 날짜 표시
+
+B.
+Detail:
+NaN 제거
+→ 동일 실제 날짜 표시
+
+C.
+published_at null case:
+NaN 없이 날짜 문구 비노출
+
+확인하십시오.
+
+코드상 정상이라고만 보고하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 수정만 필요하면:
+
+production-v2
+runtimeVersion 2.2.0
+
+iOS OTA 배포.
+
+API가 실제로 잘못된 payload를 보내는 것이 확인될 때만 API 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. 실제 published_at payload
+2. NaN의 정확한 Root Cause
+3. 수정한 formatter/코드
+4. History 수정 후 표시값
+5. Detail 수정 후 표시값
+6. 수정 파일
+7. full work SHA
+8. full OTA Update ID
+9. branch
+10. runtimeVersion
+
+추가 기능 제안 금지.
