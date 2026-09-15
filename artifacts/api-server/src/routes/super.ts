@@ -8102,7 +8102,7 @@ router.get(
 
     const hb = setInterval(() => {
       try { res.write("data: ping\n\n"); } catch { /* client disconnected */ }
-    }, 8_000);
+    }, 30_000);
 
     const cleanup = () => {
       clearInterval(hb);
