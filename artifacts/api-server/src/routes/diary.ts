@@ -406,7 +406,7 @@ router.get("/diaries/index",
       //    + 등록일 이전 diary 차단: students.created_at KST cutoff 적용
       //    작성 선생님 필터 없음 — 학생에 귀속된 전체 일지 역사 반환 정책
       const studentCommonFilter = studentIdParam
-        ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam} AND is_deleted = false)
+        ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam})
               AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
         : sql``;
       // ② 학생 노트: cdn.student_id = :studentId 직접 필터

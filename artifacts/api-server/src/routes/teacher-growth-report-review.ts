@@ -127,7 +127,7 @@ async function teacherOwnsStudent(params: {
   const res = await superAdminDb.execute(sql`
     SELECT 1
     FROM class_groups cg
-    JOIN students s ON s.current_class_id = cg.id
+    JOIN students s ON s.class_group_id = cg.id
     WHERE cg.teacher_user_id = ${teacherId}
       AND cg.swimming_pool_id = ${poolId}
       AND s.id = ${studentId}
@@ -135,12 +135,12 @@ async function teacherOwnsStudent(params: {
   `);
   if (res.rows.length > 0) return true;
 
-  // Fallback: student_class_history 현재 수강 확인 (current_class_id 미설정 케이스)
+  // Fallback: student_class_history 현재 수강 확인 (class_group_id 미설정 케이스)
   const histRes = await superAdminDb.execute(sql`
     SELECT 1
     FROM class_groups cg
     JOIN student_class_history sch
-      ON sch.class_id = cg.id
+      ON sch.class_group_id = cg.id
       AND sch.student_id = ${studentId}
       AND sch.left_at IS NULL
     WHERE cg.teacher_user_id = ${teacherId}
@@ -167,11 +167,11 @@ teacherGrowthReportReviewRouter.get(
         return;
       }
 
-      // 담당 학생 ID 목록 (current_class_id + history fallback)
+      // 담당 학생 ID 목록 (class_group_id + history fallback)
       const stuRows = await superAdminDb.execute(sql`
         SELECT DISTINCT s.id AS student_id, s.name AS student_name
         FROM students s
-        JOIN class_groups cg ON cg.id = s.current_class_id
+        JOIN class_groups cg ON cg.id = s.class_group_id
         WHERE cg.teacher_user_id = ${teacherId}
           AND cg.swimming_pool_id = ${poolId}
           AND cg.is_deleted = false
@@ -179,7 +179,7 @@ teacherGrowthReportReviewRouter.get(
         SELECT DISTINCT s.id AS student_id, s.name AS student_name
         FROM students s
         JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
-        JOIN class_groups cg ON cg.id = sch.class_id
+        JOIN class_groups cg ON cg.id = sch.class_group_id
         WHERE cg.teacher_user_id = ${teacherId}
           AND cg.swimming_pool_id = ${poolId}
           AND cg.is_deleted = false
