@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { publicPost } from "@/lib/api-client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,42 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (step.kind === "pin-required" && pin.length === 4) {
+      handlePinVerify(pin, (step as { kind: "pin-required"; webSession: string }).webSession);
+    }
+  }, [pin, step]);
+
+  async function handlePinVerify(pinValue: string, webSession: string) {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await publicPost<PinVerifyResponse>("/auth/web-pin/verify", {
+        web_session: webSession,
+        web_pin: pinValue,
+      });
+      if (res.token) {
+        await login(res.token);
+        navigate("/admin");
+      } else {
+        setError(res.message ?? "PIN 인증에 실패했습니다.");
+        setPin("");
+      }
+    } catch (err: unknown) {
+      const e = err as { status?: number; message?: string };
+      if (e.status === 401 || e.status === 403) {
+        setError("PIN 번호가 올바르지 않습니다.");
+      } else if (e.status === 0 || !e.status) {
+        setError("서버에 연결할 수 없습니다. 네트워크를 확인해주세요.");
+      } else {
+        setError(e.message ?? "PIN 인증 중 오류가 발생했습니다.");
+      }
+      setPin("");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -200,34 +236,57 @@ export default function LoginPage() {
             </>
           ) : (
             <>
-              <div
-                style={{
-                  background: "var(--surface-subtle)",
-                  borderRadius: "8px",
-                  padding: "12px 14px",
-                  marginBottom: "20px",
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                }}
-              >
-                <strong style={{ color: "var(--text-body)" }}>PIN 번호를 입력해주세요.</strong>
-                <br />
-                SWIMNOTE 앱에서 설정한 웹 접속 PIN 번호를 입력합니다.
+              <div style={{ textAlign: "center", marginBottom: "24px" }}>
+                <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "16px" }}>
+                  SWIMNOTE 앱에서 설정한 웹 접속 PIN 번호를 입력하세요.
+                </div>
+                {/* PIN dots display */}
+                <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginBottom: "24px" }}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      style={{
+                        width: "14px",
+                        height: "14px",
+                        borderRadius: "50%",
+                        background: pin.length > i ? "var(--x-primary)" : "var(--border-default)",
+                        transition: "background 0.15s",
+                      }}
+                    />
+                  ))}
+                </div>
+                {/* Numeric keypad */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", maxWidth: "240px", margin: "0 auto" }}>
+                  {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={key === ""}
+                      onClick={() => {
+                        if (key === "⌫") {
+                          setPin((p) => p.slice(0, -1));
+                        } else if (key !== "" && pin.length < 4) {
+                          setPin((p) => p + key);
+                        }
+                      }}
+                      style={{
+                        height: "52px",
+                        borderRadius: "8px",
+                        border: "1px solid var(--border-default)",
+                        background: key === "" ? "transparent" : "var(--surface-white)",
+                        fontSize: key === "⌫" ? "18px" : "18px",
+                        fontWeight: 600,
+                        color: key === "⌫" ? "var(--text-muted)" : "var(--text-body)",
+                        cursor: key === "" ? "default" : "pointer",
+                        borderColor: key === "" ? "transparent" : undefined,
+                        visibility: key === "" ? "hidden" : "visible",
+                      }}
+                    >
+                      {key}
+                    </button>
+                  ))}
+                </div>
               </div>
-
-              <Field label="PIN 번호">
-                <input
-                  type="password"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="PIN 번호 입력"
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  autoFocus
-                  required
-                  style={inputStyle}
-                />
-              </Field>
             </>
           )}
 
