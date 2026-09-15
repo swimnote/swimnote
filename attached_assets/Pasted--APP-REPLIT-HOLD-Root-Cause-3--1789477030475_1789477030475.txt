@@ -1,0 +1,270 @@
+[보낼 곳: APP REPLIT]
+
+사전조사 보고서 검수 결과 HOLD입니다.
+
+Root Cause 방향은 승인하지만
+구현 전 아래 3개 설계만 보정해야 합니다.
+
+코드 수정 / commit / push / OTA / deploy / migration 금지.
+보정 계획서만 제출 후 멈추십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. MEDIA ORDER — ordering scope 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 sort_order 추가 방향 자체는 검토 가능합니다.
+
+하지만 sort_order를
+photo_assets_meta / video_assets_meta의
+단순 전역 숫자로 넣는 설계는 확정하지 마십시오.
+
+사용자 요구는:
+
+“한 번에 첨부한 순서”
+=
+“해당 일지/학생에서 보이는 순서”
+
+입니다.
+
+확인하십시오.
+
+A.
+사진/영상이 실제 Diary 화면에서
+한 개의 혼합 리스트로 같이 표시되는지,
+아니면 사진/영상이 별도 영역인지.
+
+B.
+각 media asset이:
+
+- journal_id
+- student_note_id
+
+중 하나에 직접 귀속되므로
+그 parent 범위 안에서만 sort_order가 의미를 가지는지.
+
+C.
+사진과 영상이 같은 화면에서 혼합 표시된다면
+서로 다른 photo/video table에 각각:
+
+0,1,2...
+
+를 저장하는 것만으로
+사진과 영상 사이의 상대 순서를 복원할 수 있는지.
+
+불가능하다면
+공통 attachment ordering을 어떻게 최소 변경으로 보존할지 제안하십시오.
+
+대규모 media DB 재설계는 금지.
+
+D.
+기존 데이터는 sort_order가 없으므로
+migration 후 legacy rows를 어떻게 안정적으로 표시할지.
+
+예:
+sort_order IS NULL
+→ 기존 created_at 기준 fallback
+
+신규 첨부만 selection order 보존.
+
+E.
+AlbumPickerModal의 created_at DESC 제거가
+앨범 전체 정렬까지 망가뜨리는지 확인하십시오.
+
+“앨범에서 최근 사진이 먼저 보이는 것”과
+“일지에 선택한 순서대로 첨부되는 것”은 다른 요구입니다.
+
+AlbumPicker 자체의 갤러리 정렬을 없애야 하는지,
+선택 결과 배열만 순서 보존하면 되는지 구분하십시오.
+
+최종 보고:
+- ordering의 정확한 scope
+- mixed photo/video 처리
+- legacy fallback
+- AlbumPicker 표시정렬과 첨부정렬 구분
+- 최종 schema/API 최소안
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. MEDIA-ONLY DIARY — migration 재검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+class_diary_student_notes.note_content
+= TEXT NOT NULL
+
+이라고 보고했습니다.
+
+NOT NULL이어도
+빈 문자열 ""은 저장 가능합니다.
+
+따라서 단순히 media-only note를 지원하기 위해
+nullable migration이 정말 필요한지 재검토하십시오.
+
+우선 권장안:
+
+note row 생성 조건:
+
+text.trim().length > 0
+OR
+student media 존재
+
+media-only인 경우:
+
+note_content = ""
+
+로 저장.
+
+"." 같은 가짜 문자 금지.
+
+TEXT NOT NULL은 그대로 유지.
+
+이 방식이 현재 schema/API에서 가능하면
+DB migration을 제거하십시오.
+
+확인할 것:
+
+- API INSERT가 ""를 정상 허용하는지
+- parent/teacher render가 ""를 자연스럽게 비표시하는지
+- media attach를 위한 note_id 생성이 가능한지
+- client가 media가 있는 student를 payload에 포함할 수 있는지
+
+그리고 사용자 요구의 기본 케이스:
+
+COMMON 내용 존재
++
+개별 text ""
++
+학생별 media 있음
+
+→ 정상 저장
+
+을 최소 변경으로 구현하십시오.
+
+완전 빈:
+COMMON 없음
+학생 text 없음
+media 없음
+
+은 기존처럼 저장 금지.
+
+최종 보고:
+- migration 정말 필요한지 YES/NO
+- 필요 없다면 최종 저장계약
+- media가 있는 student를 서버에 알리는 최소 payload 구조
+- note 생성 → media attach 순서
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. NAVIGATION — “my-schedule 복귀”가 아니라
+정확한 직전 반 화면 복원 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+scheduler:
+my-schedule
+→ student-detail
+params { id, backTo: "my-schedule" }
+
+이라고 했습니다.
+
+하지만 사용자 요구는:
+
+스케줄러
+→ 특정 수업/반 선택
+→ 학생목록/반 화면
+→ 회원상세
+→ BACK
+
+했을 때
+
+“my-schedule 첫 화면”
+
+이 아니라
+
+“바로 직전에 보고 있던 동일 반 선택/학생목록 상태”
+
+로 돌아가는 것입니다.
+
+따라서 단순:
+
+router.replace("/(teacher)/my-schedule")
+
+로 요구가 충족된다고 가정하지 마십시오.
+
+실제 my-schedule 내부에서:
+
+- 선택 날짜
+- 선택 schedule
+- 선택 class
+- 반 상세/학생목록 open 상태
+
+를 어디에 보관하는지 확인하십시오.
+
+예:
+
+local useState
+route param
+context/store
+modal state
+selectedScheduleId
+selectedClassId
+
+등.
+
+replace로 my-schedule을 새로 mount하면
+그 직전 반 화면이 유지되는지 실제 코드 기준으로 판단하십시오.
+
+필요하다면 최소:
+
+backTo="my-schedule"
+backClassId
+backScheduleId
+backDate
+
+등 실제 필요한 값만 전달하여
+동일 반 화면을 복원하십시오.
+
+불필요한 context는 추가하지 마십시오.
+
+또 다음 flow에서 source가 유지되어야 합니다.
+
+scheduler
+→ 동일 반
+→ student-detail
+→ diary/photos/GR
+→ student-detail
+→ BACK
+→ 동일 scheduler 반 화면
+
+회원목록 경로는:
+
+students
+→ student-detail
+→ BACK
+→ students
+
+그대로.
+
+최종 보고:
+- my-schedule 내부 선택상태 저장 방식
+- replace 시 상태 유지/소실 여부
+- “동일 직전 반 화면” 복원에 필요한 정확한 params
+- student-detail 하위화면 왕복 동안 back context 전달 방식
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 최종 수정 계획
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 보정 후
+1개 WP로 구현 가능한 최종 계획만 다시 제출하십시오.
+
+특히 명확히:
+
+A. Media order migration/schema
+B. Media-only Diary migration 필요 여부
+C. Scheduler exact return context
+
+를 확정하십시오.
+
+아직 구현하지 마십시오.
+추가 기능 제안 금지.
