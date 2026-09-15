@@ -974,7 +974,9 @@ router.post("/diaries",
       }
 
       const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
-      if (!class_group_id || (!common_content?.trim() && !hasStudentNotes)) {
+      const hasCommonMedia = req.body.has_group_media === true;
+      const hasStudentMedia = Array.isArray(student_notes) && student_notes.some((n: any) => n.has_media === true);
+      if (!class_group_id || (!common_content?.trim() && !hasStudentNotes && !hasCommonMedia && !hasStudentMedia)) {
         return apiErr(res, 400, "반 ID와 일지 내용은 필수입니다.");
       }
 
@@ -1106,18 +1108,20 @@ router.post("/diaries",
         console.log(`[diary-create] class_diaries INSERT done`);
 
         for (const n of notes) {
-          if (!n.student_id || !n.note_content?.trim()) {
-            console.log(`[diary-create] SKIP note student_id=${n.student_id} note_content=${n.note_content}`);
+          // Skip if no student_id, and also skip if no text AND no media flag
+          if (!n.student_id || (!n.note_content?.trim() && !n.has_media)) {
+            console.log(`[diary-create] SKIP note student_id=${n.student_id} note_content=${n.note_content} has_media=${n.has_media}`);
             continue;
           }
           const noteId = genId("csn");
+          const noteContent = n.note_content?.trim() ?? "";
           console.log(`[diary-create] INSERT student_note id=${noteId} diary_id=${diaryId} student_id=${n.student_id}`);
           await tx.execute(sql`
             INSERT INTO class_diary_student_notes (id, diary_id, student_id, note_content)
-            VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${n.note_content.trim()})
+            VALUES (${noteId}, ${diaryId}, ${n.student_id}, ${noteContent})
           `);
           console.log(`[diary-create] student_note INSERT done id=${noteId}`);
-          savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
+          savedNotes.push({ id: noteId, student_id: n.student_id, note_content: noteContent });
         }
 
         // ── WP7: X mode growth_events insert (TX 내부) ──────────────────────

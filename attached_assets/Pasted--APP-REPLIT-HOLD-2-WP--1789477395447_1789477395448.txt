@@ -1,0 +1,231 @@
+[보낼 곳: APP REPLIT]
+
+최종 설계보고서 검수 결과 HOLD입니다.
+
+전체 방향은 승인합니다.
+추가 대규모 조사하지 마십시오.
+
+아래 2개 누락만 보정한 뒤
+같은 WP에서 바로 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. MEDIA-ONLY DIARY — groupMedia-only 누락 보정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고서에서는:
+
+- studentMedia only
+- note_content=""
+
+경로는 설계했지만,
+
+Write 화면에는 실제로:
+
+- groupMedia
+- studentMedia
+
+둘 다 존재합니다.
+
+따라서 아래 3가지가 전부 저장 가능해야 합니다.
+
+A.
+텍스트 + 미디어
+
+B.
+학생별 텍스트 없이 studentMedia만
+
+C.
+공통 텍스트 없이 groupMedia만
+
+현재 서버 validation을:
+
+common_content 있음
+OR student note text 있음
+OR studentMedia 있음
+
+까지만 만들면
+C의 groupMedia-only가 다시 400이 될 수 있습니다.
+
+실제 현재 payload/upload flow를 확인하여
+공통 미디어 존재 여부도 저장 허용조건에 포함하십시오.
+
+예시 개념:
+
+hasCommonText
+OR hasStudentText
+OR hasCommonMedia
+OR hasStudentMedia
+
+단 실제 현재 payload 구조를 재사용하십시오.
+
+불필요한 새 DB 구조 만들지 마십시오.
+
+studentMedia-only:
+→ 빈 student note row 생성
+→ note_id로 media attach
+
+groupMedia-only:
+→ diary/journal row 생성
+→ journal_id로 기존 group media attach
+
+가 가능해야 합니다.
+
+DB migration은 media-only diary 때문에 만들지 않습니다.
+
+검증:
+
+1.
+텍스트 없이 사진 1장만 공통일지 저장
+→ 성공
+
+2.
+텍스트 없이 영상 1개만 공통일지 저장
+→ 성공
+
+3.
+텍스트 없이 특정 학생 사진/영상만 저장
+→ 성공
+
+4.
+텍스트도 미디어도 없음
+→ 기존처럼 저장 거부
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. NAVIGATION — “정확한 직전 반 화면” 복원
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고서에서 확인한 my-schedule state:
+
+- viewMode
+- selectedDate
+- selectedGroup
+- detailGroup
+
+그런데 최종안은:
+
+backDate
+backClassId
+
+만 복원하고 있습니다.
+
+이것만으로는 fresh mount 시:
+
+viewMode = monthly
+
+로 초기화되므로
+직전 반 화면을 정확히 복원하지 못할 수 있습니다.
+
+따라서 실제 student-detail 진입 시점의 context를 확인하여
+필요한 최소 params를 확정하십시오.
+
+최소 검토:
+
+- backViewMode
+- backDate
+- backClassId
+
+그리고 실제 학생상세 진입이
+detailGroup/DaySheet의 반 상세에서 발생한다면
+
+그 동일 반 상세 상태까지 다시 열어야 하는지
+현재 진입 코드를 기준으로 확인하십시오.
+
+목표는 단순히:
+
+my-schedule 첫 화면으로 복귀
+
+가 아닙니다.
+
+목표:
+
+직전 보고 있던 날짜
++
+직전 viewMode
++
+직전 선택한 반
+
+으로 복귀.
+
+실제 사용자가 반 상세 화면에서 학생을 눌러 들어간 경우라면
+가능한 범위에서 동일 반 context까지 복원하십시오.
+
+새 Navigation framework 금지.
+
+기존 route params 방식만 확장하십시오.
+
+그리고:
+
+my-schedule
+→ student-detail
+→ diary/photos/growth-report
+→ student-detail
+→ BACK
+
+동안 위 context가 소실되지 않도록
+하위화면에서 student-detail로 돌아올 때도
+필요한 params를 passthrough 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. MEDIA ORDER
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계 승인합니다.
+
+- photo_assets_meta.sort_order
+- video_assets_meta.sort_order
+- mixed shared index
+- client merge-sort
+- NULL legacy → created_at fallback
+- AlbumPickerModal 갤러리 created_at DESC 유지
+
+그대로 구현하십시오.
+
+단 선택 결과를 실제 payload로 만들 때
+Set insertion order가 최종 mixed media array까지
+실제로 보존되는지만 구현 과정에서 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 최종 WP 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+한 WP에서:
+
+A. Media Order
+B. Media-only Diary
+C. Navigation exact restore
+
+전부 구현 + 테스트 + 필요한 migration/API/OTA/Render 배포까지 완료하십시오.
+
+불필요한 추가 WP 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+[Media Order]
+1. migration
+2. sort_order 저장 방식
+3. photo+video mixed 재현 결과
+4. legacy fallback 결과
+
+[Media-only]
+5. groupMedia-only 저장 결과
+6. studentMedia-only 저장 결과
+7. empty diary 차단 결과
+8. migration 없음 확인
+
+[Navigation]
+9. 실제 사용한 back params
+10. viewMode/date/class 복원 결과
+11. 하위화면 왕복 후에도 context 유지 결과
+
+[Deploy]
+12. 수정 파일
+13. full work SHA
+14. migration 적용 결과
+15. API LIVE SHA / Deploy ID
+16. APP OTA Update ID / branch / runtimeVersion
+
+추가 기능 제안하지 마십시오.

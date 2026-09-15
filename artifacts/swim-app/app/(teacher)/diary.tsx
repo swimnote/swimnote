@@ -1056,6 +1056,23 @@ export default function TeacherDiaryScreen() {
         effectiveNotes.push({ student_id: addNoteStudent.id, student_name: addNoteStudent.name, note_content: noteInput.trim() });
       }
     }
+    // B: include students who have media but no text (media-only notes)
+    if (!isRetry) {
+      const mediaStudentIds = new Set([
+        ...Object.entries(studentAlbumPhotos).filter(([, arr]) => arr.length > 0).map(([id]) => id),
+        ...Object.entries(studentAlbumVideos).filter(([, arr]) => arr.length > 0).map(([id]) => id),
+        ...Object.entries(studentMedia).filter(([, arr]) => arr.some(m => m.uploaded)).map(([id]) => id),
+      ]);
+      for (const sid of mediaStudentIds) {
+        if (!effectiveNotes.find(n => n.student_id === sid)) {
+          const stu = classStudents.find((s: any) => s.id === sid) as any;
+          effectiveNotes.push({ student_id: sid, student_name: stu?.name ?? "", note_content: "", has_media: true } as any);
+        } else {
+          // mark existing entry as having media too
+          effectiveNotes = effectiveNotes.map(n => n.student_id === sid ? { ...n, has_media: true } as any : n);
+        }
+      }
+    }
     if (!isRetry) {
       // 학생 로딩 미완료 — loading 중이거나 아직 응답 전
       if (classStudentsLoading || !classStudentsLoaded) {
@@ -1118,7 +1135,13 @@ export default function TeacherDiaryScreen() {
             class_group_id: selectedGroup!.id,
             lesson_date:    targetDate,
             common_content: commonContent.trim(),
-            student_notes:  effectiveNotes.map(n => ({ student_id: n.student_id, note_content: n.note_content.trim() })),
+            student_notes:  effectiveNotes.map(n => ({
+              student_id:   n.student_id,
+              note_content: (n as any).note_content?.trim() ?? "",
+              ...((n as any).has_media ? { has_media: true } : {}),
+            })),
+            // B: media-only diary — groupMedia만 있을 때 validation 통과용 플래그
+            has_group_media: groupMedia.some(m => m.uploaded) || selectedAlbumPhotos.length > 0 || selectedAlbumVideos.length > 0,
             // WP7: AI curriculum matches — 서버에서 growth_events 생성에 사용
             ...(aiCurriculumMatches.length > 0 && { curriculum_matches: aiCurriculumMatches }),
             // CASE A Fix: ai_request_id → verifyAiOrigin → class_diaries.ai_generated=true
@@ -1170,7 +1193,7 @@ export default function TeacherDiaryScreen() {
         if (__DEV__) console.log(`[handleSave] Step2 - diary-attach START diary_id=${diaryId} photoCount=${selectedAlbumIds.length}`);
         const pr = await apiRequest(token, "/photos/diary-attach", {
           method: "POST",
-          body: JSON.stringify({ diary_id: diaryId, photo_ids: selectedAlbumIds }),
+          body: JSON.stringify({ diary_id: diaryId, photo_ids: selectedAlbumIds, sort_orders: selectedAlbumIds.map((_, i) => i) }),
         }).catch(() => null);
         if (__DEV__) console.log(`[handleSave] Step2 - diary-attach DONE ok=${pr?.ok} status=${pr?.status}`);
         if (!pr?.ok) {
@@ -1182,7 +1205,7 @@ export default function TeacherDiaryScreen() {
       if (selectedAlbumVideos.length > 0) {
         const pr = await apiRequest(token, "/videos/diary-attach", {
           method: "POST",
-          body: JSON.stringify({ diary_id: diaryId, video_ids: selectedAlbumVideos.map(v => v.id) }),
+          body: JSON.stringify({ diary_id: diaryId, video_ids: selectedAlbumVideos.map(v => v.id), sort_orders: selectedAlbumVideos.map((_, i) => i) }),
         }).catch(() => null);
         if (!pr?.ok) {
           const d = pr ? await pr.json().catch(() => ({})) as any : {};
@@ -1198,7 +1221,7 @@ export default function TeacherDiaryScreen() {
           if (__DEV__) console.log(`[handleSave] note-attach START photoCount=${photos.length}`);
           const pr = await apiRequest(token, "/photos/note-attach", {
             method: "POST",
-            body: JSON.stringify({ note_id: noteId, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id) }),
+            body: JSON.stringify({ note_id: noteId, photo_ids: photos.map((p: AlbumPhotoInfo) => p.id), sort_orders: photos.map((_: any, i: number) => i) }),
           }).catch(() => null);
           if (__DEV__) console.log(`[handleSave] note-attach DONE ok=${pr?.ok} status=${pr?.status}`);
           if (!pr?.ok) {
@@ -1211,7 +1234,7 @@ export default function TeacherDiaryScreen() {
         if (vids.length > 0) {
           const pr = await apiRequest(token, "/videos/note-attach", {
             method: "POST",
-            body: JSON.stringify({ note_id: noteId, video_ids: vids.map((v: AlbumVideoInfo) => v.id) }),
+            body: JSON.stringify({ note_id: noteId, video_ids: vids.map((v: AlbumVideoInfo) => v.id), sort_orders: vids.map((_: any, i: number) => i) }),
           }).catch(() => null);
           if (!pr?.ok) {
             const d = pr ? await pr.json().catch(() => ({})) as any : {};

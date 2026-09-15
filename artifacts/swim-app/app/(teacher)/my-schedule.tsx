@@ -44,7 +44,7 @@ export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const { isSwitchingRole } = useRole();
-  const params = useLocalSearchParams<{ openDate?: string }>();
+  const params = useLocalSearchParams<{ openDate?: string; backDate?: string; backClassId?: string; backViewMode?: string }>();
   const selfTeacher = adminUser ? { id: adminUser.id, name: adminUser.name || "나" } : undefined;
   const poolId = (adminUser as any)?.swimming_pool_id || "";
 
@@ -130,6 +130,27 @@ export default function MyScheduleScreen() {
       handleDatePress(params.openDate);
     }
   }, [loading, params.openDate]);
+
+  // C: student-detail → my-schedule 복귀 시 상태 복원 (backDate/backClassId/backViewMode)
+  useEffect(() => {
+    if (loading) return;
+    if (!params.backDate && !params.backClassId && !params.backViewMode) return;
+    if (autoOpenDoneRef.current) return;
+    autoOpenDoneRef.current = true;
+    const bMode = (params.backViewMode ?? "monthly") as "monthly" | "weekly" | "daily";
+    const bDate = params.backDate || null;
+    const bClassId = params.backClassId || null;
+    if (bMode) setViewMode(bMode);
+    if (bDate) {
+      setSelectedDate(bDate);
+      loadDayData(bDate);
+      loadMemo(bDate);
+    }
+    if (bClassId) {
+      const g = groups.find(gr => gr.id === bClassId);
+      if (g) setSelectedGroup(g);
+    }
+  }, [loading, groups]);
 
   useEffect(() => {
     if (!token || viewMode !== "weekly") return;
@@ -400,7 +421,7 @@ export default function MyScheduleScreen() {
                 {/* 학생 이름/정보 영역 tap → Student Detail */}
                 <Pressable
                   style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}
-                  onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
+                  onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule", backDate: selectedDate ?? "", backClassId: selectedGroup?.id ?? "", backViewMode: viewMode} } as any)}
                 >
                   {isAbsent && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#D96C6C" }} />}
                   <View style={{ flex: 1 }}>

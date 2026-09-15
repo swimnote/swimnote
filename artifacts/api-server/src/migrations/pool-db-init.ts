@@ -1520,4 +1520,8 @@ export async function initPoolDb(db: MigrationDb): Promise<void> {
       err?.message ?? err,
     );
   }
+
+  // ── WP-NAV2 A: media sort_order (선택 순서 보존) ─────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS sort_order INTEGER`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS sort_order INTEGER`)).catch(() => {});
 }

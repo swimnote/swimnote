@@ -28,6 +28,8 @@ interface Photo {
   file_url: string;
   presigned_url?: string;
   lesson_date?: string;
+  sort_order?: number;
+  created_at?: string;
 }
 
 interface VideoItem {
@@ -37,6 +39,8 @@ interface VideoItem {
   thumbnail_presigned_url?: string;
   presigned_url?: string;
   caption?: string;
+  sort_order?: number;
+  created_at?: string;
 }
 
 interface Props {
@@ -344,11 +348,27 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   }
 
   function goNext() {
-    if (viewIdx === null || viewIdx >= photos.length - 1) return;
+    if (viewIdx === null || viewIdx >= sortedPhotos.length - 1) return;
     const next = viewIdx + 1;
     setViewIdx(next);
     photoScrollRef.current?.scrollTo({ x: next * SCREEN_W, animated: true });
   }
+
+  // Merge-sort photos and videos by sort_order (null → placed last by created_at)
+  type StripItem = { type: "photo"; item: Photo } | { type: "video"; item: VideoItem };
+  const combined: StripItem[] = [
+    ...photos.map((p: Photo): StripItem => ({ type: "photo", item: p })),
+    ...(videos as VideoItem[]).map((v): StripItem => ({ type: "video", item: v })),
+  ].sort((a, b) => {
+    const aOrder = typeof a.item.sort_order === "number" ? a.item.sort_order : 999999;
+    const bOrder = typeof b.item.sort_order === "number" ? b.item.sort_order : 999999;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    const aTime = new Date(a.item.created_at ?? 0).getTime();
+    const bTime = new Date(b.item.created_at ?? 0).getTime();
+    return aTime - bTime;
+  });
+  // Sorted photos list for the full-screen viewer (preserves strip order)
+  const sortedPhotos = combined.filter(m => m.type === "photo").map(m => m.item as Photo);
 
   const totalCount = photos.length + videos.length;
 
@@ -400,32 +420,36 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.strip}
       >
-        {/* 사진 썸네일 */}
-        {photos.map((photo, idx) => (
-          <Pressable
-            key={photo.id}
-            onPress={() => openViewer(idx)}
-            style={({ pressed }) => [s.thumb, pressed && { opacity: 0.85 }]}
-          >
-            <Image
-              source={{ uri: photoUrl(photo) }}
-              style={s.thumbImg}
-              contentFit="cover"
-              cachePolicy="memory"
-            />
-            <Pressable
-              style={s.downloadOverlay}
-              onPress={() => downloadPhoto(photo)}
-              hitSlop={4}
-            >
-              <LucideIcon name="upload-cloud" size={14} color="#fff" />
-            </Pressable>
-          </Pressable>
-        ))}
-
-        {/* 영상 썸네일 */}
-        {videos.map((video: VideoItem) => {
-          if (!video?.id) return null; // null-safe guard
+        {/* 미디어 합성 스트립 — sort_order 순서 (null → 맨 뒤) */}
+        {combined.map((m) => {
+          if (m.type === "photo") {
+            const photo = m.item as Photo;
+            const photoIdx = sortedPhotos.indexOf(photo);
+            return (
+              <Pressable
+                key={photo.id}
+                onPress={() => openViewer(photoIdx)}
+                style={({ pressed }) => [s.thumb, pressed && { opacity: 0.85 }]}
+              >
+                <Image
+                  source={{ uri: photoUrl(photo) }}
+                  style={s.thumbImg}
+                  contentFit="cover"
+                  cachePolicy="memory"
+                />
+                <Pressable
+                  style={s.downloadOverlay}
+                  onPress={() => downloadPhoto(photo)}
+                  hitSlop={4}
+                >
+                  <LucideIcon name="upload-cloud" size={14} color="#fff" />
+                </Pressable>
+              </Pressable>
+            );
+          }
+          // video
+          const video = m.item as VideoItem;
+          if (!video?.id) return null;
           const tn = videoThumbUrl(video);
           return (
             <Pressable
@@ -475,7 +499,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               <LucideIcon name="x" size={22} color="#fff" />
             </Pressable>
             <Text style={s.viewerCounter}>
-              {viewIdx !== null ? `${viewIdx + 1} / ${photos.length}` : ""}
+              {viewIdx !== null ? `${viewIdx + 1} / ${sortedPhotos.length}` : ""}
             </Text>
           </View>
 
@@ -490,12 +514,12 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               setViewIdx(prev => {
                 if (prev === null) return null; // 닫히는 중이면 재오픈 방지
                 const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
-                return Math.max(0, Math.min(idx, photos.length - 1));
+                return Math.max(0, Math.min(idx, sortedPhotos.length - 1));
               });
             }}
             style={{ flex: 1 }}
           >
-            {photos.map((photo) => (
+            {sortedPhotos.map((photo) => (
               <View key={photo.id} style={s.viewerPage}>
                 <Image
                   source={{ uri: photoUrl(photo) }}
@@ -513,7 +537,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               <LucideIcon name="chevron-left" size={28} color="#fff" />
             </Pressable>
           )}
-          {viewIdx !== null && viewIdx < photos.length - 1 && (
+          {viewIdx !== null && viewIdx < sortedPhotos.length - 1 && (
             <Pressable style={[s.navBtn, s.navBtnRight]} onPress={goNext} hitSlop={8}>
               <LucideIcon name="chevron-right" size={28} color="#fff" />
             </Pressable>
@@ -524,7 +548,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
             <View style={s.viewerFooter}>
               <Pressable
                 style={[s.dlBtn, downloading && { opacity: 0.6 }]}
-                onPress={() => downloadPhoto(photos[viewIdx])}
+                onPress={() => downloadPhoto(sortedPhotos[viewIdx])}
                 disabled={downloading || downloadingAll}
               >
                 {downloading
@@ -533,7 +557,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                 <Text style={s.dlBtnText}>{downloading ? "저장 중..." : "이 사진만 저장"}</Text>
               </Pressable>
 
-              {photos.length > 1 && (
+              {sortedPhotos.length > 1 && (
                 <Pressable
                   style={[s.dlBtnAll, (downloadingAll || downloading) && { opacity: 0.6 }]}
                   onPress={downloadAllPhotos}
@@ -542,12 +566,12 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
                   {downloadingAll ? (
                     <>
                       <ActivityIndicator size="small" color="#fff" />
-                      <Text style={s.dlBtnText}>{downloadProgress}/{photos.length} 저장 중...</Text>
+                      <Text style={s.dlBtnText}>{downloadProgress}/{sortedPhotos.length} 저장 중...</Text>
                     </>
                   ) : (
                     <>
                       <LucideIcon name="upload-cloud" size={15} color="#fff" />
-                      <Text style={s.dlBtnText}>전체 {photos.length}장 저장</Text>
+                      <Text style={s.dlBtnText}>전체 {sortedPhotos.length}장 저장</Text>
                     </>
                   )}
                 </Pressable>

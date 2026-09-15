@@ -231,7 +231,12 @@ async function directUploadPhotosBatch(opts: DirectUploadOptions): Promise<Direc
 
   const completed = succeededItems.map(r => {
     const slot = uploadMap.get(r.clientId)!;
-    return { client_id: r.clientId, object_key: slot.object_key };
+    const origIndex = files.findIndex(f => f.clientId === r.clientId);
+    return {
+      client_id: r.clientId,
+      object_key: slot.object_key,
+      ...(origIndex >= 0 ? { sort_order: origIndex } : {}),
+    };
   });
 
   try {

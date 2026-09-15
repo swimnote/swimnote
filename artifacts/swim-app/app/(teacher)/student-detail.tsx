@@ -127,8 +127,19 @@ function clsDayTime(cls: { schedule_days: string; schedule_time: string }): stri
 
 // ── 메인 화면 ────────────────────────────────────────────────────────────
 export default function StudentDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string; backTo?: string }>();
-  const goBack = () => router.replace("/(teacher)/students" as any);
+  const { id, backTo, backDate, backClassId, backViewMode } = useLocalSearchParams<{
+    id: string; backTo?: string; backDate?: string; backClassId?: string; backViewMode?: string;
+  }>();
+  const goBack = () => {
+    if (backTo === "my-schedule") {
+      router.replace({
+        pathname: "/(teacher)/my-schedule" as any,
+        params: { backDate: backDate ?? "", backClassId: backClassId ?? "", backViewMode: backViewMode ?? "daily" },
+      } as any);
+    } else {
+      router.replace("/(teacher)/students" as any);
+    }
+  };
   const { token } = useAuth();
   const { themeColor } = useBrand();
 
@@ -782,14 +793,14 @@ export default function StudentDetailScreen() {
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
               style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: themeColor + "60", backgroundColor: themeColor + "0A" }}
-              onPress={() => router.push({ pathname: "/(teacher)/diary-index", params: { studentId: student.id, studentName: student.name, backTo: "student-detail" } } as any)}
+              onPress={() => router.push({ pathname: "/(teacher)/diary-index", params: { studentId: student.id, studentName: student.name, backTo: "student-detail", backDate, backClassId, backViewMode } } as any)}
             >
               <LucideIcon name="book-open" size={14} color={themeColor} />
               <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: themeColor }}>일지 보기</Text>
             </Pressable>
             <Pressable
               style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundSoft }}
-              onPress={() => router.push({ pathname: "/(teacher)/photos", params: { studentId: student.id, studentName: student.name } } as any)}
+              onPress={() => router.push({ pathname: "/(teacher)/photos", params: { studentId: student.id, studentName: student.name, backDate, backClassId, backViewMode } } as any)}
             >
               <LucideIcon name="image" size={14} color={C.textSecondary} />
               <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>사진/영상</Text>
@@ -798,7 +809,7 @@ export default function StudentDetailScreen() {
           {/* 성장리포트 보기 — 동일 레벨, 별도 행 */}
           <Pressable
             style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "#3ECFBA40", backgroundColor: "#3ECFBA0A", marginTop: 8 }}
-            onPress={() => router.push({ pathname: "/(teacher)/teacher-gr-history", params: { studentId: student.id, studentName: student.name, source: "student-detail" } } as any)}
+            onPress={() => router.push({ pathname: "/(teacher)/teacher-gr-history", params: { studentId: student.id, studentName: student.name, source: "student-detail", backDate, backClassId, backViewMode } } as any)}
           >
             <LucideIcon name="file-text" size={14} color="#0D2E5A" />
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0D2E5A" }}>성장리포트 보기</Text>

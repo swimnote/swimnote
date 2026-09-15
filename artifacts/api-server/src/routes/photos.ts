@@ -261,7 +261,7 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
     const attachedRows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at,
-             sp.lesson_date, sp.file_size, sp.object_key, sp.media_status,
+             sp.lesson_date, sp.file_size, sp.object_key, sp.media_status, sp.sort_order,
              s.name AS student_name
       FROM photo_assets_meta sp
       JOIN class_diaries cd ON cd.id = sp.journal_id AND cd.is_deleted = false
@@ -269,7 +269,7 @@ router.get("/photos/group/:classId", requireAuth, async (req: AuthRequest, res: 
       WHERE cd.class_group_id = ${classId}
         AND sp.media_status = 'attached'
         ${dateStr ? sql`AND cd.lesson_date = ${dateStr}` : sql``}
-      ORDER BY sp.created_at DESC
+      ORDER BY COALESCE(sp.sort_order, 999999) ASC, sp.created_at ASC
     `);
     allPhotos = allPhotos.concat(attachedRows.rows as any[]);
 
@@ -365,13 +365,13 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
     const rows = await db.execute(sql`
       SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.pool_id,
              sp.uploaded_by, sp.uploaded_by_name, sp.caption, sp.created_at, sp.file_size,
-             sp.object_key, sp.lesson_date, s.name AS student_name
+             sp.object_key, sp.lesson_date, sp.sort_order, s.name AS student_name
       FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'private' AND sp.student_id = ${studentId}
       AND sp.media_status <> 'uploading'
       ${dateFilter}
-      ORDER BY sp.created_at DESC
+      ORDER BY COALESCE(sp.sort_order, 999999) ASC, sp.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
     const photos = await batchPresign(
@@ -1043,7 +1043,7 @@ router.get("/photos/picker", requireAuth, requireRole("teacher", "pool_admin", "
 router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
-    const { diary_id, photo_ids } = req.body as { diary_id: string; photo_ids: string[] };
+    const { diary_id, photo_ids, sort_orders } = req.body as { diary_id: string; photo_ids: string[]; sort_orders?: number[] };
 
     console.log(`[diary-attach] START userId=${userId} diary_id=${diary_id} photo_ids=${JSON.stringify(photo_ids)}`);
 
@@ -1079,6 +1079,15 @@ router.post("/photos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
     }
 
     const results = await attachPhotosToDiary(diary_id, photo_ids, poolId);
+    // Set sort_order per selection index if provided
+    if (Array.isArray(sort_orders) && sort_orders.length === photo_ids.length) {
+      for (let i = 0; i < photo_ids.length; i++) {
+        await db.execute(sql`
+          UPDATE photo_assets_meta SET sort_order = ${sort_orders[i]}
+          WHERE id = ${photo_ids[i]} AND pool_id = ${poolId}
+        `).catch(() => {});
+      }
+    }
     const attached = results.filter(r => r.action === "attached").length;
     const cloned = results.filter(r => r.action === "cloned").length;
     const alreadyAttached = results.filter(r => r.action === "already_attached").length;
@@ -1273,7 +1282,7 @@ router.post(
 router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
-    const { note_id, photo_ids } = req.body as { note_id: string; photo_ids: string[] };
+    const { note_id, photo_ids, sort_orders } = req.body as { note_id: string; photo_ids: string[]; sort_orders?: number[] };
 
     console.log(`[note-attach] START userId=${userId} note_id=${note_id} photo_ids=${JSON.stringify(photo_ids)}`);
 
@@ -1306,6 +1315,15 @@ router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_adm
     }
 
     const noteResults = await attachPhotosToStudentNote(note.diary_id, note_id, note.student_id, photo_ids, poolId);
+    // Set sort_order per selection index if provided
+    if (Array.isArray(sort_orders) && sort_orders.length === photo_ids.length) {
+      for (let i = 0; i < photo_ids.length; i++) {
+        await db.execute(sql`
+          UPDATE photo_assets_meta SET sort_order = ${sort_orders[i]}
+          WHERE id = ${photo_ids[i]} AND pool_id = ${poolId}
+        `).catch(() => {});
+      }
+    }
     const nAttached = noteResults.filter(r => r.action === "attached").length;
     const nCloned   = noteResults.filter(r => r.action === "cloned").length;
     const nAlready  = noteResults.filter(r => r.action === "already_attached").length;
@@ -1682,7 +1700,7 @@ router.post(
       const { userId } = req.user!;
       const body = req.body as {
         upload_token?: string;
-        completed?: Array<{ client_id?: string; object_key?: string }>;
+        completed?: Array<{ client_id?: string; object_key?: string; sort_order?: number }>;
       };
 
       if (!body.upload_token || typeof body.upload_token !== "string") {
@@ -1707,6 +1725,14 @@ router.post(
       // Caller must match the token's userId
       if (session.userId !== userId) {
         res.status(403).json({ error: "업로드 토큰의 사용자와 일치하지 않습니다." }); return;
+      }
+
+      // ── Build sort_order map from completed items ─────────────────────
+      const sortOrderMap: Record<string, number> = {};
+      for (const item of body.completed as Array<{ client_id: string; sort_order?: number }>) {
+        if (typeof item.sort_order === "number") {
+          sortOrderMap[item.client_id] = item.sort_order;
+        }
       }
 
       // ── Validate completed list: no duplicates, all in session ─────────
@@ -1841,11 +1867,13 @@ router.post(
               continue;
             }
 
+            const sortOrd: number | null = sortOrderMap[item.client_id] ?? null;
             const finalizedRows = await tx.execute(sql`
               UPDATE photo_assets_meta
               SET media_status = 'draft',
                   file_size = ${item.file_size},
-                  file_type = ${item.file_type}
+                  file_type = ${item.file_type},
+                  sort_order = ${sortOrd}
               WHERE id = ${existing.id}
                 AND media_status = 'uploading'
               RETURNING id, created_at, uploaded_by_name, media_status, journal_id

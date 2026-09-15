@@ -64,10 +64,13 @@ function formatPublishedAt(iso: string | null | undefined): string {
 export default function TeacherGrHistoryScreen() {
   const insets     = useSafeAreaInsets();
   const { token }  = useAuth();
-  const params      = useLocalSearchParams<{ studentId?: string; studentName?: string; source?: string }>();
+  const params       = useLocalSearchParams<{ studentId?: string; studentName?: string; source?: string; backDate?: string; backClassId?: string; backViewMode?: string }>();
   const studentId   = params.studentId ?? "";
   const studentName = params.studentName ?? "학생";
   const source      = params.source ?? "";
+  const backDate    = params.backDate ?? "";
+  const backClassId = params.backClassId ?? "";
+  const backViewMode = params.backViewMode ?? "";
 
   const [items,   setItems]   = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +128,7 @@ export default function TeacherGrHistoryScreen() {
       <View style={s.header}>
         <Pressable hitSlop={12} onPress={() => {
           if (source === "student-detail" && studentId) {
-            router.replace({ pathname: "/(teacher)/student-detail", params: { id: studentId } } as any);
+            router.replace({ pathname: "/(teacher)/student-detail", params: { id: studentId, backTo: backDate || backClassId ? "my-schedule" : undefined, backDate, backClassId, backViewMode } } as any);
           } else if (router.canGoBack()) {
             router.back();
           } else {

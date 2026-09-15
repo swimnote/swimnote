@@ -700,7 +700,7 @@ router.get("/videos/picker", requireAuth, requireRole("teacher", "pool_admin", "
 router.post("/videos/diary-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
-    const { diary_id, video_ids } = req.body as { diary_id: string; video_ids: string[] };
+    const { diary_id, video_ids, sort_orders } = req.body as { diary_id: string; video_ids: string[]; sort_orders?: number[] };
     if (!diary_id || !Array.isArray(video_ids)) {
       res.status(400).json({ error: "diary_id와 video_ids가 필요합니다." }); return;
     }
@@ -721,10 +721,20 @@ router.post("/videos/diary-attach", requireAuth, requireRole("teacher", "pool_ad
       res.status(403).json({ error: "일부 영상에 대한 접근 권한이 없습니다." }); return;
     }
 
-    await db.execute(sql`
-      UPDATE video_assets_meta SET journal_id = ${diary_id}
-      WHERE id = ANY(${videoIdsLiteral}::text[]) AND pool_id = ${poolId}
-    `);
+    if (Array.isArray(sort_orders) && sort_orders.length === video_ids.length) {
+      // Update each video individually to preserve sort_order
+      for (let i = 0; i < video_ids.length; i++) {
+        await db.execute(sql`
+          UPDATE video_assets_meta SET journal_id = ${diary_id}, sort_order = ${sort_orders[i]}
+          WHERE id = ${video_ids[i]} AND pool_id = ${poolId}
+        `);
+      }
+    } else {
+      await db.execute(sql`
+        UPDATE video_assets_meta SET journal_id = ${diary_id}
+        WHERE id = ANY(${videoIdsLiteral}::text[]) AND pool_id = ${poolId}
+      `);
+    }
 
     res.json({ updated: video_ids.length });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
@@ -800,14 +810,14 @@ router.get("/videos/diary/:diaryId", requireAuth, async (req: AuthRequest, res: 
     // student note videos는 class_diary_student_notes.diary_id = diaryId 조건으로 조인
     const rows = await db.execute(sql`
       SELECT v.id, v.uploaded_by_name, v.created_at, v.file_size, v.class_id,
-             v.caption, v.thumbnail_key, v.status, v.student_note_id,
+             v.caption, v.thumbnail_key, v.status, v.student_note_id, v.sort_order,
              '/api/videos/' || v.id || '/file' AS file_url
       FROM video_assets_meta v
       WHERE (v.journal_id = ${diaryId} AND v.pool_id = ${poolId})
          OR v.student_note_id IN (
            SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
          )
-      ORDER BY v.created_at ASC
+      ORDER BY COALESCE(v.sort_order, 999999) ASC, v.created_at ASC
     `);
 
     const videos = await batchVideoPresign(rows.rows as any[]);
@@ -819,7 +829,7 @@ router.get("/videos/diary/:diaryId", requireAuth, async (req: AuthRequest, res: 
 router.post("/videos/note-attach", requireAuth, requireRole("teacher", "pool_admin", "sub_admin"), async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.user!;
-    const { note_id, video_ids } = req.body as { note_id: string; video_ids: string[] };
+    const { note_id, video_ids, sort_orders } = req.body as { note_id: string; video_ids: string[]; sort_orders?: number[] };
 
     if (!note_id || !Array.isArray(video_ids) || video_ids.length === 0) {
       res.status(400).json({ error: "note_id와 video_ids가 필요합니다." }); return;
@@ -837,10 +847,19 @@ router.post("/videos/note-attach", requireAuth, requireRole("teacher", "pool_adm
       res.status(403).json({ error: "일부 영상에 대한 접근 권한이 없습니다." }); return;
     }
 
-    await db.execute(sql`
-      UPDATE video_assets_meta SET student_note_id = ${note_id}
-      WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
-    `);
+    if (Array.isArray(sort_orders) && sort_orders.length === video_ids.length) {
+      for (let i = 0; i < video_ids.length; i++) {
+        await db.execute(sql`
+          UPDATE video_assets_meta SET student_note_id = ${note_id}, sort_order = ${sort_orders[i]}
+          WHERE id = ${video_ids[i]} AND pool_id = ${poolId}
+        `);
+      }
+    } else {
+      await db.execute(sql`
+        UPDATE video_assets_meta SET student_note_id = ${note_id}
+        WHERE id = ANY(${literal}::text[]) AND pool_id = ${poolId}
+      `);
+    }
 
     res.json({ updated: video_ids.length });
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
