@@ -62,7 +62,7 @@ export default function SuperLoginPage() {
           setStep({ kind: "totp", totpSession: res.totp_session });
         } else if (res.token) {
           await login(res.token);
-          navigate("/admin");
+          navigate("/super");
         } else {
           setError(res.message ?? "로그인에 실패했습니다.");
         }
@@ -73,7 +73,7 @@ export default function SuperLoginPage() {
         });
         if (res.token) {
           await login(res.token);
-          navigate("/admin");
+          navigate("/super");
         } else {
           setError(res.message ?? "OTP 인증에 실패했습니다.");
         }
