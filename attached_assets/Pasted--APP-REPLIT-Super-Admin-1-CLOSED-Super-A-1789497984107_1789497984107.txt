@@ -1,0 +1,144 @@
+[보낼 곳: APP REPLIT]
+
+Super Admin 작업 최종 1건만 처리하십시오.
+
+현재 완료된 기능은 전부 CLOSED입니다.
+
+수정 금지:
+- Super Admin UI
+- summary API
+- storage
+- errors
+- support
+- Growth Report
+- DB schema
+- migration
+- APP
+- 기타 Dashboard 기능
+
+남은 문제는 Realtime 하나뿐입니다.
+
+현재:
+mutation
+→ notifyPoolEvent()
+→ PostgreSQL pg_notify()
+
+까지 실행되지만
+
+Supabase pooler를 통해 연결된
+pg-realtime LISTEN client가 이벤트를 받지 못합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+LISTEN/NOTIFY 전용 PostgreSQL 연결만
+Direct DB connection으로 분리하십시오.
+
+기존 일반 API DB connection은 변경하지 마십시오.
+
+개념:
+
+일반 API query
+→ 기존 SUPABASE_DATABASE_URL 유지
+
+Realtime LISTEN 전용
+→ REALTIME_DATABASE_URL 또는 현재 프로젝트 규칙에 맞는 전용 Direct URL
+
+pg-realtime.ts만 Direct connection 사용
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최소 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 realtime 시스템 만들지 마십시오.
+
+금지:
+- polling
+- Supabase Realtime 신규 도입
+- WebSocket 신규 시스템
+- DB 구조 변경
+- SSE 재설계
+- 전체 connection layer refactor
+
+현재 존재하는:
+
+pg_notify
+→ LISTEN
+→ GET /super/pools/:id/stream
+→ React Query invalidate/refetch
+
+구조 그대로 유지합니다.
+
+LISTEN connection만 direct PostgreSQL connection으로 교체하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Direct URL이 현재 환경변수에 없다면
+━━━━━━━━━━━━━━━━━━━━━━
+
+추측해서 connection string을 만들지 마십시오.
+
+현재 Render/Supabase 설정에서
+Direct PostgreSQL URL을 안전하게 사용할 수 있는지 확인하십시오.
+
+가능하면 secret으로:
+
+REALTIME_DATABASE_URL
+
+같은 전용 환경변수를 설정하고
+pg-realtime.ts에서만 사용하십시오.
+
+secret 값은 로그/보고서에 출력하지 마십시오.
+
+직접 URL을 확보할 수 없다면
+코드를 더 벌리지 말고:
+
+"Direct DB URL 필요"
+
+라고 보고하고 멈추십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 딱 한 번만 실제 검증하십시오.
+
+Pool A Super Admin 상세 열기
+
+→ Pool A의 안전한 설정값 1건 변경
+
+→ notifyPoolEvent 발생
+
+→ LISTEN 수신
+
+→ SSE 전달
+
+→ WEB invalidate/refetch
+
+→ 새로고침 없이 화면 변경
+
+PASS 확인.
+
+그리고 Pool B 이벤트가
+Pool A SSE에 전달되지 않는지만 확인.
+
+테스트 값은 원상복구.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 보고하십시오.
+
+1. LISTEN이 사용하는 connection 종류
+2. 수정 파일
+3. Production deploy ID
+4. LISTEN event 수신 PASS/FAIL
+5. SSE 전달 PASS/FAIL
+6. 화면 자동갱신 PASS/FAIL
+7. pool isolation PASS/FAIL
+
+전부 PASS이면
+Super Admin 작업 전체 종료입니다.
+
+추가 조사/기능개발 금지.
