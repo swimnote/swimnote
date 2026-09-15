@@ -462,8 +462,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
         </View>
       </View>
 
-      {/* 결석자 리스트 탭 — waiting 항목: 만료 처리 버튼 */}
-      {tab === "결석자 리스트" && item.status === "waiting" && (
+      {/* waiting 항목: 만료 처리 버튼 */}
+      {item.status === "waiting" && (
         <Pressable onPress={onExpire}
           style={[s.overrideBtn, { borderColor: "#9CA3AF", backgroundColor: "#F9FAFB" }]}>
           <LucideIcon name="clock" size={13} color="#6B7280" />
@@ -481,8 +481,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
         </View>
       )}
 
-      {/* 만료 탭 — 대기로 복원 버튼 */}
-      {tab === "만료" && (
+      {/* expired 항목: 만료 안내 + 대기로 복원 버튼 (탭 무관, 모든 expired 아이템) */}
+      {item.status === "expired" && (
         <>
           <View style={[s.completedBanner, { backgroundColor: "#F3F4F6" }]}>
             <LucideIcon name="clock" size={12} color={C.textSecondary} />
