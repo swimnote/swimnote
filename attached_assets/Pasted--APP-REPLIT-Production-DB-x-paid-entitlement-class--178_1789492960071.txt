@@ -1,0 +1,324 @@
+[보낼 곳: APP REPLIT]
+
+슈퍼관리자 → 수영장 관리 → 수영장 상세 오류
+
+지금 바로 Production DB에
+x_paid_entitlement
+class_groups.active
+
+컬럼을 추가하지 마십시오.
+
+현재 조사결과는 “해당 query가 운영 DB에 존재하지 않는 컬럼을 참조한다”까지입니다.
+
+그것만으로
+“운영 DB migration 누락”
+이라고 결론내릴 수 없습니다.
+
+이번 문제의 목표는 단순히 SUMMARY_FAILED를 없애는 것이 아닙니다.
+
+최종 목표:
+
+슈퍼관리자가
+수영장 관리
+→ 특정 수영장 클릭
+
+했을 때
+
+해당 수영장의 실제 SWIMNOTE 운영정보가
+모바일 APP / Pool Admin Dashboard와 동일한 Production 데이터에서
+실시간으로 조회되어야 합니다.
+
+가짜 컬럼,
+별도 복제 데이터,
+슈퍼관리자 전용 임시 상태,
+mock/fallback
+
+을 만들면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 우선 migration 중지
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 두 컬럼을 임의 생성하지 마십시오.
+
+- swimming_pools.x_paid_entitlement
+- class_groups.active
+
+먼저 각각이:
+
+A. 실제 canonical schema에 존재해야 하는데
+Production migration만 누락된 것인지
+
+또는
+
+B. Super Admin 상세 query가
+현재 APP/API에서 더 이상 사용하지 않는
+잘못된/구형 컬럼을 참조하고 있는 것인지
+
+확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 Production schema 대조
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB의 실제 컬럼을 확인하십시오.
+
+최소:
+
+swimming_pools
+class_groups
+
+그리고 현재 Repository의 canonical schema와
+Production schema를 비교하십시오.
+
+확인:
+
+- swimming_pools의 X 상태 관련 실제 컬럼
+- 구독/entitlement 관련 실제 컬럼
+- class_groups의 활성/비활성 상태를 표현하는 실제 컬럼
+- deleted_at / status / is_active 등 대체 필드 여부
+
+중요:
+
+“원하는 이름의 컬럼이 없다”
+=
+“새 컬럼을 만들어야 한다”
+
+가 아닙니다.
+
+APP과 기존 Pool Admin API가
+현재 어떤 필드를 실제 source of truth로 사용하는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. migration history 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 컬럼 각각에 대해:
+
+- schema 파일에 실제 정의가 존재하는가
+- migration 파일이 존재하는가
+- migration이 이미 다른 환경에는 적용됐는가
+- Production에서만 누락됐는가
+- 현재 APP/API가 그 컬럼을 실제 사용하고 있는가
+
+를 확인하십시오.
+
+결론 규칙:
+
+CASE A
+Repository canonical migration이 실제 존재하고,
+현재 APP/API도 해당 컬럼을 canonical field로 사용하며,
+Production 적용만 누락됐다면
+
+→ 그때만 기존 정식 migration 적용 검토.
+
+CASE B
+현재 APP/API가 다른 canonical field를 사용한다면
+
+→ DB에 새 컬럼 추가 금지.
+→ Super Admin query를 현재 canonical field에 맞춰 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Super Admin Pool Detail 전체 query audit
+━━━━━━━━━━━━━━━━━━━━━━
+
+지금 첫 SQL error 2개만 고치고 끝내지 마십시오.
+
+현재 수영장 상세 페이지가 호출하는
+모든 endpoint/query를 한 번에 추적하십시오.
+
+페이지에 실제 존재하는 모든 section 기준으로:
+
+- 수영장 기본정보
+- 회원 관련 정보
+- 선생님
+- 반
+- 구독/플랜
+- X 상태
+- 저장공간/사용량
+- 기타 현재 상세화면에 표시하는 운영정보
+
+각 항목마다:
+
+UI field
+→ API endpoint
+→ server function
+→ DB table/column
+
+매핑을 확인하십시오.
+
+존재하지 않는 column이나
+과거 schema field가 더 있는지
+이번에 한 번에 잡으십시오.
+
+첫 오류 하나씩 실행해서
+다음 오류가 또 나오는 식으로 고치지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. “APP과 100% 연동”의 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin용 데이터를 별도로 복제하지 마십시오.
+
+정답은:
+
+SWIMNOTE Production PostgreSQL
+        ↓
+SWIMNOTE API / canonical server logic
+        ↓
+Pool Admin Dashboard
+        ↓
+Super Admin Dashboard
+
+모두 같은 실제 운영 데이터를 기준으로 하는 것입니다.
+
+Super Admin은 권한만 전체 pool을 볼 수 있는 상위 권한입니다.
+
+동일 수영장의:
+
+회원 수
+반
+선생님
+운영상태
+X 상태
+구독상태
+기타 실제 표시 데이터
+
+가 APP/Pool Admin과 의미가 다르면 안 됩니다.
+
+Super Admin용 별도 계산값을 임의 생성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. superAdminDb 직접 조회 검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고상 Super Admin 상세에서
+superAdminDb가 SUPABASE_DATABASE_URL로
+운영 DB에 직접 query하고 있습니다.
+
+이 자체만 보고 잘못이라고 단정하지는 않습니다.
+
+하지만 확인하십시오.
+
+현재 상세 summary가:
+
+기존 canonical APP/API domain logic을 재사용하는지,
+
+아니면 Super Admin용으로
+SQL을 새로 복제해놓아서
+schema drift가 생긴 것인지.
+
+후자라면 이번 오류의 구조적 원인입니다.
+
+가능하면 이미 존재하는
+canonical service/query/helper를 재사용하십시오.
+
+같은 의미의 query를
+Pool Admin용 / Super Admin용으로
+서로 다른 schema 가정으로 복제하지 마십시오.
+
+단 전체 API 대규모 refactor는 금지합니다.
+
+최소 변경으로 공통 source를 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Realtime도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Dashboard에는 기존:
+
+PostgreSQL LISTEN/NOTIFY
+→ API SSE
+→ React Query invalidate/refetch
+
+Realtime 구조가 존재합니다.
+
+Super Admin 수영장 상세가
+현재 이 변경 이벤트를 받는지 확인하십시오.
+
+예:
+
+Pool Admin/APP에서
+회원/반/선생님/상태가 변경됨
+
+→ Super Admin 상세에서도
+새로 로그인하거나 수동 새로고침해야만 바뀌는 구조가 아니라
+기존 Realtime architecture를 이용하여 갱신되는지 확인.
+
+단 보안상 기존 pool_admin SSE에
+super_admin을 억지로 끼워 넣지 마십시오.
+
+현재 super_admin 인증/권한 구조를 확인하고
+기존 구조 재사용이 가능한지 먼저 판단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 먼저 보고할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 migration부터 하지 말고
+아래를 먼저 짧게 보고하십시오.
+
+A. x_paid_entitlement
+
+- Production 존재 여부
+- repo schema 존재 여부
+- migration 존재 여부
+- 현재 APP/API 실제 사용 여부
+- 현재 canonical 대체 field가 있는지
+- 결론: QUERY BUG / MIGRATION MISSING
+
+B. class_groups.active
+
+동일하게:
+
+- Production 존재 여부
+- repo schema
+- migration
+- APP/API 실제 사용 field
+- canonical 대체 field
+- 결론
+
+C. SUMMARY_FAILED
+
+- 실제 failing endpoint
+- 실제 failing function
+- 실행 SQL/query
+- 존재하지 않는 field 전체
+- 첫 2개 외 추가 schema mismatch 여부
+
+D. SUPER ADMIN POOL DETAIL
+
+현재 화면의 각 section에 대해:
+
+UI
+→ API
+→ DB source
+
+매핑.
+
+E. REALTIME
+
+- 현재 Super Admin detail이 SSE를 구독하는지 YES/NO
+- APP/Pool Admin 변경이 상세화면에 자동 반영되는지 YES/NO
+- 아니라면 최소 수정안
+
+F. 최종 수정계획
+
+- DB migration 필요 YES/NO
+- API 수정 YES/NO
+- WEB 수정 YES/NO
+- Realtime 수정 YES/NO
+- 예상 수정 파일
+
+이 보고서를 제출한 뒤 멈추십시오.
+
+Production DB schema를
+Super Admin 페이지 오류에 맞추기 위해
+임의 변경하지 마십시오.
+
+APP/Production DB가 source of truth이고,
+Super Admin Dashboard가 거기에 맞춰야 합니다.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+“확인하지 못함”이라고 명시하십시오.
