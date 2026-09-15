@@ -110,8 +110,10 @@ export default function SiteFooter() {
           >
             &copy; {new Date().getFullYear()} SWIMNOTE. All rights reserved.
           </p>
-          <Link
-            href="/login"
+          <a
+            href="https://swimnote-web.onrender.com/admin/super"
+            target="_blank"
+            rel="noopener noreferrer"
             style={{
               fontSize: 11,
               color: "var(--ds-n-300)",
@@ -122,7 +124,7 @@ export default function SiteFooter() {
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "var(--ds-n-300)"; }}
           >
             관리자 로그인
-          </Link>
+          </a>
         </div>
       </div>
     </footer>

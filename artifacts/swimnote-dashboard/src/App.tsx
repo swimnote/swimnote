@@ -6,6 +6,7 @@ import { RealtimeProvider } from "@/context/RealtimeContext";
 import { getToken } from "@/lib/token";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import LoginPage from "@/pages/LoginPage";
+import SuperLoginPage from "@/pages/SuperLoginPage";
 import HomePage from "@/pages/HomePage";
 import XGatePage from "@/pages/XGatePage";
 import PlaceholderPage from "@/pages/PlaceholderPage";
@@ -49,6 +50,12 @@ function AppRoutes() {
         로딩 중…
       </div>
     );
+  }
+
+  // Super admin login route (/admin/super) — always accessible when unauthenticated
+  if (location === "/admin/super") {
+    if (state.status === "authenticated") return <Redirect to="/admin" />;
+    return <SuperLoginPage />;
   }
 
   // Redirect authenticated users away from login

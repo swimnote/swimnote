@@ -47,9 +47,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const user = await api.get<AuthUser & { swimming_pool_id?: string | null }>("/auth/me");
 
-      if (user.role !== "pool_admin") {
+      if (user.role !== "pool_admin" && user.role !== "super_admin") {
         clearToken();
         setState({ status: "unauthenticated" });
+        return;
+      }
+
+      // super_admin: no pool context, skip pool/X queries
+      if (user.role === "super_admin") {
+        setState({
+          status: "authenticated",
+          user: { ...user, poolName: "슈퍼관리자", xMode: "x" as XMode, hasX: true },
+        });
         return;
       }
 
