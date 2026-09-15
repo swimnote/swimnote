@@ -110,20 +110,21 @@ function getNotifyPool(): InstanceType<typeof Pool> | null {
 }
 
 export async function notifyPoolEvent(event: Omit<PoolEventPayload, never>): Promise<void> {
+  // 1) In-process broadcast (같은 Node.js 프로세스 내 SSE 클라이언트 즉시 전달)
+  broadcastToPool(event as PoolEventPayload);
+
+  // 2) pg_notify (multi-instance 환경 대비 — PostgreSQL 전파)
   try {
     const payload = JSON.stringify({ type: event.type, pool_id: event.pool_id, entity_id: event.entity_id ?? null });
     const pool = getNotifyPool();
     if (pool) {
-      // NOTIFY 전용 direct pool — LISTEN client와 동일 PostgreSQL 인스턴스
       await pool.query("SELECT pg_notify($1, $2)", ["pool_events", payload]);
     } else if (_db) {
-      // fallback: drizzle pool
       const { sql: dSql } = await import("drizzle-orm");
       await _db.execute(dSql`SELECT pg_notify('pool_events', ${payload})`);
     }
   } catch (e: any) {
-    // NOTIFY failure must NOT affect business mutation — just log
-    console.warn(`[realtime] notify failed type=${event.type}: ${e?.message}`);
+    console.warn(`[realtime] pg_notify failed type=${event.type}: ${e?.message}`);
   }
 }
 
