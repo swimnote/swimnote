@@ -160,7 +160,7 @@ router.get(
         WITH latest AS (
           SELECT DISTINCT ON (gr.student_id, gr.cycle_id)
             gr.id, gr.student_id, gr.cycle_id,
-            gr.product_status, gr.version_number,
+            gr.product_status, gr.analysis_status, gr.version_number,
             gr.discarded_at, gr.discard_reason, gr.discarded_by,
             gr.created_at, gr.updated_at, gr.published_at,
             gr.period_start, gr.period_end,

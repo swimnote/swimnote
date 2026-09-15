@@ -1897,10 +1897,10 @@ router.get("/makeups", requireAuth, requireRole("super_admin","pool_admin","teac
       if (teacher_id) conditions.push(`original_teacher_id = '${teacher_id}'`);
       if (assigned_teacher_id) conditions.push(`(assigned_teacher_id = '${assigned_teacher_id}' OR transferred_to_teacher_id = '${assigned_teacher_id}')`);
       if (class_group_id) conditions.push(`assigned_class_group_id = '${class_group_id}'`);
-      // super_admin이 아니고, teacher_id 필터 없으면 → 내 반 학생만
+      // teacher role이고 teacher_id 필터 없으면 → 내 담당반 학생만 (pool_admin은 전체 조회)
       const callerId = (req.user as any)?.userId;
       const callerRole = (req.user as any)?.role;
-      if (callerRole !== 'super_admin' && callerId && !teacher_id) {
+      if (callerRole === 'teacher' && callerId && !teacher_id) {
         const myClasses = (await db.execute(sql.raw(`
           SELECT id FROM class_groups
           WHERE (teacher_user_id = '${callerId}'
@@ -1985,7 +1985,7 @@ router.get("/makeups/student/:studentId", requireAuth, requireRole("super_admin"
 );
 
 // PATCH /admin/makeups/:id/assign — 담당선생님 보강 반 배정
-router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool_admin","teacher"),
+router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
@@ -2072,7 +2072,7 @@ router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin","pool
 );
 
 // PATCH /admin/makeups/:id/transfer — 다른 선생님 보강으로 이동
-router.patch("/makeups/:id/transfer", requireAuth, requireRole("super_admin","pool_admin"),
+router.patch("/makeups/:id/transfer", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
@@ -2107,7 +2107,7 @@ router.patch("/makeups/:id/transfer", requireAuth, requireRole("super_admin","po
 );
 
 // PATCH /admin/makeups/:id/complete — 보강 완료 처리
-router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","pool_admin","teacher"),
+router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
@@ -2163,7 +2163,7 @@ router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin","po
 );
 
 // PATCH /admin/makeups/:id/revert — 보강 대기로 되돌리기 (잘못 배정 시 원복)
-router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool_admin"),
+router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
@@ -2207,7 +2207,7 @@ router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin","pool
 );
 
 // PATCH /admin/makeups/:id/cancel — 보강 취소
-router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin","pool_admin"),
+router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
@@ -2231,7 +2231,7 @@ router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin","pool
 );
 
 // POST /admin/makeups/:id/extinguish — 결석소멸 (사유 포함)
-router.post("/makeups/:id/extinguish", requireAuth, requireRole("super_admin","pool_admin"),
+router.post("/makeups/:id/extinguish", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
@@ -2385,7 +2385,7 @@ router.get("/pool-teachers", requireAuth, requireRole("super_admin","pool_admin"
 );
 
 // POST /admin/makeups/:id/handover — 다른 선생님에게 기타 보강 인계 (선택 선생님 정산 +1)
-router.post("/makeups/:id/handover", requireAuth, requireRole("super_admin","pool_admin","teacher"),
+router.post("/makeups/:id/handover", requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);

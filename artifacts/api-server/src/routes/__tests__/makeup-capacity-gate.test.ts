@@ -124,6 +124,10 @@ function makeMkRow(overrides: Partial<Record<string, any>> = {}) {
     absence_date:               '2026-08-01',
     expire_at:                  null,
     swimming_pool_id:           'pool1',
+    original_teacher_id:        'u1',   // 소유권 확인: mockUser.userId = 'u1'
+    original_class_group_id:    null,
+    assigned_teacher_id:        null,
+    transferred_to_teacher_id:  null,
     ...overrides,
   };
 }

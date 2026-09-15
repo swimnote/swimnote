@@ -603,3 +603,180 @@ teacherGrowthReportReviewRouter.post(
     }
   },
 );
+
+// ── GET /teacher/students/:studentId/growth-reports — PUBLISHED 성장리포트 History ──
+// Teacher: 현재 담당 학생(teacherOwnsStudent)만. Pool admin: 자기 pool 학생.
+teacherGrowthReportReviewRouter.get(
+  "/teacher/students/:studentId/growth-reports",
+  requireAuth,
+  requireRole("teacher", "pool_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId    = (req.user!.userId ?? req.user!.id) as string;
+      const role      = req.user!.role as string;
+      const studentId = req.params["studentId"] as string;
+
+      // caller poolId 조회 (JWT poolId 우선, fallback DB)
+      let poolId: string | null = req.user!.poolId ?? null;
+      if (!poolId) {
+        const uRow = await superAdminDb.execute(sql`
+          SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+        `);
+        poolId = (uRow.rows[0] as any)?.swimming_pool_id ?? null;
+      }
+      if (!poolId) {
+        res.status(403).json({ success: false, error: "POOL_REQUIRED" }); return;
+      }
+
+      // pool 소속 학생인지 확인
+      const stuRows = await superAdminDb.execute(sql`
+        SELECT id, swimming_pool_id FROM students WHERE id = ${studentId} LIMIT 1
+      `);
+      if (!stuRows.rows.length) {
+        res.status(404).json({ success: false, error: "STUDENT_NOT_FOUND" }); return;
+      }
+      const student = stuRows.rows[0] as any;
+      if (student.swimming_pool_id !== poolId) {
+        res.status(403).json({ success: false, error: "POOL_MISMATCH" }); return;
+      }
+
+      // teacher: 현재 담당 학생인지 확인
+      if (role === "teacher") {
+        const owns = await teacherOwnsStudent({ teacherId: userId, studentId, poolId });
+        if (!owns) {
+          res.status(403).json({ success: false, error: "TEACHER_NOT_ASSIGNED" }); return;
+        }
+      }
+
+      const rows = await superAdminDb.execute(sql`
+        SELECT
+          gr.id,
+          gr.student_id,
+          gr.report_period,
+          gr.published_at,
+          gr.summary_text,
+          gr.selected_metrics
+        FROM growth_reports gr
+        WHERE gr.student_id      = ${studentId}
+          AND gr.swimming_pool_id = ${poolId}
+          AND gr.product_status   = 'PUBLISHED'
+          AND gr.deleted_at IS NULL
+        ORDER BY gr.report_period DESC
+        LIMIT 50
+      `);
+
+      res.json({ success: true, reports: rows.rows });
+    } catch (err: any) {
+      console.error("[teacher/students/:id/growth-reports]", err.message);
+      res.status(500).json({ success: false, error: "INTERNAL_ERROR" });
+    }
+  },
+);
+
+// ── GET /teacher/growth-reports/:reportId — PUBLISHED 성장리포트 상세 (teacher canonical) ──
+// Notification deep link + student detail 양쪽에서 사용하는 단일 endpoint.
+// reportId → swimming_pool_id + student_id 추출 → role별 access check → PUBLISHED 검증
+teacherGrowthReportReviewRouter.get(
+  "/teacher/growth-reports/:reportId",
+  requireAuth,
+  requireRole("teacher", "pool_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId   = (req.user!.userId ?? req.user!.id) as string;
+      const role     = req.user!.role as string;
+      const reportId = req.params["reportId"] as string;
+
+      // caller poolId 조회
+      let poolId: string | null = req.user!.poolId ?? null;
+      if (!poolId) {
+        const uRow = await superAdminDb.execute(sql`
+          SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+        `);
+        poolId = (uRow.rows[0] as any)?.swimming_pool_id ?? null;
+      }
+      if (!poolId) {
+        res.status(403).json({ success: false, error: "POOL_REQUIRED" }); return;
+      }
+
+      // 리포트 조회 (내부 AI trace/prompt/factPackage 제외)
+      const rRows = await superAdminDb.execute(sql`
+        SELECT
+          gr.id,
+          gr.student_id,
+          gr.swimming_pool_id,
+          gr.product_status,
+          gr.report_period,
+          gr.published_at,
+          gr.summary_text,
+          gr.sns_summary,
+          gr.selected_metrics,
+          gr.positive_growth_signals,
+          gr.success_conditions,
+          gr.support_levers,
+          gr.next_growth_targets,
+          gr.next_observation_targets,
+          gr.report_content
+        FROM growth_reports gr
+        WHERE gr.id = ${reportId}
+          AND gr.deleted_at IS NULL
+        LIMIT 1
+      `);
+
+      if (!rRows.rows.length) {
+        res.status(404).json({ success: false, error: "REPORT_NOT_FOUND" }); return;
+      }
+      const report = rRows.rows[0] as any;
+
+      // PUBLISHED 여부 확인
+      if (report.product_status !== "PUBLISHED") {
+        res.status(403).json({ success: false, error: "REPORT_NOT_PUBLISHED" }); return;
+      }
+
+      // pool 소속 확인
+      if (report.swimming_pool_id !== poolId) {
+        res.status(403).json({ success: false, error: "POOL_MISMATCH" }); return;
+      }
+
+      // teacher: 현재 담당 학생인지 확인
+      if (role === "teacher") {
+        const owns = await teacherOwnsStudent({
+          teacherId: userId,
+          studentId: report.student_id,
+          poolId,
+        });
+        if (!owns) {
+          res.status(403).json({ success: false, error: "TEACHER_NOT_ASSIGNED" }); return;
+        }
+      }
+
+      // 학생 이름 조회
+      const stuRow = await superAdminDb.execute(sql`
+        SELECT name FROM students WHERE id = ${report.student_id} LIMIT 1
+      `);
+      const studentName = (stuRow.rows[0] as any)?.name ?? "";
+
+      res.json({
+        success: true,
+        report: {
+          id:                      report.id,
+          student_id:              report.student_id,
+          student_name:            studentName,
+          report_period:           report.report_period,
+          published_at:            report.published_at,
+          summary_text:            report.summary_text,
+          sns_summary:             report.sns_summary,
+          selected_metrics:        report.selected_metrics,
+          positive_growth_signals: report.positive_growth_signals,
+          success_conditions:      report.success_conditions,
+          support_levers:          report.support_levers,
+          next_growth_targets:     report.next_growth_targets,
+          next_observation_targets:report.next_observation_targets,
+          report_content:          report.report_content,
+        },
+      });
+    } catch (err: any) {
+      console.error("[teacher/growth-reports/:reportId]", err.message);
+      res.status(500).json({ success: false, error: "INTERNAL_ERROR" });
+    }
+  },
+);

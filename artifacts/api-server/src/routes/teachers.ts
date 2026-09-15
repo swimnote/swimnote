@@ -859,7 +859,7 @@ router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
 );
 
 // ── 보강 지정 (teacher용) — 미래 날짜 전용 ────────────────────
-router.patch("/teacher/makeups/:id/assign", requireAuth,
+router.patch("/teacher/makeups/:id/assign", requireAuth, requireRole("teacher"),
   async (req: AuthRequest, res) => {
     try {
       const { class_group_id, assigned_date, allow_expired } = req.body;
@@ -875,13 +875,27 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
 
       const prevRows = (await db.execute(sql`
         SELECT student_id, student_name, status, assigned_class_group_id,
-               absence_date, expire_at, swimming_pool_id
+               absence_date, expire_at, swimming_pool_id, original_teacher_id, original_class_group_id
         FROM makeup_sessions WHERE id = ${sessionId} LIMIT 1
       `)).rows as any[];
       if (!prevRows.length) { res.status(404).json({ error: "보강 세션을 찾을 수 없습니다." }); return; }
       const prev = prevRows[0];
 
       if (prev.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
+
+      // 담당 교사 소유권 확인: original_teacher_id 또는 original_class_group_id의 co-teacher여야 함
+      const isOriginal = prev.original_teacher_id === userId;
+      let isCo = false;
+      if (!isOriginal && prev.original_class_group_id) {
+        const coRows = (await superAdminDb.execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${prev.original_class_group_id}
+            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+        `)).rows;
+        isCo = coRows.length > 0;
+      }
+      if (!isOriginal && !isCo) {
+        res.status(403).json({ error: "담당 선생님만 보강 일정을 배정할 수 있습니다." }); return;
+      }
       if (prev.status === "completed") {
         res.status(409).json({ error: "MAKEUP_ALREADY_COMPLETED", message: "이미 완료된 보강 건입니다." }); return;
       }
@@ -965,7 +979,7 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
 );
 
 // ── 보강 인계 (담당선생님 → 다른 선생님) ─────────────────────
-router.post("/teacher/makeups/:id/handover", requireAuth,
+router.post("/teacher/makeups/:id/handover", requireAuth, requireRole("teacher"),
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
@@ -1102,7 +1116,7 @@ router.get("/teacher/makeups/by-class", requireAuth,
 
 // ── 스케줄표에서 보강 직접 완료 (오늘·과거 날짜 전용) ────────────
 router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
-  requireRole("teacher", "pool_admin", "sub_admin"),
+  requireRole("teacher"),
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
@@ -1126,6 +1140,21 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
       if (mk.swimming_pool_id && mk.swimming_pool_id !== poolId) {
         res.status(403).json({ error: "처리 권한이 없습니다." }); return;
       }
+
+      // 담당 교사 소유권 확인: assigned/transferred teacher이거나 현재 class의 teacher/co-teacher여야 함
+      const isAssigned = mk.assigned_teacher_id === userId || mk.transferred_to_teacher_id === userId || mk.original_teacher_id === userId;
+      let isCdCo = false;
+      if (!isAssigned && mk.assigned_class_group_id) {
+        const coRows = (await superAdminDb.execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
+            AND (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text)) LIMIT 1
+        `)).rows;
+        isCdCo = coRows.length > 0;
+      }
+      if (!isAssigned && !isCdCo) {
+        res.status(403).json({ error: "담당 선생님만 보강을 직접 완료할 수 있습니다." }); return;
+      }
+
       if (mk.status === "completed") {
         res.status(400).json({ error: "MAKEUP_ALREADY_COMPLETED", message: "이미 완료된 보강입니다." }); return;
       }
@@ -1204,7 +1233,7 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
 // ── 보강 배정 취소 (assigned → waiting) ──────────────────────────────
 // 담당 수업(assigned_teacher_id 일치)의 보강 건만 취소 가능
 router.patch("/teacher/makeups/:id/revert", requireAuth,
-  requireRole("teacher", "pool_admin", "sub_admin"),
+  requireRole("teacher"),
   async (req: AuthRequest, res) => {
     try {
       const userId   = req.user!.userId;
@@ -1245,23 +1274,19 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
         res.status(400).json({ error: "배정 취소할 수 없는 상태입니다." }); return;
       }
 
-      // pool_admin / sub_admin: 소속 수영장 확인만으로 충분 (소유권 검사 면제)
-      const isAdmin = userRole === "pool_admin" || userRole === "sub_admin";
-      if (!isAdmin) {
-        // teacher: assigned_teacher_id가 본인이거나 co-teacher여야 함
-        const isAssignedTeacher = mk.assigned_teacher_id === userId;
-        let isCo = false;
-        if (!isAssignedTeacher && mk.assigned_class_group_id) {
-          const coRows = (await superAdminDb.execute(sql`
-            SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
-              AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
-          `)).rows;
-          isCo = coRows.length > 0;
-        }
-        if (!isAssignedTeacher && !isCo) {
-          console.log(`[teacher/makeups/revert] ownership fail: assigned_teacher=${mk.assigned_teacher_id} user=${userId}`);
-          res.status(403).json({ error: "담당 수업의 보강만 취소할 수 있습니다." }); return;
-        }
+      // teacher: assigned_teacher_id가 본인이거나 co-teacher여야 함
+      const isAssignedTeacher = mk.assigned_teacher_id === userId;
+      let isCo = false;
+      if (!isAssignedTeacher && mk.assigned_class_group_id) {
+        const coRows = (await superAdminDb.execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
+            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+        `)).rows;
+        isCo = coRows.length > 0;
+      }
+      if (!isAssignedTeacher && !isCo) {
+        console.log(`[teacher/makeups/revert] ownership fail: assigned_teacher=${mk.assigned_teacher_id} user=${userId}`);
+        res.status(403).json({ error: "담당 수업의 보강만 취소할 수 있습니다." }); return;
       }
 
       const updated = (await db.execute(sql`
@@ -1296,31 +1321,31 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
   }
 );
 
-router.patch("/teacher/makeups/:id/complete", requireAuth,
+router.patch("/teacher/makeups/:id/complete", requireAuth, requireRole("teacher"),
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const userRow = await superAdminDb.execute(sql`SELECT name, role, roles FROM users WHERE id = ${userId}`);
-      const userInfo = userRow.rows[0] as any;
-      const userName = userInfo?.name || "";
-      const isPoolAdmin = (userInfo?.role === "pool_admin") || (userInfo?.roles || "").includes("pool_admin");
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userName = (userRow.rows[0] as any)?.name || "";
+
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
       const rows = (await db.execute(sql`
-        SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+        SELECT * FROM makeup_sessions WHERE id = ${req.params.id}
+          AND swimming_pool_id = ${poolId} LIMIT 1
       `)).rows as any[];
       if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
       const mk = rows[0];
 
-      // pool_admin, original_teacher, assigned_teacher, transferred_teacher 모두 완료 처리 가능
-      const canComplete = isPoolAdmin
-        || mk.original_teacher_id === userId
+      // original_teacher, assigned_teacher, transferred_teacher만 완료 처리 가능
+      const canComplete = mk.original_teacher_id === userId
         || mk.assigned_teacher_id === userId
         || mk.transferred_to_teacher_id === userId;
       if (!canComplete) {
         res.status(403).json({ error: "처리 권한이 없습니다." }); return;
       }
 
-      const poolId = mk.swimming_pool_id;
       const targetDate = mk.assigned_date || mk.absence_date;
       const targetClassId = mk.assigned_class_group_id || mk.original_class_group_id || null;
 
@@ -1359,11 +1384,39 @@ router.patch("/teacher/makeups/:id/complete", requireAuth,
 );
 
 // ── 결석소멸 (teacher용) ───────────────────────────────────────
-router.post("/teacher/makeups/:id/extinguish", requireAuth,
+router.post("/teacher/makeups/:id/extinguish", requireAuth, requireRole("teacher"),
   async (req: AuthRequest, res) => {
     try {
       const { cancelled_reason, cancelled_custom } = req.body;
       const userId = req.user!.userId;
+
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      const mkRows = (await db.execute(sql`
+        SELECT id, status, swimming_pool_id, original_teacher_id, original_class_group_id, assigned_teacher_id
+        FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      if (!mkRows.length) { res.status(404).json({ error: "보강을 찾을 수 없습니다." }); return; }
+      const mk = mkRows[0];
+
+      // pool 소속 확인
+      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
+
+      // 담당 교사 소유권 확인: original/assigned teacher이거나 original_class_group_id의 co-teacher여야 함
+      const isOwner = mk.original_teacher_id === userId || mk.assigned_teacher_id === userId;
+      let isCo = false;
+      if (!isOwner && mk.original_class_group_id) {
+        const coRows = (await superAdminDb.execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${mk.original_class_group_id}
+            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+        `)).rows;
+        isCo = coRows.length > 0;
+      }
+      if (!isOwner && !isCo) {
+        res.status(403).json({ error: "담당 선생님만 결석소멸 처리할 수 있습니다." }); return;
+      }
+
       const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const userName = (userRow.rows[0] as any)?.name || "";
       await db.execute(sql`
@@ -1375,7 +1428,7 @@ router.post("/teacher/makeups/:id/extinguish", requireAuth,
           cancelled_by     = ${userId},
           cancelled_by_name= ${userName},
           updated_at       = now()
-        WHERE id = ${req.params.id}
+        WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
