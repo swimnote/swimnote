@@ -1,0 +1,233 @@
+[보낼 곳: APP REPLIT]
+
+학생상세 BACK 버그가 Production에서 여전히 재현됩니다.
+
+이번에는 navigation history를 신뢰하는 방식은 폐기합니다.
+
+수정 범위는
+“회원목록 ↔ 학생상세”
+navigation만입니다.
+
+다른 기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 증상
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher Mode:
+
+회원목록
+→ 학생상세
+→ 좌측 BACK
+
+현재:
+HOME
+
+목표:
+회원목록
+
+이 버그가 여러 차례 수정 후에도 계속 남아 있습니다.
+
+router.back()
+router.canGoBack()
+
+기반 해결은 이번 경로에서 사용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 회원목록 route부터 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 코드에서:
+
+회원목록에서 학생상세를 여는 실제 파일과
+실제 pathname을 확인하십시오.
+
+추측해서 route명을 만들지 마십시오.
+
+확인:
+
+- 회원목록 화면 파일
+- 학생상세 진입 버튼/row의 onPress
+- 실제 router.push/replace pathname
+- student-detail pathname
+- 둘이 속한 _layout / Stack / Tabs
+
+이 결과를 기준으로
+실제 회원목록 pathname을 canonical return route로 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 회원목록 → 학생상세
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원목록에서 student-detail로 진입할 때
+명시적으로 returnTo/source를 전달하십시오.
+
+예시 개념:
+
+router.push({
+  pathname: 실제 student-detail route,
+  params: {
+    id: studentId,
+    returnTo: 실제 회원목록 route,
+    source: "member-list"
+  }
+})
+
+실제 route명은 현재 코드에서 확인한 값을 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. student-detail BACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+student-detail 좌측 BACK 버튼은
+이번 경로에서 router.back()을 사용하지 마십시오.
+
+규칙:
+
+source === "member-list"
+또는 returnTo가 존재
+
+→ 명시적으로 회원목록 route로 이동
+
+예:
+
+router.replace(returnTo)
+
+또는 현재 Expo Router 구조에 맞는
+가장 안전한 명시적 navigation 사용.
+
+returnTo가 없는 경우에도
+Teacher student-detail의 기본 BACK fallback은
+HOME이 아니라 실제 Teacher 회원목록이어야 합니다.
+
+HOME으로 보내는 fallback 금지.
+
+HOME 이동은
+사용자가 우측 HOME 아이콘을 직접 누른 경우에만 허용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 하위 화면의 parent 복귀
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생상세에서 들어가는:
+
+- 일지
+- 사진/영상
+- 성장리포트 History
+
+도 동일 원칙입니다.
+
+하위 화면 BACK:
+
+→ student-detail(id)
+
+명시적 복귀.
+
+student-detail BACK:
+
+→ 회원목록
+
+즉 최종 구조는 반드시:
+
+회원목록
+→ 학생상세
+→ 하위화면
+
+하위화면 BACK
+→ 학생상세
+
+학생상세 BACK
+→ 회원목록
+
+이어야 합니다.
+
+Navigation stack 상태에 따라 HOME으로 갈 수 있는 구조를 남기지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 중요한 구현 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 수정에서:
+
+- canGoBack()으로 목적지를 판단하지 않음
+- router.back()에 회원목록 복귀를 맡기지 않음
+- HOME fallback 사용 금지
+- 새로운 navigation framework 금지
+
+returnTo/source + 실제 pathname
+방식으로 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드상 정상 보고 금지.
+
+아래만 확인:
+
+A.
+회원목록
+→ 학생상세
+→ 좌측 BACK
+= 회원목록
+
+B.
+회원목록
+→ 학생상세
+→ 성장리포트
+→ BACK
+= 학생상세
+
+→ 다시 BACK
+= 회원목록
+
+C.
+회원목록
+→ 학생상세
+→ 일지
+→ BACK
+= 학생상세
+
+→ 다시 BACK
+= 회원목록
+
+HOME으로 이동하면 FAIL입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+Navigation 관련 파일만 수정.
+
+금지:
+
+- Diary API
+- Growth Report API
+- Makeup
+- Parent
+- Dashboard
+- DB
+- Notification
+- 기타 기능
+
+수정 후 production-v2 iOS OTA 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. 실제 회원목록 pathname
+2. 기존 회원목록 → student-detail 진입 방식
+3. HOME으로 빠졌던 정확한 원인
+4. 새 returnTo/source 구조
+5. student-detail BACK handler
+6. 위 A/B/C 결과
+7. 수정 파일
+8. full work SHA
+9. full OTA Update ID
+10. branch
+11. runtimeVersion
+
+추가 기능 제안 금지.
