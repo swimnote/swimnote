@@ -369,13 +369,17 @@ router.get("/diaries/index",
         if (studentIdParam) {
           // 학생 상세 → 일지보기: 현재 담당 여부 확인 (현재 배정된 반 기준)
           // PASS → 해당 학생에게 귀속된 전체 일지 역사 반환 (classFilter 없음)
+          // 접근 체크: class_group_id(현재 배정) OR assigned_class_ids(다중배정) OR student_class_history(수강이력) 중 하나
           const accessCheck = await db.execute(sql`
             SELECT 1 FROM class_groups cg
-            JOIN students s ON s.class_group_id = cg.id
-            WHERE s.id = ${studentIdParam}
-              AND (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text))
+            WHERE (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text))
               AND cg.swimming_pool_id = ${poolId}
               AND cg.is_deleted = false
+              AND (
+                cg.id = (SELECT class_group_id FROM students WHERE id = ${studentIdParam} AND class_group_id IS NOT NULL LIMIT 1)
+                OR EXISTS (SELECT 1 FROM students WHERE id = ${studentIdParam} AND assigned_class_ids @> to_jsonb(cg.id::text))
+                OR EXISTS (SELECT 1 FROM student_class_history WHERE student_id = ${studentIdParam} AND class_group_id = cg.id AND left_at IS NULL)
+              )
             LIMIT 1
           `);
           if ((accessCheck.rows as any[]).length === 0) return apiErr(res, 403, "접근 권한이 없습니다.");
@@ -406,7 +410,11 @@ router.get("/diaries/index",
       //    + 등록일 이전 diary 차단: students.created_at KST cutoff 적용
       //    작성 선생님 필터 없음 — 학생에 귀속된 전체 일지 역사 반환 정책
       const studentCommonFilter = studentIdParam
-        ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam})
+        ? sql`AND (
+                cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam})
+                OR cd.class_group_id = (SELECT class_group_id FROM students WHERE id = ${studentIdParam} AND class_group_id IS NOT NULL LIMIT 1)
+                OR EXISTS (SELECT 1 FROM students WHERE id = ${studentIdParam} AND assigned_class_ids @> to_jsonb(cd.class_group_id::text))
+              )
               AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
         : sql``;
       // ② 학생 노트: cdn.student_id = :studentId 직접 필터

@@ -121,7 +121,13 @@ export default function TeacherGrHistoryScreen() {
     <View style={[s.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={s.header}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={s.backBtn}>
+        <Pressable hitSlop={12} onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace({ pathname: "/(teacher)/student-detail", params: { id: studentId } } as any);
+          }
+        }} style={s.backBtn}>
           <LucideIcon name="arrow-left" size={20} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>{studentName} 성장리포트</Text>
