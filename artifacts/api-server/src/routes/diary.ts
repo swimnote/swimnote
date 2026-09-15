@@ -2348,7 +2348,7 @@ router.get("/diary-templates",
         const teacherNew = await db.execute(sql`
           SELECT
             NULL           AS global_id,
-            id, template_text, title, level_id, sort_order, is_active,
+            id, template_text, title, level_id, sort_order, is_active, created_at,
             false          AS is_overridden,
             id             AS override_id
           FROM diary_templates
@@ -2358,7 +2358,7 @@ router.get("/diary-templates",
             AND source_template_id IS NULL
             ${lvFt}
             ${includeInactive ? sql`` : sql`AND is_active = true`}
-          ORDER BY sort_order ASC
+          ORDER BY created_at DESC
         `);
         res.json([...merged.rows, ...teacherNew.rows]);
       }

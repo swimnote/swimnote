@@ -50,6 +50,7 @@ interface DiaryTemplate {
   is_active: boolean;
   is_overridden: boolean;
   global_id: string | null;
+  created_at?: string;
 }
 
 const MY_TAB_ID = "__my_templates__";
@@ -210,6 +211,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
     const levelName = isSearching
       ? levels.find(l => l.id === item.level_id)?.level_name
       : null;
+    const showTitle = item.global_id === null && !!item.title;
 
     return (
       <TouchableOpacity
@@ -217,7 +219,12 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
         onPress={() => addToPreview(item.template_text)}
         activeOpacity={0.7}
       >
-        <Text style={s.sentenceText}>{item.template_text}</Text>
+        <View style={{ flex: 1 }}>
+          {showTitle && (
+            <Text style={s.sentenceTitle}>{item.title}</Text>
+          )}
+          <Text style={s.sentenceText}>{item.template_text}</Text>
+        </View>
         {levelName && (
           <View style={s.levelBadge}>
             <Text style={s.levelBadgeText}>{levelName}</Text>
@@ -607,7 +614,8 @@ const s = StyleSheet.create({
     backgroundColor: C.background, borderRadius: 10, borderWidth: 1, borderColor: C.border,
     minHeight: 44,
   },
-  sentenceText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 19 },
+  sentenceTitle: { fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#6B5BCD", marginBottom: 2 } as any,
+  sentenceText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 19 },
   levelBadge: {
     borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
     backgroundColor: PRIMARY + "20",
