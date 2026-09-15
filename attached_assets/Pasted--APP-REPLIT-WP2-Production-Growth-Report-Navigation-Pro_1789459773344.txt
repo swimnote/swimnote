@@ -1,0 +1,697 @@
+[보낼 곳: APP REPLIT]
+
+WP2 Production 장애 수정 — 학생상세 교육기록 + Growth Report + Navigation
+
+사용자가 실제 Production APP에서 직접 확인한 결과
+WP2는 완료 상태가 아닙니다.
+
+이번 작업에서는 조사만 하고 멈추지 마십시오.
+
+반드시:
+
+실제 Production 흐름 추적
+→ Root Cause 확정
+→ 최소 수정
+→ 테스트
+→ 필요한 배포
+→ Production 재확인
+
+까지 한 번에 완료하십시오.
+
+중요:
+
+보강 관리 화면은 사용자가 실제 Production에서
+정상 동작을 확인했습니다.
+
+MAKEUP 관련 코드/API/UI는 이번 작업에서 절대 수정하지 마십시오.
+
+이번 작업 범위는 아래 3개뿐입니다.
+
+1. 학생상세 → 일지 History
+2. 학생상세/알림 → Growth Report
+3. 학생상세 전체 Back Navigation
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 Production 증상
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 Teacher APP에서 실제 확인.
+
+[증상 A]
+
+학생 상세
+→ 일지 보기
+
+화면은 열리지만:
+
+“작성된 수업 일지가 없습니다.”
+
+0건으로 표시됩니다.
+
+해당 학생은 실제 기존 일지 기록이 존재합니다.
+
+즉 단순 Empty가 아니라
+학생 History 조회 범위가 잘못되었을 가능성이 있습니다.
+
+[증상 B]
+
+학생 상세
+→ 성장리포트 보기
+
+화면:
+
+“리포트 목록을 불러올 수 없습니다.”
+
+실제 API Error 상태입니다.
+
+[증상 C]
+
+Parent가 Growth Report에 좋아요
+→ Teacher 알림 수신
+→ 알림 클릭
+→ Growth Report Detail
+
+결과:
+
+“리포트를 불러올 수 없습니다.”
+
+즉 History뿐 아니라
+canonical Detail / notification flow도 실제 Production에서 실패합니다.
+
+[증상 D]
+
+Navigation Back 동작이 잘못되어 있습니다.
+
+회원목록
+→ 학생상세
+→ 뒤로
+
+현재:
+HOME으로 이동
+
+목표:
+회원목록으로 복귀
+
+그리고:
+
+회원목록
+→ 학생상세
+→ 일지 / 사진영상 / 성장리포트
+→ 뒤로
+
+현재:
+HOME으로 이동하거나 student-detail을 건너뜀
+
+목표:
+학생상세로 복귀
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 제품 기준 — 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary와 Growth Report는 모두:
+
+STUDENT-OWNED EDUCATIONAL RECORD
+
+입니다.
+
+과거 작성 teacher 소유가 아닙니다.
+
+현재 Teacher가 해당 student에 접근 가능한 상태라면:
+
+학생의 과거~현재 기록을 볼 수 있어야 합니다.
+
+즉:
+
+DATA OWNERSHIP = student_id
+
+ACCESS = current teacher → student access
+
+입니다.
+
+과거 diary 작성자가 현재 teacher인지 여부로
+History를 제한하면 안 됩니다.
+
+Growth Report도 동일합니다.
+
+PUBLISHED Report는:
+
+현재 해당 학생 접근권한이 있는 teacher
+→ 과거 담당자 시절 Report까지 조회 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. DIARY — 실제 Root Cause부터 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상 실제 화면:
+
+teacher/student-detail
+→ 일지 보기
+→ diary-index
+
+먼저 코드 수정 전에 실제 호출을 확인하십시오.
+
+확인:
+
+1. student-detail에서 diary-index로 전달하는 실제 params
+2. student_id가 실제 해당 학생 ID인지
+3. diary-index가 호출하는 endpoint
+4. request URL/query
+5. JWT role
+6. HTTP status
+7. response body
+8. SQL/route filter
+9. teacher_id / writer_id / class_id filter가 걸려 있는지
+10. student_id 기준 History가 실제 어떻게 조회되는지
+
+특히:
+
+“현재 teacher가 작성한 diary”
+
+를 조회하고 있는지,
+
+아니면:
+
+“현재 teacher가 접근 가능한 student의 diary”
+
+를 조회하고 있는지
+
+정확히 구분하십시오.
+
+학생 상세의 일지 History는 반드시:
+
+현재 student access 확인
++
+student_id 기준
++
+과거~현재 기록
+
+이어야 합니다.
+
+현재 teacher가 작성하지 않은 과거 일지도 포함해야 합니다.
+
+단:
+
+현재 접근권한 없는 teacher에게
+과거 작성 기록이라는 이유만으로 열어주면 안 됩니다.
+
+현재 access check는 유지하십시오.
+
+기존 일반 Diary 업무화면과
+학생상세 History의 목적이 다르면
+
+일반 Diary 흐름을 망가뜨리지 말고
+student History 경로만 정확하게 고치십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. GROWTH REPORT HISTORY — Production 실패 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+학생상세
+→ 성장리포트 보기
+
+현재 APP에서 실제 호출하는:
+
+GET /teacher/students/:studentId/growth-reports
+
+를 추적하십시오.
+
+Production에서 실제로:
+
+- 최종 URL
+- studentId
+- JWT role
+- HTTP status
+- response body
+- Render backend log
+
+를 확인하십시오.
+
+추측으로 수정하지 마십시오.
+
+확인해야 할 대표 가능성:
+
+- APP API base/path 오류
+- route mount path 오류
+- role/auth mismatch
+- canTeacherAccessStudent 실패
+- studentId mismatch
+- poolId mismatch
+- query column/status mismatch
+- response contract와 APP parsing mismatch
+
+중 실제 원인만 수정하십시오.
+
+정상 목표:
+
+현재 접근 가능한 student
++
+PUBLISHED
++
+deleted_at IS NULL
+
+→ 과거~현재 History 200
+
+0건이면:
+
+“발행된 성장리포트가 없습니다.”
+
+API 실패일 때만:
+
+“리포트 목록을 불러올 수 없습니다.”
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. GROWTH REPORT DETAIL — canonical route
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 endpoint가 Teacher canonical Detail입니다.
+
+GET /teacher/growth-reports/:reportId
+
+학생상세 History에서 들어와도
+Notification에서 들어와도
+반드시 동일 endpoint / 동일 screen을 사용해야 합니다.
+
+실제 Production 좋아요 알림을 기준으로 확인하십시오.
+
+notification:
+
+type = growth_report_like
+
+ref_id = 실제 reportId
+
+알림 클릭
+
+→ teacher-gr-detail?reportId={ref_id}
+
+→ GET /teacher/growth-reports/:reportId
+
+전체 연결을 실제 코드에서 추적하십시오.
+
+확인:
+
+1. messages-inbox가 실제 ref_id를 reportId로 넘기는지
+2. route param 이름이 화면과 일치하는지
+3. APP detail 화면이 실제 동일 reportId로 API 호출하는지
+4. API route mount가 맞는지
+5. teacher access check가 현재 student access를 정상 인정하는지
+6. product_status=PUBLISHED인지
+7. response contract와 UI parser가 일치하는지
+
+좋아요 notification을 위한 별도 Report 화면을 만들지 마십시오.
+
+학생상세에서 들어가는 Detail과
+알림에서 들어가는 Detail은
+무조건 같은 화면이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Growth Report 학부모 반응
+━━━━━━━━━━━━━━━━━━━━━━
+
+Report Detail이 정상 열린 뒤:
+
+“학부모 반응 보기”
+
+→ 기존 teacher growth-report-reactions
+
+로 연결.
+
+기존 반응 endpoint/화면 재사용.
+
+Teacher에게 신규:
+
+- like
+- comment
+- share
+
+기능 만들지 마십시오.
+
+Teacher는:
+
+Report 본문 열람
++
+Parent reaction 확인
+
+까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. NAVIGATION — 이번에 전체 흐름 정확히 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 상세 관련 navigation을
+한 화면씩 임시로 고치지 마십시오.
+
+다음 실제 route graph를 먼저 조사하십시오.
+
+A.
+
+Teacher 회원/학생 목록
+→ student-detail
+
+B.
+
+student-detail
+→ diary-index
+
+C.
+
+student-detail
+→ photos
+
+D.
+
+student-detail
+→ teacher-gr-history
+
+E.
+
+teacher-gr-history
+→ teacher-gr-detail
+
+F.
+
+teacher-gr-detail
+→ growth-report-reactions
+
+G.
+
+messages-inbox
+→ teacher-gr-detail
+
+각 이동에서 실제로 사용하는:
+
+- router.push
+- router.replace
+- router.back
+- navigate
+- dismiss
+- reset
+- hardcoded /(teacher)
+- home route fallback
+
+를 전부 확인하십시오.
+
+특히 custom back button이
+HOME을 hardcode하고 있는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 최종 Back 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래처럼 동작해야 합니다.
+
+[학생 목록 경로]
+
+학생목록
+→ 학생상세
+
+BACK
+→ 학생목록
+
+[일지]
+
+학생목록
+→ 학생상세
+→ 일지 보기
+
+BACK
+→ 학생상세
+
+한 번 더 BACK
+→ 학생목록
+
+[사진/영상]
+
+학생목록
+→ 학생상세
+→ 사진/영상
+
+BACK
+→ 학생상세
+
+[성장리포트]
+
+학생목록
+→ 학생상세
+→ 성장리포트 History
+→ Report Detail
+
+Detail BACK
+→ Growth Report History
+
+History BACK
+→ 학생상세
+
+학생상세 BACK
+→ 학생목록
+
+[학부모 반응]
+
+학생상세
+→ Growth Report History
+→ Detail
+→ 학부모 반응
+
+BACK
+→ Report Detail
+
+[알림 경로]
+
+메시지/알림함
+→ Growth Report Detail
+
+BACK
+→ 메시지/알림함
+
+HOME으로 자동 이동하면 안 됩니다.
+
+상단 HOME 아이콘을 사용자가 직접 누른 경우에만
+HOME으로 이동합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Navigation 구현 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 stack navigation은 가능하면:
+
+router.push(...)
+→ router.back()
+
+으로 보존하십시오.
+
+student-detail 진입 시
+replace/reset으로 회원목록 history를 날리지 마십시오.
+
+하위 화면 진입 시에도
+student-detail history를 날리지 마십시오.
+
+현재 구조상 stack history만으로
+진입 source를 안전하게 구분할 수 없는 경우에만
+
+최소한의 source/returnTo param을 사용하십시오.
+
+예:
+
+source=student
+source=inbox
+
+단 새로운 전역 navigation framework를 만들지 마십시오.
+
+Deep Link로 직접 Detail에 들어온 경우에도
+BACK이 HOME으로 튀지 않도록
+
+notification 진입:
+→ inbox fallback
+
+student flow:
+→ 해당 상위 화면 fallback
+
+을 보장하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. APP 화면 구조 최종 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 상세:
+
+일지 보기
+사진/영상
+성장리포트 보기
+
+세 개는 같은 레벨의 독립 진입점.
+
+Growth Report를 Diary에 합치지 마십시오.
+
+최종:
+
+학생상세
+├ 일지
+├ 사진/영상
+└ 성장리포트
+   └ History
+      └ Detail
+         └ 학부모 반응
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 이번 작업에서 하지 않을 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- Makeup 수정
+- Growth Report lifecycle 변경
+- DB 재설계
+- AI ENGINE 수정
+- 새로운 notification 시스템
+- 새로운 Diary 구조
+- APP 전체 navigation 리팩터링
+- Expo/RN 업그레이드
+- unrelated cleanup
+- 새로운 기능 추가
+
+지금 실제 Production에서 깨진 경로만 고치십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 최소 검증:
+
+[Diary]
+
+1.
+현재 접근 가능한 실제 학생
+→ 학생상세
+→ 일지 보기
+→ 기존 과거 일지 표시
+
+2.
+현재 접근권한 없는 학생
+→ 접근 불가
+
+[Growth Report]
+
+3.
+학생상세
+→ 성장리포트 보기
+→ PUBLISHED History 정상
+
+4.
+History
+→ Detail 정상
+
+5.
+Detail
+→ 학부모 반응 보기 정상
+
+6.
+growth_report_like 알림
+→ 정확한 해당 Detail 정상
+
+7.
+growth_report_comment 알림
+→ 동일 Detail 정상
+
+[Navigation]
+
+8.
+학생목록 → 학생상세 → BACK
+= 학생목록
+
+9.
+학생상세 → 일지 → BACK
+= 학생상세
+
+10.
+학생상세 → 사진/영상 → BACK
+= 학생상세
+
+11.
+학생상세 → GR History → BACK
+= 학생상세
+
+12.
+GR History → GR Detail → BACK
+= GR History
+
+13.
+GR Detail → 학부모 반응 → BACK
+= GR Detail
+
+14.
+알림함 → GR Detail → BACK
+= 알림함
+
+대표 실제 경로로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 조사 후 같은 작업에서 바로 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 조사보고만 제출하고 멈추지 마십시오.
+
+각 문제마다:
+
+실제 Root Cause 확정
+→ 최소 코드 수정
+→ 테스트
+→ 배포
+
+까지 진행하십시오.
+
+DB migration은 실제 필요가 확인되지 않는 한 금지.
+
+API 수정이 필요하면 Render deploy.
+
+APP 수정은 기존 Production runtime/channel에 OTA.
+
+Android는 기존 정책대로 불필요한 OTA 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+길게 쓰지 마십시오.
+
+다음만 제출:
+
+A. DIARY
+- 실제 Root Cause
+- 수정 내용
+- Production 결과
+
+B. GROWTH REPORT HISTORY
+- 실제 HTTP 오류 원인
+- 수정 내용
+- 결과
+
+C. GROWTH REPORT DETAIL / NOTIFICATION
+- 실제 Root Cause
+- 수정 내용
+- 결과
+
+D. NAVIGATION
+- 왜 HOME으로 빠졌는지 실제 Root Cause
+- 수정한 route 목록
+- 최종 Back flow 결과
+
+E. TEST
+- 위 14개 대표 항목 PASS/FAIL
+
+F. DEPLOY
+- 수정 파일
+- repo
+- branch
+- full work commit SHA
+- API 수정 시 full LIVE SHA / Render Deploy ID
+- APP OTA full Update ID
+- channel/branch
+- runtimeVersion
+
+확인하지 못한 Production 항목은
+“확인하지 못함”이라고 명시하십시오.
+
+완료했다고만 보고하지 마십시오.
+추측으로 정상이라고 보고하지 마십시오.
