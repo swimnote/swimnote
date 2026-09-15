@@ -4309,6 +4309,8 @@ router.patch(
           console.error(`[super] xmode grant 후 ensureCurrentMonthGrowthReportCycle 실패: pool=${poolId}`, err?.message);
         });
       }
+      // ── SSE realtime: pool_settings.changed (X 상태 변경) ───────────────
+      notifyPoolEvent({ type: "pool_settings.changed", pool_id: poolId }).catch(() => {});
     } catch (e: any) {
       console.error("[super] PATCH operators/:id/xmode 오류:", e?.message);
       res.status(500).json({ error: "X_ENTITLEMENT_UPDATE_FAILED", message: e?.message });
@@ -4420,6 +4422,8 @@ router.patch(
           action:                override ? "override_enabled" : "override_disabled",
         });
       });
+      // ── SSE realtime ───────────────────────────────────────────────────
+      notifyPoolEvent({ type: "pool_settings.changed", pool_id: poolId }).catch(() => {});
     } catch (e: any) {
       console.error("[super] PATCH operators/:id/management-override 오류:", e?.message);
       res.status(500).json({ error: "MANAGEMENT_OVERRIDE_UPDATE_FAILED", message: e?.message });
@@ -4504,6 +4508,8 @@ router.patch(
           action,
         });
       });
+      // ── SSE realtime ───────────────────────────────────────────────────
+      notifyPoolEvent({ type: "pool_settings.changed", pool_id: poolId }).catch(() => {});
     } catch (e: any) {
       console.error("[super] PATCH operators/:id/force-disable 오류:", e?.message);
       res.status(500).json({ error: "FORCE_DISABLE_FAILED", message: e?.message });

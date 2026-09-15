@@ -1,0 +1,323 @@
+[보낼 곳: APP REPLIT]
+
+현재 상태 검수 결과: HOLD
+
+코드 수정 방향은 대체로 승인합니다.
+하지만 아직 Render 배포하지 마십시오.
+
+Production DB를 이미 변경했기 때문에
+배포 전에 마지막으로 “새로 만든 테이블이 실제 canonical source인지”를 확인해야 합니다.
+
+특히 Growth Report는 반드시 확인해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. growth_reports — 최우선 P0 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+Production에 growth_reports가 없어서
+이번 작업에서 새로 CREATE했다고 했습니다.
+
+하지만 SWIMNOTE Production에서는
+Growth Report 기능이 이미 실제 APP/API에서 운영되고 있습니다.
+
+따라서 이 둘은 논리적으로 그대로 양립할 수 없습니다.
+
+지금 즉시 현재 Production Growth Report의
+실제 저장/조회 경로를 코드 기준으로 추적하십시오.
+
+확인:
+
+Teacher Growth Report API
+Parent Growth Report API
+Pool Admin Growth Report API
+Growth Report scheduler/worker
+
+각각 최종적으로 사용하는:
+
+- DB connection
+- schema
+- table name
+- report primary key
+
+를 제출하십시오.
+
+그리고 실제 기존 Production Growth Report 1건을 기준으로:
+
+1. APP/API가 반환하는 report_id
+2. 그 report_id가 어느 실제 DB table에 존재하는지
+3. 이번에 새로 만든 growth_reports에 그 row가 존재하는지
+
+확인하십시오.
+
+중요:
+
+이번에 새로 만든 growth_reports가 빈 shadow table이라면
+Super Admin query를 거기에 연결하면 안 됩니다.
+
+canonical table이 다른 곳이면:
+
+→ Super Admin을 그 실제 source로 수정
+→ 이번에 잘못 만든 빈 growth_reports / growth_report_cycles는
+   참조/데이터가 전혀 없음을 확인한 후 제거
+
+반대로 정말 growth_reports가 canonical이라면:
+
+왜 기존 Production Growth Report가
+테이블 없이 정상 동작할 수 있었는지
+원인을 설명하십시오.
+
+이 모순을 해결하지 않은 채 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DB CONNECTION IDENTITY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 서로 비교하십시오.
+
+- 일반 APP/API DB connection
+- Growth Report API DB connection
+- Worker DB connection
+- superAdminDb
+- SUPABASE_DATABASE_URL
+
+모두 실제 동일 Production DB/schema를 바라보는지 확인하십시오.
+
+최소:
+
+database
+schema
+host identity를
+secret 노출 없이 식별 가능한 형태로 비교하십시오.
+
+비밀번호/전체 connection string 출력 금지.
+
+Super Admin만 다른 DB를 보고 있다면
+이번 문제의 핵심 원인이므로 먼저 바로잡으십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 이번에 CREATE한 다른 테이블 사후검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 각각을 분류하십시오.
+
+- support_cases
+- x_monthly_operational_snapshots
+- push_fanout_jobs
+- push_fanout_deliveries
+- growth_report_cycles
+- growth_reports
+
+각 테이블마다:
+
+A. 기존 repository canonical schema 존재 YES/NO
+B. 기존 정식 migration 존재 YES/NO
+C. APP/API/Worker 실제 사용 YES/NO
+D. 이번 CREATE 전 Production domain이 실제 존재했는지
+E. 현재 row count
+F. 유지 / 정식 migration과 일치시키기 / DROP
+
+으로 분류하십시오.
+
+원칙:
+
+정식 Production domain
+→ 유지
+
+기존 migration 누락
+→ migration definition과 정확히 일치시킴
+
+Super Admin 화면 때문에 임의로 만든 빈 table
+→ 사용처 없음 + row 0 확인 후 DROP
+
+Super Admin 전용 가짜 source는 남기지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. X canonical fields 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에 만든:
+
+migrations/2026-09-16-x-canonical-fields.sql
+
+과 현재 Production에 수동 추가된:
+
+- x_paid_entitlement
+- x_manual_entitlement
+- x_force_disabled
+- x_management_override
+- x_plan_key
+- xmode_config_status
+- member_limit
+
+각각의:
+
+type
+default
+nullable
+constraint
+
+가 정확히 일치하는지 확인하십시오.
+
+일치하면 유지.
+
+불일치하면 데이터 손실 없이 canonical migration 기준으로 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. class_groups 정리 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+class_groups.active DROP
+super.ts → is_deleted=false
+
+처리가 완료됐다고 했습니다.
+
+다음만 확인:
+
+- Production active 컬럼 실제 없음
+- Super Admin query active 참조 0건
+- canonical is_deleted 기준 사용
+
+PASS면 종료.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Realtime 실제 event producer 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /super/pools/:id/stream을
+추가했다는 것만으로 “실시간 완료”라고 하지 마십시오.
+
+실제로 summary를 변경시키는 domain mutation이
+LISTEN/NOTIFY 이벤트를 발생시키는지 확인하십시오.
+
+최소:
+
+- student/member
+- class
+- teacher
+- swimming_pools / X status
+
+각각:
+
+mutation
+→ NOTIFY
+→ super SSE
+→ pool_id filter
+→ WEB event 수신
+→ React Query invalidate
+→ summary refetch
+
+가 연결되는지 확인.
+
+이벤트 생산이 없는 domain이면
+SSE endpoint만 만들어도 아무 변화가 없습니다.
+
+누락된 event producer가 있다면
+기존 realtime infrastructure 안에서 최소 수정하십시오.
+
+30초 polling으로 대체 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 위 검증 통과 후 이번 작업에서 바로 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 P0 검증이 끝나고 canonical source가 확정되면
+추가 승인 요청 없이 이번 작업에서 바로:
+
+1. 필요한 DB 정리
+2. 코드 최종 수정
+3. commit/push
+4. API Render Production deploy
+5. swimnote-web Production deploy
+6. Runtime E2E
+
+까지 완료하십시오.
+
+현재 구 deploy 5a511180은 완료로 인정하지 않습니다.
+
+배포 대상은
+release/x-dashboard-final의 최종 수정 commit이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Production E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 수영장 하나를 선택하여 확인하십시오.
+
+Super Admin
+→ 수영장 관리
+→ 해당 수영장 상세
+
+에서:
+
+- 기본정보 실제값
+- 회원 수 실제값
+- 선생님 수 실제값
+- 반 수 실제값
+- X 상태 실제값
+- 구독 상태 실제값
+- 저장공간 실제값
+- Growth Report가 실제 canonical source의 값
+
+확인.
+
+그리고 실제 변경 1건으로:
+
+APP/Pool Admin 변경
+→ SSE
+→ Super Admin 자동 갱신
+
+확인.
+
+페이지 새로고침 없이 반영되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 보고하십시오.
+
+A. DATABASE IDENTITY
+- APP/API DB
+- Growth Report DB
+- Worker DB
+- superAdminDb
+- 동일 Production source 여부
+
+B. GROWTH REPORT
+- canonical table 이름
+- 실제 기존 report_id 1건 검증 결과
+- 이번에 CREATE한 growth_reports가 canonical인지 여부
+- 유지/DROP 결과
+
+C. NEW TABLES
+각각:
+- canonical YES/NO
+- row count
+- 유지/DROP
+
+D. REALTIME
+- member PASS/FAIL
+- class PASS/FAIL
+- teacher PASS/FAIL
+- X state PASS/FAIL
+- pool isolation PASS/FAIL
+
+E. RUNTIME
+- Super Admin Pool Detail HTTP 결과
+- SUMMARY_FAILED 재발 여부
+- 실제 화면 정상 여부
+
+F. DEPLOY
+- full final work commit SHA
+- full API Production LIVE SHA
+- API Render Deploy ID
+- WEB Production commit/SHA
+- swimnote-web Deploy ID
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 “확인하지 못함”이라고 명시하십시오.
+추측해서 정상이라고 보고하지 마십시오.
