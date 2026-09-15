@@ -512,6 +512,8 @@ export default function ClassesPage() {
   const [search, setSearch] = useState("");
   const [filterDay, setFilterDay] = useState("");
   const [filterTeacher, setFilterTeacher] = useState("");
+  const [sortCol, setSortCol] = useState<"name" | "day" | "time" | "teacher" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [drawerMode, setDrawerMode] = useState<"detail" | "edit" | "create" | null>(null);
   const [activeClass, setActiveClass] = useState<ClassGroup | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ClassGroup | null>(null);
@@ -559,6 +561,54 @@ export default function ClassesPage() {
     if (filterTeacher && c.teacher_user_id !== filterTeacher) return false;
     return true;
   });
+
+  // ─── 정렬 ─────────────────────────────────────────────────────────────────
+
+  const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
+
+  function parseStartMinutes(time: string): number {
+    const m = time?.match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return 9999;
+    return parseInt(m[1]) * 60 + parseInt(m[2]);
+  }
+
+  function firstDayOrder(days: string): number {
+    if (!days) return 99;
+    for (const d of DAY_ORDER) {
+      if (days.includes(d)) return DAY_ORDER.indexOf(d);
+    }
+    return 99;
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortCol === "name") {
+      cmp = (a.name ?? "").localeCompare(b.name ?? "", "ko");
+    } else if (sortCol === "day") {
+      cmp = firstDayOrder(a.schedule_days) - firstDayOrder(b.schedule_days);
+    } else if (sortCol === "time") {
+      cmp = parseStartMinutes(a.schedule_time) - parseStartMinutes(b.schedule_time);
+    } else if (sortCol === "teacher") {
+      const ta = a.instructor || (a.teacher_user_id ? teacherMap[a.teacher_user_id] : "") || "";
+      const tb = b.instructor || (b.teacher_user_id ? teacherMap[b.teacher_user_id] : "") || "";
+      cmp = ta.localeCompare(tb, "ko");
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  function handleSort(col: "name" | "day" | "time" | "teacher") {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
+
+  function SortIcon({ col }: { col: "name" | "day" | "time" | "teacher" }) {
+    if (sortCol !== col) return <span style={{ color: "#CBD5E1", marginLeft: "4px" }}>↕</span>;
+    return <span style={{ color: "#1D4E8F", marginLeft: "4px" }}>{sortDir === "asc" ? "↑" : "↓"}</span>;
+  }
 
   const dayOptions = DAY_OPTIONS.map((d) => ({ value: d, label: `${d}요일` }));
   const teacherOptions = teachers.map((t) => ({ value: t.id, label: t.name }));
@@ -634,7 +684,28 @@ export default function ClassesPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
-                {["반 이름", "요일", "시간", "담당 선생님", "인원 / 정원", "레벨", "관리"].map((h) => (
+                {(
+                  [
+                    { label: "반 이름", col: "name" as const },
+                    { label: "요일", col: "day" as const },
+                    { label: "시간", col: "time" as const },
+                    { label: "담당 선생님", col: "teacher" as const },
+                  ] as const
+                ).map(({ label, col }) => (
+                  <th
+                    key={col}
+                    onClick={() => handleSort(col)}
+                    style={{
+                      padding: "10px 14px", fontSize: "12px", fontWeight: 600,
+                      color: sortCol === col ? "#1D4E8F" : "#64748B",
+                      textAlign: "left", borderBottom: "1px solid #E2E8F0",
+                      cursor: "pointer", userSelect: "none", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}<SortIcon col={col} />
+                  </th>
+                ))}
+                {["인원 / 정원", "레벨", "관리"].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", fontSize: "12px", fontWeight: 600, color: "#64748B", textAlign: "left", borderBottom: "1px solid #E2E8F0" }}>
                     {h}
                   </th>
@@ -642,7 +713,7 @@ export default function ClassesPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((cls, i) => {
+              {sorted.map((cls, i) => {
                 const teacher = cls.instructor || (cls.teacher_user_id ? teacherMap[cls.teacher_user_id] : null);
                 const full = cls.capacity != null && cls.student_count >= cls.capacity;
                 return (
