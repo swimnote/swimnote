@@ -665,7 +665,14 @@ teacherGrowthReportReviewRouter.get(
         LIMIT 50
       `);
 
-      res.json({ success: true, reports: rows.rows });
+      const reports = (rows.rows as any[]).map((r) => ({
+        report_id:        r.id,
+        report_period:    r.report_period,
+        published_at:     r.published_at instanceof Date ? r.published_at.toISOString() : (r.published_at ?? null),
+        summary_text:     r.summary_text ?? null,
+        selected_metrics: r.selected_metrics ?? null,
+      }));
+      res.json({ success: true, reports });
     } catch (err: any) {
       console.error("[teacher/students/:id/growth-reports]", err.message);
       res.status(500).json({ success: false, error: "INTERNAL_ERROR" });

@@ -63,9 +63,10 @@ function formatPublishedAt(iso: string | null): string {
 export default function TeacherGrHistoryScreen() {
   const insets     = useSafeAreaInsets();
   const { token }  = useAuth();
-  const params     = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
-  const studentId  = params.studentId ?? "";
+  const params      = useLocalSearchParams<{ studentId?: string; studentName?: string; source?: string }>();
+  const studentId   = params.studentId ?? "";
   const studentName = params.studentName ?? "학생";
+  const source      = params.source ?? "";
 
   const [items,   setItems]   = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,10 +123,12 @@ export default function TeacherGrHistoryScreen() {
       {/* Header */}
       <View style={s.header}>
         <Pressable hitSlop={12} onPress={() => {
-          if (router.canGoBack()) {
+          if (source === "student-detail" && studentId) {
+            router.replace({ pathname: "/(teacher)/student-detail", params: { id: studentId } } as any);
+          } else if (router.canGoBack()) {
             router.back();
           } else {
-            router.replace({ pathname: "/(teacher)/student-detail", params: { id: studentId } } as any);
+            router.replace("/(teacher)/(tabs)" as any);
           }
         }} style={s.backBtn}>
           <LucideIcon name="arrow-left" size={20} color={C.text} />

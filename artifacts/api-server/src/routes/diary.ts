@@ -415,13 +415,13 @@ router.get("/diaries/index",
                 OR cd.class_group_id = (SELECT class_group_id FROM students WHERE id = ${studentIdParam} AND class_group_id IS NOT NULL LIMIT 1)
                 OR EXISTS (SELECT 1 FROM students WHERE id = ${studentIdParam} AND assigned_class_ids @> to_jsonb(cd.class_group_id::text))
               )
-              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
+              AND cd.lesson_date::date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
         : sql``;
       // ② 학생 노트: cdn.student_id = :studentId 직접 필터
       //    + 동일 cutoff 적용
       const studentNoteFilter = studentIdParam
         ? sql`AND cdn.student_id = ${studentIdParam}
-              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
+              AND cd.lesson_date::date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
         : sql``;
 
       // ① 반 공통 일지
