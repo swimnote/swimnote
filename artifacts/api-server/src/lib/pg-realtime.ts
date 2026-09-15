@@ -72,26 +72,52 @@ function broadcastToPool(event: PoolEventPayload): void {
   }
 }
 
-// ── NOTIFY helper (call after successful DB write) ───────────────────────────
-// Uses the shared db pool from @workspace/db for the NOTIFY query.
-// Because NOTIFY in a transaction is delivered after commit, callers should
-// call this AFTER the transaction if they cannot pass a tx client.
+// ── NOTIFY helper ────────────────────────────────────────────────────────────
+// NOTIFY 전용 pg.Pool (direct connection) — LISTEN client와 별도 연결.
+// LISTEN client와 동일한 PostgreSQL 인스턴스를 대상으로 보장.
 
+const { Pool } = pg;
+let _notifyPool: InstanceType<typeof Pool> | null = null;
 let _db: any = null;
 
 export function setRealtimeDb(db: any): void {
   _db = db;
 }
 
+function getNotifyPool(): InstanceType<typeof Pool> | null {
+  if (_notifyPool) return _notifyPool;
+  const connStr = process.env.REALTIME_DATABASE_URL
+    || process.env.SUPABASE_DATABASE_URL
+    || process.env.POOL_DATABASE_URL;
+  if (!connStr) return null;
+  try {
+    const u = new URL(connStr);
+    _notifyPool = new Pool({
+      host:     u.hostname,
+      port:     parseInt(u.port || "5432", 10),
+      user:     decodeURIComponent(u.username),
+      password: decodeURIComponent(u.password),
+      database: u.pathname.replace(/^\//, ""),
+      ssl:      { rejectUnauthorized: false },
+      max:      2,
+      idleTimeoutMillis: 30000,
+    });
+    console.log("[realtime] notify pool created (direct)");
+  } catch {
+    _notifyPool = null;
+  }
+  return _notifyPool;
+}
+
 export async function notifyPoolEvent(event: Omit<PoolEventPayload, never>): Promise<void> {
   try {
     const payload = JSON.stringify({ type: event.type, pool_id: event.pool_id, entity_id: event.entity_id ?? null });
-    if (listenClient) {
-      // LISTEN 전용 direct connection에서 pg_notify 전송
-      // → 동일 PostgreSQL 인스턴스/백엔드 보장 → 즉시 수신
-      await listenClient.query("SELECT pg_notify($1, $2)", ["pool_events", payload]);
+    const pool = getNotifyPool();
+    if (pool) {
+      // NOTIFY 전용 direct pool — LISTEN client와 동일 PostgreSQL 인스턴스
+      await pool.query("SELECT pg_notify($1, $2)", ["pool_events", payload]);
     } else if (_db) {
-      // listenClient 미준비 시 drizzle pool fallback
+      // fallback: drizzle pool
       const { sql: dSql } = await import("drizzle-orm");
       await _db.execute(dSql`SELECT pg_notify('pool_events', ${payload})`);
     }
