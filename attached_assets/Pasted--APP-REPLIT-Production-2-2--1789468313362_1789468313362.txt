@@ -1,0 +1,273 @@
+[보낼 곳: APP REPLIT]
+
+Production 실기기 재검증 결과입니다.
+
+이전 완료보고와 달리 아직 2개 문제가 남아 있습니다.
+
+이번에는 아래 2개만 수정하십시오.
+
+이미 정상인 영역은 절대 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 학생상세 BACK → 회원목록
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production에서:
+
+회원목록
+→ 학생상세
+→ 좌측 BACK
+
+결과:
+HOME으로 이동
+
+목표:
+회원목록으로 복귀
+
+입니다.
+
+이 문제는 아직 해결되지 않았습니다.
+
+이번에는 router.canGoBack() 여부로 판단하지 마십시오.
+
+반드시 실제 진입 source를 보존하십시오.
+
+조사:
+
+- 회원목록에서 student-detail로 들어가는 실제 route
+- push / replace 여부
+- student-detail의 좌측 Back handler
+- student-detail이 어느 Stack/Tabs 아래에 있는지
+- 왜 BACK destination이 HOME이 되는지
+
+최종적으로:
+
+회원목록
+→ student-detail
+
+진입 시 source 또는 returnTo를 명시적으로 전달하고,
+
+student-detail BACK:
+
+source=member-list
+→ 회원목록 route로 명시적 복귀
+
+하도록 처리하십시오.
+
+예:
+
+member-list
+→ student-detail?id=...&source=member-list
+
+student-detail BACK
+→ source === member-list
+   ? replace/push member-list
+   : 기존 안전 fallback
+
+단 실제 현재 route명에 맞춰 구현하십시오.
+
+중요:
+
+HOME으로 보내는 fallback을
+학생상세의 정상 BACK 경로로 사용하지 마십시오.
+
+HOME은 사용자가 HOME 버튼을 직접 누른 경우에만 이동합니다.
+
+그리고 기존:
+
+학생상세
+→ 일지 / 사진영상 / 성장리포트
+
+하위 화면에서 BACK
+→ 학생상세
+
+동작은 깨뜨리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 만료 → 대기 복원 버튼 누락
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 관리자 보강 화면에서:
+
+대기 → 만료
+
+수동 변경은 실제 Production에서 정상 동작합니다.
+
+이 기능은 수정하지 마십시오.
+
+문제:
+
+만료 상태 항목에
+“대기로 복원”
+
+기능이 없습니다.
+
+최종 정책은 이미 확정되어 있습니다.
+
+[대기]
+→ 관리자 “만료 처리”
+
+[만료]
+→ 관리자 “대기로 복원”
+
+양방향 수동 변경 가능.
+
+자동 만료 정책은 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 만료 화면 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 보강 화면의
+만료 탭 또는 status=expired 항목에:
+
+“대기로 복원”
+
+버튼을 추가하십시오.
+
+버튼 클릭:
+
+confirm:
+“이 보강을 다시 대기 상태로 복원하시겠습니까?
+현재 보강 정책에 따라 새로운 유효기간이 적용됩니다.”
+
+확인 후 기존 수동 상태변경 API를 사용하거나,
+현재 API가 expired→waiting을 지원하지 않으면
+최소 수정으로 양방향을 지원하십시오.
+
+새 endpoint를 불필요하게 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 복원 시 expires_at
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순 status 변경만 하지 마십시오.
+
+expired 항목의 expires_at은 이미 과거일 수 있습니다.
+
+따라서:
+
+만료 → 대기 복원
+
+시 현재 해당 pool의 기존 보강 가능기간 정책을 사용하여
+새 expires_at을 계산해야 합니다.
+
+복원 직후 자동 만료 worker가 다시 만료시키면 실패입니다.
+
+새 정책을 만들지 말고
+현재 자동 만료에서 사용하는 동일 policy/helper를 재사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 목록 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+대기로 복원 성공 시:
+
+- 만료 목록에서 제거
+- 대기/남은보강 목록에 다시 표시
+- 새 만료일 표시
+- 관련 대기 count/badge 증가
+- 만료 count 감소
+
+기존 record hard delete 금지.
+
+기존 수동변경 audit/history가 있다면 동일하게 기록하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 권한
+━━━━━━━━━━━━━━━━━━━━━━
+
+수동 대기 ↔ 만료:
+
+pool_admin = ALLOW
+super_admin = ALLOW
+teacher = DENY
+parent = DENY
+
+관리자에게:
+
+assign
+schedule
+complete
+
+등 다른 보강 운영권한을 다시 열지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+- 회원목록 → student-detail navigation
+- student-detail Back handler
+- 관리자 보강 expired UI
+- 기존 status override API의 expired→waiting 지원
+- expires_at 재계산
+- 관련 count/badge
+
+금지:
+
+- 대기→만료 정상 기능 재설계
+- Teacher 보강
+- Growth Report
+- Diary
+- Notification
+- Dashboard
+- 다른 Navigation
+- AI ENGINE
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 실검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 4개만 확인하십시오.
+
+A.
+회원목록
+→ 학생상세
+→ BACK
+= 회원목록
+
+B.
+학생상세
+→ 성장리포트 또는 일지
+→ BACK
+= 학생상세
+기존 동작 유지
+
+C.
+만료 항목
+→ “대기로 복원”
+→ 대기 목록 복귀
+→ 새 expires_at 정상
+
+D.
+복원 직후
+→ 자동 만료로 즉시 다시 만료되지 않음
+
+코드상 정상 보고 금지.
+실제 route/API 결과로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+짧게:
+
+1. 학생상세 BACK 실제 Root Cause
+2. 최종 returnTo/source 구조
+3. BACK 결과
+4. 만료→대기 버튼이 없었던 Root Cause
+5. 복원 API/상태값
+6. 새 expires_at 계산 방식
+7. 대기/만료 count 반영 결과
+8. 수정 파일
+9. full work SHA
+10. API 변경 시 LIVE SHA / Deploy ID
+11. APP 변경 시 OTA Update ID / branch / runtimeVersion
+
+만 보고하십시오.
+
+추가 기능 제안 금지.
+이미 정상인 영역 재조사 금지.
