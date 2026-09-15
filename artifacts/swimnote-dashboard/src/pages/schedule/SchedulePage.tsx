@@ -3,6 +3,141 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api-client";
 
+// ─── Student Detail Types ──────────────────────────────────────────────────
+
+interface ClassStudent {
+  id: string;
+  name: string;
+  status: string;
+  has_makeup: boolean;
+}
+
+interface StudentDetail {
+  id: string;
+  name: string;
+  status: string;
+  phone?: string;
+  birth_year?: number;
+  birth_date?: string;
+  memo?: string;
+  notes?: string;
+  class_name?: string;
+  class_schedule_days?: string;
+  class_schedule_time?: string;
+  teacher_name?: string;
+  parent_account_name?: string;
+  created_at?: string;
+}
+
+const STUDENT_STATUS_LABEL: Record<string, string> = {
+  active: "재원", suspended: "연기", withdrawn: "퇴원",
+  inactive: "비활성", pending: "대기", archived: "탈퇴",
+};
+const STUDENT_STATUS_COLOR: Record<string, { bg: string; color: string }> = {
+  active:    { bg: "#DCFCE7", color: "#166534" },
+  suspended: { bg: "#FEF9C3", color: "#854D0E" },
+  withdrawn: { bg: "#FEE2E2", color: "#991B1B" },
+  inactive:  { bg: "#F3F4F6", color: "#374151" },
+  pending:   { bg: "#E0F2FE", color: "#0369A1" },
+  archived:  { bg: "#F3F4F6", color: "#6B7280" },
+};
+
+function StudentBadge({ status }: { status: string }) {
+  const label = STUDENT_STATUS_LABEL[status] ?? status;
+  const { bg, color } = STUDENT_STATUS_COLOR[status] ?? { bg: "#F3F4F6", color: "#374151" };
+  return (
+    <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "10px", fontSize: "11px", fontWeight: 600, background: bg, color }}>
+      {label}
+    </span>
+  );
+}
+
+// ─── StudentInfoDrawer ────────────────────────────────────────────────────────
+
+function StudentInfoDrawer({ studentId, onClose }: { studentId: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const { data, isLoading, isError } = useQuery<StudentDetail>({
+    queryKey: ["student-detail", studentId],
+    queryFn: () => api.get(`/admin/students/${studentId}/detail`).then((r: any) => r.student ?? r),
+    staleTime: 60_000,
+  });
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.15)", zIndex: 200 }} />
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: "360px",
+        background: "#fff", boxShadow: "-4px 0 24px rgba(0,0,0,0.14)",
+        zIndex: 201, display: "flex", flexDirection: "column",
+      }}>
+        <div style={{ padding: "18px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: "15px", fontWeight: 700, color: "#1E293B" }}>
+            {isLoading ? "로딩 중…" : data?.name ?? "회원 정보"}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#64748B", lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+          {isLoading ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "#94A3B8", fontSize: "13px" }}>로딩 중…</div>
+          ) : isError || !data ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "#EF4444", fontSize: "13px" }}>불러오지 못했습니다.</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
+                <span style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B" }}>{data.name}</span>
+                <StudentBadge status={data.status} />
+              </div>
+              <InfoRow label="연락처" value={data.phone} />
+              <InfoRow label="생년" value={data.birth_year ? `${data.birth_year}년생` : data.birth_date} />
+              <InfoRow label="등록일" value={data.created_at ? new Date(data.created_at).toLocaleDateString("ko-KR") : undefined} />
+              {(data.class_name || data.class_schedule_days) && (
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "4px" }}>수강반</div>
+                  <div style={{ padding: "10px 12px", background: "#F8FAFC", borderRadius: "6px", border: "1px solid #E2E8F0" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#1E293B", marginBottom: "2px" }}>{data.class_name}</div>
+                    {(data.class_schedule_days || data.class_schedule_time) && (
+                      <div style={{ fontSize: "12px", color: "#64748B" }}>
+                        {[data.class_schedule_days, data.class_schedule_time].filter(Boolean).join(" ")}
+                      </div>
+                    )}
+                    {data.teacher_name && (
+                      <div style={{ fontSize: "12px", color: "#64748B" }}>담당: {data.teacher_name}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <InfoRow label="보호자" value={data.parent_account_name} />
+              {(data.memo || data.notes) && (
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "4px" }}>메모</div>
+                  <div style={{ fontSize: "13px", color: "#374151", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                    {data.memo || data.notes}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
+  if (!value && value !== 0) return null;
+  return (
+    <div style={{ marginBottom: "12px" }}>
+      <div style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "2px" }}>{label}</div>
+      <div style={{ fontSize: "13px", color: "#1E293B" }}>{String(value)}</div>
+    </div>
+  );
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface ClassGroup {
@@ -116,6 +251,8 @@ function ClassDetailDrawer({
   onClose: () => void;
   onNavigate: (id: string) => void;
 }) {
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!cls) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -123,10 +260,22 @@ function ClassDetailDrawer({
     return () => window.removeEventListener("keydown", handler);
   }, [cls, onClose]);
 
+  // 반 선택 시 학생 목록 로드
+  const { data: classDetail, isLoading: studentsLoading } = useQuery<{
+    class_group: unknown;
+    students: ClassStudent[];
+  }>({
+    queryKey: ["class-group-detail", cls?.id],
+    queryFn: () => api.get(`/admin/class-groups/${cls!.id}/detail`),
+    enabled: !!cls,
+    staleTime: 60_000,
+  });
+
   if (!cls) return null;
 
   const teacherName = cls.instructor || (cls.teacher_user_id ? teacherMap[cls.teacher_user_id] : null);
   const full = cls.capacity != null && cls.student_count >= cls.capacity;
+  const students = classDetail?.students ?? [];
 
   return (
     <>
@@ -158,6 +307,45 @@ function ClassDetailDrawer({
           } />
           {cls.level && <Row label="레벨" value={cls.level} />}
           <Row label="상태" value={cls.is_deleted ? "비활성" : "운영 중"} />
+
+          {/* 학생 명단 */}
+          <div style={{ marginTop: "4px" }}>
+            <div style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "8px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              수강 회원 명단
+            </div>
+            {studentsLoading ? (
+              <div style={{ fontSize: "13px", color: "#94A3B8" }}>로딩 중…</div>
+            ) : students.length === 0 ? (
+              <div style={{ fontSize: "13px", color: "#94A3B8" }}>등록된 회원이 없습니다.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {students.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelectedStudentId(s.id)}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "8px 10px", borderRadius: "6px",
+                      border: "1px solid #E2E8F0", background: "#F8FAFC",
+                      cursor: "pointer", textAlign: "left", transition: "background 0.1s",
+                    }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "#EEF4FB")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "#F8FAFC")}
+                  >
+                    <span style={{ fontSize: "13px", fontWeight: 500, color: "#1E293B" }}>{s.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {s.has_makeup && (
+                        <span style={{ fontSize: "10px", padding: "1px 5px", borderRadius: "8px", background: "#FEF9C3", color: "#92400E", fontWeight: 600 }}>
+                          보강
+                        </span>
+                      )}
+                      <StudentBadge status={s.status} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div style={{ padding: "16px 20px", borderTop: "1px solid #E2E8F0" }}>
           <button
@@ -172,6 +360,14 @@ function ClassDetailDrawer({
           </button>
         </div>
       </div>
+
+      {/* 회원 정보 드로어 (학생 이름 클릭 시) */}
+      {selectedStudentId && (
+        <StudentInfoDrawer
+          studentId={selectedStudentId}
+          onClose={() => setSelectedStudentId(null)}
+        />
+      )}
     </>
   );
 }
