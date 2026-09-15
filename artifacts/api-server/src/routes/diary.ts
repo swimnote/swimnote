@@ -1486,7 +1486,32 @@ router.get("/diaries/:id",
         WHERE csn.diary_id = ${req.params.id} AND csn.is_deleted = false
       `);
 
-      res.json({ ...diary, student_notes: noteRows.rows });
+      // 사진 (sort_order ASC, null→created_at ASC)
+      const photoRows = await db.execute(sql`
+        SELECT id, file_url, thumbnail_url, sort_order, created_at
+        FROM photo_assets_meta
+        WHERE journal_id = ${req.params.id}
+          AND pool_id = ${poolId}
+          AND media_status = 'attached'
+        ORDER BY COALESCE(sort_order, 999999) ASC, created_at ASC
+      `);
+
+      // 영상 (sort_order ASC, null→created_at ASC) — journal_id 직접 연결
+      const videoRows = await db.execute(sql`
+        SELECT id, file_url, sort_order, created_at
+        FROM video_assets_meta
+        WHERE journal_id = ${req.params.id}
+          AND pool_id = ${poolId}
+          AND media_status = 'attached'
+        ORDER BY COALESCE(sort_order, 999999) ASC, created_at ASC
+      `);
+
+      res.json({
+        ...diary,
+        student_notes: noteRows.rows,
+        photos: photoRows.rows,
+        videos: videoRows.rows,
+      });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
 );

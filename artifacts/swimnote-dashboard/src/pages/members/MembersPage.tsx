@@ -373,11 +373,18 @@ function GrHistorySection({ studentId }: { studentId: string }) {
               <span style={{ flex: 1, fontSize: "13px", fontWeight: 500, color: "#1E293B" }}>
                 {formatGrPeriod(item.report_period)} 성장리포트
               </span>
-              {item.published_at && (
-                <span style={{ fontSize: "11px", color: "#94A3B8" }}>
-                  {new Date(item.published_at).toLocaleDateString("ko-KR")} 발행
-                </span>
-              )}
+              {(() => {
+                if (!item.published_at) return null;
+                try {
+                  const d = new Date(item.published_at);
+                  if (isNaN(d.getTime())) return null;
+                  return (
+                    <span style={{ fontSize: "11px", color: "#94A3B8" }}>
+                      {d.getFullYear()}. {d.getMonth() + 1}. {d.getDate()}. 발행
+                    </span>
+                  );
+                } catch { return null; }
+              })()}
             </div>
           ))}
         </div>

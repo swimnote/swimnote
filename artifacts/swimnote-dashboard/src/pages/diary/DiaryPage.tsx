@@ -34,10 +34,19 @@ interface StudentNote {
   created_at: string;
 }
 
+interface MediaItem {
+  id: string;
+  file_url: string;
+  thumbnail_url?: string;
+  sort_order?: number | null;
+  created_at?: string;
+  kind: "photo" | "video";
+}
+
 interface DiaryDetail extends DiaryEntry {
   student_notes: StudentNote[];
-  photos?: { id: string; file_url: string; thumbnail_url?: string }[];
-  videos?: { id: string; file_url: string }[];
+  photos?: { id: string; file_url: string; thumbnail_url?: string; sort_order?: number | null; created_at?: string }[];
+  videos?: { id: string; file_url: string; sort_order?: number | null; created_at?: string }[];
   class_group_id?: string;
   swimming_pool_id?: string;
   ai_generated?: boolean;
@@ -171,27 +180,41 @@ function DiaryDetailDrawer({ diaryId, onClose }: { diaryId: string; onClose: () 
                   </div>
                 )}
 
-                {detail.photos && detail.photos.length > 0 && (
-                  <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", marginBottom: "8px", textTransform: "uppercase" as const }}>사진 ({detail.photos.length})</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                      {detail.photos.map((p) => (
-                        <a key={p.id} href={p.file_url} target="_blank" rel="noopener noreferrer">
-                          <img src={p.thumbnail_url ?? p.file_url} alt="사진"
-                            style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "6px", border: "1px solid #E2E8F0", cursor: "pointer" }}
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                        </a>
-                      ))}
+                {(() => {
+                  // photos + videos merge-sorted by sort_order ASC (null→last), created_at ASC tie-break
+                  const photos: MediaItem[] = (detail.photos ?? []).map(p => ({ ...p, kind: "photo" as const }));
+                  const videos: MediaItem[] = (detail.videos ?? []).map(v => ({ ...v, kind: "video" as const }));
+                  const mixed = [...photos, ...videos].sort((a, b) => {
+                    const ao = typeof a.sort_order === "number" ? a.sort_order : 999999;
+                    const bo = typeof b.sort_order === "number" ? b.sort_order : 999999;
+                    if (ao !== bo) return ao - bo;
+                    return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+                  });
+                  if (mixed.length === 0) return null;
+                  return (
+                    <div style={{ marginBottom: "16px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", marginBottom: "8px", textTransform: "uppercase" as const }}>
+                        미디어 ({photos.length}장 {videos.length > 0 ? `· 영상 ${videos.length}개` : ""})
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {mixed.map((m) =>
+                          m.kind === "photo" ? (
+                            <a key={m.id} href={m.file_url} target="_blank" rel="noopener noreferrer">
+                              <img src={m.thumbnail_url ?? m.file_url} alt="사진"
+                                style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "6px", border: "1px solid #E2E8F0", cursor: "pointer" }}
+                                onError={(ev) => { (ev.target as HTMLImageElement).style.display = "none"; }} />
+                            </a>
+                          ) : (
+                            <a key={m.id} href={m.file_url} target="_blank" rel="noopener noreferrer"
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "80px", height: "80px", borderRadius: "6px", border: "1px solid #E2E8F0", background: "#1E293B", cursor: "pointer", textDecoration: "none", fontSize: "22px" }}>
+                              ▶
+                            </a>
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {detail.videos && detail.videos.length > 0 && (
-                  <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", marginBottom: "8px", textTransform: "uppercase" as const }}>영상 ({detail.videos.length})</div>
-                    <div style={{ fontSize: "13px", color: "#64748B" }}>영상 {detail.videos.length}개 첨부됨 — 앱에서 확인 가능합니다.</div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {editError && !editMode && (
                   <div style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>{editError}</div>

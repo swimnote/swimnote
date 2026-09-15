@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -81,13 +81,29 @@ const STATUS_FILTER_OPTIONS = [
 // ─── MakeupsPage ──────────────────────────────────────────────────────────────
 
 export default function MakeupsPage() {
+  const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("waiting");
   const [search, setSearch] = useState("");
+  const [overrideTarget, setOverrideTarget] = useState<{ id: string; current: string } | null>(null);
+  const [overrideError, setOverrideError] = useState("");
 
   const { data: makeups = [], isLoading, isError } = useQuery<MakeupSession[]>({
     queryKey: ["makeups", statusFilter],
     queryFn: () =>
       api.get(`/admin/makeups${statusFilter ? `?status=${statusFilter}` : ""}`),
+  });
+
+  const overrideMut = useMutation({
+    mutationFn: ({ id, target_status }: { id: string; target_status: string }) =>
+      api.patch(`/admin/makeups/${id}/status-override`, { target_status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["makeups"] });
+      setOverrideTarget(null);
+      setOverrideError("");
+    },
+    onError: (e: unknown) => {
+      setOverrideError((e as { message?: string })?.message ?? "상태 변경 실패");
+    },
   });
 
   const filtered = makeups.filter((m) => {
@@ -117,7 +133,7 @@ export default function MakeupsPage() {
         <div>
           <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>보강 현황</h1>
           <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0" }}>
-            {filtered.length}건 · 읽기 전용
+            {filtered.length}건 · 대기↔만료 수동 전환 가능
           </p>
         </div>
       </div>
@@ -164,7 +180,7 @@ export default function MakeupsPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
-                {["회원", "원반", "결석일", "보강 기한", "배정 반", "보강일", "상태"].map((h) => (
+                {["회원", "원반", "결석일", "보강 기한", "배정 반", "보강일", "상태", ""].map((h) => (
                   <th key={h} style={{ padding: "10px 12px", fontSize: "12px", fontWeight: 600, color: "#64748B", textAlign: "left", borderBottom: "1px solid #E2E8F0" }}>
                     {h}
                   </th>
@@ -198,11 +214,59 @@ export default function MakeupsPage() {
                   <td style={{ padding: "10px 12px", borderBottom: "1px solid #F1F5F9" }}>
                     <StatusBadge status={m.status} />
                   </td>
+                  <td style={{ padding: "6px 12px", borderBottom: "1px solid #F1F5F9", whiteSpace: "nowrap" }}>
+                    {m.status === "waiting" && (
+                      <button
+                        onClick={() => { setOverrideError(""); setOverrideTarget({ id: m.id, current: "waiting" }); }}
+                        style={{ padding: "3px 8px", fontSize: "11px", cursor: "pointer", border: "1px solid #FECACA", borderRadius: "4px", background: "#FFF", color: "#991B1B" }}
+                      >
+                        만료 처리
+                      </button>
+                    )}
+                    {m.status === "expired" && (
+                      <button
+                        onClick={() => { setOverrideError(""); setOverrideTarget({ id: m.id, current: "expired" }); }}
+                        style={{ padding: "3px 8px", fontSize: "11px", cursor: "pointer", border: "1px solid #BBF7D0", borderRadius: "4px", background: "#FFF", color: "#166534" }}
+                      >
+                        대기 복원
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* 상태 수동 전환 확인 다이얼로그 */}
+      {overrideTarget && (
+        <>
+          <div onClick={() => setOverrideTarget(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 400 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: "10px", padding: "24px", width: "320px", zIndex: 401, boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontSize: "15px", fontWeight: 700, color: "#1E293B", marginBottom: "10px" }}>
+              {overrideTarget.current === "waiting" ? "만료 처리 확인" : "대기 복원 확인"}
+            </div>
+            <div style={{ fontSize: "13px", color: "#475569", marginBottom: "16px", lineHeight: 1.6 }}>
+              {overrideTarget.current === "waiting"
+                ? "이 보강을 만료 처리합니다. 대기 목록에서 제외됩니다."
+                : "이 보강을 대기 상태로 복원합니다. 풀 정책에 따라 새 만료일이 설정됩니다."}
+            </div>
+            {overrideError && (
+              <div style={{ fontSize: "12px", color: "#DC2626", marginBottom: "10px" }}>{overrideError}</div>
+            )}
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <button onClick={() => setOverrideTarget(null)} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}>취소</button>
+              <button
+                onClick={() => overrideMut.mutate({ id: overrideTarget.id, target_status: overrideTarget.current === "waiting" ? "expired" : "waiting" })}
+                disabled={overrideMut.isPending}
+                style={{ padding: "7px 14px", background: overrideTarget.current === "waiting" ? "#DC2626" : "#166534", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}
+              >
+                {overrideMut.isPending ? "처리 중…" : overrideTarget.current === "waiting" ? "만료 처리" : "대기 복원"}
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
