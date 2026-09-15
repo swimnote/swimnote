@@ -90,10 +90,11 @@ function formatPeriod(period: string): string {
   return `${issueY}년 ${issueM}월`;
 }
 
-function formatPublishedAt(iso: string | null): string {
+function formatPublishedAt(iso: string | null | undefined): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
     return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. 발행`;
   } catch {
     return "";

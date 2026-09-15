@@ -769,7 +769,7 @@ teacherGrowthReportReviewRouter.get(
           student_id:              report.student_id,
           student_name:            studentName,
           report_period:           report.report_period,
-          published_at:            report.published_at,
+          published_at:            report.published_at instanceof Date ? report.published_at.toISOString() : (report.published_at ?? null),
           summary_text:            report.summary_text,
           sns_summary:             report.sns_summary,
           selected_metrics:        report.selected_metrics,
