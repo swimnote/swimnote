@@ -1,0 +1,207 @@
+[보낼 곳: APP REPLIT]
+
+현재 Production 실사용 재검증 결과입니다.
+
+이미 정상 확인된 항목은 다시 건드리지 마십시오.
+
+CLOSED:
+- 보강 관리자 화면
+- Growth Report 좋아요 알림 → Report Detail
+- Growth Report Detail API
+- 기타 수정된 Back navigation
+
+남은 버그는 딱 2개입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 학생상세 → 일지보기 0건 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production에서:
+
+관리자+선생님 겸직 사용자
+→ /auth/switch-role
+→ teacher mode
+→ 자기 수업에 실제 등록된 학생
+→ 학생 상세
+→ 일지 보기
+
+로 들어가면
+
+해당 학생에게 실제 과거 작성 일지가 존재함에도
+“작성된 수업 일지가 없습니다.”
+0건으로 표시됩니다.
+
+이전 수정:
+student_class_history.is_deleted 제거
+
+만으로 해결되지 않았습니다.
+
+이번에는 추측하지 말고
+해당 화면의 실제 Production 요청부터 끝까지 추적하십시오.
+
+확인:
+
+1. student-detail에서 diary-index로 전달되는 studentId
+2. diary-index가 실제 사용하는 query param
+3. 실제 요청 URL
+4. HTTP status
+5. response body
+6. 해당 studentId가 실제 DB student.id와 일치하는지
+7. 해당 학생의 기존 diary/student note가 DB에 실제 몇 건 있는지
+8. 그 일지의 class/student 연결 방식
+9. API SQL에서 어떤 조건 때문에 결과가 0이 되는지
+
+특히 반드시 확인:
+
+- 현재 teacher_id로 작성된 일지만 찾고 있지 않은지
+- 현재 class만 찾고 있지 않은지
+- class_student_notes.student_id 또는 diary의 학생 연결정보를 실제로 사용하는지
+- student_class_history만으로 과거 일지를 역추적하면서 누락되는 구조인지
+
+최종 목표:
+
+현재 teacher가 해당 학생에 대한 현재 접근권한이 있으면
+
+→ student_id 기준
+→ 과거~현재 해당 학생에게 귀속된 일지 전체
+
+가 보여야 합니다.
+
+작성자 teacher가 누구였는지는
+History 소유권 기준이 아닙니다.
+
+단 현재 학생 접근권한 검증은 유지합니다.
+
+일반 선생님 일지 작성/목록 화면은 건드리지 마십시오.
+“학생 상세 → 개인 일지 이력” 경로만 정확하게 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Growth Report History BACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 다른 Back navigation은 사용자가 정상 확인했습니다.
+
+남은 문제는 이것 하나입니다.
+
+학생 목록
+→ 학생 상세
+→ 성장리포트 보기
+→ Growth Report History
+→ 좌측 BACK
+
+현재:
+HOME
+
+목표:
+학생 상세
+
+입니다.
+
+다른 navigation 전체를 다시 조사하지 마십시오.
+
+아래 두 파일/진입만 추적하십시오.
+
+- student-detail.tsx
+  → teacher-gr-history 진입 코드
+
+- teacher-gr-history.tsx
+  → 좌측 Back handler
+
+확인:
+
+- student-detail에서 push인지 replace인지
+- teacher-gr-history가 router.back()을 쓰는지
+- 해당 화면이 다른 Stack/Layout 경계로 진입하는지
+- history가 없는 상태로 mount되는 이유
+- fallback이 HOME으로 설정되어 있는지
+
+가장 작은 수정으로:
+
+학생상세
+→ 성장리포트 History
+
+진입 source를 유지하고
+
+History BACK
+→ 해당 student-detail
+
+을 보장하십시오.
+
+필요하면:
+
+studentId
++
+returnTo=student-detail
+
+정도의 최소 param을 사용해도 됩니다.
+
+새 Navigation framework 만들지 마십시오.
+
+알림함 → Growth Report Detail 경로는 이미 정상 확인됐으므로
+절대 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 수정/검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 수정 가능한 범위:
+
+- 학생상세 개인 일지 History 관련 APP/API
+- student-detail → teacher-gr-history navigation
+- teacher-gr-history Back handler
+
+금지:
+
+- Makeup
+- Growth Report API/Detail
+- Notification
+- Parent
+- Dashboard
+- 다른 Navigation
+- DB migration
+- AI ENGINE
+- unrelated refactor
+
+수정 후 필요한 배포만 하십시오.
+
+검증은 딱 3개:
+
+A.
+현재 담당 학생
+→ 학생상세
+→ 일지보기
+→ 실제 기존 일지 1건 이상 표시
+
+B.
+학생상세
+→ 성장리포트 보기
+→ BACK
+→ 학생상세
+
+C.
+알림함
+→ 성장리포트 Detail
+기존 정상 동작 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+짧게:
+
+1. Diary 0건의 실제 Root Cause
+2. 실제 Production 데이터 존재 건수
+3. 수정 내용
+4. Diary 실사용 결과
+5. GR History Back의 실제 Root Cause
+6. 수정 내용
+7. 최종 Back 결과
+8. 수정 파일
+9. full work SHA
+10. API 수정 시 full LIVE SHA / Deploy ID
+11. APP 수정 시 full OTA Update ID / branch / runtimeVersion
+
+만 보고하십시오.
+
+추가 기능 제안 금지.
+이미 정상인 영역 재검증 금지.
