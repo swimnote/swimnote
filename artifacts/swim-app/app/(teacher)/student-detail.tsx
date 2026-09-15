@@ -127,7 +127,8 @@ function clsDayTime(cls: { schedule_days: string; schedule_time: string }): stri
 
 // ── 메인 화면 ────────────────────────────────────────────────────────────
 export default function StudentDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string; backTo?: string }>();
+  const goBack = () => router.replace("/(teacher)/students" as any);
   const { token } = useAuth();
   const { themeColor } = useBrand();
 
@@ -388,7 +389,7 @@ export default function StudentDetailScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: C.background }}>
-        <SubScreenHeader title="학생 정보" />
+        <SubScreenHeader title="학생 정보" onBack={goBack} />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </View>
     );
@@ -396,7 +397,7 @@ export default function StudentDetailScreen() {
   if (!student) {
     return (
       <View style={{ flex: 1, backgroundColor: C.background }}>
-        <SubScreenHeader title="학생 정보" />
+        <SubScreenHeader title="학생 정보" onBack={goBack} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 10 }}>
           <LucideIcon name="user-x" size={36} color={C.textMuted} />
           <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
@@ -440,18 +441,11 @@ export default function StudentDetailScreen() {
       style={{ flex: 1, backgroundColor: C.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* ── 헤더 — 스택 히스토리 존중, fallback: 학생 목록 ── */}
+      {/* ── 헤더 — students 탭 명시적 복귀 (canGoBack/back 사용 금지: Tabs.Screen → HOME 오동작) ── */}
       <SubScreenHeader
         title={student.name}
         subtitle={primaryBadge?.label}
-        onBack={() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            // deep-link / push notification 직접 진입: 학생 목록으로 이동
-            router.replace("/(teacher)/students");
-          }
-        }}
+        onBack={goBack}
       />
 
       {/* ── Long-scroll ── */}
