@@ -61,3 +61,10 @@ description: WP2 배포 후 발견된 Production 장애 수정 (2026-09-15)
 - 이 테이블을 join할 때 반드시 위 컬럼명 사용
 
 **Why:** teacherOwnsStudent가 잘못된 컬럼명으로 항상 0 rows 반환 → 403
+
+## 관리자 보강 status-override + 출결관리 제거 (2026-09-15)
+- PATCH /admin/makeups/:id/status-override: waiting→expired, expired→waiting (pool_admin+super_admin)
+- expired→waiting: 복원 시점(오늘) 기준으로 pool 정책(end_of_month/next_month_end/fixed_days) 재적용
+- writeActivityLog로 수동 변경 이력 기록 (member_activity_logs)
+- class-hub.tsx: 출결 관리 메뉴만 제거 (DB/API/Teacher 출결 완전 무변경)
+- SHA: 45638964, Render LIVE: dep-dakhevlg1s2s73cbh24g, iOS OTA: 01a0a485-1f88-73ff-8dcb-a2dae0d49ac4
