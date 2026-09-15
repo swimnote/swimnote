@@ -92,3 +92,5 @@
 - [P0 FINAL POLICY SYSTEM 완료](p0-policy-system-done.md) — PURCHASE_SUBSCRIPTION_REFUND v1.0; SHA 32bd8d35; Render LIVE; OTA 01a08a6b; gate(signup+trial+purchase)
 - [SWIMNOTE 2.2.0 Production Release 완료](220-release-done-state.md) — HEAD 10c94c68; iOS 25fc7e4a/bld300; Android 0e68775f/vc300; OTA 01a08bbc; ASC 제출 완료
 - [WP2 완료 상태](wp2-done-state.md) — SHA 315b3668; teacher GR navigation+admin makeup read-only+dashboard GR history; OTA 01a0a3fc
+- [WP2 Production Bug Fix](wp2-production-bugfix.md) — teacherOwnsStudent current_class_id→class_group_id; diary is_deleted 제거; SHA 33a646d4 Render LIVE
+- [★ students/student_class_history 컬럼명 원칙](wp2-production-bugfix.md) — students.class_group_id (current_class_id 아님); sch.class_group_id (class_id 아님); is_deleted 없음
