@@ -1,0 +1,568 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 정산 V2 — PC 운영프로그램 기반 최종 구현 아키텍처 보정]
+
+다중 선생님 매출 배분 모델과
+Shared Calculation Architecture 조사 결과를 승인합니다.
+
+다만 이번 정산 V2는
+현재 APP 기능 하나를 만드는 것이 아니라
+
+향후 SWIMNOTE PC 운영프로그램의:
+
+- 회원별 기준매출
+- 선생님별 매출
+- 센터 전체 매출
+- 정산
+- 인센티브
+- 급여
+
+의 기반이 됩니다.
+
+따라서 구현 전에
+공통 계산 구조를 아래처럼 최종 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SERVER가 유일한 계산 Source of Truth
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP에서 계산 금지.
+PC에서 계산 금지.
+
+최종 구조:
+
+Production DB
+↓
+Settlement Service
+↓
+Settlement Calculator
+↓
+Canonical Settlement Result
+↓
+APP Teacher
+APP Admin
+PC Dashboard
+향후 SWIMNOTE PC 프로그램
+
+모든 클라이언트는
+서버 결과를 표시만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Calculator와 Service를 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 제안:
+
+settlement-calculator.ts
+
+추가는 승인합니다.
+
+단 계산식만 공통화하고
+각 route가 DB 조회를 따로 작성하게 두지 마십시오.
+
+최종 구조 권장:
+
+src/lib/settlement-calculator.ts
+
+역할:
+순수 계산만 담당.
+
+- 날짜/slot 계산
+- 학생 CAP
+- student auto amount
+- teacher allocation
+- largest remainder
+- aggregate
+
+DB 접근 금지.
+
+그리고:
+
+src/lib/settlement-service.ts
+
+추가 검토/구현.
+
+역할:
+
+- pool/month 기준 필요한 DB 데이터 로드
+- students
+- weekly_count
+- pricing
+- student_class_history
+- class_groups
+- completed makeup
+- 저장된 monthly_settlements
+- calculator 호출
+- StudentCalculation 생성
+- TeacherAggregation 생성
+- PoolAggregation 생성
+
+즉:
+
+“무슨 데이터를 읽는가”
+=
+Settlement Service
+
+“그 데이터로 얼마를 계산하는가”
+=
+Settlement Calculator
+
+로 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ROUTE에 계산식 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+settlement.ts route handler는:
+
+- 인증
+- 권한
+- month/teacher parameter validation
+- Settlement Service 호출
+- HTTP response
+
+까지만 담당.
+
+route 안에 다음 금지:
+
+- pricing 계산식
+- weekly_count 변환 계산
+- CAP 계산
+- teacher allocation 비율
+- rounding
+- student aggregation
+- pool total 계산
+
+이 모든 것은 Service/Calculator에서 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 공통 핵심 함수 하나
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 핵심 진입점을 하나로 만드십시오.
+
+예:
+
+calculatePoolSettlement({
+  poolId,
+  settlementMonth
+})
+
+결과:
+
+{
+  students,
+  teachers,
+  poolSummary,
+  unpricedStudents
+}
+
+실제 함수명은 repository convention에 맞게 조정 가능.
+
+중요한 것은:
+
+GET /settlement/calculator
+POST /settlement/save
+GET /settlement/reports
+
+가 서로 다른 계산기를 만들지 않고
+동일한 계산 진입점을 재사용하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SAVE는 클라이언트 금액을 신뢰하지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+APP/PC에서:
+
+auto_amount
+allocated_amount
+final_amount
+
+를 계산해서 서버에 보내고
+그 값을 그대로 저장하는 구조 금지.
+
+클라이언트가 보내야 하는 핵심은:
+
+- settlement_month
+- adjustment_amount
+- adjustment_reason
+- adjustment_memo
+
+등 사람이 입력한 값.
+
+서버는 저장 시:
+
+1. 현재 Settlement Service로 AUTO 재계산
+2. teacher allocation 재계산
+3. 클라이언트 adjustment 결합
+4. final amount 서버 계산
+5. auto_amount_snapshot 저장
+6. student_details snapshot 저장
+
+해야 합니다.
+
+즉 서버가 최종 금액을 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 다중 선생님 학생 — 확정 모델
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생은 특정 선생님 한 명 소유라고 가정하지 않습니다.
+
+순서:
+
+1.
+학생별 전체 regular slot 계산
+
+2.
+completed makeup 추가
+
+3.
+학생 전체 billable_count CAP
+
+4.
+학생 auto_amount 딱 1회 계산
+
+5.
+regular slot 비율로 teacher allocation
+
+반드시:
+
+SUM(
+  student.teacher_allocations.allocated_amount
+)
+=
+student.student_auto_amount
+
+학생이 몇 명의 선생님 수업에 들어가도
+월수강료 중복 발생 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 보강 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+completed makeup:
+
+학생의 billable_count에는 포함.
+
+하지만 teacher revenue allocation ratio에는 제외.
+
+예:
+
+김선생 regular 3
+박선생 regular 2
+이선생 makeup 1
+
+student service count:
+6
+
+매출 allocation:
+김 : 박 = 3 : 2
+
+이선생:
+회원매출 배분 없음.
+
+대신 별도 운영지표:
+
+completed_makeup_performed_count = 1
+
+표시 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. ROUNDING은 서버 한 군데
+━━━━━━━━━━━━━━━━━━━━━━
+
+Largest-Remainder 방식 승인.
+
+반드시 Calculator 한 곳에서만 수행.
+
+APP/PC에서 다시 round 금지.
+
+서버가 이미 정수 원 단위:
+
+allocated_auto_amount
+
+를 반환.
+
+클라이언트는 그대로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. CANONICAL RESULT CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 PC에서 그대로 사용할 수 있도록
+결과 의미를 고정하십시오.
+
+[StudentCalculation]
+
+- student_id
+- student_name
+- weekly_count
+- pricing_status
+- monthly_fee
+- sessions_per_month
+- scheduled_regular_count
+- completed_makeup_count
+- service_count
+- billable_count
+- student_auto_amount
+
+teacher_allocations:
+  - teacher_id
+  - teacher_name 가능 시
+  - regular_slot_count
+  - allocation_ratio
+  - allocated_auto_amount
+
+[TeacherAggregation]
+
+- teacher_id
+- teacher_name
+- student_count
+- regular_slot_count
+- completed_makeup_performed_count
+- allocated_auto_amount
+- adjustment_amount
+- reflected_amount
+- settlement_status
+- has_changed
+
+[PoolAggregation]
+
+- student_count
+- priced_student_count
+- unpriced_student_count
+- student_auto_total
+- teacher_allocated_auto_total
+- adjustment_total
+- reflected_total
+
+기존 API naming convention에 맞게 이름은 조정 가능.
+
+하지만 데이터 의미는 고정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 반드시 유지할 INVARIANT
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 요청에서 서버가 확인 가능해야 합니다.
+
+A.
+
+student_auto_amount
+<=
+monthly_fee
+
+B.
+
+각 student:
+
+SUM(teacher allocated amount)
+=
+student_auto_amount
+
+C.
+
+pool 전체:
+
+SUM(student auto amount)
+=
+SUM(teacher allocated auto amount)
+
+D.
+
+pricing 미설정 학생은
+0원 정상회원으로 숨기지 않음.
+
+E.
+
+APP 결과
+=
+PC 결과
+
+동일 API/동일 계산 결과.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. weekly_count와 schedule 역할
+━━━━━━━━━━━━━━━━━━━━━━
+
+students.weekly_count:
+
+가격정책 선택.
+
+1 → weekly_1
+2 → weekly_2
+3 → weekly_3
+
+student_class_history
++
+class_groups.schedule_days:
+
+실제 월 regular slot 산출.
+
+둘이 불일치해도
+자동으로 덮어쓰지 않습니다.
+
+pricing과 schedule은
+서로 다른 원시 사실입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 현재 한계는 복잡하게 해결하지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 없는 것:
+
+- teacher assignment history
+- weekly_count history
+
+이번 V2에서 신규 history system 만들지 마십시오.
+
+현재값 기준 AUTO 계산.
+
+SAVED/CONFIRMED:
+
+auto_amount_snapshot
++
+saved final
+
+보호.
+
+이후 데이터 이력이 정말 필요해질 경우
+별도 WP로 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. DB
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 table 금지.
+
+현재 허용 신규 column:
+
+monthly_settlements.auto_amount_snapshot
+
+1개.
+
+student_details JSONB에
+계산 snapshot/adjustment 저장.
+
+불필요한:
+
+- 시수
+- member hours
+- teacher hours
+- snapshot_changed
+
+컬럼 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. PC PROGRAM FOUNDATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 SWIMNOTE PC 운영프로그램은
+새로운 매출 계산기를 만들면 안 됩니다.
+
+같은 Settlement Service/API를 통해:
+
+회원별 기준매출
+선생님별 기준매출
+센터 전체 기준매출
+저장된 조정매출
+
+을 사용해야 합니다.
+
+향후:
+
+PAYROLL
+INCENTIVE
+
+기능은
+
+Settlement Result
+
+위에 별도의 Layer로 올립니다.
+
+즉:
+
+MEMBER/SCHEDULE DATA
+↓
+SETTLEMENT CALCULATION
+↓
+REVENUE
+↓
+INCENTIVE/PAYROLL
+
+순서를 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. WP 분리 최종안
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-SETTLE-V2-1
+
+공통 Calculation Foundation.
+
+- settlement-calculator.ts
+- settlement-service.ts
+- weekly_count 기반 pricing
+- student-first 계산
+- multi-teacher allocation
+- completed makeup
+- CAP
+- rounding
+- calculator endpoint
+- auto_amount_snapshot migration
+- broken finalize status 최소 복구
+
+API 중심.
+
+WP-SETTLE-V2-2
+
+Teacher Adjustment / Save.
+
+- server-side recalc before save
+- student_details snapshot
+- teacher별 adjustment
+- APP Teacher UI
+
+WP-SETTLE-V2-3
+
+Admin / PC presentation.
+
+- current auto
+- saved final
+- has_changed
+- teacher aggregation
+- pool aggregation
+- APP Admin
+- Dashboard
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 다음 단계
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 구조로 구현 가능하면
+
+WP-SETTLE-V2-1부터 시작하십시오.
+
+단 구현 전에 별도 장문의 재설계 보고는 필요 없습니다.
+
+구조상 막히는 실제 코드/DB 문제가 발견되는 경우에만
+작업을 중단하고 보고하십시오.
+
+그 외에는:
+
+구현
+→ 대표 QA
+→ Production 배포
+→ 완료보고
+
+까지 진행하십시오.
+
+불필요한 전체 audit 금지.
+정산 범위 밖 리팩터링 금지.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 것은
+“확인하지 못함”이라고 명시하십시오.

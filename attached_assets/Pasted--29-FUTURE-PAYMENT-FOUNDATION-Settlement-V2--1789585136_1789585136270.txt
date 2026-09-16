@@ -1,0 +1,321 @@
+━━━━━━━━━━━━━━━━━━━━━━
+29. FUTURE PAYMENT FOUNDATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Settlement V2에는
+실제 결제 기능을 구현하지 않습니다.
+
+하지만 향후 SWIMNOTE PC 운영프로그램에서
+
+- 카드결제
+- 계좌결제
+- 현금
+- 부분결제
+- 회수결제
+- 할인
+- 환불
+- 미수금
+
+등을 연결할 예정이므로
+
+현재 정산 구조가
+실제 결제 데이터와 결합 가능한 형태여야 합니다.
+
+중요:
+
+현재의 AUTO 매출을
+실제 결제금액으로 취급하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. REVENUE와 PAYMENT 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+개념을 명확히 분리합니다.
+
+A. REFERENCE REVENUE
+
+현재 Settlement Engine이 계산하는 값.
+
+근거:
+
+weekly_count
+schedule
+completed makeup
+pricing
+
+결과:
+
+student_auto_amount
+teacher allocation
+pool auto total
+
+의미:
+
+“현재 운영정보 기준으로 계산된 기준매출”
+
+B. ACTUAL PAYMENT
+
+향후 결제 시스템에서 생성되는 실제 금전거래.
+
+예:
+
+- 220,000 카드결제
+- 110,000 부분결제
+- 20,000 할인
+- 50,000 환불
+- 미수금
+- 분납
+
+이 데이터는
+Settlement Calculator가 추측해서 만들지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. 미래 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 장기 구조:
+
+STUDENT / CLASS / SCHEDULE
+↓
+REFERENCE REVENUE ENGINE
+↓
+student_auto_amount
+teacher allocations
+pool auto total
+
+별도:
+
+PAYMENT LEDGER
+↓
+실제 결제 / 환불 / 할인 / 미수
+
+그리고:
+
+RECONCILIATION LAYER
+↓
+기준매출
+vs
+실제 결제매출
+
+비교.
+
+그 위:
+
+INCENTIVE
+PAYROLL
+ACCOUNTING
+
+기능을 올립니다.
+
+이번 V2에서
+이 구조를 한 테이블로 합치지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. PAYMENT를 Settlement에 하드코딩 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 settlement-calculator.ts에
+다음 개념을 넣지 마십시오.
+
+- payment method
+- card approval
+- PG transaction
+- bank transfer
+- refund transaction
+- receipt
+- payment status
+
+Settlement Calculator는
+교육/시간표 기준 계산 엔진으로 유지합니다.
+
+미래 Payment 기능은
+독립 Domain/Service로 추가할 수 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. 향후 PAYMENT LEDGER 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현하지 않지만
+향후 실제 결제원장은
+
+“현재 잔액 한 칸”
+
+방식보다
+
+거래 Event/Record 중심으로
+확장 가능해야 합니다.
+
+예:
+
+payment transaction:
+- payment_id
+- pool_id
+- student_id
+- amount
+- paid_at
+- payment_method
+- settlement_period
+- status
+
+refund:
+- 원결제와 연결
+- 별도 transaction
+
+부분결제:
+- 여러 transaction 가능
+
+즉 결제금액 수정 시
+기존 transaction을 임의 덮어쓰기보다
+거래 이력을 보존할 수 있는 구조가 적합합니다.
+
+이번 V2에서 이 테이블을 만들지는 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+34. 연결 가능한 IDENTIFIER 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 Payment와 연결할 수 있도록
+Settlement Result에는 안정적인 식별자가 있어야 합니다.
+
+최소:
+
+pool_id
+student_id
+teacher_id
+settlement_month
+
+를 기준으로
+업무 데이터를 식별 가능하게 유지하십시오.
+
+학생 이름이나 선생님 이름을
+join key로 사용 금지.
+
+name은 표시용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+35. 나중 결제 연동 후에도 기존 계산 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 실제 결제가 붙어도
+현재 Reference Revenue Engine은 삭제하지 않습니다.
+
+예:
+
+학생 정상 기준매출
+220,000
+
+실제 결제
+200,000
+
+차이
+-20,000
+
+을 볼 수 있어야 합니다.
+
+즉:
+
+기준매출 220,000
+실제결제 200,000
+차이 -20,000
+
+처럼 비교.
+
+실제 결제금액이 들어왔다고
+student_auto_amount를 200,000으로 덮어쓰면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+36. MANUAL ADJUSTMENT의 미래 역할
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 V2에서는
+실제 결제정보가 없기 때문에
+
+manual adjustment로:
+
+할인
+체험
+회수결제
+기타
+
+현실 차이를 보정합니다.
+
+향후 Payment Ledger가 구축되면
+manual adjustment의 역할을 다시 검토할 수 있습니다.
+
+그러나 이번 V2에서는
+미래 결제 기능을 예상해
+조정 기능을 복잡하게 만들지 마십시오.
+
+현재:
+
+AUTO
++
+MANUAL ADJUSTMENT
+=
+REFLECTED REVENUE
+
+유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+37. PC 운영프로그램 확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 PC에서는 같은 회원 상세에서
+
+[수업/등록]
+
+주2회
+정규 8회
+
+[기준매출]
+
+220,000
+
+[실제결제]
+
+200,000
+
+[차이]
+
+-20,000
+
+같은 구조로 확장 가능해야 합니다.
+
+또 관리자 전체 화면에서는:
+
+기준매출
+실제 수납
+미수
+환불
+차이
+
+를 서로 다른 지표로 볼 수 있어야 합니다.
+
+현재 Settlement API가
+이 미래 구조를 막는 방식으로
+필드를 정의하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+38. 이번 WP에서는 구현 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Settlement V2에서:
+
+- 결제 테이블 신규 생성
+- PG 연동
+- 카드결제
+- 계좌결제
+- 환불 시스템
+- 미수금 시스템
+- 영수증
+- 회계 기능
+
+전부 금지.
+
+이번에는 오직
+
+“향후 Payment Domain을
+옆에 연결할 수 있는
+깨끗한 Settlement Foundation”
+
+까지만 구현합니다.
