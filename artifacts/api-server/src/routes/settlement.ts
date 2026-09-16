@@ -1,19 +1,27 @@
 /**
- * settlement.ts — 정산 API
+ * settlement.ts — 정산 API (V2)
  *
- * GET  /settlement/calculator?pool_id=&teacher_id=&month=YYYY-MM   정산 계산기
- * POST /settlement/save                                             정산 저장 (draft/submitted)
+ * GET  /settlement/calculator?pool_id=&teacher_id=&month=YYYY-MM   정산 계산기 (선생님 전용)
+ * GET  /settlement/pool-summary?pool_id=&month=YYYY-MM             Pool 전체 계산 (관리자)
+ * POST /settlement/save                                             정산 저장 (서버 재계산 후 저장)
  * GET  /settlement/my-status?pool_id=&month=YYYY-MM                선생님 자신의 정산 상태
  * GET  /settlement/reports?pool_id=&month=YYYY-MM                  관리자: 선생님 전체 제출 현황
  * GET  /settlement/history?pool_id=&teacher_id=                    정산 이력
  * POST /settlement/finalize                                         정산 확정
- * POST /settlement/next-month-start                                 다음 달 시작
+ * POST /settlement/next-month-start                                 다음 달 시작 (미사용, 유지)
+ *
+ * 계산식은 모두 settlement-service.ts / settlement-calculator.ts에 위치합니다.
+ * Route handler는 인증·권한·파라미터 검증·HTTP 응답만 담당합니다.
  */
 import { Router, type Response } from "express";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logChange } from "../utils/change-logger.js";
+import {
+  calculateTeacherSettlement,
+  calculatePoolSettlement,
+} from "../lib/settlement-service.js";
 
 const router = Router();
 
@@ -26,9 +34,10 @@ async function getPoolId(userId: string): Promise<string | null> {
   return (r.rows[0] as any)?.swimming_pool_id || null;
 }
 
-// ─── 정산 계산기 ─────────────────────────────────────────────────────────────
+// ─── 정산 계산기 (선생님용) ───────────────────────────────────────────────────
 // GET /settlement/calculator?pool_id=&teacher_id=&month=YYYY-MM
-router.get("/settlement/calculator", requireAuth, requireRole("pool_admin", "teacher", "super_admin"),
+router.get("/settlement/calculator",
+  requireAuth, requireRole("pool_admin", "teacher", "super_admin"),
   async (req: AuthRequest, res: Response) => {
     try {
       const { pool_id: rawPoolId, teacher_id, month } = req.query as Record<string, string>;
@@ -42,160 +51,8 @@ router.get("/settlement/calculator", requireAuth, requireRole("pool_admin", "tea
         if (targetTeacherId !== userId) return err(res, 403, "본인 정산만 조회 가능합니다.");
       }
 
-      // 단가표 조회
-      const pricingRows = await db.execute(sql`
-        SELECT * FROM pool_class_pricing WHERE pool_id = ${pool_id} AND is_active = true
-      `);
-      const pricing: Record<string, any> = {};
-      (pricingRows.rows as any[]).forEach(p => { pricing[p.type_key] = p; });
-
-      // 해당 선생님이 담당하는 반 조회
-      const cgRows = await db.execute(sql`
-        SELECT id, name FROM class_groups WHERE teacher_user_id = ${targetTeacherId} AND is_deleted = false
-      `);
-      const classGroups = cgRows.rows as any[];
-      const classGroupIds = classGroups.map((c: any) => c.id);
-
-      if (classGroupIds.length === 0) {
-        return res.json({
-          success: true,
-          summary: {
-            total_revenue: 0, total_sessions: 0, total_makeup_sessions: 0,
-            total_trial_sessions: 0, total_temp_transfer_sessions: 0,
-            withdrawn_count: 0, postpone_count: 0,
-          },
-          students: [], month,
-        });
-      }
-
-      const startDate = month + "-01";
-      const endDate   = month + "-31";
-
-      // 정규 + 기타(extra) 수업 출석
-      const attRows = await db.execute(sql`
-        SELECT a.student_id, a.session_type, a.status, a.date, a.teacher_user_id,
-          s.name AS student_name, s.class_type, s.is_trial, s.is_unregistered
-        FROM attendance a
-        JOIN students s ON s.id = a.student_id
-        WHERE a.teacher_user_id = ${targetTeacherId}
-          AND a.date >= ${startDate} AND a.date <= ${endDate}
-          AND a.status = 'present'
-          AND a.session_type IN ('regular','extra')
-          AND a.swimming_pool_id = ${pool_id}
-        ORDER BY a.date
-      `);
-
-      // 보강 완료
-      const makeupRows = await db.execute(sql`
-        SELECT ms.student_id, ms.student_name, ms.assigned_date, ms.source_type,
-          s.class_type, s.is_trial
-        FROM makeup_sessions ms
-        JOIN students s ON s.id = ms.student_id
-        WHERE ms.assigned_teacher_id = ${targetTeacherId}
-          AND ms.assigned_date >= ${startDate} AND ms.assigned_date <= ${endDate}
-          AND ms.status = 'completed'
-          AND ms.swimming_pool_id = ${pool_id}
-      `);
-
-      // 임시이동 (이 선생님이 받은)
-      const transferRows = await db.execute(sql`
-        SELECT tct.student_id, tct.student_name, tct.transfer_date,
-          s.class_type, s.is_trial
-        FROM temp_class_transfers tct
-        JOIN students s ON s.id = tct.student_id
-        WHERE tct.to_teacher_id = ${targetTeacherId}
-          AND tct.transfer_date >= ${startDate} AND tct.transfer_date <= ${endDate}
-          AND tct.pool_id = ${pool_id}
-          AND tct.attendance_id IS NOT NULL
-      `);
-
-      // 이 달 탈퇴 학생 (이 선생님 담당 반 기준)
-      const withdrawnRows = await db.execute(sql`
-        SELECT DISTINCT a.student_id
-        FROM attendance a
-        JOIN students s ON s.id = a.student_id
-        WHERE a.teacher_user_id = ${targetTeacherId}
-          AND a.date >= ${startDate} AND a.date <= ${endDate}
-          AND a.swimming_pool_id = ${pool_id}
-          AND s.is_unregistered = true
-      `);
-      const withdrawnCount = withdrawnRows.rows.length;
-
-      // 학생별 집계
-      const studentMap: Record<string, {
-        student_id: string; student_name: string; class_type: string;
-        is_trial: boolean; is_unregistered: boolean;
-        regular_sessions: number; makeup_sessions: number; trial_sessions: number;
-        temp_transfer_sessions: number; extra_sessions: number; total_sessions: number;
-        monthly_fee: number; settlement_amount: number;
-      }> = {};
-
-      function ensureStudent(id: string, name: string, class_type: string, is_trial: boolean, is_unregistered: boolean) {
-        if (!studentMap[id]) {
-          const p = pricing[class_type] || pricing["weekly_1"] || { monthly_fee: 0, sessions_per_month: 4 };
-          studentMap[id] = {
-            student_id: id, student_name: name, class_type,
-            is_trial, is_unregistered,
-            regular_sessions: 0, makeup_sessions: 0, trial_sessions: 0,
-            temp_transfer_sessions: 0, extra_sessions: 0, total_sessions: 0,
-            monthly_fee: p.monthly_fee, settlement_amount: 0,
-          };
-        }
-      }
-
-      for (const att of (attRows.rows as any[])) {
-        ensureStudent(att.student_id, att.student_name, att.class_type || "weekly_1", att.is_trial, att.is_unregistered);
-        if (att.session_type === "extra") {
-          studentMap[att.student_id].extra_sessions++;
-        } else {
-          if (att.is_trial) studentMap[att.student_id].trial_sessions++;
-          else studentMap[att.student_id].regular_sessions++;
-        }
-      }
-      for (const mk of (makeupRows.rows as any[])) {
-        ensureStudent(mk.student_id, mk.student_name, mk.class_type || "weekly_1", mk.is_trial, false);
-        studentMap[mk.student_id].makeup_sessions++;
-      }
-      for (const tf of (transferRows.rows as any[])) {
-        ensureStudent(tf.student_id, tf.student_name, tf.class_type || "weekly_1", tf.is_trial, false);
-        studentMap[tf.student_id].temp_transfer_sessions++;
-      }
-
-      // 정산 금액 계산
-      let totalRevenue = 0, totalSessions = 0, totalMakeupSessions = 0;
-      let totalTrialSessions = 0, totalTempTransferSessions = 0;
-
-      for (const s of Object.values(studentMap)) {
-        const p = pricing[s.class_type] || pricing["weekly_1"] || { monthly_fee: 0, sessions_per_month: 4 };
-        const scheduledSessions = p.sessions_per_month || 4;
-        const actualSessions = s.regular_sessions + s.extra_sessions;
-        const perSession = scheduledSessions > 0 ? p.monthly_fee / scheduledSessions : 0;
-        const regularAmount  = Math.min(actualSessions, scheduledSessions) * perSession;
-        const makeupAmount   = s.makeup_sessions * perSession;
-        const transferAmount = s.temp_transfer_sessions * perSession;
-
-        s.settlement_amount = Math.round(regularAmount + makeupAmount + transferAmount);
-        s.total_sessions = actualSessions + s.makeup_sessions + s.temp_transfer_sessions + s.trial_sessions;
-
-        totalRevenue += s.settlement_amount;
-        totalSessions += actualSessions;
-        totalMakeupSessions += s.makeup_sessions;
-        totalTrialSessions += s.trial_sessions;
-        totalTempTransferSessions += s.temp_transfer_sessions;
-      }
-
-      const summary = {
-        total_revenue: totalRevenue,
-        total_sessions: totalSessions,
-        total_makeup_sessions: totalMakeupSessions,
-        total_trial_sessions: totalTrialSessions,
-        total_temp_transfer_sessions: totalTempTransferSessions,
-        withdrawn_count: withdrawnCount,
-        postpone_count: 0,
-        month,
-      };
-
-      return res.json({ success: true, summary, students: Object.values(studentMap), pricing: pricingRows.rows });
+      const result = await calculateTeacherSettlement(pool_id, month, targetTeacherId);
+      return res.json({ success: true, ...result });
     } catch (e: any) {
       console.error("[settlement/calculator]", e);
       return err(res, 500, e.message);
@@ -203,59 +60,141 @@ router.get("/settlement/calculator", requireAuth, requireRole("pool_admin", "tea
   }
 );
 
+// ─── Pool 전체 계산 (관리자용) ────────────────────────────────────────────────
+// GET /settlement/pool-summary?pool_id=&month=YYYY-MM
+router.get("/settlement/pool-summary",
+  requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id: rawPoolId, month } = req.query as Record<string, string>;
+      const { userId } = req.user!;
+      if (!month) return err(res, 400, "month가 필요합니다.");
+      const pool_id = rawPoolId || (await getPoolId(userId!)) || "";
+      if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
+
+      const result = await calculatePoolSettlement(pool_id, month);
+      return res.json({ success: true, ...result });
+    } catch (e: any) {
+      console.error("[settlement/pool-summary]", e);
+      return err(res, 500, e.message);
+    }
+  }
+);
+
 // ─── 정산 저장 ───────────────────────────────────────────────────────────────
 // POST /settlement/save
-// body: { pool_id, month, summary, students, extra_manual_amount, extra_manual_memo, status }
-router.post("/settlement/save", requireAuth, requireRole("pool_admin", "teacher"),
+// body: { pool_id, month, student_adjustments[], extra_manual_amount, extra_manual_memo, status }
+//
+// 클라이언트는 사람이 입력한 값(adjustment)만 보냅니다.
+// 서버가 Settlement Service로 AUTO 재계산 후 저장합니다.
+router.post("/settlement/save",
+  requireAuth, requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
     try {
       const {
-        pool_id, month, summary, students,
-        extra_manual_amount, extra_manual_memo,
+        pool_id: rawPoolId,
+        month,
+        student_adjustments = [],  // [{ student_id, adjustment_amount, adjustment_reason, adjustment_memo }]
+        extra_manual_amount = 0,
+        extra_manual_memo = null,
         status = "draft",
       } = req.body;
       const { userId } = req.user!;
-      if (!pool_id || !month) return err(res, 400, "pool_id, month가 필요합니다.");
+      if (!month) return err(res, 400, "month가 필요합니다.");
+      const pool_id = rawPoolId || (await getPoolId(userId!)) || "";
+      if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
 
+      // 1. 서버 재계산
+      const result = await calculateTeacherSettlement(pool_id, month, userId!);
+
+      // 2. adjustment Map
+      const adjMap = new Map<string, { amount: number; reason?: string; memo?: string }>();
+      for (const adj of student_adjustments) {
+        adjMap.set(adj.student_id, {
+          amount: Number(adj.adjustment_amount) || 0,
+          reason: adj.adjustment_reason,
+          memo: adj.adjustment_memo,
+        });
+      }
+
+      // 3. student_details 스냅샷 생성 (priced + unpriced 모두 포함)
+      const allStudents = [...result.students, ...result.unpriced_students];
+      const studentDetails = allStudents.map(s => {
+        const myAlloc = s.teacher_allocations.find(a => a.teacher_id === userId) ?? null;
+        const adj = adjMap.get(s.student_id);
+        const allocatedAmount = myAlloc?.allocated_auto_amount ?? 0;
+        const adjustmentAmount = adj?.amount ?? 0;
+        const finalAmount = allocatedAmount + adjustmentAmount;
+        return {
+          student_id: s.student_id,
+          student_name: s.student_name,
+          weekly_count: s.weekly_count,
+          pricing_status: s.pricing_status,
+          monthly_fee: s.monthly_fee,
+          sessions_per_month: s.sessions_per_month,
+          scheduled_regular_count: s.scheduled_regular_count,
+          completed_makeup_count: s.completed_makeup_count,
+          service_count: s.service_count,
+          billable_count: s.billable_count,
+          student_auto_amount: s.student_auto_amount,
+          my_regular_slot_count: myAlloc?.regular_slot_count ?? 0,
+          allocation_ratio: myAlloc?.allocation_ratio ?? 0,
+          allocated_amount: allocatedAmount,
+          adjustment_amount: adjustmentAmount,
+          adjustment_reason: adj?.reason ?? null,
+          adjustment_memo: adj?.memo ?? null,
+          final_amount: finalAmount,
+        };
+      });
+
+      // 4. 집계
+      const autoAmountSnapshot = result.teacher_aggregation?.allocated_auto_amount ?? 0;
+      const totalFinalRevenue = studentDetails.reduce((s, d) => s + d.final_amount, 0) + Number(extra_manual_amount);
+      const totalSessions = result.teacher_aggregation?.regular_slot_count ?? 0;
+      const totalMakeupSessions = result.teacher_aggregation?.completed_makeup_performed_count ?? 0;
+
+      // 5. DB 저장
       const teacherRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const teacherName = (teacherRow.rows[0] as any)?.name || "선생님";
 
-      const withdrawnCount = summary?.withdrawn_count ?? (Array.isArray(students)
-        ? students.filter((s: any) => s.is_unregistered).length : 0);
-      const postponeCount = summary?.postpone_count ?? 0;
-
-      const rows = await db.execute(sql`
+      const saved = await db.execute(sql`
         INSERT INTO monthly_settlements
-          (id, pool_id, teacher_user_id, teacher_name, settlement_month, total_revenue, total_sessions,
-           total_makeup_sessions, total_trial_sessions, total_temp_transfer_sessions,
+          (id, pool_id, teacher_user_id, teacher_name, settlement_month,
+           total_revenue, total_sessions, total_makeup_sessions,
+           total_trial_sessions, total_temp_transfer_sessions,
            extra_manual_amount, extra_manual_memo, student_details,
-           status, withdrawn_count, postpone_count, updated_at)
-        VALUES (gen_random_uuid()::text, ${pool_id}, ${userId}, ${teacherName}, ${month},
-          ${summary?.total_revenue || 0}, ${summary?.total_sessions || 0},
-          ${summary?.total_makeup_sessions || 0}, ${summary?.total_trial_sessions || 0},
-          ${summary?.total_temp_transfer_sessions || 0},
-          ${extra_manual_amount || 0}, ${extra_manual_memo || null},
-          ${JSON.stringify(students || [])},
-          ${status}, ${withdrawnCount}, ${postponeCount}, now())
+           status, withdrawn_count, postpone_count,
+           auto_amount_snapshot, updated_at)
+        VALUES (
+          gen_random_uuid()::text, ${pool_id}, ${userId}, ${teacherName}, ${month},
+          ${totalFinalRevenue}, ${totalSessions}, ${totalMakeupSessions},
+          0, 0,
+          ${Number(extra_manual_amount)}, ${extra_manual_memo},
+          ${JSON.stringify(studentDetails)},
+          ${status}, 0, 0,
+          ${autoAmountSnapshot}, now()
+        )
         ON CONFLICT (pool_id, teacher_user_id, settlement_month) DO UPDATE SET
-          total_revenue = EXCLUDED.total_revenue,
-          total_sessions = EXCLUDED.total_sessions,
-          total_makeup_sessions = EXCLUDED.total_makeup_sessions,
-          total_trial_sessions = EXCLUDED.total_trial_sessions,
-          total_temp_transfer_sessions = EXCLUDED.total_temp_transfer_sessions,
-          extra_manual_amount = EXCLUDED.extra_manual_amount,
-          extra_manual_memo = EXCLUDED.extra_manual_memo,
-          student_details = EXCLUDED.student_details,
-          status = EXCLUDED.status,
-          withdrawn_count = EXCLUDED.withdrawn_count,
-          postpone_count = EXCLUDED.postpone_count,
-          updated_at = now()
+          total_revenue            = EXCLUDED.total_revenue,
+          total_sessions           = EXCLUDED.total_sessions,
+          total_makeup_sessions    = EXCLUDED.total_makeup_sessions,
+          extra_manual_amount      = EXCLUDED.extra_manual_amount,
+          extra_manual_memo        = EXCLUDED.extra_manual_memo,
+          student_details          = EXCLUDED.student_details,
+          status                   = EXCLUDED.status,
+          auto_amount_snapshot     = EXCLUDED.auto_amount_snapshot,
+          updated_at               = now()
         RETURNING *
       `);
 
-      const saved = rows.rows[0] as any;
-      await logChange({ tenantId: pool_id, tableName: "monthly_settlements", recordId: saved?.id || `${pool_id}_${month}`, changeType: "update", payload: { month, status, teacher: userId } });
-      return res.json({ success: true, settlement: saved });
+      await logChange({
+        tenantId: pool_id,
+        tableName: "monthly_settlements",
+        recordId: (saved.rows[0] as any)?.id || `${pool_id}_${month}`,
+        changeType: "update",
+        payload: { month, status, teacher: userId },
+      });
+      return res.json({ success: true, settlement: saved.rows[0] });
     } catch (e: any) {
       console.error("[settlement/save]", e);
       return err(res, 500, e.message);
@@ -265,7 +204,8 @@ router.post("/settlement/save", requireAuth, requireRole("pool_admin", "teacher"
 
 // ─── 선생님 자신의 정산 상태 조회 ────────────────────────────────────────────
 // GET /settlement/my-status?pool_id=&month=YYYY-MM
-router.get("/settlement/my-status", requireAuth, requireRole("pool_admin", "teacher"),
+router.get("/settlement/my-status",
+  requireAuth, requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
     try {
       const { pool_id: rawPoolId, month } = req.query as Record<string, string>;
@@ -275,7 +215,7 @@ router.get("/settlement/my-status", requireAuth, requireRole("pool_admin", "teac
       if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
 
       const rows = await db.execute(sql`
-        SELECT status, total_revenue, extra_manual_amount, updated_at
+        SELECT status, total_revenue, auto_amount_snapshot, extra_manual_amount, updated_at
         FROM monthly_settlements
         WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
         LIMIT 1
@@ -285,7 +225,13 @@ router.get("/settlement/my-status", requireAuth, requireRole("pool_admin", "teac
         return res.json({ success: true, status: null });
       }
       const row = rows.rows[0] as any;
-      return res.json({ success: true, status: row.status, total_revenue: row.total_revenue, updated_at: row.updated_at });
+      return res.json({
+        success: true,
+        status: row.status,
+        total_revenue: row.total_revenue,
+        auto_amount_snapshot: row.auto_amount_snapshot,
+        updated_at: row.updated_at,
+      });
     } catch (e: any) {
       console.error("[settlement/my-status]", e);
       return err(res, 500, e.message);
@@ -293,9 +239,10 @@ router.get("/settlement/my-status", requireAuth, requireRole("pool_admin", "teac
   }
 );
 
-// ─── 관리자: 선생님별 제출 현황 조회 ─────────────────────────────────────────
+// ─── 관리자: 선생님별 제출 현황 ──────────────────────────────────────────────
 // GET /settlement/reports?pool_id=&month=YYYY-MM
-router.get("/settlement/reports", requireAuth, requireRole("pool_admin", "super_admin"),
+router.get("/settlement/reports",
+  requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res: Response) => {
     try {
       const { pool_id: rawPoolId, month } = req.query as Record<string, string>;
@@ -304,20 +251,18 @@ router.get("/settlement/reports", requireAuth, requireRole("pool_admin", "super_
       const pool_id = rawPoolId || (await getPoolId(userId!)) || "";
       if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
 
-      // 제출된 정산 레코드 가져오기
+      // 저장된 정산 레코드
       const settleRows = await db.execute(sql`
         SELECT
-          ms.teacher_user_id AS teacher_id,
+          ms.teacher_user_id    AS teacher_id,
           ms.teacher_name,
           ms.status,
           ms.total_revenue,
           ms.total_sessions,
-          ms.total_makeup_sessions  AS makeup_count,
-          ms.total_trial_sessions   AS trial_count,
-          ms.total_temp_transfer_sessions AS transfer_count,
-          ms.withdrawn_count,
-          ms.postpone_count,
+          ms.total_makeup_sessions AS makeup_count,
           ms.extra_manual_amount,
+          ms.auto_amount_snapshot,
+          ms.is_finalized,
           ms.updated_at,
           (SELECT COUNT(DISTINCT sd.value->>'student_id')
            FROM jsonb_array_elements(ms.student_details) AS sd
@@ -326,26 +271,46 @@ router.get("/settlement/reports", requireAuth, requireRole("pool_admin", "super_
         WHERE ms.pool_id = ${pool_id} AND ms.settlement_month = ${month}
       `);
 
-      const reportMap: Record<string, any> = {};
-      for (const r of (settleRows.rows as any[])) {
-        reportMap[r.teacher_id] = {
-          teacher_id:     r.teacher_id,
-          teacher_name:   r.teacher_name,
-          status:         r.status,               // "draft" | "submitted" | "confirmed"
-          total_revenue:  r.total_revenue,
-          total_sessions: r.total_sessions,
-          student_count:  Number(r.student_count),
-          makeup_count:   r.makeup_count,
-          trial_count:    r.trial_count,
-          transfer_count: r.transfer_count,
-          withdrawn_count: r.withdrawn_count,
-          postpone_count: r.postpone_count,
-          extra_manual_amount: r.extra_manual_amount,
-          updated_at:     r.updated_at,
-        };
-      }
+      // 현재 pool-level auto 계산 (has_changed 감지용)
+      const currentResult = await calculatePoolSettlement(pool_id, month);
+      const currentTeacherMap = new Map(currentResult.teachers.map(t => [t.teacher_id, t]));
 
-      return res.json({ success: true, reports: Object.values(reportMap) });
+      const reports = (settleRows.rows as any[]).map(r => {
+        const currentTeacher = currentTeacherMap.get(r.teacher_id);
+        const currentAuto = currentTeacher?.allocated_auto_amount ?? null;
+        const savedAuto = r.auto_amount_snapshot;
+        const hasChanged = savedAuto !== null && currentAuto !== null && savedAuto !== currentAuto;
+        return {
+          teacher_id: r.teacher_id,
+          teacher_name: r.teacher_name,
+          status: r.status,
+          // 저장된 값
+          saved_total_revenue: r.total_revenue,
+          saved_auto_amount: savedAuto,
+          // 현재 계산값
+          current_auto_amount: currentAuto,
+          has_changed: hasChanged,
+          // 집계
+          total_sessions: r.total_sessions,
+          student_count: Number(r.student_count),
+          makeup_count: r.makeup_count,
+          extra_manual_amount: r.extra_manual_amount,
+          is_finalized: r.is_finalized,
+          updated_at: r.updated_at,
+        };
+      });
+
+      // Pool 전체 집계 (현재 계산 기준)
+      const poolSummary = currentResult.pool_summary;
+      const savedTotalRevenue = (settleRows.rows as any[]).reduce((s, r) => s + (r.total_revenue || 0), 0);
+
+      return res.json({
+        success: true,
+        reports,
+        pool_summary: poolSummary,
+        saved_total_revenue: savedTotalRevenue,
+        unpriced_students: currentResult.unpriced_students,
+      });
     } catch (e: any) {
       console.error("[settlement/reports]", e);
       return err(res, 500, e.message);
@@ -353,52 +318,10 @@ router.get("/settlement/reports", requireAuth, requireRole("pool_admin", "super_
   }
 );
 
-// ─── 정산 확정 ───────────────────────────────────────────────────────────────
-// POST /settlement/finalize
-// - 선생님: 본인 정산 확정 (status → confirmed)
-// - 관리자(pool_admin): teacher_id 지정 시 해당 선생님 확정, 없으면 해당 월 전체 submitted 확정
-router.post("/settlement/finalize", requireAuth, requireRole("pool_admin", "teacher"),
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const { pool_id, month, teacher_id } = req.body;
-      const { userId, role } = req.user!;
-
-      if (role === "pool_admin" || role === "super_admin") {
-        if (teacher_id) {
-          // 관리자: 특정 선생님 정산만 확인 처리
-          await db.execute(sql`
-            UPDATE monthly_settlements
-            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
-            WHERE pool_id = ${pool_id} AND teacher_user_id = ${teacher_id} AND settlement_month = ${month}
-          `);
-        } else {
-          // 관리자: 해당 월 submitted 상태인 정산 전체 확정
-          await db.execute(sql`
-            UPDATE monthly_settlements
-            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
-            WHERE pool_id = ${pool_id} AND settlement_month = ${month} AND status = 'submitted'
-          `);
-        }
-      } else {
-        // 선생님: 본인 정산만 확정
-        await db.execute(sql`
-          UPDATE monthly_settlements
-          SET is_finalized = true, finalized_at = now(), status = 'confirmed'
-          WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
-        `);
-      }
-
-      if (pool_id) await logChange({ tenantId: pool_id, tableName: "monthly_settlements", recordId: `${pool_id}_${month}`, changeType: "update", payload: { month, status: "confirmed", finalized: true, teacher_id: teacher_id ?? "all" } });
-      return res.json({ success: true });
-    } catch (e: any) {
-      return err(res, 500, e.message);
-    }
-  }
-);
-
 // ─── 정산 이력 조회 ───────────────────────────────────────────────────────────
 // GET /settlement/history?pool_id=&teacher_id=
-router.get("/settlement/history", requireAuth, requireRole("pool_admin", "teacher", "super_admin"),
+router.get("/settlement/history",
+  requireAuth, requireRole("pool_admin", "teacher", "super_admin"),
   async (req: AuthRequest, res: Response) => {
     try {
       const { pool_id, teacher_id } = req.query as Record<string, string>;
@@ -413,6 +336,53 @@ router.get("/settlement/history", requireAuth, requireRole("pool_admin", "teache
       `);
       return res.json({ success: true, history: rows.rows });
     } catch (e: any) {
+      console.error("[settlement/history]", e);
+      return err(res, 500, e.message);
+    }
+  }
+);
+
+// ─── 정산 확정 ───────────────────────────────────────────────────────────────
+// POST /settlement/finalize
+router.post("/settlement/finalize",
+  requireAuth, requireRole("pool_admin", "teacher"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id, month, teacher_id } = req.body;
+      const { userId, role } = req.user!;
+
+      if (role === "pool_admin" || role === "super_admin") {
+        if (teacher_id) {
+          await db.execute(sql`
+            UPDATE monthly_settlements
+            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+            WHERE pool_id = ${pool_id} AND teacher_user_id = ${teacher_id} AND settlement_month = ${month}
+          `);
+        } else {
+          await db.execute(sql`
+            UPDATE monthly_settlements
+            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+            WHERE pool_id = ${pool_id} AND settlement_month = ${month} AND status = 'submitted'
+          `);
+        }
+      } else {
+        await db.execute(sql`
+          UPDATE monthly_settlements
+          SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+          WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
+        `);
+      }
+
+      if (pool_id) await logChange({
+        tenantId: pool_id,
+        tableName: "monthly_settlements",
+        recordId: `${pool_id}_${month}`,
+        changeType: "update",
+        payload: { month, status: "confirmed", finalized: true, teacher_id: teacher_id ?? "all" },
+      });
+      return res.json({ success: true });
+    } catch (e: any) {
+      console.error("[settlement/finalize]", e);
       return err(res, 500, e.message);
     }
   }
