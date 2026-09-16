@@ -1,0 +1,179 @@
+━━━━━━━━━━━━━━━━━━━━━━
+15. 향후 PC 운영프로그램 기반 구조 — 필수 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 정산 V2는
+현재 모바일 APP 전용 기능으로 설계하면 안 됩니다.
+
+향후 SWIMNOTE PC 운영프로그램에서
+회원관리 / 매출관리 / 정산관리의
+공통 기반으로 그대로 사용할 구조여야 합니다.
+
+따라서 계산의 Source of Truth와
+계산식은 반드시 SERVER/API 계층에 위치해야 합니다.
+
+금지:
+
+APP에서 독자적으로 매출 계산
+PC Dashboard에서 별도의 매출 계산
+각 화면에서 weekly_count × 가격을 따로 계산
+APP/PC마다 다른 rounding
+APP/PC마다 다른 teacher allocation 규칙
+
+최종 구조:
+
+Production DB
+↓
+공통 Settlement Calculation Layer
+↓
+공통 API Result
+↓
+APP Teacher
+APP Admin
+PC Admin
+향후 SWIMNOTE PC 운영프로그램
+
+모두 동일 결과 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 계산 결과의 재사용 가능한 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 계산 결과는
+특정 화면 UI에 종속되지 않게 설계하십시오.
+
+최소 개념:
+
+[Student Calculation]
+
+student_id
+weekly_count
+
+monthly_fee
+sessions_per_month
+
+scheduled_regular_count
+completed_makeup_count
+
+billable_count
+student_auto_amount
+
+teacher_allocations[]:
+- teacher_id
+- regular_slot_count
+- allocation_ratio
+- allocated_auto_amount
+
+pricing_status
+
+[Teacher Aggregation]
+
+teacher_id
+
+student_count
+regular_slot_count
+completed_makeup_performed_count
+
+allocated_auto_amount
+saved_adjustment_amount
+reflected_amount
+
+settlement_status
+
+[Pool Aggregation]
+
+student_auto_total
+teacher_allocated_auto_total
+
+두 값은 항상 일치해야 함.
+
+reflected_total
+
+unpriced_student_count
+
+이것은 예시 필드명이므로
+현재 API convention에 맞춰 조정 가능하지만
+데이터 의미는 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 핵심 INVARIANT
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 APP/PC 어디서 조회해도
+아래 규칙은 반드시 동일해야 합니다.
+
+1.
+
+한 학생의:
+
+student_auto_amount
+<=
+standard_monthly_fee
+
+2.
+
+한 학생에 대해:
+
+SUM(teacher_allocated_auto_amount)
+=
+student_auto_amount
+
+3.
+
+수영장 전체:
+
+SUM(student_auto_amount)
+=
+SUM(teacher_allocated_auto_amount)
+
+4.
+
+SAVED 이전:
+
+reflected_amount
+=
+current allocated auto + 현재 허용된 adjustment 정책
+
+5.
+
+SAVED 이후:
+
+저장된 정산값은
+시간표 변경 때문에 자동으로 덮어쓰지 않음.
+
+6.
+
+APP에서 본 숫자
+=
+PC에서 본 숫자
+=
+같은 API 결과.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. PC 확장성을 고려한 조사 결과 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 조사 보고에 아래도 추가하십시오.
+
+[I. SHARED CALCULATION ARCHITECTURE]
+
+- 현재 settlement calculator를
+  APP/PC 공용 API 계산 엔진으로 사용할 수 있는지
+- 계산식을 어떤 server 함수/service로 분리하는 것이
+  현재 repository 구조상 가장 적절한지
+- calculator / reports / save가
+  같은 계산 함수를 재사용할 수 있는지
+- APP/PC frontend에서 계산식을 제거하고
+  서버 결과만 표시할 수 있는지
+
+이번 단계에서는
+이를 이유로 대규모 refactor하지 마십시오.
+
+구현 가능 구조만 제안하십시오.
+
+목표:
+
+정산 V2 완료 후
+향후 PC 운영프로그램은
+동일 API를 연결하는 것만으로
+동일 매출/정산 결과를 사용할 수 있어야 합니다.
