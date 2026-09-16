@@ -83,10 +83,14 @@ router.get("/settlement/pool-summary",
 
 // ─── 정산 저장 ───────────────────────────────────────────────────────────────
 // POST /settlement/save
-// body: { pool_id, month, student_adjustments[], extra_manual_amount, extra_manual_memo, status }
+// V2 contract:
+//   { month, adjustments?: [{ student_id, adjustment_amount, adjustment_reason?, adjustment_memo? }] }
+// Legacy compat:
+//   { pool_id?, month, student_adjustments?, extra_manual_amount?, extra_manual_memo? }
 //
-// 클라이언트는 사람이 입력한 값(adjustment)만 보냅니다.
+// 클라이언트는 사람이 입력한 adjustment만 보냅니다.
 // 서버가 Settlement Service로 AUTO 재계산 후 저장합니다.
+// 클라이언트가 보낸 allocated_amount / final_amount 등 계산값은 무시합니다.
 router.post("/settlement/save",
   requireAuth, requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
@@ -94,66 +98,106 @@ router.post("/settlement/save",
       const {
         pool_id: rawPoolId,
         month,
-        student_adjustments = [],  // [{ student_id, adjustment_amount, adjustment_reason, adjustment_memo }]
+        // V2: adjustments
+        adjustments,
+        // Legacy compat: student_adjustments
+        student_adjustments,
+        // Legacy: extra_manual fields (보존, 이중합산 없음)
         extra_manual_amount = 0,
         extra_manual_memo = null,
-        status = "draft",
       } = req.body;
       const { userId } = req.user!;
       if (!month) return err(res, 400, "month가 필요합니다.");
       const pool_id = rawPoolId || (await getPoolId(userId!)) || "";
       if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
 
-      // 1. 서버 재계산
+      // [A] confirmed 보호: confirmed 정산은 재저장 불가
+      const existing = await db.execute(sql`
+        SELECT status FROM monthly_settlements
+        WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
+        LIMIT 1
+      `);
+      if ((existing.rows[0] as any)?.status === "confirmed") {
+        return res.status(409).json({
+          success: false,
+          error_code: "SETTLEMENT_CONFIRMED",
+          message: "관리자가 확인한 정산은 수정할 수 없습니다.",
+        });
+      }
+
+      // [B] 서버 재계산 (클라이언트 계산값 무시)
       const result = await calculateTeacherSettlement(pool_id, month, userId!);
 
-      // 2. adjustment Map
+      // [C] unpriced 학생 존재 시 저장 차단
+      if (result.unpriced_students.length > 0) {
+        return res.status(422).json({
+          success: false,
+          error_code: "PRICING_NOT_CONFIGURED",
+          message: "센터 수업료 설정이 필요한 회원이 있습니다.",
+          unpriced_count: result.unpriced_students.length,
+          unpriced_students: result.unpriced_students.map(s => ({
+            student_id: s.student_id,
+            student_name: s.student_name,
+          })),
+        });
+      }
+
+      // [D] adjustment Map 구성 (V2: adjustments 우선, fallback: student_adjustments)
+      const adjSource: any[] = adjustments ?? student_adjustments ?? [];
       const adjMap = new Map<string, { amount: number; reason?: string; memo?: string }>();
-      for (const adj of student_adjustments) {
-        adjMap.set(adj.student_id, {
+      for (const adj of adjSource) {
+        const sid = adj.student_id;
+        if (!sid) continue;
+        // [E] student_id가 실제 해당 teacher settlement에 존재하는지 검증
+        const validIds = new Set(result.students.map(s => s.student_id));
+        if (!validIds.has(sid)) continue;
+        adjMap.set(sid, {
           amount: Number(adj.adjustment_amount) || 0,
           reason: adj.adjustment_reason,
           memo: adj.adjustment_memo,
         });
       }
 
-      // 3. student_details 스냅샷 생성 (priced + unpriced 모두 포함)
-      const allStudents = [...result.students, ...result.unpriced_students];
-      const studentDetails = allStudents.map(s => {
+      // [F] student_details V2 snapshot — 서버 계산값만 사용
+      const studentDetails = result.students.map(s => {
         const myAlloc = s.teacher_allocations.find(a => a.teacher_id === userId) ?? null;
         const adj = adjMap.get(s.student_id);
         const allocatedAmount = myAlloc?.allocated_auto_amount ?? 0;
         const adjustmentAmount = adj?.amount ?? 0;
-        const finalAmount = allocatedAmount + adjustmentAmount;
         return {
+          // 식별자
           student_id: s.student_id,
           student_name: s.student_name,
           weekly_count: s.weekly_count,
+          // 가격정책 (서버 재계산값)
           pricing_status: s.pricing_status,
           monthly_fee: s.monthly_fee,
           sessions_per_month: s.sessions_per_month,
-          scheduled_regular_count: s.scheduled_regular_count,
+          // 시간표 (서버 재계산값)
+          regular_slot_count: myAlloc?.regular_slot_count ?? 0,
+          total_regular_slots: s.scheduled_regular_count,
           completed_makeup_count: s.completed_makeup_count,
-          service_count: s.service_count,
           billable_count: s.billable_count,
+          // 매출 (서버 재계산값)
           student_auto_amount: s.student_auto_amount,
-          my_regular_slot_count: myAlloc?.regular_slot_count ?? 0,
           allocation_ratio: myAlloc?.allocation_ratio ?? 0,
-          allocated_amount: allocatedAmount,
+          allocated_auto_amount: allocatedAmount,
+          // 조정 (사용자 입력값)
           adjustment_amount: adjustmentAmount,
           adjustment_reason: adj?.reason ?? null,
           adjustment_memo: adj?.memo ?? null,
-          final_amount: finalAmount,
+          // 최종 (서버 확정)
+          final_amount: allocatedAmount + adjustmentAmount,
         };
       });
 
-      // 4. 집계
+      // [G] 집계 — status는 항상 submitted (V2)
       const autoAmountSnapshot = result.teacher_aggregation?.allocated_auto_amount ?? 0;
-      const totalFinalRevenue = studentDetails.reduce((s, d) => s + d.final_amount, 0) + Number(extra_manual_amount);
+      const totalFinalRevenue = studentDetails.reduce((s, d) => s + d.final_amount, 0);
       const totalSessions = result.teacher_aggregation?.regular_slot_count ?? 0;
       const totalMakeupSessions = result.teacher_aggregation?.completed_makeup_performed_count ?? 0;
 
-      // 5. DB 저장
+      // [H] DB 저장
       const teacherRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
       const teacherName = (teacherRow.rows[0] as any)?.name || "선생님";
 
@@ -171,7 +215,7 @@ router.post("/settlement/save",
           0, 0,
           ${Number(extra_manual_amount)}, ${extra_manual_memo},
           ${JSON.stringify(studentDetails)},
-          ${status}, 0, 0,
+          'submitted', 0, 0,
           ${autoAmountSnapshot}, now()
         )
         ON CONFLICT (pool_id, teacher_user_id, settlement_month) DO UPDATE SET
@@ -181,7 +225,7 @@ router.post("/settlement/save",
           extra_manual_amount      = EXCLUDED.extra_manual_amount,
           extra_manual_memo        = EXCLUDED.extra_manual_memo,
           student_details          = EXCLUDED.student_details,
-          status                   = EXCLUDED.status,
+          status                   = 'submitted',
           auto_amount_snapshot     = EXCLUDED.auto_amount_snapshot,
           updated_at               = now()
         WHERE monthly_settlements.status != 'confirmed'
@@ -193,7 +237,7 @@ router.post("/settlement/save",
         tableName: "monthly_settlements",
         recordId: (saved.rows[0] as any)?.id || `${pool_id}_${month}`,
         changeType: "update",
-        payload: { month, status, teacher: userId },
+        payload: { month, status: "submitted", teacher: userId },
       });
       return res.json({ success: true, settlement: saved.rows[0] });
     } catch (e: any) {
@@ -205,6 +249,7 @@ router.post("/settlement/save",
 
 // ─── 선생님 자신의 정산 상태 조회 ────────────────────────────────────────────
 // GET /settlement/my-status?pool_id=&month=YYYY-MM
+// 반환: status, total_revenue, auto_amount_snapshot, current_auto_amount, has_changed, updated_at
 router.get("/settlement/my-status",
   requireAuth, requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
@@ -216,21 +261,34 @@ router.get("/settlement/my-status",
       if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
 
       const rows = await db.execute(sql`
-        SELECT status, total_revenue, auto_amount_snapshot, extra_manual_amount, updated_at
+        SELECT status, total_revenue, auto_amount_snapshot, updated_at
         FROM monthly_settlements
         WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
         LIMIT 1
       `);
 
       if (rows.rows.length === 0) {
-        return res.json({ success: true, status: null });
+        return res.json({ success: true, status: null, has_changed: false });
       }
       const row = rows.rows[0] as any;
+
+      // 현재 서버 AUTO 계산값 (has_changed 감지용)
+      let currentAutoAmount: number | null = null;
+      let hasChanged = false;
+      try {
+        const current = await calculateTeacherSettlement(pool_id, month, userId!);
+        currentAutoAmount = current.teacher_aggregation?.allocated_auto_amount ?? 0;
+        const savedAuto = row.auto_amount_snapshot;
+        hasChanged = savedAuto !== null && currentAutoAmount !== null && savedAuto !== currentAutoAmount;
+      } catch { /* has_changed 계산 실패 시 무시 */ }
+
       return res.json({
         success: true,
         status: row.status,
         total_revenue: row.total_revenue,
         auto_amount_snapshot: row.auto_amount_snapshot,
+        current_auto_amount: currentAutoAmount,
+        has_changed: hasChanged,
         updated_at: row.updated_at,
       });
     } catch (e: any) {
