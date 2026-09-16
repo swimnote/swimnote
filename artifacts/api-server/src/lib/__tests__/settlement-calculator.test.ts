@@ -71,7 +71,7 @@ const slotsBig = new Map([["t1",{ teacherId:"t1", teacherName:"김", slots:10 }]
 const calcBig = computeStudentCalculation({ student_id:"sB", student_name:"홍", weekly_count:1 }, p1, slotsBig, 0);
 console.log(`\n[INVARIANT] 10회 수업 → billable=4, auto≤140,000`);
 calcBig.billable_count === 4 ? PASS("billable=4 (CAP)") : FAIL("billable=4", calcBig.billable_count, 4);
-calcBig.student_auto_amount <= 140000 ? PASS("auto≤140,000") : FAIL("auto≤140,000", calcBig.student_auto_amount, "≤140000");
+(calcBig.student_auto_amount ?? 0) <= 140000 ? PASS("auto≤140,000") : FAIL("auto≤140,000", calcBig.student_auto_amount, "≤140000");
 
 // ── POOL INVARIANT: student_auto_total === teacher_allocated_auto_total
 const mkRows: MakeupRow[] = [{ student_id:"s3", assigned_teacher_id:"tC" }];

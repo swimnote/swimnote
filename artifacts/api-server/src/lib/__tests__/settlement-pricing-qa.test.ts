@@ -44,7 +44,7 @@ console.log(`  service=${c3.service_count} billable=${c3.billable_count} auto=${
 c3.service_count === 9 ? PASS("service=9") : FAIL("service=9", c3.service_count, 9);
 c3.billable_count === 8 ? PASS("billable=8 (MIN(9,8)=CAP)") : FAIL("billable=8", c3.billable_count, 8);
 c3.student_auto_amount === 220000 ? PASS("auto=220,000") : FAIL("auto=220,000", c3.student_auto_amount, 220000);
-c3.student_auto_amount <= 220000 ? PASS("auto ≤ monthly_fee") : FAIL("auto ≤ monthly_fee", c3.student_auto_amount, "≤220000");
+(c3.student_auto_amount ?? 0) <= 220000 ? PASS("auto ≤ monthly_fee") : FAIL("auto ≤ monthly_fee", c3.student_auto_amount, "≤220000");
 
 // ── CASE 4: weekly_3, regular=10, makeup=1 → billable=11, auto=275,000
 console.log("\n[CASE 4] weekly_3 / 300,000 / 12회 / regular=10 makeup=1");
@@ -63,7 +63,7 @@ const cu = computeStudentCalculation(
   null, singleTeacherSlots(4), 0
 );
 cu.pricing_status === "unpriced" ? PASS("pricing_status=unpriced") : FAIL("pricing_status=unpriced", cu.pricing_status, "unpriced");
-cu.student_auto_amount === 0 ? PASS("auto=0 (not calculated)") : FAIL("auto=0", cu.student_auto_amount, 0);
+cu.student_auto_amount === null ? PASS("auto=null (센터 가격표 미설정)") : FAIL("auto=null", cu.student_auto_amount, null);
 cu.teacher_allocations.length === 0 ? PASS("no allocation for unpriced") : FAIL("no allocation", cu.teacher_allocations.length, 0);
 
 // ── weekly_count → type_key 매핑 명시 확인
