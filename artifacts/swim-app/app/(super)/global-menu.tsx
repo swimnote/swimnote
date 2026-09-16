@@ -131,7 +131,7 @@ export default function GlobalMenuScreen() {
       items: [
         { icon: "bell",           label: "공지사항 관리",  sub: "전체·관리자·선생님·학부모 공지",  onPress: go("/(super)/notices") },
         { icon: "layout",         label: "카드 배너 관리", sub: "학부모 홈 슬라이더 카드 배너",    onPress: go("/(super)/ads") },
-        { icon: "minus-square",   label: "가로 배너 관리", sub: "학부모 홈 상단 슬림 배너",        onPress: go("/(super)/strip-banner") },
+
         { icon: "map-pin",        label: "수영장 공지",    sub: "운영처별 범위 공지 등록",          onPress: go("/(super)/pool-notices") },
       ],
     },

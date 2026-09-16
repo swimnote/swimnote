@@ -21,16 +21,20 @@ const TABS = ["기본정보", "X모드", "구독·결제", "저장공간", "정�
 type Tab = typeof TABS[number];
 
 const TIER_LABEL: Record<string, string> = {
-  free:       "Free",
-  starter:    "Coach30",
-  basic:      "Coach50",
-  standard:   "Coach100",
-  center_200: "Premier200",
-  advance:    "Premier300",
-  pro:        "Premier500",
-  max:        "Premier1000",
-  trial:      "무료 체험",
+  free:       "미가입 / Free",
+  swimnote:   "SWIMNOTE",
+  // legacy — 기존 DB 값 표시용 (선택 불가)
+  starter:    "구 플랜 · Coach 30",
+  basic:      "구 플랜 · Coach 50",
+  standard:   "구 플랜 · Coach 100",
+  center_200: "구 플랜 · Premier 200",
+  advance:    "구 플랜 · Premier 300",
+  pro:        "구 플랜 · Premier 500",
+  max:        "구 플랜 · Premier 1000",
+  trial:      "구 플랜 · 무료 체험",
 };
+const LEGACY_TIERS = new Set(["starter","basic","standard","center_200","advance","pro","max","trial"]);
+const X_PLAN_LABEL: Record<string, string> = { x300: "X300", x500: "X500", x1000: "X1000" };
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   trial:     { label: "체험 중",   color: P,         bg: "#EEDDF5" },
   active:    { label: "구독 중",   color: C.brandStrong, bg: C.brandSoft },
@@ -121,7 +125,6 @@ export default function OperatorDetailScreen() {
   const [subStatus,  setSubStatus]  = useState("");
   const [subTier,    setSubTier]    = useState("");
   const [subEndAt,   setSubEndAt]   = useState("");
-  const [subCredit,  setSubCredit]  = useState("");
   const [subMemberLimit, setSubMemberLimit] = useState("");
   const [subSaving,  setSubSaving]  = useState(false);
 
@@ -273,8 +276,9 @@ export default function OperatorDetailScreen() {
     const body: any = {};
     if (subStatus)  body.subscription_status  = subStatus;
     if (subTier)    body.subscription_tier     = subTier;
-    if (subCredit !== "") body.credit_amount   = Number(subCredit);
-    if (subEndAt)   body.subscription_end_at   = subEndAt;
+    // subscription_end_at: "null" 문자열이면 명시적 null, 값 있으면 저장, 빈 칸이면 미전송
+    if (subEndAt === "null") body.subscription_end_at = null;
+    else if (subEndAt) body.subscription_end_at = subEndAt;
     if (subMemberLimit !== "") body.member_limit = Number(subMemberLimit);
 
     if (Object.keys(body).length === 0) {
@@ -290,8 +294,7 @@ export default function OperatorDetailScreen() {
       if (d.ok) {
         setFeedback("구독 정보 업데이트 완료");
         setSubModal(false);
-        setSubStatus(""); setSubTier(""); setSubEndAt("");
-        setSubCredit(""); setSubMemberLimit("");
+        setSubStatus(""); setSubTier(""); setSubEndAt(""); setSubMemberLimit("");
         setTimeout(() => setFeedback(""), 3000);
         await load(true);
       } else {
@@ -860,52 +863,123 @@ export default function OperatorDetailScreen() {
       {/* ─────── 구독 조정 모달 ─────── */}
       <Modal visible={subModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setSubModal(false)}>
         <Pressable style={m.backdrop} onPress={() => setSubModal(false)}>
-          <Pressable style={[m.sheet, { maxHeight: "85%" }]} onPress={() => {}}>
+          <Pressable style={[m.sheet, { maxHeight: "90%" }]} onPress={() => {}}>
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               <View style={m.handle} />
               <Text style={m.title}>구독 직접 조정</Text>
-              <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 16 }}>
                 {pool.name} — 빈 칸은 변경하지 않습니다.
               </Text>
 
-              <Text style={m.fieldLabel}>구독 상태</Text>
-              <View style={m.pickerRow}>
-                {["trial","active","expired","suspended","cancelled","payment_failed"].map(s => (
-                  <Pressable key={s} style={[m.chip, subStatus === s && m.chipActive]}
-                    onPress={() => setSubStatus(subStatus === s ? "" : s)}>
-                    <Text style={[m.chipTxt, subStatus === s && m.chipActiveTxt]}>
-                      {STATUS_CFG[s]?.label ?? s}
-                    </Text>
-                  </Pressable>
-                ))}
+              {/* ── A. 기본 SWIMNOTE 구독 ── */}
+              <View style={{ backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 12, marginBottom: 16 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textPrimary, marginBottom: 12 }}>
+                  기본 SWIMNOTE 구독
+                </Text>
+
+                <Text style={m.fieldLabel}>구독 상태</Text>
+                <View style={m.pickerRow}>
+                  {(["trial","active","expired","suspended","cancelled","payment_failed"] as const).map(s => (
+                    <Pressable key={s} style={[m.chip, subStatus === s && m.chipActive]}
+                      onPress={() => setSubStatus(subStatus === s ? "" : s)}>
+                      <Text style={[m.chipTxt, subStatus === s && m.chipActiveTxt]}>
+                        {STATUS_CFG[s]?.label ?? s}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={m.fieldLabel}>구독 플랜</Text>
+                {/* 현재 legacy tier이면 읽기 표시 */}
+                {pool.subscription_tier && LEGACY_TIERS.has(pool.subscription_tier) && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706" }}>현재값:</Text>
+                    <View style={{ backgroundColor: "#FFF1BF", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#92400E" }}>
+                        {TIER_LABEL[pool.subscription_tier] ?? pool.subscription_tier}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted }}>→ 아래서 전환</Text>
+                  </View>
+                )}
+                <View style={m.pickerRow}>
+                  {(["free","swimnote"] as const).map(t => (
+                    <Pressable key={t} style={[m.chip, subTier === t && m.chipActive]}
+                      onPress={() => setSubTier(subTier === t ? "" : t)}>
+                      <Text style={[m.chipTxt, subTier === t && m.chipActiveTxt]}>
+                        {TIER_LABEL[t]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={m.fieldLabel}>구독 만료일 (빈칸=변경 없음, "null"=삭제)</Text>
+                <TextInput style={m.input} value={subEndAt} onChangeText={setSubEndAt}
+                  placeholder="예: 2026-12-31T23:59:59Z" placeholderTextColor={C.textMuted}
+                  autoCapitalize="none" />
+
+                <Text style={m.fieldLabel}>회원 한도 (명)</Text>
+                <TextInput style={m.input} value={subMemberLimit} onChangeText={setSubMemberLimit}
+                  placeholder="예: 50" placeholderTextColor={C.textMuted} keyboardType="numeric" />
+
+                <Text style={m.fieldLabel}>크레딧 잔액 (원)</Text>
+                <View style={{ backgroundColor: C.background, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: C.border }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
+                    {(pool.credit_balance ?? 0).toLocaleString()}원 (읽기 전용)
+                  </Text>
+                </View>
+
+                {/* RevenueCat 경고 */}
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 12, padding: 10, backgroundColor: "#FFFBEB", borderRadius: 8, borderWidth: 1, borderColor: "#FDE68A" }}>
+                  <Text style={{ fontSize: 11, color: "#92400E", fontFamily: "Pretendard-Regular", lineHeight: 17, flex: 1 }}>
+                    스토어 결제 상태가 다시 수신되면 RevenueCat 동기화에 의해 구독 상태가 변경될 수 있습니다.
+                  </Text>
+                </View>
               </View>
 
-              <Text style={m.fieldLabel}>구독 티어</Text>
-              <View style={m.pickerRow}>
-                {["free","starter","basic","standard","center_200","advance","pro","max","trial"].map(t => (
-                  <Pressable key={t} style={[m.chip, subTier === t && m.chipActive]}
-                    onPress={() => setSubTier(subTier === t ? "" : t)}>
-                    <Text style={[m.chipTxt, subTier === t && m.chipActiveTxt]}>
-                      {TIER_LABEL[t] ?? t}
+              {/* ── B. SWIMNOTE X ── */}
+              <View style={{ backgroundColor: "#F5F3FF", borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#DDD6FE" }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#5B21B6", marginBottom: 10 }}>
+                  SWIMNOTE X (읽기 전용)
+                </Text>
+                <View style={{ gap: 6 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>X 플랜</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#5B21B6" }}>
+                      {pool.x_plan_key ? (X_PLAN_LABEL[pool.x_plan_key] ?? pool.x_plan_key) : "미가입"}
                     </Text>
-                  </Pressable>
-                ))}
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>X 사용권</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: pool.xmode_entitlement ? "#16A34A" : C.textMuted }}>
+                      {pool.xmode_entitlement ? "활성" : "비활성"}
+                    </Text>
+                  </View>
+                  {/* X Trial */}
+                  <View style={{ borderTopWidth: 1, borderColor: "#DDD6FE", marginTop: 4, paddingTop: 8, gap: 4 }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#7C3AED", marginBottom: 2 }}>X Trial</Text>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>사용 여부</Text>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>
+                        {pool.x_trial_used ? "사용됨" : pool.x_trial_started_at ? "사용 중" : "미사용"}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>시작일</Text>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary }}>{fmtDate(pool.x_trial_started_at)}</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>종료일</Text>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary }}>{fmtDate(pool.x_trial_ends_at)}</Text>
+                    </View>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED", marginTop: 8 }}>
+                  X 사용권 grant/revoke는 X모드 탭에서 조정하십시오.
+                </Text>
               </View>
 
-              <Text style={m.fieldLabel}>구독 만료일 (빈칸=변경 없음, "null"=삭제)</Text>
-              <TextInput style={m.input} value={subEndAt} onChangeText={setSubEndAt}
-                placeholder="예: 2026-12-31T23:59:59Z" placeholderTextColor={C.textMuted}
-                autoCapitalize="none" />
-
-              <Text style={m.fieldLabel}>크레딧 잔액 (원)</Text>
-              <TextInput style={m.input} value={subCredit} onChangeText={setSubCredit}
-                placeholder="예: 50000" placeholderTextColor={C.textMuted} keyboardType="numeric" />
-
-              <Text style={m.fieldLabel}>회원 한도 (명)</Text>
-              <TextInput style={m.input} value={subMemberLimit} onChangeText={setSubMemberLimit}
-                placeholder="예: 50" placeholderTextColor={C.textMuted} keyboardType="numeric" />
-
-              <View style={[m.btnRow, { marginTop: 8 }]}>
+              <View style={[m.btnRow, { marginTop: 4 }]}>
                 <Pressable style={m.cancelBtn} onPress={() => setSubModal(false)}>
                   <Text style={m.cancelTxt}>취소</Text>
                 </Pressable>

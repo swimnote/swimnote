@@ -243,11 +243,7 @@ export default function SuperMoreScreen() {
           sub: "학부모 홈 슬라이더 카드 배너 등록·수정",
           color: "orange", onPress: go("/(super)/ads"),
         },
-        {
-          icon: "minus-square", label: "가로 배너 관리",
-          sub: "학부모 홈 상단 슬림 가로 배너 등록·수정",
-          color: "orange", onPress: go("/(super)/strip-banner"),
-        },
+
       ],
     },
   ];

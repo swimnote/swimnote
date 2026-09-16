@@ -4595,6 +4595,120 @@ router.patch(
 );
 
 // ════════════════════════════════════════════════════════════════════════════
+// PATCH /super/operators/:id/subscription — 기본 구독 직접 조정
+// ════════════════════════════════════════════════════════════════════════════
+//
+// 허용 필드: subscription_tier, subscription_status, subscription_end_at, member_limit
+// credit_amount: 이번 구현에서 제외 (읽기전용)
+// tier whitelist: free, swimnote (legacy 값은 DB에 존재해도 조회는 허용)
+// subscription_end_at: 값 있으면 저장, null 명시 시 null, 필드 미전송 시 유지
+//
+router.patch(
+  "/super/operators/:id/subscription",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const { subscription_tier, subscription_status, subscription_end_at, member_limit } = req.body as {
+      subscription_tier?: string;
+      subscription_status?: string;
+      subscription_end_at?: string | null;
+      member_limit?: number | null;
+    };
+
+    const ALLOWED_TIERS   = new Set(["free", "swimnote"]);
+    const ALLOWED_STATUSES = new Set(["trial","active","expired","suspended","cancelled","payment_failed"]);
+
+    if (subscription_tier !== undefined && !ALLOWED_TIERS.has(subscription_tier)) {
+      res.status(400).json({ error: `subscription_tier 허용값: free, swimnote (입력: ${subscription_tier})` });
+      return;
+    }
+    if (subscription_status !== undefined && !ALLOWED_STATUSES.has(subscription_status)) {
+      res.status(400).json({ error: `subscription_status 허용값: trial/active/expired/suspended/cancelled/payment_failed` });
+      return;
+    }
+    if (member_limit !== undefined && member_limit !== null) {
+      if (!Number.isInteger(member_limit) || member_limit < 1 || member_limit > 9998) {
+        res.status(400).json({ error: "member_limit은 1~9998 정수 또는 null이어야 함" });
+        return;
+      }
+    }
+
+    // 변경할 필드가 없으면 거부
+    const hasUpdate = subscription_tier !== undefined || subscription_status !== undefined
+      || ("subscription_end_at" in req.body) || member_limit !== undefined;
+    if (!hasUpdate) {
+      res.status(400).json({ error: "변경할 필드가 없습니다" });
+      return;
+    }
+
+    const actorId = req.user!.userId;
+
+    try {
+      await db.transaction(async (tx) => {
+        const beforeRes = await tx.execute(sql`
+          SELECT id, subscription_tier, subscription_status, subscription_end_at, member_limit
+          FROM swimming_pools WHERE id = ${poolId}
+          LIMIT 1 FOR UPDATE
+        `);
+        if (!beforeRes.rows.length) { res.status(404).json({ error: "수영장 없음" }); return; }
+        const before = beforeRes.rows[0] as any;
+
+        // 조건부 업데이트 — 지정된 필드만 개별 UPDATE
+        if (subscription_tier !== undefined) {
+          await tx.execute(sql`UPDATE swimming_pools SET subscription_tier = ${subscription_tier} WHERE id = ${poolId}`);
+        }
+        if (subscription_status !== undefined) {
+          await tx.execute(sql`UPDATE swimming_pools SET subscription_status = ${subscription_status} WHERE id = ${poolId}`);
+        }
+        if ("subscription_end_at" in req.body) {
+          const endVal = subscription_end_at ?? null;
+          await tx.execute(sql`UPDATE swimming_pools SET subscription_end_at = ${endVal} WHERE id = ${poolId}`);
+        }
+        if (member_limit !== undefined) {
+          const limitVal = member_limit ?? null;
+          await tx.execute(sql`UPDATE swimming_pools SET member_limit = ${limitVal} WHERE id = ${poolId}`);
+        }
+        await tx.execute(sql`UPDATE swimming_pools SET updated_at = NOW() WHERE id = ${poolId}`);
+
+        const vRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_subscription', ${poolId}) AS v
+        `);
+        const afterData: any = {};
+        if (subscription_tier !== undefined)   afterData.subscription_tier   = subscription_tier;
+        if (subscription_status !== undefined) afterData.subscription_status = subscription_status;
+        if ("subscription_end_at" in req.body) afterData.subscription_end_at = subscription_end_at ?? null;
+        if (member_limit !== undefined)         afterData.member_limit        = member_limit ?? null;
+
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_subscription', ${poolId}, ${(vRes.rows[0] as any).v},
+            'SUBSCRIPTION_MANUAL_ADJUST', 'super_admin', ${actorId}, ${poolId},
+            ${JSON.stringify({
+              subscription_tier:   before.subscription_tier,
+              subscription_status: before.subscription_status,
+              subscription_end_at: before.subscription_end_at,
+              member_limit:        before.member_limit,
+            })}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            'Super Admin manual adjustment'
+          )
+        `);
+
+        res.json({ ok: true, pool_id: poolId, updated: afterData });
+      });
+    } catch (e: any) {
+      console.error("[super] PATCH operators/:id/subscription 오류:", e?.message);
+      res.status(500).json({ error: "SUBSCRIPTION_ADJUST_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════════════════
 // SUPER ADMIN POOL CONTROL CENTER — Summary + Lazy Tab Endpoints
 // ════════════════════════════════════════════════════════════════════════════
 

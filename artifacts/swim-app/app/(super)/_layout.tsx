@@ -110,7 +110,6 @@ export default function SuperLayout() {
       {/* ─── 콘텐츠 ─── */}
       <Stack.Screen name="notices" />
       <Stack.Screen name="ads" />
-      <Stack.Screen name="strip-banner" />
 
       {/* ─── 매출·결제 ─── */}
       <Stack.Screen name="revenue-analytics" />
