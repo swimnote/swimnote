@@ -307,8 +307,8 @@ router.put("/settings", requireAuth, requireRole("pool_admin", "super_admin"),
           address    = COALESCE(NULLIF(${address?.trim() || ''}, ''), address),
           phone      = COALESCE(NULLIF(${phone?.trim() || ''}, ''), phone),
           owner_name = COALESCE(NULLIF(${owner_name?.trim() || ''}, ''), owner_name),
-          business_reg_number = CASE WHEN ${cleanBizNum} IS NOT NULL THEN ${cleanBizNum} ELSE business_reg_number END,
-          business_reg_image_key = CASE WHEN ${imageKey} IS NOT NULL THEN ${imageKey} ELSE business_reg_image_key END
+          business_reg_number    = COALESCE(NULLIF(${cleanBizNum   || ''}, ''), business_reg_number),
+          business_reg_image_key = COALESCE(NULLIF(${imageKey      || ''}, ''), business_reg_image_key)
         WHERE id = ${user.swimming_pool_id}
         RETURNING *
       `);
