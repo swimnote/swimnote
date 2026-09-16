@@ -262,7 +262,6 @@ router.get("/settlement/reports",
           ms.total_makeup_sessions AS makeup_count,
           ms.extra_manual_amount,
           ms.auto_amount_snapshot,
-          ms.is_finalized,
           ms.updated_at,
           (SELECT COUNT(DISTINCT sd.value->>'student_id')
            FROM jsonb_array_elements(ms.student_details) AS sd
@@ -295,7 +294,6 @@ router.get("/settlement/reports",
           student_count: Number(r.student_count),
           makeup_count: r.makeup_count,
           extra_manual_amount: r.extra_manual_amount,
-          is_finalized: r.is_finalized,
           updated_at: r.updated_at,
         };
       });
@@ -351,24 +349,26 @@ router.post("/settlement/finalize",
       const { pool_id, month, teacher_id } = req.body;
       const { userId, role } = req.user!;
 
+      // 업무 상태 Source of Truth = status 단일 컬럼
+      // is_finalized/finalized_at은 deprecated (DB 컬럼 존재하나 업무 판단에 사용하지 않음)
       if (role === "pool_admin" || role === "super_admin") {
         if (teacher_id) {
           await db.execute(sql`
             UPDATE monthly_settlements
-            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+            SET status = 'confirmed', updated_at = now()
             WHERE pool_id = ${pool_id} AND teacher_user_id = ${teacher_id} AND settlement_month = ${month}
           `);
         } else {
           await db.execute(sql`
             UPDATE monthly_settlements
-            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+            SET status = 'confirmed', updated_at = now()
             WHERE pool_id = ${pool_id} AND settlement_month = ${month} AND status = 'submitted'
           `);
         }
       } else {
         await db.execute(sql`
           UPDATE monthly_settlements
-          SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+          SET status = 'confirmed', updated_at = now()
           WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
         `);
       }
