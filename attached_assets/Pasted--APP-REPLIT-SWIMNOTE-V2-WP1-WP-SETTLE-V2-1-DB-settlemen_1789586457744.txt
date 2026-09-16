@@ -1,0 +1,282 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 정산 V2 — WP1 최종 정리]
+
+WP-SETTLE-V2-1의 핵심 구조:
+
+DB
+→ settlement-service.ts
+→ settlement-calculator.ts
+→ 공통 API
+→ APP / PC
+
+및
+
+student-first calculation
+→ CAP
+→ teacher slot allocation
+→ largest-remainder
+
+구조는 승인합니다.
+
+WP-SETTLE-V2-2 시작 전
+아래 3개만 정리하십시오.
+
+대규모 재조사/리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 정산 상태 Source of Truth 하나로 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 Production DB에:
+
+is_finalized
+finalized_at
+
+컬럼을 추가했다고 보고했습니다.
+
+하지만 기존 정산에는 이미:
+
+status =
+draft
+submitted
+confirmed
+
+가 존재합니다.
+
+향후 APP/PC/결제/급여까지 확장할 때
+정산 확정 상태가 두 체계로 존재하면 안 됩니다.
+
+최종 Source of Truth는:
+
+monthly_settlements.status
+
+하나로 유지하십시오.
+
+확정:
+
+draft
+→ 미저장/작성중
+
+submitted
+→ 선생님 저장
+
+confirmed
+→ 관리자 확인/확정
+
+입니다.
+
+finalize endpoint도:
+
+status='confirmed'
+
+를 기준으로 동작하게 하십시오.
+
+is_finalized / finalized_at 값을
+업무 판단에 사용하지 마십시오.
+
+이미 Production에 컬럼이 추가됐으므로
+무조건 DROP부터 하지 마십시오.
+
+먼저 확인:
+
+- 현재 코드에서 두 컬럼을 읽거나 쓰는 위치
+- 이번 배포 후 실제 의미 있는 값이 저장됐는지
+
+의미 있는 데이터가 전혀 없고
+이번 WP에서만 신규 생성된 완전 미사용 컬럼이라면
+안전한 rollback migration이 가능한지 보고 후 최소 정리하십시오.
+
+조금이라도 운영 데이터/의존성이 있으면
+이번 WP에서 DROP하지 말고
+deprecated/unused로 두되
+모든 정산 로직에서는 status만 사용하십시오.
+
+새 상태체계 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. weekly_count → pricing QA 다시 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고의 테스트:
+
+“정규5 + 보강1
+→ billable = MIN(6,4)=4”
+
+는 기준이 불명확합니다.
+
+명시적으로 아래 fixture로 다시 검증하십시오.
+
+CASE 1
+
+weekly_count = 1
+pricing:
+weekly_1
+monthly_fee = 140000
+sessions_per_month = 4
+
+regular = 3
+makeup = 1
+
+→ billable = 4
+→ auto = 140000
+
+CASE 2
+
+weekly_count = 2
+pricing:
+weekly_2
+monthly_fee = 220000
+sessions_per_month = 8
+
+regular = 5
+makeup = 1
+
+→ billable = 6
+→ auto = 165000
+
+CASE 3
+
+weekly_count = 2
+regular = 8
+makeup = 1
+
+→ billable = 8
+→ auto = 220000
+
+CASE 4
+
+weekly_count = 3
+pricing:
+weekly_3
+monthly_fee = 300000
+sessions_per_month = 12
+
+regular = 10
+makeup = 1
+
+→ billable = 11
+→ auto = 275000
+
+반드시 확인:
+
+students.weekly_count
+→ weekly_N
+→ 같은 pool의 pool_class_pricing
+→ sessions_per_month
+
+이 정확히 연결되는지.
+
+weekly_1 fallback 금지.
+
+pricing이 없으면:
+priced=false / unpriced
+auto_amount=null
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 공통 서버 엔진 재사용 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 3경로가 실제로
+동일 Settlement Service/Calculator를 사용하는지만 확인하십시오.
+
+GET /settlement/calculator
+POST /settlement/save
+GET /settlement/reports
+
+특히 POST /settlement/save는
+클라이언트가 보낸:
+
+auto_amount
+allocated_amount
+final_amount
+
+를 신뢰해서 저장하면 안 됩니다.
+
+서버가:
+
+현재 data load
+→ calculator 실행
+→ teacher allocation 확정
+→ 사용자가 입력한 adjustment만 결합
+→ final amount 계산
+→ snapshot 저장
+
+해야 합니다.
+
+향후 PC에서도
+같은 API를 사용해야 하므로
+프론트엔드 계산식은 Source of Truth가 될 수 없습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. DB 최종 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+Settlement V2가 실제로 새로 필요로 하는
+업무 컬럼은 기본적으로:
+
+auto_amount_snapshot
+
+입니다.
+
+정산 상태:
+status 재사용.
+
+학생별 snapshot/adjustment:
+student_details JSONB 재사용.
+
+신규 table 금지.
+
+결제 기능은 향후 별도 Payment Domain으로 붙이므로
+이번 Settlement 테이블에:
+
+payment
+card
+PG
+refund
+receivable
+
+개념 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+[A. STATUS]
+- status가 유일한 업무 상태 Source인지
+- is_finalized/finalized_at 현재 사용처
+- 컬럼을 유지/deprecated 또는 안전 rollback 중 어떤 처리했는지
+
+[B. PRICING QA]
+CASE 1~4 실제 결과
+
+[C. SHARED ENGINE]
+- calculator
+- save
+- reports
+각각 최종적으로 호출하는 service/function
+
+[D. DEPLOY]
+수정이 발생했다면:
+- full work SHA
+- API full LIVE SHA
+- Deploy ID/status
+- migration 발생 여부 및 SQL
+
+수정이 없었다면:
+- 현재 full work SHA
+- 현재 full LIVE SHA
+- Deploy ID
+
+short SHA 금지.
+
+WP-SETTLE-V2-2는
+이 확인 완료 전 시작하지 마십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 것은
+“확인하지 못함”이라고 명시하십시오.
