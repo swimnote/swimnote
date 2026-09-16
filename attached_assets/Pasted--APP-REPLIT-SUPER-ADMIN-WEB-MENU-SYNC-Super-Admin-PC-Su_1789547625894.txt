@@ -1,0 +1,358 @@
+[보낼 곳: APP REPLIT]
+
+SUPER ADMIN WEB MENU SYNC
+
+방금 완료한 모바일 Super Admin의 최신 메뉴/기능 구성을
+PC Super Admin Dashboard에도 동일하게 적용하십시오.
+
+대상:
+
+https://swimnote.kr/admin
+
+중요:
+공개 Marketing 홈페이지 `/`는 수정하지 마십시오.
+
+이번 작업은
+Super Admin Web Dashboard의 메뉴/정보구조 동기화입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 최신 모바일 Super Admin 메뉴를 Source of Truth로 사용하십시오.
+
+특히:
+
+artifacts/swim-app/app/(super)/global-menu.tsx
+artifacts/swim-app/app/(super)/dashboard.tsx
+artifacts/swim-app/app/(super)/more.tsx
+
+의 최신 Production 상태를 기준으로
+
+PC Super Admin의:
+
+- Sidebar
+- Dashboard quick links
+- 전체 메뉴
+- 콘텐츠 관리 메뉴
+- 구독 관련 메뉴
+
+를 비교하십시오.
+
+메뉴 이름과 기능 존재 여부를 맞추되
+PC UI 디자인을 모바일처럼 바꾸지는 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DESIGN FREEZE
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC Dashboard의 기존 디자인은 유지하십시오.
+
+유지:
+
+- Sidebar 디자인
+- Header
+- 카드
+- 테이블
+- 색상
+- 폰트
+- spacing
+- Drawer / Modal
+- 반응형 구조
+
+즉:
+
+MENU / INFORMATION ARCHITECTURE = SYNC
+DESIGN = FREEZE
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 광고 / 배너 메뉴
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일 Super Admin과 동일하게:
+
+유지:
+카드 배너 관리
+
+기능:
+학부모 홈 ParentAdBanner / slider 관리
+
+제거:
+가로 배너 관리
+
+strip-banner 관련 메뉴/quick link가
+PC Dashboard에 존재한다면 제거하십시오.
+
+중요:
+
+- platform_banners DB 삭제 금지
+- strip 기존 데이터 삭제 금지
+- slider API 수정 금지
+- 수영장 공지는 유지
+
+수영장 공지와 광고 배너를 합치지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 구독 메뉴 / 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC Super Admin에서
+구독 정보 또는 수영장 상세에 플랜을 표시하는 부분을 확인하십시오.
+
+현재 신규 상품 체계:
+
+기본:
+- Free
+- SWIMNOTE
+
+X:
+- X300
+- X500
+- X1000
+
+구형:
+
+- Coach30
+- Coach50
+- Coach100
+- Premier200
+- Premier300
+- Premier500
+- Premier1000
+
+을 신규 선택값처럼 보여주면 안 됩니다.
+
+Legacy DB값은:
+
+“구 플랜 · Coach 30”
+“구 플랜 · Premier 300”
+
+형태로 읽기 표시만 가능.
+
+신규 선택은:
+
+기본 구독:
+- Free
+- SWIMNOTE
+
+X:
+- X300
+- X500
+- X1000
+
+체계만 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기본 구독과 X 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일 Super Admin과 동일하게
+
+A. 기본 SWIMNOTE 구독
+B. SWIMNOTE X
+
+를 다른 개념으로 보여주십시오.
+
+하나의 tier selector로 합치지 마십시오.
+
+기본 구독:
+
+- subscription_tier
+- subscription_status
+- subscription_end_at
+- member_limit
+- credit_balance(read-only)
+
+X:
+
+- x_plan_key
+- xmode_entitlement
+- X Trial 상태
+
+현재 API를 그대로 재사용하십시오.
+
+기본 구독:
+PATCH /super/operators/:id/subscription
+
+X:
+PATCH /super/operators/:id/xmode
+
+새 endpoint 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X TRIAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+X Trial은 일반 구독과 분리.
+
+정책:
+
+- 72시간
+- 1회
+- 결제정보 없음
+- 자동 유료전환 없음
+
+Web에서도:
+
+- 사용 여부
+- 시작일
+- 종료일
+
+정도만 동일하게 표시.
+
+새 Trial 관리 기능 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. SUPER ADMIN MENU CONSISTENCY
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일 Super Admin 전체 메뉴와
+PC Super Admin Sidebar/메뉴를 비교하여
+
+다음 기준으로 정리하십시오.
+
+A.
+모바일에 존재하고
+PC에서도 관리자 업무상 필요한 기능
+→ PC 메뉴 유지/연결
+
+B.
+모바일에서 삭제된 기능
+→ PC에서도 제거
+
+C.
+모바일 전용 UI/기능
+→ PC에 억지로 복제하지 않음
+
+D.
+PC 전용으로 필요한 대량/관리 기능
+→ 정상 기능이면 유지
+
+즉 메뉴 숫자를 무조건 같게 만드는 게 아니라
+
+“같은 기능을 서로 다른 이름으로 중복 노출”
+“폐기된 메뉴가 한쪽에만 남아 있음”
+
+상태를 없애는 것이 목표입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. DASHBOARD QUICK LINKS
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin Web Home에
+quick card / 바로가기 / 운영 버튼이 있다면
+
+Sidebar만 고치고 끝내지 말고
+동일하게 확인하십시오.
+
+예:
+
+가로 배너 관리 버튼이 Dashboard Home에 남아 있으면 제거.
+
+카드 배너 관리 바로가기는 정상 유지.
+
+구독 관리가 구형 Coach/Premier 이름으로 표시되면
+최신 구독 구조에 맞게 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 공개 Marketing 홈페이지 수정
+- PC 전체 redesign
+- Sidebar 디자인 변경
+- DB migration
+- RevenueCat 설정 변경
+- Store 상품 변경
+- legacy DB 데이터 일괄변환
+- APP OTA
+- AI ENGINE 수정
+- unrelated refactor
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 확인:
+
+1.
+PC Super Admin Sidebar
+→ 모바일 최신 메뉴 정책과 충돌 없음
+
+2.
+가로 배너 관리
+→ PC 메뉴/quick link에서 제거
+
+3.
+카드 배너 관리
+→ 정상 접근
+
+4.
+수영장 공지
+→ 정상 유지
+
+5.
+구독 표시
+→ Free / SWIMNOTE + X300/X500/X1000 체계
+
+6.
+Legacy 구독 수영장
+→ 구 플랜으로 읽기 표시
+
+7.
+기본 구독과 X
+→ 분리 표시
+
+8.
+기존 디자인
+→ 변경 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정이 필요한 경우:
+
+swimnote-web Production 배포.
+
+API 변경은 원칙적으로 하지 마십시오.
+현재 API를 재사용하십시오.
+
+APP OTA 없음.
+migration 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+짧게 보고:
+
+A. MENU
+- 모바일과 달랐던 PC 메뉴
+- 제거한 메뉴
+- 유지한 PC 전용 메뉴
+
+B. SUBSCRIPTION
+- 기본 구독 표시
+- X 표시
+- Legacy 표시
+
+C. ADS
+- 카드 배너 정상
+- 가로 배너 제거
+- 수영장 공지 유지
+
+D. DEPLOY
+- 수정 파일
+- full work SHA
+- Dashboard full LIVE SHA
+- Render service / Deploy ID
+- status=live
+- API 변경 없음 확인
+- migration 없음
+- APP OTA 없음
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 “확인하지 못함”이라고 명시하십시오.
