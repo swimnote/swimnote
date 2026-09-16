@@ -1,0 +1,142 @@
+[보낼 곳: APP REPLIT]
+
+배너 시스템은 승인 직전입니다.
+
+전체 재검토/리팩터링 금지.
+아래 2개만 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. EXTERNAL LINK — HTTPS ONLY
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+SAFE_URL_RE = /^https?:\/\//i
+
+는 http://도 허용하므로 수정하십시오.
+
+최종:
+
+https://
+
+만 허용.
+
+http://
+javascript:
+data:
+file:
+기타 scheme
+
+전부 이동 금지.
+
+기존 Linking.openURL 구조는 유지하고
+검증식만 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. INTERNAL LINK — 죽은 옵션 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Super Admin에서는:
+
+link_type = internal
+
+선택이 가능한데
+
+ParentPromoStrip에서는
+internal을 완전히 no-op 처리하고 있습니다.
+
+이 상태는 금지합니다.
+
+사용자가 선택 가능한 기능은
+실제로 동작해야 합니다.
+
+우선 현재 APP에 이미 존재하는
+공식 deep-link / route registry / 허용 navigation mapping이 있는지
+해당 배너 연결에 필요한 범위만 확인하십시오.
+
+A.
+기존 안전한 내부 route registry가 이미 있다면:
+
+→ 그것만 재사용하여 internal 링크를 실제 연결하십시오.
+→ 허용 route whitelist만 사용.
+→ DB 임의 route를 router.push하지 마십시오.
+
+B.
+재사용할 안전한 내부 route 구조가 없다면:
+
+→ 이번 버전에서는 Super Admin 배너 폼에서
+  “내부 링크” 선택 옵션을 제거하십시오.
+→ link_type은 none / external 두 개만 노출.
+→ DB 컬럼과 기존 값은 삭제하지 마십시오.
+→ 향후 internal deep-link 체계가 정리되면 다시 활성화할 수 있게 둡니다.
+
+새 navigation system을 만들지 마십시오.
+
+가장 작은 수정으로 처리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. R2
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는 수정하지 마십시오.
+
+배너 비활성/이미지 교체 시
+기존 R2 object가 남는 현상은
+현재 기능 완료를 막는 문제가 아닙니다.
+
+별도 cleanup worker/storage refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+딱 다음만 확인:
+
+1. https:// 링크 → 정상 이동
+2. http:// 링크 → 이동 차단
+3. javascript:/data:/file: → 이동 차단
+4. internal:
+   - 실제 whitelist 연결 구현했으면 정상 이동
+   또는
+   - 미구현이면 Super Admin 선택지에서 보이지 않음
+5. none → 클릭 동작 없음
+6. 기존 배너 이미지/슬라이드 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 코드가 변경되면:
+production-v2
+runtimeVersion 2.2.0
+iOS OTA
+
+Super Admin APP UI가 변경되면 동일 OTA에 포함.
+
+API 수정이 없으면 API 재배포 금지.
+
+PC Dashboard의 배너 폼에도
+internal 옵션이 존재하는 경우
+APP과 동일 정책으로 최소 수정하고
+swimnote-web만 배포하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. external HTTPS-only PASS/FAIL
+2. internal 최종 처리:
+   - whitelist 구현
+   또는
+   - UI 선택지 제거
+3. 수정 파일
+4. full work SHA
+5. APP 변경 시 full EAS Update ID / Group ID
+6. PC 변경 시 Dashboard full LIVE SHA / Deploy ID
+7. API 변경 여부
+8. migration 없음 확인
+
+추가 조사/기능 개발 금지.
+확인하지 못한 항목은 확인하지 못함이라고 명시하십시오.
