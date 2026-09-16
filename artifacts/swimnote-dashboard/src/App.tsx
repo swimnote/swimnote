@@ -41,6 +41,7 @@ import SuperAIPage from "@/pages/super/SuperAIPage";
 import SuperServersPage from "@/pages/super/SuperServersPage";
 import SuperAuditPage from "@/pages/super/SuperAuditPage";
 import SuperSettingsPage from "@/pages/super/SuperSettingsPage";
+import SuperAdsPage from "@/pages/super/SuperAdsPage";
 
 function AppRoutes() {
   const { state } = useAuth();
@@ -89,6 +90,7 @@ function AppRoutes() {
           <Route path="/super/ai" component={SuperAIPage} />
           <Route path="/super/servers" component={SuperServersPage} />
           <Route path="/super/incidents" component={SuperServersPage} />
+          <Route path="/super/ads" component={SuperAdsPage} />
           <Route path="/super/audit" component={SuperAuditPage} />
           <Route path="/super/settings" component={SuperSettingsPage} />
           <Route><Redirect to="/super" /></Route>

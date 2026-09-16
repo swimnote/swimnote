@@ -5,6 +5,41 @@ import { api } from "@/lib/api-client";
 import { getToken } from "@/lib/token";
 import { ArrowLeft, RefreshCw, Brain, Wifi, WifiOff } from "lucide-react";
 
+// ── 구독 플랜 상수 ───────────────────────────────────────────────────────────
+const TIER_LABEL: Record<string, string> = {
+  // 신규 체계
+  free:      "Free (미구독)",
+  swimnote:  "SWIMNOTE",
+  // legacy (구 플랜)
+  starter:       "구 플랜 · Starter",
+  basic:         "구 플랜 · Basic",
+  standard:      "구 플랜 · Standard",
+  center_200:    "구 플랜 · Center 200",
+  advance:       "구 플랜 · Advance",
+  pro:           "구 플랜 · Pro",
+  max:           "구 플랜 · Max",
+  trial:         "구 플랜 · Trial",
+  coach30:       "구 플랜 · Coach 30",
+  coach50:       "구 플랜 · Coach 50",
+  coach100:      "구 플랜 · Coach 100",
+  premier200:    "구 플랜 · Premier 200",
+  premier300:    "구 플랜 · Premier 300",
+  premier500:    "구 플랜 · Premier 500",
+  premier1000:   "구 플랜 · Premier 1000",
+};
+const LEGACY_TIERS = new Set([
+  "starter","basic","standard","center_200","advance","pro","max","trial",
+  "coach30","coach50","coach100","premier200","premier300","premier500","premier1000",
+]);
+const X_PLAN_LABEL: Record<string, string> = {
+  x300: "X300", x500: "X500", x1000: "X1000",
+};
+const STATUS_LABEL: Record<string, string> = {
+  trial: "체험", active: "활성", expired: "만료", suspended: "정지",
+  cancelled: "해지", payment_failed: "결제실패",
+};
+const ALLOWED_STATUSES = ["trial","active","expired","suspended","cancelled","payment_failed"] as const;
+
 type PoolSummary = {
   pool_id: string;
   name: string;
@@ -93,6 +128,18 @@ type PoolDetail = {
   storage?: { used_bytes?: number; limit_bytes?: number };
   billing?: { plan?: string; status?: string; current_period_end?: string; amount?: number };
   recent_members?: Array<{ id: string; name: string; status: string; created_at?: string }>;
+  // 구독 직접 조정용
+  subscription_tier?: string;
+  subscription_status?: string;
+  subscription_end_at?: string;
+  member_limit?: number | null;
+  credit_balance?: number;
+  // X
+  x_plan_key?: string;
+  xmode_entitlement?: boolean;
+  x_trial_used?: boolean;
+  x_trial_started_at?: string;
+  x_trial_ends_at?: string;
   [key: string]: unknown;
 };
 
@@ -107,9 +154,6 @@ const bytes = (b?: number | null) => {
   if (b >= 1e6) return `${(b / 1e6).toFixed(1)} MB`;
   return `${(b / 1e3).toFixed(0)} KB`;
 };
-const maybeNull = <T,>(v: T | null | undefined, unavail: boolean | undefined, render: (v: T) => string): string =>
-  unavail ? "조회 불가 (테이블 미적용)" : v == null ? "-" : render(v);
-
 type Tab = "overview" | "members" | "billing" | "ai" | "control";
 
 export default function SuperPoolDetailPage() {
@@ -121,6 +165,13 @@ export default function SuperPoolDetailPage() {
   const [creditAmount, setCreditAmount] = useState("");
   const [sseConnected, setSseConnected] = useState(false);
   const esRef = useRef<EventSource | null>(null);
+
+  // 구독 직접 조정 상태
+  const [subTier, setSubTier] = useState("");
+  const [subStatus, setSubStatus] = useState("");
+  const [subEndAt, setSubEndAt] = useState("");
+  const [subMemberLimit, setSubMemberLimit] = useState("");
+  const [subSaveMsg, setSubSaveMsg] = useState<string | null>(null);
 
   const { data: detail, isLoading, refetch } = useQuery({
     queryKey: ["super", "pool-detail", id],
@@ -153,6 +204,17 @@ export default function SuperPoolDetailPage() {
           status: p.subscription_status,
           current_period_end: p.subscription_end_at ?? p.subscription_ends_at,
         },
+        // 구독 직접 조정용
+        subscription_tier: p.subscription_tier,
+        subscription_status: p.subscription_status,
+        subscription_end_at: p.subscription_end_at ?? p.subscription_ends_at,
+        member_limit: p.member_limit ?? null,
+        credit_balance: p.credit_balance ?? 0,
+        x_plan_key: p.x_plan_key,
+        xmode_entitlement: !!p.xmode_entitlement,
+        x_trial_used: !!p.x_trial_used,
+        x_trial_started_at: p.x_trial_started_at,
+        x_trial_ends_at: p.x_trial_ends_at,
         // teachers 배열을 recent_members 형태로 매핑
         recent_members: (data.teachers ?? []).slice(0, 20).map((t: any) => ({
           id: t.id,
@@ -217,6 +279,28 @@ export default function SuperPoolDetailPage() {
     mutationFn: (grant: boolean) => api.patch(`/super/operators/${id}/xmode`, { grant }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["super", "pool-detail", id] }),
   });
+
+  const subMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api.patch(`/super/operators/${id}/subscription`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["super", "pool-detail", id] });
+      setSubSaveMsg("저장 완료");
+      setSubTier(""); setSubStatus(""); setSubEndAt(""); setSubMemberLimit("");
+      setTimeout(() => setSubSaveMsg(null), 3000);
+    },
+    onError: (e: any) => setSubSaveMsg(`오류: ${e?.message ?? "저장 실패"}`),
+  });
+
+  function handleSubSave() {
+    const body: Record<string, unknown> = {};
+    if (subTier)        body.subscription_tier   = subTier;
+    if (subStatus)      body.subscription_status = subStatus;
+    if (subEndAt !== "")  body.subscription_end_at = subEndAt === "null" ? null : subEndAt || undefined;
+    if (subMemberLimit) body.member_limit = Number(subMemberLimit);
+    if (!Object.keys(body).length) { setSubSaveMsg("변경할 항목을 선택하세요."); return; }
+    subMut.mutate(body);
+  }
 
   if (!id) return <div style={{ padding: "32px" }}>잘못된 접근입니다.</div>;
 
@@ -342,22 +426,136 @@ export default function SuperPoolDetailPage() {
 
           {/* ── Billing ── */}
           {tab === "billing" && (
-            <div style={{ background: "var(--surface-white)", border: "1px solid var(--border-default)", borderRadius: "10px", padding: "20px" }}>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-strong)", marginBottom: "16px" }}>결제 정보</div>
-              {detail.billing ? (
-                [
-                  { label: "플랜", value: detail.billing.plan },
-                  { label: "결제 상태", value: detail.billing.status },
-                  { label: "다음 결제일", value: date(detail.billing.current_period_end) },
-                ].map((row) => (
-                  <div key={row.label} style={{ display: "flex", padding: "10px 0", borderBottom: "1px solid var(--border-default)" }}>
-                    <div style={{ width: "140px", fontSize: "13px", color: "var(--text-muted)" }}>{row.label}</div>
-                    <div style={{ fontSize: "13px", color: "var(--text-body)", fontWeight: 500 }}>{row.value ?? "-"}</div>
+            <div style={{ display: "grid", gap: "16px" }}>
+
+              {/* ── A. 기본 SWIMNOTE 구독 ── */}
+              <div style={{ background: "var(--surface-white)", border: "1px solid var(--border-default)", borderRadius: "10px", overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-default)", background: "var(--surface-subtle)", fontSize: "13px", fontWeight: 700, color: "var(--text-strong)" }}>
+                  A. 기본 SWIMNOTE 구독
+                </div>
+                <div style={{ padding: "16px" }}>
+                  {/* 현재 구독 정보 표시 */}
+                  {[
+                    {
+                      label: "현재 플랜",
+                      value: detail.subscription_tier
+                        ? (TIER_LABEL[detail.subscription_tier] ?? detail.subscription_tier)
+                        : "-",
+                      legacy: !!(detail.subscription_tier && LEGACY_TIERS.has(detail.subscription_tier)),
+                    },
+                    { label: "현재 상태", value: STATUS_LABEL[detail.subscription_status ?? ""] ?? detail.subscription_status ?? "-" },
+                    { label: "만료일", value: date(detail.subscription_end_at) },
+                    { label: "회원 한도", value: detail.member_limit != null ? `${fmt(detail.member_limit)}명` : "무제한" },
+                    { label: "크레딧 잔액", value: `${(detail.credit_balance ?? 0).toLocaleString("ko-KR")}원 (읽기 전용)` },
+                  ].map(row => (
+                    <div key={row.label} style={{ display: "flex", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border-default)" }}>
+                      <div style={{ width: "140px", fontSize: "12px", color: "var(--text-muted)", fontWeight: 500 }}>{row.label}</div>
+                      <div style={{ fontSize: "13px", color: "var(--text-body)", fontWeight: 500, display: "flex", alignItems: "center", gap: "8px" }}>
+                        {row.value}
+                        {"legacy" in row && row.legacy && (
+                          <span style={{ padding: "1px 6px", background: "#FEF3C7", color: "#92400E", borderRadius: "6px", fontSize: "11px", fontWeight: 600 }}>구 플랜</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 구독 직접 조정 */}
+                  <div style={{ marginTop: "20px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-strong)", marginBottom: "14px" }}>구독 직접 조정</div>
+
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "6px" }}>구독 플랜</div>
+                    {detail.subscription_tier && LEGACY_TIERS.has(detail.subscription_tier) && (
+                      <div style={{ marginBottom: "8px", padding: "6px 10px", background: "#FEF3C7", borderRadius: "6px", fontSize: "11px", color: "#92400E" }}>
+                        현재: {TIER_LABEL[detail.subscription_tier] ?? detail.subscription_tier} — 아래에서 전환 가능
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+                      {(["free","swimnote"] as const).map(t => (
+                        <button key={t} onClick={() => setSubTier(subTier === t ? "" : t)}
+                          style={{ padding: "6px 14px", background: subTier === t ? "var(--x-primary)" : "var(--surface-white)", color: subTier === t ? "#fff" : "var(--text-body)", border: "1px solid var(--border-default)", borderRadius: "20px", fontSize: "12px", cursor: "pointer", fontWeight: subTier === t ? 700 : 400 }}>
+                          {TIER_LABEL[t]}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "6px" }}>구독 상태</div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+                      {ALLOWED_STATUSES.map(s => (
+                        <button key={s} onClick={() => setSubStatus(subStatus === s ? "" : s)}
+                          style={{ padding: "6px 14px", background: subStatus === s ? "var(--x-primary)" : "var(--surface-white)", color: subStatus === s ? "#fff" : "var(--text-body)", border: "1px solid var(--border-default)", borderRadius: "20px", fontSize: "12px", cursor: "pointer", fontWeight: subStatus === s ? 700 : 400 }}>
+                          {STATUS_LABEL[s] ?? s}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+                      <div>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "6px" }}>만료일 (빈칸=변경 없음, "null"=삭제)</div>
+                        <input value={subEndAt} onChange={e => setSubEndAt(e.target.value)}
+                          style={{ width: "100%", height: "34px", padding: "0 10px", border: "1px solid var(--border-default)", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box" }}
+                          placeholder="예: 2026-12-31T23:59:59Z" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "6px" }}>회원 한도 (명)</div>
+                        <input type="number" value={subMemberLimit} onChange={e => setSubMemberLimit(e.target.value)}
+                          style={{ width: "100%", height: "34px", padding: "0 10px", border: "1px solid var(--border-default)", borderRadius: "8px", fontSize: "13px", boxSizing: "border-box" }}
+                          placeholder="예: 50" />
+                      </div>
+                    </div>
+
+                    {/* RevenueCat 경고 */}
+                    <div style={{ marginBottom: "14px", padding: "10px 12px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "8px", fontSize: "11px", color: "#92400E", lineHeight: "1.5" }}>
+                      스토어 결제 상태가 다시 수신되면 RevenueCat 동기화에 의해 구독 상태가 변경될 수 있습니다.
+                    </div>
+
+                    {subSaveMsg && (
+                      <div style={{ marginBottom: "10px", fontSize: "13px", color: subSaveMsg.startsWith("오류") ? "#991B1B" : "#166534", fontWeight: 600 }}>{subSaveMsg}</div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button onClick={handleSubSave} disabled={subMut.isPending}
+                        style={{ padding: "8px 20px", background: "var(--x-primary)", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", opacity: subMut.isPending ? 0.6 : 1 }}>
+                        {subMut.isPending ? "저장 중..." : "저장"}
+                      </button>
+                    </div>
                   </div>
-                ))
-              ) : (
-                <div style={{ color: "var(--text-muted)", fontSize: "13px" }}>결제 정보가 없습니다.</div>
-              )}
+                </div>
+              </div>
+
+              {/* ── B. SWIMNOTE X (읽기 전용) ── */}
+              <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: "10px", overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid #DDD6FE", fontSize: "13px", fontWeight: 700, color: "#5B21B6" }}>
+                  B. SWIMNOTE X (읽기 전용)
+                </div>
+                <div style={{ padding: "16px" }}>
+                  {[
+                    { label: "X 플랜", value: detail.x_plan_key ? (X_PLAN_LABEL[detail.x_plan_key] ?? detail.x_plan_key) : "미가입" },
+                    { label: "X 사용권", value: detail.xmode_entitlement ? "활성" : "비활성" },
+                  ].map(row => (
+                    <div key={row.label} style={{ display: "flex", padding: "8px 0", borderBottom: "1px solid #DDD6FE" }}>
+                      <div style={{ width: "140px", fontSize: "12px", color: "#6D28D9", fontWeight: 500 }}>{row.label}</div>
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: row.label === "X 사용권" ? (detail.xmode_entitlement ? "#166534" : "#6B7280") : "#5B21B6" }}>{row.value}</div>
+                    </div>
+                  ))}
+                  {/* X Trial */}
+                  <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #DDD6FE" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: "#7C3AED", marginBottom: "8px" }}>X Trial</div>
+                    {[
+                      { label: "사용 여부", value: detail.x_trial_used ? "사용됨" : detail.x_trial_started_at ? "사용 중" : "미사용" },
+                      { label: "시작일", value: date(detail.x_trial_started_at) },
+                      { label: "종료일", value: date(detail.x_trial_ends_at) },
+                    ].map(row => (
+                      <div key={row.label} style={{ display: "flex", padding: "6px 0" }}>
+                        <div style={{ width: "140px", fontSize: "12px", color: "#6D28D9", fontWeight: 500 }}>{row.label}</div>
+                        <div style={{ fontSize: "12px", color: "var(--text-body)" }}>{row.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: "10px", fontSize: "11px", color: "#7C3AED" }}>
+                    X 사용권 grant/revoke는 기본 정보 탭 "X 모드 제어"에서 조정하십시오.
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -411,9 +609,15 @@ export default function SuperPoolDetailPage() {
                   </div>
 
                   {/* 구독 */}
-                  <Section title="구독 상태">
-                    <Row label="상태" value={summary.subscription_status ?? "-"} />
-                    <Row label="플랜 티어" value={summary.subscription_tier ?? "-"} />
+                  <Section title="구독 상태 (기본 SWIMNOTE)">
+                    <Row label="상태" value={STATUS_LABEL[summary.subscription_status ?? ""] ?? summary.subscription_status ?? "-"} />
+                    <Row
+                      label="플랜 티어"
+                      value={summary.subscription_tier
+                        ? (TIER_LABEL[summary.subscription_tier] ?? summary.subscription_tier)
+                        : "-"}
+                      color={summary.subscription_tier && LEGACY_TIERS.has(summary.subscription_tier) ? "#92400E" : undefined}
+                    />
                     <Row label="BASE 접근" value={summary.base_effective ? "활성" : "비활성"} color={summary.base_effective ? "#166534" : undefined} />
                     <Row label="BASE 소스" value={summary.base_source ?? "-"} />
                     <Row label="구독 만료일" value={date(summary.subscription_end_at)} />
@@ -421,14 +625,17 @@ export default function SuperPoolDetailPage() {
                   </Section>
 
                   {/* X 모드 */}
-                  <Section title="X 모드">
+                  <Section title="X 모드 (SWIMNOTE X)">
                     <Row label="X 유효" value={summary.x_effective ? "활성" : "비활성"} color={summary.x_effective ? "#7C3AED" : undefined} />
                     <Row label="X 소스" value={summary.x_source ?? "-"} />
                     <Row label="x_paid" value={summary.x_paid ? "true" : "false"} />
                     <Row label="x_manual" value={summary.x_manual ? "true" : "false"} />
                     <Row label="x_management_override" value={summary.x_management_override ? "true" : "false"} />
                     <Row label="x_force_disabled" value={summary.x_force_disabled ? "true" : "false"} color={summary.x_force_disabled ? "#991B1B" : undefined} />
-                    <Row label="플랜 키" value={summary.x_plan_key ?? "-"} />
+                    <Row
+                      label="플랜 키"
+                      value={summary.x_plan_key ? (X_PLAN_LABEL[summary.x_plan_key] ?? summary.x_plan_key) : "-"}
+                    />
                     <Row label="설정 상태" value={summary.xmode_config_status ?? "-"} />
                   </Section>
 

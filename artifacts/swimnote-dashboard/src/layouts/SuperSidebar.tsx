@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import {
   LayoutDashboard, Building2, CreditCard, Users, HeadphonesIcon,
   Brain, Server, AlertTriangle, Settings, LogOut, ChevronDown, ChevronRight,
+  LayoutGrid,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -40,6 +41,14 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { label: "서버 상태", path: "/super/servers" },
       { label: "장애 관리", path: "/super/incidents" },
+    ],
+  },
+  {
+    kind: "group",
+    label: "콘텐츠",
+    icon: <LayoutGrid size={16} />,
+    children: [
+      { label: "카드 배너 관리", path: "/super/ads" },
     ],
   },
   { kind: "link", label: "감사 로그", icon: <AlertTriangle size={16} />, path: "/super/audit" },
