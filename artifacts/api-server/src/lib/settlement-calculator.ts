@@ -56,13 +56,13 @@ export interface StudentCalculation {
   student_name: string;
   weekly_count: number;
   pricing_status: "priced" | "unpriced";
-  monthly_fee: number;
-  sessions_per_month: number;
+  monthly_fee: number | null;        // unpriced → null
+  sessions_per_month: number | null; // unpriced → null
   scheduled_regular_count: number; // 전체 정규 슬롯 (모든 선생님 합산)
   completed_makeup_count: number;
   service_count: number; // scheduled_regular_count + completed_makeup_count
-  billable_count: number; // MIN(service_count, sessions_per_month)
-  student_auto_amount: number; // ROUND(billable_count × per_session)
+  billable_count: number | null; // unpriced → null
+  student_auto_amount: number | null; // unpriced → null (0원 정상회원 처리 금지)
   teacher_allocations: TeacherAllocation[];
 }
 
@@ -226,33 +226,46 @@ export function computeStudentCalculation(
   completedMakeupCount: number,
 ): StudentCalculation {
   const pricingStatus: "priced" | "unpriced" = pricing ? "priced" : "unpriced";
-  const monthlyFee = pricing?.monthly_fee ?? 0;
-  const sessionsPerMonth = pricing?.sessions_per_month ?? 0;
 
   const scheduledRegularCount = Array.from(teacherSlots.values()).reduce((s, e) => s + e.slots, 0);
   const serviceCount = scheduledRegularCount + completedMakeupCount;
+
+  // pricing 미설정 → 센터 가격표 미설정 (0원 정상회원 처리 금지)
+  if (!pricing) {
+    return {
+      student_id: student.student_id,
+      student_name: student.student_name,
+      weekly_count: student.weekly_count,
+      pricing_status: "unpriced",
+      monthly_fee: null,
+      sessions_per_month: null,
+      scheduled_regular_count: scheduledRegularCount,
+      completed_makeup_count: completedMakeupCount,
+      service_count: serviceCount,
+      billable_count: null,
+      student_auto_amount: null,
+      teacher_allocations: [],
+    };
+  }
+
+  const { monthly_fee: monthlyFee, sessions_per_month: sessionsPerMonth } = pricing;
   const billableCount = sessionsPerMonth > 0
     ? Math.min(serviceCount, sessionsPerMonth)
     : serviceCount;
 
-  let studentAutoAmount = 0;
-  if (pricing && sessionsPerMonth > 0) {
-    const perSession = monthlyFee / sessionsPerMonth;
-    studentAutoAmount = Math.round(billableCount * perSession);
-    // INVARIANT: auto ≤ monthly_fee
-    if (studentAutoAmount > monthlyFee) studentAutoAmount = monthlyFee;
-  }
+  const perSession = monthlyFee / sessionsPerMonth;
+  let studentAutoAmount = Math.round(billableCount * perSession);
+  // INVARIANT: auto ≤ monthly_fee
+  if (studentAutoAmount > monthlyFee) studentAutoAmount = monthlyFee;
 
   // 매출 배분은 정규 슬롯 비율만 (makeup 진행 선생님 제외)
-  const teacherAllocations = pricing
-    ? allocateToTeachers(studentAutoAmount, teacherSlots)
-    : [];
+  const teacherAllocations = allocateToTeachers(studentAutoAmount, teacherSlots);
 
   return {
     student_id: student.student_id,
     student_name: student.student_name,
     weekly_count: student.weekly_count,
-    pricing_status: pricingStatus,
+    pricing_status: "priced",
     monthly_fee: monthlyFee,
     sessions_per_month: sessionsPerMonth,
     scheduled_regular_count: scheduledRegularCount,
@@ -325,7 +338,7 @@ export function aggregatePool(
   const pricedStudents = students.filter(s => s.pricing_status === "priced");
   const unpricedStudents = students.filter(s => s.pricing_status === "unpriced");
 
-  const studentAutoTotal = pricedStudents.reduce((s, st) => s + st.student_auto_amount, 0);
+  const studentAutoTotal = pricedStudents.reduce((s, st) => s + (st.student_auto_amount ?? 0), 0);
   const teacherAllocatedTotal = teachers.reduce((s, t) => s + t.allocated_auto_amount, 0);
 
   return {

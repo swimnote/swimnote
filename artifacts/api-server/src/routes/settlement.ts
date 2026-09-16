@@ -184,6 +184,7 @@ router.post("/settlement/save",
           status                   = EXCLUDED.status,
           auto_amount_snapshot     = EXCLUDED.auto_amount_snapshot,
           updated_at               = now()
+        WHERE monthly_settlements.status != 'confirmed'
         RETURNING *
       `);
 
