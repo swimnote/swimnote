@@ -124,7 +124,44 @@ export default function SuperPoolDetailPage() {
 
   const { data: detail, isLoading, refetch } = useQuery({
     queryKey: ["super", "pool-detail", id],
-    queryFn: () => api.get<PoolDetail>(`/super/operators/${id}`),
+    queryFn: async (): Promise<PoolDetail> => {
+      const data = await api.get<any>(`/super/operators/${id}`);
+      const p = data.pool ?? {};
+      return {
+        id: p.id,
+        name: p.name,
+        owner_name: p.owner_name ?? p.admin_name,
+        owner_email: p.owner_email ?? p.admin_email,
+        // approval/subscription combined status: show approval first, then subscription
+        status: p.approval_status === "pending" ? "pending"
+              : p.approval_status === "rejected" ? "rejected"
+              : p.subscription_status === "active" ? "active"
+              : p.subscription_status ?? p.approval_status,
+        x_mode: p.x_plan_key,
+        is_x: p.xmode_entitlement,
+        member_count: p.total_member_count,
+        active_member_count: p.active_member_count,
+        teacher_count: p.teacher_count,
+        class_count: p.total_class_count,
+        created_at: p.created_at,
+        storage: {
+          used_bytes: p.used_storage_bytes,
+          limit_bytes: p.storage_mb != null ? p.storage_mb * 1024 * 1024 : null,
+        },
+        billing: {
+          plan: p.plan_name ?? p.subscription_plan_name,
+          status: p.subscription_status,
+          current_period_end: p.subscription_end_at ?? p.subscription_ends_at,
+        },
+        // teachers 배열을 recent_members 형태로 매핑
+        recent_members: (data.teachers ?? []).slice(0, 20).map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          status: "active",
+          created_at: t.last_login_at,
+        })),
+      } as PoolDetail;
+    },
     enabled: !!id,
   });
 

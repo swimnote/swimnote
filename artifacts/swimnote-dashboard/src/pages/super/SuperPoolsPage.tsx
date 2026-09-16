@@ -4,37 +4,37 @@ import { useLocation } from "wouter";
 import { api } from "@/lib/api-client";
 import { Search, RefreshCw, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
+// API /super/pools-summary response shape
 type Pool = {
-  id: string;
-  name: string;
-  owner_name?: string;
-  owner_email?: string;
-  owner_phone?: string;
-  member_count: number;
+  pool_id: string;
+  pool_name: string;
+  approval_status?: string;
   active_member_count?: number;
-  x_mode?: string;
-  plan_key?: string;
-  status?: string;
-  created_at?: string;
-  last_active_at?: string;
   teacher_count?: number;
-  class_count?: number;
-  is_x?: boolean;
-  x_entitlement_status?: string;
+  x_plan_key?: string;
+  xmode_entitlement?: boolean;
+  x_paid?: boolean;
+  x_manual?: boolean;
+  x_trial_active?: boolean;
+  created_at?: string;
+  last_login_at?: string;
+  admin?: { user_id?: string; name?: string; phone?: string; email?: string };
+  subscription?: { tier?: string; plan_name?: string; status?: string; member_limit?: number };
 };
 
 const fmt = (n: number | undefined) => (n == null ? "-" : n.toLocaleString("ko-KR"));
 
 const xBadge = (pool: Pool) => {
-  const mode = pool.x_mode ?? pool.plan_key ?? "";
-  if (mode.includes("x") && !mode.includes("trial")) return { label: "X", bg: "#EDE9FE", color: "#7C3AED" };
-  if (mode.includes("trial")) return { label: "체험", bg: "#FEF9C3", color: "#92400E" };
+  if (pool.xmode_entitlement && !pool.x_trial_active) return { label: "X", bg: "#EDE9FE", color: "#7C3AED" };
+  if (pool.x_trial_active) return { label: "체험", bg: "#FEF9C3", color: "#92400E" };
+  const key = pool.x_plan_key ?? "";
+  if (key.includes("x") && !key.includes("trial")) return { label: "X", bg: "#EDE9FE", color: "#7C3AED" };
   return { label: "일반", bg: "#F3F4F6", color: "#6B7280" };
 };
 
 const statusBadge = (status: string | undefined) => {
-  if (status === "active") return { label: "운영중", bg: "#DCFCE7", color: "#166534" };
-  if (status === "suspended") return { label: "정지", bg: "#FEE2E2", color: "#991B1B" };
+  if (status === "approved") return { label: "운영중", bg: "#DCFCE7", color: "#166534" };
+  if (status === "suspended" || status === "restricted") return { label: "정지", bg: "#FEE2E2", color: "#991B1B" };
   if (status === "pending") return { label: "대기", bg: "#E0F2FE", color: "#0369A1" };
   return { label: status ?? "-", bg: "#F3F4F6", color: "#6B7280" };
 };
@@ -58,22 +58,25 @@ export default function SuperPoolsPage() {
 
   const filtered = pools.filter((p) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || p.name.toLowerCase().includes(q) || (p.owner_name ?? "").toLowerCase().includes(q) || (p.owner_email ?? "").toLowerCase().includes(q);
-    const mode = (p.x_mode ?? p.plan_key ?? "").toLowerCase();
+    const name = p.pool_name ?? "";
+    const adminName = p.admin?.name ?? "";
+    const matchSearch = !q || name.toLowerCase().includes(q) || adminName.toLowerCase().includes(q);
+    const isX = p.xmode_entitlement || p.x_trial_active || (p.x_plan_key ?? "").includes("x");
     const matchMode =
       filterMode === "all" ? true
-      : filterMode === "x" ? (mode.includes("x") || p.is_x)
-      : filterMode === "normal" ? (!mode.includes("x") && !p.is_x && p.status !== "pending")
-      : filterMode === "pending" ? p.status === "pending"
+      : filterMode === "x" ? isX
+      : filterMode === "normal" ? (!isX && p.approval_status !== "pending")
+      : filterMode === "pending" ? p.approval_status === "pending"
       : true;
     return matchSearch && matchMode;
   });
 
+  const pendingCount = pools.filter(p => p.approval_status === "pending").length;
   const TAB_FILTERS = [
     { key: "all", label: `전체 (${pools.length})` },
     { key: "x", label: "X 도입" },
     { key: "normal", label: "일반" },
-    { key: "pending", label: "승인 대기" },
+    { key: "pending", label: `승인 대기${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
   ] as const;
 
   return (
@@ -119,26 +122,26 @@ export default function SuperPoolsPage() {
             <tbody>
               {filtered.map((pool, i) => {
                 const x = xBadge(pool);
-                const s = statusBadge(pool.status);
+                const s = statusBadge(pool.approval_status);
                 return (
                   <tr
-                    key={pool.id}
+                    key={pool.pool_id}
                     style={{ borderBottom: i < filtered.length - 1 ? "1px solid var(--border-default)" : "none", cursor: "pointer" }}
-                    onClick={() => navigate(`/super/pools/${pool.id}`)}
+                    onClick={() => navigate(`/super/pools/${pool.pool_id}`)}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface-subtle)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
                   >
-                    <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--text-strong)" }}>{pool.name}</td>
-                    <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--text-muted)" }}>{pool.owner_name ?? "-"}</td>
-                    <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--text-faint)" }}>{pool.owner_phone ?? pool.owner_email ?? "-"}</td>
-                    <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--text-body)" }}>{fmt(pool.member_count)}</td>
+                    <td style={{ padding: "12px 14px", fontSize: "13px", fontWeight: 600, color: "var(--text-strong)" }}>{pool.pool_name}</td>
+                    <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--text-muted)" }}>{pool.admin?.name ?? "-"}</td>
+                    <td style={{ padding: "12px 14px", fontSize: "12px", color: "var(--text-faint)" }}>{pool.admin?.phone ?? pool.admin?.email ?? "-"}</td>
+                    <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--text-body)" }}>{fmt(pool.active_member_count)}</td>
                     <td style={{ padding: "12px 14px", fontSize: "13px", color: "var(--text-body)" }}>{fmt(pool.teacher_count)}</td>
                     <td style={{ padding: "12px 14px" }}><span style={{ padding: "2px 8px", background: x.bg, color: x.color, borderRadius: "10px", fontSize: "11px", fontWeight: 700 }}>{x.label}</span></td>
                     <td style={{ padding: "12px 14px" }}><span style={{ padding: "2px 8px", background: s.bg, color: s.color, borderRadius: "10px", fontSize: "11px", fontWeight: 600 }}>{s.label}</span></td>
                     <td style={{ padding: "12px 14px" }}>
-                      {pool.status === "pending" && (
+                      {pool.approval_status === "pending" && (
                         <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
-                          <button onClick={() => approveMut.mutate(pool.id)} style={{ padding: "4px 10px", background: "#DCFCE7", color: "#166534", border: "none", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
+                          <button onClick={() => approveMut.mutate(pool.pool_id)} style={{ padding: "4px 10px", background: "#DCFCE7", color: "#166534", border: "none", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
                             <CheckCircle size={12} />승인
                           </button>
                           <button style={{ padding: "4px 10px", background: "#FEE2E2", color: "#991B1B", border: "none", borderRadius: "6px", fontSize: "12px", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px" }}>
