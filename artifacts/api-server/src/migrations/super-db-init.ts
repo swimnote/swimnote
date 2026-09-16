@@ -354,6 +354,12 @@ export async function initSuperDb(db: MigrationDb): Promise<void> {
     await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS banner_type text NOT NULL DEFAULT 'slider'`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS image_key text`)).catch(() => {});
     await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS target_pool_id text REFERENCES swimming_pools(id) ON DELETE SET NULL`)).catch(() => {});
+    // 통합 배너 관리: 링크 유형, 슬라이드 노출 시간
+    await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS link_type text DEFAULT 'external'`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE platform_banners ADD COLUMN IF NOT EXISTS display_seconds integer DEFAULT 5`)).catch(() => {});
+    // display_start/end nullable 허용 (NULL = 기간 제한 없음)
+    await db.execute(sql.raw(`ALTER TABLE platform_banners ALTER COLUMN display_start DROP NOT NULL`)).catch(() => {});
+    await db.execute(sql.raw(`ALTER TABLE platform_banners ALTER COLUMN display_end DROP NOT NULL`)).catch(() => {});
     await db.execute(sql.raw(`
       CREATE INDEX IF NOT EXISTS platform_banners_status_idx ON platform_banners (status, display_start, display_end);
     `)).catch(() => {});

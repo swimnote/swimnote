@@ -48,7 +48,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "콘텐츠",
     icon: <LayoutGrid size={16} />,
     children: [
-      { label: "카드 배너 관리", path: "/super/ads" },
+      { label: "배너 관리", path: "/super/ads" },
     ],
   },
   { kind: "link", label: "감사 로그", icon: <AlertTriangle size={16} />, path: "/super/audit" },
