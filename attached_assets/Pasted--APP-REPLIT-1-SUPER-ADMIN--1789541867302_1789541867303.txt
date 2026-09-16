@@ -1,0 +1,415 @@
+[보낼 곳: APP REPLIT]
+
+설계보고 승인합니다.
+
+이제 아래 범위만 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SUPER ADMIN 구독 UI 최신화
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/swim-app/app/(super)/operator-detail.tsx
+
+기존 Coach / Premier 중심
+“구독 직접 조정” UI를 폐기하고
+
+반드시:
+
+A. 기본 SWIMNOTE 구독
+B. SWIMNOTE X
+
+두 섹션으로 분리하십시오.
+
+기존 전체 화면 디자인은 유지하십시오.
+
+DESIGN = FREEZE
+
+색상 / 카드 / 폰트 / 간격 / Bottom Sheet 스타일을
+재설계하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 기본 SWIMNOTE 구독
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 선택값:
+
+- free
+- swimnote
+
+화면 표시:
+
+free → 미가입 / Free
+swimnote → SWIMNOTE
+
+기존 신규 선택 목록에서는 아래 legacy 값을 제거:
+
+- starter
+- basic
+- standard
+- center_200
+- advance
+- pro
+- max
+- trial
+
+중요:
+
+기존 DB에 legacy tier가 저장된 수영장은
+값을 강제로 변경하지 마십시오.
+
+예:
+
+starter
+→ “구 플랜 · Coach 30”
+
+advance
+→ “구 플랜 · Premier 300”
+
+처럼 현재값을 읽기 표시.
+
+사용자가 새 값으로 저장할 때에만
+free 또는 swimnote로 전환합니다.
+
+migration / 일괄변환 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기본 구독 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 canonical status 유지:
+
+- trial
+- active
+- expired
+- suspended
+- cancelled
+- payment_failed
+
+현재 한글 라벨 유지 가능.
+
+status 의미 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기본 구독 저장 API
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP이 호출하지만 존재하지 않는:
+
+PATCH /super/operators/:id/subscription
+
+을 최소 구현하십시오.
+
+super_admin only.
+
+허용 필드:
+
+- subscription_tier
+- subscription_status
+- subscription_end_at
+- member_limit
+
+credit_amount는 이번 구현에서 수정하지 않습니다.
+
+credit_balance는 읽기 전용 표시만.
+
+입력값 whitelist 검증 필수.
+
+신규 tier 입력 허용값:
+
+- free
+- swimnote
+
+단 기존 legacy tier가 DB에 존재한다고 해서
+조회 자체를 실패시키면 안 됩니다.
+
+subscription_end_at:
+
+- 값 존재 → 유효한 timestamp 저장
+- 명시적 null → null 저장
+- 필드 자체 미전송 → 기존값 유지
+
+member_limit:
+
+현재 별도의 신상품 고정 member-limit 정책이 확인되지 않았으므로
+기존 Super Admin 수동 입력 기능을 유지하십시오.
+
+임의로 SWIMNOTE 상품과 숫자를 자동 매핑하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. RevenueCat 경고
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 SWIMNOTE 구독 수동 조정 영역에
+작은 안내문을 표시하십시오.
+
+의미:
+
+“스토어 결제 상태가 다시 수신되면
+RevenueCat 동기화에 의해 구독 상태가 변경될 수 있습니다.”
+
+기존 디자인 톤의 안내 텍스트로만 표시.
+
+새 경고 Modal 만들지 마십시오.
+
+RevenueCat webhook 로직 자체는 수정하지 마십시오.
+
+RevenueCat Product / Offering / Entitlement 설정도
+이번 작업에서 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X 구독 섹션
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 구독과 별도로 표시.
+
+현재 상품:
+
+- X300
+- X500
+- X1000
+
+기존 DB/API 구조를 그대로 재사용:
+
+- x_plan_key
+- xmode_entitlement
+- x_paid_entitlement
+- x_manual_entitlement
+- x_trial_started_at
+- x_trial_ends_at
+- x_trial_used_at
+
+기존:
+
+PATCH /super/operators/:id/xmode
+
+를 사용하십시오.
+
+새 X endpoint 만들지 마십시오.
+
+X plan 선택:
+
+- x300
+- x500
+- x1000
+
+X mode 수동 grant/revoke는
+기존 구현을 그대로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X Trial
+━━━━━━━━━━━━━━━━━━━━━━
+
+X Trial은 일반 subscription status와 섞지 마십시오.
+
+정책:
+
+- 72시간
+- 1회
+- 결제정보 필요 없음
+- 자동 유료전환 없음
+
+Super Admin 화면에서는:
+
+- 사용 여부
+- 시작일
+- 종료일
+
+을 읽기 표시.
+
+이번 작업에서
+새 Trial 발급 기능을 만들지 마십시오.
+
+manual X entitlement와
+X Trial을 같은 개념으로 표시하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 크레딧
+━━━━━━━━━━━━━━━━━━━━━━
+
+credit_balance는:
+
+읽기 전용.
+
+현재 실제 차감 과금 로직이 없으므로
+Super Admin에서 수정 input 제거.
+
+DB column 삭제 금지.
+
+향후 credit 시스템에서 재사용 가능하므로
+데이터 구조는 그대로 둡니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 광고 메뉴 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+유지:
+
+카드 배너 관리
+/(super)/ads
+banner_type='slider'
+
+학부모 홈 ParentAdBanner에 실제 연결된 기능입니다.
+
+삭제:
+
+가로 배너 관리
+/(super)/strip-banner
+banner_type='strip'
+
+실제 학부모 홈에서 사용하지 않는 dead 기능입니다.
+
+수정:
+
+global-menu.tsx
+→ “가로 배너 관리” 메뉴 제거.
+
+strip-banner.tsx
+→ 다른 코드에서 사용하지 않는 것 확인 후 route 파일 삭제.
+
+중요:
+
+platform_banners 테이블 삭제 금지.
+기존 strip DB record 삭제 금지.
+slider 관련 API/데이터 수정 금지.
+
+수영장 공지:
+유지.
+
+pool-notices는 광고와 별개 기능입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PC DASHBOARD 호환 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP + WEB ONE SYSTEM 원칙에 따라
+PC Super Admin에서 구독 상품명을 표시하는 곳이 있는지만
+한 번 grep 확인하십시오.
+
+Coach30 / Coach50 / Coach100 /
+Premier200 / Premier300 / Premier500 / Premier1000
+
+같은 legacy 상품을
+“현재 신규 플랜”처럼 선택하게 하는 PC UI가 있다면
+
+동일하게:
+
+- SWIMNOTE
+- X300
+- X500
+- X1000
+
+체계로 최소 수정하십시오.
+
+단 PC에 해당 기능이 없으면
+아무것도 만들지 마십시오.
+
+PC 디자인 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- RevenueCat 설정 변경
+- Store 상품 변경
+- DB migration
+- legacy 데이터 일괄변환
+- credit 시스템 신규 구현
+- X Trial 정책 변경
+- subscription DB 재설계
+- unrelated refactor
+- 기존 Super Admin 디자인 개편
+- 광고 slider 기능 변경
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 확인:
+
+1.
+legacy tier 수영장 상세
+→ 기존값 “구 플랜”으로 정상 표시
+
+2.
+기본 구독
+free → swimnote 저장 성공
+
+3.
+subscription status 저장 성공
+
+4.
+expiry 저장 / null 처리 성공
+
+5.
+member_limit 저장 성공
+
+6.
+credit_balance 읽기 전용
+
+7.
+X300/X500/X1000 표시 및 기존 xmode 저장 정상
+
+8.
+X Trial 상태 일반 구독과 분리 표시
+
+9.
+가로 배너 메뉴 사라짐
+
+10.
+카드 배너 관리 정상
+
+11.
+수영장 공지 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 변경:
+swimnote-api Production Render 배포.
+
+APP 변경:
+production-v2
+runtimeVersion 2.2.0
+iOS OTA 배포.
+
+PC 수정이 실제 필요한 경우에만:
+swimnote-web 배포.
+
+migration 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+A. SUBSCRIPTION
+- 최종 기본 tier 선택값
+- legacy 표시 방식
+- PATCH subscription 결과
+- X section 재사용 endpoint
+- RevenueCat 경고 표시 여부
+
+B. ADS
+- 제거한 메뉴/route
+- slider 영향 없음 확인
+- pool-notices 영향 없음 확인
+
+C. PC
+- legacy 신규선택 UI 존재 여부
+- 수정 여부
+
+D. DEPLOY
+- 수정 파일
+- full work SHA
+- API full LIVE SHA / Deploy ID
+- APP full OTA Update ID / branch / runtimeVersion
+- PC 수정했다면 Dashboard full LIVE SHA / Deploy ID
+- migration 없음 확인
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 “확인하지 못함”이라고 명시하십시오.
+추측해서 정상이라고 보고하지 마십시오.
