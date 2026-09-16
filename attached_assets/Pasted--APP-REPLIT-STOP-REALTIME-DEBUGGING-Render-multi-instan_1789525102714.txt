@@ -1,0 +1,160 @@
+[보낼 곳: APP REPLIT]
+
+STOP REALTIME DEBUGGING.
+
+방금 보고한:
+
+- Render multi-instance
+- Path A
+- Path B
+- LISTEN
+- pg_notify
+- SSE
+
+조사는 여기서 종료하십시오.
+
+이것은 현재 작업 목표가 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+현재 실제 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC SUPER ADMIN Dashboard에서
+
+“SWIMNOTE APP의 기존 Super Admin이 이미 조회하고 있는
+각 수영장 목록 및 수영장 정보”
+
+를 그대로 표시하는 작업입니다.
+
+새 데이터 시스템을 만드는 작업이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 APP Super Admin부터 찾기
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 모바일 APP 코드에서 실제 Super Admin 기능을 찾으십시오.
+
+확인:
+
+- Super Admin 수영장 목록 화면
+- 수영장 상세 화면
+- 사용 중인 service/API client
+- 실제 endpoint
+- response fields
+- auth/role check
+
+추측하지 마십시오.
+
+APP에서 이미 작동하는 데이터 경로가 Source of Truth입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PC에서 그대로 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC Super Admin Dashboard에서
+위 APP과 동일한 endpoint / API contract를 재사용하십시오.
+
+목표:
+
+Super Admin PC 로그인
+→ 전체 수영장 목록 표시
+→ 수영장 선택
+→ 해당 수영장 상세정보 표시
+
+입니다.
+
+기존 APP에서 이미 존재하는 정보를
+새로 계산하거나 새 테이블에서 조회하지 마십시오.
+
+금지:
+
+- Supabase 직접 frontend 조회
+- 새 DB 구조
+- 새 realtime 시스템
+- SSE 추가 작업
+- LISTEN/NOTIFY 작업
+- pg_notify 작업
+- autoscaling/Render instance 조사
+
+초기 GET 조회로 충분합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 디자인 절대 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 만들어둔 Super Admin PC Dashboard 디자인은
+절대 변경하지 마십시오.
+
+DESIGN = FREEZE
+
+현재:
+
+- Sidebar
+- Card
+- Table
+- Layout
+- Color
+- Typography
+- Spacing
+
+모두 유지.
+
+빈 화면/placeholder에
+실제 APP 데이터를 연결하는 것만 수행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 realtime 실험 코드
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 잘못된 realtime 조사에서 추가된 코드 때문에
+기존 기능이 깨지지 않았다면 더 수정하지 마십시오.
+
+단 a6f603f1에서 추가된 realtime-only 변경이
+기존 승인 상태에 불필요한 변경이라면,
+
+슈퍼관리자 기능과 무관한 부분만 최소 revert하십시오.
+
+기존 정상 Dashboard/API 기능 또는
+Super Admin 구현을 같이 되돌리지 마십시오.
+
+realtime 문제 해결을 위해 추가 크레딧 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 권한
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 수영장 목록/상세 조회:
+
+super_admin → ALLOW
+
+pool_admin
+teacher
+parent
+
+→ 전체 수영장 조회 DENY
+
+기존 APP 권한정책을 그대로 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+딱 이것만 확인:
+
+1. 기존 APP Super Admin 화면 파일
+2. APP이 실제 사용하는 수영장 목록 endpoint
+3. APP이 실제 사용하는 수영장 상세 endpoint
+4. PC에서 동일 endpoint 재사용 여부
+5. PC 전체 수영장 목록 조회 PASS
+6. PC 수영장 1개 상세 조회 PASS
+7. super_admin 외 role 차단 PASS
+8. 디자인 변경 없음
+9. 수정 파일
+10. full work SHA
+11. Dashboard LIVE SHA / Deploy ID
+12. API 수정했다면 API LIVE SHA / Deploy ID
+
+그 외 테스트/조사하지 마십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 “확인하지 못함”이라고 명시하십시오.
