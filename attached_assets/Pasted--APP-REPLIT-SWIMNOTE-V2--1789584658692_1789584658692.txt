@@ -1,0 +1,667 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 정산 V2 — 다중 선생님 매출 배분 구조 구현 가능성 최종 확인]
+
+아직 코드 수정하지 마십시오.
+
+현재 정산 설계에서 중요한 전제를 수정합니다.
+
+학생이 반드시 한 명의 선생님에게만 귀속된다고 가정하지 않습니다.
+
+실제 운영에서는:
+
+- 월요일 A선생
+- 수요일 B선생
+
+처럼 한 학생이 여러 선생님의 시간표에 동시에 포함될 수 있습니다.
+
+따라서:
+
+“대표 선생님 한 명에게 학생 월수강료 전액 귀속”
+
+방식은 사용하지 않는 방향을 검토합니다.
+
+이번 조사 목표는:
+
+학생의 월 기준매출을 딱 한 번 계산하고,
+그 학생이 실제로 등록된 정규 시간표 슬롯 비율대로
+여러 선생님에게 나누는 구조가
+현재 SWIMNOTE DB/API로 안정적으로 구현 가능한지
+
+확정하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 검토할 최종 모델
+━━━━━━━━━━━━━━━━━━━━━━
+
+[STEP 1]
+
+학생 단위로 먼저 계산.
+
+students.weekly_count
+→ pricing type 결정
+
+1 → weekly_1
+2 → weekly_2
+3 → weekly_3
+
+pool_class_pricing에서:
+
+monthly_fee
+sessions_per_month
+
+조회.
+
+[STEP 2]
+
+student_class_history
++
+class_groups.schedule_days
+
+를 이용해
+
+해당 학생이 그 달 시간표상
+어느 선생님 수업에 몇 번 등록되어 있는지 계산.
+
+예:
+
+학생 A
+
+김선생 수업:
+4회
+
+박선생 수업:
+4회
+
+전체 regular slots:
+8회
+
+[STEP 3]
+
+완료 보강:
+
+makeup_sessions
+status='completed'
+
+은 학생 전체 service_count에만 추가.
+
+예:
+
+regular 5
++
+completed makeup 1
+=
+service_count 6
+
+[STEP 4]
+
+학생 전체 기준매출을 딱 한 번 계산.
+
+billable_count
+=
+MIN(
+  regular_slot_total + completed_makeup_count,
+  sessions_per_month
+)
+
+student_auto_amount
+=
+ROUND(
+  billable_count
+  ×
+  monthly_fee / sessions_per_month
+)
+
+학생 1명의 auto_amount가
+monthly_fee를 절대 초과하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 선생님별 배분 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 전체 auto_amount를 계산한 뒤
+
+정규 시간표 슬롯 비율로
+선생님별 배분.
+
+예:
+
+주2회
+월수강료 220,000
+기준 8회
+
+김선생 regular slot = 4
+박선생 regular slot = 4
+
+전체 = 8
+
+학생 auto = 220,000
+
+김선생:
+4 / 8 × 220,000
+= 110,000
+
+박선생:
+4 / 8 × 220,000
+= 110,000
+
+합계:
+220,000
+
+반드시:
+
+SUM(teacher_allocated_amount)
+=
+student_auto_amount
+
+가 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CAP 이후 배분
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 학생 전체에서 먼저 CAP한 후
+선생님에게 나누십시오.
+
+선생님별로 각각 CAP 금지.
+
+예:
+
+김선생 5회
+박선생 4회
+
+전체 regular = 9회
+
+주2 기준 8회
+월수강료 220,000
+
+학생 전체:
+
+billable_count
+=
+MIN(9, 8)
+=
+8
+
+student_auto
+=
+220,000
+
+그 뒤 5:4 비율 배분.
+
+김선생:
+220,000 × 5/9
+
+박선생:
+220,000 × 4/9
+
+두 금액 합계는
+정확히 220,000이어야 합니다.
+
+즉 다중 반/5주차 때문에
+수영장 전체 매출이 이중 계산되면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 보강의 역할
+━━━━━━━━━━━━━━━━━━━━━━
+
+보강은 매출 배분 비율을 바꾸지 않는 방향을 검토합니다.
+
+예:
+
+학생 A
+
+김선생 정규 3회
+박선생 정규 2회
+
+완료 보강 1회
+보강 진행자는 이선생.
+
+service_count:
+3 + 2 + 1
+=
+6회
+
+학생 auto_amount:
+6회 기준 계산.
+
+그러나 매출 배분 비율은
+정규 시간표만 사용:
+
+김선생:
+3/5
+
+박선생:
+2/5
+
+이선생:
+회원매출 0
+
+이선생에게는
+“완료 보강 진행 1회”
+업무 기록만 남음.
+
+즉:
+
+보강
+→ 학생 billable_count에는 영향
+
+보강 진행 선생님
+→ 회원매출 배분에는 영향 없음
+
+이 구조가 현재 데이터로 구현 가능한지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 정규 SLOT의 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+teacher allocation을 위한 slot은:
+
+학생
++
+class_group
++
+해당 수업 날짜
+
+1건을 1 slot으로 봅니다.
+
+예:
+
+같은 날짜라도
+
+A반 김선생
+B반 박선생
+
+두 수업에 실제 등록되어 있다면
+
+2 slot이 될 수 있습니다.
+
+임의 student_id + date dedupe 금지.
+
+다중 반 배정은 실제 기능일 수 있습니다.
+
+중요한 것은:
+
+학생 전체 매출이 월 기준금액을 넘지 않도록
+학생 단위 CAP을 먼저 거는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 DB에서 teacher별 slot 산출 가능 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 DB 구조를 확인하십시오.
+
+student_class_history에서:
+
+- student_id
+- class_group_id
+- enrolled_at
+- left_at
+
+class_groups에서:
+
+- id
+- teacher_user_id
+- schedule_days
+
+를 이용해
+
+학생별:
+
+teacher_user_id
+→ 해당월 regular_slot_count
+
+를 정확히 만들 수 있는지 확인.
+
+예:
+
+student_1:
+  teacher_A = 4
+  teacher_B = 4
+
+형태의 결과를 만들 수 있어야 합니다.
+
+현재 구조로 불가능하다면
+왜 불가능한지 정확히 보고.
+
+새 ownership table 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. teacher_user_id 변경 이력 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+class_groups.teacher_user_id가
+현재 담당교사 값 하나만 가지고 있고
+
+월 중간에 반 담당 선생님이 변경됐을 때
+과거 담당교사 이력이 보존되지 않는다면
+
+과거 slot 배분이 현재 선생님에게 잘못 귀속될 수 있습니다.
+
+실제 현재 DB에서:
+
+- 반 담당교사 변경 이력 존재 여부
+- class_group teacher history 존재 여부
+- student_class_history가 teacher 변경을 보존하는지
+
+딱 이 부분만 확인하십시오.
+
+이력이 없다면
+복잡한 신규 history 시스템을 이번 V2에 만들지 마십시오.
+
+대신 어떤 한계가 생기는지 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배분 금액 ROUNDING
+━━━━━━━━━━━━━━━━━━━━━━
+
+비율 배분 시 원단위 나머지가 생길 수 있습니다.
+
+예:
+
+220,000 × 5/9
+220,000 × 4/9
+
+각각 ROUND하면
+합계가 220,000과 몇 원 차이날 수 있습니다.
+
+반드시 deterministic 방식으로:
+
+SUM(teacher allocation)
+=
+student_auto_amount
+
+를 정확히 맞춰야 합니다.
+
+가능한 방식 예:
+
+1.
+각 teacher raw allocation 계산
+
+2.
+floor 또는 round
+
+3.
+남은 remainder를
+가장 큰 fractional remainder 순으로
+1원씩 배분
+
+또는 현재 코드베이스에
+금액 분배 helper가 있으면 재사용.
+
+구현 가능한 가장 단순한 방법을 제안하십시오.
+
+금액 손실/중복 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 학생별 수동조정과 다중 선생님
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 V2에서는
+선생님이 자기 정산에서
+manual adjustment를 입력할 예정입니다.
+
+다중 선생님 학생의 경우:
+
+학생 전체 adjustment를
+누가 한 번 입력하는 구조가 아니라
+
+각 선생님에게 배분된 자기 금액에 대해
+각자 adjustment를 입력하는 방식이 가능한지 확인하십시오.
+
+예:
+
+학생 전체 auto:
+220,000
+
+김선생 allocation:
+110,000
+adjustment:
+-10,000
+final:
+100,000
+
+박선생 allocation:
+110,000
+adjustment:
+0
+final:
+110,000
+
+관리자 reflected:
+210,000
+
+이 구조가 현재:
+
+monthly_settlements
++
+student_details jsonb
+
+로 구현 가능한지 확인하십시오.
+
+특히 같은 student_id가
+서로 다른 teacher의 monthly_settlement.student_details에
+각각 존재해도 구조적 문제가 없는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 관리자 집계
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 자동매출은:
+
+학생별 auto_amount 합계
+
+와
+
+선생님별 allocation 합계
+
+가 반드시 동일해야 합니다.
+
+즉:
+
+SUM(all student auto_amount)
+=
+SUM(all teacher allocated_auto_amount)
+
+이 invariant가 항상 성립해야 합니다.
+
+선생님 저장 전:
+
+teacher reflected
+=
+current allocated auto
+
+선생님 저장 후:
+
+teacher reflected
+=
+saved final amount
+
+관리자 전체 reflected:
+
+SUM(each teacher reflected)
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. PRICING 기준은 그대로
+━━━━━━━━━━━━━━━━━━━━━━
+
+students.weekly_count는
+가격 기준 Source of Truth로 유지.
+
+1 → weekly_1
+2 → weekly_2
+3 → weekly_3
+
+schedule/history는:
+
+누가 몇 번의 정규 slot을 담당했는지
+
+판단하는 용도.
+
+weekly_count와 schedule slot 수가 다르더라도
+자동으로 값을 덮어쓰지 않습니다.
+
+pricing과 schedule의 역할은 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 검증해야 할 실제 CASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 없이
+현재 Production 데이터와 구조로
+아래가 가능한지 검토하십시오.
+
+CASE A
+
+주2
+김선생 4
+박선생 4
+
+→ student auto 220,000
+→ 110,000 / 110,000
+
+CASE B
+
+주2
+김선생 5
+박선생 4
+
+→ student auto CAP 220,000
+→ 5:4 비율 배분
+→ 합계 정확히 220,000
+
+CASE C
+
+중간등록
+
+김선생 3
+박선생 2
+
+→ regular total 5
+→ 학생 auto = 5회 기준
+→ 3:2 배분
+
+CASE D
+
+김선생 3
+박선생 2
+이선생 완료보강 1
+
+→ student service_count=6
+→ auto는 6회 기준
+→ 매출 배분은 김:박 = 3:2
+→ 이선생 매출 0
+→ 이선생 완료보강 1회 표시
+
+CASE E
+
+같은 학생이 같은 날짜
+김선생 반 + 박선생 반
+
+→ 두 regular slot으로 존재 가능한지
+→ 학생 전체 CAP으로 중복매출 방지
+
+CASE F
+
+선생님별 adjustment 후
+관리자 reflected total 계산 가능 여부.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 이번 조사에서 결정할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 질문에 YES/NO로 답하십시오.
+
+1.
+학생별로 전체 regular slot을 먼저 계산할 수 있는가?
+
+2.
+그 slot을 teacher_user_id별로 나눌 수 있는가?
+
+3.
+학생 전체 auto_amount를 딱 한 번 계산할 수 있는가?
+
+4.
+그 금액을 teacher slot 비율대로 배분할 수 있는가?
+
+5.
+다중 선생님이어도 월수강료 중복계산을 막을 수 있는가?
+
+6.
+completed makeup을 billable_count에는 포함하되
+teacher revenue allocation 비율에서는 제외할 수 있는가?
+
+7.
+같은 student_id가 여러 teacher settlement에
+각각 student_detail로 존재해도 문제없는가?
+
+8.
+금액 ROUNDING 후에도
+teacher allocation 합계 = student auto
+를 정확히 맞출 수 있는가?
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+[A. FEASIBILITY]
+1~8 YES/NO
+
+[B. DATA FLOW]
+실제 table/column 기준으로:
+
+student
+→ regular slots
+→ teacher별 slot count
+→ student auto
+→ teacher allocation
+
+흐름.
+
+[C. MULTI-TEACHER]
+현재 Production에서
+실제 다중 teacher 학생이 존재하는지.
+
+존재하면:
+- 학생 수
+- 대표적인 slot 형태
+개인정보 없이 숫자만.
+
+[D. TEACHER HISTORY]
+class_group 담당선생님 변경 이력 존재 여부.
+없다면 V2 한계.
+
+[E. ROUNDING]
+합계가 정확히 일치하는
+최소 구현 방식.
+
+[F. ADJUSTMENT]
+다중 teacher 학생의 각 teacher별
+manual adjustment 저장 가능 여부.
+
+[G. REQUIRED DB CHANGE]
+이 모델을 위해
+기존 설계의 auto_amount_snapshot 외에
+추가 DB 컬럼/테이블이 정말 필요한지.
+
+가능하면 신규 table 없이 설계.
+
+[H. FINAL RECOMMENDATION]
+현재 SWIMNOTE 구조에서
+
+“학생 전체 월 기준매출 1회 계산
+→ 정규 시간표 slot 비율로 선생님 배분”
+
+모델을
+Production에 적용하는 것이 안전한지 최종 결론.
+
+이번에는 코드 수정하지 마십시오.
+migration 하지 마십시오.
+배포하지 마십시오.
+
+전체 시스템 audit 금지.
+이 계산모델 구현 가능성만 확인하십시오.
