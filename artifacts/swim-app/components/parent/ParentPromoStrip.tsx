@@ -55,7 +55,7 @@ const FALLBACK: StripBanner = {
   display_seconds: 0,
 };
 
-const SAFE_URL_RE = /^https?:\/\//i;
+const SAFE_URL_RE = /^https:\/\//i;
 
 function resolveImageUrl(b: StripBanner): string {
   if (b.image_key) return `${API_BASE}/uploads/${b.image_key}`;
@@ -70,7 +70,7 @@ function handleBannerPress(b: StripBanner) {
   if (lt === "external" && SAFE_URL_RE.test(url)) {
     Linking.openURL(url).catch(() => {});
   }
-  // internal: 향후 router.push 연동 가능
+  // internal: deep-link 체계 미정의 — 추후 활성화
 }
 
 /** 단일 배너 렌더 */

@@ -433,7 +433,7 @@ export default function AdsScreen() {
               {/* 링크 유형 */}
               <Text style={m.label}>링크 유형</Text>
               <View style={m.segRow}>
-                {(["none","external","internal"] as const).map(lt => (
+                {(["none","external"] as const).map(lt => (
                   <Pressable key={lt} style={[m.segBtn, form.linkType === lt && m.segActive]}
                     onPress={() => setForm(f => ({ ...f, linkType: lt }))}>
                     <Text style={[m.segTxt, form.linkType === lt && m.segActiveTxt]}>{LINK_TYPE_LABELS[lt]}</Text>
@@ -442,10 +442,10 @@ export default function AdsScreen() {
               </View>
               {form.linkType !== "none" && (
                 <>
-                  <Text style={m.label}>{form.linkType === "external" ? "링크 URL (https://)" : "앱 내부 경로"}</Text>
+                  <Text style={m.label}>링크 URL (https://)</Text>
                   <TextInput style={m.input} value={form.linkUrl}
                     onChangeText={v => setForm(f => ({ ...f, linkUrl: v }))}
-                    placeholder={form.linkType === "external" ? "https://..." : "/(parent)/notices"}
+                    placeholder="https://..."
                     autoCapitalize="none" keyboardType="url" />
                 </>
               )}

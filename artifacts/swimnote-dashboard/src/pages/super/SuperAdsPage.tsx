@@ -539,7 +539,7 @@ export default function SuperAdsPage() {
             <div>
               <Label>링크 유형</Label>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {(["none","external","internal"] as const).map(lt => (
+                {(["none","external"] as const).map(lt => (
                   <ChipBtn key={lt} active={form.link_type === lt} onClick={() => setForm(f => ({ ...f, link_type: lt }))}>
                     {LINK_TYPE_LABELS[lt]}
                   </ChipBtn>
@@ -548,9 +548,9 @@ export default function SuperAdsPage() {
             </div>
             {form.link_type !== "none" && (
               <div>
-                <Label>{form.link_type === "external" ? "외부 URL (https://)" : "앱 내부 경로"}</Label>
+                <Label>외부 URL (https://)</Label>
                 <input style={inputStyle} value={form.link_url}
-                  placeholder={form.link_type === "external" ? "https://..." : "/(parent)/notices"}
+                  placeholder="https://..."
                   onChange={e => setForm(f => ({ ...f, link_url: e.target.value }))} />
               </div>
             )}
