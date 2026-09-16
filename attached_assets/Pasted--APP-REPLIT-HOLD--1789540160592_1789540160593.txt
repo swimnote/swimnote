@@ -1,0 +1,331 @@
+[보낼 곳: APP REPLIT]
+
+구독 설계 부분은 HOLD입니다.
+
+광고/배너 설계는 승인합니다.
+다만 아직 코드 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 중요한 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+방금 보고서에서 현재 Production 코드에 남아 있는:
+
+- Coach30
+- Coach50
+- Coach100
+- Premier200
+- Premier300
+- Premier500
+- Premier1000
+
+을 “최신 canonical 구독 체계”라고 판단했는데,
+이 결론은 잘못되었습니다.
+
+이 값들은 현재 코드에 남아 있는
+LEGACY 구독 체계일 가능성이 높습니다.
+
+현재 확정된 제품 정책 기준은:
+
+- SWIMNOTE
+- X300
+- X500
+- X1000
+
+입니다.
+
+가격 정책 기준:
+
+SWIMNOTE
+월 9,900원
+
+X300
+월 129,000원
+
+X500
+월 199,000원
+
+X1000
+월 359,000원
+
+단 실제 앱 표시가격은
+RevenueCat / StoreProduct localized price를 사용하며
+가격 문자열을 앱에 하드코딩하지 않습니다.
+
+또한:
+
+X Trial
+= 72시간
+= 1회
+= 결제정보 요구 없음
+= 자동 유료전환 없음
+
+이며
+
+X Mode
+≠ 단순 paid subscription
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 다시 조사할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 없이
+현재 최신 구독 구현 상태를 다시 조사하십시오.
+
+이번에는 “현재 코드에 남아 있는 legacy 값”과
+“현재 확정된 제품 체계”를 반드시 분리하십시오.
+
+확인:
+
+A.
+현재 RevenueCat에 실제 연결된 최신 Product ID
+
+SWIMNOTE
+X300
+X500
+X1000
+
+각각의:
+
+- product identifier
+- package identifier
+- entitlement
+- offering
+
+실제 코드/설정 기준으로 확인.
+
+확인하지 못하면 추측하지 말고
+“확인하지 못함”이라고 보고.
+
+B.
+현재 APP 구독 화면에서
+SWIMNOTE / X300 / X500 / X1000을
+실제로 어디서 표시하거나 구분하는지 확인.
+
+C.
+현재 swimming_pools의:
+
+- subscription_tier
+- subscription_status
+- member_limit
+- xmode 관련 field
+
+이 새 상품 체계와 어떻게 연결되어 있는지 확인.
+
+특히:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+이 기존:
+
+free / starter / basic / standard / center_200 /
+advance / pro / max
+
+중 무엇과 매핑되는지,
+
+아니면 기존 tier 체계를 폐기하고
+새 별도 product/xmode 구조를 사용하는지
+
+실제 코드 기준으로 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. X MODE와 일반 구독 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+SWIMNOTE 기본 구독
+vs
+SWIMNOTE X 구독
+
+의 실제 데이터 구조.
+
+X300/X500/X1000이:
+
+- subscription_tier인지
+- xmode plan인지
+- 둘 다 함께 기록되는지
+
+확인하십시오.
+
+X mode 활성화 source도 확인:
+
+- RevenueCat
+- manual
+- trial
+- HQ
+
+등.
+
+Super Admin 화면에서
+일반 subscription과 X mode를
+잘못 하나의 tier selector로 합치지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Super Admin에서 실제로 조정해야 할 값
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 “구독 직접 조정” UI를
+최신 상품 구조 기준으로 다시 설계하십시오.
+
+각 항목에 대해:
+
+- 일반 SWIMNOTE subscription
+- X plan
+- X trial
+- subscription status
+- expiry
+- member limit
+- credit balance
+
+을 각각
+
+[직접 수정]
+[자동 계산]
+[읽기 전용]
+[화면에서 제거]
+
+중 하나로 제안하십시오.
+
+중요:
+
+RevenueCat이 Source of Truth인 값을
+Super Admin DB 수동 수정과 충돌시키지 마십시오.
+
+수동 override가 필요하다면
+RevenueCat webhook/resolveSubscription이
+다시 덮어쓰는지까지 확인하십시오.
+
+즉 새 PATCH endpoint를 만들기 전에
+“수동 변경값이 실제로 지속되는 구조인지”
+먼저 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Legacy 데이터 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DB에 기존:
+
+starter
+basic
+standard
+center_200
+advance
+pro
+max
+
+수영장이 있을 수 있습니다.
+
+새 UI로 바꾼다고
+기존 값을 즉시 일괄 변환하거나 삭제하지 마십시오.
+
+다음만 설계:
+
+- legacy 표시 방법
+- 새 상품으로 전환될 때 매핑 방법
+- 기존 가입자 데이터 보존 방법
+
+migration은 아직 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 광고 설계는 승인
+━━━━━━━━━━━━━━━━━━━━━━
+
+광고/배너는 다음으로 확정합니다.
+
+유지:
+카드 배너 관리
+/(super)/ads
+banner_type='slider'
+
+이유:
+학부모 홈 ParentAdBanner와 실제 연결됨.
+
+제거:
+가로 배너 관리
+/(super)/strip-banner
+banner_type='strip'
+
+수영장 공지:
+유지.
+광고 배너와 별도 notice 시스템.
+
+DB:
+platform_banners 테이블 유지.
+
+기존 strip record:
+이번 작업에서 물리 삭제하지 않음.
+
+향후 구현 시:
+- global-menu에서 가로 배너 메뉴 제거
+- strip-banner route/UI 제거 또는 접근 차단
+- slider 기능에는 영향 없음
+
+아직 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 다시 제출할 보고서
+━━━━━━━━━━━━━━━━━━━━━━
+
+[NEW PRODUCT MODEL]
+
+SWIMNOTE
+X300
+X500
+X1000
+
+각각:
+- 실제 RevenueCat Product ID
+- entitlement
+- DB 저장값
+- member limit
+- X mode 관계
+
+[LEGACY MODEL]
+
+기존:
+starter/basic/standard/center_200/advance/pro/max
+
+각각:
+- 현재 실제 사용 여부
+- legacy 여부
+- 새 상품과 매핑 여부
+
+[SUPER ADMIN FINAL DESIGN]
+
+최종 화면에 표시할:
+
+1. 기본 구독
+2. X 플랜
+3. X Trial
+4. 상태
+5. 만료일
+6. 회원 한도
+7. 크레딧
+
+각각의:
+- 표시값
+- 수정 가능 여부
+- Source of Truth
+- 저장 endpoint
+
+[REVENUECAT OVERRIDE]
+
+Super Admin 수동 변경 후
+RevenueCat webhook/resolveSubscription에
+덮어써지는지 여부.
+
+[ADS]
+
+기존 보고 내용 그대로 확정안 재기재.
+
+코드 수정하지 마십시오.
+보고 후 대기하십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 “확인하지 못함”이라고 명시하십시오.
