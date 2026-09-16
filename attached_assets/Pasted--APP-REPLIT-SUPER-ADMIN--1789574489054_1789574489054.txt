@@ -1,0 +1,837 @@
+[보낼 곳: APP REPLIT]
+
+[SUPER ADMIN — 통합 배너 광고 관리 시스템 구현]
+
+이전 배너 관련 구현 지시문은 폐기합니다.
+
+이번 목표는 단순히
+“strip 문구를 Super Admin에서 수정”
+하는 것이 아닙니다.
+
+SWIMNOTE Super Admin에
+실제 광고판으로 운영할 수 있는
+“통합 배너 관리” 기능 하나를 완성하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin
+→ 배너 관리
+
+메뉴 하나에서:
+
+- 이미지
+- 제목
+- 설명
+- 링크
+- 활성/비활성
+- 노출 시작일
+- 노출 종료일
+- 슬라이드 순서
+- 배너별 노출 시간
+- 여러 배너 자동 순환
+
+을 관리할 수 있어야 합니다.
+
+관리자가 설정한 내용은
+APP 재배포 없이 즉시 서버 데이터로 반영되어야 합니다.
+
+현재 학부모 홈의:
+
+1. ParentPromoStrip
+2. ParentAdBanner
+
+두 광고 영역을
+같은 관리 시스템에서 운영합니다.
+
+별도 “가로 배너 관리”
+“카드 배너 관리”
+
+메뉴를 두 개 만들지 마십시오.
+
+최종 메뉴:
+
+배너 관리
+
+1개입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 구조 우선 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 존재하는:
+
+platform_banners
+
+구조와 기존 banner API를 우선 재사용하십시오.
+
+현재 banner_type:
+
+- strip
+- slider
+
+의 의미도 가능하면 유지하십시오.
+
+의미:
+
+strip
+→ ParentPromoStrip
+→ 학부모 홈 상단 프로모션 광고
+
+slider
+→ ParentAdBanner
+→ 학부모 홈 카드형 광고
+
+새 광고 테이블을 별도로 만들지 마십시오.
+
+단 아래 기능을 구현하는 데
+현재 platform_banners에 필드가 없는 경우에만
+additive migration을 허용합니다.
+
+기존 데이터를 파괴하거나
+banner_type 값을 일괄변환하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최종 배너 데이터 모델
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 현재 platform_banners 실제 schema를 확인하고
+이미 존재하는 필드는 그대로 재사용하십시오.
+
+최종적으로 각 배너가 최소 아래 의미를 가져야 합니다.
+
+- id
+- banner_type
+  - strip
+  - slider
+
+- title
+- subtitle 또는 description
+- image_url nullable
+
+- link_type
+  - none
+  - external
+  - internal
+
+- link_url nullable
+
+- is_active
+
+- starts_at nullable
+- ends_at nullable
+
+- sort_order
+
+- display_seconds
+
+- created_at
+- updated_at
+
+현재 이름이 다른 동일 목적 컬럼이 있으면
+새 컬럼을 중복 생성하지 마십시오.
+
+예:
+
+priority가 이미 sort_order 역할이면
+기존 컬럼 재사용 가능.
+
+duration_seconds가 존재하면
+display_seconds 새로 만들지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 이미지
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 배너에 이미지는 OPTIONAL입니다.
+
+즉:
+
+A.
+텍스트만 있는 광고
+
+B.
+이미지만 있는 광고
+
+C.
+이미지 + 텍스트 광고
+
+모두 가능해야 합니다.
+
+이미지는 DB에 base64로 저장하지 마십시오.
+
+현재 SWIMNOTE에서 사용 중인
+R2 / media upload 방식을 재사용하십시오.
+
+지원:
+
+- JPG
+- PNG
+- WEBP
+
+비정상 파일 차단.
+
+Super Admin 편집 화면에서
+현재 이미지를 미리 볼 수 있어야 합니다.
+
+이미지 교체 / 제거 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ParentPromoStrip 표시 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ParentPromoStrip 자리를
+실제 광고 슬롯으로 업그레이드합니다.
+
+기존 strip banner가 1개라면:
+→ 해당 광고 하나 표시.
+
+2개 이상이라면:
+→ 자동 슬라이드 순환.
+
+각 banner의:
+
+display_seconds
+
+값을 사용하여
+각 광고별 노출 시간을 다르게 설정할 수 있게 합니다.
+
+예:
+
+배너 A
+5초
+
+배너 B
+10초
+
+배너 C
+4초
+
+→ 5초 → 10초 → 4초 순환.
+
+display_seconds 기본값:
+
+5초
+
+허용범위:
+
+3~30초
+
+비정상 값은 서버/API에서 방어하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 슬라이드 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin에서
+노출 순서를 변경할 수 있어야 합니다.
+
+sort_order ASC 기준.
+
+모바일 Super Admin에서는
+복잡한 drag UI를 새로 만들 필요 없습니다.
+
+현재 UI에 자연스러우면:
+
+↑ 위로
+↓ 아래로
+
+또는 기존 reorder 패턴을 재사용하십시오.
+
+PC Super Admin에 기존 drag/reorder 패턴이 있으면
+그 UI를 사용해도 됩니다.
+
+중요:
+
+APP의 순서는 항상 서버 sort_order 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 광고 스케줄
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 배너에:
+
+노출 시작
+starts_at
+
+노출 종료
+ends_at
+
+을 설정할 수 있게 합니다.
+
+둘 다 nullable.
+
+예:
+
+시작 없음 + 종료 없음
+→ 활성화되어 있는 동안 계속 표시
+
+2026-09-20 09:00
+~
+2026-09-25 23:59
+
+→ 해당 기간에만 노출.
+
+실제 노출 조건:
+
+is_active = true
+
+AND
+
+starts_at IS NULL
+OR starts_at <= NOW()
+
+AND
+
+ends_at IS NULL
+OR ends_at > NOW()
+
+서버 기준으로 필터하십시오.
+
+APP이 시계를 기준으로
+광고 활성 여부를 임의 판단하지 않게 하십시오.
+
+DB timestamp는 기존 기준을 따르고
+Super Admin UI에는 사용자 로컬 시간으로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 링크
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 광고 클릭 시
+링크 이동 가능.
+
+link_type:
+
+none
+→ 클릭 행동 없음
+
+external
+→ https URL
+
+internal
+→ SWIMNOTE 내부 화면/deep link
+
+외부 링크:
+
+https:// 만 허용.
+
+javascript:
+data:
+file:
+
+등 위험 scheme 차단.
+
+internal은 현재 앱에서 안전하게 지원되는
+Deep Link/route만 사용하십시오.
+
+임의 route 실행 금지.
+
+link가 없는 광고는
+터치해도 아무 동작하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 이미지 + 텍스트 레이아웃
+━━━━━━━━━━━━━━━━━━━━━━
+
+ParentPromoStrip 기존 영역의 전체 UX는 유지하되
+이미지가 있을 경우 광고처럼 자연스럽게 표시하십시오.
+
+권장:
+
+이미지
++
+텍스트 overlay 또는 텍스트 영역
+
+단 현재 홈 전체 디자인을 재설계하지 마십시오.
+
+배너 영역만 확장합니다.
+
+가독성 필수.
+
+이미지 때문에:
+
+- 글씨가 안 보임
+- 높이가 계속 변함
+- Home layout이 흔들림
+
+현상이 없어야 합니다.
+
+배너 높이는 안정적으로 고정.
+
+image:
+
+resizeMode / object-fit = cover
+
+계열 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. ParentAdBanner 카드 광고
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 slider 카드 광고 기능은 유지합니다.
+
+동일 배너 관리 화면에서:
+
+[상단 프로모션]
+banner_type=strip
+
+[카드 배너]
+banner_type=slider
+
+처럼 관리합니다.
+
+기존 ParentAdBanner 동작을 깨뜨리지 마십시오.
+
+slider에도 이미 지원 가능한 경우:
+
+- 이미지
+- 링크
+- 활성 여부
+- 스케줄
+- 순서
+
+를 동일 모델로 사용하십시오.
+
+다만 기존 정상 기능을 이유 없이
+대규모 재작성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. FALLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+ParentPromoStrip에
+현재 노출 가능한 strip banner가 0개라면
+
+현재 fallback:
+
+“스윔노트 — 우리 아이 수영 성장을 기록해보세요”
+
+를 그대로 표시하십시오.
+
+즉:
+
+active 광고 있음
+→ 광고 표시
+
+active 광고 없음
+→ fallback
+
+입니다.
+
+fallback 자체는
+DB banner record로 강제로 만들지 마십시오.
+
+APP 안전장치로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. SUPER ADMIN — 배너 관리 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 메뉴명:
+
+배너 관리
+
+메뉴 1개.
+
+화면 내부:
+
+[상단 프로모션]
+[카드 배너]
+
+두 탭 또는 현재 디자인에 맞는 구분.
+
+각 배너 리스트에서 최소 표시:
+
+- 썸네일
+- 제목
+- 광고 위치
+- 활성/비활성
+- 노출기간
+- 슬라이드 시간
+- 순서
+- 링크 존재 여부
+
+버튼:
+
+- 새 배너
+- 수정
+- 활성/비활성
+- 순서 변경
+- 삭제
+
+삭제는 기존 배너 시스템의
+soft delete 방식이 있다면 반드시 재사용.
+
+hard delete를 새로 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 배너 생성/수정 폼
+━━━━━━━━━━━━━━━━━━━━━━
+
+입력:
+
+광고 위치
+- 상단 프로모션
+- 카드 배너
+
+제목
+
+설명
+
+이미지
+
+링크 유형
+
+링크 주소
+
+활성 여부
+
+노출 시작일/시간
+
+노출 종료일/시간
+
+노출 시간(초)
+
+노출 순서
+
+를 관리.
+
+모든 값을 한 화면에 과밀하게 넣지 말고
+현재 Super Admin Modal / Sheet 패턴을 재사용하십시오.
+
+새 디자인 시스템 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. PREVIEW
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin 편집 화면에
+간단한 미리보기를 제공합니다.
+
+strip 선택:
+→ ParentPromoStrip 형태 preview
+
+slider 선택:
+→ Card Banner 형태 preview
+
+실제 Parent Home 전체 화면을
+복제할 필요는 없습니다.
+
+광고가 어떤 식으로 보이는지만
+확인할 수 있으면 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. PC SUPER ADMIN
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP + WEB ONE SYSTEM 원칙 적용.
+
+PC Super Admin에도
+이미 Super Admin 관리 화면이 있으므로
+
+동일한:
+
+platform_banners
+API
+필드
+업무 규칙
+
+을 사용합니다.
+
+PC에서도 메뉴명:
+
+배너 관리
+
+하나.
+
+안에서:
+
+상단 프로모션
+카드 배너
+
+관리.
+
+단 모바일 UI를 PC에 복사하지 말고
+현재 PC Dashboard 디자인을 유지하십시오.
+
+DESIGN = FREEZE.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. API
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 banner CRUD가 충분하면 그대로 재사용.
+
+새 API를 만들기 전에
+기존 endpoint를 확인하십시오.
+
+필요한 경우 최소 확장만 합니다.
+
+Public/Parent 광고 조회는:
+
+현재 활성
++
+현재 노출기간
++
+해당 banner_type
+
+조건을 서버에서 필터.
+
+여러 개 반환.
+
+정렬:
+
+sort_order ASC
+created_at ASC fallback
+
+APP에서는 받은 순서 그대로 사용.
+
+기존 endpoint contract 변경이
+다른 화면을 깨뜨릴 가능성이 있으면
+
+기존 endpoint를 깨지 말고
+additive endpoint를 만드십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 성능
+━━━━━━━━━━━━━━━━━━━━━━
+
+배너 때문에 Parent Home 진입이
+느려지면 안 됩니다.
+
+- 광고 이미지 lazy/cache 활용
+- 지나치게 큰 원본 이미지 그대로 반복 다운로드 금지
+- 같은 Home mount에서 불필요한 반복 API 호출 금지
+- 슬라이드마다 API 재호출 금지
+
+배너 목록 1회 조회
+→ 클라이언트 로컬 순환.
+
+광고 변경 확인을 위해
+매 3초/5초 polling 같은 방식 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. ANALYTICS — 이번 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 버전에서는
+복잡한 광고 분석 시스템을 새로 만들지 마십시오.
+
+우선 광고판의 핵심:
+
+- 어떤 광고를
+- 언제
+- 어느 위치에
+- 어떤 이미지/문구로
+- 얼마 동안
+- 어떤 링크로
+
+노출할지 관리하는 것에 집중.
+
+기존에 click/impression 통계 구조가 이미 있다면
+재사용 가능.
+
+없다면 이번 WP에서
+대규모 analytics/event DB는 만들지 마십시오.
+
+향후 필요 시 별도 추가합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. LEGACY COMPATIBILITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 platform_banners 데이터는
+전부 유지하십시오.
+
+새 필드가 NULL인 legacy banner:
+
+image 없음
+→ 기존 텍스트 렌더
+
+link 없음
+→ 클릭 없음
+
+display_seconds 없음
+→ 5초
+
+starts_at / ends_at 없음
+→ 기간 제한 없음
+
+sort_order 없음
+→ 기존 created_at 기준
+
+으로 정상 표시.
+
+기존 광고가 갑자기 사라지면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. DESIGN FREEZE
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 허용:
+
+- 배너 관리 UI
+- ParentPromoStrip 광고 렌더 영역
+- 기존 Banner Card에 필요한 최소 필드
+
+변경 금지:
+
+- Parent Home 전체 디자인
+- Super Admin 전체 디자인
+- Sidebar 디자인
+- 앱 네비게이션 구조 전체
+- 공통 Theme
+- 다른 카드 디자인
+- 다른 기능 레이아웃
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 platform_banners schema를 먼저 확인.
+
+필요한 필드가 이미 있으면
+migration 금지.
+
+없는 필드만 additive migration 허용.
+
+DROP
+RENAME
+data rewrite
+
+금지.
+
+migration이 필요하다면
+기존 banner row가 전부 그대로 살아 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 대표 QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 확인하십시오.
+
+1.
+텍스트 strip banner 1개
+→ ParentPromoStrip 정상 표시
+
+2.
+사진 strip banner
+→ 이미지 정상 표시
+
+3.
+이미지 + 텍스트
+→ 정상 표시
+
+4.
+external URL
+→ 클릭 시 정상 이동
+
+5.
+link 없음
+→ 클릭 동작 없음
+
+6.
+strip banner 3개:
+A 3초
+B 5초
+C 10초
+
+→ 지정 시간대로 자동 순환
+
+7.
+sort_order 변경
+→ 순환 순서 변경
+
+8.
+미래 starts_at 광고
+→ 아직 미노출
+
+9.
+ends_at 지난 광고
+→ 미노출
+
+10.
+모든 strip 비활성
+→ 기존 fallback 표시
+
+11.
+기존 slider 카드 배너
+→ 정상
+
+12.
+legacy banner
+→ 정상 표시
+
+13.
+Super Admin 메뉴
+→ “배너 관리” 하나만 존재
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 경우:
+
+API:
+swimnote-api Production
+
+APP:
+production-v2
+runtimeVersion 2.2.0
+iOS OTA
+
+PC Dashboard:
+swimnote-web Production
+
+migration:
+실제 필요한 경우에만 Production 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+A. SCHEMA
+- 기존 platform_banners 필드
+- 추가한 필드
+- migration 여부
+
+B. ADMIN
+- 최종 배너 관리 메뉴
+- strip/slider 관리 방식
+- 이미지 업로드 방식
+- 링크 방식
+- 스케줄 방식
+- reorder 방식
+
+C. PARENT APP
+- ParentPromoStrip 다중 슬라이드 결과
+- 배너별 display_seconds 결과
+- 이미지 결과
+- 링크 결과
+- fallback 결과
+
+D. COMPATIBILITY
+- 기존 slider
+- 기존 strip
+- legacy data
+
+각 PASS/FAIL.
+
+E. DEPLOY
+- 수정 파일
+- full work SHA
+- migration ID/적용 결과
+- API full LIVE SHA / Deploy ID
+- APP full OTA Update ID / branch / runtimeVersion
+- Dashboard full LIVE SHA / Deploy ID
+
+불필요한 전체 테스트를 돌리지 마십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+“확인하지 못함”이라고 명시하고
+추측해서 PASS 처리하지 마십시오.
