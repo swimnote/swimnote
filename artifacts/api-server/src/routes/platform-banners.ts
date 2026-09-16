@@ -314,12 +314,17 @@ router.delete("/super/banners/:id", requireAuth, async (req: AuthRequest, res) =
       .from(platformBannersTable)
       .where(eq(platformBannersTable.id, id));
 
-    await superAdminDb.delete(platformBannersTable).where(eq(platformBannersTable.id, id));
+    const [row] = await superAdminDb
+      .update(platformBannersTable)
+      .set({ status: "inactive", updated_at: new Date() } as any)
+      .where(eq(platformBannersTable.id, id))
+      .returning();
+    if (!row) return err(res, 404, "배너를 찾을 수 없습니다.");
 
     await superAdminDb.execute(sql`
       INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, before_data)
-      VALUES ('platform_banner', ${id}, 'delete', 'super_admin', ${req.user!.id},
-              ${JSON.stringify({ title: (before as any)?.title, status: (before as any)?.status })}::jsonb)
+      VALUES ('platform_banner', ${id}, 'update', 'super_admin', ${req.user!.id},
+              ${JSON.stringify({ title: (before as any)?.title, status: (before as any)?.status, _op: "deactivate" })}::jsonb)
     `).catch(() => {});
 
     return res.json({ success: true });
