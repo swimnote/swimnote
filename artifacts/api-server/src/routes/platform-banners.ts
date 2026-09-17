@@ -137,7 +137,10 @@ router.get("/platform/banners", requireAuth, async (req: AuthRequest, res) => {
 
     // image_key가 있는 경우 display_url을 서버에서 조합하여 내려줌
     // 클라이언트가 API_BASE를 직접 조합하지 않아도 됨
-    const apiBase = `${req.protocol}://${req.get("host")}/api`;
+    // Render는 TLS를 load balancer에서 terminate → req.protocol='http'
+    // X-Forwarded-Proto를 우선 신뢰해 https URL 생성
+    const proto = req.get("x-forwarded-proto") || req.protocol;
+    const apiBase = `${proto}://${req.get("host")}/api`;
     const enriched = rows.map(b => ({
       ...b,
       display_url: (b as any).image_key
