@@ -1,0 +1,1060 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — WP-SETTLE-V2-3]
+Admin APP + Current PC Dashboard Settlement Integration
+
+WP-SETTLE-V2-1 / V2-2는 CLOSED 상태입니다.
+
+현재 Production 기준 핵심 구조:
+
+DB
+→ settlement-service.ts
+→ settlement-calculator.ts
+→ canonical settlement API
+→ Teacher APP
+
+까지 완료되어 있습니다.
+
+이번 WP 목표:
+
+1. 관리자 APP에서 센터 전체 정산 확인
+2. 관리자 APP에서 선생님별 상세 확인
+3. 현재 운영 중인 PC Dashboard에 동일 정산 기능 통합
+4. APP/PC가 반드시 같은 서버 계산 결과 사용
+5. 향후 별도 SWIMNOTE PC 운영프로그램의 기준 IA 확정
+6. 관리자 확인/확정 흐름 완성
+
+새로운 정산 계산식을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최우선 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER = 유일한 계산 Source of Truth.
+
+APP Admin과 Dashboard는:
+
+- 금액 계산
+- CAP
+- teacher allocation
+- rounding
+- pricing 판단
+
+을 자체적으로 하지 않습니다.
+
+반드시 기존:
+
+settlement-service.ts
+settlement-calculator.ts
+
+결과를 사용합니다.
+
+APP 숫자
+=
+Dashboard 숫자
+=
+향후 PC 숫자
+
+여야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ADMIN에서 보여줘야 하는 금액 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님별로 상태에 따라
+관리자가 보는 “반영 매출”을 결정합니다.
+
+[AUTO / 아직 저장 안 함]
+
+reflected_amount
+=
+현재 서버 allocated_auto_amount
+
+[SUBMITTED / 선생님 저장]
+
+reflected_amount
+=
+저장된 total_revenue
+
+[CONFIRMED / 관리자 확인]
+
+reflected_amount
+=
+저장된 total_revenue
+
+즉:
+
+미저장 선생님도
+관리자 화면에서는 현재 AUTO 기준으로
+매출이 즉시 보여야 합니다.
+
+선생님이 저장하면
+그때부터 저장된 final 금액을 사용합니다.
+
+confirmed는 이후 고정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 상태 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB Source of Truth:
+
+draft
+submitted
+confirmed
+
+사용자 UI 문구:
+
+정산 전
+저장됨
+관리자 확인
+
+으로 표시.
+
+내부 영문 status 그대로 노출하지 마십시오.
+
+추가 상태:
+
+has_changed = true
+
+이면:
+
+“저장 후 변경”
+
+배지 표시.
+
+의미:
+
+선생님이 저장한 뒤
+현재 시간표/weekly_count/가격표 등의 AUTO가
+snapshot과 달라짐.
+
+이 경우 저장된 정산을 자동 덮어쓰지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ADMIN POOL SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━
+
+월별 센터 Summary 최소 항목:
+
+- 자동 기준 매출
+- 조정 금액
+- 반영 매출
+- 전체 회원 수
+- 수업료 설정 완료 회원 수
+- 수업료 설정 필요 회원 수
+
+가능하면 보조 운영지표:
+
+- 전체 정규 수업 횟수
+- 전체 완료 보강 횟수
+
+표시.
+
+단 핵심은 금액 3개입니다.
+
+자동 기준 매출
+조정 금액
+반영 매출
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ADMIN REFLECTED TOTAL 계산
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool reflected_total은
+각 teacher별 reflected_amount 합계.
+
+teacher마다:
+
+저장 전
+→ current allocated auto
+
+submitted
+→ saved total_revenue
+
+confirmed
+→ saved total_revenue
+
+사용.
+
+따라서:
+
+POOL reflected_total
+=
+SUM(each teacher reflected_amount)
+
+이어야 합니다.
+
+APP/PC frontend에서
+다시 계산하지 마십시오.
+
+필요하면 settlement-service에서
+canonical aggregation으로 반환하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. UNPRICED 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+센터 가격표 미설정 학생은:
+
+0원 회원이 아닙니다.
+
+UI:
+
+“센터 수업료 설정 필요”
+
+표시.
+
+관리자 화면 상단에:
+
+수업료 설정 필요 회원 49명
+
+형태로 명확히 노출.
+
+가능하면 기존:
+
+unit-pricing
+
+화면으로 이동할 수 있는 CTA 제공.
+
+예:
+
+[수업료 설정]
+
+회원별 가격 입력 UI 생성 금지.
+
+가격은 센터 기준:
+
+weekly_1
+weekly_2
+weekly_3
+
+를 한 번 설정하는 구조 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ADMIN APP 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+app/(admin)/admin-revenue.tsx
+
+를 기준으로 정리하십시오.
+
+현재 SWIMNOTE 디자인 시스템 유지.
+
+새 디자인 시스템 금지.
+
+화면 순서:
+
+[월 선택]
+
+↓
+
+[센터 Summary]
+
+↓
+
+[선생님별 목록]
+
+↓
+
+[선생님 상세]
+
+↓
+
+[관리자 확인]
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. ADMIN APP — CENTER SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일에서 핵심 숫자가
+처음 화면에 바로 보여야 합니다.
+
+예:
+
+9월 정산
+
+자동 기준 매출
+12,840,000원
+
+조정
+-180,000원
+
+반영 매출
+12,660,000원
+
+────────
+
+회원 126명
+수업료 설정 필요 3명
+
+정보를 카드 여러 개로 과도하게 쪼개지 마십시오.
+
+가독성 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. ADMIN APP — TEACHER LIST
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님별 기본 row/card:
+
+선생님 이름
+
+담당 회원
+자동 기준매출
+조정
+반영매출
+
+상태:
+
+정산 전
+저장됨
+관리자 확인
+저장 후 변경
+
+예:
+
+김선생
+
+담당회원 28명
+
+기준매출   3,420,000원
+조정         -70,000원
+반영매출   3,350,000원
+
+[저장됨]
+
+한눈에 비교 가능해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. ADMIN APP — TEACHER DETAIL
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님 선택 시:
+
+상단:
+
+선생님 이름
+상태
+
+담당회원
+정규 수업 횟수
+완료 보강
+자동 기준매출
+조정
+반영매출
+
+아래 학생별 목록.
+
+학생 row:
+
+학생 이름
+주1회 / 주2회 / 주3회
+
+선생님 배분 기준매출
+조정금액
+최종 반영금액
+
+학생 상세에서는:
+
+정상 월수업료
+기준 횟수
+학생 전체 정규수업
+해당 선생님 정규수업
+배분비율
+학생 전체 기준매출
+선생님 배분금액
+조정
+반영금액
+
+확인 가능.
+
+관리자는 여기서
+선생님의 adjustment를 임의 수정하지 않습니다.
+
+이번 WP에서
+관리자는 조회 + 최종 확인 역할입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 관리자 확인 / CONFIRM
+━━━━━━━━━━━━━━━━━━━━━━
+
+submitted 상태의 teacher settlement에 대해:
+
+관리자:
+
+[정산 확인]
+
+액션 제공.
+
+확인 시 기존 finalize endpoint를 사용하여:
+
+status='confirmed'
+
+로 변경.
+
+확인 전 간단한 confirmation UI 가능.
+
+confirmed 이후:
+
+- 선생님 수정 금지
+- 관리자 화면 read-only
+- 저장값 보호
+
+관리자가 AUTO 상태
+즉 선생님 미저장 정산을
+바로 confirmed 처리하면 안 됩니다.
+
+원칙:
+
+submitted
+→ confirmed
+
+만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. has_changed 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+submitted인데:
+
+has_changed=true
+
+이면
+
+“저장 후 변경”
+
+표시.
+
+관리자가 이 상태를 확인할 때
+현재 AUTO와 저장된 금액이 달라졌음을
+알 수 있어야 합니다.
+
+기본적으로:
+
+has_changed=true인 submitted 정산은
+바로 confirmed 하지 못하게 막는 방향을 우선 적용하십시오.
+
+사용자 안내:
+
+“저장 후 회원/시간표 정보가 변경되었습니다.
+선생님이 정산을 다시 저장해야 합니다.”
+
+정도로 표시.
+
+관리자가 실수로 오래된 snapshot을
+confirmed하지 않도록 합니다.
+
+새 workflow는 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. CURRENT PC DASHBOARD 통합
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 운영 중인 Dashboard에
+정산 화면을 통합합니다.
+
+별도 PC 프로그램을 새로 만들지 마십시오.
+
+현재 Dashboard 구조/라우팅/디자인을 유지하십시오.
+
+기존 revenue/settlement 관련 화면이 있다면
+그 위치를 재사용하고
+중복 메뉴를 만들지 마십시오.
+
+PC에서는:
+
+Table 중심
+
+으로 구성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. DASHBOARD 상단
+━━━━━━━━━━━━━━━━━━━━━━
+
+상단:
+
+[월 선택]
+
+그리고 Summary:
+
+자동 기준 매출
+조정 금액
+반영 매출
+
+회원 수
+수업료 설정 필요 수
+
+가능하면 한 화면 상단에서
+한눈에 확인.
+
+화려한 차트는 만들지 마십시오.
+
+이번 정산 화면의 목적은
+분석 Dashboard가 아니라
+운영/확인입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. DASHBOARD TEACHER TABLE
+━━━━━━━━━━━━━━━━━━━━━━
+
+권장 컬럼:
+
+선생님
+
+담당 회원
+
+정규 수업
+
+완료 보강
+
+자동 기준 매출
+
+조정 금액
+
+반영 매출
+
+상태
+
+변경 여부
+
+예:
+
+김선생
+28
+36회
+4회
+3,420,000
+-70,000
+3,350,000
+저장됨
+-
+
+박선생
+31
+42회
+1회
+3,810,000
+0
+3,810,000
+저장됨
+저장 후 변경
+
+불필요한 컬럼 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. DASHBOARD TEACHER DETAIL
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher row 클릭:
+
+오른쪽 Drawer
+또는 현재 Dashboard 패턴에 맞는
+Detail Panel.
+
+별도 페이지 이동이 기존 UX보다 나쁘다면
+Drawer 우선.
+
+상단:
+
+선생님 Summary
+
+아래:
+
+학생 Table.
+
+학생 Table 권장:
+
+학생
+
+주당 횟수
+
+전체 정규수업
+
+담당 정규수업
+
+배분비율
+
+학생 전체 기준매출
+
+선생님 기준매출
+
+조정
+
+반영매출
+
+상태
+
+너무 넓으면 일부 보조정보는
+row expand/detail로 이동.
+
+PC라고 모든 필드를 한 줄에
+억지로 넣지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. APP ↔ DASHBOARD UX 일관성
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP:
+
+Card/List
+→ Detail
+
+Dashboard:
+
+Table
+→ Drawer/Detail
+
+형태는 달라도 됩니다.
+
+하지만 다음은 동일:
+
+- 용어
+- 숫자 의미
+- 상태
+- 정보 순서
+- adjustment 의미
+- 월 기준
+- confirm 의미
+
+사용자가 APP을 알고 있으면
+PC도 바로 이해해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 공통 사용자 용어
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용:
+
+자동 기준 매출
+조정 금액
+반영 매출
+
+담당 회원
+정규 수업 횟수
+완료 보강
+
+주1회
+주2회
+주3회
+
+센터 수업료 설정 필요
+
+정산 전
+저장됨
+관리자 확인
+저장 후 변경
+
+금지:
+
+시수
+회원시수
+allocation
+snapshot
+AUTO 같은 내부 개발 용어의 직접 노출
+
+필요하면 “자동 기준 매출”로 표기.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. CURRENT API 우선 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 존재:
+
+GET /settlement/pool-summary
+GET /settlement/reports
+GET /settlement/calculator
+GET /settlement/my-status
+POST /settlement/finalize
+
+등을 우선 사용.
+
+APP/PC 화면 때문에
+새로운 계산 endpoint를 중복 생성하지 마십시오.
+
+단 현재 API contract만으로:
+
+- 각 teacher reflected amount
+- status
+- has_changed
+- student detail
+
+을 한 번에 안정적으로 제공하지 못한다면
+
+settlement-service를 재사용하는
+최소 read-only Admin endpoint 확장은 허용.
+
+조건:
+
+계산식 복제 금지.
+
+새 endpoint는
+같은 canonical service 결과를 반환해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. LEGACY 정산
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 monthly_settlements 중
+V2 이전 snapshot 구조가 있을 수 있습니다.
+
+관리자 APP/Dashboard가
+missing V2 field 때문에 crash하지 않도록 방어.
+
+기존 confirmed 기록은 read-only.
+
+legacy extra_manual_amount /
+extra_manual_memo를
+학생별 adjustment와 이중합산 금지.
+
+실제 legacy 데이터가 존재한다면
+어떻게 표현했는지 완료보고에 명시.
+
+대규모 backfill 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 현재 PRICING 미설정 Production 대응
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 일부/대부분 pool에
+pool_class_pricing이 아직 미설정일 수 있습니다.
+
+따라서 Dashboard/APP에서
+0원 센터로 오해하게 만들면 안 됩니다.
+
+예:
+
+자동 기준 매출
+계산 불완전
+
+수업료 설정 필요 회원 49명
+
+[수업료 설정]
+
+형태로 사용자에게 명확하게 안내.
+
+priced 학생이 일부 있는 경우:
+
+계산된 priced subtotal은 표시 가능.
+
+단:
+
+“수업료 미설정 회원 N명 제외”
+
+라는 의미가 명확해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. FUTURE PAYMENT 확장 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 화면의 금액은
+실제 수납액이 아닙니다.
+
+명칭:
+
+자동 기준 매출
+조정 금액
+반영 매출
+
+유지.
+
+향후 PC에서 별도로:
+
+실제 수납
+미수
+환불
+차이
+
+가 추가될 예정.
+
+이번 WP에서:
+
+결제
+PG
+카드
+계좌
+환불
+미수
+
+기능/필드/UI 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. FUTURE PC PROGRAM FOUNDATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Dashboard 구현은
+향후 독립 PC 운영프로그램의
+Reference UI가 됩니다.
+
+향후 PC를 만들 때:
+
+정산 계산 새로 개발 금지.
+
+동일 API를 사용하여:
+
+센터 Summary
+Teacher Table
+Student Detail
+Confirm
+
+을 그대로 재현할 수 있어야 합니다.
+
+이번 Dashboard에
+특정 화면에서만 통하는 계산/상태 로직을
+하드코딩하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. SIMPLE DESIGN
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요한 디자인 원칙:
+
+쉽고 직관적일 것.
+
+관리자가 화면을 열었을 때:
+
+1.
+이번 달 얼마인지 본다.
+
+2.
+어느 선생님이 얼마인지 본다.
+
+3.
+왜 그 금액인지 학생 목록에서 본다.
+
+4.
+문제가 있으면
+수업료 미설정 / 저장 후 변경 상태를 바로 찾는다.
+
+5.
+정상 submitted 정산만 확인한다.
+
+이 흐름에 필요 없는 UI는 만들지 마십시오.
+
+색상/장식보다
+정보 위계와 읽기 쉬운 숫자가 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. ADMIN 권한
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool_admin:
+
+자기 pool만 조회/confirm.
+
+super_admin:
+
+기존 시스템 정책 범위 안에서만 접근.
+
+teacher:
+
+Admin pool-summary / reports 전체 조회 금지.
+
+기존 JWT/role middleware 재사용.
+
+새 권한체계 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 대표 QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+다음만 확인.
+
+A.
+
+미저장 teacher:
+
+current auto = 1,000,000
+
+→ Admin reflected = 1,000,000
+PASS
+
+B.
+
+submitted teacher:
+
+saved total = 950,000
+current auto = 1,000,000
+
+→ Admin reflected = 950,000
+→ has_changed=true
+PASS
+
+C.
+
+confirmed teacher:
+
+saved total = 950,000
+
+→ Admin reflected = 950,000
+→ 수정 불가
+PASS
+
+D.
+
+Pool:
+
+teacher A reflected 1,000,000
+teacher B reflected 950,000
+
+→ reflected total 1,950,000
+PASS
+
+E.
+
+unpriced 3명:
+
+→ 0원 회원으로 표시 안 됨
+→ “수업료 설정 필요 3명”
+PASS
+
+F.
+
+submitted + has_changed=true
+
+→ 관리자 confirm 차단
+PASS
+
+G.
+
+submitted + has_changed=false
+
+→ 관리자 confirm
+→ status confirmed
+PASS
+
+H.
+
+confirmed 이후 teacher save
+→ 서버 차단
+PASS
+
+I.
+
+APP Admin 숫자
+=
+Dashboard 숫자
+
+동일 month/pool 기준 핵심 Summary/teacher amount 비교
+PASS
+
+J.
+
+Dashboard에서 frontend 계산식 없이
+서버 integer amount 그대로 표시
+PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 수정 발생 시:
+
+swimnote-api
+main Production
+Render live 확인.
+
+APP Admin 수정:
+
+production-v2
+runtimeVersion 2.2.0
+iOS OTA.
+
+Dashboard 수정:
+
+현재 swimnote-web
+Production 배포.
+
+각 배포는
+실제 LIVE SHA/ID 확인.
+
+migration은 원칙적으로 없어야 합니다.
+
+새 DB 구조가 필요하다고 판단하면
+적용 전에 중단하고 이유 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로만 보고:
+
+[A. ADMIN API]
+- 재사용 endpoint
+- 신규/수정 endpoint가 있다면 이유
+- reflected amount 계산 위치
+- confirm guard
+
+[B. ADMIN APP]
+- Summary
+- Teacher List
+- Teacher Detail
+- unpriced
+- has_changed
+- confirm UX
+
+[C. DASHBOARD]
+- 메뉴/route
+- Summary
+- Teacher Table
+- Detail Drawer/Panel
+- unpriced
+- confirm UX
+
+[D. APP ↔ PC CONSISTENCY]
+동일 pool/month 기준:
+- auto total
+- adjustment total
+- reflected total
+- teacher별 reflected amount
+비교 결과
+
+[E. LEGACY]
+- legacy settlement 표시/보존 방식
+
+[F. QA]
+A~J PASS/FAIL
+
+[G. DEPLOY]
+- 수정 파일
+- full work SHA 40자
+- API full LIVE SHA 40자
+- API Render Deploy ID/status
+- APP EAS Update Group full ID
+- APP iOS Update full ID
+- branch
+- runtimeVersion
+- Dashboard full LIVE SHA 40자
+- Dashboard Deploy ID/status
+- migration 여부
+
+중요:
+
+이번 WP에서
+새 정산 계산기를 만들지 마십시오.
+
+APP/PC 모두
+기존 Settlement Service/Calculator 결과만 사용하십시오.
+
+불필요한 전체 audit 금지.
+Realtime/SSE 조사 금지.
+Payment 구현 금지.
+정산 범위 밖 refactor 금지.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
+
+구조상 실제 blocker가 없다면
+중간 장문 보고 없이:
+
+구현
+→ 대표 QA
+→ Production 배포
+→ 완료보고
+
+까지 진행하십시오.
