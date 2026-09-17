@@ -2,8 +2,11 @@
  * platform-banners.ts
  * 슈퍼관리자 전용 플랫폼 배너 CRUD + 학부모 공개 조회 + 이미지 업로드
  *
- * Public:
- *   GET /platform/banners?type=strip|slider   — 활성 배너 목록 (학부모 앱)
+ * Public (인증 없음):
+ *   GET /public/banners                        — 공개 홈페이지용 배너 (비로그인, READ ONLY)
+ *
+ * Authenticated (학부모 앱):
+ *   GET /platform/banners?type=strip|slider   — 활성 배너 목록 (requireAuth 유지)
  *
  * Super-admin only:
  *   POST   /super/banner-upload               — 배너 이미지 업로드
