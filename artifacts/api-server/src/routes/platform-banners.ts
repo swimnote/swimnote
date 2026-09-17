@@ -15,18 +15,18 @@
  */
 import { Router } from "express";
 import multer from "multer";
-import { Client } from "@replit/object-storage";
+import { uploadToR2 } from "../lib/objectStorage.js";
 import { superAdminDb } from "@workspace/db";
 import { platformBannersTable } from "@workspace/db/schema";
-import { eq, and, lte, gte, desc, sql } from "drizzle-orm";
+import { eq, and, lte, gte, desc, sql, or, ne } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const SUPER_ROLES = ["super_admin", "platform_admin", "super_manager"];
 
-let _storage: Client | null = null;
-function getStorage() { if (!_storage) _storage = new Client(); return _storage; }
+/** strip 배너 동시 등록 최대 수 */
+const MAX_STRIP_SLIDES = 4;
 
 function err(res: any, status: number, msg: string) {
   return res.status(status).json({ success: false, message: msg });
@@ -50,7 +50,7 @@ function validateBannerTitle(
   const newlineCount = (title.match(/\n/g) || []).length;
   if (bannerType === "strip") {
     if (newlineCount > 0)   return { ok: false, message: "가로 배너 제목에는 줄바꿈을 사용할 수 없습니다." };
-    if (title.length > 15)  return { ok: false, message: "가로 배너 제목은 최대 15자입니다." };
+    if (title.length > 30)  return { ok: false, message: "가로 배너 제목은 최대 30자입니다." };
   }
   if (bannerType === "slider") {
     if (newlineCount > 1)   return { ok: false, message: "카드 배너 제목은 줄바꿈을 최대 1회(2줄)만 허용합니다." };
@@ -59,7 +59,25 @@ function validateBannerTitle(
   return { ok: true };
 }
 
+/** 활성 + 예약 중인 strip 배너 수 조회 (4개 제한 체크용) */
+async function countActiveStripBanners(excludeId?: string): Promise<number> {
+  const conditions: any[] = [
+    eq(platformBannersTable.banner_type as any, "strip"),
+    or(
+      eq(platformBannersTable.status, "active"),
+      eq(platformBannersTable.status, "scheduled"),
+    ) as any,
+  ];
+  if (excludeId) conditions.push(ne(platformBannersTable.id, excludeId));
+  const rows = await superAdminDb
+    .select({ id: platformBannersTable.id })
+    .from(platformBannersTable)
+    .where(and(...conditions));
+  return rows.length;
+}
+
 // ── SUPER: 배너 이미지 업로드 ──────────────────────────────────────────
+// 이미지는 Cloudflare R2(photo bucket)에 저장 → GET /uploads/:key로 서빙
 router.post("/super/banner-upload", requireAuth, upload.single("image"), async (req: AuthRequest, res) => {
   if (!requireSuper(req, res)) return;
   try {
@@ -70,11 +88,16 @@ router.post("/super/banner-upload", requireAuth, upload.single("image"), async (
     if (!allowedExts.includes(ext)) return err(res, 400, "jpg/png/gif/webp 파일만 가능합니다.");
 
     const key = `banner-images/${Date.now()}_${Math.random().toString(36).substr(2, 8)}.${ext}`;
-    const client = getStorage();
-    const { ok, error } = await client.uploadFromBytes(key, file.buffer);
-    if (!ok) throw new Error(error?.message || "업로드 실패");
+    const mimeMap: Record<string, string> = {
+      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+      gif: "image/gif", webp: "image/webp",
+    };
+    const contentType = mimeMap[ext] || "image/jpeg";
 
-    // 이미지 서빙 URL (기존 uploads GET 핸들러와 동일한 경로 형식)
+    // uploadToR2 → Cloudflare R2 photo bucket (GET /uploads/:key와 동일한 버킷)
+    const { ok, error } = await uploadToR2(key, file.buffer, contentType, "photo");
+    if (!ok) throw new Error(error || "업로드 실패");
+
     return res.json({ success: true, key, url: key });
   } catch (e: any) {
     console.error("[banner-upload] 오류:", e);
@@ -112,7 +135,17 @@ router.get("/platform/banners", requireAuth, async (req: AuthRequest, res) => {
       return target === "all" || target === userRole;
     });
 
-    return res.json({ success: true, banners: rows });
+    // image_key가 있는 경우 display_url을 서버에서 조합하여 내려줌
+    // 클라이언트가 API_BASE를 직접 조합하지 않아도 됨
+    const apiBase = `${req.protocol}://${req.get("host")}/api`;
+    const enriched = rows.map(b => ({
+      ...b,
+      display_url: (b as any).image_key
+        ? `${apiBase}/uploads/${(b as any).image_key}`
+        : ((b as any).image_url || null),
+    }));
+
+    return res.json({ success: true, banners: enriched });
   } catch (e: any) {
     console.error("[platform-banners] 조회 오류:", e);
     return err(res, 500, "서버 오류");
@@ -147,6 +180,13 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
   const finalType = (banner_type ?? "slider") as "strip" | "slider";
   const titleCheck = validateBannerTitle(title.trim(), finalType);
   if (!titleCheck.ok) return err(res, 400, titleCheck.message!);
+  // strip 배너 최대 4개 제한
+  if (finalType === "strip" && (status === "active" || status === "scheduled" || !status)) {
+    const count = await countActiveStripBanners();
+    if (count >= MAX_STRIP_SLIDES) {
+      return err(res, 400, `가로 배너는 최대 ${MAX_STRIP_SLIDES}개까지만 등록할 수 있습니다.`);
+    }
+  }
   try {
     const id = `banner_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
     const [row] = await superAdminDb.execute(sql`

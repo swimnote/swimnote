@@ -1,24 +1,35 @@
 /**
- * ParentPromoStrip — 학부모 홈 슬림 가로 배너
+ * ParentPromoStrip v2 — 학부모 홈 가로 프로모션 배너
  *
- * - /platform/banners API 첫 번째 활성 배너를 단일 가로줄로 표시
- * - 높이: 기존 카드 배너의 약 30% (42px)
- * - 없으면 기본 스윔노트 안내 문구 표시
+ * - GET /platform/banners?type=strip 에서 활성 배너 목록(최대 4개) 가져옴
+ * - 1개: 단일 배너, 자동전환 없음
+ * - 2~4개: FlatList horizontal 슬라이드 + 15초 자동전환 + 수동 스와이프
+ * - 배너 없음: FALLBACK 문구
+ * - AppState background → 타이머 pause / foreground → resume
+ * - 비율: 16:5 (기기 폭 - 40px)
  */
-import React, { useEffect, useState } from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AppState,
+  Dimensions,
+  FlatList,
+  Image,
+  Linking,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { API_BASE, useAuth } from "@/context/AuthContext";
 
-interface Banner {
-  id: string;
-  title: string;
-  description?: string;
-  link_url?: string;
-  color_theme: string;
-  image_key?: string;
-  image_url?: string;
-}
+const SCREEN_W = Dimensions.get("window").width;
+const BANNER_MX = 20;
+const BANNER_W = SCREEN_W - BANNER_MX * 2;
+const ASPECT = 16 / 5;
+const BANNER_H = Math.round(BANNER_W / ASPECT);
+const DEFAULT_SLIDE_MS = 15000;
 
 const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = {
   teal:   { bg: "#EEF9FB", accent: "#1683A3", text: "#163842" },
@@ -29,24 +40,67 @@ const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = 
   red:    { bg: "#FEE2E2", accent: "#DC2626", text: "#991B1B" },
   pink:   { bg: "#FCE7F3", accent: "#DB2777", text: "#831843" },
 };
+const DEFAULT_THEME = { bg: "#FFFFFF", accent: "#1B3A70", text: "#1B3A70" };
 
-const DEFAULT = { bg: "#FFFFFF", accent: "#1B3A70", text: "#1B3A70" };
+interface BannerSlide {
+  id: string;
+  title: string;
+  description?: string;
+  color_theme: string;
+  link_url?: string;
+  display_url?: string;   // 서버에서 조합된 이미지 URL (image_key 기반)
+  image_url?: string;
+}
 
-const FALLBACK = {
+const FALLBACK: BannerSlide = {
+  id: "__fallback__",
   title: "스윔노트 — 우리 아이 수영 성장을 기록해보세요",
-  link_url: "",
   color_theme: "teal",
 };
 
+// 슬라이드 하나 렌더러
+function SlideItem({ slide, onPress }: { slide: BannerSlide; onPress?: () => void }) {
+  const imgUri = slide.display_url || slide.image_url || "";
+  const th = THEME_MAP[slide.color_theme] ?? DEFAULT_THEME;
+
+  if (imgUri) {
+    return (
+      <Pressable style={s.slide} onPress={onPress}>
+        <Image source={{ uri: imgUri }} style={s.img} resizeMode="cover" />
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable style={[s.slide, s.textSlide, { backgroundColor: th.bg }]} onPress={onPress}>
+      <View style={s.textInner}>
+        <Text style={[s.title, { color: th.text }]} numberOfLines={2}>
+          {slide.title}
+        </Text>
+        {!!slide.description && (
+          <Text style={[s.desc, { color: th.text }]} numberOfLines={2}>
+            {slide.description}
+          </Text>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
 export function ParentPromoStrip() {
   const { token, isLoading } = useAuth();
-  const [banner, setBanner] = useState<Banner | null>(null);
+  const [slides, setSlides] = useState<BannerSlide[]>([]);
   const [ready, setReady] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
 
+  const flatRef = useRef<FlatList<BannerSlide>>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idxRef = useRef(0);
+  const pausedRef = useRef(false);
+
+  // ── fetch ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    // auth 초기화 중이면 대기
     if (isLoading) return;
-    // 유효한 토큰 없으면 fallback 즉시 표시
     if (!token) { setReady(true); return; }
 
     let cancelled = false;
@@ -57,86 +111,127 @@ export function ParentPromoStrip() {
         });
         if (!r.ok) return;
         const data = await r.json();
-        const first: Banner | undefined = data.banners?.[0];
-        if (!cancelled && first) setBanner(first);
+        const list: BannerSlide[] = (data.banners ?? []).map((b: any) => ({
+          id:          b.id,
+          title:       b.title ?? "",
+          description: b.description ?? "",
+          color_theme: b.color_theme ?? "teal",
+          link_url:    b.link_url ?? "",
+          display_url: b.display_url ?? "",
+          image_url:   b.image_url ?? "",
+        }));
+        if (!cancelled && list.length > 0) setSlides(list);
       } catch {}
       finally { if (!cancelled) setReady(true); }
     })();
     return () => { cancelled = true; };
   }, [isLoading, token]);
 
-  const src = banner ?? FALLBACK;
-  const th = THEME_MAP[src.color_theme] ?? DEFAULT;
-  const imgUri = banner?.image_key
-    ? `${API_BASE}/uploads/${banner.image_key}`
-    : (banner?.image_url || "");
+  // ── 자동 슬라이드 타이머 ───────────────────────────────────────────────
+  const startTimer = useCallback(() => {
+    if (slides.length < 2) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      if (pausedRef.current) return;
+      const next = (idxRef.current + 1) % slides.length;
+      idxRef.current = next;
+      setCurrentIdx(next);
+      flatRef.current?.scrollToIndex({ index: next, animated: true });
+    }, DEFAULT_SLIDE_MS);
+  }, [slides.length]);
+
+  useEffect(() => {
+    if (!ready || slides.length < 2) return;
+    startTimer();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [ready, startTimer]);
+
+  // ── AppState pause / resume ────────────────────────────────────────────
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        pausedRef.current = false;
+      } else {
+        pausedRef.current = true;
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // ── 수동 스와이프 핸들러 ───────────────────────────────────────────────
+  function onMomentumScrollEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / BANNER_W);
+    idxRef.current = idx;
+    setCurrentIdx(idx);
+    // 스와이프 후 타이머 리셋
+    if (slides.length >= 2) startTimer();
+  }
 
   if (!ready) return null;
 
-  if (imgUri) {
-    return (
-      <Pressable
-        style={s.stripImg}
-        onPress={() => { if (src.link_url) Linking.openURL(src.link_url).catch(() => {}); }}
-      >
-        <Image source={{ uri: imgUri }} style={s.imgFull} resizeMode="cover" />
-      </Pressable>
-    );
-  }
-
-  const hasDesc = !!("description" in src && (src as Banner).description);
+  const displaySlides = slides.length > 0 ? slides : [FALLBACK];
+  const showIndicator = displaySlides.length > 1;
 
   return (
-    <Pressable
-      style={[s.strip, { backgroundColor: th.bg }]}
-      onPress={() => {
-        if (src.link_url) Linking.openURL(src.link_url).catch(() => {});
-      }}
-    >
-      <View style={s.textWrap}>
-        <Text style={[s.title, { color: th.text }]} numberOfLines={2}>{src.title}</Text>
-        {hasDesc && (
-          <Text style={[s.desc, { color: th.text }]} numberOfLines={2}>
-            {(src as Banner).description}
-          </Text>
+    <View style={s.container}>
+      <FlatList
+        ref={flatRef}
+        data={displaySlides}
+        keyExtractor={item => item.id}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={displaySlides.length > 1}
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        getItemLayout={(_, index) => ({ length: BANNER_W, offset: BANNER_W * index, index })}
+        renderItem={({ item }) => (
+          <SlideItem
+            slide={item}
+            onPress={() => { if (item.link_url) Linking.openURL(item.link_url).catch(() => {}); }}
+          />
         )}
-      </View>
-      {!!src.link_url && (
-        <LucideIcon name="chevron-right" size={14} color={th.accent} />
+      />
+      {showIndicator && (
+        <View style={s.dots}>
+          {displaySlides.map((_, i) => (
+            <View key={i} style={[s.dot, i === currentIdx && s.dotActive]} />
+          ))}
+        </View>
       )}
-    </Pressable>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  strip: {
-    marginHorizontal: 20,
-    borderRadius: 12,
-    minHeight: 72,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
+  container: {
+    marginHorizontal: BANNER_MX,
   },
-  stripImg: {
-    marginHorizontal: 20,
+  slide: {
+    width: BANNER_W,
+    height: BANNER_H,
     borderRadius: 12,
-    height: 80,
     overflow: "hidden",
   },
-  imgFull: { width: "100%", height: 80 },
-  textWrap: {
-    flex: 1,
-    gap: 4,
+  img: {
+    width: BANNER_W,
+    height: BANNER_H,
+  },
+  textSlide: {
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  textInner: {
+    alignItems: "center",
+    gap: 6,
   },
   title: {
     fontSize: 13,
     fontFamily: "Pretendard-SemiBold",
-    lineHeight: 18,
+    lineHeight: 19,
     textAlign: "center",
   },
   desc: {
@@ -145,5 +240,21 @@ const s = StyleSheet.create({
     lineHeight: 17,
     textAlign: "center",
     opacity: 0.8,
+  },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 7,
+    gap: 5,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#CBD5E1",
+  },
+  dotActive: {
+    backgroundColor: "#1683A3",
+    width: 14,
   },
 });

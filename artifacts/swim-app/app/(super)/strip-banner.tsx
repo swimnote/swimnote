@@ -1,163 +1,181 @@
 /**
- * (super)/strip-banner.tsx — 가로줄 배너 관리
- * 학부모 홈 상단 가로 스트립 배너 등록/수정/상태 변경/삭제 + 이미지 업로드
+ * (super)/strip-banner.tsx — 가로 프로모션 배너 관리 V2
+ *
+ * - 1 row = 1 slide (기존 platform_banners 구조 그대로)
+ * - 최대 4개 슬라이드 (active + scheduled 기준)
+ * - 실제 16:5 비율 미리보기
+ * - TEXT / IMAGE 타입 선택
+ * - IMAGE: expo-image-picker aspect:[16,5] allowsEditing:true
+ * - sort_order로 순서 관리 (← → 버튼)
  */
-import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useEffect, useMemo, useState } from "react";
-import {ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator, Alert, Dimensions, FlatList, Image,
+  Modal, Pressable, StyleSheet, Text, TextInput, View,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { useAdsStore, type Ad, type AdStatus } from "@/store/adsStore";
-import { useAuth } from "@/context/AuthContext";
-import { API_BASE } from "@/context/AuthContext";
+import { useAuth, API_BASE } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
 const P = "#7C3AED";
 
-const STATUS_CFG: Record<AdStatus, { label: string; dot: string; badge: string }> = {
-  active:    { label: "노출 중",  dot: "#22C55E", badge: "#DCFCE7" },
-  scheduled: { label: "예약됨",  dot: "#D97706", badge: "#FEF9C3" },
-  inactive:  { label: "비활성",  dot: C.textMuted, badge: C.backgroundSoft },
-};
+const SCREEN_W = Dimensions.get("window").width;
+// 모달 내부 패딩 40 (양쪽 20씩)
+const MODAL_INNER_W = SCREEN_W - 40;
+const PREVIEW_H = Math.round(MODAL_INNER_W / (16 / 5));
 
-const TARGET_LABELS: Record<string, string> = {
-  all: "전체", parent: "학부모", teacher: "선생님", admin: "관리자",
+const MAX_SLIDES = 4;
+const TITLE_MAX = 30;
+const DESC_MAX  = 60;
+
+const STATUS_CFG: Record<AdStatus, { label: string; dot: string; badge: string }> = {
+  active:    { label: "노출 중", dot: "#22C55E", badge: "#DCFCE7" },
+  scheduled: { label: "예약됨", dot: "#D97706", badge: "#FEF9C3" },
+  inactive:  { label: "비활성", dot: C.textMuted, badge: C.backgroundSoft },
 };
 
 const THEMES = ["teal","purple","orange","blue","green","red","pink"] as const;
 const THEME_COLORS: Record<string, string> = {
-  teal: C.brandStrong, purple: "#7C3AED", orange: "#F97316",
+  teal: "#1683A3", purple: "#7C3AED", orange: "#F97316",
   blue: "#2563EB", green: "#059669", red: "#DC2626", pink: "#DB2777",
 };
 const THEME_BG: Record<string, string> = {
-  teal: C.brandSoft, purple: "#EDE9FE", orange: "#FFF7ED",
+  teal: "#EEF9FB", purple: "#EDE9FE", orange: "#FFF7ED",
   blue: "#DBEAFE", green: "#D1FAE5", red: "#FEE2E2", pink: "#FCE7F3",
 };
 
-type Filter = "all" | AdStatus;
+type BannerType = "text" | "image";
 
-function imageUrl(key: string) {
-  if (!key) return "";
-  if (key.startsWith("http")) return key;
-  return `${API_BASE}/uploads/${key}`;
+interface FormState {
+  bannerType: BannerType;
+  title: string;
+  description: string;
+  linkUrl: string;
+  displayStart: string;
+  displayEnd: string;
+  status: AdStatus;
+  colorTheme: string;
+  // image
+  imageUri: string;   // 로컬 선택된 uri (업로드 전)
+  imageKey: string;   // 업로드 완료된 R2 key
+  imageUrl: string;   // 기존 image_url
+  displayUrl: string; // 서버에서 내려온 display_url
 }
 
-function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
-  ad: Ad;
-  onEdit: (ad: Ad) => void;
-  onStatusChange: (id: string, status: AdStatus) => void;
-  onDelete: (id: string) => void;
-}) {
-  const cfg = STATUS_CFG[ad.status];
-  const accentColor = THEME_COLORS[ad.colorTheme] ?? THEME_COLORS.teal;
-  const bgColor     = THEME_BG[ad.colorTheme] ?? THEME_BG.teal;
-  const img = imageUrl(ad.imageKey || ad.imageUrl);
+function blankForm(): FormState {
+  const today = new Date().toISOString().slice(0, 10);
+  const future = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  return {
+    bannerType: "text",
+    title: "", description: "", linkUrl: "",
+    displayStart: today, displayEnd: future,
+    status: "inactive", colorTheme: "teal",
+    imageUri: "", imageKey: "", imageUrl: "", displayUrl: "",
+  };
+}
 
+function adToForm(ad: Ad): FormState {
+  const hasImage = !!(ad.imageKey || ad.imageUrl);
+  return {
+    bannerType: hasImage ? "image" : "text",
+    title: ad.title,
+    description: ad.description,
+    linkUrl: ad.linkUrl,
+    displayStart: ad.displayStart.slice(0, 10),
+    displayEnd: ad.displayEnd.slice(0, 10),
+    status: ad.status,
+    colorTheme: ad.colorTheme,
+    imageUri: "",
+    imageKey: ad.imageKey,
+    imageUrl: ad.imageUrl,
+    displayUrl: (ad as any).displayUrl ?? "",
+  };
+}
+
+// 미리보기: 실제 ParentPromoStrip과 동일한 렌더러
+function BannerPreview({ form }: { form: FormState }) {
+  const imgUri = form.imageUri
+    ? form.imageUri
+    : (form.displayUrl || (form.imageKey ? `${API_BASE}/uploads/${form.imageKey}` : form.imageUrl) || "");
+  const th = { bg: THEME_BG[form.colorTheme] ?? "#fff", text: THEME_COLORS[form.colorTheme] ?? "#1B3A70" };
+
+  if (form.bannerType === "image" && imgUri) {
+    return (
+      <Image
+        source={{ uri: imgUri }}
+        style={[pv.box, { height: PREVIEW_H }]}
+        resizeMode="cover"
+      />
+    );
+  }
+  if (form.bannerType === "image" && !imgUri) {
+    return (
+      <View style={[pv.box, pv.placeholder, { height: PREVIEW_H }]}>
+        <LucideIcon name="image" size={28} color="#CBD5E1" />
+        <Text style={pv.placeholderTxt}>이미지를 선택하세요</Text>
+      </View>
+    );
+  }
   return (
-    <View style={ac.card}>
-      <View style={ac.top}>
-        <View style={[ac.statusDot, { backgroundColor: cfg.dot }]} />
-        <View style={{ flex: 1 }}>
-          <Text style={ac.title} numberOfLines={1}>{ad.title}</Text>
-          <Text style={ac.target}>{TARGET_LABELS[ad.target]} | {cfg.label}</Text>
-        </View>
-        <View style={[ac.badge, { backgroundColor: cfg.badge }]}>
-          <View style={[{ width: 6, height: 6, borderRadius: 3, backgroundColor: cfg.dot }]} />
-          <Text style={[ac.badgeTxt, { color: cfg.dot }]}>{cfg.label}</Text>
-        </View>
-      </View>
-
-      {img ? (
-        <Image source={{ uri: img }} style={ac.previewImg} resizeMode="cover" />
-      ) : (
-        <View style={[ac.previewStrip, { backgroundColor: bgColor }]}>
-          <View style={[ac.stripIconWrap, { backgroundColor: accentColor + "22" }]}>
-            <LucideIcon name="megaphone" size={12} color={accentColor} />
-          </View>
-          <Text style={[ac.stripTitle, { color: accentColor }]} numberOfLines={1}>{ad.title}</Text>
-          {ad.linkUrl ? <LucideIcon name="chevron-right" size={12} color={accentColor} /> : null}
-        </View>
-      )}
-
-      {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
-
-      <View style={ac.dateRow}>
-        <LucideIcon name="calendar" size={11} color={C.textMuted} />
-        <Text style={ac.dateTxt}>
-          {ad.displayStart.slice(0, 10)} ~ {ad.displayEnd.slice(0, 10)}
+    <View style={[pv.box, pv.textBox, { height: PREVIEW_H, backgroundColor: th.bg }]}>
+      <Text style={[pv.title, { color: th.text }]} numberOfLines={2}>
+        {form.title || "제목을 입력하세요"}
+      </Text>
+      {!!form.description && (
+        <Text style={[pv.desc, { color: th.text }]} numberOfLines={2}>
+          {form.description}
         </Text>
-      </View>
-
-      <View style={ac.actions}>
-        {ad.status !== "active" && (
-          <Pressable style={[ac.btn, { backgroundColor: "#DCFCE7" }]} onPress={() => onStatusChange(ad.id, "active")}>
-            <Text style={[ac.btnTxt, { color: "#16A34A" }]}>노출 시작</Text>
-          </Pressable>
-        )}
-        {ad.status === "active" && (
-          <Pressable style={[ac.btn, { backgroundColor: C.backgroundSoft }]} onPress={() => onStatusChange(ad.id, "inactive")}>
-            <Text style={[ac.btnTxt, { color: C.textSecondary }]}>중지</Text>
-          </Pressable>
-        )}
-        <Pressable style={[ac.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => onEdit(ad)}>
-          <Text style={[ac.btnTxt, { color: "#7C3AED" }]}>수정</Text>
-        </Pressable>
-        <Pressable style={[ac.btn, { backgroundColor: "#FEE2E2" }]} onPress={() => onDelete(ad.id)}>
-          <Text style={[ac.btnTxt, { color: "#DC2626" }]}>삭제</Text>
-        </Pressable>
-      </View>
+      )}
     </View>
   );
 }
 
-const ac = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
-  top:         { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
-  statusDot:   { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  title:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  target:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
-  badge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
-  badgeTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  previewStrip:{ flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, height: 36, paddingHorizontal: 10, marginBottom: 8 },
-  stripIconWrap:{ width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  stripTitle:  { flex: 1, fontSize: 11, fontFamily: "Pretendard-SemiBold" },
-  previewImg:  { width: "100%", height: 60, borderRadius: 8, marginBottom: 8 },
-  desc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6, lineHeight: 18 },
-  dateRow:     { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 10 },
-  dateTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  actions:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  btn:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
+const pv = StyleSheet.create({
+  box:          { width: "100%", borderRadius: 10, overflow: "hidden" },
+  placeholder:  { backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: "#E2E8F0" },
+  placeholderTxt:{ fontSize: 12, color: "#94A3B8", fontFamily: "Pretendard-Regular" },
+  textBox:      { alignItems: "center", justifyContent: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 6, borderWidth: 1, borderColor: "#CBD5E1" },
+  title:        { fontSize: 13, fontFamily: "Pretendard-SemiBold", lineHeight: 19, textAlign: "center" },
+  desc:         { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17, textAlign: "center", opacity: 0.8 },
 });
 
-// ── 배너 제목 검증 (서버와 동일한 규칙) ──────────────────────────────────
-function validateBannerTitle(title: string, bannerType: "strip" | "slider"): string | null {
-  const newlineCount = (title.match(/\n/g) || []).length;
-  if (bannerType === "strip") {
-    if (newlineCount > 0)  return "가로 배너 제목에는 줄바꿈을 사용할 수 없습니다.";
-    if (title.length > 15) return "제목은 최대 15자입니다.";
-  }
-  return null;
+// 슬라이드 탭 컴포넌트
+function SlideTab({ index, ad, selected, onPress }: {
+  index: number; ad: Ad | null; selected: boolean; onPress: () => void;
+}) {
+  const hasImg = !!(ad?.imageKey || ad?.imageUrl || (ad as any)?.displayUrl);
+  const cfg = ad ? STATUS_CFG[ad.status] : null;
+  return (
+    <Pressable onPress={onPress} style={[st.tab, selected && st.tabSelected]}>
+      {ad ? (
+        <>
+          <View style={[st.statusDot, { backgroundColor: cfg?.dot ?? "#CBD5E1" }]} />
+          <Text style={[st.tabNum, selected && st.tabNumSelected]}>
+            {index + 1}
+          </Text>
+          <LucideIcon name={hasImg ? "image" : "type"} size={10} color={selected ? "#fff" : C.textMuted} />
+        </>
+      ) : (
+        <Text style={[st.tabNum, { color: C.textMuted }]}>+</Text>
+      )}
+    </Pressable>
+  );
 }
 
-interface FormState {
-  title: string; description: string; linkUrl: string; linkLabel: string;
-  displayStart: string; displayEnd: string;
-  status: AdStatus; target: Ad["target"]; colorTheme: string;
-  imageUri: string; imageKey: string; imageUrl: string;
-}
-
-const BLANK: FormState = {
-  title: "", description: "", linkUrl: "", linkLabel: "",
-  displayStart: new Date().toISOString().slice(0, 10),
-  displayEnd: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-  status: "inactive", target: "all", colorTheme: "teal",
-  imageUri: "", imageKey: "", imageUrl: "",
-};
+const st = StyleSheet.create({
+  tab:          { width: 44, height: 44, borderRadius: 10, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center", gap: 2 },
+  tabSelected:  { backgroundColor: P },
+  tabNum:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  tabNumSelected:{ color: "#fff" },
+  statusDot:    { width: 5, height: 5, borderRadius: 3 },
+});
 
 export default function StripBannerScreen() {
   const insets = useSafeAreaInsets();
@@ -174,44 +192,46 @@ export default function StripBannerScreen() {
 
   useEffect(() => { if (token) fetchBanners(token, "strip"); }, [token]);
 
-  const [filter, setFilter] = useState<Filter>("all");
+  // sort_order 기준 정렬
+  const sortedAds = useMemo(
+    () => [...stripAds].sort((a, b) => a.sortOrder - b.sortOrder),
+    [stripAds],
+  );
+
+  // 활성/예약 중인 슬라이드 수 (최대 4개 기준)
+  const activeCount = useMemo(
+    () => sortedAds.filter(a => a.status === "active" || a.status === "scheduled").length,
+    [sortedAds],
+  );
+
   const [showModal, setShowModal] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState(0);      // 편집 중인 슬라이드 index
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(BLANK);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(blankForm());
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [titleError, setTitleError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [titleErr, setTitleErr] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    if (filter === "all") return stripAds;
-    return stripAds.filter(a => a.status === filter);
-  }, [stripAds, filter]);
+  // 현재 선택된 슬라이드 (미리보기용)
+  const selectedAd = sortedAds[selectedIdx] ?? null;
 
-  const counts = useMemo(() => ({
-    active:    stripAds.filter(a => a.status === "active").length,
-    scheduled: stripAds.filter(a => a.status === "scheduled").length,
-    inactive:  stripAds.filter(a => a.status === "inactive").length,
-  }), [stripAds]);
-
-  function openCreate() {
-    setEditId(null);
-    setForm(BLANK);
-    setTitleError(null);
+  function openEdit(ad: Ad, idx: number) {
+    setEditId(ad.id);
+    setSelectedIdx(idx);
+    setForm(adToForm(ad));
+    setTitleErr(null);
     setShowModal(true);
   }
 
-  function openEdit(ad: Ad) {
-    setEditId(ad.id);
-    setTitleError(null);
-    setForm({
-      title: ad.title, description: ad.description,
-      linkUrl: ad.linkUrl, linkLabel: ad.linkLabel,
-      displayStart: ad.displayStart.slice(0, 10),
-      displayEnd: ad.displayEnd.slice(0, 10),
-      status: ad.status, target: ad.target, colorTheme: ad.colorTheme,
-      imageUri: "", imageKey: ad.imageKey, imageUrl: ad.imageUrl,
-    });
+  function openCreate() {
+    if (activeCount >= MAX_SLIDES) {
+      Alert.alert("슬라이드 최대", `가로 배너는 최대 ${MAX_SLIDES}개까지 등록할 수 있습니다.`);
+      return;
+    }
+    setEditId(null);
+    setForm(blankForm());
+    setTitleErr(null);
     setShowModal(true);
   }
 
@@ -221,46 +241,73 @@ export default function StripBannerScreen() {
       Alert.alert("권한 필요", "사진 라이브러리 접근 권한이 필요합니다.");
       return;
     }
+    // expo-image-picker v55+: aspect [16,5] + allowsEditing → iOS에서 crop 지원
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
-      aspect: [8, 1],
-      quality: 0.85,
+      aspect: [16, 5],
+      quality: 0.9,
     });
     if (!result.canceled && result.assets?.[0]) {
       const asset = result.assets[0];
       const uri = await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined);
-      setForm(f => ({ ...f, imageUri: uri, imageKey: "", imageUrl: "" }));
+      setForm(f => ({ ...f, imageUri: uri, imageKey: "", imageUrl: "", displayUrl: "" }));
     }
   }
 
   async function handleSave() {
-    if (!form.title.trim() || !token) return;
-    const validationError = validateBannerTitle(form.title.trim(), "strip");
-    if (validationError) { setTitleError(validationError); return; }
-    setTitleError(null);
+    if (!token) return;
+
+    // IMAGE 타입 검증
+    if (form.bannerType === "image") {
+      const hasImage = form.imageUri || form.imageKey || form.imageUrl || form.displayUrl;
+      if (!hasImage) {
+        Alert.alert("이미지 필요", "이미지를 선택해주세요.");
+        return;
+      }
+    } else {
+      // TEXT 타입 검증
+      if (!form.title.trim()) { setTitleErr("제목을 입력해주세요."); return; }
+      if (form.title.length > TITLE_MAX) { setTitleErr(`제목은 최대 ${TITLE_MAX}자입니다.`); return; }
+    }
+    setTitleErr(null);
     setSaving(true);
+
     try {
       let finalKey = form.imageKey;
       let finalUrl = form.imageUrl;
 
-      if (form.imageUri) {
+      if (form.bannerType === "image" && form.imageUri) {
         setUploading(true);
-        const fileName = `strip_${Date.now()}.jpg`;
-        const uploaded = await uploadImage(token, form.imageUri, fileName, "image/jpeg");
+        const uploaded = await uploadImage(token, form.imageUri, `strip_${Date.now()}.jpg`, "image/jpeg");
         setUploading(false);
-        if (uploaded) { finalKey = uploaded.key; finalUrl = uploaded.url; }
+        if (!uploaded) {
+          Alert.alert("업로드 실패", "이미지 업로드에 실패했습니다. 다시 시도해주세요.");
+          setSaving(false);
+          return;
+        }
+        finalKey = uploaded.key;
+        finalUrl = uploaded.url;
       }
 
-      const startIso = new Date(form.displayStart).toISOString();
-      const endIso   = new Date(form.displayEnd).toISOString();
+      // IMAGE 타입이면 텍스트 필드 비움, TEXT 타입이면 이미지 필드 비움
+      const isImage = form.bannerType === "image";
       const params = {
-        bannerType: "strip" as const,
-        title: form.title, description: form.description,
-        linkUrl: form.linkUrl, linkLabel: form.linkLabel,
-        colorTheme: form.colorTheme, target: form.target, status: form.status,
-        displayStart: startIso, displayEnd: endIso,
-        imageKey: finalKey, imageUrl: finalUrl,
+        bannerType:   "strip" as const,
+        title:        isImage ? (form.title.trim() || "배너") : form.title.trim(),
+        description:  isImage ? "" : form.description.trim(),
+        imageKey:     isImage ? finalKey : "",
+        imageUrl:     isImage ? finalUrl : "",
+        colorTheme:   form.colorTheme,
+        linkUrl:      form.linkUrl.trim(),
+        linkLabel:    "",
+        status:       form.status,
+        target:       "all" as const,
+        displayStart: new Date(form.displayStart).toISOString(),
+        displayEnd:   new Date(form.displayEnd).toISOString(),
+        sortOrder:    editId
+          ? (sortedAds.find(a => a.id === editId)?.sortOrder ?? 0)
+          : sortedAds.length,
       };
 
       if (editId) {
@@ -269,210 +316,321 @@ export default function StripBannerScreen() {
         await createAd(token, params);
       }
       setShowModal(false);
+      await fetchBanners(token, "strip");
     } finally {
       setSaving(false);
       setUploading(false);
     }
   }
 
+  // 순서 이동: sort_order swap
+  async function moveSlide(idx: number, dir: -1 | 1) {
+    if (!token) return;
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= sortedAds.length) return;
+    const a = sortedAds[idx];
+    const b = sortedAds[targetIdx];
+    await Promise.all([
+      updateAd(token, a.id, { sortOrder: b.sortOrder }),
+      updateAd(token, b.id, { sortOrder: a.sortOrder }),
+    ]);
+    await fetchBanners(token, "strip");
+    setSelectedIdx(targetIdx);
+  }
+
   async function handleDelete(id: string) {
     if (!token) return;
     await deleteAd(token, id);
     setDeleteConfirm(null);
+    await fetchBanners(token, "strip");
+    setSelectedIdx(0);
   }
 
-  const FILTERS: { key: Filter; label: string }[] = [
-    { key: "all", label: "전체" },
-    { key: "active", label: "노출 중" },
-    { key: "scheduled", label: "예약" },
-    { key: "inactive", label: "비활성" },
-  ];
-
-  const previewImg = form.imageUri
-    ? form.imageUri
-    : (form.imageKey ? imageUrl(form.imageKey) : (form.imageUrl || ""));
-  const accentColor = THEME_COLORS[form.colorTheme] ?? THEME_COLORS.teal;
-  const previewBg   = THEME_BG[form.colorTheme] ?? THEME_BG.teal;
+  const selectedForm = selectedAd ? adToForm(selectedAd) : blankForm();
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="가로 배너 관리" homePath="/(super)/dashboard" />
 
-      {/* 요약 */}
-      <View style={s.summaryRow}>
-        <View style={[s.summaryCard, { borderColor: C.brandSoft }]}>
-          <Text style={[s.sumNum, { color: C.brandStrong }]}>{counts.active}</Text>
-          <Text style={s.sumLabel}>노출 중</Text>
+      <KeyboardAwareScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+      >
+        {/* ── 실시간 미리보기 ─────────────────────────────────── */}
+        <View style={s.previewSection}>
+          <Text style={s.sectionLabel}>현재 선택된 슬라이드 미리보기</Text>
+          <BannerPreview form={selectedAd ? adToForm(selectedAd) : blankForm()} />
         </View>
-        <View style={[s.summaryCard, { borderColor: "#FFF1BF" }]}>
-          <Text style={[s.sumNum, { color: "#D97706" }]}>{counts.scheduled}</Text>
-          <Text style={s.sumLabel}>예약됨</Text>
-        </View>
-        <View style={[s.summaryCard, { borderColor: C.backgroundSoft }]}>
-          <Text style={[s.sumNum, { color: C.textSecondary }]}>{counts.inactive}</Text>
-          <Text style={s.sumLabel}>비활성</Text>
-        </View>
-      </View>
 
-      {/* 안내 + 필터 */}
-      <View style={s.filterRow}>
-        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", gap: 6 }}>
-            {FILTERS.map(f => (
-              <Pressable key={f.key} style={[s.filterBtn, filter === f.key && s.filterBtnActive]} onPress={() => setFilter(f.key)}>
-                <Text style={[s.filterTxt, filter === f.key && s.filterTxtActive]}>{f.label}</Text>
+        {/* ── 슬라이드 탭 ─────────────────────────────────────── */}
+        <View style={s.tabSection}>
+          <View style={s.tabRow}>
+            {[0, 1, 2, 3].map(i => {
+              const ad = sortedAds[i] ?? null;
+              return (
+                <SlideTab
+                  key={i}
+                  index={i}
+                  ad={ad}
+                  selected={selectedIdx === i && !!ad}
+                  onPress={() => {
+                    if (ad) setSelectedIdx(i);
+                    else openCreate();
+                  }}
+                />
+              );
+            })}
+          </View>
+          <Text style={s.tabHint}>
+            {sortedAds.length}/{MAX_SLIDES}개 등록됨 · 탭을 눌러 선택, + 눌러 추가
+          </Text>
+        </View>
+
+        {/* ── 선택된 슬라이드 액션 ────────────────────────────── */}
+        {selectedAd ? (
+          <View style={s.actionSection}>
+            {/* 상태 배지 */}
+            <View style={[s.statusBadge, { backgroundColor: STATUS_CFG[selectedAd.status].badge }]}>
+              <View style={[s.statusDot, { backgroundColor: STATUS_CFG[selectedAd.status].dot }]} />
+              <Text style={[s.statusLabel, { color: STATUS_CFG[selectedAd.status].dot }]}>
+                {STATUS_CFG[selectedAd.status].label}
+              </Text>
+            </View>
+
+            {/* 순서 + 편집/삭제 */}
+            <View style={s.actionRow}>
+              <Pressable
+                style={[s.orderBtn, selectedIdx === 0 && s.btnDisabled]}
+                onPress={() => moveSlide(selectedIdx, -1)}
+                disabled={selectedIdx === 0}
+              >
+                <LucideIcon name="chevron-left" size={16} color={selectedIdx === 0 ? C.textMuted : C.textPrimary} />
               </Pressable>
-            ))}
-          </View>
-        </KeyboardAwareScrollView>
-        <Pressable style={s.addBtn} onPress={openCreate}>
-          <LucideIcon name="plus" size={16} color="#fff" />
-          <Text style={s.addTxt}>등록</Text>
-        </Pressable>
-      </View>
+              <Pressable
+                style={[s.orderBtn, selectedIdx >= sortedAds.length - 1 && s.btnDisabled]}
+                onPress={() => moveSlide(selectedIdx, 1)}
+                disabled={selectedIdx >= sortedAds.length - 1}
+              >
+                <LucideIcon name="chevron-right" size={16} color={selectedIdx >= sortedAds.length - 1 ? C.textMuted : C.textPrimary} />
+              </Pressable>
 
-      {/* 목록 */}
-      <KeyboardAwareScrollView showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
-        {loading && filtered.length === 0 ? (
-          <View style={{ padding: 40, alignItems: "center" }}>
-            <ActivityIndicator color={P} />
-          </View>
-        ) : filtered.length === 0 ? (
-          <View style={s.empty}>
-            <LucideIcon name="image" size={36} color="#D1D5DB" />
-            <Text style={s.emptyTxt}>이 상태의 배너가 없습니다</Text>
+              <Pressable style={s.editBtn} onPress={() => openEdit(selectedAd, selectedIdx)}>
+                <LucideIcon name="pencil" size={14} color={P} />
+                <Text style={s.editBtnTxt}>수정</Text>
+              </Pressable>
+
+              {selectedAd.status !== "active" ? (
+                <Pressable style={s.activateBtn}
+                  onPress={() => token && setStatus(token, selectedAd.id, "active")}>
+                  <Text style={s.activateTxt}>노출 시작</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={s.pauseBtn}
+                  onPress={() => token && setStatus(token, selectedAd.id, "inactive")}>
+                  <Text style={s.pauseTxt}>중지</Text>
+                </Pressable>
+              )}
+
+              <Pressable style={s.deleteBtn} onPress={() => setDeleteConfirm(selectedAd.id)}>
+                <LucideIcon name="trash-2" size={14} color="#DC2626" />
+              </Pressable>
+            </View>
+
+            {/* 날짜 */}
+            <Text style={s.dateTxt}>
+              {selectedAd.displayStart.slice(0, 10)} ~ {selectedAd.displayEnd.slice(0, 10)}
+            </Text>
           </View>
         ) : (
-          filtered.map(ad => (
-            <AdCard key={ad.id} ad={ad}
-              onEdit={openEdit}
-              onStatusChange={(id, st) => token && setStatus(token, id, st)}
-              onDelete={(id) => setDeleteConfirm(id)}
-            />
-          ))
+          <View style={s.emptySection}>
+            <LucideIcon name="image-plus" size={36} color="#CBD5E1" />
+            <Text style={s.emptyTxt}>슬라이드를 추가해 학부모 홈에 배너를 노출하세요</Text>
+            <Pressable style={s.addBtnLarge} onPress={openCreate}>
+              <LucideIcon name="plus" size={16} color="#fff" />
+              <Text style={s.addBtnTxt}>첫 슬라이드 추가</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── 전체 목록 요약 ───────────────────────────────────── */}
+        {sortedAds.length > 0 && (
+          <View style={s.listSection}>
+            <Text style={s.sectionLabel}>전체 슬라이드 목록</Text>
+            {sortedAds.map((ad, i) => (
+              <Pressable key={ad.id} style={[s.listRow, selectedIdx === i && s.listRowSelected]}
+                onPress={() => setSelectedIdx(i)}>
+                <View style={[s.listDot, { backgroundColor: STATUS_CFG[ad.status].dot }]} />
+                <Text style={s.listNum}>{i + 1}</Text>
+                <Text style={s.listTitle} numberOfLines={1}>{ad.title || "(이미지 배너)"}</Text>
+                <Text style={s.listStatus}>{STATUS_CFG[ad.status].label}</Text>
+              </Pressable>
+            ))}
+            {activeCount < MAX_SLIDES && (
+              <Pressable style={s.addRowBtn} onPress={openCreate}>
+                <LucideIcon name="plus" size={14} color={P} />
+                <Text style={s.addRowTxt}>슬라이드 추가</Text>
+              </Pressable>
+            )}
+          </View>
         )}
       </KeyboardAwareScrollView>
 
-      {/* 등록/수정 모달 */}
+      {/* ── 등록/수정 모달 ──────────────────────────────────────── */}
       <Modal visible={showModal} transparent animationType="slide">
         <View style={m.overlay}>
           <View style={m.sheet}>
             <View style={m.header}>
-              <Text style={m.title}>{editId ? "가로 배너 수정" : "가로 배너 등록"}</Text>
+              <Text style={m.headerTitle}>{editId ? "슬라이드 수정" : "슬라이드 추가"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
                 <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
-            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-              {/* 미리보기 */}
+            <KeyboardAwareScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* 미리보기 (1:1 실제 비율) */}
               <Text style={m.label}>미리보기</Text>
-              {previewImg ? (
-                <Image source={{ uri: previewImg }} style={m.previewFull} resizeMode="cover" />
-              ) : (
-                <View style={[m.previewStrip, { backgroundColor: previewBg }]}>
-                  <View style={s_pre.textWrap}>
-                    <Text style={[s_pre.title, { color: accentColor }]} numberOfLines={2}>
-                      {form.title || "배너 제목을 입력하세요"}
+              <BannerPreview form={form} />
+
+              {/* 타입 선택 */}
+              <Text style={m.label}>배너 타입</Text>
+              <View style={m.typeRow}>
+                <Pressable
+                  style={[m.typeBtn, form.bannerType === "text" && m.typeBtnActive]}
+                  onPress={() => setForm(f => ({ ...f, bannerType: "text" }))}
+                >
+                  <LucideIcon name="type" size={14} color={form.bannerType === "text" ? "#fff" : C.textSecondary} />
+                  <Text style={[m.typeTxt, form.bannerType === "text" && m.typeTxtActive]}>텍스트</Text>
+                </Pressable>
+                <Pressable
+                  style={[m.typeBtn, form.bannerType === "image" && m.typeBtnActive]}
+                  onPress={() => setForm(f => ({ ...f, bannerType: "image" }))}
+                >
+                  <LucideIcon name="image" size={14} color={form.bannerType === "image" ? "#fff" : C.textSecondary} />
+                  <Text style={[m.typeTxt, form.bannerType === "image" && m.typeTxtActive]}>이미지</Text>
+                </Pressable>
+              </View>
+
+              {/* ── TEXT 타입 입력 ── */}
+              {form.bannerType === "text" && (
+                <>
+                  <View style={m.labelRow}>
+                    <Text style={m.label}>제목 *</Text>
+                    <Text style={[m.charCount, form.title.length > TITLE_MAX && m.charOver]}>
+                      {form.title.length}/{TITLE_MAX}
                     </Text>
-                    {form.description ? (
-                      <Text style={[s_pre.desc, { color: accentColor }]} numberOfLines={2}>
-                        {form.description}
-                      </Text>
-                    ) : null}
                   </View>
-                  {form.linkUrl ? <LucideIcon name="chevron-right" size={13} color={accentColor} /> : null}
-                </View>
+                  <TextInput
+                    style={[m.input, titleErr ? m.inputErr : null]}
+                    value={form.title}
+                    onChangeText={v => { setForm(f => ({ ...f, title: v.replace(/\n/g, "") })); setTitleErr(null); }}
+                    placeholder="배너 제목"
+                    maxLength={TITLE_MAX}
+                  />
+                  {titleErr ? <Text style={m.errTxt}>{titleErr}</Text> : null}
+
+                  <View style={m.labelRow}>
+                    <Text style={m.label}>설명 (선택)</Text>
+                    <Text style={[m.charCount, form.description.length > DESC_MAX && m.charOver]}>
+                      {form.description.length}/{DESC_MAX}
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={[m.input, { height: 60, textAlignVertical: "top" }]}
+                    value={form.description}
+                    onChangeText={v => setForm(f => ({ ...f, description: v }))}
+                    placeholder="부가 설명 (선택)"
+                    multiline
+                    maxLength={DESC_MAX}
+                  />
+
+                  <Text style={m.label}>색상 테마</Text>
+                  <View style={m.themeRow}>
+                    {THEMES.map(th => (
+                      <Pressable key={th} onPress={() => setForm(f => ({ ...f, colorTheme: th }))}
+                        style={[m.themeChip,
+                          { backgroundColor: THEME_BG[th] },
+                          form.colorTheme === th && { borderWidth: 2, borderColor: THEME_COLORS[th] }]}>
+                        <View style={[m.themeDot, { backgroundColor: THEME_COLORS[th] }]} />
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
               )}
 
-              {/* 이미지 업로드 */}
-              <Text style={m.label}>배너 이미지 (선택)</Text>
-              <Pressable style={m.imgBtn} onPress={handlePickImage}>
-                <LucideIcon name="camera" size={16} color="#7C3AED" />
-                <Text style={m.imgBtnTxt}>
-                  {previewImg ? "이미지 변경하기" : "이미지 선택하기"}
-                </Text>
-              </Pressable>
-              {previewImg ? (
-                <Pressable onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "" }))}
-                  style={m.removeImg}>
-                  <LucideIcon name="x" size={12} color="#DC2626" />
-                  <Text style={m.removeImgTxt}>이미지 제거</Text>
-                </Pressable>
-              ) : null}
+              {/* ── IMAGE 타입 입력 ── */}
+              {form.bannerType === "image" && (
+                <>
+                  <Pressable style={m.imgBtn} onPress={handlePickImage}>
+                    <LucideIcon name="camera" size={16} color={P} />
+                    <Text style={m.imgBtnTxt}>
+                      {(form.imageUri || form.imageKey || form.displayUrl)
+                        ? "이미지 변경 (16:5 비율 crop)"
+                        : "이미지 선택 (16:5 비율 crop)"}
+                    </Text>
+                  </Pressable>
+                  {(form.imageUri || form.imageKey || form.displayUrl) && (
+                    <Pressable style={m.removeImg}
+                      onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "", displayUrl: "" }))}>
+                      <LucideIcon name="x" size={12} color="#DC2626" />
+                      <Text style={m.removeImgTxt}>이미지 제거</Text>
+                    </Pressable>
+                  )}
+                  <Text style={m.imgHint}>
+                    * iOS에서 16:5 비율로 자르기가 지원됩니다{"\n"}
+                    * 사진 앱에서 직접 크롭 후 사용하면 더 정확합니다
+                  </Text>
+                </>
+              )}
 
-              <View style={m.labelRow}>
-                <Text style={m.label}>제목 *</Text>
-                <Text style={[m.charCount, form.title.length > 15 && m.charCountOver]}>
-                  {form.title.length}/15
-                </Text>
-              </View>
+              {/* 공통: 링크 URL */}
+              <Text style={m.label}>링크 URL (선택)</Text>
               <TextInput
-                style={[m.input, titleError ? m.inputError : null]}
-                value={form.title}
-                onChangeText={v => {
-                  const stripped = v.replace(/\n/g, "");
-                  setForm(f => ({ ...f, title: stripped }));
-                  setTitleError(null);
-                }}
-                placeholder="배너 제목 (최대 15자)"
-                maxLength={15}
+                style={m.input}
+                value={form.linkUrl}
+                onChangeText={v => setForm(f => ({ ...f, linkUrl: v }))}
+                placeholder="https://..."
+                autoCapitalize="none"
+                keyboardType="url"
               />
-              {titleError ? <Text style={m.errorTxt}>{titleError}</Text> : null}
 
-              <Text style={m.label}>설명 (선택)</Text>
-              <TextInput style={[m.input, { height: 64, textAlignVertical: "top" }]}
-                value={form.description} onChangeText={v => setForm(f => ({ ...f, description: v }))}
-                placeholder="배너 부가 설명" multiline />
-
-              <Text style={m.label}>링크 URL</Text>
-              <TextInput style={m.input} value={form.linkUrl}
-                onChangeText={v => setForm(f => ({ ...f, linkUrl: v }))} placeholder="https://..." />
-
-              <Text style={m.label}>링크 라벨</Text>
-              <TextInput style={m.input} value={form.linkLabel}
-                onChangeText={v => setForm(f => ({ ...f, linkLabel: v }))} placeholder="자세히 보기" />
-
-              <Text style={m.label}>노출 시작일 (YYYY-MM-DD)</Text>
-              <TextInput style={m.input} value={form.displayStart}
-                onChangeText={v => setForm(f => ({ ...f, displayStart: v }))} placeholder="2024-01-01" />
-
-              <Text style={m.label}>노출 종료일 (YYYY-MM-DD)</Text>
-              <TextInput style={m.input} value={form.displayEnd}
-                onChangeText={v => setForm(f => ({ ...f, displayEnd: v }))} placeholder="2024-12-31" />
-
-              <Text style={m.label}>색상 테마</Text>
-              <View style={m.segRow}>
-                {THEMES.map(th => (
-                  <Pressable key={th} onPress={() => setForm(f => ({ ...f, colorTheme: th }))}
-                    style={[m.colorChip, { backgroundColor: THEME_BG[th], borderWidth: form.colorTheme === th ? 2 : 0, borderColor: THEME_COLORS[th] }]}>
-                    <View style={[m.colorDot, { backgroundColor: THEME_COLORS[th] }]} />
-                    <Text style={[m.colorLabel, { color: THEME_COLORS[th] }]}>{th}</Text>
-                  </Pressable>
-                ))}
+              {/* 공통: 노출 기간 */}
+              <View style={m.dateRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={m.label}>시작일</Text>
+                  <TextInput style={m.input} value={form.displayStart}
+                    onChangeText={v => setForm(f => ({ ...f, displayStart: v }))}
+                    placeholder="YYYY-MM-DD" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={m.label}>종료일</Text>
+                  <TextInput style={m.input} value={form.displayEnd}
+                    onChangeText={v => setForm(f => ({ ...f, displayEnd: v }))}
+                    placeholder="YYYY-MM-DD" />
+                </View>
               </View>
 
-              <Text style={m.label}>대상</Text>
-              <View style={m.segRow}>
-                {(["all","parent","teacher","admin"] as const).map(t => (
-                  <Pressable key={t} style={[m.segBtn, form.target === t && m.segActive]} onPress={() => setForm(f => ({ ...f, target: t }))}>
-                    <Text style={[m.segTxt, form.target === t && m.segActiveTxt]}>{TARGET_LABELS[t]}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
+              {/* 공통: 상태 */}
               <Text style={m.label}>상태</Text>
               <View style={m.segRow}>
                 {(["scheduled","active","inactive"] as const).map(st => (
-                  <Pressable key={st} style={[m.segBtn, form.status === st && m.segActive]} onPress={() => setForm(f => ({ ...f, status: st }))}>
-                    <Text style={[m.segTxt, form.status === st && m.segActiveTxt]}>{STATUS_CFG[st].label}</Text>
+                  <Pressable key={st}
+                    style={[m.segBtn, form.status === st && m.segBtnActive]}
+                    onPress={() => setForm(f => ({ ...f, status: st }))}>
+                    <Text style={[m.segTxt, form.status === st && m.segTxtActive]}>
+                      {STATUS_CFG[st].label}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
 
-              <Pressable style={[m.saveBtn, (saving || !form.title.trim()) && { opacity: 0.5 }]}
-                onPress={handleSave} disabled={saving || !form.title.trim()}>
+              <Pressable
+                style={[m.saveBtn, (saving || uploading) && { opacity: 0.6 }]}
+                onPress={handleSave}
+                disabled={saving || uploading}
+              >
                 {saving || uploading
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <Text style={m.saveTxt}>{editId ? "수정 완료" : "등록하기"}</Text>
@@ -483,17 +641,19 @@ export default function StripBannerScreen() {
         </View>
       </Modal>
 
-      {/* 삭제 확인 모달 */}
+      {/* ── 삭제 확인 모달 ──────────────────────────────────────── */}
       <Modal visible={!!deleteConfirm} transparent animationType="fade">
         <View style={m.overlay}>
           <View style={[m.sheet, { gap: 14 }]}>
-            <Text style={[m.title, { textAlign: "center" }]}>배너를 삭제할까요?</Text>
-            <Text style={{ fontSize: 13, color: C.textSecondary, textAlign: "center", fontFamily: "Pretendard-Regular" }}>삭제 후 복구가 불가합니다.</Text>
+            <Text style={[m.headerTitle, { textAlign: "center" }]}>슬라이드를 삭제할까요?</Text>
+            <Text style={m.deleteSub}>삭제 후 복구가 불가합니다.</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: C.backgroundSoft }]} onPress={() => setDeleteConfirm(null)}>
+              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: C.backgroundSoft }]}
+                onPress={() => setDeleteConfirm(null)}>
                 <Text style={[m.saveTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
-              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: "#DC2626" }]} onPress={() => deleteConfirm && handleDelete(deleteConfirm)}>
+              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: "#DC2626" }]}
+                onPress={() => deleteConfirm && handleDelete(deleteConfirm)}>
                 <Text style={m.saveTxt}>삭제</Text>
               </Pressable>
             </View>
@@ -504,59 +664,76 @@ export default function StripBannerScreen() {
   );
 }
 
+// ── 스타일 ──────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: C.backgroundSoft },
-  summaryRow:       { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
-                      borderBottomWidth: 1, borderBottomColor: C.border },
-  summaryCard:      { flex: 1, borderRadius: 10, padding: 10, borderWidth: 1, alignItems: "center" },
-  sumNum:           { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  sumLabel:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  filterRow:        { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  filterBtn:        { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
-  filterBtnActive:  { backgroundColor: P },
-  filterTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  filterTxtActive:  { color: "#fff" },
-  addBtn:           { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  addTxt:           { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
-  empty:            { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  safe:            { flex: 1, backgroundColor: C.backgroundSoft },
+  sectionLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 8 },
+  previewSection:  { backgroundColor: "#fff", padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  tabSection:      { backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  tabRow:          { flexDirection: "row", gap: 8, marginBottom: 6 },
+  tabHint:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  actionSection:   { backgroundColor: "#fff", padding: 16, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
+  statusBadge:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, alignSelf: "flex-start" },
+  statusDot:       { width: 6, height: 6, borderRadius: 3 },
+  statusLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  actionRow:       { flexDirection: "row", alignItems: "center", gap: 8 },
+  orderBtn:        { width: 34, height: 34, borderRadius: 8, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center" },
+  btnDisabled:     { opacity: 0.4 },
+  editBtn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#EDE9FE" },
+  editBtnTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: P },
+  activateBtn:     { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#DCFCE7" },
+  activateTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#16A34A" },
+  pauseBtn:        { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: C.backgroundSoft },
+  pauseTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  deleteBtn:       { width: 34, height: 34, borderRadius: 8, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginLeft: "auto" },
+  dateTxt:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  emptySection:    { alignItems: "center", paddingVertical: 50, gap: 12, paddingHorizontal: 24 },
+  emptyTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
+  addBtnLarge:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: P, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
+  addBtnTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+  listSection:     { backgroundColor: "#fff", padding: 16, margin: 16, borderRadius: 14, gap: 8, borderWidth: 1, borderColor: C.border },
+  listRow:         { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8 },
+  listRowSelected: { backgroundColor: "#EDE9FE" },
+  listDot:         { width: 6, height: 6, borderRadius: 3 },
+  listNum:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, width: 16 },
+  listTitle:       { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  listStatus:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  addRowBtn:       { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 10 },
+  addRowTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: P },
 });
 
 const m = StyleSheet.create({
-  overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%", gap: 12 },
-  header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  title:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  label:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 8 },
-  input:       { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111", marginBottom: 4 },
-  segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
-  segBtn:      { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: C.backgroundSoft },
-  segActive:   { backgroundColor: P },
-  segTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  segActiveTxt:{ color: "#fff" },
-  colorChip:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  colorDot:    { width: 10, height: 10, borderRadius: 5 },
-  colorLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  imgBtn:      { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: P, borderRadius: 10, padding: 12, marginBottom: 4, borderStyle: "dashed" },
-  imgBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: P },
-  removeImg:   { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
-  removeImgTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#DC2626" },
-  previewStrip:{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
-  previewFull: { width: "100%", height: 56, borderRadius: 8, marginBottom: 8 },
-  previewIcon: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  previewTxt:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-SemiBold" },
-  saveBtn:     { backgroundColor: P, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  saveTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  labelRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 8 },
-  charCount:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  charCountOver:{ color: "#DC2626" },
-  inputError:  { borderColor: "#DC2626" },
-  errorTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },
-});
-
-// 미리보기 텍스트 레이아웃 (s_pre 분리)
-const s_pre = StyleSheet.create({
-  textWrap: { flex: 1, gap: 2 },
-  title:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", lineHeight: 17 },
-  desc:     { fontSize: 11, fontFamily: "Pretendard-Regular", lineHeight: 16, opacity: 0.8 },
+  overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "93%", gap: 0 },
+  header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  headerTitle:{ fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 10 },
+  labelRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10, marginBottom: 4 },
+  charCount:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  charOver:   { color: "#DC2626" },
+  input:      { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111" },
+  inputErr:   { borderColor: "#DC2626" },
+  errTxt:     { fontSize: 11, color: "#DC2626", fontFamily: "Pretendard-Regular", marginTop: 2 },
+  typeRow:    { flexDirection: "row", gap: 10 },
+  typeBtn:    { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: C.backgroundSoft },
+  typeBtnActive:{ backgroundColor: P },
+  typeTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  typeTxtActive:{ color: "#fff" },
+  themeRow:   { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  themeChip:  { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 0 },
+  themeDot:   { width: 14, height: 14, borderRadius: 7 },
+  imgBtn:     { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: P, borderRadius: 10, padding: 12, borderStyle: "dashed", marginTop: 10 },
+  imgBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
+  removeImg:  { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  removeImgTxt:{ fontSize: 12, color: "#DC2626", fontFamily: "Pretendard-Regular" },
+  imgHint:    { fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 6, lineHeight: 16 },
+  dateRow:    { flexDirection: "row", gap: 10 },
+  segRow:     { flexDirection: "row", gap: 8 },
+  segBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: C.backgroundSoft },
+  segBtnActive:{ backgroundColor: P },
+  segTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  segTxtActive:{ color: "#fff" },
+  saveBtn:    { backgroundColor: P, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 16, marginBottom: 8 },
+  saveTxt:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  deleteSub:  { fontSize: 13, color: C.textSecondary, textAlign: "center", fontFamily: "Pretendard-Regular" },
 });
