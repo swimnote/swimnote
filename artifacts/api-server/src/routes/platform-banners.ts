@@ -105,6 +105,56 @@ router.post("/super/banner-upload", requireAuth, upload.single("image"), async (
   }
 });
 
+// ── PUBLIC: 공개 홈페이지용 배너 (인증 불필요, READ ONLY) ─────────────────────
+// SWIMNOTE 공개 홈페이지에서 비로그인 방문자도 조회 가능.
+// GET /platform/banners의 requireAuth는 그대로 유지 (APP 정책 불변).
+// 공개 노출 조건: banner_type=strip, status=active, 기간 충족, target='all'.
+// 화면 표시용 최소 필드만 반환 (created_by, image_key 등 내부 필드 제외).
+router.get("/public/banners", async (req, res) => {
+  try {
+    const now = new Date();
+    const rows = await superAdminDb
+      .select()
+      .from(platformBannersTable)
+      .where(and(
+        eq(platformBannersTable.banner_type as any, "strip"),
+        eq(platformBannersTable.status, "active"),
+        lte(platformBannersTable.display_start, now),
+        gte(platformBannersTable.display_end, now),
+      ))
+      .orderBy(platformBannersTable.sort_order, desc(platformBannersTable.created_at));
+
+    // target='all' 인 배너만 공개 홈페이지에 노출 (target='parent' 등 제외)
+    const filtered = rows.filter(b => {
+      const target: string = (b as any).target ?? "all";
+      return target === "all";
+    });
+
+    const proto = req.get("x-forwarded-proto") || req.protocol;
+    const apiBase = `${proto}://${req.get("host")}/api`;
+
+    // 화면 표시용 최소 필드만 공개 (내부 관리 필드 제외)
+    const publicBanners = filtered.map(b => ({
+      id: b.id,
+      title: b.title,
+      description: b.description,
+      color_theme: b.color_theme,
+      display_url: (b as any).image_key
+        ? `${apiBase}/uploads/${(b as any).image_key}`
+        : ((b as any).image_url || null),
+      link_url: b.link_url,
+      link_label: b.link_label,
+      display_seconds: (b as any).display_seconds ?? 15,
+      sort_order: b.sort_order,
+    }));
+
+    return res.json({ success: true, banners: publicBanners });
+  } catch (e: any) {
+    console.error("[public-banners] 조회 오류:", e.message ?? e);
+    return err(res, 500, "서버 오류");
+  }
+});
+
 // ── AUTHENTICATED: 활성 배너 목록 (학부모 앱 호출) ──────────────────────
 // WP1: 미인증 공개 접근 제거. server-side role/target 필터링 적용.
 // client가 전달하는 pool_id/role을 authorization source로 신뢰하지 않습니다.
