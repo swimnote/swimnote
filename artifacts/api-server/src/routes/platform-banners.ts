@@ -192,14 +192,15 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
   }
   try {
     const id = `banner_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    // target_pool_id 컬럼은 platform_banners 스키마에 없으므로 INSERT에서 제외
     const [row] = await superAdminDb.execute(sql`
       INSERT INTO platform_banners
         (id, banner_type, title, description, image_url, image_key, link_url, link_label,
-         color_theme, target, target_pool_id, status, display_start, display_end, sort_order, created_by, created_at, updated_at)
+         color_theme, target, status, display_start, display_end, sort_order, created_by, created_at, updated_at)
       VALUES
         (${id}, ${banner_type ?? "slider"}, ${title.trim()}, ${description?.trim() ?? null},
          ${image_url ?? null}, ${image_key ?? null}, ${link_url?.trim() ?? null}, ${link_label?.trim() ?? null},
-         ${color_theme ?? "teal"}, ${target ?? "all"}, ${target_pool_id ?? null},
+         ${color_theme ?? "teal"}, ${target ?? "all"},
          ${status ?? "inactive"}, ${new Date(display_start).toISOString()}::timestamptz,
          ${new Date(display_end).toISOString()}::timestamptz,
          ${sort_order ?? 0}, ${req.user!.id}, NOW(), NOW())
@@ -210,11 +211,11 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
     await superAdminDb.execute(sql`
       INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, after_data)
       VALUES ('platform_banner', ${id}, 'create', 'super_admin', ${req.user!.id},
-              ${JSON.stringify({ title: title.trim(), status: status ?? "inactive", target: target ?? "all", target_pool_id: target_pool_id ?? null })}::jsonb)
+              ${JSON.stringify({ title: title.trim(), status: status ?? "inactive", target: target ?? "all" })}::jsonb)
     `).catch(() => {});
     return res.status(201).json({ success: true, banner });
   } catch (e: any) {
-    console.error("[super-banners] 생성 오류:", e);
+    console.error("[super-banners] 생성 오류:", e.message ?? e);
     return err(res, 500, "서버 오류");
   }
 });
