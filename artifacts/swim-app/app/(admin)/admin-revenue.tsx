@@ -1,517 +1,658 @@
 /**
- * (admin)/admin-revenue.tsx — 관리자 매출관리 탭
+ * (admin)/admin-revenue.tsx — 관리자 정산 V2
  *
- * 선생님 수업 정산 및 다음 달 발생 관리 전용 탭
- * - 회원별 수업 횟수 / 보강·체험·임시이동 카운팅
- * - 기타 수기 정산 / 이번 달 저장 / 다음 달 시작
- * - 보강 이월 정리 → makeups 화면 연결
- * - 단가표 → pool-settings 화면 연결
- * - 휴무일 지정 → HolidayModal (components/admin/revenue/ 로 이동됨)
+ * 화면 순서:
+ *   월 선택 → 센터 Summary → 선생님 목록 → 선생님 상세(Modal) → 관리자 확인
  *
- * API: /settlement/calculator, /settlement/save, /settlement/finalize
- *      /holidays (GET, POST, DELETE)
+ * API:
+ *   GET /settlement/admin-overview       Pool 전체 뷰 (reflected_amount 포함)
+ *   GET /settlement/admin-teacher-detail 선생님별 학생 상세
+ *   POST /settlement/finalize            확인 (submitted + has_changed=false만)
+ *
+ * 계산 없음 — 서버 반환값 표시만.
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
-import { KeyboardAwareScrollView, KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
+import {
+  ActivityIndicator, Modal, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, View, Alert,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
-import { addTabResetListener } from "@/utils/tabReset";
-import { HolidayModal } from "@/components/admin/revenue/HolidayModal";
+import { KeyboardAwareScrollView, KeyboardAwareScrollViewRef } from "react-native-keyboard-controller";
 
 const C = Colors.light;
 
-/* ────────────────────────────────────────────────
-   메인 타입
-──────────────────────────────────────────────── */
-interface SettlementSummary {
-  total_revenue: number; total_sessions: number; total_makeup_sessions: number;
-  total_trial_sessions: number; total_temp_transfer_sessions: number;
-  withdrawn_count: number; postpone_count: number; month: string;
+/* ─── 헬퍼 ──────────────────────────────────────────────────────────── */
+function fmt(n: number | null | undefined) {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString("ko-KR") + "원";
 }
-
-interface TeacherItem {
-  id: string; name: string; class_count?: number; student_count?: number;
-  makeup_waiting?: number; position?: string;
+function fmtNum(n: number | null | undefined) {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString("ko-KR");
 }
-
-type SettlementStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
-
-interface TeacherReport {
-  teacher_id: string;
-  teacher_name: string;
-  status: "draft" | "submitted" | "confirmed" | null;
-  total_revenue?: number;
-  total_sessions?: number;
-  student_count?: number;
-  makeup_count?: number;
-  trial_count?: number;
-  transfer_count?: number;
-  postpone_count?: number;
-  withdrawn_count?: number;
-  extra_manual_amount?: number;
-}
-
-function apiStatusToUI(raw: string | null | undefined): SettlementStatus {
-  if (raw === "submitted")  return "제출완료";
-  if (raw === "confirmed")  return "관리자확인";
-  if (raw === "draft")      return "저장됨";
-  return "미정산";
-}
-
 function curMonthStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
-function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
+function prevMonth(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function nextMonth(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function fmtMonthLabel(ym: string) {
+  const [y, m] = ym.split("-");
+  return `${y}년 ${parseInt(m, 10)}월`;
+}
 
-/* ────────────────────────────────────────────────
-   AdminRevenueScreen
-──────────────────────────────────────────────── */
-const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#FFFFFF", text: "#64748B" },
-  "저장됨":    { bg: C.brandSoft, text: "#14283D" },
-  "제출완료":  { bg: C.brandSoft, text: "#14283D" },
-  "관리자확인": { bg: C.brandSoft, text: "#14283D" },
-};
+/* ─── 타입 ──────────────────────────────────────────────────────────── */
+interface TeacherRow {
+  teacher_id: string;
+  teacher_name: string;
+  status: "draft" | "submitted" | "confirmed" | null;
+  status_label: string;
+  has_changed: boolean;
+  student_count: number;
+  regular_slot_count: number;
+  makeup_count: number;
+  auto_amount: number;
+  adjustment_total: number;
+  reflected_amount: number;
+  updated_at: string | null;
+}
 
+interface PoolSummary {
+  student_count: number;
+  priced_student_count: number;
+  unpriced_student_count: number;
+  pool_auto_total: number;
+  pool_adjustment_total: number;
+  pool_reflected_total: number;
+}
+
+interface Overview {
+  month: string;
+  teachers: TeacherRow[];
+  pool_summary: PoolSummary;
+  unpriced_students: any[];
+}
+
+interface StudentDetail {
+  student_id: string;
+  student_name: string;
+  weekly_count: number;
+  pricing_status: string;
+  monthly_fee: number | null;
+  regular_slot_count: number;
+  total_regular_slots: number;
+  allocation_ratio: number;
+  allocated_auto_amount: number;
+  adjustment_amount: number;
+  final_amount: number;
+  billable_count: number | null;
+  sessions_per_month: number | null;
+}
+
+interface TeacherDetail {
+  teacher_id: string;
+  status: string | null;
+  auto_amount: number;
+  students: StudentDetail[];
+}
+
+/* ─── 상태 배지 색상 ─────────────────────────────────────────────────── */
+function statusChip(label: string, hasChanged: boolean) {
+  if (hasChanged && label === "저장됨")
+    return { bg: "#FEF3C7", text: "#92400E", border: "#FCD34D" };
+  if (label === "관리자 확인") return { bg: "#DCFCE7", text: "#14532D", border: "#86EFAC" };
+  if (label === "저장됨") return { bg: "#DBEAFE", text: "#1E3A5F", border: "#93C5FD" };
+  return { bg: "#F1F5F9", text: "#64748B", border: "#CBD5E1" };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   메인 화면
+═══════════════════════════════════════════════════════════════════════ */
 export default function AdminRevenueScreen() {
-  const { token, adminUser } = useAuth();
+  const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset<KeyboardAwareScrollViewRef>("admin-revenue");
 
-  const [month, setMonth]       = useState(curMonthStr());
-  const [loading, setLoading]   = useState(true);
+  const [month, setMonth] = useState(curMonthStr());
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [summary, setSummary]   = useState<SettlementSummary | null>(null);
-  const [teachers, setTeachers] = useState<TeacherItem[]>([]);
-  const [reports, setReports]   = useState<TeacherReport[]>([]);
-  const [extraAmount, setExtraAmount] = useState("");
-  const [extraMemo, setExtraMemo]     = useState("");
-  const [saving, setSaving]     = useState(false);
-  const [savedMsg, setSavedMsg] = useState("");
-  const [nextMonthModal, setNextMonthModal] = useState(false);
-  const [holiModal, setHoliModal]           = useState(false);
-  const [confirmingId, setConfirmingId]     = useState<string | null>(null);
 
-  const poolId = (adminUser as any)?.swimming_pool_id || "";
-  const { backTo } = useLocalSearchParams<{ backTo?: string }>();
+  // Teacher detail modal
+  const [detailTeacher, setDetailTeacher] = useState<TeacherRow | null>(null);
+  const [detail, setDetail] = useState<TeacherDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const [calcRes, teacherRes, reportRes] = await Promise.all([
-        apiRequest(token, `/settlement/calculator?pool_id=${poolId}&month=${month}`),
-        apiRequest(token, "/admin/teachers"),
-        apiRequest(token, `/settlement/reports?pool_id=${poolId}&month=${month}`).catch(() => null),
-      ]);
-      if (calcRes.ok) {
-        const data = await calcRes.json();
-        setSummary(data.summary);
-      }
-      if (teacherRes.ok) {
-        const tData = await teacherRes.json();
-        setTeachers(Array.isArray(tData) ? tData : []);
-      }
-      if (reportRes && reportRes.ok) {
-        const rData = await reportRes.json();
-        setReports(Array.isArray(rData) ? rData : (rData.reports || []));
-      } else {
-        setReports([]);
-      }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); setRefreshing(false); }
-  }, [token, poolId, month]);
+      const r = await apiRequest(token, `/settlement/admin-overview?month=${month}`);
+      if (r.ok) setOverview(await r.json());
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token, month]);
 
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    return addTabResetListener("admin-revenue", () => setMonth(curMonthStr()));
+  const openDetail = useCallback(async (t: TeacherRow) => {
+    setDetailTeacher(t);
+    setDetail(null);
+    setDetailLoading(true);
+    try {
+      const r = await apiRequest(token, `/settlement/admin-teacher-detail?teacher_id=${t.teacher_id}&month=${month}`);
+      if (r.ok) setDetail(await r.json());
+    } finally { setDetailLoading(false); }
+  }, [token, month]);
+
+  const closeDetail = useCallback(() => {
+    setDetailTeacher(null);
+    setDetail(null);
   }, []);
 
-  function changeMonth(delta: number) {
-    const [y, m] = month.split("-").map(Number);
-    const d = new Date(y, m - 1 + delta, 1);
-    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  }
-
-  async function handleConfirmTeacher(teacherId: string) {
-    setConfirmingId(teacherId);
+  const handleConfirm = useCallback(async () => {
+    if (!detailTeacher || !overview) return;
+    setConfirming(true);
     try {
-      await apiRequest(token, "/settlement/finalize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pool_id: poolId, month, teacher_id: teacherId }),
-      });
-      await load();
-    } catch { }
-    finally { setConfirmingId(null); }
-  }
-
-  async function handleSave() {
-    setSaving(true); setSavedMsg("");
-    try {
-      const res = await apiRequest(token, "/settlement/save", {
+      const r = await apiRequest(token, "/settlement/finalize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pool_id: poolId, month,
-          extra_amount: Number(extraAmount) || 0,
-          extra_memo: extraMemo,
+          pool_id: overview.pool_summary ? undefined : undefined,
+          month,
+          teacher_id: detailTeacher.teacher_id,
         }),
       });
-      setSavedMsg(res.ok ? "저장 완료" : "저장 실패");
-    } catch { setSavedMsg("저장 실패"); }
-    finally { setSaving(false); setTimeout(() => setSavedMsg(""), 2000); }
-  }
+      const json = await r.json();
+      if (r.ok) {
+        Alert.alert("확인 완료", `${detailTeacher.teacher_name} 선생님 정산이 확인되었습니다.`);
+        closeDetail();
+        load();
+      } else {
+        Alert.alert("확인 불가", json.message || "정산 확인에 실패했습니다.");
+      }
+    } finally { setConfirming(false); }
+  }, [token, detailTeacher, month, overview, closeDetail, load]);
 
-  const TAB_BAR_H = 84;
-  const pBottom   = insets.bottom + TAB_BAR_H + 24;
+  const todayYM = curMonthStr();
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.background }}>
-      {backTo ? (
-        <SubScreenHeader title="수업정산" />
-      ) : (
-        <View style={[s.tabHeader, { paddingTop: insets.top + 14 }]}>
-          <Text style={[s.tabHeaderTitle, { color: themeColor }]}>수업정산</Text>
-        </View>
-      )}
+    <View style={s.root}>
+      <SubScreenHeader title="정산 관리" />
 
-      {/* ── 월 선택 + 휴무일 지정 바 ── */}
-      <View style={[s.topBar, { borderBottomColor: C.border }]}>
-        <View style={s.monthNav}>
-          <Pressable style={s.monthArrow} onPress={() => changeMonth(-1)} hitSlop={8}>
-            <LucideIcon name="chevron-left" size={20} color={themeColor} />
-          </Pressable>
-          <Text style={[s.monthLabel, { color: C.text }]}>
-            {month.replace("-", "년 ")}월
-          </Text>
-          <Pressable style={s.monthArrow} onPress={() => changeMonth(1)} hitSlop={8}>
-            <LucideIcon name="chevron-right" size={20} color={themeColor} />
-          </Pressable>
-        </View>
-
+      {/* 월 선택 */}
+      <View style={s.monthRow}>
+        <Pressable style={s.monthBtn} onPress={() => setMonth(prevMonth(month))}>
+          <LucideIcon name="chevron-left" size={20} color={C.text} />
+        </Pressable>
+        <Text style={s.monthTxt}>{fmtMonthLabel(month)}</Text>
         <Pressable
-          style={[s.holiBtn, { backgroundColor: C.brandSoft, borderColor: "#CBD5E1" }]}
-          onPress={() => setHoliModal(true)}
+          style={[s.monthBtn, month >= todayYM && { opacity: 0.3 }]}
+          onPress={() => month < todayYM && setMonth(nextMonth(month))}
+          disabled={month >= todayYM}
         >
-          <LucideIcon name="calendar" size={14} color="#14283D" />
-          <Text style={s.holiBtnTxt}>휴무일 지정</Text>
+          <LucideIcon name="chevron-right" size={20} color={C.text} />
         </Pressable>
       </View>
 
       {loading ? (
-        <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
+        <ActivityIndicator style={{ flex: 1 }} color={themeColor} />
       ) : (
         <KeyboardAwareScrollView
           ref={scrollRef}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
-          contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: pBottom }}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
         >
-          {/* ── 바로가기 버튼 ── */}
-          <View style={s.quickRow}>
-            <Pressable style={[s.quickBtn, { backgroundColor: C.brandSoft }]}
-              onPress={() => router.push("/(admin)/makeups?backTo=admin-revenue" as any)}>
-              <LucideIcon name="rotate-ccw" size={16} color="#14283D" />
-              <Text style={[s.quickLabel, { color: "#14283D" }]}>보강 이월</Text>
-            </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: C.brandSoft }]}
-              onPress={() => router.push("/(admin)/holidays?backTo=admin-revenue" as any)}>
-              <LucideIcon name="list" size={16} color="#14283D" />
-              <Text style={[s.quickLabel, { color: "#14283D" }]}>휴무 목록</Text>
-            </Pressable>
-          </View>
+          {/* ─── 센터 Summary ─── */}
+          <SummaryCard overview={overview} />
 
-          {/* ── 전체 합산 요약 (submitted 기준) ── */}
-          {(() => {
-            const submittedReports = reports.filter(r => r.status === "submitted" || r.status === "confirmed" || r.status === "draft");
-            const totalRevenue  = submittedReports.reduce((s, r) => s + (r.total_revenue || 0), 0);
-            const totalSessions = submittedReports.reduce((s, r) => s + (r.total_sessions || 0), 0);
-            const totalExtra    = submittedReports.reduce((s, r) => s + (r.extra_manual_amount || 0), 0);
-            const submitted     = reports.filter(r => r.status === "submitted" || r.status === "confirmed").length;
-            return (
-              <View style={[s.summaryCard, { borderColor: themeColor + "30" }]}>
-                <View style={s.summaryTopRow}>
-                  <Text style={[s.summaryLabel, { color: C.textMuted }]}>전체합산 수업금액</Text>
-                  <View style={s.submitBadge}>
-                    <Text style={[s.submitBadgeTxt, { color: themeColor }]}>제출 {submitted}/{teachers.length}명</Text>
-                  </View>
-                </View>
-                <Text style={[s.summaryTotal, { color: themeColor }]}>{formatWon(totalRevenue)}</Text>
-                <View style={s.summaryMetrics}>
-                  <View style={[s.metricBox, { backgroundColor: themeColor + "10" }]}>
-                    <Text style={[s.metricVal, { color: C.text }]}>{totalSessions}<Text style={s.metricUnit}>회</Text></Text>
-                    <Text style={[s.metricLabel, { color: C.textMuted }]}>전체수업시수</Text>
-                  </View>
-                  <View style={[s.metricBox, { backgroundColor: "#FFF7ED" }]}>
-                    <Text style={[s.metricVal, { color: "#C2410C" }]}>{formatWon(totalExtra)}</Text>
-                    <Text style={[s.metricLabel, { color: C.textMuted }]}>추가수업비용</Text>
-                  </View>
-                </View>
-                {totalSessions > 0 && totalRevenue > 0 && (
-                  <Text style={[s.formulaHint, { color: C.textMuted }]}>
-                    수업당 단가 ≈ {formatWon(Math.round((totalRevenue - totalExtra) / totalSessions))} / 회
-                  </Text>
-                )}
-              </View>
-            );
-          })()}
-
-          {/* ── 선생님별 정산내역 (이름순) ── */}
-          <View style={s.teacherHeader}>
-            <Text style={[s.sectionTitle, { color: C.text }]}>선생님별 정산내역</Text>
-            <Text style={[s.teacherCount, { color: C.textMuted }]}>{teachers.length}명</Text>
-          </View>
-
-          {/* 컬럼 헤더 */}
-          {teachers.length > 0 && (
-            <View style={s.tableHeader}>
-              <Text style={[s.colHead, { flex: 2 }]}>이름</Text>
-              <Text style={[s.colHead, { flex: 2, textAlign: "right" }]}>매출</Text>
-              <Text style={[s.colHead, { flex: 1, textAlign: "center" }]}>수업시수</Text>
-              <Text style={[s.colHead, { flex: 2, textAlign: "right" }]}>추가수업비용</Text>
-            </View>
-          )}
-
-          {teachers.length === 0 ? (
-            <View style={s.emptyBox}>
-              <LucideIcon name="users" size={40} color={C.textMuted} />
-              <Text style={[s.emptyTxt, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
-            </View>
+          {/* ─── 선생님 목록 ─── */}
+          <Text style={s.sectionTitle}>선생님별 정산</Text>
+          {!overview?.teachers?.length ? (
+            <Text style={s.emptyTxt}>이 달 정산 데이터가 없습니다.</Text>
           ) : (
-            [...teachers]
-              .sort((a, b) => a.name.localeCompare(b.name, "ko"))
-              .map((t, idx) => {
-                const report = reports.find(r => r.teacher_id === t.id);
-                const status: SettlementStatus = apiStatusToUI(report?.status);
-                const statusStyle = STATUS_COLOR[status];
-                const isLast = idx === teachers.length - 1;
-                const isConfirming = confirmingId === t.id;
-                const canConfirm = report?.status === "submitted";
-                const isConfirmed = report?.status === "confirmed";
-                return (
-                  <View key={t.id} style={[s.tableRow, !isLast && s.tableRowBorder, { flexDirection: "column", gap: 8 }]}>
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      {/* 이름 + 상태 */}
-                      <View style={{ flex: 2, gap: 3 }}>
-                        <Text style={[s.rowName, { color: C.text }]}>{t.name}</Text>
-                        <View style={[s.statusPill, { backgroundColor: statusStyle.bg }]}>
-                          <Text style={[s.statusPillTxt, { color: statusStyle.text }]}>{status}</Text>
-                        </View>
-                      </View>
-                      {/* 매출 */}
-                      <Text style={[s.rowAmt, { flex: 2, color: report?.total_revenue != null ? themeColor : C.textMuted }]}>
-                        {report?.total_revenue != null ? formatWon(report.total_revenue) : "미제출"}
-                      </Text>
-                      {/* 수업시수 */}
-                      <Text style={[s.rowVal, { flex: 1 }]}>
-                        {report?.total_sessions != null ? `${report.total_sessions}회` : "—"}
-                      </Text>
-                      {/* 추가수업비용 */}
-                      <Text style={[s.rowExtra, { flex: 2, color: (report?.extra_manual_amount || 0) > 0 ? "#C2410C" : C.textMuted }]}>
-                        {(report?.extra_manual_amount || 0) > 0 ? formatWon(report!.extra_manual_amount!) : "—"}
-                      </Text>
-                    </View>
-                    {/* 관리자 확인 버튼 (제출완료 상태일 때만) */}
-                    {(canConfirm || isConfirmed) && (
-                      <Pressable
-                        style={[s.confirmBtn, {
-                          backgroundColor: isConfirmed ? "#F0FFF4" : themeColor,
-                          opacity: isConfirming ? 0.6 : 1,
-                        }]}
-                        onPress={() => !isConfirmed && handleConfirmTeacher(t.id)}
-                        disabled={isConfirming || isConfirmed}
-                      >
-                        {isConfirming ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <LucideIcon name="check-circle" size={14} color={isConfirmed ? "#16A34A" : "#fff"} />
-                        )}
-                        <Text style={[s.confirmBtnTxt, { color: isConfirmed ? "#16A34A" : "#fff" }]}>
-                          {isConfirmed ? "관리자 확인 완료" : "정산 확인"}
-                        </Text>
-                      </Pressable>
-                    )}
-                  </View>
-                );
-              })
+            overview.teachers.map(t => (
+              <TeacherCard key={t.teacher_id} t={t} onPress={() => openDetail(t)} />
+            ))
           )}
-
-          {/* ── 기타 수기 정산 ── */}
-          <Text style={[s.sectionTitle, { color: C.text }]}>기타 수기 정산</Text>
-          <View style={[s.extraCard, { backgroundColor: C.card }]}>
-            <View style={s.inputRow}>
-              <TextInput
-                style={[s.input, { color: C.text, borderColor: C.border }]}
-                placeholder="금액 (원)"
-                placeholderTextColor={C.textMuted}
-                keyboardType="numeric"
-                value={extraAmount}
-                onChangeText={setExtraAmount}
-              />
-              <TextInput
-                style={[s.inputMemo, { color: C.text, borderColor: C.border }]}
-                placeholder="메모"
-                placeholderTextColor={C.textMuted}
-                value={extraMemo}
-                onChangeText={setExtraMemo}
-              />
-            </View>
-          </View>
-
-          {/* ── 저장 / 다음 달 시작 ── */}
-          <View style={s.actionRow}>
-            <Pressable
-              style={[s.actionBtn, { backgroundColor: C.primaryAction, opacity: saving ? 0.7 : 1 }]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? <ActivityIndicator size={16} color="#fff" /> : <LucideIcon name="save" size={16} color="#fff" />}
-              <Text style={s.actionBtnTxt}>이번 달 저장</Text>
-            </Pressable>
-            <Pressable
-              style={[s.actionBtn, { backgroundColor: C.primaryAction }]}
-              onPress={() => setNextMonthModal(true)}
-            >
-              <LucideIcon name="arrow-right-circle" size={16} color="#fff" />
-              <Text style={s.actionBtnTxt}>다음 달 시작</Text>
-            </Pressable>
-          </View>
-          {savedMsg ? <Text style={[s.savedMsg, { color: themeColor }]}>{savedMsg}</Text> : null}
         </KeyboardAwareScrollView>
       )}
 
-      {/* ── 다음 달 시작 확인 모달 ── */}
-      <Modal visible={nextMonthModal} transparent animationType="fade" onRequestClose={() => setNextMonthModal(false)}>
-        <Pressable style={s.overlay} onPress={() => setNextMonthModal(false)} />
-        <View style={s.modalBox}>
-          <View style={[s.modalCard, { backgroundColor: C.card }]}>
-            <LucideIcon name="alert-circle" size={32} color="#14283D" style={{ alignSelf: "center", marginBottom: 8 }} />
-            <Text style={[s.modalTitle, { color: C.text }]}>다음 달 수업 발생</Text>
-            <Text style={[s.modalDesc, { color: C.textSecondary }]}>
-              현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.
-            </Text>
-            <View style={s.modalBtns}>
-              <Pressable style={[s.modalBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setNextMonthModal(false)}>
-                <Text style={[s.modalBtnTxt, { color: C.textSecondary }]}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={[s.modalBtn, { backgroundColor: C.primaryAction }]}
-                onPress={async () => {
-                  try {
-                    await apiRequest(token, "/settlement/finalize", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ pool_id: poolId, month }),
-                    });
-                    setNextMonthModal(false);
-                    changeMonth(1);
-                  } catch { setNextMonthModal(false); }
-                }}
-              >
-                <Text style={[s.modalBtnTxt, { color: "#fff" }]}>확인</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
+      {/* ─── 선생님 상세 Modal ─── */}
+      <Modal
+        visible={!!detailTeacher}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeDetail}
+      >
+        <TeacherDetailModal
+          teacher={detailTeacher}
+          detail={detail}
+          loading={detailLoading}
+          confirming={confirming}
+          onClose={closeDetail}
+          onConfirm={handleConfirm}
+          themeColor={themeColor}
+          insets={insets}
+        />
       </Modal>
-
-      {/* ── 휴무일 지정 모달 ── */}
-      <HolidayModal
-        visible={holiModal}
-        onClose={() => setHoliModal(false)}
-        poolId={poolId}
-        token={token}
-        themeColor={themeColor}
-      />
     </View>
   );
 }
 
-/* ────────────────────────────────────────────────
-   Styles — AdminRevenueScreen
-──────────────────────────────────────────────── */
+/* ─── 센터 Summary 카드 ────────────────────────────────────────────── */
+function SummaryCard({ overview }: { overview: Overview | null }) {
+  if (!overview) return null;
+  const ps = overview.pool_summary;
+  const unpricedCount = ps.unpriced_student_count ?? 0;
+  const autoTotal = ps.pool_auto_total ?? 0;
+  const adjTotal = ps.pool_adjustment_total ?? 0;
+  const reflectedTotal = ps.pool_reflected_total ?? 0;
+  const hasUnpriced = unpricedCount > 0;
+
+  return (
+    <View style={s.summaryCard}>
+      <Text style={s.summaryMonth}>
+        {overview.month.replace("-", "년 ").replace(/^(\d+년 )0?(\d+)$/, "$1$2")}월 정산
+      </Text>
+
+      {/* 금액 3개 */}
+      <View style={s.amountRow}>
+        <AmountItem label="자동 기준 매출" value={autoTotal} />
+        <View style={s.amtDivider} />
+        <AmountItem label="조정 금액" value={adjTotal} signed />
+        <View style={s.amtDivider} />
+        <AmountItem label="반영 매출" value={reflectedTotal} highlight />
+      </View>
+
+      <View style={s.summaryDivider} />
+
+      {/* 회원 현황 */}
+      <View style={s.memberRow}>
+        <Text style={s.memberTxt}>
+          전체 회원 {fmtNum(ps.student_count)}명
+        </Text>
+        {hasUnpriced ? (
+          <View style={s.unpricedBadge}>
+            <LucideIcon name="alert-triangle" size={12} color="#92400E" />
+            <Text style={s.unpricedTxt}>수업료 설정 필요 {unpricedCount}명</Text>
+          </View>
+        ) : (
+          <Text style={s.memberTxt}>수업료 설정 완료</Text>
+        )}
+      </View>
+
+      {/* unpriced CTA */}
+      {hasUnpriced && (
+        <Pressable
+          style={s.unpricedCta}
+          onPress={() => router.push("/(admin)/unit-pricing")}
+        >
+          <LucideIcon name="settings" size={14} color="#1E3A5F" />
+          <Text style={s.unpricedCtaTxt}>수업료 설정</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+function AmountItem({ label, value, signed, highlight }: {
+  label: string; value: number; signed?: boolean; highlight?: boolean;
+}) {
+  const color = highlight ? "#0F2D50" : signed && value < 0 ? "#DC2626" : C.textPrimary;
+  const valStr = signed && value > 0 ? `+${value.toLocaleString("ko-KR")}원` : fmt(value);
+  return (
+    <View style={{ flex: 1, alignItems: "center" }}>
+      <Text style={s.amtLabel}>{label}</Text>
+      <Text style={[s.amtValue, { color, fontSize: highlight ? 17 : 15 }]}>{valStr}</Text>
+    </View>
+  );
+}
+
+/* ─── 선생님 카드 ──────────────────────────────────────────────────── */
+function TeacherCard({ t, onPress }: { t: TeacherRow; onPress: () => void }) {
+  const chip = statusChip(t.status_label, t.has_changed);
+  const displayStatus = t.has_changed && t.status_label === "저장됨" ? "저장 후 변경" : t.status_label;
+
+  return (
+    <Pressable style={s.teacherCard} onPress={onPress}>
+      {/* 상단: 이름 + 상태 */}
+      <View style={s.tcHeader}>
+        <Text style={s.tcName}>{t.teacher_name || "선생님"}</Text>
+        <View style={[s.statusChip, { backgroundColor: chip.bg, borderColor: chip.border }]}>
+          <Text style={[s.statusChipTxt, { color: chip.text }]}>{displayStatus}</Text>
+        </View>
+      </View>
+
+      {/* 회원 / 수업 */}
+      <Text style={s.tcMeta}>
+        담당 회원 {t.student_count}명 · 정규 {t.regular_slot_count}회 · 완료 보강 {t.makeup_count}회
+      </Text>
+
+      {/* 금액 3줄 */}
+      <View style={s.tcAmounts}>
+        <AmountLine label="자동 기준 매출" value={t.auto_amount} />
+        <AmountLine label="조정 금액" value={t.adjustment_total} signed />
+        <AmountLine label="반영 매출" value={t.reflected_amount} bold />
+      </View>
+
+      <View style={s.tcChevron}>
+        <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
+      </View>
+    </Pressable>
+  );
+}
+
+function AmountLine({ label, value, signed, bold }: {
+  label: string; value: number; signed?: boolean; bold?: boolean;
+}) {
+  const color = signed && value < 0 ? "#DC2626" : C.textPrimary;
+  const valStr = signed && value > 0 ? `+${value.toLocaleString("ko-KR")}원` : fmt(value);
+  return (
+    <View style={s.amtLine}>
+      <Text style={s.amtLineLabel}>{label}</Text>
+      <Text style={[s.amtLineValue, { color, fontWeight: bold ? "700" : "500" }]}>{valStr}</Text>
+    </View>
+  );
+}
+
+/* ─── 선생님 상세 Modal ────────────────────────────────────────────── */
+function TeacherDetailModal({
+  teacher, detail, loading, confirming, onClose, onConfirm, themeColor, insets,
+}: {
+  teacher: TeacherRow | null;
+  detail: TeacherDetail | null;
+  loading: boolean;
+  confirming: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  themeColor: string;
+  insets: any;
+}) {
+  if (!teacher) return null;
+
+  const chip = statusChip(teacher.status_label, teacher.has_changed);
+  const displayStatus = teacher.has_changed && teacher.status_label === "저장됨"
+    ? "저장 후 변경" : teacher.status_label;
+
+  // confirm 가능 조건: submitted + has_changed=false
+  const canConfirm = teacher.status === "submitted" && !teacher.has_changed;
+  const showChangedWarning = teacher.status === "submitted" && teacher.has_changed;
+
+  return (
+    <View style={[s.modalRoot, { paddingBottom: insets.bottom + 16 }]}>
+      {/* 헤더 */}
+      <View style={s.modalHeader}>
+        <Text style={s.modalTitle}>{teacher.teacher_name || "선생님"}</Text>
+        <Pressable onPress={onClose} style={s.modalClose}>
+          <LucideIcon name="x" size={20} color={C.text} />
+        </Pressable>
+      </View>
+
+      {/* 상태 배지 */}
+      <View style={s.modalStatusRow}>
+        <View style={[s.statusChip, { backgroundColor: chip.bg, borderColor: chip.border }]}>
+          <Text style={[s.statusChipTxt, { color: chip.text }]}>{displayStatus}</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {/* 선생님 Summary */}
+        <View style={s.detailSummary}>
+          <DetailRow label="담당 회원" value={`${teacher.student_count}명`} />
+          <DetailRow label="정규 수업" value={`${teacher.regular_slot_count}회`} />
+          <DetailRow label="완료 보강" value={`${teacher.makeup_count}회`} />
+          <View style={s.detailDivider} />
+          <DetailRow label="자동 기준 매출" value={fmt(teacher.auto_amount)} />
+          <DetailRow label="조정 금액" value={fmt(teacher.adjustment_total)} />
+          <DetailRow label="반영 매출" value={fmt(teacher.reflected_amount)} bold />
+        </View>
+
+        {/* has_changed 경고 */}
+        {showChangedWarning && (
+          <View style={s.changedWarning}>
+            <LucideIcon name="alert-triangle" size={14} color="#92400E" />
+            <Text style={s.changedWarningTxt}>
+              저장 후 회원/시간표 정보가 변경되었습니다.{"\n"}선생님이 정산을 다시 저장해야 합니다.
+            </Text>
+          </View>
+        )}
+
+        {/* 학생 목록 */}
+        <Text style={[s.sectionTitle, { marginTop: 20 }]}>학생별 정산</Text>
+        {loading ? (
+          <ActivityIndicator style={{ marginVertical: 24 }} color={themeColor} />
+        ) : !detail?.students?.length ? (
+          <Text style={s.emptyTxt}>학생 정산 정보가 없습니다.</Text>
+        ) : (
+          detail.students.map((st, i) => (
+            <StudentRow key={st.student_id ?? i} st={st} />
+          ))
+        )}
+
+        {/* 확인 버튼 */}
+        {teacher.status === "confirmed" ? (
+          <View style={s.confirmedBadge}>
+            <LucideIcon name="check-circle" size={16} color="#14532D" />
+            <Text style={s.confirmedBadgeTxt}>관리자 확인 완료</Text>
+          </View>
+        ) : canConfirm ? (
+          <Pressable
+            style={[s.confirmBtn, { backgroundColor: themeColor }]}
+            onPress={() => Alert.alert(
+              "정산 확인",
+              `${teacher.teacher_name} 선생님 정산(${fmt(teacher.reflected_amount)})을 확인하시겠습니까?`,
+              [
+                { text: "취소", style: "cancel" },
+                { text: "확인", onPress: onConfirm },
+              ]
+            )}
+            disabled={confirming}
+          >
+            {confirming
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={s.confirmBtnTxt}>정산 확인</Text>
+            }
+          </Pressable>
+        ) : teacher.status === null ? (
+          <View style={s.infoBox}>
+            <Text style={s.infoBoxTxt}>선생님이 아직 정산을 저장하지 않았습니다.</Text>
+          </View>
+        ) : null}
+      </ScrollView>
+    </View>
+  );
+}
+
+/* ─── 학생 Row ──────────────────────────────────────────────────────── */
+function StudentRow({ st }: { st: StudentDetail }) {
+  const [expanded, setExpanded] = useState(false);
+  const weekLabel = st.weekly_count === 1 ? "주1회" : st.weekly_count === 2 ? "주2회" : `주${st.weekly_count}회`;
+  const isUnpriced = st.pricing_status === "unpriced";
+
+  return (
+    <Pressable style={s.studentRow} onPress={() => setExpanded(v => !v)}>
+      <View style={s.studentRowMain}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.studentName}>{st.student_name}</Text>
+          <Text style={s.studentMeta}>{weekLabel}</Text>
+        </View>
+        {isUnpriced ? (
+          <Text style={s.unpricedLabel}>수업료 설정 필요</Text>
+        ) : (
+          <Text style={s.studentFinal}>{fmt(st.final_amount)}</Text>
+        )}
+        <LucideIcon name={expanded ? "chevron-up" : "chevron-down"} size={14} color={C.textSecondary} />
+      </View>
+      {expanded && !isUnpriced && (
+        <View style={s.studentDetail}>
+          <SdRow label="정상 월수업료" value={fmt(st.monthly_fee)} />
+          <SdRow label="기준 횟수" value={`${st.sessions_per_month ?? "—"}회`} />
+          <SdRow label="전체 정규수업" value={`${st.total_regular_slots}회`} />
+          <SdRow label="담당 정규수업" value={`${st.regular_slot_count}회`} />
+          <SdRow label="배분비율" value={st.allocation_ratio !== undefined ? `${Math.round(st.allocation_ratio * 100)}%` : "—"} />
+          <SdRow label="학생 전체 기준매출" value={fmt((st as any).student_auto_amount)} />
+          <SdRow label="선생님 기준매출" value={fmt(st.allocated_auto_amount)} />
+          <SdRow label="조정 금액" value={fmt(st.adjustment_amount)} />
+          <SdRow label="반영 매출" value={fmt(st.final_amount)} bold />
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function SdRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <View style={s.sdRow}>
+      <Text style={s.sdLabel}>{label}</Text>
+      <Text style={[s.sdValue, bold && { fontWeight: "700", color: C.textPrimary }]}>{value}</Text>
+    </View>
+  );
+}
+function DetailRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <View style={s.detailRow}>
+      <Text style={s.detailLabel}>{label}</Text>
+      <Text style={[s.detailValue, bold && { fontWeight: "700", color: C.textPrimary }]}>{value}</Text>
+    </View>
+  );
+}
+
+/* ─── StyleSheet ─────────────────────────────────────────────────────── */
 const s = StyleSheet.create({
-  tabHeader:      { backgroundColor: "#fff", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
-  tabHeaderTitle: { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1 },
-  monthNav: { flexDirection: "row", alignItems: "center", gap: 8 },
-  monthArrow: { padding: 4 },
-  monthLabel: { fontSize: 16, fontFamily: "Pretendard-Regular", minWidth: 90, textAlign: "center" },
-  holiBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
-  holiBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  root: { flex: 1, backgroundColor: C.background },
+  monthRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    paddingVertical: 14, gap: 24, borderBottomWidth: 1, borderBottomColor: C.border,
+    backgroundColor: "#fff",
+  },
+  monthBtn: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: "#fff",
+    alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border,
+  },
+  monthTxt: { fontSize: 17, fontWeight: "700", color: C.text },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 10 },
+  emptyTxt: { color: C.textSecondary, fontSize: 14, textAlign: "center", paddingVertical: 24 },
 
-  quickRow: { flexDirection: "row", gap: 8 },
-  quickBtn: { flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 12, gap: 4 },
-  quickLabel: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  // Summary Card
+  summaryCard: {
+    backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: C.border,
+    padding: 18, marginBottom: 20,
+  },
+  summaryMonth: { fontSize: 15, fontWeight: "700", color: C.textPrimary, marginBottom: 14 },
+  amountRow: { flexDirection: "row", alignItems: "flex-start" },
+  amtDivider: { width: 1, backgroundColor: C.border, marginHorizontal: 4, marginTop: 4, height: 36 },
+  amtLabel: { fontSize: 11, color: C.textSecondary, marginBottom: 4, textAlign: "center" },
+  amtValue: { fontWeight: "600", textAlign: "center" },
+  summaryDivider: { height: 1, backgroundColor: C.border, marginVertical: 12 },
+  memberRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  memberTxt: { fontSize: 13, color: C.textSecondary },
+  unpricedBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#FEF3C7", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  unpricedTxt: { fontSize: 12, color: "#92400E", fontWeight: "600" },
+  unpricedCta: {
+    flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10,
+    borderWidth: 1, borderColor: "#CBD5E1", borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "#F8FAFC",
+  },
+  unpricedCtaTxt: { fontSize: 13, fontWeight: "600", color: "#1E3A5F" },
 
-  summaryCard:    { borderRadius: 16, padding: 16, borderWidth: 1.5, backgroundColor: Colors.light.card, gap: 8 },
-  summaryTopRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  summaryLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  summaryTotal:   { fontSize: 26, fontFamily: "Pretendard-Regular" },
-  submitBadge:    { backgroundColor: "#F0FFF4", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
-  submitBadgeTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  summaryMetrics: { flexDirection: "row", gap: 10, marginTop: 4 },
-  metricBox:      { flex: 1, borderRadius: 12, padding: 12, gap: 4, alignItems: "center" },
-  metricVal:      { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  metricUnit:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  metricLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  formulaHint:    { fontSize: 11, fontFamily: "Pretendard-Regular", textAlign: "right", marginTop: 2 },
+  // Teacher Card
+  teacherCard: {
+    backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: C.border,
+    padding: 16, marginBottom: 10, position: "relative",
+  },
+  tcHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  tcName: { fontSize: 15, fontWeight: "700", color: C.textPrimary },
+  tcMeta: { fontSize: 12, color: C.textSecondary, marginBottom: 10 },
+  tcAmounts: { gap: 4 },
+  tcChevron: { position: "absolute", right: 14, bottom: 14 },
 
-  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", marginTop: 4 },
+  // Amount Line
+  amtLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  amtLineLabel: { fontSize: 13, color: C.textSecondary },
+  amtLineValue: { fontSize: 13 },
 
-  emptyBox: { alignItems: "center", paddingVertical: 40, gap: 8 },
-  emptyTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  // Status chip
+  statusChip: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  statusChipTxt: { fontSize: 11, fontWeight: "600" },
 
-  teacherHeader:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  teacherCount:   { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  // Modal
+  modalRoot: { flex: 1, backgroundColor: C.background },
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: "#fff",
+  },
+  modalTitle: { fontSize: 17, fontWeight: "700", color: C.textPrimary },
+  modalClose: { padding: 4 },
+  modalStatusRow: { padding: 12, paddingBottom: 0 },
 
-  tableHeader:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8,
-                    backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border },
-  colHead:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: Colors.light.textMuted },
+  // Detail summary
+  detailSummary: {
+    backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: C.border,
+    padding: 14, marginBottom: 12,
+  },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
+  detailLabel: { fontSize: 13, color: C.textSecondary },
+  detailValue: { fontSize: 13, fontWeight: "500", color: C.textPrimary },
+  detailDivider: { height: 1, backgroundColor: C.border, marginVertical: 6 },
 
-  tableRow:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14,
-                    backgroundColor: Colors.light.card, marginTop: 1 },
-  tableRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.light.border },
-  rowName:        { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  statusPill:     { alignSelf: "flex-start", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, marginTop: 3 },
-  statusPillTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  rowAmt:         { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "right" },
-  rowVal:         { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", color: Colors.light.text },
-  rowExtra:       { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "right" },
+  // has_changed warning
+  changedWarning: {
+    flexDirection: "row", alignItems: "flex-start", gap: 8,
+    backgroundColor: "#FEF3C7", borderRadius: 10, padding: 12, marginBottom: 4,
+  },
+  changedWarningTxt: { flex: 1, fontSize: 13, color: "#78350F", lineHeight: 19 },
 
-  statusBadge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  statusTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  // Student row
+  studentRow: {
+    backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border,
+    marginBottom: 8, overflow: "hidden",
+  },
+  studentRowMain: {
+    flexDirection: "row", alignItems: "center", padding: 12, gap: 8,
+  },
+  studentName: { fontSize: 14, fontWeight: "600", color: C.textPrimary },
+  studentMeta: { fontSize: 12, color: C.textSecondary, marginTop: 1 },
+  studentFinal: { fontSize: 14, fontWeight: "700", color: C.textPrimary },
+  unpricedLabel: { fontSize: 12, color: "#92400E", fontWeight: "600" },
+  studentDetail: { borderTopWidth: 1, borderTopColor: C.border, padding: 12, gap: 4 },
+  sdRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
+  sdLabel: { fontSize: 12, color: C.textSecondary },
+  sdValue: { fontSize: 12, color: C.textSecondary, fontWeight: "500" },
 
-  extraCard: { borderRadius: 14, padding: 14 },
-  inputRow: { flexDirection: "row", gap: 8 },
-  input: { width: 110, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, fontFamily: "Pretendard-Regular" },
-  inputMemo: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, fontFamily: "Pretendard-Regular" },
-
-  actionRow: { flexDirection: "row", gap: 10 },
-  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 14 },
-  actionBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  savedMsg: { textAlign: "center", fontSize: 13, fontFamily: "Pretendard-Regular" },
-
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
-  modalBox: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center", padding: 24, pointerEvents: "box-none" },
-  modalCard: { borderRadius: 20, padding: 24, width: "100%", maxWidth: 340, gap: 12 },
-  modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", textAlign: "center" },
-  modalDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
-  modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
-  modalBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
-  modalBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular" },
-
-  confirmBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-                   paddingVertical: 9, borderRadius: 10 },
-  confirmBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  // Confirm
+  confirmBtn: {
+    borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 20,
+  },
+  confirmBtnTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  confirmedBadge: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#DCFCE7", borderRadius: 10, padding: 14, marginTop: 16,
+  },
+  confirmedBadgeTxt: { fontSize: 14, fontWeight: "600", color: "#14532D" },
+  infoBox: {
+    backgroundColor: "#F1F5F9", borderRadius: 10, padding: 14, marginTop: 16,
+  },
+  infoBoxTxt: { fontSize: 13, color: C.textSecondary, textAlign: "center" },
 });

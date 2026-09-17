@@ -399,8 +399,175 @@ router.get("/settlement/history",
   }
 );
 
+// ─── 관리자 전체 뷰 ──────────────────────────────────────────────────────────
+// GET /settlement/admin-overview?pool_id=&month=YYYY-MM
+// 반환: teachers(reflected_amount 포함), pool 집계, unpriced_students
+router.get("/settlement/admin-overview",
+  requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id: rawPoolId, month } = req.query as Record<string, string>;
+      const { userId } = req.user!;
+      if (!month) return err(res, 400, "month가 필요합니다.");
+      const pool_id = rawPoolId || (await getPoolId(userId!)) || "";
+      if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
+
+      // 1. 현재 자동 계산 (Source of Truth)
+      const current = await calculatePoolSettlement(pool_id, month);
+
+      // 2. 저장된 정산 레코드
+      const savedRows = await db.execute(sql`
+        SELECT
+          teacher_user_id AS teacher_id,
+          teacher_name,
+          status,
+          total_revenue,
+          auto_amount_snapshot,
+          total_sessions,
+          total_makeup_sessions AS makeup_count,
+          updated_at
+        FROM monthly_settlements
+        WHERE pool_id = ${pool_id} AND settlement_month = ${month}
+      `);
+      const savedMap = new Map((savedRows.rows as any[]).map(r => [r.teacher_id, r]));
+
+      // 3. Teacher별 병합 — 계산식 없음, 정책만 적용
+      const teacherRows = current.teachers.map((t: any) => {
+        const saved = savedMap.get(t.teacher_id) as any ?? null;
+        const status: string | null = saved?.status ?? null;
+        const currentAuto = t.allocated_auto_amount ?? 0;
+        const savedAuto = saved?.auto_amount_snapshot ?? null;
+        const savedTotal = saved?.total_revenue ?? null;
+        const hasChanged = savedAuto !== null && currentAuto !== null && savedAuto !== currentAuto;
+
+        // reflected_amount 정책: 저장 없음→currentAuto, submitted/confirmed→savedTotal
+        const reflectedAmount = (status === "submitted" || status === "confirmed")
+          ? (savedTotal ?? 0)
+          : currentAuto;
+        // adjustment = savedTotal - savedAuto (저장된 경우만)
+        const adjustmentTotal = (savedTotal !== null && savedAuto !== null)
+          ? (savedTotal - savedAuto)
+          : 0;
+
+        let statusLabel: string;
+        if (status === "confirmed") statusLabel = "관리자 확인";
+        else if (status === "submitted") statusLabel = "저장됨";
+        else statusLabel = "정산 전";
+
+        return {
+          teacher_id: t.teacher_id,
+          teacher_name: saved?.teacher_name || t.teacher_name || "",
+          status,
+          status_label: statusLabel,
+          has_changed: hasChanged,
+          student_count: t.student_count ?? 0,
+          regular_slot_count: t.regular_slot_count ?? 0,
+          makeup_count: t.completed_makeup_performed_count ?? 0,
+          auto_amount: currentAuto,
+          adjustment_total: adjustmentTotal,
+          reflected_amount: reflectedAmount,
+          updated_at: saved?.updated_at ?? null,
+        };
+      });
+
+      // 4. Pool 집계 — server에서 반환 (frontend 계산 없음)
+      const poolAutoTotal = current.pool_summary.teacher_allocated_auto_total ?? 0;
+      const poolReflectedTotal = teacherRows.reduce((s: number, t: any) => s + t.reflected_amount, 0);
+      const poolAdjustmentTotal = teacherRows.reduce((s: number, t: any) => s + t.adjustment_total, 0);
+
+      return res.json({
+        success: true,
+        month,
+        pool_id,
+        teachers: teacherRows,
+        pool_summary: {
+          ...current.pool_summary,
+          pool_auto_total: poolAutoTotal,
+          pool_adjustment_total: poolAdjustmentTotal,
+          pool_reflected_total: poolReflectedTotal,
+        },
+        unpriced_students: current.unpriced_students,
+      });
+    } catch (e: any) {
+      console.error("[settlement/admin-overview]", e);
+      return err(res, 500, e.message);
+    }
+  }
+);
+
+// ─── 관리자 선생님 상세 ───────────────────────────────────────────────────────
+// GET /settlement/admin-teacher-detail?pool_id=&teacher_id=&month=YYYY-MM
+router.get("/settlement/admin-teacher-detail",
+  requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { pool_id: rawPoolId, teacher_id, month } = req.query as Record<string, string>;
+      const { userId } = req.user!;
+      if (!month) return err(res, 400, "month가 필요합니다.");
+      if (!teacher_id) return err(res, 400, "teacher_id가 필요합니다.");
+      const pool_id = rawPoolId || (await getPoolId(userId!)) || "";
+      if (!pool_id) return err(res, 400, "pool_id를 찾을 수 없습니다.");
+
+      const savedRow = await db.execute(sql`
+        SELECT status, total_revenue, auto_amount_snapshot, student_details, total_sessions, total_makeup_sessions, updated_at
+        FROM monthly_settlements
+        WHERE pool_id = ${pool_id} AND teacher_user_id = ${teacher_id} AND settlement_month = ${month}
+        LIMIT 1
+      `);
+      const saved = (savedRow.rows[0] as any) ?? null;
+
+      let students: any[] = [];
+      let autoAmount = 0;
+
+      if (saved && (saved.status === "submitted" || saved.status === "confirmed")) {
+        // 저장된 student_details 사용
+        const raw = saved.student_details;
+        students = Array.isArray(raw) ? raw : (typeof raw === "string" ? JSON.parse(raw) : []);
+        autoAmount = saved.auto_amount_snapshot ?? 0;
+      } else {
+        // 미저장: calculator로 현재 자동 계산
+        const calc = await calculateTeacherSettlement(pool_id, month, teacher_id);
+        autoAmount = calc.teacher_aggregation?.allocated_auto_amount ?? 0;
+        students = (calc.students as any[]).map(s => {
+          const myAlloc = (s.teacher_allocations as any[]).find((a: any) => a.teacher_id === teacher_id);
+          return {
+            student_id: s.student_id,
+            student_name: s.student_name,
+            weekly_count: s.weekly_count,
+            pricing_status: s.pricing_status,
+            monthly_fee: s.monthly_fee,
+            sessions_per_month: s.sessions_per_month,
+            regular_slot_count: myAlloc?.regular_slot_count ?? 0,
+            total_regular_slots: s.scheduled_regular_count,
+            completed_makeup_count: s.completed_makeup_count,
+            billable_count: s.billable_count,
+            student_auto_amount: s.student_auto_amount,
+            allocation_ratio: myAlloc?.allocation_ratio ?? 0,
+            allocated_auto_amount: myAlloc?.allocated_auto_amount ?? 0,
+            adjustment_amount: 0,
+            final_amount: myAlloc?.allocated_auto_amount ?? 0,
+          };
+        });
+      }
+
+      return res.json({
+        success: true,
+        teacher_id,
+        month,
+        status: saved?.status ?? null,
+        auto_amount: autoAmount,
+        students,
+      });
+    } catch (e: any) {
+      console.error("[settlement/admin-teacher-detail]", e);
+      return err(res, 500, e.message);
+    }
+  }
+);
+
 // ─── 정산 확정 ───────────────────────────────────────────────────────────────
 // POST /settlement/finalize
+// 관리자: submitted + has_changed=false인 경우만 confirmed 처리
 router.post("/settlement/finalize",
   requireAuth, requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
@@ -409,15 +576,40 @@ router.post("/settlement/finalize",
       const { userId, role } = req.user!;
 
       // 업무 상태 Source of Truth = status 단일 컬럼
-      // is_finalized/finalized_at은 deprecated (DB 컬럼 존재하나 업무 판단에 사용하지 않음)
       if (role === "pool_admin" || role === "super_admin") {
         if (teacher_id) {
+          // 단일 선생님 확정 — 상태 및 has_changed 검증
+          const row = await db.execute(sql`
+            SELECT status, auto_amount_snapshot FROM monthly_settlements
+            WHERE pool_id = ${pool_id} AND teacher_user_id = ${teacher_id} AND settlement_month = ${month}
+            LIMIT 1
+          `);
+          const r = row.rows[0] as any;
+          if (!r) return res.status(404).json({ success: false, message: "정산 레코드가 없습니다.", error_code: "NOT_FOUND" });
+          if (r.status !== "submitted") {
+            return res.status(409).json({ success: false, message: "저장된 정산만 확인할 수 있습니다.", error_code: "NOT_SUBMITTED" });
+          }
+          // has_changed 검증: 현재 AUTO와 저장 snapshot 비교
+          try {
+            const currentCalc = await calculateTeacherSettlement(pool_id, month, teacher_id);
+            const currentAuto = currentCalc.teacher_aggregation?.allocated_auto_amount ?? 0;
+            if (r.auto_amount_snapshot !== null && r.auto_amount_snapshot !== currentAuto) {
+              return res.status(409).json({
+                success: false,
+                message: "저장 후 회원/시간표 정보가 변경되었습니다. 선생님이 정산을 다시 저장해야 합니다.",
+                error_code: "HAS_CHANGED",
+              });
+            }
+          } catch { /* has_changed 계산 실패 시 무시하고 진행 */ }
+
           await db.execute(sql`
             UPDATE monthly_settlements
             SET status = 'confirmed', updated_at = now()
             WHERE pool_id = ${pool_id} AND teacher_user_id = ${teacher_id} AND settlement_month = ${month}
+              AND status = 'submitted'
           `);
         } else {
+          // 전체 확정 — submitted만, has_changed 검증 생략 (bulk)
           await db.execute(sql`
             UPDATE monthly_settlements
             SET status = 'confirmed', updated_at = now()
