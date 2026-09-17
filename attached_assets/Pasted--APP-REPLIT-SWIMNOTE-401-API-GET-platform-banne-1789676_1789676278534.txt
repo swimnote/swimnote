@@ -1,0 +1,217 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 학부모 프로모션 배너 401 수정]
+
+원인 분석 승인합니다.
+
+API:
+
+GET /platform/banners
+
+는 requireAuth를 유지합니다.
+
+인증을 제거하여 public endpoint로 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 방향
+━━━━━━━━━━━━━━━━━━━━━━
+
+ParentPromoStrip.tsx의 현재:
+
+fetch(`${API_BASE}/platform/banners?type=strip`)
+
+무인증 호출을 수정하십시오.
+
+우선순위:
+
+1순위:
+SWIMNOTE APP에서 이미 사용하는
+공통 authenticated API client/helper 재사용.
+
+해당 helper가 자동으로:
+
+Authorization: Bearer <JWT>
+
+를 넣는 구조라면
+반드시 그것을 사용하십시오.
+
+2순위:
+공통 helper로 처리할 수 없는 경우에만
+현재 APP의 실제 auth hook/context에서 token을 가져와
+Authorization header를 명시적으로 추가하십시오.
+
+새 인증 방식 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. AUTH 초기화 시점
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 시작 직후 auth/token이 아직 준비되지 않은 상태에서
+먼저 banner fetch를 실행하여 다시 401이 발생하지 않게 하십시오.
+
+현재 auth context에:
+
+loading
+isReady
+initialized
+
+등의 기존 상태가 있다면 재사용.
+
+최소 원칙:
+
+유효한 로그인 세션/token 확인 후
+banner request 실행.
+
+별도 auth system 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FALLBACK 정책은 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 fallback:
+
+“스윔노트 — 우리 아이 수영 성장을 기록해보세요”
+
+는 유지합니다.
+
+다음 경우에만 fallback:
+
+- 활성 strip banner가 실제로 없음
+- 정상 인증 요청 자체가 실패함
+
+정상 등록되어 있는 활성 배너가 있는데
+인증 누락 때문에 fallback이 뜨는 현상만 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 카드 배너도 동일 문제만 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 banner audit 금지.
+
+단 같은 API를 사용하는:
+
+ParentAdBanner
+
+가 있다면
+해당 컴포넌트의 /platform/banners 호출에
+Authorization이 이미 들어가는지만 딱 확인하십시오.
+
+만약 ParentAdBanner도
+동일하게 무인증 fetch를 사용하고 있다면
+
+같은 공통 authenticated client 방식으로
+함께 수정하십시오.
+
+이미 정상 인증 호출이면 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. API 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- requireAuth 제거
+- public endpoint 생성
+- banner DB 변경
+- banner schema 변경
+- Super Admin 배너 관리 변경
+- Dashboard 변경
+- migration
+
+API 서버 수정이 필요하지 않아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 로그인된 학부모 APP 기준 확인:
+
+A.
+
+활성 strip banner:
+“환영합니다”
+
+가 등록되어 있고 노출 기간 내라면
+
+ParentPromoStrip에 실제로
+“환영합니다”
+
+표시.
+
+PASS
+
+B.
+
+fallback 문구가 대신 뜨지 않음.
+
+PASS
+
+C.
+
+로그 확인 가능하면
+GET /platform/banners?type=strip
+→ HTTP 200
+
+PASS
+
+D.
+
+활성 strip banner가 없는 경우에는
+기존 fallback 정상 표시.
+
+PASS
+
+E.
+
+ParentAdBanner가 같은 인증 결함이 있었다면
+동일하게 정상 banner 반환.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP만 수정된 경우:
+
+production-v2
+runtimeVersion 2.2.0
+iOS OTA
+
+API/Render/Dashboard 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+[A]
+실제 사용한 인증 방식
+- 기존 authenticated API helper 이름
+또는
+- auth hook/context 이름
+
+[B]
+수정 파일
+
+[C]
+ParentPromoStrip 요청의 최종 인증 방식
+
+[D]
+ParentAdBanner 동일 문제 존재 여부
+- 있음 / 없음
+- 있었다면 수정 여부
+
+[E]
+QA A~E PASS/FAIL
+
+[F]
+full work SHA 40자
+
+[G]
+EAS Update Group full ID
+iOS Update full ID
+branch
+runtimeVersion
+
+실제 기기에서 배너 표시까지 확인하지 못했다면
+‘실제 기기 확인하지 못함’이라고 명시하십시오.
