@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { API_BASE } from "@/context/AuthContext";
+import { API_BASE, useAuth } from "@/context/AuthContext";
 
 interface Banner {
   id: string;
@@ -38,14 +38,22 @@ const FALLBACK = {
 };
 
 export function ParentPromoStrip() {
+  const { token, isLoading } = useAuth();
   const [banner, setBanner] = useState<Banner | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // auth 초기화 중이면 대기
+    if (isLoading) return;
+    // 유효한 토큰 없으면 fallback 즉시 표시
+    if (!token) { setReady(true); return; }
+
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/platform/banners?type=strip`);
+        const r = await fetch(`${API_BASE}/platform/banners?type=strip`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (!r.ok) return;
         const data = await r.json();
         const first: Banner | undefined = data.banners?.[0];
@@ -54,7 +62,7 @@ export function ParentPromoStrip() {
       finally { if (!cancelled) setReady(true); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [isLoading, token]);
 
   const src = banner ?? FALLBACK;
   const th = THEME_MAP[src.color_theme] ?? DEFAULT;
