@@ -166,7 +166,16 @@ router.get("/super/banners", requireAuth, async (req: AuthRequest, res) => {
       ? await query.where(eq(platformBannersTable.banner_type as any, bannerType)).orderBy(desc(platformBannersTable.created_at))
       : await query.orderBy(desc(platformBannersTable.created_at));
 
-    return res.json({ success: true, banners: rows });
+    const proto = req.get("x-forwarded-proto") || req.protocol;
+    const apiBase = `${proto}://${req.get("host")}/api`;
+    const enriched = rows.map(b => ({
+      ...b,
+      display_url: (b as any).image_key
+        ? `${apiBase}/uploads/${(b as any).image_key}`
+        : ((b as any).image_url || null),
+    }));
+
+    return res.json({ success: true, banners: enriched });
   } catch (e: any) {
     console.error("[super-banners] 목록 오류:", e);
     return err(res, 500, "서버 오류");
@@ -224,9 +233,8 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
     `).catch(() => {});
     return res.status(201).json({ success: true, banner });
   } catch (e: any) {
-    const msg = e.message ?? String(e);
-    console.error("[super-banners] 생성 오류:", msg);
-    return res.status(500).json({ success: false, message: "서버 오류", debug: msg });
+    console.error("[super-banners] 생성 오류:", e.message ?? e);
+    return err(res, 500, "서버 오류");
   }
 });
 
