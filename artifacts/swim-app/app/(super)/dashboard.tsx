@@ -434,7 +434,6 @@ export default function SuperDashboard() {
               <View style={s.contentRow}>
                 {[
                   { icon: "bell",         label: "공지사항",  path: "/(super)/notices" },
-                  { icon: "layout",       label: "카드배너",  path: "/(super)/ads" },
                   { icon: "minus-square", label: "가로배너",  path: "/(super)/strip-banner" },
                 ].map(item => (
                   <Pressable key={item.label} style={s.contentBtn}
