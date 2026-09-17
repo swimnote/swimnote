@@ -203,14 +203,14 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
          ${color_theme ?? "teal"}, ${target ?? "all"},
          ${status ?? "inactive"}, ${new Date(display_start).toISOString()}::timestamptz,
          ${new Date(display_end).toISOString()}::timestamptz,
-         ${sort_order ?? 0}, ${req.user!.id}, NOW(), NOW())
+         ${sort_order ?? 0}, ${req.user!.userId}, NOW(), NOW())
       RETURNING *
     `);
     const banner = (row.rows[0] as any) ?? null;
     // audit log
     await superAdminDb.execute(sql`
       INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, after_data)
-      VALUES ('platform_banner', ${id}, 'create', 'super_admin', ${req.user!.id},
+      VALUES ('platform_banner', ${id}, 'create', 'super_admin', ${req.user!.userId},
               ${JSON.stringify({ title: title.trim(), status: status ?? "inactive", target: target ?? "all" })}::jsonb)
     `).catch(() => {});
     return res.status(201).json({ success: true, banner });
@@ -269,7 +269,7 @@ router.put("/super/banners/:id", requireAuth, async (req: AuthRequest, res) => {
     // audit log
     await superAdminDb.execute(sql`
       INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, after_data)
-      VALUES ('platform_banner', ${id}, 'update', 'super_admin', ${req.user!.id},
+      VALUES ('platform_banner', ${id}, 'update', 'super_admin', ${req.user!.userId},
               ${JSON.stringify(patch)}::jsonb)
     `).catch(() => {});
     return res.json({ success: true, banner: row });
@@ -311,7 +311,7 @@ router.delete("/super/banners/:id", requireAuth, async (req: AuthRequest, res) =
     // audit log
     await superAdminDb.execute(sql`
       INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, before_data)
-      VALUES ('platform_banner', ${id}, 'delete', 'super_admin', ${req.user!.id},
+      VALUES ('platform_banner', ${id}, 'delete', 'super_admin', ${req.user!.userId},
               ${JSON.stringify({ title: (before as any)?.title, status: (before as any)?.status })}::jsonb)
     `).catch(() => {});
     return res.json({ success: true });
