@@ -13,6 +13,7 @@ import { API_BASE, useAuth } from "@/context/AuthContext";
 interface Banner {
   id: string;
   title: string;
+  description?: string;
   link_url?: string;
   color_theme: string;
   image_key?: string;
@@ -83,6 +84,8 @@ export function ParentPromoStrip() {
     );
   }
 
+  const hasDesc = !!("description" in src && (src as Banner).description);
+
   return (
     <Pressable
       style={[s.strip, { backgroundColor: th.bg }]}
@@ -90,7 +93,14 @@ export function ParentPromoStrip() {
         if (src.link_url) Linking.openURL(src.link_url).catch(() => {});
       }}
     >
-      <Text style={[s.txt, { color: th.text }]} numberOfLines={2}>{src.title}</Text>
+      <View style={s.textWrap}>
+        <Text style={[s.title, { color: th.text }]} numberOfLines={2}>{src.title}</Text>
+        {hasDesc && (
+          <Text style={[s.desc, { color: th.text }]} numberOfLines={2}>
+            {(src as Banner).description}
+          </Text>
+        )}
+      </View>
       {!!src.link_url && (
         <LucideIcon name="chevron-right" size={14} color={th.accent} />
       )}
@@ -105,7 +115,6 @@ const s = StyleSheet.create({
     minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     paddingHorizontal: 18,
     paddingVertical: 16,
     gap: 6,
@@ -119,10 +128,22 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   imgFull: { width: "100%", height: 80 },
-  txt: {
+  textWrap: {
+    flex: 1,
+    gap: 4,
+    alignItems: "center",
+  },
+  title: {
     fontSize: 13,
     fontFamily: "Pretendard-SemiBold",
     lineHeight: 18,
     textAlign: "center",
+  },
+  desc: {
+    fontSize: 12,
+    fontFamily: "Pretendard-Regular",
+    lineHeight: 17,
+    textAlign: "center",
+    opacity: 0.8,
   },
 });

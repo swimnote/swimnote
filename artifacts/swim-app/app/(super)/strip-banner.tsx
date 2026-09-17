@@ -372,12 +372,16 @@ export default function StripBannerScreen() {
                 <Image source={{ uri: previewImg }} style={m.previewFull} resizeMode="cover" />
               ) : (
                 <View style={[m.previewStrip, { backgroundColor: previewBg }]}>
-                  <View style={[m.previewIcon, { backgroundColor: accentColor + "22" }]}>
-                    <LucideIcon name="megaphone" size={13} color={accentColor} />
+                  <View style={s_pre.textWrap}>
+                    <Text style={[s_pre.title, { color: accentColor }]} numberOfLines={2}>
+                      {form.title || "배너 제목을 입력하세요"}
+                    </Text>
+                    {form.description ? (
+                      <Text style={[s_pre.desc, { color: accentColor }]} numberOfLines={2}>
+                        {form.description}
+                      </Text>
+                    ) : null}
                   </View>
-                  <Text style={[m.previewTxt, { color: accentColor }]} numberOfLines={1}>
-                    {form.title || "배너 제목을 입력하세요"}
-                  </Text>
                   {form.linkUrl ? <LucideIcon name="chevron-right" size={13} color={accentColor} /> : null}
                 </View>
               )}
@@ -537,7 +541,7 @@ const m = StyleSheet.create({
   imgBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: P },
   removeImg:   { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 4 },
   removeImgTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#DC2626" },
-  previewStrip:{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, height: 40, paddingHorizontal: 12, marginBottom: 8 },
+  previewStrip:{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
   previewFull: { width: "100%", height: 56, borderRadius: 8, marginBottom: 8 },
   previewIcon: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   previewTxt:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-SemiBold" },
@@ -548,4 +552,11 @@ const m = StyleSheet.create({
   charCountOver:{ color: "#DC2626" },
   inputError:  { borderColor: "#DC2626" },
   errorTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },
+});
+
+// 미리보기 텍스트 레이아웃 (s_pre 분리)
+const s_pre = StyleSheet.create({
+  textWrap: { flex: 1, gap: 2 },
+  title:    { fontSize: 12, fontFamily: "Pretendard-SemiBold", lineHeight: 17 },
+  desc:     { fontSize: 11, fontFamily: "Pretendard-Regular", lineHeight: 16, opacity: 0.8 },
 });
