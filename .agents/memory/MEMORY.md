@@ -94,3 +94,4 @@
 - [WP2 완료 상태](wp2-done-state.md) — SHA 315b3668; teacher GR navigation+admin makeup read-only+dashboard GR history; OTA 01a0a3fc
 - [WP2 Production Bug Fix](wp2-production-bugfix.md) — teacherOwnsStudent current_class_id→class_group_id; diary is_deleted 제거; SHA 33a646d4 Render LIVE
 - [★ students/student_class_history 컬럼명 원칙](wp2-production-bugfix.md) — students.class_group_id (current_class_id 아님); sch.class_group_id (class_id 아님); is_deleted 없음
+- [platform-banners POST 버그 패턴](platform-banners-post-bugs.md) — execute(sql) not iterable + req.user.id→userId + target_pool_id 컬럼 없음; ORM insert로 교체

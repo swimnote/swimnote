@@ -1,0 +1,640 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 배너 V2 Production 배포 + 이미지 업로드 실패 최종 해결]
+
+현재 Banner V2 APP OTA는 배포됐으나
+API 변경은 아직 Production Render에 반영되지 않은 상태입니다.
+
+그리고 실제 Super Admin 배너 등록 화면에서
+이미지를 선택하여 업로드했을 때:
+
+“이미지 업로드 실패”
+
+가 실제 발생했습니다.
+
+따라서 이번 작업은 단순 Render 배포 확인이 아니라:
+
+1. Banner V2 API Production 반영
+2. 실제 이미지 업로드 성공 확인
+3. R2 저장 확인
+4. display_url 생성 확인
+5. display_url 실제 HTTP 이미지 응답 확인
+
+까지 완료해야 합니다.
+
+추측으로 PASS 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 IMAGE UPLOAD 실패를 먼저 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production API에는
+Banner V2의:
+
+@replit/object-storage
+→ uploadToR2
+
+변경이 아직 배포되지 않았을 가능성이 있습니다.
+
+따라서 업로드 실패 원인을
+처음부터 광범위하게 조사하지 마십시오.
+
+먼저:
+
+현재 Production LIVE API SHA
+
+와
+
+Banner V2 work commit
+
+을 비교하십시오.
+
+Banner V2 R2 수정이 LIVE에 아직 없다면:
+
+“현재 실패는 구 API 상태에서 발생”
+
+할 가능성이 있으므로
+
+우선 새 API를 Production에 반영한 뒤
+동일 업로드를 다시 검증하십시오.
+
+새 API 배포 후에도 실패할 때만
+아래 ROOT CAUSE 조사로 진행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. MAIN PROMOTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Banner V2 work commit:
+
+87446fd2...
+
+의 full SHA를 확인하십시오.
+
+해당 변경이 origin/main에 이미 있으면
+추가 merge 없이 사용.
+
+main에 없다면:
+
+unrelated commit을 포함한 broad merge 금지.
+
+Banner V2 변경만
+안전하게 main에 반영하십시오.
+
+가능하면:
+
+cherry-pick 또는 동등한 최소 promotion.
+
+다른 미배포 commit 의존성이 있으면
+전체 merge하지 말고 중단 후 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. API PRODUCTION DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+swimnote-api
+
+Banner V2 API 변경:
+
+- banner-upload → uploadToR2
+- GET /platform/banners → display_url
+- strip max 4 validation
+- title validation 변경
+
+을 Production Render에 반영.
+
+최종:
+
+status = live
+
+확인.
+
+반드시 실제 Render LIVE SHA 40자를 확인.
+
+origin/main HEAD만 보고
+LIVE라고 판단하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 IMAGE UPLOAD TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+API가 LIVE 된 뒤
+실제 Banner upload endpoint를
+인증된 Super Admin 요청으로 테스트하십시오.
+
+중요:
+
+APP이 실제 보내는 것과 동일한:
+
+- endpoint
+- HTTP method
+- multipart/form-data 구조
+- field name
+- content type
+- Authorization
+
+을 사용하십시오.
+
+임의의 다른 request 형식으로
+endpoint만 테스트해서 PASS 처리 금지.
+
+작은 JPG 또는 PNG 테스트 이미지 1개로 확인.
+
+기대:
+
+HTTP 2xx
+
+그리고 응답에 최소:
+
+image_key
+
+및 실제 클라이언트가 사용할 수 있는
+URL/display 정보가 정상 반환되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 업로드가 다시 실패하면 그때만 ROOT CAUSE 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 API LIVE 이후에도
+이미지 업로드가 실패하면
+
+딱 해당 요청만 추적하십시오.
+
+확인:
+
+[A]
+APP 실제 upload request
+
+- endpoint
+- method
+- form field 이름
+- filename
+- mime type
+- Authorization 존재 여부
+
+[B]
+API 실제 response
+
+- HTTP status
+- response body
+- error code/message
+
+[C]
+Render 해당 요청 로그
+
+실제 exception/error 한 건 확인.
+
+[D]
+uploadToR2 호출
+
+- 전달 buffer/file 값
+- object key
+- contentType
+- bucket binding/config
+- 반환값
+
+[E]
+Production R2 환경설정
+
+현재 API에서 다른 R2 기능이 정상 사용 중이라면
+같은 helper/config를 재사용하고 있는지 확인.
+
+secret 값 자체를 보고서에 노출하지 마십시오.
+
+[F]
+R2 저장 후 object 존재 여부
+
+실제 업로드 성공 후
+반환된 image_key의 object가 존재하는지 확인.
+
+전체 R2 audit 금지.
+
+이 업로드 한 건만 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. uploadToR2 구현 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 SWIMNOTE에서 사용 중인
+정상 R2 helper가 있다면 그대로 재사용.
+
+Banner 전용 R2 client 새로 만들지 마십시오.
+
+파일은:
+
+JPG
+PNG
+WEBP
+
+기존 허용 범위 사용.
+
+잘못된 mime type이나
+비어 있는 파일은 명확히 validation.
+
+업로드 실패를:
+
+200 + 빈 URL
+
+형태로 숨기지 마십시오.
+
+실패 시 적절한 non-2xx 오류 반환.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. display_url 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+업로드 성공만으로 완료하지 마십시오.
+
+업로드된:
+
+image_key
+
+를 Banner row에 사용할 때
+
+GET /platform/banners
+
+응답의:
+
+display_url
+
+이 실제로 생성되어야 합니다.
+
+그리고 그 URL을 직접 요청하여:
+
+HTTP 200
+
+Content-Type:
+image/jpeg
+image/png
+image/webp
+
+중 실제 이미지 응답인지 확인.
+
+HTML 200
+JSON 200
+redirect error
+
+등을 이미지 성공으로 판단 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. PRESIGNED URL 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+만료되는 presigned URL을
+platform_banners.image_url에
+영구 저장하지 마십시오.
+
+Source of Truth:
+
+image_key
+
+유지.
+
+display_url은
+현재 SWIMNOTE R2 파일 제공 방식에 맞춰
+서버에서 안정적으로 생성/반환하십시오.
+
+이미 존재하는
+R2 proxy/CDN/file serving convention이 있다면
+반드시 재사용.
+
+R2 bucket 전체 public 전환 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. SUPER ADMIN 실제 등록 FLOW 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 직접 multipart 테스트가 성공하면
+Super Admin strip-banner UI flow도 확인하십시오.
+
+최소:
+
+이미지 배너 선택
+→ 이미지 선택
+→ 업로드
+→ 업로드 성공
+→ 미리보기 표시
+→ 저장 가능
+
+까지 확인.
+
+Production에 테스트 Banner row를
+불필요하게 생성하지 마십시오.
+
+기존 안전한 테스트 방법이 없다면
+실제 저장 mutation은 생략 가능.
+
+단:
+
+“이미지 선택 → upload endpoint 성공 → preview URI 생성”
+
+까지는 확인하십시오.
+
+실제 기기에서 확인할 수 없다면:
+
+“실제 기기 확인하지 못함”
+
+이라고 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. ParentPromoStrip 표시 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+활성 IMAGE strip banner가 존재하는 경우:
+
+GET /platform/banners?type=strip
+
+응답의 display_url을
+
+ParentPromoStrip이 그대로
+Image source로 사용하는지 확인.
+
+다음과 같이 자체 조합 금지:
+
+${API_BASE}/uploads/${image_key}
+
+서버가 제공하는 canonical display_url을 사용.
+
+이미지 배너:
+
+16:5
+cover
+
+정상 렌더링.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. AUTH 문제도 함께 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사에서:
+
+GET /platform/banners
+
+는 requireAuth인데
+
+ParentPromoStrip이
+무인증 fetch를 사용하여 401이 발생했던 문제가 있었습니다.
+
+Banner V2 최종 코드에서 반드시 확인:
+
+ParentPromoStrip
+→ authenticated request
+
+이어야 합니다.
+
+기존 APP authenticated API helper가 있으면
+그것을 재사용.
+
+Authorization 없이:
+
+fetch("/platform/banners")
+
+하는 코드가 남아 있으면 수정.
+
+ParentAdBanner도
+동일 endpoint를 사용한다면
+Authorization 누락 여부만 확인하고
+같은 문제가 있을 때만 수정.
+
+API의 requireAuth 제거 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. FALLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+활성 strip banner가 0개일 때만:
+
+“스윔노트 — 우리 아이 수영 성장을 기록해보세요”
+
+fallback.
+
+활성 배너가 존재하는데:
+
+401
+이미지 upload 실패
+display_url 실패
+Image render 실패
+
+때문에 fallback이 뜨는 것은
+정상 상태로 간주하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 최소 LIVE QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래만 검증.
+
+A.
+
+Banner V2 API
+Production status=live
+
+B.
+
+인증된:
+
+GET /api/platform/banners?type=strip
+
+→ HTTP 200
+
+C.
+
+기존 “환영합니다” TEXT banner
+정상 응답
+
+D.
+
+실제 JPG/PNG banner-upload
+
+→ HTTP 2xx
+
+E.
+
+upload 응답 image_key 존재
+
+F.
+
+실제 R2 object 저장 확인
+
+G.
+
+GET banners 응답:
+
+IMAGE banner display_url 존재
+
+H.
+
+display_url 직접 요청:
+
+HTTP 200 + image Content-Type
+
+I.
+
+ParentPromoStrip:
+
+authenticated API 호출 사용
+
+J.
+
+이미지 URI:
+
+display_url 사용
+
+K.
+
+Super Admin 이미지 선택 후
+upload 성공 및 preview 가능
+
+실제 기기 테스트가 불가능한 항목은
+PASS라고 쓰지 말고
+“실제 기기 확인하지 못함”으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 실패 시 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 API LIVE 후에도 업로드가 실패한 경우에만
+실제 ROOT CAUSE를 최소 수정하십시오.
+
+허용:
+
+- banner upload endpoint
+- existing R2 helper 연결
+- multipart field mismatch
+- image response/display_url 생성
+- strip-banner upload 호출
+- ParentPromoStrip authenticated fetch/display_url 사용
+
+금지:
+
+- banner DB 재설계
+- slides JSONB
+- 신규 banner table
+- R2 bucket 전체 공개
+- unrelated storage refactor
+- Dashboard 수정
+- settlement 수정
+- 전체 API audit
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 수정:
+
+swimnote-api main Production
+Render live 확인.
+
+APP 추가 수정이 발생한 경우에만:
+
+production-v2
+runtimeVersion 2.2.0
+iOS OTA 재배포.
+
+APP 코드 수정이 없으면
+기존 OTA 재배포 금지.
+
+DB migration 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ROOT CAUSE]
+
+이미지 업로드 실패의 실제 원인.
+
+다음 중 명확히 구분:
+
+- 구 Production API 때문에 실패
+- 새 R2 코드 자체 문제
+- multipart/request 문제
+- R2 환경/config 문제
+- 기타
+
+추측 금지.
+
+[B. MAIN]
+
+- Banner V2 full main SHA 40자
+- promotion 방식
+- unrelated commit 포함 여부
+
+[C. API DEPLOY]
+
+- full Production LIVE SHA 40자
+- Render Deploy ID
+- status=live
+
+[D. UPLOAD TEST]
+
+- 실제 endpoint
+- HTTP status
+- image_key 예시
+  (민감정보 아닌 범위)
+- R2 object 확인 여부
+
+[E. DISPLAY URL]
+
+- GET banners에 display_url 존재 여부
+- display_url HTTP status
+- Content-Type
+
+[F. AUTH]
+
+- ParentPromoStrip 실제 인증 방식
+- ParentAdBanner 동일 문제 여부
+
+[G. SUPER ADMIN]
+
+- 이미지 선택
+- 업로드
+- preview
+
+각 PASS/FAIL/실제기기 확인못함
+
+[H. QA]
+
+A~K 각각 PASS/FAIL/확인못함
+
+[I. APP OTA]
+
+추가 APP 수정이 있었다면:
+
+- full work SHA 40자
+- EAS Update Group full ID
+- iOS Update full ID
+- branch
+- runtimeVersion
+
+추가 수정이 없으면:
+기존 OTA 유지라고 명시.
+
+[J. MIGRATION]
+
+없음.
+
+중요:
+
+“uploadToR2로 바꿨으므로 해결됨”
+
+이라고 보고하지 마십시오.
+
+실제 Production에서
+이미지 파일 한 건이:
+
+APP/API 요청
+→ upload endpoint
+→ R2 object
+→ banners response
+→ display_url
+→ HTTP 이미지 응답
+
+까지 연결된 증거가 있어야
+이미지 업로드 문제를 PASS 처리합니다.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
