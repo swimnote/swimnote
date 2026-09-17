@@ -215,8 +215,9 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
     `).catch(() => {});
     return res.status(201).json({ success: true, banner });
   } catch (e: any) {
-    console.error("[super-banners] 생성 오류:", e.message ?? e);
-    return err(res, 500, "서버 오류");
+    const msg = e.message ?? String(e);
+    console.error("[super-banners] 생성 오류:", msg);
+    return res.status(500).json({ success: false, message: "서버 오류", debug: msg });
   }
 });
 
