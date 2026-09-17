@@ -193,20 +193,29 @@ router.post("/super/banners", requireAuth, async (req: AuthRequest, res) => {
   try {
     const id = `banner_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
     // target_pool_id 컬럼은 platform_banners 스키마에 없으므로 INSERT에서 제외
-    const [row] = await superAdminDb.execute(sql`
-      INSERT INTO platform_banners
-        (id, banner_type, title, description, image_url, image_key, link_url, link_label,
-         color_theme, target, status, display_start, display_end, sort_order, created_by, created_at, updated_at)
-      VALUES
-        (${id}, ${banner_type ?? "slider"}, ${title.trim()}, ${description?.trim() ?? null},
-         ${image_url ?? null}, ${image_key ?? null}, ${link_url?.trim() ?? null}, ${link_label?.trim() ?? null},
-         ${color_theme ?? "teal"}, ${target ?? "all"},
-         ${status ?? "inactive"}, ${new Date(display_start).toISOString()}::timestamptz,
-         ${new Date(display_end).toISOString()}::timestamptz,
-         ${sort_order ?? 0}, ${req.user!.userId}, NOW(), NOW())
-      RETURNING *
-    `);
-    const banner = (row.rows[0] as any) ?? null;
+    // drizzle ORM insert — execute(sql) returns non-iterable QueryResult, use .insert().returning() instead
+    const [banner] = await superAdminDb
+      .insert(platformBannersTable)
+      .values({
+        id,
+        banner_type: (banner_type ?? "slider") as any,
+        title: title.trim(),
+        description: description?.trim() ?? null,
+        image_url: image_url ?? null,
+        image_key: image_key ?? null,
+        link_url: link_url?.trim() ?? null,
+        link_label: link_label?.trim() ?? null,
+        color_theme: color_theme ?? "teal",
+        target: target ?? "all",
+        status: status ?? "inactive",
+        display_start: new Date(display_start),
+        display_end: new Date(display_end),
+        sort_order: sort_order ?? 0,
+        created_by: req.user!.userId,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as any)
+      .returning();
     // audit log
     await superAdminDb.execute(sql`
       INSERT INTO audit_logs (entity_type, entity_id, action, actor_type, actor_id, after_data)
