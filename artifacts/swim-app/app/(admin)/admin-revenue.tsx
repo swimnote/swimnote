@@ -302,13 +302,18 @@ function SummaryCard({ overview }: { overview: Overview | null }) {
 
       {/* unpriced CTA */}
       {hasUnpriced && (
-        <Pressable
-          style={s.unpricedCta}
-          onPress={() => router.push("/(admin)/unit-pricing")}
-        >
-          <LucideIcon name="settings" size={14} color="#1E3A5F" />
-          <Text style={s.unpricedCtaTxt}>수업료 설정</Text>
-        </Pressable>
+        <View style={s.unpricedCtaBlock}>
+          <Text style={s.unpricedCtaDesc}>
+            수업 단가가 설정되지 않았습니다.{"\n"}수업 단가표에서 수업료를 설정해주세요.
+          </Text>
+          <Pressable
+            style={s.unpricedCta}
+            onPress={() => router.push("/(admin)/unit-pricing")}
+          >
+            <LucideIcon name="settings" size={14} color="#1E3A5F" />
+            <Text style={s.unpricedCtaTxt}>수업 단가표 설정</Text>
+          </Pressable>
+        </View>
       )}
     </View>
   );
@@ -570,6 +575,15 @@ const s = StyleSheet.create({
     backgroundColor: "#FEF3C7", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
   },
   unpricedTxt: { fontSize: 12, color: "#92400E", fontWeight: "600" },
+  unpricedCtaBlock: {
+    marginTop: 10,
+    gap: 8,
+  },
+  unpricedCtaDesc: {
+    fontSize: 12,
+    color: "#92400E",
+    lineHeight: 18,
+  },
   unpricedCta: {
     flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10,
     borderWidth: 1, borderColor: "#CBD5E1", borderRadius: 10,
