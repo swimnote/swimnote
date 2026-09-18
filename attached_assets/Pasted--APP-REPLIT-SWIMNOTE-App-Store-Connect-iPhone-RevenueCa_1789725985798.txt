@@ -1,0 +1,373 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — App Store Connect 신규 구독상품 실제 상태 정밀 확인]
+
+실제 iPhone RevenueCat Runtime 진단을 다시 실행했으나
+결과가 이전과 완전히 동일합니다.
+
+현재 실제 기기:
+
+Offerings:
+- solo_monthly
+- center_monthly
+
+MISSING:
+- swimnote_monthly
+- x_monthly
+
+Direct getProducts:
+- com.swimnote.swimnote.monthly = NOT FOUND
+- com.swimnote.x300.monthly = NOT FOUND
+
+따라서 APP/OTA/RevenueCat 조사는 종료합니다.
+
+이번 단계에서는
+App Store Connect 쪽 신규 상품의 실제 상태를
+직접 확인하십시오.
+
+코드 수정 금지.
+OTA 금지.
+RevenueCat 수정 금지.
+ASC 상품 수정/제출도 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. App Store Connect API 접근 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 프로젝트/Replit 환경에
+App Store Connect API 접근 자격증명이 이미 있는지 확인하십시오.
+
+예:
+
+- issuer ID
+- key ID
+- private key
+- 기존 Fastlane/App Store Connect 설정
+- 기존 EAS submission 관련 ASC credentials
+
+민감한 값 자체는 보고하지 마십시오.
+
+접근 가능하면
+사용자에게 다시 확인을 요구하지 말고
+직접 ASC 데이터를 조회하십시오.
+
+접근 불가능하면:
+
+“ASC API 접근 자격증명 없음”
+
+이라고 명확히 보고하고
+어떤 정보가 없어 직접 조회하지 못했는지만 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 대상 APP 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+bundle ID:
+com.swimnote.app
+
+에 연결된 실제 App Store Connect App에서
+상품을 조회하십시오.
+
+다른 앱/legacy app의 상품을
+잘못 비교하지 마십시오.
+
+App Store Connect app ID도 확인 가능한 경우 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 신규 6개 PRODUCT 실제 존재 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 Product ID를
+ASC에서 정확히 조회하십시오.
+
+- com.swimnote.swimnote.monthly
+- com.swimnote.x300.monthly
+- com.swimnote.x500.monthly
+- com.swimnote.x1000.monthly
+- com.swimnote.data100.monthly
+- com.swimnote.data300.monthly
+
+각각:
+
+EXISTS
+MISSING
+
+을 확정하십시오.
+
+RevenueCat에 존재한다는 사실로
+ASC에도 존재한다고 간주하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 존재하는 상품은 실제 상태 전부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 신규 상품에 대해 가능한 범위에서:
+
+- Product ID
+- 상품 유형
+  Auto-Renewable Subscription 여부
+
+- Subscription Group
+- 현재 App Store Connect state/status
+- localization 완료 여부
+- 가격 설정 여부
+- 판매 가능 territory/availability
+- review 제출 여부
+- review 상태
+- cleared for sale / 판매 가능 상태에 해당하는 현재 설정
+- 생성/수정 시각
+
+을 확인하십시오.
+
+실제 ASC API가 제공하지 않는 항목은
+“확인하지 못함”이라고 명시.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 정상 동작하는 LEGACY 상품과 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+StoreKit에서 실제 FOUND되는 legacy 상품 중
+최소 2개를 비교 기준으로 사용하십시오.
+
+예:
+
+solo_30
+center_200
+
+각각 ASC에서:
+
+- 존재
+- 상품 유형
+- subscription group
+- 상태
+- 가격
+- availability
+- review state
+
+를 확인.
+
+그리고 신규:
+
+com.swimnote.swimnote.monthly
+com.swimnote.x300.monthly
+
+와 나란히 비교하십시오.
+
+목표:
+
+“StoreKit에서 FOUND되는 상품과
+NOT FOUND되는 상품의 ASC 차이가 무엇인가”
+
+를 정확히 찾는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PRODUCT가 다른 APP에 생성됐는지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 Product ID가 존재한다면
+반드시:
+
+com.swimnote.app
+
+아래의 상품인지 확인하십시오.
+
+다른 App Store Connect App에
+동일/유사 product를 만들어놓은 경우
+현재 앱의 StoreKit에서는 조회되지 않습니다.
+
+이 가능성을 반드시 배제하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. SUBSCRIPTION GROUP 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE / X 상품이
+정상 Auto-Renewable Subscription Group에
+들어가 있는지 확인하십시오.
+
+특히:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+이 각각 어떤 subscription group에 속하는지 보고.
+
+legacy 상품과
+새 상품의 group 구조 차이도 확인.
+
+임의로 group 이동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 첫 신규 구독 심사 연결 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+새로운 subscription/product가
+App Store 심사에 실제로 제출된 상태인지 확인하십시오.
+
+가능한 경우:
+
+- app version submission과 연결됐는지
+- subscription review submission 존재 여부
+- 아직 Ready to Submit 상태인지
+- Waiting for Review / In Review / Approved 등
+
+현재 실제 상태를 보고하십시오.
+
+“생성했으니 StoreKit에서 나와야 한다”
+라고 가정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 가격/지역 가용성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자는 한국 Storefront에서 테스트 중입니다.
+
+따라서 신규 상품이:
+
+대한민국 storefront에서
+실제로 판매 가능하도록 설정되어 있는지 확인하십시오.
+
+가격도 설정되어 있는지 확인.
+
+단 legacy 상품이 한국에서 정상 조회되므로
+계정 전체 agreement 문제로 먼저 결론내리지 마십시오.
+
+상품별 차이를 우선 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. RevenueCat과 ASC ID 문자 단위 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+ASC 실제 Product ID와
+RevenueCat store product ID를
+문자 단위로 비교하십시오.
+
+특히:
+
+com.swimnote.swimnote.monthly
+
+com.swimnote.x300.monthly
+
+대소문자
+점
+suffix
+공백
+
+차이 확인.
+
+identifier mismatch면 정확히 보고.
+
+아직 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Apple 변경 전파 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+만약 신규 상품이:
+
+- 실제 존재
+- 올바른 app
+- 올바른 subscription group
+- 가격/지역 정상
+- review/판매 상태도 정상
+
+인데 StoreKit만 NOT FOUND라면
+
+그때만 Apple 측 변경 전파/캐시 가능성을 검토하십시오.
+
+최근 수정 시각과
+현재 진단 시각을 비교해서 보고.
+
+단:
+
+“시간 지나면 될 것”
+
+이라고 막연하게 결론내리지 마십시오.
+
+먼저 ASC 상태가 legacy 상품과
+실제로 동일한지 증명하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 단계에서 절대 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- ASC product 생성
+- 상품 상태 변경
+- 가격 변경
+- subscription group 변경
+- 심사 제출
+- RevenueCat 수정
+- APP 수정
+- OTA
+- native build
+
+이번에는 조사만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ASC ACCESS]
+
+직접 ASC API 조회 가능 여부.
+
+[B. APP]
+
+- bundle ID
+- ASC app ID
+- 조회 대상 앱 일치 여부
+
+[C. NEW PRODUCTS]
+
+6개 각각:
+
+- EXISTS / MISSING
+- type
+- subscription group
+- status
+- price
+- Korea availability
+- review state
+
+[D. LEGACY COMPARISON]
+
+solo_30 / center_200 등
+StoreKit FOUND 상품과 신규 상품의 차이.
+
+[E. PRODUCT OWNERSHIP]
+
+신규 상품이 정확히
+com.swimnote.app에 귀속되어 있는지.
+
+[F. ROOT CAUSE]
+
+StoreKit이 신규 상품을
+반환하지 않는 실제 ASC 차이를
+한 문장으로 확정.
+
+[G. REQUIRED FIX]
+
+아직 실행하지 말고
+ASC에서 무엇을 바꾸면 되는지만
+정확한 순서로 제안.
+
+[H. PROPAGATION]
+
+모든 설정이 이미 정상이라면
+최근 변경 시각 및 전파 가능성만 보고.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
+
+이번에는
+RevenueCat 서버 설정을 다시 조사하지 마십시오.
+
+실제 App Store Connect 상품 상태가
+legacy FOUND 상품과 어떻게 다른지
+확인하는 것이 목적입니다.
