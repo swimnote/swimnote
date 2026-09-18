@@ -2787,7 +2787,8 @@ router.get("/class-stats", requireAuth, requireRole("super_admin","pool_admin"),
           COUNT(DISTINCT cg.id)::int AS total_classes,
           COUNT(DISTINCT CASE WHEN cg.is_one_time = true THEN cg.id END)::int AS one_time_classes,
           COUNT(DISTINCT s.id)::int AS total_students,
-          COALESCE(AVG(cg.capacity), 20)::numeric(5,1) AS avg_capacity
+          AVG(cg.capacity)::numeric(5,1) AS avg_capacity,
+          (SELECT default_capacity FROM swimming_pools WHERE id = '${poolId}' LIMIT 1) AS default_capacity
         FROM class_groups cg
         LEFT JOIN students s ON s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')
         WHERE cg.swimming_pool_id = '${poolId}' AND cg.is_deleted = false
@@ -2830,12 +2831,16 @@ router.get("/class-stats", requireAuth, requireRole("super_admin","pool_admin"),
         ORDER BY cg.schedule_days, cg.schedule_time
       `))).rows;
 
+      const totalClasses = totalsRow?.total_classes ?? 0;
       res.json({
         totals: {
-          total_classes:  totalsRow?.total_classes  ?? 0,
+          total_classes:    totalClasses,
           one_time_classes: totalsRow?.one_time_classes ?? 0,
-          total_students: totalsRow?.total_students ?? 0,
-          avg_capacity:   totalsRow?.avg_capacity   ?? 20,
+          total_students:   totalsRow?.total_students ?? 0,
+          // 반이 1개 이상이면 실제 평균, 0개이면 null (하드코딩 fallback 금지)
+          avg_capacity:     totalClasses > 0 ? (totalsRow?.avg_capacity ?? null) : null,
+          // swimming_pools.default_capacity — 신규 반 기본값이자 반 0개일 때 표시 기준
+          default_capacity: totalsRow?.default_capacity ?? null,
         },
         attendance: {
           month_present: attRow?.month_present ?? 0,

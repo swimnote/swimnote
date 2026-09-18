@@ -15,7 +15,8 @@ interface ClassStats {
     total_classes: number;
     one_time_classes: number;
     total_students: number;
-    avg_capacity: number;
+    avg_capacity: number | null;      // 반 1개 이상일 때만 실제 평균, 0개이면 null
+    default_capacity: number | null;  // swimming_pools.default_capacity
   };
   attendance: {
     month_present: number;
@@ -130,7 +131,16 @@ export default function ClassManagementScreen() {
             <StatBox label="전체 반" value={data.totals.total_classes} />
             <StatBox label="1회성 반" value={data.totals.one_time_classes} color="#7C3AED" />
             <StatBox label="전체 회원" value={data.totals.total_students} color={C.brandStrong} />
-            <StatBox label="평균 정원" value={`${Math.round(Number(data.totals.avg_capacity))}명`} />
+            <StatBox
+              label={data.totals.total_classes > 0 ? "평균 정원" : "기본 정원"}
+              value={
+                data.totals.total_classes > 0
+                  ? `${Math.round(Number(data.totals.avg_capacity))}명`
+                  : data.totals.default_capacity != null
+                    ? `${data.totals.default_capacity}명`
+                    : "—"
+              }
+            />
           </View>
 
           {/* 이달 출결 */}

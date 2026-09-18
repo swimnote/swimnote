@@ -139,7 +139,8 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   const [teachersLoading, setTeachersLoading] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("#FFFFFF");
-  const [defaultCapacity, setDefaultCapacity] = useState<number>(20);
+  const [defaultCapacity, setDefaultCapacity] = useState<number | null>(null); // null = 아직 로딩 중 or 실패
+  const [capacityLoadError, setCapacityLoadError] = useState(false);
   const [customCapacity, setCustomCapacity] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -147,9 +148,16 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   // 기본 정원 & 선생님 목록 로드
   useEffect(() => {
     apiRequest(token, "/admin/class-settings")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.default_capacity) { setDefaultCapacity(d.default_capacity); setCustomCapacity(c => c === null ? d.default_capacity : c); } })
-      .catch(() => {});
+      .then(r => r.ok ? r.json() : Promise.reject(new Error("load-fail")))
+      .then(d => {
+        if (d?.default_capacity) {
+          setDefaultCapacity(d.default_capacity);
+          setCustomCapacity(c => c === null ? d.default_capacity : c);
+        } else {
+          setCapacityLoadError(true);
+        }
+      })
+      .catch(() => { setCapacityLoadError(true); });
     if (isAdmin) {
       setTeachersLoading(true);
       apiRequest(token, "/teachers")
@@ -196,6 +204,11 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
     }
     if (!selectedTime) { setErrorMsg("수업 시간을 선택해주세요."); return; }
     if (isAdmin && isOneTime && !selectedTeacher) { setErrorMsg("1회성 반은 담당 선생님 지정이 필수입니다."); return; }
+    // 기본 정원 로딩 실패 시 생성 차단 (임의 20 silent fallback 방지)
+    if (defaultCapacity === null && customCapacity === null) {
+      setErrorMsg("반 기본 정원 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -391,11 +404,15 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                     <SummaryRow icon="calendar" label={isOneTime ? "날짜" : "요일"} value={dayLabel} />
                     <SummaryRow icon="clock" label="시간" value={selectedTime} />
                     <SummaryRow icon="user" label="선생님" value={teacherName} />
-                    <CapacityRow
-                      value={customCapacity ?? defaultCapacity}
-                      defaultValue={defaultCapacity}
-                      onChange={setCustomCapacity}
-                    />
+                    {defaultCapacity !== null ? (
+                      <CapacityRow
+                        value={customCapacity ?? defaultCapacity}
+                        defaultValue={defaultCapacity}
+                        onChange={setCustomCapacity}
+                      />
+                    ) : (
+                      <SummaryRow icon="users" label="정원" value="로딩 중…" />
+                    )}
                   </View>
                 </View>
               </>
