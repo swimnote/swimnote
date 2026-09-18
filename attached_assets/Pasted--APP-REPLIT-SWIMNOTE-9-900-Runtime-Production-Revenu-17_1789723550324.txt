@@ -1,0 +1,351 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — ₩9,900 구독 Runtime 진단 최종 단계]
+
+이전 조사에서 다음은 승인합니다.
+
+- Production RevenueCat SDK key 정상
+- 조사한 RevenueCat project와 동일
+- bundle ID = com.swimnote.app 정상
+- swimnote_monthly offering 서버 설정 정상
+- package = swimnote 정상
+- product = com.swimnote.swimnote.monthly 정상
+- 구매 handler 구현 정상
+
+그러나 최종 원인을:
+
+“StoreKit getProducts에서
+com.swimnote.swimnote.monthly가 반환되지 않음”
+
+으로 확정한 것은 승인하지 않습니다.
+
+이유:
+
+실제 iOS device의:
+
+Purchases.getOfferings()
+Purchases.getProducts()
+
+결과를 아직 확인하지 못했기 때문입니다.
+
+이번 단계에서는
+사용자의 실제 Production iPhone에서
+RevenueCat SDK runtime 결과를 직접 확인할 수 있게
+최소 진단 기능만 추가하십시오.
+
+실제 구매는 하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 진단 목적
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인해야 할 것은 딱 세 가지입니다.
+
+A.
+
+실제 기기에서:
+
+Purchases.getOfferings()
+
+결과의 offering IDs
+
+B.
+
+swimnote_monthly가 존재한다면:
+
+availablePackages.length
+package.identifier
+product.identifier
+localized price
+
+C.
+
+직접 product lookup:
+
+com.swimnote.swimnote.monthly
+
+com.swimnote.x300.monthly
+
+각각 FOUND / NOT FOUND
+
+입니다.
+
+이 결과가 있어야
+StoreKit 문제인지
+APP mapping 문제인지 확정할 수 있습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 임시 진단 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+구독 관리
+
+화면에 임시 진단 액션을 추가하십시오.
+
+일반 사용자에게 크게 노출하지 말고
+현재 관리자 계정에서만 확인 가능한 형태로 최소 구현.
+
+예:
+
+화면 하단 작은:
+
+[구독 상품 진단]
+
+버튼.
+
+또는 현재 구조에 가장 작은 방식 사용.
+
+이 버튼은 구매를 실행하면 안 됩니다.
+
+오직 RevenueCat SDK 조회만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 SDK 호출
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설치된 react-native-purchases 버전의
+공식 API signature를 확인하여 사용하십시오.
+
+진단 시:
+
+1.
+
+Purchases.getOfferings()
+
+호출.
+
+2.
+
+실제 반환된:
+
+Object.keys(offerings.all)
+
+을 수집.
+
+3.
+
+offerings.all["swimnote_monthly"]
+
+확인.
+
+존재하면:
+
+availablePackages.length
+
+각 package:
+
+identifier
+product.identifier 또는 현재 SDK 실제 field
+priceString / localized price
+
+확인.
+
+4.
+
+SDK에서 지원하는 현재 버전의
+직접 product lookup API를 사용하여:
+
+com.swimnote.swimnote.monthly
+
+com.swimnote.x300.monthly
+
+두 ID를 동일 요청 또는 동일 조건으로 조회.
+
+임의 API 이름을 추측하지 말고
+현재 설치된 SDK 버전 기준으로 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 결과를 실제 기기 화면에 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+Replit은 사용자의 iPhone 콘솔을 볼 수 없으므로
+console.log만 추가하면 안 됩니다.
+
+진단 버튼을 누르면
+Alert / Modal / 작은 진단 화면 등으로
+사용자가 결과를 직접 볼 수 있게 하십시오.
+
+표시 예:
+
+RevenueCat Runtime
+
+offerings:
+- x_monthly
+- swimnote_monthly
+
+swimnote_monthly:
+packages: 1
+- swimnote
+- com.swimnote.swimnote.monthly
+- ₩9,900
+
+Direct Products:
+
+SWIMNOTE:
+FOUND
+
+X300:
+FOUND
+
+또는:
+
+SWIMNOTE:
+NOT FOUND
+
+중요:
+
+다음 민감정보는 절대 표시하지 마십시오.
+
+- API key 전체값
+- appUserID
+- receipt
+- transaction ID
+- customer info 원문
+- token
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ERROR도 숨기지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat SDK 호출 자체가 실패하면:
+
+에러 객체 전체를 dump하지 말고
+
+- error code
+- 짧은 message
+
+만 표시.
+
+예:
+
+getOfferings:
+ERROR STORE_PROBLEM
+
+처럼 사용자가 캡처해서 전달할 수 있게.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 결과 분기
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직 수정하지 말고
+진단 결과만 분류하십시오.
+
+CASE A
+
+swimnote_monthly 자체가 없음
++
+direct SWIMNOTE product NOT FOUND
+
+→ StoreKit / Store product 쪽 문제 가능성 강함.
+
+CASE B
+
+swimnote_monthly 없음
++
+direct SWIMNOTE product FOUND
+
+→ RevenueCat offering/package runtime 처리 문제.
+
+CASE C
+
+swimnote_monthly 존재
++
+package 존재
++
+direct product FOUND
+
+그런데 subscription.tsx의
+swimnotePkg가 null
+
+→ APP state/mapping/race 문제.
+
+CASE D
+
+SWIMNOTE와 X300 모두 direct NOT FOUND
+
+→ SWIMNOTE 단일 상품 문제가 아니라
+StoreKit/native environment 문제.
+
+CASE E
+
+SWIMNOTE NOT FOUND
+X300 FOUND
+
+→ SWIMNOTE product-specific StoreKit 문제.
+
+실제 결과 전에는
+어느 것도 확정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 버튼 로직 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는:
+
+- “구독 신청 준비 중” 강제 활성화 금지
+- purchase handler 수정 금지
+- offering mapping 수정 금지
+- RevenueCat 설정 변경 금지
+- App Store Connect 변경 금지
+- API 변경 금지
+
+진단만 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 진단은 JS 레벨 변경으로 가능하면:
+
+production-v2
+runtimeVersion 2.2.0
+
+OTA만 배포하십시오.
+
+native rebuild가 정말 필요한 구조라면
+임의로 build하지 말고 먼저 보고.
+
+API/Render/DB 변경 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A]
+
+진단 UI 추가 파일
+
+[B]
+
+사용한 RevenueCat SDK runtime 함수
+
+[C]
+
+표시하는 정보 목록
+
+[D]
+
+full work SHA 40자
+
+[E]
+
+EAS Update Group full ID
+iOS Update full ID
+branch
+runtimeVersion
+
+[F]
+
+native rebuild 필요 여부
+
+중요:
+
+Replit이 실제 iPhone 결과를 보지 못했으면
+
+ROOT CAUSE를 확정했다고 보고하지 마십시오.
+
+“사용자 실제 기기 진단 결과 대기”
+
+라고 보고하고 종료하십시오.

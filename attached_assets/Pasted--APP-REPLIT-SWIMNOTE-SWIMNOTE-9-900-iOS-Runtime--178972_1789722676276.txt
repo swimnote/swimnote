@@ -1,0 +1,555 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — SWIMNOTE ₩9,900 구독 상품 실제 iOS Runtime 누락 원인 정밀 조사]
+
+이전 조사 결론을 수정합니다.
+
+사용자는 App Store Connect에서
+com.swimnote.swimnote.monthly 상품 설정을
+이미 정상적으로 완료했다고 확인했습니다.
+
+따라서:
+
+“App Store Connect 상품이 미완성일 것이다”
+
+라고 추정하고 사용자에게 재확인을 요구하지 마십시오.
+
+현재 확정된 사실은:
+
+1.
+RevenueCat 서버 설정에는:
+
+offering:
+swimnote_monthly
+
+package:
+swimnote
+
+product:
+com.swimnote.swimnote.monthly
+
+가 정상 연결되어 있음.
+
+2.
+구매 flow 코드도 이미 존재함.
+
+3.
+하지만 실제 iPhone 앱에서는:
+
+swimnotePkg === null
+
+이어서:
+
+“구독 신청 준비 중”
+
+으로 표시됨.
+
+이번 목표는:
+
+왜 RevenueCat 서버에는 상품이 있는데
+실제 iOS 앱 runtime에서 swimnotePkg가 사라지는지
+
+정확한 원인을 찾는 것입니다.
+
+아직 코드 수정하지 마십시오.
+RevenueCat 설정 변경 금지.
+App Store Connect 설정 변경 금지.
+배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 APP에서 사용하는 REVENUECAT PROJECT부터 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 먼저 확인하십시오.
+
+현재 Production iOS APP이 초기화할 때 사용하는:
+
+- RevenueCat public SDK key
+- RevenueCat project
+- RevenueCat iOS app
+- bundle identifier
+
+가
+
+방금 서버 API로 조사한 RevenueCat project/app과
+정확히 같은 것인지 확인하십시오.
+
+secret key 값 전체를 보고서에 노출하지 마십시오.
+
+보고는:
+
+- key prefix / 식별 가능한 안전한 일부
+- project/app 이름 또는 ID
+- bundle identifier
+
+정도로 충분합니다.
+
+특히 확인:
+
+실제 APP bundleIdentifier
+
+vs
+
+RevenueCat에 연결된 iOS app bundle ID
+
+vs
+
+App Store Connect app bundle ID
+
+가 정확히 일치하는지.
+
+staging / old project / 다른 RC app의 SDK key를
+Production 앱이 사용 중인지 반드시 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. RevenueCat 초기화 코드 실제 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production APP에서:
+
+Purchases.configure(...)
+
+가 호출되는 실제 파일을 찾으십시오.
+
+확인:
+
+- 어느 API key를 선택하는지
+- iOS / Android 분기
+- __DEV__
+- environment
+- build profile
+- eas env
+- production-v2 OTA
+
+등에 따라 다른 key를 쓰는지.
+
+“코드에 올바른 key가 있다”가 아니라
+Production runtime에서 실제 선택되는 key를 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. getOfferings 실제 APP 코드 흐름 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+subscription.tsx에서:
+
+swimnoteOffering
+
+이 어떻게 만들어지는지
+처음부터 끝까지 추적하십시오.
+
+예:
+
+Purchases.getOfferings()
+→ offerings.all["swimnote_monthly"]
+→ setSwimnoteOffering(...)
+
+인지 실제 코드를 보고.
+
+확인:
+
+- offerings.current만 사용하는 부분이 있는지
+- offerings.all을 사용하는지
+- identifier 오타
+- state overwrite
+- catch 후 null 처리
+- race condition
+- auth/init 이전 호출
+- stale state
+
+등.
+
+swimnoteOffering이:
+
+A.
+undefined/null 자체인지
+
+또는
+
+B.
+offering은 있는데 availablePackages=[]인지
+
+를 반드시 구분하십시오.
+
+이 둘은 원인이 완전히 다릅니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 iOS SDK RUNTIME 결과를 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat 서버 REST 응답만 다시 조사하지 마십시오.
+
+필요한 것은 실제 APP의 iOS RevenueCat SDK 결과입니다.
+
+가능한 기존 debug/logging 수단으로 다음 값을 확인하십시오.
+
+Purchases.getOfferings()
+
+결과에서:
+
+- offering identifiers
+- swimnote_monthly 존재 여부
+- availablePackages.length
+- package identifiers
+- 각 product.productIdentifier
+
+그리고 별도로 가능하면:
+
+Purchases.getProducts([
+  "com.swimnote.swimnote.monthly",
+  "com.swimnote.x300.monthly"
+])
+
+결과를 비교하십시오.
+
+목표:
+
+SWIMNOTE product가
+StoreKit product lookup 단계에서 실제로 반환되는지 확인.
+
+민감정보:
+receipt
+transaction
+appUserID
+token
+
+보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SWIMNOTE와 X300을 동일 방식으로 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300 버튼 UI가 활성인 것은
+상품 정상 여부 증거가 아니라는 사실은 이미 확인됐습니다.
+
+따라서 runtime SDK에서 둘을 동일하게 비교하십시오.
+
+A.
+
+com.swimnote.swimnote.monthly
+
+B.
+
+com.swimnote.x300.monthly
+
+각각:
+
+- getProducts 결과 존재 여부
+- offering package 존재 여부
+- localizedPriceString 존재 여부
+
+비교.
+
+가능한 결과 예:
+
+SWIMNOTE:
+getProducts = 없음
+
+X300:
+getProducts = 있음
+
+이면 StoreKit/product-specific 문제.
+
+둘 다 없음이면
+RevenueCat/StoreKit 전체 runtime 환경 문제.
+
+둘 다 있음인데 swimnotePkg만 null이면
+APP mapping/state 문제.
+
+이렇게 분기하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. RevenueCat PRODUCT가 올바른 APP에 연결됐는지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat Dashboard/API에서:
+
+com.swimnote.swimnote.monthly
+
+가 단순 Products 목록에 존재하는지만 보지 마십시오.
+
+해당 product가:
+
+현재 Production iOS app
+
+에 귀속된 product인지 확인하십시오.
+
+같은 RevenueCat project 안에
+여러 app/store configuration이 있다면
+
+다른 iOS app에 연결된 product일 가능성도 배제하십시오.
+
+확인:
+
+- store
+- app association
+- bundle
+- product identifier
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. StoreKit 상품 조회 실패 로그 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat SDK debug log를
+기존 방식으로 확인할 수 있다면
+
+SWIMNOTE product lookup과 관련된
+실제 warning/error 한 건을 확인하십시오.
+
+찾을 것:
+
+- product not found
+- invalid product identifiers
+- StoreKit returned no products
+- configuration error
+- offering has no available packages
+- product unavailable
+- 기타 실제 RC SDK message
+
+로그가 없다면
+“확인하지 못함”이라고 보고.
+
+근거 없이 ASC 상태를 추정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트 환경/스토어 환경 불일치 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 사용 중인 앱이:
+
+- TestFlight
+- App Store
+- development build
+- Expo development client
+
+중 무엇인지 코드/배포 기준으로 확인하십시오.
+
+그리고 RevenueCat/StoreKit이
+그 환경에서 어떤 Store 상품을 조회하는지 확인.
+
+특히:
+
+production-v2 OTA는
+기존 native binary 위에 올라가므로
+
+현재 설치된 binary의:
+
+- bundle ID
+- RevenueCat native config
+- build version
+
+도 확인하십시오.
+
+OTA만 최신이라고
+native RevenueCat 설정까지 최신이라고 가정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. EAS / APP 환경변수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat SDK key가:
+
+- app.config
+- eas.json
+- Expo public env
+- runtime env
+- secrets
+
+중 어디에서 주입되는지 확인.
+
+Production build에 사용된 값과
+현재 repo/local env가 다를 가능성을 확인하십시오.
+
+현재 앱이 실제로
+다른 RC project key를 사용하고 있다면
+그것이 직접 원인입니다.
+
+값 자체는 마스킹해서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PRODUCT ID 문자열 정확성
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 문자 단위로 비교하십시오.
+
+코드:
+com.swimnote.swimnote.monthly
+
+RevenueCat product:
+com.swimnote.swimnote.monthly
+
+실제 Store product:
+확인 가능한 identifier
+
+다음 차이 확인:
+
+- 대소문자
+- 공백
+- suffix
+- :monthly
+- 잘못된 legacy ID
+
+package identifier와
+product identifier를 혼동하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 버튼 UI 문제와 실제 PRODUCT 문제 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 UI는:
+
+SWIMNOTE:
+package 없으면 disabled
+
+X plans:
+항상 Pressable
+
+로 서로 다릅니다.
+
+이번 조사에서는 UI 통일 작업을 하지 마십시오.
+
+먼저 실제 product availability를 확정.
+
+다만 완료보고에는:
+
+SWIMNOTE와 X 버튼의 readiness 표시 방식이
+서로 달라 사용자를 오해하게 만들 수 있다는 점을
+별도 UX 이슈로만 기록하십시오.
+
+수정은 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 원인 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 반드시 아래 중 하나로 분류하십시오.
+
+A.
+Production APP이 다른 RevenueCat SDK key/project를 사용
+
+B.
+RevenueCat product가 다른 app/store에 연결됨
+
+C.
+RevenueCat offering state/APP mapping 문제
+
+D.
+StoreKit getProducts에서
+com.swimnote.swimnote.monthly만 반환되지 않음
+
+E.
+StoreKit 상품은 반환되는데
+APP의 package 찾기/mapping/state 로직 오류
+
+F.
+RevenueCat 초기화/race/cache 문제
+
+G.
+Production native binary 환경 문제
+
+H.
+기타
+
+“ASC가 문제일 가능성이 높음”
+같은 추정 결론 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 이번 단계 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정
+- 버튼 강제 활성화
+- fallback product 사용
+- RevenueCat Dashboard 수정
+- App Store Connect 수정
+- offering 수정
+- product ID 변경
+- APP OTA
+- 새 native build
+- API 배포
+- 실제 결제
+
+원인 조사만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. PRODUCTION RC CONFIG]
+
+- 실제 APP RC project/app
+- bundle identifier
+- Production에서 선택되는 SDK key가
+  조사한 project와 동일한지
+
+[B. APP FLOW]
+
+- Purchases.configure 위치
+- getOfferings 위치
+- swimnoteOffering 생성 과정
+- null이 되는 정확한 단계
+
+[C. DEVICE SDK RESULT]
+
+실제 iOS runtime 기준:
+
+swimnote_monthly:
+- offering 존재 여부
+- packages count
+- product identifier
+
+x_monthly:
+- offering 존재 여부
+- x300 package/product 여부
+
+[D. DIRECT PRODUCT LOOKUP]
+
+getProducts:
+
+com.swimnote.swimnote.monthly:
+FOUND / NOT FOUND / 확인못함
+
+com.swimnote.x300.monthly:
+FOUND / NOT FOUND / 확인못함
+
+[E. RC SDK LOG]
+
+관련 실제 warning/error
+또는 확인못함
+
+[F. ENVIRONMENT]
+
+- 설치 binary/build
+- bundle ID
+- TestFlight/App Store/dev 여부
+- OTA branch/runtime
+- RC key source
+
+[G. FINAL ROOT CAUSE]
+
+swimnotePkg가 null인 이유를
+증거 기반으로 한 문장으로 설명.
+
+[H. FIX PLAN]
+
+아직 수정하지 말고
+최소 수정계획만 제시.
+
+필요 대상:
+
+- APP code
+- APP native rebuild
+- OTA
+- RevenueCat
+- App Store Connect
+
+각각 필요/불필요.
+
+확인하지 못한 것은
+‘확인하지 못함’이라고 명시하십시오.
+
+이번 조사에서는
+사용자에게 App Store Connect를 다시 확인하라고
+떠넘기지 마십시오.
+
+Replit이 확인 가능한
+코드/RevenueCat/runtime 환경을 먼저 끝까지 추적하십시오.
