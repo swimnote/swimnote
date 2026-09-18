@@ -224,6 +224,80 @@ const cp = StyleSheet.create({
   confirmTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
 
+// ── 인라인 색상 팔레트 step (별도 Modal 없이 동일 sheet 안에서 교체) ────────────
+interface ColorPickerStepProps {
+  label: string;
+  currentColor: string;
+  onConfirm: (hex: string) => void;
+  onBack: () => void;
+}
+function ColorPickerStep({ label, currentColor, onConfirm, onBack }: ColorPickerStepProps) {
+  const [draft, setDraft] = useState(currentColor);
+  useEffect(() => { setDraft(currentColor); }, [currentColor]);
+
+  const preview = isValidHex(draft) ? draft : currentColor;
+  const textOnPreview = autoTextColor(preview);
+
+  return (
+    <View>
+      {/* 헤더 */}
+      <View style={m.header}>
+        <Pressable style={m.backBtn} onPress={onBack}>
+          <LucideIcon name="chevron-left" size={18} color={P} />
+          <Text style={m.backTxt}>돌아가기</Text>
+        </Pressable>
+        <Text style={m.headerTitle}>{label}</Text>
+        <View style={{ width: 60 }} />
+      </View>
+
+      {/* 현재 선택 미리보기 + HEX 입력 */}
+      <View style={cp.previewRow}>
+        <View style={[cp.previewSwatch, { backgroundColor: preview, borderColor: preview }]} />
+        <View style={cp.hexInputWrap}>
+          <Text style={cp.hexLabel}>HEX 코드 직접 입력</Text>
+          <TextInput
+            style={[cp.hexInput, !isValidHex(draft) && { borderColor: "#DC2626" }]}
+            value={draft}
+            onChangeText={v => setDraft(v.startsWith("#") ? v : "#" + v)}
+            placeholder="#000000"
+            autoCapitalize="characters"
+            maxLength={7}
+          />
+        </View>
+      </View>
+
+      {/* 색상 팔레트 그리드 */}
+      <View style={cp.grid}>
+        {COLOR_PALETTE.map((row, ri) => (
+          <View key={ri} style={cp.row}>
+            {row.map(color => (
+              <Pressable
+                key={color}
+                style={[
+                  cp.swatch,
+                  { backgroundColor: color, width: SWATCH_SIZE, height: SWATCH_SIZE },
+                  draft === color && cp.swatchSelected,
+                  color === "#FFFFFF" && { borderWidth: 1, borderColor: "#E2E8F0" },
+                ]}
+                onPress={() => setDraft(color)}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
+
+      {/* 확인 버튼 */}
+      <Pressable
+        style={[cp.confirmBtn, !isValidHex(draft) && { opacity: 0.5 }]}
+        onPress={() => { if (isValidHex(draft)) onConfirm(draft); }}
+        disabled={!isValidHex(draft)}
+      >
+        <Text style={cp.confirmTxt}>선택 완료</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // 미리보기: 실제 ParentPromoStrip과 동일한 렌더러
 function BannerPreview({ form }: { form: FormState }) {
   const imgUri = form.imageUri
@@ -338,8 +412,8 @@ export default function StripBannerScreen() {
   );
 
   const [showModal, setShowModal] = useState(false);
-  const [formStep, setFormStep] = useState<"edit"|"preview">("edit"); // 2단계 플로우
-  const [colorPicker, setColorPicker] = useState<{ field: "bg"|"text" } | null>(null);
+  // 모달 내부 step: edit → colorBg/colorText → edit → preview → (save)
+  const [formStep, setFormStep] = useState<"edit"|"colorBg"|"colorText"|"preview">("edit");
   const [selectedIdx, setSelectedIdx] = useState(0);      // 편집 중인 슬라이드 index
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(blankForm());
@@ -631,24 +705,6 @@ export default function StripBannerScreen() {
         )}
       </KeyboardAwareScrollView>
 
-      {/* ── 색상 Picker 모달 ── */}
-      <ColorPickerModal
-        visible={!!colorPicker}
-        label={colorPicker?.field === "bg" ? "배경색" : "글자색"}
-        currentColor={colorPicker?.field === "bg" ? form.customBg : form.customText}
-        onSelect={hex => {
-          if (colorPicker?.field === "bg") {
-            setForm(f => ({
-              ...f, customBg: hex, colorMode: "custom",
-              customText: autoTextColor(hex), // 배경 바꾸면 글자색 자동 추천
-            }));
-          } else {
-            setForm(f => ({ ...f, customText: hex, colorMode: "custom" }));
-          }
-        }}
-        onClose={() => setColorPicker(null)}
-      />
-
       {/* ── 등록/수정 모달 ──────────────────────────────────────── */}
       <Modal visible={showModal} transparent animationType="slide">
         <View style={m.overlay}>
@@ -741,63 +797,35 @@ export default function StripBannerScreen() {
                     ))}
                   </View>
 
-                  {/* [직접 색상] — swatch 탭 → 색상표 팝업 + HEX 직접입력 */}
+                  {/* [직접 색상] — swatch 탭 → 모달 내 색상표 step */}
                   <Text style={[m.colorSectionHint, { marginTop: 10 }]}>직접 색상</Text>
                   <View style={m.customColorRow}>
                     {/* 배경색 */}
                     <View style={m.customColorItem}>
                       <Text style={m.customColorLabel}>배경색</Text>
-                      <View style={m.hexInputRow}>
-                        {/* 탭 → 색상표 팝업 */}
-                        <Pressable
-                          style={[m.colorSwatch, { backgroundColor: isValidHex(form.customBg) ? form.customBg : "#1B3A5C" }, m.colorSwatchBtn]}
-                          onPress={() => { setForm(f => ({ ...f, colorMode: "custom" })); setColorPicker({ field: "bg" }); }}
-                        >
-                          <LucideIcon name="pipette" size={11} color={autoTextColor(isValidHex(form.customBg) ? form.customBg : "#1B3A5C")} />
-                        </Pressable>
-                        <TextInput
-                          style={[m.hexInput, form.colorMode === "custom" && { borderColor: "#7C3AED" }]}
-                          value={form.customBg}
-                          onChangeText={v => {
-                            const hex = v.startsWith("#") ? v : "#" + v;
-                            setForm(f => ({
-                              ...f,
-                              customBg: hex,
-                              colorMode: "custom",
-                              customText: isValidHex(hex) ? autoTextColor(hex) : f.customText,
-                            }));
-                          }}
-                          placeholder="#1B3A5C"
-                          autoCapitalize="characters"
-                          maxLength={7}
-                          onFocus={() => setForm(f => ({ ...f, colorMode: "custom" }))}
-                        />
-                      </View>
+                      <Pressable
+                        style={[m.colorSwatchLarge, { backgroundColor: isValidHex(form.customBg) ? form.customBg : "#1B3A5C" },
+                          form.colorMode === "custom" && { borderColor: P, borderWidth: 2 }]}
+                        onPress={() => { setForm(f => ({ ...f, colorMode: "custom" })); setFormStep("colorBg"); }}
+                      >
+                        <Text style={[m.colorSwatchLargeTxt, { color: autoTextColor(isValidHex(form.customBg) ? form.customBg : "#1B3A5C") }]}>
+                          {form.customBg}
+                        </Text>
+                      </Pressable>
                     </View>
 
                     {/* 글자색 */}
                     <View style={m.customColorItem}>
                       <Text style={m.customColorLabel}>글자색</Text>
-                      <View style={m.hexInputRow}>
-                        <Pressable
-                          style={[m.colorSwatch, { backgroundColor: isValidHex(form.customText) ? form.customText : "#FFFFFF", borderWidth: 1, borderColor: "#E2E8F0" }, m.colorSwatchBtn]}
-                          onPress={() => { setForm(f => ({ ...f, colorMode: "custom" })); setColorPicker({ field: "text" }); }}
-                        >
-                          <LucideIcon name="pipette" size={11} color={autoTextColor(isValidHex(form.customText) ? form.customText : "#FFFFFF")} />
-                        </Pressable>
-                        <TextInput
-                          style={[m.hexInput, form.colorMode === "custom" && { borderColor: "#7C3AED" }]}
-                          value={form.customText}
-                          onChangeText={v => {
-                            const hex = v.startsWith("#") ? v : "#" + v;
-                            setForm(f => ({ ...f, customText: hex, colorMode: "custom" }));
-                          }}
-                          placeholder="#FFFFFF"
-                          autoCapitalize="characters"
-                          maxLength={7}
-                          onFocus={() => setForm(f => ({ ...f, colorMode: "custom" }))}
-                        />
-                      </View>
+                      <Pressable
+                        style={[m.colorSwatchLarge, { backgroundColor: isValidHex(form.customText) ? form.customText : "#FFFFFF", borderWidth: 1, borderColor: "#E2E8F0" },
+                          form.colorMode === "custom" && { borderColor: P, borderWidth: 2 }]}
+                        onPress={() => { setForm(f => ({ ...f, colorMode: "custom" })); setFormStep("colorText"); }}
+                      >
+                        <Text style={[m.colorSwatchLargeTxt, { color: autoTextColor(isValidHex(form.customText) ? form.customText : "#FFFFFF") }]}>
+                          {form.customText}
+                        </Text>
+                      </Pressable>
                     </View>
                   </View>
 
@@ -966,6 +994,26 @@ export default function StripBannerScreen() {
               </View>
             )}
 
+            {/* ─── STEP colorBg / colorText: 색상 팔레트 ─── */}
+            {(formStep === "colorBg" || formStep === "colorText") && (
+              <ColorPickerStep
+                label={formStep === "colorBg" ? "배경색 선택" : "글자색 선택"}
+                currentColor={formStep === "colorBg" ? form.customBg : form.customText}
+                onConfirm={hex => {
+                  if (formStep === "colorBg") {
+                    setForm(f => ({
+                      ...f, customBg: hex, colorMode: "custom",
+                      customText: autoTextColor(hex),
+                    }));
+                  } else {
+                    setForm(f => ({ ...f, customText: hex, colorMode: "custom" }));
+                  }
+                  setFormStep("edit");
+                }}
+                onBack={() => setFormStep("edit")}
+              />
+            )}
+
           </View>
         </View>
       </Modal>
@@ -1056,8 +1104,10 @@ const m = StyleSheet.create({
   customColorItem: { flex: 1 },
   customColorLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   hexInputRow:     { flexDirection: "row", alignItems: "center", gap: 6 },
-  colorSwatch:     { width: 34, height: 34, borderRadius: 8 },
-  colorSwatchBtn:  { alignItems: "center", justifyContent: "center" },
+  colorSwatch:       { width: 34, height: 34, borderRadius: 8 },
+  colorSwatchBtn:    { alignItems: "center", justifyContent: "center" },
+  colorSwatchLarge:  { borderRadius: 10, paddingVertical: 10, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border },
+  colorSwatchLargeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", letterSpacing: 0.5 },
   hexInput:        { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111" },
   contrastWarn:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 4 },
   previewBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 12, paddingVertical: 14, marginTop: 16, marginBottom: 8 },
