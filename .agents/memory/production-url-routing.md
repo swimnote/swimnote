@@ -5,14 +5,18 @@ description: swimnote.kr vs swimnote-api.onrender.com 실제 라우팅 구조. �
 
 # Production URL 라우팅 (2026-08-18 확정)
 
-## 확정된 구조
-- `swimnote.kr` (34.111.179.208) = Replit 배포 = **swimnote-web SPA** (웹 프론트엔드)
-  - ALL routes → index.html (HTTP 200, text/html)
-  - /api/* 라우팅 없음
-  - Linking.openURL("https://swimnote.kr") 용도로만 사용
-- `swimnote-api.onrender.com` (216.24.57.7) = Render.com = **api-server (운영)**
+## 확정된 구조 (2026-09-18 재확인)
+- `swimnote.kr` = **Render static_site** (`srv-dajnb2u7bikc73co7pv0`) = swimnote-web SPA
+  - repo: github.com/swimnote/swimnote, branch: main
+  - build: `pnpm --filter @workspace/swimnote-web run build && ... cp dashboard → dist/public/admin/`
+  - publish: artifacts/swimnote-web/dist/public
+  - GitHub main push → Render 자동 배포 (autoDeploy: yes)
+  - swimnote-web.onrender.com도 동일 서비스
+- `swimnote-api.onrender.com` = Render web_service = **api-server (운영)**
   - GitHub push → 자동 빌드·배포
   - DB: SUPABASE_DATABASE_URL (shared)
+
+⚠ Replit 게시버튼으로는 swimnote.kr 배포 불가 — GitHub push만 유효
 
 ## 앱 API_BASE
 `https://swimnote-api.onrender.com/api` (SessionContext.tsx)
