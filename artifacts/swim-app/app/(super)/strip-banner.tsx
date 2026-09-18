@@ -117,6 +117,113 @@ function adToForm(ad: Ad): FormState {
   };
 }
 
+// ── 색상 팔레트 (7행 × 8열 = 56색) ──────────────────────────────────────────
+const COLOR_PALETTE: string[][] = [
+  ["#000000","#1F2937","#374151","#6B7280","#9CA3AF","#D1D5DB","#F3F4F6","#FFFFFF"],
+  ["#172554","#1E3A8A","#1D4ED8","#2563EB","#3B82F6","#60A5FA","#93C5FD","#DBEAFE"],
+  ["#0F172A","#1B3A5C","#164E63","#0E7490","#0D9B94","#0891B2","#22D3EE","#A5F3FC"],
+  ["#052E16","#065F46","#047857","#059669","#10B981","#34D399","#86EFAC","#D1FAE5"],
+  ["#450A0A","#7F1D1D","#991B1B","#DC2626","#EF4444","#F97316","#FB923C","#FED7AA"],
+  ["#451A03","#92400E","#B45309","#D97706","#FBBF24","#FDE68A","#FEF9C3","#FFFBEB"],
+  ["#2E1065","#4C1D95","#6D28D9","#7C3AED","#A855F7","#DB2777","#EC4899","#FCE7F3"],
+];
+const SWATCH_SIZE = Math.floor((SCREEN_W - 40 - 16 * 2 - 7 * 6) / 8); // 모달 내부 swatch 크기
+
+// ── 색상 Picker 모달 ──────────────────────────────────────────────────────────
+interface ColorPickerModalProps {
+  visible: boolean;
+  label: string;
+  currentColor: string;
+  onSelect: (hex: string) => void;
+  onClose: () => void;
+}
+function ColorPickerModal({ visible, label, currentColor, onSelect, onClose }: ColorPickerModalProps) {
+  const [draft, setDraft] = useState(currentColor);
+
+  useEffect(() => { if (visible) setDraft(currentColor); }, [visible, currentColor]);
+
+  const previewColor = isValidHex(draft) ? draft : currentColor;
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={cp.overlay}>
+        <View style={cp.sheet}>
+          {/* 헤더 */}
+          <View style={cp.header}>
+            <Text style={cp.headerTitle}>{label} 선택</Text>
+            <Pressable onPress={onClose}>
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
+            </Pressable>
+          </View>
+
+          {/* 현재 선택 미리보기 */}
+          <View style={cp.previewRow}>
+            <View style={[cp.previewSwatch, { backgroundColor: previewColor, borderColor: isValidHex(draft) ? draft : "#E2E8F0" }]} />
+            <View style={cp.hexInputWrap}>
+              <Text style={cp.hexLabel}>HEX 코드 직접 입력</Text>
+              <TextInput
+                style={[cp.hexInput, !isValidHex(draft) && { borderColor: "#DC2626" }]}
+                value={draft}
+                onChangeText={v => setDraft(v.startsWith("#") ? v : "#" + v)}
+                placeholder="#000000"
+                autoCapitalize="characters"
+                maxLength={7}
+              />
+            </View>
+          </View>
+
+          {/* 색상 팔레트 그리드 */}
+          <View style={cp.grid}>
+            {COLOR_PALETTE.map((row, ri) => (
+              <View key={ri} style={cp.row}>
+                {row.map(color => (
+                  <Pressable
+                    key={color}
+                    style={[
+                      cp.swatch,
+                      { backgroundColor: color, width: SWATCH_SIZE, height: SWATCH_SIZE },
+                      (draft === color) && cp.swatchSelected,
+                      color === "#FFFFFF" && { borderWidth: 1, borderColor: "#E2E8F0" },
+                    ]}
+                    onPress={() => setDraft(color)}
+                  />
+                ))}
+              </View>
+            ))}
+          </View>
+
+          {/* 확인 버튼 */}
+          <Pressable
+            style={[cp.confirmBtn, !isValidHex(draft) && { opacity: 0.5 }]}
+            onPress={() => { if (isValidHex(draft)) { onSelect(draft); onClose(); } }}
+            disabled={!isValidHex(draft)}
+          >
+            <Text style={cp.confirmTxt}>선택 완료</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const cp = StyleSheet.create({
+  overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 0 },
+  header:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  headerTitle:  { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
+  previewRow:   { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16, padding: 12, backgroundColor: C.backgroundSoft, borderRadius: 12 },
+  previewSwatch:{ width: 44, height: 44, borderRadius: 10, borderWidth: 2 },
+  hexInputWrap: { flex: 1 },
+  hexLabel:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 4 },
+  hexInput:     { borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#111", letterSpacing: 1 },
+  grid:         { gap: 6, marginBottom: 16 },
+  row:          { flexDirection: "row", gap: 6 },
+  swatch:       { borderRadius: 6 },
+  swatchSelected:{ borderWidth: 3, borderColor: P },
+  confirmBtn:   { backgroundColor: P, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginBottom: 8 },
+  confirmTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+});
+
 // 미리보기: 실제 ParentPromoStrip과 동일한 렌더러
 function BannerPreview({ form }: { form: FormState }) {
   const imgUri = form.imageUri
@@ -231,6 +338,8 @@ export default function StripBannerScreen() {
   );
 
   const [showModal, setShowModal] = useState(false);
+  const [formStep, setFormStep] = useState<"edit"|"preview">("edit"); // 2단계 플로우
+  const [colorPicker, setColorPicker] = useState<{ field: "bg"|"text" } | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);      // 편집 중인 슬라이드 index
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(blankForm());
@@ -247,6 +356,7 @@ export default function StripBannerScreen() {
     setSelectedIdx(idx);
     setForm(adToForm(ad));
     setTitleErr(null);
+    setFormStep("edit");
     setShowModal(true);
   }
 
@@ -258,6 +368,7 @@ export default function StripBannerScreen() {
     setEditId(null);
     setForm(blankForm());
     setTitleErr(null);
+    setFormStep("edit");
     setShowModal(true);
   }
 
@@ -520,10 +631,31 @@ export default function StripBannerScreen() {
         )}
       </KeyboardAwareScrollView>
 
+      {/* ── 색상 Picker 모달 ── */}
+      <ColorPickerModal
+        visible={!!colorPicker}
+        label={colorPicker?.field === "bg" ? "배경색" : "글자색"}
+        currentColor={colorPicker?.field === "bg" ? form.customBg : form.customText}
+        onSelect={hex => {
+          if (colorPicker?.field === "bg") {
+            setForm(f => ({
+              ...f, customBg: hex, colorMode: "custom",
+              customText: autoTextColor(hex), // 배경 바꾸면 글자색 자동 추천
+            }));
+          } else {
+            setForm(f => ({ ...f, customText: hex, colorMode: "custom" }));
+          }
+        }}
+        onClose={() => setColorPicker(null)}
+      />
+
       {/* ── 등록/수정 모달 ──────────────────────────────────────── */}
       <Modal visible={showModal} transparent animationType="slide">
         <View style={m.overlay}>
           <View style={m.sheet}>
+
+            {/* ─── STEP 1: 편집 화면 ─── */}
+            {formStep === "edit" && (<>
             <View style={m.header}>
               <Text style={m.headerTitle}>{editId ? "슬라이드 수정" : "슬라이드 추가"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
@@ -609,14 +741,20 @@ export default function StripBannerScreen() {
                     ))}
                   </View>
 
-                  {/* [직접 색상] custom HEX 입력 */}
+                  {/* [직접 색상] — swatch 탭 → 색상표 팝업 + HEX 직접입력 */}
                   <Text style={[m.colorSectionHint, { marginTop: 10 }]}>직접 색상</Text>
                   <View style={m.customColorRow}>
                     {/* 배경색 */}
                     <View style={m.customColorItem}>
                       <Text style={m.customColorLabel}>배경색</Text>
                       <View style={m.hexInputRow}>
-                        <View style={[m.colorSwatch, { backgroundColor: isValidHex(form.customBg) ? form.customBg : "#1B3A5C" }]} />
+                        {/* 탭 → 색상표 팝업 */}
+                        <Pressable
+                          style={[m.colorSwatch, { backgroundColor: isValidHex(form.customBg) ? form.customBg : "#1B3A5C" }, m.colorSwatchBtn]}
+                          onPress={() => { setForm(f => ({ ...f, colorMode: "custom" })); setColorPicker({ field: "bg" }); }}
+                        >
+                          <LucideIcon name="pipette" size={11} color={autoTextColor(isValidHex(form.customBg) ? form.customBg : "#1B3A5C")} />
+                        </Pressable>
                         <TextInput
                           style={[m.hexInput, form.colorMode === "custom" && { borderColor: "#7C3AED" }]}
                           value={form.customBg}
@@ -626,7 +764,6 @@ export default function StripBannerScreen() {
                               ...f,
                               customBg: hex,
                               colorMode: "custom",
-                              // 배경색 변경 시 글자색 자동 추천 (사용자가 글자색을 직접 안 바꾼 경우만)
                               customText: isValidHex(hex) ? autoTextColor(hex) : f.customText,
                             }));
                           }}
@@ -642,7 +779,12 @@ export default function StripBannerScreen() {
                     <View style={m.customColorItem}>
                       <Text style={m.customColorLabel}>글자색</Text>
                       <View style={m.hexInputRow}>
-                        <View style={[m.colorSwatch, { backgroundColor: isValidHex(form.customText) ? form.customText : "#FFFFFF", borderWidth: 1, borderColor: "#E2E8F0" }]} />
+                        <Pressable
+                          style={[m.colorSwatch, { backgroundColor: isValidHex(form.customText) ? form.customText : "#FFFFFF", borderWidth: 1, borderColor: "#E2E8F0" }, m.colorSwatchBtn]}
+                          onPress={() => { setForm(f => ({ ...f, colorMode: "custom" })); setColorPicker({ field: "text" }); }}
+                        >
+                          <LucideIcon name="pipette" size={11} color={autoTextColor(isValidHex(form.customText) ? form.customText : "#FFFFFF")} />
+                        </Pressable>
                         <TextInput
                           style={[m.hexInput, form.colorMode === "custom" && { borderColor: "#7C3AED" }]}
                           value={form.customText}
@@ -737,17 +879,93 @@ export default function StripBannerScreen() {
                 ))}
               </View>
 
+              {/* Step 1 하단: 미리보기 확인 버튼 */}
               <Pressable
-                style={[m.saveBtn, (saving || uploading) && { opacity: 0.6 }]}
-                onPress={handleSave}
-                disabled={saving || uploading}
+                style={m.previewBtn}
+                onPress={() => {
+                  // 기본 검증
+                  if (form.bannerType === "image") {
+                    const hasImg = form.imageUri || form.imageKey || form.imageUrl || form.displayUrl;
+                    if (!hasImg) { Alert.alert("이미지 필요", "이미지를 선택해주세요."); return; }
+                  } else {
+                    if (!form.title.trim()) { setTitleErr("제목을 입력해주세요."); return; }
+                    if (form.title.length > TITLE_MAX) { setTitleErr(`제목은 최대 ${TITLE_MAX}자입니다.`); return; }
+                  }
+                  setTitleErr(null);
+                  setFormStep("preview");
+                }}
               >
-                {saving || uploading
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={m.saveTxt}>{editId ? "수정 완료" : "등록하기"}</Text>
-                }
+                <LucideIcon name="eye" size={15} color="#fff" />
+                <Text style={m.saveTxt}>미리보기 확인</Text>
               </Pressable>
             </KeyboardAwareScrollView>
+            </>)}
+
+            {/* ─── STEP 2: 미리보기 확인 화면 ─── */}
+            {formStep === "preview" && (
+              <View style={{ flex: 0 }}>
+                <View style={m.header}>
+                  <Pressable style={m.backBtn} onPress={() => setFormStep("edit")}>
+                    <LucideIcon name="chevron-left" size={18} color={P} />
+                    <Text style={m.backTxt}>수정하기</Text>
+                  </Pressable>
+                  <Text style={m.headerTitle}>미리보기</Text>
+                  <Pressable onPress={() => setShowModal(false)}>
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
+                  </Pressable>
+                </View>
+
+                {/* 실제 크기 미리보기 */}
+                <BannerPreview form={form} />
+
+                {/* 요약 정보 */}
+                <View style={m.previewSummary}>
+                  <View style={m.previewSummaryRow}>
+                    <Text style={m.previewSummaryLabel}>타입</Text>
+                    <Text style={m.previewSummaryVal}>{form.bannerType === "image" ? "이미지" : "텍스트"}</Text>
+                  </View>
+                  {form.bannerType === "text" && form.title ? (
+                    <View style={m.previewSummaryRow}>
+                      <Text style={m.previewSummaryLabel}>제목</Text>
+                      <Text style={m.previewSummaryVal} numberOfLines={1}>{form.title}</Text>
+                    </View>
+                  ) : null}
+                  <View style={m.previewSummaryRow}>
+                    <Text style={m.previewSummaryLabel}>색상</Text>
+                    {form.bannerType === "text" && form.colorMode === "custom" ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View style={[m.previewColorDot, { backgroundColor: form.customBg }]} />
+                        <View style={[m.previewColorDot, { backgroundColor: form.customText, borderWidth: 1, borderColor: "#E2E8F0" }]} />
+                        <Text style={m.previewSummaryVal}>직접 설정</Text>
+                      </View>
+                    ) : (
+                      <Text style={m.previewSummaryVal}>{form.bannerType === "image" ? "—" : form.colorTheme}</Text>
+                    )}
+                  </View>
+                  <View style={m.previewSummaryRow}>
+                    <Text style={m.previewSummaryLabel}>노출 기간</Text>
+                    <Text style={m.previewSummaryVal}>{form.displayStart} ~ {form.displayEnd}</Text>
+                  </View>
+                  <View style={m.previewSummaryRow}>
+                    <Text style={m.previewSummaryLabel}>상태</Text>
+                    <Text style={m.previewSummaryVal}>{STATUS_CFG[form.status].label}</Text>
+                  </View>
+                </View>
+
+                {/* 저장 버튼 */}
+                <Pressable
+                  style={[m.saveBtn, (saving || uploading) && { opacity: 0.6 }]}
+                  onPress={handleSave}
+                  disabled={saving || uploading}
+                >
+                  {saving || uploading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={m.saveTxt}>{editId ? "수정 완료" : "등록하기"}</Text>
+                  }
+                </Pressable>
+              </View>
+            )}
+
           </View>
         </View>
       </Modal>
@@ -838,9 +1056,18 @@ const m = StyleSheet.create({
   customColorItem: { flex: 1 },
   customColorLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   hexInputRow:     { flexDirection: "row", alignItems: "center", gap: 6 },
-  colorSwatch:     { width: 28, height: 28, borderRadius: 6 },
+  colorSwatch:     { width: 34, height: 34, borderRadius: 8 },
+  colorSwatchBtn:  { alignItems: "center", justifyContent: "center" },
   hexInput:        { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111" },
   contrastWarn:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 4 },
+  previewBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 12, paddingVertical: 14, marginTop: 16, marginBottom: 8 },
+  backBtn:         { flexDirection: "row", alignItems: "center", gap: 2 },
+  backTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: P },
+  previewSummary:  { backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 14, marginTop: 12, gap: 8 },
+  previewSummaryRow:{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  previewSummaryLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  previewSummaryVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1, textAlign: "right" },
+  previewColorDot: { width: 14, height: 14, borderRadius: 4 },
   imgBtn:     { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: P, borderRadius: 10, padding: 12, borderStyle: "dashed", marginTop: 10 },
   imgBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
   removeImg:  { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
