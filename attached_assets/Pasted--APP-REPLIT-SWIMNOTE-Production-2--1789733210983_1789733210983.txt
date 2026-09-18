@@ -1,0 +1,271 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 훈련용어 검색 Production 서버오류 2차 원인 추적]
+
+실제 사용자 기기에서 수정/재배포 이후에도
+“수영 훈련용어 검색”이 여전히 서버 오류를 표시합니다.
+
+따라서 이전 작업은 미완료입니다.
+
+공지사항 STT는 이번 작업에서 건드리지 마십시오.
+훈련용어 검색 1건만 조사하십시오.
+
+아직 코드 수정 금지.
+환경변수 변경 금지.
+배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 방금 실패한 Production 요청 1건 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+GET /api/terminology/search
+
+실제 사용자가 로그인한 상태에서 발생한
+가장 최근 실패 요청 1건만 찾으십시오.
+
+swimnote-api 로그에서 다음을 확인:
+
+- 요청 시각
+- HTTP status
+- terminology route 진입 여부
+- Professional Engine 호출 여부
+- Professional Engine 최종 URL
+- Engine 응답 HTTP status
+- Engine 응답 error code/message
+- api-server가 APP에 최종 반환한 status/error
+
+전체 로그 audit 금지.
+
+가장 최근 실패 1건만 봅니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Professional Engine 로그와 대조
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 시각의 요청을
+
+swimnote-professional-engine
+
+로그에서 1건만 찾으십시오.
+
+확인:
+
+- /api/terminology/search 실제 도달 여부
+- HTTP method
+- 인증 middleware 통과 여부
+- 반환 status
+- 최초 실제 error code/message
+
+도달 자체가 없다면
+api-server → engine network/request 단계 문제로 분류하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SERVICE CREDENTIAL 실제 일치 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 api-server:
+
+PROFESSIONAL_ENGINE_API_SECRET
+
+과
+
+Professional Engine이 검증에 사용하는
+실제 Production secret
+
+이 동일한지 확인하십시오.
+
+secret 원문 절대 출력 금지.
+
+양쪽 값을 동일한 방식으로 hash하여
+hash first 12~16 chars 정도만 비교하십시오.
+
+보고 예:
+
+API server secret hash:
+xxxxxxxxxxxx
+
+Engine expected secret hash:
+xxxxxxxxxxxx
+
+MATCH / MISMATCH
+
+환경변수 이름만 같다고
+동일한 값이라고 추정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. AUTH HEADER 계약 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+api-server 실제 client:
+
+terminology-engine-client.ts
+
+가 보내는 header와
+
+Professional Engine 실제 auth middleware가
+읽는 header를 양쪽 코드에서 직접 비교하십시오.
+
+확인:
+
+API server sends:
+Authorization: Bearer ...
+또는 실제 형식
+
+Engine expects:
+Authorization Bearer
+X-API-Key
+X-Engine-Secret
+등 실제 형식
+
+정확히 일치하는지 보고.
+
+이전 보고를 그대로 재사용하지 말고
+양쪽 코드를 실제로 대조하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. URL/PATH 계약 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설정:
+
+PROFESSIONAL_ENGINE_BASE_URL=
+https://swimnote-professional-engine.onrender.com
+
+api-server 최종 호출 URL이 정확히:
+
+https://swimnote-professional-engine.onrender.com/api/terminology/search
+
+인지 확인.
+
+다음 문제 확인:
+
+- /api 이중 여부
+- /api 누락 여부
+- query parameter q 전달 여부
+- URL encoding 문제
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Engine 내부 5xx라면 최초 원인만 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+인증을 통과했고
+Professional Engine 자체가 500/502/503을 반환한다면
+
+해당 요청의 최초 exception 하나만 확인하십시오.
+
+예:
+
+- DB 연결
+- terminology DB/table
+- embedding/search dependency
+- OpenAI/provider
+- env 누락
+- response serialization
+
+전체 Engine audit 금지.
+
+해당 요청이 실제로 실패한 최초 원인만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. APP 오류문구도 실제 응답과 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+TerminologySearchScreen.tsx가
+어떤 status/error를 받았을 때
+“서버 오류”를 표시하는지 확인하십시오.
+
+APP 수정은 하지 마십시오.
+
+이번 실제 실패에서
+서버가 반환한 status/error가
+해당 문구로 연결되는지만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나로 확정하십시오.
+
+A. API server ↔ Engine secret 값 불일치
+
+B. 인증 header 형식 불일치
+
+C. Engine URL/path 오류
+
+D. Engine 내부 서버 오류
+
+E. api-server response 처리 오류
+
+F. 기타
+
+추측 금지.
+
+Production 실제 실패 요청을 근거로 결정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는:
+
+- APP 수정 금지
+- API 코드 수정 금지
+- Professional Engine 수정 금지
+- env 변경 금지
+- secret 교체 금지
+- auth 완화 금지
+- Render deploy 금지
+- OTA 금지
+- DB 변경 금지
+
+원인 확정만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. API REQUEST]
+
+- 실제 요청 시각
+- api-server status
+- 최종 APP 반환 error
+
+[B. ENGINE CALL]
+
+- 최종 Engine URL
+- Engine 도달 여부
+- Engine HTTP status
+- 실제 error code/message
+
+[C. AUTH CONTRACT]
+
+- api-server가 보내는 header 형식
+- Engine이 요구하는 header 형식
+- 일치 여부
+
+[D. SECRET MATCH]
+
+- API server secret hash 일부
+- Engine expected secret hash 일부
+- MATCH / MISMATCH
+
+[E. ROOT CAUSE]
+
+A~F 중 하나
++ 실제 근거 한 문장
+
+[F. MINIMUM FIX]
+
+아직 실행하지 말고:
+
+- 수정 대상
+- 정확한 수정 내용
+- 배포 대상
+
+만 제시.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
