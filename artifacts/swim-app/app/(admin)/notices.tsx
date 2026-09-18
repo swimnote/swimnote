@@ -394,7 +394,7 @@ export default function NoticesScreen() {
       // STT
       const formData = new FormData();
       (formData as any).append("audio", { uri, name: "recording.m4a", type: "audio/m4a" } as any);
-      const sttRes = await fetch(`${API_BASE}/api/ai/whisper/transcribe`, {
+      const sttRes = await fetch(`${API_BASE}/ai/whisper/transcribe`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
         body: formData,
