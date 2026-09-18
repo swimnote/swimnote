@@ -150,6 +150,8 @@ export default function TeacherPhotosScreen() {
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const [deleting,    setDeleting]    = useState(false);
   const [confirmDel,  setConfirmDel]  = useState(false);
+  const [pendingDeleteIds,   setPendingDeleteIds]   = useState<string[]>([]);
+  const [pendingDeleteCount, setPendingDeleteCount] = useState(0);
   const [videoActionItem, setVideoActionItem] = useState<MediaItem | null>(null);
   // drag-select refs
   const selectModeRef = useRef(false);
@@ -324,13 +326,10 @@ export default function TeacherPhotosScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentScopeId]);
 
-  // 업로드 완료 후 목록 자동 새로고침
+  // uploadActive ref 동기화 (UploadQueueContext — teacher 직접 업로드와 무관)
   useEffect(() => {
-    if (prevActiveRef.current && !uploadActive && step === "list") {
-      loadList();
-    }
     prevActiveRef.current = uploadActive;
-  }, [uploadActive, step, loadList]);
+  }, [uploadActive]);
   const openList = useCallback((mt: MediaType, sc: AlbumScope) => {
     setMediaType(mt);
     setScope(sc);
@@ -383,11 +382,10 @@ export default function TeacherPhotosScreen() {
       });
     }
   }
+  // BUG-2: drag-select 제거 — 세로 스크롤 우선. 탭 선택/해제 유지.
   const photoGridDragPan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => selectModeRef.current,
-    onMoveShouldSetPanResponder: () => selectModeRef.current,
-    onPanResponderGrant: e => selectPhotoAt(e.nativeEvent.pageX, e.nativeEvent.pageY),
-    onPanResponderMove: e => selectPhotoAt(e.nativeEvent.pageX, e.nativeEvent.pageY),
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: () => false,
   })).current;
   // ── drag-select: 영상 리스트 (행 높이 약 76px) ───────────────────────
   const VIDEO_ROW_H = 76;
@@ -404,11 +402,10 @@ export default function TeacherPhotosScreen() {
       });
     }
   }
+  // BUG-2: drag-select 제거 — 세로 스크롤 우선.
   const videoListDragPan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => selectModeRef.current,
-    onMoveShouldSetPanResponder: () => selectModeRef.current,
-    onPanResponderGrant: e => selectVideoAt(e.nativeEvent.pageY),
-    onPanResponderMove: e => selectVideoAt(e.nativeEvent.pageY),
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: () => false,
   })).current;
   // ── 개별 영상 삭제 ─────────────────────────────────────────────────
   async function deleteSingleVideo(id: string) {
@@ -423,13 +420,13 @@ export default function TeacherPhotosScreen() {
   }
   // ── 선택 삭제 ─────────────────────────────────────────────────────────
   async function deleteSelected() {
-    const ids = Array.from(selected).filter(Boolean);
+    // snapshot 기준 IDs 사용 — modal open 시 캡처된 값
+    const ids = pendingDeleteIds.filter(Boolean);
     if (ids.length === 0) { setConfirmDel(false); return; }
     setDeleting(true);
     const isPhoto = mediaType === "photo";
     try {
       setItems(prev => prev.filter(i => !ids.includes(i.id)));
-      exitSelect();
       const endpoint = scope === "private"
         ? (isPhoto ? "/photos/saved" : "/videos/saved")
         : (isPhoto ? "/photos/bulk" : "/videos/bulk");
@@ -451,6 +448,9 @@ export default function TeacherPhotosScreen() {
     } finally {
       setDeleting(false);
       setConfirmDel(false);
+      setPendingDeleteIds([]);
+      setPendingDeleteCount(0);
+      exitSelect();
     }
   }
   // ── 내앨범으로 이동 ───────────────────────────────────────────────────
@@ -488,6 +488,8 @@ export default function TeacherPhotosScreen() {
     setStep("upload");
   }
   async function handleTileUpload(mt: MediaType, sc: AlbumScope) {
+    // BUG-1 guard: 업로드 진행 중 재진입 방지
+    if (uploading) return;
     const isVideo = mt === "video";
     if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
     if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
@@ -769,16 +771,14 @@ export default function TeacherPhotosScreen() {
               )}
               <Pressable
                 onPress={() => {
-                  if (selected.size === 0) {
-                    // 전체 선택 후 삭제
-                    setSelected(new Set(safeItems.map(i => i.id).filter(Boolean)));
-                    setTimeout(() => setConfirmDel(true), 0);
-                  } else {
-                    setConfirmDel(true);
-                  }
+                  if (selected.size === 0) return; // 0개 선택 시 아무 동작 없음
+                  const ids = Array.from(selected).filter(Boolean);
+                  setPendingDeleteIds(ids);
+                  setPendingDeleteCount(ids.length);
+                  setConfirmDel(true);
                 }}
-                disabled={deleting || saving}
-                style={[s.selectBarDel, { opacity: deleting ? 0.4 : 1 }]}
+                disabled={deleting || saving || selected.size === 0}
+                style={[s.selectBarDel, { opacity: (deleting || selected.size === 0) ? 0.4 : 1 }]}
               >
                 {deleting
                   ? <ActivityIndicator color="#fff" size="small" />
@@ -786,7 +786,7 @@ export default function TeacherPhotosScreen() {
                     <>
                       <LucideIcon name="trash-2" size={14} color="#fff" />
                       <Text style={s.selectBarDelText}>
-                        {selected.size === 0 ? "전체삭제" : `${selected.size}개 삭제`}
+                        {selected.size === 0 ? "삭제" : `${selected.size}개 삭제`}
                       </Text>
                     </>
                   )
@@ -856,7 +856,7 @@ export default function TeacherPhotosScreen() {
             data={safeItems}
             keyExtractor={(item, idx) => item?.id ?? String(idx)}
             numColumns={3}
-            scrollEnabled={!selectMode}
+            scrollEnabled={true}
             contentContainerStyle={{ padding: 2, paddingBottom: insets.bottom + 100 }}
             columnWrapperStyle={{ gap: 2 }}
             removeClippedSubviews
@@ -1219,12 +1219,12 @@ export default function TeacherPhotosScreen() {
         />
         <ConfirmModal
           visible={confirmDel}
-          title={`${selected.size > 0 ? selected.size : safeItems.length}개 삭제`}
-          message={`선택한 ${mediaType === "photo" ? "사진" : "영상"} ${selected.size > 0 ? selected.size : safeItems.length}개를 삭제합니다.\n이 작업은 취소할 수 없습니다.`}
+          title={`${pendingDeleteCount}개 삭제`}
+          message={`선택한 ${mediaType === "photo" ? "사진" : "영상"} ${pendingDeleteCount}개를 삭제합니다.\n이 작업은 취소할 수 없습니다.`}
           confirmText="삭제"
           destructive
           onConfirm={deleteSelected}
-          onCancel={() => setConfirmDel(false)}
+          onCancel={() => { setConfirmDel(false); setPendingDeleteIds([]); setPendingDeleteCount(0); }}
         />
         <ConfirmModal
           visible={!!successMsg}

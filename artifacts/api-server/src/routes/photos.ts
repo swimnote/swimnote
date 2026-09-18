@@ -699,7 +699,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         WHERE sp.album_type = 'group'
           AND sp.pool_id = ${poolId}
           AND sp.media_status <> 'uploading'
-        ORDER BY sp.created_at DESC
+        ORDER BY sp.created_at DESC, sp.sort_order ASC NULLS LAST, sp.id ASC
       `);
       photos = await batchPresign(rows.rows as any[]);
     } else {
