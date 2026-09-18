@@ -1,0 +1,435 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — RevenueCat 실제 Production 환경 불일치 원인 확정]
+
+실제 iPhone Runtime 진단 결과가 확보되었습니다.
+
+실제 기기 결과:
+
+Offerings:
+- center_monthly
+- solo_monthly
+
+swimnote_monthly:
+MISSING
+
+x_monthly:
+MISSING
+
+Direct getProducts:
+- com.swimnote.swimnote.monthly = NOT FOUND
+- com.swimnote.x300.monthly = NOT FOUND
+
+따라서 이전 조사 결론:
+
+“Production APP이 조사한 RevenueCat project와 동일하며,
+SWIMNOTE 단일 ASC product 문제”
+
+는 폐기합니다.
+
+현재 가장 중요한 사실:
+
+Replit이 RevenueCat 서버에서 확인했던:
+
+- swimnote_monthly
+- x_monthly
+
+구성과
+
+실제 iPhone SDK가 받은:
+
+- center_monthly
+- solo_monthly
+
+구성이 서로 다릅니다.
+
+아직 코드 수정하지 마십시오.
+
+이번 단계 목표:
+
+“왜 실제 Production iPhone이
+center_monthly / solo_monthly RevenueCat 구성을 받고 있는가”
+
+를 정확히 확정하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. KEY PREFIX 비교 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사에서는:
+
+appl_wRhy...
+
+prefix만 비교하여
+동일 key라고 판단했습니다.
+
+이 방식은 인정하지 않습니다.
+
+API key 전체 문자열은 보고서에 노출하지 말되,
+각 후보 key의 SHA-256 hash를 계산하여 비교하십시오.
+
+최소 비교:
+
+A.
+실제 APP 초기화에 들어가는 runtime iOS API key
+
+B.
+eas.json production 설정값
+
+C.
+eas.json production-v2 관련 설정값
+
+D.
+Replit/환경변수에 현재 존재하는
+EXPO_PUBLIC_REVENUECAT_IOS_API_KEY
+
+E.
+이전에 RevenueCat REST 조회에 사용한 iOS public key
+
+각 key의:
+
+SHA-256 앞 12~16자리
+
+만 보고하십시오.
+
+예:
+
+runtime key hash:
+12ab34cd56ef...
+
+REST 조사 key hash:
+98fe76dc54ba...
+
+처럼 비교.
+
+실제 key 원문 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 RUNTIME KEY를 코드가 무엇으로 읽는지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+getRevenueCatApiKey()가
+단순히 eas.json을 본다고 가정하지 마십시오.
+
+실제 subscription OTA bundle에서 사용하는 값의 Source를 추적하십시오.
+
+확인:
+
+- process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY
+- Constants.expoConfig.extra
+- app.config / app.json
+- eas.json
+- Replit environment
+- EAS Environment Variables
+- local .env
+- fallback constants
+
+중 실제 우선순위.
+
+중요:
+
+EAS Update를 게시할 때
+어떤 environment 값이 bundle에 주입됐는지도 확인하십시오.
+
+“eas.json에 이 값이 있다”
+만으로 runtime 값이라고 결론 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Purchases.configure 중복 호출 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+repository에서:
+
+Purchases.configure(
+
+전체 검색.
+
+실제 configure 호출이
+1곳인지 여러 곳인지 확인하십시오.
+
+만약 두 번 이상이면:
+
+- 첫 번째 API key
+- 두 번째 API key
+- 호출 순서
+
+를 보고.
+
+legacy code가 이후에 다른 RC key로
+재configure하는 가능성 확인.
+
+전체 RevenueCat refactor 금지.
+
+configure 호출만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. center_monthly / solo_monthly 출처 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드와 설정 전체에서 정확한 문자열:
+
+center_monthly
+solo_monthly
+
+을 검색하십시오.
+
+확인:
+
+- 현재 코드에 legacy offering ID가 남아 있는지
+- 어떤 RevenueCat project에서 사용하던 offering인지
+- 어떤 API key와 연결된 legacy 구성인지
+
+가능하면 RevenueCat API/Dashboard에서:
+
+center_monthly
+solo_monthly
+
+가 존재하는 project/app을 특정하십시오.
+
+그리고 그 project의 iOS SDK key hash와
+실제 runtime key hash를 비교하십시오.
+
+이 부분이 핵심입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. RevenueCat REST 조사 프로젝트도 재검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전에:
+
+swimnote_monthly
+x_monthly
+
+를 조회한 RevenueCat project가
+
+실제 Runtime key가 가리키는 project와
+같은 project인지 다시 검증하십시오.
+
+prefix 유사성 금지.
+
+project ID / app ID / key hash로 비교.
+
+보고:
+
+Runtime RC project:
+...
+
+REST 조사 RC project:
+...
+
+SAME / DIFFERENT
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OTA BUILD ENV 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+최근 진단 OTA:
+
+Update Group:
+c2078254-043b-49a1-894c-c44f95f9b258
+
+iOS Update:
+01a0b3de-d2bf-704a-8d91-a3d022fdc141
+
+branch:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+게시할 때 실제 어떤 EAS environment를 사용했는지 확인하십시오.
+
+특히:
+
+eas update --branch production-v2
+
+만 실행하여
+production environment 값이 아닌
+로컬/Replit env가 bundle에 들어간 것은 아닌지 확인.
+
+사용한 command와
+주입된 RC key source를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. NATIVE BINARY와 OTA 각각 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat API key가 JS env에서 configure된다면
+OTA가 값을 변경할 수 있습니다.
+
+따라서:
+
+현재 설치 native binary에 원래 포함된 key
+
+vs
+
+현재 적용된 OTA JS bundle에서 사용하는 key
+
+를 구분하십시오.
+
+현재 실제 SDK configure가
+어느 쪽 값으로 실행되는지 확인.
+
+“native rebuild 필요 없음”이라는 기존 결론도
+이 확인 후 결정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 직접 Product NOT FOUND는 아직 별도 문제로 보류
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 기기에서:
+
+SWIMNOTE = NOT FOUND
+X300 = NOT FOUND
+
+입니다.
+
+이것은 매우 중요하지만
+먼저 RevenueCat project/key 불일치를 확정하십시오.
+
+RC 환경을 올바르게 맞춘 뒤
+동일 진단을 다시 실행합니다.
+
+그 후에도:
+
+SWIMNOTE NOT FOUND
+X300 NOT FOUND
+
+라면 StoreKit/App Store Connect 문제를
+별도로 조사합니다.
+
+지금 두 문제를 섞지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 수정 전 최종 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 아래 중 하나를 확정하십시오.
+
+A.
+EAS Update에 잘못된 RC key가 주입됨
+
+B.
+Replit env의 legacy RC key가 사용됨
+
+C.
+native binary가 legacy RC project를 사용
+
+D.
+Purchases.configure가 두 번 호출되어
+legacy key로 덮어씀
+
+E.
+이전에 조사한 RevenueCat REST project 자체가
+실제 APP project와 달랐음
+
+F.
+RevenueCat cache 문제
+
+G.
+기타
+
+증거 없는 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. CACHE는 마지막에만 판단
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 key/project가 모두 동일하다는 것이
+hash/project ID로 증명된 경우에만
+RevenueCat offering cache 가능성을 검토하십시오.
+
+지금 상태에서:
+
+“캐시일 수 있음”
+
+으로 끝내지 마십시오.
+
+center_monthly / solo_monthly가
+어디서 오는지를 먼저 특정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 아직 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는:
+
+- RevenueCat key 변경 금지
+- offering 변경 금지
+- APP code 수정 금지
+- OTA 금지
+- native rebuild 금지
+- App Store Connect 변경 금지
+- 실제 구매 금지
+
+원인만 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. KEY HASH COMPARISON]
+
+- runtime key hash
+- production env key hash
+- production-v2/update env key hash
+- REST 조사 key hash
+- legacy 후보 key hash
+
+원문 key 금지.
+
+[B. CONFIGURE]
+
+Purchases.configure 호출 위치 전체
+및 실제 최종 사용 key source.
+
+[C. LEGACY OFFERINGS]
+
+center_monthly / solo_monthly가
+어느 RC project/app에서 오는지.
+
+[D. PROJECT COMPARISON]
+
+실제 Runtime RC project
+vs
+이전 REST 조사 RC project
+
+SAME / DIFFERENT.
+
+[E. OTA ENV]
+
+진단 OTA 게시 command와
+실제 RC env source.
+
+[F. ROOT CAUSE]
+
+실제 iPhone에서
+왜 center_monthly / solo_monthly만
+보이는지 한 문장으로 확정.
+
+[G. FIX PLAN]
+
+아직 실행하지 말고
+최소 수정 계획만 제시.
+
+필요 여부:
+
+- env 수정
+- OTA
+- native rebuild
+- RevenueCat 설정
+- App Store Connect
+
+각각 YES / NO.
+
+중요:
+
+실제 Runtime 진단 결과는 이미 확보되었습니다.
+
+Offerings:
+center_monthly
+solo_monthly
+
+따라서
+swimnote_monthly가 정상이라고 했던
+서버 설정 조사만 반복하지 마십시오.
