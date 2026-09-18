@@ -1,0 +1,245 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 사진 전체앨범 BUG-1 single-flight 최종 확인 + 배포 증빙 보완]
+
+현재 사진 전체앨범 수정은 대부분 승인합니다.
+
+BUG-2 선택모드 스크롤
+BUG-3 삭제 안전성
+BUG-4 업로드 순서
+
+는 현재 구현 유지하십시오.
+
+이번 작업에서는 BUG-1 업로드 재진입 방어만 좁게 확인하고,
+필요한 경우 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 uploading guard 실제 타이밍 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+handleTileUpload 시작 시
+
+if (uploading) return;
+
+guard를 추가했다고 보고했습니다.
+
+하지만 다음을 실제 코드 순서로 확인하십시오.
+
+- handleTileUpload 진입
+- ImagePicker open
+- picker result 반환
+- setUploading(true)
+- doUpload 실행
+
+특히 setUploading(true)가
+ImagePicker를 열기 전에 실행되는지,
+picker 반환 이후 실행되는지 확인하십시오.
+
+React state 업데이트만으로
+동일 event window의 빠른 double tap을
+완전히 차단한다고 추정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. single-flight 보장
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구조에서 빠른 두 번 탭이
+두 picker flow를 시작할 가능성이 조금이라도 있다면
+
+React state 외에
+동기적인 useRef lock을 추가하십시오.
+
+예시 의미:
+
+uploadFlowLockRef.current === true
+→ 즉시 return
+
+첫 handleTileUpload 진입 직후
+picker를 열기 전에:
+
+uploadFlowLockRef.current = true
+
+그리고 다음 모든 종료 경로에서 반드시 해제:
+
+- picker 취소
+- picker 오류
+- 업로드 성공
+- 업로드 실패
+
+finally 등 단일 정리 경로를 사용하십시오.
+
+목표:
+
+“picker 선택 → upload 완료/취소” 전체 흐름이
+항상 한 번에 1개만 실행.
+
+기존 uploading UI state는
+진행 표시용으로 그대로 유지 가능.
+
+불필요한 구조 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 버튼 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+업로드 flow가 이미 시작된 상태에서는
+업로드 버튼도 disabled 상태가 되도록 유지/확인하십시오.
+
+단 UI disabled만 믿지 말고
+handler 내부 single-flight guard도 반드시 존재해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. BUG-1 원인 표현 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+47장 → 약 80장 incident의
+정확한 root cause는 아직 확인하지 못했습니다.
+
+따라서 완료보고에서는:
+
+“double tap이 원인이었다”
+
+라고 확정하지 마십시오.
+
+정확한 표현:
+
+- direct-upload DB 중복 insert 증거 없음
+- picker 1:1 변환 확인
+- retry 없음
+- 실제 incident root cause는 확인하지 못함
+- 재진입 가능성은 존재했으며 single-flight guard로 차단
+
+으로 보고하십시오.
+
+기존 운영 사진이나 DB를 더 추적하지 마십시오.
+추가 broad investigation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 수정 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 현재 상태 유지:
+
+- scrollEnabled=true
+- drag-select 비활성화
+- tap selection
+- selected.size=0 삭제 차단
+- pendingDeleteIds snapshot
+- pendingDeleteCount snapshot
+- 전체삭제 fallback 제거
+- ORDER BY
+  sp.created_at DESC,
+  sp.sort_order ASC NULLS LAST,
+  sp.id ASC
+
+DB migration 금지.
+기존 사진 cleanup 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 기준으로 다음만 확인:
+
+A.
+빠르게 두 번 호출되어도
+두 번째 handleTileUpload가 picker를 열 수 없음
+
+B.
+picker 취소 후 lock 정상 해제
+
+C.
+upload 성공 후 lock 정상 해제
+
+D.
+upload 실패 후 lock 정상 해제
+
+E.
+다음 정상 업로드는 다시 실행 가능
+
+전체 테스트 suite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 수정이 발생한 경우에만
+APP Production OTA 재배포.
+
+branch/channel:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+API 추가 수정 없음.
+Render 재배포 불필요.
+
+코드 수정이 필요 없었다면
+불필요한 OTA 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포 증빙 보완
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고된 SHA가 short SHA입니다.
+
+다음은 full 40-character SHA로 보고하십시오.
+
+- Work Git SHA
+- APP OTA가 생성된 정확한 Git SHA
+- API Production LIVE Git SHA
+
+API 코드가 이번 단계에서 변경되지 않았다면
+기존 LIVE full SHA만 조회해서 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. SINGLE-FLIGHT]
+
+- setUploading(true) 실제 위치
+- 기존 state guard만으로 double tap 차단 가능한지
+- useRef lock 추가 여부
+- lock 설정 시점
+- lock 해제 경로
+
+[B. BUG-1 CONCLUSION]
+
+- 특정 47→80 incident root cause 확인 여부
+- direct-upload 중복 DB evidence 여부
+- 최종적으로 차단한 재진입 경로
+
+[C. QA]
+
+- double invocation 차단
+- picker cancel 후 재사용
+- upload success 후 재사용
+- upload failure 후 재사용
+
+각 PASS/FAIL
+
+[D. DEPLOY]
+
+코드 수정 시:
+- full 40-character Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- branch/channel
+- runtimeVersion
+
+수정 없으면:
+- OTA 없음 명시
+
+[E. PRODUCTION]
+
+- API full 40-character LIVE SHA
+- 기존 Render Deploy ID
+- status
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
