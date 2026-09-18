@@ -16,7 +16,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView,
+  ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import * as Updates from "expo-updates";
@@ -690,6 +690,76 @@ export default function SubscriptionScreen() {
     );
   }
 
+  // ── RC 진단 핸들러 (구매 없음, 읽기 전용) ──────────────────────────────────────
+  async function handleRcDiagnose() {
+    try {
+      // 1. getOfferings
+      const allOfferings = await Purchases.getOfferings();
+      const offeringIds = Object.keys(allOfferings.all);
+
+      // swimnote_monthly 상세
+      const swimnoteOf = allOfferings.all["swimnote_monthly"] ?? null;
+      let swimnoteSection = "swimnote_monthly: MISSING (offering 없음)";
+      if (swimnoteOf) {
+        const pkgs = swimnoteOf.availablePackages ?? [];
+        if (pkgs.length === 0) {
+          swimnoteSection = "swimnote_monthly: FOUND\npackages: 0개 (빈 offering)";
+        } else {
+          const lines = pkgs.map((p: any) => {
+            const pid = p.product?.productIdentifier ?? p.product?.identifier ?? "(unknown)";
+            const price = p.product?.priceString ?? "(no price)";
+            return `  - ${p.identifier} | ${pid} | ${price}`;
+          });
+          swimnoteSection = `swimnote_monthly: FOUND\npackages: ${pkgs.length}개\n${lines.join("\n")}`;
+        }
+      }
+
+      // x_monthly 상세
+      const xOf = allOfferings.all["x_monthly"] ?? null;
+      let xSection = "x_monthly: MISSING";
+      if (xOf) {
+        const pkgs = xOf.availablePackages ?? [];
+        xSection = `x_monthly: FOUND (packages: ${pkgs.length}개)`;
+        const x300pkg = pkgs.find((p: any) => p.identifier === "x300");
+        xSection += x300pkg
+          ? `\n  x300: ${x300pkg.product?.productIdentifier ?? "(no id)"} | ${x300pkg.product?.priceString ?? "(no price)"}`
+          : "\n  x300 package: MISSING";
+      }
+
+      // 2. direct product lookup
+      let directSection = "Direct getProducts: 확인 중...";
+      try {
+        const directProducts = await Purchases.getProducts([
+          "com.swimnote.swimnote.monthly",
+          "com.swimnote.x300.monthly",
+        ]);
+        const foundIds = directProducts.map((p: any) => p.productIdentifier ?? p.identifier ?? "(?)");
+        const swimFound = foundIds.some((id: string) => id.includes("swimnote.monthly"));
+        const x300Found = foundIds.some((id: string) => id.includes("x300.monthly"));
+        directSection =
+          `Direct getProducts:\n` +
+          `  SWIMNOTE: ${swimFound ? "FOUND" : "NOT FOUND"}\n` +
+          `  X300:     ${x300Found ? "FOUND" : "NOT FOUND"}`;
+      } catch (pe: any) {
+        directSection = `Direct getProducts:\n  ERROR ${pe?.code ?? ""}: ${pe?.message ?? String(pe)}`;
+      }
+
+      const msg =
+        `Offerings: [${offeringIds.join(", ")}]\n\n` +
+        `${swimnoteSection}\n\n` +
+        `${xSection}\n\n` +
+        `${directSection}`;
+
+      Alert.alert("RevenueCat Runtime 진단", msg, [{ text: "확인" }]);
+    } catch (e: any) {
+      Alert.alert(
+        "RevenueCat Runtime 진단",
+        `getOfferings 실패\nERROR ${e?.code ?? ""}: ${e?.message ?? String(e)}`,
+        [{ text: "확인" }],
+      );
+    }
+  }
+
   // ── 계산 값 ────────────────────────────────────────────────────────────────
   // X mode 활성 시 legacy 카드 표시 억제 (안전망).
   // 주 source-of-truth: server /billing/status → current_plan = x_plan_key 기반
@@ -1274,6 +1344,16 @@ export default function SubscriptionScreen() {
               <Text style={s.legalBtnText}>개인정보처리방침</Text>
             </Pressable>
           </View>
+
+          {/* ── RC 진단 버튼 (운영자 전용, 구매 없음) ── */}
+          <Pressable
+            onPress={handleRcDiagnose}
+            style={({ pressed }) => ({ alignSelf: "center", marginTop: 18, marginBottom: 4, opacity: pressed ? 0.5 : 0.4 })}
+          >
+            <Text style={{ fontSize: 11, color: "#9CA3AF", fontFamily: "Pretendard-Regular" }}>
+              구독 상품 진단
+            </Text>
+          </Pressable>
         </ScrollView>
       )}
 
