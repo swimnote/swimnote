@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { path: "/super/x-mode",     label: "X MODE 운영" },
   { path: "/super/ai",         label: "AI 운영" },
   { path: "/super/notices",    label: "공지 관리" },
+  { path: "/super/banners",    label: "배너 관리" },
   { path: "/super/ads",        label: "광고 관리" },
   { path: "/super/support",          label: "고객센터" },
   { path: "/super/knowledge-review", label: "지식 검토" },

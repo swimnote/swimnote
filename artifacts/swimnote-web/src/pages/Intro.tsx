@@ -4,19 +4,9 @@ import { useEffect, useRef, useState, useCallback } from "react";
 const BASE = import.meta.env.BASE_URL;
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
-// ── color_theme → CSS 색상 ────────────────────────────────────────────────────
-const THEME_MAP: Record<string, { bg: string; text: string }> = {
-  teal:   { bg: "#0D9B94", text: "#fff" },
-  navy:   { bg: "#1B3A5C", text: "#fff" },
-  sage:   { bg: "#4A7C5F", text: "#fff" },
-  mint:   { bg: "#3DB9C4", text: "#1B3A5C" },
-  coral:  { bg: "#E07B5F", text: "#fff" },
-  purple: { bg: "#6B5CA5", text: "#fff" },
-  dark:   { bg: "#1A1A2E", text: "#fff" },
-};
-function themeColors(theme: string) {
-  return THEME_MAP[theme] ?? { bg: "#1B3A5C", text: "#fff" };
-}
+// ── color_theme → CSS 색상 (APP/WEB 동일 해석) ──────────────────────────────
+import { parseBannerTheme } from "@/lib/bannerTheme";
+// parseBannerTheme: preset + custom:#BG:#TEXT 통합 파서 (APP과 동일 로직)
 
 // ── Banner 타입 ───────────────────────────────────────────────────────────────
 interface PublicBanner {
@@ -97,7 +87,7 @@ function BannerCarousel() {
   if (!loaded || banners.length === 0) return null;
 
   const b = banners[idx];
-  const colors = themeColors(b.color_theme);
+  const colors = parseBannerTheme(b.color_theme);
   const isImage = !!b.display_url;
   const hasLink =
     b.link_url?.startsWith("https://") || b.link_url?.startsWith("http://");
