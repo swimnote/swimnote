@@ -1,0 +1,189 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — RevenueCat 진단 종료 / StoreKit 상품 가용성 문제 확정]
+
+실제 iPhone Runtime 진단 및 환경 비교 결과를 승인합니다.
+
+이번 조사에서 확정된 Root Cause 범위:
+
+RevenueCat key/project
+APP bundle
+OTA environment
+offering/package mapping
+APP purchase flow
+
+은 정상.
+
+실제 iOS StoreKit에서 신규:
+
+com.swimnote.swimnote.monthly
+com.swimnote.x300.monthly
+com.swimnote.x500.monthly
+com.swimnote.x1000.monthly
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+상품들이 가용 product로 반환되지 않는 것이
+현재 구독 상품 미노출의 직접 원인입니다.
+
+단:
+
+“ASC에 상품이 존재하지 않는다”
+또는
+“승인되지 않았다”
+
+중 어느 것인지는
+ASC 상태를 직접 확인하지 않았으므로
+임의 확정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 코드 수정 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 다음은 수정하지 마십시오.
+
+- subscription.tsx 구매 flow
+- RevenueCat offering mapping
+- product identifiers
+- SDK key
+- API
+- DB
+- OTA
+- native build
+
+현재 코드에서 우회/fallback 상품을 연결하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 진단 결과를 기준 상태로 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 iPhone 결과:
+
+Offerings:
+center_monthly
+solo_monthly
+
+MISSING:
+swimnote_monthly
+x_monthly
+
+Direct StoreKit lookup:
+
+com.swimnote.swimnote.monthly
+→ NOT FOUND
+
+com.swimnote.x300.monthly
+→ NOT FOUND
+
+이 결과를 기준으로 유지하십시오.
+
+RevenueCat 서버에는
+swimnote_monthly / x_monthly가 정상 존재하므로
+RC 설정 재작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ASC 측 확인이 끝난 뒤 재검증할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+Apple 쪽 신규 상품 상태가 정리된 뒤
+동일한 기존 “구독 상품 진단”을 다시 실행합니다.
+
+성공 기준:
+
+Offerings에:
+
+swimnote_monthly
+x_monthly
+
+출현.
+
+그리고:
+
+Direct getProducts:
+
+SWIMNOTE = FOUND
+X300 = FOUND
+
+이어야 합니다.
+
+그 후 SWIMNOTE 카드도 자동으로:
+
+“구독 신청 준비 중”
+→
+“구독 시작”
+
+으로 전환되는지 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. X300 UI는 아직 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 X300/X500/X1000은
+상품 존재 여부와 상관없이
+“구독 시작” 버튼이 보이는 UX 불일치가 있습니다.
+
+이 문제는 StoreKit 상품 정상화 후
+별도 최소 WP로 정리합니다.
+
+지금 버튼 모양을 바꿔
+실제 Store 문제를 가리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 진단 버튼도 당분간 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 추가한:
+
+“구독 상품 진단”
+
+버튼은 StoreKit 상품 정상화 확인이 끝날 때까지
+유지하십시오.
+
+정상화 확인 후
+별도 지시로 제거합니다.
+
+지금 제거/재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. TEST_API_KEY 불일치
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 장애 원인은 아니므로
+이번 작업에서 수정하지 마십시오.
+
+기록만 유지:
+
+Replit/.env TEST_API_KEY
+≠
+eas.json TEST_API_KEY
+
+이 문제는 향후 개발/preview 환경 정리 시
+별도 작업으로 처리합니다.
+
+Production 문제와 섞지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 상태 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+추가 개발 작업 없음.
+
+최종 상태를 다음처럼 기록하십시오.
+
+APP CODE:
+정상
+
+REVENUECAT CONFIG:
+정상
+
+PRODUCTION RC KEY:
+정상
+
+STOREKIT:
+신규 com.swimnote.* 상품 NOT FOUND
+
+NEXT:
+Apple 상품 가용상태 정리 후 동일 runtime 진단 재실행
+
+코드 수정 금지.
+배포 금지.
