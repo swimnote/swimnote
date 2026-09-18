@@ -22,6 +22,10 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { useAdsStore, type Ad, type AdStatus } from "@/store/adsStore";
 import { useAuth, API_BASE } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
+import {
+  parseBannerTheme, autoTextColor, isValidHex, contrastRatio,
+  serializeCustomTheme, BANNER_PRESET_ACCENTS, BANNER_PRESET_KEYS,
+} from "@/lib/bannerTheme";
 
 const C = Colors.light;
 const P = "#7C3AED";
@@ -41,17 +45,16 @@ const STATUS_CFG: Record<AdStatus, { label: string; dot: string; badge: string }
   inactive:  { label: "비활성", dot: C.textMuted, badge: C.backgroundSoft },
 };
 
-const THEMES = ["teal","purple","orange","blue","green","red","pink"] as const;
-const THEME_COLORS: Record<string, string> = {
-  teal: "#1683A3", purple: "#7C3AED", orange: "#F97316",
-  blue: "#2563EB", green: "#059669", red: "#DC2626", pink: "#DB2777",
-};
+// 프리셋 칩 accent (Super Admin UI 전용, banner 렌더링에는 parseBannerTheme 사용)
+const THEME_COLORS = BANNER_PRESET_ACCENTS;
 const THEME_BG: Record<string, string> = {
   teal: "#EEF9FB", purple: "#EDE9FE", orange: "#FFF7ED",
   blue: "#DBEAFE", green: "#D1FAE5", red: "#FEE2E2", pink: "#FCE7F3",
 };
 
 type BannerType = "text" | "image";
+
+type ColorMode = "preset" | "custom";
 
 interface FormState {
   bannerType: BannerType;
@@ -61,7 +64,10 @@ interface FormState {
   displayStart: string;
   displayEnd: string;
   status: AdStatus;
-  colorTheme: string;
+  colorTheme: string;   // preset name 또는 "custom:#BG:#TEXT" (저장 형식)
+  colorMode: ColorMode; // UI 선택 상태 (저장 전 임시)
+  customBg: string;     // custom 배경 HEX (#RRGGBB)
+  customText: string;   // custom 글자 HEX (#RRGGBB)
   // image
   imageUri: string;   // 로컬 선택된 uri (업로드 전)
   imageKey: string;   // 업로드 완료된 R2 key
@@ -77,12 +83,21 @@ function blankForm(): FormState {
     title: "", description: "", linkUrl: "",
     displayStart: today, displayEnd: future,
     status: "inactive", colorTheme: "teal",
+    colorMode: "preset", customBg: "#1B3A5C", customText: "#FFFFFF",
     imageUri: "", imageKey: "", imageUrl: "", displayUrl: "",
   };
 }
 
 function adToForm(ad: Ad): FormState {
   const hasImage = !!(ad.imageKey || ad.imageUrl);
+  const isCustom = ad.colorTheme?.startsWith("custom:");
+  let customBg = "#1B3A5C";
+  let customText = "#FFFFFF";
+  if (isCustom) {
+    const parts = ad.colorTheme.split(":");
+    customBg   = parts[1] ?? "#1B3A5C";
+    customText = parts[2] ?? "#FFFFFF";
+  }
   return {
     bannerType: hasImage ? "image" : "text",
     title: ad.title,
@@ -91,7 +106,10 @@ function adToForm(ad: Ad): FormState {
     displayStart: ad.displayStart.slice(0, 10),
     displayEnd: ad.displayEnd.slice(0, 10),
     status: ad.status,
-    colorTheme: ad.colorTheme,
+    colorTheme: isCustom ? ad.colorTheme : ad.colorTheme,
+    colorMode: isCustom ? "custom" : "preset",
+    customBg,
+    customText,
     imageUri: "",
     imageKey: ad.imageKey,
     imageUrl: ad.imageUrl,
@@ -104,7 +122,15 @@ function BannerPreview({ form }: { form: FormState }) {
   const imgUri = form.imageUri
     ? form.imageUri
     : (form.displayUrl || (form.imageKey ? `${API_BASE}/uploads/${form.imageKey}` : form.imageUrl) || "");
-  const th = { bg: THEME_BG[form.colorTheme] ?? "#fff", text: THEME_COLORS[form.colorTheme] ?? "#1B3A70" };
+
+  // 색상 해석 — colorMode="custom"이면 현재 입력값 직접 사용 (저장 전 실시간 반영)
+  const effectiveTheme = form.colorMode === "custom"
+    ? serializeCustomTheme(
+        isValidHex(form.customBg)   ? form.customBg   : "#1B3A5C",
+        isValidHex(form.customText) ? form.customText : "#FFFFFF",
+      )
+    : form.colorTheme;
+  const th = parseBannerTheme(effectiveTheme);
 
   if (form.bannerType === "image" && imgUri) {
     return (
@@ -124,12 +150,12 @@ function BannerPreview({ form }: { form: FormState }) {
     );
   }
   return (
-    <View style={[pv.box, pv.textBox, { height: PREVIEW_H, backgroundColor: th.bg }]}>
-      <Text style={[pv.title, { color: th.text }]} numberOfLines={2}>
+    <View style={[pv.box, pv.textBox, { height: PREVIEW_H, backgroundColor: th.backgroundColor }]}>
+      <Text style={[pv.title, { color: th.textColor }]} numberOfLines={2}>
         {form.title || "제목을 입력하세요"}
       </Text>
       {!!form.description && (
-        <Text style={[pv.desc, { color: th.text }]} numberOfLines={2}>
+        <Text style={[pv.desc, { color: th.textColor }]} numberOfLines={2}>
           {form.description}
         </Text>
       )}
@@ -290,15 +316,34 @@ export default function StripBannerScreen() {
         finalUrl = uploaded.url;
       }
 
-      // IMAGE 타입이면 텍스트 필드 비움, TEXT 타입이면 이미지 필드 비움
+      // custom 색상 검증 (TEXT 배너 + custom 모드일 때)
       const isImage = form.bannerType === "image";
+      if (!isImage && form.colorMode === "custom") {
+        if (!isValidHex(form.customBg)) {
+          Alert.alert("색상 오류", "배경색을 올바른 HEX 형식으로 입력해주세요.\n예: #163A5F");
+          setSaving(false);
+          return;
+        }
+        if (!isValidHex(form.customText)) {
+          Alert.alert("색상 오류", "글자색을 올바른 HEX 형식으로 입력해주세요.\n예: #FFFFFF");
+          setSaving(false);
+          return;
+        }
+      }
+
+      // colorTheme 최종값 — custom 모드면 직렬화
+      const finalColorTheme = (!isImage && form.colorMode === "custom")
+        ? serializeCustomTheme(form.customBg, form.customText)
+        : form.colorTheme;
+
+      // IMAGE 타입이면 텍스트 필드 비움, TEXT 타입이면 이미지 필드 비움
       const params = {
         bannerType:   "strip" as const,
         title:        isImage ? (form.title.trim() || "배너") : form.title.trim(),
         description:  isImage ? "" : form.description.trim(),
         imageKey:     isImage ? finalKey : "",
         imageUrl:     isImage ? finalUrl : "",
-        colorTheme:   form.colorTheme,
+        colorTheme:   finalColorTheme,
         linkUrl:      form.linkUrl.trim(),
         linkLabel:    "",
         status:       form.status,
@@ -546,17 +591,83 @@ export default function StripBannerScreen() {
                     maxLength={DESC_MAX}
                   />
 
+                  {/* ── 색상 테마 ── */}
                   <Text style={m.label}>색상 테마</Text>
+
+                  {/* [빠른 색상] 프리셋 칩 */}
+                  <Text style={m.colorSectionHint}>빠른 색상</Text>
                   <View style={m.themeRow}>
-                    {THEMES.map(th => (
-                      <Pressable key={th} onPress={() => setForm(f => ({ ...f, colorTheme: th }))}
+                    {BANNER_PRESET_KEYS.map(th => (
+                      <Pressable key={th}
+                        onPress={() => setForm(f => ({ ...f, colorTheme: th, colorMode: "preset" }))}
                         style={[m.themeChip,
-                          { backgroundColor: THEME_BG[th] },
-                          form.colorTheme === th && { borderWidth: 2, borderColor: THEME_COLORS[th] }]}>
-                        <View style={[m.themeDot, { backgroundColor: THEME_COLORS[th] }]} />
+                          { backgroundColor: THEME_BG[th] ?? "#EEF9FB" },
+                          form.colorMode === "preset" && form.colorTheme === th
+                            && { borderWidth: 2, borderColor: THEME_COLORS[th] ?? "#1683A3" }]}>
+                        <View style={[m.themeDot, { backgroundColor: THEME_COLORS[th] ?? "#1683A3" }]} />
                       </Pressable>
                     ))}
                   </View>
+
+                  {/* [직접 색상] custom HEX 입력 */}
+                  <Text style={[m.colorSectionHint, { marginTop: 10 }]}>직접 색상</Text>
+                  <View style={m.customColorRow}>
+                    {/* 배경색 */}
+                    <View style={m.customColorItem}>
+                      <Text style={m.customColorLabel}>배경색</Text>
+                      <View style={m.hexInputRow}>
+                        <View style={[m.colorSwatch, { backgroundColor: isValidHex(form.customBg) ? form.customBg : "#1B3A5C" }]} />
+                        <TextInput
+                          style={[m.hexInput, form.colorMode === "custom" && { borderColor: "#7C3AED" }]}
+                          value={form.customBg}
+                          onChangeText={v => {
+                            const hex = v.startsWith("#") ? v : "#" + v;
+                            setForm(f => ({
+                              ...f,
+                              customBg: hex,
+                              colorMode: "custom",
+                              // 배경색 변경 시 글자색 자동 추천 (사용자가 글자색을 직접 안 바꾼 경우만)
+                              customText: isValidHex(hex) ? autoTextColor(hex) : f.customText,
+                            }));
+                          }}
+                          placeholder="#1B3A5C"
+                          autoCapitalize="characters"
+                          maxLength={7}
+                          onFocus={() => setForm(f => ({ ...f, colorMode: "custom" }))}
+                        />
+                      </View>
+                    </View>
+
+                    {/* 글자색 */}
+                    <View style={m.customColorItem}>
+                      <Text style={m.customColorLabel}>글자색</Text>
+                      <View style={m.hexInputRow}>
+                        <View style={[m.colorSwatch, { backgroundColor: isValidHex(form.customText) ? form.customText : "#FFFFFF", borderWidth: 1, borderColor: "#E2E8F0" }]} />
+                        <TextInput
+                          style={[m.hexInput, form.colorMode === "custom" && { borderColor: "#7C3AED" }]}
+                          value={form.customText}
+                          onChangeText={v => {
+                            const hex = v.startsWith("#") ? v : "#" + v;
+                            setForm(f => ({ ...f, customText: hex, colorMode: "custom" }));
+                          }}
+                          placeholder="#FFFFFF"
+                          autoCapitalize="characters"
+                          maxLength={7}
+                          onFocus={() => setForm(f => ({ ...f, colorMode: "custom" }))}
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 대비 경고 */}
+                  {form.colorMode === "custom"
+                    && isValidHex(form.customBg)
+                    && isValidHex(form.customText)
+                    && contrastRatio(form.customBg, form.customText) < 3.0
+                    && (
+                      <Text style={m.contrastWarn}>⚠ 글자가 잘 보이지 않을 수 있습니다.</Text>
+                    )
+                  }
                 </>
               )}
 
@@ -719,9 +830,17 @@ const m = StyleSheet.create({
   typeBtnActive:{ backgroundColor: P },
   typeTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   typeTxtActive:{ color: "#fff" },
-  themeRow:   { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  themeChip:  { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 0 },
-  themeDot:   { width: 14, height: 14, borderRadius: 7 },
+  themeRow:        { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  themeChip:       { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 0 },
+  themeDot:        { width: 14, height: 14, borderRadius: 7 },
+  colorSectionHint:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginBottom: 4 },
+  customColorRow:  { flexDirection: "row", gap: 10 },
+  customColorItem: { flex: 1 },
+  customColorLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
+  hexInputRow:     { flexDirection: "row", alignItems: "center", gap: 6 },
+  colorSwatch:     { width: 28, height: 28, borderRadius: 6 },
+  hexInput:        { flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#111" },
+  contrastWarn:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 4 },
   imgBtn:     { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderColor: P, borderRadius: 10, padding: 12, borderStyle: "dashed", marginTop: 10 },
   imgBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
   removeImg:  { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },

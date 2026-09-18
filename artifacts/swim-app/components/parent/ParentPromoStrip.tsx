@@ -31,16 +31,7 @@ const ASPECT = 16 / 5;
 const BANNER_H = Math.round(BANNER_W / ASPECT);
 const DEFAULT_SLIDE_MS = 15000;
 
-const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = {
-  teal:   { bg: "#EEF9FB", accent: "#1683A3", text: "#163842" },
-  purple: { bg: "#EDE9FE", accent: "#7C3AED", text: "#4C1D95" },
-  orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412" },
-  blue:   { bg: "#DBEAFE", accent: "#2563EB", text: "#1E40AF" },
-  green:  { bg: "#D1FAE5", accent: "#059669", text: "#065F46" },
-  red:    { bg: "#FEE2E2", accent: "#DC2626", text: "#991B1B" },
-  pink:   { bg: "#FCE7F3", accent: "#DB2777", text: "#831843" },
-};
-const DEFAULT_THEME = { bg: "#FFFFFF", accent: "#1B3A70", text: "#1B3A70" };
+import { parseBannerTheme } from "@/lib/bannerTheme";
 
 interface BannerSlide {
   id: string;
@@ -61,7 +52,7 @@ const FALLBACK: BannerSlide = {
 // 슬라이드 하나 렌더러
 function SlideItem({ slide, onPress }: { slide: BannerSlide; onPress?: () => void }) {
   const imgUri = slide.display_url || slide.image_url || "";
-  const th = THEME_MAP[slide.color_theme] ?? DEFAULT_THEME;
+  const th = parseBannerTheme(slide.color_theme);
 
   if (imgUri) {
     return (
@@ -72,13 +63,13 @@ function SlideItem({ slide, onPress }: { slide: BannerSlide; onPress?: () => voi
   }
 
   return (
-    <Pressable style={[s.slide, s.textSlide, { backgroundColor: th.bg }]} onPress={onPress}>
+    <Pressable style={[s.slide, s.textSlide, { backgroundColor: th.backgroundColor }]} onPress={onPress}>
       <View style={s.textInner}>
-        <Text style={[s.title, { color: th.text }]} numberOfLines={2}>
+        <Text style={[s.title, { color: th.textColor }]} numberOfLines={2}>
           {slide.title}
         </Text>
         {!!slide.description && (
-          <Text style={[s.desc, { color: th.text }]} numberOfLines={2}>
+          <Text style={[s.desc, { color: th.textColor }]} numberOfLines={2}>
             {slide.description}
           </Text>
         )}

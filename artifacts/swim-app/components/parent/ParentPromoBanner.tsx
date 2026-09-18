@@ -76,6 +76,13 @@ const THEME_MAP: Record<string, { bg: string; tagColor: string; titleColor: stri
 };
 
 function getTheme(colorTheme: string) {
+  if (colorTheme?.startsWith("custom:")) {
+    // custom:#BGCOLOR:#TEXTCOLOR → map to component's {bg, tagColor, titleColor}
+    const parts = colorTheme.split(":");
+    const bg   = parts[1] ?? "#1B3A5C";
+    const text = parts[2] ?? "#FFFFFF";
+    return { bg, tagColor: text, titleColor: text };
+  }
   return THEME_MAP[colorTheme] ?? THEME_MAP.teal;
 }
 
