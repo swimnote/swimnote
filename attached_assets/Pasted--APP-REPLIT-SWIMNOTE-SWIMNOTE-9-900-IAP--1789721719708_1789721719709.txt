@@ -1,0 +1,292 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — SWIMNOTE 9,900원 IAP 외부 설정 최종 확인]
+
+코드 원인 분석은 승인합니다.
+
+현재 확정:
+
+subscription.tsx에서
+SWIMNOTE 버튼 활성 조건은:
+
+swimnotePkg != null
+
+이며
+
+현재 runtime:
+swimnotePkg === null
+
+입니다.
+
+구매 flow 자체는 이미 구현되어 있으므로
+이번 단계에서는 코드 수정하지 마십시오.
+
+목표는:
+
+“왜 RevenueCat runtime에서
+SWIMNOTE 상품을 찾지 못하는가”
+
+를 외부 설정 기준으로 확정하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기대 PRODUCT MAPPING 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드가 기대하는 값:
+
+tier:
+swimnote
+
+RevenueCat offering:
+swimnote_monthly
+
+RevenueCat package:
+swimnote
+또는 현재 실제 custom package identifier
+
+App Store product:
+com.swimnote.swimnote.monthly
+
+입니다.
+
+이 값들을 임의 변경하지 마십시오.
+
+먼저 실제 설정과 비교하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. REVENUECAT 실제 설정 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat Dashboard에서 실제로 확인 가능한 경우:
+
+A.
+Offering ID:
+
+swimnote_monthly
+
+존재 여부
+
+B.
+해당 Offering 안에
+SWIMNOTE 월 구독 package가 존재하는지
+
+C.
+그 package에:
+
+com.swimnote.swimnote.monthly
+
+product가 연결되어 있는지
+
+D.
+해당 product가
+현재 iOS 앱 project와 연결되어 있는지
+
+E.
+RevenueCat Products 목록에서
+com.swimnote.swimnote.monthly
+상태가 정상인지
+
+각각:
+
+FOUND
+MISSING
+NOT CONNECTED
+확인하지 못함
+
+중 하나로 보고하십시오.
+
+설정 변경은 아직 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. APP STORE CONNECT 실제 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+App Store Connect에 접근 가능한 경우:
+
+product ID:
+
+com.swimnote.swimnote.monthly
+
+확인.
+
+보고:
+
+- 상품 존재 여부
+- Auto-Renewable Subscription 여부
+- subscription group 존재 여부
+- 현재 상태
+- 가격 설정 여부
+- 판매 가능 여부
+
+중 확인 가능한 것만 보고.
+
+상품이 없으면:
+MISSING
+
+상품은 있으나 incomplete 상태면:
+INCOMPLETE
+
+정상이라면:
+CONFIGURED
+
+설정 변경은 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. RUNTIME REVENUECAT 결과 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 현재 iOS runtime에서
+RevenueCat getOfferings 결과를
+민감정보 없이 확인하십시오.
+
+보고할 것:
+
+available offering identifiers
+
+예:
+
+current
+x_monthly
+swimnote_monthly
+
+등.
+
+그리고:
+
+swimnote_monthly.availablePackages
+
+안의:
+
+- package identifier
+- productIdentifier
+
+만 보고하십시오.
+
+가격이나 receipt/token 등
+민감정보 보고 금지.
+
+swimnote_monthly 자체가 응답에 없다면
+그 사실을 명확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. X300도 같은 기준으로 상태만 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300 버튼이 현재 활성화되어 있다는 이유로
+RevenueCat 연결 정상이라고 판단하지 마십시오.
+
+동일 runtime 결과에서:
+
+x_monthly offering 존재 여부
+
+및:
+
+com.swimnote.x300.monthly
+
+product/package 존재 여부만 확인하십시오.
+
+이번에는 X300 수정 금지.
+
+목적은 UI가 아니라
+실제 RevenueCat 연결상태 확인입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ROOT CAUSE 최종 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나로 최종 분류하십시오.
+
+A.
+App Store product 자체 없음
+
+B.
+App Store product는 있으나
+RevenueCat Products에 미등록/미연결
+
+C.
+RevenueCat product는 있으나
+swimnote_monthly offering에 package 미연결
+
+D.
+Offering/package 모두 정상인데
+코드 identifier mismatch
+
+E.
+Store product 상태 때문에 runtime lookup 실패
+
+F.
+기타
+
+“둘 중 하나일 수 있음”
+수준으로 끝내지 마십시오.
+
+확인 가능한 증거 기준으로
+가장 구체적인 원인을 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 아직 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는:
+
+- RevenueCat 설정 변경 금지
+- App Store Connect 상품 생성/수정 금지
+- code 수정 금지
+- product ID 변경 금지
+- APP OTA 금지
+- API 배포 금지
+
+조사만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. REVENUECAT]
+
+- swimnote_monthly offering:
+  FOUND / MISSING / 확인못함
+
+- package:
+  FOUND / MISSING / 확인못함
+
+- product:
+  FOUND / MISSING / 확인못함
+
+- 연결상태
+
+[B. APP STORE CONNECT]
+
+com.swimnote.swimnote.monthly:
+
+- 존재 여부
+- 상품 유형
+- 현재 상태
+- 가격/판매 설정 여부
+
+[C. RUNTIME]
+
+RevenueCat getOfferings에:
+
+- swimnote_monthly 존재 여부
+- package identifier
+- productIdentifier
+
+[D. X300 CHECK]
+
+x_monthly / x300 실제 runtime 연결 여부
+
+[E. FINAL ROOT CAUSE]
+
+왜 swimnotePkg가 null인지
+한 문장으로 확정.
+
+[F. REQUIRED ACTION]
+
+코드 수정 없이
+RevenueCat/App Store Connect에서
+어떤 설정만 하면 되는지
+정확한 순서로 제시.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.

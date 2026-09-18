@@ -1,0 +1,468 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 기본 SWIMNOTE 9,900원 “구독 신청 준비 중” 원인 조사]
+
+아직 코드 수정하지 마십시오.
+RevenueCat 설정 변경 금지.
+App Store Connect 변경 금지.
+배포 금지.
+
+사용자 실제 기기:
+
+관리자
+→ 구독 관리
+
+화면에서
+
+SWIMNOTE
+₩9,900 / 월
+
+상품의 버튼이:
+
+“구독 신청 준비 중”
+
+으로 비활성화되어 있습니다.
+
+반면 같은 화면의:
+
+SWIMNOTE X300
+₩129,000 / 월
+
+은:
+
+“구독 시작”
+
+으로 활성화되어 있습니다.
+
+이번 단계에서는
+왜 기본 SWIMNOTE 상품만 준비중 상태인지
+정확한 원인만 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 화면 SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+스크린샷의:
+
+“구독 관리”
+
+화면을 실제 렌더링하는
+정확한 파일을 찾으십시오.
+
+다음 문구를 코드에서 검색:
+
+“구독 신청 준비 중”
+“구독 시작”
+“SWIMNOTE X300”
+“3일 AI 기능 무료체험”
+
+파일명을 추측하지 마십시오.
+
+보고:
+
+- 실제 screen 파일
+- SWIMNOTE card component
+- X300 card component
+- 버튼 disabled 조건
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. “구독 신청 준비 중”이 나오는 정확한 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드에서 버튼 문구가:
+
+“구독 신청 준비 중”
+
+으로 결정되는 정확한 조건식을 보고하십시오.
+
+예를 들어 실제 코드가:
+
+if (!package)
+if (!offering)
+if (!productAvailable)
+if (!iapReady)
+if (!subscriptionEnabled)
+if (plan === ...)
+if (platform === ...)
+if (policyNotAccepted)
+
+중 무엇인지
+
+실제 조건을 그대로 추적하십시오.
+
+최종적으로:
+
+“이 값이 false/null이기 때문에
+현재 버튼이 준비중으로 표시된다”
+
+까지 특정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SWIMNOTE vs X300 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 화면에서:
+
+SWIMNOTE = 준비중
+
+X300 = 구독 시작
+
+이므로 두 상품의 데이터 흐름을
+나란히 비교하십시오.
+
+확인:
+
+SWIMNOTE
+- internal plan key
+- RevenueCat product/package ID
+- offering
+- package
+- price source
+- purchase handler
+- button enabled 조건
+
+X300
+- internal plan key
+- RevenueCat product/package ID
+- offering
+- package
+- price source
+- purchase handler
+- button enabled 조건
+
+차이가 어디서 발생하는지 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ₩9,900 가격 Source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면에:
+
+₩9,900 / 월
+
+이 표시되고 있습니다.
+
+이 값이:
+
+A.
+RevenueCat/App Store에서 실제 로드된 localized price
+
+인지
+
+B.
+UI에 하드코딩된 가격
+
+인지
+
+C.
+서버 subscription plan 정보
+
+인지
+
+정확히 확인하십시오.
+
+매우 중요:
+
+화면에 가격이 보인다고 해서
+실제 IAP 상품이 연결되어 있다고
+가정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. RevenueCat 실제 상품 연결 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 SWIMNOTE 유료 플랜이
+실제로 RevenueCat에서 구매 가능한 상품으로
+연결되어 있는지 코드/런타임 기준 확인하십시오.
+
+확인:
+
+- product identifier
+- package identifier
+- offering identifier
+- 현재 entitlement identifier
+- iOS product lookup 결과
+- RevenueCat getOfferings/getProducts 결과
+
+가능하면 실제 로그인된 iOS 환경에서
+RevenueCat 응답에 SWIMNOTE 기본 상품이
+존재하는지 확인.
+
+secret/API key 값 자체는 보고 금지.
+
+보고는:
+
+FOUND
+NOT FOUND
+CONFIGURED BUT UNAVAILABLE
+
+처럼 상태만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. X300은 왜 활성화되는지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300 버튼이 활성화되는 이유를
+동일 코드 흐름에서 확인하십시오.
+
+예:
+
+X300 package는 실제 RevenueCat offering에서 발견됨
+
+반면:
+
+SWIMNOTE package는 undefined
+
+라면 그것이 root cause입니다.
+
+또는 SWIMNOTE만 의도적으로
+feature flag/ready flag가 false라면
+그 사실을 보고.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 환불 정책 확인 배너와 관계 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+화면 상단에:
+
+“유료 결제를 진행하려면 환불 정책 확인이 필요합니다.
+현재 버전: v1.0 · 탭하여 확인하기”
+
+가 표시됩니다.
+
+이 정책 확인 여부가
+SWIMNOTE 버튼 비활성 원인인지도 확인하십시오.
+
+단 같은 화면에서 X300은
+“구독 시작” 상태이므로
+단순히 환불 정책 미확인 때문이라고
+추측하지 마십시오.
+
+확인:
+
+- policy accepted state
+- button enabled 조건에 이 값이 들어가는지
+- SWIMNOTE와 X300에서 동일하게 적용되는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 서버/DB 구독 상태도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 pool의 subscription 상태 때문에
+기본 SWIMNOTE 구매가 막히는지 확인하십시오.
+
+예:
+
+- 이미 legacy/basic entitlement 존재
+- current plan
+- trial state
+- X trial
+- subscription status
+- manual plan
+- super admin override
+
+등이 버튼 조건에 영향을 주는지.
+
+이번 pool 하나만 확인.
+
+전체 subscription DB audit 금지.
+
+개인정보/결제정보 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. App Store Connect 상태 가능성
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드상 RevenueCat identifier가 존재하지만
+runtime에서 상품이 반환되지 않는 경우에만
+
+App Store Connect / RevenueCat configuration 상태를
+확인 가능한 범위에서 점검하십시오.
+
+예:
+
+- 상품 생성 여부
+- product ID mismatch
+- RevenueCat offering 연결 누락
+- package에 product 미연결
+- Store product 상태 문제
+
+단 설정을 변경하지 마십시오.
+
+현재 상태만 보고.
+
+확인하지 못하면
+“확인하지 못함”이라고 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 구매 HANDLER 존재 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE 버튼을 활성화한다고 가정했을 때
+실제로 호출할 purchase handler가
+이미 구현되어 있는지도 확인하십시오.
+
+즉:
+
+버튼만 임시 disabled로 막혀 있는 것인지
+
+아니면:
+
+기본 SWIMNOTE 구매 flow 자체가
+아직 미구현인지
+
+구분하십시오.
+
+확인:
+
+tap
+→ purchasePackage/product
+→ entitlement refresh
+→ subscription state update
+
+흐름 존재 여부.
+
+아직 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 제품 정책과 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확정된 상품 구조:
+
+SWIMNOTE
+₩9,900 / 월
+
+SWIMNOTE X300
+₩129,000 / 월
+
+SWIMNOTE X500
+₩199,000 / 월
+
+SWIMNOTE X1000
+₩359,000 / 월
+
+기본 SWIMNOTE 역시
+실제 유료 구독 상품입니다.
+
+따라서 “준비 중”이:
+
+A.
+아직 IAP 상품 연결이 안 된 실제 미구현 상태
+
+인지
+
+B.
+구현은 되어 있는데 product lookup/config bug
+
+인지
+
+C.
+현재 계정 상태 때문에 의도적으로 disabled
+
+인지
+
+반드시 구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 조사에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 버튼 활성화 코드 수정
+- RevenueCat offering 변경
+- product ID 변경
+- App Store Connect 설정 변경
+- 구독 DB 수정
+- 결제 테스트 실행
+- 실제 구매
+- APP OTA
+- API 배포
+- 전체 RevenueCat audit
+
+원인 조사만 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ACTUAL SCREEN]
+
+- 화면 파일
+- SWIMNOTE button component/조건
+
+[B. DISABLED CONDITION]
+
+“구독 신청 준비 중”이 표시되는
+정확한 코드 조건
+
+현재 실제 값
+
+[C. PRODUCT MAPPING]
+
+SWIMNOTE:
+- plan key
+- product/package/offering ID
+- runtime 발견 여부
+
+X300:
+- plan key
+- product/package/offering ID
+- runtime 발견 여부
+
+[D. PRICE SOURCE]
+
+₩9,900이:
+RevenueCat / server / hardcoded
+중 무엇인지
+
+[E. REFUND POLICY]
+
+환불 정책 미확인이
+이 버튼 준비중 상태와 관계있는지
+YES / NO
+
+[F. PURCHASE FLOW]
+
+기본 SWIMNOTE purchase flow가
+이미 구현되어 있는지
+YES / NO / PARTIAL
+
+[G. ROOT CAUSE]
+
+왜 X300은 “구독 시작”인데
+SWIMNOTE만 “구독 신청 준비 중”인지
+한 문장으로 정확히 설명.
+
+[H. REQUIRED FIX]
+
+아직 수정하지 말고
+필요한 최소 수정계획만 제시.
+
+예:
+
+- RevenueCat package mapping 수정
+- 상품 ID 연결
+- 잘못된 feature flag 제거
+- purchase handler 연결
+- 계정 상태 condition 수정
+
+등 실제 원인에 맞게.
+
+[I. DEPLOY IMPACT]
+
+향후 수정 시 필요한 대상:
+
+- APP OTA
+- API
+- RevenueCat 설정
+- App Store Connect
+
+각각 필요/불필요.
+
+이번 단계에서는
+어떤 것도 수정/배포하지 마십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
