@@ -1,0 +1,291 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 공지 STT + 훈련용어 검색 확정 원인 최소 수정]
+
+조사 결과 승인합니다.
+
+확정된 독립 원인:
+
+1. 관리자 공지 STT
+APP URL 이중 /api
+→ /api/api/ai/whisper/transcribe
+→ 404
+
+2. 수영 훈련용어 검색
+Render swimnote-api에
+PROFESSIONAL_ENGINE_BASE_URL 미설정
+→ ENGINE_URL_NOT_CONFIGURED
+→ 503
+
+두 건만 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 수정 전 필수 PRECHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+광범위 audit 금지.
+각 기능과 직접 관련된 것만 확인하십시오.
+
+[A] NOTICE STT
+
+서버의 실제:
+
+POST /api/ai/whisper/transcribe
+
+route/service를 확인하여
+Whisper 호출에 사용하는 정확한 credential/env 이름을 확인하십시오.
+
+조사 보고에서
+Render swimnote-api env 목록에 OPENAI_API_KEY가 보이지 않았으므로
+다음을 확정해야 합니다.
+
+- 실제 사용하는 env 이름
+- Production에서 해당 credential이 존재하는지
+- env group/secret group에서 주입되는지
+- 다른 proxy/service를 이용하는지
+
+secret 값 자체는 출력 금지.
+
+Production에서 STT provider credential이 실제로 존재함이 확인되면
+아래 수정 진행.
+
+credential이 실제로 없으면
+APP URL 수정은 해도 되지만
+“STT 완전 정상화”라고 보고하지 말고
+추가 blocker로 정확히 보고하십시오.
+
+임의로 API key를 생성/교체하지 마십시오.
+
+[B] TERMINOLOGY
+
+`terminology-engine-client.ts`가
+Professional Engine 요청 시
+필요한 인증을 어떻게 전달하는지 확인하십시오.
+
+확인:
+
+- 사용자 Bearer token 전달 여부
+또는
+- 별도 service credential 사용 여부
+
+현재 Professional Engine endpoint가 401 보호 상태이므로
+base URL만 추가했을 때
+인증까지 정상 전달되는 구조인지 확인하십시오.
+
+추가 credential이 필요한데 Production에 없다면
+추측해서 만들지 말고 중단 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 공지 STT APP 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(admin)/notices.tsx
+
+현재:
+
+${API_BASE}/api/ai/whisper/transcribe
+
+수정:
+
+${API_BASE}/ai/whisper/transcribe
+
+최종 URL:
+
+https://swimnote-api.onrender.com/api/ai/whisper/transcribe
+
+그 외 변경 금지:
+
+- 녹음 방식
+- FormData
+- MIME
+- Authorization
+- 응답 parsing
+- AI 작성 연결
+- 공용 API_BASE
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 훈련용어 검색 Render ENV 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+Render service:
+swimnote-api
+
+추가:
+
+PROFESSIONAL_ENGINE_BASE_URL=https://swimnote-professional-engine.onrender.com
+
+단,
+PRECHECK에서 기존 terminology client의 인증 전달 구조가
+정상임이 확인된 경우에만 적용.
+
+코드 변경하지 마십시오.
+
+Professional Engine 코드/배포도 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A] NOTICE STT
+
+코드 기준 최종 URL이:
+
+https://swimnote-api.onrender.com/api/ai/whisper/transcribe
+
+인지 확인.
+
+해당 route가 실제 서버에 존재하는지 확인.
+
+가능하면 기존 인증 가능한 테스트 계정/토큰과
+안전한 소형 오디오 fixture가 있을 경우에만
+Production STT 1회 smoke:
+
+- HTTP status
+- transcript 반환 여부
+
+확인.
+
+테스트용 사용자 음성 생성/수집 금지.
+
+실제 authenticated STT까지 확인할 수 없으면
+“확인하지 못함”이라고 보고.
+
+[B] TERMINOLOGY
+
+Render env 적용/재배포 후
+기존 인증 가능한 테스트 계정으로
+딱 1회:
+
+GET /api/terminology/search?q=<안전한 일반 수영 용어>
+
+확인.
+
+성공 기준:
+
+- ENGINE_URL_NOT_CONFIGURED 사라짐
+- api-server → Professional Engine 도달
+- HTTP 200
+- 정상 검색 응답
+
+401/403이면
+base URL 문제가 아니라 engine auth 문제가 추가로 남은 것이므로
+임의 수정하지 말고 실제 error만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+공지 STT:
+
+APP Production OTA
+
+branch/channel:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+Native rebuild 금지.
+
+훈련용어:
+
+Render swimnote-api env 변경에 따른
+필요한 재배포만 허용.
+
+API 코드 수정 금지.
+
+Professional Engine 배포 금지.
+
+DB 변경 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- AI ENGINE 코드 수정
+- Professional Engine 코드 수정
+- OpenAI model 변경
+- API key 임의 생성/교체
+- auth 완화
+- public endpoint 변경
+- API route 변경
+- 전체 STT refactor
+- 전체 terminology refactor
+- DB migration
+- Native build
+- 전체 테스트 suite
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. PRECHECK — STT]
+
+- 실제 Whisper provider
+- 실제 credential env 이름
+- Production credential 존재 여부
+- 존재 위치(env/env group 등)
+- secret 값은 출력 금지
+
+[B. PRECHECK — TERMINOLOGY]
+
+- Professional Engine 인증 방식
+- terminology client가 인증을 전달하는 방식
+- 추가 credential 필요 여부
+
+[C. NOTICE FIX]
+
+- 수정 파일
+- 변경 전 expression
+- 변경 후 expression
+- 최종 계산 URL
+
+[D. TERMINOLOGY FIX]
+
+- 추가한 env 이름
+- 값
+- 적용 Render service
+- 재배포 결과
+
+[E. PRODUCTION VERIFICATION]
+
+Notice STT:
+- authenticated 실제 smoke 수행 여부
+- HTTP status
+- transcript 정상 여부
+- 수행 못했으면 이유
+
+Terminology:
+- authenticated 실제 smoke
+- HTTP status
+- ENGINE_URL_NOT_CONFIGURED 해소 여부
+- 검색 응답 정상 여부
+
+[F. DEPLOY]
+
+APP:
+- full Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- branch/channel
+- runtimeVersion
+
+API:
+- Production LIVE full SHA
+- Render Deploy ID
+- status
+
+[G. UNCHANGED]
+
+- Professional Engine 코드 변경 없음
+- AI ENGINE 코드 변경 없음
+- DB 변경 없음
+- Native build 없음
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.

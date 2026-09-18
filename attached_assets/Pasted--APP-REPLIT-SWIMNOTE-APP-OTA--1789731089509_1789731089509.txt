@@ -1,0 +1,347 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 관리자 공지사항 음성작성 “음성인식에 실패했습니다” 원인 조사]
+
+아직 코드 수정하지 마십시오.
+APP OTA 금지.
+API 배포 금지.
+DB 수정 금지.
+
+사용자 실제 기기에서:
+
+관리자
+→ 공지사항 작성
+→ 음성으로 작성
+
+사용 시:
+
+“음성인식에 실패했습니다”
+
+오류가 발생합니다.
+
+이번 단계에서는
+원인만 정확히 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 화면 SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 공지사항 작성 화면과
+“음성으로 작성” 기능을 실제 렌더링하는
+정확한 파일을 찾으십시오.
+
+다음 문자열을 검색:
+
+- “공지사항”
+- “음성으로 작성”
+- “음성인식에 실패”
+- “음성 인식”
+- STT 관련 handler
+
+파일명을 추측하지 마십시오.
+
+보고:
+
+- 실제 screen/component 파일
+- 음성 버튼 handler
+- error message가 만들어지는 위치
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 전체 음성 처리 FLOW 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+공지사항 음성작성 한 건의 흐름만 추적하십시오.
+
+예:
+
+버튼 탭
+→ microphone permission
+→ recording start
+→ recording stop
+→ local audio URI 생성
+→ FormData/file upload
+→ STT endpoint
+→ 서버 STT 처리
+→ transcript 응답
+→ 공지 입력창 반영
+
+실제 코드 기준으로
+각 단계를 확인하십시오.
+
+어느 단계에서 실패하는지
+정확히 특정해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 실패 지점 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 catch가 모든 오류를:
+
+“음성인식에 실패했습니다”
+
+하나로 뭉개고 있을 수 있습니다.
+
+실제 실패가 다음 중 무엇인지 확인하십시오.
+
+A.
+microphone permission 실패
+
+B.
+recording start 실패
+
+C.
+recording stop / file URI 실패
+
+D.
+audio file size = 0
+
+E.
+지원되지 않는 audio format
+
+F.
+multipart/FormData field mismatch
+
+G.
+Authorization 누락
+
+H.
+STT API 4xx/5xx
+
+I.
+OpenAI/STT provider 호출 실패
+
+J.
+응답 JSON parsing 실패
+
+K.
+transcript field mismatch
+
+L.
+기타
+
+추측 금지.
+
+가능하면 실제 API response:
+
+HTTP status
+error code/message
+
+를 확인하십시오.
+
+민감정보/음성내용은 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 공지사항 STT가 사용하는 API 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+공지사항 음성작성이 호출하는 실제 endpoint를 보고하십시오.
+
+예:
+
+POST /...
+multipart/form-data
+
+확인:
+
+- endpoint
+- HTTP method
+- Authorization
+- audio form field 이름
+- filename
+- MIME type
+- 추가 payload
+
+그리고 API route 내부에서
+실제로 어떤 STT service를 호출하는지 추적하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 정상 작동하는 다른 음성 기능과 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE 내 다른 음성입력 기능이 현재 존재하면
+딱 하나만 비교하십시오.
+
+예:
+
+수업일지 음성입력
+또는
+다른 STT 작성 기능
+
+현재 정상 작동하는 음성기능이 있다면:
+
+공지사항 음성작성과 비교:
+
+- recording helper
+- audio format
+- FormData field
+- API endpoint
+- auth header
+- STT service
+- response field
+
+차이를 보고하십시오.
+
+전체 음성기능 audit 금지.
+
+정상 사례 1개와
+공지사항만 비교하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. AUTH 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+공지사항 STT 요청이
+인증이 필요한 API라면
+
+실제 요청에:
+
+Authorization: Bearer <JWT>
+
+가 포함되는지 확인하십시오.
+
+최근 배너에서 있었던 것처럼
+무인증 fetch가 남아 있는지도 확인.
+
+단 인증을 public으로 풀지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. AUDIO FORMAT 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+iOS 실제 녹음 결과의:
+
+- extension
+- MIME type
+- codec/container
+- file size
+
+를 코드 기준으로 확인하십시오.
+
+예:
+
+.m4a
+audio/m4a
+
+등.
+
+클라이언트가 보내는 MIME type과
+서버가 허용하는 type이 일치하는지 확인.
+
+실제 파일이 생성되기 전에
+업로드하는 race가 없는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 서버 LOG 최소 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production에서
+실제 공지사항 음성 STT 요청이 실패한 로그가 남아 있다면
+
+가장 최근 관련 요청 1건만 확인하십시오.
+
+보고:
+
+- endpoint
+- HTTP status
+- 최초 실제 error
+- 실패 단계
+
+긴 로그 전체 출력 금지.
+
+전체 Render 로그 audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 오류 문구 처리도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+“음성인식에 실패했습니다”
+
+가 모든 실패를 감추는지 확인.
+
+예를 들어:
+
+- 마이크 권한 없음
+- 네트워크 오류
+- 서버 STT 오류
+
+가 전부 같은 문구인지 보고.
+
+이번에는 문구 수정하지 마십시오.
+
+근본 원인 확인이 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 조사에서 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- STT endpoint 변경
+- OpenAI 모델 변경
+- 녹음 라이브러리 교체
+- permission 구조 변경
+- FormData 수정
+- API 수정
+- OTA
+- Render deploy
+- 전체 audio refactor
+
+원인 확인만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ACTUAL SOURCE]
+
+- 공지사항 작성 화면 파일
+- 음성 handler 파일/함수
+
+[B. FLOW]
+
+버튼 탭부터 transcript 반영까지
+실제 처리 단계
+
+[C. API]
+
+- endpoint
+- method
+- auth
+- multipart field
+- MIME type
+
+[D. FAILURE POINT]
+
+정확히 어느 단계에서 실패하는지
+
+[E. SERVER RESULT]
+
+- HTTP status
+- 실제 error code/message
+- 확인하지 못했으면 명시
+
+[F. COMPARISON]
+
+정상 작동하는 다른 STT 기능과
+공지사항 STT의 차이
+
+[G. ROOT CAUSE]
+
+“왜 공지사항 음성작성만 실패하는지”
+한 문장으로 정확히 설명.
+
+[H. FIX PLAN]
+
+아직 수정하지 말고
+최소 수정계획만 제시:
+
+- 수정 파일
+- 수정 위치
+- APP/API 중 어디가 필요한지
+- OTA/Render 배포 필요 여부
+
+확인하지 못한 것은
+‘확인하지 못함’이라고 명시하십시오.
+
+이번 단계는 조사만입니다.
+코드 수정/배포하지 마십시오.
