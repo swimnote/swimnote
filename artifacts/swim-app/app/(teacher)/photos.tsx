@@ -168,6 +168,7 @@ export default function TeacherPhotosScreen() {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const lightboxIdxRef = useRef<number | null>(null);
   const itemsRef = useRef<MediaItem[]>([]);
+  const uploadFlowLockRef = useRef(false); // BUG-1: synchronous single-flight lock
   useEffect(() => { lightboxIdxRef.current = lightboxIdx; }, [lightboxIdx]);
   useEffect(() => { itemsRef.current = items; }, [items]);
   const lbPanResponder = useRef(
@@ -488,12 +489,13 @@ export default function TeacherPhotosScreen() {
     setStep("upload");
   }
   async function handleTileUpload(mt: MediaType, sc: AlbumScope) {
-    // BUG-1 guard: 업로드 진행 중 재진입 방지
-    if (uploading) return;
+    // BUG-1 guard: synchronous ref lock (state update is async — cannot block double-tap alone)
+    if (uploadFlowLockRef.current) return;
+    uploadFlowLockRef.current = true; // set before picker opens
     const isVideo = mt === "video";
-    if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
-    if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     try {
+      if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
+      if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -503,10 +505,11 @@ export default function TeacherPhotosScreen() {
         selectionLimit: isVideo ? 1 : 100,
       });
       if (result.canceled || !result.assets?.length) return;
-      const assets = result.assets;
-      await doUpload(assets, null, null, mt, sc);
+      await doUpload(result.assets, null, null, mt, sc);
     } catch (e: any) {
       setErrorMsg(e?.message ?? "업로드 중 오류가 발생했습니다.");
+    } finally {
+      uploadFlowLockRef.current = false; // release on every exit path
     }
   }
   async function doUpload(assets: any[], group: TeacherClassGroup | null | undefined, student: Student | null | undefined, overrideMt?: MediaType, overrideSc?: AlbumScope) {
