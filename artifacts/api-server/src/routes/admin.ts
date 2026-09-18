@@ -4324,7 +4324,7 @@ function todayKstStr(): string {
 
 router.get(
   "/diaries/summary",
-  requireAuth, requireRole("pool_admin", "super_admin"), requireXMode,
+  requireAuth, requireRole("pool_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getAdminPoolId(req);
