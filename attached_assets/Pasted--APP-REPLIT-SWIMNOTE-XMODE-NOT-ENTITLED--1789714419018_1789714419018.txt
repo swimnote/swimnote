@@ -1,0 +1,240 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 관리자 수업일지 XMODE_NOT_ENTITLED 수정 실행 승인]
+
+조사 및 수정계획을 승인합니다.
+
+확정 원인:
+
+GET /admin/diaries/summary
+
+미들웨어 체인에:
+
+requireXMode
+
+가 잘못 포함되어 있어
+일반 SWIMNOTE pool_admin의 기본 수업일지 READ까지
+X entitlement로 차단되고 있습니다.
+
+수정은 조사 보고서의 최소안 그대로 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/api-server/src/routes/admin.ts
+
+GET /admin/diaries/summary
+
+현재:
+
+requireAuth,
+requireRole("pool_admin", "super_admin"),
+requireXMode,
+handler
+
+에서
+
+requireXMode
+
+만 제거하십시오.
+
+최종:
+
+requireAuth,
+requireRole("pool_admin", "super_admin"),
+handler
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 반드시 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 권한은 그대로 유지하십시오.
+
+- requireAuth
+- pool_admin / super_admin role 제한
+- getAdminPoolId(req)
+- 자기 pool 범위
+- diary SQL pool filtering
+- 기존 query/filter logic
+
+X guard 제거를
+일반 권한 완화로 확대하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. X 전용 기능 건드리지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 수정 금지:
+
+- AI 일지 생성의 X 체크
+- /admin/x-hub/*
+- /admin/curriculum/*
+- 기타 requireXMode route
+- requireXMode helper 자체
+
+이번 수정은 오직:
+
+GET /admin/diaries/summary
+
+한 경로입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. APP 수정 없음
+━━━━━━━━━━━━━━━━━━━━━━
+
+diary-hub.tsx는 이번 WP에서 수정하지 마십시오.
+
+이번 오류의 근본 원인은
+API의 잘못된 entitlement guard입니다.
+
+따라서:
+
+APP OTA 없음.
+
+RAW error mapping 개선은
+이번 버그와 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 대표 QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite 금지.
+
+API 배포 후 실제 인증된 요청으로 아래만 확인하십시오.
+
+A.
+
+X 미가입 pool_admin:
+
+GET /admin/diaries/summary
+
+→ HTTP 200
+
+PASS
+
+B.
+
+동일 계정:
+
+전체:
+ai_only 없음
+
+AI:
+ai_only=true
+
+일반:
+ai_only=false
+
+각각 HTTP 200
+
+PASS
+
+저장된 일지가 0개여도
+정상 빈 배열/summary 응답이면 PASS.
+
+C.
+
+타 pool 접근이 기존대로 차단되는지
+현재 route의 pool scope 코드가 유지됨을 확인.
+
+Production 데이터를 변경하는 테스트 금지.
+
+D.
+
+실제 X 전용 route의 requireXMode가
+코드상 그대로 유지되는지 최소 확인.
+
+별도 X 기능 mutation 테스트는 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 기기 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+API Production 배포 후
+
+일반 SWIMNOTE / X 미가입 관리자에서:
+
+수업관리
+→ 수업일지
+
+진입 시:
+
+XMODE_NOT_ENTITLED
+
+가 더 이상 나타나지 않고
+정상 화면이 로드되어야 합니다.
+
+Replit이 실제 기기를 확인할 수 없으면:
+
+“실제 기기 확인하지 못함”
+
+이라고 명시하십시오.
+
+사용자가 직접 최종 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+API만 수정:
+
+swimnote-api
+main Production
+Render live 확인.
+
+APP OTA 금지.
+Dashboard 배포 금지.
+DB migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. CHANGE]
+
+- 수정 파일
+- 제거한 정확한 middleware
+- 다른 X route 변경 없음 확인
+
+[B. QA]
+
+- X 미가입 admin summary
+- ai_only 없음
+- ai_only=true
+- ai_only=false
+
+각 HTTP status
+
+[C. SECURITY]
+
+- auth 유지
+- role 유지
+- pool scope 유지
+- X 전용 route guard 유지
+
+[D. DEPLOY]
+
+- full work SHA 40자
+- full API LIVE SHA 40자
+- Render Deploy ID
+- status=live
+- migration 없음
+- APP OTA 없음
+
+[E. DEVICE]
+
+실제 기기 확인:
+PASS / 확인하지 못함
+
+불필요한 diary audit 금지.
+X 권한 전체 재조사 금지.
+관련 없는 코드 수정 금지.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.

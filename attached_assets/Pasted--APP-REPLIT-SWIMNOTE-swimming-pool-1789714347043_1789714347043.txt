@@ -1,0 +1,342 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 반 관리 정원 표시 오류 최소 수정]
+
+원인 조사 결과 승인합니다.
+
+확정 원인:
+
+swimming_pools.default_capacity = 5
+
+로 정상 저장되어 있지만,
+
+GET /admin/class-stats에서:
+
+COALESCE(AVG(cg.capacity), 20)
+
+및 응답 fallback:
+
+?? 20
+
+을 사용하여
+
+반이 0개일 때
+항상 20명이 표시되고 있습니다.
+
+이제 아래 기준으로 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 표시 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+반이 1개 이상 존재할 때:
+
+→ 실제 class_groups.capacity 평균
+→ UI label: “평균 정원”
+
+반이 0개일 때:
+
+→ swimming_pools.default_capacity
+→ UI label: “기본 정원”
+
+으로 표시하십시오.
+
+즉 반이 하나도 없는데:
+
+“평균 정원 5명”
+
+이라고 표현하지 마십시오.
+
+그 경우는:
+
+“기본 정원 5명”
+
+이 정확한 의미입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. API 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /admin/class-stats에서
+하드코딩 20 fallback을 제거하십시오.
+
+현재:
+
+COALESCE(AVG(cg.capacity), 20)
+
+금지.
+
+가능하면 canonical response에:
+
+total_classes
+avg_capacity
+default_capacity
+
+를 각각 의미 그대로 반환하십시오.
+
+권장 의미:
+
+avg_capacity:
+- 활성 반 1개 이상 → 실제 평균
+- 활성 반 0개 → null
+
+default_capacity:
+- swimming_pools.default_capacity
+
+즉:
+
+{
+  totals: {
+    total_classes: 0,
+    avg_capacity: null,
+    default_capacity: 5
+  }
+}
+
+형태.
+
+기존 response convention에 맞게
+필드명은 조정 가능.
+
+DB migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. FRONTEND 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/swim-app/app/(admin)/class-management.tsx
+
+표시 규칙:
+
+if total_classes > 0:
+
+label:
+평균 정원
+
+value:
+round(avg_capacity)명
+
+if total_classes === 0:
+
+label:
+기본 정원
+
+value:
+default_capacity명
+
+현재 screenshot 기준:
+
+전체 반 0
+1회성 반 0
+전체 회원 0
+기본 정원 5명
+
+이 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 하드코딩 20 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 수정 범위에서 확인된:
+
+admin.ts의
+COALESCE(..., 20)
+
+및
+
+avg_capacity ?? 20
+
+은 제거하십시오.
+
+센터 기본 정원을 무시하고
+20을 강제로 넣는 fallback을 남기지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 신규 반 생성 DEFAULT도 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+ClassCreateFlow.tsx의 초기값:
+
+20
+
+도 같은 종류의 silent fallback입니다.
+
+현재 정상 상황에서는
+GET /admin/class-settings의
+default_capacity로 덮어써지지만,
+
+API 실패 시
+센터 설정과 무관하게 20명으로
+반이 생성될 가능성이 있습니다.
+
+따라서 가능하면 이번에 함께 최소 정리하십시오.
+
+원칙:
+
+class-settings loading 완료 전에는
+DB default_capacity가 확정되지 않은 상태.
+
+API load 성공:
+→ 저장된 default_capacity 사용
+
+API load 실패:
+→ 임의 20 사용 금지
+→ 기존 APP error/retry convention으로 안내
+
+새 반 생성 시
+센터 설정과 다른 숫자가
+조용히 들어가면 안 됩니다.
+
+단 이를 위해 큰 refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 반 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 정원 변경은:
+
+신규 반 생성 기본값에만 적용.
+
+기존 class_groups.capacity는
+자동 변경하지 않습니다.
+
+예:
+
+기본 정원:
+20 → 5
+
+기존 반이 10명 정원이었다면
+기존 반은 그대로 10명.
+
+새 반:
+기본 5명.
+
+이 정책 유지.
+
+기존 반 일괄 UPDATE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 대표 QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+A.
+
+default_capacity = 5
+활성 반 = 0
+
+→ 수업관리:
+“기본 정원 5명”
+
+PASS
+
+B.
+
+default_capacity = 5
+
+활성 반:
+capacity 5
+capacity 7
+
+→ 수업관리:
+“평균 정원 6명”
+
+PASS
+
+C.
+
+기본 정원 5 → 8 변경
+
+활성 반 0
+
+→ 재조회 후:
+“기본 정원 8명”
+
+PASS
+
+D.
+
+기존 반 capacity는
+기본 정원 변경으로 변하지 않음
+
+PASS
+
+E.
+
+신규 반 생성 화면:
+
+default_capacity=5
+→ 초기 정원 5
+
+PASS
+
+F.
+
+class-settings load 실패 시
+임의 20명으로 silent fallback하지 않음
+
+PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- DB migration
+- 기존 반 capacity 일괄 수정
+- 반 관리 전체 리팩터링
+- unrelated API 수정
+- PC Dashboard 수정
+- X모드 수정
+
+이번 버그만 처리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 수정:
+swimnote-api Production 배포.
+
+APP 수정:
+production-v2
+runtimeVersion 2.2.0
+iOS OTA.
+
+migration 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. API]
+
+- avg_capacity 최종 의미
+- default_capacity 반환 방식
+- hardcoded 20 제거 위치
+
+[B. APP]
+
+- 반 0개일 때 label/value
+- 반 존재 시 label/value
+- ClassCreateFlow fallback 처리
+
+[C. QA]
+
+A~F PASS/FAIL
+
+[D. DEPLOY]
+
+- 수정 파일
+- full work SHA 40자
+- API full LIVE SHA 40자
+- API Deploy ID/status
+- EAS Update Group full ID
+- iOS Update full ID
+- branch
+- runtimeVersion
+- migration 없음 확인
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
