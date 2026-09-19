@@ -1,0 +1,304 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 선생님 기존 일지 수정 화면 상세 로드 실패 조사]
+
+아직 코드 수정하지 마십시오.
+APP OTA 금지.
+API 배포 금지.
+DB 수정 금지.
+
+실제 운영 중 다음 오류가 확인되었습니다.
+
+선생님 수업일지 목록에서는
+기존 일지가 정상 표시됩니다.
+
+해당 일지에는 실제로:
+
+- 본문
+- 수업 미디어 사진 7장
+- 좋아요
+- 학생별 추가일지
+
+등이 존재하며,
+학부모 화면에서도 정상 표시되는 것으로 보입니다.
+
+그런데 선생님이 해당 일지에서
+“탭하여 수정”으로 들어가면:
+
+“일지를 불러올 수 없습니다.
+이미 삭제되었을 수 있습니다.”
+
+오류가 표시되고,
+
+- 기존 본문
+- 기존 사진
+- 학생별 추가일지 내용
+
+등이 수정 화면에 정상 로드되지 않습니다.
+
+즉 실제 삭제 여부를 추측하지 말고,
+“목록에서는 보이는데 수정 상세만 실패하는 이유”를
+정확히 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 SOURCE 특정
+━━━━━━━━━━━━━━━━━━━━━━
+
+스크린샷의 실제 화면을
+문자열 검색으로 정확히 찾으십시오.
+
+검색:
+
+- “탭하여 수정”
+- “일지를 불러올 수 없습니다”
+- “이미 삭제되었을 수 있습니다”
+- “학생별 추가 일지”
+- “앨범에서 선택”
+- “내 영상앨범”
+
+보고:
+
+- 수업일지 목록 screen
+- 일지 수정 screen
+- 수정 화면 detail load 함수
+- 사용 API endpoint
+
+파일명을 추측하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 문제 일지 1건만 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+최근 실제 오류가 발생한 일지 1건만 대상으로
+목록 화면에서 사용하는 diary ID와
+수정 화면으로 전달되는 diary ID를 비교하십시오.
+
+확인:
+
+- list item diary id
+- navigation params
+- edit screen이 받는 id
+- API request에 실제 사용되는 id
+
+날짜/class/student id를
+diary id 대신 잘못 전달하는지 여부도 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. LIST 조회와 DETAIL 조회 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+목록에서 해당 일지가 정상 보이므로
+목록 API와 수정 detail API를 나란히 비교하십시오.
+
+확인:
+
+LIST:
+- endpoint
+- auth
+- teacher access 조건
+- class/student filtering
+
+DETAIL:
+- endpoint
+- auth
+- teacher access 조건
+- class/student filtering
+
+특히 다음 차이를 확인하십시오.
+
+- author_user_id 기준인지
+- 현재 반 담당자 기준인지
+- class_group_id 직접 비교인지
+- student access/history 기준인지
+- deleted_at / is_deleted 조건
+- teacher_user_id 조건
+- diary 작성 당시 반과 현재 반 차이
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SWIMNOTE 일지 접근 정책 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확정 정책:
+
+DATA OWNERSHIP = student_id
+
+일지 접근은
+“작성자 소유”가 아니라
+현재 학생 접근권한 기준입니다.
+
+즉:
+
+- 현재 해당 학생/반을 담당하는 선생님은 과거 일지를 볼 수 있어야 함
+- 이전 담당자는 현재 접근권한이 없으면 접근 불가
+- 관리자 전체 접근 가능
+
+수정 detail endpoint만
+구형 author ownership 또는
+현재 class_group_id 직접 일치 조건을 쓰고 있는지 확인하십시오.
+
+정책을 새로 설계하지 말고
+기존 확정 정책과 실제 route가 일치하는지만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실제 API RESPONSE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제 일지 1건에 대한
+detail 요청의 실제 결과를 확인하십시오.
+
+보고:
+
+- endpoint
+- HTTP status
+- response error code/message
+
+예:
+
+404 DIARY_NOT_FOUND
+403 FORBIDDEN
+500 ...
+등.
+
+APP가 모든 실패를
+“이미 삭제되었을 수 있습니다”
+하나로 표시하는지도 확인하십시오.
+
+실제 Production 데이터를 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. DB 존재 여부 — 읽기 전용
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제 diary ID 1건만 읽기 전용으로 확인:
+
+- diary row 존재 여부
+- deleted 상태
+- student_id
+- class_group_id
+- teacher/author id
+- lesson_date
+- media row 존재 여부
+- student 추가일지/개별 comment row 존재 여부
+
+실제 삭제/수정 금지.
+
+목록에 보이는 데이터와
+detail endpoint가 찾는 row가
+같은 diary인지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 사진/추가일지 미표시 원인 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 화면에서 사진과 학생별 추가일지가 안 보이는 것이
+
+A.
+base diary detail 요청 자체 실패로
+후속 데이터 로드를 안 하는 것인지
+
+B.
+base diary는 성공하지만
+media/additional diary endpoint만 따로 실패하는 것인지
+
+구분하십시오.
+
+현재 화면에서 일부 “학생 추가” UI는 보이므로
+UI placeholder와 실제 저장 데이터 로드를 혼동하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 부모 화면 정상 여부와 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 diary가 학부모 화면에서 실제 정상 보이는 경우:
+
+- parent endpoint
+- teacher list endpoint
+- teacher edit detail endpoint
+
+세 경로가 같은 diary record를
+어떤 조건으로 가져오는지 비교하십시오.
+
+전체 diary API audit 금지.
+문제 diary 1건에 필요한 경로만 봅니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 이번 단계 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- APP 수정 금지
+- API 수정 금지
+- DB 수정 금지
+- diary 데이터 재저장 금지
+- 일지 삭제/복구 금지
+- 권한 완화 금지
+- 전체 diary refactor 금지
+- OTA 금지
+- Render deploy 금지
+
+원인 확정만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ACTUAL SOURCE]
+
+- 목록 screen
+- 수정 screen
+- detail load 함수
+
+[B. DIARY ID FLOW]
+
+- list diary id
+- navigation param
+- edit request id
+- 일치 여부
+
+[C. API]
+
+- list endpoint
+- detail endpoint
+- 실제 detail HTTP status
+- error code/message
+
+[D. DB]
+
+문제 diary:
+- row 존재 여부
+- deleted 여부
+- student/class/author 관계
+- media 존재 여부
+- 학생별 추가일지 존재 여부
+
+[E. ACCESS DIFFERENCE]
+
+목록 조회와 detail 조회의
+권한/필터 차이
+
+[F. MEDIA / ADDITIONAL DIARY]
+
+- base detail 실패 영향인지
+- 별도 API 실패인지
+
+[G. ROOT CAUSE]
+
+“목록에는 존재하는 일지가 왜 수정 화면에서
+삭제된 것처럼 처리되는지”
+
+한 문장으로 정확히 설명.
+
+[H. MINIMUM FIX PLAN]
+
+아직 수정하지 말고:
+
+- 수정 파일
+- 수정 위치
+- APP/API 중 어디인지
+- DB migration 필요 여부
+- OTA/Render 필요 여부
+
+만 제시하십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
