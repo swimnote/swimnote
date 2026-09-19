@@ -1,0 +1,522 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 사진 전체앨범 업로드 순서 뒤섞임 / 원인 조사 전용]
+
+현재 실제 기기에서
+사진 여러 장을 한 번에 업로드하면
+전체앨범에서 사용자가 선택한 순서대로 표시되지 않고
+사진 순서가 뒤섞이는 문제가 계속 재현됩니다.
+
+이전 수정으로 Production 조회 정렬은:
+
+ORDER BY
+sp.created_at DESC,
+sp.sort_order ASC NULLS LAST,
+sp.id ASC
+
+까지 적용된 상태입니다.
+
+그런데 실제 기기에서는 여전히 순서가 섞입니다.
+
+이번 작업은 수정하지 말고
+“한 번 선택한 사진의 순서가 정확히 어느 단계에서 깨지는지”
+원인만 확정하십시오.
+
+코드 수정 금지.
+APP OTA 금지.
+API 배포 금지.
+DB 수정 금지.
+기존 사진 UPDATE/DELETE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 조사 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 흐름만 조사하십시오.
+
+ImagePicker
+→ photos.tsx
+→ directUploadPhotos.ts
+→ direct-upload/session
+→ R2 upload
+→ direct-upload/finalize
+→ photo_assets_meta
+→ GET /photos/teacher-all
+→ photos.tsx 화면 표시
+
+다른 사진 기능 전체 audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PICKER 반환 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(teacher)/photos.tsx
+
+확인:
+
+launchImageLibraryAsync()
+
+결과의:
+
+result.assets
+
+배열 순서가 그대로 upload 함수로 전달되는지 확인하십시오.
+
+확인할 것:
+
+- result.assets 원래 index
+- map/filter 과정
+- reverse/sort 여부
+- asset 누락 여부
+- asset 순서 변경 여부
+
+예:
+
+picker:
+P0, P1, P2, P3 ...
+
+upload input:
+P0, P1, P2, P3 ...
+
+인지 실제 코드로 보고하십시오.
+
+중요:
+
+“사용자가 사진 선택 UI에서 누른 순서”와
+“ImagePicker result.assets 순서”가
+같다는 보장이 실제 라이브러리/API에 있는지도
+현재 구현 기준으로 확인하십시오.
+
+만약 picker가 사용자 탭 순서가 아니라
+사진보관함 정렬순서로 반환한다면
+그 사실을 명확히 구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. UPLOAD TASK 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+result.assets를
+
+directUploadPhotos / directUploadPhotosBatch
+
+입력으로 변환할 때:
+
+- 배열 순서 유지 여부
+- origIndex 생성 위치
+- sort_order 후보 값 생성 위치
+
+확인.
+
+각 asset이 정확히 하나의 task로 변환되는 것은
+이전 조사에서 확인됐으므로
+불필요하게 다시 Live Photo 가설을 확장하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SESSION / CHUNK 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/utils/directUploadPhotos.ts
+
+정확히 확인:
+
+- 사진 여러 장을 한 번 선택했을 때
+  direct-upload session이 몇 개 생성되는지
+- session당 최대 item 수
+- chunk size
+- MAX_CONCURRENCY 역할
+- concurrency와 session 분리가 같은 개념인지
+
+특히:
+
+10장
+25장
+47장
+
+을 각각 입력했을 때
+코드상 session/chunk 구조를 계산하십시오.
+
+예:
+
+47장 →
+session1 0~?
+session2 ?~?
+...
+
+형태로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. SORT_ORDER 생성 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요합니다.
+
+DB에 저장되는:
+
+sort_order
+
+가 정확히 어디서 생성되는지 추적하십시오.
+
+확인:
+
+A.
+picker 전체 배열 기준 global index:
+
+0,1,2,...,46
+
+인지
+
+B.
+session/chunk마다:
+
+0,1,2,...
+
+로 reset되는지
+
+C.
+서버 session 생성 시 다시 index를 만드는지
+
+D.
+finalize에서 다시 변경되는지
+
+E.
+DB insert/update 과정에서 유지되는지
+
+실제 코드 라인 기준으로 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CREATED_AT 생성 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+photo_assets_meta.created_at이:
+
+- picker 전체 1회에 공통인지
+- direct-upload session마다 공통인지
+- 사진 개별 row마다 다른지
+
+확인하십시오.
+
+한 picker selection이 여러 session으로 나뉜다면:
+
+session A created_at
+session B created_at
+
+가 서로 달라지는지 확인.
+
+현재 조회가:
+
+created_at DESC
+→ sort_order ASC
+
+이므로
+
+나중에 생성된 session이
+앞 session보다 먼저 표시되는 구조가 되는지
+실제 코드/DB로 판단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. BATCH IDENTITY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 시스템에 이미:
+
+“사용자가 picker에서 한 번 선택한 전체 사진 묶음”
+
+을 식별할 수 있는 값이 존재하는지 확인.
+
+예:
+
+- batch_id
+- upload_batch_id
+- session_group_id
+- client batch id
+- 공통 timestamp
+- 요청 단위 UUID
+- 기타 equivalent
+
+중요:
+
+direct-upload session ID가 존재하더라도
+그것이 picker 1회 전체를 의미하는지
+아니면 chunk 하나만 의미하는지 구분하십시오.
+
+새 컬럼 만들지 마십시오.
+
+존재 여부 조사만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 최근 실제 Production 업로드 1건 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 최근 실제 기기에서
+순서 뒤섞임을 확인한 대량 업로드와
+가장 가까운 Production row 묶음 1건만
+READ ONLY로 확인하십시오.
+
+절대 수정/삭제 금지.
+
+가능한 컬럼:
+
+- id
+- created_at
+- sort_order
+- client_id
+- object_key
+- uploaded_by
+- media_status/status
+- session 관련 값
+- batch 관련 값
+
+시간순으로 정리하십시오.
+
+특히 다음 패턴 확인:
+
+created_at A / sort_order 0
+created_at A / sort_order 1
+...
+created_at B / sort_order 0
+created_at B / sort_order 1
+
+또는
+
+created_at A / sort_order 0~46
+
+등 실제 저장 형태.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 현재 ORDER BY 적용 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 Production sample에 현재 쿼리:
+
+ORDER BY
+sp.created_at DESC,
+sp.sort_order ASC NULLS LAST,
+sp.id ASC
+
+를 적용했을 때
+실제로 어떤 순서로 반환되는지 계산하십시오.
+
+예:
+
+사용자 의도:
+P0 P1 P2 P3 P4 P5
+
+DB:
+session A = P0 P1 P2
+session B = P3 P4 P5
+
+현재 조회 결과:
+P3 P4 P5 P0 P1 P2
+
+처럼 chunk 단위로 뒤집히는지 확인.
+
+실제 row를 근거로 보여주십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. API RESPONSE 이후 APP 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /photos/teacher-all 응답 후
+photos.tsx에서:
+
+- sort()
+- reverse()
+- prepend
+- append
+- dedupe
+- page merge
+- group 변환
+
+등으로 다시 순서를 바꾸는지 확인하십시오.
+
+API 응답 순서가 정상인데
+APP에서 다시 섞이는 가능성을 배제하십시오.
+
+해당 response 처리 부분만 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. PAGINATION 영향
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- page size
+- offset/cursor 방식
+- page 1/page 2가 동일 ORDER BY 사용하는지
+- 새로 업로드한 사진 수가 page boundary를 넘을 때
+  순서가 바뀌는지
+- 동일 created_at/sort_order에서 id tie-breaker가 안정적인지
+
+pagination이 원인이 아니라면
+명확히 “영향 없음”으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. PICKER 순서 의미 자체 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요합니다.
+
+현재 사용자가 기대하는 순서는:
+
+“사진 선택 화면에서 선택한 순서”
+
+입니다.
+
+그런데 iOS ImagePicker가
+result.assets를 실제로 선택 순서대로 반환하는지,
+아니면 앨범의 원래 정렬순서로 반환하는지
+현재 Expo/코드 동작 기준으로 확인하십시오.
+
+만약 APP이 선택 순서를 별도로 기록하지 않고
+result.assets index만 신뢰하고 있다면
+그것 자체가 root cause가 될 수 있습니다.
+
+추측 금지.
+
+현재 설치된 Expo ImagePicker 버전과
+실제 API 계약/코드 동작 기준으로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. ROOT CAUSE 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나 또는 복합으로 확정:
+
+A.
+ImagePicker가 사용자 선택 순서를 보존하지 않음
+
+B.
+APP task 변환에서 순서 변경
+
+C.
+session/chunk마다 sort_order reset
+
+D.
+sort_order는 global이지만 session별 created_at 때문에
+chunk 순서가 뒤집힘
+
+E.
+server finalize 과정에서 순서 변경
+
+F.
+teacher-all ORDER BY 문제
+
+G.
+APP response merge/sort 문제
+
+H.
+pagination 문제
+
+I.
+기타
+
+반드시:
+
+코드
++
+Production DB sample
++
+현재 ORDER BY 결과
+
+근거로 결론내십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서:
+
+- sort_order 변경 금지
+- created_at 변경 금지
+- batch id 추가 금지
+- DB column 추가 금지
+- migration 금지
+- ORDER BY 변경 금지
+- APP sort 변경 금지
+- ImagePicker 설정 변경 금지
+- OTA 금지
+- Render deploy 금지
+
+원인 조사만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. PICKER ORDER]
+
+- 사용자가 선택한 순서
+- result.assets 순서 의미
+- upload input 순서
+- 순서 보존 여부
+
+[B. SESSION STRUCTURE]
+
+- session/chunk 분할 기준
+- MAX_CONCURRENCY 역할
+- 10/25/47장 기준 구조
+
+[C. SORT_ORDER]
+
+- 생성 위치
+- global/session-local 여부
+- reset 여부
+- DB 저장까지 유지 여부
+
+[D. CREATED_AT]
+
+- 생성 위치
+- picker 전체/session/사진별 중 무엇인지
+
+[E. BATCH IDENTITY]
+
+- picker 1회 전체 식별값 존재 여부
+- direct-upload session과의 차이
+
+[F. PRODUCTION SAMPLE]
+
+최근 실제 업로드 1건의:
+
+- created_at
+- sort_order
+- session/batch 관계
+
+READ ONLY 결과
+
+[G. CURRENT ORDER RESULT]
+
+현재 ORDER BY 적용 시
+실제 반환 순서
+
+[H. APP MERGE / PAGINATION]
+
+- API 이후 순서 변경 여부
+- pagination 영향 여부
+
+[I. ROOT CAUSE]
+
+A~I 분류
++
+“왜 실제 사진 순서가 섞이는지”
+한 문장으로 확정
+
+[J. MINIMUM FIX PLAN]
+
+아직 수정하지 말고:
+
+- 수정 파일
+- APP/API 중 수정 대상
+- 기존 schema만으로 해결 가능한지
+- DB migration 필요 여부
+- OTA 필요 여부
+- Render 배포 필요 여부
+
+만 제시하십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
