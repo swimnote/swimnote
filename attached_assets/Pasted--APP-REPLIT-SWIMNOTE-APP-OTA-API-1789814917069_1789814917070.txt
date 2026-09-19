@@ -1,0 +1,215 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 일지 템플릿 > 내 템플릿 추가 장문 입력 스크롤 회귀 조사]
+
+아직 코드 수정하지 마십시오.
+APP OTA 금지.
+API/DB 수정 금지.
+
+실제 사용자 기기에서:
+
+수업일지
+→ 템플릿 선택
+→ 내 템플릿 추가
+
+화면에서 장문의 내용을 입력하면
+입력창이 길어졌을 때 스크롤이 되지 않아
+아래쪽 내용을 보거나 계속 편집하기 어렵습니다.
+
+이 문제는 과거 한 번 수정됐던 유형인데
+현재 다시 발생합니다.
+
+이번 단계에서는
+왜 재발했는지 정확히 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 문자열/화면을 실제 코드에서 찾으십시오.
+
+- “템플릿 선택”
+- “내 템플릿”
+- “내 템플릿 추가”
+- template add/edit
+- 장문 TextInput
+
+보고:
+
+- 실제 screen/component 파일
+- 해당 TextInput component
+- 부모 ScrollView/KeyboardAwareScrollView 구조
+- 저장 handler
+
+파일명 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 스크롤 구조 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+장문 입력 영역에 대해 실제 props를 확인:
+
+- multiline
+- scrollEnabled
+- textAlignVertical
+- height / minHeight / maxHeight
+- numberOfLines
+- nestedScrollEnabled
+- onContentSizeChange
+- contentContainerStyle
+- flex / flexGrow
+- keyboardShouldPersistTaps
+
+그리고 부모 컨테이너:
+
+- ScrollView
+- FlatList
+- KeyboardAvoidingView
+- Pressable/Touchable overlay
+
+중 무엇이 실제로 스크롤 gesture를 잡는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. “입력창 내부 스크롤” vs “화면 전체 스크롤” 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 UX가 원래 어떤 구조였는지 확인하십시오.
+
+A.
+TextInput 자체 높이는 고정/제한되고
+입력창 내부가 스크롤되어야 하는 구조
+
+또는
+
+B.
+TextInput 높이가 내용에 따라 늘어나고
+부모 화면 전체가 스크롤되어야 하는 구조
+
+과거 정상 구현이 어느 쪽이었는지
+기존 코드/commit/history로 확인하십시오.
+
+새 UX를 임의로 설계하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 과거 수정 이력 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 동일 유형의 버그가 과거 수정된 기록이 있는지
+git history에서 해당 화면/컴포넌트만 좁게 확인하십시오.
+
+찾아볼 내용:
+
+- scrollEnabled 변경
+- multiline TextInput height 변경
+- KeyboardAvoidingView/ScrollView 조정
+- nestedScrollEnabled
+- onContentSizeChange
+- maxHeight
+
+과거 정상 수정이 존재하면:
+
+- commit SHA
+- 당시 변경 내용
+- 현재 코드에서 빠진 부분
+
+을 보고하십시오.
+
+전체 git history audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 다른 정상 장문 입력 화면 1개와 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE APP에서 현재 정상 동작하는
+장문 TextInput 화면 딱 1개만 비교하십시오.
+
+예:
+
+- 일지 수정 본문
+- 공지사항 장문 입력
+
+중 하나.
+
+비교:
+
+- 부모 스크롤
+- TextInput props
+- 높이 처리
+- 키보드 처리
+
+동일 패턴을 재사용할 수 있는지 확인.
+
+전체 APP 폼 audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 재현 조건 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 조건을 코드 기준으로 확인:
+
+- iOS
+- 키보드 열린 상태
+- 10줄 이상
+- 20줄 이상
+- 입력창 포커스 상태
+- 커서를 하단으로 이동했을 때
+- 손가락 드래그 시
+
+어느 시점부터 스크롤이 막히는지 정리하십시오.
+
+실제 기기 테스트를 수행할 수 없으면
+“확인하지 못함”이라고 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이번 단계 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- TextInput library 교체 금지
+- 전체 템플릿 화면 refactor 금지
+- 키보드 라이브러리 추가 금지
+- API/DB 수정 금지
+- OTA 금지
+
+원인 조사만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. SOURCE]
+
+- 화면 파일
+- TextInput 위치
+- 부모 scroll 구조
+
+[B. CURRENT BEHAVIOR]
+
+- 현재 TextInput props
+- 현재 scroll 처리 방식
+
+[C. PREVIOUS FIX]
+
+- 과거 동일/유사 수정 존재 여부
+- commit SHA
+- 과거 정상 방식
+- 현재 빠진 부분
+
+[D. ROOT CAUSE]
+
+“왜 장문 입력 시 다시 스크롤이 안 되는지”
+한 문장으로 정확히 설명.
+
+[E. MINIMUM FIX PLAN]
+
+아직 수정하지 말고:
+
+- 수정 파일
+- 수정 위치
+- 기존 정상 패턴 재사용 여부
+- OTA 필요 여부
+
+만 제시하십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
