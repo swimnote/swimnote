@@ -15,6 +15,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
+import { getPresignedUrl } from "../lib/objectStorage.js";
 import { db, superAdminDb, pool as pgPool } from "@workspace/db";
 import { lookupAiOrigin }                   from "../lib/ai-origin-registry.js";
 import { sql, eq, and, desc, or } from "drizzle-orm";
@@ -1487,30 +1488,53 @@ router.get("/diaries/:id",
       `);
 
       // 사진 (sort_order ASC, null→created_at ASC)
-      const photoRows = await db.execute(sql`
-        SELECT id, file_url, thumbnail_url, sort_order, created_at
+      // photo_assets_meta에 file_url/thumbnail_url 컬럼 없음 — photos.ts batchPresign 패턴 재사용
+      const photoRowsRaw = await db.execute(sql`
+        SELECT id, object_key, uploaded_by_name, sort_order, created_at
         FROM photo_assets_meta
         WHERE journal_id = ${req.params.id}
           AND pool_id = ${poolId}
           AND media_status = 'attached'
         ORDER BY COALESCE(sort_order, 999999) ASC, created_at ASC
       `);
+      const photos = await Promise.all(
+        (photoRowsRaw.rows as any[]).map(async (p) => {
+          const base = { ...p, file_url: `/api/photos/${p.id}/file`, thumbnail_url: null };
+          const { ok, url } = await getPresignedUrl(p.object_key, "photo", 3600);
+          return ok && url ? { ...base, presigned_url: url } : base;
+        })
+      );
 
       // 영상 (sort_order ASC, null→created_at ASC) — journal_id 직접 연결
-      const videoRows = await db.execute(sql`
-        SELECT id, file_url, sort_order, created_at
+      // video_assets_meta에 file_url 컬럼 없음 — videos.ts 패턴 재사용
+      const videoRowsRaw = await db.execute(sql`
+        SELECT id, object_key, thumbnail_key, uploaded_by_name, sort_order, created_at, caption, duration_sec
         FROM video_assets_meta
         WHERE journal_id = ${req.params.id}
           AND pool_id = ${poolId}
           AND media_status = 'attached'
         ORDER BY COALESCE(sort_order, 999999) ASC, created_at ASC
       `);
+      const videos = await Promise.all(
+        (videoRowsRaw.rows as any[]).map(async (v) => {
+          const base = { ...v, file_url: `/api/videos/${v.id}/file` };
+          const [thumbResult, videoResult] = await Promise.all([
+            v.thumbnail_key ? getPresignedUrl(v.thumbnail_key, "photo", 3600) : Promise.resolve({ ok: false, url: null }),
+            getPresignedUrl(v.object_key, "video", 3600),
+          ]);
+          return {
+            ...base,
+            ...(thumbResult.ok && thumbResult.url ? { thumbnail_presigned_url: thumbResult.url } : {}),
+            ...(videoResult.ok && videoResult.url ? { presigned_url: videoResult.url } : {}),
+          };
+        })
+      );
 
       res.json({
         ...diary,
         student_notes: noteRows.rows,
-        photos: photoRows.rows,
-        videos: videoRows.rows,
+        photos,
+        videos,
       });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
