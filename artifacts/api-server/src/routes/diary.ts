@@ -1512,7 +1512,7 @@ router.get("/diaries/:id",
         FROM video_assets_meta
         WHERE journal_id = ${req.params.id}
           AND pool_id = ${poolId}
-          AND media_status = 'attached'
+          AND status = 'active'
         ORDER BY COALESCE(sort_order, 999999) ASC, created_at ASC
       `);
       const videos = await Promise.all(
