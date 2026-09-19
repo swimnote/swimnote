@@ -1,0 +1,259 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 선생님 일지 수정 상세조회 500 확정 버그 수정]
+
+조사 결과 승인합니다.
+
+확정 원인:
+
+GET /diaries/:id
+
+에서 photo_assets_meta에 존재하지 않는:
+
+- file_url
+- thumbnail_url
+
+컬럼을 직접 SELECT하여 PostgreSQL 500 발생.
+
+실제 diary row는:
+
+- 존재
+- is_deleted=false
+- teacher/pool 정상 일치
+
+하므로 삭제 문제가 아닙니다.
+
+이번 작업은 이 확정된 schema mismatch만 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. PHOTO QUERY 수정 전 계약 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+임의로 SQL에서:
+
+'/api/photos/' || id || '/file'
+
+문자열을 바로 만들기 전에
+
+현재 정상 동작하는 다른 photo endpoint에서
+photo_assets_meta의 id/object_key를
+APP용 URL로 변환하는 기존 방식을 찾으십시오.
+
+확인 대상은 딱 1개 정상 경로만:
+
+- 학부모 diary media
+또는
+- teacher diary list/media
+
+중 하나.
+
+기존 helper / mapper / route 패턴이 있으면
+그 방식을 재사용하십시오.
+
+새 URL 생성 체계를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. GET /diaries/:id photoRows 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/routes/diary.ts
+
+문제 쿼리에서 존재하지 않는 DB 컬럼:
+
+file_url
+thumbnail_url
+
+직접 SELECT를 제거하십시오.
+
+DB에는 실제 존재하는 컬럼만 조회:
+
+예:
+- id
+- object_key
+- bucket_name
+- sort_order
+- created_at
+- 기타 실제 필요한 컬럼
+
+그리고 조회 후 기존 정상 media URL 생성 패턴으로
+response의 file_url을 구성하십시오.
+
+중요:
+
+APP의 기존 response contract를 깨지 마십시오.
+
+현재 APP이:
+
+photo.file_url
+photo.thumbnail_url
+
+중 어떤 필드를 실제 사용하는지 확인하십시오.
+
+thumbnail_url을 APP이 참조한다면:
+
+- 기존 정상 endpoint와 같은 방식으로 제공
+또는
+- 기존 계약상 허용되는 null
+
+중 현재 시스템 의미와 맞는 방식으로 유지하십시오.
+
+필드 자체를 무작정 삭제하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. VIDEO QUERY 동일 문제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 GET /diaries/:id 안의
+video_assets_meta 조회만 확인하십시오.
+
+실제 DB schema와 SELECT 컬럼을 비교.
+
+만약 video 쿼리도 존재하지 않는:
+
+file_url
+thumbnail_url
+등을 직접 SELECT하고 있다면
+
+동일한 기존 정상 video URL 생성 방식으로
+같이 수정하십시오.
+
+실제 schema와 일치한다면
+건드리지 마십시오.
+
+전체 media API audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 권한 로직은 이번 작업에서 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제 diary는:
+
+diary.teacher_id == 현재 teacher
+
+이므로 이번 500의 원인은 권한이 아닙니다.
+
+따라서 이번 수정에서:
+
+- teacher access 정책
+- author ownership
+- class access
+- current teacher 정책
+
+등은 변경하지 마십시오.
+
+별도 정책 문제는 이번 버그와 섞지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. APP 오류문구도 이번에는 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP이 500도:
+
+“일지를 불러올 수 없습니다.
+이미 삭제되었을 수 있습니다.”
+
+로 표시하는 것은 좋지 않지만
+
+이번 작업의 핵심은
+detail endpoint 500 정상화입니다.
+
+APP 오류문구 수정/OTA는 이번 작업에 포함하지 마십시오.
+
+API 정상화 후 별도 필요 시 처리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제 diary ID:
+
+cd_1789561531124_8v06m3n49
+
+를 대상으로 읽기 전용 검증.
+
+성공 기준:
+
+GET /diaries/:id
+
+- PostgreSQL column error 없음
+- HTTP 200
+- diary 본문 반환
+- 기존 photo media 반환
+- sort_order 유지
+- student additional diary 관련 응답이 기존 계약대로 반환
+
+실제 데이터 수정/삭제 금지.
+
+가능하면 인증 가능한 기존 테스트 token으로
+Production smoke 1회.
+
+token이 없으면
+route/query 수준 검증까지만 하고
+“authenticated smoke 확인하지 못함”이라고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 코드만 수정.
+
+대상:
+
+Render swimnote-api
+
+APP 수정 없음.
+OTA 없음.
+DB migration 없음.
+AI ENGINE 변경 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. PHOTO CONTRACT]
+
+- APP이 실제 사용하는 photo fields
+- 기존 정상 URL 생성 패턴
+- 재사용한 helper/pattern
+
+[B. VIDEO CHECK]
+
+- video_assets_meta 실제 schema
+- 동일 오류 존재 여부
+- 수정 여부
+
+[C. FIX]
+
+- 수정 파일
+- 제거한 잘못된 DB column 참조
+- 최종 response shape
+
+[D. VERIFICATION]
+
+문제 diary:
+- HTTP status
+- diary 본문 반환 여부
+- photo 반환 여부
+- additional diary 반환 여부
+- 기존 500 해소 여부
+
+[E. DEPLOY]
+
+- full 40-character Work SHA
+- full 40-character Production LIVE SHA
+- Render Deploy ID
+- status
+
+[F. UNCHANGED]
+
+- APP 변경 없음
+- OTA 없음
+- DB migration 없음
+- 실제 diary/photo 데이터 수정 없음
+- 권한 로직 변경 없음
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
