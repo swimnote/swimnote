@@ -925,7 +925,7 @@ function TemplateInputModal({ visible, title, titleValue, textValue, onTitleChan
             <Text style={m.label}>제목 (선택)</Text>
             <TextInput style={m.input} value={titleValue} onChangeText={onTitleChange} placeholder="예: 자유형 연습" placeholderTextColor={C.textMuted} maxLength={100} />
             <Text style={[m.label, { marginTop: 12 }]}>내용 *</Text>
-            <TextInput style={[m.input, { minHeight: 90, textAlignVertical: "top" }]} value={textValue} onChangeText={onTextChange} placeholder="일지에 삽입될 내용을 입력하세요" placeholderTextColor={C.textMuted} multiline numberOfLines={4} />
+            <TextInput style={[m.input, { minHeight: 90, maxHeight: 200, textAlignVertical: "top" }]} value={textValue} onChangeText={onTextChange} placeholder="일지에 삽입될 내용을 입력하세요" placeholderTextColor={C.textMuted} multiline numberOfLines={4} scrollEnabled={true} />
             {!!error && <Text style={m.error}>{error}</Text>}
             <View style={m.btnRow}>
               <Pressable style={[m.btn, { borderColor: C.border }]} onPress={onClose}><Text style={m.btnCancelText}>취소</Text></Pressable>
