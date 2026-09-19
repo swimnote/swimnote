@@ -1,0 +1,511 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 사진 전체앨범 업로드 순서 근본 수정]
+
+조사 결과 승인합니다.
+
+확정 ROOT CAUSE:
+
+photo_assets_meta.sort_order가
+
+1. 최초 사진 업로드 시:
+   전체앨범 업로드 순서 0..N-1
+
+2. 이후 diary/student-note 등에 사진 첨부 시:
+   해당 첨부 컨텍스트 내부 순서 0..K
+
+라는 서로 다른 두 의미로 재사용되고 있습니다.
+
+따라서 일지 첨부 후 sort_order가 덮어써지고,
+GET /photos/teacher-all이:
+
+created_at DESC,
+sort_order ASC,
+id ASC
+
+로 정렬하면서 최초 업로드 순서가 파괴됩니다.
+
+이번에는 이 의미 충돌을 근본적으로 분리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 구현 전 딱 2개만 PRECHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+광범위 조사 금지.
+
+[A]
+
+photos.tsx의 실제 ImagePicker 설정에서
+한 번에 선택 가능한 최대 장수를 확인하십시오.
+
+특히:
+
+selectionLimit
+
+실제 값을 보고하십시오.
+
+만약 최대 50장 이하라면
+현재 BATCH_SIZE=50이므로
+picker 1회 = direct-upload session 1개가 보장됩니다.
+
+만약 50장 초과 선택 가능하면
+picker 1회가 여러 session으로 나뉠 수 있으므로
+별도 upload batch 식별까지 필요합니다.
+
+[B]
+
+photo_assets_meta.sort_order를 UPDATE하는
+현재 attachment 관련 write site만 검색하십시오.
+
+예:
+
+- diary attach
+- student note attach
+
+sort_order가 현재
+“첨부 컨텍스트 내부 순서”로 실제 사용되고 있는지 확인.
+
+이 의미는 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 핵심 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 필드 의미를 분리합니다.
+
+sort_order
+=
+일지/학생별 추가일지 등
+첨부 컨텍스트 내부 표시 순서
+
+upload_sort_order
+=
+사진 전체앨범에서
+사용자가 picker에서 선택한 최초 순서
+
+upload_sort_order는
+사진 최초 생성 이후 절대로 변경하지 않습니다.
+
+diary attach / note attach가
+upload_sort_order를 UPDATE해서는 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DB MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+photo_assets_meta에 nullable 컬럼 추가:
+
+upload_sort_order INTEGER
+
+기존 데이터 전체 backfill 금지.
+
+이유:
+
+기존 sort_order는 이미 diary attach 등에 의해
+변경된 row가 존재하므로
+원래 업로드 순서를 신뢰성 있게 복원할 수 없습니다.
+
+새 업로드부터 정확히 보존합니다.
+
+기존 row:
+upload_sort_order = NULL
+
+허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 50장 이하가 보장되는 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRECHECK 결과:
+
+ImagePicker selectionLimit <= 50
+
+이고
+
+picker 1회가 항상 direct-upload session 1개라면
+
+추가 batch 컬럼 만들지 마십시오.
+
+APP에서 result.assets 전체 기준 index:
+
+0,1,2,...N-1
+
+를 각 파일의:
+
+upload_sort_order
+
+로 session API에 전달.
+
+서버가 photo_assets_meta INSERT 시
+그 값을 그대로 저장.
+
+finalize에서는 변경 금지.
+
+이 경우 같은 picker session의 created_at이
+이미 공통이므로
+
+teacher-all 최종 정렬:
+
+ORDER BY
+  sp.created_at DESC,
+  sp.upload_sort_order ASC NULLS LAST,
+  sp.sort_order ASC NULLS LAST,
+  sp.id ASC
+
+의미:
+
+신규 사진:
+upload_sort_order 사용
+
+기존 legacy 사진:
+upload_sort_order NULL이므로
+기존 sort_order/id fallback
+
+단 실제 SQL에서 NULLS LAST 때문에
+신규/legacy 혼재 시 이상한 순서가 생긴다면
+
+CASE/COALESCE를 사용해
+동일 created_at 그룹에서 안정적으로 처리하십시오.
+
+실제 데이터 의미에 맞게 최소 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 50장 초과 선택이 가능한 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRECHECK 결과
+picker 1회가 2개 이상 session으로 분리될 수 있다면
+
+upload_sort_order만 추가해서 끝내지 마십시오.
+
+그 경우 picker 1회 전체를 식별하는 nullable:
+
+upload_batch_id
+
+도 추가하십시오.
+
+APP에서 picker 완료 직후
+batch id를 딱 1개 생성.
+
+같은 picker selection에서 생성되는
+모든 session/chunk에
+동일 upload_batch_id를 전달.
+
+그리고 upload_sort_order는
+session-local index가 아니라
+picker 전체 global index:
+
+0..N-1
+
+를 유지.
+
+예:
+
+51장:
+
+session1:
+upload_sort_order 0..49
+
+session2:
+upload_sort_order 50
+
+이어야 함.
+
+0으로 reset 금지.
+
+batch id 생성은
+기존 APP의 ID 생성 helper가 있으면 재사용.
+새 dependency 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. MULTI-SESSION 정렬
+━━━━━━━━━━━━━━━━━━━━━━
+
+upload_batch_id가 필요한 구조라면
+session마다 created_at이 다르므로:
+
+created_at DESC를 최우선으로 두면
+session chunk가 역순으로 나올 수 있습니다.
+
+따라서 teacher-all에서는
+
+동일 upload_batch_id 전체를
+하나의 업로드 묶음으로 취급하고
+
+묶음 최신순
+→ upload_sort_order ASC
+
+가 되도록 쿼리하십시오.
+
+새 batch table은 만들지 마십시오.
+
+현재 row들의 created_at을 이용하여
+동일 batch의 대표 시각:
+
+MAX(created_at)
+
+등을 query에서 계산할 수 있으면
+그 방식을 사용하십시오.
+
+legacy upload_batch_id IS NULL row는
+기존 created_at 기준 정렬 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 sort_order 의미 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+diary attach / note attach에서
+
+sort_order
+
+를 현재처럼 attachment 내부 순서로 사용하는 것은
+유지하십시오.
+
+이번 수정의 목적은
+그 동작을 없애는 게 아닙니다.
+
+단:
+
+upload_sort_order
+upload_batch_id
+
+는 attachment 과정에서
+절대 UPDATE하지 마십시오.
+
+즉:
+
+전체앨범 순서
+≠
+일지 내부 순서
+
+를 완전히 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. API 계약 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+direct-upload/session에서
+각 파일의 upload_sort_order를 받을 수 있도록
+최소 확장하십시오.
+
+필요할 경우 upload_batch_id도 함께 전달.
+
+확인:
+
+APP
+→ session request
+→ DB insert
+→ finalize
+→ DB persisted
+
+끝까지 값이 유지되어야 합니다.
+
+finalize 완료 순서,
+R2 PUT 완료 순서,
+압축 완료 순서와 무관해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. TEACHER-ALL 정렬
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /photos/teacher-all은
+
+전체앨범 전용 불변 업로드 순서를 사용하십시오.
+
+더 이상 diary attach로 변경되는
+sort_order를 신규 사진의 주 정렬키로 사용하면 안 됩니다.
+
+목표:
+
+사용자 picker 선택:
+
+P0
+P1
+P2
+...
+P46
+
+일지에 이후:
+
+P5 = diary #1 첫 번째
+P2 = diary #2 첫 번째
+P9 = diary #3 첫 번째
+
+등으로 붙더라도
+
+전체앨범에서는 영구적으로:
+
+P0
+P1
+P2
+...
+P46
+
+순서를 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 과거 데이터
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 사진을 억지로 재정렬하지 마십시오.
+
+금지:
+
+- 기존 sort_order 복원 추정
+- 기존 사진 일괄 UPDATE
+- created_at 변경
+- 기존 diary 순서 변경
+
+신규 업로드부터 정확한 구조를 적용.
+
+기존 row는 현재 fallback 정렬로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 최소 QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 구조에 맞게 다음 확인:
+
+A.
+10장 picker:
+upload_sort_order 0..9
+
+B.
+25장:
+0..24
+
+C.
+47장:
+0..46
+
+D.
+선택 최대치까지:
+global 순서 유지
+
+E.
+50장 초과가 실제 가능하다면:
+multi-session에서도 0..N-1 reset 없음
+
+F.
+사진 일부를 서로 다른 diary에 첨부한 후:
+sort_order는 diary 순서로 변경 가능
+
+하지만:
+
+upload_sort_order는 최초 값 그대로
+
+G.
+teacher-all 조회:
+diary 첨부 전/후 모두 최초 picker 순서 동일
+
+H.
+diary 화면:
+기존 diary 내부 사진 순서 정상
+
+I.
+student note 등 기존 attachment 흐름 정상
+
+실제 운영 사진 수정/삭제 금지.
+
+전체 테스트 suite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 범위만 배포.
+
+DB:
+필요 migration 실행
+
+API:
+swimnote-api Render
+
+APP:
+request payload 수정이 있으므로
+Production OTA
+
+branch/channel:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+Native rebuild 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. PRECHECK]
+
+- ImagePicker selectionLimit
+- 최대 선택 장수
+- picker 1회가 multi-session 가능한지
+- sort_order 실제 attachment write site
+
+[B. DATA MODEL]
+
+- 추가 컬럼
+- 각 컬럼의 정확한 의미
+- migration 결과
+
+[C. UPLOAD FLOW]
+
+- picker index
+- upload_sort_order
+- batch 필요 여부
+- session 분할 시 global order 유지 방식
+
+[D. ATTACHMENT]
+
+- sort_order 기존 의미 유지 여부
+- upload_sort_order 불변 확인
+- upload_batch_id 불변 확인(해당 시)
+
+[E. TEACHER-ALL]
+
+- 최종 ORDER BY
+- legacy fallback 방식
+
+[F. QA]
+
+10장
+25장
+47장
+최대 장수
+multi-session(해당 시)
+diary attach 후 전체앨범 순서
+diary 내부 순서
+
+각 PASS/FAIL
+
+[G. DEPLOY]
+
+DB:
+- migration 이름/상태
+
+APP:
+- full 40-character Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- branch/channel
+- runtimeVersion
+
+API:
+- full Production LIVE SHA
+- Render Deploy ID
+- status
+
+[H. UNCHANGED]
+
+- 기존 사진 일괄 UPDATE 없음
+- 기존 사진 삭제 없음
+- 기존 diary 데이터 수정 없음
+- Native build 없음
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
