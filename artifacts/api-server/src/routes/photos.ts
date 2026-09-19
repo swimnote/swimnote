@@ -673,8 +673,21 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
       const poolId = await getUserPoolId(userId);
       if (!poolId) { res.json({ photos: [], total: 0 }); return; }
       const rows = await db.execute(sql`
+        WITH base AS (
+          SELECT sp.*,
+            CASE
+              WHEN sp.upload_batch_id IS NOT NULL
+              THEN MAX(sp.created_at) OVER (PARTITION BY sp.upload_batch_id)
+              ELSE sp.created_at
+            END AS batch_time
+          FROM photo_assets_meta sp
+          WHERE sp.album_type = 'group'
+            AND sp.pool_id = ${poolId}
+            AND sp.media_status <> 'uploading'
+        )
         SELECT sp.id, sp.album_type, sp.class_id, sp.student_id, sp.uploaded_by_name,
                sp.caption, sp.created_at, sp.file_size, sp.object_key,
+               sp.batch_time,
                CASE
                  WHEN sp.media_status = 'attached' AND (
                    (sp.journal_id IS NOT NULL AND COALESCE(cd_j.is_deleted, false) = true)
@@ -691,15 +704,15 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
                END AS journal_id,
                '/api/photos/' || sp.id || '/file' AS file_url,
                cg.name AS class_name, cg.schedule_days, cg.schedule_time
-        FROM photo_assets_meta sp
+        FROM base sp
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         LEFT JOIN class_diaries cd_j ON cd_j.id = sp.journal_id
         LEFT JOIN class_diary_student_notes csn ON csn.id = sp.student_note_id
         LEFT JOIN class_diaries cd_sn ON cd_sn.id = csn.diary_id
-        WHERE sp.album_type = 'group'
-          AND sp.pool_id = ${poolId}
-          AND sp.media_status <> 'uploading'
-        ORDER BY sp.created_at DESC, sp.sort_order ASC NULLS LAST, sp.id ASC
+        ORDER BY sp.batch_time DESC,
+                 sp.upload_sort_order ASC NULLS LAST,
+                 sp.sort_order ASC NULLS LAST,
+                 sp.id ASC
       `);
       photos = await batchPresign(rows.rows as any[]);
     } else {
@@ -1403,11 +1416,13 @@ router.post(
         student_id?: string;
         lesson_date?: string;
         caption?: string;
+        upload_batch_id?: string;
         files?: Array<{
           client_id?: string;
           file_name?: string;
           file_type?: string;
           file_size?: unknown;
+          upload_sort_order?: number;
         }>;
       };
 
@@ -1455,7 +1470,15 @@ router.post(
         res.status(400).json({ error: `파일은 최대 ${MAX_FILES_PER_SESSION}개까지 업로드할 수 있습니다.` }); return;
       }
 
+      // upload_batch_id 유효성 검사 (optional, printable ASCII 1-128)
+      const upload_batch_id: string | null =
+        typeof body.upload_batch_id === "string" && body.upload_batch_id.length > 0 && body.upload_batch_id.length <= 128
+          ? body.upload_batch_id
+          : null;
+
       const clientIdsSeen = new Set<string>();
+      // client_id → upload_sort_order (파일별 picker 전체 기준 인덱스)
+      const uploadSortOrderMap: Record<string, number | null> = {};
       for (const f of body.files) {
         if (!isSafeClientId(f.client_id)) {
           res.status(400).json({ error: "client_id가 유효하지 않습니다." }); return;
@@ -1472,6 +1495,10 @@ router.post(
         if (!sizeCheck.ok) {
           res.status(400).json({ error: sizeCheck.error }); return;
         }
+        uploadSortOrderMap[f.client_id as string] =
+          typeof f.upload_sort_order === "number" && Number.isInteger(f.upload_sort_order) && f.upload_sort_order >= 0
+            ? f.upload_sort_order
+            : null;
       }
 
       // ── User / pool lookup ────────────────────────────────────────────
@@ -1632,6 +1659,7 @@ router.post(
 
         for (const f of body.files as Array<{ client_id: string; file_type: string; file_size: number }>) {
           const photoId = `photo_${crypto.randomUUID()}`;
+          const uploadSortOrd = uploadSortOrderMap[f.client_id] ?? null;
           await tx.execute(
             album_type === "group"
               ? sql`
@@ -1639,24 +1667,28 @@ router.post(
                   (id, student_id, pool_id, uploaded_by, uploaded_by_name,
                    object_key, file_type, file_size,
                    album_type, visibility, class_id,
-                   lesson_date, caption, media_status)
+                   lesson_date, caption, media_status,
+                   upload_sort_order, upload_batch_id)
                 VALUES
                   (${photoId}, NULL, ${poolId}, ${userId}, ${user.name},
                    ${keysMap[f.client_id]}, ${f.file_type}, ${f.file_size},
                    'group', ${visibility}, ${class_id ?? null},
-                   ${lesson_date ?? null}, ${caption ?? null}, 'uploading')
+                   ${lesson_date ?? null}, ${caption ?? null}, 'uploading',
+                   ${uploadSortOrd}, ${upload_batch_id})
               `
               : sql`
                 INSERT INTO photo_assets_meta
                   (id, student_id, pool_id, uploaded_by, uploaded_by_name,
                    object_key, file_type, file_size,
                    album_type, visibility, class_id,
-                   lesson_date, caption, media_status)
+                   lesson_date, caption, media_status,
+                   upload_sort_order, upload_batch_id)
                 VALUES
                   (${photoId}, ${student_id ?? null}, ${poolId}, ${userId}, ${user.name},
                    ${keysMap[f.client_id]}, ${f.file_type}, ${f.file_size},
                    'private', ${visibility}, ${class_id ?? null},
-                   ${lesson_date ?? null}, ${caption ?? null}, 'uploading')
+                   ${lesson_date ?? null}, ${caption ?? null}, 'uploading',
+                   ${uploadSortOrd}, ${upload_batch_id})
               `,
           );
         }
@@ -1867,13 +1899,11 @@ router.post(
               continue;
             }
 
-            const sortOrd: number | null = sortOrderMap[item.client_id] ?? null;
             const finalizedRows = await tx.execute(sql`
               UPDATE photo_assets_meta
               SET media_status = 'draft',
                   file_size = ${item.file_size},
-                  file_type = ${item.file_type},
-                  sort_order = ${sortOrd}
+                  file_type = ${item.file_type}
               WHERE id = ${existing.id}
                 AND media_status = 'uploading'
               RETURNING id, created_at, uploaded_by_name, media_status, journal_id

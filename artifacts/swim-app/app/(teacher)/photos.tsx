@@ -537,6 +537,11 @@ export default function TeacherPhotosScreen() {
         console.log(`[photos-upload] compress: ${assets.length} files, ${Math.round(origBytes / 1024)}KB → ${Math.round(compBytes / 1024)}KB, took ${Date.now() - t0}ms`);
 
         // ── Step 2: direct R2 upload via presigned URLs ───────────────────
+        // Generate a single batch ID for the entire picker selection.
+        // All 50-file sessions from this selection share the same ID so
+        // teacher-all can group them as one upload event.
+        const uploadBatchId = `bat_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+
         const files = compressed.map((c, i) => ({
           clientId: `ph_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 6)}`,
           uri: c.uri,
@@ -551,6 +556,7 @@ export default function TeacherPhotosScreen() {
           classId: group?.id,
           studentId: sc === "private" ? student?.id : undefined,
           files,
+          uploadBatchId,
           onItemProgress: () => {}, // progress shown via setUploading spinner
           onItemDone: () => {},
           onItemError: () => {},

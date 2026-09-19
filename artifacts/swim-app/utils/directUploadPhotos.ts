@@ -54,6 +54,11 @@ export interface DirectUploadOptions {
   lessonDate?: string;
   caption?: string;
   files: DirectUploadFile[];
+  /**
+   * Single ID for the entire picker selection (even across multiple 50-file sessions).
+   * Generated once in the caller before splitting into batches.
+   */
+  uploadBatchId?: string;
   /** Progress 0-100 for a single PUT in flight */
   onItemProgress?: (clientId: string, progress: number) => void;
   /** Called when a single PUT succeeds (before finalize) */
@@ -88,6 +93,7 @@ const BATCH_SIZE = 50; // MAX_FILES_PER_SESSION on server
 /**
  * Split files into batches of BATCH_SIZE and merge results.
  * Each batch is a separate session (independent presigned URLs + finalize).
+ * upload_sort_order is the global picker index (0..N-1) — never reset per batch.
  */
 export async function directUploadPhotos(opts: DirectUploadOptions): Promise<DirectUploadItemResult[]> {
   const { files } = opts;
@@ -95,22 +101,23 @@ export async function directUploadPhotos(opts: DirectUploadOptions): Promise<Dir
 
   // Single batch: common case
   if (files.length <= BATCH_SIZE) {
-    return directUploadPhotosBatch(opts);
+    return directUploadPhotosBatch(opts, 0);
   }
 
-  // Multiple batches: large selection
+  // Multiple batches: large selection — sequential, global offset preserved
   const allResults: DirectUploadItemResult[] = [];
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
     const batchFiles = files.slice(i, i + BATCH_SIZE);
-    const batchResults = await directUploadPhotosBatch({ ...opts, files: batchFiles });
+    const batchResults = await directUploadPhotosBatch({ ...opts, files: batchFiles }, i);
     allResults.push(...batchResults);
   }
   return allResults;
 }
 
-async function directUploadPhotosBatch(opts: DirectUploadOptions): Promise<DirectUploadItemResult[]> {
+async function directUploadPhotosBatch(opts: DirectUploadOptions, globalOffset: number): Promise<DirectUploadItemResult[]> {
   const {
     token, albumType, classId, studentId, lessonDate, caption, files,
+    uploadBatchId,
     onItemProgress, onItemDone, onItemError,
   } = opts;
 
@@ -120,17 +127,20 @@ async function directUploadPhotosBatch(opts: DirectUploadOptions): Promise<Direc
   // Build body, omitting optional fields when absent
   const sessionBody: Record<string, unknown> = {
     album_type: albumType,
-    files: files.map(f => ({
+    files: files.map((f, batchIndex) => ({
       client_id: f.clientId,
       file_name: f.fileName,
       file_type: f.mimeType,
       file_size: f.fileSize,
+      // global picker index: preserved across batch splits (never reset)
+      upload_sort_order: globalOffset + batchIndex,
     })),
   };
-  if (classId)    sessionBody.class_id    = classId;
-  if (studentId)  sessionBody.student_id  = studentId;
-  if (lessonDate) sessionBody.lesson_date = lessonDate;
-  if (caption)    sessionBody.caption     = caption;
+  if (classId)       sessionBody.class_id       = classId;
+  if (studentId)     sessionBody.student_id     = studentId;
+  if (lessonDate)    sessionBody.lesson_date    = lessonDate;
+  if (caption)       sessionBody.caption        = caption;
+  if (uploadBatchId) sessionBody.upload_batch_id = uploadBatchId;
 
   type SessionData = {
     upload_token: string;
@@ -231,11 +241,9 @@ async function directUploadPhotosBatch(opts: DirectUploadOptions): Promise<Direc
 
   const completed = succeededItems.map(r => {
     const slot = uploadMap.get(r.clientId)!;
-    const origIndex = files.findIndex(f => f.clientId === r.clientId);
     return {
       client_id: r.clientId,
       object_key: slot.object_key,
-      ...(origIndex >= 0 ? { sort_order: origIndex } : {}),
     };
   });
 
