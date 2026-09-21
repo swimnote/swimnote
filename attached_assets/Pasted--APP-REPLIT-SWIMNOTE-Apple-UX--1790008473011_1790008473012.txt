@@ -1,0 +1,783 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 사진 전체앨범 ‘선택한 순서 그대로 업로드’ 전면 재조사 / 카카오·Apple식 업로드 UX 벤치마킹]
+
+중요:
+이번 단계에서는 코드 수정하지 마십시오.
+APP OTA 금지.
+API 배포 금지.
+DB 수정 금지.
+기존 사진 UPDATE/DELETE 금지.
+
+사용자 실제 기기에서
+사진 여러 장을 한 번에 선택해 업로드하면
+전체앨범에서 여전히 사용자가 선택한 순서와 다르게 표시됩니다.
+
+이 기능은 이미 여러 차례 수정했지만
+실기기에서 완전히 해결되지 않았습니다.
+
+이번에는
+“현재 버그 한 군데”만 찾지 말고,
+
+카카오톡이나 Apple Photos처럼
+
+1. 사용자가 사진을 선택한 순서를 명확히 확정
+2. 압축/업로드는 병렬이어도 논리적 순서는 불변
+3. 서버 저장 후에도 선택순서 유지
+4. 다른 일지에 첨부되어도 전체앨범 순서는 불변
+5. 다시 앱을 열어도 동일 순서
+
+가 되는 구조인지
+처음부터 끝까지 다시 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 목표 동작을 먼저 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE의 최종 제품 계약은 다음입니다.
+
+예:
+
+사용자가 사진 선택창에서
+
+사진 A = 1번째
+사진 B = 2번째
+사진 C = 3번째
+...
+사진 J = 10번째
+
+순서로 선택했다면
+
+전체앨범에서는 반드시:
+
+A → B → C → ... → J
+
+순서로 표시되어야 합니다.
+
+압축 완료 순서,
+R2 PUT 완료 순서,
+session 생성 순서,
+finalize 완료 순서,
+network 속도,
+DB insert timing
+
+은 표시 순서에 영향을 주면 안 됩니다.
+
+또한 이후 A/C/F 사진을
+서로 다른 일지에 다른 순서로 첨부하더라도
+
+전체앨범의 최초 업로드 순서는
+영구적으로 변하면 안 됩니다.
+
+이 원칙을 기준으로 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Apple / Expo 공식 ordered selection 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설치된:
+
+expo-image-picker
+
+정확한 버전을 package-lock/yarn lock/package.json 기준으로 확인하십시오.
+
+그리고 현재 실제 코드:
+
+launchImageLibraryAsync({
+  ...
+})
+
+에
+
+orderedSelection
+
+옵션이 존재하는지 확인하십시오.
+
+특히 iOS에서:
+
+orderedSelection: true
+
+가 설정되어 있는지 확인.
+
+Expo 공식 동작 기준:
+
+iOS 15+에서 orderedSelection=true이면
+
+- 선택한 사진에 선택순서 번호 badge 표시
+- assets가 사용자가 선택한 정확한 순서로 반환됨
+
+반대로 false/default에서는
+선택순서 반환이 항상 보장되지 않습니다.
+
+따라서 이전 보고의:
+
+“PHPicker이므로 result.assets는 무조건 탭 순서”
+
+라는 결론을 그대로 재사용하지 마십시오.
+
+현재 실제 option을 기준으로 재판정하십시오.
+
+보고:
+
+- expo-image-picker 실제 버전
+- orderedSelection 현재 값
+- 명시 여부
+- iOS에서 번호 badge가 실제 활성화되는 설정인지
+- selectionLimit
+- allowsMultipleSelection
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 카카오/Apple식 UX를 ‘기능 계약’으로 벤치마킹
+━━━━━━━━━━━━━━━━━━━━━━
+
+카카오톡 내부 구현을 추측하지 마십시오.
+
+벤치마킹 대상은 사용자가 익숙한 UX semantics입니다.
+
+확인할 목표:
+
+A.
+선택하는 순간 1,2,3... 순서가 사용자에게 보임
+
+B.
+사용자가 완료를 누르면
+그 순서가 logical selection order로 확정됨
+
+C.
+실제 업로드는 병렬 가능
+
+D.
+업로드 완료 순서는 logical order를 변경하지 않음
+
+E.
+앨범 표시 순서는 logical order만 사용
+
+F.
+다시 조회/재실행해도 동일 순서
+
+현재 SWIMNOTE가 A~F 중
+어디까지 충족하고 어디서 깨지는지 표로 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 Production APP picker 설정 전체 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/swim-app/app/(teacher)/photos.tsx
+
+실제 사진 전체앨범 업로드 버튼이 호출하는
+launchImageLibraryAsync 옵션 전체를 보고하십시오.
+
+확인:
+
+- mediaTypes
+- allowsMultipleSelection
+- orderedSelection
+- selectionLimit
+- quality
+- 기타 순서에 영향을 줄 수 있는 옵션
+
+중요:
+
+비슷한 picker helper가 다른 파일에 있더라도
+현재 전체앨범에서 실제 사용하는 호출만 우선 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ‘선택 순서’ 최초 확정 지점 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 시스템에서 사진 순서가
+최초로 숫자로 확정되는 시점을 찾으십시오.
+
+예:
+
+result.assets index
+
+또는
+
+별도 selectedOrder
+
+또는
+
+upload_sort_order
+
+확인:
+
+P0
+P1
+P2
+...
+
+가 정확히 어디에서 생성되는지.
+
+그리고 그 값이:
+
+- assetId
+- uri
+- clientId
+- upload_sort_order
+
+중 어떤 identity와 결합되어
+끝까지 유지되는지 추적하십시오.
+
+단순 배열 위치만 잠깐 사용하고
+이후 다시 findIndex로 계산하는 구조가 있는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. asset identity 안정성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+compression
+map
+chunk
+session
+retry/failure
+
+과정을 거치면서
+원본 사진 identity가 어떻게 유지되는지 확인하십시오.
+
+확인:
+
+- assetId를 보존하는지
+- uri만 사용하는지
+- clientId 생성 시 selection index를 포함하는지
+- 압축 후 uri가 바뀌어도 같은 selection index를 유지하는지
+- findIndex(clientId) 같은 재계산이 있는지
+
+목표:
+
+“사진 한 장의 selection_index는
+picker 완료 직후 한 번 정해지고
+그 이후 절대 다시 계산되지 않는다”
+
+가 현재 성립하는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 100장 선택 / 2 session 구조 재검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 알려진 값:
+
+selectionLimit = 100
+BATCH_SIZE = 50
+
+이므로:
+
+1~50
+51~100
+
+두 session까지 갈 수 있습니다.
+
+현재 구현에서:
+
+upload_batch_id
+upload_sort_order
+
+가 실제로
+
+1 picker selection 전체 기준
+
+동일 batch:
+
+batch X
+
+순서:
+
+0..99
+
+로 유지되는지 다시 확인하십시오.
+
+특히:
+
+session 2에서
+upload_sort_order가 50부터 시작하는지
+
+실제 request body 수준으로 확인.
+
+코드 설명만으로 끝내지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. SESSION API 실제 payload 계약 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /photos/direct-upload/session
+
+request에서 각 file에:
+
+- clientId
+- upload_sort_order
+- upload_batch_id
+
+가 실제 어떤 shape로 전달되는지 확인.
+
+Server route가 실제로 읽는 field name과
+APP가 보내는 field name이 정확히 일치하는지 확인.
+
+예:
+
+APP:
+upload_sort_order
+
+SERVER:
+uploadSortOrder
+
+처럼 naming mismatch가 있는지 반드시 확인.
+
+값이 DB insert까지 실제 들어가는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. FINALIZE에서 순서가 변하지 않는지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /photos/direct-upload/finalize
+
+과정에서:
+
+- upload_sort_order UPDATE 여부
+- upload_batch_id UPDATE 여부
+- sort_order UPDATE 여부
+
+확인.
+
+최종 정책:
+
+upload_sort_order:
+최초 저장 후 불변
+
+upload_batch_id:
+최초 저장 후 불변
+
+sort_order:
+일지/note attachment용 별도 의미
+
+가 실제 코드에서 완전히 지켜지는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Production DB 최근 ‘새 구조’ 업로드만 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+이전 legacy row를 보면 안 됩니다.
+
+upload_sort_order/upload_batch_id가 추가된
+배포 이후 생성된 최근 실제 업로드 1건만
+READ ONLY로 확인하십시오.
+
+가능하면 사용자가
+“아직 순서가 틀렸다”고 확인한
+가장 최근 업로드 묶음을 찾으십시오.
+
+보고 컬럼:
+
+- id
+- created_at
+- upload_batch_id
+- upload_sort_order
+- sort_order
+- client_id
+- object_key
+
+확인:
+
+A.
+한 picker 선택이 하나의 upload_batch_id인지
+
+B.
+upload_sort_order가 0..N-1 연속인지
+
+C.
+중복 index 존재 여부
+
+D.
+빠진 index 존재 여부
+
+E.
+DB에 들어가기 전부터 잘못된 순서인지
+
+F.
+DB에는 정상인데 화면만 틀린지
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. DB의 ‘원래 사진’을 식별할 수 있는지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production sample에서
+
+사용자가 실제로 선택한:
+
+1번 사진
+2번 사진
+3번 사진...
+
+과 DB row를 대응할 수 있는 metadata가 있는지 확인하십시오.
+
+예:
+
+- original filename
+- asset identifier
+- clientId index
+- upload_sort_order
+- object_key
+
+가능하다면 실제 10~20장 묶음의:
+
+선택 index
+→ clientId
+→ DB ID
+→ upload_sort_order
+
+mapping을 표로 만드십시오.
+
+불가능하면 불가능하다고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. TEACHER-ALL 쿼리 실제 현재 버전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production LIVE 코드가 정말:
+
+upload_batch_id
+upload_sort_order
+
+기반 정렬을 사용하고 있는지
+현재 배포 SHA 기준으로 다시 확인하십시오.
+
+이전에 보고한 코드를 그대로 믿지 마십시오.
+
+최종 SQL을 그대로 보고:
+
+- batch_time
+- upload_sort_order
+- sort_order fallback
+- id tie-breaker
+
+를 명시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. SQL ORDER가 정말 원하는 의미인지 시뮬레이션
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 데이터로 실제 SQL 결과를 계산하십시오.
+
+예:
+
+Batch A:
+upload_sort_order 0..9
+
+Batch B:
+upload_sort_order 0..9
+
+Batch B가 더 최신.
+
+기대:
+
+B0 B1 B2 ... B9
+A0 A1 A2 ... A9
+
+또한 한 batch가 2 session:
+
+session1:
+0..49
+
+session2:
+50..99
+
+이어도 기대:
+
+0 1 2 ... 99
+
+인지 실제 SQL로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. APP normalize/render 단계 다시 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /photos/teacher-all 응답 후:
+
+normalizeItem
+FlatList data
+keyExtractor
+numColumns
+
+을 확인하십시오.
+
+특히 다음을 확인:
+
+- normalizeItem이 index를 이용해 다시 순서 계산하는지
+- keyExtractor가 중복될 가능성
+- FlatList data에 API 순서 그대로 전달되는지
+- 3열 grid 때문에 시각적으로 row/column 순서가 다르게 느껴지는 문제인지
+- inverted
+- columnWrapper
+- sort/reverse
+
+등.
+
+API는 정상인데
+FlatList가 다른 데이터 배열을 쓰는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. OTA / 실제 실행 코드 불일치 가능성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 순서 수정 이후:
+
+- Work SHA
+- production-v2 OTA SHA
+- 현재 runtimeVersion 2.2.0
+- 최신 EAS Update ID
+
+를 확인.
+
+그리고 사용자가 실제 실행하는 route가
+최신 OTA의 photos.tsx인지 확인 가능한 코드 근거를 제시.
+
+OTA 재배포는 하지 마십시오.
+
+목적은:
+
+“코드는 고쳤는데 실제 기기에는 이전 bundle이 실행 중”
+
+가능성을 배제하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. ‘orderedSelection’이 빠져있다면 중요 발견으로 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+만약 현재:
+
+orderedSelection: true
+
+가 없다면
+
+이를 단순 사소한 옵션 누락으로 보지 마십시오.
+
+사용자가 기대하는:
+
+“1번째 고른 사진이 1번째,
+2번째 고른 사진이 2번째”
+
+를 OS picker 단계부터 보장하기 위한
+핵심 계약 누락으로 분류하십시오.
+
+특히 iOS에서는
+선택 사진에 번호 badge가 표시되는 UX도
+제품 요구사항으로 포함할 수 있는지 보고하십시오.
+
+이번 단계에서는 추가하지 마십시오.
+조사만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Android도 별도로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제는 iPhone 중심이지만
+SWIMNOTE는 Android도 사용합니다.
+
+Android의 현재 image picker에서:
+
+- multi selection 반환순서 보장 여부
+- orderedSelection equivalent 존재 여부
+- 현재 Expo API의 실제 동작
+
+을 공식 문서/현재 라이브러리 코드 기준으로 확인.
+
+만약 플랫폼에서
+선택순서를 보장하지 않는다면
+
+Android만의 안정적인 selection order 확보 방법을
+수정하지 말고 제안만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 최종 원인 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 실제 확인된 것만 선택:
+
+A.
+iOS picker 단계에서 orderedSelection 보장 없음
+
+B.
+APP에서 selection index 생성 오류
+
+C.
+compression 후 identity/order 손실
+
+D.
+multi-session global index 오류
+
+E.
+APP↔API payload field mismatch
+
+F.
+DB insert 시 upload_sort_order 손실
+
+G.
+finalize/attach에서 upload order 변경
+
+H.
+teacher-all SQL 오류
+
+I.
+APP normalize/FlatList 표시 오류
+
+J.
+OTA/실행 bundle 불일치
+
+K.
+복합 원인
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. ‘카카오/Apple식’ 최종 업로드 계약 제안
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정하지 말고,
+조사 결과를 바탕으로 최종 기능 계약을 제안하십시오.
+
+최소 다음을 포함:
+
+SELECTION
+- 선택 번호 표시
+- 선택순서 확정
+
+IDENTITY
+- 한 사진 = immutable selection identity
+
+BATCH
+- picker 1회 = 하나의 upload batch
+
+ORDER
+- upload_sort_order = immutable global index
+
+UPLOAD
+- compression/R2 upload 병렬 허용
+
+FAILURE
+- 일부 실패해도 성공 사진의 logical order 유지
+- retry 시 기존 logical index 유지
+
+SERVER
+- DB 저장 시 batch/order 보존
+
+ALBUM
+- 최신 batch 우선
+- batch 내부 selection order
+
+ATTACHMENT
+- diary/note 순서는 별도 sort_order
+- 전체앨범 upload order 절대 변경 금지
+
+RELOAD
+- 앱 재실행/재조회 후에도 동일
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 이번 단계 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- orderedSelection 추가 금지
+- picker 옵션 수정 금지
+- DB 수정 금지
+- API 수정 금지
+- ORDER BY 수정 금지
+- APP sort 수정 금지
+- OTA 금지
+- Render deploy 금지
+- migration 금지
+- 기존 사진 재정렬 금지
+
+조사와 최종 설계 확정만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. OFFICIAL PICKER BEHAVIOR]
+
+- expo-image-picker 버전
+- iOS orderedSelection 지원
+- 현재 설정 여부
+- 현재 선택순서 보장 여부
+- Android 동작
+
+[B. CURRENT PICKER CONFIG]
+
+실제 전체 옵션
+
+[C. SELECTION IDENTITY]
+
+선택순서가 최초 확정되는 위치
+→ clientId
+→ upload_sort_order
+흐름
+
+[D. MULTI-SESSION]
+
+50/51/100장 실제 구조
+payload 예시
+
+[E. API CONTRACT]
+
+APP가 보내는 field
+Server가 읽는 field
+DB 저장 field
+
+[F. PRODUCTION SAMPLE]
+
+신규 upload_batch_id 구조 적용 이후
+실제 최근 업로드 1건의
+batch/order DB 결과
+
+[G. QUERY RESULT]
+
+현재 teacher-all SQL
+실제 sample 적용 결과
+
+[H. APP RENDER]
+
+API 응답 이후
+FlatList까지 순서 변경 여부
+
+[I. OTA]
+
+현재 실행 코드가 최신 순서수정 bundle인지
+
+[J. ROOT CAUSE]
+
+A~K 중 분류
++
+실제 근거
+
+[K. KAKAO/APPLE-STYLE FINAL CONTRACT]
+
+사용자가 선택한 순서를
+업로드 속도와 무관하게 영구 보존하는
+최종 기능 계약
+
+[L. MINIMUM FIX PLAN]
+
+아직 실행하지 말고:
+
+- APP 수정
+- API 수정
+- DB 수정
+- migration 필요 여부
+- OTA 필요 여부
+- Render 필요 여부
+
+를 정확히 구분.
+
+완료했다고만 보고하지 마십시오.
+
+특히 과거 보고를 그대로 재사용하지 말고
+현재 Production 코드/현재 Expo 버전/현재 DB sample로
+다시 검증하십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
