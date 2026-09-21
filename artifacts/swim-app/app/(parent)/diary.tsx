@@ -73,7 +73,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
 
   async function toggleReaction(type: "like") {
     const res = await apiRequest(token, `/parent/diary/${entry.id}/reactions`, {
-      method: "POST", body: JSON.stringify({ reaction_type: type }),
+      method: "POST", body: JSON.stringify({ reaction_type: type, student_id: studentId }),
     });
     if (res.ok) {
       const data = await res.json();

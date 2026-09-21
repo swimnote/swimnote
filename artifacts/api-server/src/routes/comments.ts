@@ -172,24 +172,33 @@ router.get("/diaries/:diaryId/comments",
           GROUP BY reaction_type
         `)).rows as any[];
 
+        // 반응 집계 — diary_reactions.student_id 직접 JOIN (parent_students 추론 제거)
+        const reactionDetailRows = (await db.execute(sql`
+          SELECT dr.reaction_type, dr.parent_id,
+                 pa.name AS parent_name,
+                 dr.student_id,
+                 s.name AS student_name
+          FROM diary_reactions dr
+          JOIN parent_accounts pa ON pa.id = dr.parent_id
+          LEFT JOIN students s ON s.id = dr.student_id
+          WHERE dr.diary_id = ${diaryId}
+          ORDER BY dr.created_at
+        `)).rows as any[];
+
         const reactions: Record<string, { count: number; users: any[] }> = {};
-        for (const row of reactionRows) {
-          // 각 parent_id의 이름 조회 (최대 10명)
-          const limit = row.parent_ids?.slice(0, 10) ?? [];
-          const users: any[] = [];
-          for (const pid of limit) {
-            const [u] = (await db.execute(sql`
-              SELECT pa.name AS parent_name, ps.student_id,
-                     s.name AS student_name
-              FROM parent_accounts pa
-              LEFT JOIN parent_students ps ON ps.parent_id = pa.id AND ps.status = 'approved'
-              LEFT JOIN students s ON s.id = ps.student_id
-              WHERE pa.id = ${pid}
-              LIMIT 1
-            `)).rows as any[];
-            if (u) users.push({ parent_name: u.parent_name, student_name: u.student_name ?? "" });
+        for (const row of reactionDetailRows) {
+          const rt = row.reaction_type as string;
+          if (!reactions[rt]) reactions[rt] = { count: 0, users: [] };
+          reactions[rt].count += 1;
+          // 최대 10명만 표시
+          if (reactions[rt].users.length < 10) {
+            reactions[rt].users.push({
+              parent_id: row.parent_id,
+              parent_name: row.parent_name,
+              student_id: row.student_id ?? null,
+              student_name: row.student_id ? (row.student_name ?? null) : null,
+            });
           }
-          reactions[row.reaction_type] = { count: Number(row.cnt), users };
         }
 
         const comment_count = rootRows.filter(r => !r.is_deleted).length;

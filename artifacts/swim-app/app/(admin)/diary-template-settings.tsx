@@ -12,6 +12,7 @@ import {
   Pressable, ScrollView, StyleSheet, Switch,
   Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { TemplateInputModal } from "@/components/diary/TemplateInputModal";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import React, { useCallback, useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -907,35 +908,6 @@ function LevelActionModal({ visible, level, isFirst, isLast, canDelete, onClose,
           <Pressable style={[m.actionRow, m.actionRowBorder, { justifyContent: "center" }]} onPress={onClose}><Text style={[m.actionLabel, { color: C.textMuted }]}>닫기</Text></Pressable>
         </View>
       </Pressable>
-    </Modal>
-  );
-}
-
-function TemplateInputModal({ visible, title, titleValue, textValue, onTitleChange, onTextChange, error, saving, onClose, onConfirm }: {
-  visible: boolean; title: string; titleValue: string; textValue: string;
-  onTitleChange: (v: string) => void; onTextChange: (v: string) => void;
-  error: string; saving: boolean; onClose: () => void; onConfirm: () => void;
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={m.overlay}>
-          <View style={m.sheet}>
-            <Text style={m.title}>{title}</Text>
-            <Text style={m.label}>제목 (선택)</Text>
-            <TextInput style={m.input} value={titleValue} onChangeText={onTitleChange} placeholder="예: 자유형 연습" placeholderTextColor={C.textMuted} maxLength={100} />
-            <Text style={[m.label, { marginTop: 12 }]}>내용 *</Text>
-            <TextInput style={[m.input, { minHeight: 90, maxHeight: 200, textAlignVertical: "top" }]} value={textValue} onChangeText={onTextChange} placeholder="일지에 삽입될 내용을 입력하세요" placeholderTextColor={C.textMuted} multiline numberOfLines={4} scrollEnabled={true} />
-            {!!error && <Text style={m.error}>{error}</Text>}
-            <View style={m.btnRow}>
-              <Pressable style={[m.btn, { borderColor: C.border }]} onPress={onClose}><Text style={m.btnCancelText}>취소</Text></Pressable>
-              <Pressable style={[m.btn, { backgroundColor: C.primaryAction }]} onPress={onConfirm} disabled={saving}>
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={m.btnConfirmText}>저장</Text>}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
     </Modal>
   );
 }

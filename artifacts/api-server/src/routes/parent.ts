@@ -984,12 +984,47 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
   const reaction_type = raw_reaction_type === "thank" ? "thanks" : raw_reaction_type;
   const { userId } = req.user!;
   const { diaryId } = req.params;
-  console.log(`[REACTION TOGGLE REQUEST] diaryId=${diaryId} parentUserId=${userId} rawType=${raw_reaction_type} normalizedType=${reaction_type}`);
+  // student_id: client가 명시적으로 전달 (선택). 검증 후 저장.
+  const raw_student_id = typeof req.body.student_id === "string" && req.body.student_id.length > 0
+    ? req.body.student_id : null;
+  console.log(`[REACTION TOGGLE REQUEST] diaryId=${diaryId} parentUserId=${userId} rawType=${raw_reaction_type} normalizedType=${reaction_type} studentId=${raw_student_id ?? "none"}`);
   if (!["like", "thanks"].includes(reaction_type)) {
     console.log(`[REACTION TOGGLE ERROR] invalid reactionType=${reaction_type}`);
     res.status(400).json({ error: "유효하지 않은 반응 유형입니다." }); return;
   }
   try {
+    // ── student_id 검증 (전달된 경우만) ──────────────────────────────────
+    // 1. 해당 student가 이 parent의 approved 자녀인지
+    // 2. 해당 diary와 같은 pool 소속인지
+    let verified_student_id: string | null = null;
+    if (raw_student_id) {
+      const [rel] = (await db.execute(sql`
+        SELECT ps.student_id, s.swimming_pool_id AS student_pool_id
+        FROM parent_students ps
+        JOIN students s ON s.id = ps.student_id
+        WHERE ps.parent_id = ${userId}
+          AND ps.student_id = ${raw_student_id}
+          AND ps.status = 'approved'
+        LIMIT 1
+      `)).rows as any[];
+      if (!rel) {
+        console.log(`[REACTION TOGGLE ERROR] student_id=${raw_student_id} not approved child of parent=${userId}`);
+        res.status(403).json({ error: "해당 학생과의 관계가 확인되지 않습니다." }); return;
+      }
+      // diary와 student가 같은 pool인지 확인
+      const [diaryPool] = (await db.execute(sql`
+        SELECT cg.swimming_pool_id
+        FROM class_diaries cd
+        JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.id = ${diaryId} LIMIT 1
+      `)).rows as any[];
+      if (!diaryPool || diaryPool.swimming_pool_id !== rel.student_pool_id) {
+        console.log(`[REACTION TOGGLE ERROR] diary pool=${diaryPool?.swimming_pool_id} student pool=${rel.student_pool_id} mismatch`);
+        res.status(403).json({ error: "해당 학생과 일지의 관계가 확인되지 않습니다." }); return;
+      }
+      verified_student_id = raw_student_id;
+    }
+
     const existing = await db.execute(sql`
       SELECT id FROM diary_reactions WHERE diary_id=${diaryId} AND parent_id=${userId} AND reaction_type=${reaction_type}
     `);
@@ -1036,8 +1071,8 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
         // 2. Atomic transaction: reaction + notification 함께 저장
         await db.transaction(async (tx) => {
           await tx.execute(sql`
-            INSERT INTO diary_reactions (diary_id, parent_id, reaction_type)
-            VALUES (${diaryId}, ${userId}, ${reaction_type})
+            INSERT INTO diary_reactions (diary_id, parent_id, student_id, reaction_type)
+            VALUES (${diaryId}, ${userId}, ${verified_student_id}, ${reaction_type})
             ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
           `);
           await tx.execute(sql`
@@ -1060,13 +1095,13 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
       } else {
         // teacher 없거나 thanks 타입: reaction만 저장
         await db.execute(sql`
-          INSERT INTO diary_reactions (diary_id, parent_id, reaction_type)
-          VALUES (${diaryId}, ${userId}, ${reaction_type})
+          INSERT INTO diary_reactions (diary_id, parent_id, student_id, reaction_type)
+          VALUES (${diaryId}, ${userId}, ${verified_student_id}, ${reaction_type})
           ON CONFLICT (diary_id, parent_id, reaction_type) DO NOTHING
         `);
       }
 
-      console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} active=true notifInserted=${notifInserted}`);
+      console.log(`[REACTION TOGGLE RESPONSE] diaryId=${diaryId} reactionType=${reaction_type} studentId=${verified_student_id ?? "null"} active=true notifInserted=${notifInserted}`);
       res.json({ active: true });
     }
   } catch (err: any) {

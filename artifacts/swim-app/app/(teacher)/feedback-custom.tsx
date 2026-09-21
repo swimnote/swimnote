@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { TemplateInputModal } from "@/components/diary/TemplateInputModal";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -604,45 +605,34 @@ export default function FeedbackCustomScreen() {
           </ScrollView>
         )}
 
-        {/* 템플릿 추가 모달 */}
-        <Modal visible={addTemplateVisible} transparent animationType="fade" onRequestClose={() => setAddTemplateVisible(false)}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 24 }}>
-              <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
-                <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 16 } as any}>내 템플릿 추가</Text>
-                <TextInput style={s.input} placeholder="제목 (선택)" value={addTemplateTitle} onChangeText={setAddTemplateTitle} placeholderTextColor={C.textMuted} />
-                <TextInput style={[s.input, s.textArea, { marginTop: 10 }]} placeholder="내용을 입력하세요" value={addTemplateText} onChangeText={setAddTemplateText} multiline placeholderTextColor={C.textMuted} />
-                {!!addTemplateError && <Text style={{ fontSize: 12, color: "#EF4444", marginTop: 6 }}>{addTemplateError}</Text>}
-                <View style={[s.modalBtns, { marginTop: 14 }]}>
-                  <Pressable style={s.cancelBtn} onPress={() => setAddTemplateVisible(false)}><Text style={s.cancelBtnText}>취소</Text></Pressable>
-                  <Pressable style={[s.saveBtn, addTemplateSaving && { opacity: 0.6 }]} onPress={handleAddCurriculumTemplate} disabled={addTemplateSaving}>
-                    {addTemplateSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>추가</Text>}
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
+        {/* 템플릿 추가 모달 — 공통 TemplateInputModal 사용 */}
+        <TemplateInputModal
+          visible={addTemplateVisible}
+          title="내 템플릿 추가"
+          titleValue={addTemplateTitle}
+          textValue={addTemplateText}
+          onTitleChange={setAddTemplateTitle}
+          onTextChange={setAddTemplateText}
+          error={addTemplateError}
+          saving={addTemplateSaving}
+          onClose={() => setAddTemplateVisible(false)}
+          onConfirm={handleAddCurriculumTemplate}
+          confirmLabel="추가"
+        />
 
-        {/* 템플릿 수정 모달 */}
-        <Modal visible={!!editTemplateTarget} transparent animationType="fade" onRequestClose={() => setEditTemplateTarget(null)}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 24 }}>
-              <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
-                <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 16 } as any}>템플릿 수정</Text>
-                <TextInput style={s.input} placeholder="제목 (선택)" value={editTemplateTitle} onChangeText={setEditTemplateTitle} placeholderTextColor={C.textMuted} />
-                <TextInput style={[s.input, s.textArea, { marginTop: 10 }]} placeholder="내용을 입력하세요" value={editTemplateText} onChangeText={setEditTemplateText} multiline placeholderTextColor={C.textMuted} />
-                {!!editTemplateError && <Text style={{ fontSize: 12, color: "#EF4444", marginTop: 6 }}>{editTemplateError}</Text>}
-                <View style={[s.modalBtns, { marginTop: 14 }]}>
-                  <Pressable style={s.cancelBtn} onPress={() => setEditTemplateTarget(null)}><Text style={s.cancelBtnText}>취소</Text></Pressable>
-                  <Pressable style={[s.saveBtn, editTemplateSaving && { opacity: 0.6 }]} onPress={handleEditCurriculumTemplate} disabled={editTemplateSaving}>
-                    {editTemplateSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>저장</Text>}
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
+        {/* 템플릿 수정 모달 — 공통 TemplateInputModal 사용 */}
+        <TemplateInputModal
+          visible={!!editTemplateTarget}
+          title="템플릿 수정"
+          titleValue={editTemplateTitle}
+          textValue={editTemplateText}
+          onTitleChange={setEditTemplateTitle}
+          onTextChange={setEditTemplateText}
+          error={editTemplateError}
+          saving={editTemplateSaving}
+          onClose={() => setEditTemplateTarget(null)}
+          onConfirm={handleEditCurriculumTemplate}
+        />
 
         {/* 삭제 확인 */}
         <ConfirmModal
@@ -1205,7 +1195,7 @@ const s = StyleSheet.create({
   modalTitle:   { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
   modalHint:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   input:        { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  textArea:     { minHeight: 90, textAlignVertical: "top" },
+  textArea:     { minHeight: 90, maxHeight: 200, textAlignVertical: "top" },
   errorText:    { fontSize: 12, color: "#EF4444", fontFamily: "Pretendard-Regular" },
   modalBtns:    { flexDirection: "row", gap: 10, marginTop: 4 },
   cancelBtn:    { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
