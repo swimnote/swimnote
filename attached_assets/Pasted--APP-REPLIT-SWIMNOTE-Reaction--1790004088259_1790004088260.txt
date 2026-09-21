@@ -1,0 +1,632 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 반복 오류 영구 방지 수정 / 템플릿 공통화 + Reaction 학생 귀속 확정]
+
+조사 결과 승인합니다.
+
+확정된 구조적 원인:
+
+1.
+“내 템플릿 추가/수정” 기능이
+
+- admin/diary-template-settings.tsx
+- teacher/feedback-custom.tsx
+
+에 독립적으로 중복 구현되어 있어
+한쪽을 수정해도 다른쪽에 적용되지 않음.
+
+2.
+diary_reactions.student_id 컬럼은 존재하지만
+현재 좋아요 WRITE에서 전혀 저장하지 않음.
+
+3.
+Teacher reaction READ에서
+parent_students LIMIT 1
+
+로 학부모 자녀를 임의 추론.
+
+복수 자녀 parent에서는
+실제 반응 대상 학생과 다른 자녀가 표시될 수 있음.
+
+이번 작업은 두 직접 버그만 고치는 것이 아니라
+동일 유형이 다시 발생하지 않도록
+최소 구조 개선까지 포함합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. REACTION 구현 전 필수 PRECHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 전에 딱 다음만 확인하십시오.
+
+A.
+
+Parent APP에서 좋아요를 누를 때
+현재 화면이 어느 student context인지 확인.
+
+확인:
+
+- 현재 selectedStudentId 존재 여부
+- diary/feed item에 student_id가 존재하는지
+- reaction POST handler 호출 위치
+- 현재 request payload
+
+B.
+
+class_diaries가
+단일 student diary인지
+여러 학생에게 공유되는 class diary인지
+실제 schema/API 기준으로 확인.
+
+중요:
+
+class diary가 여러 학생에게 공유되는 구조라면
+단순히 “diary.student_id”에서 학생을 결정하면 안 됩니다.
+
+C.
+
+diary_reactions의 현재:
+
+- PK
+- unique constraint
+- diary_id
+- parent_id
+- student_id
+- reaction_type
+
+구조를 확인.
+
+특히 동일 parent가 동일 diary에
+복수 student context로 접근할 가능성이 있는 경우
+현재 unique constraint 의미도 보고하십시오.
+
+광범위 audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. TEMPLATE — canonical component 1개로 통합
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 중복 구현:
+
+A.
+app/(admin)/diary-template-settings.tsx
+
+B.
+app/(teacher)/feedback-custom.tsx
+
+의 “내 템플릿 추가/수정” 장문 Modal을
+공통 component 하나로 통합하십시오.
+
+새 공통 component 예:
+
+components/diary/TemplateInputModal.tsx
+
+실제 프로젝트 구조에 맞는 위치 사용 가능.
+
+공통 component가 담당:
+
+- 제목
+- 내용
+- 저장
+- 취소
+- KeyboardAvoidingView
+- 장문 TextInput
+- validation
+
+두 route 모두 반드시
+동일 component를 사용해야 합니다.
+
+화면별 복제 TextInput을 남기지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. TEMPLATE 장문 입력 공통 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+공통 장문 TextInput:
+
+multiline
+numberOfLines={4}
+scrollEnabled={true}
+
+style:
+
+minHeight: 90
+maxHeight: 200
+textAlignVertical: "top"
+
+유지.
+
+키보드가 열린 상태에서도:
+
+- 마지막 줄까지 접근 가능
+- 내부 스크롤 가능
+- 저장 버튼 접근 가능
+- 취소 버튼 접근 가능
+
+해야 합니다.
+
+저장/취소 시:
+
+Keyboard.dismiss()
+
+를 호출해 키보드를 정상 종료한 뒤
+기존 handler를 실행하십시오.
+
+불필요한 새 keyboard library 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. feedback-custom LEGACY 구현 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사에서:
+
+feedback-custom.tsx
+
+안에 새 Modal과 legacy Modal이
+같이 존재한다고 확인됐습니다.
+
+실제 navigation/state 분기를 추적하여:
+
+A.
+둘 다 현재 reachable이면
+둘 다 공통 TemplateInputModal을 사용하게 변경.
+
+B.
+legacy 구현이 실제 Production에서
+절대 reachable하지 않는 dead code임이 증명되면
+해당 duplicate UI를 제거 가능.
+
+추측으로 삭제 금지.
+
+핵심 목표:
+
+“내 템플릿 추가/수정” 장문 입력 UI가
+어떤 route로 들어가더라도
+동일한 공통 component 하나를 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. REACTION 학생 귀속 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 금지:
+
+parent_students LIMIT 1
+첫 번째 자녀
+ORDER BY 없는 자녀 추론
+parent 계정만 보고 student 추론
+
+Reaction에는 실제 반응 student context를
+명시적으로 저장해야 합니다.
+
+원칙:
+
+reaction.student_id
+=
+학부모가 해당 reaction을 누른
+실제 학생 context
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. student_id 결정 방법
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRECHECK 결과에 따라 다음 중
+실제 데이터 모델에 맞는 방식만 사용하십시오.
+
+[CASE A]
+
+해당 diary 자체가
+canonical single student_id를 가진
+학생 전용 diary라면:
+
+서버가 diary에서 student_id를 결정.
+
+client student_id를 신뢰하지 않음.
+
+[CASE B]
+
+현재 SWIMNOTE처럼
+class diary가 여러 학생에게 공유될 수 있고
+학부모가 “선택된 자녀 context”에서 보는 구조라면:
+
+Parent APP reaction POST에
+
+student_id
+
+를 명시적으로 전달.
+
+단 서버에서 반드시 검증:
+
+1.
+로그인 parent와 student_id가
+approved parent_students 관계인지
+
+2.
+해당 student가
+그 diary를 실제 조회할 수 있는 학생인지
+
+3.
+해당 pool/diary/student 관계가 유효한지
+
+검증 성공 후에만 저장.
+
+client payload를 검증 없이 신뢰 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. REACTION WRITE 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+INSERT INTO diary_reactions
+(diary_id, parent_id, reaction_type)
+
+형태에서
+
+student_id를 반드시 포함.
+
+예:
+
+(diary_id, parent_id, student_id, reaction_type)
+
+실제 query builder/schema 방식에 맞게 구현.
+
+reaction toggle/upsert 로직이 존재하면
+기존 reaction을 다시 생성하는 모든 경로에서
+student_id가 보존되도록 확인.
+
+신규 reaction row에서:
+
+student_id NULL
+
+이 생성되어서는 안 됩니다.
+
+단 legacy 기존 row는 별도.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. REACTION READ 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /diaries/:diaryId/comments
+
+에서 현재:
+
+parent_students
+→ LIMIT 1
+→ student name 추론
+
+로직 제거.
+
+teacher reaction response는:
+
+diary_reactions.student_id
+→ students.id
+
+직접 JOIN.
+
+response field를 명확하게 유지:
+
+parent_id
+parent_name
+student_id
+student_name
+
+모호한 name 필드 사용 금지.
+
+APP에서는:
+
+student_name 존재:
+parent_name(student_name)
+
+student_name 없음:
+parent_name
+
+으로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. LEGACY 230건 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기존 like 약 230건:
+
+student_id = NULL
+
+전수 확인된 상태.
+
+절대로:
+
+- parent_students LIMIT 1 backfill
+- 첫 번째 자녀 backfill
+- 임의 자녀 추론
+
+하지 마십시오.
+
+기존 NULL row는 그대로 유지.
+
+Teacher READ에서:
+
+student_id IS NULL
+
+이면
+
+student_name = null
+
+로 반환하고
+
+APP에서는:
+
+parent_name
+
+만 표시.
+
+잘못된 학생 이름을 보여주는 것보다
+학생 미표시가 정확합니다.
+
+기존 데이터를 확실하게 복원 가능한
+별도 증거가 없는 한 backfill 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 정확한 문제 사례 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 실제 보고:
+
+“이윤우 일지에서 반응했는데
+이연우 이름으로 표시되는 사례”
+
+와 같은 multi-child 케이스를
+실제 기존 데이터에서 찾을 수 있다면
+READ ONLY로 한 건 확인.
+
+단 과거 student_id=NULL이라
+정확한 원래 context를 복원할 수 없다면:
+
+“확인하지 못함”
+
+으로 보고.
+
+현재 조사에서
+시스템적 원인은 이미 확정됐으므로
+과거 데이터를 억지로 역추론하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. REGRESSION TEST — TEMPLATE
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 두 route 모두 검증:
+
+A.
+관리자
+→ 일지 템플릿
+→ 내 템플릿 추가
+
+B.
+선생님
+→ feedback-custom
+→ 내 템플릿 추가/수정
+
+각각:
+
+- 짧은 입력
+- 20~30줄 장문
+- 내부 스크롤
+- 마지막 줄 커서 접근
+- 저장 버튼 접근
+- 취소 버튼 접근
+- 저장 정상
+
+그리고 두 route가
+동일 공통 component를 사용하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. REGRESSION TEST — REACTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 parent:
+
+Child A
+Child B
+
+두 자녀가 있는 조건으로 검증.
+
+TEST 1:
+
+Child A diary/context에서 like
+
+DB:
+student_id = Child A
+
+Teacher:
+parent_name(Child A)
+
+TEST 2:
+
+Child B diary/context에서 like
+
+DB:
+student_id = Child B
+
+Teacher:
+parent_name(Child B)
+
+TEST 3:
+
+Child B에서 reaction 후
+teacher 화면에 Child A 이름이
+절대 표시되지 않음.
+
+TEST 4:
+
+parent가 소유하지 않은 student_id 전달
+
+→ 서버 거부.
+
+TEST 5:
+
+해당 diary와 무관한 student_id 전달
+
+→ 서버 거부.
+
+TEST 6:
+
+legacy reaction
+student_id=NULL
+
+→ teacher 화면에서 parent_name만 표시.
+
+LIMIT 1 자녀 추론이
+어디에도 남아 있으면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 재발 방지 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 코드 audit 금지.
+
+이번 변경과 직접 관련된 범위에서만 검색:
+
+A.
+
+“내 템플릿 추가/수정” UI가
+공통 component 외에
+추가로 독립 구현되어 있는지.
+
+B.
+
+diary reaction student 표시에서:
+
+parent_students
+LIMIT 1
+
+또는 equivalent 첫 자녀 추론이
+남아 있는지.
+
+발견되면 해당 위치만 보고/정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 변경 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+예상:
+
+APP:
+- 공통 TemplateInputModal
+- admin route 연결
+- teacher route 연결
+- Parent reaction student context 전달
+- Teacher reaction legacy NULL display 처리
+
+API:
+- reaction WRITE student_id 저장
+- server validation
+- reaction READ direct student join
+
+DB:
+student_id 컬럼 이미 존재하므로
+migration 원칙적으로 불필요.
+
+실제 schema 확인 후
+필요 없으면 migration 금지.
+
+기존 reaction 데이터 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 변경:
+Production OTA
+
+branch/channel:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+API 변경:
+swimnote-api Render deploy
+
+Native rebuild 금지.
+
+DB migration 불필요하면 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. TEMPLATE CANONICALIZATION]
+
+- 공통 component 파일
+- admin 사용 여부
+- teacher 사용 여부
+- legacy duplicate 처리 결과
+
+[B. TEMPLATE QA]
+
+admin / teacher 각각
+장문 입력 테스트 결과
+
+[C. REACTION TARGET MODEL]
+
+- class diary student 구조
+- reaction student context 결정 방식
+- client/server 역할
+
+[D. REACTION WRITE]
+
+- 저장 fields
+- student validation
+- 신규 row student_id NULL 방지
+
+[E. REACTION READ]
+
+- 제거한 LIMIT 1 로직
+- 최종 JOIN
+- response schema
+
+[F. LEGACY]
+
+- 기존 NULL reaction 처리
+- backfill 여부 = 없음
+
+[G. MULTI-CHILD QA]
+
+Child A
+Child B
+invalid child
+unrelated diary/student
+legacy NULL
+
+각 PASS/FAIL
+
+[H. REGRESSION GUARD]
+
+- duplicate template implementation 잔존 여부
+- reaction child inference 잔존 여부
+
+[I. DEPLOY]
+
+APP:
+- full 40-character Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- branch/channel
+- runtimeVersion
+
+API:
+- full 40-character Production LIVE SHA
+- Render Deploy ID
+- status
+
+DB:
+- migration 여부
+- 기존 reaction 수정 여부
+
+[J. UNCHANGED]
+
+- 기존 diary 데이터 변경 없음
+- 기존 reaction 임의 backfill 없음
+- Native build 없음
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
