@@ -1,0 +1,239 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — Reaction diary 접근검증 canonical 조건 불일치 최종 수정]
+
+현재 완료보고는 HOLD입니다.
+
+템플릿 canonicalization,
+reaction student_id 저장,
+LIMIT 1 자녀 추론 제거,
+legacy NULL 처리,
+배포 증빙은 승인합니다.
+
+다만 Reaction POST의 diary 접근검증 조건이
+기존 canonical Parent diary 접근 조건과
+정확히 일치하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 확인된 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 canonical 정책:
+
+정규수업 접근:
+
+(
+  student_class_history 유효
+  OR
+  현재 class_group_id 직접 일치
+)
+
+AND attendance != absent
+
+또는
+
+completed makeup 접근
+
+은 결석 여부와 무관하게 허용.
+
+즉 의미는:
+
+(
+  (
+    regular_access
+    AND NOT absent
+  )
+  OR
+  completed_makeup
+)
+
+입니다.
+
+그런데 현재 Reaction 검증은:
+
+(
+  regular_access
+  OR
+  completed_makeup
+)
+
+AND NOT absent
+
+형태로 구현되어 있습니다.
+
+따라서 completed makeup 학생에게도
+attendance absent 조건이 적용되어
+canonical Parent diary 접근과 의미가 달라집니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Reaction POST의 student/diary 접근검증을
+현재 GET /students/:id/diary와
+완전히 동일한 의미로 맞추십시오.
+
+정확한 논리:
+
+lesson_date >= student.created_at
+
+AND
+
+(
+  (
+    (
+      valid student_class_history
+      OR
+      current student.class_group_id = diary.class_group_id
+    )
+    AND NOT EXISTS(
+      해당 diary 수업의 attendance.status = 'absent'
+    )
+  )
+  OR
+  completed_makeup
+)
+
+completed_makeup은
+정규수업 attendance absent 여부와 관계없이
+접근 가능해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 정책 중복 재발 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 오류는 canonical 조건을
+Reaction route에 별도로 복사하면서
+괄호 의미가 달라져 발생했습니다.
+
+가능하면 Parent diary access와
+Reaction validation이 함께 사용할 수 있는
+좁은 공통 helper/query를 만드십시오.
+
+예시 의미:
+
+canParentStudentAccessDiary({
+  parentId,
+  studentId,
+  diaryId
+})
+
+정확한 이름/위치는 현재 서버 구조에 맞추십시오.
+
+이 helper가 최소 다음을 담당:
+
+- parent_students approved 관계
+- student 등록일
+- 정규 class/history 접근
+- attendance absent 제외
+- completed makeup 접근
+
+그리고:
+
+GET /students/:id/diary의 기존 의미와
+Reaction POST의 검증 의미가
+다시 달라지지 않도록 하십시오.
+
+단 광범위 diary 권한 refactor 금지.
+
+두 경로에 필요한 canonical 판단만
+공통화하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 Reaction 수정사항 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 변경하지 마십시오.
+
+- reaction.student_id = 실제 child context
+- parent_students LIMIT 1 제거
+- legacy student_id=NULL → parent_name만 표시
+- unique (diary_id,parent_id,reaction_type) 의미
+- 부모 계정당 diary reaction 1개 정책
+- 기존 reaction backfill 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최소 회귀 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1.
+정규수업 + 출석
+→ 허용
+
+CASE 2.
+정규수업 + absent
+→ 403
+
+CASE 3.
+completed makeup
+→ 허용
+
+CASE 4.
+completed makeup이면서
+정규수업 attendance에 absent 기록 존재
+→ 반드시 허용
+
+CASE 5.
+같은 pool이지만
+정규/history/makeup 모두 없음
+→ 403
+
+CASE 6.
+parent 소유 아닌 student
+→ 403
+
+그리고 CASE 1~5의 판단 결과가
+기존 Parent diary 조회 결과와
+동일한지 비교하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 수정만 필요하면:
+
+swimnote-api Render deploy
+
+APP 추가 수정이 없으면
+OTA 하지 마십시오.
+
+DB migration 없음.
+기존 데이터 수정 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. CANONICAL LOGIC]
+
+- 수정 전 논리
+- 수정 후 논리
+- makeup + absent 처리 결과
+
+[B. SHARED GUARD]
+
+- 공통 helper/query 생성 여부
+- Parent diary / Reaction에서 각각 어떻게 사용되는지
+
+[C. REGRESSION]
+
+CASE 1~6 각각 PASS/FAIL
+
+[D. DEPLOY]
+
+- full 40-character Work SHA
+- full 40-character Production LIVE SHA
+- Render Deploy ID
+- status
+- APP OTA 여부
+
+[E. UNCHANGED]
+
+- 기존 reaction backfill 없음
+- 기존 diary 데이터 변경 없음
+- DB migration 없음
+- Native build 없음
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
