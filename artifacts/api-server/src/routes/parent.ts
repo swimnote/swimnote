@@ -9,6 +9,7 @@ import { sendPushToUser } from "../lib/push-service.js";
 import { logChange } from "../utils/change-logger.js";
 import { logEvent } from "../lib/event-logger.js";
 import { getParentStatusV2, upsertParentV2Pending, tryMatchStudentV2 as tryAutoLinkV2, linkParentToStudentV2 as linkParentToStudentV2Import, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
+import { canStudentAccessDiary } from "../lib/diary-access-guard.js";
 
 const router = Router();
 
@@ -1014,43 +1015,9 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
         console.log(`[REACTION TOGGLE ERROR] student_id=${raw_student_id} not approved child of parent=${userId}`);
         res.status(403).json({ error: "해당 학생과의 관계가 확인되지 않습니다." }); return;
       }
-      // 2. canonical diary-student access check (GET /students/:id/diary 기준과 동일)
-      const [accessible] = (await db.execute(sql`
-        SELECT 1
-        FROM class_diaries cd
-        LEFT JOIN student_class_history sch
-          ON sch.class_group_id = cd.class_group_id
-          AND sch.student_id = ${raw_student_id}
-          AND sch.enrolled_at <= cd.lesson_date::date
-          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
-        LEFT JOIN makeup_sessions ms
-          ON ms.assigned_class_group_id = cd.class_group_id
-          AND ms.student_id = ${raw_student_id}
-          AND ms.assigned_date = cd.lesson_date
-          AND ms.status = 'completed'
-        LEFT JOIN students s ON s.id = ${raw_student_id}
-        WHERE cd.id = ${diaryId}
-          AND cd.lesson_date::date >= (
-            SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
-            FROM students WHERE id = ${raw_student_id} LIMIT 1
-          )
-          AND (
-            -- 재원 이력 있는 정규 수업
-            sch.id IS NOT NULL
-            -- 신규 학생: student_class_history 없고 students.class_group_id 직접 일치
-            OR s.class_group_id = cd.class_group_id
-            -- 보강 완료
-            OR ms.id IS NOT NULL
-          )
-          AND NOT EXISTS (
-            SELECT 1 FROM attendance a
-            WHERE a.student_id = ${raw_student_id}
-              AND a.class_group_id = cd.class_group_id
-              AND a.date = cd.lesson_date
-              AND a.status = 'absent'
-          )
-        LIMIT 1
-      `)).rows as any[];
+      // 2. canonical diary-student access check
+      //    lib/diary-access-guard.ts 단일 소스 사용 (GET /students/:id/diary 와 동일 의미)
+      const accessible = await canStudentAccessDiary(raw_student_id, diaryId);
       if (!accessible) {
         console.log(`[REACTION TOGGLE ERROR] diary=${diaryId} not accessible to student=${raw_student_id}`);
         res.status(403).json({ error: "해당 학생이 이 일지에 접근할 수 없습니다." }); return;
