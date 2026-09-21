@@ -108,6 +108,15 @@ export function TemplateInputModal({
   );
 }
 
+/** 장문 입력 TextInput에 적용할 canonical 스타일.
+ *  maxHeight / scrollEnabled / textAlignVertical 정책의 단일 소스.
+ *  feedback-custom.tsx 등 공통 TemplateInputModal을 쓸 수 없는 화면에서도 이 값을 import해서 사용한다. */
+export const canonicalTextAreaStyle = {
+  minHeight: 90,
+  maxHeight: 200,
+  textAlignVertical: "top" as const,
+};
+
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -143,11 +152,7 @@ const s = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     marginBottom: 10,
   } as any,
-  textArea: {
-    minHeight: 90,
-    maxHeight: 200,
-    textAlignVertical: "top",
-  },
+  textArea: canonicalTextAreaStyle,
   error: {
     fontSize: 12,
     fontFamily: "Pretendard-Regular",

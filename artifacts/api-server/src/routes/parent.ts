@@ -994,14 +994,17 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
   }
   try {
     // ── student_id 검증 (전달된 경우만) ──────────────────────────────────
-    // 1. 해당 student가 이 parent의 approved 자녀인지
-    // 2. 해당 diary와 같은 pool 소속인지
+    // 1. parent_students approved 관계 확인
+    // 2. 해당 diary를 이 student가 실제 조회 가능한지 canonical access 조건으로 확인
+    //    (GET /students/:id/diary 와 동일 기준: student_class_history 재원 이력 OR students.class_group_id 직접 일치 OR 보강 완료,
+    //     AND 결석(absent) 아닌 경우, AND diary.lesson_date >= student.created_at)
+    //    단순 pool 일치만으로 통과 불가.
     let verified_student_id: string | null = null;
     if (raw_student_id) {
+      // 1. approved 관계
       const [rel] = (await db.execute(sql`
-        SELECT ps.student_id, s.swimming_pool_id AS student_pool_id
+        SELECT ps.student_id
         FROM parent_students ps
-        JOIN students s ON s.id = ps.student_id
         WHERE ps.parent_id = ${userId}
           AND ps.student_id = ${raw_student_id}
           AND ps.status = 'approved'
@@ -1011,16 +1014,46 @@ router.post("/diary/:diaryId/reactions", requireAuth, requireParent, async (req:
         console.log(`[REACTION TOGGLE ERROR] student_id=${raw_student_id} not approved child of parent=${userId}`);
         res.status(403).json({ error: "해당 학생과의 관계가 확인되지 않습니다." }); return;
       }
-      // diary와 student가 같은 pool인지 확인
-      const [diaryPool] = (await db.execute(sql`
-        SELECT cg.swimming_pool_id
+      // 2. canonical diary-student access check (GET /students/:id/diary 기준과 동일)
+      const [accessible] = (await db.execute(sql`
+        SELECT 1
         FROM class_diaries cd
-        JOIN class_groups cg ON cg.id = cd.class_group_id
-        WHERE cd.id = ${diaryId} LIMIT 1
+        LEFT JOIN student_class_history sch
+          ON sch.class_group_id = cd.class_group_id
+          AND sch.student_id = ${raw_student_id}
+          AND sch.enrolled_at <= cd.lesson_date::date
+          AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
+        LEFT JOIN makeup_sessions ms
+          ON ms.assigned_class_group_id = cd.class_group_id
+          AND ms.student_id = ${raw_student_id}
+          AND ms.assigned_date = cd.lesson_date
+          AND ms.status = 'completed'
+        LEFT JOIN students s ON s.id = ${raw_student_id}
+        WHERE cd.id = ${diaryId}
+          AND cd.lesson_date::date >= (
+            SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+            FROM students WHERE id = ${raw_student_id} LIMIT 1
+          )
+          AND (
+            -- 재원 이력 있는 정규 수업
+            sch.id IS NOT NULL
+            -- 신규 학생: student_class_history 없고 students.class_group_id 직접 일치
+            OR s.class_group_id = cd.class_group_id
+            -- 보강 완료
+            OR ms.id IS NOT NULL
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM attendance a
+            WHERE a.student_id = ${raw_student_id}
+              AND a.class_group_id = cd.class_group_id
+              AND a.date = cd.lesson_date
+              AND a.status = 'absent'
+          )
+        LIMIT 1
       `)).rows as any[];
-      if (!diaryPool || diaryPool.swimming_pool_id !== rel.student_pool_id) {
-        console.log(`[REACTION TOGGLE ERROR] diary pool=${diaryPool?.swimming_pool_id} student pool=${rel.student_pool_id} mismatch`);
-        res.status(403).json({ error: "해당 학생과 일지의 관계가 확인되지 않습니다." }); return;
+      if (!accessible) {
+        console.log(`[REACTION TOGGLE ERROR] diary=${diaryId} not accessible to student=${raw_student_id}`);
+        res.status(403).json({ error: "해당 학생이 이 일지에 접근할 수 없습니다." }); return;
       }
       verified_student_id = raw_student_id;
     }

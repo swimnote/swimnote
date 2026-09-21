@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View} from "react-native";
-import { TemplateInputModal } from "@/components/diary/TemplateInputModal";
+import { TemplateInputModal, canonicalTextAreaStyle } from "@/components/diary/TemplateInputModal";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -1195,7 +1195,7 @@ const s = StyleSheet.create({
   modalTitle:   { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
   modalHint:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   input:        { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  textArea:     { minHeight: 90, maxHeight: 200, textAlignVertical: "top" },
+  textArea:     canonicalTextAreaStyle,
   errorText:    { fontSize: 12, color: "#EF4444", fontFamily: "Pretendard-Regular" },
   modalBtns:    { flexDirection: "row", gap: 10, marginTop: 4 },
   cancelBtn:    { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
