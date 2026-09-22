@@ -501,6 +501,7 @@ export default function TeacherPhotosScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: isVideo ? ["videos"] : ["images"],
         allowsMultipleSelection: !isVideo,
+        orderedSelection: !isVideo, // iOS 15+: selection badge + 선택 순서 보장
         quality: isVideo ? 1 : 0.85,
         selectionLimit: isVideo ? 1 : 100,
       });
@@ -620,6 +621,7 @@ export default function TeacherPhotosScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: isVideo ? ["videos"] : ["images"],
         allowsMultipleSelection: !isVideo,
+        orderedSelection: !isVideo, // iOS 15+: selection badge + 선택 순서 보장
         quality: isVideo ? 1 : 0.85,
         selectionLimit: isVideo ? 1 : 100,
       });
