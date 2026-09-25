@@ -321,6 +321,7 @@ export default function BulkRegisterScreen() {
   const [parseError, setParseError] = useState("");
   const [loadingFile, setLoadingFile] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
+  const [showHowTo, setShowHowTo] = useState(false);
   const [validateResult, setValidateResult] = useState<ValidateResponse | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [capacity, setCapacity] = useState<{ limit: number; current: number; available: number } | null>(null);
@@ -580,23 +581,56 @@ export default function BulkRegisterScreen() {
         {/* ═══ STEP 1: 파일 선택 ════════════════════════════════ */}
         {step === "pick" && (
           <>
-            {/* 업로드 전 필수 안내 */}
-            <View style={[s.noticeCard, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
-              <View style={[s.cardRow, { marginBottom: 6 }]}>
+            {/* 사용 방법 (접기/펼치기) */}
+            <Pressable
+              style={[s.noticeCard, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}
+              onPress={() => setShowHowTo(v => !v)}
+            >
+              <View style={[s.cardRow, { marginBottom: showHowTo ? 10 : 0 }]}>
                 <LucideIcon name="info" size={15} color="#2563EB" />
-                <Text style={[s.cardTitle, { color: "#1D4ED8" }]}>이름과 보호자 연락처만 있으면 등록할 수 있습니다</Text>
+                <Text style={[s.cardTitle, { flex: 1, color: "#1D4ED8" }]}>사용 방법</Text>
+                {showHowTo
+                  ? <LucideIcon name="chevron-up" size={15} color="#2563EB" />
+                  : <LucideIcon name="chevron-down" size={15} color="#2563EB" />}
               </View>
-              {[
-                "동명이인은 등록할 수 있습니다",
-                "같은 보호자 연락처를 쓰는 형제/자매도 등록 가능합니다",
-                "반 이름·생년·메모 등은 선택사항입니다",
-                "반 이름을 찾지 못하면 미배정 회원으로 등록됩니다",
-                `한 번에 최대 ${MAX_UPLOAD.toLocaleString()}명까지 등록 가능합니다`,
-                "등록 전 서버 검증으로 전체 파일을 한 번에 확인합니다",
-              ].map((txt, i) => (
-                <Text key={i} style={[s.noticeLine, { color: "#1E40AF" }]}>• {txt}</Text>
-              ))}
-            </View>
+              {showHowTo && (
+                <>
+                  <Text style={[s.howToLine, { color: "#1E3A8A" }]}>
+                    기본 양식을 다운로드하고 이름과 보호자 연락처를 입력하세요.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A" }]}>
+                    이름과 보호자 연락처만 필수이며, 학생 연락처·생년·보호자 이름·반 이름·메모는 선택사항입니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A", marginBottom: 8 }]}>
+                    한 번에 최대 1,000명까지 등록할 수 있습니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A" }]}>
+                    동명이인과 동일한 보호자 연락처를 사용하는 형제·자매도 등록할 수 있습니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A", marginBottom: 8 }]}>
+                    기존 회원과 이름과 보호자 연락처가 같아도 중복 의심으로 안내만 하며 등록할 수 있습니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A", marginBottom: 8 }]}>
+                    반 이름을 입력하지 않거나 등록된 반을 찾지 못하면 미배정 회원으로 등록됩니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A" }]}>
+                    파일을 선택하면 등록 전에 전체 회원을 한 번에 검사합니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A" }]}>
+                    수정이 필요한 항목이 있으면 엑셀 행 번호와 오류 이유를 모두 알려드립니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A", marginBottom: 8 }]}>
+                    이 경우 파일을 수정해 다시 업로드하면 되며, 수정 전에는 아무 회원도 등록되지 않습니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E3A8A", marginBottom: 8 }]}>
+                    중복 의심이나 반 미발견 같은 주의사항만 있는 경우에는 그대로 전체 등록할 수 있습니다.
+                  </Text>
+                  <Text style={[s.howToLine, { color: "#1E40AF", fontSize: 11 }]}>
+                    기본 양식은 이름 / 보호자 연락처 2개 항목이며, 기존 7컬럼 파일도 그대로 업로드할 수 있습니다.
+                  </Text>
+                </>
+              )}
+            </Pressable>
 
             {/* 양식 다운로드 */}
             <View style={[s.card, {
@@ -610,7 +644,7 @@ export default function BulkRegisterScreen() {
                     양식 파일을 먼저 다운로드하세요
                   </Text>
                   <Text style={[s.cardDesc, { color: C.textMuted }]}>
-                    양식에 이름·연락처 입력 후 그대로 업로드하면 자동 등록됩니다.
+                    양식에 이름·보호자 연락처 입력 후 그대로 업로드하면 자동 등록됩니다.
                     엑셀에서 저장하거나 CSV 그대로 사용하세요.
                   </Text>
                 </View>
@@ -656,8 +690,13 @@ export default function BulkRegisterScreen() {
                   {/* 열 안내 테이블 */}
                   <View style={[s.colTable, { borderColor: C.border, marginTop: 10 }]}>
                     {[
-                      { col: "이름",          req: true,  alt: "성명",                   ex: "홍길동" },
-                      { col: "보호자전화번호", req: true,  alt: "전화번호, 보호자연락처", ex: "01012345678" },
+                      { col: "이름",         req: true,  ex: "홍길동" },
+                      { col: "보호자 연락처", req: true,  ex: "01012345678" },
+                      { col: "학생 연락처",  req: false, ex: "01011112222" },
+                      { col: "생년",         req: false, ex: "2015" },
+                      { col: "보호자 이름",  req: false, ex: "홍부모" },
+                      { col: "반 이름",      req: false, ex: "월수금반" },
+                      { col: "메모",         req: false, ex: "알레르기 있음" },
                     ].map((item, i, arr) => (
                       <View
                         key={item.col}
@@ -668,13 +707,16 @@ export default function BulkRegisterScreen() {
                       >
                         <View style={s.colLeft}>
                           <Text style={[s.colName, { color: C.text }]}>{item.col}</Text>
-                          <View style={[s.reqBadge, { backgroundColor: "#FEE2E2" }]}>
-                            <Text style={[s.reqTxt, { color: "#DC2626" }]}>필수</Text>
-                          </View>
+                          {item.req
+                            ? <View style={[s.reqBadge, { backgroundColor: "#FEE2E2" }]}>
+                                <Text style={[s.reqTxt, { color: "#DC2626" }]}>필수</Text>
+                              </View>
+                            : <View style={[s.reqBadge, { backgroundColor: "#F3F4F6" }]}>
+                                <Text style={[s.reqTxt, { color: "#6B7280" }]}>선택</Text>
+                              </View>}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[s.colEx, { color: C.text }]}>예: {item.ex}</Text>
-                          <Text style={[s.colAlt, { color: C.textMuted }]}>또는: {item.alt}</Text>
                         </View>
                       </View>
                     ))}
@@ -1029,6 +1071,7 @@ const s = StyleSheet.create({
   reqBadge:       { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
   reqTxt:         { fontSize: 10, fontFamily: "Pretendard-Regular" },
   noteText:       { fontSize: 11, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  howToLine:      { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 20, marginBottom: 2 },
   errorBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8,
                     padding: 12, borderRadius: 10, backgroundColor: "#FEE2E2" },
   errorTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular",

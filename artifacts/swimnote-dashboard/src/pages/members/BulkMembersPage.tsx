@@ -304,20 +304,19 @@ export default function BulkMembersPage() {
 
           {/* ── 안내 (idle) ─────────────────────────────────────────────── */}
           {stage === "idle" && (
-            <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: 20, fontSize: 13, color: "#6b7280", lineHeight: 1.8 }}>
-              <p style={{ margin: "0 0 8px", fontWeight: 600, color: "#374151" }}>사용 방법</p>
-              <ol style={{ margin: 0, paddingLeft: 18 }}>
-                <li>양식을 다운로드하고 이름·보호자 연락처를 입력하세요.</li>
-                <li>동명이인은 등록할 수 있습니다.</li>
-                <li>반 이름·생년·메모 등은 선택사항입니다.</li>
-                <li>반 이름을 찾지 못하면 미배정 회원으로 등록됩니다.</li>
-                <li>파일 선택 후 서버 검증을 실행하면 전체 파일을 한 번에 검사합니다.</li>
-                <li>수정이 필요한 행이 있으면 행 번호·이유를 알려드립니다. 수정 전까지 아무 회원도 등록되지 않습니다.</li>
-                <li>수정 없는 주의사항(반 미발견, 중복 의심 등)이 있어도 전체 등록할 수 있습니다.</li>
-              </ol>
-              <p style={{ margin: "12px 0 0", fontSize: 12 }}>
-                기존 7컬럼 파일(이름/연락처/생년/보호자이름/보호자연락처/반이름/메모)도 업로드 가능합니다.
-              </p>
+            <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: 20, fontSize: 13, color: "#374151", lineHeight: 1.9 }}>
+              <p style={{ margin: "0 0 10px", fontWeight: 600, color: "#111827" }}>사용 방법</p>
+              <p style={{ margin: "0 0 6px" }}>기본 양식을 다운로드하고 이름과 보호자 연락처를 입력하세요.</p>
+              <p style={{ margin: "0 0 6px" }}>이름과 보호자 연락처만 필수이며, 학생 연락처·생년·보호자 이름·반 이름·메모는 선택사항입니다.</p>
+              <p style={{ margin: "0 0 12px" }}>한 번에 최대 1,000명까지 등록할 수 있습니다.</p>
+              <p style={{ margin: "0 0 6px" }}>동명이인과 동일한 보호자 연락처를 사용하는 형제·자매도 등록할 수 있습니다.</p>
+              <p style={{ margin: "0 0 12px" }}>기존 회원과 이름과 보호자 연락처가 같아도 중복 의심으로 안내만 하며 등록할 수 있습니다.</p>
+              <p style={{ margin: "0 0 12px" }}>반 이름을 입력하지 않거나 등록된 반을 찾지 못하면 미배정 회원으로 등록됩니다.</p>
+              <p style={{ margin: "0 0 6px" }}>파일을 선택하면 등록 전에 전체 회원을 한 번에 검사합니다.</p>
+              <p style={{ margin: "0 0 6px" }}>수정이 필요한 항목이 있으면 엑셀 행 번호와 오류 이유를 모두 알려드립니다.</p>
+              <p style={{ margin: "0 0 12px" }}>이 경우 파일을 수정해 다시 업로드하면 되며, 수정 전에는 아무 회원도 등록되지 않습니다.</p>
+              <p style={{ margin: "0 0 12px" }}>중복 의심이나 반 미발견 같은 주의사항만 있는 경우에는 그대로 전체 등록할 수 있습니다.</p>
+              <p style={{ margin: 0, color: "#6b7280", fontSize: 12 }}>기본 양식은 이름 / 보호자 연락처 2개 항목이며, 기존 7컬럼 파일도 그대로 업로드할 수 있습니다.</p>
             </div>
           )}
 
