@@ -1133,23 +1133,21 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       update.suspended_at = null;
 
       // ── 1개월 이상 연기 후 재등록: education_started_at 설정 ────────────────
-      // 기준: suspended_at + calendar 1 month (PostgreSQL interval) <= 오늘 KST
+      // 기준: (suspended_at AT TIME ZONE 'Asia/Seoul')::date + INTERVAL '1 month' <= 오늘 KST
+      // PostgreSQL interval 사용: calendar month 정확 보장 (윤년/월말 포함)
       // suspended_at이 NULL인 기존 회원은 판정 불가 → education_started_at 유지
-      const existingSuspendedAt: Date | null = (existing as any).suspended_at ?? null;
-      if (existingSuspendedAt && (existing as any).status === "suspended") {
+      if ((existing as any).suspended_at && (existing as any).status === "suspended") {
         const todayKst = kstTodayStr(); // "YYYY-MM-DD"
-        // suspended_at + 1 month <= today?
-        const suspendedDate = new Date(existingSuspendedAt);
-        const oneMonthAfter = new Date(
-          suspendedDate.getFullYear(),
-          suspendedDate.getMonth() + 1,
-          suspendedDate.getDate(),
-        );
-        const todayDate = new Date(todayKst);
-        if (oneMonthAfter <= todayDate) {
+        // DB에서 PostgreSQL interval로 비교 — JS Date 연산 금지 (timezone + 월말 처리 불일치 방지)
+        const longDeferResult = await db.execute(sql`
+          SELECT (suspended_at AT TIME ZONE 'Asia/Seoul')::date + INTERVAL '1 month' <= ${todayKst}::date AS is_long_defer
+          FROM students WHERE id = ${req.params.id} LIMIT 1
+        `);
+        const isLongDefer = (longDeferResult.rows[0] as any)?.is_long_defer === true;
+        if (isLongDefer) {
           // 장기연기: 재등록일 기준으로 새 교육구간 시작
           update.education_started_at = todayKst;
-          console.log(`[change-status] 장기연기 감지 suspended_at=${existingSuspendedAt.toISOString()} → education_started_at=${todayKst}`);
+          console.log(`[change-status] 장기연기 감지 → education_started_at=${todayKst}`);
         }
         // else: 1개월 미만 연기 — education_started_at 변경 없음
       }

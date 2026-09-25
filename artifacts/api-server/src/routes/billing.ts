@@ -2042,6 +2042,8 @@ cron.schedule("0 * * * *", async () => {
               WHERE id = ${s.id}
             `);
           } else {
+            // §3 suspended 적용 시 suspended_at 기록 필수 (장기연기 판정 기준)
+            const suspendedAtClause = newStatus === "suspended" ? sql`, suspended_at = NOW()` : sql``;
             await db.execute(sql`
               UPDATE students
               SET
@@ -2054,6 +2056,7 @@ cron.schedule("0 * * * *", async () => {
                 pending_effective_mode  = NULL,
                 pending_effective_month = NULL,
                 updated_at              = NOW()
+                ${suspendedAtClause}
               WHERE id = ${s.id}
             `);
           }

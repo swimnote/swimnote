@@ -36,7 +36,7 @@ export const studentsTable = pgTable("students", {
   pending_effective_mode: text("pending_effective_mode"),
   pending_effective_month: text("pending_effective_month"),
   suspended_at: timestamp("suspended_at", { withTimezone: true }),
-  education_started_at: text("education_started_at"), // date "YYYY-MM-DD"; 현재 교육구간 시작일 (NULL=전체 이력이 현재 구간)
+  education_started_at: text("education_started_at"), // DATE column in DB; drizzle maps as text for simplicity; 현재 교육구간 시작일 (NULL=전체 이력이 현재 구간)
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -647,6 +647,25 @@ export default function ParentNotificationsScreen() {
                 ))}
               </ScrollView>
 
+              {/* 장기 연기 안내 — 연기 신청 선택 시 표시 */}
+              {reqType === "postpone" && (
+                <View style={{
+                  backgroundColor: "#FFFBEB",
+                  borderWidth: 1,
+                  borderColor: "#FCD34D",
+                  borderRadius: 10,
+                  padding: 14,
+                  marginBottom: 16,
+                }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#92400E", marginBottom: 6 }}>
+                    장기 연기 안내
+                  </Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#78350F", lineHeight: 20 }}>
+                    {"1개월 이상 연기 시 기존 수업기록과 누적 피드백이 초기화됩니다.\n\n교육과정의 연속성과 현재 진도를 유지하기 위해 장기간의 수업 중단은 권장하지 않습니다.\n\n재등록 시 새로운 수업 구간을 기준으로 수업기록과 피드백이 다시 시작됩니다."}
+                  </Text>
+                </View>
+              )}
+
               {/* 내용 입력 */}
               <Text style={[st.label, { color: C.textSecondary }]}>내용 / 사유</Text>
               <TextInput

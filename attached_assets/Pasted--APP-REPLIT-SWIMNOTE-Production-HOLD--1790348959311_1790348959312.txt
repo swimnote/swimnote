@@ -1,0 +1,592 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 연기/장기연기/퇴원 정책 Production 최종 검증 및 잔여 보완]
+
+현재 완료보고는 HOLD입니다.
+
+큰 구현 방향은 승인합니다.
+
+다만 아래 항목은
+최종 정책과 실제 Production 구현의 일치가
+아직 증명되지 않았습니다.
+
+광범위 리팩터링 금지.
+아래 항목만 확인하고 필요한 최소 수정만 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. education_started_at 타입 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+원래 설계:
+
+education_started_at DATE NULL
+
+이었으나 완료보고에는:
+
+education_started_at TEXT
+
+로 생성했다고 보고했습니다.
+
+먼저 실제 Production schema를 확인하십시오.
+
+보고:
+
+- 실제 PostgreSQL data type
+- TEXT로 만든 이유
+- 저장되는 실제 값 형식
+- 모든 query에서 date cast를 하고 있는지
+
+특별한 호환 이유가 없다면
+education_started_at은 DATE가 더 정확한 의미입니다.
+
+현재 신규 컬럼에 실데이터가 거의 없거나
+안전하게 변환 가능한 상태라면
+
+TEXT → DATE
+
+비파괴 migration을 검토하십시오.
+
+단 데이터 손실 가능성이 있으면
+임의 ALTER 금지하고 HOLD 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. “1개월 이상” 판정 정확성
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책은:
+
+suspended_at + calendar 1 month
+<= 재등록 시점
+
+이면 장기연기입니다.
+
+즉 “1개월 초과”가 아니라
+정확히 1개월이 되는 순간부터 적용입니다.
+
+실제 코드 operator를 확인하십시오.
+
+필수:
+
+>= threshold 또는
+reactivation >= suspended_at + interval '1 month'
+
+의 의미여야 합니다.
+
+KST 날짜 기준도 확인하십시오.
+
+TEST:
+
+A.
+2026-01-15 연기
+2026-02-14 복귀
+→ 일반 연기
+
+B.
+2026-01-15 연기
+2026-02-15 복귀
+→ 장기연기
+
+C.
+2026-01-31 연기
+calendar month 계산 결과 확인
+
+D.
+윤년/2월 월말
+
+각 결과를 보고하십시오.
+
+30일 고정 계산 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 예약 연기 suspended_at
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 시스템에는:
+
+effective_mode = next_month
+
+예약 상태변경이 존재합니다.
+
+예약 버튼을 누른 시점이 아니라
+실제로 status='suspended'가 적용되는 시점에
+
+suspended_at
+
+이 기록되어야 합니다.
+
+예약 적용 worker/API를 확인하십시오.
+
+다음달 상태 적용 시:
+
+status=suspended
++
+suspended_at=실제 적용 시각
+
+이 함께 처리되는지 확인.
+
+안 되어 있다면 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 학부모 장기연기 안내문
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고에는:
+
+APP members.tsx
+
+연기/퇴원 confirm 문구만 보고됐습니다.
+
+이 화면은 운영자용입니다.
+
+사용자가 요구한 것은
+학부모에게도 장기연기 정책이 표시되는 것입니다.
+
+Parent APP에서
+연기/수업변경/요청 화면의 실제 source를 확인하십시오.
+
+최종 학부모 문구:
+
+제목:
+장기 연기 안내
+
+본문:
+
+“1개월 이상 연기 시 기존 수업기록과 누적 피드백이 초기화됩니다.
+
+교육과정의 연속성과 현재 진도를 유지하기 위해
+장기간의 수업 중단은 권장하지 않습니다.
+
+재등록 시 새로운 수업 구간을 기준으로
+수업기록과 피드백이 다시 시작됩니다.”
+
+학부모가 연기 신청 또는 관련 정책을 보는
+실제 경로에 이 문구가 표시되어야 합니다.
+
+내부 데이터 보존 설명은
+학부모 안내에 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 운영자 문구 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Admin/Teacher 연기 confirm에는:
+
+“연기 처리하면 반 배정과 수업 스케줄에서 제외됩니다.
+기존 회원기록은 유지됩니다.
+
+1개월 이상 연기 후 재등록하는 경우
+새 교육구간으로 시작됩니다.”
+
+의 의미가 실제 적용됐는지 확인.
+
+퇴원 confirm에는:
+
+퇴원은 데이터 제거가 발생하는
+명시적 종료 작업이라는 점을 표시.
+
+APP / WEB 문구 의미를 동일하게 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Canonical Withdraw 실제 삭제 MAP
+━━━━━━━━━━━━━━━━━━━━━━
+
+withdraw-student-service.ts가 생겼다는 것만으로
+PASS 처리할 수 없습니다.
+
+실제 service가 무엇을 처리하는지 표로 보고하십시오.
+
+최소 대상:
+
+- students
+- parent_students
+- student_class_history
+- attendance
+- class_diary_student_notes
+- swim_diary
+- student_photos
+- photo_assets_meta 관련 relation
+- R2 object
+- videos
+- growth_report_snapshots
+- AI report 관련 데이터
+- makeup
+- curriculum/progress
+- reactions/comments 중 student-owned relation
+- notification 중 student-specific relation
+
+각각:
+
+DELETE
+KEEP
+ANONYMIZE
+NOT APPLICABLE
+확인하지 못함
+
+으로 명시.
+
+“DELETE students 하나로 cascade”
+같은 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 공유 데이터 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 class diary는
+여러 학생이 공유할 수 있습니다.
+
+격리/test 환경에서:
+
+학생 A
+학생 B
+같은 class diary
+
+조건을 만든 뒤
+
+A 퇴원
+
+확인:
+
+- A 전용 note/relation 제거
+- B 데이터 유지
+- class diary 본체 유지
+- B 사진/피드/성장데이터 영향 없음
+
+PASS 증거를 보고.
+
+Production 실회원 파괴 테스트 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. APP/WEB 퇴원 결과 동일성
+━━━━━━━━━━━━━━━━━━━━━━
+
+격리/test member 2명을 사용해:
+
+A.
+APP legacy/change-status 경로 퇴원
+
+B.
+WEB admin withdraw 경로 퇴원
+
+을 각각 실행.
+
+두 결과의:
+
+- student status
+- 교육데이터 제거 범위
+- parent relation
+- R2 처리
+- history 처리
+
+가 완전히 동일한지 확인하십시오.
+
+두 endpoint가 같은 canonical service를
+실제로 호출하는 코드 위치도 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 퇴원 중간 실패 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+퇴원은 DB + R2가 섞인 파괴 작업입니다.
+
+격리 환경에서
+중간 실패를 1회 의도적으로 만들어
+
+반쪽 삭제 상태가 남는지 확인하십시오.
+
+확인:
+
+- DB rollback 가능한 부분
+- R2 이미 삭제된 경우의 처리
+- retry safety
+- service가 성공하지 않았는데 성공 응답하는 경로 존재 여부
+
+대규모 deletion framework 새로 만들지 마십시오.
+
+현재 helper 구조로 최소 안전성만 확보.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 장기연기 cutoff 실제 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고상:
+
+- buildAnalysisSnapshot
+- diary
+- news
+
+에 cutoff를 적용했습니다.
+
+실제로 parent의 “현재 교육서비스”에서
+education_started_at 이전 데이터가
+어디까지 제외되는지 확인하십시오.
+
+최소:
+
+- 현재 diary/feed
+- news/current feedback
+- 성장리포트 input
+- previous usable report
+- growth event/history comparison
+
+확인.
+
+과거 원본 row가 DB에서 유지되는 것도 확인.
+
+관리자/선생님 history 조회까지
+의도치 않게 cutoff되어 사라지지 않는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Curriculum 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사에서 curriculum은:
+
+student_id 기준 단일 current progress
+
+이며 별도 segment가 없었습니다.
+
+완료보고에는 curriculum 처리 결과가 없습니다.
+
+확인:
+
+장기연기 → active 후
+
+- 실제 current progress가 그대로인지
+- 새 교육구간 cutoff가 curriculum에 적용되는지
+- 능력/레벨이 0으로 강제 reset되는지
+
+정책:
+
+과거 원본 삭제 금지.
+학생 능력을 임의로 초급으로 강등 금지.
+
+안전하게 segment 분리가 불가능하면
+이번 버전에서는 curriculum current state를
+그대로 유지하고
+
+“피드백/리포트 연속성만 초기화”
+
+했다고 정확히 보고하십시오.
+
+억지 reset 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 기존 suspended 회원 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 suspended 회원의:
+
+suspended_at
+
+을 추측 backfill하지 않았는지 확인.
+
+NULL이면:
+
+재등록 시 장기연기로 임의 판정 금지.
+education_started_at 초기화 금지.
+
+기존 데이터 보호 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Android OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 정책은 iOS만의 기능이 아닙니다.
+
+Android 앱도 동일한:
+
+- 운영자 연기/퇴원 문구
+- 학부모 장기연기 안내
+
+를 받아야 합니다.
+
+현재 Android runtime/channel 호환을 확인하고
+Native rebuild 없이 동일 OTA가 가능한 경우
+
+production-v2 Android OTA도 배포하십시오.
+
+불가능하면 이유를 명확히 보고.
+
+iOS만 적용된 상태를
+“APP 전체 완료”라고 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST A
+ACTIVE → suspended
+→ suspended_at 기록
+→ 스케줄 제외
+→ 원본 유지
+
+TEST B
+1개월 미만 → active
+→ education_started_at 불변
+
+TEST C
+정확히 calendar 1개월 → active
+→ education_started_at = 복귀일
+
+TEST D
+장기연기 후 성장리포트
+→ 이전 교육구간 input/previous report 제외
+
+TEST E
+기존 suspended_at=NULL 회원 복귀
+→ 임의 초기화 없음
+
+TEST F
+APP 퇴원
+
+TEST G
+WEB 퇴원
+
+→ F/G 삭제 결과 동일
+
+TEST H
+공유 diary 학생 A 퇴원
+→ 학생 B 영향 없음
+
+TEST I
+퇴원 중 의도적 실패
+→ 반쪽 성공 상태 없음 또는 안전한 재시도 가능
+
+TEST J
+퇴원 후 동일 이름/전화 신규등록
+→ 신규 student_id
+→ 과거 교육기록 자동 연결 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 수정이 발생한 경우에만 배포.
+
+DB:
+필요 시 education_started_at 타입 교정 migration
+
+API:
+swimnote-api Render
+
+WEB:
+swimnote.kr Production
+
+APP:
+production-v2
+iOS + Android OTA
+runtimeVersion 호환 확인
+
+Native build는
+필요하지 않다면 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. DB TYPES]
+
+- suspended_at 실제 type
+- education_started_at 실제 type
+- 최종 type
+- migration 여부
+
+[B. ONE MONTH RULE]
+
+- 실제 코드 조건
+- KST/calendar month 처리
+- 월말 테스트
+
+[C. SCHEDULED SUSPEND]
+
+- next_month 실제 적용 시 suspended_at 기록 여부
+
+[D. PARENT COPY]
+
+- 실제 Parent route/file
+- 최종 문구
+- iOS/Android 반영 여부
+
+[E. OPERATOR COPY]
+
+- APP
+- WEB
+- 최종 문구
+
+[F. WITHDRAW DELETE MAP]
+
+테이블/스토리지별 최종 처리
+
+[G. CANONICAL WITHDRAW]
+
+- APP endpoint
+- WEB endpoint
+- canonical service
+- 실제 동일 결과
+
+[H. SHARED DATA SAFETY]
+
+- class diary
+- 다른 학생
+- R2
+
+안전성 결과
+
+[I. LONG-DEFER CUTOFF]
+
+- diary/feed
+- growth report
+- previous report
+- history 보존
+
+[J. CURRICULUM]
+
+- 실제 처리
+- reset 여부
+- 보존 여부
+
+[K. REGRESSION]
+
+TEST A~J
+각 PASS / FAIL / 확인하지 못함
+
+[L. DEPLOY]
+
+DB migration
+
+API:
+- full Work SHA
+- full Production LIVE SHA
+- Render Deploy ID
+- status
+
+WEB:
+- full SHA
+- deploy ID/status
+
+APP iOS:
+- EAS Group ID
+- Update ID
+- runtimeVersion
+
+APP Android:
+- EAS Group ID
+- Update ID
+- runtimeVersion
+
+[M. UNCHANGED]
+
+- 기존 active 회원 데이터 손상 없음
+- 기존 suspended 회원 임의 초기화 없음
+- Production 파괴 테스트 없음
+- 다른 학생 공유데이터 손상 없음
+
+완료했다고만 보고하지 마십시오.
+
+특히 퇴원 service는
+삭제 대상과 공유 데이터 안전성 검증 없이
+“canonical service를 만들었다”는 이유만으로
+PASS 처리하지 마십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
