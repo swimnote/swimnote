@@ -1,0 +1,401 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 퇴원생 Archive 설계 최종 보완 조사 / 구현 전 마지막 확인]
+
+현재 Archive 설계는 전반적으로 승인하지만
+일지 snapshot completeness에 중요한 누락 가능성이 있어 HOLD입니다.
+
+아직 구현하지 마십시오.
+
+DB migration 금지.
+API 수정 금지.
+APP/WEB 수정 금지.
+배포 금지.
+
+이번 조사만 끝나면 바로 구현 단계로 갑니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 핵심 문제 — student note 기반 snapshot 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계에는:
+
+withdrawn_diary_archives 생성
+→ class_diary_student_notes 기반
+
+이라고 되어 있습니다.
+
+하지만 SWIMNOTE 일지는:
+
+class_diaries.common_content
++
+class_diary_student_notes.student_note
+
+구조입니다.
+
+따라서 학생별 note가 없는 수업이라도
+그 학생이 실제로 볼 수 있었던
+class diary가 존재할 수 있습니다.
+
+Archive 목표는:
+
+“학생별 note가 존재했던 일지”
+
+가 아니라
+
+“퇴원 직전까지 해당 학생이 실제로 볼 수 있었던
+과거 수업일지 전체”
+
+입니다.
+
+이 차이를 정확히 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 기존 canonical diary visibility 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Parent diary 접근 정책에는 이미:
+
+- student_class_history
+- 현재 class 직접 일치
+- lesson_date
+- student.created_at
+- attendance absent 제외
+- completed makeup 허용
+
+등의 canonical 조건이 존재합니다.
+
+퇴원 Archive snapshot에서
+새로운 자체 규칙을 만들지 마십시오.
+
+현재:
+
+GET /students/:id/diary
+
+또는 이를 구성하는 canonical query/helper 기준으로
+
+“퇴원 시점까지 이 학생이 실제 열람 가능한 diary”
+
+를 결정할 수 있는지 확인하십시오.
+
+목표:
+
+Archive 대상 diary 집합
+=
+Parent가 퇴원 직전에 정상적으로 조회할 수 있는
+과거 diary 집합
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. NOTE 없는 COMMON DIARY 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 케이스를 코드/격리 데이터로 확인하십시오.
+
+학생 A가 Class X에 정상 재원.
+
+Diary D:
+common_content 존재
+student_note(A) 없음
+
+Parent A가 D를 정상 조회할 수 있다면:
+
+Archive에도 D가 반드시 들어가야 합니다.
+
+snapshot:
+
+common_content = 보존
+student_note = NULL
+
+이어야 합니다.
+
+현재 제안 방식으로
+이 diary가 누락되는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 결석 diary
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 A:
+
+정규수업 Diary D
+attendance = absent
+
+기존 Parent canonical policy에서
+D가 보이지 않는다면
+
+Archive에도 넣지 않는 것이 맞는지 확인하십시오.
+
+Archive가 Parent가 실제로 보지 못했던
+일지를 새로 생성하지 않아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 보강 diary
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 A:
+
+정규반이 아닌 Class Y
+makeup_session status = completed
+
+로 Diary M을 볼 수 있었다면
+
+Archive에도 M이 포함되어야 합니다.
+
+student_note가 없어도
+common_content가 보였던 경우 포함.
+
+현재 Archive 설계가
+makeup diary까지 포착 가능한지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 반 변경 / 과거 class history
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생이:
+
+Class A
+→ Class B
+→ Class C
+
+로 이동한 이력이 있을 때
+
+퇴원 당시 현재 Class C만 snapshot하면 안 됩니다.
+
+기존 접근 정책에 따라
+과거 A/B/C에서 해당 학생에게 귀속된
+열람 가능한 일지를 모두 Archive할 수 있는지 확인하십시오.
+
+즉 last_class_group_id만 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. swim_diary legacy 6건
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+swim_diary = legacy 6건
+active flow 미사용
+
+이라고 했습니다.
+
+하지만 canonical withdraw는
+swim_diary를 DELETE합니다.
+
+따라서 이 6건 중 실제 학생 교육기록이 존재하면
+Archive 없이 삭제될 수 있습니다.
+
+확인:
+
+- 현재 6건이 실제 Production 유효 데이터인지
+- 어떤 student_id에 속하는지
+- APP/WEB에서 아직 조회 가능한 기록인지
+- Archive에 포함해야 하는지
+
+실제 사용자 기록이면
+무조건 제외하지 마십시오.
+
+완전히 폐기 가능한 legacy임을 증명하지 못하면
+Archive 대상에 포함하는 안전한 방법을 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. immutable snapshot 최종 shape
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive diary 하나에는 최소:
+
+- original_diary_id
+- lesson_date
+- former_class_name
+- former_teacher_name
+- common_content
+- student_note
+- original_created_at
+
+을 snapshot.
+
+live class_diaries FK 금지.
+
+퇴원 이후 원본 class diary가 수정되어도
+Archive 내용은 변하면 안 됩니다.
+
+필요하다면:
+
+source_type
+(class_diary / legacy_swim_diary)
+
+필드를 추가하는 방안도 검토하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 회원 Archive 식별키
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 회원 snapshot에 전화번호 원문은
+보존하지 않는 방향을 유지합니다.
+
+다만 관리자가 수동 연결 후보를 찾을 때
+동명이인을 구분할 수 있도록
+
+퇴원 직전 normalized parent_phone을 이용한:
+
+parent_phone_hash
+
+추가를 검토하십시오.
+
+예:
+
+SHA-256(normalized_phone)
+
+원문 전화번호 저장 금지.
+
+용도:
+
+- 관리자 수동 연결 후보 확인 보조
+- 동일 전화번호 여부 확인
+
+금지:
+
+- 자동 archive link
+- parent auto approval
+- bulk duplicate matching
+- 자동 재가입 복구
+
+Archive는 절대 자동연결 source가 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 관리자 수동 연결 후보 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자가:
+
+[현재 회원과 연결]
+
+을 누르면
+
+현재 회원을 직접 검색/선택하는 것을 기본으로 합니다.
+
+archive와 current student의:
+
+- 이름
+- birth year
+- parent_phone_hash 일치 여부
+
+는 참고정보만 표시 가능.
+
+시스템이 자동으로 연결 확정 금지.
+
+최종 연결은 관리자 명시적 선택 + 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. super_admin hard delete 경로
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사에서 별도:
+
+DELETE /admin/students/:id
+
+hard delete route가 있고
+
+remaining cnt 조건에 따라
+parent_account를 삭제할 가능성이 있다고 보고했습니다.
+
+이번 Archive 기능과
+canonical withdraw를 혼합하지 마십시오.
+
+확인만:
+
+- 이 route가 일반 “퇴원” UI에서 호출되는지
+- super_admin 전용 영구삭제 기능인지
+- canonical withdraw를 우회하는 의도된 파괴 기능인지
+
+일반 퇴원에서 접근 불가능하면
+Archive 구현 범위에서 제외.
+
+다만 형제자매 parent_account 삭제 위험이
+실제 존재하면 별도 BUG로 명확히 보고하십시오.
+
+이번 조사에서 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 최종 구현 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive 대상 diary는 반드시:
+
+“note가 있는 diary”
+
+가 아니라
+
+“해당 학생의 canonical visibility 기준에 포함되는 diary”
+
+여야 합니다.
+
+각 diary에 note가 있으면 같이 snapshot,
+없으면 NULL.
+
+Archive snapshot 성공 후에만
+기존 canonical purge 진행.
+
+기존 연기/퇴원 정책은 변경하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. DIARY SET DEFINITION]
+
+퇴원생 Archive에 들어가는
+정확한 canonical diary 조건
+
+[B. NOTELESS DIARY]
+
+common_content만 있는 diary
+Archive 포함 여부 및 검증
+
+[C. ABSENT]
+
+결석 diary 처리
+
+[D. MAKEUP]
+
+completed makeup diary 처리
+
+[E. CLASS HISTORY]
+
+과거 반 전체 history 처리
+
+[F. LEGACY SWIM_DIARY]
+
+6건 실제 상태
+Archive 필요 여부
+
+[G. FINAL SNAPSHOT QUERY]
+
+Archive diary를 생성할
+최종 SQL/query 의미
+
+[H. SNAPSHOT SCHEMA]
+
+필요 컬럼
+source_type 포함 여부
+
+[I. PHONE HASH]
+
+parent_phone_hash 필요 여부
+자동연결과 완전히 분리되는지
+
+[J. SUPER_ADMIN DELETE]
+
+일반 퇴원과의 관계
+다자녀 parent_account 위험 여부
+
+[K. FINAL IMPLEMENTATION PLAN]
+
+WP-A~WP-H를
+위 보완사항 반영해 최종 확정.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
+
+이번 단계에서는 구현하지 마십시오.
