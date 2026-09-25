@@ -9,8 +9,9 @@ description: 퇴원생 Archive 기능 전체 구현 완료 상태 및 정책 요
 - API: archive.ts — 7개 엔드포인트 (GET/POST/DELETE /admin/archives*, /parent/archive-diaries)
 - ARCHIVE_PHONE_HASH_SECRET: Replit Secret 설정 완료 (전용 96자 hex)
 - archive-phone-hash.ts: HMAC-SHA256, raw phone 절대 저장 금지
-- Render 배포: dep-dar9sp2d0e5s73c1ha9g (commit f689bc6f→8ddff1ff)
-- iOS OTA: 01a0d95c / production-v2 / commit 8ddff1ff
+- Render 배포: dep-dara8gtg1s2s73altsq0 (commit 7a0b44d7) LIVE ← 최신
+- iOS OTA: 01a0d95c / production-v2
+- E2E 검증: TEST A~M 13/13 PASS (2026-09-26)
 
 ## 핵심 정책 (영구 불변)
 
