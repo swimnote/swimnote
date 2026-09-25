@@ -1,0 +1,181 @@
+[SWIMNOTE Teacher Diary — 기존 Bridge 연결 전 AUTH 최종 확인]
+
+READ-ONLY 조사입니다.
+
+코드 수정 금지.
+ENV 변경 금지.
+배포 금지.
+AI 호출 금지.
+
+중요:
+이전 보고서의
+"Professional Engine에 /api/v1/teacher-diary/generate route가 없다"
+는 판단은 폐기합니다.
+
+Production에서 해당 endpoint 호출 시
+UNAUTHORIZED 응답이 실제 확인되었으므로
+route는 존재합니다.
+
+목표:
+swimnote-api와 Professional Engine 사이의
+기존 구조를 최대한 재사용하기 위해
+Teacher Diary endpoint의 인증 방식만 정확히 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Professional Engine Teacher Diary route 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+POST /api/v1/teacher-diary/generate
+
+실제 route 파일과 middleware chain을 제출하십시오.
+
+확인:
+
+- route file
+- handler
+- auth middleware
+- tenant/pool authorization middleware
+- 어떤 token/header를 요구하는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 지원 인증 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 이 endpoint가 다음 중 무엇을 지원하는지 코드 기준으로 확인:
+
+A. SWIMNOTE APP JWT
+B. PROFESSIONAL_ENGINE_API_SECRET
+C. 둘 다
+D. 기타
+
+특히 다음 header가 허용되는지 확인:
+
+Authorization: Bearer <PROFESSIONAL_ENGINE_API_SECRET>
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. JWT_SECRET 관계
+━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote-api와 swimnote-professional-engine의
+JWT_SECRET 값 자체는 출력하지 마십시오.
+
+다만 다음만 확인:
+
+- 동일 secret인지 여부: SAME / DIFFERENT / UNKNOWN
+- APP JWT를 Professional Engine이 그대로 검증 가능한 구조인지
+- 이전 Production E2E가 UNAUTHORIZED였던 정확한 코드상 이유
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. existing professional-engine-client 재사용 가능 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+professional-engine-client.ts에서 다음을 재사용할 수 있는지 확인:
+
+- base URL accessor
+- secret accessor
+- Authorization header 생성
+- timeout
+- error parsing
+- health check pattern
+
+Teacher Diary용으로 필요한 것이 단순히
+
+generateProfessionalTeacherDiary()
+
+함수 추가 정도인지 평가하십시오.
+
+새 client 파일이 필요한지,
+기존 client 확장이 가능한지 판단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. swimnote-api env 실제 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote-api Production Render service에서:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+존재 여부만 확인:
+
+SET / UNSET
+
+secret 값 출력 금지.
+
+변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 연결 방식 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 중 하나 선택:
+
+CASE A
+Diary endpoint가 service secret 인증을 이미 지원
+→ 기존 professional-engine-client 확장만 하면 됨
+
+CASE B
+Diary endpoint가 APP JWT만 지원
+→ server-to-server 인증을 기존 auth 구조에 최소 추가 필요
+
+CASE C
+APP JWT가 두 서버에서 동일하게 검증 가능
+→ JWT forwarding으로 연결 가능
+
+CASE D
+다른 구조
+
+━━━━━━━━━━━━━━━━━━━━━━
+완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[TEACHER DIARY BRIDGE AUTH REPORT]
+
+STATUS:
+-
+
+PROFESSIONAL_DIARY_ROUTE:
+-
+
+AUTH_MIDDLEWARE:
+-
+
+SUPPORTED_AUTH:
+-
+
+SERVICE_SECRET_SUPPORTED:
+YES / NO
+
+APP_JWT_SUPPORTED:
+YES / NO
+
+JWT_SECRET_RELATION:
+SAME / DIFFERENT / UNKNOWN
+
+PREVIOUS_UNAUTHORIZED_REASON:
+-
+
+PROFESSIONAL_ENGINE_BASE_URL:
+SET / UNSET
+
+PROFESSIONAL_ENGINE_API_SECRET:
+SET / UNSET
+
+EXISTING_CLIENT_REUSABLE:
+YES / PARTIAL / NO
+
+MINIMUM_REQUIRED_CHANGE:
+-
+
+FINAL_CASE:
+A / B / C / D
+
+CHANGES:
+NONE
+
+DEPLOYMENT:
+NONE
