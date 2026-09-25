@@ -22,6 +22,7 @@ import {
   kstTodayStr, validateEffectiveDate,
   closeAllActiveClassHistory, closeClassHistory,
 } from "../utils/historyUtils.js";
+import { withdrawStudent } from "../lib/withdraw-student-service.js";
 
 const router = Router();
 
@@ -1061,8 +1062,8 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
 
     console.log(`[change-status] 현재 상태: ${(existing as any).status} | pending: ${(existing as any).pending_status_change ?? "없음"} | pool: ${existing.swimming_pool_id}`);
 
-    // 다음 달 예약 (suspended/withdrawn 만)
-    if (effective_mode === "next_month" && (new_status === "suspended" || new_status === "withdrawn")) {
+    // 다음 달 예약 (suspended/withdrawn 만; withdrawn은 next_month 예약 허용하지 않음)
+    if (effective_mode === "next_month" && new_status === "suspended") {
       const now = new Date();
       const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       const nextMonthStr = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
@@ -1075,6 +1076,26 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
       console.log(`[change-status] ✅ next_month 예약 완료 → pending: ${new_status} (${nextMonthStr})`);
       return res.json({ success: true, pending_status_change: new_status, pending_effective_mode: "next_month", pending_effective_month: nextMonthStr, student: updated });
+    }
+
+    // ── withdrawn → canonical withdraw service 위임 ──────────────────────────
+    // 퇴원은 교육/서비스 데이터를 삭제하는 파괴적 작업.
+    // APP/WEB 공통 canonical service(withdraw-student-service.ts)로 처리.
+    if (new_status === "withdrawn") {
+      const targetPoolId = existing.swimming_pool_id;
+      try {
+        const result = await withdrawStudent(db, req.params.id, targetPoolId, {
+          userId: req.user!.userId,
+          role: req.user!.role,
+        });
+        const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+        console.log(`[change-status/withdraw] ✅ 퇴원 완료 ${req.params.id} r2=${result.r2DeletedCount}`);
+        return res.json({ success: true, new_status: "withdrawn", student: updated });
+      } catch (wErr: any) {
+        if (wErr?.message === "ALREADY_WITHDRAWN") return err(res, 400, "이미 퇴원 처리된 회원입니다.");
+        console.error("[change-status/withdraw] ❌ 오류:", wErr);
+        return err(res, 500, "서버 오류");
+      }
     }
 
     // 즉시 변경
@@ -1104,32 +1125,52 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     };
 
     // 전체 반 이탈 대상 상태 (history 종료 + 배정 필드 NULL 처리 필요)
-    const needsClassClear = new_status === "suspended" || new_status === "withdrawn" || new_status === "unassigned";
+    const needsClassClear = new_status === "suspended" || new_status === "unassigned";
 
     if (new_status === "active") {
       update.status = "active";
       update.archived_reason = null;
+      update.suspended_at = null;
+
+      // ── 1개월 이상 연기 후 재등록: education_started_at 설정 ────────────────
+      // 기준: suspended_at + calendar 1 month (PostgreSQL interval) <= 오늘 KST
+      // suspended_at이 NULL인 기존 회원은 판정 불가 → education_started_at 유지
+      const existingSuspendedAt: Date | null = (existing as any).suspended_at ?? null;
+      if (existingSuspendedAt && (existing as any).status === "suspended") {
+        const todayKst = kstTodayStr(); // "YYYY-MM-DD"
+        // suspended_at + 1 month <= today?
+        const suspendedDate = new Date(existingSuspendedAt);
+        const oneMonthAfter = new Date(
+          suspendedDate.getFullYear(),
+          suspendedDate.getMonth() + 1,
+          suspendedDate.getDate(),
+        );
+        const todayDate = new Date(todayKst);
+        if (oneMonthAfter <= todayDate) {
+          // 장기연기: 재등록일 기준으로 새 교육구간 시작
+          update.education_started_at = todayKst;
+          console.log(`[change-status] 장기연기 감지 suspended_at=${existingSuspendedAt.toISOString()} → education_started_at=${todayKst}`);
+        }
+        // else: 1개월 미만 연기 — education_started_at 변경 없음
+      }
     } else if (new_status === "unassigned") {
       update.status = "active";
       update.assigned_class_ids = [] as any;
       update.class_group_id = null;
       update.schedule_labels = null;
-    } else if (new_status === "suspended" || new_status === "withdrawn") {
-      update.status = new_status;
+    } else if (new_status === "suspended") {
+      update.status = "suspended";
       update.assigned_class_ids = [] as any;
       update.class_group_id = null;
       update.schedule_labels = null;
-      update.archived_reason = new_status;
-      if (new_status === "withdrawn") {
-        update.withdrawn_at = new Date();
-      }
+      update.archived_reason = "suspended";
+      update.suspended_at = new Date(); // 연기 시작 시각 기록
     }
 
     if (needsClassClear) {
       const effDate = kstTodayStr();
       await db.transaction(async (tx) => {
         // SELECT FOR UPDATE: 동일 학생에 대한 동시 상태 변경을 직렬화하기 위한 잠금 목적이다.
-        // 실제 업데이트 데이터(update 객체)는 tx 진입 전 new_status 기준으로 결정된 값을 사용한다.
         const lockedRows = await tx.execute(sql`
           SELECT id, status, class_group_id, assigned_class_ids
           FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE

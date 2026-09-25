@@ -1,0 +1,935 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 연기 / 1개월 이상 장기연기 / 퇴원 정책 최종 구현]
+
+현행 정책 조사 결과 승인합니다.
+
+이번 작업에서 실제 정책을 아래와 같이 변경하고
+APP + WEB + API + DB를 동일한 의미로 맞추십시오.
+
+중요:
+
+연기와 퇴원을 절대 같은 lifecycle로 취급하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 제품 정책 — 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+[ACTIVE]
+
+정상 수강 상태.
+
+[연기 / suspended]
+
+- 시간표 제외
+- 출석 대상 제외
+- 현재 반 배정 종료
+- student_id 유지
+- 기존 일지 보존
+- 기존 사진 보존
+- 기존 영상 보존
+- 기존 성장기록 보존
+- 기존 AI 성장리포트 보존
+- 과거 출석/반 이력 보존
+
+즉:
+
+연기 = 수강 일시중지
+
+이며 데이터 삭제가 아닙니다.
+
+[1개월 이상 장기연기]
+
+원본 데이터는 삭제하지 않습니다.
+
+그러나 1개월 이상 연기 후 재등록하는 경우:
+
+- 이전 교육구간 종료
+- 현재 수업기록 연속성 초기화
+- 누적 피드백 연속 기준 초기화
+- 성장 분석의 현재 기준 초기화
+- 재등록일부터 새로운 교육구간 시작
+
+과거 데이터는 내부 history/archive로 보존합니다.
+
+[퇴원 / withdrawn]
+
+자동 퇴원 금지.
+
+반드시 선생님 또는 관리자가
+명시적으로 “퇴원 처리”를 눌렀을 때만 실행.
+
+퇴원은 연기와 달리
+회원의 교육/서비스 데이터를 제거하는 종료 행위입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 1개월 기준을 명확하게 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+“1개월 이상”은
+임의의 30일 숫자로 구현하지 말고
+
+연기 시작일 + calendar 1 month
+
+기준으로 판정하십시오.
+
+KST 기준 날짜 의미를 사용하십시오.
+
+예:
+
+2026-01-15 연기
+→ 2026-02-15부터 장기연기
+
+2026-01-31 연기처럼
+월말 날짜의 경우 PostgreSQL calendar interval 동작을
+테스트하여 예측 가능한 결과를 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. suspended_at 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DB에는
+정확한 연기 시작시각 전용 field가 없습니다.
+
+students에 nullable field 추가:
+
+suspended_at timestamptz NULL
+
+연기 즉시 처리:
+
+status = 'suspended'
+suspended_at = 현재 시각
+
+다음달 예약 연기의 경우:
+
+실제 suspended 상태가 적용되는 시점에
+suspended_at을 기록하십시오.
+
+예약을 건 시점에 미리 기록 금지.
+
+연기 취소 또는 active 복귀 시
+판정이 끝난 뒤 suspended_at을 clear.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. education_started_at 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+students에 nullable field 추가:
+
+education_started_at date NULL
+
+의미:
+
+“현재 교육구간의 시작일”
+
+기존 회원:
+
+NULL
+=
+기존 전체 데이터가 현재 교육구간
+
+으로 해석하십시오.
+
+기존 회원 전체에
+임의 날짜 backfill 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 일반 연기 후 재등록
+━━━━━━━━━━━━━━━━━━━━━━
+
+suspended → active 전환 시:
+
+연기 기간 < 1개월
+
+이면:
+
+- 동일 student_id 사용
+- education_started_at 변경 없음
+- 기존 현재 교육구간 그대로 계속
+- 기존 피드백 연속성 유지
+
+즉 짧은 연기는
+현재 교육과정을 끊지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 1개월 이상 연기 후 재등록
+━━━━━━━━━━━━━━━━━━━━━━
+
+suspended → active 전환 시:
+
+suspended_at + 1 month <= reactivation date
+
+이면:
+
+education_started_at = 재등록일
+
+로 설정하십시오.
+
+이 시점부터:
+
+“현재 교육구간”
+
+은 education_started_at 이후 데이터입니다.
+
+중요:
+
+과거 row DELETE 금지.
+
+다음 원본은 그대로 보존:
+
+- diary
+- student notes
+- photos
+- videos
+- attendance
+- class history
+- growth reports
+- AI reports
+- 과거 curriculum 관련 기록
+
+DB에서 과거 데이터를 지우지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 학부모에게 보이는 ‘초기화’ 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+1개월 이상 연기 후 재등록된 회원은
+
+학부모의 “현재 교육” 화면에서
+education_started_at 이전 기록을
+현재 누적 피드백으로 이어서 사용하지 마십시오.
+
+최소 대상:
+
+- 현재 수업 피드/일지
+- 현재 누적 피드백 계산
+- 신규 AI 성장리포트 입력 범위
+- 이전 성장리포트 비교 기준
+- 현재 교육과정 진행 데이터
+
+현재 endpoint를 확인하여
+student_id만으로 과거 전체를 읽는 곳에
+education_started_at cutoff를 적용하십시오.
+
+단:
+
+관리자/선생님의 역사조회까지
+전부 삭제하거나 차단하지 마십시오.
+
+과거 원본은 내부 history로 확인 가능해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 성장리포트 연속성
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 성장리포트는:
+
+student_id
+report_period
+직전 usable report
+
+등을 사용합니다.
+
+education_started_at이 존재하면:
+
+신규 리포트 생성 시
+education_started_at 이전 일지/관찰/피드백을
+현재 교육구간 입력자료에 포함하지 마십시오.
+
+또한:
+
+“직전 usable report”
+
+검색도
+education_started_at 이전 리포트까지 넘어가서
+비교하지 않게 하십시오.
+
+즉 장기연기 후 첫 리포트는
+새 교육구간의 첫 리포트로 취급.
+
+과거 리포트 row 자체는 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. curriculum / 현재 진도
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 curriculum은
+student_id 기준 단일 진도이고
+segment 개념이 없다고 조사됐습니다.
+
+이번 수정 전에
+curriculum의 실제 current progress 저장 위치를
+정확히 확인하십시오.
+
+목표:
+
+장기연기 후 재등록 시
+
+과거 기술 학습 원본을 삭제하는 것이 아니라
+“현재 교육구간의 누적 진도 기준”을 새로 시작.
+
+단 학생의 실제 수영 능력을
+무조건 초급/0단계로 돌리는 식의
+임의 레벨 강등은 금지.
+
+기존 구조에서
+현재 진도와 과거 이력을 분리할 수 있다면
+education_started_at을 cutoff로 사용.
+
+현재 단일 current state밖에 없어
+안전한 분리가 불가능하다면
+
+무리하게 reset하지 말고
+해당 부분을 완료보고에 정확히 보고하십시오.
+
+대규모 curriculum refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. suspended 회원 원본 접근
+━━━━━━━━━━━━━━━━━━━━━━
+
+연기 중인 회원 데이터는
+서버에서 삭제하지 않습니다.
+
+관리자/선생님은
+기존 권한정책에 따라 과거 기록을 볼 수 있어야 합니다.
+
+학부모 suspended 상태의 접근은
+현재 실제 UX를 확인하여 유지하되
+
+장기연기 후 재등록 시점부터는
+현재 교육구간 기준이 새로 적용되게 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 퇴원 정책 완전 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+APP:
+POST /students/:id/change-status
+new_status='withdrawn'
+
+→ status만 변경
+→ 데이터 거의 유지
+
+WEB:
+POST /admin/students/:id/withdraw
+
+→ status 변경
+→ photos + parent_students 일부 삭제
+
+같은 “퇴원”이
+APP/WEB에서 다르게 동작하고 있습니다.
+
+이 상태를 종료하십시오.
+
+APP과 WEB 모두
+하나의 canonical withdraw service를 사용해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 퇴원은 명시적 파괴 작업
+━━━━━━━━━━━━━━━━━━━━━━
+
+퇴원은 반드시:
+
+- 선생님
+또는
+- 관리자
+
+가 직접 버튼을 눌러야 실행.
+
+자동퇴원 금지.
+
+장기연기 기간 경과만으로
+withdraw 실행 금지.
+
+퇴원 확인창에서는
+명확하게 파괴 작업임을 표시하십시오.
+
+예:
+
+“퇴원 처리하면 회원의 수업 및 성장 데이터가 삭제되며
+기존 교육기록을 이어서 사용할 수 없습니다.”
+
+[취소]
+[퇴원 처리]
+
+실수 방지를 위해
+기존 confirmation modal은 반드시 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 퇴원 canonical endpoint
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 여러 withdraw 경로를
+하나의 내부 service/function으로 통합하십시오.
+
+APP과 WEB가
+각각 다른 delete SQL을 갖지 않게 하십시오.
+
+예시 내부 의미:
+
+withdrawStudentAndPurgeEducationData(studentId, actor)
+
+정확한 이름은 프로젝트에 맞게 정하십시오.
+
+APP API와 WEB API가
+동일 service를 호출하는 구조는 허용.
+
+기존 endpoint를 삭제하여
+구버전 APP을 깨뜨리지는 마십시오.
+
+legacy endpoint도
+최종적으로 같은 canonical service를 호출하게 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 퇴원 삭제 범위 — 먼저 dependency 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+DELETE students 한 줄로 처리 금지.
+
+조사에서 일부 FK와 orphan 위험이
+확인됐습니다.
+
+canonical purge 구현 전에
+회원 단위 관계만 정확히 확인하십시오.
+
+대상:
+
+- parent_students
+- student_photos
+- photo_assets_meta 관련 student/diary 연결
+- R2 objects
+- videos
+- class_diary_student_notes
+- swim_diary
+- growth_report_snapshots
+- AI report 관련 row
+- attendance
+- makeup
+- reactions/comments 중 student-owned 데이터
+- curriculum/progress
+- student_class_history
+- notification 중 student-specific 데이터
+- 기타 직접 student_id FK
+
+전체 DB audit는 하지 마십시오.
+
+student 삭제와 직접 연결되는 테이블만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 퇴원 시 삭제 / 보존 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+퇴원 시 삭제 대상:
+
+회원의 서비스상 교육데이터 및 회원 연결 데이터.
+
+예:
+
+- 학생 프로필
+- 현재/과거 교육 진행데이터
+- 학생별 일지/노트
+- 학생 전용 사진/영상
+- 성장리포트
+- 학부모-학생 연결
+- makeup 등 학생 서비스 데이터
+
+단:
+
+다른 학생과 공유되는 class diary 원본 자체를
+한 학생 퇴원 때문에 삭제하지 마십시오.
+
+해당 학생의 relation/note만 제거.
+
+또한 다음처럼
+운영상 보존이 필요한 독립 기록이 존재하면:
+
+- 정산
+- 결제
+- 감사로그
+- 법적 보존 목적 로그
+
+교육데이터와 함께 무조건 DELETE하지 말고
+student 직접 식별정보 처리 방식을 별도로 유지하십시오.
+
+현재 실제 존재하는 경우에만 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. R2 / 외부 파일 삭제 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB transaction과 R2 object delete는
+동일 transaction이 아닙니다.
+
+따라서 퇴원 도중:
+
+DB는 삭제됐는데 R2만 남음
+또는
+R2는 삭제됐는데 DB rollback
+
+상태를 만들지 않도록
+현재 storage helper 구조에 맞는
+안전한 순서를 사용하십시오.
+
+기존 검증된 photo cleanup helper가 있다면
+재사용하십시오.
+
+새로운 대규모 deletion framework 생성 금지.
+
+실패 시 generic success 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 퇴원 후 재등록
+━━━━━━━━━━━━━━━━━━━━━━
+
+퇴원 완료 회원이
+나중에 다시 등록되는 경우:
+
+신규 회원으로 처리.
+
+새 student_id 생성.
+
+과거 퇴원회원 교육기록 자동 연결 금지.
+
+이는 연기 재등록과 완전히 다릅니다.
+
+연기:
+기존 student_id
+
+퇴원 후 신규등록:
+새 student_id
+
+이 의미를 코드로 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. APP/WEB 연기 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP에는 연기 처리가 이미 존재.
+
+WEB에는 suspended 표시만 있고
+연기 mutation이 없다고 조사됐습니다.
+
+WEB 회원관리에도
+APP과 동일 의미의:
+
+[연기]
+
+처리 기능을 추가하십시오.
+
+canonical:
+
+POST /students/:id/change-status
+
+또는 공통 server service를 사용.
+
+WEB만 별도 연기 로직 작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 학부모 안내문 — 강하게 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모에게 표시되는 정책 문구는
+다음 의미로 통일하십시오.
+
+제목:
+
+장기 연기 안내
+
+본문:
+
+“1개월 이상 연기 시 기존 수업기록과 누적 피드백이 초기화됩니다.
+
+교육과정의 연속성과 현재 진도를 유지하기 위해
+장기간의 수업 중단은 권장하지 않습니다.
+
+재등록 시 새로운 수업 구간을 기준으로
+수업기록과 피드백이 다시 시작됩니다.”
+
+이 문구를 약화하거나
+
+“실제 데이터는 내부에서 보존됩니다”
+
+같은 내부 구현 설명을
+학부모 화면에 추가하지 마십시오.
+
+학부모에게 중요한 서비스 정책은:
+
+1개월 이상 장기연기
+→ 현재 수업기록/누적피드백 초기화
+→ 새 교육구간 시작
+
+입니다.
+
+그리고 실제 코드도
+education_started_at을 통해
+이 의미와 일치하게 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 관리자/선생님 연기 확인 문구
+━━━━━━━━━━━━━━━━━━━━━━
+
+연기 처리 모달에는 다음 의미를 표시:
+
+“연기 처리하면 반 배정과 수업 스케줄에서 제외됩니다.
+기존 회원기록은 유지됩니다.
+
+1개월 이상 연기 후 재등록하는 경우
+새 교육구간으로 시작됩니다.”
+
+운영자는 실제 내부 정책을 알아야 하므로
+학부모 안내보다 정확하게 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 기존 의심 안내문 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사에서 기존:
+
+“1개월 이상 연기 시 기록 초기화”
+
+스크린샷 문구의 source 위치를
+현재 repository에서 찾지 못했습니다.
+
+이번 작업 중
+해당 화면/문구가 실제 runtime에서 발견되면:
+
+새 CANONICAL 장기연기 안내문으로 교체.
+
+끝까지 찾지 못하면
+임의 파일을 만들지 말고
+
+“기존 screenshot 문구 source 확인하지 못함”
+
+이라고 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 기존 회원 MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 컬럼:
+
+suspended_at
+education_started_at
+
+추가 시:
+
+기존 active 회원:
+둘 다 NULL
+
+기존 suspended 회원:
+suspended_at을 추측해서 backfill 금지.
+
+과거 정확한 연기 시작일을
+증명할 수 없는 suspended 회원은
+NULL 유지.
+
+이 회원을 재등록할 때
+장기연기 판정을 할 수 없다면
+
+기존 데이터 보호를 우선하여
+education_started_at을 초기화하지 마십시오.
+
+즉 과거 회원을 임의로
+“1개월 이상 연기”라고 판정 금지.
+
+정책 적용은
+새 suspended_at이 기록되는 시점부터 확실하게 시작.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. REGRESSION TEST — 연기
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST A
+
+ACTIVE → suspended
+
+확인:
+
+- status=suspended
+- suspended_at 기록
+- 반 배정 제거
+- 시간표 제외
+- 출석 대상 제외
+- student_id 유지
+- diary 유지
+- photo 유지
+- growth report 유지
+
+TEST B
+
+20일 연기 → active
+
+확인:
+
+- same student_id
+- education_started_at 변경 없음
+- 기존 현재 교육구간 유지
+
+TEST C
+
+1개월 이상 연기 → active
+
+확인:
+
+- same student_id
+- education_started_at = 재등록일
+- 이전 원본 row 그대로 존재
+- 새 current segment 시작
+
+TEST D
+
+장기연기 후 신규 성장리포트
+
+확인:
+
+- education_started_at 이전 데이터를
+  current report input에서 제외
+- 이전 segment report와 비교하지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. REGRESSION TEST — 퇴원
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 회원으로 파괴 테스트 금지.
+
+격리/test member만 사용.
+
+TEST E
+
+APP에서 퇴원
+
+TEST F
+
+WEB에서 퇴원
+
+두 경로 결과가 완전히 같아야 합니다.
+
+확인:
+
+- canonical withdraw service 호출
+- status만 남는 반쪽 퇴원 없음
+- 지정 교육데이터 제거
+- parent link 제거
+- R2 해당 학생 object 처리
+- 다른 학생 데이터 영향 없음
+
+TEST G
+
+공유 class diary에
+학생 A/B 존재
+
+A 퇴원
+
+→ A student relation/note 삭제
+→ B 기록 및 class diary 자체 유지
+
+TEST H
+
+퇴원 처리 중 의도적 실패
+
+→ 가능한 범위에서
+반쪽 삭제 상태가 발생하지 않는지 확인
+
+TEST I
+
+퇴원한 동일 이름/전화 회원 재등록
+
+→ 신규 student_id
+→ 과거 교육구간 자동연결 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 권한
+━━━━━━━━━━━━━━━━━━━━━━
+
+연기:
+
+현재 정책대로
+선생님 / 관리자 / 슈퍼관리자 허용.
+
+퇴원:
+
+사용자 정책에 따라
+선생님 / 관리자 허용.
+
+단 선생님은
+자신이 접근 가능한 pool/member 범위에서만 가능.
+
+다른 pool 회원 퇴원 금지.
+
+기존 tenant/pool guard를 그대로 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 배포 전 destructive safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+퇴원 purge 로직은
+실제 Production 회원에 바로 시험하지 마십시오.
+
+test/local/격리 회원으로
+삭제 graph를 먼저 검증.
+
+삭제 대상별:
+
+before count
+delete
+after count
+
+확인.
+
+다른 학생 row가 변하지 않는 것도 확인.
+
+Production 배포 전
+FK error / orphan 가능성이 남아 있으면
+배포하지 말고 HOLD 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB:
+
+필요한 경우 migration:
+
+- students.suspended_at
+- students.education_started_at
+
+비파괴 ADD COLUMN만.
+
+API:
+
+swimnote-api Render Production
+
+APP:
+
+production-v2 OTA
+runtimeVersion 2.2.0
+
+WEB:
+
+swimnote.kr Production deploy
+
+Native build 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. DB]
+
+- 실제 migration
+- suspended_at
+- education_started_at
+- 기존 데이터 backfill 여부
+
+[B. DEFER]
+
+- suspended 처리
+- suspended_at 기록
+- schedule/attendance 제외
+- 원본 데이터 보존
+
+[C. LONG DEFER]
+
+- 1개월 판정 방식
+- 재등록 시 education_started_at
+- current education segment 의미
+
+[D. PARENT CURRENT DATA]
+
+장기연기 전 데이터가
+어떤 parent current 화면/계산에서 제외되는지
+
+[E. GROWTH REPORT]
+
+- cutoff 적용
+- previous report 비교 cutoff
+
+[F. CURRICULUM]
+
+- 실제 저장구조
+- 장기연기 후 current progress 처리
+- 과거 데이터 보존 여부
+
+[G. WITHDRAW CANONICALIZATION]
+
+- APP endpoint
+- WEB endpoint
+- 공통 service
+- 권한
+
+[H. WITHDRAW DELETE MAP]
+
+테이블/스토리지별:
+
+DELETE
+KEEP
+ANONYMIZE
+NOT APPLICABLE
+
+실제 결과
+
+[I. SHARED DATA SAFETY]
+
+공유 diary/다른 학생 데이터
+영향 없음 확인
+
+[J. COPY]
+
+Parent APP:
+최종 장기연기 안내문
+
+Admin/Teacher:
+최종 연기 안내문
+
+WEB:
+동일 정책 안내
+
+기존 screenshot source 발견 여부
+
+[K. REGRESSION]
+
+TEST A~I
+PASS / FAIL / 확인하지 못함
+
+[L. DEPLOY]
+
+DB migration ID/적용 결과
+
+API:
+- full Work SHA
+- full Production LIVE SHA
+- Render Deploy ID
+- status
+
+WEB:
+- full SHA
+- deploy ID/status
+
+APP:
+- full OTA Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- branch/channel
+- runtimeVersion
+
+[M. UNCHANGED]
+
+- 기존 active 회원 기록 손상 없음
+- 기존 suspended 회원 임의 reset 없음
+- Production 파괴 테스트 없음
+- Native build 없음
+
+완료했다고만 보고하지 마십시오.
+
+특히 퇴원은 파괴적 동작이므로
+삭제 graph를 확인하지 못한 상태에서
+“완료” 또는 “정상”으로 보고하지 마십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하고
+추측하여 삭제하거나 정상이라고 보고하지 마십시오.

@@ -626,12 +626,17 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
       )).limit(1);
     if (!link) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
 
-    const [student] = await db.select({ id: studentsTable.id })
+    const [student] = await db.select({ id: studentsTable.id, education_started_at: (studentsTable as any).education_started_at })
       .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!student) { res.json([]); return; }
 
     const { month } = req.query;
     const studentIdSafe = req.params.id.replace(/'/g, "''");
+    // 장기연기 후 재등록: education_started_at 이전 일지는 현재 교육구간에 포함 안 함
+    const educationStartedAt: string | null = (student as any).education_started_at ?? null;
+    const educationDateFilter = educationStartedAt
+      ? `AND cd.lesson_date::date >= '${educationStartedAt.replace(/'/g, "''")}'`
+      : ``;
 
     // 학생의 모든 반 이력에서 class_group_id 수집 (반 이동 후 과거 반 일지도 조회)
     // [FIX] student_class_history 미존재(신규 등록 학생) 시 students.class_group_id fallback
@@ -682,6 +687,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
             SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
             FROM students WHERE id = '${studentIdSafe}' LIMIT 1
           )
+          ${educationDateFilter}
           AND (
             -- 일반 수업: 재원 이력이 있거나 students.class_group_id 직접 연결, 결석 아닌 경우
             -- [FIX] 신규 등록 학생(student_class_history 미존재)도 표시
@@ -739,6 +745,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
     // Only PUBLISHED reports; projection approach (no feed table; spec §22/§7)
     // Privacy: only summary_text / sns_summary safe portion (spec §15)
     // No raw fact_package, no teacher_review_note, no excluded_claims
+    const educationStartMonth = educationStartedAt ? educationStartedAt.slice(0, 7) : null;
     const grRows = await db.execute(sql`
       SELECT gr.id,
              gr.student_id,
@@ -750,6 +757,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
       WHERE gr.student_id = ${req.params.id}
         AND gr.product_status = 'PUBLISHED'
         AND gr.deleted_at IS NULL
+        ${educationStartMonth ? sql`AND gr.report_period >= ${educationStartMonth}` : sql``}
       ORDER BY gr.published_at DESC
       LIMIT 20
     `);
@@ -1275,6 +1283,7 @@ router.get("/students/:id/news", requireAuth, requireParent, async (req: AuthReq
 
     const [pa] = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.id, req.user!.userId)).limit(1);
     const [student] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    const newsEducationStartedAt: string | null = (student as any)?.education_started_at ?? null;
 
     const readRows = await db.execute(sql`SELECT notice_id FROM notice_reads WHERE parent_id = ${pa.id}`);
     const readSet = new Set((readRows.rows as any[]).map((r: any) => r.notice_id));
@@ -1300,6 +1309,9 @@ router.get("/students/:id/news", requireAuth, requireParent, async (req: AuthReq
 
     // 수업일지 (최근 20개) — 등록일~퇴원일 범위 내만
     if (student?.class_group_id) {
+      const newsDateFilter = newsEducationStartedAt
+        ? sql`AND cd.lesson_date::date >= ${newsEducationStartedAt}`
+        : sql``;
       const diaryRows = await db.execute(sql`
         SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.created_at,
                csn.note_content AS student_note
@@ -1312,6 +1324,7 @@ router.get("/students/:id/news", requireAuth, requireParent, async (req: AuthReq
           AND sch.enrolled_at <= cd.lesson_date::date
           AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
         WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+          ${newsDateFilter}
         ORDER BY cd.lesson_date DESC LIMIT 20
       `);
       for (const d of diaryRows.rows as any[]) {

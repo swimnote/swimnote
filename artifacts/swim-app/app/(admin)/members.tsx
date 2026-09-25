@@ -594,7 +594,9 @@ export default function MembersScreen() {
       <ConfirmModal
         visible={statusTarget !== null && statusAction === "suspended"}
         title="연기 처리"
-        message={statusTarget ? `"${statusTarget.name}" 회원을 즉시 연기 처리합니다.\n\n반 배정이 해제되며 연기 상태로 변경됩니다.` : ""}
+        message={statusTarget
+          ? `"${statusTarget.name}" 회원을 즉시 연기 처리합니다.\n\n반 배정과 수업 스케줄에서 제외됩니다.\n기존 회원기록은 유지됩니다.\n\n1개월 이상 연기 후 재등록하는 경우 새 교육구간으로 시작됩니다.`
+          : ""}
         confirmText="연기 처리"
         cancelText="취소"
         onConfirm={confirmStatusAction}
@@ -605,7 +607,9 @@ export default function MembersScreen() {
       <ConfirmModal
         visible={statusTarget !== null && statusAction === "withdrawn"}
         title="퇴원 처리"
-        message={statusTarget ? `"${statusTarget.name}" 회원을 즉시 퇴원 처리합니다.\n\n반 배정이 해제되며 목록에서 제거됩니다.` : ""}
+        message={statusTarget
+          ? `"${statusTarget.name}" 회원을 퇴원 처리합니다.\n\n퇴원 처리하면 회원의 수업 및 성장 데이터가 삭제되며 기존 교육기록을 이어서 사용할 수 없습니다.`
+          : ""}
         confirmText="퇴원 처리"
         cancelText="취소"
         destructive

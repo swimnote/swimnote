@@ -22,6 +22,7 @@ import { computeAnalysisPeriod } from "../lib/growth-report-analysis-helper.js";
 import { recomputeGaugePctForLevelPatch } from "../lib/curriculum-confirmation-engine.js";
 import { notifyPoolEvent, addSseClient, removeSseClient } from "../lib/pg-realtime.js";
 import { createStudentCore } from "../lib/student-create-service.js";
+import { withdrawStudent as withdrawStudentCanonical } from "../lib/withdraw-student-service.js";
 
 const router = Router();
 
@@ -181,6 +182,8 @@ router.patch("/pools/:id/subscription", requireAuth, requirePermission("canManag
 });
 
 // ── 학생 탈퇴 처리 ────────────────────────────────────────────────────
+// ── 퇴원 처리 (canonical withdraw service 위임) ─────────────────────────────
+// legacy endpoint 유지 (구버전 APP 호환) + 동일 canonical service 호출
 router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "pool_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -198,83 +201,23 @@ router.post("/students/:id/withdraw", requireAuth, requireRole("super_admin", "p
         }
       }
 
-      if ((student as any).status === "withdrawn") {
-        res.status(400).json({ error: "이미 탈퇴 처리된 학생입니다." }); return;
-      }
-
-      // 1. 개인 사진첩 삭제 (Object Storage + DB)
-      const photos = await db.execute(sql`
-        SELECT id, storage_key FROM student_photos WHERE student_id = ${studentId}
-      `);
-      if (photos.rows.length > 0) {
-        try {
-          const { Client } = await import("@replit/object-storage");
-          const client = new Client();
-          await Promise.allSettled(
-            (photos.rows as any[]).map(p => client.delete(p.storage_key).catch(() => {}))
-          );
-        } catch { /* Object Storage 오류는 무시하고 DB 정리 진행 */ }
-        await db.execute(sql`DELETE FROM student_photos WHERE student_id = ${studentId}`);
-      }
-
-      // 2. 마지막 반 이름 저장 후 탈퇴 처리 (출결 기록 유지)
-      let lastClassName: string | null = null;
-      if (student.class_group_id) {
-        const cgResult = await db.execute(sql`
-          SELECT name FROM class_groups WHERE id = ${student.class_group_id} LIMIT 1
-        `);
-        lastClassName = (cgResult.rows[0] as any)?.name ?? null;
-      }
-      const withdrawEffDate = kstTodayStr();
-      await db.transaction(async (tx) => {
-        // SELECT FOR UPDATE: 동일 학생에 대한 동시 탈퇴 요청을 직렬화하기 위한 잠금 목적이다.
-        // 실제 업데이트 데이터(status=withdrawn, lastClassName 등)는 tx 진입 전 결정된 값을 사용한다.
-        const lockedRows = await tx.execute(sql`
-          SELECT id, status, class_group_id, assigned_class_ids
-          FROM students WHERE id = ${studentId} LIMIT 1 FOR UPDATE
-        `);
-        const locked = lockedRows.rows[0];
-        if (!locked) throw new Error("STUDENT_NOT_FOUND");
-        await closeAllActiveClassHistory(tx, studentId, withdrawEffDate);
-        await tx.execute(sql`
-          UPDATE students
-          SET status = 'withdrawn', class_group_id = NULL,
-              assigned_class_ids = '[]'::jsonb, schedule_labels = NULL,
-              last_class_group_name = ${lastClassName}, withdrawn_at = now(), updated_at = now()
-          WHERE id = ${studentId}
-        `);
+      const result = await withdrawStudentCanonical(db, studentId, student.swimming_pool_id, {
+        userId: req.user!.userId,
+        role:   req.user!.role,
       });
 
-      // 3. 부모-학생 연결 해제
-      await db.execute(sql`
-        DELETE FROM parent_students WHERE student_id = ${studentId}
-      `);
-
-      // 4. 해당 반의 모든 학생이 탈퇴했으면 수영일지 삭제
-      const classGroupId = student.class_group_id;
-      if (classGroupId) {
-        const remainingResult = await db.execute(sql`
-          SELECT COUNT(*) AS cnt FROM students
-          WHERE class_group_id = ${classGroupId} AND status IN ('active', 'pending_parent_link', 'unregistered')
-        `);
-        const remainCount = Number((remainingResult.rows[0] as any)?.cnt || 0);
-        if (remainCount === 0) {
-          // class_diaries 정리 (swim_diary는 class_group_id 컬럼 없어 스킵)
-          try {
-            await db.execute(sql`
-              UPDATE class_diaries SET is_deleted = true, deleted_at = now()
-              WHERE class_group_id = ${classGroupId} AND is_deleted = false
-            `);
-          } catch { /* 무시 */ }
-        }
-      }
-
-      res.json({ success: true, message: `${student.name} 학생이 탈퇴 처리되었습니다.` });
+      res.json({ success: true, message: `${student.name} 학생이 퇴원 처리되었습니다.`, detail: result });
     } catch (e: any) {
       if (e?.message === "STUDENT_NOT_FOUND") {
         res.status(404).json({ error: "학생을 찾을 수 없습니다." }); return;
       }
-      console.error(e);
+      if (e?.message === "ALREADY_WITHDRAWN") {
+        res.status(400).json({ error: "이미 퇴원 처리된 학생입니다." }); return;
+      }
+      if (e?.message === "POOL_MISMATCH") {
+        res.status(403).json({ error: "권한이 없습니다." }); return;
+      }
+      console.error("[admin/withdraw]", e);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   }

@@ -532,8 +532,13 @@ export async function getPublishedReportHistory(params: {
   studentId: string;
   poolId?: string;
   limit?: number;
+  /** education_started_at 의 "YYYY-MM" 형식; 이 값보다 이전 report_period는 제외 */
+  educationStartMonth?: string | null;
 }): Promise<PublishedReportSummary[]> {
-  const { db, studentId, poolId, limit = 24 } = params;
+  const { db, studentId, poolId, limit = 24, educationStartMonth } = params;
+  const startMonthFilter = educationStartMonth
+    ? sql`AND report_period >= ${educationStartMonth}`
+    : sql``;
 
   const res = await db.execute(sql`
     SELECT
@@ -559,6 +564,7 @@ export async function getPublishedReportHistory(params: {
       AND product_status = 'PUBLISHED'
       AND deleted_at IS NULL
       ${poolId ? sql`AND swimming_pool_id = ${poolId}` : sql``}
+      ${startMonthFilter}
     ORDER BY published_at DESC
     LIMIT ${limit}
   `);

@@ -320,7 +320,11 @@ async function queryGrowthEvents(
   studentId: string,
   poolId: string,
   cutoffAt: string,
+  educationStartedAt: string | null = null,
 ): Promise<GrowthEventSnapshotItem[]> {
+  const startFilter = educationStartedAt
+    ? sql`AND created_at >= ${educationStartedAt}`
+    : sql``;
   const rows = await db.execute(sql`
     SELECT
       id,
@@ -337,6 +341,7 @@ async function queryGrowthEvents(
       AND swimming_pool_id = ${poolId}
       AND is_invalidated   = false
       AND created_at       < ${cutoffAt}
+      ${startFilter}
     ORDER BY created_at ASC
   `);
 
@@ -870,6 +875,23 @@ export async function buildAnalysisSnapshot(
   const prevDate = new Date(prevYear!, prevMonthNum! - 1 - 1, 1);  // -1 for 0-index, -1 for prev month
   const prevReportPeriod = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
 
+  // education_started_at: 장기연기 후 재등록한 경우 현재 교육구간 시작일
+  // NULL이면 전체 이력이 현재 구간 (기존 회원)
+  const studentRow = (await db.execute(sql`
+    SELECT education_started_at FROM students WHERE id = ${report.student_id} LIMIT 1
+  `)).rows[0] as any;
+  const educationStartedAt: string | null = studentRow?.education_started_at ?? null;
+
+  // education_started_at이 있으면 analysisFrom을 더 좁힘
+  // (해당 월 이전 일지는 현재 교육구간에 포함하지 않음)
+  const effectiveAnalysisFrom = educationStartedAt && educationStartedAt > analysisFrom
+    ? educationStartedAt
+    : analysisFrom;
+
+  // prevReportPeriod cutoff: education_started_at이 있으면 해당 월보다 이전 리포트는 비교 금지
+  const educationStartMonth = educationStartedAt ? educationStartedAt.slice(0, 7) : null; // "YYYY-MM"
+  const prevReportPeriodCutoffOk = !educationStartMonth || prevReportPeriod >= educationStartMonth;
+
   // Parallel data fetch — consistent snapshot moment
   const [
     diaries,
@@ -882,16 +904,17 @@ export async function buildAnalysisSnapshot(
     previousCurriculumPct,
     previousUsableReport,
   ] = await Promise.all([
-    queryDiaries(db, report.student_id, report.swimming_pool_id, cutoffAt, analysisFrom),
-    queryGrowthEvents(db, report.student_id, report.swimming_pool_id, cutoffAt),
+    queryDiaries(db, report.student_id, report.swimming_pool_id, cutoffAt, effectiveAnalysisFrom),
+    queryGrowthEvents(db, report.student_id, report.swimming_pool_id, cutoffAt, educationStartedAt),
     queryAttendance(db, report.student_id, report.swimming_pool_id, cutoffAt),
     queryCurriculumState(db, report.student_id, report.swimming_pool_id),
     queryParentAnswers(db, report.id),
     getPublishedReportHistory({
       db,
-      studentId: report.student_id,
-      poolId:    report.swimming_pool_id,
-      limit:     maxPeriods,
+      studentId:           report.student_id,
+      poolId:              report.swimming_pool_id,
+      limit:               maxPeriods,
+      educationStartMonth, // education_started_at 이전 리포트 제외
     }),
     // GAUGE-07: read current SCP progress gauge
     queryScpGaugeProgress(db, report.student_id, report.swimming_pool_id),
@@ -903,12 +926,15 @@ export async function buildAnalysisSnapshot(
       report.id,
     ),
     // §4 continuity context: 직전 usable report (PUBLISHED 또는 safe-DISCARDED)
-    queryPreviousUsableReport(
-      db,
-      report.student_id,
-      report.swimming_pool_id,
-      prevReportPeriod,
-    ),
+    // education_started_at 이전이면 null 반환 (새 교육구간의 첫 리포트로 취급)
+    prevReportPeriodCutoffOk
+      ? queryPreviousUsableReport(
+          db,
+          report.student_id,
+          report.swimming_pool_id,
+          prevReportPeriod,
+        )
+      : Promise.resolve(null),
   ]);
 
   // GAUGE-07: merge gauge fields into curriculum_state snapshot

@@ -95,11 +95,12 @@ type DrawerProps = {
   classGroups: ClassGroup[];
   onClose: () => void;
   onWithdraw: (id: string, name: string) => void;
+  onSuspend: (id: string, name: string) => void;
   onEdit: (student: Student) => void;
   onViewDiary: (studentId: string) => void;
 };
 
-function MemberDrawer({ student, classGroups, onClose, onWithdraw, onEdit, onViewDiary }: DrawerProps) {
+function MemberDrawer({ student, classGroups, onClose, onWithdraw, onSuspend, onEdit, onViewDiary }: DrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -291,6 +292,28 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onEdit, onVie
             <BookOpen size={14} /> 일지 보기
           </button>
           {student.status === "active" && (
+            <button
+              onClick={() => onSuspend(student.id, student.name)}
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                padding: "9px",
+                borderRadius: "8px",
+                border: "1px solid #FDE68A",
+                background: "#FFFBEB",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "#92400E",
+                cursor: "pointer",
+              }}
+            >
+              연기
+            </button>
+          )}
+          {(student.status === "active" || student.status === "suspended") && (
             <button
               onClick={() => onWithdraw(student.id, student.name)}
               style={{
@@ -724,6 +747,7 @@ export default function MembersPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [editStudent, setEditStudent] = useState<Student | null>(null);
   const [withdrawTarget, setWithdrawTarget] = useState<{ id: string; name: string } | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Fetch all students
   const { data: allStudents = [], isLoading, isError, refetch } = useQuery<Student[]>({
@@ -772,6 +796,17 @@ export default function MembersPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["students"] });
       setWithdrawTarget(null);
+      setSelectedStudent(null);
+    },
+  });
+
+  // Suspend mutation (연기)
+  const suspendMutation = useMutation({
+    mutationFn: (id: string) =>
+      api.post(`/students/${id}/change-status`, { new_status: "suspended", effective_mode: "immediate" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["students"] });
+      setSuspendTarget(null);
       setSelectedStudent(null);
     },
   });
@@ -1017,6 +1052,7 @@ export default function MembersPage() {
         classGroups={classGroups}
         onClose={handleDrawerClose}
         onWithdraw={handleWithdraw}
+        onSuspend={(id, name) => { setSuspendTarget({ id, name }); setSelectedStudent(null); }}
         onEdit={(s) => { handleEdit(s); setSelectedStudent(null); }}
       />
 
@@ -1030,11 +1066,23 @@ export default function MembersPage() {
         />
       )}
 
+      {/* Suspend Confirm */}
+      {suspendTarget && (
+        <ConfirmDialog
+          title="연기 처리"
+          message={`${suspendTarget.name} 회원을 연기 처리합니다.\n\n반 배정과 수업 스케줄에서 제외됩니다. 기존 회원기록은 유지됩니다.\n\n1개월 이상 연기 후 재등록하는 경우 새 교육구간으로 시작됩니다.`}
+          confirmLabel="연기 처리"
+          loading={suspendMutation.isPending}
+          onConfirm={() => suspendMutation.mutate(suspendTarget.id)}
+          onCancel={() => setSuspendTarget(null)}
+        />
+      )}
+
       {/* Withdraw Confirm */}
       {withdrawTarget && (
         <ConfirmDialog
           title="퇴원 처리"
-          message={`${withdrawTarget.name} 회원을 퇴원 처리합니다.\n퇴원 후 지난 회원에서 다시 조회할 수 있습니다.`}
+          message={`${withdrawTarget.name} 회원을 퇴원 처리합니다.\n\n퇴원 처리하면 회원의 수업 및 성장 데이터가 삭제되며 기존 교육기록을 이어서 사용할 수 없습니다.`}
           confirmLabel="퇴원 처리"
           danger
           loading={withdrawMutation.isPending}
