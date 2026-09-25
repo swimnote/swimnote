@@ -377,21 +377,43 @@ export default function BillingScreen() {
           </View>
         </Section>
 
-        {/* ── DATA add-on 상태 ── */}
+        {/* ── DATA add-on 상태 ── active / cancelled / billing_issue만 표시 (expired 표시 금지) */}
         {billingInfo?.data_addon_tier && billingInfo?.data_addon_status && billingInfo.data_addon_status !== "expired" && (
           <Section title="추가 저장공간 (add-on)">
-            <View style={[s.subCard, { borderColor: "#10B98150" }]}>
+            <View style={[s.subCard, {
+              borderColor: billingInfo.data_addon_status === "active"
+                ? "#10B98150"
+                : billingInfo.data_addon_status === "cancelled"
+                  ? "#F59E0B50"
+                  : "#E5E7EB",
+            }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <LucideIcon name="database" size={16} color="#10B981" />
+                <LucideIcon
+                  name="database"
+                  size={16}
+                  color={billingInfo.data_addon_status === "active" ? "#10B981" : "#D97706"}
+                />
                 <View style={{ flex: 1 }}>
                   <Text style={s.planName}>
-                    {billingInfo.data_addon_tier === "data100" ? "DATA100 (+100GB)" : "DATA300 (+300GB)"}
+                    {billingInfo.data_addon_tier === "data100" ? "DATA100" : "DATA300"}
+                    {" "}
+                    <Text style={[s.planMeta, { fontSize: 12 }]}>
+                      {billingInfo.data_addon_tier === "data100" ? "(+100GB)" : "(+300GB)"}
+                    </Text>
                   </Text>
-                  <Text style={s.planMeta}>
-                    {billingInfo.data_addon_status === "active"       ? "구독 중" :
-                     billingInfo.data_addon_status === "cancelled"    ? "취소 예약됨" :
-                     billingInfo.data_addon_status === "billing_issue" ? "결제 실패 (유예)" :
-                     billingInfo.data_addon_status}
+                  <Text style={[s.planMeta, {
+                    color: billingInfo.data_addon_status === "active"
+                      ? "#10B981"
+                      : billingInfo.data_addon_status === "cancelled"
+                        ? "#D97706" : C.textSecondary,
+                  }]}>
+                    {billingInfo.data_addon_status === "active"
+                      ? "구독 중"
+                      : billingInfo.data_addon_status === "cancelled"
+                        ? "해지 예정"
+                        : billingInfo.data_addon_status === "billing_issue"
+                          ? "결제 실패 (유예 중)"
+                          : billingInfo.data_addon_status}
                   </Text>
                 </View>
                 <View style={[s.statusBadge,
@@ -403,11 +425,35 @@ export default function BillingScreen() {
                   </Text>
                 </View>
               </View>
+
+              {/* 총 저장공간 (active일 때만) */}
+              {billingInfo.data_addon_status === "active" && (
+                <View style={s.infoRow}>
+                  <Text style={s.metaLabel}>추가 용량</Text>
+                  <Text style={[s.metaValue, { color: "#10B981" }]}>
+                    +{billingInfo.data_addon_tier === "data100" ? "100" : "300"}GB
+                  </Text>
+                </View>
+              )}
+
+              {/* 만료·해지 종료일 */}
               {billingInfo.data_addon_expires_at && (
                 <View style={s.infoRow}>
-                  <Text style={s.metaLabel}>만료일</Text>
-                  <Text style={s.metaValue}>
+                  <Text style={s.metaLabel}>
+                    {billingInfo.data_addon_status === "cancelled" ? "사용 가능 종료일" : "갱신일"}
+                  </Text>
+                  <Text style={[s.metaValue, billingInfo.data_addon_status === "cancelled" && { color: "#D97706" }]}>
                     {new Date(billingInfo.data_addon_expires_at).toLocaleDateString("ko-KR")}
+                  </Text>
+                </View>
+              )}
+
+              {/* 해지 예정 경고 */}
+              {billingInfo.data_addon_status === "cancelled" && (
+                <View style={[s.storageBanner, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A", marginTop: 6 }]}>
+                  <LucideIcon name="alert-triangle" size={13} color="#D97706" />
+                  <Text style={[s.storageBannerDesc, { flex: 1, color: "#92400E" }]}>
+                    해지 예정 — 종료일 이후 허용 용량 초과 시 오래된 자료부터 자동 삭제됩니다.
                   </Text>
                 </View>
               )}

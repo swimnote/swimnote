@@ -225,48 +225,83 @@ async function processDataWebhookEvent(params: {
     }
 
     case "EXPIRATION": {
-      // extra_storage_gb = 0, upload_blocked = true 즉시, purge job 생성
+      // extra_storage_gb = 0, status = expired
+      // upload_blocked 및 purge job은 usage > 새 quota인 경우에만
       await db.execute(sql`
         UPDATE swimming_pools
         SET extra_storage_gb      = 0,
             data_addon_tier       = ${tier},
             data_addon_status     = 'expired',
             data_addon_expires_at = ${expiresAtTs},
-            upload_blocked        = true,
             updated_at            = NOW()
         WHERE id = ${poolId}
       `);
-      console.log(`[data-addon] EXPIRATION: pool=${poolId} tier=${tier} — extra_storage_gb=0, upload_blocked=true`);
 
-      // purge job 생성 (pool의 현재 quota 기준 — base plan only)
+      // extra_storage_gb=0 적용 후 기준 quota (base only) + 현재 사용량 비교
       try {
-        const [poolRow] = (await db.execute(sql`
-          SELECT subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
-        `)).rows as any[];
-        const { resolveEffectiveStorageQuota } = await import("../lib/storageQuota.js");
-        const quota = await resolveEffectiveStorageQuota(poolId);
-        // extra_storage_gb=0 적용 후 기준 quota (base only)
+        const { resolveEffectiveStorageQuota, getPoolStorageUsage } = await import("../lib/storageQuota.js");
+        const [quota, usage] = await Promise.all([
+          resolveEffectiveStorageQuota(poolId),
+          getPoolStorageUsage(poolId),
+        ]);
         const targetBytes = Math.floor(quota.baseStorageGb * 1024 ** 3);
+        const usedBytes   = usage.usedBytes;
+        const overQuota   = usedBytes > targetBytes;
 
-        // 중복 방지: 이미 pending/running job이 있으면 생성 금지
-        const [existing] = (await db.execute(sql`
-          SELECT id FROM pool_data_purge_jobs
-          WHERE pool_id = ${poolId}
-            AND status IN ('pending', 'running')
-          LIMIT 1
-        `)).rows as any[];
-        if (!existing) {
+        console.log(
+          `[data-addon] EXPIRATION: pool=${poolId} tier=${tier} — ` +
+          `extra_storage_gb=0 | base=${quota.baseStorageGb}GB (${targetBytes}B) | used=${usedBytes}B | overQuota=${overQuota}`,
+        );
+
+        if (overQuota) {
+          // 사용량 초과 → upload_blocked=true + purge job 생성
           await db.execute(sql`
-            INSERT INTO pool_data_purge_jobs
-              (pool_id, target_quota_bytes, status, trigger_rc_event_id)
-            VALUES
-              (${poolId}, ${targetBytes}, 'pending', ${eventId})
-            ON CONFLICT (trigger_rc_event_id) DO NOTHING
+            UPDATE swimming_pools SET upload_blocked = true, updated_at = NOW()
+            WHERE id = ${poolId}
           `);
-          console.log(`[data-addon] EXPIRATION: purge job created pool=${poolId} target=${targetBytes}`);
+
+          // 중복 방지: 이미 pending/running job이 있으면 생성 금지
+          const [existing] = (await db.execute(sql`
+            SELECT id FROM pool_data_purge_jobs
+            WHERE pool_id = ${poolId}
+              AND status IN ('pending', 'running')
+            LIMIT 1
+          `)).rows as any[];
+          if (!existing) {
+            // eventId dedup: partial unique index (WHERE NOT NULL), 별도 SELECT로 체크
+            const [rcDup] = eventId ? (await db.execute(sql`
+              SELECT id FROM pool_data_purge_jobs WHERE trigger_rc_event_id = ${eventId} LIMIT 1
+            `)).rows as any[] : [null];
+            if (!rcDup) {
+              await db.execute(sql`
+                INSERT INTO pool_data_purge_jobs
+                  (pool_id, target_quota_bytes, status, trigger_rc_event_id)
+                VALUES
+                  (${poolId}, ${targetBytes}, 'pending', ${eventId})
+              `);
+              console.log(`[data-addon] EXPIRATION: purge job created pool=${poolId} target=${targetBytes}`);
+            } else {
+              console.log(`[data-addon] EXPIRATION: rc_event duplicate — skip pool=${poolId}`);
+            }
+          } else {
+            console.log(`[data-addon] EXPIRATION: pending/running job already exists pool=${poolId} — skip duplicate`);
+          }
+        } else {
+          // 사용량이 기준 이하 → upload_blocked 유지 (free 상태 = 정상 운영)
+          // is_readonly가 아닌 경우 upload_blocked=false 보장
+          const [pool] = (await db.execute(sql`
+            SELECT is_readonly, upload_blocked FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+          `)).rows as any[];
+          if (!pool?.is_readonly && pool?.upload_blocked) {
+            await db.execute(sql`
+              UPDATE swimming_pools SET upload_blocked = false, updated_at = NOW()
+              WHERE id = ${poolId}
+            `);
+          }
+          console.log(`[data-addon] EXPIRATION: pool=${poolId} usage<=quota — no purge, upload_blocked=false`);
         }
       } catch (e: any) {
-        console.error(`[data-addon] EXPIRATION: purge job 생성 오류 pool=${poolId}:`, e?.message);
+        console.error(`[data-addon] EXPIRATION: quota/purge 처리 오류 pool=${poolId}:`, e?.message);
       }
       break;
     }

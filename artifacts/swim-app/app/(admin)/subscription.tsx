@@ -668,7 +668,7 @@ export default function SubscriptionScreen() {
     const priceStr = pkg.product?.priceString ?? fmtKrw(pack.price_monthly_krw);
     showConfirm(
       `${pack.name} 구독`,
-      `${priceStr}/월 · +${pack.plus_gb}GB 추가 저장공간\n현재 플랜에 독립적으로 추가됩니다.\n\n결제 수단: ${STORE_NAME}`,
+      `${priceStr}/월 · +${pack.plus_gb}GB 추가 저장공간\n현재 플랜에 독립적으로 추가됩니다.\n\n⚠️ 구독 종료 시:\n추가 저장공간이 즉시 해제되며, 허용 용량을 초과한 사진·영상은 오래된 자료부터 자동 삭제됩니다. 삭제된 자료는 복구할 수 없습니다.\n\n결제 수단: ${STORE_NAME}`,
       async () => {
         try {
           // DATA add-on은 독립 구독 — safePurchase의 androidHasPaidSub guard 우회

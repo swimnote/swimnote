@@ -1,0 +1,534 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE DATA100/300 — WP-G 최종 검증 + 배포 게이트]
+
+WP-A~F 구현 보고 확인했습니다.
+
+이번 단계에서는
+새 기능 추가/재설계 금지.
+
+이미 적용된 DB migration 재실행 금지.
+
+목표는:
+
+1. 구현된 DATA lifecycle 검증
+2. RevenueCat Package gate 확인
+3. 문제가 없을 때만 API/APP Production 배포
+4. 실제 확인하지 못한 Store/RevenueCat 항목은 명확히 HOLD 보고
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 Git 상태 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 WP-A~F 변경을 하나의 명확한 commit 상태로 정리하십시오.
+
+보고:
+
+- repo
+- branch
+- full Git SHA
+
+uncommitted 변경이 남아 있으면
+무엇인지 보고 후 정리.
+
+관련 없는 변경 포함 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DATA Offering / Package gate 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱 구현상:
+
+RevenueCat에서 실제 DATA package가 조회되면
+“구독 시작” 활성
+
+조회되지 않으면
+“준비 중” 유지
+
+라고 보고했습니다.
+
+이를 코드 기준으로 확인하십시오.
+
+반드시 확인:
+
+DATA100:
+com.swimnote.data100.monthly
+
+DATA300:
+com.swimnote.data300.monthly
+
+각각:
+
+- package lookup 방식
+- Offering identifier
+- package identifier
+- StoreProduct가 없을 때 CTA disabled인지
+- DATA100만 있고 DATA300이 없으면 각 카드가 독립적으로 처리되는지
+
+중요:
+
+RevenueCat Dashboard 자체를
+실제로 확인하지 못하면
+“확인하지 못함”이라고 보고.
+
+임의로
+“RC 설정 정상”
+이라고 판단 금지.
+
+Package 미확인 상태에서
+강제로 CTA 활성화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 서버 단위 테스트 — MAIN PLAN 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+격리 test pool에서 확인.
+
+A.
+
+main:
+subscription_tier = swimnote
+
+DATA100 INITIAL_PURCHASE
+
+결과:
+
+subscription_tier = swimnote 유지
+extra_storage_gb = 100
+data_addon_tier = data100
+data_addon_status = active
+
+B.
+
+main:
+subscription_tier = x500
+
+DATA300 INITIAL_PURCHASE
+
+결과:
+
+subscription_tier = x500 유지
+x_plan_key 유지
+extra_storage_gb = 300
+
+DATA가 main tier를 절대 덮어쓰지 않는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. canonical SET/idempotency 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 pool에:
+
+DATA100 purchase/sync
+→ extra_storage_gb = 100
+
+동일 sync 다시 실행
+→ 여전히 100
+
+restore 실행
+→ 여전히 100
+
+동일 webhook duplicate
+→ 여전히 100
+
+100 → 200으로 증가하면 FAIL.
+
+DATA300도 동일:
+
+항상 300.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CANCELLATION 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+active DATA100 상태에서
+CANCELLATION event 처리.
+
+확인:
+
+status = cancelled
+
+하지만:
+
+extra_storage_gb = 100 유지
+upload_blocked 변화 없음
+purge job 생성 없음
+media 삭제 없음
+
+expiration timestamp까지
+추가 저장공간 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. EXPIRATION — 사용량 이하
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+base quota = 10GB
+현재 usage = 5GB
+DATA100 active
+
+EXPIRATION 처리:
+
+extra_storage_gb = 0
+status = expired
+
+effective quota = 10GB
+
+usage <= quota 이므로:
+
+purge job 없어야 함
+upload_blocked=false여야 함
+
+무조건 upload_blocked=true로
+남겨두면 FAIL.
+
+보고상
+“EXPIRATION에서 upload_blocked=true 즉시”
+라고 했지만,
+
+정확한 정책은:
+
+새 quota보다 사용량이 초과할 때만
+upload_blocked=true
+
+입니다.
+
+이 부분 실제 코드를 반드시 확인하고,
+현재 무조건 true라면 최소 수정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. EXPIRATION — 사용량 초과
+━━━━━━━━━━━━━━━━━━━━━━
+
+격리 test pool에서
+작은 test media만 사용.
+
+예:
+
+새 effective quota보다 usage가 초과된 상태.
+
+EXPIRATION:
+
+- extra_storage_gb = 0
+- usage > quota 확인
+- upload_blocked=true
+- purge job 1개 생성
+- duplicate webhook으로 같은 pending/running job 중복 생성 금지
+
+Production 실제 고객 media 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. PURGE — 세 source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 세 source 모두 포함:
+
+1.
+photo_assets_meta
+
+2.
+student_photos
+
+3.
+video_assets_meta
+
+세 source에
+작은 test file들을 서로 다른 created_at으로 구성.
+
+전체 source 통합 기준
+가장 오래된 media부터 삭제되는지 확인.
+
+각 테이블별 oldest-first가 아니라
+세 source 전체 chronological oldest-first여야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Purge stop condition
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 media 삭제 후
+canonical usage 재계산.
+
+remaining <= target quota
+
+가 되는 즉시 job completed.
+
+필요 이상 media 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Shared object safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+photo_assets_meta에서
+같은 object_key를 공유하는 sibling/clone test.
+
+한 row purge 시:
+
+surviving sibling 존재
+→ R2 object 유지
+
+마지막 reference 제거
+→ 그때 R2 object 삭제
+
+깨진 reference 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. R2 실패
+━━━━━━━━━━━━━━━━━━━━━━
+
+격리 테스트에서
+deleteFromR2 실패를 simulation/mock 가능한 범위에서 확인.
+
+확인:
+
+- 실패 key 기록
+- last_error 기록
+- attempts 증가
+- retry 가능
+- R2 삭제 실패인데 DB row만 사라져
+  비용 object가 orphan으로 남는 구조 금지
+
+실제 R2 실패 simulation이 어려우면
+‘확인하지 못함’ 보고.
+
+추측 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Restore
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA100 restore:
+
+extra_storage_gb = 100
+
+반복 restore:
+
+여전히 100
+
+DATA300 restore:
+
+300
+
+restore가:
+
+subscription_tier
+x_plan_key
+x_mode
+
+변경하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. PRODUCT_CHANGE
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA100 → DATA300
+DATA300 → DATA100
+
+코드에서
+RevenueCat actual effective product 기준으로
+storage가 변경되는지 확인.
+
+특히:
+
+DATA300 → DATA100 downgrade가
+다음 renewal부터 effective라면
+
+PRODUCT_CHANGE 수신 즉시
+300→100으로 낮추거나
+purge 실행하면 FAIL.
+
+실제 RevenueCat Store timing을
+Replit 환경에서 확인할 수 없으면:
+
+코드가 어떤 timestamp/product state를
+canonical source로 사용하는지 보고하고
+
+실기기/RC 실제 timing은
+“확인하지 못함”으로 남기십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. APP UI gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+Package 없음:
+
+DATA100/300
+→ “준비 중”
+→ 터치 구매 불가
+
+Package 있음:
+
+→ “구독 시작”
+
+구매 정책 confirmation에는 반드시:
+
+“추가 데이터 구독이 종료되면
+저장 한도가 즉시 현재 플랜의 기본 제공 용량으로 변경됩니다.
+
+구독 종료 시 허용 용량을 초과한 사진·영상은
+오래된 자료부터 자동 삭제되며,
+삭제된 자료는 복구할 수 없습니다.”
+
+의 의미가 포함되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Billing UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+active:
+
+DATA100 또는 DATA300
+추가용량
+만료/갱신일
+총 저장공간
+
+cancelled but not expired:
+
+“해지 예정”
++
+사용 가능 종료일
+
+expired:
+
+active add-on처럼 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 배포 게이트
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 테스트가 PASS하면:
+
+API Render Production 배포.
+
+확인:
+
+Work SHA
+=
+Production LIVE SHA
+
+Render deploy LIVE 상태.
+
+APP는:
+
+DATA Package를 실제 runtime에서
+확인하지 못하더라도
+
+“Package 없으면 준비 중 유지” gate가
+확실히 동작하면 OTA 배포 가능.
+
+단 Package가 없는 상태에서
+구매 가능 버튼이 노출되면 배포 금지.
+
+APP:
+
+production-v2
+runtimeVersion 2.2.0
+
+iOS + Android OTA.
+
+Native build 금지.
+
+WEB 변경 없으면 WEB deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+판정표로 보고:
+
+A
+main tier 분리
+
+B
+DATA100 canonical 100
+
+C
+DATA300 canonical 300
+
+D
+repeated sync/restore idempotency
+
+E
+CANCELLATION storage 유지
+
+F
+EXPIRATION usage<=quota
+upload 정상 / purge 없음
+
+G
+EXPIRATION usage>quota
+upload block / purge 생성
+
+H
+3 source oldest-first
+
+I
+quota 도달 시 purge stop
+
+J
+shared R2 protection
+
+K
+R2 failure retry
+
+L
+restore
+
+M
+PRODUCT_CHANGE early purge 방지
+
+N
+Package 없음 CTA HOLD
+
+O
+billing UI state
+
+각각:
+
+PASS
+FAIL
+확인하지 못함
+
+으로 보고.
+
+그리고 배포 증거:
+
+[API]
+
+- full Git Work SHA
+- full Production LIVE SHA
+- Render Deploy ID
+- Render status
+
+[APP]
+
+- full OTA Git SHA
+- production-v2 branch/channel
+- runtimeVersion 2.2.0
+- iOS Update Group ID
+- iOS Update ID
+- Android Update Group ID
+- Android Update ID
+
+[RC]
+
+DATA100:
+- Offering: 실제 확인/확인하지 못함
+- Package: 실제 확인/확인하지 못함
+- StoreProduct: 실제 확인/확인하지 못함
+
+DATA300:
+동일
+
+중요:
+
+RevenueCat Dashboard 또는
+실기기 StoreProduct를
+직접 확인하지 못했으면
+PASS 처리하지 마십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
