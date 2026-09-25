@@ -44,6 +44,7 @@
 - [diary 학생 로딩 무한 대기 수정](student-loading-fix.md) — fallback GET /students→GET /class-groups/:id/students?date= 교체; N+1쿼리 제거; 2.0.0 iOS 01a05b6e
 - [사진 미디어 상태 고아 버그](photo-orphan-media-fix.md) — 삭제된 일지 연결 사진이 'attached' 유지; picker·teacher-all LEFT JOIN; repair-orphan-media 엔드포인트로 기존 데이터 정리
 - [다음 빌드 포함 변경 사항](pending-build-changes.md) — 1.3.11 빌드 이후 코드 반영됐으나 미배포 변경 목록 (엑셀 업로드 개선, capacity API)
+- [WP-A~H 퇴원생 Archive 완료](wp-archive-done.md) — 3 tables migration+7 API routes+APP/WEB UI; ARCHIVE_PHONE_HASH_SECRET 설정; iOS OTA 01a0d95c; Render dep-dar9sp2d0e5s73c1ha9g
 - [GR1 Production 적용 완료](gr1-prod-applied.md) — 2026-08-14; Supabase postgres; 5 ENUMs+3 tables+24 cols+11 indexes; GR3/GR5도 같은 날 완료
 - [P0 Signup HTTP500 완료](p0-signup-http500-done.md) — SHA 074e7f46; §6 클라이언트 5xx 메시지 교체+§5 원자성 롤백+apple/kakao_id 저장; Render live; OTA 0119fc1b
 - [X02-C Billing Contract 완료](x02c-billing-contract-done.md) — SHA f28bf20b(HOTFIX RC V2); x-billing.ts V2+migration+신규엔드포인트; 1152TC; Render live
