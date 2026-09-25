@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import swimnoteXLogo from "@/assets/swimnote-x-logo.png";
 import {
   Home, Users, Calendar, RotateCcw, TrendingUp,
   BookOpen, FileText, GraduationCap, DollarSign,
@@ -146,36 +147,18 @@ export function Sidebar() {
           flexShrink: 0,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            marginBottom: "6px",
-          }}
-        >
-          <span
+        <div style={{ marginBottom: "6px" }}>
+          <img
+            src={swimnoteXLogo}
+            alt="SwimNote X"
             style={{
-              fontSize: "15px",
-              fontWeight: 800,
-              color: "var(--x-primary)",
-              letterSpacing: "-0.3px",
+              height: "28px",
+              width: "auto",
+              maxWidth: "180px",
+              objectFit: "contain",
+              display: "block",
             }}
-          >
-            SWIMNOTE
-          </span>
-          <span
-            style={{
-              fontSize: "10px",
-              fontWeight: 700,
-              color: "var(--x-highlight)",
-              background: "var(--x-primary-soft)",
-              borderRadius: "3px",
-              padding: "1px 5px",
-            }}
-          >
-            X
-          </span>
+          />
         </div>
         <div
           style={{
