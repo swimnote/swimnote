@@ -370,7 +370,18 @@ export default function MembersScreen() {
 
   const header = (
     <>
-      <SubScreenHeader title="회원 관리" />
+      <SubScreenHeader
+        title="회원 관리"
+        rightAction={
+          <Pressable
+            style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6 }}
+            onPress={() => router.push("/(admin)/archive-members" as any)}
+          >
+            <LucideIcon name="archive" size={15} color={C.textSecondary} />
+            <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" }}>지난 회원</Text>
+          </Pressable>
+        }
+      />
 
       {/* ── 선생님 등록 요청 승인 대기 섹션 ── */}
       {teacherRequests.length > 0 && (
