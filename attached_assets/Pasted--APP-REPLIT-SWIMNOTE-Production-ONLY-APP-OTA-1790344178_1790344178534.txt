@@ -1,0 +1,172 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 회원 일괄등록 최종 Production 검증 ONLY]
+
+코드 수정 금지.
+추가 기능 개발 금지.
+APP OTA 금지.
+API 재배포 금지.
+DB migration 금지.
+Production 회원 데이터 생성 금지.
+
+사용자가 SWIMNOTE WEB Production 게시를 완료했습니다.
+
+이번 작업은 최종 검증만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. WEB PRODUCTION 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제:
+
+https://swimnote.kr
+
+Production 회원 엑셀 일괄등록 화면을 확인하십시오.
+
+다음이 실제 Production bundle에 반영됐는지 확인:
+
+- 기본 다운로드 양식 = 이름 + 보호자 연락처 2컬럼
+- 이름 + 보호자 연락처만 필수
+- 동명이인 허용
+- 반/생년/메모 선택
+- duplicate = warning
+- class not found = warning + 미배정
+- blocking / warning 구분
+- 행번호별 오류 표시
+- 오류 CSV 다운로드
+- 최대 1,000명
+
+개발 서버 코드만 보고 PASS 금지.
+
+Production 배포 SHA / deployment ID / status를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 1,000명 COMMIT 실제 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB 사용 금지.
+
+test/local/격리 DB 또는
+테스트 종료 후 전체 삭제 가능한 환경에서
+synthetic 1,000명으로 실제 canonical:
+
+/admin/members/bulk/commit
+
+동등 로직을 실행하십시오.
+
+중요:
+validation 함수만 호출하는 테스트는 인정하지 않습니다.
+
+실제로:
+
+transaction 시작
+→ 250명 chunk × 4
+→ 총 1,000 INSERT
+→ commit
+
+까지 실행해야 합니다.
+
+확인:
+
+- 1,000명 전체 INSERT 성공
+- 실제 저장 row = 1,000
+- partial success 없음
+- transaction 정상 종료
+- timeout 없음
+- DB connection 오류 없음
+- 실제 commit 소요시간
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ROLLBACK 실제 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 격리 환경에서
+transaction 중간 실패 상황을 1회 만들어
+
+예:
+
+1~500 정상 처리 후
+의도적인 test exception 발생
+
+시키십시오.
+
+확인:
+
+최종 INSERT row = 0
+
+이어야 합니다.
+
+즉 ALL-OR-NOTHING을
+코드 판독이 아니라 실제 transaction으로 증명하십시오.
+
+테스트 전용 방식만 사용하고
+Production 코드에 failure hook을 남기지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PRODUCTION DATA 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Production synthetic member INSERT 금지
+- 기존 회원 변경 금지
+- 기존 회원 삭제 금지
+- Production DB에서 rollback 실험 금지
+
+이번 테스트가 어느 DB/environment에서 실행됐는지
+완료보고에 명확히 적으십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. WEB PRODUCTION]
+
+- domain
+- full Git SHA
+- deployment ID
+- status
+- 실제 Production 화면 새 정책 반영 여부
+
+[B. 1000 COMMIT]
+
+- 테스트 환경
+- synthetic rows
+- 실제 INSERT rows
+- chunk 수
+- transaction 결과
+- commit time
+- timeout 여부
+
+[C. ROLLBACK]
+
+- failure 발생 위치
+- rollback 결과
+- 최종 저장 row
+- partial data 존재 여부
+
+[D. CURRENT PRODUCTION]
+
+API:
+- Production LIVE full SHA
+- Render Deploy ID
+- status
+
+APP:
+- EAS Update Group ID
+- iOS Update ID
+- branch/channel
+- runtimeVersion
+
+[E. UNCHANGED]
+
+- 추가 코드 변경 없음
+- Production 회원 데이터 변경 없음
+- DB migration 없음
+- Native build 없음
+
+완료했다고만 보고하지 마십시오.
+Production WEB을 직접 확인하지 못하면
+‘확인하지 못함’이라고 보고하십시오.
+
+1,000명 commit도
+validation만 실행하고 PASS라고 보고하지 마십시오.
+실제 격리 DB transaction INSERT가 수행된 경우에만 PASS 처리하십시오.
