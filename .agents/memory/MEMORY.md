@@ -1,3 +1,4 @@
+- [회원 엑셀 일괄등록 1,000명](bulk-import-1000-done.md) — canonical /bulk/validate+/bulk/commit, ALL-OR-NOTHING, +82 norm; SHA 4699183a; iOS OTA 01a0d8b0
 - [★ GLOBAL COMMON-FIX RULE](global-common-fix-rule.md) — X전용 명시 없으면 Normal+X 공통 수정; ONE SOURCE FIX + BOTH MODE VERIFICATION; 중복구현 금지 (영구 원칙)
 - [P0 API_BASE Root Cause Fix](p0-api-base-root-cause.md) — swimnote.kr=SPA프론트엔드; api-server는 swimnote-api.onrender.com; 하드코딩 금지
 - [★ 에이전트 작업 범위 헌법](agent-scope-constitution.md) — 명시된 것만 수정, 뒤로 가지 않음, 서버 무수정, 승인 후 배포 (2026-08-08 최상위 원칙)
