@@ -372,7 +372,7 @@ export default function MembersScreen() {
     <>
       <SubScreenHeader
         title="회원 관리"
-        rightAction={
+        rightSlot={
           <Pressable
             style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6 }}
             onPress={() => router.push("/(admin)/archive-members" as any)}
