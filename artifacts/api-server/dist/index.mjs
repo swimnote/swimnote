@@ -4840,6 +4840,23 @@ ${s}`,`
         withdrawn_at         = NOW(),
         suspended_at         = NULL,
         education_started_at = NULL,
+        pending_status_change   = NULL,
+        pending_effective_mode  = NULL,
+        pending_effective_month = NULL,
+        phone                = NULL,
+        parent_name          = NULL,
+        parent_phone         = NULL,
+        parent_phone2        = NULL,
+        parent_phone3        = NULL,
+        parent_phone4        = NULL,
+        parent_user_id       = NULL,
+        birth_date           = NULL,
+        birth_year           = NULL,
+        memo                 = NULL,
+        notes                = NULL,
+        name_korean          = NULL,
+        invite_code          = NULL,
+        invite_status        = 'none',
         updated_at           = NOW()
       WHERE id = ${e}
     `);let R=await y.execute(u`
@@ -4885,7 +4902,29 @@ ${s}`,`
       DELETE FROM video_assets_meta WHERE student_id = ${e}
     `).catch(()=>({rowCount:0}));xe.rowCount>0&&m.push(`video_assets_meta(${xe.rowCount})`);let Te=await y.execute(u`
       DELETE FROM parent_students WHERE student_id = ${e}
-    `);Te.rowCount>0&&m.push(`parent_students(${Te.rowCount})`)});let E=0,w=0;if(_.length>0)try{let{Client:y}=await import("@replit/object-storage"),T=new y,R=await Promise.allSettled(_.map(b=>T.delete(b).catch(()=>{})));for(let b of R)b.status==="fulfilled"?E++:w++}catch(y){console.error(`[withdraw-student] R2 \uC0AD\uC81C \uC624\uB958 (student: ${e}):`,y),w=_.length}return console.log(`[withdraw-student] \u2705 student=${e} pool=${r} actor=${s.userId}(${s.role}) tables=[${m.join(", ")}] r2=${E}/${_.length}`),{success:!0,studentId:e,r2DeletedCount:E,r2FailedCount:w,deletedTables:m}}bg();var pt=(0,yue.Router)();function wue(t,e){return t?e<=50?{tier:"free",label:"\uBB34\uB8CC \uC774\uC6A9",isFree:!0}:e<=100?{tier:"paid_100",label:"\uC720\uB8CC 100\uBA85",isFree:!1}:e<=300?{tier:"paid_300",label:"\uC720\uB8CC 300\uBA85",isFree:!1}:e<=500?{tier:"paid_500",label:"\uC720\uB8CC 500\uBA85",isFree:!1}:e<=1e3?{tier:"paid_1000",label:"\uC720\uB8CC 1000\uBA85",isFree:!1}:{tier:"paid_enterprise",label:"\uC720\uB8CC 1,001\uBA85+",isFree:!1}:{tier:"unapproved",label:"\uBBF8\uC2B9\uC778",isFree:!1}}pt.get("/pools",O,yu("canViewPools"),async(t,e)=>{try{let r=await x.select().from(Mt).orderBy(Mt.name),s=await Promise.all(r.map(async n=>{let a=await S.execute(u`
+    `);Te.rowCount>0&&m.push(`parent_students(${Te.rowCount})`),await y.execute(u`
+      UPDATE diary_push_queue
+      SET student_ids = (
+        SELECT jsonb_agg(elem)
+        FROM jsonb_array_elements(student_ids) elem
+        WHERE elem::text != ${JSON.stringify(e)}
+      )
+      WHERE sent_at IS NULL
+        AND student_ids @> ${JSON.stringify([e])}::jsonb
+    `),await y.execute(u`
+      DELETE FROM diary_push_queue
+      WHERE sent_at IS NULL
+        AND (student_ids IS NULL OR jsonb_array_length(student_ids) = 0)
+    `),m.push("diary_push_queue(student_id removed)")});let E=0,w=[];if(_.length>0)try{let{Client:y}=await import("@replit/object-storage"),T=new y,R=await Promise.allSettled(_.map(async b=>(await T.delete(b),b)));for(let b=0;b<R.length;b++)R[b].status==="fulfilled"?E++:w.push(_[b])}catch(y){console.error(`[withdraw-student] R2 \uD074\uB77C\uC774\uC5B8\uD2B8 \uCD08\uAE30\uD654 \uC624\uB958 (student: ${e}):`,y),w.push(..._)}if(w.length>0)try{await t.execute(u`
+        INSERT INTO member_activity_logs
+          (id, swimming_pool_id, student_id, action_type, target_type, after_value, actor_id, actor_name, actor_role, note, created_at)
+        VALUES
+          (gen_random_uuid()::text, ${r}, ${e}, 'withdraw_r2_failed', 'student',
+           ${JSON.stringify({keys:w})},
+           ${s.userId}, ${s.name??s.role}, ${s.role},
+           ${"R2 \uC0AD\uC81C \uC2E4\uD328 "+w.length+"\uAC74 \u2014 \uC218\uB3D9 \uC7AC\uC2DC\uB3C4 \uD544\uC694"},
+           NOW())
+      `),console.warn(`[withdraw-student] \u26A0\uFE0F R2 \uC0AD\uC81C \uC2E4\uD328 ${w.length}\uAC74 \u2192 member_activity_logs \uAE30\uB85D \uC644\uB8CC. student=${e}`,w)}catch(y){console.error(`[withdraw-student] \u274C R2 \uC2E4\uD328 \uB85C\uADF8 INSERT \uC624\uB958 (student: ${e}):`,y,"failed_keys:",w)}return console.log(`[withdraw-student] \u2705 student=${e} pool=${r} actor=${s.userId}(${s.role}) tables=[${m.join(", ")}] r2=${E}/${_.length} failed=${w.length}`),{success:!0,studentId:e,r2DeletedCount:E,r2FailedCount:w.length,deletedTables:m}}bg();var pt=(0,yue.Router)();function wue(t,e){return t?e<=50?{tier:"free",label:"\uBB34\uB8CC \uC774\uC6A9",isFree:!0}:e<=100?{tier:"paid_100",label:"\uC720\uB8CC 100\uBA85",isFree:!1}:e<=300?{tier:"paid_300",label:"\uC720\uB8CC 300\uBA85",isFree:!1}:e<=500?{tier:"paid_500",label:"\uC720\uB8CC 500\uBA85",isFree:!1}:e<=1e3?{tier:"paid_1000",label:"\uC720\uB8CC 1000\uBA85",isFree:!1}:{tier:"paid_enterprise",label:"\uC720\uB8CC 1,001\uBA85+",isFree:!1}:{tier:"unapproved",label:"\uBBF8\uC2B9\uC778",isFree:!1}}pt.get("/pools",O,yu("canViewPools"),async(t,e)=>{try{let r=await x.select().from(Mt).orderBy(Mt.name),s=await Promise.all(r.map(async n=>{let a=await S.execute(u`
         SELECT COUNT(*) AS cnt FROM students
         WHERE swimming_pool_id = ${n.id} AND status = 'active'
       `),o=Number(a.rows[0]?.cnt||0),i=n.approval_status==="approved",p=wue(i,o);return{...n,member_count:o,subscription_tier:p}}));e.json(s)}catch(r){console.error(r),e.status(500).json({success:!1,message:"\uC11C\uBC84 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.",error:String(r)})}});pt.patch("/pools/:id/approve",O,yu("canApprovePools"),async(t,e)=>{let{id:r}=t.params;try{let[s]=await x.select().from(Mt).where(X(Mt.id,r)).limit(1);if(!s)return e.status(404).json({success:!1,message:"\uC218\uC601\uC7A5\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",error:"pool not found"});let n=s.approval_status??null,[a]=await x.update(Mt).set({approval_status:"approved",subscription_status:"trial",updated_at:new Date}).where(X(Mt.id,r)).returning(),o=a.admin_email||a.owner_email,[i]=await x.select().from(de).where(X(de.email,o)).limit(1);i&&i.swimming_pool_id===r&&console.log(`[INFO] \uAD00\uB9AC\uC790 \uACC4\uC815 \uD65C\uC131\uD654: ${o} (pool: ${r})`),x.execute(u`

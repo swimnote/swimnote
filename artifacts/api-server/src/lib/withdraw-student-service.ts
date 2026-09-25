@@ -108,7 +108,9 @@ export async function withdrawStudent(
     // 반 이력 종료
     await closeAllActiveClassHistory(tx, studentId, effDate);
 
-    // students row soft delete (데이터 보존 필요 — 재등록 감지 등)
+    // students row soft delete + 개인정보 익명화
+    // KEEP: id, swimming_pool_id, status='withdrawn', name(audit), withdrawn_at, created_at
+    // CLEAR: 연락처/생년/메모 — 재등록 대상에서 영구 제외, 서비스용 개인정보 제거
     await tx.execute(sql`
       UPDATE students SET
         status               = 'withdrawn',
@@ -118,6 +120,23 @@ export async function withdrawStudent(
         withdrawn_at         = NOW(),
         suspended_at         = NULL,
         education_started_at = NULL,
+        pending_status_change   = NULL,
+        pending_effective_mode  = NULL,
+        pending_effective_month = NULL,
+        phone                = NULL,
+        parent_name          = NULL,
+        parent_phone         = NULL,
+        parent_phone2        = NULL,
+        parent_phone3        = NULL,
+        parent_phone4        = NULL,
+        parent_user_id       = NULL,
+        birth_date           = NULL,
+        birth_year           = NULL,
+        memo                 = NULL,
+        notes                = NULL,
+        name_korean          = NULL,
+        invite_code          = NULL,
+        invite_status        = 'none',
         updated_at           = NOW()
       WHERE id = ${studentId}
     `);
@@ -235,39 +254,93 @@ export async function withdrawStudent(
       DELETE FROM parent_students WHERE student_id = ${studentId}
     `);
     if (psResult.rowCount > 0) deletedTables.push(`parent_students(${psResult.rowCount})`);
+
+    // ── diary_push_queue: 대기 중인 큐에서 퇴원 student_id 제거 ──────────────
+    // 다른 학생 ID가 존재하면 해당 row는 유지하면서 student_id만 제거
+    await tx.execute(sql`
+      UPDATE diary_push_queue
+      SET student_ids = (
+        SELECT jsonb_agg(elem)
+        FROM jsonb_array_elements(student_ids) elem
+        WHERE elem::text != ${JSON.stringify(studentId)}
+      )
+      WHERE sent_at IS NULL
+        AND student_ids @> ${JSON.stringify([studentId])}::jsonb
+    `);
+    // student_ids가 비어진 row 삭제 (or NULL이 된 경우 포함)
+    await tx.execute(sql`
+      DELETE FROM diary_push_queue
+      WHERE sent_at IS NULL
+        AND (student_ids IS NULL OR jsonb_array_length(student_ids) = 0)
+    `);
+    deletedTables.push("diary_push_queue(student_id removed)");
   });
 
-  // ── 4. R2 object 삭제 (transaction 완료 후 best-effort) ───────────────────
+  // ── 4. R2 object 삭제 (transaction 완료 후) ──────────────────────────────
+  // 실패 key는 member_activity_logs에 기록 → 수동 재시도 추적 가능 (Option B)
   let r2DeletedCount = 0;
-  let r2FailedCount  = 0;
+  const r2FailedKeys: string[] = [];
 
   if (allR2Keys.length > 0) {
     try {
       const { Client } = await import("@replit/object-storage");
-      const client = new Client();
+      const r2Client = new Client();
       const results = await Promise.allSettled(
-        allR2Keys.map(key => client.delete(key).catch(() => {})),
+        allR2Keys.map(async (key) => {
+          await r2Client.delete(key);
+          return key;
+        }),
       );
-      for (const r of results) {
-        if (r.status === "fulfilled") r2DeletedCount++;
-        else r2FailedCount++;
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status === "fulfilled") {
+          r2DeletedCount++;
+        } else {
+          r2FailedKeys.push(allR2Keys[i]);
+        }
       }
     } catch (e) {
-      console.error(`[withdraw-student] R2 삭제 오류 (student: ${studentId}):`, e);
-      r2FailedCount = allR2Keys.length;
+      console.error(`[withdraw-student] R2 클라이언트 초기화 오류 (student: ${studentId}):`, e);
+      r2FailedKeys.push(...allR2Keys);
+    }
+  }
+
+  // R2 실패 key를 member_activity_logs에 기록 (재시도 추적)
+  if (r2FailedKeys.length > 0) {
+    try {
+      await db.execute(sql`
+        INSERT INTO member_activity_logs
+          (id, swimming_pool_id, student_id, action_type, target_type, after_value, actor_id, actor_name, actor_role, note, created_at)
+        VALUES
+          (gen_random_uuid()::text, ${poolId}, ${studentId}, 'withdraw_r2_failed', 'student',
+           ${JSON.stringify({ keys: r2FailedKeys })},
+           ${actor.userId}, ${actor.name ?? actor.role}, ${actor.role},
+           ${"R2 삭제 실패 " + r2FailedKeys.length + "건 — 수동 재시도 필요"},
+           NOW())
+      `);
+      console.warn(
+        `[withdraw-student] ⚠️ R2 삭제 실패 ${r2FailedKeys.length}건 → member_activity_logs 기록 완료. student=${studentId}`,
+        r2FailedKeys,
+      );
+    } catch (logErr) {
+      // 로그 INSERT 자체가 실패해도 퇴원 완료는 유지, 단 console.error로 반드시 남김
+      console.error(
+        `[withdraw-student] ❌ R2 실패 로그 INSERT 오류 (student: ${studentId}):`,
+        logErr,
+        "failed_keys:", r2FailedKeys,
+      );
     }
   }
 
   console.log(
     `[withdraw-student] ✅ student=${studentId} pool=${poolId} actor=${actor.userId}(${actor.role}) ` +
-    `tables=[${deletedTables.join(", ")}] r2=${r2DeletedCount}/${allR2Keys.length}`,
+    `tables=[${deletedTables.join(", ")}] r2=${r2DeletedCount}/${allR2Keys.length} failed=${r2FailedKeys.length}`,
   );
 
   return {
     success: true,
     studentId,
     r2DeletedCount,
-    r2FailedCount,
+    r2FailedCount: r2FailedKeys.length,
     deletedTables,
   };
 }
