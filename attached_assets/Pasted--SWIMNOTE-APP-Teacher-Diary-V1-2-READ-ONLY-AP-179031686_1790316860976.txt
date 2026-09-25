@@ -1,0 +1,394 @@
+[SWIMNOTE APP — Teacher Diary V1.2 연결 방식 최종 조사 / READ-ONLY]
+
+이번 작업은 구현 작업이 아닙니다.
+
+현재 정상 동작 중인 APP Teacher Diary 경로를 절대 수정하지 말고,
+이미 AI ENGINE에서 검증·배포 완료된 Teacher Diary Technical Expansion V1.2를
+SWIMNOTE 앱 일지에서 실제 사용할 수 있게 연결하는
+"현재 코드 기준 최소 변경 방법"을 조사하십시오.
+
+중요:
+새 아키텍처를 임의로 설계하지 마십시오.
+현재 Repository와 기존 구현을 먼저 추적한 뒤
+가장 적게 변경하는 연결 방법을 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 확정된 사실
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE V1.2는 구현 및 검증 완료 상태입니다.
+
+Engine 검증:
+
+- 39 / 39 tests PASS
+- build PASS
+- Production deploy 완료
+- Production commit: bf8fe9d1
+- Render service: swimnote-professional-engine
+- deploy status: live
+
+V1.2에서 성공한 실제 출력 예:
+
+입력:
+"자유형 호흡할 때 고개 많이 듦"
+
+출력:
+"자유형 호흡할 때 고개를 많이 드는 모습이 관찰되었습니다.
+호흡 시 고개는 몸의 회전과 함께 옆으로 돌아가야 하며,
+양손이 몸 아래를 지나기 시작할 때 호흡을 준비하는 것이 중요합니다.
+다음 수업에서는 이러한 부분을 더욱 신경 써서 연습해보겠습니다."
+
+Engine에서 확인된 핵심 동작:
+
+- Teacher Fact 사실관계 유지
+- 축약 메모 → 자연스러운 완성형 문장
+- V2 Knowledge/Claims 기반 기술 설명 확장
+- 없는 향상/성공/과거 수업행위 생성 금지
+- Template 없어도 Knowledge + Claim이면 GROUNDED 가능
+- Claim 최대 250자 / 완전 문장 우선
+- groundingSource:
+  TEMPLATE_AND_KNOWLEDGE | KNOWLEDGE_ONLY
+
+이 Engine 기능을 다시 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 APP 실제 일지 생성 경로 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱에서 Teacher Diary 생성 버튼을 누른 순간부터
+최종 결과가 UI에 표시될 때까지 실제 호출 흐름을 코드 기준으로 추적하십시오.
+
+반드시 제출:
+
+- UI component
+- hook
+- service
+- client
+- 실제 URL
+- 실제 API server route
+- route handler
+- 최종 OpenAI/AI Engine 호출 위치
+- response normalize 위치
+- UI 적용 위치
+- 저장 위치
+
+예상이나 이전 보고서 복사 금지.
+현재 코드 기준으로 다시 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 기존 정상 경로는 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱에서 정상 동작 중인:
+
+POST /api/v1/teacher-diary/generate
+
+경로를 바로 교체하거나 삭제하지 마십시오.
+
+다음을 조사하십시오.
+
+- 현재 경로를 그대로 유지하면서 내부에서 Engine V1.2를 사용할 수 있는지
+- 기존 경로를 rollback용으로 유지할 수 있는지
+- feature flag 또는 내부 adapter로 안전하게 전환 가능한지
+- 별도 test/preview path가 이미 존재하는지
+
+현재 동작하는 기존 일지 AI는
+검증 전까지 절대 제거하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. AI ENGINE V1.2 실제 호출 Contract 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Engine Production endpoint:
+
+POST /api/v1/teacher-diary/generate
+
+에 대해 앱 쪽에서 필요한 실제 contract를 확인하십시오.
+
+가능한 범위에서 기존 코드/문서/응답 타입을 이용해:
+
+REQUEST:
+- request_id
+- schema_version
+- feature
+- locale
+- input.text
+- pool_id
+- class_id
+- lesson_date
+- student_refs
+- students
+
+RESPONSE:
+- result.common
+- result.students
+- meta
+- generation_mode
+- groundingSource
+- knowledge_ids
+- template_ids
+
+를 현재 APP contract와 비교하십시오.
+
+필드별로:
+
+SAME
+ADAPTER_REQUIRED
+NOT_USED
+
+중 하나로 분류하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 인증 연결 방식을 실제 코드 기준으로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+미리 다음 중 하나라고 가정하지 마십시오.
+
+- APP → Professional Engine 직접 호출
+- APP → swimnote-api → Professional Engine
+- APP JWT forwarding
+- service JWT
+- PROFESSIONAL_ENGINE_API_SECRET
+
+현재 코드와 기존 인증 구조를 보고
+실제로 가능한 방식을 찾으십시오.
+
+확인:
+
+- APP JWT가 현재 어디까지 전달되는지
+- swimnote-api가 사용자/pool 권한을 어디서 검증하는지
+- Professional Engine endpoint가 요구하는 auth를 현재 APP/API가 만들 수 있는지
+- 이미 존재하는 client/auth helper를 재사용할 수 있는지
+
+Professional Engine secret을
+모바일 앱 bundle에 넣는 방식은 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 Professional Engine 관련 코드 전수 아닌 '관련 부분만' 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 키워드 범위에서만 검색:
+
+- professional-engine
+- teacher-diary
+- grounded
+- PROFESSIONAL_ENGINE_BASE_URL
+- PROFESSIONAL_ENGINE_API_SECRET
+- service jwt
+- teacher diary client
+- proxy
+- adapter
+
+전체 repo audit 금지.
+
+찾은 기존 코드 중 재사용 가능한 것:
+
+- base URL accessor
+- auth helper
+- HTTP client
+- timeout
+- error mapping
+- request/response adapter
+- feature flag
+
+를 정확히 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 연결 선택지 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 조사 후에만 가능한 연결 방식을 최대 3개 제시하십시오.
+
+예:
+
+OPTION A
+기존 APP endpoint 유지
+→ server 내부에서 Engine V1.2 호출
+
+OPTION B
+기존 APP endpoint와 별도 Preview endpoint 병렬 운영
+
+OPTION C
+기존 구조의 다른 기존 adapter 활용
+
+단, 실제 코드상 가능한 경우에만 제시하십시오.
+
+각 선택지에 대해:
+
+- 수정 파일 수
+- 기존 경로 영향
+- 인증 위험
+- rollback 난이도
+- APP OTA 필요 여부
+- Render deploy 필요 여부
+- Production 장애 위험
+
+을 비교하십시오.
+
+그리고 최종적으로
+"현재 코드 기준 가장 안전하고 최소 변경인 방식"
+하나만 추천하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 출력 품질 유지 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+연결 후 반드시 Engine V1.2의 다음 출력 특성이
+그대로 앱까지 전달되어야 합니다.
+
+입력:
+"자유형 호흡할 때 고개 많이 듦"
+
+앱 최종 결과가 단순히:
+
+"자유형 호흡할 때 고개 많이 듦"
+
+수준이면 실패입니다.
+
+최종 앱 결과는:
+
+1. Teacher Fact 자연화
+2. Knowledge 기반 기술 설명
+3. 필요 시 Next Technical Focus
+
+구조를 유지해야 합니다.
+
+중간 API/adapter가
+Engine 결과를 다시 축약하거나
+원문으로 덮어쓰는지 반드시 확인하십시오.
+
+특히 확인:
+
+- common 결과 truncate 여부
+- student content truncate 여부
+- normalize 과정에서 기술 설명 손실 여부
+- legacy response가 Engine response를 덮어쓰는지
+- generation_mode에 따라 APP이 결과를 변경하는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 학생이 없는 관리자 계정에서도 검증 가능한 방법 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 관리자는 실제 수업 학생이 없어
+APP에서 즉시 실사용 검증하기 어렵습니다.
+
+기존 Production 데이터나 실제 학생을 조작하지 않고
+다음 중 가능한 안전한 검증법을 찾으십시오.
+
+- dev fixture
+- test class/student
+- Preview endpoint
+- server-side test request
+- admin-only preview
+- 기존 test harness
+
+새로운 기능을 구현하지 말고
+현재 구조에서 가장 안전한 검증 방법만 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사에서는:
+
+- 코드 수정 금지
+- APP endpoint 변경 금지
+- Professional Engine 수정 금지
+- ai-v1.ts 삭제/교체 금지
+- OpenAI 직접 호출 구조 삭제 금지
+- env 변경 금지
+- OTA 금지
+- Render deploy 금지
+- Git push 금지
+- DB write 금지
+- 신규 AI pipeline 생성 금지
+- 새 Prompt 작성 금지
+
+조사와 설계만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[TEACHER DIARY V1.2 APP INTEGRATION DESIGN REPORT]
+
+STATUS:
+READY / BLOCKED
+
+CURRENT_END_TO_END_PATH:
+-
+
+CURRENT_GENERATION_OWNER:
+-
+
+ENGINE_V1_2_ENDPOINT:
+-
+
+REQUEST_CONTRACT_DIFF:
+-
+
+RESPONSE_CONTRACT_DIFF:
+-
+
+AUTH_CURRENT:
+-
+
+AUTH_REQUIRED:
+-
+
+EXISTING_REUSABLE_COMPONENTS:
+-
+
+OPTION_A:
+- architecture:
+- files:
+- risk:
+- OTA:
+- server deploy:
+
+OPTION_B:
+- architecture:
+- files:
+- risk:
+- OTA:
+- server deploy:
+
+OPTION_C:
+- architecture:
+- files:
+- risk:
+- OTA:
+- server deploy:
+
+RECOMMENDED_OPTION:
+-
+
+WHY_THIS_IS_MINIMUM_CHANGE:
+-
+
+EXISTING_DIARY_PATH_PRESERVED:
+YES / NO
+
+ROLLBACK_METHOD:
+-
+
+HOW_TO_VALIDATE_WITHOUT_LIVE_STUDENTS:
+-
+
+EXPECTED_APP_OUTPUT_AFTER_CONNECTION:
+-
+
+FILES_CHANGED:
+NONE
+
+ENV_CHANGED:
+NO
+
+DB_WRITES:
+0
+
+DEPLOYMENT:
+NONE
+
+최종 추천까지만 하고 멈추십시오.
+구현은 사용자 승인 후 별도 작업으로 진행합니다.
