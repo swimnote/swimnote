@@ -257,9 +257,9 @@ export default function SubscriptionScreen() {
   const [trialError,      setTrialError]      = useState<string | null>(null);
   const [showTrialConfirm, setShowTrialConfirm] = useState(false);
 
-  // ── X Entitlement 적용 완료 → 앱 재시작 안내 모달 ─────────────────────────
+  // ── 구매/체험 완료 → 앱 재시작 안내 모달 ──────────────────────────────────
   const [showXRestartModal, setShowXRestartModal] = useState(false);
-  const [xRestartIsTrial,   setXRestartIsTrial]   = useState(false);
+  const [xRestartKind, setXRestartKind] = useState<"x_trial" | "x" | "swimnote">("x");
   const xReloadingRef = useRef(false);
 
   // ── X trial activation 성공 여부 직접 확인 (캐시 bypass + retry) ─────────
@@ -329,7 +329,7 @@ export default function SubscriptionScreen() {
       setTrialActivating(false);
       if (isActive) {
         // 성공 → hot-swap 대신 재시작 모달: 앱 재실행 후 fresh ModeContext 보장
-        setXRestartIsTrial(true);
+        setXRestartKind("x_trial");
         setShowXRestartModal(true);
       }
     }
@@ -534,7 +534,8 @@ export default function SubscriptionScreen() {
           await refetchCustomerInfo();
           await refreshPool();
           await refreshMode().catch(() => {});
-          showConfirm("구독 완료", "SWIMNOTE 구독이 성공적으로 시작되었습니다!", () => {});
+          setXRestartKind("swimnote");
+          setShowXRestartModal(true);
         } catch (e: any) {
           if (e?.userCancelled) return;
           showConfirm("구독 실패", e?.message ?? "결제 중 오류가 발생했습니다.", () => {});
@@ -624,7 +625,7 @@ export default function SubscriptionScreen() {
           await refetchCustomerInfo();
           await refreshPool();
           // X 플랜: hot-swap 대신 재시작 모달 — 재실행 후 fresh ModeContext 보장
-          setXRestartIsTrial(false);
+          setXRestartKind("x");
           setShowXRestartModal(true);
         } catch (e: any) {
           if (e?.userCancelled) return;
@@ -1377,10 +1378,10 @@ export default function SubscriptionScreen() {
         onCancel={() => setConfirmVisible(false)}
       />
 
-      {/* ── X Entitlement 적용 완료 → 앱 재시작 안내 모달 ── */}
+      {/* ── 구매/체험 완료 → 앱 재시작 안내 모달 ── */}
       <XRestartRequiredModal
         visible={showXRestartModal}
-        isTrial={xRestartIsTrial}
+        kind={xRestartKind}
         reloadingRef={xReloadingRef}
         onClose={() => setShowXRestartModal(false)}
       />
@@ -1603,15 +1604,16 @@ const pms = StyleSheet.create({
   agreeTxt:   { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });
 
-// ── X Entitlement 적용 완료 → 앱 재시작 안내 모달 ────────────────────────
+// ── 구매/체험 완료 → 앱 재시작 안내 모달 ──────────────────────────────────
 // Updates.reloadAsync(): expo-updates OTA 환경에서 앱 번들을 재로드.
 // 실패 시(non-OTA simulator 등) fallback 안내 텍스트 표시.
 // 중복 실행 방지: reloadingRef lock.
+// kind: "x_trial" | "x" | "swimnote" — 표시 문구 분기
 function XRestartRequiredModal({
-  visible, isTrial, reloadingRef, onClose,
+  visible, kind, reloadingRef, onClose,
 }: {
   visible: boolean;
-  isTrial: boolean;
+  kind: "x_trial" | "x" | "swimnote";
   reloadingRef: React.MutableRefObject<boolean>;
   onClose: () => void;
 }) {
@@ -1659,7 +1661,11 @@ function XRestartRequiredModal({
               <Text style={{ fontSize: 26 }}>✨</Text>
             </View>
             <Text style={xrm.title}>
-              {isTrial ? "X 무료체험 적용 완료" : "X 모드 적용 완료"}
+              {kind === "x_trial"
+                ? "X 무료체험 적용 완료"
+                : kind === "swimnote"
+                ? "SWIMNOTE 구독 완료"
+                : "X 모드 적용 완료"}
             </Text>
           </View>
 
@@ -1669,6 +1675,11 @@ function XRestartRequiredModal({
               앱 재시작에 실패했습니다.{"\n"}
               앱을 완전히 종료한 뒤 다시 실행해주세요.{"\n\n"}
               결제/체험 내역은 정상적으로 저장되었습니다.
+            </Text>
+          ) : kind === "swimnote" ? (
+            <Text style={xrm.body}>
+              구독이 완료되었습니다.{"\n"}
+              새 구독 정보를 적용하기 위해 앱을 다시 시작합니다.
             </Text>
           ) : (
             <Text style={xrm.body}>

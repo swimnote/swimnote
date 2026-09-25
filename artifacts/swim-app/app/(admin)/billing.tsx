@@ -262,8 +262,10 @@ export default function BillingScreen() {
                   {billingInfo?.plan_name ?? "무료 이용"}
                 </Text>
                 <Text style={s.planMeta}>
-                  최대 {billingInfo?.member_limit ?? 10}명
-                  {billingInfo?.display_storage ? ` · ${billingInfo.display_storage}` : ""}
+                  {(billingInfo?.member_limit ?? 0) >= 999999
+                    ? (billingInfo?.display_storage ?? "")
+                    : `최대 ${billingInfo?.member_limit ?? 10}명${billingInfo?.display_storage ? ` · ${billingInfo.display_storage}` : ""}`
+                  }
                 </Text>
               </View>
               <View style={[s.statusBadge, isSubscribed ? s.badgeGreen : s.badgeGray]}>
@@ -275,8 +277,11 @@ export default function BillingScreen() {
             <View style={s.infoRow}>
               <Text style={s.metaLabel}>현재 회원 수</Text>
               <Text style={[s.metaValue,
+                (billingInfo?.member_limit ?? 0) < 999999 &&
                 (billingInfo?.member_count ?? 0) >= (billingInfo?.member_limit ?? 10) && { color: "#D97706" }]}>
-                {billingInfo?.member_count ?? 0}명 / {billingInfo?.member_limit ?? 10}명
+                {(billingInfo?.member_limit ?? 0) >= 999999
+                  ? `${billingInfo?.member_count ?? 0}명`
+                  : `${billingInfo?.member_count ?? 0}명 / ${billingInfo?.member_limit ?? 10}명`}
               </Text>
             </View>
             {isSubscribed && renewalDate && !billingInfo?.pending_tier && (
@@ -392,7 +397,9 @@ export default function BillingScreen() {
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
                   <View style={s.detailChip}>
                     <LucideIcon name="users" size={11} color={C.textSecondary} />
-                    <Text style={s.detailChipText}>최대 {billingInfo?.member_limit ?? 10}명</Text>
+                    <Text style={s.detailChipText}>
+                      {(billingInfo?.member_limit ?? 0) >= 999999 ? "회원 제한 없음" : `최대 ${billingInfo?.member_limit ?? 10}명`}
+                    </Text>
                   </View>
                   <View style={s.detailChip}>
                     <LucideIcon name="hard-drive" size={11} color={C.textSecondary} />

@@ -734,7 +734,11 @@ export default function DashboardScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <View style={[s.wideSubItem, { flex: 1 }]}>
                   <Text style={[s.wideSubVal, { color: "#1D4ED8" }]}>
-                    {stats ? `${stats.total_members}/${memberLimit}` : "—"}명
+                    {stats
+                      ? memberLimit >= 999999
+                        ? `${stats.total_members}명`
+                        : `${stats.total_members}/${memberLimit}명`
+                      : "—"}
                   </Text>
                   <Text style={s.wideSubLabel}>회원 사용량</Text>
                 </View>
