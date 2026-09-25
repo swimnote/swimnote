@@ -28,7 +28,7 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
-const MAX_UPLOAD = 300; // 업로드 최대 인원
+const MAX_UPLOAD = 1000; // 업로드 최대 인원
 
 // ── 컬럼 헤더 별칭 매핑 (공백·대소문자 제거 후 비교) ───────────────
 // 키: 공백·특수문자 제거 + 소문자 정규화 후 값
@@ -68,6 +68,7 @@ function splitNamePhone(raw: string): { name: string; phone?: string } {
 
 interface ParsedRow {
   _idx: number;
+  _row: number;  // Excel row number (header=1, data from 2)
   name: string;
   birth_year?: string;
   parent_name?: string;
@@ -82,31 +83,39 @@ interface ParsedRow {
   _autoSkipped?: boolean;
 }
 
-interface ServerErrors {
-  missing_name?:       number[];
-  missing_phone?:      number[];
-  invalid_phone?:      number[];
-  duplicate_phone?:    Array<{ phone: string; rows: number[] }>;
-  db_duplicate_phone?: Array<{ phone: string; rows: number[] }>;
-  member_limit?:       { available: number; limit: number; current: number; requested: number };
+interface BulkIssue {
+  row: number;
+  name: string;
+  field: string;
+  code: string;
+  message: string;
 }
+interface ValidateResponse {
+  total: number;
+  valid: number;
+  blocking_error_count: number;
+  warning_count: number;
+  errors: BulkIssue[];
+  warnings: BulkIssue[];
+  rows: Array<ParsedRow & { valid: boolean; class_group_id: string | null }>;
+}
+// legacy — unused after canonical API migration but kept for reference
 interface UploadResult {
   success: boolean;
   inserted?: number;
   code?: string;
   message?: string;
-  errors?: ServerErrors;
 }
 
-// ── 전화번호 정규화 ──────────────────────────────────────────────
+// ── 전화번호 정규화 (+82 포함) ──────────────────────────────────
 function normalizePhone(raw: string): string {
   // ="010..." 엑셀 수식 형식 제거
   const stripped = raw.replace(/^="?|"?$/g, "").replace(/^=/, "");
   let n = stripped.replace(/[^0-9]/g, "");
+  // +82 → 0 (예: 821012345678 → 01012345678)
+  if (n.startsWith("82") && n.length >= 11) n = "0" + n.slice(2);
   // 엑셀이 앞 0을 제거한 경우 복원: 10자리이고 10/11/16/17/18/19 시작이면 0 추가
-  if (n.length === 10 && /^1[0-9]/.test(n)) {
-    n = "0" + n;
-  }
+  if (n.length === 10 && /^1[0-9]/.test(n)) n = "0" + n;
   return n;
 }
 function isValidPhone(phone: string): boolean {
@@ -171,6 +180,7 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
       }
     });
     if (!Object.values(obj).some(Boolean)) continue; // 완전 빈 행
+    const excelRow = i + 1; // Excel 행 번호 (header=1, 데이터는 2부터)
 
     // 이름 칸에 전화번호가 섞인 경우 자동 분리 (전화번호 열이 없을 때만)
     let rawName = obj.name ?? "";
@@ -196,6 +206,7 @@ function parseRows(raw: any[][], headerIdx: number): ParsedRow[] {
 
     const row: ParsedRow = {
       _idx: rows.length,
+      _row: excelRow,
       name: rawName,
       birth_year: byear || undefined,
       parent_name: obj.parent_name || undefined,
@@ -304,23 +315,23 @@ export default function BulkRegisterScreen() {
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<"pick" | "preview" | "processing" | "done">("pick");
+  const [step, setStep] = useState<"pick" | "preview" | "validating" | "validated" | "committing" | "done">("pick");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [loadingFile, setLoadingFile] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
+  const [validateResult, setValidateResult] = useState<ValidateResponse | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [capacity, setCapacity] = useState<{ limit: number; current: number; available: number } | null>(null);
   const [fileB64, setFileB64] = useState<string | null>(null); // R2 보관용 원본 파일 base64
 
-  const validRows   = rows.filter(r => !r._rowError && !r._autoSkipped);
   const errorRows   = rows.filter(r => !!r._rowError);
   const warnRows    = rows.filter(r => !r._rowError && !r._autoSkipped && !!r._rowWarn);
   const skippedRows = rows.filter(r => !!r._autoSkipped);
   const overLimit   = rows.length > MAX_UPLOAD;
-  const overPlanLimit = capacity !== null && validRows.length > capacity.available;
-  const canUpload   = validRows.length > 0 && !overLimit && !overPlanLimit;
+  const overPlanLimit = capacity !== null && rows.filter(r => !r._rowError && !r._autoSkipped).length > capacity.available;
+  const canValidate = rows.length > 0 && !overLimit;
 
   // ── 파일 선택 & 파싱 ────────────────────────────────────────
   const pickFile = useCallback(async () => {
@@ -438,108 +449,109 @@ export default function BulkRegisterScreen() {
     }
   }, [token]);
 
-  // ── 등록 실행 (전체 한 번에 전송, 전체 거부 방식) ──────────────
-  const handleSubmit = useCallback(async () => {
-    if (!canUpload) {
-      if (overLimit) {
-        Alert.alert(
-          "인원 초과",
-          `엑셀 업로드는 최대 ${MAX_UPLOAD}명까지 가능합니다.\n${MAX_UPLOAD}명을 초과할 경우 파일을 나누어 업로드해주세요.`
-        );
-      } else {
-        Alert.alert("오류 수정 필요", "빨간색 오류 항목을 모두 수정한 후 다시 업로드해주세요.");
-      }
-      return;
-    }
-
-    setUploadResult(null);
-    setStep("processing");
-
-    // ── 파일 R2 보관 (성공/실패 무관하게 먼저 저장) ──────────
-    let fileId: string | null = null;
-    if (fileB64 && fileName) {
-      try {
-        const uploadRes = await apiRequest(token, "/admin/upload-member-excel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: fileName, content_b64: fileB64 }),
-        });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json().catch(() => ({}));
-          fileId = uploadData.file_id ?? null;
-        }
-      } catch { /* 파일 저장 실패는 무시 — 등록은 계속 */ }
-    }
-
-    // ── 배치 등록 ─────────────────────────────────────────────
+  // ── 서버 검증 ─────────────────────────────────────────────────
+  const handleValidate = useCallback(async () => {
+    if (!canValidate) return;
+    setValidateResult(null);
+    setStep("validating");
+    setParseError("");
     try {
-      const apiRes = await apiRequest(token, "/students/batch", {
+      const apiRes = await apiRequest(token, "/admin/members/bulk/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          file_id: fileId,
-          students: validRows.map(r => ({
-            name:          r.name,
-            birth_year:    r.birth_year    ?? null,
-            parent_name:   r.parent_name   ?? null,
-            parent_phone:  r.parent_phone  ?? null,
-            parent_phone2: r.parent_phone2 ?? null,
-            parent_phone3: r.parent_phone3 ?? null,
-            weekly_count:  r.weekly_count  ?? 1,
-            memo:          r.memo          ?? null,
+          rows: rows.map(r => ({
+            _row:         r._row,
+            name:         r.name,
+            parent_phone: r.parent_phone  ?? null,
+            parent_phone2:r.parent_phone2 ?? null,
+            parent_phone3:r.parent_phone3 ?? null,
+            birth_year:   r.birth_year    ?? null,
+            parent_name:  r.parent_name   ?? null,
+            weekly_count: r.weekly_count  ?? 1,
+            memo:         r.memo          ?? null,
           })),
         }),
       });
-
-      const data: UploadResult = await apiRes.json().catch(() => ({
-        success: false, message: "서버 응답을 파싱할 수 없습니다.",
-      }));
-
-      // 파일 상태 업데이트
-      if (fileId) {
-        apiRequest(token, `/admin/member-files/${fileId}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: data.success ? "success" : "failed",
-            row_count: validRows.length,
-            error_detail: data.success ? null : (data.message ?? null),
-          }),
-        }).catch(() => {});
+      const data: ValidateResponse = await apiRes.json().catch(() => null);
+      if (!apiRes.ok || !data) {
+        const errData: any = data;
+        setParseError(errData?.error ?? "서버 검증에 실패했습니다.");
+        setStep("preview");
+        return;
       }
-
-      if (!data.success) {
-        data.message = "명단 업로드에 실패했습니다. 고객센터로 자동 불편 접수가 되었습니다.";
-        // 운영자 SMS 알림
-        apiRequest(token, "/admin/report-upload-issue", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ error_type: "server", error_detail: data.message }),
-        }).catch(() => {});
-      }
-
-      setUploadResult(data);
-      setStep("done");
-    } catch (e: any) {
-      if (fileId) {
-        apiRequest(token, `/admin/member-files/${fileId}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "failed", error_detail: "network" }),
-        }).catch(() => {});
-      }
-      setUploadResult({
-        success: false,
-        message: "명단 업로드에 실패했습니다. 고객센터로 자동 불편 접수가 되었습니다.",
-      });
-      setStep("done");
-      apiRequest(token, "/admin/report-upload-issue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ error_type: "network", error_detail: e?.message ?? "" }),
-      }).catch(() => {});
+      setValidateResult(data);
+      setStep("validated");
+    } catch {
+      setParseError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+      setStep("preview");
     }
-  }, [canUpload, overLimit, validRows, token, fileB64, fileName]);
+  }, [canValidate, rows, token]);
+
+  // ── 최종 등록 ─────────────────────────────────────────────────
+  const handleCommit = useCallback(async () => {
+    if (!validateResult || validateResult.blocking_error_count > 0) return;
+    const validRows = validateResult.rows.filter(r => r.valid);
+
+    Alert.alert(
+      "전체 등록 확인",
+      `${validRows.length.toLocaleString()}명을 모두 등록하시겠습니까?\n수정이 필요한 행이 없으면 전원 등록됩니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "등록", onPress: async () => {
+            setStep("committing");
+            setParseError("");
+
+            // ── 파일 R2 보관 (fire-and-forget) ──────────────────
+            let fileId: string | null = null;
+            if (fileB64 && fileName) {
+              try {
+                const uploadRes = await apiRequest(token, "/admin/upload-member-excel", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ filename: fileName, content_b64: fileB64 }),
+                });
+                if (uploadRes.ok) {
+                  const d = await uploadRes.json().catch(() => ({}));
+                  fileId = d.file_id ?? null;
+                }
+              } catch { /* 무시 */ }
+            }
+
+            try {
+              const apiRes = await apiRequest(token, "/admin/members/bulk/commit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rows: validRows }),
+              });
+              const data = await apiRes.json().catch(() => ({ created: 0 }));
+
+              if (fileId) {
+                apiRequest(token, `/admin/member-files/${fileId}/status`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: apiRes.ok ? "success" : "failed", row_count: validRows.length }),
+                }).catch(() => {});
+              }
+
+              if (!apiRes.ok) {
+                const msg = data?.error ?? "등록 실패";
+                setParseError(msg);
+                setStep("validated");
+              } else {
+                setUploadResult({ success: true, inserted: data.created });
+                setStep("done");
+              }
+            } catch {
+              setParseError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+              setStep("validated");
+            }
+          },
+        },
+      ]
+    );
+  }, [validateResult, token, fileB64, fileName]);
 
   const resetAll = () => {
     setStep("pick");
@@ -547,6 +559,7 @@ export default function BulkRegisterScreen() {
     setFileName("");
     setParseError("");
     setUploadResult(null);
+    setValidateResult(null);
     setCapacity(null);
     setFileB64(null);
   };
@@ -568,19 +581,20 @@ export default function BulkRegisterScreen() {
         {step === "pick" && (
           <>
             {/* 업로드 전 필수 안내 */}
-            <View style={[s.noticeCard, { backgroundColor: "#FEF3C7", borderColor: "#F59E0B30" }]}>
+            <View style={[s.noticeCard, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" }]}>
               <View style={[s.cardRow, { marginBottom: 6 }]}>
-                <LucideIcon name="alert-triangle" size={15} color="#D97706" />
-                <Text style={[s.cardTitle, { color: "#92400E" }]}>엑셀 업로드 전 반드시 확인하세요</Text>
+                <LucideIcon name="info" size={15} color="#2563EB" />
+                <Text style={[s.cardTitle, { color: "#1D4ED8" }]}>이름과 보호자 연락처만 있으면 등록할 수 있습니다</Text>
               </View>
               {[
-                "이름, 전화번호는 필수 입력입니다",
-                "형제는 전화번호가 같아도 이름이 다르면 등록 가능합니다",
-                "이름+전화번호가 완전히 같은 중복 행은 자동으로 제외됩니다",
-                `${MAX_UPLOAD}명 초과 시 업로드가 불가능합니다`,
-                "오류 행은 자동 제외되고 정상 행만 등록됩니다",
+                "동명이인은 등록할 수 있습니다",
+                "같은 보호자 연락처를 쓰는 형제/자매도 등록 가능합니다",
+                "반 이름·생년·메모 등은 선택사항입니다",
+                "반 이름을 찾지 못하면 미배정 회원으로 등록됩니다",
+                `한 번에 최대 ${MAX_UPLOAD.toLocaleString()}명까지 등록 가능합니다`,
+                "등록 전 서버 검증으로 전체 파일을 한 번에 확인합니다",
               ].map((txt, i) => (
-                <Text key={i} style={[s.noticeLine, { color: "#92400E" }]}>• {txt}</Text>
+                <Text key={i} style={[s.noticeLine, { color: "#1E40AF" }]}>• {txt}</Text>
               ))}
             </View>
 
@@ -715,12 +729,12 @@ export default function BulkRegisterScreen() {
               </Pressable>
             </View>
 
-            {/* 파일 인원 초과 (300명) */}
+            {/* 파일 인원 초과 */}
             {overLimit && (
               <View style={[s.alertBanner, { backgroundColor: "#FEE2E2" }]}>
                 <LucideIcon name="alert-circle" size={14} color="#DC2626" />
                 <Text style={[s.alertTxt, { color: "#DC2626" }]}>
-                  {rows.length}명 감지 — 최대 {MAX_UPLOAD}명까지 업로드 가능합니다. 파일을 나누어 업로드해주세요.
+                  {rows.length.toLocaleString()}명 감지 — 최대 {MAX_UPLOAD.toLocaleString()}명까지 업로드 가능합니다. 파일을 나누어 업로드해주세요.
                 </Text>
               </View>
             )}
@@ -740,48 +754,22 @@ export default function BulkRegisterScreen() {
             {/* 요약 통계 */}
             <View style={[s.summaryRow, { backgroundColor: C.card }]}>
               <View style={s.summaryItem}>
-                <Text style={[s.summaryNum, { color: "#16A34A" }]}>{validRows.length}</Text>
-                <Text style={[s.summaryLabel, { color: C.textSecondary }]}>등록 가능</Text>
+                <Text style={[s.summaryNum, { color: C.text }]}>{rows.length.toLocaleString()}</Text>
+                <Text style={[s.summaryLabel, { color: C.textSecondary }]}>전체</Text>
               </View>
+              {errorRows.length > 0 && (
+                <View style={[s.summaryItem, s.summaryDivider]}>
+                  <Text style={[s.summaryNum, { color: "#DC2626" }]}>{errorRows.length}</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>파일 오류</Text>
+                </View>
+              )}
               {skippedRows.length > 0 && (
                 <View style={[s.summaryItem, s.summaryDivider]}>
                   <Text style={[s.summaryNum, { color: "#6B7280" }]}>{skippedRows.length}</Text>
                   <Text style={[s.summaryLabel, { color: C.textSecondary }]}>중복 제거</Text>
                 </View>
               )}
-              {warnRows.length > 0 && (
-                <View style={[s.summaryItem, s.summaryDivider]}>
-                  <Text style={[s.summaryNum, { color: "#D97706" }]}>{warnRows.length}</Text>
-                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>확인 필요</Text>
-                </View>
-              )}
-              {errorRows.length > 0 && (
-                <View style={[s.summaryItem, s.summaryDivider]}>
-                  <Text style={[s.summaryNum, { color: "#DC2626" }]}>{errorRows.length}</Text>
-                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>오류</Text>
-                </View>
-              )}
             </View>
-
-            {/* 오류 존재 시 안내 배너 */}
-            {errorRows.length > 0 && !overLimit && (
-              <View style={[s.alertBanner, { backgroundColor: "#FEF3C7" }]}>
-                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
-                <Text style={[s.alertTxt, { color: "#92400E" }]}>
-                  오류 {errorRows.length}건은 자동 제외됩니다. 정상 {validRows.length}명만 등록됩니다.
-                </Text>
-              </View>
-            )}
-
-            {/* 출생년도 경고 */}
-            {warnRows.length > 0 && (
-              <View style={[s.alertBanner, { backgroundColor: "#FFFBEB" }]}>
-                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
-                <Text style={[s.alertTxt, { color: "#D97706" }]}>
-                  출생년도 확인이 필요한 항목 {warnRows.length}명 (등록은 가능)
-                </Text>
-              </View>
-            )}
 
             {/* 미리보기 테이블 */}
             <View style={[s.tableWrap, { backgroundColor: C.card }]}>
@@ -833,124 +821,182 @@ export default function BulkRegisterScreen() {
               })}
             </View>
 
-            {/* 등록 버튼 */}
+            {/* parseError 표시 */}
+            {parseError ? (
+              <View style={s.errorBox}>
+                <LucideIcon name="alert-circle" size={14} color="#DC2626" />
+                <Text style={s.errorTxt}>{parseError}</Text>
+              </View>
+            ) : null}
+
+            {/* 서버 검증 버튼 */}
             <Pressable
-              style={[
-                s.uploadBtn,
-                { backgroundColor: canUpload ? themeColor : C.border },
-              ]}
-              onPress={handleSubmit}
-              disabled={!canUpload}
+              style={[s.uploadBtn, { backgroundColor: canValidate ? themeColor : C.border }]}
+              onPress={handleValidate}
+              disabled={!canValidate}
             >
-              <LucideIcon name="upload" size={16} color="#fff" />
+              <LucideIcon name="search" size={16} color="#fff" />
               <Text style={s.uploadBtnTxt}>
-                {overPlanLimit
-                  ? "플랜 한도 초과 — 업로드 불가"
-                  : canUpload
-                    ? `${validRows.length}명 일괄 등록하기`
-                    : "오류 수정 후 업로드 가능"}
+                {overLimit
+                  ? `${MAX_UPLOAD.toLocaleString()}명 초과 — 파일 나누기 필요`
+                  : `${rows.length.toLocaleString()}명 서버 검증`}
               </Text>
             </Pressable>
           </>
         )}
 
-        {/* ═══ STEP 3: 처리 중 ═════════════════════════════════ */}
-        {step === "processing" && (
-          <View style={[s.card, {
-            backgroundColor: C.card, alignItems: "center", paddingVertical: 40,
-          }]}>
+        {/* ═══ STEP 3: 검증 중 ═════════════════════════════════ */}
+        {step === "validating" && (
+          <View style={[s.card, { backgroundColor: C.card, alignItems: "center", paddingVertical: 40 }]}>
             <ActivityIndicator size="large" color={themeColor} />
-            <Text style={[s.processingTitle, { color: C.text }]}>등록 처리 중...</Text>
+            <Text style={[s.processingTitle, { color: C.text }]}>서버 검증 중...</Text>
             <Text style={[s.processingCount, { color: C.textSecondary }]}>
-              서버에서 전체 유효성 검사 후 일괄 등록합니다
+              전체 {rows.length.toLocaleString()}명 파일을 한 번에 검사합니다
             </Text>
           </View>
         )}
 
-        {/* ═══ STEP 4: 완료 ════════════════════════════════════ */}
-        {step === "done" && uploadResult && (
-          <View style={{ alignItems: "center", paddingTop: 8 }}>
-            {uploadResult.success
-              ? <LucideIcon name="check-circle" size={64} color="#16A34A" />
-              : <LucideIcon name="alert-circle" size={64} color="#DC2626" />}
+        {/* ═══ STEP 4: 검증 결과 ═══════════════════════════════ */}
+        {step === "validated" && validateResult && (
+          <>
+            <View style={[s.card, s.cardRow, { backgroundColor: C.card }]}>
+              <LucideIcon name="grid" size={16} color={C.brandStrong} />
+              <Text style={[s.cardTitle, { flex: 1, color: C.text }]} numberOfLines={1}>{fileName}</Text>
+              <Pressable onPress={resetAll} style={s.changeBtn}>
+                <Text style={[s.changeBtnTxt, { color: C.brandStrong }]}>다시 선택</Text>
+              </Pressable>
+            </View>
 
-            <Text style={[s.doneTitle, { color: C.text }]}>
-              {uploadResult.success
-                ? `${uploadResult.inserted ?? 0}명 등록 완료!`
-                : "업로드 실패"}
-            </Text>
+            {/* 요약 */}
+            <View style={[s.summaryRow, { backgroundColor: C.card }]}>
+              <View style={s.summaryItem}>
+                <Text style={[s.summaryNum, { color: C.text }]}>{validateResult.total.toLocaleString()}</Text>
+                <Text style={[s.summaryLabel, { color: C.textSecondary }]}>전체</Text>
+              </View>
+              <View style={[s.summaryItem, s.summaryDivider]}>
+                <Text style={[s.summaryNum, { color: "#16A34A" }]}>{validateResult.valid.toLocaleString()}</Text>
+                <Text style={[s.summaryLabel, { color: C.textSecondary }]}>등록 가능</Text>
+              </View>
+              {validateResult.blocking_error_count > 0 && (
+                <View style={[s.summaryItem, s.summaryDivider]}>
+                  <Text style={[s.summaryNum, { color: "#DC2626" }]}>{validateResult.blocking_error_count}</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>수정 필요</Text>
+                </View>
+              )}
+              {validateResult.warning_count > 0 && (
+                <View style={[s.summaryItem, s.summaryDivider]}>
+                  <Text style={[s.summaryNum, { color: "#D97706" }]}>{validateResult.warning_count}</Text>
+                  <Text style={[s.summaryLabel, { color: C.textSecondary }]}>주의사항</Text>
+                </View>
+              )}
+            </View>
 
-            {/* 성공 결과 카드 */}
-            {uploadResult.success && (
-              <View style={[s.doneCard, { backgroundColor: C.card, width: "100%" }]}>
-                <View style={s.doneRow}>
-                  <Text style={[s.doneLabel, { color: C.textSecondary }]}>등록 완료</Text>
-                  <Text style={[s.doneVal, { color: "#16A34A" }]}>{uploadResult.inserted}명</Text>
+            {/* blocking errors */}
+            {validateResult.blocking_error_count > 0 && (
+              <View style={[s.alertBanner, { backgroundColor: "#FEF2F2" }]}>
+                <LucideIcon name="alert-circle" size={14} color="#DC2626" />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.alertTxt, { color: "#991B1B", fontFamily: "Pretendard-Regular" }]}>
+                    수정이 필요한 회원이 있어 아무 회원도 등록하지 않았습니다.{"\n"}파일을 수정한 뒤 다시 업로드해주세요.
+                  </Text>
+                  {validateResult.errors.slice(0, 10).map((e, i) => (
+                    <Text key={i} style={{ fontSize: 11, color: "#DC2626", lineHeight: 17, marginTop: 2 }}>
+                      {e.row}행 {e.name} — {e.message}
+                    </Text>
+                  ))}
+                  {validateResult.errors.length > 10 && (
+                    <Text style={{ fontSize: 11, color: "#9CA3AF" }}>… 외 {validateResult.errors.length - 10}건</Text>
+                  )}
                 </View>
               </View>
             )}
 
-            {/* 실패: 서버 오류 상세 */}
-            {!uploadResult.success && (
-              <View style={[s.failList, { width: "100%", backgroundColor: "#FEF2F2" }]}>
-                <Text style={s.failListTitle}>
-                  {uploadResult.message ?? "업로드에 실패했습니다. 아래 오류를 확인하세요."}
-                </Text>
-
-                {uploadResult.errors?.missing_name && (
-                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
-                    이름 없음 — {uploadResult.errors.missing_name.length}건 (행: {uploadResult.errors.missing_name.join(", ")})
-                  </Text>
-                )}
-                {uploadResult.errors?.missing_phone && (
-                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
-                    전화번호 없음 — {uploadResult.errors.missing_phone.length}건 (행: {uploadResult.errors.missing_phone.join(", ")})
-                  </Text>
-                )}
-                {uploadResult.errors?.invalid_phone && (
-                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
-                    전화번호 형식 오류 — {uploadResult.errors.invalid_phone.length}건 (행: {uploadResult.errors.invalid_phone.join(", ")})
-                  </Text>
-                )}
-                {uploadResult.errors?.duplicate_phone?.map((d, i) => (
-                  <Text key={i} style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
-                    파일 내 전화번호 중복: {formatPhone(d.phone)} (행: {d.rows.join(", ")})
-                  </Text>
-                ))}
-                {uploadResult.errors?.db_duplicate_phone?.map((d, i) => (
-                  <Text key={i} style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
-                    이미 등록된 전화번호: {formatPhone(d.phone)} (행: {d.rows.join(", ")})
-                  </Text>
-                ))}
-                {uploadResult.errors?.member_limit && (
-                  <Text style={[s.failReason, { color: "#DC2626", marginBottom: 4 }]}>
-                    플랜 회원 수 한도 초과{"\n"}
-                    현재 {uploadResult.errors.member_limit.current}명 / 최대 {uploadResult.errors.member_limit.limit}명{"\n"}
-                    등록 요청 {uploadResult.errors.member_limit.requested}명, 남은 자리 {uploadResult.errors.member_limit.available}명{"\n"}
-                    설정 {">"} 구독 플랜에서 플랜을 변경하거나 기존 회원을 정리해주세요.
-                  </Text>
-                )}
-                {!uploadResult.errors && uploadResult.message && (
-                  <Text style={[s.failReason, { color: "#DC2626" }]}>{uploadResult.message}</Text>
-                )}
+            {/* warnings */}
+            {validateResult.warning_count > 0 && validateResult.blocking_error_count === 0 && (
+              <View style={[s.alertBanner, { backgroundColor: "#FFFBEB" }]}>
+                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.alertTxt, { color: "#92400E" }]}>주의사항 {validateResult.warning_count}건 — 등록은 가능합니다.</Text>
+                  {validateResult.warnings.slice(0, 5).map((w, i) => (
+                    <Text key={i} style={{ fontSize: 11, color: "#D97706", lineHeight: 17, marginTop: 2 }}>
+                      {w.row}행 {w.name}: {w.message}
+                    </Text>
+                  ))}
+                </View>
               </View>
             )}
 
-            {uploadResult.success ? (
-              <Pressable
-                style={[s.uploadBtn, { backgroundColor: themeColor, width: "100%", marginTop: 8 }]}
-                onPress={() => router.push("/(admin)/members?backTo=ops-hub" as any)}
-              >
-                <Text style={s.uploadBtnTxt}>회원 목록 확인하기</Text>
-              </Pressable>
+            {/* all valid */}
+            {validateResult.blocking_error_count === 0 && (
+              <View style={[s.alertBanner, { backgroundColor: "#F0FDF4" }]}>
+                <LucideIcon name="check-circle" size={14} color="#16A34A" />
+                <Text style={[s.alertTxt, { color: "#166534" }]}>
+                  모든 행이 유효합니다. 아래 버튼을 눌러 {validateResult.valid.toLocaleString()}명을 전체 등록하세요.
+                </Text>
+              </View>
+            )}
+
+            {/* parseError */}
+            {parseError ? (
+              <View style={s.errorBox}>
+                <LucideIcon name="alert-circle" size={14} color="#DC2626" />
+                <Text style={s.errorTxt}>{parseError}</Text>
+              </View>
             ) : null}
+
+            {/* 등록 버튼 */}
             <Pressable
-              style={[s.outlineBtn, { borderColor: C.border, width: "100%", marginTop: uploadResult.success ? 10 : 8 }]}
+              style={[s.uploadBtn, {
+                backgroundColor: validateResult.blocking_error_count === 0 ? themeColor : C.border,
+              }]}
+              onPress={handleCommit}
+              disabled={validateResult.blocking_error_count > 0}
+            >
+              <LucideIcon name="upload" size={16} color="#fff" />
+              <Text style={s.uploadBtnTxt}>
+                {validateResult.blocking_error_count > 0
+                  ? "오류 수정 후 다시 업로드"
+                  : `${validateResult.valid.toLocaleString()}명 전체 등록`}
+              </Text>
+            </Pressable>
+          </>
+        )}
+
+        {/* ═══ STEP 5: 등록 중 ═════════════════════════════════ */}
+        {step === "committing" && (
+          <View style={[s.card, { backgroundColor: C.card, alignItems: "center", paddingVertical: 40 }]}>
+            <ActivityIndicator size="large" color={themeColor} />
+            <Text style={[s.processingTitle, { color: C.text }]}>등록 처리 중...</Text>
+            <Text style={[s.processingCount, { color: C.textSecondary }]}>
+              전원 등록 또는 전원 미등록 방식으로 처리합니다
+            </Text>
+          </View>
+        )}
+
+        {/* ═══ STEP 6: 완료 ════════════════════════════════════ */}
+        {step === "done" && uploadResult && (
+          <View style={{ alignItems: "center", paddingTop: 8 }}>
+            <LucideIcon name="check-circle" size={64} color="#16A34A" />
+            <Text style={[s.doneTitle, { color: C.text }]}>
+              {(uploadResult.inserted ?? 0).toLocaleString()}명 등록 완료!
+            </Text>
+            <View style={[s.doneCard, { backgroundColor: C.card, width: "100%" }]}>
+              <View style={s.doneRow}>
+                <Text style={[s.doneLabel, { color: C.textSecondary }]}>등록 완료</Text>
+                <Text style={[s.doneVal, { color: "#16A34A" }]}>{(uploadResult.inserted ?? 0).toLocaleString()}명</Text>
+              </View>
+            </View>
+            <Pressable
+              style={[s.uploadBtn, { backgroundColor: themeColor, width: "100%", marginTop: 8 }]}
+              onPress={() => router.push("/(admin)/members?backTo=ops-hub" as any)}
+            >
+              <Text style={s.uploadBtnTxt}>회원 목록 확인하기</Text>
+            </Pressable>
+            <Pressable
+              style={[s.outlineBtn, { borderColor: C.border, width: "100%", marginTop: 10 }]}
               onPress={resetAll}
             >
-              <Text style={[s.outlineBtnTxt, { color: C.textSecondary }]}>
-                {uploadResult.success ? "추가 파일 올리기" : "파일 수정 후 다시 업로드"}
-              </Text>
+              <Text style={[s.outlineBtnTxt, { color: C.textSecondary }]}>추가 파일 올리기</Text>
             </Pressable>
           </View>
         )}

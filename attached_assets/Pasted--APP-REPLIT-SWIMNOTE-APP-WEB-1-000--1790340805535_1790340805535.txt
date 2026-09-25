@@ -1,0 +1,1116 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 회원 엑셀 일괄등록 최종 정책 복원 + APP/WEB 통합 + 1,000명 안정화]
+
+조사 결과 승인합니다.
+
+이번 작업은 조사에서 끝내지 않고
+실제 수정 + 검증 + Production 배포까지 진행합니다.
+
+최종 제품 정책을 아래와 같이 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 정책 — 절대 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원 일괄등록의 필수값은 딱 2개입니다.
+
+1. 이름
+2. 보호자 연락처
+
+나머지는 전부 선택값입니다.
+
+- 생년
+- 학생 연락처
+- 보호자 이름
+- 반 이름
+- 메모
+- 기타 기존 optional 정보
+
+회원등록 자체를 최대한 느슨하게 허용합니다.
+
+동명이인:
+허용.
+
+동일 보호자 연락처를 사용하는 형제/자매:
+허용.
+
+같은 이름:
+허용.
+
+같은 보호자 전화번호:
+허용.
+
+이름 + 보호자 전화번호가
+기존 회원과 완전히 동일한 경우도
+강제 차단하지 마십시오.
+
+이 경우에는:
+
+“중복 의심”
+
+WARNING만 제공하고
+등록 자체는 허용합니다.
+
+사용자가 실제 회원 데이터를
+시간표/반/운영정보로 구분할 수 있으므로
+
+중복 추론을 이유로
+회원 생성 자체를 막지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기본 다운로드 양식을 다시 2컬럼으로 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP와 WEB의 기본 다운로드 양식을
+동일하게 맞추십시오.
+
+기본 header:
+
+이름
+보호자 연락처
+
+또는 기존 APP 호환을 위해
+내부적으로:
+
+이름
+보호자전화번호
+
+를 사용할 수 있으나
+
+사용자에게 보이는 의미는:
+
+이름
+보호자 연락처
+
+두 개만 있어야 합니다.
+
+WEB의 현재 기본 7컬럼 양식:
+
+- 이름
+- 연락처
+- 생년
+- 보호자 이름
+- 보호자 연락처
+- 반 이름
+- 메모
+
+를 기본 다운로드 양식으로 사용하지 마십시오.
+
+기본 다운로드는
+2컬럼 단순 양식으로 복원하십시오.
+
+단 기존 7컬럼 파일 업로드 호환은 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. HEADER는 최대한 느슨하게 수용
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수 의미:
+
+name
+parent_phone
+
+두 개만 찾으면 됩니다.
+
+다음과 같은 기존 header alias는
+가능한 한 허용하십시오.
+
+이름:
+- 이름
+
+보호자 연락처:
+- 보호자 연락처
+- 보호자전화번호
+- 보호자 전화번호
+- 연락처
+
+단 기존 7컬럼 파일에:
+
+연락처
+보호자 연락처
+
+가 둘 다 있으면
+
+“보호자 연락처”를 parent_phone으로 우선 사용하고
+
+“연락처”는 기존 의미대로
+student.phone으로 유지하십시오.
+
+2컬럼 단순 파일에서
+“연락처”만 존재하면
+이를 parent_phone으로 사용 가능합니다.
+
+컬럼 순서:
+자유.
+
+추가 컬럼:
+무시 또는 기존 optional mapper에서 처리.
+
+optional header 누락:
+허용.
+
+빈 optional cell:
+허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 빈 행과 실무 Excel normalization
+━━━━━━━━━━━━━━━━━━━━━━
+
+1,000명짜리 실제 파일을 기준으로
+불필요한 오류를 만들지 마십시오.
+
+다음은 자동 정리:
+
+- 완전 빈 행 → skip
+- 이름 앞뒤 공백 → trim
+- 전화번호 앞뒤 공백 → trim
+- 하이픈 → 제거
+- 공백 → 제거
+- 숫자 cell → 문자열 변환
+- 문자열 cell → 정상 처리
+
+보호자 전화번호:
+
+010-1234-5678
+01012345678
+010 1234 5678
+
+은 동일하게:
+
+01012345678
+
+로 저장 가능하게 normalize.
+
+가능하면:
+
++82 10-1234-5678
+821012345678
+
+도:
+
+01012345678
+
+로 normalize하여
+현재 parent auto-approval과 매칭되게 하십시오.
+
+전화번호 formatting 차이 때문에
+등록 자체가 막히지 않게 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. BLOCKING ERROR는 최소화
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원 등록을 실제로 막는 오류는
+최소한으로 제한합니다.
+
+BLOCKING:
+
+A.
+이름이 없음
+
+B.
+보호자 연락처가 없음
+
+C.
+파일 자체를 읽을 수 없음
+
+D.
+필수 header 의미를 찾을 수 없음
+
+E.
+1,000명 최대치를 초과
+
+F.
+서버/DB 시스템 장애
+
+그 외 가능한 항목은
+최대한 WARNING으로 처리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 전화번호 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+보호자 연락처가 존재하면
+기존 canonical normalization을 적용합니다.
+
+불필요하게:
+
+010 형식 아니면 무조건 등록 불가
+
+같은 강한 validation을 새로 만들지 마십시오.
+
+다만 normalization 후
+전화번호로 사용할 수 없는 값이 명백하면
+
+해당 row를:
+
+PHONE_INVALID
+
+blocking error로 표시할 수 있습니다.
+
+이 경우 반드시:
+
+- row 번호
+- 회원 이름
+- 입력값
+- 수정 이유
+
+를 사용자에게 보여주십시오.
+
+단순:
+
+“전화번호 오류”
+
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. DUPLICATE는 ERROR가 아니라 WARNING
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 절대 registration blocking error로 사용하지 마십시오.
+
+- 동일 이름
+- 동일 전화번호
+- 동일 보호자 전화번호
+- 이름 + 보호자 전화번호 동일
+- 동일 파일 내 유사 row
+- 기존 DB와 유사 row
+
+필요하면:
+
+DUPLICATE_SUSPECTED
+
+warning으로 표시하십시오.
+
+예:
+
+42행 김민수
+기존 회원과 이름/연락처가 동일합니다.
+등록은 가능합니다.
+
+WARNING은 commit을 막지 않습니다.
+
+사용자가 파일을 수정하지 않고
+그대로 등록할 수 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 반 이름은 등록 차단 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+반 이름은 완전 optional입니다.
+
+CASE A:
+
+반 이름 공란
+
+→ 회원 정상 등록
+→ class_group_id = null
+
+CASE B:
+
+반 이름이 실제 반과 정확히 일치
+
+→ 회원 정상 등록
+→ 기존 기능처럼 해당 반 자동배정 가능
+
+CASE C:
+
+반 이름이 입력됐지만 존재하지 않음
+
+→ 회원 정상 등록
+→ class_group_id = null
+→ CLASS_NOT_FOUND warning
+
+예:
+
+57행 이서준
+반 이름 “돌고래A”를 찾지 못했습니다.
+회원은 미배정 상태로 등록됩니다.
+
+반 이름 오타 때문에
+1,000명 전체 등록을 막지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. optional 데이터 오류도 최대한 WARNING
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+생년 형식 이상
+
+→ 회원 등록 자체는 허용
+→ birth_year = null
+→ warning
+
+메모 없음:
+정상.
+
+보호자 이름 없음:
+정상.
+
+학생 연락처 없음:
+정상.
+
+회원 생성에 필요하지 않은 정보 때문에
+등록을 막지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. APP / WEB canonical API 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+APP:
+POST /students/batch
+
+WEB:
+POST /admin/members/bulk/validate
+POST /admin/members/bulk/commit
+
+로 정책이 갈라져 있습니다.
+
+현재 APP의 회원 일괄등록 화면도
+WEB와 동일한 canonical bulk validation/import 정책을
+사용하도록 변경하십시오.
+
+목표:
+
+APP
+WEB
+→ 동일 server validation
+→ 동일 import semantics
+
+기존 /students/batch endpoint는
+구버전 APP 호환 때문에
+이번 작업에서 삭제하지 마십시오.
+
+하지만 최신 APP bulk-register 화면에서는
+canonical bulk API를 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. CANONICAL SERVER CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 canonical endpoint는
+현재 구조를 최대한 재사용하십시오.
+
+POST /admin/members/bulk/validate
+
+POST /admin/members/bulk/commit
+
+두 endpoint가
+최종 server source of truth가 되게 하십시오.
+
+Frontend validation은
+UX용 사전검사일 뿐입니다.
+
+최종 정책 결정은 API에서 합니다.
+
+APP와 WEB가
+각자 duplicate/class 규칙을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. VALIDATE 응답 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+1,000행 전체를 검사한 뒤
+한 번에 결과를 반환하십시오.
+
+예:
+
+{
+  "total": 1000,
+  "valid": 997,
+  "blocking_error_count": 3,
+  "warning_count": 12,
+
+  "errors": [
+    {
+      "row": 985,
+      "name": "김민수",
+      "field": "parent_phone",
+      "code": "PHONE_REQUIRED",
+      "message": "보호자 연락처가 없습니다."
+    }
+  ],
+
+  "warnings": [
+    {
+      "row": 414,
+      "name": "박민준",
+      "field": "class_name",
+      "code": "CLASS_NOT_FOUND",
+      "message": "반 이름을 찾지 못해 미배정 회원으로 등록됩니다."
+    }
+  ]
+}
+
+첫 번째 오류에서 return 금지.
+
+가능한 모든 row를 검사해서
+모든 blocking error를 한 번에 반환하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Excel 실제 행 번호 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 Excel에서 바로 찾을 수 있도록
+
+error.row
+
+는 배열 index가 아니라
+실제 Excel 행 번호를 의미해야 합니다.
+
+예:
+
+1행 = header
+
+실제 첫 회원 = 2행
+
+이면 오류:
+
+“387행 김민수”
+
+로 표시.
+
+parse 단계부터
+원본 row number를 보존하십시오.
+
+APP/WEB 모두 동일.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 오류가 있으면 아무것도 INSERT하지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+Blocking error가 1건 이상이면:
+
+commit 버튼 비활성 또는
+commit 요청 거부.
+
+회원 데이터는:
+
+0명 INSERT.
+
+화면에:
+
+총 1,000명
+등록 가능 997명
+수정 필요 3명
+주의사항 12건
+
+식으로 표시.
+
+그리고:
+
+“수정이 필요한 회원이 있어 아직 아무 회원도 등록하지 않았습니다.
+파일을 수정한 뒤 다시 업로드해주세요.”
+
+를 명확히 표시하십시오.
+
+사용자가 요청한 방식입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. WARNING만 있으면 등록 허용
+━━━━━━━━━━━━━━━━━━━━━━
+
+blocking error = 0
+
+warning > 0
+
+이면 등록 가능.
+
+예:
+
+- 동명이인
+- 중복 의심
+- 존재하지 않는 반
+- optional 생년 오류
+
+등은 warning으로만 표시.
+
+사용자가:
+
+[전체 등록]
+
+할 수 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. COMMIT 시 서버에서 재검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+validate를 통과했다고 해서
+client 값을 그대로 신뢰하지 마십시오.
+
+POST /bulk/commit에서도
+동일 canonical normalization/validation을
+서버에서 다시 적용하십시오.
+
+blocking error가 새로 생기면
+INSERT 전에 중단.
+
+DB transaction 시작 후
+등록 중 시스템 오류 발생 시:
+
+전체 rollback.
+
+partial success 금지.
+
+최종 의미:
+
+0명 또는 전원.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 1,000명 하드 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 500명 제한을:
+
+1000명
+
+으로 변경.
+
+정확히:
+
+1~1000 rows
+허용.
+
+1001명 이상:
+
+명확한 validation error:
+
+“한 번에 최대 1,000명까지 등록할 수 있습니다.”
+
+generic 400만 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. REQUEST BODY LIMIT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기본 Express 100KB 때문에
+1,000명 payload가 413이 될 수 있습니다.
+
+bulk member endpoint가
+1,000명 payload를 안정적으로 받을 수 있게 수정하십시오.
+
+가능하면:
+
+/admin/members/bulk/*
+
+범위에만 route-scoped body limit을 적용.
+
+예:
+
+2MB 또는 실제 최대 payload를 충분히 수용하는 값.
+
+기존 전체 API의 body limit을
+불필요하게 5MB 이상으로 넓히지 마십시오.
+
+현재 Express middleware 순서를 확인하여
+route-specific limit이 실제로 적용되게 하십시오.
+
+route-scoped 적용이 구조상 불가능하면
+최소 안전 범위로 global limit을 조정하고
+그 이유를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. VALIDATE N+1 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+Promise.all(rows.map(...))
+
+으로
+최대 500개의 DB 중복조회가 동시에 나갑니다.
+
+1,000명에서 그대로 확대 금지.
+
+row마다 DB SELECT하는 구조를 제거하십시오.
+
+최소 목표:
+
+- class list/map → 1 query
+- 기존 회원 duplicate 후보 → set-based query 또는 소수 query
+- row validation → memory에서 처리
+
+중복은 warning일 뿐이므로
+duplicate 조회 때문에 registration이
+병목될 필요가 없습니다.
+
+1,000 concurrent DB query 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. COMMIT BULK INSERT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 row-by-row 500 INSERT 구조를
+1,000회 반복하지 마십시오.
+
+가능하면 Drizzle/PostgreSQL의
+multi-row insert를 사용.
+
+한 SQL이 너무 커진다면:
+
+250명 또는 적절한 크기로 chunk
+
+예:
+
+250 × 4 chunk
+
+하되
+
+모두 하나의 DB transaction 안에서 실행.
+
+중간 chunk 실패:
+
+전체 rollback.
+
+회원 1,000명:
+
+partial success 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. parent_phone 저장
+━━━━━━━━━━━━━━━━━━━━━━
+
+기본 2컬럼:
+
+이름
+보호자 연락처
+
+의 연락처는 반드시:
+
+students.parent_phone
+
+에 저장.
+
+students.phone으로 잘못 저장 금지.
+
+이는 기존 parent auto-approval에서
+사용하는 canonical matching field입니다.
+
+기존:
+
+parent_phone2~4
+자동승인 구조는 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 1,000행 WEB preview 성능
+━━━━━━━━━━━━━━━━━━━━━━
+
+1,000행을 전부 DOM table로
+항상 렌더링하지 마십시오.
+
+새 virtualization library 추가까지
+갈 필요 없습니다.
+
+간단하게:
+
+- 전체 건수 summary
+- 최초 100행 preview
+- blocking error rows
+- warning rows
+
+중심으로 표시하십시오.
+
+예:
+
+“1,000명 중 처음 100명을 미리 표시합니다.”
+
+필요하면
+[더 보기]
+
+방식 사용.
+
+목표는
+1,000명 파일에서도 브라우저가
+버벅이지 않는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. APP도 동일한 ERROR UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP의 partial success UI를
+최신 canonical bulk flow에서는 사용하지 마십시오.
+
+APP에서도:
+
+파일 선택
+→ preview
+→ validate
+→ 오류 전체 표시
+→ 오류 0건
+→ 전체 등록
+
+구조로 맞추십시오.
+
+blocking error에는:
+
+- Excel 행 번호
+- 이름
+- 문제 필드
+- 이유
+
+를 표시.
+
+그냥:
+
+“업로드 실패”
+
+“등록 실패”
+
+로 끝나는 경로 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 오류 CSV 다운로드
+━━━━━━━━━━━━━━━━━━━━━━
+
+WEB에서는 최소한:
+
+[오류 목록 다운로드]
+
+버튼을 제공하십시오.
+
+CSV 내용:
+
+행 번호
+이름
+필드
+오류 코드
+오류 내용
+
+예:
+
+985,김민수,보호자 연락처,PHONE_REQUIRED,보호자 연락처가 없습니다.
+
+사용자가 원본 Excel을 수정해서
+다시 올릴 수 있도록 하기 위한 기능입니다.
+
+APP에서는 CSV 다운로드가 복잡하면
+이번 작업에서는 필수가 아닙니다.
+
+APP는 오류 목록 화면만 정확하게 제공하면 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 시스템 오류와 데이터 오류 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 수정 가능 오류:
+
+VALIDATION_ERROR
+
+파일 자체 문제:
+
+FILE_FORMAT_ERROR
+
+1000명 초과:
+
+ROW_LIMIT_EXCEEDED
+
+네트워크:
+
+NETWORK_ERROR
+
+서버/DB 문제:
+
+IMPORT_SYSTEM_ERROR
+
+를 UI에서 구분하십시오.
+
+시스템 오류를
+특정 회원의 잘못처럼 표시하지 마십시오.
+
+서버 stack trace나 내부 DB 정보는
+사용자에게 노출하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. UI 설명 전면 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP와 WEB의 설명을
+최종 정책에 맞춰 동일하게 변경하십시오.
+
+사용자에게 보여줄 핵심 의미:
+
+“이름과 보호자 연락처만 있으면 등록할 수 있습니다.”
+
+“동명이인은 등록할 수 있습니다.”
+
+“반 이름, 생년, 메모 등은 선택사항입니다.”
+
+“반 이름을 찾지 못하면 미배정 회원으로 등록됩니다.”
+
+“등록 전에 전체 파일을 검사하며,
+수정이 필요한 행이 있으면 행 번호와 이유를 알려드립니다.”
+
+“수정이 필요한 행이 있으면 아직 아무 회원도 등록되지 않습니다.”
+
+“파일을 수정한 뒤 다시 업로드해주세요.”
+
+기존:
+
+“중복·반 이름 오류 등이 있으면 등록 불가”
+
+같은 강한 문구는 제거.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. TEMPLATE 호환성
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 기본 양식은 2컬럼.
+
+그러나 기존 WEB에서 이미 다운로드한
+7컬럼 XLSX도 계속 업로드 가능해야 합니다.
+
+즉:
+
+NEW:
+이름 + 보호자 연락처
+
+OLD:
+이름
+연락처
+생년
+보호자 이름
+보호자 연락처
+반 이름
+메모
+
+둘 다 지원.
+
+기존 파일 사용자에게
+새 양식으로 다시 옮기라고 강제하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 1,000명 TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 실제 회원을
+1,000명 생성해서 테스트하지 마십시오.
+
+test/local DB 또는
+rollback 가능한 테스트 환경에서
+synthetic 1,000 rows로 검증하십시오.
+
+TEST A:
+정상 1,000명
+→ validate 성공
+→ commit 전체 성공
+
+TEST B:
+1,000명 중
+500번째 이름 없음
+
+→ errors에 실제 Excel row 번호
+→ commit 0명
+→ 나머지 999명도 저장되지 않음
+
+TEST C:
+1,000명 중
+777번째 보호자 연락처 없음
+
+→ 정확한 row/name/reason
+→ 0명 insert
+
+TEST D:
+동명이인 다수
+
+→ blocking error 없음
+
+TEST E:
+동일 parent_phone 형제 다수
+
+→ blocking error 없음
+
+TEST F:
+존재하지 않는 반 20개
+
+→ warning
+→ 회원 등록
+→ class_group_id=null
+
+TEST G:
+기존 회원과 name+parent_phone 동일
+
+→ duplicate warning
+→ commit 가능
+
+TEST H:
+1001명
+
+→ ROW_LIMIT_EXCEEDED
+→ 0명 insert
+
+TEST I:
+구 7컬럼 파일
+
+→ 정상 parse
+
+TEST J:
+신 2컬럼 파일
+
+→ 정상 parse
+
+가능하면:
+
+- request payload size
+- validation 소요시간
+- commit 소요시간
+- DB query 수 대략
+
+도 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후:
+
+API:
+swimnote-api Render Production 배포
+
+WEB:
+swimnote.kr Production dashboard 배포
+
+APP:
+production-v2 OTA
+
+runtimeVersion:
+2.2.0
+
+DB migration:
+예상 없음.
+
+Native build:
+없음.
+
+DB schema 변경은
+이번 작업에서 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. FINAL CONTRACT]
+
+- 필수 2개
+- optional
+- duplicate
+- class warning
+- all-or-nothing 의미
+
+[B. TEMPLATE]
+
+APP:
+- 다운로드 header
+
+WEB:
+- 다운로드 header
+
+기존 7컬럼 호환 여부
+
+[C. CANONICAL API]
+
+- APP endpoint
+- WEB endpoint
+- canonical validation 위치
+- legacy /students/batch 유지 여부
+
+[D. NORMALIZATION]
+
+- 이름
+- 전화
+- +82
+- 빈 행
+- header alias
+
+[E. VALIDATION]
+
+blocking error 종류
+warning 종류
+
+[F. DUPLICATE]
+
+동명이인
+동일 보호자전화
+name+phone 동일
+
+각 최종 처리
+
+[G. CLASS]
+
+공란
+정상 반
+없는 반
+
+각 처리
+
+[H. 1000 PERFORMANCE]
+
+- row limit
+- request body limit
+- validate query 구조
+- commit query 구조
+- transaction
+- preview rendering
+
+[I. ERROR UX]
+
+WEB:
+- row/name/field/reason
+- 오류 CSV
+
+APP:
+- row/name/field/reason
+
+generic 실패 제거 결과
+
+[J. TEST]
+
+TEST A~J
+각 PASS/FAIL
+
+실제 테스트 환경 명시.
+
+[K. DEPLOY]
+
+API:
+- full 40-character Work SHA
+- full 40-character Production LIVE SHA
+- Render Deploy ID
+- status
+
+WEB:
+- full Git SHA
+- Production deploy ID/status
+- 실제 production domain
+
+APP:
+- full 40-character OTA Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- branch/channel
+- runtimeVersion
+
+[L. DB]
+
+- migration 여부
+- 기존 회원 데이터 수정 여부
+- Production test insert 여부
+
+[M. UNCHANGED]
+
+- 기존 parent auto-approval 의미
+- 기존 회원 데이터
+- Native build 없음
+
+완료했다고만 보고하지 마십시오.
+
+1,000명 성능은
+코드만 보고 PASS 처리하지 말고
+가능한 테스트 환경에서 실제 synthetic payload로 검증하십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.

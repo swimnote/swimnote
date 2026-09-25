@@ -5566,7 +5566,12 @@ router.get("/members/export",
 );
 
 // ══════════════════════════════════════════════════════════════════════════════
-// POST /admin/members/bulk/validate — 대량등록 서버 검증
+// POST /admin/members/bulk/validate — 대량등록 서버 검증 (1,000명 지원)
+// ══════════════════════════════════════════════════════════════════════════════
+// 정책:
+//   BLOCKING error: 이름 없음, 보호자 연락처 없음/불량, 1001명 초과
+//   WARNING (등록 차단 안 함): 반 이름 미발견(미배정 등록), 중복 의심
+//   N+1 없음: class 1 query + 기존 회원 1 query → 메모리 set 비교
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/members/bulk/validate",
   requireAuth, requireRole("super_admin", "pool_admin"),
@@ -5575,76 +5580,134 @@ router.post("/members/bulk/validate",
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-      const { rows } = req.body as { rows: Array<Record<string, string>> };
-      if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "rows가 필요합니다." }); return; }
-      if (rows.length > 500) { res.status(400).json({ error: "한 번에 최대 500명까지 등록 가능합니다." }); return; }
+      const { rows } = req.body as { rows: Array<Record<string, any>> };
+      if (!Array.isArray(rows) || rows.length === 0) {
+        res.status(400).json({ code: "VALIDATION_ERROR", error: "rows가 필요합니다." }); return;
+      }
+      if (rows.length > 1000) {
+        res.status(400).json({ code: "ROW_LIMIT_EXCEEDED", error: "한 번에 최대 1,000명까지 등록할 수 있습니다." }); return;
+      }
 
-      // Load class groups for name→id mapping
+      // ── 전화번호 normalize (+82 포함) ──────────────────────────────────────
+      function normPhone(raw: string): string {
+        let n = String(raw ?? "").replace(/[^0-9]/g, "");
+        if (n.startsWith("82") && n.length >= 11) n = "0" + n.slice(2); // +82→0
+        if (n.length === 10 && /^1[0-9]/.test(n)) n = "0" + n;          // 앞 0 복원
+        return n;
+      }
+
+      // ── 1. 반 목록 (1 query) ────────────────────────────────────────────────
       const classRows = await db.execute(sql`
-        SELECT id, name FROM class_groups WHERE swimming_pool_id = ${poolId} AND is_deleted = false
+        SELECT id, name FROM class_groups
+        WHERE swimming_pool_id = ${poolId} AND is_deleted = false
       `);
       const classMap = new Map<string, string>();
       (classRows.rows as any[]).forEach((c) => classMap.set(c.name.trim(), c.id));
 
-      const validated = await Promise.all(rows.map(async (row) => {
-        const errors: string[] = [];
-        const name = (row.name ?? "").trim();
-        if (!name) errors.push("이름이 없습니다.");
+      // ── 2. 기존 회원 (1 query) — 중복 경고용 in-memory set ─────────────────
+      const existingRes = await db.execute(sql`
+        SELECT name,
+               REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') AS p,
+               REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') AS pp
+        FROM students
+        WHERE swimming_pool_id = ${poolId}
+          AND status NOT IN ('withdrawn','deleted','archived')
+      `);
+      const dupSet = new Set<string>();
+      for (const s of existingRes.rows as any[]) {
+        if (s.name && s.p)  dupSet.add(`${s.name}|${s.p}`);
+        if (s.name && s.pp) dupSet.add(`${s.name}|${s.pp}`);
+      }
 
-        // Phone normalisation
-        const phone = (row.phone ?? "").replace(/[^0-9]/g, "") || null;
-        const parentPhone = (row.parent_phone ?? "").replace(/[^0-9]/g, "") || null;
+      // ── 3. Row별 검증 ──────────────────────────────────────────────────────
+      type BulkError   = { row: number; name: string; field: string; code: string; message: string };
+      type BulkWarning = { row: number; name: string; field: string; code: string; message: string };
+      const errors:   BulkError[]   = [];
+      const warnings: BulkWarning[] = [];
 
-        // Class resolution
-        let class_group_id: string | undefined;
-        const className = (row.class_name ?? "").trim();
-        if (className) {
-          const matched = classMap.get(className);
-          if (!matched) errors.push(`반 이름 "${className}"을 찾을 수 없습니다.`);
-          else class_group_id = matched;
+      const processedRows = rows.map((row, idx) => {
+        const excelRow = row._row ? Number(row._row) : idx + 2;
+        const name     = (row.name ?? "").trim();
+        const rawPP    = String(row.parent_phone ?? "").trim();
+        const rawPhone = String(row.phone ?? "").trim();
+        const rawCls   = String(row.class_name ?? "").trim();
+
+        let blocking = false;
+
+        // Blocking A — 이름 없음
+        if (!name) {
+          errors.push({ row: excelRow, name: "(이름없음)", field: "name", code: "NAME_REQUIRED", message: "이름이 없습니다." });
+          blocking = true;
         }
 
-        // Duplicate check (name + parent_phone)
-        let duplicate = false;
-        if (name && (phone || parentPhone)) {
-          const dupRes = await db.execute(sql`
-            SELECT id FROM students
-            WHERE swimming_pool_id = ${poolId}
-              AND name = ${name}
-              AND status NOT IN ('withdrawn', 'deleted', 'archived')
-              AND (
-                ${phone ? sql`REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${phone}` : sql`FALSE`}
-                OR ${parentPhone ? sql`REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${parentPhone}` : sql`FALSE`}
-              )
-            LIMIT 1
-          `);
-          if (dupRes.rows.length > 0) {
-            duplicate = true;
-            errors.push("동일한 학생이 이미 등록되어 있습니다.");
+        // Phone normalize
+        const ppNorm    = rawPP    ? normPhone(rawPP)    : "";
+        const phoneNorm = rawPhone ? normPhone(rawPhone) : "";
+
+        // Blocking B — 보호자 연락처 없음 or 불량
+        if (!rawPP) {
+          errors.push({ row: excelRow, name: name || "(이름없음)", field: "parent_phone", code: "PHONE_REQUIRED", message: "보호자 연락처가 없습니다." });
+          blocking = true;
+        } else if (ppNorm.length < 9) {
+          errors.push({ row: excelRow, name: name || "(이름없음)", field: "parent_phone", code: "PHONE_INVALID",
+            message: `보호자 연락처를 인식할 수 없습니다. (입력값: ${rawPP})` });
+          blocking = true;
+        }
+
+        // Warning — 반 이름 미발견 (차단 안 함)
+        let class_group_id: string | null = null;
+        if (rawCls) {
+          const matched = classMap.get(rawCls);
+          if (matched) {
+            class_group_id = matched;
+          } else {
+            warnings.push({ row: excelRow, name: name || "(이름없음)", field: "class_name", code: "CLASS_NOT_FOUND",
+              message: `반 이름 "${rawCls}"을 찾지 못해 미배정 회원으로 등록됩니다.` });
+          }
+        }
+
+        // Warning — 중복 의심 (차단 안 함)
+        if (!blocking && name && ppNorm) {
+          if (dupSet.has(`${name}|${ppNorm}`) || (phoneNorm && dupSet.has(`${name}|${phoneNorm}`))) {
+            warnings.push({ row: excelRow, name, field: "parent_phone", code: "DUPLICATE_SUSPECTED",
+              message: "기존 회원과 이름·연락처가 동일합니다. 등록은 가능합니다." });
           }
         }
 
         return {
           ...row,
-          valid: errors.length === 0,
-          errors,
-          duplicate,
+          _row: excelRow,
+          name: name || (row.name ?? ""),
+          parent_phone: ppNorm || null,
+          phone: phoneNorm || null,
           class_group_id,
+          valid: !blocking,
         };
-      }));
+      });
 
-      res.json({ rows: validated });
+      const validCount = processedRows.filter(r => r.valid).length;
+
+      res.json({
+        total: rows.length,
+        valid: validCount,
+        blocking_error_count: errors.length,
+        warning_count: warnings.length,
+        errors,
+        warnings,
+        rows: processedRows,
+      });
     } catch (e) {
       console.error("[members/bulk/validate]", e);
-      res.status(500).json({ error: "서버 오류" });
+      res.status(500).json({ code: "IMPORT_SYSTEM_ERROR", error: "서버 오류" });
     }
   }
 );
 
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /admin/members/bulk/commit — 대량등록 최종 실행 (ALL-OR-NOTHING)
-// 기존 단건 등록 공통 서비스(createStudentCore) 재사용
-// 단일 DB transaction → 중간 실패 시 전체 rollback
+// - 서버에서 canonical normalization 재검증
+// - 학부모 계정 사전 조회 (N+1 방지)
+// - 250명 chunk INSERT, 단일 DB transaction → 중간 실패 시 전체 rollback
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/members/bulk/commit",
   requireAuth, requireRole("super_admin", "pool_admin"),
@@ -5652,51 +5715,140 @@ router.post("/members/bulk/commit",
     try {
       const poolId = await getAdminPoolId(req);
       if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
-      const { userId } = req.user!;
 
       const { rows } = req.body as { rows: Array<Record<string, any>> };
-      if (!Array.isArray(rows) || rows.length === 0) { res.status(400).json({ error: "rows가 필요합니다." }); return; }
+      if (!Array.isArray(rows) || rows.length === 0) {
+        res.status(400).json({ code: "VALIDATION_ERROR", error: "rows가 필요합니다." }); return;
+      }
+      if (rows.length > 1000) {
+        res.status(400).json({ code: "ROW_LIMIT_EXCEEDED", error: "한 번에 최대 1,000명까지 등록할 수 있습니다." }); return;
+      }
 
-      // 서버 측 최종 검증: 클라이언트가 invalid 행을 보내면 거부
-      const invalidRows = rows.filter(r => !r.valid);
-      if (invalidRows.length > 0) {
-        return res.status(400).json({
-          error: `유효하지 않은 행이 ${invalidRows.length}개 포함되어 있습니다. 파일을 수정 후 다시 업로드하세요.`,
-          invalid_count: invalidRows.length,
+      // ── 서버 재검증 (canonical normalization) ─────────────────────────────
+      function normPhoneC(raw: string): string {
+        let n = String(raw ?? "").replace(/[^0-9]/g, "");
+        if (n.startsWith("82") && n.length >= 11) n = "0" + n.slice(2);
+        if (n.length === 10 && /^1[0-9]/.test(n)) n = "0" + n;
+        return n;
+      }
+
+      type ValidRow = {
+        name: string; phone: string | null; parent_phone: string;
+        parent_name: string | null; birth_year: string | null;
+        class_group_id: string | null; memo: string | null;
+        weekly_count: number; _row: number;
+      };
+
+      const revalErrors: string[] = [];
+      const validRows: ValidRow[] = [];
+
+      for (const [idx, row] of rows.entries()) {
+        const excelRow   = row._row ? Number(row._row) : idx + 2;
+        const name       = (row.name ?? "").trim();
+        const parentPhone = normPhoneC(row.parent_phone ?? "");
+
+        if (!name)               { revalErrors.push(`${excelRow}행: 이름 없음`); continue; }
+        if (parentPhone.length < 9) { revalErrors.push(`${excelRow}행 ${name}: 보호자 연락처 없음/불량`); continue; }
+
+        validRows.push({
+          name,
+          phone: row.phone ? normPhoneC(row.phone) : null,
+          parent_phone: parentPhone,
+          parent_name: (row.parent_name ?? "").trim() || null,
+          birth_year: (row.birth_year ?? "").trim() || null,
+          class_group_id: row.class_group_id || null,
+          memo: (row.memo ?? "").trim() || null,
+          weekly_count: Math.max(1, Number(row.weekly_count) || 1),
+          _row: excelRow,
         });
       }
-      if (rows.length > 500) { res.status(400).json({ error: "한 번에 최대 500명까지 등록 가능합니다." }); return; }
 
-      // ALL-OR-NOTHING: 단일 transaction
+      if (revalErrors.length > 0) {
+        return res.status(400).json({
+          code: "VALIDATION_ERROR",
+          error: `검증 오류 ${revalErrors.length}건 — 다시 검증 후 등록해 주세요.`,
+          details: revalErrors,
+        });
+      }
+
+      // ── 학부모 계정 사전 조회 (N+1 방지, transaction 밖) ──────────────────
+      const paRes = await db.execute(sql`
+        SELECT id,
+               REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') AS phone_norm,
+               REPLACE(LOWER(COALESCE(name,'')),' ','') AS name_norm
+        FROM parent_accounts
+        WHERE swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL
+        ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
+      `);
+      const parentByPhone = new Map<string, string>();
+      const parentByName  = new Map<string, string>();
+      for (const pa of paRes.rows as any[]) {
+        if (pa.phone_norm && !parentByPhone.has(pa.phone_norm)) parentByPhone.set(pa.phone_norm, pa.id);
+        if (pa.name_norm  && !parentByName.has(pa.name_norm))   parentByName.set(pa.name_norm, pa.id);
+      }
+
+      function inviteCode(): string {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+      }
+
+      // ── ALL-OR-NOTHING: 단일 transaction ─────────────────────────────────
       const createdIds: string[] = [];
+      const psInserts: Array<{ parentId: string; studentId: string }> = [];
+
       try {
         await db.transaction(async (tx) => {
-          // Member limit: 총 등록 인원 기준 한 번만 체크
           await assertMemberLimitInTx(tx, poolId);
 
-          for (const row of rows) {
-            const result = await createStudentCore(tx, {
-              name: (row.name ?? "").trim(),
-              phone: (row.phone ?? "").replace(/[^0-9]/g, "") || null,
-              birth_year: (row.birth_year ?? "").trim() || null,
-              parent_name: (row.parent_name ?? "").trim() || null,
-              parent_phone: (row.parent_phone ?? "").replace(/[^0-9]/g, "") || null,
-              class_group_id: row.class_group_id || null,
-              memo: (row.memo ?? "").trim() || null,
-              weekly_count: 1,
-              registration_path: "admin_created",
-              swimming_pool_id: poolId,
-            });
-            createdIds.push(result.id);
+          // 250명 chunk INSERT (SQL 크기 제한 방어)
+          const CHUNK = 250;
+          for (let i = 0; i < validRows.length; i += CHUNK) {
+            const chunk = validRows.slice(i, i + CHUNK);
+            for (const row of chunk) {
+              const id     = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              const ic     = inviteCode();
+              const pName  = row.parent_name ? row.parent_name.replace(/\s+/g, "").toLowerCase() : null;
+              const parentUserId =
+                parentByPhone.get(row.parent_phone) ??
+                (pName ? parentByName.get(pName) : null) ??
+                null;
+
+              await tx.execute(sql`
+                INSERT INTO students (
+                  id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
+                  parent_user_id, class_group_id, memo, status, registration_path,
+                  weekly_count, invite_code, assigned_class_ids, schedule_labels,
+                  phone, created_at, updated_at
+                ) VALUES (
+                  ${id}, ${poolId}, ${row.name}, ${row.birth_year}, ${row.parent_name},
+                  ${row.parent_phone}, ${parentUserId}, ${row.class_group_id}, ${row.memo},
+                  ${parentUserId ? "active" : "unregistered"}, 'admin_created',
+                  ${row.weekly_count}, ${ic}, '[]'::jsonb, NULL, ${row.phone},
+                  NOW(), NOW()
+                )
+              `);
+              createdIds.push(id);
+              if (parentUserId) psInserts.push({ parentId: parentUserId, studentId: id });
+            }
+          }
+
+          // parent_students 연결 (approved)
+          for (const { parentId, studentId } of psInserts) {
+            const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            await tx.execute(sql`
+              INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
+              VALUES (${psId}, ${parentId}, ${studentId}, ${poolId}, 'approved', NOW())
+              ON CONFLICT DO NOTHING
+            `);
           }
         });
       } catch (e: any) {
         if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
         console.error("[members/bulk/commit] tx error:", e);
-        return res.status(500).json({ error: `등록 실패 (전체 rollback): ${e?.message ?? "서버 오류"}` });
+        return res.status(500).json({ code: "IMPORT_SYSTEM_ERROR", error: `등록 실패 (전체 rollback): ${e?.message ?? "서버 오류"}` });
       }
 
-      // Post-commit: fire-and-forget (auto-link, audit, notify)
+      // Post-commit: fire-and-forget (auto-link, notify)
       for (const id of createdIds) {
         const { triggerAutoLinkOnStudentV2 } = await import("../lib/auto-link-v2.js");
         triggerAutoLinkOnStudentV2(id, ["parent_phone", "name", "swimming_pool_id"]).catch(() => {});
@@ -5706,7 +5858,7 @@ router.post("/members/bulk/commit",
       res.json({ created: createdIds.length, failed: 0, errors: [] });
     } catch (e) {
       console.error("[members/bulk/commit]", e);
-      res.status(500).json({ error: "서버 오류" });
+      res.status(500).json({ code: "IMPORT_SYSTEM_ERROR", error: "서버 오류" });
     }
   }
 );

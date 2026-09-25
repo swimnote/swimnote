@@ -47,6 +47,11 @@ app.use(cors({
   credentials: true,
 }));
 
+// ── Route-scoped body limit: 대량 회원등록 bulk 전용 5MB ──────────────────
+// 반드시 global express.json() 보다 먼저 등록해야 함
+// (body-parser는 _body flag로 이중 파싱 방지 → 먼저 처리된 미들웨어가 우선)
+app.use("/api/admin/members/bulk", express.json({ limit: "5mb" }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

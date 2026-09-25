@@ -1,117 +1,179 @@
 /**
- * BulkMembersPage — /admin/members/bulk
- * Excel/CSV 대량 회원 등록
- * Flow: 파일선택 → Parse(client) → Preview/Validation → 사용자확인 → Commit(server)
+ * BulkMembersPage — 회원 일괄등록 (1,000명 지원)
  *
- * Backend:
- *   GET  /admin/members/bulk/template  — xlsx 양식 다운로드
- *   POST /admin/members/bulk/validate  — 행 검증 (실제 business rule)
- *   POST /admin/members/bulk/commit    — 최종 등록
+ * 정책:
+ *   - 필수: 이름 + 보호자 연락처 (2개만)
+ *   - BLOCKING error: 이름 없음, 보호자 연락처 없음/불량, 1001명 초과
+ *   - WARNING (등록 가능): 반 이름 미발견, 중복 의심
+ *   - ALL-OR-NOTHING: blocking error 0건일 때만 전체 등록
+ *   - 기존 7컬럼 파일도 업로드 가능 (backward compatible)
  */
-import { useState, useRef } from "react";
+import React, { useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import * as XLSX from "xlsx";
 
-interface ParsedRow {
+// ── 헤더 별칭 매핑 (normalize 후 비교) ──────────────────────────────────────
+function normH(h: string): string {
+  return h.replace(/[\s\-_()（）·•,*]/g, "").toLowerCase();
+}
+const HEADER_ALIASES: Array<[string[], string]> = [
+  [["이름", "name", "성명", "성함", "회원명", "학생명", "자녀이름", "학생이름"],          "name"],
+  [["보호자연락처", "보호자전화번호", "보호자전화", "보호자번호", "parent_phone",
+    "parentphone"],                                                                         "parent_phone"],
+  // "연락처"/"연락처(보호자)": 보호자 연락처 컬럼 없으면 parent_phone으로 fallback
+  [["연락처", "전화번호", "phone"],                                                         "phone_or_pp"],
+  [["생년", "생년월일", "출생년도", "birth_year", "birthyear"],                             "birth_year"],
+  [["보호자이름", "보호자성명", "학부모이름", "parent_name", "parentname"],                  "parent_name"],
+  [["반이름", "반", "class_name", "classname"],                                             "class_name"],
+  [["메모", "비고", "특이사항", "memo", "note"],                                            "memo"],
+];
+const ALIAS_MAP: Record<string, string> = {};
+for (const [aliases, field] of HEADER_ALIASES) {
+  for (const a of aliases) ALIAS_MAP[normH(a)] = field;
+}
+
+// ── 전화번호 normalize (+82 포함) ─────────────────────────────────────────
+function normPhone(raw: string): string {
+  let n = String(raw ?? "").replace(/^="?|"?$/g, "").replace(/^=/, "");
+  n = n.replace(/[^0-9]/g, "");
+  if (n.startsWith("82") && n.length >= 11) n = "0" + n.slice(2);
+  if (n.length === 10 && /^1[0-9]/.test(n)) n = "0" + n;
+  return n;
+}
+
+type ParsedRow = {
   _row: number;
   name: string;
+  parent_phone?: string;
   phone?: string;
   birth_year?: string;
   parent_name?: string;
-  parent_phone?: string;
   class_name?: string;
   memo?: string;
-}
+};
 
-interface ValidatedRow extends ParsedRow {
-  valid: boolean;
-  errors: string[];
-  duplicate?: boolean;
-  class_group_id?: string;
-}
-
-const COLUMNS = [
-  { key: "name",         label: "이름 *" },
-  { key: "phone",        label: "연락처" },
-  { key: "birth_year",   label: "생년(YYYY)" },
-  { key: "parent_name",  label: "보호자 이름" },
-  { key: "parent_phone", label: "보호자 연락처" },
-  { key: "class_name",   label: "반 이름" },
-  { key: "memo",         label: "메모" },
-];
+type ValidateResponse = {
+  total: number;
+  valid: number;
+  blocking_error_count: number;
+  warning_count: number;
+  errors: Array<{ row: number; name: string; field: string; code: string; message: string }>;
+  warnings: Array<{ row: number; name: string; field: string; code: string; message: string }>;
+  rows: Array<ParsedRow & { valid: boolean; class_group_id: string | null }>;
+};
 
 type Stage = "idle" | "preview" | "validated" | "done";
+const MAX_PREVIEW = 100;
 
 export default function BulkMembersPage() {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [parsed, setParsed] = useState<ParsedRow[]>([]);
-  const [validated, setValidated] = useState<ValidatedRow[]>([]);
-  const [commitResult, setCommitResult] = useState<{ created: number; failed: number; errors: string[] } | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [validateResult, setValidateResult] = useState<ValidateResponse | null>(null);
+  const [commitResult, setCommitResult] = useState<{ created: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [parseErr, setParseErr] = useState("");
+  const [showAllPreview, setShowAllPreview] = useState(false);
 
-  // ── Template Download ──────────────────────────────────────────────────────
+  // ── Template Download (2컬럼) ────────────────────────────────────────────
   function downloadTemplate() {
-    const ws = XLSX.utils.aoa_to_sheet([COLUMNS.map(c => c.label)]);
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["이름", "보호자 연락처"],
+      ["홍길동", "010-1234-5678"],
+      ["김수영", "010-9876-5432"],
+      ["이민준", "010-3333-4444"],
+    ]);
+    // 전화번호 컬럼 서식 (텍스트 — 앞자리 0 유지)
+    ["B2", "B3", "B4"].forEach(addr => {
+      if (!ws[addr]) return;
+      ws[addr].z = "@";
+    });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "회원목록");
     XLSX.writeFile(wb, "SWIMNOTE_회원등록_양식.xlsx");
   }
 
-  // ── File Parse (client-side) ───────────────────────────────────────────────
-  async function handleFile(e: Event) {
-    const file = (e.target as HTMLInputElement).files?.[0];
+  // ── File Parse (client-side, flexible header) ───────────────────────────
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
     if (!file) return;
     setParseErr("");
     setStage("idle");
     setParsed([]);
-    setValidated([]);
+    setValidateResult(null);
+    setShowAllPreview(false);
 
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!["xlsx", "xls", "csv"].includes(ext ?? "")) {
       setParseErr("xlsx, xls, csv 파일만 지원합니다.");
       return;
     }
+    setFileName(file.name);
 
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-      if (rows.length < 2) { setParseErr("데이터 행이 없습니다. 양식을 확인하세요."); return; }
+      if (raw.length < 2) { setParseErr("데이터 행이 없습니다. 양식을 확인하세요."); return; }
 
-      // Header mapping (flexible: matches by label or key)
-      const header = (rows[0] as string[]).map(h => String(h).trim());
-      const keyMap: Record<string, number> = {};
-      COLUMNS.forEach(col => {
-        const idx = header.findIndex(h =>
-          h === col.label || h === col.key || h.startsWith(col.key.split("_")[0])
-        );
-        if (idx >= 0) keyMap[col.key] = idx;
+      // Header detection (flexible alias)
+      const headerRow = (raw[0] as string[]).map(h => String(h).trim());
+      const colMap: Record<string, number> = {};
+      headerRow.forEach((h, i) => {
+        const key = ALIAS_MAP[normH(h)];
+        if (key && colMap[key] === undefined) colMap[key] = i;
       });
 
+      // "연락처" fallback → parent_phone if no 보호자 연락처 column
+      if (colMap["phone_or_pp"] !== undefined && colMap["parent_phone"] === undefined) {
+        colMap["parent_phone"] = colMap["phone_or_pp"];
+      }
+      delete colMap["phone_or_pp"];
+
+      if (colMap["name"] === undefined) {
+        setParseErr("열 이름에서 '이름' 컬럼을 찾을 수 없습니다. 양식을 확인하세요.");
+        return;
+      }
+
       const items: ParsedRow[] = [];
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i] as any[];
-        const name = String(row[keyMap["name"] ?? 0] ?? "").trim();
-        if (!name) continue; // skip empty rows
+      for (let i = 1; i < raw.length; i++) {
+        const row = raw[i] as any[];
+        const name = String(row[colMap["name"]] ?? "").trim();
+        if (!name) continue; // 완전 빈 행 skip
         items.push({
-          _row: i + 1,
+          _row: i + 1, // Excel row number (header=1, data from 2)
           name,
-          phone:        keyMap["phone"]        != null ? String(row[keyMap["phone"]] ?? "").trim()        : undefined,
-          birth_year:   keyMap["birth_year"]    != null ? String(row[keyMap["birth_year"]] ?? "").trim()   : undefined,
-          parent_name:  keyMap["parent_name"]   != null ? String(row[keyMap["parent_name"]] ?? "").trim()  : undefined,
-          parent_phone: keyMap["parent_phone"]  != null ? String(row[keyMap["parent_phone"]] ?? "").trim() : undefined,
-          class_name:   keyMap["class_name"]    != null ? String(row[keyMap["class_name"]] ?? "").trim()   : undefined,
-          memo:         keyMap["memo"]          != null ? String(row[keyMap["memo"]] ?? "").trim()          : undefined,
+          parent_phone: colMap["parent_phone"] != null
+            ? normPhone(String(row[colMap["parent_phone"]] ?? "")) || undefined
+            : undefined,
+          phone: colMap["phone"] != null
+            ? normPhone(String(row[colMap["phone"]] ?? "")) || undefined
+            : undefined,
+          birth_year: colMap["birth_year"] != null
+            ? String(row[colMap["birth_year"]] ?? "").trim() || undefined
+            : undefined,
+          parent_name: colMap["parent_name"] != null
+            ? String(row[colMap["parent_name"]] ?? "").trim() || undefined
+            : undefined,
+          class_name: colMap["class_name"] != null
+            ? String(row[colMap["class_name"]] ?? "").trim() || undefined
+            : undefined,
+          memo: colMap["memo"] != null
+            ? String(row[colMap["memo"]] ?? "").trim() || undefined
+            : undefined,
         });
       }
 
       if (items.length === 0) { setParseErr("유효한 데이터 행이 없습니다."); return; }
+      if (items.length > 1000) {
+        setParseErr(`파일에 ${items.length.toLocaleString()}명이 있습니다. 한 번에 최대 1,000명까지 등록할 수 있습니다. 파일을 나눠 업로드해주세요.`);
+        return;
+      }
       setParsed(items);
       setStage("preview");
     } catch {
@@ -119,199 +181,341 @@ export default function BulkMembersPage() {
     }
   }
 
-  // ── Server Validation ─────────────────────────────────────────────────────
+  // ── Server Validate ──────────────────────────────────────────────────────
   async function handleValidate() {
     setLoading(true);
+    setParseErr("");
     try {
-      const r = await api.post<{ rows: ValidatedRow[] }>("/admin/members/bulk/validate", { rows: parsed });
-      setValidated(r.data.rows);
+      const r = await api.post<ValidateResponse>("/admin/members/bulk/validate", { rows: parsed });
+      setValidateResult(r);
       setStage("validated");
     } catch (e: any) {
-      setParseErr(e?.response?.data?.message || "서버 검증 실패");
+      const msg = e?.response?.data?.error || e?.response?.data?.message || "서버 검증 실패";
+      const code = e?.response?.data?.code;
+      if (code === "ROW_LIMIT_EXCEEDED") {
+        setParseErr("한 번에 최대 1,000명까지 등록할 수 있습니다. 파일을 나눠주세요.");
+      } else {
+        setParseErr(msg);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  // ── Commit (ALL-OR-NOTHING) ───────────────────────────────────────────────
-  // 오류 행이 하나라도 있으면 서버가 거부합니다 (validated.every(r => r.valid) 보장)
+  // ── Commit ───────────────────────────────────────────────────────────────
   async function handleCommit() {
-    if (!allValid) return; // 버튼이 disabled 상태라도 방어
-    if (!confirm(`${validated.length}명을 모두 등록하시겠습니까?`)) return;
+    if (!validateResult || validateResult.blocking_error_count > 0) return;
+    const validRows = validateResult.rows.filter(r => r.valid);
+    if (!confirm(`${validRows.length.toLocaleString()}명을 모두 등록하시겠습니까?`)) return;
     setLoading(true);
+    setParseErr("");
     try {
-      const r = await api.post<{ created: number; failed: number; errors: string[] }>("/admin/members/bulk/commit", { rows: validated });
-      setCommitResult(r.data);
+      const r = await api.post<{ created: number }>("/admin/members/bulk/commit", { rows: validRows });
+      setCommitResult(r);
       setStage("done");
       qc.invalidateQueries({ queryKey: ["students"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
     } catch (e: any) {
-      setParseErr(e?.message || "등록 실패");
+      const code = e?.response?.data?.code;
+      const msg  = e?.response?.data?.error || "등록 실패";
+      if (code === "IMPORT_SYSTEM_ERROR") {
+        setParseErr("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        setParseErr(msg);
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  // ── Error CSV Download ───────────────────────────────────────────────────
+  function downloadErrorCsv() {
+    if (!validateResult) return;
+    const BOM = "\uFEFF";
+    const header = "행 번호,이름,필드,오류 코드,오류 내용";
+    const lines = validateResult.errors.map(e =>
+      [e.row, `"${e.name}"`, e.field, e.code, `"${e.message}"`].join(",")
+    );
+    const csv = BOM + [header, ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "오류목록.csv";
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function reset() {
-    setStage("idle");
-    setParsed([]);
-    setValidated([]);
-    setCommitResult(null);
-    setParseErr("");
+    setStage("idle"); setParsed([]); setFileName(""); setValidateResult(null);
+    setCommitResult(null); setParseErr(""); setShowAllPreview(false);
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  const allValid = validated.length > 0 && validated.every(r => r.valid);
-  const hasErrors = validated.some(r => !r.valid);
-  const displayRows = stage === "validated" ? validated : parsed;
+  const canCommit = validateResult !== null && validateResult.blocking_error_count === 0;
+  const vr = validateResult;
 
   return (
-    <div style={{ padding: "24px", maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>회원 엑셀 일괄등록</h2>
-        <button onClick={downloadTemplate} style={{ padding: "7px 16px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontSize: 14 }}>
-          📥 등록 양식 다운로드
-        </button>
-      </div>
+    <div style={{ maxWidth: 820, margin: "0 auto", padding: "24px 16px" }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>회원 일괄등록</h2>
+      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
+        이름과 보호자 연락처만 있으면 등록할 수 있습니다. 한 번에 최대 1,000명.
+      </p>
 
-      {/* Upload area */}
-      {stage === "idle" && (
-        <div style={{ background: "#fff", border: "2px dashed #d1d5db", borderRadius: 10, padding: "40px 24px", textAlign: "center", marginBottom: 20 }}>
-          <p style={{ fontSize: 15, color: "#6b7280", margin: "0 0 16px" }}>
-            Excel(.xlsx, .xls) 또는 CSV 파일을 선택하세요.<br />
-            <span style={{ fontSize: 13 }}>헤더: 이름 *, 연락처, 생년(YYYY), 보호자 이름, 보호자 연락처, 반 이름, 메모</span>
-          </p>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile}
-            style={{ display: "none" }} id="bulk-file-input" />
-          <label htmlFor="bulk-file-input" style={{ padding: "10px 24px", borderRadius: 6, background: "#111827", color: "#fff", cursor: "pointer", fontSize: 14 }}>
-            파일 선택
-          </label>
-          {parseErr && <p style={{ color: "#dc2626", fontSize: 13, marginTop: 12 }}>{parseErr}</p>}
-        </div>
-      )}
-
-      {/* Preview/Validated table */}
-      {(stage === "preview" || stage === "validated") && (
-        <>
-          <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", marginBottom: 16 }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 14, fontWeight: 500 }}>
-                {stage === "validated"
-                  ? `검증 완료 — 유효 ${validated.filter(r => r.valid).length}명 / 오류 ${validated.filter(r => !r.valid).length}명`
-                  : `파싱 완료 — ${parsed.length}명`}
-              </span>
-              <button onClick={reset} style={{ fontSize: 13, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>다시 선택</button>
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: "#f9fafb" }}>
-                    <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb" }}>#</th>
-                    {COLUMNS.map(c => (
-                      <th key={c.key} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb" }}>{c.label.replace(" *", "")}</th>
-                    ))}
-                    {stage === "validated" && <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb" }}>검증</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(displayRows as any[]).map((row: any, i) => {
-                    const isInvalid = stage === "validated" && !(row as ValidatedRow).valid;
-                    return (
-                      <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: isInvalid ? "#fef2f2" : undefined }}>
-                        <td style={{ padding: "8px 12px", color: "#6b7280" }}>{row._row}</td>
-                        {COLUMNS.map(c => (
-                          <td key={c.key} style={{ padding: "8px 12px" }}>{(row as any)[c.key] || "—"}</td>
-                        ))}
-                        {stage === "validated" && (
-                          <td style={{ padding: "8px 12px" }}>
-                            {(row as ValidatedRow).valid
-                              ? <span style={{ color: "#16a34a", fontSize: 12 }}>✓ 유효</span>
-                              : <span style={{ color: "#dc2626", fontSize: 12 }}>{(row as ValidatedRow).errors.join(", ")}</span>
-                            }
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {parseErr && <p style={{ color: "#dc2626", fontSize: 13, marginBottom: 12 }}>{parseErr}</p>}
-
-          {hasErrors && stage === "validated" && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 6, padding: 12, marginBottom: 12 }}>
-              <p style={{ margin: 0, fontSize: 13, color: "#991b1b", fontWeight: 500 }}>
-                ✗ 오류가 있는 행이 있습니다.
-              </p>
-              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#991b1b" }}>
-                기본 정책: 전체 등록이 아니면 등록 불가 (ALL OR NOTHING).<br/>
-                오류 행을 수정한 후 파일을 다시 업로드하세요.
-              </p>
-            </div>
-          )}
-          {allValid && stage === "validated" && (
-            <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 6, padding: 10, marginBottom: 12 }}>
-              <p style={{ margin: 0, fontSize: 13, color: "#166534" }}>✓ 모든 행이 유효합니다. 아래 등록 버튼을 눌러 전체 등록하세요.</p>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            {stage === "preview" && (
-              <button onClick={handleValidate} disabled={loading}
-                style={{ padding: "9px 20px", borderRadius: 6, border: "none", background: "#2563eb", color: "#fff", cursor: loading ? "not-allowed" : "pointer", fontSize: 14 }}>
-                {loading ? "검증 중…" : "서버 검증"}
-              </button>
-            )}
-            {stage === "validated" && (
-              <button onClick={handleCommit} disabled={loading || !allValid}
-                title={!allValid ? "오류가 있는 행이 있습니다. 파일을 수정 후 다시 업로드하세요." : undefined}
-                style={{
-                  padding: "9px 20px", borderRadius: 6, border: "none", fontSize: 14,
-                  background: allValid ? "#111827" : "#9ca3af",
-                  color: "#fff",
-                  cursor: (loading || !allValid) ? "not-allowed" : "pointer",
-                  opacity: allValid ? 1 : 0.7,
-                }}>
-                {loading ? "등록 중…" : allValid ? `${validated.length}명 전체 등록` : "오류 수정 필요"}
-              </button>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Done */}
+      {/* ── 완료 ──────────────────────────────────────────────────────────── */}
       {stage === "done" && commitResult && (
-        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 32, textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-          <p style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>등록 완료</p>
-          <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 4 }}>성공: {commitResult.created}명</p>
-          {commitResult.failed > 0 && <p style={{ fontSize: 14, color: "#dc2626", marginBottom: 4 }}>실패: {commitResult.failed}명</p>}
-          {commitResult.errors?.length > 0 && (
-            <ul style={{ textAlign: "left", maxWidth: 400, margin: "10px auto 0", fontSize: 13, color: "#dc2626" }}>
-              {commitResult.errors.map((e, i) => <li key={i}>{e}</li>)}
-            </ul>
-          )}
-          <button onClick={reset} style={{ marginTop: 20, padding: "8px 20px", borderRadius: 6, border: "none", background: "#111827", color: "#fff", cursor: "pointer", fontSize: 14 }}>
+        <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 40, textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+          <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>등록 완료</p>
+          <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 20 }}>
+            {commitResult.created.toLocaleString()}명이 모두 등록됐습니다.
+          </p>
+          <button onClick={reset}
+            style={{ padding: "9px 24px", borderRadius: 8, border: "none", background: "#111827", color: "#fff", cursor: "pointer", fontSize: 14 }}>
             추가 등록
           </button>
         </div>
       )}
 
-      {/* Instructions */}
-      {stage === "idle" && (
-        <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: 20, fontSize: 13, color: "#6b7280", lineHeight: 1.7 }}>
-          <p style={{ margin: "0 0 8px", fontWeight: 500, color: "#374151" }}>사용 방법</p>
-          <ol style={{ margin: 0, paddingLeft: 18 }}>
-            <li>등록 양식을 다운로드하세요.</li>
-            <li>양식에 회원 정보를 입력하세요. 이름은 필수입니다.</li>
-            <li>파일을 선택하면 내용이 미리보기로 표시됩니다.</li>
-            <li>서버 검증을 실행하면 중복·반 이름 오류 등을 확인합니다.</li>
-            <li><strong>오류가 하나라도 있으면 등록 불가</strong>입니다 (ALL OR NOTHING). 파일을 수정 후 다시 업로드하세요.</li>
-            <li>모든 행이 유효하면 전체 한 번에 등록됩니다.</li>
-          </ol>
-        </div>
+      {/* ── idle / preview / validated ────────────────────────────────────── */}
+      {stage !== "done" && (
+        <>
+          {/* Header row */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16 }}>
+            <button onClick={downloadTemplate}
+              style={{ padding: "7px 14px", borderRadius: 7, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontSize: 13 }}>
+              📥 양식 다운로드
+            </button>
+            <label style={{
+              padding: "7px 14px", borderRadius: 7, border: "1px solid #2563eb",
+              background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 13,
+            }}>
+              파일 선택
+              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
+                style={{ display: "none" }} onChange={handleFile} />
+            </label>
+            {fileName && (
+              <span style={{ fontSize: 13, color: "#374151" }}>
+                {fileName}
+                <button onClick={reset} style={{ marginLeft: 6, fontSize: 11, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}>✕ 초기화</button>
+              </span>
+            )}
+          </div>
+
+          {/* ── 안내 (idle) ─────────────────────────────────────────────── */}
+          {stage === "idle" && (
+            <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: 20, fontSize: 13, color: "#6b7280", lineHeight: 1.8 }}>
+              <p style={{ margin: "0 0 8px", fontWeight: 600, color: "#374151" }}>사용 방법</p>
+              <ol style={{ margin: 0, paddingLeft: 18 }}>
+                <li>양식을 다운로드하고 이름·보호자 연락처를 입력하세요.</li>
+                <li>동명이인은 등록할 수 있습니다.</li>
+                <li>반 이름·생년·메모 등은 선택사항입니다.</li>
+                <li>반 이름을 찾지 못하면 미배정 회원으로 등록됩니다.</li>
+                <li>파일 선택 후 서버 검증을 실행하면 전체 파일을 한 번에 검사합니다.</li>
+                <li>수정이 필요한 행이 있으면 행 번호·이유를 알려드립니다. 수정 전까지 아무 회원도 등록되지 않습니다.</li>
+                <li>수정 없는 주의사항(반 미발견, 중복 의심 등)이 있어도 전체 등록할 수 있습니다.</li>
+              </ol>
+              <p style={{ margin: "12px 0 0", fontSize: 12 }}>
+                기존 7컬럼 파일(이름/연락처/생년/보호자이름/보호자연락처/반이름/메모)도 업로드 가능합니다.
+              </p>
+            </div>
+          )}
+
+          {/* ── 오류 메시지 ─────────────────────────────────────────────── */}
+          {parseErr && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 13, color: "#991b1b" }}>
+              ✗ {parseErr}
+            </div>
+          )}
+
+          {/* ── Preview (파싱 완료) ─────────────────────────────────────── */}
+          {(stage === "preview" || stage === "validated") && (
+            <>
+              {/* Summary bar */}
+              <div style={{ display: "flex", gap: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 16px", marginBottom: 12, fontSize: 13 }}>
+                <span>전체 <strong>{(vr ?? { total: parsed.length }).total?.toLocaleString() ?? parsed.length.toLocaleString()}명</strong></span>
+                {vr && (
+                  <>
+                    <span style={{ color: "#16a34a" }}>등록 가능 <strong>{vr.valid.toLocaleString()}명</strong></span>
+                    {vr.blocking_error_count > 0 && (
+                      <span style={{ color: "#dc2626" }}>수정 필요 <strong>{vr.blocking_error_count}건</strong></span>
+                    )}
+                    {vr.warning_count > 0 && (
+                      <span style={{ color: "#d97706" }}>주의사항 <strong>{vr.warning_count}건</strong></span>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Blocking errors */}
+              {vr && vr.errors.length > 0 && (
+                <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 14, marginBottom: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <p style={{ margin: 0, fontWeight: 600, color: "#991b1b", fontSize: 13 }}>
+                      ✗ 수정이 필요한 회원이 있어 아직 아무 회원도 등록하지 않았습니다. 파일을 수정한 뒤 다시 업로드해주세요.
+                    </p>
+                    <button onClick={downloadErrorCsv}
+                      style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #fca5a5", background: "#fff", cursor: "pointer", fontSize: 12, color: "#991b1b", whiteSpace: "nowrap", marginLeft: 12 }}>
+                      오류 목록 다운로드
+                    </button>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: "#fee2e2" }}>
+                        {["행", "이름", "필드", "오류 내용"].map(h => (
+                          <th key={h} style={{ padding: "5px 8px", textAlign: "left", fontWeight: 600, color: "#7f1d1d" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vr.errors.map((e, i) => (
+                        <tr key={i} style={{ borderTop: "1px solid #fecaca" }}>
+                          <td style={{ padding: "5px 8px", color: "#dc2626" }}>{e.row}행</td>
+                          <td style={{ padding: "5px 8px" }}>{e.name}</td>
+                          <td style={{ padding: "5px 8px", color: "#6b7280" }}>{e.field}</td>
+                          <td style={{ padding: "5px 8px" }}>{e.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {vr && vr.warnings.length > 0 && (
+                <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                  <p style={{ margin: "0 0 6px", fontWeight: 600, color: "#92400e", fontSize: 13 }}>
+                    ⚠ 주의사항 {vr.warning_count}건 — 등록은 가능합니다.
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "#78350f", lineHeight: 1.7 }}>
+                    {vr.warnings.slice(0, 20).map((w, i) => (
+                      <li key={i}>{w.row}행 {w.name}: {w.message}</li>
+                    ))}
+                    {vr.warnings.length > 20 && (
+                      <li style={{ color: "#9ca3af" }}>… 외 {vr.warnings.length - 20}건</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {/* All-valid banner */}
+              {vr && vr.blocking_error_count === 0 && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 13, color: "#166534" }}>
+                  ✓ 모든 행이 유효합니다. 아래 등록 버튼을 눌러 {vr.valid.toLocaleString()}명을 전체 등록하세요.
+                </div>
+              )}
+
+              {/* Preview table */}
+              <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 12, overflowX: "auto" }}>
+                <div style={{ padding: "10px 14px", borderBottom: "1px solid #e5e7eb", fontSize: 12, color: "#6b7280", display: "flex", justifyContent: "space-between" }}>
+                  <span>
+                    {parsed.length > MAX_PREVIEW && !showAllPreview
+                      ? `처음 ${MAX_PREVIEW}명을 미리 표시합니다. (전체 ${parsed.length.toLocaleString()}명)`
+                      : `전체 ${parsed.length.toLocaleString()}명`}
+                  </span>
+                  {vr && vr.errors.length > 0 && (
+                    <span style={{ color: "#dc2626", fontWeight: 600 }}>오류 행은 빨간색으로 표시됩니다.</span>
+                  )}
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: "#f9fafb" }}>
+                      {["#", "이름", "보호자 연락처", "반", "비고"].map(h => (
+                        <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb" }}>{h}</th>
+                      ))}
+                      {stage === "validated" && (
+                        <th style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb" }}>상태</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Preview rows: first MAX_PREVIEW OR show all */}
+                    {((): ParsedRow[] => {
+                      if (stage === "validated" && vr) {
+                        // Show first MAX_PREVIEW normal rows + all error rows
+                        const errRowNums = new Set(vr.errors.map(e => e.row));
+                        const errRows = vr.rows.filter(r => errRowNums.has(r._row));
+                        const normalRows = vr.rows.filter(r => !errRowNums.has(r._row));
+                        const preview = showAllPreview
+                          ? vr.rows
+                          : [...normalRows.slice(0, MAX_PREVIEW), ...errRows].sort((a, b) => a._row - b._row);
+                        return preview;
+                      }
+                      return showAllPreview ? parsed : parsed.slice(0, MAX_PREVIEW);
+                    })().map((row: any, i) => {
+                      const errRowNums = vr ? new Set(vr.errors.map(e => e.row)) : new Set<number>();
+                      const warnRowNums = vr ? new Set(vr.warnings.map(w => w.row)) : new Set<number>();
+                      const isErr = errRowNums.has(row._row);
+                      const isWarn = !isErr && warnRowNums.has(row._row);
+                      return (
+                        <tr key={i} style={{
+                          borderBottom: "1px solid #f3f4f6",
+                          background: isErr ? "#fef2f2" : isWarn ? "#fffbeb" : undefined,
+                        }}>
+                          <td style={{ padding: "6px 10px", color: "#9ca3af", fontSize: 12 }}>{row._row}</td>
+                          <td style={{ padding: "6px 10px", color: isErr ? "#dc2626" : "#111827" }}>{row.name || "—"}</td>
+                          <td style={{ padding: "6px 10px", color: "#374151" }}>{row.parent_phone || "—"}</td>
+                          <td style={{ padding: "6px 10px", color: "#6b7280" }}>{row.class_name || "—"}</td>
+                          <td style={{ padding: "6px 10px", color: "#6b7280", fontSize: 12 }}>{row.birth_year || ""}</td>
+                          {stage === "validated" && (
+                            <td style={{ padding: "6px 10px" }}>
+                              {isErr
+                                ? <span style={{ color: "#dc2626", fontSize: 12 }}>
+                                    {vr!.errors.filter(e => e.row === row._row).map(e => e.message).join(" / ")}
+                                  </span>
+                                : isWarn
+                                  ? <span style={{ color: "#d97706", fontSize: 12 }}>⚠ 주의</span>
+                                  : <span style={{ color: "#16a34a", fontSize: 12 }}>✓ 유효</span>}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {parsed.length > MAX_PREVIEW && !showAllPreview && (
+                  <div style={{ padding: "8px 14px", borderTop: "1px solid #e5e7eb" }}>
+                    <button onClick={() => setShowAllPreview(true)}
+                      style={{ fontSize: 13, color: "#2563eb", background: "none", border: "none", cursor: "pointer" }}>
+                      전체 {parsed.length.toLocaleString()}명 모두 보기 ↓
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                {stage === "preview" && (
+                  <button onClick={handleValidate} disabled={loading}
+                    style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: "#2563eb", color: "#fff", cursor: loading ? "not-allowed" : "pointer", fontSize: 14 }}>
+                    {loading ? "검증 중…" : "서버 검증"}
+                  </button>
+                )}
+                {stage === "validated" && (
+                  <>
+                    <button onClick={() => { reset(); }} style={{ padding: "9px 18px", borderRadius: 7, border: "1px solid #d1d5db", background: "#fff", cursor: "pointer", fontSize: 13, color: "#374151" }}>
+                      파일 다시 선택
+                    </button>
+                    <button
+                      onClick={handleCommit}
+                      disabled={loading || !canCommit}
+                      title={!canCommit ? "수정이 필요한 행이 있습니다." : undefined}
+                      style={{
+                        padding: "9px 22px", borderRadius: 7, border: "none", fontSize: 14,
+                        background: canCommit ? "#111827" : "#9ca3af",
+                        color: "#fff", cursor: (loading || !canCommit) ? "not-allowed" : "pointer",
+                      }}>
+                      {loading ? "등록 중…"
+                        : canCommit
+                          ? `${(vr?.valid ?? 0).toLocaleString()}명 전체 등록`
+                          : "오류 수정 필요"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </>
       )}
     </div>
   );
