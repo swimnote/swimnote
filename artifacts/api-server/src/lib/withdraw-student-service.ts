@@ -159,6 +159,10 @@ export async function withdrawStudent(
         UNION
         SELECT class_group_id FROM students
         WHERE id = '${studentIdSafe}' AND class_group_id IS NOT NULL
+        UNION
+        SELECT assigned_class_group_id AS class_group_id FROM makeup_sessions
+        WHERE student_id = '${studentIdSafe}' AND status = 'completed'
+          AND assigned_class_group_id IS NOT NULL
       ) t
     `))).rows as any[];
     const allClassIds = (histRows as any[]).map((r: any) => r.class_group_id);
