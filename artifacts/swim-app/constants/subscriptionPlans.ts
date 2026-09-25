@@ -230,16 +230,18 @@ export function isLegacyTier(tier: string): boolean {
 export const NEW_X_PLANS = ["x300", "x500", "x1000"] as const;
 export const NEW_2_PLANS = ["swimnote", ...NEW_X_PLANS] as const;
 
-/** WP3: DATA pack 정의 (add-on, 별도 purchase — WP4 연결) */
+/** WP3: DATA pack 정의 (add-on, 별도 purchase) */
 export interface DataPackDef {
   id: string;
   name: string;
   plus_gb: number;
   price_monthly_krw: number;
+  /** RevenueCat product identifier (com.swimnote.data100.monthly / com.swimnote.data300.monthly) */
+  rc_product_id: string;
 }
 export const DATA_PACKS: DataPackDef[] = [
-  { id: "data100", name: "DATA100", plus_gb: 100, price_monthly_krw: 7900 },
-  { id: "data300", name: "DATA300", plus_gb: 300, price_monthly_krw: 22900 },
+  { id: "data100", name: "DATA100", plus_gb: 100, price_monthly_krw: 7900,  rc_product_id: "com.swimnote.data100.monthly" },
+  { id: "data300", name: "DATA300", plus_gb: 300, price_monthly_krw: 22900, rc_product_id: "com.swimnote.data300.monthly" },
 ];
 
 /** WP3: active members 기준 X plan 추천 */

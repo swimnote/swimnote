@@ -131,73 +131,164 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
 
 // RC_PRODUCT_TIER_MAP은 subscriptionService에서 import
 
-// ── [WP3] DATA Add-on Webhook 처리 헬퍼 ─────────────────────────────────────
+// ── [DATA add-on] Webhook 처리 헬퍼 ─────────────────────────────────────────
 //
 // DATA100 / DATA300 구독 이벤트 처리.
 //
 // 원칙:
-//   - INITIAL_PURCHASE 시 extra_storage_gb += N (idempotency는 호출 전 global dedup으로 보장)
-//   - RENEWAL: log-only (storage는 purchase 시 1회 grant, 매 cycle 중복 추가 안 함)
-//   - CANCELLATION / EXPIRATION: USER DECISION REQUIRED — 저장된 데이터 유지, quota 정책 미정
-//   - manual/management override: 수정 금지
+//   - INITIAL_PURCHASE: extra_storage_gb = canonical N (SET, 누적 금지), data_addon_* 컬럼 갱신
+//   - RENEWAL:          data_addon_status = 'active', expires_at 갱신, extra_storage_gb 유지
+//   - CANCELLATION:     data_addon_status = 'cancelled', storage/upload 유지, purge 생성 금지
+//   - EXPIRATION:       extra_storage_gb = 0, upload_blocked = true, purge job 즉시 생성
+//   - BILLING_ISSUE:    data_addon_status = 'billing_issue', storage 유지, 삭제 금지
+//   - UNCANCELLATION:   data_addon_status = 'active', extra_storage_gb 복원
+//   - PRODUCT_CHANGE:   새 tier canonical SET (effective 시점 기준 — RENEWAL 시 자동 처리)
 //
 // 중요:
 //   이 함수가 호출될 때 이미 event_id dedup이 통과된 상태.
-//   DATA addon은 extra_storage_gb 누적 (additive) — expiry 시 감소 금지 (정책 미확정).
+//   extra_storage_gb는 += 누적 금지 — 항상 canonical SET.
 //
 async function processDataWebhookEvent(params: {
-  eventType: string;
-  poolId:    string;
-  productId: string;
-  tier:      string; // "data100" | "data300"
-  isSandbox: boolean;
+  eventType:  string;
+  eventId:    string | null;
+  poolId:     string;
+  productId:  string;
+  tier:       string; // "data100" | "data300"
+  isSandbox:  boolean;
+  expiresAtMs: number | null;
 }): Promise<void> {
-  const { eventType, poolId, productId, tier } = params;
+  const { eventType, eventId, poolId, productId, tier, expiresAtMs } = params;
   const { getDataAddonStorageGb } = await import("../lib/officialPlanCatalog.js");
+
+  const canonicalGb    = getDataAddonStorageGb(tier) ?? 0;
+  const expiresAtTs    = expiresAtMs ? new Date(expiresAtMs).toISOString() : null;
 
   switch (eventType) {
     case "INITIAL_PURCHASE": {
-      // 최초 구매 시에만 extra_storage_gb 가산 (idempotency: global dedup 보장)
-      const addGb = getDataAddonStorageGb(tier) ?? 0;
-      if (addGb > 0) {
-        await db.execute(sql`
-          UPDATE swimming_pools
-          SET extra_storage_gb = COALESCE(extra_storage_gb, 0) + ${addGb},
-              updated_at       = NOW()
-          WHERE id = ${poolId}
-        `);
-        console.log(`[data-addon] INITIAL_PURCHASE: pool=${poolId} tier=${tier} +${addGb}GB`);
+      // canonical SET (누적 금지) — 이미 data100/data300이 있어도 override
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET extra_storage_gb      = ${canonicalGb},
+            data_addon_tier       = ${tier},
+            data_addon_status     = 'active',
+            data_addon_started_at = NOW(),
+            data_addon_expires_at = ${expiresAtTs},
+            updated_at            = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.log(`[data-addon] INITIAL_PURCHASE: pool=${poolId} tier=${tier} SET ${canonicalGb}GB`);
+      break;
+    }
+
+    case "RENEWAL": {
+      // storage 유지, status=active, expires_at 갱신
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET extra_storage_gb      = ${canonicalGb},
+            data_addon_tier       = ${tier},
+            data_addon_status     = 'active',
+            data_addon_expires_at = ${expiresAtTs},
+            updated_at            = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.log(`[data-addon] RENEWAL: pool=${poolId} tier=${tier} — active, expires=${expiresAtTs}`);
+      break;
+    }
+
+    case "UNCANCELLATION": {
+      // 취소 철회 → 재구독, extra_storage_gb 복원
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET extra_storage_gb      = ${canonicalGb},
+            data_addon_tier       = ${tier},
+            data_addon_status     = 'active',
+            data_addon_expires_at = ${expiresAtTs},
+            updated_at            = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.log(`[data-addon] UNCANCELLATION: pool=${poolId} tier=${tier} — storage restored`);
+      break;
+    }
+
+    case "CANCELLATION": {
+      // storage/upload 유지, purge 금지, status=cancelled
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET data_addon_status     = 'cancelled',
+            data_addon_tier       = ${tier},
+            data_addon_expires_at = ${expiresAtTs},
+            updated_at            = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.log(`[data-addon] CANCELLATION: pool=${poolId} tier=${tier} — status=cancelled, storage retained until expiry`);
+      break;
+    }
+
+    case "EXPIRATION": {
+      // extra_storage_gb = 0, upload_blocked = true 즉시, purge job 생성
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET extra_storage_gb      = 0,
+            data_addon_tier       = ${tier},
+            data_addon_status     = 'expired',
+            data_addon_expires_at = ${expiresAtTs},
+            upload_blocked        = true,
+            updated_at            = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.log(`[data-addon] EXPIRATION: pool=${poolId} tier=${tier} — extra_storage_gb=0, upload_blocked=true`);
+
+      // purge job 생성 (pool의 현재 quota 기준 — base plan only)
+      try {
+        const [poolRow] = (await db.execute(sql`
+          SELECT subscription_tier FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `)).rows as any[];
+        const { resolveEffectiveStorageQuota } = await import("../lib/storageQuota.js");
+        const quota = await resolveEffectiveStorageQuota(poolId);
+        // extra_storage_gb=0 적용 후 기준 quota (base only)
+        const targetBytes = Math.floor(quota.baseStorageGb * 1024 ** 3);
+
+        // 중복 방지: 이미 pending/running job이 있으면 생성 금지
+        const [existing] = (await db.execute(sql`
+          SELECT id FROM pool_data_purge_jobs
+          WHERE pool_id = ${poolId}
+            AND status IN ('pending', 'running')
+          LIMIT 1
+        `)).rows as any[];
+        if (!existing) {
+          await db.execute(sql`
+            INSERT INTO pool_data_purge_jobs
+              (pool_id, target_quota_bytes, status, trigger_rc_event_id)
+            VALUES
+              (${poolId}, ${targetBytes}, 'pending', ${eventId})
+            ON CONFLICT (trigger_rc_event_id) DO NOTHING
+          `);
+          console.log(`[data-addon] EXPIRATION: purge job created pool=${poolId} target=${targetBytes}`);
+        }
+      } catch (e: any) {
+        console.error(`[data-addon] EXPIRATION: purge job 생성 오류 pool=${poolId}:`, e?.message);
       }
       break;
     }
 
-    case "RENEWAL":
-      // 매 청구 주기 갱신 — storage grant는 최초 구매 시 1회만
-      // extra_storage_gb 추가 없음
-      console.log(`[data-addon] RENEWAL: pool=${poolId} tier=${tier} — log only (no additional storage)`);
+    case "BILLING_ISSUE": {
+      // grace period — storage 유지, 삭제 금지
+      await db.execute(sql`
+        UPDATE swimming_pools
+        SET data_addon_status = 'billing_issue',
+            updated_at        = NOW()
+        WHERE id = ${poolId}
+      `);
+      console.log(`[data-addon] BILLING_ISSUE: pool=${poolId} tier=${tier} — grace period, storage retained`);
       break;
+    }
 
-    case "UNCANCELLATION":
-      // 취소 철회 — 재구독, storage 재grant 없음 (이미 grant됨)
-      console.log(`[data-addon] UNCANCELLATION: pool=${poolId} tier=${tier} — log only`);
+    case "PRODUCT_CHANGE": {
+      // 플랜 변경 (data100 ↔ data300) — RENEWAL 이벤트로 실제 적용됨
+      // 여기서는 pending 기록만 (extra_storage_gb는 다음 RENEWAL에서 새 tier로 canonical SET)
+      console.log(`[data-addon] PRODUCT_CHANGE: pool=${poolId} ${tier} — will apply at next RENEWAL`);
       break;
-
-    case "CANCELLATION":
-    case "EXPIRATION":
-      // [USER DECISION REQUIRED] — quota 정책 미확정
-      // 확정: 저장 데이터 자동 삭제 없음
-      // 미확정: 신규 업로드 차단 여부, grace period, quota 감소 여부
-      // 현재: log만 기록, extra_storage_gb 변경 없음
-      console.log(
-        `[data-addon] ${eventType}: pool=${poolId} tier=${tier} product=${productId}` +
-        ` — quota policy USER DECISION REQUIRED. extra_storage_gb unchanged.`,
-      );
-      break;
-
-    case "BILLING_ISSUE":
-      // grace period 동안 storage 유지 — 변경 없음
-      console.log(`[data-addon] BILLING_ISSUE: pool=${poolId} tier=${tier} — log only`);
-      break;
+    }
 
     default:
       console.log(`[data-addon] ${eventType}: pool=${poolId} tier=${tier} — unhandled, log only`);
@@ -303,7 +394,7 @@ router.post("/revenuecat-webhook", async (req, res) => {
     // ── [WP3] DATA 상품 처리 (DATA100 / DATA300) ──────────────────────────
     // RC_PRODUCT_TIER_MAP이 "data100" 또는 "data300"으로 매핑하는 product → DATA 전용 handler
     if (tier === "data100" || tier === "data300") {
-      await processDataWebhookEvent({ eventType, poolId, productId, tier, isSandbox });
+      await processDataWebhookEvent({ eventType, eventId: (event.id as string | null) ?? null, poolId, productId, tier, isSandbox, expiresAtMs: expiresMs ?? null });
       res.json({ received: true });
       return;
     }
@@ -729,6 +820,93 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
   } catch (err: any) {
     console.error("[sync-rc-subscription]", err);
     res.status(500).json({ error: err?.message ?? "동기화 오류" });
+  }
+});
+
+// ── POST /billing/sync-data-addon — DATA add-on 구매 후 서버 DB 동기화 ───────
+// 앱이 RC DATA 구매 완료 직후 호출 (webhook 지연 보완용)
+// pool_admin 전용 — teacher / parent 금지
+router.post("/sync-data-addon", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    const { productId, expiresAt } = req.body as {
+      productId: string;
+      expiresAt: string | null;
+    };
+
+    const tier = RC_PRODUCT_TIER_MAP[productId] ?? null;
+    if (!tier || (tier !== "data100" && tier !== "data300")) {
+      res.status(400).json({ error: `알 수 없는 DATA 상품: ${productId}` }); return;
+    }
+
+    const { getDataAddonStorageGb } = await import("../lib/officialPlanCatalog.js");
+    const canonicalGb = getDataAddonStorageGb(tier) ?? 0;
+
+    await db.execute(sql`
+      UPDATE swimming_pools
+      SET extra_storage_gb      = ${canonicalGb},
+          data_addon_tier       = ${tier},
+          data_addon_status     = 'active',
+          data_addon_started_at = COALESCE(data_addon_started_at, NOW()),
+          data_addon_expires_at = ${expiresAt ?? null},
+          updated_at            = NOW()
+      WHERE id = ${poolId}
+    `);
+
+    logEvent({ pool_id: poolId, category: "구독", actor_id: req.user!.userId, actor_name: "관리자",
+      description: `DATA add-on 동기화: ${productId} → ${tier} (+${canonicalGb}GB)`,
+      metadata: { productId, tier, canonicalGb, expiresAt } }).catch(console.error);
+
+    console.log(`[sync-data-addon] pool=${poolId} tier=${tier} +${canonicalGb}GB expiresAt=${expiresAt}`);
+    res.json({ ok: true, tier, extra_storage_gb: canonicalGb });
+  } catch (err: any) {
+    console.error("[sync-data-addon]", err);
+    res.status(500).json({ error: err?.message ?? "동기화 오류" });
+  }
+});
+
+// ── POST /billing/restore-data-addon — DATA add-on 구독 복원 ─────────────────
+// 기기 변경 or 앱 재설치 후 RC restore 완료 직후 호출
+router.post("/restore-data-addon", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = await getPoolId(req.user!.userId);
+    if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
+
+    const { productId, expiresAt } = req.body as {
+      productId: string;
+      expiresAt: string | null;
+    };
+
+    const tier = RC_PRODUCT_TIER_MAP[productId] ?? null;
+    if (!tier || (tier !== "data100" && tier !== "data300")) {
+      // DATA 상품이 아니거나 expired → 서버 DB는 webhook으로 이미 처리됨
+      res.json({ ok: false, reason: `${productId}는 DATA add-on 상품이 아닙니다.` }); return;
+    }
+
+    const { getDataAddonStorageGb } = await import("../lib/officialPlanCatalog.js");
+    const canonicalGb = getDataAddonStorageGb(tier) ?? 0;
+
+    await db.execute(sql`
+      UPDATE swimming_pools
+      SET extra_storage_gb      = ${canonicalGb},
+          data_addon_tier       = ${tier},
+          data_addon_status     = 'active',
+          data_addon_expires_at = ${expiresAt ?? null},
+          updated_at            = NOW()
+      WHERE id = ${poolId}
+    `);
+
+    logEvent({ pool_id: poolId, category: "구독", actor_id: req.user!.userId, actor_name: "관리자",
+      description: `DATA add-on 복원: ${productId} → ${tier} (+${canonicalGb}GB)`,
+      metadata: { productId, tier, canonicalGb, expiresAt } }).catch(console.error);
+
+    console.log(`[restore-data-addon] pool=${poolId} tier=${tier} +${canonicalGb}GB`);
+    res.json({ ok: true, tier, extra_storage_gb: canonicalGb });
+  } catch (err: any) {
+    console.error("[restore-data-addon]", err);
+    res.status(500).json({ error: err?.message ?? "복원 오류" });
   }
 });
 
@@ -1309,7 +1487,8 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
 
     const [poolRow] = (await superAdminDb.execute(sql`
       SELECT is_readonly, upload_blocked, readonly_reason, payment_failed_at,
-             subscription_status, subscription_tier, first_payment_used
+             subscription_status, subscription_tier, first_payment_used,
+             data_addon_tier, data_addon_status, data_addon_started_at, data_addon_expires_at
       FROM swimming_pools WHERE id = ${poolId} LIMIT 1
     `)).rows as any[];
 
@@ -1373,6 +1552,11 @@ router.get("/status", requireAuth, requireRole("pool_admin", "super_admin"), asy
       pending_tier:           pendingTier,
       pending_plan_name:      pendingPlanName,
       downgrade_at:           downgradeAt,
+      // DATA add-on 상태 (swimming_pools)
+      data_addon_tier:        poolRow?.data_addon_tier       ?? null,
+      data_addon_status:      poolRow?.data_addon_status     ?? null,
+      data_addon_started_at:  poolRow?.data_addon_started_at ?? null,
+      data_addon_expires_at:  poolRow?.data_addon_expires_at ?? null,
     });
   } catch (err) {
     console.error(err);

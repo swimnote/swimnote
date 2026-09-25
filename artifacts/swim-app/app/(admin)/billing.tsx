@@ -42,6 +42,11 @@ interface BillingStatus {
   pending_tier?: string | null;
   pending_plan_name?: string | null;
   downgrade_at?: string | null;
+  // DATA add-on
+  data_addon_tier?: string | null;
+  data_addon_status?: string | null;
+  data_addon_started_at?: string | null;
+  data_addon_expires_at?: string | null;
 }
 
 const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "deleted"]);
@@ -159,6 +164,10 @@ export default function BillingScreen() {
         pending_tier:        sd.pending_tier ?? null,
         pending_plan_name:   sd.pending_plan_name ?? null,
         downgrade_at:        sd.downgrade_at ?? null,
+        data_addon_tier:        sd.data_addon_tier        ?? null,
+        data_addon_status:      sd.data_addon_status      ?? null,
+        data_addon_started_at:  sd.data_addon_started_at  ?? null,
+        data_addon_expires_at:  sd.data_addon_expires_at  ?? null,
       });
     } catch (e) {
       console.error("billing status error:", e);
@@ -367,6 +376,44 @@ export default function BillingScreen() {
             )}
           </View>
         </Section>
+
+        {/* ── DATA add-on 상태 ── */}
+        {billingInfo?.data_addon_tier && billingInfo?.data_addon_status && billingInfo.data_addon_status !== "expired" && (
+          <Section title="추가 저장공간 (add-on)">
+            <View style={[s.subCard, { borderColor: "#10B98150" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <LucideIcon name="database" size={16} color="#10B981" />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.planName}>
+                    {billingInfo.data_addon_tier === "data100" ? "DATA100 (+100GB)" : "DATA300 (+300GB)"}
+                  </Text>
+                  <Text style={s.planMeta}>
+                    {billingInfo.data_addon_status === "active"       ? "구독 중" :
+                     billingInfo.data_addon_status === "cancelled"    ? "취소 예약됨" :
+                     billingInfo.data_addon_status === "billing_issue" ? "결제 실패 (유예)" :
+                     billingInfo.data_addon_status}
+                  </Text>
+                </View>
+                <View style={[s.statusBadge,
+                  billingInfo.data_addon_status === "active" ? s.badgeGreen : s.badgeGray]}>
+                  <Text style={[s.badgeText,
+                    billingInfo.data_addon_status === "active"
+                      ? { color: "#10B981" } : { color: C.textSecondary }]}>
+                    {billingInfo.data_addon_status === "active" ? "활성" : "비활성"}
+                  </Text>
+                </View>
+              </View>
+              {billingInfo.data_addon_expires_at && (
+                <View style={s.infoRow}>
+                  <Text style={s.metaLabel}>만료일</Text>
+                  <Text style={s.metaValue}>
+                    {new Date(billingInfo.data_addon_expires_at).toLocaleDateString("ko-KR")}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Section>
+        )}
 
         {/* ── 결제 수단 안내 ── */}
         <View style={s.platformBanner}>

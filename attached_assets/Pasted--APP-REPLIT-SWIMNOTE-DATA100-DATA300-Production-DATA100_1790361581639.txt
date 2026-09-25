@@ -1,0 +1,1005 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — DATA100 / DATA300 추가 저장공간 구독 Production 구현]
+
+DATA100 / DATA300 구조 조사 승인합니다.
+
+이제 실제 구현을 진행하십시오.
+
+확정 제품 정책:
+
+DATA100
+com.swimnote.data100.monthly
+→ 현재 플랜 기본 저장공간 +100GB
+
+DATA300
+com.swimnote.data300.monthly
+→ 현재 플랜 기본 저장공간 +300GB
+
+DATA는 SWIMNOTE/X 메인 구독을 대체하지 않는
+독립 add-on입니다.
+
+사용자 확인:
+DATA 구독 그룹은 메인 SWIMNOTE/X 구독 그룹과 별도입니다.
+
+중요:
+DATA100 / DATA300이 서로 동일한 DATA Subscription Group에 있고
+동시에 하나만 active가 되는 구조인지 실제 Store 설정을 확인하십시오.
+
+만약 DATA100과 DATA300이 서로 별도 그룹이라
+동시 구독이 가능한 상태라면
+구매 CTA 활성화 전에 HOLD 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 정책 — 만료 시 즉시 회수
+━━━━━━━━━━━━━━━━━━━━━━
+
+[CANCELLATION]
+
+자동갱신 취소만 된 상태.
+
+결제된 subscription period가 남아 있으면:
+
+- DATA 추가용량 그대로 유지
+- 업로드 계속 가능
+- 기존 media 유지
+- 자동삭제 금지
+
+[EXPIRATION]
+
+실제 DATA 구독이 만료되는 순간:
+
+- DATA 추가용량 즉시 제거
+- 현재 메인 플랜 기본용량으로 즉시 복귀
+- 현재 사용량 > 새 허용량이면 즉시 업로드 차단
+- 초과 media purge job 즉시 생성
+- 오래된 사진/영상부터 삭제 시작
+- 현재 사용량 <= 허용량이 되면 삭제 종료
+
+유예기간 없음.
+
+“즉시 삭제”는 webhook HTTP 요청 안에서
+수백 GB를 동기 삭제한다는 뜻이 아니라
+
+만료 시:
+quota 즉시 감소
++
+upload 즉시 차단
++
+purge job 즉시 시작
+
+을 의미합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 삭제 데이터 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+자동삭제 대상:
+
+- photo_assets_meta 계열 사진
+- student_photos 계열 사진
+- video_assets_meta 계열 영상
+- 해당 R2 object
+- 해당 media relation / metadata
+
+보존:
+
+- 일지 text
+- student note
+- 회원정보
+- 출결
+- 성장리포트
+- curriculum
+- 회원메모
+- 정산/결제정보
+- audit
+- 퇴원생 Archive text data
+
+미디어가 삭제된 뒤
+일지는 “사진 없는 정상 일지”로 남아야 합니다.
+
+깨진 thumbnail / 404 / 무한 spinner 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DB — DATA 상태 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+swimming_pools에 최소 컬럼 추가:
+
+data_addon_tier TEXT NULL
+허용 의미:
+data100
+data300
+NULL
+
+data_addon_status TEXT NULL
+허용 의미:
+active
+cancelled
+billing_issue
+expired
+NULL
+
+data_addon_started_at TIMESTAMPTZ NULL
+
+data_addon_expires_at TIMESTAMPTZ NULL
+
+중요:
+
+DATE 사용 금지.
+
+DATA는 정확한 subscription expiration timestamp에
+정책이 변경되므로 TIMESTAMPTZ 사용.
+
+기존:
+
+extra_storage_gb INTEGER
+
+는 유지.
+
+현재 storage quota 계산의 canonical source와
+호환성을 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. extra_storage_gb는 ADDITIVE 증가 방식 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드의:
+
+extra_storage_gb += 100
+extra_storage_gb += 300
+
+방식은 최종 구현에서 사용하지 마십시오.
+
+DATA100/300 중 하나만 active인 정책이므로
+항상 canonical 값으로 SET하십시오.
+
+DATA100 active:
+extra_storage_gb = 100
+
+DATA300 active:
+extra_storage_gb = 300
+
+DATA 없음 / expired:
+extra_storage_gb = 0
+
+이렇게 해야:
+
+- duplicate webhook
+- restore
+- product change
+- retry
+
+때 storage가 200/400/600GB 등으로
+잘못 누적되지 않습니다.
+
+data_addon_tier와
+extra_storage_gb는
+같은 transaction에서 일관되게 갱신.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Purge job table
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+pool_data_purge_jobs
+
+생성.
+
+필수 의미:
+
+- id
+- pool_id
+- target_quota_bytes
+- status
+  pending
+  running
+  completed
+  failed
+- trigger_event_id 또는 equivalent dedup key
+- attempts
+- last_error
+- created_at
+- started_at
+- completed_at
+- updated_at
+
+같은 pool에
+pending/running purge가 여러 개 생성되지 않도록
+idempotency 보장.
+
+대규모 job framework 신규도입 금지.
+
+현재 DB scheduler/setInterval 패턴 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. RevenueCat DATA event 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 processDataWebhookEvent()를 완성합니다.
+
+INITIAL_PURCHASE:
+
+RevenueCat이 실제 활성 product를
+data100으로 확인:
+
+- data_addon_tier='data100'
+- data_addon_status='active'
+- data_addon_started_at
+- data_addon_expires_at
+- extra_storage_gb=100
+
+data300이면 동일하게 300.
+
+MAIN subscription_tier 변경 금지.
+
+RENEWAL:
+
+- active 유지
+- expires_at 갱신
+- extra_storage_gb는 canonical 100/300으로 SET
+
+UNCANCELLATION:
+
+- active 복구
+- 현재 DATA 상품 기준 storage 유지
+- purge 생성 금지
+
+CANCELLATION:
+
+- data_addon_status='cancelled'
+- expires_at 유지/갱신
+- extra_storage_gb 유지
+- upload 유지
+- purge 생성 금지
+
+BILLING_ISSUE:
+
+RevenueCat/Store에서 entitlement가 아직 active/grace이면:
+
+- storage 유지
+- 삭제 금지
+
+EXPIRATION:
+
+- data_addon_status='expired'
+- data_addon_tier 상태는 history 의미로 보존 가능하나
+  effective add-on은 inactive 처리
+- extra_storage_gb=0
+- 새 effective quota 즉시 계산
+- 초과 시 upload_blocked=true
+- purge job 생성
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PRODUCT_CHANGE — 매우 중요
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA100 ↔ DATA300 변경에서
+PRODUCT_CHANGE webhook의 new_product_id만 보고
+즉시 quota를 바꾸지 마십시오.
+
+Store에서 실제로 새 상품이
+“현재 active product”가 된 시점을 기준으로 적용.
+
+특히:
+
+DATA300 → DATA100 downgrade가
+다음 갱신일부터 적용되는 경우
+
+PRODUCT_CHANGE 이벤트 순간에
+300→100으로 줄여서 media 삭제하면 안 됩니다.
+
+반대로 DATA100→DATA300 upgrade가
+즉시 effective라면
+RevenueCat이 실제 active product를
+300으로 확인한 시점에 300 적용.
+
+현재 RevenueCat event payload / CustomerInfo /
+기존 verified server sync 구조 중
+가장 신뢰할 수 있는 canonical active-product 판정을 재사용.
+
+Client가 보낸 productId만 믿고
+quota 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Effective quota
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기존 공식 계산:
+
+effectiveStorage =
+basePlanStorage
++
+extra_storage_gb
+
+그대로 유지.
+
+예:
+
+SWIMNOTE 10GB + DATA100
+= 110GB
+
+X300 300GB + DATA100
+= 400GB
+
+X500 500GB + DATA300
+= 800GB
+
+X1000 1TB + DATA300
+= 1.3TB
+
+메인 플랜 변경 시에도
+현재 base + active DATA로 자동 재계산.
+
+DATA는 회원수 quota에 절대 영향 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Upload enforcement 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+photos.ts
+videos.ts
+
+는 live quota 계산.
+
+uploads.ts
+
+는 upload_blocked flag fast-path.
+
+DATA EXPIRATION에서:
+
+새 quota 초과이면
+upload_blocked=true
+
+반드시 즉시 SET.
+
+DATA purchase / upgrade / restore 후
+새 quota 안으로 들어오면:
+
+upload_blocked=false
+
+로 정상 복구.
+
+purge 완료 후에도
+최종 usage/quota를 재계산하여
+flag를 canonical 상태로 맞추십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Purge candidate — 세 source 모두 포함
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 canonical storage usage는:
+
+1.
+photo_assets_meta.file_size
+
+2.
+student_photos.file_size_bytes
+
+3.
+video_assets_meta.file_size
+
+세 소스를 합산합니다.
+
+따라서 purge도 반드시
+세 source를 모두 대상으로 해야 합니다.
+
+보고서 초안처럼:
+
+photo_assets_meta
++
+video_assets_meta
+
+만 삭제하는 구조 금지.
+
+student_photos가 빠지면
+실제 usage가 quota 이하로 내려가지 않을 수 있습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. “가장 오래된 미디어부터” 전역 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 테이블별로 각각 오래된 순서가 아니라
+
+세 source 전체를 하나의 candidate stream으로 보고:
+
+canonical upload/create timestamp ASC
++
+deterministic tie breaker
+
+순으로 정리하십시오.
+
+예:
+
+timestamp ASC
+source_type ASC
+id ASC
+
+정확한 timestamp 컬럼은
+각 실제 schema의 canonical 생성시각 사용.
+
+taken_at 같은 촬영시각이 아니라
+서비스에 저장된 시점을 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Shared R2 object 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+photo_assets_meta에는
+clone/sibling 공유 object가 존재합니다.
+
+기존 photos.ts canonical delete 로직 재사용.
+
+R2 삭제 전:
+
+같은 object_key를 참조하는
+다른 surviving row가 있는지 확인.
+
+다른 row가 사용 중이면:
+
+DB relation/row만 안전하게 제거하고
+R2 object 삭제 금지.
+
+마지막 reference일 때만
+R2 object 삭제.
+
+영상/student_photos도
+각 기존 canonical delete helper/pattern 재사용.
+
+새로운 단순 DELETE 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. R2 삭제 실패
+━━━━━━━━━━━━━━━━━━━━━━
+
+R2 delete 실패를
+조용히 무시하고 DB row부터 삭제해
+실제 비용 object만 남기는 구조 금지.
+
+기존 withdraw-student-service 패턴을 참고해:
+
+- 실패 key 기록
+- job retry
+- attempts
+- last_error
+
+를 남기십시오.
+
+안전한 경우에만 DB relation 제거.
+
+purge job은 retry 가능해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Purge 종료 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일 단위 삭제 후
+현재 canonical usage를 재계산.
+
+remainingUsage <= targetQuota
+
+가 되는 순간 즉시 종료.
+
+정확히 초과 byte만큼 맞추려고
+파일을 부분 삭제하지 마십시오.
+
+예:
+
+10.2GB
+→ 마지막 500MB 파일 삭제
+→ 9.7GB
+
+정상.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. DATA Offering / Package
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA 구매 CTA 활성화 전에
+실제 RevenueCat package 존재를 확인.
+
+권장 canonical Offering:
+
+data_monthly
+
+Packages:
+
+data100
+→ com.swimnote.data100.monthly
+
+data300
+→ com.swimnote.data300.monthly
+
+정확한 RC Dashboard identifier가 이미 존재한다면
+기존 값을 우선 사용.
+
+임의로 중복 Offering 만들지 마십시오.
+
+RC package가 실제로 조회되지 않으면
+구매버튼 활성화 금지.
+
+그 경우 HOLD 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. DATA entitlement
+━━━━━━━━━━━━━━━━━━━━━━
+
+RevenueCat에 이미 DATA 전용 entitlement가 있으면
+그것을 재사용.
+
+없다면 현재 RevenueCat 구조를 확인하여
+하나의:
+
+data_addon
+
+entitlement에
+
+DATA100
+DATA300
+
+두 상품을 연결하는 것이
+restore/current active 확인에 적합한지 검토.
+
+단 RevenueCat Dashboard 변경은
+Replit에서 직접 불가능하면
+필요한 수동 설정값만 정확히 보고하십시오.
+
+임의로 client-only entitlement 판정을
+서버 권한의 source of truth로 삼지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Purchase handler
+━━━━━━━━━━━━━━━━━━━━━━
+
+subscription.tsx의 현재:
+
+“준비 중”
+
+DATA card를 실제 구매 flow로 연결.
+
+단 Package가 있을 때만 활성.
+
+handleDataPurchase(pack) 신규.
+
+순서:
+
+1.
+DATA 상품 선택
+
+2.
+자동삭제 정책 confirmation 표시
+
+3.
+동의 시 RevenueCat purchase
+
+4.
+CustomerInfo 갱신
+
+5.
+기존 검증된 server verification/sync 방식으로
+DATA active product 확인
+
+6.
+server data_addon state 반영
+
+7.
+billing/storage 상태 refresh
+
+8.
+구독 완료 안내
+
+9.
+필요하면 기존 구매 성공 one-shot reload flow 재사용
+
+Apple 결제 성공만 보고
+client에서 extra_storage_gb 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 구매 전 필수 정책 문구
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA100/300 결제 직전
+반드시 명확하게 표시:
+
+“추가 데이터 구독이 종료되면
+저장 한도가 즉시 현재 플랜의 기본 제공 용량으로 변경됩니다.
+
+구독 종료 시 허용 용량을 초과한 사진·영상은
+오래된 자료부터 자동 삭제되며,
+삭제된 자료는 복구할 수 없습니다.”
+
+사용자가 확인한 뒤
+Apple/Google purchase sheet로 이동.
+
+DATA 카드 하단에도 축약 문구:
+
+“구독 종료 시 초과 저장된 사진·영상은
+오래된 자료부터 자동 삭제됩니다.”
+
+정도로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. DATA 상태 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+구독/결제 관리 화면에
+DATA 활성 시:
+
+예:
+
+추가 저장공간
+DATA100 +100GB
+
+상태
+활성
+
+다음 결제/만료일
+YYYY.MM.DD
+
+총 저장공간
+110GB
+
+현재 사용량
+XXGB
+
+표시.
+
+cancelled지만 아직 기간이 남아 있으면:
+
+“해지 예정”
+
++
+“YYYY.MM.DD까지 추가 저장공간 사용 가능”
+
+표시.
+
+expired:
+
+DATA 추가용량을 active처럼 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Restore Purchases
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DATA restore가 없으므로 구현.
+
+기존 Restore Purchases flow에서:
+
+RevenueCat restore
+→ active DATA product 확인
+→ 서버 canonical verification
+→ data_addon state 정확히 SET
+→ extra_storage_gb 100/300
+→ storage quota refresh
+→ 필요 시 upload_blocked 해제
+
+중복 가산 금지.
+
+restore를 여러 번 실행해도
+100→200처럼 증가하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 메인 구독과 완전 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 유지:
+
+SWIMNOTE + DATA100
+SWIMNOTE + DATA300
+
+X300 + DATA100/300
+X500 + DATA100/300
+X1000 + DATA100/300
+
+DATA 구매/restore/webhook이:
+
+subscription_tier
+x_plan_key
+x_mode
+
+를 변경하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. Main plan 변경과 DATA
+━━━━━━━━━━━━━━━━━━━━━━
+
+DATA가 active인 동안
+메인 플랜이 바뀌어도:
+
+effective quota =
+새 base storage + active DATA
+
+로 즉시 재계산.
+
+만약 메인 플랜 감소로
+새 quota를 초과하게 된다면
+
+기존 메인 구독 변경정책을 확인하여
+실제 변경 effective 시점에
+동일 storage enforcement를 적용.
+
+이번 DATA 구현 때문에
+메인 결제 lifecycle을 재설계하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 실제 고객 media로
+삭제 테스트 금지.
+
+격리/test pool 사용.
+
+TEST A
+DATA100 구매
+→ main tier 유지
+→ data_addon=data100
+→ extra_storage_gb=100
+
+TEST B
+DATA300 구매
+→ extra_storage_gb=300
+→ 누적 400/600으로 되지 않음
+
+TEST C
+SWIMNOTE 10GB + DATA100
+→ effective 110GB
+
+TEST D
+X300 300GB + DATA300
+→ effective 600GB
+
+TEST E
+CANCELLATION
+→ status cancelled
+→ expiration 전 storage 그대로
+→ purge 없음
+
+TEST F
+EXPIRATION
+사용량 <= base
+→ extra=0
+→ purge job 불필요
+→ upload 정상
+
+TEST G
+EXPIRATION
+사용량 > base
+→ extra=0
+→ upload 즉시 차단
+→ purge job pending
+→ worker 실행
+
+TEST H
+세 source에 오래된 media 분산:
+
+photo_assets_meta
+student_photos
+video_assets_meta
+
+→ 전역 오래된 순서로 삭제
+→ quota 이하에서 종료
+
+TEST I
+shared/clone photo
+→ surviving sibling 있으면 R2 유지
+
+TEST J
+R2 delete 실패
+→ 실패 기록
+→ job retry 가능
+→ silent orphan 생성 금지
+
+TEST K
+DATA100→DATA300 upgrade
+→ 실제 effective 시점부터 300GB
+
+TEST L
+DATA300→DATA100 downgrade
+→ 예약된 경우 실제 effective 시점 전까지 300 유지
+→ effective 이후 100
+→ 필요한 경우에만 purge
+
+TEST M
+restore DATA100
+→ extra_storage_gb 정확히 100
+→ 두 번 restore해도 100
+
+TEST N
+DATA purchase/restore 후
+main subscription_tier 변화 없음
+
+TEST O
+DATA expiration purge 후
+일지 text는 유지
+→ 깨진 media UI 없음
+
+TEST P
+Archive tables 영향 없음
+
+TEST Q
+member limit 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 배포 전 Store 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+App Store 상품:
+
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+Approved 여부는 사용자 보고 기준으로
+승인 완료 상태입니다.
+
+하지만 RevenueCat 실제 Offering/Package 및
+StoreProduct 조회는 직접 증거가 필요합니다.
+
+APP에서 실제 package/StoreProduct가 잡히지 않으면:
+
+DATA CTA 활성화 상태로 배포 금지.
+
+필요한 RevenueCat 수동 설정을
+정확히 보고하고 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+순서:
+
+WP-A
+DB migration
+
+WP-B
+DATA webhook/state
+
+WP-C
+quota/upload enforcement
+
+WP-D
+purge job/worker
+
+WP-E
+purchase/restore
+
+WP-F
+APP UI/copy
+
+WP-G
+격리 E2E
+
+모두 통과 후:
+
+API Render Production
+
+APP:
+production-v2
+runtimeVersion 2.2.0
+iOS + Android OTA
+
+WEB 변경 없으면 deploy 금지.
+
+Native build 불필요하면 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. DB]
+
+data_addon_* actual types
+pool_data_purge_jobs
+constraints/index
+
+[B. RC]
+
+DATA100
+DATA300
+
+Offering
+Package
+Entitlement
+StoreProduct
+
+실제 조회 여부
+
+[C. PURCHASE]
+
+각 DATA 구매 결과
+
+[D. MAIN PLAN]
+
+main subscription tier 미변경 증거
+
+[E. STORAGE]
+
+base
+extra
+effective
+
+계산 결과
+
+[F. EVENTS]
+
+INITIAL_PURCHASE
+RENEWAL
+CANCELLATION
+UNCANCELLATION
+BILLING_ISSUE
+EXPIRATION
+PRODUCT_CHANGE
+
+각 처리
+
+[G. PURGE]
+
+세 media source
+oldest-first
+shared object
+R2 failure
+retry
+quota stop
+
+[H. RESTORE]
+
+DATA restore
+반복 restore idempotency
+
+[I. UI]
+
+구매 정책 안내
+활성/해지예정/만료 표시
+
+[J. TEST]
+
+TEST A~Q
+PASS / FAIL / 확인하지 못함
+
+[K. DEPLOY]
+
+DB migration 식별정보
+
+API:
+- full Work SHA
+- full Production LIVE SHA
+- Render Deploy ID/status
+
+APP:
+- full OTA Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- Android Update ID
+- branch/channel
+- runtimeVersion
+
+[L. UNCHANGED]
+
+- main subscription pricing 변경 없음
+- SWIMNOTE/X 상품 변경 없음
+- member limit 변경 없음
+- X Trial 변경 없음
+- Archive 변경 없음
+- Production 고객 media 삭제 테스트 없음
+
+완료했다고만 보고하지 마십시오.
+
+특히 다음 세 항목을 반드시 실제 검증:
+
+1.
+DATA purchase/restore 반복으로
+extra_storage_gb가 누적되지 않는지
+
+2.
+student_photos까지 포함하여
+실제 storage usage가 quota 이하로 내려가는지
+
+3.
+DATA300→DATA100 변경에서
+실제 effective 시점 전 media가 조기 삭제되지 않는지
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.

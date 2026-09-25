@@ -353,6 +353,10 @@ export default function SubscriptionScreen() {
         // billing/status may include storage info
         if (d.storage_limit_mb != null) setStorageLimitMb(Number(d.storage_limit_mb));
         if (d.storage_used_mb  != null) setStorageUsedMb(Number(d.storage_used_mb));
+        // DATA add-on 상태
+        setDataAddonTier(d.data_addon_tier ?? null);
+        setDataAddonStatus(d.data_addon_status ?? null);
+        setDataAddonExpiresAt(d.data_addon_expires_at ?? null);
       }
       if (policyRes?.ok) {
         const d = await policyRes.json();
@@ -640,6 +644,62 @@ export default function SubscriptionScreen() {
     );
   }
 
+  // ── DATA add-on 구매 핸들러 ────────────────────────────────────────────────
+  // RC data_monthly offering에서 pack.rc_product_id에 해당하는 패키지를 찾아 구매.
+  // 패키지가 없으면 CTA는 disabled로 렌더링되므로 이 함수는 호출되지 않음.
+  async function handleDataPurchase(
+    pack: { id: string; name: string; plus_gb: number; price_monthly_krw: number; rc_product_id: string },
+    pkg:  any, // RC Package
+  ) {
+    // 구매·구독·환불 정책 동의 게이트
+    if (!purchasePolicyConsent?.agreed || purchasePolicyConsent?.needs_reagree) {
+      setPurchasePolicyChecked(false);
+      setPurchasePolicyModalError(null);
+      const priceStr = pkg.product?.priceString ?? fmtKrw(pack.price_monthly_krw);
+      setPurchasePolicyModalCtx({
+        source: "purchase",
+        productName: `${pack.name} — ${priceStr}/월`,
+        onAgreed: () => handleDataPurchase(pack, pkg),
+      });
+      setShowPurchasePolicyModal(true);
+      return;
+    }
+
+    const priceStr = pkg.product?.priceString ?? fmtKrw(pack.price_monthly_krw);
+    showConfirm(
+      `${pack.name} 구독`,
+      `${priceStr}/월 · +${pack.plus_gb}GB 추가 저장공간\n현재 플랜에 독립적으로 추가됩니다.\n\n결제 수단: ${STORE_NAME}`,
+      async () => {
+        try {
+          // DATA add-on은 독립 구독 — safePurchase의 androidHasPaidSub guard 우회
+          // (메인 구독과 별개 상품으로 단순 purchasePackage)
+          const info = await purchase(pkg);
+          // 구매 완료 → 서버 동기화 (webhook 지연 보완)
+          const productId = pkg.product?.productIdentifier ?? pack.rc_product_id;
+          const expiresAt: string | null = (() => {
+            const active = info?.entitlements?.active ?? {};
+            for (const ent of Object.values(active) as any[]) {
+              if (ent?.productIdentifier === productId && ent?.expirationDate) {
+                return ent.expirationDate.slice(0, 10);
+              }
+            }
+            return null;
+          })();
+          await apiRequest(token, "/billing/sync-data-addon", {
+            method: "POST",
+            body: JSON.stringify({ productId, expiresAt }),
+          }).catch(e => console.error("[sync-data-addon] 동기화 오류:", e));
+          await refetchCustomerInfo();
+          await refreshPool();
+          showConfirm("구독 완료", `${pack.name}이 추가되었습니다! +${pack.plus_gb}GB 저장공간이 즉시 반영됩니다.`, () => {});
+        } catch (e: any) {
+          if (e?.userCancelled) return;
+          showConfirm("구독 실패", e?.message ?? "결제 중 오류가 발생했습니다.", () => {});
+        }
+      },
+    );
+  }
+
   function handleLegacyPlanSelect(plan: PlanMeta) {
     if (plan.price === 0 || !plan.rcPackageId) return;
     if (policyAgreed === false) {
@@ -807,9 +867,12 @@ export default function SubscriptionScreen() {
   const showXToSwimnoteDowngrade = mode === "x";
 
   // DATA pack 안내 카드는 BASE / X Trial / X Paid 전 플랜에서 항상 표시.
-  // 구매 CTA는 "준비 중" 비활성 상태 유지 (PURCHASE HOLD).
-  // 정책: UI 숨김 ≠ 구매 HOLD — 카드는 보이고 CTA만 비활성.
   const showDataPack = true;
+
+  // ── DATA add-on 상태 (서버에서 로드) ────────────────────────────────────────
+  const [dataAddonTier,      setDataAddonTier]      = useState<string | null>(null);
+  const [dataAddonStatus,    setDataAddonStatus]    = useState<string | null>(null);
+  const [dataAddonExpiresAt, setDataAddonExpiresAt] = useState<string | null>(null);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -1236,24 +1299,81 @@ export default function SubscriptionScreen() {
                   <Text style={s.sectionSub}>현재 플랜에 추가 (add-on)</Text>
                 </View>
               </View>
-              {DATA_PACKS.map(pack => (
-                <View key={pack.id} style={s.dataPackCard}>
-                  <View style={s.planRow}>
-                    <View>
-                      <Text style={s.planName}>{pack.name}</Text>
-                      <Text style={s.dataPackSub}>+{pack.plus_gb}GB 추가</Text>
+              {DATA_PACKS.map(pack => {
+                // RC data_monthly offering에서 패키지 탐색
+                const dataMonthlyOf = (swimnoteOffering as any) ?? null; // data_monthly도 같은 훅에서
+                // offerings에서 data_monthly를 직접 탐색
+                const dataOffering = (() => {
+                  try {
+                    // useSubscription이 제공하는 RC offerings 전체에서 data_monthly 탐색
+                    return null; // getOfferings()는 훅 밖에서 직접 호출 불가 → runtime lookup
+                  } catch { return null; }
+                })();
+                // RC 패키지 탐색: 모든 available offerings에서 product ID로 탐색
+                const allPkgs = [
+                  ...(soloOffering?.availablePackages ?? []),
+                  ...(centerOffering?.availablePackages ?? []),
+                  ...(xOffering?.availablePackages ?? []),
+                  ...(swimnoteOffering?.availablePackages ?? []),
+                ];
+                const dataPkg = allPkgs.find((p: any) =>
+                  p.product?.productIdentifier === pack.rc_product_id ||
+                  p.product?.productIdentifier === `${pack.rc_product_id}:monthly` ||
+                  p.identifier === pack.id ||
+                  p.identifier === `${pack.id}:monthly`,
+                ) ?? null;
+
+                // 현재 이 pack이 활성 구독 중인지 확인
+                const isActiveAddon = dataAddonTier === pack.id && dataAddonStatus === "active";
+                const isCancelled   = dataAddonTier === pack.id && dataAddonStatus === "cancelled";
+
+                return (
+                  <View key={pack.id} style={s.dataPackCard}>
+                    <View style={s.planRow}>
+                      <View>
+                        <Text style={s.planName}>{pack.name}</Text>
+                        <Text style={s.dataPackSub}>+{pack.plus_gb}GB 추가</Text>
+                      </View>
+                      <Text style={[s.planPrice, { color: C.textSecondary, fontSize: 16 }]}>
+                        {dataPkg?.product?.priceString ?? fmtKrw(pack.price_monthly_krw)}
+                        <Text style={s.planPriceSub}>/월</Text>
+                      </Text>
                     </View>
-                    <Text style={[s.planPrice, { color: C.textSecondary, fontSize: 16 }]}>
-                      {fmtKrw(pack.price_monthly_krw)}
-                      <Text style={s.planPriceSub}>/월</Text>
-                    </Text>
+
+                    {/* DATA add-on 상태 배지 */}
+                    {isActiveAddon && (
+                      <View style={[s.cardAction, { backgroundColor: "#ECFDF5", borderColor: "#10B981" + "50" }]}>
+                        <LucideIcon name="check" size={13} color="#10B981" />
+                        <Text style={[s.cardActionText, { color: "#10B981", marginLeft: 4 }]}>구독 중</Text>
+                      </View>
+                    )}
+                    {isCancelled && (
+                      <View style={[s.cardAction, { backgroundColor: "#FFFBEB", borderColor: "#F59E0B50" }]}>
+                        <LucideIcon name="clock" size={13} color="#D97706" />
+                        <Text style={[s.cardActionText, { color: "#D97706", marginLeft: 4 }]}>
+                          취소 예약됨{dataAddonExpiresAt ? ` · ${dataAddonExpiresAt.slice(0,10).replace(/-/g,".")}까지` : ""}
+                        </Text>
+                      </View>
+                    )}
+                    {!isActiveAddon && !isCancelled && (
+                      dataPkg != null ? (
+                        <Pressable
+                          style={({ pressed }) => [s.cardAction, { backgroundColor: "#EEF4FF", borderColor: "#1A5CFF40", opacity: pressed ? 0.8 : 1 }]}
+                          onPress={() => handleDataPurchase(pack, dataPkg)}
+                          disabled={isPurchasing}
+                        >
+                          <Text style={[s.cardActionText, { color: "#1A5CFF" }]}>구독 시작</Text>
+                        </Pressable>
+                      ) : (
+                        <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
+                          <LucideIcon name="clock" size={13} color={C.textMuted} />
+                          <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>준비 중</Text>
+                        </View>
+                      )
+                    )}
                   </View>
-                  <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
-                    <LucideIcon name="clock" size={13} color={C.textMuted} />
-                    <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>준비 중</Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </>
           )}
 
