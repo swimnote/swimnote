@@ -1,0 +1,434 @@
+[SWIMNOTE APP/API — Teacher Diary Professional Engine Bridge 구현]
+
+설계 조사 결과 RECOMMENDED_OPTION = OPTION A로 확정합니다.
+
+이번 작업은 기존 Teacher Diary를 교체하는 작업이 아닙니다.
+
+목표:
+현재 정상 동작 중인 Teacher Diary 경로를 완전히 보존한 채,
+Professional Engine V1.2를 선택적으로 호출할 수 있는
+병렬 bridge를 추가합니다.
+
+현재 앱 endpoint는 절대 변경하지 않습니다.
+
+POST
+https://swimnote-api.onrender.com/api/v1/teacher-diary/generate
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 가장 중요한 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 ai-v1.ts pipeline을 삭제하거나 축소하지 마십시오.
+
+기존:
+
+APP
+→ swimnote-api
+→ ai-v1.ts
+→ local/template/OpenAI pipeline
+
+은 그대로 유지합니다.
+
+신규:
+
+APP
+→ swimnote-api
+→ ai-v1.ts
+→ Professional Engine V1.2
+
+경로를 env flag 뒤에 추가합니다.
+
+기본값은 반드시:
+
+TEACHER_DIARY_ENGINE=local
+
+입니다.
+
+env가 없거나 잘못된 값이어도
+반드시 local 기존 경로를 사용하십시오.
+
+이번 구현 완료 후에도
+Production env는 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. professional-engine-client.ts 확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+artifacts/api-server/src/lib/professional-engine-client.ts
+
+를 재사용합니다.
+
+새 파일을 만들지 말고
+다음 함수만 기존 client 패턴에 맞게 추가하십시오.
+
+generateProfessionalTeacherDiary(params)
+
+endpoint:
+
+{PROFESSIONAL_ENGINE_BASE_URL}
+/api/v1/teacher-diary/generate
+
+request body는 현재 앱이 보내는
+Teacher Diary contract를 가능한 한 그대로 전달합니다.
+
+다음 필드를 보존:
+
+- contract_version
+- request_id
+- schema_version
+- feature
+- locale
+- input.text
+- context.pool_id
+- context.class_id
+- context.lesson_date
+- context.student_refs
+- context.students
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 인증
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선 기존 Growth Report에서 검증된
+service JWT 생성 패턴을 재사용하십시오.
+
+JWT_SECRET 기반 HS256.
+
+예상 service identity:
+
+userId:
+service:teacher-diary
+
+role:
+platform_admin
+
+poolId:
+현재 request context.pool_id
+
+tv:
+기존 service JWT convention에 맞는 값
+
+단:
+
+Professional Engine 실제 호출에서 401/403이 발생하면
+임의로 다른 인증 방식으로 fallback하지 마십시오.
+
+raw PROFESSIONAL_ENGINE_API_SECRET 재시도,
+APP JWT forwarding 등의 자동 fallback도 금지합니다.
+
+401/403 발생 시
+응답 status/error만 보고하고 멈추십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ai-v1.ts 분기 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 route:
+
+POST /v1/teacher-diary/generate
+
+유지.
+
+route 시작부의 기존 인증/contract 검증 이후:
+
+TEACHER_DIARY_ENGINE 값을 확인합니다.
+
+local
+→ 기존 코드 그대로 실행
+
+professional
+→ generateProfessionalTeacherDiary() 호출
+
+그 외 값/UNSET
+→ local
+
+기존 Phase 1~7 코드는 삭제하지 마십시오.
+
+professional branch만 별도로 추가합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Professional response 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+Engine V1.2 response의:
+
+result.common
+result.students
+meta
+usage
+
+를 기존 앱 contract로 전달합니다.
+
+앱이 기대하는:
+
+result.common
+result.students[].student_ref
+result.students[].content
+
+구조를 변경하지 마십시오.
+
+중요:
+
+Engine 출력 문장을 다시 요약하거나
+재Naturalize하거나
+truncate하거나
+local GPT를 한 번 더 호출하지 마십시오.
+
+Professional Engine 결과가
+그대로 앱까지 가야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. engine_version 호환
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱은 다음만 허용:
+
+v1
+grounded_v1
+legacy_v1
+
+Professional Engine 실제 response의
+engine_version을 먼저 확인하십시오.
+
+이미 grounded_v1이면 그대로 사용합니다.
+
+다른 값이면 app-facing response에서
+engine_version='grounded_v1'
+호환값을 유지할 수 있습니다.
+
+단 실제 upstream engine version은
+가능하면 meta.upstream_engine_version 등에
+디버그용으로 보존하십시오.
+
+앱 contract는 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Trace
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 saveAiTrace() 구조는 가능한 범위에서 유지합니다.
+
+professional branch에서는
+실제로 존재하는 Engine meta만 기록하십시오.
+
+없는 값을 가짜로 만들지 마십시오.
+
+예:
+
+knowledge_ids 실제 존재
+→ count 기록 가능
+
+template_ids 실제 존재
+→ 기록 가능
+
+없는 local-specific field
+→ null/undefined
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 실패 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+TEACHER_DIARY_ENGINE=professional 상태에서
+Professional Engine 호출이 실패했다고 해서
+
+local GPT로 조용히 fallback하지 마십시오.
+
+그렇게 하면 Engine V1.2가 실패해도
+사용자가 기존 결과를 보고 성공으로 착각하게 됩니다.
+
+professional mode:
+Engine 실패 → 명확한 API error
+
+local mode:
+기존 경로 정상 사용
+
+두 경로를 분명히 분리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Teacher Diary tests를 깨뜨리지 마십시오.
+
+신규 테스트:
+
+A.
+TEACHER_DIARY_ENGINE unset
+→ 기존 local pipeline
+
+B.
+TEACHER_DIARY_ENGINE=local
+→ 기존 local pipeline
+
+C.
+TEACHER_DIARY_ENGINE=professional
+→ Professional client 호출
+
+D.
+professional response의
+2~6문장 common이 손실 없이 전달
+
+E.
+students content 손실 없이 전달
+
+F.
+request_id 동일
+
+G.
+unknown student_ref 보호 유지
+
+H.
+Professional Engine 401
+→ local fallback 없음
+
+I.
+Professional Engine timeout
+→ local fallback 없음
+
+J.
+Professional response engine_version 호환 확인
+
+K.
+기존 local branch 결과/동작 regression 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 실제 Engine E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 구현 후
+Production env를 변경하지 않은 상태에서
+개발/테스트 실행에서만 professional branch를 강제로 사용하여
+실제 Professional Engine을 1회 호출하십시오.
+
+입력:
+
+자유형 호흡할 때 고개 많이 듦
+
+학생 없는 기존 검증 방식 사용 가능:
+
+student_refs: []
+students: []
+
+확인:
+
+- auth success 여부
+- HTTP status
+- generation_mode
+- knowledge_ids
+- template_ids
+- result.common
+- sentence count
+
+성공 기준:
+
+result.common이 단순 원문 1문장이 아니라
+
+Teacher Fact 자연화
++
+Knowledge 기반 기술 설명
+
+형태로 2문장 이상 출력.
+
+없는 향상/성공/과거 훈련 사실 생성 금지.
+
+실제 GPT 호출은 최대 1회.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 WP에서는 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Production TEACHER_DIARY_ENGINE 변경 금지
+- Render env 변경 금지
+- Production deploy 금지
+- 앱 코드 수정 금지
+- OTA 금지
+- ai-v1.ts 기존 pipeline 삭제 금지
+- Prompt 수정 금지
+- Knowledge DB 수정 금지
+- Professional Engine 코드 수정 금지
+- 신규 AI pipeline 작성 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[TEACHER DIARY PROFESSIONAL BRIDGE IMPLEMENTATION REPORT]
+
+STATUS:
+PASS / FIX_REQUIRED
+
+FILES_CHANGED:
+-
+
+DEFAULT_ENGINE:
+-
+
+LOCAL_PATH_PRESERVED:
+YES / NO
+
+PROFESSIONAL_CLIENT:
+-
+
+AUTH_METHOD_TESTED:
+-
+
+AUTH_RESULT:
+PASS / FAIL
+
+REQUEST_CONTRACT_CHANGED:
+YES / NO
+
+RESPONSE_CONTRACT_CHANGED:
+YES / NO
+
+ENGINE_VERSION_UPSTREAM:
+-
+
+ENGINE_VERSION_APP_FACING:
+-
+
+SILENT_LOCAL_FALLBACK:
+YES / NO
+
+TESTS:
+-
+
+REAL_ENGINE_E2E:
+PASS / FAIL
+
+E2E_INPUT:
+-
+
+E2E_OUTPUT:
+-
+
+E2E_SENTENCE_COUNT:
+-
+
+KNOWLEDGE_IDS:
+-
+
+TEMPLATE_IDS:
+-
+
+TEACHER_FACT_HALLUCINATION:
+YES / NO
+
+PAID_AI_CALLS:
+-
+
+DB_WRITES:
+0
+
+PRODUCTION_ENV_CHANGED:
+NO
+
+DEPLOYMENT:
+NONE
+
+보고 후 멈추십시오.
+Production 전환은 별도 승인 후 진행합니다.

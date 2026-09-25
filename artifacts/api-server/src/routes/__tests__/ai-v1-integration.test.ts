@@ -39,6 +39,8 @@ const mockCreateMatchToken           = vi.hoisted(() => vi.fn().mockReturnValue(
 const mockNewTokenId                 = vi.hoisted(() => vi.fn().mockReturnValue('tid_mock1234567890abcdef12345678'));
 // WP4B: x_global template search mock
 const mockSearchXGlobalTemplates     = vi.hoisted(() => vi.fn());
+// Professional Engine bridge mock
+const mockGenerateProfessionalTeacherDiary = vi.hoisted(() => vi.fn());
 
 // ── vi.mock (자동 hoisting — import 이전 실행 보장) ──────────────────────────
 
@@ -114,6 +116,14 @@ vi.mock('../../lib/match-token.js', async (importOriginal) => {
     ...actual,
     createMatchToken: mockCreateMatchToken,
     newTokenId:       mockNewTokenId,
+  };
+});
+
+vi.mock('../../lib/professional-engine-client.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/professional-engine-client.js')>();
+  return {
+    ...actual,
+    generateProfessionalTeacherDiary: mockGenerateProfessionalTeacherDiary,
   };
 });
 
@@ -925,5 +935,180 @@ describe('WP6: X mode AI Diary 파이프라인 (per-input / per-student / ground
     expect(data.result.common).toBe('오늘 전체 수업을 진행했습니다.');
     // purgeStudentLeaksFromCommon 호출됨
     expect(purgeStudentLeaksFromCommon).toHaveBeenCalled();
+  });
+});
+
+// ── Professional Engine Bridge Tests (TC-13 ~ TC-22) ─────────────────────────
+
+describe('Professional Engine Bridge', () => {
+  /** Professional Engine 성공 응답 기본값 */
+  function makeProEngineResponse(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      contract_version: '1.0',
+      request_id:       'test-req-audit-001',
+      schema_version:   '1.0',
+      engine_version:   'grounded_v1',
+      feature:          'teacher_diary',
+      result: {
+        common: '자유형 호흡할 때 고개를 많이 드는 모습이 관찰되었습니다. 호흡 시 고개는 몸의 회전과 함께 옆으로 돌아가야 하며, 양손이 몸 아래를 지나기 시작할 때 호흡을 준비하는 것이 중요합니다. 다음 수업에서는 이러한 부분을 더욱 신경 써서 연습해보겠습니다.',
+        students: [],
+      },
+      meta: {
+        generation_mode: 'GROUNDED',
+        groundingSource: 'KNOWLEDGE_ONLY',
+        knowledge_ids:   ['ki_001', 'ki_002'],
+        template_ids:    [],
+      },
+      usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, latency_ms: 1200 },
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    delete process.env['TEACHER_DIARY_ENGINE'];
+    mockGenerateProfessionalTeacherDiary.mockReset();
+  });
+
+  afterEach(() => {
+    delete process.env['TEACHER_DIARY_ENGINE'];
+  });
+
+  // TC-13: TEACHER_DIARY_ENGINE unset → local pipeline (professional client 미호출)
+  it('TC-13: TEACHER_DIARY_ENGINE unset → local pipeline 실행', async () => {
+    const { status, data } = await post(makeBody());
+    expect(status).toBe(200);
+    expect(mockGenerateProfessionalTeacherDiary).not.toHaveBeenCalled();
+    // local OpenAI mock 호출됨
+    expect(mockOpenAICreate).toHaveBeenCalled();
+    expect(data.result.common).toBeTruthy();
+  });
+
+  // TC-14: TEACHER_DIARY_ENGINE=local → local pipeline (professional client 미호출)
+  it('TC-14: TEACHER_DIARY_ENGINE=local → local pipeline 실행', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'local';
+    const { status } = await post(makeBody());
+    expect(status).toBe(200);
+    expect(mockGenerateProfessionalTeacherDiary).not.toHaveBeenCalled();
+    expect(mockOpenAICreate).toHaveBeenCalled();
+  });
+
+  // TC-15: TEACHER_DIARY_ENGINE=professional → professional client 호출
+  it('TC-15: TEACHER_DIARY_ENGINE=professional → professional client 호출됨', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'professional';
+    mockGenerateProfessionalTeacherDiary.mockResolvedValueOnce(makeProEngineResponse());
+
+    const { status, data } = await post(makeBody());
+
+    expect(status).toBe(200);
+    expect(mockGenerateProfessionalTeacherDiary).toHaveBeenCalledOnce();
+    // local OpenAI mock 미호출
+    expect(mockOpenAICreate).not.toHaveBeenCalled();
+    expect(data.result).toBeDefined();
+  });
+
+  // TC-16: professional 응답 common이 2~6문장 — 손실 없이 앱까지 전달
+  it('TC-16: professional result.common이 그대로 전달됨 (truncate 없음)', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'professional';
+    const longCommon = '첫 문장입니다. 두 번째 문장입니다. 세 번째 기술 설명 문장입니다. 네 번째 안내 문장입니다.';
+    mockGenerateProfessionalTeacherDiary.mockResolvedValueOnce(
+      makeProEngineResponse({ result: { common: longCommon, students: [] } }),
+    );
+
+    const { status, data } = await post(makeBody());
+
+    expect(status).toBe(200);
+    expect(data.result.common).toBe(longCommon);
+  });
+
+  // TC-17: student content 손실 없이 전달
+  it('TC-17: professional result.students content가 그대로 전달됨', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'professional';
+    const studentContent = '발차기 리듬이 좋아졌습니다. 스트로크 연습을 더 해보겠습니다.';
+    mockGenerateProfessionalTeacherDiary.mockResolvedValueOnce(
+      makeProEngineResponse({
+        result: {
+          common: '공통 내용입니다.',
+          students: [{ student_ref: 's1', content: studentContent }],
+        },
+      }),
+    );
+
+    const { status, data } = await post(makeBody());
+
+    expect(status).toBe(200);
+    expect(data.result.students).toHaveLength(1);
+    expect(data.result.students[0].student_ref).toBe('s1');
+    expect(data.result.students[0].content).toBe(studentContent);
+  });
+
+  // TC-18: request_id 동일성 — Engine에 전달된 request_id = 앱이 보낸 값
+  it('TC-18: request_id가 Professional Engine에 그대로 전달됨', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'professional';
+    mockGenerateProfessionalTeacherDiary.mockResolvedValueOnce(makeProEngineResponse());
+
+    await post(makeBody({ request_id: 'test-req-audit-001' }));
+
+    const callArg = mockGenerateProfessionalTeacherDiary.mock.calls[0][0];
+    expect(callArg.request_id).toBe('test-req-audit-001');
+  });
+
+  // TC-19: Professional Engine 401 → local fallback 없음 → 4xx/5xx 반환
+  it('TC-19: Professional Engine 401 → local fallback 없이 error 반환', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'professional';
+    const { ProfessionalEngineError: ActualPEError } =
+      await vi.importActual<typeof import('../../lib/professional-engine-client.js')>(
+        '../../lib/professional-engine-client.js',
+      );
+    mockGenerateProfessionalTeacherDiary.mockRejectedValueOnce(
+      new ActualPEError('ENGINE_UNAUTHORIZED', 401, 'Unauthorized'),
+    );
+
+    const { status } = await post(makeBody());
+
+    // 에러 응답 (4xx/5xx) — local OpenAI 미호출
+    expect(status).toBeGreaterThanOrEqual(400);
+    expect(mockOpenAICreate).not.toHaveBeenCalled();
+  });
+
+  // TC-20: Professional Engine timeout → local fallback 없음
+  it('TC-20: Professional Engine timeout → local fallback 없이 error 반환', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'professional';
+    const { ProfessionalEngineError: ActualPEError } =
+      await vi.importActual<typeof import('../../lib/professional-engine-client.js')>(
+        '../../lib/professional-engine-client.js',
+      );
+    mockGenerateProfessionalTeacherDiary.mockRejectedValueOnce(
+      new ActualPEError('ENGINE_TIMEOUT', 0, 'timeout'),
+    );
+
+    const { status } = await post(makeBody());
+
+    expect(status).toBeGreaterThanOrEqual(400);
+    expect(mockOpenAICreate).not.toHaveBeenCalled();
+  });
+
+  // TC-21: engine_version 호환 — Professional Engine이 다른 값 반환해도 앱은 'grounded_v1' 수신
+  it('TC-21: upstream engine_version 다른 값이어도 app-facing은 grounded_v1', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'professional';
+    mockGenerateProfessionalTeacherDiary.mockResolvedValueOnce(
+      makeProEngineResponse({ engine_version: 'v1.2_professional' }),
+    );
+
+    const { status, data } = await post(makeBody());
+
+    expect(status).toBe(200);
+    // 앱에 전달되는 engine_version은 허용 목록 내 값
+    expect(data.engine_version).toBe('grounded_v1');
+    // 실제 upstream 값은 meta에 보존
+    expect(data.meta.upstream_engine_version).toBe('v1.2_professional');
+  });
+
+  // TC-22: 잘못된 TEACHER_DIARY_ENGINE 값 → local pipeline (safe default)
+  it('TC-22: 잘못된 TEACHER_DIARY_ENGINE 값 → local pipeline 실행 (safe default)', async () => {
+    process.env['TEACHER_DIARY_ENGINE'] = 'invalid_value';
+    const { status } = await post(makeBody());
+    expect(status).toBe(200);
+    expect(mockGenerateProfessionalTeacherDiary).not.toHaveBeenCalled();
+    expect(mockOpenAICreate).toHaveBeenCalled();
   });
 });

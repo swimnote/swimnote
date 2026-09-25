@@ -219,6 +219,163 @@ export async function retrieveProfessionalKnowledge(
   }
 }
 
+// ─── Teacher Diary Bridge — Service JWT ───────────────────────────────────────
+
+import jwt from "jsonwebtoken";
+
+/** JWT_SECRET accessor — same shared secret as Professional Engine. */
+function getJwtSecretForDiary(): string {
+  return (process.env["JWT_SECRET"] ?? "").trim();
+}
+
+/**
+ * createTeacherDiaryServiceJwt — Professional Engine 호출용 단기 service JWT.
+ *
+ * Growth Report S2S pattern 동일: JWT_SECRET 공유 방식 (HS256, 5m TTL).
+ * Raw secret을 Authorization 헤더에 직접 전송하지 않음.
+ */
+export function createTeacherDiaryServiceJwt(poolId: string): string {
+  const secret = getJwtSecretForDiary();
+  if (!secret) {
+    throw new ProfessionalEngineError(
+      "ENGINE_UNAUTHORIZED",
+      0,
+      "JWT_SECRET env var not set — cannot create service JWT for teacher diary",
+    );
+  }
+  return jwt.sign(
+    {
+      userId: "service:teacher-diary",
+      role:   "platform_admin",
+      poolId,
+      tv:     1,
+    },
+    secret,
+    { algorithm: "HS256", expiresIn: "5m" },
+  );
+}
+
+// ─── Teacher Diary Bridge — Request / Response types ──────────────────────────
+
+export interface TeacherDiaryStudentEntry {
+  ref:  string;
+  name: string;
+}
+
+export interface TeacherDiaryEngineRequest {
+  contract_version: string;
+  request_id:       string;
+  schema_version:   string;
+  feature:          string;
+  locale?:          string;
+  input:            { text: string };
+  context: {
+    pool_id:      string;
+    class_id:     string;
+    lesson_date:  string;
+    student_refs: string[];
+    students:     TeacherDiaryStudentEntry[];
+  };
+}
+
+export interface TeacherDiaryStudentResult {
+  student_ref: string;
+  content:     string;
+}
+
+/** Raw response body from Professional Engine V1.2 (pass-through). */
+export interface TeacherDiaryEngineResult {
+  contract_version:  string;
+  request_id:        string;
+  schema_version?:   string;
+  engine_version?:   string;
+  feature?:          string;
+  result: {
+    common:   string;
+    students: TeacherDiaryStudentResult[];
+  };
+  meta?:   Record<string, unknown>;
+  usage?:  Record<string, unknown>;
+}
+
+/** Timeout for teacher diary — GPT involved, allow 60 s. */
+export const PRO_DIARY_TIMEOUT_MS = 60_000;
+
+/**
+ * generateProfessionalTeacherDiary
+ *
+ * POST {PROFESSIONAL_ENGINE_BASE_URL}/api/v1/teacher-diary/generate
+ *
+ * Auth: Authorization: Bearer <service JWT (JWT_SECRET, HS256, 5m)>
+ *       — same pattern as analyzeGrowthReport (growth-report-engine-client.ts).
+ *
+ * NO silent fallback to local pipeline on failure.
+ *   401/403  → ProfessionalEngineError("ENGINE_UNAUTHORIZED")
+ *   timeout  → ProfessionalEngineError("ENGINE_TIMEOUT")
+ *   5xx/net  → ProfessionalEngineError("ENGINE_UNAVAILABLE")
+ */
+export async function generateProfessionalTeacherDiary(
+  params: TeacherDiaryEngineRequest,
+): Promise<TeacherDiaryEngineResult> {
+  const baseUrl = getProfessionalEngineBaseUrl();
+  if (!baseUrl) {
+    throw new ProfessionalEngineError(
+      "ENGINE_URL_NOT_CONFIGURED",
+      0,
+      "PROFESSIONAL_ENGINE_BASE_URL env var not set",
+    );
+  }
+
+  const serviceJwt = createTeacherDiaryServiceJwt(params.context.pool_id);
+  const controller  = new AbortController();
+  const timer       = setTimeout(() => controller.abort(), PRO_DIARY_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(
+      `${baseUrl}/api/v1/teacher-diary/generate`,
+      {
+        method:  "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "X-Request-Id":  params.request_id,
+          // Service JWT — server-side only, never propagated to client.
+          "Authorization": `Bearer ${serviceJwt}`,
+        },
+        body:   JSON.stringify(params),
+        signal: controller.signal,
+      },
+    );
+
+    if (!res.ok) {
+      let errorCode: ProfessionalEngineErrorCode;
+      if (res.status === 401 || res.status === 403) {
+        errorCode = "ENGINE_UNAUTHORIZED";
+      } else if (res.status >= 500) {
+        errorCode = "ENGINE_UNAVAILABLE";
+      } else {
+        errorCode = "ENGINE_RETRIEVAL_FAILED";
+      }
+      throw new ProfessionalEngineError(
+        errorCode,
+        res.status,
+        `Professional Engine teacher-diary HTTP ${res.status}: ${errorCode}`,
+      );
+    }
+
+    return (await res.json()) as TeacherDiaryEngineResult;
+  } catch (err) {
+    if (err instanceof ProfessionalEngineError) throw err;
+    const isAbort = (err as Error).name === "AbortError";
+    throw new ProfessionalEngineError(
+      isAbort ? "ENGINE_TIMEOUT" : "ENGINE_UNAVAILABLE",
+      0,
+      (err as Error).message,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Health check (ops use only — NOT called per user request) ────────────────
 
 export interface ProfessionalEngineHealth {

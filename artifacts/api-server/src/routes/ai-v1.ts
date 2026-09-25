@@ -92,6 +92,10 @@ import { DEFAULT_CONFIDENCE_CONFIG_V1 }                                         
 import { saveAiTrace, type AiTraceStage }                                            from '../lib/ai-trace-service.js';
 import { registerAiOrigin }                                                           from '../lib/ai-origin-registry.js';
 import { AI_MODEL }                                                                  from '../config/ai-model-config.js';
+import {
+  generateProfessionalTeacherDiary,
+  ProfessionalEngineError,
+} from '../lib/professional-engine-client.js';
 
 const router = Router();
 
@@ -247,6 +251,167 @@ router.post(
         poolMode = 'normal';
       }
     }
+
+    // ── Professional Engine Bridge ──────────────────────────────────────────────
+    // TEACHER_DIARY_ENGINE=professional → Professional Engine V1.2 호출.
+    // unset / 잘못된 값 / "local" → 기존 Phase 1~7 local pipeline 실행.
+    // 실패 시 silent local fallback 금지 — 명확한 error 반환.
+    const _teacherDiaryEngine = (process.env['TEACHER_DIARY_ENGINE'] ?? '').trim().toLowerCase();
+
+    if (_teacherDiaryEngine === 'professional') {
+      console.log(`[AI/v1:${internalId}] PROFESSIONAL_ENGINE_BRANCH request_id=${externalRequestId}`);
+
+      // Professional Engine에 그대로 forward할 request body 구성
+      const proEngineRequest = {
+        contract_version: contractVersion,
+        request_id:       externalRequestId,
+        schema_version:   raw.schema_version ?? '1.0',
+        feature:          'teacher_diary',
+        locale:           raw.locale ?? 'ko-KR',
+        input:            { text: inputText },
+        context: {
+          pool_id:      poolId,
+          class_id:     classId,
+          lesson_date:  lessonDate,
+          student_refs: normalizedStudents.map(s => s.ref),
+          students:     normalizedStudents.map(s => ({ ref: s.ref, name: s.name })),
+        },
+      };
+
+      const proStart = Date.now();
+
+      let proResult: Awaited<ReturnType<typeof generateProfessionalTeacherDiary>>;
+      try {
+        proResult = await generateProfessionalTeacherDiary(proEngineRequest);
+      } catch (proErr: unknown) {
+        const elapsedMs = Date.now() - proStart;
+        if (proErr instanceof ProfessionalEngineError) {
+          console.error(
+            `[AI/v1:${internalId}] PROFESSIONAL_ENGINE_ERROR` +
+            ` code=${proErr.errorCode} http=${proErr.statusCode} elapsed=${elapsedMs}ms`,
+          );
+          const httpStatus =
+            proErr.errorCode === 'ENGINE_UNAUTHORIZED' ? 502 :
+            proErr.errorCode === 'ENGINE_TIMEOUT'      ? 504 :
+            proErr.errorCode === 'ENGINE_URL_NOT_CONFIGURED' ? 503 : 502;
+          res.status(httpStatus).json(
+            errBody(contractVersion, externalRequestId, proErr.errorCode,
+              'Professional Engine 호출에 실패했습니다. 잠시 후 다시 시도해 주세요.', true),
+          );
+        } else {
+          console.error(`[AI/v1:${internalId}] PROFESSIONAL_ENGINE_UNEXPECTED_ERROR elapsed=${elapsedMs}ms`, proErr);
+          res.status(502).json(
+            errBody(contractVersion, externalRequestId, 'ENGINE_UNAVAILABLE',
+              'Professional Engine 호출에 실패했습니다. 잠시 후 다시 시도해 주세요.', true),
+          );
+        }
+        // NO local fallback — return immediately.
+        return;
+      }
+
+      const proElapsedMs = Date.now() - proStart;
+
+      // ── Engine version 호환 처리 ───────────────────────────────────────────
+      // 앱은 SUPPORTED_ENGINE_VERSIONS = Set(['v1','grounded_v1','legacy_v1'])만 허용.
+      // Professional Engine이 새 값을 반환하더라도 app-facing 응답에서는 'grounded_v1' 유지.
+      // 실제 upstream 값은 meta.upstream_engine_version에 보존 (디버그용).
+      const upstreamEngineVersion = proResult.engine_version ?? 'unknown';
+      const appFacingEngineVersion = ENGINE_VERSION; // 'grounded_v1'
+
+      // ── meta 병합 (Professional Engine 원본 + upstream 버전 보존) ────────────
+      const proMeta: Record<string, unknown> = {
+        ...(typeof proResult.meta === 'object' && proResult.meta !== null ? proResult.meta : {}),
+        upstream_engine_version: upstreamEngineVersion,
+        pipeline_mode:           'professional_v1',
+      };
+
+      // ── generation_mode 추출 (trace용) ────────────────────────────────────
+      const proGenerationMode =
+        typeof proMeta['generation_mode'] === 'string'
+          ? proMeta['generation_mode']
+          : 'GROUNDED';
+
+      // ── knowledge / template trace 정보 (실제 존재하는 값만) ─────────────
+      const proKnowledgeIds: string[] =
+        Array.isArray(proMeta['knowledge_ids']) ? (proMeta['knowledge_ids'] as string[]) : [];
+      const proTemplateIds: string[] =
+        Array.isArray(proMeta['template_ids'])  ? (proMeta['template_ids']  as string[]) : [];
+
+      // ── 응답 조립 (기존 contract 구조 유지) ──────────────────────────────
+      const proResponseBody: Record<string, unknown> = {
+        contract_version: contractVersion,
+        request_id:       externalRequestId,
+        schema_version:   '1.0',
+        engine_version:   appFacingEngineVersion,
+        feature:          'teacher_diary',
+        result:           proResult.result,
+        meta:             proMeta,
+        usage:            proResult.usage ?? {
+          input_tokens: 0, output_tokens: 0, total_tokens: 0, latency_ms: proElapsedMs,
+        },
+      };
+
+      if (contractVersion === '1.3') {
+        (proResponseBody as Record<string, unknown>)['pipeline_version']   = 'v2.0';
+        (proResponseBody as Record<string, unknown>)['curriculum_matches'] = null;
+      }
+
+      // ── saveAiTrace (응답 전 durable 저장 — 기존 원칙 유지) ─────────────
+      try {
+        await saveAiTrace({
+          status:                   'SUCCESS',
+          request_id:               externalRequestId,
+          internal_id:              internalId,
+          pool_id:                  poolId,
+          actor_id:                 req.user?.id,
+          contract_version:         contractVersion,
+          feature:                  'teacher_diary',
+          pool_mode:                poolMode,
+          student_count:            normalizedStudents.length,
+          class_id:                 classId,
+          lesson_date:              lessonDate,
+          student_ids:              normalizedStudents.map(s => s.ref),
+          trigger_type:             'USER_ACTION',
+          service:                  'gpt',
+          generation_mode:          proGenerationMode,
+          model:                    AI_MODEL.DIARY,
+          latency_ms:               proElapsedMs,
+          // Professional Engine은 token count를 외부 노출하지 않음 → null (추정 금지)
+          input_tokens:             null,
+          output_tokens:            null,
+          total_tokens:             null,
+          knowledge_hit_count:      proKnowledgeIds.length,
+          selected_template_id:     proTemplateIds[0] ?? undefined,
+          template_candidate_count: proTemplateIds.length,
+          curriculum_match_count:   undefined,
+        });
+      } catch (traceErr: unknown) {
+        console.error(`[AI/v1:${internalId}] PRO_TRACE_SAVE_FAILED — refusing 200 response`, {
+          request_id: externalRequestId.slice(0, 8) + '...',
+          error: (traceErr as Error)?.message ?? traceErr,
+        });
+        res.status(503).json(
+          errBody(contractVersion, externalRequestId, 'TRACE_SAVE_FAILED',
+            'AI 일지 결과를 안전하게 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.', true),
+        );
+        return;
+      }
+
+      registerAiOrigin(externalRequestId, poolId, req.user?.id ?? null);
+
+      console.log(
+        `[AI/v1:${internalId}] PROFESSIONAL_ENGINE_RESPONSE_SENT` +
+        ` request_id=${externalRequestId} upstream_engine=${upstreamEngineVersion}` +
+        ` generation_mode=${proGenerationMode} student_count=${proResult.result?.students?.length ?? 0}` +
+        ` knowledge_ids=${proKnowledgeIds.length} template_ids=${proTemplateIds.length}` +
+        ` latency_ms=${proElapsedMs} contract=${contractVersion}`,
+      );
+
+      res.status(200).json(proResponseBody);
+      return;
+    }
+
+    // ── 기존 local pipeline (Phase 1 ~ 7) ─────────────────────────────────────
 
     try {
       // ── Phase 1: Meaning Extraction (TeacherInputParser) ─────────────────
