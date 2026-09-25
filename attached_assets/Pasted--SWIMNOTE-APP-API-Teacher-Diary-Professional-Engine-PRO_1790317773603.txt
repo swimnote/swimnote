@@ -1,0 +1,207 @@
+[SWIMNOTE APP/API — Teacher Diary Professional Engine PRODUCTION CUTOVER]
+
+Professional Bridge 구현 및 실제 Engine E2E 검증 완료.
+
+검증 결과:
+- 51 tests PASS
+- Professional Engine auth PASS
+- HTTP 200
+- KNOWLEDGE_GROUNDED 실제 생성 PASS
+- Knowledge 5건 사용
+- Template 1건 사용
+- 기존 local pipeline 보존
+- silent fallback 없음
+
+이제 Production 전환을 진행합니다.
+
+중요:
+반드시 2단계로 진행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PHASE 1 — Bridge 코드만 Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+swimnote-api
+
+이번에 구현한 변경만 배포:
+
+- professional-engine-client.ts
+- ai-v1.ts
+- ai-v1-integration.test.ts
+
+배포 전 확인:
+
+- 기존 local path 삭제 없음
+- DEFAULT_ENGINE=local
+- env unset 시 local 사용
+- 51 tests PASS
+- build PASS
+
+중요:
+
+이 단계에서는 아직
+
+TEACHER_DIARY_ENGINE=professional
+
+로 변경하지 마십시오.
+
+현재 Production이 local이면 그대로 유지합니다.
+
+목적:
+새 bridge 코드만 먼저 Production에 안전하게 올립니다.
+
+배포 후 확인:
+
+1. swimnote-api health 정상
+2. 기존 /api/v1/teacher-diary/generate route 정상
+3. 기존 local mode 정상
+4. 5xx 증가 없음
+
+문제가 있으면 즉시 중단하고 기존 revision rollback.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PHASE 2 — Professional Engine 전환
+━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 1이 완전히 정상인 경우에만 진행.
+
+Render swimnote-api Production env:
+
+TEACHER_DIARY_ENGINE=professional
+
+설정.
+
+다른 env는 변경하지 마십시오.
+
+특히:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+JWT_SECRET
+
+기존 값 유지.
+
+필요한 Render restart/redeploy만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+전환 후 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 Teacher Diary 요청 1회 검증.
+
+입력:
+
+"자유형 호흡할 때 고개 많이 듦"
+
+실제 사용 가능한 test/admin context 사용.
+Professional Engine은 student 최소 1명이 필요하므로
+유효한 test student ref 1개 사용.
+
+확인:
+
+- swimnote-api HTTP success
+- Professional Engine까지 호출됨
+- generation_mode = KNOWLEDGE_GROUNDED 또는 현재 Engine grounded 값
+- knowledge_ids 1개 이상
+- result.common 2문장 이상
+- 원문 그대로 1문장만 반환되지 않음
+- Teacher Fact 유지
+- Knowledge 기반 기술 설명 포함
+- 없는 향상/성공 생성 없음
+- local OpenAI 직접 호출 0회
+
+━━━━━━━━━━━━━━━━━━━━━━
+ROLLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제 발생 시 코드 rollback부터 하지 마십시오.
+
+가장 먼저:
+
+TEACHER_DIARY_ENGINE=local
+
+로 되돌립니다.
+
+그러면 기존 Teacher Diary pipeline이 즉시 다시 사용되어야 합니다.
+
+rollback 후 health 및 기존 일지 route 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 기존 ai-v1 local pipeline 삭제
+- 앱 코드 수정
+- OTA
+- Professional Engine 코드 수정
+- DB migration
+- Knowledge DB 변경
+- Prompt 수정
+- 다른 Render service 수정
+- silent local fallback 추가
+
+━━━━━━━━━━━━━━━━━━━━━━
+완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[TEACHER DIARY PROFESSIONAL PRODUCTION CUTOVER REPORT]
+
+STATUS:
+PASS / FIX_REQUIRED
+
+SWIMNOTE_API_DEPLOY:
+PASS / FAIL
+
+DEPLOY_COMMIT:
+-
+
+PHASE1_LOCAL_CHECK:
+PASS / FAIL
+
+TEACHER_DIARY_ENGINE_BEFORE:
+-
+
+TEACHER_DIARY_ENGINE_AFTER:
+-
+
+PROFESSIONAL_CUTOVER:
+PASS / FAIL
+
+PRODUCTION_E2E:
+PASS / FAIL
+
+GENERATION_MODE:
+-
+
+KNOWLEDGE_COUNT:
+-
+
+TEMPLATE_COUNT:
+-
+
+FINAL_OUTPUT:
+-
+
+SENTENCE_COUNT:
+-
+
+LOCAL_OPENAI_CALLS:
+-
+
+TEACHER_FACT_HALLUCINATION:
+YES / NO
+
+APP_CODE_CHANGED:
+NO
+
+OTA:
+NONE
+
+DB_MIGRATION:
+NO
+
+ROLLBACK_TESTED_OR_AVAILABLE:
+YES / NO
+
+완료 후 멈추십시오.
