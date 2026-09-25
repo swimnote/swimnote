@@ -26,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: "전체 회원", path: "/admin/members" },
       { label: "회원 등록", path: "/admin/members/new" },
       { label: "지난 회원", path: "/admin/members/withdrawn" },
+      { label: "Archive (퇴원 기록)", path: "/admin/members/archive" },
       { label: "엑셀 일괄등록", path: "/admin/members/bulk" },
     ],
   },

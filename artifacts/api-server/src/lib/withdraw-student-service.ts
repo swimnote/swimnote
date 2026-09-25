@@ -25,6 +25,7 @@
 
 import { sql } from "drizzle-orm";
 import { kstTodayStr, closeAllActiveClassHistory } from "../utils/historyUtils.js";
+import { hashArchivePhone } from "./archive-phone-hash.js";
 
 export interface WithdrawActor {
   userId: string;
@@ -104,6 +105,147 @@ export async function withdrawStudent(
       SELECT id FROM students WHERE id = ${studentId} LIMIT 1 FOR UPDATE
     `)).rows[0];
     if (!locked) throw new Error("STUDENT_NOT_FOUND");
+
+    // ── [ARCHIVE] SELECT FOR UPDATE 직후, 교육데이터 DELETE 전 ──────────────
+    // Archive 실패 시 throw → transaction rollback → withdraw 취소
+    const { randomUUID } = await import("crypto");
+
+    // Archive member 기본 정보 수집
+    const [studentFull] = (await tx.execute(sql`
+      SELECT s.name, s.birth_year, s.parent_phone, s.withdrawn_at,
+             cg.name AS class_name
+      FROM students s
+      LEFT JOIN class_groups cg ON cg.id = s.class_group_id
+      WHERE s.id = ${studentId} LIMIT 1
+    `)).rows as any[];
+
+    const [lastLevel] = (await tx.execute(sql`
+      SELECT level_order FROM student_levels
+      WHERE student_id = ${studentId}
+      ORDER BY level_order DESC LIMIT 1
+    `)).rows as any[];
+
+    const phoneHash = (await import("./archive-phone-hash.js")).hashArchivePhone(
+      studentFull?.parent_phone ?? null,
+    );
+
+    const archiveMemberId = randomUUID();
+    await tx.execute(sql`
+      INSERT INTO withdrawn_member_archives
+        (id, pool_id, original_student_id, student_name, birth_year,
+         last_class_name, last_level_order, withdrawn_at,
+         withdrawn_by_id, withdrawn_by_name, parent_phone_hash, created_at)
+      VALUES (
+        ${archiveMemberId}, ${poolId}, ${studentId},
+        ${studentFull?.name ?? student.name},
+        ${studentFull?.birth_year ?? null},
+        ${studentFull?.class_name ?? null},
+        ${lastLevel?.level_order ?? null},
+        NOW(),
+        ${actor.userId}, ${actor.name ?? actor.role},
+        ${phoneHash},
+        NOW()
+      )
+      ON CONFLICT (original_student_id) DO NOTHING
+    `);
+
+    // Archive diary snapshot — historical scope (education_started_at 미적용)
+    // 해당 학생이 실제로 귀속됐던 모든 반의 수업일지 (재원기간 기준, 결석 제외, 보강 포함)
+    const studentIdSafe = studentId.replace(/'/g, "''");
+    const histRows = (await tx.execute(sql.raw(`
+      SELECT DISTINCT class_group_id FROM (
+        SELECT class_group_id FROM student_class_history
+        WHERE student_id = '${studentIdSafe}' AND class_group_id IS NOT NULL
+        UNION
+        SELECT class_group_id FROM students
+        WHERE id = '${studentIdSafe}' AND class_group_id IS NOT NULL
+      ) t
+    `))).rows as any[];
+    const allClassIds = (histRows as any[]).map((r: any) => r.class_group_id);
+
+    if (allClassIds.length > 0) {
+      const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
+      const diaryRows = (await tx.execute(sql.raw(`
+        SELECT sub.id AS diary_id, sub.lesson_date, sub.common_content,
+               sub.teacher_name, sub.class_group_name, sub.is_makeup_diary,
+               sub.original_created_at,
+               csn.note_content AS student_note
+        FROM (
+          SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.created_at AS original_created_at,
+                 cg.name AS class_group_name,
+                 (ms.id IS NOT NULL) AS is_makeup_diary,
+                 ROW_NUMBER() OVER (PARTITION BY cd.id ORDER BY ms.id NULLS LAST) AS rn
+          FROM class_diaries cd
+          LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+          LEFT JOIN student_class_history sch
+            ON sch.class_group_id = cd.class_group_id
+            AND sch.student_id = '${studentIdSafe}'
+            AND sch.enrolled_at <= cd.lesson_date::date
+            AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
+          LEFT JOIN makeup_sessions ms
+            ON ms.assigned_class_group_id = cd.class_group_id
+            AND ms.student_id = '${studentIdSafe}'
+            AND ms.assigned_date = cd.lesson_date
+            AND ms.status = 'completed'
+          WHERE cd.is_deleted = false
+            AND cd.lesson_date::date >= (
+              SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+              FROM students WHERE id = '${studentIdSafe}' LIMIT 1
+            )
+            AND cd.class_group_id IN (${idsLiteral})
+            AND (
+              (
+                (
+                  sch.id IS NOT NULL
+                  OR EXISTS (
+                    SELECT 1 FROM students s2
+                    WHERE s2.id = '${studentIdSafe}'
+                      AND s2.class_group_id = cd.class_group_id
+                  )
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM attendance a
+                  WHERE a.student_id = '${studentIdSafe}'
+                    AND a.class_group_id = cd.class_group_id
+                    AND a.date = cd.lesson_date
+                    AND a.status = 'absent'
+                )
+              )
+              OR ms.id IS NOT NULL
+            )
+        ) sub
+        LEFT JOIN class_diary_student_notes csn
+          ON csn.diary_id = sub.id
+          AND csn.student_id = '${studentIdSafe}'
+          AND csn.is_deleted = false
+        WHERE sub.rn = 1
+        ORDER BY sub.lesson_date DESC
+      `))).rows as any[];
+
+      // bulk INSERT — ON CONFLICT DO NOTHING (중복 방지)
+      for (const diary of diaryRows) {
+        const did = randomUUID();
+        await tx.execute(sql`
+          INSERT INTO withdrawn_diary_archives
+            (id, archive_member_id, original_diary_id, lesson_date,
+             former_class_name, former_teacher_name, common_content,
+             student_note, is_makeup_diary, original_created_at,
+             source_type, archived_at)
+          VALUES (
+            ${did}, ${archiveMemberId}, ${diary.diary_id}, ${diary.lesson_date},
+            ${diary.class_group_name ?? null}, ${diary.teacher_name ?? null},
+            ${diary.common_content ?? null}, ${diary.student_note ?? null},
+            ${!!diary.is_makeup_diary}, ${diary.original_created_at ?? null},
+            'class_diary', NOW()
+          )
+          ON CONFLICT (archive_member_id, original_diary_id, source_type) DO NOTHING
+        `);
+      }
+      deletedTables.push(`archive_diaries(${diaryRows.length})`);
+    }
+
+    console.log(`[withdraw-student] Archive snapshot created: archiveMemberId=${archiveMemberId} pool=${poolId} student=${studentId}`);
+    // ── [/ARCHIVE] ─────────────────────────────────────────────────────────
 
     // 반 이력 종료
     await closeAllActiveClassHistory(tx, studentId, effDate);

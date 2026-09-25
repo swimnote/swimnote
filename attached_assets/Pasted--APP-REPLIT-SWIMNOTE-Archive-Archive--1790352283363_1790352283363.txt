@@ -1,0 +1,1028 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 퇴원생 Archive 기능 최종 구현]
+
+Archive 최종 보완 조사 승인합니다.
+
+추가 조사 단계는 종료합니다.
+이번 작업에서 WP-A~H를 실제 구현/배포하십시오.
+
+단, 조사 보고서의 Archive diary set에서
+중요한 정책 수정 1건을 먼저 반영해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 가장 중요한 최종 정책 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사 보고서에서는 Archive diary set을:
+
+Parent GET /students/:id/diary
+
+와 완전히 동일하게 만들면서
+
+education_started_at cutoff
+
+까지 적용하도록 제안했습니다.
+
+이 부분은 최종 정책과 맞지 않습니다.
+
+퇴원 Archive의 목적은:
+
+“퇴원 직전 학부모의 현재 교육구간만 보존”
+
+이 아니라
+
+“수영장이 해당 회원의 과거 수업일지를
+퇴원 후에도 운영 이력으로 볼 수 있도록 보존”
+
+하는 것입니다.
+
+따라서 Archive snapshot에서는:
+
+education_started_at cutoff를 적용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Archive diary의 최종 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive 대상:
+
+해당 student가 실제로 귀속되었던
+전체 과거 수업일지.
+
+기존 canonical diary ownership/visibility 의미 중:
+
+유지:
+
+- cd.is_deleted = false
+- student 생성 이전 diary 제외
+- student_class_history 기반 실제 반 재원기간
+- 현재 class 직접 귀속 fallback
+- attendance absent 제외
+- completed makeup 포함
+- note 없는 common diary 포함
+- 과거 A→B→C 반 이력 전체 포함
+- 다른 학생 diary 제외
+
+제외:
+
+- education_started_at cutoff
+
+즉:
+
+장기연기 전 segment의 diary도
+퇴원 Archive에는 보존해야 합니다.
+
+예:
+
+2026-01~06 수강
+→ 장기연기
+→ 2026-09 재등록
+→ education_started_at=2026-09
+→ 2027 퇴원
+
+Archive에는:
+
+2026-01~06 정상 귀속 diary
++
+2026-09 이후 정상 귀속 diary
+
+모두 포함.
+
+단 결석으로 실제 귀속되지 않은 diary는 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Parent 현재 feed 정책은 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Parent APP의 일반 수업기록:
+
+education_started_at 이후만 표시
+
+정책은 그대로 유지합니다.
+
+Growth Report cutoff도 그대로 유지.
+
+Archive snapshot에서만
+education_started_at을 무시합니다.
+
+따라서 개념을 명확히 분리:
+
+CURRENT EDUCATION
+→ education_started_at 적용
+
+WITHDRAWN ARCHIVE HISTORY
+→ 전체 역사적 귀속 일지 보존
+
+이 둘을 섞지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. shared query/helper
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent current diary와
+Archive historical diary가 대부분 같은 조건을 사용하므로
+
+가능하면 최소 shared query/helper로 정리하십시오.
+
+예:
+
+getStudentDiarySet({
+  studentId,
+  scope: "current" | "historical"
+})
+
+의미:
+
+current
+→ education_started_at 적용
+
+historical
+→ education_started_at 미적용
+
+단 기존 parent route의 실제 결과를
+변경시키는 대규모 refactor 금지.
+
+안전하게 helper 추출이 어렵다면
+Archive query를 별도로 작성해도 되지만
+
+두 쿼리의 차이는
+education_started_at 여부가 명확히 드러나야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. WP-A — DB Archive schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 3개 테이블을 Production migration으로 추가.
+
+A.
+
+withdrawn_member_archives
+
+필수 의미:
+
+- id
+- pool_id
+- original_student_id
+- student_name
+- birth_year
+- last_class_name
+- last_level_order
+- withdrawn_at
+- withdrawn_by_id
+- withdrawn_by_name
+- parent_phone_hash
+- created_at
+
+원본 전화번호 저장 금지.
+
+B.
+
+withdrawn_diary_archives
+
+필수:
+
+- id
+- archive_member_id
+- original_diary_id
+- lesson_date
+- former_class_name
+- former_teacher_name
+- common_content
+- student_note NULL 허용
+- is_makeup_diary
+- original_created_at
+- source_type
+- archived_at
+
+lesson_date는
+원본 class_diaries.lesson_date의 실제 DB type을 확인하여
+
+가능하면 DATE 사용.
+
+단 원본이 명확히 TEXT 계약이면
+기존 호환성을 우선하고 이유를 보고.
+
+live class_diaries FK 금지.
+
+C.
+
+withdrawn_archive_links
+
+- id
+- archive_member_id
+- current_student_id
+- linked_by
+- linked_at
+- unlinked_at
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 중복/재시도 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 퇴원을 재시도해
+Archive가 중복 생성되지 않게 하십시오.
+
+withdrawn_member_archives:
+
+동일 pool_id + original_student_id의
+동일 퇴원 Archive가 중복 생성되지 않도록
+적절한 UNIQUE 정책 적용.
+
+현재 제품 정책상 퇴원 후 재가입은
+새 student_id이므로
+original_student_id 하나당 퇴원 Archive 하나가 기본입니다.
+
+withdrawn_diary_archives:
+
+archive_member_id
++
+original_diary_id
++
+source_type
+
+중복 방지.
+
+archive link:
+
+하나의 archive_member가
+동시에 여러 current student에 연결되는 것 금지.
+
+partial unique:
+
+archive_member_id
+WHERE unlinked_at IS NULL
+
+의미를 보장.
+
+반대로:
+
+현재 student 한 명에
+과거 Archive 여러 개가 연결되는 것은 허용.
+
+예:
+
+2026 퇴원 Archive
+2028 퇴원 Archive
+2030 현재 재가입
+
+관리자가 필요하면
+두 과거 Archive 모두 현재 회원에게 연결 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. parent phone hash 보안
+━━━━━━━━━━━━━━━━━━━━━━
+
+normalized parent phone의
+단순 SHA-256은 사용하지 마십시오.
+
+전화번호 공간은 작아서
+offline brute-force가 쉽습니다.
+
+원문 전화번호는 Archive에 보관하지 않으면서
+관리자에게 “동일 전화번호 여부”만 제공해야 합니다.
+
+우선순위:
+
+1.
+프로젝트에 이미 존재하는
+keyed HMAC/hash helper가 있으면 재사용.
+
+2.
+없다면 dedicated secret 기반:
+
+HMAC-SHA256(
+  ARCHIVE_PHONE_HASH_SECRET,
+  normalized_phone
+)
+
+사용.
+
+JWT secret 등
+다른 목적의 secret 재사용 금지.
+
+Archive API가 hash 값 자체를
+APP/WEB에 노출할 필요는 없습니다.
+
+관리자 연결 후보 비교 시 서버가:
+
+phone_match: true/false
+
+정도만 반환.
+
+Teacher에게 phone hash/match 정보 노출 불필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. WP-B — withdraw snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+
+withdraw-student-service.ts의
+DB transaction 내부:
+
+SELECT FOR UPDATE
+
+직후,
+어떠한 교육데이터 DELETE보다 먼저:
+
+1.
+withdrawn_member_archives INSERT
+
+2.
+historical diary set SELECT
+
+3.
+withdrawn_diary_archives bulk INSERT
+
+순서로 실행.
+
+Archive 생성 실패:
+
+throw ARCHIVE_FAILED
+→ transaction rollback
+→ 기존 교육데이터 purge 금지
+→ 퇴원 실패 응답
+
+Archive 성공 후에만
+현재 canonical withdraw purge를 그대로 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Archive diary snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive historical diary query:
+
+- student_class_history 전체
+- current class fallback
+- 실제 재원 날짜
+- absent 제외
+- completed makeup 포함
+- note 존재 여부와 무관
+- common diary 포함
+- education_started_at 미적용
+
+snapshot:
+
+common_content
+student_note
+teacher
+class
+lesson_date
+makeup 여부
+
+를 immutable copy.
+
+학생별 note가 없으면:
+
+student_note = NULL
+
+정상.
+
+class_diaries를 live reference해서
+나중 수정 내용이 Archive에 반영되게 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. legacy swim_diary
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 0건 확인 결과를 승인합니다.
+
+이번 Archive 구현에서는
+실제 snapshot source에서 제외 가능.
+
+source_type 컬럼은
+향후 확장 가능하도록 유지 가능.
+
+사용하지 않는 legacy 로직을
+억지로 새로 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. WP-C — Archive 조회 API
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영자용:
+
+GET /admin/archives
+
+지원:
+
+- pagination
+- 이름 검색
+- 퇴원일 정렬
+- 같은 pool만 조회
+
+GET /admin/archives/:id
+
+GET /admin/archives/:id/diaries
+
+권한:
+
+pool_admin
+teacher
+
+둘 다 동일 pool Archive만 조회 가능.
+
+다른 pool 접근:
+
+403 또는 기존 tenant guard 의미에 맞는 차단.
+
+Teacher:
+
+조회만 가능.
+
+연결/해제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 수동 연결 API
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 전용:
+
+POST /admin/archive-links
+
+body:
+
+archive_member_id
+current_student_id
+
+검증:
+
+- pool_admin 권한
+- Archive pool_id == current student pool_id
+- 현재 student가 withdrawn/deleted/archive 상태가 아님
+- 동일 Archive의 active link 중복 금지
+
+연결 전 확인정보:
+
+- Archive 이름
+- Archive birth year
+- 현재 회원 이름
+- 현재 회원 birth year
+- phone_match boolean
+
+자동 연결 금지.
+
+관리자가 명시적으로 선택하고
+확인해야만 연결.
+
+해제:
+
+DELETE /admin/archive-links/:id
+
+실제 동작:
+
+unlinked_at = NOW()
+
+Archive 삭제 금지.
+현재 student 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 자동연결 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive table은 다음 기존 flow에서
+절대 조회하지 마십시오.
+
+- parent auto approval
+- parent auto link
+- bulk member registration duplicate check
+- 일반 member duplicate check
+- 신규등록
+- Growth Report
+- curriculum
+- current diary/feed
+
+이름이 같아도 자동연결 금지.
+
+전화번호가 같아도 자동연결 금지.
+
+재가입 기본값:
+
+NEW student_id
++
+Archive 연결 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Parent Archive API
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /parent/students/:id/archive-diaries
+
+조건:
+
+1.
+현재 parent가 current student에
+정상 parent_students 권한 보유
+
+2.
+current student에 대해
+active withdrawn_archive_links 존재
+
+하는 경우에만 반환.
+
+Archive의 과거 parent 정보나
+과거 전화번호로 권한 판정 금지.
+
+반환:
+
+연결된 Archive별:
+
+- 과거 수강 구간 식별
+- 퇴원일
+- 당시 반
+- diary 날짜
+- 선생님
+- common content
+- student note
+- makeup 여부
+
+사진/영상 없음.
+
+read-only.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Parent에서 Archive가 절대 섞이면 안 되는 곳
+━━━━━━━━━━━━━━━━━━━━━━
+
+연결된 Archive라도:
+
+- 현재 diary feed
+- 현재 news
+- Growth Report input
+- previous usable report
+- curriculum progress
+- current education segment
+- 출석
+- 현재 수업 횟수
+- current feed count
+
+에 포함 금지.
+
+Parent에는 오직:
+
+“지난 수강 기록”
+
+별도 section에서만 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. WP-E — APP 운영자 화면
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP 회원관리 영역에:
+
+[지난 회원]
+
+화면 추가.
+
+권한:
+
+pool_admin
+teacher
+
+목록:
+
+- 이름
+- 퇴원일
+- 당시 반
+- 당시 레벨
+- birth year 등 최소정보
+
+검색:
+
+이름
+
+필요 시 퇴원일 정렬/필터.
+
+상세:
+
+회원 Archive 정보
++
+지난 일지
+
+일지:
+
+날짜순
+반
+선생님
+수업내용
+학생 피드백
+보강 표시
+
+사진/영상 없음.
+
+Teacher는 조회만.
+
+pool_admin에게만:
+
+[현재 회원과 연결]
+
+버튼 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 현재 회원과 연결 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자가:
+
+[현재 회원과 연결]
+
+선택
+
+→ 현재 pool의 활성/연기 회원 검색
+
+→ 회원 선택
+
+→ 비교 confirmation
+
+예:
+
+지난 회원:
+김민수
+2017년생
+2026-08-31 퇴원
+
+현재 회원:
+김민수
+2017년생
+
+전화번호 일치: 일치 / 불일치 / 확인불가
+
+[취소]
+[연결]
+
+시스템 추천만으로 자동 확정 금지.
+
+연결 완료 후:
+
+[연결 해제]
+
+가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. WP-F — WEB
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원관리:
+
+[지난 회원]
+
+탭/메뉴 추가.
+
+APP 운영자와 동일 데이터 의미.
+
+WEB에서도:
+
+pool_admin
+teacher
+
+조회 허용.
+
+연결/해제는 pool_admin만.
+
+APP FIRST / PC ASSIST 원칙 유지.
+
+WEB에 APP보다 별도의 Archive 정책 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. WP-G — Parent APP
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자가 Archive를 연결한 경우에만:
+
+자녀 화면에:
+
+[지난 수강 기록]
+
+section 표시.
+
+연결 없으면
+section 자체를 표시하지 않아도 됨.
+
+지난 수강 기록:
+
+Archive별 그룹 가능.
+
+예:
+
+2026년 이전 수강 기록
+퇴원일 2026.08.31
+
+각 diary:
+
+수업일
+당시 반
+선생님
+수업내용
+개별 피드백
+보강 여부
+
+read-only.
+
+사진/영상 없음.
+
+현재 피드와 시각적으로도
+구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 인원수 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive 회원은:
+
+300
+500
+1000
+
+회원수 계산에 절대 포함되지 않음.
+
+현재 count query는
+students만 조회하므로
+Archive table을 count source에 추가하지 마십시오.
+
+퇴원 students.status=withdrawn도
+기존처럼 active count 제외 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. parent account / 형제자매
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 canonical withdraw 정책 변경 금지.
+
+parent_students에서는
+퇴원한 child relation만 제거.
+
+다른 활성 자녀 relation 유지.
+
+parent account 자체 정책을
+이번 Archive 기능 때문에 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. force-delete / permanent-delete
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Archive 기능은:
+
+canonical withdraw
+
+에만 적용.
+
+별도:
+
+force-delete
+permanent-delete
+
+경로의 의미를 변경하지 마십시오.
+
+일반 퇴원 UI는 계속
+canonical withdraw만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 기존 퇴원생 backfill
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 퇴원회원은
+일지 원본 일부가 이미 purge되어
+완전 복구가 불가능하다고 확인됐습니다.
+
+억지 backfill 금지.
+
+Archive 정책 적용 시점 이후
+새로운 퇴원부터 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 실회원으로
+파괴 테스트 금지.
+
+격리/test 데이터로 수행.
+
+TEST A — note 없는 diary
+
+common_content 있음
+student_note 없음
+
+퇴원
+
+→ Archive diary 존재
+→ student_note=NULL
+
+TEST B — 결석
+
+정규 diary 존재
+attendance absent
+
+퇴원
+
+→ 해당 diary Archive 제외
+
+TEST C — completed makeup
+
+다른 반 completed makeup diary
+
+퇴원
+
+→ Archive 포함
+→ is_makeup_diary=true
+
+TEST D — 반 이동
+
+A→B→C
+
+퇴원
+
+→ 실제 재원기간의 A/B/C diary 모두 Archive
+
+TEST E — 장기연기 핵심
+
+교육구간 1
+→ 1개월 이상 연기
+→ education_started_at reset
+→ 교육구간 2
+→ 퇴원
+
+확인:
+
+Archive에는
+교육구간 1 + 교육구간 2 diary 모두 존재.
+
+이 테스트가 필수입니다.
+
+TEST F — Archive 실패
+
+Archive INSERT 강제 실패
+
+→ withdraw rollback
+→ 원본 교육데이터 유지
+→ student 퇴원 완료 처리 안 됨
+
+TEST G — 재가입
+
+퇴원 후 동일 이름/전화로 신규등록
+
+→ 신규 student_id
+→ Archive 자동연결 없음
+
+TEST H — 관리자 수동 연결
+
+→ Archive link 생성
+→ Parent 지난 수강 기록 표시
+
+TEST I — 연결 해제
+
+→ Parent 지난 수강 기록 미표시
+→ Archive 원본 유지
+
+TEST J — Teacher
+
+같은 pool Archive 조회 가능
+연결 버튼/API 사용 불가
+
+TEST K — tenant
+
+다른 pool Archive 접근 차단
+
+TEST L — 현재 성장리포트
+
+Archive 연결 후에도
+Growth Report/current feed/curriculum 결과 변화 없음
+
+TEST M — 다자녀
+
+A/B 형제
+A 퇴원
+
+→ B parent relation/account 정상
+→ A Archive 생성
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 배포 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-A
+DB migration
+
+→ WP-B
+withdraw Archive snapshot
+
+→ WP-C
+Archive/link/Parent API
+
+→ API Production deploy 및 검증
+
+→ WP-E/F/G
+APP 운영자 + WEB + Parent APP
+
+→ APP production-v2 OTA
+iOS + Android
+
+→ WEB Production deploy
+
+Native build는
+필요하지 않으면 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. DB]
+
+3 tables
+index
+unique constraints
+actual types
+
+[B. ARCHIVE SNAPSHOT]
+
+withdraw service 삽입 위치
+transaction
+실패 rollback
+
+[C. DIARY HISTORICAL SCOPE]
+
+education_started_at 미적용 증거
+반 history
+absent
+makeup
+noteless
+
+[D. PHONE MATCH]
+
+hash 방식
+raw phone 미보관
+UI/API에 hash 직접 노출 여부
+
+[E. ADMIN/TEACHER API]
+
+route
+permission
+tenant guard
+
+[F. MANUAL LINK]
+
+link
+unlink
+자동연결 없음
+
+[G. PARENT]
+
+지난 수강 기록
+read-only
+현재 feed/report와 완전 분리
+
+[H. MEMBER COUNT]
+
+Archive count 제외 확인
+
+[I. TEST]
+
+TEST A~M
+각 PASS / FAIL / 확인하지 못함
+
+[J. DEPLOY]
+
+API:
+- full Work SHA
+- full Production LIVE SHA
+- Render Deploy ID
+- status
+
+APP:
+- full OTA Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- Android Update ID
+- branch/channel
+- runtimeVersion
+
+WEB:
+- full Production SHA
+- deploy ID
+- status
+
+DB:
+- migration 식별정보/적용 결과
+
+[K. UNCHANGED]
+
+- 연기 정책 변경 없음
+- 장기연기 정책 변경 없음
+- Growth Report cutoff 변경 없음
+- current Parent feed 변경 없음
+- canonical withdraw purge 정책 변경 없음
+  (Archive snapshot 단계만 purge 전에 추가)
+- Production 실회원 파괴 테스트 없음
+- 기존 퇴원회원 억지 backfill 없음
+
+완료했다고만 보고하지 마십시오.
+
+특히 TEST E:
+
+장기연기 전 교육구간의 일지까지
+퇴원 Archive에 남는지
+
+반드시 실제 검증하십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.

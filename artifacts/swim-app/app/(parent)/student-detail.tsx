@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
@@ -123,11 +123,52 @@ export default function ParentStudentDetailScreen() {
             <Text style={[styles.smallLabel, { color: C.textSecondary }]}>공지사항</Text>
             <LucideIcon name="chevron-right" size={14} color={C.textMuted} />
           </Pressable>
+
+          {/* 지난 수강 기록 - 관리자가 Archive 연결 시 표시 */}
+          <ArchiveDiariesButton studentId={id as string} studentName={name as string} token={token} />
         </ScrollView>
       )}
     </View>
   );
 }
+
+// ── Archive Diaries Button ───────────────────────────────────────────────────
+// 관리자가 Archive를 연결한 경우에만 표시 (link 없으면 렌더링 자체 안 함)
+function ArchiveDiariesButton({ studentId, studentName, token }: { studentId: string; studentName: string; token: string | null }) {
+  const [hasArchive, setHasArchive] = useState(false);
+
+  useEffect(() => {
+    if (!studentId || !token) return;
+    apiRequest(token, `/parent/students/${studentId}/archive-diaries`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => setHasArchive(data.length > 0))
+      .catch(() => {});
+  }, [studentId, token]);
+
+  if (!hasArchive) return null;
+
+  return (
+    <Pressable
+      style={({ pressed }) => [archiveBtnStyle, { opacity: pressed ? 0.8 : 1 }]}
+      onPress={() => router.push({ pathname: "/(parent)/archive-diaries", params: { id: studentId, name: studentName } } as any)}
+    >
+      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#E0F2FE", alignItems: "center", justifyContent: "center" }}>
+        <LucideIcon name="history" size={18} color="#0369A1" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, color: "#0C4A6E", fontWeight: "600" }}>지난 수강 기록</Text>
+        <Text style={{ fontSize: 12, color: "#64748B", marginTop: 1 }}>이전 수강 이력 보기</Text>
+      </View>
+      <LucideIcon name="chevron-right" size={16} color="#94A3B8" />
+    </Pressable>
+  );
+}
+
+const archiveBtnStyle: any = {
+  flexDirection: "row", alignItems: "center", gap: 12,
+  borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
+  borderWidth: 1, borderColor: "#BAE6FD", backgroundColor: "#F0F9FF", marginBottom: 10,
+};
 
 const styles = StyleSheet.create({
   root: { flex: 1 },

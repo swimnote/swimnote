@@ -69,6 +69,7 @@ import parentCurriculumRouter    from "./parent-curriculum.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
 import publishGrowthReportRouter from "./publish-growth-report.js";
 import growthReportInteractionsRouter from "./growth-report-interactions.js";
+import archiveRouter from "./archive.js";
 
 const router: IRouter = Router();
 
@@ -87,6 +88,7 @@ router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/pools", poolsRouter);
 router.use("/admin", adminRouter);
+router.use("/", archiveRouter);
 router.use("/students", studentsRouter);
 router.use("/class-groups", classGroupsRouter);
 router.use("/attendance", attendanceRouter);

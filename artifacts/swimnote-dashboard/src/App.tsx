@@ -13,6 +13,7 @@ import XGatePage from "@/pages/XGatePage";
 import MembersPage from "@/pages/members/MembersPage";
 import NewMemberPage from "@/pages/members/NewMemberPage";
 import WithdrawnMembersPage from "@/pages/members/WithdrawnMembersPage";
+import ArchiveMembersPage from "@/pages/members/ArchiveMembersPage";
 import SchedulePage from "@/pages/schedule/SchedulePage";
 import ClassesPage from "@/pages/schedule/ClassesPage";
 import MakeupsPage from "@/pages/makeups/MakeupsPage";
@@ -127,6 +128,7 @@ function AppRoutes() {
         <Route path="/admin/members" component={MembersPage} />
         <Route path="/admin/members/new" component={NewMemberPage} />
         <Route path="/admin/members/withdrawn" component={WithdrawnMembersPage} />
+        <Route path="/admin/members/archive" component={() => <ArchiveMembersPage userRole={user?.role} />} />
         <Route path="/admin/members/bulk" component={BulkMembersPage} />
 
         {/* Schedule */}
