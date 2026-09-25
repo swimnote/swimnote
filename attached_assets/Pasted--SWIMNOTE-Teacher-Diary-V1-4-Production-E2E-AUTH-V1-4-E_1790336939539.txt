@@ -1,0 +1,156 @@
+[SWIMNOTE Teacher Diary V1.4 — Production E2E AUTH 해결]
+
+현재 V1.4 코드/Engine/Bridge는 수정하지 마십시오.
+
+이번 blocker는 기능 문제가 아니라
+Production Teacher Diary endpoint의 정상 사용자 인증 JWT 부재입니다.
+
+절대 금지:
+- auth bypass endpoint 생성
+- 인증 middleware 우회
+- JWT_SECRET 변경/복사
+- 가짜 Production JWT 생성
+- service token을 사용자 JWT처럼 사용
+- Professional Engine/Bridge 수정
+- env 변경
+- 배포
+
+목표:
+기존 SWIMNOTE Production 인증 방식 그대로
+정상 teacher 또는 허용된 pool_admin 사용자 JWT를 확보하여
+Teacher Diary E2E를 딱 1회 실행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 Production 로그인 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE 앱이 정상 로그인할 때 사용하는
+Production login/auth endpoint를 확인하십시오.
+
+확인:
+- login endpoint
+- 로그인 성공 시 JWT가 어디에서 반환되는지
+- Teacher Diary requireAuth에서 허용하는 role
+- teacher 외 pool_admin/admin role도 허용되는지
+
+코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 기존 테스트 계정 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에 이미 존재하는
+전용 test/QA teacher 계정이 있는지 확인하십시오.
+
+비밀번호나 JWT 값은 출력하지 마십시오.
+
+있으면:
+기존 정상 로그인 endpoint를 통해 로그인하여
+메모리 내에서 JWT를 받아 테스트에만 사용하십시오.
+
+없으면 임의로 계정을 만들지 말고 보고하십시오.
+
+실제 회원/학생/교사 데이터를 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 정상 JWT 확보 가능할 경우 E2E 1회
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST
+https://swimnote-api.onrender.com/api/v1/teacher-diary/generate
+
+Authorization:
+Bearer <정상 Production user JWT>
+
+입력:
+"자유형 호흡할 때 고개 많이 듦"
+
+기존에 검증에 사용 가능한
+유효한 test student/class context가 이미 있다면 그것만 재사용하십시오.
+
+새 Production 학생/반 생성 금지.
+
+확인:
+- HTTP 200
+- PIPELINE_MODE=professional_v1
+- KNOWLEDGE_GROUNDED
+- Knowledge ≥ 1
+- local OpenAI calls = 0
+- 최종 출력
+
+특히 V1.4 검증:
+- 없는 "연습했다/훈련했다" 없음
+- 없는 학생 향상/성공 없음
+- 없는 훈련계획 없음
+- "태도의 조정" 같은 용어 오류 없음
+- 어색하게 합쳐진 기술 문장 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 정상 JWT를 확보할 수 없다면
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드를 바꾸지 말고 아래만 보고하고 종료하십시오.
+
+- Teacher Diary에서 허용하는 role
+- 기존 test/QA user 존재 여부
+- 정상 Production 로그인으로 JWT 획득 가능한 계정 유형
+- 사용자가 앱에서 어떤 계정으로 로그인하면 테스트 가능한지
+
+AUTH bypass는 제안하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+완료보고
+
+[TEACHER DIARY V1.4 AUTHED E2E REPORT]
+
+STATUS:
+PASS / AUTH_INPUT_REQUIRED / FIX_REQUIRED
+
+ALLOWED_ROLES:
+-
+
+EXISTING_TEST_USER:
+YES / NO
+
+NORMAL_LOGIN_JWT_AVAILABLE:
+YES / NO
+
+HTTP:
+-
+
+PIPELINE_MODE:
+-
+
+GENERATION_MODE:
+-
+
+KNOWLEDGE_COUNT:
+-
+
+FINAL_OUTPUT:
+-
+
+LESSON_FACT_HALLUCINATION:
+YES / NO / NOT_TESTED
+
+STUDENT_FACT_HALLUCINATION:
+YES / NO / NOT_TESTED
+
+UNSUPPORTED_TRAINING_PLAN:
+YES / NO / NOT_TESTED
+
+AWKWARD_TECHNICAL_SENTENCE:
+YES / NO / NOT_TESTED
+
+TERMINOLOGY_ERROR:
+YES / NO / NOT_TESTED
+
+LOCAL_OPENAI_CALLS:
+-
+
+CODE_CHANGED:
+NO
+ENV_CHANGED:
+NO
+DEPLOYMENT:
+NONE
