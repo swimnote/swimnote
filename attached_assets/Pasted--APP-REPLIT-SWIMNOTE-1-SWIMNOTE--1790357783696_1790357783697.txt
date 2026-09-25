@@ -1,0 +1,408 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 구독 완료 후 회원 사용량 표시 정리 + 결제 성공 후 1회 앱 재실행]
+
+실기기에서 SWIMNOTE 구독 결제가 실제 성공한 것을 확인했습니다.
+
+이번 작업은 아래 2가지만 최소 수정합니다.
+
+1. 회원 사용량 표시에서 내부 무제한 sentinel(999999) 제거
+2. 실제 구독 구매 성공 후 앱을 1회 재실행하여 구독상태 안정 반영
+
+가격/상품/RevenueCat 구조 자체는 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 문제 — 999999 노출
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE 기본 플랜에서
+회원 제한을 내부적으로 999999 등의 큰 숫자로 표현하면서
+
+홈 화면 통합 사용량에:
+
+0/999999명
+
+처럼 표시되고 있습니다.
+
+이 값은 내부 구현값일 뿐
+사용자에게 보여줄 숫자가 아닙니다.
+
+UI에서 절대 999999를 노출하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최종 회원 사용량 표시 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+플랜별 표시를 아래처럼 고정합니다.
+
+[SWIMNOTE 기본플랜]
+
+회원수 제한 숫자 표시 금지.
+
+예:
+
+회원 사용량
+0명
+
+또는 기존 카드 문맥에 맞게:
+
+0명
+현재 회원
+
+처럼
+
+“현재 등록/사용 중인 회원수”만 표시.
+
+금지:
+
+0/999999명
+0/무제한명
+0/∞명
+
+즉 SWIMNOTE에서는
+분모 자체를 표시하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. X 플랜은 기존 허용인원 표시 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+X300:
+
+현재회원수 / 300명
+
+예:
+127/300명
+
+X500:
+
+현재회원수 / 500명
+
+X1000:
+
+현재회원수 / 1,000명
+
+기존 회원수 제한 및 enforcement 로직은
+절대 변경하지 마십시오.
+
+이번 작업은 표시만 정리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 다른 플랜/legacy 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 legacy 상품 사용자가 존재할 수 있으므로
+기존 정상 표시를 임의 변경하지 마십시오.
+
+특히 이번 수정 때문에:
+
+- member-limit 계산
+- subscription tier 판정
+- 서버 quota
+- 기존 legacy subscriber
+
+를 변경하지 마십시오.
+
+999999 등의 sentinel을
+DB/API에서 없애는 대규모 수정도 금지.
+
+필요하면 UI render 단계에서만
+SWIMNOTE 기본 플랜을 분기하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 적용 위치 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+스크린샷 기준 관리자 홈:
+
+“통합 사용량”
+
+카드 안의:
+
+회원 사용량
+
+표시가 대상입니다.
+
+같은 member limit 값을 표시하는 다른 APP 화면이 있다면
+좁게 검색해서
+
+SWIMNOTE에서 999999가 사용자에게 노출되는
+동일 문제만 함께 정리하십시오.
+
+전체 APP audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 결제 성공 후 앱 1회 재실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 실제 구독 구매를 완료한 후
+구독상태가 모든 화면에 안정적으로 반영되도록
+
+구매 성공 flow 마지막에
+앱을 1회 reload 하십시오.
+
+중요:
+
+Apple/Google 결제창에서
+결제가 성공했다는 것만으로 즉시 reload 금지.
+
+반드시 다음 순서:
+
+1. RevenueCat purchase 성공
+2. CustomerInfo 확인/갱신
+3. syncRcToServer 성공
+4. 서버 subscription tier/status 반영 성공
+5. 필요한 refreshPool / refreshMode 처리
+6. 그 다음 앱 1회 reload
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. reload 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Expo 환경에서 이미 검증된
+Updates.reloadAsync()
+
+등 프로젝트의 기존 reload helper가 있다면
+그 방식을 재사용하십시오.
+
+새 native restart library 추가 금지.
+
+Native build가 필요하게 만드는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 사용자 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+구매 성공 직후:
+
+“구독이 완료되었습니다.
+새 구독 정보를 적용하기 위해 앱을 다시 시작합니다.”
+
+정도의 짧은 안내 후 reload.
+
+기존 confirm/modal infrastructure가 있으면 재사용.
+
+너무 긴 설명 금지.
+
+X 구매에 이미 존재하는
+XRestartRequiredModal이 있다면
+
+중복된 두 개의 재시작 UX가 뜨지 않도록
+구매 성공 후 재시작 flow를 하나로 통일하십시오.
+
+SWIMNOTE 구매도 동일하게
+성공 동기화 후 1회 reload.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 절대 재실행하면 안 되는 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래는 reload 금지:
+
+- 사용자 결제 취소
+- Store error
+- pending/deferred
+- RevenueCat purchase 실패
+- syncRcToServer 실패
+- 서버 subscription 반영 실패
+
+실제 성공이 확정된 경우에만 reload.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 무한 reload 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+앱 실행 시 CustomerInfo를 읽었다고
+자동 reload 하면 안 됩니다.
+
+reload trigger는 오직:
+
+“사용자가 이번 세션에서 실제 purchase를 완료했고
+server sync까지 성공한 직후”
+
+에만 실행.
+
+앱 재실행 후 subscription 상태를 읽으면서
+다시 reload되는 loop가 절대 없어야 합니다.
+
+필요하면 handler-local ref/flag 등
+최소한의 one-shot guard 사용.
+
+새 persistent state 설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Restore Purchases
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 요구는 “신규 구매 완료 후 재실행”입니다.
+
+restore flow는 현재 정상 구조를 유지하십시오.
+
+복원 성공 후 현재 코드가
+refreshMode/refetch만으로 안정적이라면
+이번 작업 때문에 억지로 reload를 추가하지 마십시오.
+
+별도 문제 발견 시에만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST A
+
+SWIMNOTE 기본플랜
+
+회원 0명
+→ “0명” 표시
+→ 999999 미노출
+
+TEST B
+
+SWIMNOTE 기본플랜
+
+회원 37명
+→ “37명” 표시
+→ 분모 없음
+
+TEST C
+
+X300
+회원 37명
+→ 37/300명
+
+TEST D
+
+X500
+→ 현재수/500명
+
+TEST E
+
+X1000
+→ 현재수/1,000명
+
+TEST F
+
+구매 취소
+→ 앱 reload 없음
+
+TEST G
+
+구매 성공 + 서버 sync 성공
+→ 성공 안내
+→ 앱 1회 reload
+
+TEST H
+
+syncRcToServer 실패
+→ reload 없음
+→ 구독 완료로 잘못 표시하지 않음
+
+TEST I
+
+reload 후 앱 진입
+→ 다시 자동 reload되지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- App Store 상품 수정 금지
+- 가격 수정 금지
+- RevenueCat Offering/Package 수정 금지
+- entitlement 구조 변경 금지
+- member limit 실제 enforcement 변경 금지
+- DATA100/DATA300 수정 금지
+- X Trial 수정 금지
+- API/DB 수정 금지
+  (정말 필요하다고 판단되면 수정하지 말고 먼저 보고)
+- Native build 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP JS 수정만 예상됩니다.
+
+production-v2
+runtimeVersion 2.2.0
+
+iOS + Android OTA 배포.
+
+API/WEB 변경 없으면
+배포하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. MEMBER USAGE]
+
+SWIMNOTE:
+최종 표시
+
+X300:
+최종 표시
+
+X500:
+최종 표시
+
+X1000:
+최종 표시
+
+999999 UI 노출 제거 여부
+
+[B. PURCHASE RESTART]
+
+실제 purchase success handler 위치
+
+최종 순서:
+
+purchase
+→ CustomerInfo
+→ server sync
+→ refresh
+→ reload
+
+[C. FAILURE]
+
+cancel
+purchase fail
+server sync fail
+
+각각 reload 안 되는지
+
+[D. LOOP SAFETY]
+
+재실행 후
+반복 reload 없음 확인
+
+[E. TEST]
+
+TEST A~I
+PASS / FAIL / 확인하지 못함
+
+[F. DEPLOY]
+
+- full OTA Git SHA
+- EAS Update Group ID
+- iOS Update ID
+- Android Update ID
+- branch/channel
+- runtimeVersion
+
+[G. UNCHANGED]
+
+- 가격 변경 없음
+- RevenueCat config 변경 없음
+- member quota enforcement 변경 없음
+- DATA/X Trial 변경 없음
+- API/DB 변경 없음
+
+완료했다고만 보고하지 마십시오.
+
+특히 999999를 단순히
+“무제한”이라는 문자열로 치환하지 마십시오.
+
+SWIMNOTE 기본플랜에서는
+회원 사용량의 실제 현재 인원수만 표시하십시오.
