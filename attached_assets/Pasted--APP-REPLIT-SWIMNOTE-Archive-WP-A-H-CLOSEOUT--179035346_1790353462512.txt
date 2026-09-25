@@ -1,0 +1,404 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 퇴원생 Archive WP-A~H 최종 CLOSEOUT 검증]
+
+현재 구현 방향은 승인합니다.
+
+추가 기능 개발하지 마십시오.
+광범위 audit 금지.
+리팩터링 금지.
+
+이번 단계에서는
+이미 구현된 Archive 기능의 실제 배포 상태와
+필수 회귀 테스트만 확인하여 CLOSEOUT 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. API Render LIVE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+Deploy ID:
+dep-dar9sp2d0e5s73c1ha9g
+
+상태:
+“배포 중”
+
+이므로 완료로 인정할 수 없습니다.
+
+실제 Render Production이 LIVE 된 뒤 보고하십시오.
+
+필수:
+
+- full Work SHA
+- full Production LIVE SHA
+- 두 SHA 일치 여부
+- Render Deploy ID
+- status = live
+- /health 정상
+
+Production LIVE SHA가 다르면
+완료 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. WEB Production LIVE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 WEB도 “배포 중”으로 보고됐습니다.
+
+실제 swimnote.kr Production에서:
+
+- Archive 메뉴
+- Archive 목록
+- Archive 상세
+- 일지
+- 연결/해제
+
+가 배포된 것을 확인하십시오.
+
+보고:
+
+- full Production SHA
+- Render Deploy ID
+- status
+- 실제 route:
+  /admin/members/archive
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. DB schema 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 실제로 존재하는지 확인:
+
+- withdrawn_member_archives
+- withdrawn_diary_archives
+- withdrawn_archive_links
+
+그리고 다음 constraint/index가 실제 적용됐는지 보고:
+
+A.
+동일 original_student_id의 Archive 중복 방지
+
+B.
+withdrawn_diary_archives:
+archive_member_id + original_diary_id + source_type
+중복 방지
+
+C.
+archive_member 하나에 active link 하나만 허용
+
+D.
+current student 하나에 여러 과거 Archive 연결은 허용
+
+E.
+pool_id / withdrawn_at / archive_member_id / lesson_date
+필요 index 적용
+
+DDL 전체를 붙이지 말고
+실제 constraint/index 이름과 의미만 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 핵심 TEST A~M 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 지시의 TEST A~M을
+각각 PASS / FAIL / 확인하지 못함으로 보고하십시오.
+
+특히 아래 6개는 반드시 실제 검증:
+
+TEST A — note 없는 diary
+
+common_content 있음
+student_note 없음
+
+→ Archive 포함
+→ student_note=NULL
+
+TEST B — 결석
+
+→ Archive 제외
+
+TEST C — completed makeup
+
+→ Archive 포함
+→ is_makeup_diary=true
+
+TEST D — 반 이동 A→B→C
+
+→ 실제 재원기간 diary 모두 Archive
+
+TEST E — 가장 중요
+
+교육구간 1
+→ 1개월 이상 연기
+→ education_started_at 갱신
+→ 교육구간 2
+→ 퇴원
+
+확인:
+
+Archive에
+교육구간 1 + 교육구간 2
+모두 존재.
+
+즉 Archive snapshot query에서는
+education_started_at cutoff가
+적용되지 않아야 합니다.
+
+TEST F — Archive INSERT 실패
+
+→ withdraw 전체 rollback
+→ student 원본 데이터 유지
+→ status가 withdrawn으로 완료되지 않음
+
+Production 실회원 사용 금지.
+격리/test 데이터만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 자동연결 금지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive 추가 후에도 다음 flow가
+Archive table을 조회하지 않는지 확인:
+
+- parent auto approval
+- parent auto-link
+- 일반 신규등록
+- bulk registration duplicate
+- Growth Report
+- curriculum
+- current diary/feed
+
+동일 이름/전화번호여도
+Archive 자동연결 금지.
+
+관리자 명시적 연결만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Parent Archive 분리 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 수동 연결 후 Parent APP에서:
+
+[지난 수강 기록]
+
+만 표시되는지 확인.
+
+그리고 Archive diary가 다음에 섞이지 않는지 확인:
+
+- 현재 diary/feed
+- news
+- Growth Report input
+- previous usable report
+- curriculum
+- education_started_at current segment
+- attendance
+- current feed count
+
+Archive는 read-only 과거 기록이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 권한 / tenant 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher:
+
+- 동일 pool Archive 목록/일지 조회 가능
+- 연결/해제 불가
+
+Pool Admin:
+
+- 동일 pool 조회 가능
+- 연결/해제 가능
+
+다른 pool Archive:
+
+- 접근 차단
+
+Parent:
+
+- 자신의 현재 자녀와
+  관리자에 의해 연결된 Archive만 조회
+
+를 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. HMAC 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+ARCHIVE_PHONE_HASH_SECRET:
+
+- Production runtime에서 실제 주입됨
+- raw parent phone Archive 저장 안 함
+- 다른 JWT/API secret 재사용 아님
+- APP/WEB 응답에 hash 원문 노출 안 함
+- API에는 phone_match boolean만 필요한 경우 반환
+
+확인.
+
+Secret 값 자체는 보고하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. APP Android OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고에는:
+
+iOS:
+01a0d95c
+
+만 있습니다.
+
+Archive 기능은 iOS 전용이 아닙니다.
+
+production-v2
+runtimeVersion 2.2.0
+
+Android OTA도 배포하십시오.
+
+Native build 불필요하면 하지 마십시오.
+
+완료보고:
+
+- EAS Update Group ID
+- iOS full Update ID
+- Android full Update ID
+- branch/channel
+- runtimeVersion
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Member count 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Archive 회원이:
+
+300
+500
+1000
+
+플랜 활성회원 수에
+절대 포함되지 않는지 확인.
+
+withdrawn status도 기존대로 제외.
+
+Archive table을 count source에
+추가하지 않았는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 기존 정책 변경 없음 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 이번 CLOSEOUT에서
+다시 수정하지 마십시오.
+
+- 연기
+- 장기연기
+- education_started_at
+- Growth Report cutoff
+- Parent current feed cutoff
+- canonical withdraw purge 범위
+- 신규등록 신규 student_id
+- 기존 퇴원생 backfill 금지
+
+Archive 기능만 검증합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 최종 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. API PRODUCTION]
+
+- full Work SHA
+- full LIVE SHA
+- Deploy ID
+- status
+- /health
+
+[B. WEB PRODUCTION]
+
+- full SHA
+- Deploy ID
+- status
+- /admin/members/archive 실제 반영
+
+[C. DB]
+
+3 tables
+constraint/index 실제 적용 결과
+
+[D. ARCHIVE TRANSACTION]
+
+- snapshot 위치
+- snapshot 실패 rollback
+- purge 이전 Archive 보장
+
+[E. HISTORICAL DIARY]
+
+- education_started_at 미적용
+- noteless
+- absent
+- makeup
+- class history
+
+[F. LINK]
+
+- 관리자 연결/해제
+- 자동연결 없음
+- current student 여러 과거 Archive 연결 가능
+
+[G. PARENT]
+
+- 지난 수강 기록
+- read-only
+- current feed/report와 분리
+
+[H. PERMISSION]
+
+- teacher
+- pool_admin
+- parent
+- tenant isolation
+
+[I. HMAC]
+
+- raw phone 미저장
+- phone hash 직접 노출 없음
+- dedicated secret 사용
+
+[J. MEMBER COUNT]
+
+Archive/withdrawn 제외 확인
+
+[K. TEST]
+
+TEST A~M
+각 PASS / FAIL / 확인하지 못함
+
+[L. APP OTA]
+
+- full OTA Git SHA
+- EAS Update Group ID
+- iOS full Update ID
+- Android full Update ID
+- production-v2
+- runtimeVersion 2.2.0
+
+[M. UNCHANGED]
+
+- 기존 연기 정책 변경 없음
+- 장기연기 정책 변경 없음
+- Growth Report/current feed 정책 변경 없음
+- Production 실회원 파괴 테스트 없음
+- 기존 퇴원생 backfill 없음
+
+새 기능 추가하지 말고
+위 검증과 필요한 최소 오류 수정만 수행하십시오.
+
+완료했다고만 보고하지 마십시오.
+
+특히 TEST E와 TEST F를
+실제 검증하지 않은 상태에서
+Archive 기능을 완료로 보고하지 마십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하십시오.
