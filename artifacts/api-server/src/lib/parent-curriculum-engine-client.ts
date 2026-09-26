@@ -172,6 +172,14 @@ export class ParentCurriculumEngineError extends Error {
 
 /**
  * Generates a short-lived HS256 JWT for server-to-server auth with the AI ENGINE.
+ *
+ * Canonical service-to-server identity pattern (matches growth-report-engine-client.ts
+ * and professional-engine-client.ts teacher-diary):
+ *   userId: "service:parent-curriculum"  — non-empty canonical internal service identity
+ *   role:   "platform_admin"             — ENGINE-allowed role for server-to-server calls
+ *   poolId: poolId                       — ENGINE cross-checks JWT.poolId vs body.context.pool_id
+ *   tv:     1                            — token version
+ *
  * JWT_SECRET must match the AI ENGINE's JWT_SECRET (shared secret).
  * Throws ParentCurriculumEngineError if JWT_SECRET is not set (fail-closed).
  */
@@ -186,7 +194,12 @@ export function generateEngineJwt(poolId: string): string {
     );
   }
   return jwt.sign(
-    { userId: poolId, role: "pool_admin", poolId, tv: 1 },
+    {
+      userId: "service:parent-curriculum",
+      role:   "platform_admin",
+      poolId,
+      tv:     1,
+    },
     secret,
     { algorithm: "HS256", expiresIn: "5m" },
   );
