@@ -1,0 +1,321 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — DATA100/300 “준비 중” 원인 확정 / 최소 수정]
+
+원인이 확정되었습니다.
+
+사용자가 RevenueCat Console에서 직접 확인:
+
+Offering Identifier:
+data_monthly
+
+Package:
+data100
+→ com.swimnote.data100.monthly
+
+data300
+→ com.swimnote.data300.monthly
+
+현재 APP의 useSubscription 훅은:
+
+solo_monthly
+center_monthly
+x_monthly
+swimnote_monthly
+
+4개 Offering만 가져오고 있으며
+data_monthly를 fetch하지 않습니다.
+
+따라서 DATA Package가 실제 RC에 정상 존재해도
+subscription.tsx의 allPkgs에 들어오지 않아
+dataPkg === null
+→ “준비 중”
+
+이 되는 것이 ROOT CAUSE입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 수정만 하십시오.
+
+대상:
+
+artifacts/swim-app/lib/revenuecat.tsx
+
+artifacts/swim-app/app/(admin)/subscription.tsx
+
+RevenueCat Dashboard 수정 금지.
+App Store Connect 수정 금지.
+API/DB 수정 금지.
+DATA lifecycle/webhook/purge 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. revenuecat.tsx
+━━━━━━━━━━━━━━━━━━━━━━
+
+useSubscription 훅에서
+기존 4개 Offering과 동일한 방식으로:
+
+data_monthly
+
+Offering을 가져오도록 추가하십시오.
+
+예상 반환값에도:
+
+dataOffering
+
+을 추가.
+
+기존:
+
+soloOffering
+centerOffering
+xOffering
+swimnoteOffering
+
+동작은 변경하지 마십시오.
+
+Offering이 존재하지 않는 경우에도
+기존 앱 전체 구독 화면이 crash하지 않도록
+null-safe 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. subscription.tsx
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 allPkgs:
+
+[
+  ...(soloOffering?.availablePackages ?? []),
+  ...(centerOffering?.availablePackages ?? []),
+  ...(xOffering?.availablePackages ?? []),
+  ...(swimnoteOffering?.availablePackages ?? []),
+]
+
+여기에:
+
+...(dataOffering?.availablePackages ?? [])
+
+추가.
+
+DATA package lookup은 실제 값:
+
+Package identifier:
+data100
+data300
+
+Product identifier:
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+를 기준으로 정상 탐색되도록 유지.
+
+기존 Product ID 비교 fallback을
+불필요하게 재작성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. dead code 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+subscription.tsx에 현재:
+
+“getOfferings()는 훅 밖에서 직접 호출 불가 → runtime lookup”
+등의 이유로 null을 반환하는
+DATA offering 탐색용 dead code가 있다면
+
+새 dataOffering 경로가 canonical이 된 뒤
+실제 참조가 없는 것이 확인된 부분만 제거 가능합니다.
+
+관련 없는 RevenueCat 진단 코드
+handleRcDiagnose 등은 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CTA 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+data_monthly가 SDK에서 정상 반환되고
+
+data100 package 존재
+→ DATA100 “구독 시작”
+
+data300 package 존재
+→ DATA300 “구독 시작”
+
+으로 각각 독립 활성화.
+
+둘 중 하나만 package가 존재하면
+존재하는 상품만 활성화하고
+없는 상품은 “준비 중” 유지.
+
+강제 enabled 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 가격
+━━━━━━━━━━━━━━━━━━━━━━
+
+구매 가능 상태에서는 가능하면
+RevenueCat StoreProduct의 priceString을
+canonical 표시값으로 사용.
+
+현재 표시 가격과 StoreProduct 가격이 동일하면
+UI 변화 없이 유지 가능.
+
+DATA100:
+₩7,900/월
+
+DATA300:
+₩22,900/월
+
+하드코딩 가격 때문에 Store 가격과
+불일치하도록 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 구매 Flow 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 구현된:
+
+handleDataPurchase
+safePurchase
+sync-data-addon
+CustomerInfo refresh
+server verification
+data_addon state
+extra_storage_gb
+restore
+webhook
+expiration purge
+
+는 수정하지 마십시오.
+
+이번 작업은
+data_monthly Offering을 APP이 읽지 못하던 문제만 해결합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST A
+
+RevenueCat offerings 응답에
+data_monthly 존재
+
+→ dataOffering non-null
+
+TEST B
+
+dataOffering.availablePackages에:
+
+data100
+data300
+
+존재 확인
+
+TEST C
+
+DATA100:
+
+productIdentifier
+=
+com.swimnote.data100.monthly
+
+→ dataPkg 정상 탐색
+
+TEST D
+
+DATA300:
+
+productIdentifier
+=
+com.swimnote.data300.monthly
+
+→ dataPkg 정상 탐색
+
+TEST E
+
+DATA100 카드
+“준비 중”
+→ “구독 시작”
+
+TEST F
+
+DATA300 카드
+“준비 중”
+→ “구독 시작”
+
+TEST G
+
+SWIMNOTE/X 기존 상품
+Offering/Package 탐색 영향 없음
+
+TEST H
+
+DATA package가 null인 예외 상황에서는
+해당 카드만 “준비 중” 유지
+crash 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS APP 수정만이면:
+
+production-v2
+runtimeVersion 2.2.0
+
+iOS + Android OTA.
+
+Native build 금지.
+
+API 변경 없음 → Render deploy 금지.
+WEB 변경 없음 → WEB deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ROOT CAUSE]
+
+data_monthly Offering 미fetch 확인
+
+[B. FIX]
+
+revenuecat.tsx
+subscription.tsx
+
+실제 수정 내용
+
+[C. RUNTIME]
+
+data_monthly
+data100
+data300
+
+각 SDK 조회 결과
+
+[D. CTA]
+
+DATA100:
+준비 중 → 구독 시작 여부
+
+DATA300:
+준비 중 → 구독 시작 여부
+
+[E. REGRESSION]
+
+SWIMNOTE/X 기존 결제 영향 없음
+
+[F. DEPLOY]
+
+- full OTA Git SHA
+- branch/channel
+- runtimeVersion
+- iOS Update Group ID
+- iOS Update ID
+- Android Update Group ID
+- Android Update ID
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.

@@ -136,7 +136,7 @@ export default function SubscriptionScreen() {
   const [loading, setLoading] = useState(true);
 
   const {
-    soloOffering, centerOffering, xOffering, swimnoteOffering,
+    soloOffering, centerOffering, xOffering, swimnoteOffering, dataOffering,
     isSubscribed, activePackageId, activeSubscriptions,
     purchase, purchaseWithChange, isPurchasing, refetchCustomerInfo,
     offeringsLoading, offeringsError, offeringsErrorDetail, refetchOfferings,
@@ -1300,17 +1300,9 @@ export default function SubscriptionScreen() {
                 </View>
               </View>
               {DATA_PACKS.map(pack => {
-                // RC data_monthly offering에서 패키지 탐색
-                const dataMonthlyOf = (swimnoteOffering as any) ?? null; // data_monthly도 같은 훅에서
-                // offerings에서 data_monthly를 직접 탐색
-                const dataOffering = (() => {
-                  try {
-                    // useSubscription이 제공하는 RC offerings 전체에서 data_monthly 탐색
-                    return null; // getOfferings()는 훅 밖에서 직접 호출 불가 → runtime lookup
-                  } catch { return null; }
-                })();
-                // RC 패키지 탐색: 모든 available offerings에서 product ID로 탐색
+                // RC 패키지 탐색: data_monthly offering + 기존 4개에서 product ID로 탐색
                 const allPkgs = [
+                  ...(dataOffering?.availablePackages ?? []),
                   ...(soloOffering?.availablePackages ?? []),
                   ...(centerOffering?.availablePackages ?? []),
                   ...(xOffering?.availablePackages ?? []),
