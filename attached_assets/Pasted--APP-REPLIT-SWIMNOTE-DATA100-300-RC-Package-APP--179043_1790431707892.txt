@@ -1,0 +1,182 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE DATA100/300 — RC Package가 존재하는데 APP에서 “준비 중”으로 나오는 원인만 조사]
+
+중요:
+코드 수정 금지.
+RevenueCat 설정 변경 금지.
+App Store Connect 변경 금지.
+OTA/배포 금지.
+
+사용자가 RevenueCat Console에서 직접 확인했습니다.
+
+동일 Offering 안에 실제 Package가 존재합니다.
+
+Package identifier:
+data100
+→ com.swimnote.data100.monthly
+
+Package identifier:
+data300
+→ com.swimnote.data300.monthly
+
+App Store 상품도 이미 승인 완료 상태입니다.
+
+그런데 실기기 APP의 구독 관리 화면에서는
+DATA100 / DATA300 모두 아직 “준비 중”으로 표시됩니다.
+
+따라서 이번에는 설정 누락을 추측하지 말고
+APP 코드의 실제 Package 탐색/활성화 조건만 좁게 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 DATA Package lookup 코드 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+subscription.tsx의 DATA100/300 활성화 판단 코드를 정확히 찾으십시오.
+
+보고:
+
+- Purchases.getOfferings() 호출 위치
+- offerings.current 사용 여부
+- offerings.all 사용 여부
+- 어떤 Offering identifier를 찾는지
+- 어떤 Package identifier를 찾는지
+- 어떤 product.identifier를 비교하는지
+- 최종 dataPkg가 null이 되는 정확한 조건
+
+특히 코드가:
+
+data_monthly
+
+같은 특정 Offering identifier를
+하드코딩하고 있는지 확인.
+
+RevenueCat Console에서 실제 Package identifier는:
+
+data100
+data300
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Product ID 비교 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+정확히 다음 문자열과 비교되는지 확인:
+
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+대소문자/공백/alias/legacy ID 차이 확인.
+
+다른 ID를 보고 있다면 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Package identifier 비교 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Package identifier는 실제로:
+
+data100
+data300
+
+입니다.
+
+현재 코드가:
+
+$data100
+$data300
+data100_monthly
+data300_monthly
+monthly
+기타 값
+
+을 찾고 있지는 않은지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CTA 활성화 조건 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 “준비 중”이 표시되는 조건을 그대로 추적하십시오.
+
+예:
+
+!dataPkg
+!storeProduct
+!offeringsLoaded
+!isRevenueCatReady
+기타
+
+어느 조건 하나 때문에
+준비 중이 되는지 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 진단 기능 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 handleRcDiagnose 또는
+RevenueCat 진단 코드가 있으면 새 기능 만들지 말고 재사용 가능 여부 확인.
+
+실기기에서 확인해야 할 값:
+
+- offerings.current?.identifier
+- Object.keys(offerings.all)
+- 각 offering의 availablePackages
+- package.identifier
+- package.product.identifier
+- package.product.priceString
+
+DATA100/300가 SDK 응답에 실제 포함되는지 확인할 수 있어야 합니다.
+
+이번 단계에서는 로그/진단 코드 신규 배포 금지.
+
+현재 코드만으로 확인 불가능하면
+“실기기 진단 필요”라고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+
+[A. LOOKUP]
+
+현재 DATA package 탐색 방식
+
+[B. EXPECTED]
+
+코드가 기대하는:
+- Offering ID
+- Package ID
+- Product ID
+
+[C. ACTUAL RC]
+
+RevenueCat Console 실제:
+- Package ID data100 / data300
+- Product ID 각각 정확히 일치하는지
+
+[D. READY CONDITION]
+
+왜 현재 “준비 중”이 되는지
+코드상 정확한 조건
+
+[E. ROOT CAUSE]
+
+다음 중 하나로 판정:
+
+1. Offering identifier mismatch
+2. Package identifier mismatch
+3. Product identifier mismatch
+4. SDK offerings 응답에 DATA offering 미포함
+5. StoreProduct 생성 실패/null
+6. RevenueCat 초기화/refresh 문제
+7. 기타 — 근거 제시
+
+[F. NEXT FIX]
+
+수정이 필요하다면
+가장 작은 수정 1개만 제안.
+
+아직 수정하지 마십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
