@@ -1,0 +1,439 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — 관리자 하단 archive-m... 불필요 탭 조사 후 안전 제거]
+
+현재 관리자 APP 하단 탭바 오른쪽 끝에
+
+archive-m...
+
+처럼 표시되는 불필요한 탭이 노출되어 있습니다.
+
+실기기에서 확인된 현상:
+
+- 하단 탭에 `archive-m...` 항목이 추가되어 있음
+- 탭을 누르면 “지난 회원” 화면으로 들어감
+- 화면 자체는 지난 회원 Archive 화면으로 보임
+- 현재 지난 회원이 없으면 “지난 회원이 없습니다.” 표시
+- 이 화면에서 뒤로가기 동작도 정상적이지 않음
+- 관리자 메인 하단 탭에 상시 노출될 이유가 없음
+
+중요:
+
+퇴원생 Archive 기능 자체를 삭제하면 안 됩니다.
+
+이미 구현된:
+
+- 지난 회원 목록
+- Archive 상세
+- 과거 일지 조회
+- 관리자 Archive 연결/해제
+- 학부모 지난 수강 기록
+- 기존 정상 “지난 회원” 진입 경로
+
+는 그대로 유지해야 합니다.
+
+이번 목표는:
+
+“개발 과정에서 Archive route가 하단 Tabs에 자동 노출된 것인지 조사하고,
+불필요한 하단 탭 노출만 안전하게 제거”
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 원인 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 하단에 표시되는:
+
+archive-m...
+
+의 정확한 route를 찾으십시오.
+
+확인:
+
+- route 파일 경로
+- Expo Router group 구조
+- Tabs.Screen 등록 여부
+- 자동 route 등록 여부
+- label/title source
+- icon source
+- href 설정
+- 해당 route가 어떤 navigation stack에 속하는지
+
+특히 다음 가능성을 확인:
+
+A.
+`(tabs)` 또는 관리자 tab group 내부에
+archive route 파일이 존재해서
+Expo Router가 자동으로 탭으로 노출
+
+B.
+`Tabs.Screen`에 archive route가 명시적으로 등록
+
+C.
+개발용 임시 route가 남아 있음
+
+D.
+정상 Archive 화면이 잘못된 navigation group 아래 배치됨
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 정상 Archive 진입 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 지난 회원 Archive 기능의
+정상 사용자 진입 경로를 확인하십시오.
+
+예상:
+
+회원관리
+→ “지난 회원”
+→ Archive 목록
+
+또는 기존 구현된 별도 버튼.
+
+반드시 실제 코드로 확인.
+
+확인:
+
+- 어느 화면의 어떤 버튼이 Archive 목록으로 이동하는지
+- navigation target route
+- 해당 route가 현재 하단 archive-m... 탭과 동일 screen인지
+- 다른 별도 Archive screen이 중복 존재하는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 삭제 판단 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사 후 다음 기준으로 처리하십시오.
+
+CASE A.
+
+하단 archive-m...가
+정상 Archive screen 자체인데
+
+Tabs group 아래에 있어서
+자동 노출된 경우:
+
+→ screen 파일 삭제 금지.
+
+대신:
+
+- 하단 Tab에서 숨김
+- 정상 “지난 회원” 버튼으로만 진입 가능
+- navigation route는 유지
+
+Expo Router에서 현재 프로젝트 구조에 맞는
+정상적인 hidden route 방식 사용.
+
+예:
+`href: null`
+
+등.
+
+현재 Expo Router 버전/구조에 맞는
+기존 프로젝트 패턴을 우선 사용.
+
+CASE B.
+
+archive-m...가
+정상 Archive screen과 별개의
+개발용/중복 route이고
+
+실제 참조가 0개인 것이 확인되면:
+
+→ 해당 개발용 route만 제거 가능.
+
+단 삭제 전 반드시:
+
+- import 검색
+- router.push/replace 검색
+- href 검색
+- route name 검색
+- Tabs.Screen 검색
+
+으로 참조 0 확인.
+
+CASE C.
+
+정상 Archive route와
+하단 Tab route가 복잡하게 얽혀 있으면:
+
+→ 파일 삭제하지 말고
+Tab 노출만 숨기는 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 최종 하단 탭 구성
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 기본 하단 탭에는
+현재 정상 운영 메뉴만 남아야 합니다.
+
+스크린샷 기준:
+
+- 홈
+- 수업관리
+- 운영관리
+- 메신저
+- 설정
+
+여기에:
+
+archive-m...
+지난 회원
+archive
+기타 개발 route
+
+가 별도 하단 탭으로 노출되면 안 됩니다.
+
+기존 정상 5개 탭의:
+
+- route
+- icon
+- badge
+- navigation
+
+변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 지난 회원 기능 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+하단 탭 제거 후에도:
+
+관리자 정상 경로에서
+“지난 회원”을 누르면
+
+Archive 목록 화면이 정상적으로 열려야 합니다.
+
+유지:
+
+- 검색
+- Archive 목록
+- 상세
+- 과거 일지
+- 연결
+- 연결 해제
+- 권한
+- API
+
+Archive DB/API 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 뒤로가기 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 archive-m... 탭 직접 진입에서는
+뒤로가기가 정상적이지 않습니다.
+
+하단 탭 노출 제거 후
+정상 경로:
+
+회원관리
+→ 지난 회원
+
+으로 진입했을 때
+
+상단 뒤로가기 버튼이
+정상적으로 이전 회원관리 화면으로 돌아가는지 확인.
+
+필요하면 해당 screen의 back handler/navigation만
+최소 수정.
+
+금지:
+
+- 무조건 home replace
+- navigation stack 전체 재설계
+- 다른 화면 back behavior 변경
+
+정상 stack history가 있으면
+router.back() 또는 기존 canonical back 패턴 사용.
+
+history가 없는 direct/deep-link 상황은
+기존 프로젝트 fallback 패턴이 있다면 그 패턴 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Parent Archive 영향 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모의:
+
+“지난 수강 기록”
+
+Archive route/UI는
+이번 관리자 하단 탭 문제와 별개입니다.
+
+절대 변경하지 마십시오.
+
+관리자 Archive tab 노출 제거 때문에
+parent archive route가 사라지면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST A
+
+관리자 앱 시작
+
+→ 하단 탭에 archive-m... 없음
+
+PASS 기준:
+정상 5개 탭만 표시.
+
+TEST B
+
+회원관리
+→ 지난 회원
+
+→ Archive 목록 정상 진입.
+
+TEST C
+
+Archive 목록에서 뒤로가기
+
+→ 이전 회원관리 화면 복귀.
+
+TEST D
+
+지난 회원 0명
+
+→ “지난 회원이 없습니다.” 정상 표시.
+
+TEST E
+
+지난 회원이 있는 경우
+
+→ 목록/상세/일지 정상.
+
+TEST F
+
+관리자 Archive 연결/해제 기능 영향 없음.
+
+TEST G
+
+학부모 지난 수강 기록 영향 없음.
+
+TEST H
+
+기존 홈/수업관리/운영관리/메신저/설정
+탭 navigation 영향 없음.
+
+TEST I
+
+route 참조 깨짐,
+unmatched route,
+404,
+blank screen 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 금지:
+
+- Archive API 수정
+- Archive DB 수정
+- 퇴원 정책 수정
+- Archive 데이터 삭제
+- parent archive 수정
+- 회원관리 구조 개편
+- 하단 5개 정상 탭 재설계
+- unrelated navigation refactor
+
+문제의 `archive-m...` 탭 노출과
+해당 화면 back navigation만 다룹니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS navigation/UI 수정만이면:
+
+APP
+production-v2
+runtimeVersion 2.2.0
+
+iOS + Android OTA.
+
+Native build 금지.
+
+API 변경 없으면 Render deploy 금지.
+
+WEB 변경 없으면 WEB deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ROOT CAUSE]
+
+archive-m...가 왜 하단 탭에 생겼는지
+
+정확한:
+
+- route
+- file
+- tab registration/auto registration 원인
+
+[B. NORMAL ARCHIVE ENTRY]
+
+정상 “지난 회원” 진입 경로
+
+[C. ACTION]
+
+실제 처리:
+
+- tab hide
+또는
+- orphan route delete
+
+어느 방식인지와 이유
+
+[D. REFERENCE SAFETY]
+
+삭제했다면
+참조 0 증거
+
+숨겼다면
+정상 route 유지 증거
+
+[E. BACK]
+
+회원관리 → 지난 회원 → 뒤로가기 결과
+
+[F. TEST]
+
+A~I
+PASS / FAIL
+
+[G. DEPLOY]
+
+- full OTA Git SHA
+- branch/channel
+- runtimeVersion
+- iOS Update Group ID
+- iOS Update ID
+- Android Update Group ID
+- Android Update ID
+
+[H. UNCHANGED]
+
+- Archive API 변경 없음
+- Archive DB 변경 없음
+- Archive 데이터 변경 없음
+- parent archive 변경 없음
+- 정상 하단 5개 탭 변경 없음
+
+중요:
+
+조사 없이 route 파일부터 삭제하지 마십시오.
+
+정상 Archive screen이
+Tabs group에 잘못 배치된 문제라면
+screen을 삭제하지 말고 하단 탭에서만 숨기십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.

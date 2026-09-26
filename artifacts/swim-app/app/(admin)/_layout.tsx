@@ -299,6 +299,8 @@ export default function AdminLayout() {
       <Tabs.Screen name="support-chat"           options={{ href: null }} />
       {/* 결제 정지 화면 — PAYMENT_SUSPENDED 상태 전용 */}
       <Tabs.Screen name="payment-suspended"      options={{ href: null }} />
+      {/* 지난 회원(퇴원 Archive) — 하단 탭 노출 금지, members.tsx "지난 회원" 버튼으로만 진입 */}
+      <Tabs.Screen name="archive-members"        options={{ href: null }} />
     </Tabs>
     </View>
   );

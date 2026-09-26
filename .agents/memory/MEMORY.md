@@ -95,7 +95,7 @@
 - [SWIMNOTE 2.2.0 Production Release 완료](220-release-done-state.md) — HEAD 10c94c68; iOS 25fc7e4a/bld300; Android 0e68775f/vc300; OTA 01a08bbc; ASC 제출 완료
 - [WP2 완료 상태](wp2-done-state.md) — SHA 315b3668; teacher GR navigation+admin makeup read-only+dashboard GR history; OTA 01a0a3fc
 - [WP2 Production Bug Fix](wp2-production-bugfix.md) — teacherOwnsStudent current_class_id→class_group_id; diary is_deleted 제거; SHA 33a646d4 Render LIVE
-- [DATA add-on 구현 완료 상태](data-addon-implementation.md) — SHA 6d3e0909; canonical SET(누적금지)+purge worker; Render 배포 중; iOS OTA 01a0d9ea
+- [DATA add-on 구현 완료 상태](data-addon-implementation.md) — SHA 7c074b37; WP-G 검증 완료; Render dep-darcebh42hec73a6oti0; iOS OTA 01a0d9ea; Android OTA 01a0d9fb
 - [★ students/student_class_history 컬럼명 원칙](wp2-production-bugfix.md) — students.class_group_id (current_class_id 아님); sch.class_group_id (class_id 아님); is_deleted 없음
 - [platform-banners POST 버그 패턴](platform-banners-post-bugs.md) — execute(sql) not iterable + req.user.id→userId + target_pool_id 컬럼 없음; ORM insert로 교체
 - [StoreKit 신규 상품 NOT FOUND](storekit-product-missing.md) — com.swimnote.*.monthly ASC 미승인→RC SDK offering 전체 제거; 진단버튼 유지 중; legacy solo_30/center_200는 정상
