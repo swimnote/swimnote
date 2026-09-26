@@ -15,7 +15,7 @@
  *   PERMISSION   — (AIPermissionViewV2가 자체 버튼 포함)
  *   SEARCHING    — 없음 (로딩 중)
  *   GENERATING   — 없음 (로딩 중)
- *   RESULT       — [수정하기] + [다시 생성] + [일지에 삽입]
+ *   RESULT       — [수정하기] + [일지에 삽입]
  *   ERROR        — (AIErrorViewV2가 자체 버튼 포함)
  *
  * 의존: AITheme, useDiaryAIV2(타입만)
@@ -33,7 +33,6 @@ export interface DiaryAIActionBarV2Props {
   insertDone:    boolean;
   onSubmit:      () => void;
   onInsert:      () => void;
-  onRewrite:     () => void;
   onEditResult:  () => void;
   onClose:       () => void;
 }
@@ -44,7 +43,6 @@ export default function DiaryAIActionBarV2({
   insertDone,
   onSubmit,
   onInsert,
-  onRewrite,
   onEditResult,
   onClose,
 }: DiaryAIActionBarV2Props) {
@@ -81,18 +79,13 @@ export default function DiaryAIActionBarV2({
       );
     }
 
-    // ── RESULT: 수정 + 다시 생성 + 삽입 ───────────────────────────────────
+    // ── RESULT: 수정하기 + 일지에 삽입 (다시 생성 제거) ──────────────────
     case 'RESULT': {
       return (
         <View style={styles.resultColumn}>
-          <View style={styles.row}>
-            <Pressable style={styles.secondaryButton} onPress={onEditResult}>
-              <Text style={styles.secondaryLabel}>수정하기</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={onRewrite}>
-              <Text style={styles.secondaryLabel}>다시 생성</Text>
-            </Pressable>
-          </View>
+          <Pressable style={styles.rewriteButton} onPress={onEditResult}>
+            <Text style={styles.secondaryLabel}>수정하기</Text>
+          </Pressable>
           <Pressable
             style={[styles.insertButton, insertDone && styles.insertDone]}
             onPress={onInsert}
@@ -140,6 +133,15 @@ const styles = StyleSheet.create({
   // ── 공통 버튼 ─────────────────────────────────────────────────────────────
   secondaryButton: {
     flex:            1,
+    height:          48,
+    borderRadius:    AIThemeRadius.button,
+    backgroundColor: AIThemeColor.surfaceLight,
+    borderWidth:     1,
+    borderColor:     AIThemeColor.border,
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  rewriteButton: {
     height:          48,
     borderRadius:    AIThemeRadius.button,
     backgroundColor: AIThemeColor.surfaceLight,
