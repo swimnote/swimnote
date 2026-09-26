@@ -114,6 +114,8 @@ export default function TeacherDiaryScreen() {
   const [forceSuspiciousSave, setForceSuspiciousSave] = useState(false);
   /** Gap 3: AI student notes explicit confirmation — 세션 내 1회 확인으로 충분 */
   const [aiStudentNotesConfirmed, setAiStudentNotesConfirmed] = useState(false);
+  // ref 버전: handleSave 내부 stale closure 방지 (setState는 비동기, ref는 동기)
+  const aiStudentNotesConfirmedRef = useRef(false);
   const [startTime, setStartTime] = useState<string>(params.startTime ?? "");
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
@@ -932,7 +934,7 @@ export default function TeacherDiaryScreen() {
   // ── 작성 세션 전체 초기화 (나가기 확정 시 호출) ──────────────────────────
   const resetWriteSession = useCallback(() => {
     setCommonContent(""); setStudentNotes([]); setNoteInput(""); setAddNoteStudent(null);
-    setAiCurriculumMatches([]); setAiRequestId(null); setForceSuspiciousSave(false); setAiStudentNotesConfirmed(false);
+    setAiCurriculumMatches([]); setAiRequestId(null); setForceSuspiciousSave(false); setAiStudentNotesConfirmed(false); aiStudentNotesConfirmedRef.current = false;
     setGroupMedia([]); setStudentMedia({}); setMediaUploading(null);
     setSelectedAlbumIds([]); setSelectedAlbumPhotos([]); setSelectedAlbumVideos([]);
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
@@ -1101,7 +1103,7 @@ export default function TeacherDiaryScreen() {
     }
     // Gap 3: AI student notes explicit confirmation — 최초 탭 시 Alert 확인 후에만 POST
     // 조건: aiRequestId 존재 + student-specific note 1개+ + 아직 미확인 + 첫 시도
-    if (!isRetry && aiRequestId && !aiStudentNotesConfirmed && effectiveNotes.some(n => n.note_content?.trim())) {
+    if (!isRetry && aiRequestId && !aiStudentNotesConfirmedRef.current && effectiveNotes.some(n => n.note_content?.trim())) {
       const noteCount = effectiveNotes.filter(n => n.note_content?.trim()).length;
       Alert.alert(
         'AI 학생별 일지 확인',
@@ -1111,6 +1113,7 @@ export default function TeacherDiaryScreen() {
           {
             text: '확인하고 저장',
             onPress: () => {
+              aiStudentNotesConfirmedRef.current = true; // ref 동기 업데이트 (stale closure 방지)
               setAiStudentNotesConfirmed(true);
               setTimeout(() => handleSave(), 100);
             },

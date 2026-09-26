@@ -315,6 +315,20 @@ export default function DiaryWriteView({
                       <LucideIcon name="video" size={13} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
                     </Pressable>
                   </View>
+                  {/* 앨범에서 선택한 사진 thumbnail (studentAlbumPhotos) */}
+                  {(studentAlbumPhotos[note.student_id] ?? []).length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={s.mediaPreviewRow} alwaysBounceHorizontal={false}>
+                      {(studentAlbumPhotos[note.student_id] ?? []).map((p) => (
+                        <Pressable key={p.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumPhoto(note.student_id, p.id)}>
+                          <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" cachePolicy="memory" />
+                          <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
+                            <LucideIcon name="x-circle" size={14} color="#fff" />
+                          </View>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  )}
                   {stMedia.length > 0 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}
                       contentContainerStyle={s.mediaPreviewRow} alwaysBounceHorizontal={false}>

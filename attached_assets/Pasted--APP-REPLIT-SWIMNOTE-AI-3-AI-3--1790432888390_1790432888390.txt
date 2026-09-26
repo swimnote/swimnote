@@ -1,0 +1,632 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — AI 일지 3개 이슈 집중 조사 + 최소 수정]
+
+중요:
+
+이번 작업은 AI 일지 작성 화면의 아래 3개 이슈만 다룹니다.
+
+1.
+AI 학생별 일지 확인 모달이 반복해서 나타나는 문제
+
+2.
+학생별 일지에 선택한 사진의 미리보기가 표시되지 않는 문제
+
+3.
+“다시 생성” 버튼 사용 시 실제 AI/API 호출 횟수와 비용 발생 구조 확인
+
+범위 밖 기능 수정 금지.
+
+광범위 리팩터링 금지.
+DB 구조 변경 금지.
+RevenueCat/결제 변경 금지.
+Growth Report 변경 금지.
+일지 권한 정책 변경 금지.
+AI 문장 품질/프롬프트 개편 금지.
+
+먼저 실제 원인을 조사하고,
+1번과 2번은 원인이 확인되면 최소 수정하십시오.
+
+3번은 호출 구조를 먼저 확인하고,
+의도치 않은 중복 호출이 있을 때만 수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 이슈 1 — 저장 확인 모달 반복
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 확인된 재현:
+
+1.
+AI 일지 작성
+
+2.
+AI가 학생별 일지를 생성
+
+3.
+하단 “저장” 버튼 탭
+
+4.
+다음 모달 표시:
+
+“AI 학생별 일지 확인
+AI가 학생별 일지 1건을 작성했습니다.
+내용을 확인하셨나요?”
+
+버튼:
+취소
+확인하고 저장
+
+5.
+“확인하고 저장” 탭
+
+6.
+정상이라면 이 시점에
+일지가 저장 완료되어야 함.
+
+현재 문제:
+
+“확인하고 저장”을 눌러도
+동일 확인 모달이 다시 나타남.
+
+그 후:
+
+모달에서 “취소”를 한 번 누름
+→ 다시 일지 작성 화면의 “저장” 탭
+→ 그제서야 저장 완료됨.
+
+즉:
+
+확인 모달 confirm
+→ 실제 save로 진행하지 못하고
+→ 다시 confirmation gate로 재진입하는
+상태/handler loop 가능성이 있음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이슈 1 조사 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음의 실제 handler/state 흐름을 추적:
+
+- 하단 저장 버튼 onPress
+- AI 학생별 일지 존재 여부 판정
+- 확인 모달 open state
+- “확인하고 저장” handler
+- 실제 diary save function
+- save 함수가 다시 confirmation 조건을 검사하는지
+- confirmed flag/state/ref 존재 여부
+- 저장 성공 후 state reset
+- double press protection
+- saving/loading flag
+
+특히 확인:
+
+A.
+“확인하고 저장” handler가
+원래 save handler를 그대로 다시 호출하면서
+confirmation condition을 다시 타는지
+
+B.
+confirmed state를 set한 직후
+React state 비동기성 때문에
+같은 함수 안에서 이전 false 값을 읽는지
+
+C.
+modal close와 save 호출 순서 문제인지
+
+D.
+실제 저장 API가 두 번 호출되는지
+
+E.
+모달은 두 번 뜨지만 저장 API는 한 번인지,
+아예 첫 confirm에서는 API 호출이 없는지
+
+추측하지 말고 실제 코드로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 이슈 1 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 UX:
+
+저장
+→ AI 학생별 일지가 있으면 확인 모달 1회
+→ “확인하고 저장”
+→ 실제 저장 1회
+→ 성공
+→ 화면 종료/기존 정상 완료 UX
+
+“확인하고 저장” 이후
+동일 모달 재표시 금지.
+
+권장 방향:
+
+confirmation과 실제 persistence를
+명확히 분리.
+
+예:
+
+requestSave()
+→ confirmation 필요 여부 판단
+
+confirmSave()
+→ confirmation gate를 다시 타지 않고
+canonical persistence 함수 직접 실행
+
+단 현재 코드 구조에 맞는 최소 수정 사용.
+
+새로운 복잡한 state machine 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 이슈 1 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 유지:
+
+- 사용자가 “취소”하면 저장되지 않음
+- 확인 전 학생별 AI 일지를 사용자가 검토 가능
+- 저장 중 중복 탭으로 diary 중복 생성 금지
+- 전체 일지 + 학생별 일지 모두 기존 방식대로 저장
+- 사진/영상 attachment 유지
+- 기존 diary edit flow 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이슈 2 — 학생별 사진 미리보기 누락
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기:
+
+[전체 일지]
+
+“앨범에서 선택”
+→ 사진 선택
+→ 화면에 thumbnail 미리보기 정상 표시
+
+[학생별 추가 일지]
+
+학생 카드 내부:
+
+“앨범에서 선택”
+→ 사진 선택 가능
+
+하지만 선택한 사진의
+thumbnail 미리보기가 화면에 나타나지 않음.
+
+학생별 사진도
+전체 일지와 동일하게
+선택 즉시 미리보기가 보여야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 이슈 2 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 일지 사진과
+학생별 일지 사진의 다음 흐름을 비교:
+
+전체 일지:
+
+picker
+→ selected asset state
+→ local URI
+→ preview render
+→ upload payload
+
+학생별 일지:
+
+picker
+→ student-specific selected asset state
+→ local URI
+→ preview render
+→ upload payload
+
+확인:
+
+- 학생별 사진 선택 state가 실제 저장되는지
+- student id/key별 state 구조
+- selected image URI 존재 여부
+- render branch 누락 여부
+- preview component 미사용 여부
+- picker callback에서 state는 갱신되는데 UI만 빠졌는지
+- 전체 일지용 preview component 재사용 가능한지
+- 사진 삭제(X) handler 존재 여부
+- 사진 여러 장 지원 여부/현재 정책
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이슈 2 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생별 사진 선택 후:
+
+- 즉시 thumbnail 표시
+- 전체 일지 사진 preview와 동일한 UX 수준
+- 삭제 X 가능
+- 저장 전 변경 가능
+- 실제 저장 payload와 preview state가 동일 source를 사용
+
+중요:
+
+미리보기용으로 별도 복제 state를 만들어
+실제 업로드 대상과 불일치하게 하지 마십시오.
+
+가능하면 기존 전체 일지
+thumbnail/attachment preview component 또는
+동일 패턴 재사용.
+
+사진 선택 순서 관련
+기존 orderedSelection 수정은 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 이슈 3 — “다시 생성” AI 비용 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 AI 작성 결과 모달에:
+
+- 수정하기
+- 다시 생성
+- 일지에 삽입
+
+버튼이 존재.
+
+“다시 생성”을 누를 때마다
+실제 AI 호출비용이 추가되는지 확인해야 합니다.
+
+이번 단계에서는
+비용 자체를 임의로 없애거나
+버튼 정책을 변경하지 마십시오.
+
+먼저 정확한 호출 구조를 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 다시 생성 호출 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 전체 경로를 추적:
+
+APP “다시 생성” onPress
+
+↓
+
+APP API 호출
+
+↓
+
+SWIMNOTE API
+
+↓
+
+AI ENGINE 또는 직접 AI provider 호출
+
+↓
+
+OpenAI/API request
+
+↓
+
+응답
+
+확인:
+
+A.
+최초 “AI 작성” 1회에
+실제 모델 호출 몇 회 발생하는지
+
+B.
+“다시 생성” 1회 클릭에
+실제 모델 호출 몇 회 발생하는지
+
+C.
+전체 일지 생성과 학생별 일지 생성이
+별도 모델 호출인지
+
+D.
+학생 1명 추가 일지를 생성할 때
+학생 수만큼 API 호출하는지
+아니면 한 요청에서 묶어 생성하는지
+
+E.
+다시 생성 시
+전체+학생별을 모두 다시 생성하는지
+
+F.
+기존 결과를 client-side에서 다시 표시하는 것이 아니라
+실제로 새로운 모델 request를 보내는지
+
+G.
+double tap / rerender / effect로
+한 번 눌렀는데 두 번 이상 호출될 가능성이 있는지
+
+H.
+retry가 자동으로 발생하는 구조가 있는지
+
+I.
+현재 trace/usage/cost log가 있으면
+한 번의 generation 단위 사용량 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 비용 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+결과를 다음 중 하나로 명확히 판정:
+
+CASE A.
+
+“다시 생성” 1회
+=
+새 AI model request 1회
+
+→ 정상적인 추가 호출비용 발생.
+
+버그 아님.
+
+이 경우 코드 변경하지 말고
+정확한 호출 구조만 보고.
+
+CASE B.
+
+“다시 생성” 1회인데
+동일 generation이 2회 이상 호출
+
+→ 버그.
+
+중복 호출 원인 찾아 최소 수정.
+
+CASE C.
+
+“다시 생성”이
+전체 일지 + 모든 학생별 일지를
+필요 이상으로 전부 재생성
+
+→ 현재 설계가 의도된 것인지
+코드 근거와 함께 보고.
+
+정책 결정 없이 임의 변경 금지.
+
+CASE D.
+
+모델 호출이 없고
+기존 결과만 다시 사용
+
+→ 그렇게 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. AI 비용 실제 금액
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드/로그에서 다음이 실제 확인 가능하면 보고:
+
+- 사용 모델
+- input tokens
+- output tokens
+- request count
+- 한 번 생성의 평균/예시 token usage
+- 다시 생성 1회 추가 token usage
+
+단 정확한 실제 API 단가를
+코드에 저장된 값만 보고 추측하지 마십시오.
+
+비용 단가 확인이 현재 시스템에서 불가능하면:
+
+“호출량은 확인됨 / 실제 원화 비용은 확인하지 못함”
+
+으로 보고.
+
+이번 작업 때문에
+외부 모델이나 프롬프트를 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 테스트 — 모달
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST A
+
+AI 학생별 일지 1건 생성
+→ 저장
+→ 확인 모달 1회
+→ “확인하고 저장”
+→ 저장 성공
+
+동일 모달 두 번째 표시 금지.
+
+TEST B
+
+확인 모달
+→ 취소
+
+→ 저장되지 않음
+→ 작성 화면 유지.
+
+TEST C
+
+다시 저장
+→ 확인 모달
+→ 확인하고 저장
+→ 정상 저장.
+
+TEST D
+
+저장 버튼 빠르게 여러 번 눌러도
+중복 diary 생성 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 테스트 — 학생별 사진
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST E
+
+학생별 일지
+→ 앨범에서 사진 선택
+→ 즉시 thumbnail 표시.
+
+TEST F
+
+thumbnail X
+→ 선택 제거.
+
+TEST G
+
+학생별 사진 선택 후 저장
+→ 실제 저장된 diary에
+해당 사진 정상 연결.
+
+TEST H
+
+전체 일지 사진 preview
+기존 정상 동작 유지.
+
+TEST I
+
+전체 일지 사진 + 학생별 사진을
+동시에 사용해도 서로 state가 섞이지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 테스트 — 다시 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEST J
+
+최초 AI 생성 1회
+→ 실제 request count 기록.
+
+TEST K
+
+“다시 생성” 정확히 1회 탭
+→ 추가 request count 기록.
+
+TEST L
+
+한 번 탭에
+중복 request 없음.
+
+TEST M
+
+다시 생성 중 버튼 재탭
+→ 중복 호출 방지 여부 확인.
+
+필요하면 generating flag를 이용한
+최소 double-submit 방지만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 배포 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+1번/2번 또는 실제 중복 AI 호출 수정이
+APP JS만이면:
+
+production-v2
+runtimeVersion 2.2.0
+
+iOS + Android OTA.
+
+API 수정이 실제 필요한 경우에만
+Render 배포.
+
+AI ENGINE 수정은
+실제 중복 호출 원인이 AI ENGINE 내부로
+확인된 경우에만 별도 보고 후 수정.
+
+괜히 AI ENGINE 구조를 건드리지 마십시오.
+
+DB migration 금지.
+
+WEB 변경 없으면 WEB deploy 금지.
+
+Native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. SAVE MODAL ROOT CAUSE]
+
+- 파일
+- handler
+- state/ref
+- 왜 confirm 후 다시 modal이 떴는지
+
+[B. SAVE MODAL FIX]
+
+- 실제 수정
+- 저장 API 호출 횟수
+- 중복 저장 방지
+
+[C. STUDENT PHOTO ROOT CAUSE]
+
+- 전체 일지 preview와
+  학생별 preview 차이
+- 누락된 state/render 지점
+
+[D. STUDENT PHOTO FIX]
+
+- thumbnail
+- remove
+- 실제 upload/save 연결
+
+[E. REGENERATE CALL TRACE]
+
+최초 생성:
+- APP request 수
+- API request 수
+- AI/model request 수
+
+다시 생성 1회:
+- APP request 수
+- API request 수
+- AI/model request 수
+
+[F. COST VERDICT]
+
+다음 중 하나:
+
+- 다시 생성 1회당 정상적으로 새 AI 비용 발생
+- 중복 호출 버그로 추가 비용 발생
+- AI 호출 없음
+- 확인하지 못함
+
+[G. AI CHANGES]
+
+중복 호출이 없었다면:
+“AI 호출 로직 변경 없음”
+
+중복 호출이 있었다면:
+정확한 수정 내용
+
+[H. TEST]
+
+A~M
+PASS / FAIL / 확인하지 못함
+
+[I. DEPLOY]
+
+APP 변경 시:
+
+- full OTA Git SHA
+- branch/channel
+- runtimeVersion
+- iOS Update Group ID
+- iOS Update ID
+- Android Update Group ID
+- Android Update ID
+
+API 변경 시:
+
+- full Work SHA
+- full Production LIVE SHA
+- Render Deploy ID/status
+
+[J. UNCHANGED]
+
+- AI 일지 prompt/문장 정책 변경 없음
+- 일지 DB schema 변경 없음
+- 권한 정책 변경 없음
+- RevenueCat 변경 없음
+- Growth Report 변경 없음
+- 사진 선택 순서 정책 변경 없음
+
+완료했다고만 보고하지 마십시오.
+
+특히 “다시 생성 비용”은
+버튼 이름이나 코드 형태만 보고 추측하지 말고
+실제 request path를 끝까지 추적하십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
