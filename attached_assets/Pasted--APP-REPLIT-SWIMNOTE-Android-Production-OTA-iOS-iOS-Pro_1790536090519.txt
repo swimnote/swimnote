@@ -1,0 +1,248 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — Android Production OTA 전체 동기화 / iOS 최신 상태와 일치]
+
+현재 iOS Production은 최신 JS 수정사항까지 OTA 배포되어 있고,
+학부모 초대 SMS 자동문구 기능도 iPhone 실기기에서 정상 동작 확인되었습니다.
+
+현재 확인된 최신 iOS OTA:
+
+- Branch: production-v2
+- iOS Update ID:
+  01a0e43f-0f36-7764-9222-1575c205ddb8
+- Update Group:
+  fd54b786-35de-4bee-8812-275c32189ba5
+
+반면 직전 SMS 작업에서는 Android OTA를 의도적으로 배포하지 않았습니다.
+
+이번 작업의 목표는:
+
+“SMS 기능 하나만 Android에 배포”가 아니라,
+
+현재 Android Production OTA 상태를 조사하여
+iOS 최신 Production에 포함된 JS/TS 수정 중
+Android에 아직 OTA되지 않은 모든 수정사항을 확인하고,
+현재 GitHub main의 승인된 최신 APP 코드 기준으로
+Android Production을 iOS와 동일한 최신 기능 상태까지 동기화하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 현재 상태 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA를 하기 전에 다음을 실제 EAS/Git 기준으로 확인하십시오.
+
+A. 현재 GitHub main HEAD full SHA
+
+B. 최신 iOS Production OTA:
+- Update ID
+- Update Group
+- branch
+- runtimeVersion
+- commit/git SHA 또는 해당 update가 가리키는 코드 상태
+
+C. 최신 Android Production OTA:
+- Update ID
+- Update Group
+- branch
+- runtimeVersion
+- commit/git SHA 또는 해당 update가 가리키는 코드 상태
+- 배포 시각
+
+D. 최신 Android OTA 이후
+GitHub main에 들어간 APP JS/TS 변경사항 목록
+
+특히 최근 작업들을 포함하여 확인:
+
+- AI 커리큘럼 검색 관련 APP 변경
+- AI Diary 관련 APP 변경
+- StoryShare 관련 APP 변경
+- 학부모 초대 SMS 자동문구
+- 그 외 최근 iOS에는 올라갔지만 Android에는 안 올라간 JS/TS 수정
+
+API Server / AI ENGINE 서버 배포는 Android OTA 대상이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 동기화 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android에 올릴 기준은:
+
+현재 승인된 GitHub main의 최신 APP JS/TS 코드
+
+입니다.
+
+Android를 과거 특정 iOS update bundle에 억지로 맞추는 것이 아니라,
+현재 iOS Production이 사용하고 있는 최신 승인 코드 상태와
+Android가 기능적으로 동일해지도록 하십시오.
+
+즉 최종 목표:
+
+iOS Production
+Android Production
+
+둘 다 동일한 최신 APP source state 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 새 기능 개발 금지
+- 코드 리팩터링 금지
+- 관련 없는 버그 수정 금지
+- API Server 재배포 금지
+- AI ENGINE 재배포 금지
+- native dependency 추가 금지
+- Android versionCode 변경 금지
+- Play Store 새 binary build 금지
+
+이번 작업은 OTA 동기화 작업입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. runtimeVersion 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android 현재 설치 binary의 runtimeVersion과
+현재 production-v2 OTA runtimeVersion이 호환되는지 먼저 확인하십시오.
+
+호환되면:
+→ Android OTA 진행
+
+호환되지 않으면:
+→ 억지로 OTA하지 말고 HOLD
+→ 필요한 native build 이유를 보고
+
+JS-only 변경인데 runtime mismatch가 없다면
+새 binary build를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Android Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+누락된 JS/TS 변경이 하나라도 있다면
+현재 최신 main 기준으로 Android Production OTA를 실행하십시오.
+
+대상:
+
+- platform: android
+- production branch/channel의 현재 프로젝트 규칙 유지
+- 현재 사용 중인 runtimeVersion 유지
+- production-v2가 Android Production용 공식 branch라면 그대로 사용
+
+배포 후 반드시 Android용 새:
+
+- EAS Update ID
+- Update Group ID
+- runtimeVersion
+
+을 확보하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기능 동기화 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Android OTA 후 최소 smoke test만 수행하십시오.
+
+A. 앱 실행 / 로그인
+
+B. 관리자 회원 상세 진입
+
+C. 보호자 문자 아이콘
+→ Android 기본 SMS 앱 실행
+→ 보호자 번호 자동 입력
+→ 자동 본문 입력
+→ 수영장명
+→ 학생명
+→ App Store 링크
+→ Google Play 링크
+확인
+
+D. 최근 변경 기능 중 Android가 뒤처져 있었던 항목이 있다면
+각 항목 진입 가능 여부만 최소 확인
+
+전체 regression suite는 돌리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. iOS는 다시 OTA하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 iOS:
+
+01a0e43f-0f36-7764-9222-1575c205ddb8
+
+가 최신 main과 동일한 코드 상태라면
+iOS OTA를 새로 만들지 마십시오.
+
+단,
+Android 동기화 전에 확인한 결과
+최신 main에 iOS OTA 이후 추가 APP JS/TS commit이 존재한다면:
+
+iOS와 Android 둘 다 동일 최신 main 기준으로 OTA하여
+양 플랫폼을 다시 맞추십시오.
+
+즉 최종적으로:
+
+iOS APP source state
+=
+Android APP source state
+=
+현재 승인된 GitHub main APP source state
+
+가 되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. 현재 GitHub main full SHA
+
+2. 작업 전 최신 iOS OTA
+- Update ID
+- Group ID
+- runtimeVersion
+- source SHA
+
+3. 작업 전 최신 Android OTA
+- Update ID
+- Group ID
+- runtimeVersion
+- source SHA
+
+4. Android에 누락되어 있던 APP 변경사항
+- 있으면 목록
+- 없으면 없음
+
+5. runtimeVersion 호환 여부
+
+6. 최종 iOS Production 상태
+- Update ID
+- Group ID
+- source SHA
+
+7. 최종 Android Production 상태
+- Update ID
+- Group ID
+- source SHA
+
+8. Android SMS 자동문구 테스트 결과
+- 수신번호
+- 본문
+- 수영장명
+- 학생명
+- Store 링크
+각 PASS/FAIL
+
+9. 신규 native dependency 여부
+
+10. 새 binary build 여부
+
+최종적으로 반드시 명시:
+
+“iOS와 Android가 현재 승인된 최신 APP JS source 기준으로 동기화됨”
+또는
+“동기화되지 않음 — 이유”
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
