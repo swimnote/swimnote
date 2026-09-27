@@ -17,6 +17,12 @@
  *   - parent_account: student_class_history 기준 연결 학생만 조회
  *   - 다른 학생 개인정보 혼입 구조적 차단 (DB JOIN 레벨)
  *   - teacher / pool_admin / super_admin: pool 소속 확인 후 common_content만 사용
+ *
+ * Transient retry 정책:
+ *   - 1차 OpenAI 호출 실패 시 오류 종류에 따라 1회 retry
+ *   - retry 허용: 429 rate limit, 5xx server error, network/connect 오류
+ *   - retry 금지: 400/401/403, AbortError(timeout), empty_response
+ *   - retry도 실패 시 summary_failed 500 반환 (fallback 금지)
  */
 
 import { Router }                         from 'express';
@@ -30,7 +36,7 @@ import { AI_MODEL }                       from '../config/ai-model-config.js';
 
 const router = Router();
 
-// ── OpenAI 클라이언트 (lazy, shared) ─────────────────────────────────────────
+// ── OpenAI 클라이언트 (lazy, shared; 테스트에서 교체 가능) ──────────────────
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
   if (!_openai) {
@@ -40,9 +46,68 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
+/**
+ * 테스트 전용 — 프로덕션 코드에서 절대 호출 금지.
+ * OpenAI 클라이언트를 mock으로 교체한다.
+ */
+export function _setOpenAIClientForTest(client: OpenAI | null): void {
+  _openai = client;
+}
+
+/** retry 전 대기 시간 (ms). 테스트에서 0으로 설정하여 지연 제거 가능. */
+let _retryDelayMs = 1_000;
+
+/**
+ * 테스트 전용 — 프로덕션 코드에서 절대 호출 금지.
+ * retry 전 대기 시간을 오버라이드한다.
+ */
+export function _setRetryDelayMsForTest(ms: number): void {
+  _retryDelayMs = ms;
+}
+
 async function getPoolId(userId: string): Promise<string | null> {
   const r = await superAdminDb.execute(sql`SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1`);
   return (r.rows[0] as any)?.swimming_pool_id ?? null;
+}
+
+// ── retry 가능 여부 판정 ──────────────────────────────────────────────────────
+/**
+ * OpenAI SDK 예외에서 retry 허용 여부를 결정한다.
+ *
+ * Retry 허용:
+ *   - HTTP status 없음 (network/connect 오류)
+ *   - HTTP 429 (rate limit)
+ *   - HTTP 5xx (서버 오류)
+ *
+ * Retry 금지:
+ *   - AbortError (timeout — 이미 25초 소모)
+ *   - empty_response (OpenAI가 빈 응답 반환 — 재시도 무의미)
+ *   - HTTP 400 (invalid request — payload 문제)
+ *   - HTTP 401 (authentication — key 문제)
+ *   - HTTP 403 (permission)
+ */
+export function isRetryableOpenAIError(e: any): boolean {
+  if (e?.name === 'AbortError')        return false;  // timeout
+  if (e?.message === 'empty_response') return false;  // 빈 응답
+  const status = e?.status ?? e?.statusCode;
+  if (status === 400) return false;  // invalid request
+  if (status === 401) return false;  // authentication
+  if (status === 403) return false;  // permission
+  // status 없음(network), 429, 5xx → retry
+  return true;
+}
+
+/** OpenAI 예외에서 업스트림 정보를 안전하게 추출 */
+function extractOpenAIErrorInfo(e: any): {
+  upstream_status:     number | null;
+  upstream_error_code: string | null;
+  upstream_error_type: string | null;
+} {
+  return {
+    upstream_status:     e?.status     ?? e?.statusCode ?? null,
+    upstream_error_code: e?.code       ?? e?.error?.code ?? null,
+    upstream_error_type: e?.type       ?? e?.error?.type ?? e?.name ?? null,
+  };
 }
 
 // ── POST /diaries/:diaryId/story-summary ─────────────────────────────────────
@@ -127,13 +192,15 @@ router.post(
       if (!fullText) { res.status(400).json({ error: 'empty_content' }); return; }
 
       // ── 4. OpenAI 요약 호출 ────────────────────────────────────────────────
-      const openai     = getOpenAI();
-      const controller = new AbortController();
-      const timer      = setTimeout(() => controller.abort(), 25_000);
+      const openai       = getOpenAI();
+      const controller   = new AbortController();
+      const timer        = setTimeout(() => controller.abort(), 25_000);
 
-      // CS-PA1: 계측용 trace 변수 (provider call 토큰 누계)
-      const storyStartMs  = Date.now();
-      const storyTraceId  = `story_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const storyStartMs = Date.now();
+      const storyTraceId = `story_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const reqTag       = storyTraceId.slice(-8);  // 로그용 마스킹 ID
+      const diaryTag     = `...${diaryId.slice(-8)}`;
+
       let firstCallTokens: { prompt: number; completion: number; total: number } | null = null;
       let retryCallTokens: { prompt: number; completion: number; total: number } | null = null;
 
@@ -159,8 +226,10 @@ ${fullText}
 
 한줄평:`;
 
+      // ── 4a. OpenAI 1차 호출 ───────────────────────────────────────────────
       let summary: string = '';
-      let firstAttemptErr: any = null;
+      let attempt1Err: any = null;
+      let attempt1Info: ReturnType<typeof extractOpenAIErrorInfo> | null = null;
 
       try {
         const completion = await openai.chat.completions.create(
@@ -175,7 +244,6 @@ ${fullText}
         clearTimeout(timer);
         summary = completion.choices[0]?.message?.content?.trim() ?? '';
         if (!summary) throw new Error('empty_response');
-        // CS-PA1: 1차 call 토큰 캡처
         if (completion.usage) {
           firstCallTokens = {
             prompt:     completion.usage.prompt_tokens     ?? 0,
@@ -183,29 +251,50 @@ ${fullText}
             total:      completion.usage.total_tokens      ?? 0,
           };
         }
+        // 계측 로그 — 1차 성공
+        console.log(
+          `[story-summary-trace] req=${reqTag} diary=${diaryTag}` +
+          ` attempt=1 result=success` +
+          ` upstream_status=200 retry_performed=false` +
+          ` total_ms=${Date.now() - storyStartMs}`
+        );
       } catch (e: any) {
         clearTimeout(timer);
-        firstAttemptErr = e;
+        attempt1Err  = e;
+        attempt1Info = extractOpenAIErrorInfo(e);
+        const retryable = isRetryableOpenAIError(e);
+        // 계측 로그 — 1차 실패 (PII 없음)
+        console.error(
+          `[story-summary-trace] req=${reqTag} diary=${diaryTag}` +
+          ` attempt=1 result=failure` +
+          ` upstream_status=${attempt1Info.upstream_status ?? 'none'}` +
+          ` upstream_error_code=${attempt1Info.upstream_error_code ?? 'none'}` +
+          ` upstream_error_type=${attempt1Info.upstream_error_type ?? 'none'}` +
+          ` retryable=${retryable}`
+        );
       }
 
-      // ── 4b. transient 오류 1회 retry ──────────────────────────────────────
-      // OpenAI API 일시 오류(5xx, network glitch, rate limit) 발생 시
-      // AbortError(timeout) · empty_response는 재시도하지 않음.
-      // 재시도 성공 → 정상 흐름. 재시도도 실패 → summary_failed 500.
-      if (firstAttemptErr != null) {
-        const isTimeout   = firstAttemptErr.name === 'AbortError';
-        const isEmptyResp = firstAttemptErr.message === 'empty_response';
+      // ── 4b. Transient 오류 1회 retry ─────────────────────────────────────
+      // retry 허용: 429, 5xx, network 오류 (isRetryableOpenAIError 판정)
+      // retry 금지: AbortError(timeout), empty_response, 400/401/403
+      if (attempt1Err != null) {
+        const retryable = isRetryableOpenAIError(attempt1Err);
 
-        if (!isTimeout && !isEmptyResp) {
-          // 1초 대기 후 fresh AbortController로 재시도
-          await new Promise<void>(r => setTimeout(r, 1_000));
+        if (retryable) {
+          // 대기 후 fresh AbortController로 retry (1차 타이머와 독립)
+          // 기본 1초, 테스트에서는 _setRetryDelayMsForTest(0)으로 0ms 설정 가능
+          if (_retryDelayMs > 0) {
+            await new Promise<void>(r => setTimeout(r, _retryDelayMs));
+          }
           const r2ctrl  = new AbortController();
           const r2timer = setTimeout(() => r2ctrl.abort(), 20_000);
+          let attempt2Err: any = null;
+
           try {
             const r2comp = await openai.chat.completions.create(
               {
                 model:       AI_MODEL.STORY,
-                messages:    [{ role: 'user', content: prompt }],
+                messages:    [{ role: 'user', content: prompt }],  // 동일 payload
                 temperature: 0.3,
                 max_tokens:  400,
               },
@@ -215,50 +304,55 @@ ${fullText}
             const r2sum = r2comp.choices[0]?.message?.content?.trim() ?? '';
             if (!r2sum) throw new Error('empty_response');
             if (r2comp.usage) {
-              // retry 토큰을 retryCallTokens에 누계 (기존 변수 재사용)
               retryCallTokens = {
                 prompt:     r2comp.usage.prompt_tokens     ?? 0,
                 completion: r2comp.usage.completion_tokens ?? 0,
                 total:      r2comp.usage.total_tokens      ?? 0,
               };
             }
-            // retry 성공 — summary에 할당하고 firstAttemptErr 클리어
-            const origMsg   = String(firstAttemptErr?.message ?? 'unknown').slice(0, 40);
-            summary         = r2sum;
-            firstAttemptErr = null;
+            summary      = r2sum;
+            attempt1Err  = null;  // retry 성공 → 이후 500 경로 진입 안 함
+            // 계측 로그 — retry 성공
             console.log(
-              `[story-summary] retry succeeded` +
-              ` diaryId=...${diaryId.slice(-8)}` +
-              ` orig_err=${origMsg}`
+              `[story-summary-trace] req=${reqTag} diary=${diaryTag}` +
+              ` attempt=2 result=success` +
+              ` upstream_status=200 retry_performed=true` +
+              ` final_http_status=200 total_ms=${Date.now() - storyStartMs}`
             );
           } catch (e2: any) {
             clearTimeout(r2timer);
+            attempt2Err = e2;
+            const attempt2Info = extractOpenAIErrorInfo(e2);
+            // 계측 로그 — retry도 실패
             console.error(
-              `[story-summary] retry also failed` +
-              ` diaryId=...${diaryId.slice(-8)}` +
-              ` msg=${String(e2?.message ?? 'unknown').slice(0, 80)}`
+              `[story-summary-trace] req=${reqTag} diary=${diaryTag}` +
+              ` attempt=2 result=failure` +
+              ` upstream_status=${attempt2Info.upstream_status ?? 'none'}` +
+              ` upstream_error_code=${attempt2Info.upstream_error_code ?? 'none'}` +
+              ` upstream_error_type=${attempt2Info.upstream_error_type ?? 'none'}` +
+              ` retry_performed=true final_http_status=500` +
+              ` total_ms=${Date.now() - storyStartMs}`
             );
-            // retry 실패도 firstAttemptErr 유지 → 아래 500 처리
           }
         }
 
-        // 1차 + retry 모두 실패 → 500
-        if (firstAttemptErr != null) {
-          // 비개인정보 로그만 (원문/학생명/JWT 로그 금지)
+        // 최종 실패 처리 (retry 불가 + retry 실패 공통)
+        if (attempt1Err != null) {
+          const retried = retryable;
           console.error(
-            `[story-summary] OpenAI error` +
-            ` diaryId=...${diaryId.slice(-8)}` +
-            ` msg=${String(firstAttemptErr?.message ?? 'unknown').slice(0, 80)}`
+            `[story-summary-trace] req=${reqTag} diary=${diaryTag}` +
+            ` final=failed retry_performed=${retried}` +
+            ` final_http_status=500 total_ms=${Date.now() - storyStartMs}`
           );
           void saveAiTrace({
             status: 'FAILED', request_id: storyTraceId, internal_id: storyTraceId,
             pool_id: diary.swimming_pool_id ?? '', actor_id: userId,
             contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
             pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
-            trigger_type: 'USER_ACTION', service: 'gpt',
-            error_stage: 'LLM_GENERATION' as any, error_code: 'OPENAI_ERROR',
+            trigger_type: 'USER_ACTION',
+            error_stage: 'LLM_GENERATION', error_code: retried ? 'OPENAI_DOUBLE_FAILURE' : 'OPENAI_NON_RETRYABLE',
             latency_ms: Date.now() - storyStartMs,
-          }).catch(() => {});
+          } as any).catch(() => {});
           res.status(500).json({ error: 'summary_failed' }); return;
         }
       }
@@ -314,9 +408,9 @@ ${fullText}
             contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
             pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
             trigger_type: 'USER_ACTION',
-            error_stage: 'LLM_GENERATION', error_code: 'RETRY_OPENAI_ERROR',
+            error_stage: 'LLM_GENERATION', error_code: 'LENGTH_RETRY_OPENAI_ERROR',
             latency_ms: Date.now() - storyStartMs,
-            sub_feature: 'RETRY',
+            sub_feature: 'LENGTH_RETRY',
             input_tokens:  firstCallTokens?.prompt     ?? null,
             output_tokens: firstCallTokens?.completion ?? null,
             total_tokens:  firstCallTokens?.total      ?? null,
@@ -338,7 +432,7 @@ ${fullText}
             trigger_type: 'USER_ACTION', service: 'gpt',
             error_stage: 'OUTPUT_VALIDATION', error_code: 'LENGTH_EXCEEDED_AFTER_RETRY',
             latency_ms: Date.now() - storyStartMs,
-            sub_feature: 'RETRY',
+            sub_feature: 'LENGTH_RETRY',
           }).catch(() => {});
           res.status(500).json({ error: 'summary_failed' }); return;
         }
@@ -363,7 +457,7 @@ ${fullText}
         provider:         'openai',
         trigger_type:     'USER_ACTION',
         service:          'gpt',
-        generation_mode:  retryCallTokens ? 'story_with_retry' : 'story_direct',
+        generation_mode:  retryCallTokens ? 'story_with_transient_retry' : 'story_direct',
         model:            AI_MODEL.STORY,
         latency_ms:       Date.now() - storyStartMs,
         input_tokens:     totalInput  > 0 ? totalInput  : null,
