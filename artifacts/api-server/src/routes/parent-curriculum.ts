@@ -620,6 +620,41 @@ router.post(
 
     const engineMode: "NORMAL" | "X" = "X"; // poolMode === "x" (normal blocked above)
 
+    // ── 12b. SCP canonical SoT 선행 확인 (§3 목표 정책) ─────────────────────
+    //
+    // CURRENT_PROGRESS / STROKE_PROGRESS / PROGRESS_CHANGE 질문에서
+    // tracked diary evidence 부족으로 DIRECT_DB로 판정됐더라도,
+    // student_curriculum_progress(SCP: 학부모 진도게이지의 canonical SoT)에
+    // 유효한 progress 데이터(display_confirmed_pct > 0)가 존재하면
+    // GROUNDED_GPT로 전환한다.
+    //
+    // 이유: 학부모 UI 진도게이지는 SCP.display_confirmed_pct를 canonical SoT로 사용한다.
+    //       SCP에 진도 데이터가 있는데 "기록된 진도가 없습니다"라고 답하면 안 된다.
+    //
+    // 전환 조건: answer_mode === "DIRECT_DB"
+    //            && 진도 관련 intent (CURRENT_PROGRESS / STROKE_PROGRESS / PROGRESS_CHANGE)
+    //            && SCP.display_confirmed_pct > 0
+    // 전환 결과: answer_mode → "GROUNDED_GPT"
+    //            earlyScpProgress → GROUNDED_GPT 경로의 buildStudentProgress 결과로 재사용
+    //
+    // 금지: 새 progress 시스템 생성 금지; DB migration 금지; ENGINE 변경 금지.
+    //
+    const SCP_UPGRADE_INTENTS = new Set(["CURRENT_PROGRESS", "STROKE_PROGRESS", "PROGRESS_CHANGE"]);
+    let earlyScpProgress: Awaited<ReturnType<typeof buildStudentProgress>> | undefined;
+
+    if (groundedPackage.answer_mode === "DIRECT_DB" &&
+        SCP_UPGRADE_INTENTS.has(parsedIntent.intent)) {
+      earlyScpProgress = await buildStudentProgress(studentId, poolId).catch((err) => {
+        console.error("[parent-curriculum] earlyScpProgress fetch failed:", err?.message);
+        return undefined;
+      });
+      if (earlyScpProgress?.confirmed_progress_pct != null &&
+          earlyScpProgress.confirmed_progress_pct > 0) {
+        // SCP에 유효한 진도 데이터 있음 → GROUNDED_GPT로 전환
+        groundedPackage.answer_mode = "GROUNDED_GPT";
+      }
+    }
+
     // ── 13. answer_mode 분기 ─────────────────────────────────────────────────
 
     // DIRECT_DB: AI Engine 호출 없음, quota 차감 없음
@@ -780,7 +815,8 @@ router.post(
     // GAUGE-08: SCP gauge context (optional, fire-and-forget on failure).
     // confirmed_progress_pct = display_confirmed_pct (학부모 UI gauge 값 — 의미: "진행 위치")
     // Security: studentId + poolId 둘 다 전달 (단독 조회 금지).
-    const scpProgress = await buildStudentProgress(studentId, poolId).catch((err) => {
+    // earlyScpProgress: 12b 단계에서 이미 조회된 경우 재사용 (중복 DB 조회 방지)
+    const scpProgress = earlyScpProgress ?? await buildStudentProgress(studentId, poolId).catch((err) => {
       console.error("[parent-curriculum] SCP progress fetch failed:", err?.message);
       return undefined;
     });
