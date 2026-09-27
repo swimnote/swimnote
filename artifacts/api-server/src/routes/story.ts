@@ -159,7 +159,9 @@ ${fullText}
 
 한줄평:`;
 
-      let summary: string;
+      let summary: string = '';
+      let firstAttemptErr: any = null;
+
       try {
         const completion = await openai.chat.completions.create(
           {
@@ -183,22 +185,82 @@ ${fullText}
         }
       } catch (e: any) {
         clearTimeout(timer);
-        // 비개인정보 로그만 (원문/학생명/JWT 로그 금지)
-        console.error(
-          `[story-summary] OpenAI error` +
-          ` diaryId=...${diaryId.slice(-8)}` +
-          ` msg=${String(e?.message ?? 'unknown').slice(0, 80)}`
-        );
-        void saveAiTrace({
-          status: 'FAILED', request_id: storyTraceId, internal_id: storyTraceId,
-          pool_id: diary.swimming_pool_id ?? '', actor_id: userId,
-          contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
-          pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
-          trigger_type: 'USER_ACTION', service: 'gpt',
-          error_stage: 'PROVIDER_CALL', error_code: 'OPENAI_ERROR',
-          latency_ms: Date.now() - storyStartMs,
-        }).catch(() => {});
-        res.status(500).json({ error: 'summary_failed' }); return;
+        firstAttemptErr = e;
+      }
+
+      // ── 4b. transient 오류 1회 retry ──────────────────────────────────────
+      // OpenAI API 일시 오류(5xx, network glitch, rate limit) 발생 시
+      // AbortError(timeout) · empty_response는 재시도하지 않음.
+      // 재시도 성공 → 정상 흐름. 재시도도 실패 → summary_failed 500.
+      if (firstAttemptErr != null) {
+        const isTimeout   = firstAttemptErr.name === 'AbortError';
+        const isEmptyResp = firstAttemptErr.message === 'empty_response';
+
+        if (!isTimeout && !isEmptyResp) {
+          // 1초 대기 후 fresh AbortController로 재시도
+          await new Promise<void>(r => setTimeout(r, 1_000));
+          const r2ctrl  = new AbortController();
+          const r2timer = setTimeout(() => r2ctrl.abort(), 20_000);
+          try {
+            const r2comp = await openai.chat.completions.create(
+              {
+                model:       AI_MODEL.STORY,
+                messages:    [{ role: 'user', content: prompt }],
+                temperature: 0.3,
+                max_tokens:  400,
+              },
+              { signal: r2ctrl.signal },
+            );
+            clearTimeout(r2timer);
+            const r2sum = r2comp.choices[0]?.message?.content?.trim() ?? '';
+            if (!r2sum) throw new Error('empty_response');
+            if (r2comp.usage) {
+              // retry 토큰을 retryCallTokens에 누계 (기존 변수 재사용)
+              retryCallTokens = {
+                prompt:     r2comp.usage.prompt_tokens     ?? 0,
+                completion: r2comp.usage.completion_tokens ?? 0,
+                total:      r2comp.usage.total_tokens      ?? 0,
+              };
+            }
+            // retry 성공 — summary에 할당하고 firstAttemptErr 클리어
+            const origMsg   = String(firstAttemptErr?.message ?? 'unknown').slice(0, 40);
+            summary         = r2sum;
+            firstAttemptErr = null;
+            console.log(
+              `[story-summary] retry succeeded` +
+              ` diaryId=...${diaryId.slice(-8)}` +
+              ` orig_err=${origMsg}`
+            );
+          } catch (e2: any) {
+            clearTimeout(r2timer);
+            console.error(
+              `[story-summary] retry also failed` +
+              ` diaryId=...${diaryId.slice(-8)}` +
+              ` msg=${String(e2?.message ?? 'unknown').slice(0, 80)}`
+            );
+            // retry 실패도 firstAttemptErr 유지 → 아래 500 처리
+          }
+        }
+
+        // 1차 + retry 모두 실패 → 500
+        if (firstAttemptErr != null) {
+          // 비개인정보 로그만 (원문/학생명/JWT 로그 금지)
+          console.error(
+            `[story-summary] OpenAI error` +
+            ` diaryId=...${diaryId.slice(-8)}` +
+            ` msg=${String(firstAttemptErr?.message ?? 'unknown').slice(0, 80)}`
+          );
+          void saveAiTrace({
+            status: 'FAILED', request_id: storyTraceId, internal_id: storyTraceId,
+            pool_id: diary.swimming_pool_id ?? '', actor_id: userId,
+            contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
+            pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
+            trigger_type: 'USER_ACTION', service: 'gpt',
+            error_stage: 'LLM_GENERATION' as any, error_code: 'OPENAI_ERROR',
+            latency_ms: Date.now() - storyStartMs,
+          }).catch(() => {});
+          res.status(500).json({ error: 'summary_failed' }); return;
+        }
       }
 
       // ── 5. 서버 측 1차 길이 검증 ──────────────────────────────────────────
@@ -251,14 +313,14 @@ ${fullText}
             pool_id: diary.swimming_pool_id ?? '', actor_id: userId,
             contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
             pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
-            trigger_type: 'USER_ACTION', service: 'gpt',
-            error_stage: 'PROVIDER_CALL', error_code: 'RETRY_OPENAI_ERROR',
+            trigger_type: 'USER_ACTION',
+            error_stage: 'LLM_GENERATION', error_code: 'RETRY_OPENAI_ERROR',
             latency_ms: Date.now() - storyStartMs,
             sub_feature: 'RETRY',
             input_tokens:  firstCallTokens?.prompt     ?? null,
             output_tokens: firstCallTokens?.completion ?? null,
             total_tokens:  firstCallTokens?.total      ?? null,
-          }).catch(() => {});
+          } as any).catch(() => {});
           res.status(500).json({ error: 'summary_failed' }); return;
         }
 
