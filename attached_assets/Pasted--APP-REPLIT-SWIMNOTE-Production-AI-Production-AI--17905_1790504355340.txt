@@ -1,0 +1,208 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — Production AI 커리큘럼 검색 재발 오류 긴급 추적]
+
+현재 Production 실기기에서 AI 커리큘럼 검색 오류가 다시 발생했습니다.
+
+실제 현상:
+
+- 화면: 학부모 → AI 커리큘럼 검색
+- 기존 AI 답변은 정상 표시되어 있음
+- 상단 quota: "이번 달 AI 검색 2/4회"
+- 새 질문:
+  "자유형 속도가 안나와"
+- 사용자 질문 bubble은 화면에 생성됨
+- 이후:
+  "답변을 불러오지 못했습니다. 잠시 후 다시 시도해주세요."
+  오류 표시
+- "다시 시도" 버튼 표시
+- 실패 후에도 quota는 2/4로 유지됨
+
+이 기능은 이전 V2.1 Production 안정화 완료 대상으로 처리했으나,
+실제 Production에서 재발했으므로 이번 건은 실제 blocker입니다.
+
+이번 작업은 새 기능 개발이나 전체 audit가 아닙니다.
+위 실제 실패 1건의 정확한 실패 지점만 추적하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- AI 커리큘럼 검색 전체 재설계 금지
+- 관련 없는 APP/API 수정 금지
+- DB 재설계 금지
+- quota 정책 변경 금지
+- 일반 GPT fallback 추가 금지
+- 오류를 catch로 숨기기 금지
+- 성공한 기존 V2.1 구조를 이유 없이 변경 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production 실제 요청 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production Render/API 로그에서
+해당 시간대의 Parent Curriculum Search 요청을 찾으십시오.
+
+질문 원문 자체를 Production 로그에 새로 출력하지 마십시오.
+
+확인:
+
+1. APP → API 요청이 실제 도착했는지
+2. request_id
+3. student_id는 마스킹
+4. pool_id는 마스킹
+5. API HTTP status
+6. API 내부 error_code
+7. intent
+8. answer_mode
+9. ENGINE 호출 여부
+10. ENGINE URL host
+11. ENGINE HTTP status
+12. ENGINE error_code / response validation error
+13. timeout 여부
+14. latency
+15. grounding.validation
+16. curriculum_ids / knowledge_ids 존재 여부
+17. conversation_context_used
+18. quota reserve → rollback 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 반드시 구분할 실패 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 중 정확히 하나로 분류하십시오.
+
+A.
+APP → API 호출 자체 실패
+
+B.
+API 내부 intent/evidence/package 생성 실패
+
+C.
+API → AI ENGINE 호출 실패
+
+D.
+AI ENGINE non-2xx
+
+E.
+AI ENGINE timeout
+
+F.
+ENGINE은 200을 반환했으나
+APP/API Response Contract validation 실패
+
+G.
+정상 API 응답 이후 APP render/parse 실패
+
+추측하지 말고 실제 Production 로그로 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. "자유형 속도가 안나와" 처리 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 질문은 일반 수영 기술/문제 질문입니다.
+
+현재 Production 코드에서 실제로:
+
+parseIntent
+→ 어떤 intent
+→ 어떤 answer_mode
+→ 어떤 evidence layers
+→ AI ENGINE 호출
+→ 어떤 response
+
+순서로 처리됐는지 제출하십시오.
+
+이전 V2.1에서 일반 수영질문이
+학생 기록 부족 때문에 실패하지 않도록 수정했으므로,
+이번에도 student evidence가 없다는 이유만으로
+전체 요청을 실패시키고 있다면 regression입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. quota 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+스크린샷에서는 실패 전후 2/4로 보입니다.
+
+Production DB/log 기준으로:
+
+- RESERVED 생성 여부
+- 실패 후 rollback 여부
+- COMPLETED 증가 여부
+- 사용량 최종값
+
+을 확인하십시오.
+
+실패 요청이 quota를 소비하지 않았다면
+그 부분은 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 수정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+Root Cause가 APP/API 안에서 증명되면
+그 원인 하나만 최소 수정하십시오.
+
+AI ENGINE 쪽 문제로 확인되면
+APP에서 임의 fallback이나 우회 수정하지 말고:
+
+- request_id
+- ENGINE HTTP status
+- ENGINE error_code
+- latency
+- 실패 단계
+
+만 정리해서 보고하십시오.
+
+그 자료를 AI ENGINE REPLIT에 넘겨 별도 수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정이 APP/API 범위에서 필요한 경우에만:
+
+격리 테스트 계정으로 최소 다음만 검증하십시오.
+
+Q1.
+"자유형 속도가 안나와"
+
+Q2.
+"배영 왜 어려워?"
+
+Q3.
+"평영 발차기 연습 어떻게 해?"
+
+각 질문:
+
+- HTTP 성공
+- answer 비어있지 않음
+- grounding validation PASS
+- 정상 답변만 quota +1
+- 실패 simulation은 quota +0
+- 중복 호출 없음
+
+전체 테스트 suite는 돌리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. 정확한 Root Cause
+2. 실패 위치 A~G
+3. Production request_id
+4. API status / error_code
+5. ENGINE 호출 여부
+6. ENGINE status / error_code
+7. timeout/latency
+8. quota rollback 확인
+9. 수정한 파일 — 수정이 있을 경우만
+10. commit SHA — 수정이 있을 경우만
+11. Production 배포 상태 — 수정이 있을 경우만
+12. Q1~Q3 결과
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.

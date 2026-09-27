@@ -1,0 +1,1020 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — Parent Curriculum Search V2.1 APP/API Production 연결]
+
+AI ENGINE V2.1 구현 및 Production 배포 완료.
+
+ENGINE Production:
+
+service:
+swimnote-professional-engine
+
+Production LIVE SHA:
+b7cfa03b67e5e23d2603cc6da699d7bd3dfcb3fa
+
+ENGINE endpoint:
+POST /api/v1/parent-curriculum/search
+
+이제 SWIMNOTE APP/API에서
+이 Production ENGINE을 실제 학부모
+AI 커리큘럼 검색에 연결합니다.
+
+이번 작업은 APP/API 연결만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+- parent curriculum API client 수정
+- ENGINE JWT 생성 수정
+- PARENT_CURRICULUM_ENGINE_URL Production 설정
+- 기존 request/response contract 정합
+- 필요한 API 테스트
+- API Production 배포
+
+원칙적으로 금지:
+
+- AI ENGINE repo 수정
+- ENGINE Prompt 수정
+- ENGINE Knowledge DB 수정
+- ENGINE quota 수정
+- RevenueCat
+- AI 일지
+- AI 성장리포트
+- 회원/출결
+- DB migration
+- Pool Curriculum 데이터 자체 수정
+- APP UI 재설계
+- Native build
+
+APP JS 수정이 정말 필요하지 않으면
+OTA 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 ROOT CAUSE
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 APP/API 조사에서
+일반 수영질문:
+
+“배영 왜 어려워?”
+“배영이 잘 안돼”
+
+는:
+
+CURRICULUM_GENERAL
+→ GROUNDED_GPT
+→ searchParentCurriculum()
+→ ENGINE 호출 실패
+→ 502
+
+였습니다.
+
+당시 원인:
+
+1.
+PARENT_CURRICULUM_ENGINE_URL 미연결
+
+2.
+기존 API JWT contract와
+ENGINE 실제 JWT contract 불일치
+
+ENGINE endpoint 자체는
+현재 Production에 정상 배포되어 있습니다.
+
+따라서 이번 작업에서는
+다른 우회 fallback을 새로 만들기 전에
+정상 ENGINE 연결부터 완성하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ENGINE Production URL 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+swimnote-api Production Render 환경에:
+
+PARENT_CURRICULUM_ENGINE_URL
+
+을 설정합니다.
+
+중요:
+
+값을 추측하지 마십시오.
+
+현재 실제 Production service:
+
+swimnote-professional-engine
+
+에 연결되는 canonical HTTPS base URL을
+기존 ENGINE 설정/Render service에서 확인한 후 사용.
+
+후보를 임의 선택하지 말고
+실제 Production endpoint:
+
+{BASE_URL}/api/v1/parent-curriculum/search
+
+가 V2.1 Production service로 연결되는지 확인.
+
+환경변수에는:
+
+- trailing slash 중복 방지
+- /api 경로 중복 방지
+
+확인.
+
+예:
+
+client가 내부에서
+/api/v1/parent-curriculum/search
+를 붙이는 구조라면
+
+env에는 base URL만 저장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 ENGINE client 조사 후 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/lib/parent-curriculum-engine-client.ts
+
+및 관련 함수:
+
+getParentCurriculumEngineUrl()
+generateEngineJwt()
+searchParentCurriculum()
+validateEngineResponse()
+
+를 기준으로 작업.
+
+현재 request/response 구조는
+가능한 한 유지.
+
+ENGINE V2.1 response contract는
+backward compatible이므로
+불필요한 response schema 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. JWT contract 정합
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE Production middleware 실제 contract:
+
+필수:
+
+tv
+userId
+role
+iat
+exp
+
+선택:
+
+poolId
+
+ENGINE이 검증하지 않는 claim:
+
+iss
+aud
+
+JWT payload의 feat는 사용하지 않음.
+feature는 request body에서 검증.
+
+중요:
+
+ENGINE 허용 role:
+
+- super_admin
+- platform_admin
+- super_manager
+- pool_admin
+- teacher
+- sub_admin
+
+parent role은 ENGINE 직접 접근에서 403.
+
+그러나 이 요청은:
+
+Parent APP
+→ SWIMNOTE API
+→ AI ENGINE
+
+의 server-to-server 호출입니다.
+
+따라서 부모 JWT를 ENGINE에 그대로 전달하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 서버→ENGINE canonical identity 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+새로운 권한 개념을 임의로 만들기 전에
+
+APP/API repo에서
+다른 AI ENGINE endpoint에 성공적으로
+server-to-server JWT를 발급하는 기존 코드가 있는지
+먼저 정확히 검색하십시오.
+
+확인:
+
+- token version
+- userId
+- role
+- poolId
+- JWT_SECRET
+- TTL
+- signing algorithm
+
+기존 canonical AI ENGINE service-token 패턴이 있으면
+그것을 그대로 재사용하십시오.
+
+새 JWT helper 중복 생성 금지.
+
+기존 패턴이 없다면:
+
+ENGINE contract를 만족하는
+최소 server-to-server identity를 사용하되
+
+임의로 강한 role을 골라 넣지 말고
+현재 API/ENGINE 권한모델에서
+가장 적절한 기존 internal identity/role을 선택하여
+완료보고에 근거를 명시하십시오.
+
+ENGINE 보안을 완화하는 방향은 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. JWT 필수 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 토큰에는 최소:
+
+tv: 1
+
+userId:
+비어있지 않은 canonical internal/server identity
+
+role:
+ENGINE 허용 role 중
+기존 server-to-server 정책에 맞는 값
+
+iat:
+Unix timestamp integer
+
+exp:
+Unix timestamp integer
+
+poolId:
+현재 요청 poolId
+
+가 들어가야 합니다.
+
+algorithm:
+HS256
+
+secret:
+기존 공유 JWT_SECRET
+
+secret 값 노출 금지.
+
+기존 pid/sid/iss/aud/feat claim이
+다른 호환성 때문에 남아 있어야 하는지 확인.
+
+불필요하더라도
+무해한 기존 claim을 굳이 대규모로 제거하지 마십시오.
+
+핵심은 ENGINE이 요구하는 claim을 정확히 만족하는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. poolId cross-check
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE은 JWT poolId와
+request body context.pool_id를
+교차검증합니다.
+
+따라서:
+
+JWT.poolId
+===
+request.context.pool_id
+
+가 항상 성립해야 합니다.
+
+다른 pool ID 혼입 시
+요청을 보내지 않거나
+ENGINE에서 차단되어야 합니다.
+
+tenant boundary 약화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. student 정보
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ENGINE request body에는:
+
+context.student_id
+context.student_progress
+
+가 존재합니다.
+
+기존 APP/API의:
+
+- parent ownership 검증
+- studentId
+- poolId
+- evidence retrieval
+- resolveProgress()
+
+구조 유지.
+
+학생 실제 진도는
+기존 DB evidence에서만 생성.
+
+ENGINE 일반지식으로
+학생 진도를 만들어내는 코드 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Pool Local Curriculum 중복 구현 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+ENGINE V2.1에서 이미:
+
+pool_id가 있으면
+searchCurriculum(query, { poolId })
+
+로 해당 Pool Local Curriculum을
+항상 검색하도록 Production 반영되었습니다.
+
+따라서 APP/API에서
+Pool Local Curriculum 검색을
+새로 중복 구현하지 마십시오.
+
+현재 APP/API가 보내는:
+
+curriculum_scope.source = X_GLOBAL
+curriculum_items = X global template items
+
+은 그대로 보조 evidence로 전달 가능.
+
+최종 ENGINE 내부 우선순위:
+
+1.
+POOL_LOCAL_CURRICULUM
+
+2.
+X_GLOBAL_CURRICULUM
+
+3.
+SWIMNOTE_STANDARD
+
+4.
+ENGINE_KNOWLEDGE 보강
+
+입니다.
+
+APP/API에서 이를 다시 합성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Intent parser 최소 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 API의:
+
+parseIntent()
+
+에서
+
+“배영 왜 어려워?”
+→ CURRICULUM_GENERAL
+
+이 되는 것은
+ENGINE이 정상 연결되면 GROUNDED_GPT 경로로
+전달 가능하므로 이번 WP에서
+대형 intent 개편을 하지 마십시오.
+
+ENGINE V2.1에도
+자체 deterministic classifier가 있습니다.
+
+따라서 우선:
+
+현재 general question
+→ GROUNDED_GPT
+→ ENGINE
+
+경로를 정상화.
+
+연결 후 실제 질문 품질에 문제가 있을 때만
+intent 개선을 별도 판단.
+
+이번 작업에서
+SWIM_KNOWLEDGE 같은 신규 intent를
+성급히 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. APP/API quota 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Product quota Source of Truth:
+
+APP/API
+
+월 4회.
+
+현재 구조:
+
+tryReserveMonthlyQuota()
+
+→ ENGINE 호출
+
+성공:
+finalizeCurriculumSearchSuccess()
+
+실패:
+rollbackQuotaReservation()
+
+유지.
+
+ENGINE V2.1에서는
+내부 PCS quota check/increment가 제거되었습니다.
+
+따라서 APP/API quota 외
+새 counter 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. quota 정책 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 GROUNDED_GPT 답변:
+
++1
+
+ENGINE 401:
+rollback
+
+ENGINE 403:
+rollback
+
+ENGINE 422:
+rollback
+
+ENGINE 502:
+rollback
+
+ENGINE 504:
+rollback
+
+network error:
+rollback
+
+response validation fail:
+rollback
+
+DIRECT_DB:
+기존 정책 유지
+
+HUMAN_ONLY:
+기존 정책 유지
+
+실패 때문에
+사용자의 월 4회가 차감되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. request_id / replay
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 request_id replay/idempotency 구조를 유지.
+
+동일 완료 request_id:
+
+새 ENGINE 호출 없이
+기존 완료 응답 replay가 가능해야 함.
+
+현재 구현이 이미 그렇게 되어 있으면
+수정하지 마십시오.
+
+double tap:
+
+현재 isSending guard 유지.
+
+대규모 idempotency 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Error handling
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE 연결 후에도
+다음 오류는 APP에 raw 기술정보를 노출하지 마십시오.
+
+- ENGINE_URL_NOT_CONFIGURED
+- ENGINE_UNAUTHORIZED
+- FORBIDDEN
+- TIMEOUT
+- GENERATION_FAILED
+- GROUNDING_VALIDATION_FAILED
+- NETWORK_ERROR
+
+서버 로그에는
+실제 internal code/status 기록.
+
+APP에는 기존 안전한 오류 UX 유지 가능.
+
+단:
+
+PARENT_CURRICULUM_ENGINE_URL
+또는 JWT contract 문제로
+정상 질문이 5xx가 되면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 먼저 서버 단위 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 사용자 계정을 쓰기 전에
+격리 test parent/student/pool로 확인.
+
+TEST A
+
+API server
+→ ENGINE
+
+인증 성공.
+
+기대:
+
+401 없음.
+403 없음.
+
+TEST B
+
+JWT에:
+
+tv=1
+userId
+accepted role
+poolId
+
+정상 포함.
+
+TEST C
+
+JWT.poolId와
+body context.pool_id 일치.
+
+TEST D
+
+잘못된 poolId mismatch를
+ENGINE이 차단하는지
+기존 테스트/격리 방식으로 확인.
+
+Production 고객 데이터 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 질문 E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+격리 parent/student/pool에서 테스트.
+
+사용자의 실제 월 4회 quota를
+소모하지 마십시오.
+
+Q1.
+
+“배영 왜 어려워?”
+
+기대:
+
+HTTP 200
+
+더 이상:
+“답변을 불러오지 못했습니다”
+금지.
+
+ENGINE V2.1 knowledge 기반 상세 답변.
+
+Q2.
+
+“자유형 호흡이 왜 힘들어?”
+
+HTTP 200.
+
+Q3.
+
+“평영 발차기 연습 어떻게 해?”
+
+HTTP 200.
+
+Q4.
+
+“수영은 어떤 순서로 배워?”
+
+HTTP 200.
+
+SWIMNOTE_STANDARD progression 반영:
+
+물 적응/호흡
+→ 배영
+→ 자유형
+→ 평영
+→ 접영
+→ IM
+→ 숙련/기록
+
+단 센터별 차이 가능성 표현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 학생진도 질문
+━━━━━━━━━━━━━━━━━━━━━━
+
+Q5.
+
+학생 기록 없음:
+
+“지금 어디까지 배웠나요?”
+
+기대:
+
+기존 DIRECT_DB 정상.
+
+“현재 기록된 수업 데이터가 없다”
+의미의 답변.
+
+ENGINE 일반지식으로
+가짜 학생진도를 생성하지 않음.
+
+이 질문 때문에
+GROUNDED_GPT quota를
+불필요하게 소비하지 않는 기존 정책 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Pool Local Curriculum 실제 우선순위 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+격리 pool에 Local Curriculum이
+이미 안전하게 준비된 테스트 fixture가 있으면 사용.
+
+없다면 Production DB에
+테스트 데이터를 임의 insert하지 마십시오.
+
+가능한 fixture/기존 테스트 기반으로:
+
+Local:
+배영 → 자유형 → 평영
+
+X_GLOBAL:
+다른 순서 또는 일반 항목
+
+인 경우
+
+“배영 다음에는 뭐 배워?”
+
+→ Pool Local 기준을 우선하는지 검증.
+
+이 검증을 위해
+실제 고객 curriculum을 수정하지 마십시오.
+
+실제 fixture가 없어
+runtime 검증 불가능하면:
+
+코드 경로 검증 PASS
+실 runtime은 ‘확인하지 못함’
+
+으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 응답 grounding 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+성공 response에서 가능한 범위 확인:
+
+- result.answer
+- grounding.curriculum_ids
+- grounding.knowledge_ids
+- grounding.student_progress_used
+- grounding.validation
+- meta.intent
+- meta.answer_mode
+
+기대:
+
+grounding.validation = PASS
+또는 현재 허용된 정상값.
+
+허용 범위 밖 curriculum/knowledge ID가
+섞이면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 답변 품질
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 질문은
+2~3문장짜리 빈약한 답변으로 끝나지 않는지 확인:
+
+“배영 왜 어려워?”
+
+최소 의미:
+
+- 직접 답변
+- 어려운 이유
+- 핵심 포인트
+- 일반적인 교정/연습 포인트
+- 학습과정상의 맥락
+
+단 실제 학생 관찰기록이 없으면
+학생에게 특정 오류가 있다고 단정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. AI 호출수
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE V2.1 기존 정책:
+
+SIMPLE:
+2 model calls
+
+MEDIUM:
+3 model calls
+
+APP/API 연결 때문에
+추가 GPT/OpenAI 호출을 만들지 마십시오.
+
+API에서 GPT를 별도로 한 번 더 호출하는
+구조 추가 금지.
+
+APP/API:
+orchestration only
+
+ENGINE:
+AI reasoning/generation
+
+역할 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Production 배포 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정이 필요한 경우:
+
+1.
+APP/API repo 코드 수정
+
+2.
+필요 최소 테스트
+
+3.
+commit/push
+
+4.
+Render swimnote-api Production 배포
+
+5.
+PARENT_CURRICULUM_ENGINE_URL
+Production 설정 확인
+
+환경변수 변경으로 별도 deploy가 발생하면
+최종 deploy 하나가
+코드 + env를 모두 포함한 상태인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. APP OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 연결은 원칙적으로
+API/server 작업입니다.
+
+현재 APP UI가 기존 API response를
+정상 처리할 수 있다면:
+
+APP 수정 없음.
+OTA 없음.
+
+APP 코드를 실제 수정해야 할
+구체적 이유가 발견된 경우에만 수정.
+
+그 경우 완료보고에
+왜 server-only로 해결 불가능했는지
+명시.
+
+괜히 OTA 발행하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. Production smoke
+━━━━━━━━━━━━━━━━━━━━━━
+
+API Production 배포 후:
+
+swimnote-api health 확인.
+
+그리고 격리 context를 이용해
+최소 1회의 실제:
+
+SWIMNOTE API
+→ Production ENGINE V2.1
+
+성공 증거 확보.
+
+무작정 Q1~Q4를 Production에서
+여러 번 반복해 AI 비용을 소모하지 마십시오.
+
+가능하면 대표 질문:
+
+“배영 왜 어려워?”
+
+1회로 network/auth/grounding 확인.
+
+나머지는 test 환경/기존 자동테스트로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[A. ROOT CAUSE CLOSED]
+
+기존:
+
+ENGINE_URL_NOT_CONFIGURED
+JWT mismatch
+
+각 최종 해결 여부.
+
+[B. ENGINE URL]
+
+PARENT_CURRICULUM_ENGINE_URL:
+
+실제 base URL
+(secret 아님)
+
+최종 endpoint:
+
+V2.1 Production service 확인 근거.
+
+[C. JWT]
+
+사용한 canonical token generator:
+
+파일:
+함수:
+
+claims:
+
+tv:
+userId:
+role:
+poolId:
+iat:
+exp:
+
+기존 internal token pattern 재사용 여부:
+
+role 선택 근거:
+
+secret 값은 출력 금지.
+
+[D. REQUEST]
+
+API → ENGINE:
+
+request body 주요 field
+
+pool_id:
+student_id:
+mode:
+curriculum_scope:
+student_progress:
+recent_conversation:
+
+[E. CURRICULUM]
+
+Pool Local 검색:
+
+ENGINE이 담당함을 확인.
+
+APP/API 중복 구현:
+없음
+
+X_GLOBAL:
+보조 evidence로 전달
+
+[F. QUOTA]
+
+Product SoT:
+APP/API
+
+ENGINE quota:
+없음
+
+정상 성공:
++1
+
+실패:
++0
+
+DIRECT_DB:
+기존 정책
+
+[G. TEST]
+
+TEST A~D
+Q1~Q5
+
+각:
+
+PASS
+FAIL
+확인하지 못함
+
+[H. REPRESENTATIVE ACTUAL RESULT]
+
+Production smoke 또는
+격리 E2E의:
+
+질문:
+status:
+meta.intent:
+grounding.validation:
+curriculum_ids 수:
+knowledge_ids 수:
+answer:
+
+개인정보 제외.
+
+[I. AI CALLS]
+
+APP/API 추가 model calls:
+0
+
+ENGINE:
+SIMPLE / MEDIUM 기존 정책 유지 여부
+
+[J. APP]
+
+APP code 변경:
+YES / NO
+
+OTA:
+YES / NO
+
+NO가 정상 예상.
+
+[K. API DEPLOY]
+
+Repo:
+Branch:
+full Work SHA:
+full Production LIVE SHA:
+SHA 일치:
+
+Render service:
+swimnote-api
+
+Deploy ID:
+Status:
+Health:
+
+[L. ENGINE]
+
+연결된 ENGINE Production SHA:
+
+b7cfa03b67e5e23d2603cc6da699d7bd3dfcb3fa
+
+ENGINE 수정:
+없음
+
+[M. UNCHANGED]
+
+- RevenueCat 변경 없음
+- AI 일지 변경 없음
+- AI 성장리포트 변경 없음
+- DB migration 없음
+- Pool curriculum 원본 수정 없음
+- ENGINE Prompt 수정 없음
+- ENGINE Knowledge 수정 없음
+- APP UI 변경 없음(수정하지 않았다면)
+
+완료했다고만 보고하지 마십시오.
+
+특히:
+
+1.
+APP/API에서 Pool Local Curriculum을
+또 구현하지 마십시오.
+ENGINE V2.1이 이미 pool_id로 상시 검색합니다.
+
+2.
+ENGINE 인증을 통과시키기 위해
+JWT 보안을 완화하지 마십시오.
+
+3.
+parent JWT를 ENGINE에 그대로 전달하지 마십시오.
+
+4.
+월 4회 quota는 APP/API 하나만
+Product Source of Truth입니다.
+
+5.
+정상 연결 전에 fallback을 추가해서
+오류를 가리지 마십시오.
+
+확인하지 못한 항목은
+‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
