@@ -1,0 +1,219 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — Instagram AI Story Share summary_api:500 Production 오류 추적/수정]
+
+Production 실기기에서
+학부모 수업피드 → Instagram AI 공유가 실패합니다.
+
+실제 화면 디버그:
+
+[StoryShare] FAILED
+stage=E
+err=summary_api:500
+diary=...
+photos=2
+maxL=4
+maxC=90
+cache=false
+req1=500
+s1c=0
+s1e=0
+s1f=null
+req2=0
+s2c=0
+s2e=0
+s2f=null
+
+중요:
+
+일반 Instagram Story handoff 자체는 정상입니다.
+실제 Instagram Story 편집 화면까지 진입할 수 있습니다.
+
+따라서 Instagram SDK/share extension 문제로 접근하지 마십시오.
+
+현재 실패 지점은:
+StoryShare AI summary API → HTTP 500
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 이번 작업 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 기능 개발 금지.
+
+StoryShare의 AI summary request 1건이
+Production에서 왜 500을 반환하는지만 추적하고
+원인 하나만 최소 수정하십시오.
+
+관련 없는 Instagram share 코드,
+Story card 디자인,
+사진 합성,
+일지 UI,
+AI Engine 다른 기능은 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 호출 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+StoryShare AI 버튼의 실제 Production 호출 흐름을 코드 기준으로 제출하십시오.
+
+예:
+
+Feed AI Share button
+→ StoryShare handler
+→ summary API client
+→ SWIMNOTE API endpoint
+→ summary service
+→ OpenAI 또는 AI Engine
+→ response
+→ Story card render
+→ Instagram handoff
+
+실제 파일명/함수명/endpoint로 확인하십시오.
+
+특히 stage=E가 코드상 정확히 무엇을 의미하는지 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production 500 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 시간대 Production API 로그에서
+StoryShare summary 요청을 찾으십시오.
+
+확인:
+
+- request_id가 있으면 request_id
+- API endpoint
+- HTTP method
+- HTTP status
+- 내부 error_code
+- 최초 exception class
+- exception message
+- 최초 발생 파일/함수/라인
+- upstream AI 호출 여부
+- upstream HTTP status
+- timeout 여부
+- latency
+
+질문/일지 원문,
+학생 이름,
+JWT,
+OpenAI key,
+전체 payload는 로그에 노출하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 반드시 실패 위치를 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 중 하나로 확정하십시오.
+
+A. APP payload 생성 실패
+B. APP → API 요청 실패
+C. API request validation 실패
+D. diary/feed 조회 실패
+E. AI summary prompt/build 실패
+F. OpenAI/AI Engine upstream 실패
+G. AI response parse/validation 실패
+H. API response serialization 실패
+I. 기타
+
+스크린샷의 stage=E 명칭만 보고
+E라고 추정하지 말고 실제 stack trace 기준으로 분류하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실제 Payload Contract 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 StoryShare summary API에 전달되는 필드를 확인하십시오.
+
+특히:
+
+- diary/feed id
+- diary text 존재 여부
+- individual/student content 포함 방식
+- photos count
+- maxLines = 4
+- maxChars = 90
+- locale
+- cache key
+- AI summary mode
+
+사진이 2장인 것이 500 원인인지,
+일지 길이/문자 인코딩인지,
+AI API 오류인지 추측하지 마십시오.
+
+실제 exception으로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Root Cause가 확인되면 그 원인 하나만 최소 수정.
+
+금지:
+
+- AI summary 실패 시 원문을 몰래 성공 결과처럼 fallback
+- 500을 200으로 위장
+- Instagram share 코드 변경
+- Story 카드 디자인 변경
+- 관련 없는 AI endpoint 변경
+- 전체 AI 구조 재설계
+
+AI summary가 실패하면 실패는 실패로 유지하되,
+정상 입력에서는 반드시 summary가 생성되어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 아래만 검증하십시오.
+
+Case 1
+- 사진 2장
+- 현재 스크린샷과 같은 형태의 일지
+- AI Story Share
+
+Case 2
+- 사진 1장
+- 짧은 일지
+
+Case 3
+- 사진 0장
+- 텍스트만 있는 일지
+  (현재 기능상 허용되는 경우에만)
+
+각 테스트:
+
+- summary API HTTP 200
+- summary 비어있지 않음
+- maxLines/maxChars 정책 준수
+- Story card 생성
+- Instagram Story 편집 화면 진입
+- 일반 공유 regression 없음
+
+전체 테스트 suite는 돌리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고하십시오.
+
+1. Root Cause 한 문장
+2. 실제 stage=E 의미
+3. 실패 위치 A~I
+4. 실제 endpoint
+5. 최초 exception class/message
+6. 최초 발생 파일/함수/라인
+7. upstream AI 호출 여부/status
+8. 수정 파일
+9. Case 1~3 결과
+10. commit full SHA
+11. API Production LIVE full SHA
+12. APP JS 수정 시 OTA 필요 여부 및 OTA ID
+13. Render deploy ID/status
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.

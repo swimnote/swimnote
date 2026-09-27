@@ -1,0 +1,183 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — AI 커리큘럼 검색이 학생 진도게이지를 실제로 읽는지 조사]
+
+현재 실기기에서 학생의 진도게이지/Progress는 존재하는데,
+AI 커리큘럼 검색에서:
+
+“현재 기록된 진도가 없습니다”
+또는
+“현재 기록된 수업 데이터가 없어 실제 진도를 확인할 수 없습니다”
+
+라는 응답이 나옵니다.
+
+이번 작업은 새 기능 개발이 아닙니다.
+
+목표:
+AI 커리큘럼 검색의 CURRENT_PROGRESS 계열 질문이
+실제 학생 진도게이지의 canonical Source of Truth를 읽고 있는지 확인하고,
+읽지 않고 있다면 최소 수정하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 조사만
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전에 다음을 실제 코드/DB 기준으로 보고하십시오.
+
+A. 앱에서 학생 상세의 “진도게이지 / Progress”가 표시될 때
+실제로 어떤 API / DB table / column을 읽는지
+
+정확히 제출:
+
+- 화면 파일
+- API endpoint
+- backend 함수
+- DB table
+- 주요 column
+- percentage 계산식
+- current curriculum/level 계산식
+
+B. AI 커리큘럼 검색의 현재 진도 조회 경로
+
+현재 알고 있는 흐름:
+
+retrieveEvidence(studentId, poolId)
+→ resolveProgress(evidence, curriculumItemRefs)
+→ student_progress
+→ DIRECT_DB 또는 ENGINE
+
+실제 코드에서 확인:
+
+- retrieveEvidence가 읽는 table/column
+- resolveProgress가 무엇을 현재 진도로 인정하는지
+- student_progress 필드가 실제 어떤 값으로 생성되는지
+- confirmed_progress_pct
+- active_progress_pct
+- active_confirmed_rank
+- active_total_count
+- current_curriculum_id
+
+C. 둘의 Source of Truth가 같은지 비교
+
+반드시 표로:
+
+항목 | 진도게이지 화면 | AI 커리큘럼 검색 | 동일 여부
+
+예:
+current level
+current curriculum
+progress %
+confirmed item count
+total item count
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 핵심 판단
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나로 판정하십시오.
+
+A.
+AI 검색이 이미 진도게이지 canonical SoT를 정확히 읽고 있음
+
+B.
+진도게이지는 별도 SoT를 쓰는데
+AI 검색이 diary_notes / curriculum_item_assignments /
+curriculum_level_history만 읽고 있어 누락됨
+
+C.
+같은 DB를 읽지만 mapping/계산식이 달라
+진도게이지 값이 AI 검색에 전달되지 않음
+
+D.
+다른 원인
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 목표 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+질문:
+
+“지금 어디까지 배웠나요?”
+“현재 진도가 어떻게 돼?”
+“몇 퍼센트 했어?”
+“다음 단계가 뭐야?”
+
+같은 CURRENT_PROGRESS / LEVEL_PROGRESS 질문에서는
+학생 진도게이지의 canonical Progress 데이터를
+가장 우선적인 STUDENT_FACT로 사용해야 합니다.
+
+우선순위:
+
+1. 진도게이지 canonical Progress
+2. curriculum assignment / confirmed state
+3. recent diary evidence
+4. level history
+
+진도게이지가 유효하게 존재하면
+“기록된 진도가 없습니다”라고 답하면 안 됩니다.
+
+반대로 진도게이지 데이터가 실제로 없을 때만
+진도 없음 안내를 허용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+B 또는 C로 확인되면:
+
+- 진도게이지 화면이 사용하는 canonical SoT를 재사용
+- 동일 계산식을 재사용
+- 새 progress 시스템 만들지 않음
+- DB migration 금지
+- UI 변경 금지
+- ENGINE 변경 금지
+- 일반 수영 질문 로직 변경 금지
+
+AI 검색의 student_progress 생성 부분만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 진도게이지 값이 있는 격리 학생 1명으로:
+
+Q1.
+“지금 어디까지 배웠나요?”
+
+Q2.
+“현재 진도 몇 퍼센트야?”
+
+Q3.
+“다음 단계는 뭐야?”
+
+확인:
+
+- 화면 진도게이지 값
+- API가 읽은 progress 값
+- student_progress payload
+- 최종 답변
+- current_progress
+- next_step
+- grounding.student_progress_used
+
+화면과 AI 답변의 의미가 일치해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 진도게이지 canonical SoT
+2. AI 검색의 기존 SoT
+3. A/B/C/D 판정
+4. Root Cause
+5. 수정 파일
+6. DB migration 여부
+7. Q1~Q3 결과
+8. commit SHA
+9. Production 배포 필요 여부
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
