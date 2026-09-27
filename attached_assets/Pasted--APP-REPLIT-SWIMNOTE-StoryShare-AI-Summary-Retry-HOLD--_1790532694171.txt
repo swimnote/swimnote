@@ -1,0 +1,172 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE — StoryShare AI Summary 서버 Retry 실제 동작 최종 검증]
+
+직전 완료보고는 HOLD입니다.
+
+핵심 이유:
+
+story.ts에
+“OpenAI 1차 실패 → 서버 내부 1회 retry”
+를 구현했다고 보고했으나,
+
+제출된 Case2 증거는:
+
+#1: HTTP 500
+→ 사용자가 앱에서 다시 누름
+→ #2: HTTP 200
+
+입니다.
+
+이것은 서버 내부 retry 성공 증거가 아닙니다.
+클라이언트가 API를 두 번 호출한 것입니다.
+
+이번 작업은 새 기능 개발이 아니라
+이미 추가한 retry가 실제 한 HTTP request 안에서 작동하는지 검증하고,
+실제 upstream 오류 종류를 식별하는 작업입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 서버 내부 retry를 명확히 계측
+━━━━━━━━━━━━━━━━━━━━━━
+
+story-summary endpoint 한 요청에 대해
+다음 기술 로그만 남길 수 있게 최소 계측하십시오.
+
+- request_id
+- diary_id hash 또는 마스킹값
+- upstream_attempt
+  - 1
+  - 2
+- upstream_status
+- upstream_error_code
+- upstream_error_type/class
+- retry_performed
+- final_http_status
+- total_latency_ms
+
+금지:
+
+- 일지 원문
+- 학생 이름
+- prompt
+- OpenAI key
+- 전체 response body
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 OpenAI 오류 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+“rate limit 또는 일시 5xx”
+
+는 추정입니다.
+
+실제 SDK exception에서 가능한 범위 내 다음을 확인하십시오.
+
+- HTTP status
+- error code
+- error type/class
+
+그리고 retry 가능 여부를 구분하십시오.
+
+Retry 허용:
+- 429 rate limit
+- OpenAI 5xx
+- 일시적 network/connect 오류
+
+Retry 금지:
+- 400 invalid request
+- 401 authentication
+- 403 permission
+- 명백한 validation/programming error
+
+기존 timeout 정책은 함부로 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. retry 성공의 PASS 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음 형태의 실제 증거가 있어야 합니다.
+
+클라이언트 API 호출: 1회
+
+동일 request_id 안에서:
+
+attempt 1
+→ OpenAI transient failure
+
+attempt 2
+→ OpenAI success
+
+최종:
+→ story-summary HTTP 200
+
+즉 앱에서 “다시 누르기” 없이
+한 번의 AI 공유 클릭으로 성공해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Case1~3은 유지하되,
+이번 검증의 핵심은 server retry입니다.
+
+정상 Case:
+- upstream attempt=1
+- final HTTP 200
+
+Retry Case:
+- 동일 API request_id
+- upstream attempt=1 실패
+- retry_performed=true
+- upstream attempt=2 성공
+- final HTTP 200
+
+Double Failure Case:
+- attempt=1 transient 실패
+- attempt=2 transient 실패
+- final HTTP 500
+- 무한 retry 없음
+
+가능하면 실제 transient failure를 기다리지 말고
+test/mock 가능한 격리 환경에서 retry branch를 검증하십시오.
+Production OpenAI 오류를 인위적으로 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 코드도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음도 확인하십시오.
+
+- 1초 delay가 실제 server retry 사이에만 적용되는지
+- retry 시 동일 diary/story payload를 재사용하는지
+- OpenAI 호출 외 다른 DB/API 작업을 중복 수행하지 않는지
+- retry 성공 시 summary가 1개만 반환되는지
+- cache 저장이 중복되지 않는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 OpenAI error status/code/type
+   - 확인 못했으면 확인 못함
+2. retry 대상 오류 조건
+3. retry 제외 오류 조건
+4. 동일 request_id 내 attempt 1/2 증거
+5. 서버 retry 성공 시 최종 HTTP status
+6. double failure 결과
+7. 수정 필요 여부
+8. 수정 시 파일
+9. 수정 시 commit full SHA
+10. Production LIVE full SHA
+11. Render deploy ID/status
+
+중요:
+
+“앱에서 다시 눌러 두 번째 요청이 성공”
+은 서버 retry 검증으로 인정하지 마십시오.
+
+완료했다고만 보고하지 마십시오.
+확인하지 못한 항목은 ‘확인하지 못함’이라고 명시하고
+추측해서 정상이라고 보고하지 마십시오.
