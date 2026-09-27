@@ -10,7 +10,7 @@ import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { callPhone, sendSms, formatPhone } from "@/utils/phoneUtils";
+import { callPhone, sendParentInviteSms, formatPhone } from "@/utils/phoneUtils";
 import { MemberSectionCard } from "./MemberSectionCard";
 import { EditField } from "./EditField";
 import type { DetailData } from "./memberDetailTypes";
@@ -21,6 +21,8 @@ interface Props {
   data: DetailData;
   themeColor: string;
   saving: boolean;
+  poolName?: string | null;
+  studentName?: string | null;
   editParentName: string;        setEditParentName: (v: string) => void;
   editParentPhone: string;       setEditParentPhone: (v: string) => void;
   editParentPhone2: string;      setEditParentPhone2: (v: string) => void;
@@ -29,7 +31,12 @@ interface Props {
   onSave: () => void;
 }
 
-function PhoneRow({ label, phone, color }: { label: string; phone: string; color: string }) {
+function PhoneRow({
+  label, phone, color, poolName, studentName,
+}: {
+  label: string; phone: string; color: string;
+  poolName?: string | null; studentName?: string | null;
+}) {
   const formatted = formatPhone(phone);
   return (
     <View style={{
@@ -41,7 +48,7 @@ function PhoneRow({ label, phone, color }: { label: string; phone: string; color
       <Pressable onPress={() => callPhone(phone)} style={{ padding: 6 }}>
         <LucideIcon name="phone" size={16} color="#22C55E" />
       </Pressable>
-      <Pressable onPress={() => sendSms(phone)} style={{ padding: 6 }}>
+      <Pressable onPress={() => sendParentInviteSms(phone, poolName, studentName)} style={{ padding: 6 }}>
         <LucideIcon name="message-circle" size={16} color="#3B82F6" />
       </Pressable>
     </View>
@@ -50,6 +57,7 @@ function PhoneRow({ label, phone, color }: { label: string; phone: string; color
 
 export function SectionE_Guardian({
   data, themeColor, saving,
+  poolName, studentName,
   editParentName, setEditParentName,
   editParentPhone, setEditParentPhone,
   editParentPhone2, setEditParentPhone2,
@@ -142,7 +150,16 @@ export function SectionE_Guardian({
           {phones.length === 0 ? (
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, paddingVertical: 10 }}>연락처가 없습니다</Text>
           ) : (
-            phones.map(p => <PhoneRow key={p.label} label={p.label} phone={p.phone!} color={themeColor} />)
+            phones.map(p => (
+              <PhoneRow
+                key={p.label}
+                label={p.label}
+                phone={p.phone!}
+                color={themeColor}
+                poolName={poolName}
+                studentName={studentName}
+              />
+            ))
           )}
         </View>
       )}

@@ -428,6 +428,8 @@ export default function MemberDetailScreen() {
           data={data}
           themeColor={themeColor}
           saving={saving}
+          poolName={pool?.name}
+          studentName={data.name}
           editParentName={editParentName} setEditParentName={setEditParentName}
           editParentPhone={editParentPhone} setEditParentPhone={setEditParentPhone}
           editParentPhone2={editParentPhone2} setEditParentPhone2={setEditParentPhone2}
