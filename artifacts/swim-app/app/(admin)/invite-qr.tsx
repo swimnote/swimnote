@@ -1,10 +1,9 @@
 /**
- * invite-qr.tsx — 학부모 QR 초대 화면
- * QR 코드를 생성하여 출력하거나 카카오/링크로 공유
+ * invite-qr.tsx — SWIMNOTE 앱 설치 QR 화면
+ * 단일 다운로드 웹페이지 QR (역할별 QR 제거)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React from "react";
 import {
   Alert, Pressable, ScrollView, Share,
   StyleSheet, Text, View,
@@ -12,37 +11,22 @@ import {
 import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
 
+const DOWNLOAD_URL = "https://swimnote.kr/download";
+
 export default function InviteQrScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser } = useAuth();
-  const { themeColor, poolName } = useBrand();
-  const qrRef = useRef<any>(null);
-  const [tab, setTab] = useState<"parent" | "teacher">("parent");
-
-  const poolId = (adminUser as any)?.swimming_pool_id || "";
-  const displayName = poolName || "스윔노트";
-
-  const parentUrl = `https://swimnote.app/join?pool=${poolId}&role=parent`;
-  const teacherUrl = `https://swimnote.app/join?pool=${poolId}&role=teacher`;
-  const currentUrl = tab === "parent" ? parentUrl : teacherUrl;
-
-  const IOS_STORE     = 'https://apps.apple.com/kr/app/%EC%8A%A4%EC%9C%94%EB%85%B8%ED%8A%B8/id6761360360';
-  const ANDROID_STORE = 'https://play.google.com/store/apps/details?id=com.swimnote.app';
+  const { themeColor } = useBrand();
 
   async function handleShare() {
     try {
-      const baseMsg = tab === "parent"
-        ? `${displayName} 학부모 앱 가입 링크입니다.`
-        : `${displayName} 선생님 앱 가입 링크입니다.`;
       await Share.share({
-        message: `${baseMsg}\n\n${currentUrl}\n\n▶ iOS: ${IOS_STORE}\n\n▶ 안드로이드: ${ANDROID_STORE}`,
-        url: currentUrl,
+        message: `SWIMNOTE 앱을 설치하세요.\n\n${DOWNLOAD_URL}`,
+        url: DOWNLOAD_URL,
       });
     } catch {}
   }
@@ -50,7 +34,7 @@ export default function InviteQrScreen() {
   function handlePrintGuide() {
     Alert.alert(
       "인쇄 안내",
-      "이 화면을 스크린샷 찍어 프린터로 인쇄하거나, 수영장 입구·프런트에 비치해 주세요.\n\n학부모·선생님이 카메라로 QR을 스캔하면 앱 가입 화면으로 바로 연결됩니다.",
+      "이 화면을 스크린샷 찍어 프린터로 인쇄하거나, 수영장 입구·프런트에 비치해 주세요.\n\n카메라로 QR을 스캔하면 앱 다운로드 페이지로 바로 연결됩니다.",
       [{ text: "확인" }]
     );
   }
@@ -61,48 +45,24 @@ export default function InviteQrScreen() {
 
       <ScrollView contentContainerStyle={[s.container, { paddingBottom: insets.bottom + 40 }]}>
 
-        {/* 탭: 학부모 / 선생님 */}
-        <View style={s.tabRow}>
-          {(["parent", "teacher"] as const).map(t => (
-            <Pressable
-              key={t}
-              style={[s.tab, tab === t && { backgroundColor: themeColor, borderColor: themeColor }]}
-              onPress={() => setTab(t)}
-            >
-              <Text style={[s.tabTxt, { color: tab === t ? "#fff" : C.textSecondary }]}>
-                {t === "parent" ? "학부모용" : "선생님용"}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
         {/* QR 카드 */}
         <View style={s.qrCard}>
           <View style={s.qrHeader}>
             <View style={[s.qrBadge, { backgroundColor: themeColor + "15" }]}>
               <LucideIcon name="qr-code" size={16} color={themeColor} />
-              <Text style={[s.qrBadgeTxt, { color: themeColor }]}>
-                {tab === "parent" ? "학부모 가입 QR" : "선생님 가입 QR"}
-              </Text>
+              <Text style={[s.qrBadgeTxt, { color: themeColor }]}>SWIMNOTE 앱 설치</Text>
             </View>
           </View>
 
-          <Text style={s.poolName}>{displayName}</Text>
-          <Text style={s.qrSub}>
-            {tab === "parent"
-              ? "학부모 앱 가입 · 수업 확인 · 알림 수신"
-              : "선생님 앱 가입 · 수업 관리 · 출결 체크"}
-          </Text>
+          <Text style={s.qrSub}>QR을 스캔하여 SWIMNOTE 앱을 설치하세요.</Text>
 
           {/* QR 코드 */}
           <View style={s.qrWrap}>
-            <View style={s.qrCorner} />
             <QRCode
-              value={currentUrl}
+              value={DOWNLOAD_URL}
               size={200}
               color={C.textPrimary}
               backgroundColor="#FFFFFF"
-              getRef={(ref) => { qrRef.current = ref; }}
             />
           </View>
 
@@ -117,7 +77,7 @@ export default function InviteQrScreen() {
           <Text style={s.guideTitle}>어떻게 사용하나요?</Text>
           {[
             { icon: "printer", text: "이 화면을 스크린샷 찍어 수영장 입구·프런트에 인쇄해 붙여두세요" },
-            { icon: "smartphone", text: tab === "parent" ? "학부모가 카메라로 QR을 스캔하면 앱 가입 화면으로 연결됩니다" : "선생님이 카메라로 QR을 스캔하면 앱 가입 화면으로 연결됩니다" },
+            { icon: "smartphone", text: "카메라로 QR을 스캔하면 앱 다운로드 페이지로 연결됩니다" },
             { icon: "share-2", text: "아래 '링크 공유' 버튼으로 카카오톡에 바로 전송할 수도 있습니다" },
           ].map((item, i) => (
             <View key={i} style={s.guideRow}>
@@ -149,18 +109,12 @@ export default function InviteQrScreen() {
 const s = StyleSheet.create({
   container: { padding: 20, gap: 16 },
 
-  tabRow: { flexDirection: "row", gap: 8 },
-  tab: { flex: 1, height: 40, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: C.background },
-  tabTxt: { fontSize: 14, lineHeight: 19 },
-
   qrCard: { backgroundColor: "#fff", borderRadius: 20, padding: 24, alignItems: "center", gap: 10, shadowColor: "#00000015", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4 },
   qrHeader: { width: "100%", alignItems: "center" },
   qrBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   qrBadgeTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  poolName: { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "center" },
   qrSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
   qrWrap: { padding: 16, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: C.border },
-  qrCorner: {},
   scanHint: { flexDirection: "row", alignItems: "center", gap: 6 },
   scanHintTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
