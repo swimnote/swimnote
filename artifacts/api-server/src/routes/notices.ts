@@ -318,17 +318,75 @@ router.get("/pending", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /notices/:id/seen — 공지 노출 기록 (V2, idempotent) ─────────────────
-// 팝업에 실제 표시된 시점에 클라이언트가 호출.
+// 팝업이 실제 화면에 표시된 시점에 클라이언트가 호출 (Modal onShow 이후).
 // notice_dismissals 테이블에 (notice_id, user_id) UNIQUE ON CONFLICT DO NOTHING
 // 실패해도 앱 동작에 영향 없음 (fire & forget 호출 전제).
+//
+// eligibility 검증 — GET /notices/pending 조건과 동일:
+//   1. status = 'published'
+//   2. starts_at 조건
+//   3. ends_at 유효기간 조건
+//   4. target_roles — 현재 사용자 role 포함 여부
+//   5. pool-scoped 공지라면 해당 pool 대상인지
+//   6. super 역할은 팝업 대상 아님 → 기록 불필요 → 204
+// 대상이 아닌 공지 ID 직접 POST 시 notice_dismissals row 생성 안 됨.
 router.post("/:id/seen", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId   = req.user!.userId;
+    const role     = req.user!.role;
     const noticeId = req.params.id;
+    const now      = new Date();
 
-    const rows = await db.execute(sql`SELECT id FROM notices WHERE id = ${noticeId} LIMIT 1`);
-    if (!rows.rows[0]) return err(res, 404, "공지를 찾을 수 없습니다.");
+    // super 역할은 팝업 대상 아님 — seen 기록 불필요, 조용히 성공
+    if (isSuperRole(role)) {
+      return res.json({ success: true });
+    }
 
+    // 1. 공지 조회 + 기본 eligibility (status, starts_at, ends_at)
+    const rows = await db.execute(sql`
+      SELECT id, audience_scope, swimming_pool_id, status, starts_at, ends_at, target_roles
+      FROM notices
+      WHERE id = ${noticeId}
+      LIMIT 1
+    `);
+    const notice = rows.rows[0] as any;
+
+    if (!notice) return err(res, 404, "공지를 찾을 수 없습니다.");
+
+    if (notice.status === "deleted" || notice.status === "hidden") {
+      return err(res, 403, "해당 공지에 접근할 수 없습니다.");
+    }
+    if (notice.starts_at && new Date(notice.starts_at) > now) {
+      return err(res, 403, "아직 노출되지 않은 공지입니다.");
+    }
+    if (notice.ends_at && new Date(notice.ends_at) < now) {
+      return err(res, 403, "노출 기간이 종료된 공지입니다.");
+    }
+
+    // 2. target_roles 검증
+    const specRole     = roleToSpecRole(role);
+    const targetRoles  = notice.target_roles as string[] | null;
+    if (targetRoles && targetRoles.length > 0 && !targetRoles.includes(specRole)) {
+      return err(res, 403, "해당 공지의 대상이 아닙니다.");
+    }
+
+    // 3. pool-scoped 공지 → pool 일치 여부 검증
+    if (notice.audience_scope === "pool" && notice.swimming_pool_id) {
+      let userPoolId: string | null = null;
+      if (role === "parent_account") {
+        const pr = await db.execute(sql`
+          SELECT swimming_pool_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+        `);
+        userPoolId = (pr.rows[0] as any)?.swimming_pool_id ?? null;
+      } else {
+        userPoolId = await getPoolId(userId);
+      }
+      if (userPoolId !== notice.swimming_pool_id) {
+        return err(res, 403, "해당 공지의 대상 수영장이 아닙니다.");
+      }
+    }
+
+    // 4. seen 기록 (idempotent)
     const seenId = `nd_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
     await db.execute(sql`
       INSERT INTO notice_dismissals (id, notice_id, user_id, dismissed_at)

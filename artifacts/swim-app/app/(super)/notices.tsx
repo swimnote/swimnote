@@ -5,14 +5,19 @@ const C = Colors.light;
  *
  * ─ 변경 내용 (V2) ───────────────────────────────────────────────────────────
  * - 대상 그룹: "학부모만 / 관리자+선생님 / 전체" 3가지 → target_roles 전송
- * - 이미지 1장 첨부 (presigned R2 업로드)
+ * - 이미지 1장 첨부 (presigned R2 업로드) — 최종 등록 시점에만 수행
  * - 링크 URL + 버튼 문구 필드 추가 (deep_link, link_label)
  * - 노출 시작일시(starts_at) 실제로 API에 전송
  * - forcedAck(강제 확인) UI 제거 — dead UI 정리
  * - 공지 카드에 이미지/링크 요약 표시
+ * - 작성 → 미리보기 → 수정 → 최종 등록 workflow (GATE 1)
+ *   · 미리보기는 NoticePopupCard 재사용 — 두 벌 복제 없음
+ *   · 이미지: 미리보기는 local URI 표시, R2 업로드는 최종 등록 시 수행
+ *   · 미리보기 중 DB/seen 기록 없음
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { NoticePopupCard } from "@/components/common/NoticePopupCard";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Image, Modal, Pressable, StyleSheet, Text,
   TextInput, View,
@@ -225,6 +230,11 @@ export default function NoticesScreen() {
   const [loading,       setLoading]       = useState(true);
   const [saving,        setSaving]        = useState(false);
   const [showModal,     setShowModal]     = useState(false);
+
+  // ── 작성/미리보기 step ───────────────────────────────────────────────────
+  // "form" → 작성 화면, "preview" → 미리보기 화면
+  const [step,          setStep]          = useState<"form" | "preview">("form");
+
   const [editId,        setEditId]        = useState<string | null>(null);
   const [form,          setForm]          = useState<FormState>(BLANK);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -233,8 +243,11 @@ export default function NoticesScreen() {
 
   // 이미지 상태
   const [pickedImage,  setPickedImage]  = useState<PickedImage | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null); // 기존 공지 이미지 URL
+  const [imagePreview, setImagePreview] = useState<string | null>(null); // 기존 공지 or local URI
   const [uploading,    setUploading]    = useState(false);
+
+  // 중복 등록 방지용 ref
+  const submittingRef = useRef(false);
 
   const fetchNotices = useCallback(async () => {
     try {
@@ -260,6 +273,7 @@ export default function NoticesScreen() {
     setForm(BLANK);
     setPickedImage(null);
     setImagePreview(null);
+    setStep("form");
     setShowModal(true);
   }
 
@@ -275,9 +289,9 @@ export default function NoticesScreen() {
       linkLabel:  n.link_label ?? "",
     });
     setPickedImage(null);
-    // 기존 이미지 URL 표시
     const existingKey = Array.isArray(n.image_urls) && n.image_urls.length > 0 ? n.image_urls[0] : null;
     setImagePreview(existingKey ? `${API_BASE.replace(/\/api$/, "")}/uploads/${existingKey}` : null);
+    setStep("form");
     setShowModal(true);
   }
 
@@ -304,11 +318,25 @@ export default function NoticesScreen() {
     setImagePreview(null);
   }
 
+  // ── 미리보기로 이동 ───────────────────────────────────────────────────────
+  function goPreview() {
+    if (!form.title.trim() || !form.content.trim()) return;
+    setStep("preview");
+  }
+
+  // ── 수정하기 — 미리보기에서 폼으로 복귀 (모든 상태 유지) ──────────────
+  function goBackToForm() {
+    setStep("form");
+  }
+
+  // ── 최종 등록/수정 ───────────────────────────────────────────────────────
   async function handleSave() {
     if (!form.title.trim() || !form.content.trim()) return;
+    if (submittingRef.current) return; // 중복 탭 방지
+    submittingRef.current = true;
     setSaving(true);
     try {
-      // 이미지 업로드
+      // 이미지 R2 업로드 — 최종 등록 시점에만 수행
       let imageUrls: string[] | undefined;
       if (pickedImage) {
         setUploading(true);
@@ -360,11 +388,15 @@ export default function NoticesScreen() {
       }
       await fetchNotices();
       setShowModal(false);
+      setStep("form");
     } catch (e) {
       console.error("handleSave error:", e);
+      // 실패 시 작성 데이터 유지 — form 상태 보존, 미리보기로 복귀
       Alert.alert("오류", "공지 저장에 실패했습니다. 다시 시도해주세요.");
+      setStep("preview"); // 미리보기 유지 (데이터 손실 없음)
     } finally {
       setSaving(false);
+      submittingRef.current = false;
     }
   }
 
@@ -388,7 +420,22 @@ export default function NoticesScreen() {
     { key: "special",     label: "특별" },
   ];
 
-  const canSave = form.title.trim().length > 0 && form.content.trim().length > 0;
+  const canPreview = form.title.trim().length > 0 && form.content.trim().length > 0;
+  const canSave    = canPreview && !saving && !uploading;
+
+  // ── 미리보기에서 사용할 이미지 URI ───────────────────────────────────────
+  // pickedImage가 있으면 local URI 사용 (R2 업로드 없이 표시)
+  // 없으면 기존 공지 이미지 URL 사용
+  const previewImageUri = pickedImage ? pickedImage.uri : imagePreview;
+
+  // 미리보기 메타 정보
+  const previewAudienceLabel = AUDIENCE_CFG[form.audience].label;
+  const previewStartsLabel   = form.showFrom.trim()
+    ? (() => {
+        const d = new Date(form.showFrom);
+        return isNaN(d.getTime()) ? form.showFrom : d.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      })()
+    : "즉시";
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
@@ -441,123 +488,196 @@ export default function NoticesScreen() {
         )}
       </KeyboardAwareScrollView>
 
-      {/* 등록/수정 모달 */}
+      {/* ── 작성/미리보기 Modal ────────────────────────────────────────────── */}
       <Modal visible={showModal} transparent animationType="slide"
-        statusBarTranslucent onRequestClose={() => setShowModal(false)}>
+        statusBarTranslucent onRequestClose={() => { setShowModal(false); setStep("form"); }}>
         <View style={m.overlay}>
           <View style={m.sheet}>
-            <View style={m.header}>
-              <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
-              <Pressable onPress={() => setShowModal(false)}>
-                <LucideIcon name="x" size={20} color={C.textSecondary} />
-              </Pressable>
-            </View>
 
-            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
-              {/* 제목 */}
-              <Text style={m.label}>제목 *</Text>
-              <TextInput style={m.input} value={form.title}
-                onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                placeholder="공지 제목을 입력하세요" />
-
-              {/* 내용 */}
-              <Text style={m.label}>내용 *</Text>
-              <TextInput style={[m.input, { height: 120, textAlignVertical: "top" }]}
-                value={form.content} onChangeText={v => setForm(f => ({ ...f, content: v }))}
-                placeholder="공지 내용을 입력하세요" multiline />
-
-              {/* 공지 유형 */}
-              <Text style={m.label}>공지 유형</Text>
-              <View style={m.segRow}>
-                {(Object.keys(NOTICE_TYPE_CFG) as NoticeType[]).map(t => (
-                  <Pressable key={t}
-                    style={[m.segBtn, form.noticeType === t && {
-                      backgroundColor: NOTICE_TYPE_CFG[t].bg,
-                      borderColor: NOTICE_TYPE_CFG[t].color,
-                    }]}
-                    onPress={() => setForm(f => ({ ...f, noticeType: t }))}>
-                    <Text style={[m.segTxt, form.noticeType === t && { color: NOTICE_TYPE_CFG[t].color }]}>
-                      {NOTICE_TYPE_CFG[t].label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* 대상 그룹 */}
-              <Text style={m.label}>대상</Text>
-              <View style={m.segRow}>
-                {(Object.keys(AUDIENCE_CFG) as AudienceGroup[]).map(g => (
-                  <Pressable key={g}
-                    style={[m.segBtn, form.audience === g && m.segActive]}
-                    onPress={() => setForm(f => ({ ...f, audience: g }))}>
-                    <Text style={[m.segTxt, form.audience === g && m.segActiveTxt]}>
-                      {AUDIENCE_CFG[g].label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Text style={m.hint}>{AUDIENCE_CFG[form.audience].desc}</Text>
-
-              {/* 노출 시작일시 */}
-              <Text style={m.label}>노출 시작일시 (선택)</Text>
-              <TextInput style={m.input} value={form.showFrom}
-                onChangeText={v => setForm(f => ({ ...f, showFrom: v }))}
-                placeholder="YYYY-MM-DDTHH:mm (예: 2026-04-01T09:00)"
-                autoCapitalize="none" />
-              <Text style={m.hint}>빈값이면 즉시 노출</Text>
-
-              {/* 대표 이미지 */}
-              <Text style={m.label}>대표 이미지 (선택, 1장)</Text>
-              {imagePreview ? (
-                <View style={m.imageRow}>
-                  <Image source={{ uri: imagePreview }} style={m.previewImg} resizeMode="cover" />
-                  <Pressable style={m.removeImgBtn} onPress={removeImage}>
-                    <LucideIcon name="x" size={14} color="#D96C6C" />
-                    <Text style={m.removeImgTxt}>이미지 제거</Text>
+            {/* ── STEP: FORM ── */}
+            {step === "form" && (
+              <>
+                <View style={m.header}>
+                  <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
+                  <Pressable onPress={() => { setShowModal(false); setStep("form"); }}>
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 </View>
-              ) : (
-                <Pressable style={m.imgPickBtn} onPress={pickImage}>
-                  <LucideIcon name="image" size={18} color={C.textSecondary} />
-                  <Text style={m.imgPickTxt}>이미지 선택</Text>
-                </Pressable>
-              )}
 
-              {/* 링크 URL */}
-              <Text style={m.label}>링크 URL (선택)</Text>
-              <TextInput style={m.input} value={form.linkUrl}
-                onChangeText={v => setForm(f => ({ ...f, linkUrl: v }))}
-                placeholder="https://..."
-                autoCapitalize="none"
-                keyboardType="url" />
+                <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
+                  {/* 제목 */}
+                  <Text style={m.label}>제목 *</Text>
+                  <TextInput style={m.input} value={form.title}
+                    onChangeText={v => setForm(f => ({ ...f, title: v }))}
+                    placeholder="공지 제목을 입력하세요" />
 
-              {/* 링크 버튼 문구 */}
-              {form.linkUrl.trim().length > 0 && (
-                <>
-                  <Text style={m.label}>링크 버튼 문구 (선택)</Text>
-                  <TextInput style={m.input} value={form.linkLabel}
-                    onChangeText={v => setForm(f => ({ ...f, linkLabel: v }))}
-                    placeholder="자세히 보기" />
-                </>
-              )}
-            </KeyboardAwareScrollView>
+                  {/* 내용 */}
+                  <Text style={m.label}>내용 *</Text>
+                  <TextInput style={[m.input, { height: 120, textAlignVertical: "top" }]}
+                    value={form.content} onChangeText={v => setForm(f => ({ ...f, content: v }))}
+                    placeholder="공지 내용을 입력하세요" multiline />
 
-            <View style={m.footer}>
-              <Pressable style={m.cancelBtn} onPress={() => setShowModal(false)}>
-                <Text style={m.cancelTxt}>취소</Text>
-              </Pressable>
-              <Pressable
-                style={[m.saveBtn, (!canSave || saving || uploading) && { opacity: 0.4 }]}
-                onPress={() => setOtpVisible(true)}
-                disabled={!canSave || saving || uploading}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <LucideIcon name="lock" size={13} color="#fff" />
-                  <Text style={m.saveTxt}>
-                    {uploading ? "업로드 중..." : saving ? "저장 중..." : editId ? "저장" : "등록"}
+                  {/* 공지 유형 */}
+                  <Text style={m.label}>공지 유형</Text>
+                  <View style={m.segRow}>
+                    {(Object.keys(NOTICE_TYPE_CFG) as NoticeType[]).map(t => (
+                      <Pressable key={t}
+                        style={[m.segBtn, form.noticeType === t && {
+                          backgroundColor: NOTICE_TYPE_CFG[t].bg,
+                          borderColor: NOTICE_TYPE_CFG[t].color,
+                        }]}
+                        onPress={() => setForm(f => ({ ...f, noticeType: t }))}>
+                        <Text style={[m.segTxt, form.noticeType === t && { color: NOTICE_TYPE_CFG[t].color }]}>
+                          {NOTICE_TYPE_CFG[t].label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  {/* 대상 그룹 */}
+                  <Text style={m.label}>대상</Text>
+                  <View style={m.segRow}>
+                    {(Object.keys(AUDIENCE_CFG) as AudienceGroup[]).map(g => (
+                      <Pressable key={g}
+                        style={[m.segBtn, form.audience === g && m.segActive]}
+                        onPress={() => setForm(f => ({ ...f, audience: g }))}>
+                        <Text style={[m.segTxt, form.audience === g && m.segActiveTxt]}>
+                          {AUDIENCE_CFG[g].label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={m.hint}>{AUDIENCE_CFG[form.audience].desc}</Text>
+
+                  {/* 노출 시작일시 */}
+                  <Text style={m.label}>노출 시작일시 (선택)</Text>
+                  <TextInput style={m.input} value={form.showFrom}
+                    onChangeText={v => setForm(f => ({ ...f, showFrom: v }))}
+                    placeholder="YYYY-MM-DDTHH:mm (예: 2026-04-01T09:00)"
+                    autoCapitalize="none" />
+                  <Text style={m.hint}>빈값이면 즉시 노출</Text>
+
+                  {/* 대표 이미지 */}
+                  <Text style={m.label}>대표 이미지 (선택, 1장)</Text>
+                  {imagePreview ? (
+                    <View style={m.imageRow}>
+                      <Image source={{ uri: imagePreview }} style={m.previewImg} resizeMode="cover" />
+                      <Pressable style={m.removeImgBtn} onPress={removeImage}>
+                        <LucideIcon name="x" size={14} color="#D96C6C" />
+                        <Text style={m.removeImgTxt}>이미지 제거</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable style={m.imgPickBtn} onPress={pickImage}>
+                      <LucideIcon name="image" size={18} color={C.textSecondary} />
+                      <Text style={m.imgPickTxt}>이미지 선택</Text>
+                    </Pressable>
+                  )}
+
+                  {/* 링크 URL */}
+                  <Text style={m.label}>링크 URL (선택)</Text>
+                  <TextInput style={m.input} value={form.linkUrl}
+                    onChangeText={v => setForm(f => ({ ...f, linkUrl: v }))}
+                    placeholder="https://..."
+                    autoCapitalize="none"
+                    keyboardType="url" />
+
+                  {/* 링크 버튼 문구 */}
+                  {form.linkUrl.trim().length > 0 && (
+                    <>
+                      <Text style={m.label}>링크 버튼 문구 (선택)</Text>
+                      <TextInput style={m.input} value={form.linkLabel}
+                        onChangeText={v => setForm(f => ({ ...f, linkLabel: v }))}
+                        placeholder="자세히 보기" />
+                    </>
+                  )}
+                </KeyboardAwareScrollView>
+
+                {/* 하단: 취소 + 미리보기 */}
+                <View style={m.footer}>
+                  <Pressable style={m.cancelBtn} onPress={() => { setShowModal(false); setStep("form"); }}>
+                    <Text style={m.cancelTxt}>취소</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[m.saveBtn, !canPreview && { opacity: 0.4 }]}
+                    onPress={goPreview}
+                    disabled={!canPreview}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <LucideIcon name="eye" size={13} color="#fff" />
+                      <Text style={m.saveTxt}>미리보기</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              </>
+            )}
+
+            {/* ── STEP: PREVIEW ── */}
+            {step === "preview" && (
+              <>
+                <View style={m.header}>
+                  <Text style={m.title}>미리보기</Text>
+                  <Pressable onPress={() => { setShowModal(false); setStep("form"); }}>
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
+                  </Pressable>
+                </View>
+
+                <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
+                  {/* 발행 정보 — 슈퍼관리자 전용 메타 */}
+                  <View style={pv.metaBox}>
+                    <View style={pv.metaRow}>
+                      <LucideIcon name="users" size={12} color={P} />
+                      <Text style={pv.metaLabel}>발송 대상</Text>
+                      <Text style={pv.metaValue}>{previewAudienceLabel}</Text>
+                    </View>
+                    <View style={pv.metaRow}>
+                      <LucideIcon name="clock" size={12} color={P} />
+                      <Text style={pv.metaLabel}>노출 시작</Text>
+                      <Text style={pv.metaValue}>{previewStartsLabel}</Text>
+                    </View>
+                  </View>
+
+                  <Text style={pv.sectionLabel}>실제 사용자 화면 미리보기</Text>
+
+                  {/* 실제 NoticePopupCard 재사용 — 이미지는 local URI 표시 */}
+                  <View style={pv.cardWrapper}>
+                    <NoticePopupCard
+                      title={form.title}
+                      content={form.content}
+                      imageUri={previewImageUri}
+                      deepLink={form.linkUrl.trim() || null}
+                      linkLabel={form.linkLabel.trim() || null}
+                      onClose={goBackToForm}
+                    />
+                  </View>
+
+                  <Text style={pv.previewNote}>
+                    ※ 미리보기 닫기 버튼은 "수정하기"와 동일하게 작동합니다.
                   </Text>
+                </KeyboardAwareScrollView>
+
+                {/* 하단: 수정하기 + 공지 등록/OTP */}
+                <View style={m.footer}>
+                  <Pressable style={m.cancelBtn} onPress={goBackToForm}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <LucideIcon name="pencil" size={13} color={C.textPrimary} />
+                      <Text style={m.cancelTxt}>수정하기</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    style={[m.saveBtn, !canSave && { opacity: 0.4 }]}
+                    onPress={() => setOtpVisible(true)}
+                    disabled={!canSave}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <LucideIcon name="lock" size={13} color="#fff" />
+                      <Text style={m.saveTxt}>
+                        {uploading ? "업로드 중..." : saving ? "저장 중..." : editId ? "저장" : "공지 등록"}
+                      </Text>
+                    </View>
+                  </Pressable>
                 </View>
-              </Pressable>
-            </View>
+              </>
+            )}
+
           </View>
         </View>
       </Modal>
@@ -649,4 +769,19 @@ const m = StyleSheet.create({
   cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:       { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+});
+
+// 미리보기 전용 스타일
+const pv = StyleSheet.create({
+  metaBox:      { backgroundColor: "#F5F0FF", borderRadius: 12, padding: 14,
+                  marginBottom: 16, gap: 8 },
+  metaRow:      { flexDirection: "row", alignItems: "center", gap: 6 },
+  metaLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6D28D9", width: 64 },
+  metaValue:    { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#3B0764", flex: 1 },
+  sectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary,
+                  marginBottom: 10, textAlign: "center" },
+  cardWrapper:  { borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: C.border,
+                  marginBottom: 8 },
+  previewNote:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary,
+                  textAlign: "center", marginBottom: 8 },
 });
