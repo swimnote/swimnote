@@ -30,6 +30,7 @@ export const noticesTable = pgTable("notices", {
   starts_at:         timestamp("starts_at", { withTimezone: true }),
   ends_at:           timestamp("ends_at",   { withTimezone: true }),
   deep_link:         text("deep_link"),                     // nullable deep-link URL
+  link_label:        text("link_label"),                    // V2: CTA 버튼 문구 (nullable)
   target_plan_types: text("target_plan_types").array(),     // WP12 forward-compat
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at"),

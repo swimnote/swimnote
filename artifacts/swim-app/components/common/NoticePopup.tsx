@@ -1,276 +1,267 @@
 /**
- * components/common/NoticePopup.tsx — 콜드런치 공지 팝업
+ * components/common/NoticePopup.tsx — V2 운영형 공지 팝업
  *
- * ─ 트리거 기준 ─────────────────────────────────────────────────────────
- * 앱이 완전히 종료된 뒤 재실행(콜드런치)되었을 때 1회만 실행.
- * 백그라운드 복귀 시에는 실행하지 않음.
+ * ─ 정책 ────────────────────────────────────────────────────────────────────
+ * 1. 콜드런치(프로세스 재시작) 1회만 실행
+ * 2. 서버 기준 사용자별 1회 노출 (notice_dismissals 테이블)
+ * 3. 팝업 표시 즉시 POST /notices/:id/seen (fire & forget, 실패 무시)
+ * 4. 미노출 공지 중 최신 1개만 표시 (서버에서 LIMIT 1 반환)
+ * 5. "다시 보지 않기" 없음 — X / 닫기 버튼만
+ * 6. 이미지, CTA 링크 선택 표시
+ * 7. 모든 오류 fail-safe — 앱 진입 차단 금지
  *
- * 구현: 모듈 레벨 변수 _coldLaunchProcessed 활용
- *   - 프로세스 재시작 → 변수 false(초기값) → 처리 후 true로 변경
- *   - 백그라운드 복귀 → 변수는 이미 true → 처리 안 함
- *
- * ─ 노출 순서 ───────────────────────────────────────────────────────────
- * 1. 전체 공지 (audience_scope = global)
- * 2. 수영장 공지 (audience_scope = pool)
- * 각 그룹 안에서: is_pinned 먼저, 그다음 최신순
- *
- * ─ 버튼 정책 ───────────────────────────────────────────────────────────
- * - "닫기"        : 현재 팝업만 닫음. 다음 콜드런치 시 다시 표시.
- * - "다시보지않기": AsyncStorage에 영구 저장. 이후 팝업에 나타나지 않음.
- *
- * ─ 공지함 ──────────────────────────────────────────────────────────────
- * 자동팝업 숨김과 공지함 열람은 별개.
- * 다시보지않기 해도 공지함에서 계속 확인 가능.
+ * ─ 대상 역할 ────────────────────────────────────────────────────────────────
+ * GET /notices/pending — 모든 역할 (pool_admin, teacher, parent_account 등)
+ * 서버에서 role 필터링 + seen 필터링 + starts_at 필터링 처리
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useNoticeStore, NOTICE_TYPE_CFG, type NoticeType } from "@/store/noticeStore";
-import { useAuth, apiRequest } from "@/context/AuthContext";
+import {
+  Image, Linking, Modal, Pressable, ScrollView,
+  StyleSheet, Text, View,
+} from "react-native";
+import { useAuth, apiRequest, API_BASE } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 콜드런치 감지 플래그
-// 모듈 레벨 — 프로세스 재시작(콜드런치) 시에만 false로 리셋됨
-// 백그라운드 복귀 시에는 이미 true이므로 팝업 미실행
-// ─────────────────────────────────────────────────────────────────────────────
-let _coldLaunchProcessed = false;
-
 const P = "#7C3AED";
 
-// API 공지 타입
-interface ApiNotice {
+// ─── 콜드런치 감지 플래그 ────────────────────────────────────────────────────
+// 모듈 레벨 — 프로세스 재시작 시만 false로 초기화됨
+let _coldLaunchProcessed = false;
+
+// ─── API 공지 타입 ───────────────────────────────────────────────────────────
+interface PendingNotice {
   id: string;
   title: string;
   content: string;
   notice_type: string;
   audience_scope: "global" | "pool";
-  swimming_pool_id: string | null;
-  status: string;
-  is_pinned: boolean;
+  image_urls?: string[] | null;
+  deep_link?: string | null;
+  link_label?: string | null;
+  starts_at?: string | null;
   created_at: string;
 }
 
-// 공지 scope 뱃지 설정
-const SCOPE_CFG = {
-  global: { label: "전체 공지",    color: C.brandStrong, bg: C.brandSoft },
-  pool:   { label: "수영장 공지",  color: P,         bg: "#EEDDF5" },
-} as const;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// API 공지 정렬: global 먼저 → pool, 각 그룹 내 pinned 먼저 → 최신순
-// ─────────────────────────────────────────────────────────────────────────────
-function sortNoticesForPopup(notices: ApiNotice[]): ApiNotice[] {
-  return [...notices].sort((a, b) => {
-    // 1. global 먼저
-    if (a.audience_scope === "global" && b.audience_scope !== "global") return -1;
-    if (a.audience_scope !== "global" && b.audience_scope === "global") return 1;
-    // 2. pinned 먼저
-    if (a.is_pinned && !b.is_pinned) return -1;
-    if (!a.is_pinned && b.is_pinned) return 1;
-    // 3. 최신순
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+// ─── URL 안전 검사 ────────────────────────────────────────────────────────────
+function isSafeUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NoticePopup 컴포넌트
-// ─────────────────────────────────────────────────────────────────────────────
+async function openLink(url: string) {
+  try {
+    if (!isSafeUrl(url)) return;
+    const canOpen = await Linking.canOpenURL(url);
+    if (canOpen) await Linking.openURL(url);
+  } catch {
+    // crash 방지 — 오류 무시
+  }
+}
+
+// ─── NoticePopup ──────────────────────────────────────────────────────────────
 export function NoticePopup() {
   const { kind, token } = useAuth();
-  const dismissForever   = useNoticeStore(s => s.dismissForever);
-  const hydrateDismissed = useNoticeStore(s => s.hydrateDismissed);
-  const hydrated         = useNoticeStore(s => s._hydrated);
 
-  const [queue, setQueue]     = useState<ApiNotice[]>([]);
-  const [index, setIndex]     = useState(0);
+  const [notice,  setNotice]  = useState<PendingNotice | null>(null);
   const [visible, setVisible] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
-  // 중복 실행 방지
   const fetchingRef = useRef(false);
 
-  // Step 1: 앱 마운트 시 AsyncStorage에서 dismissed 목록 복원
-  useEffect(() => { hydrateDismissed(); }, []);
-
-  // Step 2: hydrated + 로그인 확인 후 콜드런치 여부 판단 → 공지 조회
+  // 콜드런치 여부 판단 → 미노출 공지 조회 → 표시
   const fetchAndShow = useCallback(async () => {
-    if (!token || !kind || !hydrated) return;
-    if (_coldLaunchProcessed) return;       // 이미 이번 프로세스에서 처리함 (백그라운드 복귀 등)
+    if (!token || !kind) return;
+    if (_coldLaunchProcessed) return;
     if (fetchingRef.current) return;
 
-    // 콜드런치로 확정 — 이후 백그라운드 복귀 시 재실행 방지
     _coldLaunchProcessed = true;
-    fetchingRef.current = true;
+    fetchingRef.current  = true;
 
     try {
-      // 역할에 따라 적절한 엔드포인트 사용
-      const endpoint = kind === "parent" ? "/parent/notices" : "/notices";
-      const res = await apiRequest(token, endpoint);
+      const res = await apiRequest(token, "/notices/pending");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      const data: ApiNotice[] = Array.isArray(json) ? json : (json?.notices ?? []);
 
-      // 현재 dismissedIds 스냅샷 (fetchAndShow 실행 시점)
-      const currentDismissed = useNoticeStore.getState().dismissedIds;
+      // 서버가 { notice: {...} } 또는 배열로 올 경우 모두 처리
+      const item: PendingNotice | null =
+        json?.notice ?? (Array.isArray(json) && json.length > 0 ? json[0] : null);
 
-      // 필터: published 상태만 + dismissed 제외
-      const eligible = data.filter(
-        n => n.status === "published" && !currentDismissed.includes(n.id),
-      );
-
-      // 정렬: global 먼저 → pool
-      const sorted = sortNoticesForPopup(eligible);
-
-      if (sorted.length > 0) {
-        setQueue(sorted);
-        setIndex(0);
+      if (item) {
+        setNotice(item);
+        setImgError(false);
         setVisible(true);
+
+        // ── seen 기록 (fire & forget) ────────────────────────────────────
+        apiRequest(token, `/notices/${item.id}/seen`, { method: "POST" }).catch(() => {});
       }
     } catch (e) {
-      // 공지 조회 실패는 무시 (팝업 미표시)
+      // 공지 조회 실패 — 무시, 앱 정상 진입
       console.warn("[NoticePopup] 공지 조회 실패:", e);
     } finally {
       fetchingRef.current = false;
     }
-  }, [token, kind, hydrated]);
+  }, [token, kind]);
 
-  useEffect(() => {
-    fetchAndShow();
-  }, [fetchAndShow]);
+  useEffect(() => { fetchAndShow(); }, [fetchAndShow]);
 
-  // ── 현재 공지 ────────────────────────────────────────────────────────────
-  const notice = queue[index] ?? null;
-
-  // ── 다음으로 이동 or 팝업 닫기 ───────────────────────────────────────────
-  function advance() {
-    const next = index + 1;
-    if (next < queue.length) {
-      // 다음 공지가 dismissed 된 경우 건너뜀
-      const nextDismissed = useNoticeStore.getState().dismissedIds;
-      const remaining = queue.slice(next).filter(n => !nextDismissed.includes(n.id));
-      if (remaining.length > 0) {
-        const nextIdx = queue.findIndex((n, i) => i >= next && !nextDismissed.includes(n.id));
-        setIndex(nextIdx);
-      } else {
-        setVisible(false);
-      }
-    } else {
-      setVisible(false);
-    }
-  }
-
+  // ─── 닫기 ────────────────────────────────────────────────────────────────
   function handleClose() {
-    // 닫기: 이번 세션만 닫기. 다음 콜드런치 시 다시 표시.
-    advance();
+    setVisible(false);
   }
 
-  function handleDismiss() {
-    // 다시보지않기: AsyncStorage에 영구 저장 → 이후 팝업 미노출
-    if (notice) dismissForever(notice.id);
-    advance();
-  }
-
-  // ── 표시할 공지 없음 ─────────────────────────────────────────────────────
   if (!notice) return null;
 
-  const scopeCfg = SCOPE_CFG[notice.audience_scope] ?? SCOPE_CFG.pool;
-  const ntCfg    = NOTICE_TYPE_CFG[notice.notice_type as NoticeType];
-  const totalVisible = queue.length;
-  const showCounter  = totalVisible > 1;
+  const imageUrl =
+    !imgError &&
+    Array.isArray(notice.image_urls) &&
+    notice.image_urls.length > 0 &&
+    notice.image_urls[0]
+      ? `${API_BASE.replace(/\/api$/, "")}/uploads/${notice.image_urls[0]}`
+      : null;
+
+  const hasLink = isSafeUrl(notice.deep_link);
+  const ctaLabel = notice.link_label?.trim() || "자세히 보기";
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      {/* 배경 터치 불가 (강제 확인 구조) */}
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={s.overlay}>
         <View style={s.card}>
 
-          {/* 상단: 카운터 + scope 뱃지 */}
-          <View style={s.headerRow}>
-            <View style={[s.scopeBadge, { backgroundColor: scopeCfg.bg }]}>
-              <LucideIcon name="bell" size={12} color={scopeCfg.color} />
-              <Text style={[s.scopeTxt, { color: scopeCfg.color }]}>{scopeCfg.label}</Text>
-            </View>
-            {showCounter && (
-              <Text style={s.counter}>{index + 1} / {totalVisible}</Text>
-            )}
-          </View>
+          {/* X 버튼 — 우측 상단 */}
+          <Pressable style={s.closeBtn} onPress={handleClose} hitSlop={16}>
+            <LucideIcon name="x" size={18} color={C.textSecondary} />
+          </Pressable>
 
-          {/* 공지 유형 뱃지 */}
-          {ntCfg && (
-            <View style={[s.typeBadge, { backgroundColor: ntCfg.bg }]}>
-              <LucideIcon name={ntCfg.icon as any} size={11} color={ntCfg.color} />
-              <Text style={[s.typeTxt, { color: ntCfg.color }]}>{ntCfg.label}</Text>
-            </View>
+          {/* 대표 이미지 */}
+          {imageUrl && (
+            <Image
+              source={{ uri: imageUrl }}
+              style={s.image}
+              resizeMode="cover"
+              onError={() => setImgError(true)}
+            />
           )}
 
-          {/* 제목 */}
-          <Text style={s.title}>{notice.title}</Text>
-
-          {/* 내용 (길면 팝업 내부 스크롤) */}
-          <ScrollView style={s.contentScroll} showsVerticalScrollIndicator={false}>
+          {/* 본문 스크롤 영역 */}
+          <ScrollView
+            style={s.scrollArea}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={s.scrollContent}
+          >
+            <Text style={s.title}>{notice.title}</Text>
             <Text style={s.content}>{notice.content}</Text>
           </ScrollView>
 
-          {/* 날짜 */}
-          <Text style={s.date}>
-            {new Date(notice.created_at).toLocaleDateString("ko-KR", {
-              year: "numeric", month: "long", day: "numeric",
-            })}
-          </Text>
-
-          {/* 버튼 */}
-          <View style={s.btnRow}>
-            <Pressable style={s.dismissBtn} onPress={handleDismiss}>
-              <Text style={s.dismissTxt}>다시 보지 않기</Text>
+          {/* CTA 링크 버튼 */}
+          {hasLink && (
+            <Pressable
+              style={s.ctaBtn}
+              onPress={() => openLink(notice.deep_link!)}
+            >
+              <LucideIcon name="external-link" size={14} color={P} />
+              <Text style={s.ctaTxt}>{ctaLabel}</Text>
             </Pressable>
-            <Pressable style={s.confirmBtn} onPress={handleClose}>
-              <Text style={s.confirmTxt}>
-                {showCounter && index < totalVisible - 1 ? "다음 공지" : "닫기"}
-              </Text>
-            </Pressable>
-          </View>
+          )}
 
-          {/* 안내 텍스트 */}
-          <Text style={s.hint}>
-            닫기: 이번만 닫기 · 다시보지않기: 이 기기에서 자동팝업 숨김
-          </Text>
+          {/* 닫기 버튼 */}
+          <Pressable style={s.confirmBtn} onPress={handleClose}>
+            <Text style={s.confirmTxt}>닫기</Text>
+          </Pressable>
+
         </View>
       </View>
     </Modal>
   );
 }
 
+// ─── 스타일 ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.65)",
-                  alignItems: "center", justifyContent: "center", padding: 24 },
-  card:         { backgroundColor: C.surface, borderRadius: 20, padding: 24,
-                  width: "100%", maxWidth: 400, maxHeight: "80%" },
-  headerRow:    { flexDirection: "row", alignItems: "center",
-                  justifyContent: "space-between", marginBottom: 12 },
-  scopeBadge:   { flexDirection: "row", alignItems: "center", gap: 5,
-                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  scopeTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  counter:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  typeBadge:    { flexDirection: "row", alignItems: "center", gap: 5,
-                  alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4,
-                  borderRadius: 8, marginBottom: 12 },
-  typeTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  title:        { fontSize: 18, fontFamily: "Pretendard-Regular",
-                  color: C.textPrimary, marginBottom: 12 },
-  contentScroll:{ maxHeight: 200, marginBottom: 12 },
-  content:      { fontSize: 14, fontFamily: "Pretendard-Regular",
-                  color: C.textPrimary, lineHeight: 22 },
-  date:         { fontSize: 11, fontFamily: "Pretendard-Regular",
-                  color: C.textSecondary, marginBottom: 14 },
-  btnRow:       { flexDirection: "row", gap: 8 },
-  dismissBtn:   { flex: 1, padding: 13, borderRadius: 12,
-                  backgroundColor: C.surface, alignItems: "center" },
-  dismissTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  confirmBtn:   { flex: 1, padding: 13, borderRadius: 12,
-                  backgroundColor: P, alignItems: "center" },
-  confirmTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
-  hint:         { fontSize: 10, fontFamily: "Pretendard-Regular",
-                  color: "#C4B5FD", textAlign: "center", marginTop: 10 },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  card: {
+    backgroundColor: C.surface,
+    borderRadius: 20,
+    width: "100%",
+    maxWidth: 400,
+    maxHeight: "85%",
+    overflow: "hidden",
+  },
+  closeBtn: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: 20,
+    padding: 6,
+  },
+  image: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    backgroundColor: "#F3F4F6",
+  },
+  scrollArea: {
+    maxHeight: 280,
+  },
+  scrollContent: {
+    padding: 24,
+    paddingTop: 28, // X 버튼과 겹치지 않게
+    paddingBottom: 8,
+  },
+  title: {
+    fontSize: 18,
+    fontFamily: "Pretendard-SemiBold",
+    color: C.textPrimary,
+    marginBottom: 12,
+    lineHeight: 26,
+  },
+  content: {
+    fontSize: 14,
+    fontFamily: "Pretendard-Regular",
+    color: C.textPrimary,
+    lineHeight: 22,
+  },
+  ctaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: P,
+    backgroundColor: "#F5F0FF",
+  },
+  ctaTxt: {
+    fontSize: 14,
+    fontFamily: "Pretendard-SemiBold",
+    color: P,
+  },
+  confirmBtn: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: P,
+    alignItems: "center",
+  },
+  confirmTxt: {
+    fontSize: 14,
+    fontFamily: "Pretendard-SemiBold",
+    color: "#fff",
+  },
 });

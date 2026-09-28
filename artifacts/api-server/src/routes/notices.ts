@@ -124,6 +124,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     starts_at     = null,
     ends_at       = null,
     deep_link     = null,
+    link_label    = null,   // V2: CTA 버튼 문구
     target_plan_types = null,
   } = req.body;
   if (!title || !content) return err(res, 400, "제목과 내용을 입력해주세요.");
@@ -196,6 +197,7 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       starts_at:         starts_at  ? new Date(starts_at)  : null,
       ends_at:           ends_at    ? new Date(ends_at)    : null,
       deep_link:         deep_link  || null,
+      link_label:        link_label || null,
       target_plan_types: Array.isArray(target_plan_types) ? target_plan_types : null,
     }).returning();
 
@@ -251,6 +253,94 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
     logPoolEvent({ pool_id: logPoolId, event_type: "notice_create", entity_type: "notice", entity_id: notice.id, actor_id: req.user!.userId, actor_name: user?.name || "관리자", payload: { title, scope, notice_type: notice.notice_type, show_banner, send_push } }).catch(console.error);
     res.status(201).json({ success: true, ...notice });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── GET /notices/pending — 사용자별 미노출 공지 (V2 팝업용) ──────────────────
+// 현재 사용자에게 아직 노출되지 않은 (notice_dismissals에 없는) 최신 공지 1개 반환.
+// 역할별 target_roles 필터 + starts_at 필터 + seen 제외
+// 지원 역할: pool_admin, sub_admin, teacher, parent_account
+// super 역할은 팝업 미표시 — 빈 배열 반환
+router.get("/pending", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const role   = req.user!.role;
+    const now    = new Date();
+
+    // super 역할은 팝업 없음
+    if (isSuperRole(role)) {
+      return res.json({ notice: null });
+    }
+
+    const specRole = roleToSpecRole(role);
+
+    let poolId: string | null = null;
+    if (role === "parent_account") {
+      // parent_accounts 테이블에서 pool 조회
+      const rows = await db.execute(sql`
+        SELECT swimming_pool_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (rows.rows[0] as any)?.swimming_pool_id ?? null;
+    } else {
+      poolId = await getPoolId(userId);
+    }
+
+    if (!poolId) {
+      return res.json({ notice: null });
+    }
+
+    const rows = await db.execute(sql`
+      SELECT *
+      FROM notices
+      WHERE status != 'deleted'
+        AND (
+          audience_scope = 'global'
+          OR (audience_scope = 'pool' AND swimming_pool_id = ${poolId})
+        )
+        AND (starts_at IS NULL OR starts_at <= ${now})
+        AND (
+          target_roles IS NULL
+          OR cardinality(target_roles) = 0
+          OR ${specRole} = ANY(target_roles)
+        )
+        AND id NOT IN (
+          SELECT notice_id FROM notice_dismissals WHERE user_id = ${userId}
+        )
+      ORDER BY is_pinned DESC, created_at DESC
+      LIMIT 1
+    `);
+
+    const notice = rows.rows[0] ?? null;
+    return res.json({ notice });
+  } catch (e) {
+    console.error("[notices/pending]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+// ── POST /notices/:id/seen — 공지 노출 기록 (V2, idempotent) ─────────────────
+// 팝업에 실제 표시된 시점에 클라이언트가 호출.
+// notice_dismissals 테이블에 (notice_id, user_id) UNIQUE ON CONFLICT DO NOTHING
+// 실패해도 앱 동작에 영향 없음 (fire & forget 호출 전제).
+router.post("/:id/seen", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId   = req.user!.userId;
+    const noticeId = req.params.id;
+
+    const rows = await db.execute(sql`SELECT id FROM notices WHERE id = ${noticeId} LIMIT 1`);
+    if (!rows.rows[0]) return err(res, 404, "공지를 찾을 수 없습니다.");
+
+    const seenId = `nd_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    await db.execute(sql`
+      INSERT INTO notice_dismissals (id, notice_id, user_id, dismissed_at)
+      VALUES (${seenId}, ${noticeId}, ${userId}, NOW())
+      ON CONFLICT (notice_id, user_id) DO NOTHING
+    `);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("[notices/seen]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
 });
 
 // ── GET /notices/banners — Banner 후보 조회 ───────────────────────────────────
@@ -392,7 +482,7 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
 // ── PATCH /:id — 수정 (재발송 포함) ─────────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
   const { title, content, is_pinned, notice_type, resend_push,
-          show_banner, send_push, target_roles, target_pools, starts_at, ends_at, deep_link } = req.body;
+          show_banner, send_push, target_roles, target_pools, starts_at, ends_at, deep_link, link_label } = req.body;
   try {
     const role = req.user!.role;
     const poolId = isSuperRole(role) ? null : await getPoolId(req.user!.userId);
@@ -413,6 +503,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
     if (starts_at   !== undefined) updates.starts_at   = starts_at ? new Date(starts_at) : null;
     if (ends_at     !== undefined) updates.ends_at     = ends_at   ? new Date(ends_at)   : null;
     if (deep_link   !== undefined) updates.deep_link   = deep_link || null;
+    if (link_label  !== undefined) updates.link_label  = link_label || null;
     if (Array.isArray(target_roles))  updates.target_roles  = target_roles.filter((r: string) => ["ADMIN","TEACHER","PARENT"].includes(r));
     if (Array.isArray(target_pools))  updates.target_pools  = target_pools;
 
