@@ -508,8 +508,8 @@ export default function DashboardScreen() {
                   color: "#EA580C",
                   bg: "#FFF7ED",
                   label: `학부모 미연결 ${stats.unlinked_members}명`,
-                  sub: "QR 초대로 연결하기",
-                  route: "/(admin)/invite-qr",
+                  sub: "학부모 연결하기",
+                  route: "/(admin)/members?filter=unlinked&backTo=dashboard",
                 },
               ].filter(Boolean) as { icon: string; color: string; bg: string; label: string; sub: string; route: string }[];
               if (alerts.length === 0) return null;
@@ -708,7 +708,7 @@ export default function DashboardScreen() {
                   </View>
                 </Pressable>
                 <View style={s.splitStatDivider} />
-                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/invite-qr" as any)}>
+                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
                   <View style={s.splitStatIcon}>
                     <LucideIcon name="user-x" size={14} color={C.textPrimary} />
                   </View>
