@@ -1,0 +1,153 @@
+[SWIMNOTE 공지 V2 — 검증 완료 수정본 Production OTA]
+
+검토 결과 PASS.
+아래 수정사항을 Production에 반영한다.
+
+포함되어야 하는 commit:
+
+02dfd8dd
+- 관리자 설정 "공지사항 발송" → "공지사항 관리"
+- teacher 공지함 image_urls 지원
+- parent 공지함 image_urls 지원
+
+af29e3b5
+- NoticePopup 진단 instrumentation
+
+d7dfea6a
+- NoticePopup 이미지 URL resolution 수정
+- 닫기 후 Modal/touch 복구 수정
+- onRequestClose/onDismiss 처리
+- SWIMNOTE 공식 로고 적용
+- NoticePopupCard 공통 popup frame 디자인 개선
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD와 working tree를 확인한다.
+
+반드시:
+
+- 위 3개 commit이 현재 HEAD에 포함되어 있는지 확인
+- d7dfea6a 이후 무관한 앱 코드 변경 여부 확인
+- 무관한 앱 코드 변경이 섞였다면 임의 배포하지 말고 보고
+- native dependency 변경 없음 확인
+- native config 변경 없음 확인
+- 기존 swimnote-logo.png asset 재사용임을 확인
+
+이번 작업은 JS/TS 변경이며
+새 native build가 필요하지 않아야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+원격 repository push 후
+
+iOS + Android Production OTA를 동시에 배포한다.
+
+고정:
+
+channel/branch:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+iOS와 Android 모두 성공해야
+전체 배포 성공으로 보고한다.
+
+한 플랫폼이라도 실패하면
+전체 완료라고 보고하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+- DB migration 금지
+- Production DB 수정 금지
+- API deploy 금지
+- native build 금지
+- App Store binary 배포 금지
+- Play Store binary 배포 금지
+- 추가 기능 수정 금지
+- 추가 리팩터링 금지
+
+현재 승인된 코드 그대로 배포한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 보고한다.
+
+1. 실제 OTA source 전체 SHA
+2. 02dfd8dd 포함 여부
+3. af29e3b5 포함 여부
+4. d7dfea6a 포함 여부
+5. git push 결과
+6. working tree 상태
+
+7. iOS OTA 성공 여부
+8. iOS Update ID
+9. iOS Group ID
+
+10. Android OTA 성공 여부
+11. Android Update ID
+12. Android Group ID
+
+13. channel/branch
+14. runtimeVersion
+15. 배포 오류 유무
+16. DB 변경 여부
+17. API 배포 여부
+18. native build 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 중요 — CLOSED 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 성공만으로 공지 V2를 CLOSED 처리하지 않는다.
+
+배포 후 사용자가 실제 iPhone에서 최종 검증한다.
+
+필수 실기기 확인:
+
+A.
+이미지가 포함된 슈퍼관리자 공지
+→ 앱 실행
+→ popup 자동 표시
+→ 16:9 대표 이미지 실제 표시
+
+B.
+SWIMNOTE 로고 표시
+
+C.
+제목/본문 정상 표시
+
+D.
+X 버튼으로 닫기
+→ popup 사라짐
+→ 즉시 underlying 화면 터치 가능
+
+E.
+별도 신규 공지에서 하단 "닫기"
+→ popup 사라짐
+→ 즉시 underlying 화면 터치 가능
+
+F.
+앱 재실행
+→ 이미 본 동일 공지는 다시 popup되지 않음
+
+G.
+공지함에는 공지가 계속 존재
+
+H.
+teacher 공지함
+→ 슈퍼관리자가 첨부한 대표 이미지 표시
+
+가능하면 parent 공지함 이미지도
+안전한 테스트 환경에서 확인한다.
+
+이 실기기 검증 결과를 받은 뒤
+공지 V2 최종 CLOSED 여부를 판단한다.
