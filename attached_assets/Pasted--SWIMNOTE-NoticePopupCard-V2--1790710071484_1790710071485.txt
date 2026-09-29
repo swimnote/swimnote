@@ -1,0 +1,396 @@
+[SWIMNOTE NoticePopupCard — 글로벌 제품 수준 공식 디자인 적용]
+
+현재 공지 V2의 기능 구조는 유지한다.
+
+이번 작업의 목적은
+현재 실기기에서 정상 동작하기 시작한 NoticePopupCard를
+확정된 디자인 방향에 맞춰
+SWIMNOTE 공식 공지/프로모션 공통 팝업 프레임으로 완성하는 것이다.
+
+중요:
+이번 작업은 디자인/UI 작업이다.
+
+공지 lifecycle
+pending API
+seen
+dismissals
+role eligibility
+공지함
+이미지 URL resolution
+close 로직
+
+등 현재 정상화된 기능 로직은 수정하지 마라.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 디자인 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+확정된 구조:
+
+┌─────────────────────────────┐
+│  [SWIMNOTE LOGO]         [X] │
+│                             │
+│  ┌───────────────────────┐  │
+│  │                       │  │
+│  │      16:9 IMAGE       │  │
+│  │                       │  │
+│  └───────────────────────┘  │
+│                             │
+│  [공지 유형 BADGE]           │
+│                             │
+│  공지 제목                    │
+│                             │
+│  공지 본문                    │
+│                             │
+│  [CTA — 있을 때만]           │
+│                             │
+│  [          닫기          ]  │
+└─────────────────────────────┘
+
+전체 방향:
+
+- 글로벌 SaaS / 대형 모바일 앱 수준
+- 깨끗함
+- 충분한 여백
+- 강한 정보 hierarchy
+- 과도한 장식 없음
+- SWIMNOTE 브랜드 식별 명확
+- 일반 공지와 프로모션 모두 사용 가능
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 팝업 카드
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재보다 카드 자체의 완성도를 높인다.
+
+- 흰색 surface
+- 충분한 corner radius
+- 화면 좌우 안전 margin 확보
+- 작은 iPhone에서도 화면 밖으로 나가지 않음
+- Android에서도 동일한 hierarchy 유지
+- 과도한 shadow 금지
+- backdrop은 콘텐츠 집중이 가능할 정도로 dim
+
+카드 최대 높이는 화면 safe area를 침범하지 않게 한다.
+
+긴 콘텐츠가 들어와도
+카드 전체가 화면 밖으로 밀려
+X 또는 닫기를 누를 수 없는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Header
+━━━━━━━━━━━━━━━━━━━━━━
+
+왼쪽:
+공식 SWIMNOTE 로고/워드마크
+
+기존 asset:
+@/assets/images/swimnote-logo.png
+
+현재 실기기에서는 로고가 너무 작게 보인다.
+
+따라서 브랜드 식별이 가능한 수준으로 키우되
+헤더를 지배할 정도로 크게 만들지는 않는다.
+
+주의:
+asset 자체에 아이콘+워드마크가 포함되어 있는지
+실제 asset dimensions/content를 먼저 확인하고
+aspectRatio를 보존한다.
+
+오른쪽:
+X close button
+
+- 충분한 터치 영역
+- 원형 또는 부드러운 neutral background
+- 시각적으로 과하지 않음
+- 현재 정상화된 handleClose 그대로 사용
+
+Header 좌우 alignment를 정확히 맞춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 대표 이미지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미지가 존재하면
+Header 아래에 크게 표시한다.
+
+- 16:9
+- width 100%
+- resizeMode cover
+- 적절한 radius
+- 이미지 자체가 콘텐츠의 visual hero 역할
+
+이미지가 없으면:
+이미지 영역 자체를 렌더하지 않는다.
+
+빈 placeholder 금지.
+
+공지 등록 단계에서 이미 16:9 crop된 결과이므로
+popup에서 불필요하게 다시 crop하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 공지 유형 Badge
+━━━━━━━━━━━━━━━━━━━━━━
+
+대표 이미지 아래 또는
+이미지가 없으면 Header 아래에
+작은 category badge를 배치한다.
+
+현재 notice type을 조사해서
+기존 값을 그대로 사용한다.
+
+예:
+
+일반 안내
+업데이트 예정
+서버/장애 안내
+특별 공지
+
+Badge는 작은 pill 형태.
+
+목적은 장식이 아니라
+콘텐츠 종류를 즉시 인식시키는 것이다.
+
+유형별 색상을 과도하게 만들지 않는다.
+
+기존 SWIMNOTE 디자인 토큰이 있으면 우선 재사용한다.
+
+type 값이 없거나 표시할 수 없는 기존 공지는
+badge 없이도 레이아웃이 자연스러워야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 제목
+━━━━━━━━━━━━━━━━━━━━━━
+
+제목은 팝업에서 가장 강한 text hierarchy.
+
+- semibold/bold
+- 본문보다 명확히 크게
+- 1~2줄 자연스럽게 대응
+- 지나치게 거대한 font 금지
+- 한국어/영문 모두 대응
+
+이미지와 제목 사이에 충분한 breathing room을 둔다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 본문
+━━━━━━━━━━━━━━━━━━━━━━
+
+본문은 읽기 편한 typography 적용.
+
+- 적절한 lineHeight
+- 여러 줄 대응
+- 문단 대응
+- 너무 연한 text color 금지
+- 긴 공지 대응
+
+긴 본문일 경우
+content 영역만 scroll 가능하도록 한다.
+
+Header와 최종 action은 가능한 한 접근 가능한 상태를 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. CTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+deep_link가 있을 때만 표시.
+
+link_label이 있으면 해당 문구 사용.
+없으면 "자세히 보기".
+
+CTA는 primary action으로 표현한다.
+
+예:
+
+[ 자세히 보기 ]
+
+CTA가 존재하는 경우:
+
+CTA
+↓
+닫기
+
+순서.
+
+CTA가 없으면
+닫기만 표시.
+
+기존 safe URL validation 및 Linking 로직은 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 닫기
+━━━━━━━━━━━━━━━━━━━━━━
+
+하단에 full-width 닫기 버튼 유지.
+
+현재 SWIMNOTE primary color/token을 우선 확인하고 사용한다.
+
+단순히 시안의 보라색 값을 하드코딩하지 마라.
+
+현재 앱 디자인 시스템의
+primary action과 일관된 색을 사용한다.
+
+버튼:
+
+- 충분한 height
+- 적절한 radius
+- 명확한 text contrast
+- 터치 영역 충분
+
+X와 하단 닫기 모두
+현재 정상화된 동일 handleClose 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 일반 공지 / 프로모션 양쪽 대응
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 컴포넌트는 두 상황 모두 자연스러워야 한다.
+
+CASE A — 일반 공지
+
+SWIMNOTE
+[일반 안내]
+
+서비스 이용 안내
+
+본문...
+[닫기]
+
+CASE B — 이미지 프로모션
+
+SWIMNOTE
+
+[16:9 HERO IMAGE]
+
+[특별 공지]
+
+SWIMNOTE X 새로운 기능
+
+새로운 기능을 확인해보세요.
+
+[자세히 보기]
+[닫기]
+
+둘 다 같은 NoticePopupCard를 사용한다.
+
+광고 전용 별도 component는 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 미리보기 동일성
+━━━━━━━━━━━━━━━━━━━━━━
+
+슈퍼관리자 공지 등록 미리보기와
+실제 사용자 popup은 계속 동일한
+NoticePopupCard를 사용한다.
+
+즉:
+
+Superadmin Preview
+=
+ADMIN popup
+=
+TEACHER popup
+=
+PARENT popup
+
+동일한 디자인이어야 한다.
+
+미리보기용 별도 복제 UI 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 반응형
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+- 작은 iPhone
+- 일반 iPhone
+- 큰 iPhone
+- Android 일반 화면
+
+고정 pixel width로 특정 기기에만 맞추지 않는다.
+
+screen width 기반 maxWidth / margin을 사용한다.
+
+safe area를 고려한다.
+
+Landscape 최적화까지 이번 작업에서 과도하게 할 필요는 없지만
+세로 화면에서 절대 잘리지 않아야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 기능 절대 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 기능은 건드리지 않는다.
+
+- /notices/pending
+- eligibility
+- NoticePopup lifecycle
+- onShow → seen
+- notice_dismissals
+- cold launch 처리
+- image URL resolution
+- setVisible(false) + setNotice(null)
+- onRequestClose
+- teacher/parent 공지함 이미지
+- 관리자 "공지사항 관리"
+- 관리자→학부모 기존 공지
+
+이번 작업 때문에
+다시 popup 표시/닫기 버그가 발생하면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+A. image 없는 일반 공지
+B. image 있는 공지
+C. image + CTA
+D. title 1줄
+E. title 2줄
+F. 긴 본문
+G. type badge 있음
+H. badge 없음
+I. X close
+J. 하단 close
+K. 닫은 뒤 underlying touch
+L. 미리보기
+M. 실제 popup
+N. ADMIN
+O. TEACHER
+P. PARENT
+Q. TypeScript 오류 없음
+
+기능 테스트와 디자인 검증을 구분해서 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+1. 기존 NoticePopupCard 구조
+2. 실제 사용한 SWIMNOTE logo asset
+3. popup width/maxHeight 규칙
+4. header 구조
+5. image frame 규칙
+6. badge 구현 방식
+7. title typography
+8. body typography/scroll 처리
+9. CTA 구조
+10. close 구조
+11. responsive 처리
+12. preview/actual 동일성
+13. 기존 기능 보존 여부
+14. 테스트 결과
+15. 수정 파일
+16. Production 변경 여부
+17. native build 필요 여부
+18. 전체 commit SHA
+
+Production OTA는 하지 마라.
+
+코드 수정 + 테스트 + commit까지만 완료하고
+보고서를 제출한다.
