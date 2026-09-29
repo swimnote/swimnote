@@ -1,0 +1,213 @@
+[긴급 버그 — 공지는 공지함에 도착하지만 앱 시작 팝업이 표시되지 않음]
+
+현재 Production 실기기 확인 결과:
+
+- 슈퍼관리자가 공지 등록 성공
+- 대상 사용자 공지함에는 해당 공지가 정상적으로 도착함
+- 그러나 앱을 시작/진입해도 공지 팝업이 자동으로 나타나지 않음
+
+즉,
+공지 생성/대상자 조회/공지함 노출은 정상이고
+"앱 시작 시 1회 팝업" 경로가 실패하고 있다.
+
+추측 수정 금지.
+실제 실행 경로를 처음부터 끝까지 추적해서 정확한 root cause를 찾아라.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 팝업 진입점 추적
+━━━━━━━━━━━━━━━━━━━━
+
+현재 NoticePopup 컴포넌트가 어디에 mount되어 있는지 확인한다.
+
+다음을 정확히 추적:
+
+앱 실행
+→ 인증/session 복원
+→ 사용자 role/pool 확정
+→ NoticePopup mount
+→ GET /notices/pending 호출
+→ pending response
+→ popup state 설정
+→ Modal visible=true
+→ Modal onShow
+→ POST /notices/:id/seen
+
+특히 아래를 확인:
+
+A. NoticePopup이 실제 Production 앱 root/layout에 mount되어 있는가
+B. 특정 role 화면에만 mount되어 있지는 않은가
+C. 로그인/session 복원 전에 pending 요청이 실행되고 끝나버리지는 않는가
+D. role/pool 정보가 준비되기 전에 호출되어 빈 결과를 받는가
+E. 앱 시작 후 인증 완료 시 재조회가 되는가
+F. pending API 오류를 catch 후 조용히 무시하고 있지는 않은가
+G. 다른 RN Modal/navigation transition 때문에 NoticePopup Modal presentation이 실패하는가
+H. visible state는 true인데 native Modal이 표시되지 않는 경우가 있는가
+
+━━━━━━━━━━━━━━━━━━━━
+2. /notices/pending 실제 동작 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 등록된 공지 1건을 기준으로 확인한다.
+
+해당 공지에 대해:
+
+- notice id
+- status
+- starts_at
+- ends_at
+- target_roles
+- pool scope
+- 현재 테스트 사용자의 canonical role
+- 현재 테스트 사용자의 pool
+- notice_dismissals 존재 여부
+
+를 확인한다.
+
+그리고 동일 사용자 조건에서
+
+GET /notices/pending
+
+이 실제로 해당 공지를 반환하는지 확인한다.
+
+공지함에 보인다는 이유만으로 pending도 정상이라고 가정하지 마라.
+두 API의 eligibility 조건 차이도 비교한다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. seen 기록 조기 생성 여부 확인
+━━━━━━━━━━━━━━━━━━━━
+
+가장 중요하다.
+
+설계 원칙은:
+
+GET pending
+→ 실제 팝업 화면 표시
+→ Modal onShow 발생
+→ 그때 POST /seen
+
+이다.
+
+절대로
+
+pending 조회
+→ popup 표시 전에 /seen
+
+이 되면 안 된다.
+
+현재 테스트 공지가
+notice_dismissals에 이미 기록되어 있다면
+
+- 언제
+- 어떤 코드 경로에서
+- 실제 Modal onShow 없이 기록될 가능성이 있는지
+
+추적한다.
+
+이미 잘못 생성된 seen 데이터가 있다면
+코드 원인과 데이터 상태를 보고하되
+Production 데이터를 임의 삭제하지 마라.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 앱 시작 lifecycle 확인
+━━━━━━━━━━━━━━━━━━━━
+
+공지 팝업은 최소한 다음 조건에서 안정적으로 동작해야 한다.
+
+- 앱 완전 종료 후 실행
+- 로그인 상태에서 앱 실행
+- session restore 완료 후
+- 관리자
+- 선생님
+- 학부모
+
+단순히 component 최초 mount 한 번만 조회해서
+session/role 준비 타이밍 때문에 놓치는 구조이면 수정한다.
+
+필요하면 인증 준비 완료 이후 pending을 조회하도록 한다.
+
+단,
+무한 재조회나 화면 이동 때마다 계속 pending을 호출하는 구조로 만들지 마라.
+
+━━━━━━━━━━━━━━━━━━━━
+5. "1회 표시" 의미 유지
+━━━━━━━━━━━━━━━━━━━━
+
+정상 흐름:
+
+eligible 공지 존재
+→ 앱에서 팝업 표시
+→ 실제 표시된 순간 seen 기록
+→ 닫기
+→ 이후 다시 앱을 실행해도 같은 사용자는 같은 공지를 다시 보지 않음
+
+팝업을 보지 못했으면 seen 처리되어서는 안 된다.
+
+공지함의 읽음 상태와
+팝업 1회 표시 상태를 섞지 마라.
+
+notice_reads와 notice_dismissals 역할도 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 수정 범위
+━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은
+"공지함에는 정상 도착하지만 앱 시작 팝업이 뜨지 않는 문제"
+하나만 root-cause fix한다.
+
+공지 등록 UI,
+이미지 crop,
+OTP,
+공지함 UI,
+기존 API 계약 등을 불필요하게 리팩터링하지 마라.
+
+새 native dependency 금지.
+
+Production 배포 금지.
+코드 수정 + 테스트 + commit까지만 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+최소 다음을 검증:
+
+A. eligible + unseen 공지 → pending 반환
+B. NoticePopup 실제 mount
+C. auth/session 준비 후 pending 조회
+D. pending 공지를 받으면 popup visible
+E. popup 실제 onShow 전에는 seen 없음
+F. onShow 이후에만 seen 기록
+G. 닫은 뒤 같은 공지는 다시 popup 안 뜸
+H. 공지함에는 계속 정상 표시
+I. 대상 role이 아닌 사용자는 popup 없음
+J. 시작 시간이 미래인 공지는 popup 없음
+K. 관리자
+L. 선생님
+M. 학부모
+N. TypeScript 오류 없음
+O. 기존 notices 테스트 regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+다음을 정확히 보고한다.
+
+1. 팝업이 안 뜬 정확한 root cause
+2. NoticePopup 실제 mount 위치
+3. 앱 시작 시 pending 호출 시점
+4. 실제 등록 공지의 pending eligibility 상태
+5. notice_dismissals 상태
+6. 조기 seen 발생 여부
+7. 수정한 lifecycle/상태 흐름
+8. 관리자/선생님/학부모 동작
+9. 공지함과 popup 상태 분리 유지 여부
+10. 테스트 결과
+11. 수정 파일
+12. Production 변경 여부
+13. native build 필요 여부
+14. 전체 commit SHA
+
+원인을 확인하지 못한 상태에서
+단순 delay 추가 또는 강제 visible 처리로 해결하지 마라.
