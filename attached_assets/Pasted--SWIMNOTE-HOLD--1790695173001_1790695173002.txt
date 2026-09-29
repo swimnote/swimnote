@@ -1,0 +1,278 @@
+[SWIMNOTE 공지 팝업 — 런타임 실패지점 확정 조사]
+
+이번 완료보고의 팝업 부분 판정은 HOLD다.
+
+중요한 최신 실기기 증거가 누락됐다.
+
+이미 다음 순서까지 완료됐다.
+
+1. isLoading guard 수정 commit 1dc17d21
+2. iOS Production OTA 성공
+   Update ID:
+   01a0ecfa-b3b3-7f66-a929-7a1db6ca5627
+3. 사용자가 실제 iPhone에서 다시 확인
+4. 결과: 여전히 공지 팝업 안 뜸
+
+따라서
+"1dc17d21 OTA가 실기기 검증 대기"
+라는 판단은 잘못됐다.
+
+1dc17d21은 이미 실기기에서 실패했다.
+
+이번에는 팝업 코드를 수정하지 마라.
+실제 실패 지점을 확정하는 조사만 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+현재 확정된 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB:
+
+- notice 존재
+- status=published
+- target_roles=["ADMIN","TEACHER"]
+- notice_dismissals = 0 rows
+- show_banner=false
+- /notices/pending은 show_banner를 조건으로 사용하지 않음
+
+그리고 실제 사용자:
+
+- 공지함에서는 해당 공지를 확인함
+- 앱 시작 popup은 보지 못함
+- 1dc17d21 포함 OTA에서도 동일
+
+따라서 dismissal 선필터링 문제는 현재 증거상 아니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+이번 조사 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 정확히 어디에서 끊기는지 확정한다.
+
+① NoticePopup mount 안 됨
+
+② fetchAndShow 실행 안 됨
+
+③ /notices/pending 요청 안 나감
+
+④ pending 요청은 나가지만 인증/role/pool 문제로 실패
+
+⑤ pending 응답이 빈 배열
+
+⑥ pending 응답에는 notice가 있음
+
+⑦ setNotice까지 실행
+
+⑧ setVisible(true)까지 실행
+
+⑨ visible=true render까지 실행
+
+⑩ RN Modal presentation 실패
+
+⑪ Modal onShow까지 실행
+
+현재 notice_dismissals=0이므로
+⑪까지 실제 도달했다면 /seen 실패 가능성도 별도로 확인한다.
+
+"코드를 읽어보면 정상이어야 한다"는 결론 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 RootNav 구조 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+NoticePopup JSX가 정확히 어느 return branch에 존재하는지 확인한다.
+
+특히:
+
+if (isLoading) return <AppLoadingScreen />;
+
+이후 실제 navigator를 반환하는 JSX 안에
+NoticePopup이 정말 존재하는지 확인한다.
+
+다음 값 변화도 추적:
+
+- token
+- kind
+- isLoading
+- NoticePopup mount/unmount
+- fetchAndShow callback 재생성
+- fetchAndShow를 호출하는 effect 재실행
+
+useCallback dependency에 isLoading이 있다는 것과
+실제 useEffect가 다시 실행되는 것은 별개의 문제다.
+
+fetchAndShow를 호출하는 실제 effect의 dependency를
+그대로 확인해서 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. pending API eligibility를 추정하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서에는
+
+"/notices/pending 쿼리는 show_banner 조건이 없으므로
+해당 공지를 정상 반환해야 함"
+
+이라고 되어 있다.
+
+이번에는 "해야 함"으로 끝내지 마라.
+
+실제 테스트 대상 role/pool/user 조건으로
+pending eligibility를 서버 로직/테스트에서 재현해서
+
+실제 반환 결과를 확인한다.
+
+확인:
+
+- user role
+- canonical role
+- pool_id
+- notice target_roles
+- pool scope
+- starts_at
+- ends_at
+- status
+- dismissal NOT EXISTS
+
+그리고 최종 결과:
+
+pending = 해당 notice 반환
+
+또는
+
+pending = 반환하지 않음
+
+을 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 런타임 진단 instrumentation
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재처럼 silent failure가 반복되고 있으므로
+NoticePopup lifecycle에 최소한의 진단 로그를 넣어라.
+
+개인정보/토큰/공지 본문은 로그에 남기지 않는다.
+
+구분 가능한 event만 기록:
+
+NOTICE_POPUP_MOUNT
+NOTICE_POPUP_READY
+NOTICE_PENDING_REQUEST
+NOTICE_PENDING_STATUS
+NOTICE_PENDING_COUNT
+NOTICE_PENDING_SELECTED
+NOTICE_VISIBLE_SET
+NOTICE_MODAL_RENDER
+NOTICE_MODAL_ONSHOW
+NOTICE_SEEN_REQUEST
+NOTICE_SEEN_STATUS
+NOTICE_POPUP_ERROR
+
+필요한 경우 role 정도만 허용.
+token, 이름, 전화번호, 공지 내용 등 PII 금지.
+
+이 로그로 다음 실기기 실행에서
+어디까지 실행됐는지 한 번에 판별 가능해야 한다.
+
+기존 logging infrastructure가 있으면 그것을 사용하고,
+새 대규모 시스템을 만들지 마라.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. RN Modal presentation 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+setVisible(true)까지 도달한다면
+그 다음은 Modal 문제다.
+
+확인:
+
+- NoticePopup의 Modal JSX가 visible state를 실제 사용하고 있는지
+- 조건부 return 때문에 Modal 자체가 render되지 않는지
+- 동시에 열려 있는 다른 Modal 존재 여부
+- RootNav/navigation transition과 충돌 여부
+- onShow
+- onDismiss
+- visible state가 바로 false로 변경되는 코드
+- cleanup effect
+- AppState listener
+- navigation listener
+
+특히 visible을 false로 만드는 모든 코드 경로를 찾아라.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 단계에서는 팝업 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 목적은 세 번째 추측 수정이 아니다.
+
+원인 확정이 목적이다.
+
+따라서:
+
+- delay 추가 금지
+- 또 다른 guard 추가 금지
+- Modal 구조 변경 금지
+- overlay 전환 금지
+- API 조건 변경 금지
+- Production DB 변경 금지
+
+진단에 필요한 최소 instrumentation만 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 문제 1/2 수정은 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 완료한 다음 수정은 그대로 유지한다.
+
+A.
+관리자 설정:
+
+"공지사항 발송"
+→
+"공지사항 관리"
+
+B.
+teacher notices:
+image_urls type + 이미지 표시
+
+C.
+parent notices:
+image_urls type + 이미지 표시
+
+이 세 변경은 되돌리지 않는다.
+
+단 아직 Production 배포하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 정확히 보고한다.
+
+1. NoticePopup 정확한 mount 위치
+2. RootNav return 구조
+3. fetchAndShow를 호출하는 실제 effect
+4. effect dependency 전체
+5. isLoading true→false 후 실제 재실행 여부
+6. 실제 pending eligibility 결과
+7. pending이 해당 notice를 반환하는지
+8. visible=false로 만드는 모든 코드 경로
+9. Modal render 조건
+10. onShow 도달 가능 경로
+11. 현재 코드만으로 확정 가능한 실패 지점
+12. 추가한 runtime diagnostic event 목록
+13. 문제 1/2 수정 보존 여부
+14. 수정 파일
+15. Production 변경 없음 확인
+16. commit 전체 SHA
+
+중요:
+
+이번 보고서에서 원인이 아직 확정되지 않았다면
+억지로 root cause를 선언하지 마라.
+
+"다음 실기기 로그에서
+A/B/C 중 어느 것을 보면 원인이 확정된다"
+라고 정확히 보고하면 된다.
+
+Production OTA는 아직 하지 마라.
