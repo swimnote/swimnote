@@ -173,6 +173,7 @@ export function NoticePopup() {
         <NoticePopupCard
           title={notice.title}
           content={notice.content}
+          noticeType={notice.notice_type}
           imageUri={imageUri}
           deepLink={notice.deep_link}
           linkLabel={notice.link_label}

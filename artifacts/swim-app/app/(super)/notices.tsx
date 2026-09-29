@@ -832,6 +832,7 @@ export default function NoticesScreen() {
                     <NoticePopupCard
                       title={form.title}
                       content={form.content}
+                      noticeType={form.noticeType}
                       imageUri={previewImageUri}
                       deepLink={form.linkUrl.trim() || null}
                       linkLabel={form.linkLabel.trim() || null}
