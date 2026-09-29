@@ -39,7 +39,7 @@ const CORE_ITEMS = [
 
 // ── 운영 ─────────────────────────────────────────────────────────────────────
 const OPS_ITEMS = [
-  { label: "공지사항 발송", icon: "bell"          as const, desc: "학부모 / 선생님 공지 관리", route: "/(admin)/notices" },
+  { label: "공지사항 관리", icon: "bell"          as const, desc: "학부모 / 선생님 공지 관리", route: "/(admin)/notices" },
   { label: "문의함",        icon: "inbox"         as const, desc: "학부모 문의 확인 및 관리", route: "/(admin)/inquiries" },
   { label: "문의하기",      icon: "message-circle" as const, desc: "SWIMNOTE 운영팀 문의",    route: "/(admin)/support-chat" },
 ] as const;

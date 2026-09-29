@@ -7,13 +7,13 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, RefreshControl,
+  ActivityIndicator, Image, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 
 const C = Colors.light;
 
@@ -22,6 +22,9 @@ interface Notice {
   is_pinned: boolean; is_read: boolean; created_at: string;
   notice_type?: string;
   audience_scope?: "global" | "pool";
+  image_urls?: string[] | null;
+  deep_link?: string | null;
+  link_label?: string | null;
 }
 type FilterKey = "all" | "general" | "class";
 
@@ -141,7 +144,18 @@ export default function ParentNoticesScreen() {
                 </View>
                 <Text style={[s.title, { color: C.text }]}>{n.title}</Text>
                 {isExpanded
-                  ? <Text style={[s.content, { color: C.textSecondary }]}>{n.content}</Text>
+                  ? (
+                    <View style={{ gap: 8 }}>
+                      <Text style={[s.content, { color: C.textSecondary }]}>{n.content}</Text>
+                      {Array.isArray(n.image_urls) && n.image_urls.length > 0 && (
+                        <Image
+                          source={{ uri: `${API_BASE}/uploads/${encodeURIComponent(n.image_urls[0])}` }}
+                          style={s.noticeImage}
+                          resizeMode="cover"
+                        />
+                      )}
+                    </View>
+                  )
                   : <Text style={[s.contentPreview, { color: C.textSecondary }]} numberOfLines={2}>{n.content}</Text>
                 }
                 <View style={s.cardBottom}>
@@ -184,4 +198,5 @@ const s = StyleSheet.create({
   expandHint: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   emptyBox: { borderRadius: 16, padding: 40, alignItems: "center", gap: 10, marginTop: 20 },
   emptyTitle: { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  noticeImage: { width: "100%", height: 200, borderRadius: 10 },
 });

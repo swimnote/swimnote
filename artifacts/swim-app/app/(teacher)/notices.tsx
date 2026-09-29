@@ -7,13 +7,13 @@
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, RefreshControl,
+  ActivityIndicator, Image, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, useAuth, API_BASE } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
 const C = Colors.light;
@@ -28,6 +28,9 @@ interface Notice {
   notice_type?: string;
   student_name?: string | null;
   audience_scope?: "global" | "pool";
+  image_urls?: string[] | null;
+  deep_link?: string | null;
+  link_label?: string | null;
 }
 
 export default function TeacherNoticesScreen() {
@@ -128,7 +131,21 @@ function NoticeCard({
       </View>
 
       {isOpen && (
-        <Text style={s.content}>{n.content}</Text>
+        <View style={{ gap: 8 }}>
+          <Text style={s.content}>{n.content}</Text>
+          {Array.isArray(n.image_urls) && n.image_urls.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {n.image_urls.map((key, i) => (
+                <Image
+                  key={i}
+                  source={{ uri: `${API_BASE}/uploads/${encodeURIComponent(key)}` }}
+                  style={s.thumbImage}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
       )}
 
       <View style={s.meta}>
@@ -164,4 +181,5 @@ const s = StyleSheet.create({
   metaTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   empty:      { alignItems: "center", paddingTop: 80, gap: 12 },
   emptyTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  thumbImage: { width: 200, height: 140, borderRadius: 10 },
 });
