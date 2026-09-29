@@ -3,24 +3,29 @@ const C = Colors.light;
 /**
  * (super)/notices.tsx — 공지 관리 V2
  *
- * ─ 변경 내용 (V2) ───────────────────────────────────────────────────────────
+ * ─ V2 ───────────────────────────────────────────────────────────────────────
  * - 대상 그룹: "학부모만 / 관리자+선생님 / 전체" 3가지 → target_roles 전송
  * - 이미지 1장 첨부 (presigned R2 업로드) — 최종 등록 시점에만 수행
  * - 링크 URL + 버튼 문구 필드 추가 (deep_link, link_label)
  * - 노출 시작일시(starts_at) 실제로 API에 전송
- * - forcedAck(강제 확인) UI 제거 — dead UI 정리
- * - 공지 카드에 이미지/링크 요약 표시
  * - 작성 → 미리보기 → 수정 → 최종 등록 workflow (GATE 1)
- *   · 미리보기는 NoticePopupCard 재사용 — 두 벌 복제 없음
+ *   · 미리보기는 NoticePopupCard 재사용
  *   · 이미지: 미리보기는 local URI 표시, R2 업로드는 최종 등록 시 수행
  *   · 미리보기 중 DB/seen 기록 없음
+ *
+ * ─ V2 추가 ──────────────────────────────────────────────────────────────────
+ * - 날짜/시간 선택 UX: "지금부터" vs "날짜/시간 지정" 라디오 + wheel picker
+ * - 이미지 크롭 UI: NoticeCropModal (PanResponder + expo-image-manipulator)
+ * - canSave 방어 코드: 모달 닫기·실패 시 saving/uploading 강제 리셋
+ * - BLANK 초기화: 폼 열릴 때마다 현재 시각 계산 (모듈 로드 시점 고정 제거)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { NoticePopupCard } from "@/components/common/NoticePopupCard";
+import { NoticeCropModal } from "@/components/common/NoticeCropModal";
+import { NoticeDatePicker } from "@/components/common/NoticeDatePicker";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert, Image, Modal, Pressable, StyleSheet, Text,
-  TextInput, View,
+  Alert, Image, Modal, Pressable, StyleSheet, Text, View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { compressPhotoAsset } from "../../utils/compressImage";
@@ -158,23 +163,34 @@ const nc = StyleSheet.create({
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
 
+// ─── 날짜 표시 helper ────────────────────────────────────────────────────────
+function formatLocalDate(d: Date): string {
+  return d.toLocaleString("ko-KR", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
 // ─── Form ────────────────────────────────────────────────────────────────────
 interface FormState {
   title: string;
   content: string;
   audience: AudienceGroup;
   noticeType: NoticeType;
-  showFrom: string;        // "YYYY-MM-DDTHH:mm" or ""
+  /** null = 즉시 노출 / Date = 예약 발행 (로컬 시간 기준) */
+  scheduledDate: Date | null;
   linkUrl: string;
   linkLabel: string;
 }
 
-const BLANK: FormState = {
-  title: "", content: "", audience: "all",
-  noticeType: "general",
-  showFrom: new Date().toISOString().slice(0, 16),
-  linkUrl: "", linkLabel: "",
-};
+function makeBlank(): FormState {
+  return {
+    title: "", content: "", audience: "all",
+    noticeType: "general",
+    scheduledDate: null,   // 기본값: 즉시
+    linkUrl: "", linkLabel: "",
+  };
+}
 
 // ─── 이미지 업로드 helper ──────────────────────────────────────────────────
 type PickedImage = {
@@ -198,56 +214,58 @@ async function uploadOneImage(img: PickedImage, token: string): Promise<string> 
     }),
   });
   if (!sessionRes.ok) throw new Error("이미지 업로드 준비 실패");
-  const { items } = await sessionRes.json() as {
-    items: Array<{ client_id: string; object_key: string; upload_url: string; headers: Record<string, string> }>;
-  };
-  const slot = items[0];
-  if (!slot) throw new Error("presigned 슬롯 없음");
+  const sessionData = await sessionRes.json();
+  const presigned = sessionData.presigned_urls?.[0];
+  if (!presigned) throw new Error("presigned URL 없음");
 
-  // 3. R2에 PUT
-  const task = FileSystemLegacy.createUploadTask(
-    slot.upload_url, uri,
-    {
-      httpMethod: "PUT",
-      uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
-      headers: slot.headers,
-      sessionType: FileSystemLegacy.FileSystemSessionType.FOREGROUND,
-    }
-  );
-  const result = await task.uploadAsync();
-  if (!result || result.status < 200 || result.status >= 300) {
-    throw new Error(`이미지 PUT 실패 (${result?.status})`);
-  }
-  return slot.object_key;
+  // 3. R2 직접 업로드
+  const fileBytes = await FileSystemLegacy.readAsStringAsync(uri, {
+    encoding: FileSystemLegacy.EncodingType.Base64,
+  });
+  const byteArr = Uint8Array.from(atob(fileBytes), c => c.charCodeAt(0));
+  const uploadRes = await fetch(presigned.url, {
+    method: "PUT",
+    headers: { "Content-Type": mimeType },
+    body: byteArr,
+  });
+  if (!uploadRes.ok) throw new Error(`R2 업로드 실패 ${uploadRes.status}`);
+
+  return presigned.object_key;
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
 export default function NoticesScreen() {
-  const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const insets    = useSafeAreaInsets();
 
   const [notices,       setNotices]       = useState<ApiNotice[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [saving,        setSaving]        = useState(false);
   const [showModal,     setShowModal]     = useState(false);
 
-  // ── 작성/미리보기 step ───────────────────────────────────────────────────
-  // "form" → 작성 화면, "preview" → 미리보기 화면
+  // 작성/미리보기 step
   const [step,          setStep]          = useState<"form" | "preview">("form");
-
   const [editId,        setEditId]        = useState<string | null>(null);
-  const [form,          setForm]          = useState<FormState>(BLANK);
+  const [form,          setForm]          = useState<FormState>(makeBlank());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterType,    setFilterType]    = useState<"all" | NoticeType>("all");
   const [otpVisible,    setOtpVisible]    = useState(false);
 
   // 이미지 상태
-  const [pickedImage,  setPickedImage]  = useState<PickedImage | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null); // 기존 공지 or local URI
-  const [uploading,    setUploading]    = useState(false);
+  const [pickedImage,   setPickedImage]   = useState<PickedImage | null>(null);
+  const [imagePreview,  setImagePreview]  = useState<string | null>(null);
+  const [uploading,     setUploading]     = useState(false);
 
-  // 중복 등록 방지용 ref
-  const submittingRef = useRef(false);
+  // 크롭 modal 상태
+  const [cropVisible,   setCropVisible]   = useState(false);
+  const [cropSourceUri, setCropSourceUri] = useState<string>("");
+
+  // 날짜 picker modal 상태
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+
+  // 중복 등록 방지
+  const submittingRef  = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchNotices = useCallback(async () => {
     try {
@@ -268,11 +286,27 @@ export default function NoticesScreen() {
     return notices.filter(n => n.notice_type === filterType);
   }, [notices, filterType]);
 
+  // ── 모달 닫기 — 방어적 상태 리셋 ───────────────────────────────────────
+  function resetSaveState() {
+    setSaving(false);
+    setUploading(false);
+    setIsSubmitting(false);
+    submittingRef.current = false;
+  }
+
+  function closeModal() {
+    // 진행 중인 저장/업로드 상태 강제 리셋 (타이밍 버그 방어)
+    resetSaveState();
+    setShowModal(false);
+    setStep("form");
+  }
+
   function openCreate() {
     setEditId(null);
-    setForm(BLANK);
+    setForm(makeBlank());
     setPickedImage(null);
     setImagePreview(null);
+    resetSaveState();
     setStep("form");
     setShowModal(true);
   }
@@ -280,21 +314,23 @@ export default function NoticesScreen() {
   function openEdit(n: ApiNotice) {
     setEditId(n.id);
     setForm({
-      title:      n.title,
-      content:    n.content,
-      audience:   targetRolesToGroup(n.target_roles),
-      noticeType: (n.notice_type as NoticeType) ?? "general",
-      showFrom:   n.starts_at ? new Date(n.starts_at).toISOString().slice(0, 16) : "",
-      linkUrl:    n.deep_link ?? "",
-      linkLabel:  n.link_label ?? "",
+      title:         n.title,
+      content:       n.content,
+      audience:      targetRolesToGroup(n.target_roles),
+      noticeType:    (n.notice_type as NoticeType) ?? "general",
+      scheduledDate: n.starts_at ? new Date(n.starts_at) : null,
+      linkUrl:       n.deep_link ?? "",
+      linkLabel:     n.link_label ?? "",
     });
     setPickedImage(null);
     const existingKey = Array.isArray(n.image_urls) && n.image_urls.length > 0 ? n.image_urls[0] : null;
     setImagePreview(existingKey ? `${API_BASE.replace(/\/api$/, "")}/uploads/${existingKey}` : null);
+    resetSaveState();
     setStep("form");
     setShowModal(true);
   }
 
+  // ── 이미지 선택 → 크롭 modal 진입 ────────────────────────────────────
   async function pickImage() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -303,13 +339,14 @@ export default function NoticesScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      quality: 0.9,
+      quality: 0.95,
       allowsMultipleSelection: false,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      setPickedImage({ uri: asset.uri, mimeType: asset.mimeType ?? "image/jpeg", fileSize: asset.fileSize });
-      setImagePreview(asset.uri);
+      // 크롭 modal 진입 (form 닫지 않음)
+      setCropSourceUri(asset.uri);
+      setCropVisible(true);
     }
   }
 
@@ -318,22 +355,44 @@ export default function NoticesScreen() {
     setImagePreview(null);
   }
 
-  // ── 미리보기로 이동 ───────────────────────────────────────────────────────
+  // ── 크롭 결과 ────────────────────────────────────────────────────────
+  function handleCropApply(croppedUri: string) {
+    setCropVisible(false);
+    setPickedImage({ uri: croppedUri, mimeType: "image/jpeg" });
+    setImagePreview(croppedUri);
+  }
+
+  function handleCropCancel() {
+    setCropVisible(false);
+    // 기존 form/image 상태 유지 (변경 없음)
+  }
+
+  // ── 이미지 재조정 ─────────────────────────────────────────────────────
+  function readjustImage() {
+    // 현재 pickedImage URI 또는 imagePreview를 크롭 소스로 사용
+    const src = pickedImage?.uri ?? imagePreview;
+    if (!src) return;
+    setCropSourceUri(src);
+    setCropVisible(true);
+  }
+
+  // ── 미리보기로 이동 ───────────────────────────────────────────────────
   function goPreview() {
     if (!form.title.trim() || !form.content.trim()) return;
     setStep("preview");
   }
 
-  // ── 수정하기 — 미리보기에서 폼으로 복귀 (모든 상태 유지) ──────────────
+  // ── 수정하기 — 미리보기에서 폼으로 복귀 ─────────────────────────────
   function goBackToForm() {
     setStep("form");
   }
 
-  // ── 최종 등록/수정 ───────────────────────────────────────────────────────
+  // ── 최종 등록/수정 ───────────────────────────────────────────────────
   async function handleSave() {
     if (!form.title.trim() || !form.content.trim()) return;
-    if (submittingRef.current) return; // 중복 탭 방지
+    if (submittingRef.current) return;
     submittingRef.current = true;
+    setIsSubmitting(true);
     setSaving(true);
     try {
       // 이미지 R2 업로드 — 최종 등록 시점에만 수행
@@ -349,9 +408,10 @@ export default function NoticesScreen() {
       }
 
       const targetRoles = AUDIENCE_CFG[form.audience].roles;
-      const startsAt    = form.showFrom.trim() ? new Date(form.showFrom).toISOString() : null;
-      const linkUrl     = form.linkUrl.trim() || null;
-      const linkLabel   = form.linkLabel.trim() || null;
+      // scheduledDate (로컬 Date 객체) → UTC ISO 문자열
+      const startsAt = form.scheduledDate ? form.scheduledDate.toISOString() : null;
+      const linkUrl  = form.linkUrl.trim() || null;
+      const linkLabel = form.linkLabel.trim() || null;
 
       if (editId) {
         const body: any = {
@@ -387,15 +447,16 @@ export default function NoticesScreen() {
         if (!pRes.ok) throw new Error(`HTTP ${pRes.status}`);
       }
       await fetchNotices();
-      setShowModal(false);
-      setStep("form");
+      closeModal();
     } catch (e) {
       console.error("handleSave error:", e);
-      // 실패 시 작성 데이터 유지 — form 상태 보존, 미리보기로 복귀
       Alert.alert("오류", "공지 저장에 실패했습니다. 다시 시도해주세요.");
-      setStep("preview"); // 미리보기 유지 (데이터 손실 없음)
+      // 실패 시 작성 데이터 유지 — 미리보기로 복귀
+      setStep("preview");
     } finally {
       setSaving(false);
+      setUploading(false);
+      setIsSubmitting(false);
       submittingRef.current = false;
     }
   }
@@ -420,21 +481,17 @@ export default function NoticesScreen() {
     { key: "special",     label: "특별" },
   ];
 
+  // ── canSave 계산 ─────────────────────────────────────────────────────
   const canPreview = form.title.trim().length > 0 && form.content.trim().length > 0;
-  const canSave    = canPreview && !saving && !uploading;
+  // isSubmitting = state로 관리하여 렌더 트리거 보장 (ref만으로는 재렌더 불가)
+  const canSave    = canPreview && !saving && !uploading && !isSubmitting;
 
-  // ── 미리보기에서 사용할 이미지 URI ───────────────────────────────────────
-  // pickedImage가 있으면 local URI 사용 (R2 업로드 없이 표시)
-  // 없으면 기존 공지 이미지 URL 사용
+  // ── 미리보기용 파생값 ─────────────────────────────────────────────────
   const previewImageUri = pickedImage ? pickedImage.uri : imagePreview;
 
-  // 미리보기 메타 정보
   const previewAudienceLabel = AUDIENCE_CFG[form.audience].label;
-  const previewStartsLabel   = form.showFrom.trim()
-    ? (() => {
-        const d = new Date(form.showFrom);
-        return isNaN(d.getTime()) ? form.showFrom : d.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-      })()
+  const previewStartsLabel   = form.scheduledDate
+    ? formatLocalDate(form.scheduledDate)
     : "즉시";
 
   return (
@@ -490,7 +547,7 @@ export default function NoticesScreen() {
 
       {/* ── 작성/미리보기 Modal ────────────────────────────────────────────── */}
       <Modal visible={showModal} transparent animationType="slide"
-        statusBarTranslucent onRequestClose={() => { setShowModal(false); setStep("form"); }}>
+        statusBarTranslucent onRequestClose={closeModal}>
         <View style={m.overlay}>
           <View style={m.sheet}>
 
@@ -499,7 +556,7 @@ export default function NoticesScreen() {
               <>
                 <View style={m.header}>
                   <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
-                  <Pressable onPress={() => { setShowModal(false); setStep("form"); }}>
+                  <Pressable onPress={closeModal}>
                     <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 </View>
@@ -507,15 +564,22 @@ export default function NoticesScreen() {
                 <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
                   {/* 제목 */}
                   <Text style={m.label}>제목 *</Text>
-                  <TextInput style={m.input} value={form.title}
+                  <TextInputField
+                    value={form.title}
                     onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                    placeholder="공지 제목을 입력하세요" />
+                    placeholder="공지 제목을 입력하세요"
+                    autoCapitalize="sentences"
+                  />
 
                   {/* 내용 */}
                   <Text style={m.label}>내용 *</Text>
-                  <TextInput style={[m.input, { height: 120, textAlignVertical: "top" }]}
-                    value={form.content} onChangeText={v => setForm(f => ({ ...f, content: v }))}
-                    placeholder="공지 내용을 입력하세요" multiline />
+                  <TextInputField
+                    value={form.content}
+                    onChangeText={v => setForm(f => ({ ...f, content: v }))}
+                    placeholder="공지 내용을 입력하세요"
+                    multiline
+                    style={{ height: 120 }}
+                  />
 
                   {/* 공지 유형 */}
                   <Text style={m.label}>공지 유형</Text>
@@ -549,53 +613,96 @@ export default function NoticesScreen() {
                   </View>
                   <Text style={m.hint}>{AUDIENCE_CFG[form.audience].desc}</Text>
 
-                  {/* 노출 시작일시 */}
-                  <Text style={m.label}>노출 시작일시 (선택)</Text>
-                  <TextInput style={m.input} value={form.showFrom}
-                    onChangeText={v => setForm(f => ({ ...f, showFrom: v }))}
-                    placeholder="YYYY-MM-DDTHH:mm (예: 2026-04-01T09:00)"
-                    autoCapitalize="none" />
-                  <Text style={m.hint}>빈값이면 즉시 노출</Text>
+                  {/* 노출 시작 — 지금부터 vs 날짜/시간 지정 */}
+                  <Text style={m.label}>노출 시작</Text>
+                  <View style={m.radioRow}>
+                    <Pressable
+                      style={[m.radioBtn, !form.scheduledDate && m.radioBtnActive]}
+                      onPress={() => setForm(f => ({ ...f, scheduledDate: null }))}>
+                      <View style={[m.radioCircle, !form.scheduledDate && m.radioCircleActive]}>
+                        {!form.scheduledDate && <View style={m.radioDot} />}
+                      </View>
+                      <Text style={[m.radioTxt, !form.scheduledDate && m.radioTxtActive]}>지금부터</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[m.radioBtn, !!form.scheduledDate && m.radioBtnActive]}
+                      onPress={() => {
+                        // 날짜/시간 지정 선택 → 현재 시각 + 10분 기본값
+                        const d = new Date();
+                        d.setMinutes(d.getMinutes() + 10, 0, 0);
+                        setForm(f => ({ ...f, scheduledDate: f.scheduledDate ?? d }));
+                        setDatePickerVisible(true);
+                      }}>
+                      <View style={[m.radioCircle, !!form.scheduledDate && m.radioCircleActive]}>
+                        {!!form.scheduledDate && <View style={m.radioDot} />}
+                      </View>
+                      <Text style={[m.radioTxt, !!form.scheduledDate && m.radioTxtActive]}>날짜/시간 지정</Text>
+                    </Pressable>
+                  </View>
+
+                  {/* 선택된 날짜/시간 표시 + 변경 버튼 */}
+                  {form.scheduledDate && (
+                    <Pressable
+                      style={m.dateDisplayRow}
+                      onPress={() => setDatePickerVisible(true)}>
+                      <LucideIcon name="clock" size={14} color={P} />
+                      <Text style={m.dateDisplayTxt}>
+                        {formatLocalDate(form.scheduledDate)}
+                      </Text>
+                      <Text style={m.dateChangeTxt}>변경 ›</Text>
+                    </Pressable>
+                  )}
 
                   {/* 대표 이미지 */}
-                  <Text style={m.label}>대표 이미지 (선택, 1장)</Text>
+                  <Text style={m.label}>대표 이미지 (선택, 16:9)</Text>
                   {imagePreview ? (
                     <View style={m.imageRow}>
-                      <Image source={{ uri: imagePreview }} style={m.previewImg} resizeMode="cover" />
-                      <Pressable style={m.removeImgBtn} onPress={removeImage}>
-                        <LucideIcon name="x" size={14} color="#D96C6C" />
-                        <Text style={m.removeImgTxt}>이미지 제거</Text>
-                      </Pressable>
+                      <Image source={{ uri: imagePreview }}
+                        style={m.previewImg} resizeMode="cover" />
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                        <Pressable style={m.imgActionBtn} onPress={readjustImage}>
+                          <LucideIcon name="crop" size={13} color={P} />
+                          <Text style={[m.imgActionTxt, { color: P }]}>위치 조절</Text>
+                        </Pressable>
+                        <Pressable style={[m.imgActionBtn, { backgroundColor: "#FEE2E2" }]} onPress={removeImage}>
+                          <LucideIcon name="x" size={13} color="#D96C6C" />
+                          <Text style={[m.imgActionTxt, { color: "#D96C6C" }]}>이미지 제거</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ) : (
                     <Pressable style={m.imgPickBtn} onPress={pickImage}>
                       <LucideIcon name="image" size={18} color={C.textSecondary} />
-                      <Text style={m.imgPickTxt}>이미지 선택</Text>
+                      <Text style={m.imgPickTxt}>이미지 선택 (16:9 크롭 조절 가능)</Text>
                     </Pressable>
                   )}
 
                   {/* 링크 URL */}
                   <Text style={m.label}>링크 URL (선택)</Text>
-                  <TextInput style={m.input} value={form.linkUrl}
+                  <TextInputField
+                    value={form.linkUrl}
                     onChangeText={v => setForm(f => ({ ...f, linkUrl: v }))}
                     placeholder="https://..."
                     autoCapitalize="none"
-                    keyboardType="url" />
+                    keyboardType="url"
+                  />
 
                   {/* 링크 버튼 문구 */}
                   {form.linkUrl.trim().length > 0 && (
                     <>
                       <Text style={m.label}>링크 버튼 문구 (선택)</Text>
-                      <TextInput style={m.input} value={form.linkLabel}
+                      <TextInputField
+                        value={form.linkLabel}
                         onChangeText={v => setForm(f => ({ ...f, linkLabel: v }))}
-                        placeholder="자세히 보기" />
+                        placeholder="자세히 보기"
+                      />
                     </>
                   )}
                 </KeyboardAwareScrollView>
 
                 {/* 하단: 취소 + 미리보기 */}
                 <View style={m.footer}>
-                  <Pressable style={m.cancelBtn} onPress={() => { setShowModal(false); setStep("form"); }}>
+                  <Pressable style={m.cancelBtn} onPress={closeModal}>
                     <Text style={m.cancelTxt}>취소</Text>
                   </Pressable>
                   <Pressable
@@ -616,13 +723,13 @@ export default function NoticesScreen() {
               <>
                 <View style={m.header}>
                   <Text style={m.title}>미리보기</Text>
-                  <Pressable onPress={() => { setShowModal(false); setStep("form"); }}>
+                  <Pressable onPress={closeModal}>
                     <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 </View>
 
                 <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
-                  {/* 발행 정보 — 슈퍼관리자 전용 메타 */}
+                  {/* 발행 메타 정보 */}
                   <View style={pv.metaBox}>
                     <View style={pv.metaRow}>
                       <LucideIcon name="users" size={12} color={P} />
@@ -638,7 +745,6 @@ export default function NoticesScreen() {
 
                   <Text style={pv.sectionLabel}>실제 사용자 화면 미리보기</Text>
 
-                  {/* 실제 NoticePopupCard 재사용 — 이미지는 local URI 표시 */}
                   <View style={pv.cardWrapper}>
                     <NoticePopupCard
                       title={form.title}
@@ -665,7 +771,10 @@ export default function NoticesScreen() {
                   </Pressable>
                   <Pressable
                     style={[m.saveBtn, !canSave && { opacity: 0.4 }]}
-                    onPress={() => setOtpVisible(true)}
+                    onPress={() => {
+                      if (!canSave) return;
+                      setOtpVisible(true);
+                    }}
                     disabled={!canSave}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <LucideIcon name="lock" size={13} color="#fff" />
@@ -715,7 +824,41 @@ export default function NoticesScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* 크롭 Modal */}
+      <NoticeCropModal
+        visible={cropVisible}
+        sourceUri={cropSourceUri}
+        onApply={handleCropApply}
+        onCancel={handleCropCancel}
+      />
+
+      {/* 날짜/시간 피커 Modal */}
+      <NoticeDatePicker
+        visible={datePickerVisible}
+        initialDate={form.scheduledDate ?? (() => {
+          const d = new Date(); d.setMinutes(d.getMinutes() + 10, 0, 0); return d;
+        })()}
+        onConfirm={date => {
+          setForm(f => ({ ...f, scheduledDate: date }));
+          setDatePickerVisible(false);
+        }}
+        onCancel={() => setDatePickerVisible(false)}
+      />
     </SafeAreaView>
+  );
+}
+
+// ─── 재사용 TextInput wrapper ────────────────────────────────────────────────
+import { TextInput, TextInputProps } from "react-native";
+function TextInputField({ style, ...props }: TextInputProps) {
+  return (
+    <TextInput
+      style={[m.input, style]}
+      autoCapitalize="none"
+      placeholderTextColor="#9CA3AF"
+      {...props}
+    />
   );
 }
 
@@ -753,19 +896,45 @@ const m = StyleSheet.create({
   segActive:     { backgroundColor: P, borderColor: P },
   segTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   segActiveTxt:  { color: "#fff" },
-  imageRow:      { gap: 8, marginBottom: 4 },
-  previewImg:    { width: "100%", height: 160, borderRadius: 10, backgroundColor: "#F3F4F6" },
-  removeImgBtn:  { flexDirection: "row", alignItems: "center", gap: 4,
-                   alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6,
-                   borderRadius: 8, backgroundColor: "#FEE2E2" },
-  removeImgTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+
+  // 노출 시작 라디오
+  radioRow:      { flexDirection: "row", gap: 10, marginTop: 4, marginBottom: 4 },
+  radioBtn:      { flexDirection: "row", alignItems: "center", gap: 8,
+                   flex: 1, padding: 10, borderRadius: 10,
+                   borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  radioBtnActive: { borderColor: P, backgroundColor: "#F5F0FF" },
+  radioCircle:   { width: 18, height: 18, borderRadius: 9,
+                   borderWidth: 2, borderColor: "#D1D5DB",
+                   alignItems: "center", justifyContent: "center" },
+  radioCircleActive: { borderColor: P },
+  radioDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: P },
+  radioTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  radioTxtActive: { color: P, fontFamily: "Pretendard-SemiBold" },
+
+  // 날짜 표시 행
+  dateDisplayRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginTop: 8, padding: 10, borderRadius: 10,
+    borderWidth: 1, borderColor: "#DDD6FE", backgroundColor: "#F5F0FF",
+  },
+  dateDisplayTxt: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#3B0764" },
+  dateChangeTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: P },
+
+  imageRow:      { gap: 6, marginBottom: 4 },
+  previewImg:    { width: "100%", aspectRatio: 16 / 9, borderRadius: 10, backgroundColor: "#F3F4F6" },
+  imgActionBtn:  { flexDirection: "row", alignItems: "center", gap: 4,
+                   paddingHorizontal: 10, paddingVertical: 6,
+                   borderRadius: 8, backgroundColor: "#EDE9FE" },
+  imgActionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
   imgPickBtn:    { flexDirection: "row", alignItems: "center", gap: 8,
                    borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10,
                    borderStyle: "dashed", padding: 16, justifyContent: "center",
                    backgroundColor: C.backgroundSoft },
   imgPickTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+
   footer:        { flexDirection: "row", gap: 8, marginTop: 20 },
-  cancelBtn:     { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
+  cancelBtn:     { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center",
+                   borderWidth: 1, borderColor: "#E5E7EB" },
   cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:       { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
