@@ -25,7 +25,8 @@ import { NoticeCropModal } from "@/components/common/NoticeCropModal";
 import { NoticeDatePicker } from "@/components/common/NoticeDatePicker";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert, Image, Modal, Pressable, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Image, Keyboard, Modal,
+  Pressable, StyleSheet, Text, View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { compressPhotoAsset } from "../../utils/compressImage";
@@ -35,7 +36,8 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
 import { useAuth, apiRequest, API_BASE } from "@/context/AuthContext";
-import { OtpGateModal } from "@/components/common/OtpGateModal";
+// OtpGateModal은 별도 Modal로 사용하지 않음 — 아래 step==="otp" 인라인으로 통합
+// (iOS: 두 Modal 동시 표시 → 두 번째 Modal silent fail 방지)
 
 const P = "#7C3AED";
 
@@ -256,13 +258,19 @@ export default function NoticesScreen() {
   const [saving,        setSaving]        = useState(false);
   const [showModal,     setShowModal]     = useState(false);
 
-  // 작성/미리보기 step
-  const [step,          setStep]          = useState<"form" | "preview">("form");
+  // 작성/미리보기/OTP step
+  const [step,          setStep]          = useState<"form" | "preview" | "otp">("form");
   const [editId,        setEditId]        = useState<string | null>(null);
   const [form,          setForm]          = useState<FormState>(makeBlank());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [filterType,    setFilterType]    = useState<"all" | NoticeType>("all");
-  const [otpVisible,    setOtpVisible]    = useState(false);
+
+  // 인라인 OTP 상태 (별도 Modal 사용 안 함 — iOS Modal 적층 충돌 방지)
+  const [otpCode,       setOtpCode]       = useState("");
+  const [otpLoading,    setOtpLoading]    = useState(false);
+  const [otpError,      setOtpError]      = useState("");
+  const [otpSuccess,    setOtpSuccess]    = useState(false);
+  const otpInputRef = useRef<TextInput>(null);
 
   // 이미지 상태
   const [pickedImage,   setPickedImage]   = useState<PickedImage | null>(null);
@@ -305,6 +313,11 @@ export default function NoticesScreen() {
     setUploading(false);
     setIsSubmitting(false);
     submittingRef.current = false;
+    // 인라인 OTP 상태 리셋
+    setOtpCode("");
+    setOtpLoading(false);
+    setOtpError("");
+    setOtpSuccess(false);
   }
 
   function closeModal() {
@@ -409,12 +422,42 @@ export default function NoticesScreen() {
   // ── 미리보기로 이동 ───────────────────────────────────────────────────
   function goPreview() {
     if (!form.title.trim() || !form.content.trim()) return;
+    resetSaveState(); // 혹시 남아있는 stale submitting 상태 방어적 클리어
     setStep("preview");
   }
 
   // ── 수정하기 — 미리보기에서 폼으로 복귀 ─────────────────────────────
   function goBackToForm() {
     setStep("form");
+  }
+
+  // ── OTP 인증 (인라인 — 별도 Modal 없음) ─────────────────────────────
+  async function verifyOtp() {
+    const digits = otpCode.replace(/\D/g, "");
+    if (digits.length !== 6) { setOtpError("6자리 코드를 입력해주세요."); return; }
+    setOtpLoading(true);
+    setOtpError("");
+    try {
+      const res  = await apiRequest(token, "/auth/totp/verify-action", {
+        method: "POST",
+        body: JSON.stringify({ otp_code: digits }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOtpError(data.message || "OTP 코드가 올바르지 않습니다.");
+        setOtpCode("");
+        setTimeout(() => otpInputRef.current?.focus(), 100);
+        return;
+      }
+      setOtpSuccess(true);
+      Keyboard.dismiss();
+      setTimeout(() => { handleSave(); }, 700);
+    } catch {
+      setOtpError("서버 연결 오류가 발생했습니다.");
+      setOtpCode("");
+    } finally {
+      setOtpLoading(false);
+    }
   }
 
   // ── 최종 등록/수정 ───────────────────────────────────────────────────
@@ -801,7 +844,7 @@ export default function NoticesScreen() {
                   </Text>
                 </KeyboardAwareScrollView>
 
-                {/* 하단: 수정하기 + 공지 등록/OTP */}
+                {/* 하단: 수정하기 + 공지 등록 */}
                 <View style={m.footer}>
                   <Pressable style={m.cancelBtn} onPress={goBackToForm}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -810,35 +853,111 @@ export default function NoticesScreen() {
                     </View>
                   </Pressable>
                   <Pressable
-                    style={[m.saveBtn, !canSave && { opacity: 0.4 }]}
+                    style={m.saveBtn}
                     onPress={() => {
-                      if (!canSave) return;
-                      setOtpVisible(true);
-                    }}
-                    disabled={!canSave}>
+                      resetSaveState(); // stale 상태 방어적 클리어
+                      setStep("otp");   // 인라인 OTP step으로 이동 (별도 Modal 없음)
+                    }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <LucideIcon name="lock" size={13} color="#fff" />
-                      <Text style={m.saveTxt}>
-                        {uploading ? "업로드 중..." : saving ? "저장 중..." : editId ? "저장" : "공지 등록"}
-                      </Text>
+                      <Text style={m.saveTxt}>{editId ? "저장" : "공지 등록"}</Text>
                     </View>
                   </Pressable>
                 </View>
               </View>
             )}
 
+            {/* ── STEP: OTP ── */}
+            {step === "otp" && (
+              <View style={m.stepWrapper}>
+                <View style={m.header}>
+                  <Text style={m.title}>OTP 인증</Text>
+                  <Pressable onPress={() => setStep("preview")}>
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
+                  </Pressable>
+                </View>
+
+                {/* 아이콘 */}
+                <View style={{ alignItems: "center", marginBottom: 6 }}>
+                  <View style={otp.iconCircle}>
+                    <LucideIcon name="shield" size={22} color={P} />
+                  </View>
+                </View>
+                <Text style={otp.desc}>
+                  {editId ? "공지 수정" : "공지 등록"} 전 OTP 인증이 필요합니다.{"\n"}
+                  Google Authenticator 앱의 6자리 코드를 입력하세요.
+                </Text>
+
+                {otpSuccess ? (
+                  <View style={otp.successBox}>
+                    <LucideIcon name="check-circle" size={20} color={C.success} />
+                    <Text style={otp.successTxt}>인증 성공 — 등록 중입니다...</Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* OTP 입력 박스 */}
+                    <Pressable style={otp.otpWrap} onPress={() => otpInputRef.current?.focus()}>
+                      <View style={otp.otpBoxRow}>
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <View key={i} style={[
+                            otp.otpBox,
+                            { borderColor: otpCode.length === i ? P : otpCode[i] ? P : C.border },
+                          ]}>
+                            <Text style={otp.otpBoxTxt}>{otpCode[i] || ""}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      <TextInput
+                        ref={otpInputRef}
+                        style={otp.hiddenInput}
+                        value={otpCode}
+                        onChangeText={v => {
+                          setOtpCode(v.replace(/\D/g, "").slice(0, 6));
+                          setOtpError("");
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        returnKeyType="done"
+                        onSubmitEditing={verifyOtp}
+                        caretHidden
+                        autoFocus
+                      />
+                    </Pressable>
+
+                    {/* 에러 */}
+                    {!!otpError && (
+                      <View style={otp.errorRow}>
+                        <LucideIcon name="alert-circle" size={13} color="#D96C6C" />
+                        <Text style={otp.errorTxt}>{otpError}</Text>
+                      </View>
+                    )}
+
+                    {/* 버튼 */}
+                    <View style={m.footer}>
+                      <Pressable style={m.cancelBtn} onPress={() => setStep("preview")} disabled={otpLoading}>
+                        <Text style={m.cancelTxt}>취소</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[m.saveBtn, (otpCode.length < 6 || otpLoading) && { opacity: 0.55 }]}
+                        onPress={verifyOtp}
+                        disabled={otpLoading || otpCode.length < 6}>
+                        {otpLoading
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <LucideIcon name="unlock" size={13} color="#fff" />
+                              <Text style={m.saveTxt}>인증 확인</Text>
+                            </View>
+                        }
+                      </Pressable>
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
+
           </View>
         </View>
       </Modal>
-
-      <OtpGateModal
-        visible={otpVisible}
-        token={token}
-        title={editId ? "공지 수정 OTP 인증" : "공지 등록 OTP 인증"}
-        desc="공지 등록·수정은 OTP 인증 후에 적용됩니다."
-        onSuccess={() => { setOtpVisible(false); handleSave(); }}
-        onCancel={() => setOtpVisible(false)}
-      />
 
       {/* 삭제 확인 */}
       <Modal visible={!!deleteConfirm} transparent animationType="fade"
@@ -979,6 +1098,27 @@ const m = StyleSheet.create({
   cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:       { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
+});
+
+// OTP 인라인 스타일
+const otp = StyleSheet.create({
+  iconCircle:  { width: 52, height: 52, borderRadius: 26, backgroundColor: "#EEDDF5",
+                 alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  desc:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary,
+                 textAlign: "center", lineHeight: 20, marginBottom: 16 },
+  otpWrap:     { alignItems: "center", position: "relative", marginBottom: 10 },
+  otpBoxRow:   { flexDirection: "row", gap: 8 },
+  otpBox:      { width: 42, height: 52, borderRadius: 12, borderWidth: 2,
+                 alignItems: "center", justifyContent: "center", backgroundColor: "#F9F8FF" },
+  otpBoxTxt:   { fontSize: 22, fontFamily: "Pretendard-Regular", color: P },
+  hiddenInput: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                 opacity: 0.01, color: "transparent" },
+  errorRow:    { flexDirection: "row", alignItems: "center", gap: 6,
+                 backgroundColor: "#FEF2F2", padding: 10, borderRadius: 10, marginBottom: 8 },
+  errorTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", flex: 1 },
+  successBox:  { flexDirection: "row", alignItems: "center", gap: 8,
+                 paddingVertical: 16, justifyContent: "center" },
+  successTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#16A34A" },
 });
 
 // 미리보기 전용 스타일
