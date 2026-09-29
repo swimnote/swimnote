@@ -137,18 +137,26 @@ export function NoticePopup() {
       .catch(e  => { console.warn("[NP] NOTICE_SEEN_ERROR", String(e)); });
   }
 
-  // ─── 닫기 ────────────────────────────────────────────────────────────────
+  // ─── 닫기 ─────────────────────────────────────────────────────────────────
+  // seen과 독립적으로 즉시 실행 — 네트워크 상태 무관.
+  // setVisible(false) + setNotice(null): Modal이 render tree에서 완전히 제거돼
+  // iOS native overlay가 확실히 해제되도록 notice를 null로 초기화.
   function handleClose() {
+    console.log("[NP] NOTICE_CLOSE_PRESS");
     setVisible(false);
+    console.log("[NP] NOTICE_VISIBLE_SET_FALSE");
+    setNotice(null);
   }
 
   if (!notice) return null;
 
   console.log("[NP] NOTICE_MODAL_RENDER visible=" + visible);
 
+  // image_urls[0]을 표시 URL로 변환 — admin/teacher/parent 공지함과 동일한 계약:
+  // API_BASE/uploads/${encodeURIComponent(key)}
   const imageUri =
     Array.isArray(notice.image_urls) && notice.image_urls.length > 0 && notice.image_urls[0]
-      ? `${API_BASE.replace(/\/api$/, "")}/uploads/${notice.image_urls[0]}`
+      ? `${API_BASE}/uploads/${encodeURIComponent(notice.image_urls[0])}`
       : null;
 
   return (
@@ -158,6 +166,8 @@ export function NoticePopup() {
       animationType="fade"
       statusBarTranslucent
       onShow={handleShow}
+      onDismiss={() => { console.log("[NP] NOTICE_MODAL_ONDISMISS"); }}
+      onRequestClose={handleClose}
     >
       <View style={s.overlay}>
         <NoticePopupCard
