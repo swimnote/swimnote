@@ -200,12 +200,14 @@ type PickedImage = {
 };
 
 async function uploadOneImage(img: PickedImage, token: string): Promise<string> {
-  // 1. 압축
+  // 1. 압축 / 메타데이터 확보
   const { uri, mimeType, fileSize } = await compressPhotoAsset({
     uri: img.uri, mimeType: img.mimeType, fileSize: img.fileSize,
   });
+  console.log(`[notice-upload] stage=compress uri_scheme=${uri.split(":")[0]} mime=${mimeType} size=${fileSize}`);
 
   // 2. presigned URL 발급
+  // API 응답: { items: [{ client_id, object_key, upload_url, headers }] }
   const sessionRes = await fetch(`${API_BASE}/uploads/presigned`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -213,21 +215,32 @@ async function uploadOneImage(img: PickedImage, token: string): Promise<string> 
       files: [{ client_id: "ni_0", file_type: mimeType, file_size: fileSize }],
     }),
   });
-  if (!sessionRes.ok) throw new Error("이미지 업로드 준비 실패");
+  if (!sessionRes.ok) {
+    const errBody = await sessionRes.text().catch(() => "");
+    console.warn(`[notice-upload] stage=presigned status=${sessionRes.status} body=${errBody.slice(0, 120)}`);
+    throw new Error(`presigned 발급 실패 (${sessionRes.status})`);
+  }
   const sessionData = await sessionRes.json();
-  const presigned = sessionData.presigned_urls?.[0];
-  if (!presigned) throw new Error("presigned URL 없음");
+  // 수정: API는 "items" 키로 반환 (이전 코드에서 "presigned_urls"를 잘못 사용)
+  const presigned = sessionData.items?.[0];
+  if (!presigned?.upload_url || !presigned?.object_key) {
+    console.warn("[notice-upload] stage=presigned presigned item missing", JSON.stringify(sessionData).slice(0, 200));
+    throw new Error("presigned URL 없음");
+  }
+  console.log(`[notice-upload] stage=presigned ok key=${presigned.object_key}`);
 
   // 3. R2 직접 업로드
   const fileBytes = await FileSystemLegacy.readAsStringAsync(uri, {
     encoding: FileSystemLegacy.EncodingType.Base64,
   });
   const byteArr = Uint8Array.from(atob(fileBytes), c => c.charCodeAt(0));
-  const uploadRes = await fetch(presigned.url, {
+  // 수정: API는 "upload_url" 키로 반환 (이전 코드에서 "url"을 잘못 사용)
+  const uploadRes = await fetch(presigned.upload_url, {
     method: "PUT",
     headers: { "Content-Type": mimeType },
     body: byteArr,
   });
+  console.log(`[notice-upload] stage=r2-put status=${uploadRes.status}`);
   if (!uploadRes.ok) throw new Error(`R2 업로드 실패 ${uploadRes.status}`);
 
   return presigned.object_key;
@@ -402,6 +415,16 @@ export default function NoticesScreen() {
         try {
           const key = await uploadOneImage(pickedImage, token!);
           imageUrls = [key];
+        } catch (uploadErr) {
+          console.error("[notice-upload] upload failed:", uploadErr);
+          // 이미지 업로드 실패 → 이미지 없는 공지로 조용히 등록하지 않음
+          // 명확한 오류 표시 + 미리보기 복귀 (작성 데이터 유지)
+          Alert.alert(
+            "이미지 업로드 실패",
+            "이미지를 업로드하지 못했습니다. 다시 시도해주세요.",
+          );
+          setStep("preview");
+          return; // handleSave finally 실행 → saving/isSubmitting 정리됨
         } finally {
           setUploading(false);
         }
