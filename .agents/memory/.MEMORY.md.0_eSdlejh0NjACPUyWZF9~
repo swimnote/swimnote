@@ -1,0 +1,102 @@
+- [회원 엑셀 일괄등록 1,000명](bulk-import-1000-done.md) — canonical /bulk/validate+/bulk/commit, ALL-OR-NOTHING, +82 norm; SHA 4699183a; iOS OTA 01a0d8b0
+- [★ GLOBAL COMMON-FIX RULE](global-common-fix-rule.md) — X전용 명시 없으면 Normal+X 공통 수정; ONE SOURCE FIX + BOTH MODE VERIFICATION; 중복구현 금지 (영구 원칙)
+- [P0 API_BASE Root Cause Fix](p0-api-base-root-cause.md) — swimnote.kr=SPA프론트엔드; api-server는 swimnote-api.onrender.com; 하드코딩 금지
+- [★ 에이전트 작업 범위 헌법](agent-scope-constitution.md) — 명시된 것만 수정, 뒤로 가지 않음, 서버 무수정, 승인 후 배포 (2026-08-08 최상위 원칙)
+- [★ 작업 규칙 헌법](task-constitution.md) — 모든 작업 시작 전 branch/HEAD/status 보고, push 없으면 완료 불인정, 파일삭제·merge·reset 별도 승인 필수
+- [★ SWIMNOTE X 개발 통제 헌법](constitution.md) — PART 1·2·3 완료까지 불변. 10조 통제원칙. WP0 조사+WP1 설계서 대기중. 복사패널: docs/constitution-copier.html
+- [앱·웹 운영 헌법](app-web-constitution.md) — 앱 우선 원칙·공유 콘텐츠 단일 소스·홈페이지 업데이트 범위·테스트 환경 규칙
+- [Production 서버 작업 원칙](production-server-rule.md) — 최우선 원칙: 실제 앱은 swimnote.kr(Render.com) 연결, Replit API 서버는 개발 전용, 서버 수정은 반드시 GitHub push→Render.com 배포 완료까지
+- [★ APP vs AI ENGINE 인프라 고정 기준](app-infra-baseline.md) — APP=GitHub/swimnote-api, AI ENGINE=GitLab/swimnote-professional-engine; 절대 혼동 금지 (2026-09-13 확정)
+- [Production URL 실제 라우팅](production-url-routing.md) — swimnote.kr=Replit배포(재배포 필요), Render=swimnote-api.onrender.com(push→자동빌드); 둘은 별개
+- [★ Render 배포 Replit 책임 (영구)](render-deploy-manual-only.md) — 2026-09-08 영구 변경: 서버 코드 수정 시 Render LIVE SHA 확인까지 Replit 책임; RENDER_API_KEY로 직접 trigger; PASS 기준=main HEAD SHA==LIVE SHA
+- [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
+- [API_BASE 소스 규칙](api-base-source.md) — 실기기에서 /api fallback 사용 금지; 반드시 AuthContext에서 import
+- [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
+- [OTA 배포 패턴](ota-deploy-pattern.md) — Replit RAM 부족으로 Metro OOM; 2단계(115s 번들→skip-bundler 업로드) 우회법; package.json dev 스크립트에 큰따옴표 금지(JSON 파싱 오류)
+- [★ OTA 채널 정책 (영구)](ota-channel-policy.md) — iOS OTA = 항상 --branch production-v2 (채널매핑 확인완료); release-2.0.0/production 브랜치 금지; runtimeVersion=2.1.0
+- [OTA 릴리즈 컨벤션](ota-release-convention.md) — 기본=iOS production+preview만; Android는 최종 검증 단계 누적 배포; 별도 지시 WP만 Android 동시 배포
+- [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
+- [API 서버 DB 구성](api-server-db-config.md) — executeSql≠운영DB; tsx 스크립트(@workspace/db)로만 실제 데이터 접근; swimnote.kr=Render.com 동일 외부DB 확인
+- [EAS 빌드 tarball 구조 및 패치](eas-build-tarball.md) — tarball은 workspace root 기준 project/artifacts/swim-app/ 구조; git.js 3개 메서드 no-op 패치; lockfile 없음+.npmrc frozen-lockfile=false가 안정적
+- [JWT role 정규화 버그](jwt-role-normalization.md) — teacher 전환 후 앱 재시작 시 teacher 토큰이 pool_admin API 호출에 사용 → 403; loadStored에서 JWT role vs DB role 비교 후 자동 교체로 해결
+- [Optimistic Update 누락 패턴](optimistic-update-pattern.md) — 모달/액션의 onClose·onMoved를 API await 이후 호출하면 딜레이 발생; 반드시 즉시 호출 후 API는 .catch()로 백그라운드 처리
+- [날짜 시스템 통합 완료](date-system-integration.md) — student_class_history(enrolled_at/left_at) 단일 소스 42개 통합 테스트 전체 통과; 핵심 패턴 및 함정 기록
+- [학부모 앨범 사진 URL 패턴](parent-photo-url-pattern.md) — home.tsx/swim-diary.tsx는 API_BASE+file_url; photos.tsx는 API_BASE.replace(/\/api$/,"")+fileUrl; parent.ts는 각 소비처에 맞는 형식 반환 필요
+- [학부모 /auth/me 테이블 분리 구조](parent-auth-me-table-split.md) — parent_account role은 parent_accounts 테이블 소속; /auth/me에서 role 분기 필수, users 테이블 단독 조회 시 항상 404
+- [앱→서버 배포 흐름](app-server-deploy-flow.md) — iPhone 앱은 swimnote.kr(Render.com) 연결; 서버 코드 변경은 Render.com 재배포 필수; 클라이언트 변경은 OTA 업데이트 필수
+- [영상 다운로드 302 리다이렉트 패턴](video-download-redirect.md) — FileSystem.downloadAsync는 302 불가; fetch로 URL resolve 후 다운로드
+- [ScrollView contentContainerStyle flexGrow:0 버그](scrollview-flexgrow-bug.md) — contentContainerStyle에 flexGrow:0 넣으면 스크롤 불가; padding 값만 넣을 것
+- [standby-sync jsonb 배열 버그](standby-sync-jsonb-array-bug.md) — serializeForPg(v, pgType) + colTypes Map; students/parent_accounts/diary_messages 복제 검증 완료
+- [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송; diary_templates 1050개 global 존재
+- [★ AI 일지 데이터 소스 영구 원칙](ai-diary-data-source-rule.md) — 일지AI = curriculum+diary_templates 항상 병합; curriculum존재 여부와 무관; X mode만 별도; 2026-09-11 확정 불변
+- [admin.ts /storage 10GB 버그](admin-storage-quota-bug.md) — admin.ts GET /storage가 storage.ts보다 먼저 처리; subscription_tier만 JOIN → x_plan_key 무시
+- [GR 파이프라인 스키마 불일치 수정](gr-pipeline-schema-fixes.md) — exclusion_code/attendance_count/eligibility_version 컬럼+EXCLUDED enum+admin.ts classGroup조건 분리; SHA 8d1d2de4
+- [SCP 게이지 0% 버그](scp-gauge-fix.md) — paid-insight-snapshot.ts가 존재하지 않는 컬럼 조회→catch 삼킴→null→0.0%; alias 수정; SHA 015073ba
+- [Growth Report v3 eligibility + curriculum gauge fix](growth-report-v3-done.md) — v3(MIN_SOURCE=1)+punctuation filter+previous usable context+SCP 0%버그(cv.is_active→archived_at); SHA 622b956d
+- [Growth Report Engine Secret 설정 규칙](growth-report-engine-secret.md) — GROWTH_REPORT_ENGINE_SECRET=JWT_SECRET 96자 full값 필수; Render API truncate로 60자만 보임; 불일치시 항상 401
+- [성장 리포트 엔진 업그레이드 완료 상태](gr-engine-upgrade-state.md) — Engine Standard(2vCPU/2GB)+STAGE_B=20; API BATCH=200/CONCURRENCY=20+드레인+워치독; p50 실측 후 조정 필요
+- [★ 성장 리포트 발급 헌법](growth-report-issuance-constitution.md) — active+enrolled_at<=period시작+left_at>=다음달; 스케줄러·배치워커 동일 조건 필수; 500개/20만명 기준 영구
+- [업무 대화 스레드 구조](request-thread-structure.md) — parent_request_messages 테이블 auto-create 패턴; system message helper; teacher/parent 공통 API
+- [Production DB 연결 방법](prod-db-connection-method.md) — executeSql=NeonDB(Replit내장); 실제운영DB=SUPABASE_DATABASE_URL; /tmp tsx스크립트+buildConfig+pg Pool로 직접 연결
+- [Grounded support escalation](grounded-support-escalation.md) — GPT·Human 전환은 동일 Case의 반복·검증 근거·명시적 미해결 확인을 모두 거쳐야 함
+- [X Entitlement Revocation Stale Cache Fix](x-entitlement-revoke-fix.md) — ModeContext에 AppState foreground 리스너 추가; OTA 01a0444c
+- [Pool-First 2.0.0 완료](pool-first-2-0-0-done.md) — SHA 761fdfbb; parent-login pool선택+parentLogin(poolId?)+UNIQUE INDEX migration; 33TC; OTA 01a04e47
+- [diary 학생 로딩 무한 대기 수정](student-loading-fix.md) — fallback GET /students→GET /class-groups/:id/students?date= 교체; N+1쿼리 제거; 2.0.0 iOS 01a05b6e
+- [사진 미디어 상태 고아 버그](photo-orphan-media-fix.md) — 삭제된 일지 연결 사진이 'attached' 유지; picker·teacher-all LEFT JOIN; repair-orphan-media 엔드포인트로 기존 데이터 정리
+- [다음 빌드 포함 변경 사항](pending-build-changes.md) — 1.3.11 빌드 이후 코드 반영됐으나 미배포 변경 목록 (엑셀 업로드 개선, capacity API)
+- [WP-A~H 퇴원생 Archive 완료](wp-archive-done.md) — 3 tables migration+7 API routes+APP/WEB UI; ARCHIVE_PHONE_HASH_SECRET 설정; iOS OTA 01a0d95c; Render dep-dar9sp2d0e5s73c1ha9g
+- [GR1 Production 적용 완료](gr1-prod-applied.md) — 2026-08-14; Supabase postgres; 5 ENUMs+3 tables+24 cols+11 indexes; GR3/GR5도 같은 날 완료
+- [P0 Signup HTTP500 완료](p0-signup-http500-done.md) — SHA 074e7f46; §6 클라이언트 5xx 메시지 교체+§5 원자성 롤백+apple/kakao_id 저장; Render live; OTA 0119fc1b
+- [X02-C Billing Contract 완료](x02c-billing-contract-done.md) — SHA f28bf20b(HOTFIX RC V2); x-billing.ts V2+migration+신규엔드포인트; 1152TC; Render live
+- [X02-D iOS Purchase UI 완료](x02d-done-state.md) — SHA d867dc78; 상태머신+getXOffering; OTA production f69df72e+preview 57be1c39; TESTFLIGHT E2E 미검증
+- [P0 X Pool-Wide Immediate Activation 완료](p0-x-pool-wide-done.md) — SHA fc087251; computeMode(pool) 시그니처+paid→x즉시; 1153TC; Render live; OTA 652e8c3d
+- [WP-X03-T1 완료 상태](wp-x03-t1-done-state.md) — SHA 8f0c667c+5c55f3dc; 공식DOCX binary등록+auto-generation제거; Word안내UI; Render live; OTA iOS 01a00c49
+- [WP-X04 완료 상태](wp-x04-done-state.md) — SHA 07dac4df; docxParser+websitePackager+x04-structuring+migration; fflate; 35TC; Render 배포 트리거
+- [WP-N2 Token Sweep 완료](wp-n2-done-state.md) — SHA 4346947b; 165파일 hardcoded hex→C.*; text/bg/border; protected intact; OTA 01a00b6e
+- [WP-N3 Button Role Normalization 완료](wp-n3-done-state.md) — SHA 23c4e82c; primaryAction→Sage Strong+228파일 mint sweep; OTA 01a00ba4
+- [WP-X1 X 가독성 개선 완료](wp-x1-done-state.md) — SHA 6f076e4b; textOnNavy #F0F4FF+tabInactive #8AB0D4; OTA 01a00be4
+- [P0 X Mode Persistence Fix 완료](p0-x-mode-persistence-done.md) — SHA 5da756c8; ModeContext 3버그(loading reset/isLoading reset/transient null); OTA 01a00bf0
+- [WP-X02-D2 완료 상태](x02d2-done-state.md) — SHA 4be61202; Restore+구독상태UI+관리deep-link+CANCELLED_BUT_ACTIVE; OTA 01a00c03
+- [WP-SA0-B 완료 상태](wp-sa0b-done-state.md) — SHA 7f24da5e; 신규 엔드포인트 4개+웹 7개; Render 배포 트리거됨
+- [platform_admin enum mismatch 수정](platform-admin-enum-fix.md) — SHA 476b7922; push-service+admin.ts WHERE role=super_admin; DB enum 미변경
+- [P0 Support DB Source-of-Truth Harden 완료](p0-dbsrc-done.md) — SHA 202f9a6e; DDL 로그+AI INSERT 500+GET msg 500; Render 트리거
+- [P0-STALE-HUMAN-UI 완료](p0-stale-human-ui-done.md) — SHA fcc5c3f8; VALID_TRANSITIONS[HUMAN_REQUIRED]+=AI_PROCESSING+isAutoHumanRequired; OTA iOS 01a01295
+- [SINTRO ki_swimnote_intro 활성화+stemKorean 수정](sintro-activation-done.md) — scoreText 55→65 Korean particle stem; ki_swimnote_intro ACTIVE; 41TC; SHA bcc87891
+- [WP-CS12~17 CLOSURE 완료](wp-cs12-17-closure-done.md) — SHA 489b09e2; P1 revision guard fix+P3 ComplaintClass; 2676TC; ALL_CLOSED=YES
+- [WP-CS20 완료 상태](wp-cs20-done-state.md) — SHA 000bf765; 21 CS12 approval+6 corrections; AUDIT=21; Render 재배포 트리거
+- [WP-CS23C-R 완료 상태](wp-cs23c-r-done-state.md) — SHA 291652f5; P0×2(finalCandidates+single-token-FP)+DB migration 26 KIs answer_mode; Render live
+- [WP-CS23-FINAL 완료 상태](wp-cs23-final-done-state.md) — SHA 423ac425; scope='pool'→global(29KI)+41승인+333UTT활성화; 67/67 live direct; DB-only
+- [WP-CS24 완료 상태](wp-cs24-done-state.md) — SHA 29f90acc; QueryLog+CandidateEngine+ReviewConsole; 50TC+3141TC; Render 트리거
+- [RT2 Round 6 완료 상태](rt2-round6-done-state.md) — SHA 7fc8e8bf; raw_score ranking+KI slots title+question only+KNOWLEDGE_GAP gate; 80TC; Render 미배포
+- [A4 Modal/Sheet/Alert Cleanup 완료](a4-modal-cleanup-done.md) — SHA a7c8b046; 18파일; ConfirmModal SemiBold+guard+disableBackdrop; OTA production 524ebd4d
+- [WP3 완료 상태](wp3-done-state.md) — subscription.tsx 2.0 플랜+Trial UX+Storage+DATA Pack; 80TC; SHA 75431ceb; Render/OTA 없음
+- [WP5 AI/Growth 완료](wp5-ai-growth-done-state.md) — SHA 55fc9c27; 10 GET routes+Web(MonthSelector/KpiCard/TraceDrawer/ReportDrawer); 461TC
+- [WP6 완료 상태](wp6-done-state.md) — SHA fa425272; logOperationalError+additive migration+errors route 재작성+ErrorsTab; 561TC
+- [WP7 완료 상태](wp7-done-state.md) — SHA d790b420; Notification Diagnostics(LATERAL+heuristic); 41TC+602TC
+- [WP8-P1 완료 상태](wp8-p1-done-state.md) — SHA 1f0fa702; pool_memberships없음→users; cycle INSERT 컬럼 수정; 71TC; iOS OTA 01a06b1f
+- [WP9 완료 상태](wp9-done-state.md) — SHA 1913680c; ai_generated/ai_trace_id+snapshot+diary-based feed+diary-hub.tsx; OTA iOS 01a06ae3
+- [WP11 완료 상태](wp11-done-state.md) — SHA 67515a67; safeXMetric partial-failure격리+monthly KPI+운영현황 UI; OTA iOS 01a06ac2
+- [APP TS Hotfix 완료](app-ts-hotfix-done.md) — SHA 6ed60ce1; 21→0 errors; RC.identifier/apiRequest.json()/expo-file-system/legacy; OTA 01a06c53
+- [WP8 완료 상태](wp8-done-state.md) — SHA b728e007; Audit+SupportCase CRM; ensureWp8Schema+10 routes+AuditTab+SupportTab; 76TC; Render 트리거; OTA 없음
+- [WP2 Member Limit Enforcement 완료](wp2-member-limit-done.md) — SHA b17df141; lib/member-limit.ts+advisory lock; 6경로 bypass 수정; 25TC
+- [WP11 Admin Notes MVP 완료](wp11-admin-notes-done-state.md) — SHA e2d4ac0f; admin_member_notes+CRUD+audit+SectionG; Staging PASS; 30TC
+- [WP12 Marketing MVP 완료](wp12-marketing-done-state.md) — SHA dc768326; marketing-audience.ts+super.ts 3routes+scheduler+App UI; 36TC
+- [WP13 Data Integrity Checker 완료](wp13-integrity-done-state.md) — SHA 96295ec3; integrity-checker.ts 22 checks+super.ts 3routes+App UI; 36TC
+- [WP14 Cleanup 완료](wp14-cleanup-done-state.md) — SHA pending; infra-usage Stack.Screen 1건 제거; 67TC; Apple demo accounts DEFER
+- [500 Pool Curriculum Scale 완료](500pool-curriculum-scale-done.md) — SHA 6c07c6bc; approved_at binding+rollback injection 129TC; Render LIVE 6c07c6bc 확인
+- [P0 MASTER Super Admin Web Console 완료](p0-master-super-admin-done.md) — SHA 9450f655; carousel+가격+공지이미지+SuperNotices/Ads; Render LIVE; OTA 01a08217
+- [Super Admin Control Center SQL 스키마 버그 패턴](super-admin-sql-schema-bugs.md) — control-center 7개 스키마 불일치 수정; audit_logs action constraint 'update'만 허용
+- [Photo Upload Performance Optimization](photo-upload-perf-optimization.md) — smart compress(HEIC/no-upscale/2MB)+presigned R2 direct upload for notices+group; photo-upload.tsx 미변경(batch multi-student)
+- [Onboarding Feature Guides 연결 완료](onboarding-feature-guides-done.md) — 13개 가이드 9개 화면 연결; ce4a8e07; iOS OTA 01a08437; bomb prevention+mode mutual exclusion 적용
+- [P0P1 X Gate Fix 완료](p0p1-x-gate-fix-done.md) — SHA 482a65f7; growth-report-paid+x-hub+x-setup client guard+server hasXEntitlement×10routes; Render live; OTA 01a08504
+- [Task8 결제 정지 라이프사이클](task8-payment-lifecycle-done.md) — BILLING_ISSUE→GRACE, EXPIRATION→PAYMENT_SUSPENDED, 402/403분리, 앱 진입게이트; SHA 5f8a2577; OTA 01a0885f
+- [P0 X Trial forceRefreshMode Fix](p0-x-trial-fix-done.md) — refreshMode lock bug; forceRefreshMode 추가; SHA 2532e05b; Render LIVE; OTA 01a088e7
+- [P0 FINAL POLICY SYSTEM 완료](p0-policy-system-done.md) — PURCHASE_SUBSCRIPTION_REFUND v1.0; SHA 32bd8d35; Render LIVE; OTA 01a08a6b; gate(signup+trial+purchase)
+- [SWIMNOTE 2.2.0 Production Release 완료](220-release-done-state.md) — HEAD 10c94c68; iOS 25fc7e4a/bld300; Android 0e68775f/vc300; OTA 01a08bbc; ASC 제출 완료
+- [WP2 완료 상태](wp2-done-state.md) — SHA 315b3668; teacher GR navigation+admin makeup read-only+dashboard GR history; OTA 01a0a3fc
+- [WP2 Production Bug Fix](wp2-production-bugfix.md) — teacherOwnsStudent current_class_id→class_group_id; diary is_deleted 제거; SHA 33a646d4 Render LIVE
+- [DATA add-on 구현 완료 상태](data-addon-implementation.md) — SHA 7c074b37; WP-G 검증 완료; Render dep-darcebh42hec73a6oti0; iOS OTA 01a0d9ea; Android OTA 01a0d9fb
+- [★ students/student_class_history 컬럼명 원칙](wp2-production-bugfix.md) — students.class_group_id (current_class_id 아님); sch.class_group_id (class_id 아님); is_deleted 없음
+- [platform-banners POST 버그 패턴](platform-banners-post-bugs.md) — execute(sql) not iterable + req.user.id→userId + target_pool_id 컬럼 없음; ORM insert로 교체
+- [StoreKit 신규 상품 NOT FOUND](storekit-product-missing.md) — com.swimnote.*.monthly ASC 미승인→RC SDK offering 전체 제거; 진단버튼 유지 중; legacy solo_30/center_200는 정상
+- [공지사항 V2 Production 배포 완료](notices-v2-production-done.md) — 3d4e5dfa; link_label migration+pending/seen API+미리보기 workflow; iOS 01a0e95c / Android 01a0e95c; production-v2 2.2.0

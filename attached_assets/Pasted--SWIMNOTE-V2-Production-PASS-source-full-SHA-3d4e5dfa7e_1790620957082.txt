@@ -1,0 +1,256 @@
+[SWIMNOTE 공지사항 V2 — Production 전체 배포 승인]
+
+최종 검수 결과 PASS.
+
+승인 source full SHA:
+3d4e5dfa7e4c1e1fef6f6b86ffc0c3b73fd21e60
+
+이번 배포는 반드시 아래 순서대로 진행한다.
+
+DB Migration
+→ API Production Deploy
+→ Production API 검증
+→ iOS + Android Production OTA
+
+앞 단계가 실패하면 다음 단계로 진행하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 Source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD와 origin/main을 확인한다.
+
+반드시 승인 SHA:
+
+3d4e5dfa7e4c1e1fef6f6b86ffc0c3b73fd21e60
+
+와 일치하는지 확인한다.
+
+일치하지 않으면 배포하지 말고 HOLD 보고한다.
+
+추가 코드 수정은 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production DB Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+적용 대상:
+
+artifacts/api-server/migrations/2026-09-29-notices-v2.sql
+
+예정 변경:
+
+ALTER TABLE notices
+ADD COLUMN IF NOT EXISTS link_label text DEFAULT NULL;
+
+실제 migration 파일 내용을 다시 확인하고,
+보고된 변경 외 다른 DDL/DML이 포함되어 있지 않은지 확인한 뒤 적용한다.
+
+Production DB 적용 후 반드시 검증:
+
+- notices.link_label 컬럼 존재
+- type = text
+- nullable
+- 기존 notices row 보존
+- 기존 공지 데이터 손상 없음
+
+migration 실패 시 API deploy 및 OTA 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. API Production Deploy
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB migration 성공 확인 후에만
+승인 SHA 기준 API Server를 Production에 배포한다.
+
+포함되는 공지 V2 핵심:
+
+- GET /notices/pending
+- POST /notices/:id/seen
+- POST /notices link_label 지원
+- PATCH /notices/:id link_label 지원
+- role eligibility
+- pool eligibility
+- status
+- starts_at
+- ends_at
+- target_roles 검증
+- idempotent seen
+
+AI ENGINE은 수정/배포하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production API 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 배포 후 OTA 전에 Production에서 확인한다.
+
+최소 확인:
+
+A.
+인증 없이 /notices/pending
+→ 인증 거부
+
+B.
+정상 인증 사용자
+→ endpoint 정상 응답
+→ 공지가 없으면 정상적인 null/empty 결과
+
+C.
+대상이 아닌 role의 공지
+→ pending에 반환되지 않음
+
+D.
+다른 pool 전용 공지
+→ 반환되지 않음
+
+E.
+대상이 아닌 공지 ID로 /seen 직접 요청
+→ dismissal 생성 안 됨
+
+F.
+동일 사용자/공지 seen 중복 요청
+→ 중복 row 생성 없음
+
+G.
+기존 공지 endpoint
+→ regression 없음
+
+Production 검증을 위해 실제 사용자에게
+불필요한 테스트 공지를 노출하지 않는다.
+
+필요하다면 안전한 API/DB 수준 검증만 수행한다.
+
+API 오류가 발견되면 OTA 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. iOS + Android Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB migration 및 Production API 검증까지 모두 성공한 경우에만
+APP Production OTA를 진행한다.
+
+SWIMNOTE 운영 헌법:
+
+Production OTA는
+iOS + Android 동시 배포가 기본이다.
+
+특정 플랫폼 장애가 없는 한
+한 플랫폼만 배포하지 않는다.
+
+대상:
+
+- iOS
+- Android
+
+channel/branch:
+production-v2
+
+runtimeVersion:
+배포 직전 실제 Production 값을 확인한다.
+
+기존 기준값을 추측해서 사용하지 않는다.
+
+두 플랫폼 모두 승인 source:
+
+3d4e5dfa7e4c1e1fef6f6b86ffc0c3b73fd21e60
+
+기준이어야 한다.
+
+native dependency 변경 없음.
+새 binary build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 배포 중:
+
+- 추가 코드 수정 금지
+- unrelated refactor 금지
+- schema 추가 변경 금지
+- 임의 Production 데이터 삭제/수정 금지
+- 기존 공지 삭제 금지
+- notice_reads 변경 금지
+- AI ENGINE 수정/배포 금지
+- native dependency 변경 금지
+- binary build 금지
+- iOS-only OTA 금지
+- Android-only OTA 금지
+
+문제가 발견되면 현장에서 임의 수정해서 계속 배포하지 말고
+해당 단계에서 중단하고 HOLD 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식으로 보고한다.
+
+1. 배포 source full SHA
+
+2. Production DB Migration
+- 성공/실패
+- 실행한 migration 파일
+- 실제 실행된 SQL
+- link_label 컬럼 확인 결과
+- 기존 notices row 보존 여부
+- 오류 여부
+
+3. Production API Deploy
+- 성공/실패
+- 배포된 commit SHA
+- Production service
+- 오류 여부
+
+4. Production API 검증
+- 인증 없는 pending
+- 정상 pending
+- role filtering
+- pool filtering
+- unauthorized seen
+- duplicate seen
+- 기존 endpoint regression
+각 결과
+
+5. iOS Production OTA
+- 성공/실패
+- full Update ID
+- Group ID
+- branch/channel
+- runtimeVersion
+- source SHA
+
+6. Android Production OTA
+- 성공/실패
+- full Update ID
+- Group ID
+- branch/channel
+- runtimeVersion
+- source SHA
+
+7. iOS/Android 동일 승인 source 여부
+
+8. 추가 코드 수정 여부
+- 없어야 함
+
+9. native 변경 여부
+- 없어야 함
+
+10. binary build 여부
+- 없어야 함
+
+11. 배포 중 오류 여부
+
+12. 실기기 검증 여부
+- 미실시했다면 "실기기 미검증"
+
+13. 최종 상태
+- DB
+- API
+- iOS
+- Android
+각각 명확히 표시
+
+확인하지 못한 항목은 추측하지 말고
+"확인하지 못함"으로 보고한다.
