@@ -40,7 +40,7 @@ interface PendingNotice {
 
 // ─── NoticePopup ──────────────────────────────────────────────────────────────
 export function NoticePopup() {
-  const { kind, token } = useAuth();
+  const { kind, token, isLoading } = useAuth();
 
   const [notice,  setNotice]  = useState<PendingNotice | null>(null);
   const [visible, setVisible] = useState(false);
@@ -50,8 +50,15 @@ export function NoticePopup() {
   const seenFiredRef = useRef(false);
 
   // 콜드런치 여부 판단 → 미노출 공지 조회 → 표시
+  //
+  // ❗ isLoading 체크 필수:
+  //   isLoading=true 동안 RootNav는 AppLoadingScreen을 렌더하고 실제 Stack이 없음.
+  //   이 시점에 Modal.visible=true를 설정하면 AppLoadingScreen ViewController 위에
+  //   Modal이 present되고, isLoading=false 후 AppLoadingScreen이 Stack으로 교체될 때
+  //   Modal이 함께 사라진다(iOS UIKit: presenting VC dismiss → presented Modal도 dismiss).
+  //   isLoading=false 이후에만 실행하면 Stack이 완전히 마운트된 상태에서 Modal이 열린다.
   const fetchAndShow = useCallback(async () => {
-    if (!token || !kind) return;
+    if (!token || !kind || isLoading) return;
     if (_coldLaunchProcessed) return;
     if (fetchingRef.current) return;
 
@@ -78,7 +85,7 @@ export function NoticePopup() {
     } finally {
       fetchingRef.current = false;
     }
-  }, [token, kind]);
+  }, [token, kind, isLoading]);
 
   useEffect(() => { fetchAndShow(); }, [fetchAndShow]);
 
