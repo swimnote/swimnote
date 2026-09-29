@@ -49,6 +49,23 @@ export function NoticePopup() {
   // seen은 Modal onShow에서 1회만 기록 — re-render 중복 방지
   const seenFiredRef = useRef(false);
 
+  // ── mount / unmount 진단 ──────────────────────────────────────────────────
+  useEffect(() => {
+    console.log("[NP] NOTICE_POPUP_MOUNT");
+    return () => { console.log("[NP] NOTICE_POPUP_UNMOUNT"); };
+  }, []);
+
+  // ── token / kind / isLoading 변화 진단 ───────────────────────────────────
+  useEffect(() => {
+    console.log(
+      "[NP] NOTICE_POPUP_READY",
+      "role=" + (kind ?? "null"),
+      "loading=" + isLoading,
+      "token=" + !!token,
+      "coldLock=" + _coldLaunchProcessed,
+    );
+  }, [token, kind, isLoading]);
+
   // 콜드런치 여부 판단 → 미노출 공지 조회 → 표시
   //
   // ❗ isLoading 체크 필수:
@@ -58,15 +75,31 @@ export function NoticePopup() {
   //   Modal이 함께 사라진다(iOS UIKit: presenting VC dismiss → presented Modal도 dismiss).
   //   isLoading=false 이후에만 실행하면 Stack이 완전히 마운트된 상태에서 Modal이 열린다.
   const fetchAndShow = useCallback(async () => {
-    if (!token || !kind || isLoading) return;
-    if (_coldLaunchProcessed) return;
-    if (fetchingRef.current) return;
+    if (!token || !kind || isLoading) {
+      console.log(
+        "[NP] NOTICE_PENDING_SKIP",
+        "token=" + !!token,
+        "kind=" + (kind ?? "null"),
+        "isLoading=" + isLoading,
+      );
+      return;
+    }
+    if (_coldLaunchProcessed) {
+      console.log("[NP] NOTICE_PENDING_SKIP coldLock=true");
+      return;
+    }
+    if (fetchingRef.current) {
+      console.log("[NP] NOTICE_PENDING_SKIP fetching=true");
+      return;
+    }
 
     _coldLaunchProcessed = true;
     fetchingRef.current  = true;
+    console.log("[NP] NOTICE_PENDING_REQUEST role=" + kind);
 
     try {
       const res = await apiRequest(token, "/notices/pending");
+      console.log("[NP] NOTICE_PENDING_STATUS", res.status);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 
@@ -74,14 +107,18 @@ export function NoticePopup() {
       const item: PendingNotice | null =
         json?.notice ?? (Array.isArray(json) && json.length > 0 ? json[0] : null);
 
+      console.log("[NP] NOTICE_PENDING_COUNT hasNotice=" + !!item);
+
       if (item) {
         seenFiredRef.current = false; // 새 공지마다 seen 초기화
+        console.log("[NP] NOTICE_PENDING_SELECTED id=" + item.id);
         setNotice(item);
         setVisible(true);
+        console.log("[NP] NOTICE_VISIBLE_SET true");
       }
     } catch (e) {
       // 공지 조회 실패 — 무시, 앱 정상 진입
-      console.warn("[NoticePopup] 공지 조회 실패:", e);
+      console.warn("[NP] NOTICE_POPUP_ERROR", String(e));
     } finally {
       fetchingRef.current = false;
     }
@@ -91,9 +128,13 @@ export function NoticePopup() {
 
   // ── Modal onShow — 실제 표시 완료 후 seen 기록 ──────────────────────────
   function handleShow() {
+    console.log("[NP] NOTICE_MODAL_ONSHOW");
     if (!token || !notice || seenFiredRef.current) return;
     seenFiredRef.current = true;
-    apiRequest(token, `/notices/${notice.id}/seen`, { method: "POST" }).catch(() => {});
+    console.log("[NP] NOTICE_SEEN_REQUEST id=" + notice.id);
+    apiRequest(token, `/notices/${notice.id}/seen`, { method: "POST" })
+      .then(r => { console.log("[NP] NOTICE_SEEN_STATUS", r.status); })
+      .catch(e  => { console.warn("[NP] NOTICE_SEEN_ERROR", String(e)); });
   }
 
   // ─── 닫기 ────────────────────────────────────────────────────────────────
@@ -102,6 +143,8 @@ export function NoticePopup() {
   }
 
   if (!notice) return null;
+
+  console.log("[NP] NOTICE_MODAL_RENDER visible=" + visible);
 
   const imageUri =
     Array.isArray(notice.image_urls) && notice.image_urls.length > 0 && notice.image_urls[0]
