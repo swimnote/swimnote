@@ -350,16 +350,32 @@ export default function NoticesScreen() {
       Alert.alert("권한 필요", "사진 접근 권한이 필요합니다.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.95,
-      allowsMultipleSelection: false,
-    });
+    // iOS: transparent RN Modal이 열린 상태에서 launchImageLibraryAsync를 호출하면
+    // PHPickerViewController presentation이 UIKit 충돌로 silent fail됨.
+    // Modal을 먼저 dismiss하고 picker를 열어야 정상 표시됨.
+    setShowModal(false);
+    await new Promise<void>(r => setTimeout(r, 350)); // modal dismiss 애니메이션 완료 대기
+
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.95,
+        allowsMultipleSelection: false,
+      });
+    } catch (e) {
+      console.error("[pickImage] launcher error:", e);
+      setShowModal(true); // form modal 복원
+      return;
+    }
+
     if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      // 크롭 modal 진입 (form 닫지 않음)
-      setCropSourceUri(asset.uri);
+      // 이미지 선택됨 → crop modal 열기 (form modal은 handleCropApply/Cancel에서 복원)
+      setCropSourceUri(result.assets[0].uri);
       setCropVisible(true);
+    } else {
+      // 취소 → form modal 복원
+      setShowModal(true);
     }
   }
 
@@ -373,11 +389,12 @@ export default function NoticesScreen() {
     setCropVisible(false);
     setPickedImage({ uri: croppedUri, mimeType: "image/jpeg" });
     setImagePreview(croppedUri);
+    setShowModal(true); // pickImage에서 닫은 form modal 복원 (readjustImage 경로도 무해)
   }
 
   function handleCropCancel() {
     setCropVisible(false);
-    // 기존 form/image 상태 유지 (변경 없음)
+    setShowModal(true); // pickImage에서 닫은 form modal 복원 (readjustImage 경로도 무해)
   }
 
   // ── 이미지 재조정 ─────────────────────────────────────────────────────
@@ -576,7 +593,7 @@ export default function NoticesScreen() {
 
             {/* ── STEP: FORM ── */}
             {step === "form" && (
-              <>
+              <View style={m.stepWrapper}>
                 <View style={m.header}>
                   <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
                   <Pressable onPress={closeModal}>
@@ -584,7 +601,7 @@ export default function NoticesScreen() {
                   </Pressable>
                 </View>
 
-                <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
+                <KeyboardAwareScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                   {/* 제목 */}
                   <Text style={m.label}>제목 *</Text>
                   <TextInputField
@@ -738,12 +755,12 @@ export default function NoticesScreen() {
                     </View>
                   </Pressable>
                 </View>
-              </>
+              </View>
             )}
 
             {/* ── STEP: PREVIEW ── */}
             {step === "preview" && (
-              <>
+              <View style={m.stepWrapper}>
                 <View style={m.header}>
                   <Text style={m.title}>미리보기</Text>
                   <Pressable onPress={closeModal}>
@@ -751,7 +768,7 @@ export default function NoticesScreen() {
                   </Pressable>
                 </View>
 
-                <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
+                <KeyboardAwareScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                   {/* 발행 메타 정보 */}
                   <View style={pv.metaBox}>
                     <View style={pv.metaRow}>
@@ -807,7 +824,7 @@ export default function NoticesScreen() {
                     </View>
                   </Pressable>
                 </View>
-              </>
+              </View>
             )}
 
           </View>
@@ -906,7 +923,8 @@ const s = StyleSheet.create({
 const m = StyleSheet.create({
   overlay:       { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:         { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                   padding: 20, maxHeight: "92%" },
+                   padding: 20, maxHeight: "92%", flex: 1 },
+  stepWrapper:   { flex: 1 },
   header:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   title:         { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   label:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 14 },
