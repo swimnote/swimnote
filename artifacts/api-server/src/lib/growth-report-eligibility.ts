@@ -163,9 +163,45 @@ export const GROWTH_REPORT_MIN_SOURCE_RECORDS   = 1;
  *   1 = 3/3 정책 (MIN_SOURCE_RECORDS=3)
  *   2 = 3/2 정책 (MIN_SOURCE_RECORDS=2) + diary 기반 attendance 보완
  *   3 = 3/1 정책 (MIN_SOURCE_RECORDS=1) + punctuation-only source 제외 (2026-09-12 최종)
- *       attendance event identity 기준 계산 (makeups 별개 event)
+ *   4 = WP-AI-V1.0: KST analysis-month interval, scheduled attendance/makeup
+ *       semantics, and prior-month overlap + next-month continuation gate
  */
-export const GROWTH_REPORT_ELIGIBILITY_VERSION = 3;
+export const GROWTH_REPORT_ELIGIBILITY_VERSION = 4;
+
+/**
+ * WP-AI-V1.0 period contract: report_period is the analysis month (the
+ * issuance month M always analyzes M-1).  Date columns use the KST calendar;
+ * timestamp columns use the equivalent UTC half-open interval.
+ */
+export interface GrowthReportAnalysisPeriod {
+  startDate: string;
+  endDateExclusive: string;
+  startAt: string;
+  endAt: string;
+}
+
+export function getGrowthReportAnalysisPeriod(reportPeriod: string): GrowthReportAnalysisPeriod {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(reportPeriod);
+  if (!match) throw new Error(`Invalid growth report analysis month: ${reportPeriod}`);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const endYear = month === 12 ? year + 1 : year;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const startDate = `${match[1]}-${match[2]}-01`;
+  const endDateExclusive = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+  // KST midnight expressed explicitly as UTC; avoids host timezone dependence.
+  const startAt = new Date(`${startDate}T00:00:00+09:00`).toISOString();
+  const endAt = new Date(`${endDateExclusive}T00:00:00+09:00`).toISOString();
+  return { startDate, endDateExclusive, startAt, endAt };
+}
+
+/** Issuance month M is represented by the previous calendar month M-1. */
+export function getAnalysisMonthForIssueMonth(issueMonth: string): string {
+  const { startDate } = getGrowthReportAnalysisPeriod(issueMonth);
+  const issueDate = new Date(`${startDate}T00:00:00Z`);
+  issueDate.setUTCMonth(issueDate.getUTCMonth() - 1);
+  return `${issueDate.getUTCFullYear()}-${String(issueDate.getUTCMonth() + 1).padStart(2, "0")}`;
+}
 
 export interface StudentEligibilityResult {
   eligible:           boolean;

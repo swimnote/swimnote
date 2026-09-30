@@ -8,7 +8,7 @@
  * 삭제 정책 (§14 기준):
  *   DELETE  : student_photos (DB + R2), parent_students,
  *             class_diary_student_notes (해당 학생 note만), swim_diary,
- *             growth_events, growth_reports, admin_member_notes,
+ *             growth_events, 미발행 growth_reports, admin_member_notes,
  *             student_curriculum_assignments, student_curriculum_progress,
  *             curriculum_progress_observations, student_levels,
  *             parent_curriculum_conversations + messages,
@@ -16,7 +16,8 @@
  *             diary_reactions (student_id col),
  *             parent_student_requests, video_assets_meta, student_videos,
  *             photo_assets_meta (student-owned rows)
- *   KEEP    : attendance (정산), student_class_history (audit),
+ *   KEEP    : PUBLISHED 무료 월간 growth_reports (과거 발급물),
+ *             attendance (정산), student_class_history (audit),
  *             member_activity_logs (audit), students row (soft)
  *
  * class_diaries 원본 (공유 일지) 삭제 금지.
@@ -307,9 +308,15 @@ export async function withdrawStudent(
     `);
     if (geResult.rowCount > 0) deletedTables.push(`growth_events(${geResult.rowCount})`);
 
-    // 성장 리포트 (전체 — PUBLISHED 포함 삭제, 퇴원은 종료 행위)
+    // 미완성/비월간 성장 리포트는 기존처럼 삭제하되,
+    // 발급 완료된 무료 월간 리포트는 퇴원 후에도 과거 발급물로 보존한다.
+    // report_type='monthly'는 무료 월간 리포트이며 유료 insight는 'custom'이다.
     const grResult = await tx.execute(sql`
       DELETE FROM growth_reports WHERE student_id = ${studentId}
+        AND NOT (
+          report_type = 'monthly'
+          AND product_status = 'PUBLISHED'
+        )
     `);
     if (grResult.rowCount > 0) deletedTables.push(`growth_reports(${grResult.rowCount})`);
 

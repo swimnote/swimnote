@@ -35,6 +35,7 @@ import {
   type ParentAnswerSnapshot,
 } from "./growth-report-engine-client.js";
 import { getPublishedReportHistory } from "./growth-report-service.js";
+import { getGrowthReportAnalysisPeriod } from "./growth-report-eligibility.js";
 
 // ─── Builder input ────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ export interface BuiltSnapshot {
 
 /**
  * queryDiaries — fetches class_diaries rows that have a valid student note for
- * `studentId` within [analysisFrom, cutoffAt).
+ * `studentId` within [analysisFrom, periodEndExclusive).
  *
  * ⑨ analysis_period_start 하한 적용:
  *   effectiveStart = max(student_created_date, analysisFrom)
@@ -94,33 +95,29 @@ export interface BuiltSnapshot {
 /**
  * queryAttendanceForEligibility
  *
- * 출석 인정 semantics (v3-final, 2026-09-12 확정):
+ * 인정수업 semantics (WP-AI-V1.0):
  *
  *   원칙: Diary는 "수업기록"이지 "출석의 근거"가 아님.
  *         출석 계산에서 class_diaries 의존 완전 제거.
  *
- *   출석 횟수 = Branch1a + Branch1b + Branch2:
+ *   인정수업 = scheduled non-absent + completed makeup (WP-AI-V1.0).
+ *   Off-schedule explicit attendance is not a scheduled lesson. A completed
+ *   makeup is counted by makeup_sessions only, even if it has attendance.
  *
- *     Branch 1-a: 정규수업 explicit present/late row
- *                 event identity = (class_group_id, date)
- *                 → 같은 날 다른 반 수업 2개는 2회 인정
- *                 → 같은 (class_group_id, date) 중복 row는 1회
- *
- *     Branch 1-b: 보강 완료 — SoT: makeup_sessions.status='completed'
+ *     보강 완료 — SoT: makeup_sessions.status='completed'
  *                 event identity = makeup_sessions.id
  *                 → attendance row 없어도 인정 (completed_attendance_id=NULL OK)
- *                 → 날짜: completed_at::date
+ *                 → 날짜: completed_at interpreted in Asia/Seoul
  *
- *     Branch 2:   schedule-based implied attendance
- *                 (class_groups.schedule_days 기반 수업 예정일 중
- *                  explicit 출석 row가 없고, pool holiday가 아니며, 명시적 결석 없는 날)
+ *     예정수업: class_groups.schedule_days에 해당하며
+ *               pool holiday가 아니고 명시적 결석이 없는 날
  *                 event identity = (class_group_id, date)
  *                 → 같은 날 다른 반 수업 2개는 2회 인정
  *
  * DB type notes:
  *   attendance.date: TEXT → must cast ::date for comparison
  *   student_class_history.enrolled_at/left_at: DATE → direct comparison
- *   makeup_sessions.assigned_date: TEXT (nullable) → use completed_at::date
+ *   makeup_sessions.completed_at: timestamp → use KST month boundaries
  *
  * schedule_days SoT: class_groups.schedule_days (한글 단일 문자: 월화수목금토일)
  *   DOW 매핑: 일=0, 월=1, 화=2, 수=3, 목=4, 금=5, 토=6 (PostgreSQL EXTRACT DOW)
@@ -143,39 +140,24 @@ export async function queryAttendanceForEligibility(
 ): Promise<number> {
   const rows = await db.execute(sql`
     SELECT
-      -- Branch 1-a: 정규수업 explicit present/late
-      --   event identity = (class_group_id, date) — 같은 날 다른 반 2개 = 2회; 같은 (cg,date) 중복 = 1회
-      --   session_type IS NULL OR session_type != 'makeup' → 정규
-      --   NOTE: attendance.date is TEXT; cast to date for comparison
-      (
-        SELECT COUNT(DISTINCT (a.class_group_id, a.date::date))::int
-        FROM attendance a
-        WHERE a.student_id       = ${studentId}
-          AND a.swimming_pool_id = ${poolId}
-          AND a.date::date       >= ${periodFrom}::date
-          AND a.date::date       <  ${cutoffDate}::date
-          AND a.status           IN ('present', 'late')
-          AND (a.session_type IS NULL OR a.session_type <> 'makeup')
-      )
-      +
-      -- Branch 1-b: 보강 완료: SoT = makeup_sessions.status='completed'
+      -- 보강 완료: SoT = makeup_sessions.status='completed'
       --   attendance row 없어도 인정 (completed_attendance_id=NULL이어도 OK)
       --   event identity = makeup_sessions.id
-      --   날짜 기준: completed_at::date (assigned_date는 TEXT이고 null 가능)
+      --   날짜 기준: completed_at timestamp를 KST 경계로 비교 (assigned_date 아님)
       (
         SELECT COUNT(ms.id)::int
         FROM makeup_sessions ms
         WHERE ms.student_id        = ${studentId}
           AND ms.swimming_pool_id  = ${poolId}
-          AND ms.completed_at::date >= ${periodFrom}::date
-          AND ms.completed_at::date <  ${cutoffDate}::date
+          AND ms.completed_at >= (${periodFrom}::date::timestamp AT TIME ZONE 'Asia/Seoul')
+          AND ms.completed_at <  (${cutoffDate}::date::timestamp AT TIME ZONE 'Asia/Seoul')
           AND ms.status            = 'completed'
       )
       +
-      -- Branch 2: schedule-based implied attendance (diary 의존 완전 제거)
-      --   수업 예정일(class_groups.schedule_days 기준) 중 explicit 출석 없는 날만 추가
+      -- 예정수업 (diary 의존 완전 제거)
+      --   수업 예정일(class_groups.schedule_days 기준) 중 결석이 없는 날
       --   event identity = (class_group_id, date) — 같은 날 다른 반 = 별도 event
-      --   pool_holidays 제외, 명시적 결석 제외, Branch 1-a의 (cg,date) 중복 방지
+      --   pool_holidays 제외, 명시적 결석 제외
       --   NOTE: attendance.date is TEXT; cast to date for comparison
       (
         SELECT COUNT(DISTINCT (cg.id, gs.d::date))::int
@@ -221,16 +203,6 @@ export async function queryAttendanceForEligibility(
             AND a2.class_group_id   = cg.id
             AND a2.status           = 'absent'
         )
-        -- 해당 (class_group_id, date) explicit present가 없는 경우만 (Branch 1-a와 중복 방지)
-        AND NOT EXISTS (
-          SELECT 1 FROM attendance a3
-          WHERE a3.student_id       = ${studentId}
-            AND a3.swimming_pool_id = ${poolId}
-            AND a3.date::date       = gs.d::date
-            AND a3.class_group_id   = cg.id
-            AND a3.status           IN ('present', 'late')
-            AND (a3.session_type IS NULL OR a3.session_type <> 'makeup')
-        )
       )
     AS cnt
   `);
@@ -246,10 +218,10 @@ export async function queryDiariesForEligibility(
   db: any,
   studentId: string,
   poolId: string,
-  cutoffAt: string,
+  periodEndExclusive: string,
   analysisFrom: string,
 ): Promise<number> {
-  const items = await queryDiaries(db, studentId, poolId, cutoffAt, analysisFrom);
+  const items = await queryDiaries(db, studentId, poolId, periodEndExclusive, analysisFrom);
   return items.length;
 }
 
@@ -257,12 +229,9 @@ async function queryDiaries(
   db: any,
   studentId: string,
   poolId: string,
-  cutoffAt: string,
+  periodEndExclusive: string,
   analysisFrom: string,   // ⑨ analysis_period_start ("YYYY-MM-DD")
 ): Promise<DiarySnapshotItem[]> {
-  // cutoffAt is UTC ISO like "2026-08-24T15:00:00.000Z" → date "2026-08-24"
-  const cutoffDate = cutoffAt.slice(0, 10);
-
   // ⑨ 하한: analysisFrom (= analysis_period_start) 만 사용.
   //    students.created_at은 DB row 생성시각으로 실제 입회일과 다를 수 있어 제거.
   //    analysis_period 범위(>= analysisFrom, < cutoffDate)가 분석월 이전 데이터를 이미 차단.
@@ -286,7 +255,7 @@ async function queryDiaries(
     WHERE cd.swimming_pool_id = ${poolId}
       AND cd.is_deleted = false
       AND cd.lesson_date >= ${analysisFrom}
-      AND cd.lesson_date <  ${cutoffDate}
+      AND cd.lesson_date <  ${periodEndExclusive}
     ORDER BY cd.lesson_date ASC
   `);
 
@@ -312,18 +281,19 @@ async function queryDiaries(
 
 /**
  * queryGrowthEvents — fetches non-invalidated growth_events for `studentId`
- * with occurred_at < cutoffAt.
+ * within the analysis month's KST half-open timestamp interval.
  * All growth_match_status values are included — ENGINE decides relevance.
  */
 async function queryGrowthEvents(
   db: any,
   studentId: string,
   poolId: string,
-  cutoffAt: string,
+  periodStartAt: string,
+  periodEndAt: string,
   educationStartedAt: string | null = null,
 ): Promise<GrowthEventSnapshotItem[]> {
   const startFilter = educationStartedAt
-    ? sql`AND created_at >= ${educationStartedAt}`
+    ? sql`AND created_at >= GREATEST(${periodStartAt}::timestamptz, ${educationStartedAt}::timestamptz)`
     : sql``;
   const rows = await db.execute(sql`
     SELECT
@@ -340,7 +310,8 @@ async function queryGrowthEvents(
     WHERE student_id       = ${studentId}
       AND swimming_pool_id = ${poolId}
       AND is_invalidated   = false
-      AND created_at       < ${cutoffAt}
+      AND created_at       >= ${periodStartAt}::timestamptz
+      AND created_at       <  ${periodEndAt}::timestamptz
       ${startFilter}
     ORDER BY created_at ASC
   `);
@@ -365,22 +336,22 @@ async function queryGrowthEvents(
 // ─── Attendance query ─────────────────────────────────────────────────────────
 
 /**
- * queryAttendance — fetches attendance records where date < cutoff date.
+ * queryAttendance — attendance for the analysis month only (date columns are KST dates).
  */
 async function queryAttendance(
   db: any,
   studentId: string,
   poolId: string,
-  cutoffAt: string,
+  periodStart: string,
+  periodEndExclusive: string,
 ): Promise<AttendanceSnapshotItem[]> {
-  const cutoffDate = cutoffAt.slice(0, 10);
-
   const rows = await db.execute(sql`
     SELECT id, student_id, date, status
     FROM attendance
     WHERE student_id       = ${studentId}
       AND swimming_pool_id  = ${poolId}
-      AND date             < ${cutoffDate}
+      AND date::date       >= ${periodStart}::date
+      AND date::date       <  ${periodEndExclusive}::date
     ORDER BY date ASC
   `);
 
@@ -857,14 +828,15 @@ export async function buildAnalysisSnapshot(
 ): Promise<BuiltSnapshot> {
   const { report, cycle } = input;
   const requestId  = input.requestId ?? randomUUID();
-  const cutoffAt   = cycle.analysis_cutoff_at;
+  const analysisPeriod = getGrowthReportAnalysisPeriod(cycle.report_period);
+  const cutoffAt   = analysisPeriod.endAt;
   const maxPeriods = getMaxHistoryPeriods();
 
   // ⑨ analysis_period_start 하한 계산:
   //   cycle.report_period = "YYYY-MM" (analysis month, e.g. "2026-08")
   //   → analysisFrom = "YYYY-MM-01"
   //   cycle.analysis_from이 명시된 경우 그쪽이 더 좁으면 더 좁은 값 사용.
-  const periodFrom = `${cycle.report_period}-01`;
+  const periodFrom = analysisPeriod.startDate;
   const analysisFrom = cycle.analysis_from
     ? (cycle.analysis_from > periodFrom ? cycle.analysis_from : periodFrom)
     : periodFrom;
@@ -904,9 +876,28 @@ export async function buildAnalysisSnapshot(
     previousCurriculumPct,
     previousUsableReport,
   ] = await Promise.all([
-    queryDiaries(db, report.student_id, report.swimming_pool_id, cutoffAt, effectiveAnalysisFrom),
-    queryGrowthEvents(db, report.student_id, report.swimming_pool_id, cutoffAt, educationStartedAt),
-    queryAttendance(db, report.student_id, report.swimming_pool_id, cutoffAt),
+    queryDiaries(
+      db,
+      report.student_id,
+      report.swimming_pool_id,
+      analysisPeriod.endDateExclusive,
+      effectiveAnalysisFrom,
+    ),
+    queryGrowthEvents(
+      db,
+      report.student_id,
+      report.swimming_pool_id,
+      analysisPeriod.startAt,
+      analysisPeriod.endAt,
+      educationStartedAt,
+    ),
+    queryAttendance(
+      db,
+      report.student_id,
+      report.swimming_pool_id,
+      analysisPeriod.startDate,
+      analysisPeriod.endDateExclusive,
+    ),
     queryCurriculumState(db, report.student_id, report.swimming_pool_id),
     queryParentAnswers(db, report.id),
     getPublishedReportHistory({

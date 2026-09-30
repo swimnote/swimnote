@@ -411,10 +411,7 @@ describe("N–P. 5일 Auto-Publish (신규 정책: parent input close 제거)", 
     expect(result.cycles_input_closed).toBe(0);
   });
 
-  it("O: scheduler code에 auto-publish 직접 변환 없음 (2026-09-07 비활성화)", async () => {
-    // 신규 정책: scheduler는 REVIEW_REQUIRED 단계에서 멈춤
-    // auto-publish(autoApproveAndPublishForDelivery) 완전 비활성화
-    // publish는 pool_admin 직접 action으로만 허용
+  it("O: scheduler prepares rows while the separate V1.0 worker publishes successful reports", async () => {
     const { readFileSync } = await import("node:fs");
     const scheduler = readFileSync(
       "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
@@ -424,17 +421,22 @@ describe("N–P. 5일 Auto-Publish (신규 정책: parent input close 제거)", 
     expect(scheduler).not.toContain("autoApproveAndPublishForDelivery");
     // 자동 PUBLISHED 전환 없음
     expect(scheduler).not.toMatch(/SET product_status\s*=\s*'PUBLISHED'/);
-  });
-
-  it("P: 5일 이후 실행 → auto-publish 쿼리에서 REVIEW_REQUIRED 타겟", async () => {
-    const { readFileSync } = await import("node:fs");
-    const scheduler = readFileSync(
-      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
+    const batchWorker = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-batch-worker.ts",
       "utf-8",
     );
-    expect(scheduler).toContain("REVIEW_REQUIRED");
-    expect(scheduler).toContain("auto_published");
-    expect(scheduler).toContain("delivery_skipped");
+    expect(batchWorker).toContain("runMonthlyFreeAutoPublication(db)");
+  });
+
+  it("P: 5일 이후 자동 공개는 최종 분석 결과만 대상으로 한다", async () => {
+    const { readFileSync } = await import("node:fs");
+    const publisher = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-auto-publisher.ts",
+      "utf-8",
+    );
+    expect(publisher).toContain("gr.product_status IN ('REVIEW_REQUIRED', 'READY_TO_SEND', 'APPROVED')");
+    expect(publisher).toContain("gr.analysis_status IN (");
+    expect(publisher).toContain("student.status = 'active'");
   });
 });
 

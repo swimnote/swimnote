@@ -11,7 +11,7 @@
  *   - Multi-instance safe: FOR UPDATE SKIP LOCKED claim
  *   - Idempotent: ON CONFLICT DO NOTHING batch creation
  *   - Concurrency limit: MAX_POOL_WORKERS pool 동시 처리 제한
- *   - AUTO GENERATE ≠ AUTO SEND (관리자 발송 필수)
+ *   - 배치의 row 준비 완료와 실제 PUBLISHED 완료는 별개
  *
  * 기존 worker 재사용:
  *   - 학생별 AI 분석: runGrowthReportAnalysisWorker (기존) 재사용
@@ -28,11 +28,14 @@ import { sql }                             from "drizzle-orm";
 import { superAdminDb }                    from "@workspace/db";
 import { acquireLock, releaseLock }        from "../lib/schedulerLock.js";
 import { notifyPoolEvent }                from "../lib/pg-realtime.js";
+import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
+import { computeMonthlyFreePeriodTimestamps } from "./growth-report-scheduler.js";
 import {
   transitionToReadyToSend,
   refreshWp8Snapshot,
 }                                          from "../lib/growth-report-production-service.js";
 import { notifyBatchComplete }             from "../utils/notify.js";
+import { runMonthlyFreeAutoPublication } from "./growth-report-auto-publisher.js";
 
 type Db = typeof superAdminDb;
 
@@ -98,13 +101,10 @@ function nextKST8amUTC(utcNow: Date = new Date()): Date {
 // X mode active pools — scheduler와 동일한 FREE_GROWTH_REPORT_ELIGIBLE_SQL 사용.
 // 이전 x_pool_subscriptions JOIN은 해당 테이블이 존재하지 않아 항상 오류 발생.
 
-async function getXEligiblePools(db: Db): Promise<string[]> {
+export async function getXEligiblePools(db: Db): Promise<string[]> {
   const r = await db.execute(sql.raw(`
     SELECT id FROM swimming_pools
-    WHERE (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
-      AND NOT COALESCE(x_force_disabled, false)
-      AND approval_status = 'approved'
-      AND deleted_at IS NULL
+    WHERE ${FREE_GROWTH_REPORT_ELIGIBLE_SQL}
   `));
   return (r.rows as any[]).map(row => row.id as string);
 }
@@ -112,18 +112,17 @@ async function getXEligiblePools(db: Db): Promise<string[]> {
 // ── getEligibleStudents ───────────────────────────────────────────────────────
 // 해당 pool/period의 대상 학생 (기존 eligibility logic 재사용)
 
-async function getEligibleStudents(
+export async function getEligibleStudents(
   db: Db,
   poolId: string,
   reportPeriod: string,   // 'YYYY-MM'
   cycleId: string,
 ): Promise<Array<{ studentId: string; classGroupId: string | null }>> {
   const [py, pm] = reportPeriod.split("-").map(Number);
-  const periodStart = `${py}-${String(pm).padStart(2, "0")}-01`;
   const nextMonth   = pm === 12 ? `${py + 1}-01-01` : `${py}-${String(pm + 1).padStart(2, "0")}-01`;
 
   const r = await db.execute(sql`
-    SELECT DISTINCT
+    SELECT DISTINCT ON (s.id)
       s.id            AS student_id,
       sch.class_group_id
     FROM students s
@@ -132,9 +131,9 @@ async function getEligibleStudents(
     WHERE cg.swimming_pool_id = ${poolId}
       AND s.status        = 'active'
       AND s.deleted_at IS NULL
-      AND sch.enrolled_at <= ${nextMonth}::date
+      AND sch.enrolled_at < ${nextMonth}::date
       AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonth}::date)
-    ORDER BY s.id
+    ORDER BY s.id, sch.class_group_id
   `);
 
   return (r.rows as any[]).map(row => ({
@@ -145,22 +144,31 @@ async function getEligibleStudents(
 
 // ── ensureBatchJobs ───────────────────────────────────────────────────────────
 
-async function ensureBatchJobs(
+export async function ensureBatchJobs(
   db: Db,
   poolIds: string[],
   year: number,
   month: number,
-): Promise<void> {
+): Promise<{ ensured: number; failed: number }> {
+  let ensured = 0;
+  let failed = 0;
   for (const poolId of poolIds) {
-    await db.execute(sql`
-      INSERT INTO growth_report_batch_jobs
-        (swimming_pool_id, year, month, job_type, status, next_attempt_at)
-      VALUES
-        (${poolId}, ${year}, ${month}, 'MONTHLY_AUTO', 'PENDING', NOW())
-      ON CONFLICT (swimming_pool_id, year, month, job_type) DO NOTHING
-    `);
+    try {
+      await db.execute(sql`
+        INSERT INTO growth_report_batch_jobs
+          (swimming_pool_id, year, month, job_type, status, next_attempt_at)
+        VALUES
+          (${poolId}, ${year}, ${month}, 'MONTHLY_AUTO', 'PENDING', NOW())
+        ON CONFLICT (swimming_pool_id, year, month, job_type) DO NOTHING
+      `);
+      ensured++;
+    } catch (err: any) {
+      failed++;
+      console.error(`[gr-batch] batch job preparation failed pool=${poolId}:`, err.message);
+    }
   }
-  console.log(`[gr-batch] batch jobs ensured pool_count=${poolIds.length} year=${year} month=${month}`);
+  console.log(`[gr-batch] batch job preparation pool_count=${poolIds.length} ensured=${ensured} failed=${failed} year=${year} month=${month}`);
+  return { ensured, failed };
 }
 
 // ── claimJob ─────────────────────────────────────────────────────────────────
@@ -221,51 +229,10 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
   const prevMonth = month === 1 ? 12 : month - 1;
   const prevYear  = month === 1 ? year - 1 : year;
   const reportPeriod = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+  const cycleTimes = computeMonthlyFreePeriodTimestamps(year, month);
 
   // ── 1. cycle_id 가져오기 (없으면 생성) ───────────────────────────────────
-  let cycleId: string | null = null;
-  const cycleRes = await db.execute(sql`
-    SELECT id FROM growth_report_cycles
-    WHERE swimming_pool_id = ${poolId}
-      AND report_period    = ${reportPeriod}
-    LIMIT 1
-  `);
-  if (cycleRes.rows.length) {
-    cycleId = (cycleRes.rows[0] as any).id as string;
-  } else {
-    // cycle 없으면 생성
-    const periodStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
-    const periodEnd   = new Date(
-      prevMonth === 12 ? prevYear + 1 : prevYear,
-      prevMonth === 12 ? 0 : prevMonth,
-      0
-    ).toISOString().slice(0, 10);
-
-    // growth_report_cycles 실제 컬럼: analysis_cutoff_at, parent_input_open/close_at
-    // period_start/period_end/report_type 컬럼 없음
-    const newCycle = await db.execute(sql`
-      INSERT INTO growth_report_cycles (
-        swimming_pool_id, report_period,
-        analysis_cutoff_at, parent_input_open_at, parent_input_close_at
-      )
-      VALUES (
-        ${poolId}, ${reportPeriod},
-        NOW() + INTERVAL '7 days', NOW(), NOW() + INTERVAL '30 days'
-      )
-      ON CONFLICT (swimming_pool_id, report_period) DO NOTHING
-      RETURNING id
-    `).catch(() => ({ rows: [] }));
-
-    if (newCycle.rows.length) {
-      cycleId = (newCycle.rows[0] as any).id as string;
-    } else {
-      const reFetch = await db.execute(sql`
-        SELECT id FROM growth_report_cycles
-        WHERE swimming_pool_id = ${poolId} AND report_period = ${reportPeriod} LIMIT 1
-      `);
-      cycleId = reFetch.rows.length ? (reFetch.rows[0] as any).id as string : null;
-    }
-  }
+  const cycleId = await ensureBatchCycle(db, poolId, reportPeriod, year, month, cycleTimes);
 
   if (!cycleId) {
     console.error(`[gr-batch] CYCLE_MISSING pool=${poolId} period=${reportPeriod}`);
@@ -294,11 +261,8 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
   let completed = 0;
   let failed    = 0;
 
-  const periodStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
-  const periodEnd   = new Date(
-    prevMonth === 12 ? prevYear + 1 : prevYear,
-    prevMonth === 12 ? 0 : prevMonth, 0,
-  ).toISOString().slice(0, 10);
+  const periodStart = cycleTimes.periodStart;
+  const periodEnd = cycleTimes.periodEnd;
 
   // concurrency-limited worker pool (p-limit 없이 직접 구현)
   let studentIdx = 0;
@@ -316,7 +280,7 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
         });
         studentMutex.completed++;
       } catch (err: any) {
-        console.error(`[gr-batch] student failed pool=${poolId} student=${studentId}:`, err.message);
+        console.error(`[gr-batch] student preparation failed pool=${poolId}`);
         studentMutex.failed++;
         // 한 학생 오류가 전체 pool을 중단시키지 않도록 continue
       }
@@ -346,12 +310,61 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
     : failed > 0 ? "PARTIAL"
     : "COMPLETED";
 
-  // markJobComplete writes final status + fires SSE notify
+  // COMPLETED is terminal status for this batch-preparation pass only; it does
+  // not imply that a report was published. Publication remains an admin action.
   await markJobComplete(db, jobId, completed, failed, poolId);
   console.log(
-    `[gr-batch] DONE pool=${poolId} period=${reportPeriod} ` +
-    `status=${finalStatus} completed=${completed} failed=${failed}`
+    `[gr-batch] PREPARATION_FINISHED pool=${poolId} period=${reportPeriod} ` +
+    `batch_job_status=${finalStatus} prepared=${completed} failed=${failed} published=0`
   );
+}
+
+export async function ensureBatchCycle(
+  db: Db,
+  poolId: string,
+  reportPeriod: string,
+  year: number,
+  month: number,
+  cycleTimes = computeMonthlyFreePeriodTimestamps(year, month),
+): Promise<string | null> {
+  const cycleRes = await db.execute(sql`
+    SELECT id, cycle_status FROM growth_report_cycles
+    WHERE swimming_pool_id = ${poolId}
+      AND report_period = ${reportPeriod}
+    LIMIT 1
+  `);
+  if (cycleRes.rows.length) {
+    // Existing ACTIVE cycle is authoritative and is never replaced by the batch worker.
+    return (cycleRes.rows[0] as any).id as string;
+  }
+
+  const newCycle = await db.execute(sql`
+    INSERT INTO growth_report_cycles (
+      swimming_pool_id, report_period,
+      analysis_from, analysis_cutoff_at,
+      parent_input_open_at, parent_input_close_at,
+      timezone, cycle_status
+    )
+    VALUES (
+      ${poolId}, ${reportPeriod},
+      NULL, ${cycleTimes.analysisCutoffAt.toISOString()},
+      ${cycleTimes.parentInputOpenAt.toISOString()},
+      ${cycleTimes.parentInputCloseAt.toISOString()},
+      'Asia/Seoul', 'ACTIVE'
+    )
+    ON CONFLICT (swimming_pool_id, report_period) DO NOTHING
+    RETURNING id
+  `);
+
+  if (newCycle.rows.length) return (newCycle.rows[0] as any).id as string;
+
+  const reFetch = await db.execute(sql`
+    SELECT id FROM growth_report_cycles
+    WHERE swimming_pool_id = ${poolId}
+      AND report_period = ${reportPeriod}
+    LIMIT 1
+  `);
+  return reFetch.rows.length ? (reFetch.rows[0] as any).id as string : null;
 }
 
 // ── processStudentReport ──────────────────────────────────────────────────────
@@ -388,7 +401,7 @@ async function processStudentReport(
     const s = existRow.product_status as string;
     // 이미 READY_TO_SEND / PUBLISHED → skip
     if (["READY_TO_SEND", "PUBLISHED"].includes(s)) {
-      console.log(`[gr-batch] SKIP already ${s}: student=${studentId}`);
+      console.log(`[gr-batch] SKIP already ${s}: pool=${poolId}`);
       return;
     }
     // FAILED 상태면 재시도 위해 OPEN으로 리셋
@@ -421,7 +434,7 @@ async function processStudentReport(
     ON CONFLICT DO NOTHING
   `);
 
-  console.log(`[gr-batch] CREATED OPEN: student=${studentId} pool=${poolId}`);
+  console.log(`[gr-batch] REPORT_ROW_PREPARED: pool=${poolId}`);
 }
 
 // ── finalizePoolBatch ─────────────────────────────────────────────────────────
@@ -474,6 +487,10 @@ async function sendAdminReadyPush(
   month: number,
   readyCount: number,
 ): Promise<void> {
+  if (readyCount === 0) {
+    console.log(`[gr-batch] no READY_TO_SEND reports; admin notification skipped pool=${poolId}`);
+    return;
+  }
   // idempotency check
   const r = await db.execute(sql`
     SELECT admin_push_sent_at, scheduled_push_at FROM growth_report_batch_jobs
@@ -632,8 +649,8 @@ export async function runMonthlyBatchCron(db: Db, now: Date = new Date()): Promi
       console.log("[gr-batch] no X-eligible pools");
       return;
     }
-    await ensureBatchJobs(db, poolIds, year, month);
-    console.log(`[gr-batch] jobs ensured for ${poolIds.length} pools`);
+    const prep = await ensureBatchJobs(db, poolIds, year, month);
+    console.log(`[gr-batch] batch preparation finished ensured=${prep.ensured} failed=${prep.failed}`);
   } catch (err: any) {
     console.error("[gr-batch] monthly cron failed:", err.message);
   }
@@ -717,11 +734,16 @@ export function startGrowthReportBatchWorker(): void {
     );
   });
 
-  // 매 5분 worker loop (PENDING 배치 소화 + 예약 푸시 확인)
+  // 매 5분: 준비된 행 처리, 정상 분석 결과의 무료 자동 발급, 예약 관리자 푸시.
   cron.schedule("*/5 * * * *", async () => {
     await runBatchWorker(db).catch(e =>
       console.error("[gr-batch] worker error:", e.message)
     );
+    if (isBatchEnabled()) {
+      await runMonthlyFreeAutoPublication(db).catch(e =>
+        console.error("[gr-auto-publish] worker error:", e.message)
+      );
+    }
     await runScheduledPushes(db).catch(e =>
       console.error("[gr-batch] scheduled push error:", e.message)
     );

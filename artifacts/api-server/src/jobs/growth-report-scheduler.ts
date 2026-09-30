@@ -4,14 +4,7 @@
  * 핵심 Product Rule (MONTHLY_FREE 최종 정책):
  *   report_period = previous month (이번 달 실행 → 지난달 리포트)
  *   매월 1~4일 KST: cycle ensure → report ensure → AI analysis 준비
- *   매월 5일 KST: AI 생성/분석 완료 기준 (관리자 발송대기함 준비 시점)
- *
- * ★ 자동 발행 완전 비활성화 (2026-09-07):
- *   관리자 승인 전 PUBLISHED 전환 금지.
- *   scheduler는 REVIEW_REQUIRED 상태에서 멈추며
- *   이후 publish는 반드시 pool_admin 직접 action으로만 허용:
- *     - POST /admin/growth-reports/:id/send
- *     - POST /admin/growth-reports/bulk-send
+ *   매월 5일 KST: 정상 분석 완료분은 별도 무료 자동발급 워커에서 공개한다.
  *
  * 원칙:
  *   - analysis_cutoff_at = 1일 00:00 KST (= 이전달 마지막 순간)
@@ -26,7 +19,7 @@
  *   - ENGINE API 호출 → GR3
  *   - Parent Question UI → GR4
  *   - Teacher Review UI → GR5
- *   - PUBLISHED 자동 전환 (관리자 action 필수)
+ *   - PUBLISHED 전환 (별도 auto-publisher 소유)
  *
  * analysis_cutoff_at 정책:
  *   1일 00:00 KST = UTC 전날 15:00:00
@@ -344,9 +337,9 @@ async function openCycleForPool(
   //    (a) status = 'active'  (퇴원·정지·삭제 제외)
   //    (b) deleted_at IS NULL
   //    (c) student_class_history 이력:
-  //        enrolled_at <= nextMonth (report_month 시작일 이전 등록 — 중도입회 포함)
+  //        enrolled_at < nextMonth (분석월 내 또는 이전 등록; 다음달 신규 제외)
   //        left_at IS NULL OR left_at >= nextMonth (다음 달까지 유지)
-  //    → report_month_start(=nextMonth) 기준 재원 중이면 포함; 8/10 입회도 9/1 재원이면 ELIGIBLE
+  //    → 분석월 수강 + 다음달 1일 계속 재원인 후보만 생성
   //    → 주2회 등 여러 반 수강자도 student_id 기준 1건만 생성
   const [_py, _pm] = periodStart.split("-").map(Number);
   const nextMonthStr = _pm === 12
@@ -361,45 +354,12 @@ async function openCycleForPool(
     WHERE cg.swimming_pool_id = ${poolId}
       AND s.status = 'active'
       AND s.deleted_at IS NULL
-      AND sch.enrolled_at <= ${nextMonthStr}::date
+      AND sch.enrolled_at < ${nextMonthStr}::date
       AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonthStr}::date)
   `);
 
-  // 동명이인 학부모 연결 기준 중복 감지 (경고 로그 — 발급 차단 아님)
-  const nameCounts = new Map<string, string[]>();
-  for (const s of students.rows as Array<{ id: string; name: string }>) {
-    const ids = nameCounts.get(s.name) ?? [];
-    ids.push(s.id);
-    nameCounts.set(s.name, ids);
-  }
-  for (const [name, ids] of nameCounts.entries()) {
-    if (ids.length < 2) continue;
-    // 학부모 연결 조회
-    const parentLinks = await db.execute(sql`
-      SELECT student_id, parent_id FROM parent_students
-      WHERE student_id = ANY(${ids}::text[])
-        AND status = 'approved'
-    `);
-    const parentMap = new Map<string, string[]>();
-    for (const row of parentLinks.rows as Array<{ student_id: string; parent_id: string }>) {
-      const pids = parentMap.get(row.student_id) ?? [];
-      pids.push(row.parent_id);
-      parentMap.set(row.student_id, pids);
-    }
-    // 학부모 연결 없는 동명이인은 경고
-    const noParent = ids.filter(id => !parentMap.has(id));
-    if (noParent.length > 0) {
-      console.warn(
-        `[gr-scheduler] DUPLICATE_NAME_NO_PARENT: pool=${poolId} name="${name}" ` +
-        `student_ids=${noParent.join(",")} — 학부모 미연결 동명이인, 수동 확인 필요`,
-      );
-    } else {
-      console.log(
-        `[gr-scheduler] DUPLICATE_NAME_PARENT_OK: pool=${poolId} name="${name}" ` +
-        `ids=${ids.join(",")} — 학부모 연결로 별개 학생 확인됨`,
-      );
-    }
-  }
+  // Duplicate-name/parent-link diagnostics are intentionally omitted:
+  // they are non-blocking and risk exposing student names or identifiers in logs.
 
   // 4. student report ensure — pool 단위 bulk chunk INSERT (ON CONFLICT DO NOTHING)
   //    chunk 크기 200: PostgreSQL parameter 한도(65535)와 DB 부하 균형
@@ -418,7 +378,7 @@ async function openCycleForPool(
       )`),
       sql`, `,
     );
-    await db.execute(sql`
+    const inserted = await db.execute(sql`
       INSERT INTO growth_reports (
         student_id, swimming_pool_id, cycle_id, report_period,
         product_status, parent_input_status, snapshot_version,
@@ -427,12 +387,13 @@ async function openCycleForPool(
       ON CONFLICT (student_id, cycle_id)
         WHERE cycle_id IS NOT NULL AND deleted_at IS NULL
       DO NOTHING
+      RETURNING id
     `);
-    reportsCreated += chunk.length;
+    reportsCreated += inserted.rows.length;
   }
 
   if (reportsCreated > 0) {
-    console.log(`[gr-scheduler] REPORTS_ENSURED: cycle=${cycleId} pool=${poolId} students=${reportsCreated} chunks=${Math.ceil(reportsCreated / STUDENT_CHUNK_SIZE)}`);
+    console.log(`[gr-scheduler] REPORT_ROWS_INSERTED: cycle=${cycleId} pool=${poolId} rows=${reportsCreated} chunks=${Math.ceil(studentRows.length / STUDENT_CHUNK_SIZE)}`);
   }
 
   // 4. NOT_OPEN → OPEN (bulk) — period_start/period_end도 올바르게 업데이트
@@ -467,13 +428,8 @@ async function openCycleForPool(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
-// NOTE: autoPublishMonthlyReports 함수는 2026-09-07에 제거됨.
-//
-// 이유: 관리자 승인 전 PUBLISHED 자동 전환 금지 정책 (제품 정책 §0).
-//   scheduler는 AI 생성 완료(REVIEW_REQUIRED) 단계에서 멈추어야 하며,
-//   이후 publish는 pool_admin 직접 action으로만 허용:
-//     - POST /admin/growth-reports/:id/send
-//     - POST /admin/growth-reports/bulk-send
+// 사이클 준비와 PUBLISHED 전환은 별개이다. 무료 월간 자동 발급은
+// growth-report-auto-publisher.ts에서 5일 이후 성공 결과에만 적용한다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -520,19 +476,19 @@ async function writeSchedulerAudit(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * runGrowthReportScheduler — 이전달 cycle ensure + 5일 auto-publish 통합 처리
+ * runGrowthReportScheduler — 이전달 cycle/report row preparation
  *
  * clock injection: now 파라미터로 synthetic date 테스트 가능.
  * 락 불필요: 호출부(cron)에서 acquireLock 처리.
  *
  * 처리 순서:
  *   1. X-eligible pool 목록 조회
- *   2. 이전달 cycle/report 보장 (1일 이후면 항상 실행)
- *   3. 5일 이후면: delivery eligible + safety pass report 자동 publish
+ *   2. 이전달 cycle/report row 보장 (1일 이후면 항상 실행)
+ *   3. AI 분석 및 publication은 이 scheduler의 책임이 아님
  *
  * missed-run recovery:
  *   - PENDING cycles open_at <= now → open
- *   - 5일 이후면 auto-publish 재실행 (idempotent)
+ *   - cycle/report row preparation은 재실행해도 idempotent
  */
 export async function runGrowthReportScheduler(
   db: Db,
@@ -626,24 +582,20 @@ export async function runGrowthReportScheduler(
     result.errors.push({ code: "PENDING_CYCLES_FETCH_FAILED", message: err.message });
   }
 
-  // ── Step 4: 5일 이후 → 관리자 발송대기 안내 (자동 publish 비활성화) ────────
-  // ★ 자동 publish 완전 차단 (2026-09-07):
-  //   AI 생성 완료(REVIEW_REQUIRED) 후 scheduler가 PUBLISHED로 자동 전환하는 경로 제거.
-  //   5일(parentInputCloseAt) 이후에는 관리자 발송대기 알림 로그만 출력.
-  //   publish는 pool_admin 직접 action으로만:
-  //     - POST /admin/growth-reports/:id/send
-  //     - POST /admin/growth-reports/bulk-send
+  // ── Step 4: 상태 안내만 수행 (AI 분석 / publication 없음) ───────────────────
+  // 이 scheduler는 row 준비만 담당한다. 5일 이후 실제 발급은 별도
+  // auto-publisher가 ENGINE 결과/현재 active 여부를 검증하여 처리한다.
   const pastPublishDate = now.getTime() >= ts.parentInputCloseAt.getTime();
   if (pastPublishDate) {
     console.log(
-      `[gr-scheduler] 5일 경과 — REVIEW_REQUIRED 리포트가 관리자 발송대기 중. ` +
-      `period=${ts.reportPeriod} 자동publish=DISABLED`,
+      `[gr-scheduler] 5일 경과 — cycle/report row preparation only. ` +
+      `period=${ts.reportPeriod} publication handled by free auto-publisher`,
     );
   } else {
     const daysUntil = Math.ceil(
       (ts.parentInputCloseAt.getTime() - now.getTime()) / (24 * 3600 * 1000),
     );
-    console.log(`[gr-scheduler] 5일 미도달 (D-${daysUntil}) — 관리자 발송대기 준비 중`);
+    console.log(`[gr-scheduler] 5일 미도달 (D-${daysUntil}) — cycle/report row preparation only`);
   }
 
   console.log(

@@ -1,49 +1,14 @@
 ---
-name: 성장 리포트 발급 헌법
-description: 월별 AI 성장 리포트 발급 대상 학생 선정 기준 (영구 불변)
+name: 무료 월간 AI 성장리포트 발급 정책 V1.0
+description: 발급월/분석월 분리와 계속 수강·공개 시점 판단에 대한 사용자 우선 정책
 ---
 
-# 성장 리포트 발급 헌법
+# 무료 월간 AI 성장리포트 발급 정책
 
-> 2026-09-11 확정. 500개 수영장 20만명 기준으로 설계. 변경 시 별도 승인 필요.
+발급월 M의 분석월은 M−1이다. 해당 분석월에 수영장 반 재원 이력이 유효하고, 다음 달 1일까지 계속 재원이어야 한다. 분석월 중도 등록도 인정수업 3회와 유효 학생 개인 일지 1건을 충족하면 대상이다. 예정수업에서 결석을 뺀 횟수에 완료 보강을 더하며, 예정수업이 아닌 단순 출석기록은 추가 수업으로 세지 않는다. 월 데이터는 KST의 반개방 구간으로 고정한다.
 
-## 발급 대상 조건 (3가지 동시 충족)
+5일 자동 공개 직전에 학생이 여전히 active인지 재확인한다. 정상 ENGINE 결과가 검증·저장된 경우에만 무료 리포트를 PUBLISHED로 전환해 학부모에게 알린다. 발급 후 퇴원해도 이미 공개된 월간 보고서는 보존한다. 배치 준비가 끝났다는 이유만으로 발급 완료로 간주하지 않는다.
 
-```
-(a) students.status = 'active'           -- 퇴원·정지·삭제 제외
-(b) students.deleted_at IS NULL
-(c) student_class_history 이력:
-      enrolled_at <= report_period 시작일 (1일)  -- 전달 시작 전 등록
-      left_at IS NULL OR left_at >= 다음달 1일   -- 이번 달까지 유지
-(d) class_groups.swimming_pool_id = pool_id     -- 같은 pool 반 소속
-```
+**Why:** 2026-10-05 발급 복구 지시에서 과거의 '분석월 첫날 이전 등록 필수' 및 '관리자 발송 필수' 정책을 명시적으로 대체했다. 학생별 독립적인 월별 결제·재등록 증거는 없으므로 active 상태만으로 재등록을 추정해서는 안 된다.
 
-## 예시
-
-- 8월 리포트: enrolled_at <= 2026-08-01 AND (left_at IS NULL OR left_at >= 2026-09-01)
-- 8월 중 신규 등록 학생: 10월 리포트부터 첫 발급 (한 달 완전 유지 후)
-
-## 중복 방지
-
-- student_id 기준 사이클당 1건 (ON CONFLICT DO NOTHING)
-- 주2회 등 여러 반 수강자도 1건만 발급
-- 동명이인: parent_students.status='approved' 기준 별개 학생 확인 후 각 1건
-
-## 코드 위치
-
-- 스케줄러(사이클 오픈): `artifacts/api-server/src/jobs/growth-report-scheduler.ts` — openCycleForPool()
-- 배치 워커(AI 생성): `artifacts/api-server/src/jobs/growth-report-batch-worker.ts` — getEligibleStudents()
-- 두 곳의 학생 SELECT 조건이 동일해야 함 (헌법 위반 방지)
-
-## 발급 흐름
-
-1. 매월 1일 00:00 KST — 스케줄러: cycle 생성 + 대상 학생 OPEN 리포트 생성
-2. 매월 5일 02:00 KST — 배치 워커: AI 분석 시작 (PENDING batch job)
-3. AI 완료 → REVIEW_REQUIRED → 관리자 앱 push 알림 발송
-4. 관리자 검수 후 "발송" → 학부모 전달 (PUBLISHED)
-
-**Why:** 500개 수영장 20만명 규모에서 발급 오류가 발생하면 복구 비용이 막대하다.
-학부모 신뢰가 핵심 지표이므로 발급 기준을 단순하고 예측 가능하게 유지한다.
-
-**How to apply:** 스케줄러 또는 배치워커 학생 SELECT 쿼리를 수정할 때 반드시 이 문서와
-비교하여 두 쿼리가 동일한 기준을 사용하는지 확인하고 TC를 통과시킨다.
+**How to apply:** 무료 월간 AI 성장리포트의 후보 생성, 월간 데이터 집계, 5일 발급 및 퇴원 처리에서 동일한 정책을 사용한다. 유료 AI 인사이트 전략 리포트나 다른 보고서에 확대 적용하지 않는다.

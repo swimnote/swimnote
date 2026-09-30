@@ -45,6 +45,7 @@ import {
 } from "../lib/growth-report-snapshot-builder.js";
 import {
   evaluateStudentGrowthReportEligibility,
+  getGrowthReportAnalysisPeriod,
 } from "../lib/growth-report-eligibility.js";
 import {
   analyzeGrowthReport,
@@ -234,36 +235,39 @@ async function analyzeOneReport(
   //   예) report_month=2026-09 → report_month_start=2026-09-01
   //       8월 15일 입회 학생: enrolled_at(2026-08-15) <= 2026-09-01 → 재원O
   {
-    const periodFrom       = `${cycle.report_period}-01`;      // analysis_period_start
+    const analysisPeriod   = getGrowthReportAnalysisPeriod(cycle.report_period);
+    const periodFrom       = analysisPeriod.startDate;          // report_period is analysis month M-1
     const analysisFrom     = cycle.analysis_from
       ? (cycle.analysis_from > periodFrom ? cycle.analysis_from : periodFrom)
       : periodFrom;
-    const cutoffDate       = cycle.analysis_cutoff_at.slice(0, 10);
+    const cutoffDate       = analysisPeriod.endDateExclusive;
 
-    // report_month_start = nextMonth of periodFrom (= analysis_period_end_exclusive)
-    const rmsDate = new Date(periodFrom);
-    rmsDate.setMonth(rmsDate.getMonth() + 1);
-    const reportMonthStart = rmsDate.toISOString().slice(0, 10);  // e.g. "2026-09-01"
+    // report_month_start = next month after analysis month; require both
+    // history overlap with the analysis month and continued membership on day 1.
+    const reportMonthStart = cutoffDate;
 
     // (A) 재원 판정 — report_month_start 기준
     //     enrolled_at <= report_month_start : report_month_start 이전 입회
     //     left_at IS NULL OR left_at >= report_month_start : report_month 시작일 기준 재원
     const reregRows = await db.execute(sql`
       SELECT 1
-      FROM student_class_history sch
+      FROM students s
+      JOIN student_class_history sch ON sch.student_id = s.id
       JOIN class_groups cg ON cg.id = sch.class_group_id
-      WHERE sch.student_id      = ${report.student_id}
+      WHERE s.id                = ${report.student_id}
+        AND s.status            = 'active'
+        AND s.deleted_at        IS NULL
         AND cg.swimming_pool_id = ${report.swimming_pool_id}
+        AND sch.enrolled_at     <  ${cutoffDate}::date
+        AND (sch.left_at IS NULL OR sch.left_at >= ${periodFrom}::date)
         AND sch.enrolled_at     <= ${reportMonthStart}::date
         AND (sch.left_at IS NULL OR sch.left_at >= ${reportMonthStart}::date)
       LIMIT 1
     `);
     const reregistered = reregRows.rows.length > 0;
 
-    // (B) attendance_count — v2 semantics (queryAttendanceForEligibility):
-    //   Branch 1: explicit present/late rows (auto-save + makeup completion 포함)
-    //   Branch 2: class_diary 확인 + 재원 + 명시적 결석 없음 (출결화면 미열기 보완)
-    //   두 branch UNION → date 기준 중복 제거
+    // (B) 인정수업 — scheduled non-absent classes + completed makeups;
+    //     explicit scheduled attendance is counted once, linked makeup rows are deduped.
     const attendanceCount = await queryAttendanceForEligibility(
       db,
       report.student_id,
@@ -277,7 +281,7 @@ async function analyzeOneReport(
       db,
       report.student_id,
       report.swimming_pool_id,
-      cycle.analysis_cutoff_at,
+      cutoffDate,
       analysisFrom,
     );
 
