@@ -504,7 +504,7 @@ describe("TC12: existing Growth Report snapshot fields preserved", () => {
     expect(Array.isArray(snap.attendance)).toBe(true);
     expect(Array.isArray(snap.parent_answers)).toBe(true);
     expect(snap.longitudinal).toBeDefined();
-    expect(typeof snap.snapshot_version).toBe("number");
+    expect(snap.snapshot_version).toBe("1.0");
     expect(typeof snap.payload_hash).toBe("string");
     expect(snap.payload_hash.length).toBeGreaterThan(0);
   });

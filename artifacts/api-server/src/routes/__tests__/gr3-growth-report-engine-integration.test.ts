@@ -257,16 +257,16 @@ describe("B. Snapshot builder", () => {
     expect(request.report_id).toBe("gr_test01");
   });
 
-  it("TC7: analysis_from = null (GR2 policy, never overridden in GR3)", async () => {
+  it("TC7: analysis_from is the analysis month's KST midnight even when cycle is null", async () => {
     const db = makeDb();
     const { request } = await buildAnalysisSnapshot(db, input);
-    expect(request.context.analysis_from).toBeNull();
+    expect(request.context.analysis_from).toBe("2026-07-31T15:00:00.000Z");
   });
 
-  it("TC8: analysis_cutoff_at = 25일 00:00 KST (2026-08-24T15:00:00Z)", async () => {
+  it("TC8: analysis_cutoff_at is the following month's KST midnight", async () => {
     const db = makeDb();
     const { request } = await buildAnalysisSnapshot(db, input);
-    expect(request.context.analysis_cutoff_at).toBe(CUTOFF_AT);
+    expect(request.context.analysis_cutoff_at).toBe("2026-08-31T15:00:00.000Z");
   });
 
   it("TC9: cutoff 이후 diary 제외 (lesson_date >= cutoffDate not in snapshot)", async () => {
@@ -280,7 +280,7 @@ describe("B. Snapshot builder", () => {
     });
     await buildAnalysisSnapshot(db, input);
     const diaryCalls = db._calls.filter((c: string) => c.includes("lesson_date"));
-    expect(diaryCalls.some((c: string) => c.includes(CUTOFF_DATE))).toBe(true);
+    expect(diaryCalls.some((c: string) => c.includes("2026-09-01"))).toBe(true);
   });
 
   it("TC10: cutoff 이후 growth event 제외 (SQL WHERE occurred_at < cutoff)", async () => {
@@ -290,7 +290,7 @@ describe("B. Snapshot builder", () => {
       c.includes("growth_events") && c.includes("occurred_at"),
     );
     expect(evCalls.length).toBeGreaterThan(0);
-    expect(evCalls.some((c: string) => c.includes(CUTOFF_AT))).toBe(true);
+    expect(evCalls.some((c: string) => c.includes("2026-08-31T15:00:00.000Z"))).toBe(true);
   });
 
   it("TC11: cutoff 이후 attendance 제외 (SQL WHERE date < cutoff date)", async () => {
@@ -363,6 +363,7 @@ describe("B. Snapshot builder", () => {
     expect(request.snapshot.parent_answers[0]!.question_id).toBe("q_01");
     expect(request.snapshot.parent_answers[0]!.metric_id).toBe("F001");
     expect(request.snapshot.parent_answers[0]!.selected_values).toEqual(["yes"]);
+    expect(request.parent_answers).toEqual(request.snapshot.parent_answers);
   });
 });
 
@@ -419,6 +420,7 @@ describe("C. Longitudinal assembler", () => {
     const { request } = await buildAnalysisSnapshot(db, { report: BASE_REPORT, cycle: BASE_CYCLE });
     expect(request.snapshot.longitudinal.metric_state_history).toHaveLength(2);
     expect(request.snapshot.longitudinal.previous_report_structured_results).toHaveLength(2);
+    expect(request.longitudinal).toEqual(request.snapshot.longitudinal);
   });
 
   it("TC20: observation_target verified_this_period NOT computed by APP", async () => {
@@ -498,7 +500,8 @@ describe("D. Engine client", () => {
                   }, parent_answers: [] },
     } as any).catch(() => {});
 
-    expect(capturedHeaders["Authorization"]).toBe("Bearer my-secret-token");
+    expect(capturedHeaders["Authorization"]).toMatch(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    expect(capturedHeaders["Authorization"]).not.toBe("Bearer my-secret-token");
     vi.unstubAllGlobals();
   });
 
@@ -513,7 +516,7 @@ describe("D. Engine client", () => {
     );
     vi.stubGlobal("fetch", mockFetch);
 
-    await expect(analyzeGrowthReport({} as any)).rejects.toMatchObject({
+    await expect(analyzeGrowthReport({ context: { pool_id: "pool_x" }, request_id: "req_01" } as any)).rejects.toMatchObject({
       retryable: true,
       errorCode: "COMPOSITION_TIMEOUT",
     });
@@ -984,9 +987,9 @@ describe("J. Privacy + X guard + Engine error", () => {
     }));
     vi.stubGlobal("fetch", mockFetch);
 
-    await expect(analyzeGrowthReport({} as any)).rejects.toThrow(EngineCallError);
+    await expect(analyzeGrowthReport({ context: { pool_id: "pool_x" }, request_id: "req_01" } as any)).rejects.toThrow(EngineCallError);
     // Must NOT return null or empty object
-    const caught = await analyzeGrowthReport({} as any).catch((e) => e);
+    const caught = await analyzeGrowthReport({ context: { pool_id: "pool_x" }, request_id: "req_01" } as any).catch((e) => e);
     expect(caught).not.toBeNull();
     expect(caught).not.toEqual({});
     vi.unstubAllGlobals();

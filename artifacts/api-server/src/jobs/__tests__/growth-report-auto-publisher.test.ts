@@ -48,6 +48,9 @@ describe("monthly FREE automatic growth-report publication", () => {
     expect(update).toContain("gr.report_type = 'monthly'");
     expect(update).toContain("gr.product_status IN ('REVIEW_REQUIRED', 'READY_TO_SEND', 'APPROVED')");
     expect(update).toContain("gr.analysis_status IN (");
+    const allowedStatuses = update.match(/gr\.analysis_status IN \(([^)]+)\)/)?.[1];
+    expect(allowedStatuses).toContain("'COMPLETE'");
+    expect(allowedStatuses).not.toMatch(/DATA_ACCUMULATING|ATOMIZATION_ERROR|FAILED|INVALID_CONTRACT/);
     expect(update).toContain("gr.eligibility_version >= 4");
     expect(update).toContain("gr.exclusion_code IS NULL");
     expect(update).toContain("gr.attendance_count >= 3");

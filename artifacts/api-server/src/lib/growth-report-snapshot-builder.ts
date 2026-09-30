@@ -827,6 +827,9 @@ export async function buildAnalysisSnapshot(
   input: BuildSnapshotInput,
 ): Promise<BuiltSnapshot> {
   const { report, cycle } = input;
+  if (cycle.timezone !== "Asia/Seoul") {
+    throw new Error(`Unsupported growth report timezone: ${cycle.timezone}`);
+  }
   const requestId  = input.requestId ?? randomUUID();
   const analysisPeriod = getGrowthReportAnalysisPeriod(cycle.report_period);
   const cutoffAt   = analysisPeriod.endAt;
@@ -975,14 +978,8 @@ export async function buildAnalysisSnapshot(
     growth_events:    growthEvents,
     attendance,
     curriculum_state: curriculumState,
-    ...(report.teacher_reviewed_by
-      ? {
-          teacher_review: {
-            reviewed_by: report.teacher_reviewed_by,
-            reviewed_at: report.teacher_reviewed_at ?? null,
-          },
-        }
-      : {}),
+    // teacher_review is an ENGINE string|null slot, not an APP review metadata
+    // object. ENGINE does not consume the reviewer identity or timestamp here.
     longitudinal,
     parent_answers: parentAnswers,
   };
@@ -998,10 +995,14 @@ export async function buildAnalysisSnapshot(
       pool_id:            report.swimming_pool_id,
       organization_id:    null,
       report_period:      cycle.report_period,
-      analysis_from:      cycle.analysis_from,     // always null (GR2 policy)
+      analysis_from:      analysisPeriod.startAt,
       analysis_cutoff_at: cutoffAt,
       timezone:           cycle.timezone,
     },
+    // ENGINE reads these from the request root. Keep snapshot copies so the
+    // canonical snapshot hash and APP snapshot-preview remain unchanged.
+    longitudinal,
+    parent_answers: parentAnswers,
     snapshot: {
       ...snapshotBody,
       payload_hash: payloadHash,

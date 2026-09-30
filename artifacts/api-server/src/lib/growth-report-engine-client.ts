@@ -198,17 +198,20 @@ export interface GrowthReportAnalysisRequest {
     timezone: string;
   };
   snapshot: {
-    snapshot_version: number;
+    snapshot_version: string;
     payload_hash: string;
     created_at: string;
     diaries: DiarySnapshotItem[];
     growth_events: GrowthEventSnapshotItem[];
     attendance: AttendanceSnapshotItem[];
     curriculum_state: CurriculumStateSnapshot | null;
-    teacher_review?: TeacherReviewSnapshot;
+    teacher_review?: string | null;
     longitudinal: LongitudinalSnapshot;
     parent_answers: ParentAnswerSnapshot[];
   };
+  /** ENGINE consumes these at request root; snapshot copies remain hash-compatible. */
+  longitudinal: LongitudinalSnapshot;
+  parent_answers: ParentAnswerSnapshot[];
 }
 
 // ─── Engine Response Types ────────────────────────────────────────────────────
@@ -395,6 +398,7 @@ export async function analyzeGrowthReport(
       try {
         const body = (await res.json()) as {
           error_code?: string;
+          retryable?: boolean;
           details?: unknown;
           validation_errors?: unknown;
           message?: string;
@@ -403,7 +407,13 @@ export async function analyzeGrowthReport(
         engineDetails = body;
         if (typeof body?.error_code === "string") {
           errorCode = body.error_code;
-          retryable  = RETRYABLE_ENGINE_ERROR_CODES.has(errorCode);
+          // ATOMIZATION_ERROR can be transient or definitive. Preserve the
+          // ENGINE's explicit verdict; do not silently turn a 5xx into false.
+          retryable = NON_RETRYABLE_ENGINE_ERROR_CODES.has(errorCode)
+            ? false
+            : typeof body.retryable === "boolean"
+              ? body.retryable
+              : RETRYABLE_ENGINE_ERROR_CODES.has(errorCode) || retryable;
         }
       } catch {
         // JSON parse failure — keep defaults
