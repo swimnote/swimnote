@@ -1,0 +1,470 @@
+[최종 검증 WP — AI 성장리포트 ENGINE 품질 고정 + APP 실계약 대조 + 소규모 용량검증]
+
+목표:
+2026-10-05 성장리포트 Production 적용 전에
+현재 HOLD 3개를 닫는다.
+
+1. QUALITY
+2. APP↔ENGINE CONTRACT
+3. BULK CAPACITY
+
+중요:
+품질을 낮춰 처리량을 확보하는 수정은 절대 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. APP 실제 송신 코드와 ENGINE 실제 수신 코드 대조
+━━━━━━━━━━━━━━━━━━━━━━
+
+문서나 추정이 아니라 실제 코드끼리 비교한다.
+
+APP/API에서 실제로
+POST /api/v1/growth-report/analyze
+요청을 만드는 경로를 추적한다.
+
+다음을 ENGINE contract와 1:1 대조한다.
+
+contract_version
+snapshot_version
+request_id
+report_id
+student_id
+pool_id
+report_period
+analysis_from
+analysis_cutoff_at
+timezone
+payload hash
+diaries
+attendance
+growth events
+curriculum
+parent answers
+
+각 필드에 대해:
+
+APP 생성 위치
+APP 실제 값
+ENGINE schema
+ENGINE validation
+호환 여부
+
+를 표로 보고한다.
+
+특히 반드시 증명:
+
+2026-10-05 발급
+→ APP report_period = 2026-09
+→ analysis_from = 2026-09-01 00:00 KST
+→ analysis_cutoff_at = 2026-10-01 00:00 KST
+→ timezone = Asia/Seoul
+→ ENGINE이 그대로 9월분으로 처리
+
+APP hash 생성 방식과
+ENGINE hash 검증 방식도 실제 코드로 대조한다.
+
+응답도:
+
+ENGINE response
+→ APP validation
+→ DB save
+→ PUBLISHED eligibility
+
+까지 실제 코드로 추적한다.
+
+불일치가 있으면 정확한 수정안을 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ENGINE 월 경계 방어검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP가 월 경계의 Source of Truth다.
+
+ENGINE에서 APP eligibility 로직을
+중복 구현하지 않는다.
+
+다만 아래처럼 명백히 모순된 요청을
+현재 ENGINE이 허용하는지 확인한다.
+
+예:
+
+report_period = 2026-09
+timezone = Asia/Seoul
+analysis_from = 2026-10-01
+analysis_cutoff_at = 2026-11-01
+
+또는
+
+report_period = 2026-09
+timezone = UTC
+
+정상 APP에서는 발생하지 않아야 하지만,
+contract integrity 차원에서 방어할 가치가 있는지 판단한다.
+
+필요하다면 최소 contract validation만 제안한다.
+
+APP의 출석3/일지1 eligibility를
+ENGINE에 복제하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 품질 회귀 1건 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+growth-report-wp13.test.ts
+
+의
+"유일한 일지 추출 실패에도 계속 진행"
+
+기대와
+
+현재 구현의
+"유일한 출처 실패 시 retryable failure"
+
+가 충돌한다.
+
+과거 확정 설계와 git history를 조사해서
+어느 쪽이 현재 공식 정책인지 확정한다.
+
+임의로 테스트를 코드에 맞추거나
+코드를 테스트에 맞추지 않는다.
+
+품질 원칙은:
+
+유일한 근거 추출에 실패했다면
+근거 없이 리포트를 생성해서는 안 된다.
+
+따라서 현재 retryable failure가
+기존 사실 기반 정책과 일치하는지 검증한다.
+
+일치하면 stale test를 수정한다.
+
+불일치하면 수정하지 말고 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 품질 Golden 보강
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 품질 파이프라인을 변경하지 않고
+회귀 검증을 강화한다.
+
+최소 synthetic fixture:
+
+A. 최소 데이터
+인정수업 3회 상당 snapshot
+개인 일지 1건
+
+B. 일반 데이터
+복수 일지/출석/성장자료
+
+C. 근거 부족
+
+D. 모순 가능 데이터
+
+E. 수영기술 + 비수영 성장영역이 함께 존재하는 데이터
+
+를 사용한다.
+
+검증 대상:
+
+- evidence 없는 사실 생성 금지
+- 허용 claim 밖의 단정 금지
+- 진단성 표현 금지
+- 근거 없는 인과관계 금지
+- 근거 없는 칭찬 금지
+- positive framing 유지
+- swimming section이 전체 성장평가를 대체하지 않음
+- sparse data에서 과도한 추론 금지
+- DATA_ACCUMULATING 경로
+- grounding/framing 통과
+
+기존 평가 metric/F001~F070 및
+품질 파이프라인을 축소하거나 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 2026-09 계약 Golden
+━━━━━━━━━━━━━━━━━━━━━━
+
+별도 contract regression을 추가한다.
+
+정상:
+
+report_period = 2026-09
+analysis_from = 2026-09-01T00:00:00+09:00
+analysis_cutoff_at = 2026-10-01T00:00:00+09:00
+timezone = Asia/Seoul
+
+그리고 boundary fixture에서:
+
+9/1 00:00 KST 포함
+9/30 23:59:59 KST 포함
+10/1 00:00 KST 제외
+
+APP가 ENGINE으로 보내는 최종 snapshot 기준으로 검증한다.
+
+ENGINE이 현재 cutoff 이후만 방어하는 구조라면
+APP contract test와 ENGINE validation test의
+책임 범위를 명확히 나눈다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 소규모 실모델 성능 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 학생 데이터 대량 실행 금지.
+
+Production report 생성 금지.
+Production DB write 금지.
+학부모 PUSH 금지.
+
+승인된 synthetic fixture를 이용해
+실제 공식 Growth Report pipeline + 실제 GPT model 경로를
+소규모로 검증한다.
+
+비용 폭증을 막기 위해
+최소한의 요청만 사용한다.
+
+가능하면 concurrency:
+
+1
+2
+
+를 먼저 검증한다.
+
+각각:
+
+total requests
+success
+retry
+429
+5xx
+timeout
+p50
+p95
+max
+ENGINE CPU
+ENGINE memory
+request당 대략적인 처리시간
+
+을 측정한다.
+
+concurrency 2가 안정적이면
+필요성과 안전성이 있을 때만
+3을 제한적으로 검증한다.
+
+5/10/15/20을 무작정 실모델로 때리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 Compute와 상향 후보 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+0.5 CPU / 512MB / 1 instance
+
+상향 후보:
+1 CPU / 2GB
+
+두 환경을 비교할 수 있는 안전한 방법을 검토한다.
+
+Production plan을 이번 작업에서
+임의 변경하지 않는다.
+
+실제 계정에서
+1c-2g plan 선택 가능 여부와
+정확한 Render 표시 plan명을 확인한다.
+
+실측 없이
+1c-2g를 최종 확정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. OpenAI quota/rate limit
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production에서 사용하는 OpenAI 프로젝트/키에 대해
+코드/환경에서 안전하게 확인 가능한 범위 내에서:
+
+rate limit 관련 설정
+429 기록
+quota 관련 오류
+사용 모델 접근 가능 여부
+
+를 확인한다.
+
+비밀키 값은 출력하지 않는다.
+
+계정 dashboard/API를 통해
+현재 실제 limit을 안전하게 확인할 수 없다면
+"미확인"으로 남긴다.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 120초 timeout 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE timeout과 APP timeout의
+실제 시작/종료 지점을 코드로 비교한다.
+
+둘 다 120초라면
+APP가 ENGINE보다 먼저 또는 동시에 끊어질 위험을 분석한다.
+
+안전 margin이 필요한지 판단한다.
+
+필요하다면:
+
+ENGINE 내부 제한
+APP HTTP timeout
+
+중 어떤 값을 조정해야 하는지
+최소 변경안을 제시한다.
+
+이번 검증에서 근거 없이 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. DB registry fallback 위험
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 조사에서:
+
+DB registry 오류 시 비영속 분석 fallback
+완료상태 기록 실패 후에도 200 가능
+
+이 확인됐다.
+
+성장리포트 월간 자동발급에서 이것이:
+
+중복 GPT 호출
+중복 비용
+동일 request 재분석
+APP retry와 충돌
+
+을 만들 수 있는지 정확히 분석한다.
+
+월간 성장리포트 공식 endpoint에서는
+fail-open보다 fail-closed가 필요한지 판단한다.
+
+수정이 필요하면
+정확한 최소 수정안을 보고한다.
+
+이번 단계에서 임의 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 운영값 산정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실측 결과를 바탕으로:
+
+평상시 Render plan
+월초 Render plan
+APP concurrency
+APP timeout
+ENGINE timeout
+
+을 최종 제안한다.
+
+211명 worst-case에서:
+
+예상 처리시간
+안전 margin
+retry 발생 시 범위
+
+를 계산한다.
+
+실측과 추정을 명확히 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 월말/6일 PUSH 문구용 값
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 아래 값을 정확히 보고한다.
+
+Render service:
+평상시 plan:
+평상시 CPU/RAM:
+월초 plan:
+월초 CPU/RAM:
+권장 APP concurrency:
+
+그래야 APP에서
+매월 마지막 날 슈퍼관리자 PUSH에
+정확한 업그레이드 플랜을 넣을 수 있다.
+
+6일 원복 PUSH에는:
+
+원복 plan
+다운그레이드 전 확인 상태
+
+를 명시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 최종 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+QUALITY
+PASS / HOLD / FAIL
+
+APP↔ENGINE CONTRACT
+PASS / HOLD / FAIL
+
+BULK CAPACITY
+PASS / HOLD / FAIL
+
+OCTOBER 5 READINESS
+PASS / HOLD / FAIL
+
+PASS는 반드시 실증 근거가 있을 때만 준다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Production 성장리포트 실행 금지
+- 실제 학생 대량분석 금지
+- Production DB write 금지
+- 실제 parent PUSH 금지
+- Render plan 임의 변경 금지
+- 품질 단계 축소 금지
+- GPT model 하향 금지
+- metric 축소 금지
+- grounding/framing bypass 금지
+- 대규모 refactor 금지
+
+필요한 테스트/Golden 수정은 허용한다.
+
+코드를 변경했다면 commit까지 하고
+Production 배포는 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. APP 실제 요청 생성 경로
+2. ENGINE 실제 수신 경로
+3. 필드별 contract 대조
+4. hash 대조
+5. ENGINE response → APP save 경로
+6. 2026-10-05 → 2026-09 증거
+7. KST boundary Golden 결과
+8. T58/유일 일지 실패 정책 결론
+9. 품질 테스트 결과
+10. Golden 결과
+11. 실제 GPT 소규모 검증 건수
+12. concurrency별 latency
+13. 429/5xx/timeout
+14. CPU/RAM 관측
+15. OpenAI quota 확인 결과
+16. APP/ENGINE timeout 비교
+17. registry fallback 결론
+18. 평상시 Render plan
+19. 월초 Render plan
+20. 권장 APP concurrency
+21. 211명 예상 처리시간
+22. 월말 PUSH에 넣을 plan
+23. 6일 원복 plan 및 확인조건
+24. QUALITY 판정
+25. CONTRACT 판정
+26. BULK CAPACITY 판정
+27. OCTOBER 5 READINESS 판정
+28. 남은 BLOCKER/HIGH
+29. 변경 파일
+30. commit SHA
+31. Production 변경 없음 확인
