@@ -1,0 +1,126 @@
+[APP/API 로컬 PASS 커밋 회수 WP]
+
+중요 정정:
+
+성장리포트 APP/API 기준 commit
+
+2e51630384185278b3dd7747ae720a3d775e03cc
+
+은 당시 완료보고에서
+"local, not pushed/deployed"
+상태였던 커밋이다.
+
+따라서 GitHub origin에서 이 SHA를 찾는 작업은 중단한다.
+원격에 없다는 사실 자체는 오류가 아니다.
+
+이번 작업의 목적은
+현재 Replit APP/API workspace 내부에서
+이 로컬 PASS 작업을 회수하는 것이다.
+
+Production 변경 금지.
+Production DB write 금지.
+자동 성장리포트 실행 금지.
+GPT 호출 금지.
+PUBLISH/PUSH 금지.
+
+1. 현재 workspace의 모든 local Git object를 조사한다.
+
+다음을 확인:
+
+git branch
+git branch -a
+git reflog
+git log --all
+dangling/unreachable commit
+stash
+local-only branch
+detached HEAD history
+
+2. 다음 SHA를 직접 local object database에서 찾는다.
+
+2e51630384185278b3dd7747ae720a3d775e03cc
+
+origin/GitHub에서 찾지 말고
+현재 local repository에서 찾는다.
+
+3. SHA가 존재하면 다음을 보고한다.
+
+- commit 존재 여부
+- commit message
+- parent SHA
+- 당시 branch 또는 reflog 위치
+- 변경 파일 목록
+- 현재 origin/main과의 ancestry 관계
+- 현재 main에 이미 동일 변경이 일부/전부 들어가 있는지
+- 안전하게 cherry-pick/merge/rebase 가능한지
+
+아직 통합하지 말고 먼저 조사 결과를 보고한다.
+
+4. 정확한 SHA object가 없어도 바로 재구현하지 않는다.
+
+reflog/dangling commit/working tree/stash/다른 local branch에서
+동일 변경을 회수할 수 있는지 확인한다.
+
+또한 현재 코드와 비교하여 아래 PASS 변경이
+이미 존재하는지도 확인한다.
+
+- KST half-open monthly period
+- Sep 30 포함
+- previous-month class-history overlap
+- recognized lessons >= 3
+- valid student-specific diary >= 1
+- issuance 직전 active/nondeleted recheck
+- PUBLISHED preservation after withdrawal
+- successful analysis만 PUBLISHED
+- parent notification/push dedupe
+- analysis_from = report_period 첫날 00:00 KST
+- cutoff = 다음 달 1일 00:00 KST
+- timezone Asia/Seoul validation
+- parent_answers request top-level
+- longitudinal request top-level
+- teacher_review object wire 제외
+- snapshot_version wire "1.0"
+- canonical payload hash 유지
+- ATOMIZATION_ERROR retryable
+- DATA_ACCUMULATING/failure publish 차단
+- request-ID CAS / response validation
+
+5. 이전 PASS 시험 기준도 확인한다.
+
+기존 APP V1.0 focused regression:
+117/117 PASS
+
+해당 테스트와 코드가 workspace에 남아 있는지 확인한다.
+
+6. 이번 WP에서는 코드 수정/재구현/Production 배포하지 않는다.
+
+우선 "PASS된 로컬 작업을 어디서 회수할 수 있는가"만 확정한다.
+
+완료보고:
+
+1. local 2e516303... 존재 여부
+2. 발견 위치
+3. parent SHA
+4. 변경 파일 목록
+5. reflog/local branch 상태
+6. dangling/unreachable 여부
+7. 현재 main과 ancestry
+8. 현재 main에 이미 포함된 변경
+9. 아직 main에 없는 변경
+10. 117/117 테스트 존재 여부
+11. 가장 안전한 회수 방법
+12. Production 변경 없음
+
+최종 판정:
+
+LOCAL PASS COMMIT RECOVERY:
+PASS / HOLD / FAIL
+
+MAIN INTEGRATION READY:
+PASS / HOLD / FAIL
+
+중요:
+2e516303...가 GitHub에 없다는 이유만으로
+FAIL 처리하지 않는다.
+
+이 커밋은 원래 local-only였다는 전제로 조사한다.
