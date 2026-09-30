@@ -1,0 +1,198 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[APP Production Render Auto-Deploy 읽기 전용 확인 WP]
+
+목적:
+
+현재 local main
+8638f74e16a6ac3f43a2ea5f31ebccb2a32e89a5
+
+을 GitHub origin/main에 push하기 전에,
+
+GitHub main push가
+APP Production API 또는 Production worker의
+자동 배포를 발생시키는지 정확히 확인한다.
+
+이번 WP는 설정 확인만 한다.
+
+코드 수정 금지.
+commit 금지.
+GitHub push 금지.
+Render 설정 변경 금지.
+Production deploy 금지.
+Production DB 접근/쓰기 금지.
+성장리포트 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. APP Production 서비스만 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render에서 SWIMNOTE APP/API에 해당하는
+Production API 서비스와
+Production worker 서비스를 식별한다.
+
+반드시 서비스별로 확인:
+
+- 정확한 Render service name
+- service type
+- 연결 Git repository
+- 연결 branch
+- 현재 live/deployed commit SHA
+- Auto-Deploy ON/OFF
+- Auto-Deploy trigger 방식
+- main push 시 자동 deploy되는지
+
+실제 Render 설정/API에서 확인 가능한 사실만 보고한다.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Worker를 별도로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사에서는 worker가:
+
+branch:
+deploy-photo-clone
+
+SHA:
+4d44b589...
+
+을 사용한다는 정보가 있었다.
+
+현재도 실제로 그런지 다시 확인한다.
+
+특히 GitHub main push가 worker에:
+
+- 아무 영향 없음
+- 자동 deploy 발생
+- 설정상 판단 불가
+
+중 무엇인지 명확히 판정한다.
+
+설정은 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. API를 별도로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 Production API live SHA는:
+
+efee291e3e7bbb64c3fc1e6c6500a51ca59514bb
+
+로 확인됐었다.
+
+현재 실제 Render 설정을 다시 읽고:
+
+- branch
+- live SHA
+- Auto-Deploy 상태
+- main push 영향
+
+을 확인한다.
+
+설정 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. GitHub push 안전성 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 local:
+
+8638f74e16a6ac3f43a2ea5f31ebccb2a32e89a5
+
+현재 마지막 확인 origin/main:
+
+8c95909b5bd1005d3f3cc4ac1909915b88cc5e23
+
+Git 관계는 이미:
+
+ahead 12
+behind 0
+diverged 아님
+fast-forward 가능
+
+으로 확인됐다.
+
+이번 WP에서는 Git 관계를 다시 수정하지 않는다.
+
+오직 다음을 판정한다.
+
+A.
+origin/main push를 해도
+Production API/worker 어느 것도 자동 배포되지 않는다.
+
+→ GITHUB PUSH SAFE
+
+B.
+하나라도 자동 배포된다.
+
+→ GITHUB PUSH UNSAFE
+
+C.
+설정 근거로 확인할 수 없다.
+
+→ GITHUB PUSH SAFETY HOLD
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 중요 경계
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE은 이번 작업과 완전히 무관하다.
+
+다음은 조회하지 않는다:
+
+GitLab swimnote-professional-engine
+ENGINE source SHA
+ENGINE deploy
+ENGINE health
+ENGINE registry
+ENGINE GPT
+ENGINE Render 설정
+
+사용자가 직접 완료한
+Production ENGINE Compute
+Pro 2 CPU / 4GB 상향도
+변경하거나 조사하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[APP Production API]
+
+1. Render service name
+2. service type
+3. repository
+4. branch
+5. live SHA
+6. Auto-Deploy ON/OFF
+7. Auto-Deploy trigger
+8. GitHub main push 영향
+
+[APP Production Worker]
+
+9. Render service name
+10. service type
+11. repository
+12. branch
+13. live SHA
+14. Auto-Deploy ON/OFF
+15. Auto-Deploy trigger
+16. GitHub main push 영향
+
+[최종]
+
+17. GitHub origin/main push가 API deploy를 발생시키는가
+18. GitHub origin/main push가 worker deploy를 발생시키는가
+19. GITHUB PUSH SAFE / UNSAFE / HOLD
+20. 설정 변경 없음 확인
+21. GitHub push 미실행 확인
+22. Production deploy 미실행 확인
+23. Production DB 접근/쓰기 미실행 확인
+24. AI ENGINE 작업 미실행 확인
+
+이번 WP는 읽기 전용 확인 후 종료한다.
+어떤 설정도 변경하지 않는다.
