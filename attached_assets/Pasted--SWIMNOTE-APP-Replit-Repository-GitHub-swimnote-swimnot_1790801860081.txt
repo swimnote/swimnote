@@ -1,0 +1,202 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+목적:
+현재 로컬 main에 이미 포함된
+성장리포트 V1.0 + APP→ENGINE wire contract PASS 코드를
+GitHub 원격에 안전하게 보존한다.
+
+현재 확인 기준:
+
+local main HEAD:
+6bfecee76222c29bd622f9a199b78a48f30860a1
+
+성장리포트 핵심 commit:
+6cdf6606 Implement free monthly AI growth report V1 issuance and recovery
+07001677 Align monthly growth report regression tests with V1 policy
+2e516303 Align monthly growth report APP wire request with engine contract
+
+2e516303은 현재 main의 조상이며
+현재 HEAD에 이미 포함되어 있다.
+
+따라서 재구현/cherry-pick/rebase하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 경계
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP는 APP/API repository만 작업한다.
+
+금지:
+
+AI ENGINE repository 조회/수정
+GitLab 작업
+ENGINE commit 작업
+ENGINE Render deploy
+ENGINE Compute 변경
+
+Production API deploy
+Production worker deploy
+
+Production DB write
+Production cycle/batch 실행
+GPT 분석
+PUBLISHED
+parent feed
+PUSH
+
+사용자가 직접 변경한 ENGINE Pro 2 CPU / 4GB는
+이번 APP WP와 무관하다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 GitHub origin 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+로컬 origin/main 추적 참조만 믿지 말고
+실제 GitHub origin을 fetch한다.
+
+확인:
+
+remote URL
+remote main SHA
+local main SHA
+
+fetch 후:
+
+local main과 origin/main의
+ahead/behind/diverged 상태를 정확히 계산한다.
+
+현재 로컬 보고의
+"11 commits ahead"가
+실제 최신 GitHub origin 기준으로도 맞는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. divergence 안전성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+origin/main에 로컬에 없는 신규 commit이 있으면
+즉시 push하지 않는다.
+
+그 경우:
+
+HOLD
+
+하고 차이만 보고한다.
+
+force push 금지.
+
+origin/main이 local main의 조상이고
+fast-forward push가 가능한 경우에만 다음 단계로 간다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. push 전 성장리포트 PASS 코드 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD에 다음 commit이 실제 조상인지 확인:
+
+6cdf6606
+07001677
+2e516303
+
+그리고 기존 최신 APP 변경사항이
+현재 main에서 유실되지 않았는지 확인한다.
+
+성장리포트 관련 코드를 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+push 전에 APP/API 성장리포트 V1.0
+focused regression을 다시 실행한다.
+
+기존 PASS 기준을 훼손하면 안 된다.
+
+특히 확인:
+
+- KST half-open month
+- Sep 30 포함
+- class-history continuation
+- recognized lessons >= 3
+- valid student diary >= 1
+- active/nondeleted publication recheck
+- PUBLISHED preservation
+- DATA_ACCUMULATING publish 차단
+- ATOMIZATION_ERROR retryable
+- APP→ENGINE wire contract
+- parent_answers top-level
+- longitudinal top-level
+- snapshot_version "1.0"
+- request/hash validation
+
+테스트 실패 시 push하지 않고 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. GitHub push
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 조건을 모두 만족할 때만:
+
+- origin fetch 완료
+- fast-forward push 가능
+- force push 불필요
+- 핵심 commit 포함
+- regression PASS
+
+현재 local main을
+GitHub origin/main에 push한다.
+
+force push 절대 금지.
+
+이번 단계에서 Render deploy는 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 자동발급은 아직 실행하지 않는다
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP는 GitHub source 보존까지만 한다.
+
+Production 자동발급 플래그 변경 금지.
+Production worker 변경 금지.
+Production API 변경 금지.
+
+1일→5일 월간 자동발급 시스템의
+최종 상태머신 고정은
+다음 APP WP에서 별도로 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+1. remote URL
+2. fetch 전 origin/main SHA
+3. fetch 후 origin/main SHA
+4. local main SHA
+5. ahead count
+6. behind count
+7. diverged 여부
+8. fast-forward push 가능 여부
+9. 6cdf6606 포함 여부
+10. 07001677 포함 여부
+11. 2e516303 포함 여부
+12. regression 테스트 결과
+13. push 실행 여부
+14. push 후 GitHub origin/main SHA
+15. local main과 origin/main 동일 여부
+16. force push 미사용 확인
+17. Production deploy 미실행
+18. Production DB write 미실행
+19. cycle/batch/GPT/publish/feed/PUSH 미실행
+20. AI ENGINE 작업 미실행
+
+최종 판정:
+
+APP SOURCE RECOVERY: PASS/HOLD/FAIL
+APP REGRESSION: PASS/HOLD/FAIL
+GITHUB MAIN SYNC: PASS/HOLD/FAIL
+
+문제가 없으면 여기서 종료한다.
+Production deploy는 하지 않는다.
