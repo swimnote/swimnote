@@ -308,6 +308,8 @@ export async function withdrawStudent(
     `);
     if (geResult.rowCount > 0) deletedTables.push(`growth_events(${geResult.rowCount})`);
 
+    // TODO(policy): 퇴원 후 학부모의 과거 PUBLISHED 리포트 열람 권한은 별도 결정.
+    // parent_students 연결은 아래에서 기존대로 제거하므로 DB 보존만으로 열람되지는 않는다.
     // 미완성/비월간 성장 리포트는 기존처럼 삭제하되,
     // 발급 완료된 무료 월간 리포트는 퇴원 후에도 과거 발급물로 보존한다.
     // report_type='monthly'는 무료 월간 리포트이며 유료 insight는 'custom'이다.

@@ -1,13 +1,13 @@
 /**
  * growth-report-eligibility-v3.test.ts
  *
- * v3 eligibility 정책 (3/1 정책, 2026-09-12 최종 확정) 검증
+ * FREE monthly Growth Report V1.0 eligibility policy 검증
  * 테스트 A-U (운영자 지정)
  *
  * 정책:
  *   재원 O + 출석 >= 3 + 유효 학생별 source >= 1 → ELIGIBLE
  *   GROWTH_REPORT_MIN_SOURCE_RECORDS = 1
- *   GROWTH_REPORT_ELIGIBILITY_VERSION = 3
+ *   GROWTH_REPORT_ELIGIBILITY_VERSION = 4
  *
  * AI calls:  0
  * DB write:  NO
@@ -35,9 +35,9 @@ const snapshotSrc     = read("artifacts/api-server/src/lib/growth-report-snapsho
 const workerSrc       = read("artifacts/api-server/src/jobs/growth-report-analysis-worker.ts");
 const schedulerSrc    = read("artifacts/api-server/src/jobs/growth-report-scheduler.ts");
 
-// ─── 상수 검증 ────────────────────────────────────────────────────────────────
+// ─── FREE monthly V1.0 상수 검증 ──────────────────────────────────────────────
 
-describe("v3 policy constants", () => {
+describe("FREE monthly V1.0 policy constants", () => {
   it("MIN_ATTENDANCE = 3", () => {
     expect(GROWTH_REPORT_MIN_ATTENDANCE_COUNT).toBe(3);
   });
@@ -46,8 +46,8 @@ describe("v3 policy constants", () => {
     expect(GROWTH_REPORT_MIN_SOURCE_RECORDS).toBe(1);
   });
 
-  it("ELIGIBILITY_VERSION = 3", () => {
-    expect(GROWTH_REPORT_ELIGIBILITY_VERSION).toBe(3);
+  it("ELIGIBILITY_VERSION = 4", () => {
+    expect(GROWTH_REPORT_ELIGIBILITY_VERSION).toBe(4);
   });
 });
 
@@ -62,7 +62,7 @@ describe("TC-A: 재원O + 출석3 + source1 → ELIGIBLE", () => {
     });
     expect(r.eligible).toBe(true);
     expect(r.exclusion_code).toBeNull();
-    expect(r.eligibility_version).toBe(3);
+    expect(r.eligibility_version).toBe(4);
   });
 });
 
@@ -465,20 +465,15 @@ describe("Attendance event identity (§8)", () => {
     // queryAttendanceForEligibility가 makeup을 makeup_sessions에서 직접 조회
     const fnIdx = snapshotSrc.indexOf("queryAttendanceForEligibility");
     expect(fnIdx).toBeGreaterThan(-1);
-    // Branch 1-b: makeup_sessions.status='completed' SoT
+    // Completed makeup sessions are the source of truth.
     expect(snapshotSrc).toContain("makeup_sessions ms");
     expect(snapshotSrc).toContain("ms.status            = 'completed'");
-    // Branch 1-b는 COUNT(ms.id) — event identity = makeup_sessions.id
+    // Each completed makeup session is a separate event.
     expect(snapshotSrc).toContain("COUNT(ms.id)::int");
-    // Branch 1-a는 (class_group_id, date) event identity
-    expect(snapshotSrc).toContain("COUNT(DISTINCT (a.class_group_id, a.date::date))");
-    // Branch 2는 (cg.id, gs.d::date) event identity
+    // Scheduled lessons are identified by class group and date.
     expect(snapshotSrc).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
     // attendance row에 의존하지 않음 — attendance.session_type='makeup' 조회 없음
-    const b1bStart = snapshotSrc.indexOf("Branch 1-b");
-    const b2Start = snapshotSrc.indexOf("Branch 2");
-    const b1bSection = snapshotSrc.slice(b1bStart, b2Start);
-    expect(b1bSection).not.toContain("session_type = 'makeup'");
+    expect(snapshotSrc).not.toContain("session_type = 'makeup'");
   });
 });
 
@@ -515,69 +510,51 @@ describe("Eligibility gate 위치 (§9)", () => {
 
 // ─── TC-V~AA: Attendance event identity 실 케이스 ──────────────────────────────
 
-describe("TC-V~AA: Attendance event identity per-case (§1 FINAL PROOF)", () => {
+describe("TC-V~AA: V1.0 attendance event identity per-case", () => {
   const snapshotFn = snapshotSrc.slice(
     snapshotSrc.indexOf("export async function queryAttendanceForEligibility"),
     snapshotSrc.indexOf("export async function queryDiariesForEligibility")
   );
 
-  it("TC-V: scheduled/no attendance row/no absent → Branch 2 counts as present", () => {
-    // Branch 2: generate_series + schedule_days
-    // 명시적 absent 없고, 명시적 present 없고, schedule 날이면 +1
+  it("TC-V: scheduled/no attendance row/no absent → counts as an attended lesson", () => {
+    // A scheduled, non-holiday date counts unless there is an explicit absence.
     expect(snapshotFn).toContain("generate_series");
     expect(snapshotFn).toContain("schedule_days LIKE");
-    // absent 없는 조건 확인
     expect(snapshotFn).toContain("a2.status           = 'absent'");
-    // explicit present 없는 조건 확인
-    expect(snapshotFn).toContain("a3.status           IN ('present', 'late')");
   });
 
-  it("TC-W: scheduled/explicit absent → NOT counted (Branch 2 excluded)", () => {
-    // Branch 2 NOT EXISTS absent 필터
+  it("TC-W: scheduled/explicit absent → NOT counted", () => {
+    // The scheduled lesson is excluded by its matching absence row.
     expect(snapshotFn).toContain("AND NOT EXISTS");
     expect(snapshotFn).toContain("a2.status           = 'absent'");
-    // absent가 있으면 Branch 2에서 제외됨
-    // Branch 1-a도 status IN ('present','late') 이므로 absent는 카운트 안 됨
-    expect(snapshotFn).toContain("AND a.status           IN ('present', 'late')");
   });
 
-  it("TC-X: pool holiday → NOT counted (Branch 2 excluded)", () => {
+  it("TC-X: pool holiday → NOT counted", () => {
     // pool_holidays ph WHERE ph.pool_id = poolId AND ph.holiday_date::date = gs.d::date
     expect(snapshotFn).toContain("pool_holidays ph");
     expect(snapshotFn).toContain("ph.holiday_date::date = gs.d::date");
     expect(snapshotFn).toContain("WHERE NOT EXISTS");
   });
 
-  it("TC-Y: completed makeup / no attendance row → counted (Branch 1-b, makeup_sessions SoT)", () => {
-    // Branch 1-b: makeup_sessions.status='completed' — attendance row 불필요
+  it("TC-Y: completed makeup / no attendance row → counted (makeup_sessions SoT)", () => {
+    // A completed makeup counts independently of attendance rows.
     expect(snapshotFn).toContain("FROM makeup_sessions ms");
     expect(snapshotFn).toContain("ms.status            = 'completed'");
-    // completed_attendance_id 조건 없음 → NULL이어도 카운트
-    const b1bSection = snapshotFn.slice(
-      snapshotFn.indexOf("Branch 1-b"),
-      snapshotFn.indexOf("Branch 2")
-    );
-    expect(b1bSection).not.toContain("completed_attendance_id IS NOT NULL");
+    expect(snapshotFn).toContain("COUNT(ms.id)::int");
   });
 
   it("TC-Z: same day regular + completed makeup → count 2 (separate events)", () => {
-    // Branch 1-a: (class_group_id, date) → 정규 1회
-    expect(snapshotFn).toContain("COUNT(DISTINCT (a.class_group_id, a.date::date))");
-    // Branch 1-b: COUNT(ms.id) → 보강 별도 1회
+    // Scheduled class-group/date event and completed makeup session are distinct.
+    expect(snapshotFn).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
     expect(snapshotFn).toContain("COUNT(ms.id)::int");
-    // 두 브랜치는 더하기(+)로 합산 — SQL에 + 연산자가 각 branch 사이에 존재
     const plusOps = (snapshotFn.match(/^\s*\+\s*$/gm) ?? []).length;
-    expect(plusOps).toBeGreaterThanOrEqual(2);
+    expect(plusOps).toBeGreaterThanOrEqual(1);
   });
 
   it("TC-AA: same date / two different class_group regular events → count 2", () => {
-    // Branch 1-a: COUNT(DISTINCT (class_group_id, date)) — 같은 날 다른 반 = 2회
-    expect(snapshotFn).toContain("COUNT(DISTINCT (a.class_group_id, a.date::date))");
-    // Branch 2: COUNT(DISTINCT (cg.id, gs.d::date)) — 같은 날 다른 반 = 2회
+    // Distinct (class_group, date) preserves two scheduled lessons on one date.
     expect(snapshotFn).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
-    // date만으로 중복 제거하지 않음 — COUNT(DISTINCT a.date) 없음
-    expect(snapshotFn).not.toContain("COUNT(DISTINCT a.date)");
-    // date만으로 중복 제거하지 않음 — COUNT(DISTINCT gs.d::date) 없음
+    // Deduplicate by class group + date, not by date alone.
     expect(snapshotFn).not.toContain("COUNT(DISTINCT gs.d::date)");
   });
 });
@@ -661,14 +638,14 @@ describe("TC-AF: report_month=2026-09 E2E period contract", () => {
 
 // TC-AG: snapshot builder가 분석기간(2026-08) diary만 조회하는지 소스코드 계약 검증
 describe("TC-AG: snapshot builder uses analysis period for diary query", () => {
-  it("TC-AG: queryDiaries SQL contains analysisFrom..cutoffDate bounds", () => {
+  it("TC-AG: queryDiaries SQL contains analysisFrom..periodEndExclusive bounds", () => {
     const fs = require("fs");
     const path = require("path");
     const src = fs.readFileSync(
       path.join(__dirname, "../lib/growth-report-snapshot-builder.ts"), "utf-8"
     );
     expect(src).toContain("cd.lesson_date >= ${analysisFrom}");
-    expect(src).toContain("cd.lesson_date <  ${cutoffDate}");
+    expect(src).toContain("cd.lesson_date <  ${periodEndExclusive}");
   });
 });
 
