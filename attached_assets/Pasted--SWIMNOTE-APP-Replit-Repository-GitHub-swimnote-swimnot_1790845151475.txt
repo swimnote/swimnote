@@ -1,0 +1,254 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[학부모 전화번호 자동연결 — 검증 완료본 Production 배포]
+
+현재 학부모 연결 수정 및 관련 검증이 완료됐으므로
+추가 코드 수정 없이 검증 완료본을 Production에 배포한다.
+
+이번 작업은 배포 작업이다.
+새 기능 추가·리팩터링·범위 확대 금지.
+
+성장리포트 및 AI ENGINE 작업은 계속 HOLD한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 검증 완료 변경분이 다음 범위만 포함하는지 확인한다.
+
+- 기존 SMS 인증번호 인증과 가입 요청의 서버 검증 연결
+- SMS 인증된 전화번호 기준 자동연결
+- 학생 이름을 자동승인 matching 조건에서 제외
+- 동일 pool + 동일 보호자 전화번호 학생 다자녀 연결
+- 기존 approved 관계 보존
+- 중복 parent/student 관계 방지
+- 학생 status 임의 변경 없음
+- 기존 보호자 pointer 임의 변경 없음
+- 다른 pool 학생 연결 차단
+- 학부모 표시 이름은 기존 students.name 사용
+- SMS 인증 없는 가입 진입점을 기존 SMS 가입 화면으로 연결
+- SMS 인증되지 않은 소셜/legacy 세션에 phone-only 자동연결 권한 부여 금지
+
+성장리포트 코드 변경 없음.
+AI ENGINE 변경 없음.
+관리자 승인관리 UI 변경 없음.
+PC 기능 변경 없음.
+
+현재 검증 결과:
+
+관련 테스트 37개 PASS
+API build PASS
+iOS bundle PASS
+Android bundle PASS
+필요 Production DB 컬럼 존재 확인
+DB migration 필요 없음
+
+위 상태가 유지되는 경우에만 배포한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. GitHub main push
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 완료 변경분을 commit한다.
+
+정상 commit 후 GitHub main에 normal push한다.
+
+금지:
+
+force push
+history rewrite
+rebase로 기존 이력 변경
+unrelated commit 포함
+
+완료보고에:
+
+- 배포 commit SHA
+- push 전 origin/main SHA
+- push 후 origin/main SHA
+
+를 기록한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production API 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 정확한 commit SHA를
+
+Render:
+swimnote-api
+
+Production에 배포한다.
+
+배포 후 반드시 확인:
+
+- Render LIVE
+- deployed SHA = 검증 완료 commit SHA
+- /api/healthz HTTP 200
+- /healthz 정상
+- startup fatal error 없음
+- crash/restart loop 없음
+
+환경변수 임의 변경 금지.
+Production DB migration 금지.
+실제 사용자 관계 임의 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. iOS + Android Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 변경이 JS/TS 범위이므로
+동일 release source 기준으로
+
+iOS + Android를 함께 Production OTA 배포한다.
+
+branch/channel:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+반드시 두 플랫폼 모두 성공해야 전체 OTA PASS다.
+
+완료보고:
+
+iOS
+- Update ID
+- Group ID
+- source SHA
+- branch/channel
+- runtimeVersion
+
+Android
+- Update ID
+- Group ID
+- source SHA
+- branch/channel
+- runtimeVersion
+
+한 플랫폼이라도 실패하면
+전체 배포 완료라고 보고하지 않는다.
+
+새 Store binary는 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Production 무쓰기 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후 실제 사용자 관계를 임의로 만들지 않고 확인한다.
+
+확인:
+
+1. SMS 인증 없는 직접 parent-register 요청
+   → phone-only 자동연결 권한 획득 불가
+
+2. 위조/만료/전화번호 불일치 인증 증명
+   → 거절
+
+3. 기존 관리자 승인대기 목록
+   → 정상 조회
+
+4. 기존 승인 관계
+   → 변경 없음
+
+5. API health
+   → 정상
+
+실제 SMS 발송 테스트,
+실제 학부모 가입,
+실제 학생 연결,
+실제 관계 삭제/변경은 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 기능 보존 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후 코드/route 기준으로 최종 확인:
+
+전화번호 일치 + SMS 인증 완료
+→ 이름과 관계없이 자동승인
+
+같은 pool에서 동일 전화번호 학생 여러 명
+→ 모두 연결
+
+학부모 입력 이름 오타/복수 이름
+→ 자동승인에 영향 없음
+
+학부모 화면 학생 이름
+→ students.name
+
+전화번호 불일치
+→ 이름이 정확해도 자동승인 금지
+
+다른 pool 동일 전화번호
+→ 연결 금지
+
+기존 approved 관계
+→ 유지
+
+기존 승인대기 경로
+→ 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+추가 코드 수정 금지
+새 기능 금지
+DB migration 금지
+성장리포트 작업 금지
+AI ENGINE 작업 금지
+PC 변경 금지
+관리자 승인관리 UI 변경 금지
+학생 상태 변경 금지
+실제 사용자 관계 임의 생성 금지
+
+배포 과정에서 새로운 문제를 발견하면
+임의로 범위를 확대해 고치지 말고 HOLD 후 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 보고:
+
+- 변경 파일
+- 최종 commit SHA
+- GitHub main SHA
+- Production API deployed SHA
+- API health
+- DB migration 없음 확인
+- iOS OTA Update ID / Group ID
+- Android OTA Update ID / Group ID
+- production-v2
+- runtimeVersion 2.2.0
+- SMS 인증 서버 검증 유지
+- phone-only auto approval 유지
+- multi-child 연결 유지
+- pool isolation 유지
+- duplicate 방지 유지
+- students.name 표시 유지
+- 기존 승인대기 기능 정상
+- 실제 사용자 데이터 변경 없음
+- 성장리포트 변경 없음
+- ENGINE 변경 없음
+
+최종 판정:
+
+PRODUCTION API DEPLOYMENT: PASS/HOLD/FAIL
+iOS PRODUCTION OTA: PASS/HOLD/FAIL
+ANDROID PRODUCTION OTA: PASS/HOLD/FAIL
+PHONE-ONLY AUTO APPROVAL: PASS/HOLD/FAIL
+MULTI-CHILD AUTO LINK: PASS/HOLD/FAIL
+POOL ISOLATION: PASS/HOLD/FAIL
+EXISTING APPROVAL FLOW: PASS/HOLD/FAIL
+
+전부 PASS일 때만:
+
+“학부모 연결 변경사항이 Production에 반영됐다.
+SMS 인증된 전화번호가 선택 수영장의 등록 보호자 전화번호와
+일치하면 학생 이름 입력과 관계없이 해당 전화번호의 학생들이
+자동연결되며, 학부모에게는 수영장 DB의 실제 학생 이름으로 표시된다.”
+
+라고 완료 보고한다.
