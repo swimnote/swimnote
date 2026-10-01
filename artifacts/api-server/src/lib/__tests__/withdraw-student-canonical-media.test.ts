@@ -86,6 +86,9 @@ describe("withdrawStudent canonical media and parent cleanup", () => {
       executed.push({ text, values, phase });
 
       if (phase === "read") return { rows: rowsFor(text), rowCount: 0 };
+      if (text.includes("delete from swim_diary")) {
+        throw new Error('column "student_id" does not exist in shared swim_diary');
+      }
       if (text.includes("select id from students")) return { rows: [{ id: "student-target" }], rowCount: 1 };
       if (text.includes("from students s")) {
         return { rows: [{ name: "Student", birth_year: null, parent_phone: null, class_name: null }], rowCount: 1 };
@@ -126,6 +129,9 @@ describe("withdrawStudent canonical media and parent cleanup", () => {
     expect(mediaSelects.find(({ text }) => text.includes("from video_assets_meta"))?.text)
       .toContain("select id, object_key from video_assets_meta");
     expect(mediaSelects.every(({ text }) => !text.includes("storage_key"))).toBe(true);
+    expect(executed.some(({ text }) => text.includes("delete from swim_diary"))).toBe(false);
+    expect(executed.some(({ phase, text }) =>
+      phase === "transaction" && text.includes("delete from growth_events"))).toBe(true);
 
     expect(mocks.deleteObject.mock.calls.map(([key]) => key).sort()).toEqual([
       "photo-assets/target.jpg",

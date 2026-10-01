@@ -7,7 +7,7 @@
  *
  * 삭제 정책 (§14 기준):
  *   DELETE  : student_photos (DB + R2), parent_students,
- *             class_diary_student_notes (해당 학생 note만), swim_diary,
+ *             class_diary_student_notes (해당 학생 note만),
  *             growth_events, 미발행 growth_reports, admin_member_notes,
  *             student_curriculum_assignments, student_curriculum_progress,
  *             curriculum_progress_observations, student_levels,
@@ -16,7 +16,7 @@
  *             diary_reactions (student_id col),
  *             parent_student_requests, video_assets_meta, student_videos,
  *             photo_assets_meta (student-owned rows)
- *   KEEP    : PUBLISHED 무료 월간 growth_reports (과거 발급물),
+ *   KEEP    : swim_diary (공유 일지), PUBLISHED 무료 월간 growth_reports (과거 발급물),
  *             attendance (정산), student_class_history (audit),
  *             member_activity_logs (audit), students row (soft)
  *
@@ -327,12 +327,6 @@ export async function withdrawStudent(
       DELETE FROM class_diary_student_notes WHERE student_id = ${studentId}
     `);
     if (cdsnResult.rowCount > 0) deletedTables.push(`class_diary_student_notes(${cdsnResult.rowCount})`);
-
-    // 개인 swim_diary
-    const swimResult = await tx.execute(sql`
-      DELETE FROM swim_diary WHERE student_id = ${studentId}
-    `);
-    if (swimResult.rowCount > 0) deletedTables.push(`swim_diary(${swimResult.rowCount})`);
 
     // 성장 이벤트
     const geResult = await tx.execute(sql`
