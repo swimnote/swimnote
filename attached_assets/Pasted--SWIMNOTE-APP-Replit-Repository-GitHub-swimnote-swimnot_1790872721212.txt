@@ -1,0 +1,663 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[성장리포트 V1 — 월간 자동발급 최종 구현]
+
+ENGINE blocker가 해소되었습니다.
+
+현재 ENGINE Production SHA:
+996da04dae1ffecb7e92ea26c5302c94293e5346
+
+ENGINE 계약:
+- COMPLETE 결과 replay PASS
+- PROCESSING duplicate prevention PASS
+- stale PROCESSING safety PASS
+- UNKNOWN duplicate prevention PASS
+- UNKNOWN fallback prevention PASS
+- stable paid-call identity PASS
+- 명시적 429 RELEASED retry PASS
+- payload conflict PASS
+- request_id pool binding PASS
+- provider recall prevention PASS
+- APP crash recovery contract PASS
+
+이제 승인된 APP 설계도를 그대로 최소 구현하세요.
+
+전체 APP 재조사 금지.
+설계 재작성 금지.
+ENGINE 재조사/수정 금지.
+관련 없는 리팩터링 금지.
+전체 test suite/typecheck 금지.
+
+중요:
+아직 현재 실패 50건 recovery부터 실행하지 마세요.
+
+순서:
+
+APP 구조 구현
+→ 관련 테스트
+→ migration
+→ Production 배포
+→ 정상 동작 확인
+→ 그 다음 기존 정상 recovery 경로로 현재 미완료분 복구
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 월간 발급대상 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+단위:
+
+pool + report_month
+
+발급월 M은 M-1 데이터를 사용합니다.
+
+KST:
+[전월 1일 00:00, 현재월 1일 00:00)
+
+기존 확정 발급조건을 유지합니다.
+
+- 다음 달 1일 기준 재원
+- 전월 동일 pool 수강 이력
+- scheduled - absence + completed makeup
+- 중복수업 금지
+- holiday/no-class 가산 금지
+- 인정수업 >= 3
+- 같은 월 student-specific 유효 일지 >= 1
+- X entitlement/승인 pool
+
+조건을 충족한 회원만
+해당 pool/report_month의 확정 발급대상입니다.
+
+전체 회원 수를 분모로 사용하지 않습니다.
+
+예:
+
+전체 회원 300
+발급조건 충족 119
+
+이면:
+
+target_report_count = 119
+
+입니다.
+
+발급조건 미충족 회원은 분모에 포함하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 발급대상 봉인
+━━━━━━━━━━━━━━━━━━━━━━
+
+확정된 발급대상은 이후 worker/retry 실패 때문에
+분모에서 제거하지 않습니다.
+
+119명이 확정됐으면
+AI 실패 1명을 제거하여 118/118로 만드는 것 금지.
+
+확정 대상 identity를 DB에 보존합니다.
+
+승인된 additive 구조:
+
+growth_report_cycles:
+- eligible_total
+- eligibility_sealed_at
+- ready_at
+
+growth_report_eligible_targets:
+- PRIMARY KEY(cycle_id, student_id)
+- 확정 대상 시각
+- eligibility/version 근거
+- 필요한 검증 근거
+- policy_excluded_at
+- policy_exclusion_reason
+- policy_evidence_ref
+
+후속 회원 상태변경으로
+확정 대상 row가 cascade 삭제되지 않도록 합니다.
+
+기존 UNIQUE/constraint는 재생성하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 분석 작업 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 growth_reports persistent 경로를 유지합니다.
+
+새 queue를 만들지 않습니다.
+
+승인된 additive fields:
+
+- analysis_claim_token
+- analysis_lease_until
+- analysis_next_attempt_at
+- analysis_call_started_at
+- analysis_uncertain_at
+
+분석 worker는 일반 SELECT 경쟁이 아니라
+DB 조건부 claim으로 한 worker만 소유하도록 합니다.
+
+claim/lease/fencing을 사용하여:
+
+multiple APP instances
+worker restart
+APP restart
+stale worker
+
+상황에서도 동일 report를 동시에 처리하지 않도록 합니다.
+
+이전 owner가 늦게 결과를 기록하여
+새 owner 결과를 덮어쓰지 못하게 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ENGINE crash-recovery 계약 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE Production의 새 계약을 사용합니다.
+
+동일 request identity를 유지합니다.
+
+ENGINE COMPLETE:
+→ 기존 결과 replay
+→ APP 결과 저장 계속
+→ 새 AI 분석 없음
+
+ENGINE PROCESSING:
+→ 중복 분석 금지
+
+ENGINE UNKNOWN:
+→ APP도 UNKNOWN으로 보존
+→ 자동 새 request_id 발급 금지
+→ 자동 새 AI 분석 금지
+
+명시적으로 retry 가능한 429/RELEASED:
+→ 기존 안전 retry 경로 사용
+
+APP이 ENGINE 호출 전에 죽은 것이 확정:
+→ 기존 identity로 안전하게 재개
+
+새 request identity를 만들어
+UNKNOWN을 우회하는 것 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. retry/backoff
+━━━━━━━━━━━━━━━━━━━━━━
+
+retry 가능한 오류만 자동 retry합니다.
+
+retry scheduling은 DB에 보존합니다.
+
+analysis_next_attempt_at 사용.
+
+기존 analysis_retry_count 재사용.
+
+retry/backoff/concurrency는
+운영 설정으로 조정 가능하게 유지합니다.
+
+pool/member 숫자를 business logic에 하드코딩하지 않습니다.
+
+UNKNOWN과 definitive failure는
+일반 transient retry와 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 사후 퇴원 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+발급대상 확정 이후 실제 퇴원하여
+발행할 수 없게 된 회원은
+확정 대상 명단에서 삭제하지 않습니다.
+
+단 실제 학부모 발행도 하지 않습니다.
+
+다음 근거가 확인되는 경우만:
+
+- 원래 확정 대상이었음
+- 확정 이후 실제 상태변경이 발생
+- 상태변경 시점/감사 근거 존재
+- 발행 전 active/nondeleted 검사에서 발행 불가
+
+정책상 발행제외로 귀결합니다.
+
+AI 실패
+ENGINE 오류
+APP 오류
+retry 소진
+데이터 유실
+
+을 policy exclusion으로 바꾸는 것 절대 금지.
+
+최초 발급조건 미충족 EXCLUDED와도 구분합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. reconciliation 및 100% gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+확정 대상 명단을 기준으로
+각 대상의 실제 상태를 reconciliation합니다.
+
+확인:
+
+- missing
+- duplicate logical identity
+- wrong pool
+- queued
+- processing
+- retry_pending
+- failed
+- unknown
+- 정상 생성
+- 정당한 사후 policy exclusion
+
+발급조건 충족자 전원이
+정상적인 최종 귀결 상태에 도달해야 합니다.
+
+정상 귀결:
+
+A. 정상 성장리포트 생성 완료
+또는
+B. 근거가 확인된 확정 이후 정책상 발행제외
+
+READY 조건:
+
+resolved_total == eligible_total
+
+AND
+
+queued = 0
+processing = 0
+retry_pending = 0
+failed = 0
+unknown = 0
+missing = 0
+duplicate = 0
+
+정상 생성 수와 policy exclusion 수는
+별도로 집계합니다.
+
+예:
+
+eligible 119
+generated 119
+policy excluded 0
+→ 119/119 READY
+
+eligible 119
+generated 118
+policy excluded 1
+→ 처리 귀결 119/119 READY
+→ 실제 생성 118
+→ 정책상 제외 1
+
+eligible 119
+generated 118
+failed 1
+→ 118/119 NOT READY
+
+실패를 분모에서 제거하는 방식은 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. EMPTY TARGET
+━━━━━━━━━━━━━━━━━━━━━━
+
+발급조건 충족자가 0명인 pool/month는
+
+0/0 = 100%
+
+으로 처리하지 않습니다.
+
+별도 EMPTY_TARGET 의미로 처리하고
+일반 READY 관리자 알림을 보내지 않습니다.
+
+기존 downstream을 불필요하게 변경하지 않는
+최소 방식으로 구현합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 5일 readiness
+━━━━━━━━━━━━━━━━━━━━━━
+
+5일은 강제 READY 시점이 아닙니다.
+
+100% gate를 통과한 pool만:
+
+READY
+→ 관리자 발급준비완료 PUSH
+
+미완료 pool은:
+
+NOT READY 유지
+→ 관리자 준비완료 PUSH 금지
+
+다른 pool은 독립적으로 판정합니다.
+
+A 119/119 → READY
+B 249/250 → NOT READY
+C 80/80 → READY
+
+B가 A/C를 막으면 안 됩니다.
+
+batch COMPLETED
+worker idle
+retry budget exhausted
+5일 도달
+
+은 READY 조건이 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 운영자 장애 알림
+━━━━━━━━━━━━━━━━━━━━━━
+
+5일까지 NOT READY이거나
+그 전에 정상 자동복구 범위를 벗어난 명확한 장애가 발생하면
+SWIMNOTE 운영자에게 알립니다.
+
+예:
+
+- retry budget 소진
+- UNKNOWN
+- stale/정체
+- reconciliation 불일치
+- missing identity
+- 반복적 ENGINE 장애
+
+일시적인 transient retry 한 건마다
+알림을 보내지 않습니다.
+
+알림에는 최소:
+
+report_month
+pool identity
+eligible_total
+generated_total
+policy_excluded_total
+remaining_count
+failure 유형별 count
+
+를 포함합니다.
+
+PII와 AI 원문은 PUSH에 포함하지 않습니다.
+
+pool+report_month+incident type 기준으로
+기존 incident/outbox 구조를 이용해 dedupe합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 관리자 READY PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 notification outbox를 재사용합니다.
+
+READY를 통과하지 않은 pool에는
+발급준비완료 PUSH 생성 금지.
+
+READY 판정이 반복되어도
+관리자 PUSH exactly-once 효과를 유지합니다.
+
+PUSH 전송 실패:
+→ READY rollback 금지
+→ notification만 별도 retry
+
+UNCERTAIN delivery:
+→ 무조건 중복 전송 금지
+
+기존 관리자 검토/승인/PUBLISHED/학부모 경로는
+변경하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. operator recovery
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 broad batch reset 방식으로 복구하지 않습니다.
+
+operator recovery는:
+
+pool
+report_month
+
+범위에서
+
+성공 제외
+PUBLISHED 제외
+정책상 발행제외 제외
+최초 eligibility EXCLUDED 제외
+
+하고 실제 미완료/복구 가능한 대상만 재활성화합니다.
+
+반복 실행해도 중복 logical report/job을 만들지 않습니다.
+
+성공 report는 ENGINE에 다시 보내지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Infrastructure independence
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후:
+
+APP compute
+APP instance
+worker count
+Postgres tier
+DB connection capacity
+ENGINE compute
+ENGINE instance
+provider capacity
+storage
+
+를 증설해도 business sequence는 변경하지 않습니다.
+
+고정:
+
+1일 대상확정
+→ 봉인
+→ persistent jobs
+→ atomic claim
+→ ENGINE
+→ retry/reconciliation
+→ pool별 100% 귀결
+→ READY
+→ 관리자 PUSH
+→ 검토/승인
+→ PUBLISHED
+
+인프라 변경은 처리속도 관련 설정만 변경합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 현재 9월분 backfill 준비
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된 기존 cycle:
+
+2026-09
+준비 report 210
+확정 발급조건 충족 119
+성공 69
+실패 50
+최초 조건 미충족 91
+
+119명 identity는 Production 저장 근거로 복원 가능하다고
+이미 READ ONLY 검증되었습니다.
+
+migration 후 이 기존 cycle을
+현재 회원상태로 재계산하지 않습니다.
+
+기존 저장 근거를 사용해
+119명의 eligible target을 backfill합니다.
+
+이 backfill은
+“당시부터 sealed table이 존재했다”고 위조하지 않습니다.
+
+backfill/audit source가 기존 저장 근거라는 것을
+구분 가능하게 기록합니다.
+
+69 성공 보존.
+50 실패 보존.
+91 최초 미충족은 eligible target에 넣지 않습니다.
+
+이 단계에서는 아직 50건을 ENGINE에 재호출하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 확인된 실제 schema를 기준으로
+additive migration 1개만 작성합니다.
+
+기존 존재 필드/constraint를 다시 만들지 않습니다.
+
+필요:
+
+growth_report_cycles
+- eligible_total
+- eligibility_sealed_at
+- ready_at
+
+growth_report_eligible_targets 신규
+
+growth_reports
+- analysis_claim_token
+- analysis_lease_until
+- analysis_next_attempt_at
+- analysis_call_started_at
+- analysis_uncertain_at
+
+필요한 FK/CHECK/index만 추가합니다.
+
+migration은 기존 데이터 보존형이어야 합니다.
+
+9월 backfill은 검증 가능한 기존 119명만 대상으로 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 관련 테스트만
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite/typecheck 금지.
+
+관련 테스트로 최소 확인:
+
+A. 발급조건 충족자만 target 봉인
+B. 실패해도 denominator 감소 안 함
+C. scheduler 중복 실행 시 target 중복 없음
+D. multiple worker 동일 report 중복 claim 없음
+E. stale owner 결과 덮어쓰기 금지
+F. COMPLETE ENGINE replay 결과 정상 저장
+G. UNKNOWN 자동 재분석 금지
+H. 429 retry 정상
+I. APP restart 후 persistent resume
+J. 119 target / 118 success / 1 failure → NOT READY
+K. 119 / 118 success / 1 정당한 사후퇴원 → resolved 119/119
+L. 실패를 policy exclusion으로 변환 불가
+M. EMPTY_TARGET은 일반 READY 아님
+N. pool A READY / B NOT READY / C READY 독립성
+O. READY 이전 관리자 PUSH 없음
+P. READY 이후 관리자 PUSH dedupe
+Q. operator recovery 성공/PUBLISHED 제외
+R. recovery 반복 실행 idempotent
+S. 기존 관리자 검토/승인/PUBLISHED 경로 회귀 없음
+
+관련 API build만 실행합니다.
+
+모바일 UI를 수정하지 않으면
+iOS/Android bundle/OTA 테스트 및 배포는 하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 구현/배포 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최소 코드 구현
+2. additive migration 작성
+3. 관련 테스트
+4. API build
+5. commit
+6. GitHub main push
+7. 정확한 SHA 확인
+8. Production migration 적용
+9. 동일 SHA Render swimnote-api 배포
+10. health/deployed SHA 확인
+11. 9월 119명 eligible target backfill 확인
+
+여기까지 모두 PASS한 후에만:
+
+12. 기존 정상 operator recovery trigger로
+    현재 미완료 대상 recovery 실행
+
+성공 69건 재분석 금지.
+
+recovery 후 reconciliation:
+
+eligible_total
+generated_total
+policy_excluded_total
+failed
+unknown
+missing
+duplicate
+
+확인.
+
+해당 pool의 발급조건 충족 대상이
+100% 정상 귀결되지 않으면 READY 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 구현/배포 완료를 보고하고,
+그 뒤 현재 cycle recovery 결과까지 함께 보고합니다.
+
+필수:
+
+수정 파일
+migration 파일
+migration 결과
+commit SHA
+GitHub main SHA
+관련 테스트 결과
+API build
+Render Deploy ID
+LIVE
+deployed SHA
+health
+
+9월 cycle:
+eligible_total
+generated_total
+policy_excluded_total
+failed
+unknown
+missing
+duplicate
+remaining
+resolved rate
+
+69 기존 성공 보존 여부
+50 중 실제 recovery 대상 수
+recovery 성공 수
+recovery 실패 수
+
+관리자 READY PUSH:
+발생 여부
+발생 조건
+중복 여부
+
+운영자 failure alert:
+발생 여부
+발생 조건
+
+최종 판정:
+
+ELIGIBILITY SEALING = PASS/HOLD
+PERSISTENT PROCESSING = PASS/HOLD
+ATOMIC CLAIM = PASS/HOLD
+ENGINE CRASH RECOVERY = PASS/HOLD
+UNKNOWN SAFETY = PASS/HOLD
+RECONCILIATION = PASS/HOLD
+POOL 100% RESOLUTION GATE = PASS/HOLD
+POST-ELIGIBILITY WITHDRAWAL = PASS/HOLD
+OPERATOR ALERT = PASS/HOLD
+OPERATOR RECOVERY = PASS/HOLD
+READY PUSH = PASS/HOLD
+POOL INDEPENDENCE = PASS/HOLD
+INFRASTRUCTURE-INDEPENDENT SEQUENCE = PASS/HOLD
+CURRENT SEPTEMBER CYCLE RECOVERY = PASS/HOLD
+
+Out-of-scope 문제는 기록만 하고
+작업 범위를 확장하지 않습니다.
