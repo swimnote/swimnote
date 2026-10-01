@@ -61,8 +61,6 @@ export interface PushOptions {
   channelId?: string;
   priority?: "default" | "normal" | "high";
   ttl?: number;
-  /** Durable outbox callers must surface ambiguous outcomes instead of resending. */
-  disableTransportRetries?: boolean;
 }
 
 /** WP5: result summary returned by sendRawPush */
@@ -75,8 +73,6 @@ export interface PushResult {
   invalidTokenCount:  number;
   configFailureCount: number;  // InvalidCredentials — APNs/FCM credential issue, token NOT deleted
   retryCount:         number;
-  definitiveRejectionCount: number;
-  providerReceiptIds: string[];
 }
 
 // ── WP5 internal helpers ──────────────────────────────────────────────────────
@@ -145,16 +141,7 @@ function isRetryable(httpStatus: number | null, err?: unknown): boolean {
 export async function sendChunkWithRetry(
   chunk: PushMessage[],
   attempt = 0,
-  options: { retryTransients?: boolean } = {},
-): Promise<{
-  success: number;
-  failure: number;
-  invalidTokens: string[];
-  configFailures: number;
-  definitiveRejections: number;
-  providerReceiptIds: string[];
-  retries: number;
-}> {
+): Promise<{ success: number; failure: number; invalidTokens: string[]; configFailures: number; retries: number }> {
   let httpStatus: number | null = null;
   try {
     const resp = await fetch(EXPO_PUSH_URL, {
@@ -167,57 +154,38 @@ export async function sendChunkWithRetry(
 
     // Rate-limit or server error → retryable
     if (isRetryable(httpStatus, null)) {
-      if (options.retryTransients !== false && attempt < MAX_RETRY_ATTEMPTS) {
+      if (attempt < MAX_RETRY_ATTEMPTS) {
         const delayMs = _retryDelayMs * 2 ** attempt;
         if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
-        const sub = await sendChunkWithRetry(chunk, attempt + 1, options);
+        const sub = await sendChunkWithRetry(chunk, attempt + 1);
         return { ...sub, retries: sub.retries + 1 };
       }
-      return {
-        success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0,
-        definitiveRejections: httpStatus === 429 ? chunk.length : 0,
-        providerReceiptIds: [], retries: attempt,
-      };
+      return { success: 0, failure: chunk.length, invalidTokens: [], retries: attempt };
     }
 
     // Other non-OK status (4xx not 429) — permanent, don't retry
     if (!resp.ok) {
-      return {
-        success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0,
-        definitiveRejections: chunk.length, providerReceiptIds: [], retries: 0,
-      };
+      return { success: 0, failure: chunk.length, invalidTokens: [], retries: 0 };
     }
 
     // Parse Expo ticket array
-    let tickets: any[] | null = null;
+    let tickets: any[] = [];
     try {
       const json = (await resp.json()) as any;
-      tickets = Array.isArray(json?.data) ? json.data : null;
-    } catch { /* Missing/unparseable tickets are ambiguous, never a success ack. */ }
-    if (!tickets || tickets.length === 0) {
-      return {
-        success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0,
-        definitiveRejections: 0, providerReceiptIds: [], retries: 0,
-      };
-    }
+      tickets = Array.isArray(json?.data) ? json.data : [];
+    } catch { /* JSON parse failure → treat all as success (conservative) */ }
 
     let success = 0;
     let failure = 0;
-    let definitiveRejections = 0;
-    const providerReceiptIds: string[] = [];
     const invalidTokens: string[] = [];      // DeviceNotRegistered → token cleanup
     const configFailureTokens: string[] = []; // InvalidCredentials → log only, NO cleanup
 
     for (let i = 0; i < chunk.length; i++) {
       const ticket = tickets[i];
-      if (!ticket) {
-        failure++;
-      } else if (ticket.status === "ok") {
+      if (!ticket || ticket.status === "ok") {
         success++;
-        if (typeof ticket?.id === "string" && ticket.id) providerReceiptIds.push(ticket.id);
       } else {
         failure++;
-        definitiveRejections++;
         const errCode = ticket.details?.error ?? "";
         if (DEVICE_NOT_REGISTERED_ERRORS.has(errCode)) {
           // Device token is permanently invalid — safe to delete
@@ -233,33 +201,21 @@ export async function sendChunkWithRetry(
         }
       }
     }
-    return {
-      success,
-      failure,
-      invalidTokens,
-      configFailures: configFailureTokens.length,
-      definitiveRejections,
-      providerReceiptIds,
-      retries: 0,
-    };
+    // If Expo returned empty tickets (edge case), assume all sent
+    if (!tickets.length && resp.ok) success = chunk.length;
+
+    return { success, failure, invalidTokens, configFailures: configFailureTokens.length, retries: 0 };
 
   } catch (err: any) {
     // Network / timeout errors
-    if (
-      options.retryTransients !== false &&
-      attempt < MAX_RETRY_ATTEMPTS &&
-      isRetryable(httpStatus, err)
-    ) {
+    if (attempt < MAX_RETRY_ATTEMPTS && isRetryable(httpStatus, err)) {
       const delayMs = _retryDelayMs * 2 ** attempt;
       if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
-      const sub = await sendChunkWithRetry(chunk, attempt + 1, options);
+      const sub = await sendChunkWithRetry(chunk, attempt + 1);
       return { ...sub, retries: sub.retries + 1 };
     }
     console.error(`[push-service] chunk send failed (attempt ${attempt + 1}):`, err?.message);
-    return {
-      success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0,
-      definitiveRejections: 0, providerReceiptIds: [], retries: attempt,
-    };
+    return { success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0, retries: attempt };
   }
 }
 
@@ -304,11 +260,7 @@ export async function sendRawPushWithResult(
   const totalTokens = tokens.length;
 
   if (!totalTokens) {
-    return {
-      totalTokens: 0, uniqueTokens: 0, chunks: 0, successCount: 0, failureCount: 0,
-      invalidTokenCount: 0, configFailureCount: 0, retryCount: 0,
-      definitiveRejectionCount: 0, providerReceiptIds: [],
-    };
+    return { totalTokens: 0, uniqueTokens: 0, chunks: 0, successCount: 0, failureCount: 0, invalidTokenCount: 0, configFailureCount: 0, retryCount: 0 };
   }
 
   // ── 1. Token deduplication ─────────────────────────────────────────
@@ -334,11 +286,7 @@ export async function sendRawPushWithResult(
   );
 
   // ── 4. Bounded concurrency dispatch ──────────────────────────────
-  const chunkTasks = chunks.map((chunk) => () => sendChunkWithRetry(
-    chunk,
-    0,
-    { retryTransients: !options.disableTransportRetries },
-  ));
+  const chunkTasks = chunks.map((chunk) => () => sendChunkWithRetry(chunk));
   const chunkResults = await runBounded(chunkTasks, MAX_CONCURRENT_CHUNKS);
 
   // ── 5. Aggregate results ──────────────────────────────────────────
@@ -346,19 +294,15 @@ export async function sendRawPushWithResult(
   let failureCount = 0;
   let invalidTokenCount = 0;
   let configFailureCount = 0;
-  let definitiveRejectionCount = 0;
   let retryCount = 0;
   const allInvalidTokens: string[] = [];
-  const providerReceiptIds: string[] = [];
 
   for (const r of chunkResults) {
     successCount    += r.success;
     failureCount    += r.failure;
     retryCount      += r.retries;
     configFailureCount += r.configFailures;
-    definitiveRejectionCount += r.definitiveRejections;
     allInvalidTokens.push(...r.invalidTokens);
-    providerReceiptIds.push(...r.providerReceiptIds);
   }
   invalidTokenCount = allInvalidTokens.length;
 
@@ -391,11 +335,7 @@ export async function sendRawPushWithResult(
     });
   }
 
-  const result: PushResult = {
-    totalTokens, uniqueTokens, chunks: numChunks, successCount, failureCount,
-    invalidTokenCount, configFailureCount, retryCount,
-    definitiveRejectionCount, providerReceiptIds,
-  };
+  const result: PushResult = { totalTokens, uniqueTokens, chunks: numChunks, successCount, failureCount, invalidTokenCount, configFailureCount, retryCount };
   return result;
 }
 

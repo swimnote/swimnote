@@ -46,8 +46,8 @@ export type MonthlyReviewNotification = (params: {
 }) => Promise<void>;
 
 async function defaultNotifyAdminReady(params: Parameters<MonthlyReviewNotification>[0]): Promise<void> {
-  const { notifyBatchComplete } = await import("../utils/notify.js");
-  await notifyBatchComplete(params);
+  const { notifyMonthlyGrowthReportPrepared } = await import("../utils/notify.js");
+  await notifyMonthlyGrowthReportPrepared(params);
 }
 
 export async function runMonthlyFreeAutoPublication(
@@ -61,7 +61,7 @@ export async function runMonthlyFreeAutoPublication(
   reportPeriod: string;
 }> {
   const window = freeReportIssueWindow(now);
-  if (window.issueDay < 5) {
+  if (window.issueDay < 5 || (window.issueDay === 5 && window.issueHour < 2)) {
     return {
       published: 0,
       notificationCandidates: 0,

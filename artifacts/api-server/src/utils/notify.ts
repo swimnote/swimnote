@@ -4,65 +4,15 @@ import {
   checkPushEnabled,
   sendPushToUser,
   sendPushToSuperAdmins,
-  sendRawPushWithResult,
+  sendPushToPoolAdmins,
 } from "../lib/push-service.js";
 import {
   KnownGrowthReportPushRejection,
-  UncertainGrowthReportPushError,
   notifyGrowthReportAdminsReady,
-  notifyGrowthReportParentsPublished,
-  recoverPublishedGrowthReportNotificationIntents,
   retryPendingGrowthReportNotifications,
+  UncertainGrowthReportPushError,
   type GrowthReportNotification,
 } from "./growth-report-notification-outbox.js";
-
-async function deliverGrowthReportPush(
-  item: GrowthReportNotification,
-): Promise<void | { providerReceiptId?: string }> {
-  const isParent = item.recipientType === "parent_account";
-  if (!await checkPushEnabled(item.recipientId, item.type, isParent)) return;
-
-  const tokenColumn = isParent ? sql.raw("parent_account_id") : sql.raw("user_id");
-  const tokenRows = await db.execute(sql`
-    SELECT DISTINCT token
-    FROM push_tokens
-    WHERE ${tokenColumn} = ${item.recipientId}
-      AND token IS NOT NULL
-      AND token != ''
-  `);
-  const tokens = (tokenRows.rows as Array<{ token: string }>).map(row => row.token);
-  if (tokens.length === 0) return;
-
-  const result = await sendRawPushWithResult(
-    tokens,
-    item.title,
-    item.body,
-    item.payload ?? {},
-    { disableTransportRetries: true },
-    item.poolId,
-    item.reportId ?? `${item.poolId}:${item.reportPeriod}`,
-  );
-  if (result.failureCount > 0) {
-    if (
-      result.successCount === 0 &&
-      result.definitiveRejectionCount === result.failureCount
-    ) {
-      throw new KnownGrowthReportPushRejection("Push provider explicitly rejected all tokens");
-    }
-    // Partial/error counts may include accepted devices. Preserve any Expo
-    // ticket ids and never blindly retry the whole account fan-out.
-    const providerReceiptId = result.providerReceiptIds.length > 0
-      ? JSON.stringify(result.providerReceiptIds)
-      : undefined;
-    throw new UncertainGrowthReportPushError(
-      "Push outcome has partial or ambiguous provider acceptance; reconcile before retry",
-      providerReceiptId,
-    );
-  }
-  return result.providerReceiptIds.length > 0
-    ? { providerReceiptId: JSON.stringify(result.providerReceiptIds) }
-    : undefined;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Super Admin Notification — 슈퍼 어드민 전용 알림 (5종)
@@ -304,11 +254,100 @@ export async function notifyGrowthReportPublished(params: {
   publishedAt?: string;
   actorId?:     string;
 }): Promise<void> {
-  await notifyGrowthReportParentsPublished(
-    db,
-    params,
-    deliverGrowthReportPush,
-  );
+  const { reportId, studentId, poolId, reportPeriod, actorId } = params;
+
+  // 학생 이름 조회 (PII 최소: 이름만, 진단/분석 내용 금지)
+  let studentName = "학생";
+  try {
+    const sr = (await db.execute(sql`
+      SELECT name FROM students WHERE id = ${studentId} LIMIT 1
+    `)).rows as any[];
+    if (sr.length > 0 && sr[0].name) studentName = sr[0].name;
+  } catch { /* 이름 조회 실패는 무시 — 기본값 "학생" 사용 */ }
+
+  // report_period → "M월" (e.g. "2026-07" → "7월")
+  const month = parseInt(reportPeriod.split("-")[1] ?? "1", 10);
+  const monthLabel = `${month}월`;
+
+  // Product 문구 (정적, ENGINE 해석/GPT 생성 금지)
+  // §I 정책: "지난달 성장리포트가 도착했습니다" / "지난 한 달 동안의 성장 모습을 확인해보세요."
+  const title    = "지난달 성장리포트가 도착했습니다";
+  const body     = "지난 한 달 동안의 성장 모습을 확인해보세요.";
+  const deepLink = `/parent/growth-report-detail?reportId=${reportId}`;
+
+  // 승인된 보호자 조회 (DISTINCT — 중복 relation 방어)
+  let parentIds: string[] = [];
+  try {
+    const parentRows = (await db.execute(sql`
+      SELECT DISTINCT parent_id
+      FROM parent_students
+      WHERE student_id = ${studentId}
+        AND status = 'approved'
+    `)).rows as any[];
+    parentIds = parentRows.map(r => r.parent_id).filter(Boolean);
+  } catch (err) {
+    console.error("[notify] GR7 parent_students 조회 실패:", err);
+    return;
+  }
+
+  for (const parentId of parentIds) {
+    try {
+      // 영구 멱등성: SELECT pre-check (성능 최적화) + ON CONFLICT DO NOTHING (DB 레벨 최종 보장)
+      // GR-M8: uq_notifications_gr_published partial unique index (type, ref_id, recipient_id)
+      //        WHERE type='GROWTH_REPORT_PUBLISHED' — concurrent 실행 시에도 정확히 1회 보장.
+      const dup = (await db.execute(sql`
+        SELECT 1 FROM notifications
+        WHERE type = 'GROWTH_REPORT_PUBLISHED'
+          AND ref_id = ${reportId}
+          AND recipient_id = ${parentId}
+        LIMIT 1
+      `)).rows;
+      if (dup.length > 0) continue;
+
+      // Notification Center에 저장 (GR7 §13)
+      // ON CONFLICT DO NOTHING: race condition 시 duplicate push 완전 차단
+      const id = `notif_gr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const insertRes = await db.execute(sql`
+        INSERT INTO notifications
+          (id, recipient_id, recipient_type, pool_id, type, title, body,
+           ref_id, ref_type, deep_link, is_read)
+        VALUES
+          (${id}, ${parentId}, 'parent_account', ${poolId},
+           'GROWTH_REPORT_PUBLISHED', ${title}, ${body},
+           ${reportId}, 'growth_report', ${deepLink}, false)
+        ON CONFLICT (type, ref_id, recipient_id)
+          WHERE type = 'GROWTH_REPORT_PUBLISHED'
+        DO NOTHING
+        RETURNING id
+      `);
+
+      // CONFLICT로 INSERT 건너뜀 → push 불필요
+      if (!insertRes.rows.length) {
+        console.log(`[notify] GR7 notification already exists (race): report=${reportId} parent=${parentId}`);
+        continue;
+      }
+
+      // Push delivery (기존 preference 정책 존중 — sendPushToUser가 ON/OFF 확인)
+      await sendPushToUser(
+        parentId, true, "GROWTH_REPORT_PUBLISHED", title, body,
+        {
+          screen:           "growth_report_detail",
+          growth_report_id: reportId,
+          report_period:    reportPeriod,
+          deep_link:        deepLink,
+        },
+        actorId,
+      ).catch(err => {
+        // Push 실패는 Notification Center 저장에 영향 없음 (spec §17)
+        console.error(`[notify] GR7 push failed parent=${parentId}:`, err);
+      });
+
+      console.log(`[notify] GR7 notification created: report=${reportId} parent=${parentId}`);
+    } catch (err) {
+      // 개별 parent 실패는 다른 parent에 영향 없음
+      console.error(`[notify] GR7 notification failed parent=${parentId}:`, err);
+    }
+  }
 }
 
 /**
@@ -502,27 +541,160 @@ export async function notifyComment(
 
 export async function notifyBatchComplete(params: {
   poolId:  string;
+  message: string;
+}): Promise<void> {
+  const { poolId, message } = params;
+  try {
+    // pool_admin 역할 보유자에게 발송 (users 테이블 기준, same pool only)
+    const admins = (await db.execute(sql`
+      SELECT DISTINCT id AS user_id
+      FROM users
+      WHERE swimming_pool_id = ${poolId}
+        AND role = 'pool_admin'
+    `)).rows as any[];
+
+    const title = "AI 성장리포트 발송 준비 완료";
+
+    // 1. DB 알림 저장
+    const dbPromises = admins.map(a =>
+      sendNotification({
+        recipientId:   a.user_id,
+        recipientType: "user",
+        poolId,
+        type:          "GROWTH_REPORT_BATCH_READY",
+        title,
+        body:          message,
+        refId:         poolId,
+        refType:       "pool",
+      }).catch(e => console.error(`[notify] batchComplete db notif user=${a.user_id}:`, e))
+    );
+    await Promise.allSettled(dbPromises);
+
+    // 2. 앱 push 알림 (fire-and-forget)
+    sendPushToPoolAdmins(
+      poolId,
+      "growth_report",
+      title,
+      message,
+      { screen: "growth_report_list", pool_id: poolId },
+      "system",
+    ).catch(e => console.error("[notify] notifyBatchComplete push 오류:", e));
+
+  } catch (err) {
+    console.error("[notify] notifyBatchComplete 오류:", err);
+  }
+}
+
+/**
+ * Monthly automation only: announce that generated reports are ready for
+ * pool-admin review. This is deliberately separate from the legacy batch
+ * notification and never notifies parents or publishes a report.
+ */
+async function sendMonthlyGrowthReportAdminPush(
+  item: GrowthReportNotification,
+): Promise<void | { providerReceiptId?: string }> {
+  if (!await checkPushEnabled(item.recipientId, "growth_report")) return;
+
+  const tokenRows = await db.execute(sql`
+    SELECT DISTINCT token
+    FROM push_tokens
+    WHERE user_id = ${item.recipientId}
+      AND token IS NOT NULL
+      AND token != ''
+  `);
+  const tokens = (tokenRows.rows as Array<{ token: string }>).map(row => row.token);
+  if (!tokens.length) return;
+
+  const chunkSize = 100;
+  let accepted = 0;
+  const receiptIds: string[] = [];
+  for (let offset = 0; offset < tokens.length; offset += chunkSize) {
+    const chunk = tokens.slice(offset, offset + chunkSize);
+    let response: Response;
+    try {
+      response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(chunk.map(to => ({
+          to,
+          title: item.title,
+          body: item.body,
+          data: item.payload ?? {},
+          sound: "default",
+        }))),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (error) {
+      throw new UncertainGrowthReportPushError(
+        error instanceof Error ? error.message : String(error),
+        receiptIds.length ? JSON.stringify(receiptIds) : undefined,
+      );
+    }
+
+    if (response.status === 429) {
+      if (accepted > 0) {
+        throw new UncertainGrowthReportPushError("Expo partially accepted the admin notification");
+      }
+      throw new KnownGrowthReportPushRejection("Expo explicitly rate-limited the admin notification");
+    }
+    if (!response.ok) {
+      if (response.status >= 500 || accepted > 0) {
+        throw new UncertainGrowthReportPushError(`Expo returned HTTP ${response.status}`);
+      }
+      throw new KnownGrowthReportPushRejection(`Expo rejected the admin notification (HTTP ${response.status})`);
+    }
+
+    let tickets: any[];
+    try {
+      const result = await response.json() as any;
+      if (!Array.isArray(result?.data) || result.data.length !== chunk.length) {
+        throw new Error("Expo response did not include one ticket per token");
+      }
+      tickets = result.data;
+    } catch (error) {
+      throw new UncertainGrowthReportPushError(
+        error instanceof Error ? error.message : String(error),
+        receiptIds.length ? JSON.stringify(receiptIds) : undefined,
+      );
+    }
+
+    let rejected = 0;
+    for (const ticket of tickets) {
+      if (ticket?.status === "ok") {
+        accepted++;
+        if (typeof ticket.id === "string" && ticket.id) receiptIds.push(ticket.id);
+      } else if (ticket?.status === "error") {
+        rejected++;
+      } else {
+        throw new UncertainGrowthReportPushError(
+          "Expo returned a ticket without a definitive status",
+          receiptIds.length ? JSON.stringify(receiptIds) : undefined,
+        );
+      }
+    }
+    if (rejected > 0) {
+      if (accepted > 0) {
+        throw new UncertainGrowthReportPushError(
+          "Expo partially accepted the admin notification",
+          receiptIds.length ? JSON.stringify(receiptIds) : undefined,
+        );
+      }
+      throw new KnownGrowthReportPushRejection("Expo explicitly rejected all admin notification tokens");
+    }
+  }
+  return receiptIds.length ? { providerReceiptId: JSON.stringify(receiptIds) } : undefined;
+}
+
+export async function notifyMonthlyGrowthReportPrepared(params: {
+  poolId: string;
   reportPeriod: string;
   message: string;
   readiness?: Record<string, number>;
-}): Promise<void> {
-  await notifyGrowthReportAdminsReady(
-    db,
-    params,
-    deliverGrowthReportPush,
-  );
+}): Promise<number> {
+  return notifyGrowthReportAdminsReady(db, params, sendMonthlyGrowthReportAdminPush);
 }
 
-/** Queue sweeper used by the monthly worker to retry provider failures/reclaim leases. */
-export async function retryGrowthReportNotificationOutbox(limit = 100): Promise<number> {
-  await recoverPublishedGrowthReportNotificationIntents(
-    db,
-    deliverGrowthReportPush,
-    Math.max(1, Math.min(200, limit)),
-  );
-  return retryPendingGrowthReportNotifications(
-    db,
-    deliverGrowthReportPush,
-    limit,
-  );
+/** Retry only admin-ready notification intents created by monthly automation. */
+export async function retryGrowthReportNotifications(limit = 100): Promise<number> {
+  return retryPendingGrowthReportNotifications(db, sendMonthlyGrowthReportAdminPush, limit);
 }

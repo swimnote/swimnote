@@ -55,13 +55,20 @@ describe("monthly growth-report admin readiness", () => {
     expect(query).toContain("history.left_at >= ");
   });
 
-  it("does not let batch job completion determine ready report totals", async () => {
-    const { readFileSync } = await import("node:fs");
-    const route = readFileSync(
-      new URL("../../routes/admin-growth-report-production.ts", import.meta.url),
-      "utf8",
+  it("derives ready totals from report rows independently of batch job completion", async () => {
+    const execute = vi.fn().mockResolvedValue({
+      rows: [
+        { product_status: "REVIEW_REQUIRED", analysis_status: "COMPLETE", readiness_eligible: true },
+      ],
+    });
+    const readiness = await getMonthlyReportReadiness(
+      { execute } as any,
+      { poolId: "pool-1", reportPeriod: "2026-09" },
     );
-    expect(route).toContain("getMonthlyReportReadiness");
-    expect(route).toContain("admin_readiness: readiness");
+
+    expect(readiness).toMatchObject({ analysis_ready: 1, total: 1 });
+    const query = queryText(execute.mock.calls[0][0]);
+    expect(query).toContain("FROM growth_reports");
+    expect(query).not.toContain("growth_report_batch_jobs");
   });
 });

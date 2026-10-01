@@ -8,7 +8,7 @@ import {
 
 const dialect = new PgDialect();
 const queryText = (value: any) => dialect.sqlToQuery(value).sql;
-const issueAt = new Date("2026-10-04T15:00:00.000Z"); // October 5, 00:00 KST
+const issueAt = new Date("2026-10-04T17:00:00.000Z"); // October 5, 02:00 KST
 
 describe("monthly FREE report admin-review opener (legacy publisher entrypoint)", () => {
   it("maps issuance to the prior analysis month in KST", () => {
@@ -17,18 +17,18 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
       analysisStart: "2026-09-01",
       issueMonthStart: "2026-10-01",
     });
-    expect(freeReportIssueWindow(new Date("2026-11-04T15:00:00Z")).reportPeriod).toBe("2026-10");
+    expect(freeReportIssueWindow(new Date("2026-11-04T17:00:00Z")).reportPeriod).toBe("2026-10");
     expect(SEPTEMBER_2026_FREE_REPORT_PERIOD).toBe(
       "2026년 10월 5일 발급되는 무료 AI 성장리포트는 2026년 9월 1일 00:00 KST 이상, 2026년 10월 1일 00:00 KST 미만의 9월 수업 데이터를 대상으로 한다.",
     );
   });
 
-  it("does not open review or notify anyone before the fifth KST day", async () => {
+  it("does not open review or notify anyone before the fifth-day 02:00 KST window", async () => {
     const execute = vi.fn();
     const notifyAdmin = vi.fn();
     const result = await runMonthlyFreeAutoPublication(
       { execute } as any,
-      new Date("2026-10-04T14:59:59Z"),
+      new Date("2026-10-04T16:59:59Z"),
       notifyAdmin,
     );
     expect(result).toMatchObject({ published: 0, notificationCandidates: 0, adminReviewReady: 0 });
@@ -86,10 +86,17 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
     const { readFileSync } = await import("node:fs");
     const batchWorker = readFileSync(new URL("../growth-report-batch-worker.ts", import.meta.url), "utf8");
     const scheduler = readFileSync(new URL("../growth-report-scheduler.ts", import.meta.url), "utf8");
+    const autoPublisher = readFileSync(new URL("../growth-report-auto-publisher.ts", import.meta.url), "utf8");
     expect(batchWorker).not.toContain("sendAdminReadyPush");
     expect(batchWorker).not.toContain("runScheduledPushes");
+    expect(batchWorker).toContain("retryGrowthReportNotifications");
+    expect(batchWorker).not.toContain("retryGrowthReportNotificationOutbox");
     expect(batchWorker).toContain('{ timezone: "Asia/Seoul" }');
     expect(scheduler).toContain('{ timezone: "Asia/Seoul" }');
     expect(batchWorker).not.toContain("SET product_status = 'PUBLISHED'");
+    expect(autoPublisher).toContain("notifyMonthlyGrowthReportPrepared");
+    expect(autoPublisher).not.toContain("notifyBatchComplete");
+    expect(autoPublisher).not.toContain("autoApproveAndPublishForDelivery");
+    expect(autoPublisher).not.toContain("notifyGrowthReportPublished");
   });
 });

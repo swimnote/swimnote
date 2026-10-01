@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { MigrationDb } from "../lib/migration-db.js";
 
-/** Additive, restart-safe notification delivery outbox. Not executed here. */
+/** Additive, restart-safe outbox for monthly admin-ready notices only. */
 export async function up(db: MigrationDb): Promise<void> {
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS growth_report_notification_outbox (
@@ -9,7 +9,6 @@ export async function up(db: MigrationDb): Promise<void> {
       notification_type   TEXT NOT NULL,
       swimming_pool_id    TEXT NOT NULL,
       report_period       TEXT NOT NULL,
-      report_id           TEXT,
       recipient_id        TEXT NOT NULL,
       recipient_type      TEXT NOT NULL,
       title               TEXT NOT NULL,
@@ -28,20 +27,15 @@ export async function up(db: MigrationDb): Promise<void> {
       created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT growth_report_notification_outbox_status_chk
-        CHECK (status IN ('PENDING', 'CLAIMED', 'DISPATCHING', 'DELIVERED', 'UNCERTAIN'))
+        CHECK (status IN ('PENDING', 'CLAIMED', 'DISPATCHING', 'DELIVERED', 'UNCERTAIN')),
+      CONSTRAINT growth_report_notification_outbox_admin_only_chk
+        CHECK (notification_type = 'GROWTH_REPORT_BATCH_READY' AND recipient_type = 'user')
     );
   `));
   await db.execute(sql.raw(`
-    CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_report_outbox_admin_period_recipient
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_report_outbox_admin_pool_period_recipient
       ON growth_report_notification_outbox
-        (notification_type, swimming_pool_id, report_period, recipient_id)
-      WHERE notification_type = 'GROWTH_REPORT_BATCH_READY' AND report_id IS NULL;
-  `));
-  await db.execute(sql.raw(`
-    CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_report_outbox_parent_report_recipient
-      ON growth_report_notification_outbox
-        (notification_type, report_id, recipient_id)
-      WHERE notification_type = 'GROWTH_REPORT_PUBLISHED' AND report_id IS NOT NULL;
+        (swimming_pool_id, report_period, recipient_id);
   `));
   await db.execute(sql.raw(`
     CREATE INDEX IF NOT EXISTS idx_growth_report_outbox_retry
@@ -51,7 +45,6 @@ export async function up(db: MigrationDb): Promise<void> {
 }
 
 export async function down(db: MigrationDb): Promise<void> {
-  // Preserve durable delivery/reconciliation history on rollback. This
-  // additive table is intentionally left in place for a data-preserving down.
+  // Preserve durable admin-notification delivery history on rollback.
   void db;
 }

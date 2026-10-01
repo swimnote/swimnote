@@ -152,10 +152,6 @@ function makeDb(opts: DbMockOptions = {}) {
       if (q.includes("growth_report_answers")) {
         return { rows: opts.parentAnswers ?? [] };
       }
-      // Lifecycle service read used to validate its status CAS.
-      if (q.includes("SELECT id, product_status, swimming_pool_id, deleted_at")) {
-        return opts.reportRow ? { rows: [opts.reportRow] } : { rows: [] };
-      }
       // FOR UPDATE (transitionReportStatus internal SELECT) — MUST come before product_status check
       if (q.includes("FOR UPDATE")) {
         if (opts.reportRow) return { rows: [opts.reportRow] };
@@ -169,14 +165,6 @@ function makeDb(opts: DbMockOptions = {}) {
       // next_audit_version
       if (q.includes("next_audit_version")) {
         return { rows: [{ v: opts.nextVersion ?? 1 }] };
-      }
-      // Lifecycle status CAS update (`transitionReportStatus`).
-      if (
-        q.includes("UPDATE growth_reports") &&
-        q.includes("SET product_status") &&
-        q.includes("RETURNING id")
-      ) {
-        return { rows: [{ id: "gr_test01" }] };
       }
       // Published history (getPublishedReportHistory) — after FOR UPDATE check
       if (q.includes("product_status = 'PUBLISHED'") || q.includes("AND product_status")) {

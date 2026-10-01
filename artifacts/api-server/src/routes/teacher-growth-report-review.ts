@@ -21,7 +21,7 @@
  *
  * Actions (spec §6):
  *   APPROVE            → REVIEW_REQUIRED → APPROVED  (via transitionReportStatus)
- *   REQUEST_REANALYSIS → REVIEW_REQUIRED → READY_FOR_ANALYSIS (new identity, GR3 worker)
+ *   REQUEST_REANALYSIS → REVIEW_REQUIRED → ANALYZING (new request_id, GR3 worker)
  *
  * Loop protection (spec §15):
  *   teacher_reanalysis_count >= GROWTH_REPORT_MAX_TEACHER_REANALYSIS (default 3)
@@ -518,10 +518,13 @@ teacherGrowthReportReviewRouter.post(
       if (action === "REQUEST_REANALYSIS") {
         const newRequestId = `grre_${randomUUID().replace(/-/g, "")}`;
 
-        // Persist the changed review input as the durable identity boundary.
-        // Keep the previously successful result intact until a replacement
-        // result is committed; the new request ID and cleared snapshot hash
-        // prevent the old analysis identity from being reused.
+        // Serialize teacher_review for ENGINE snapshot (backward-compatible string field)
+        const teacherReviewPayload = JSON.stringify({
+          reason_code: reason_code ?? "OTHER",
+          note:        note ?? null,
+        });
+
+        // Save review metadata + new request_id + reset retry count
         await superAdminDb.execute(sql`
           UPDATE growth_reports
           SET
@@ -532,19 +535,18 @@ teacherGrowthReportReviewRouter.post(
             teacher_review_note         = ${note ?? null},
             teacher_reanalysis_count    = COALESCE(teacher_reanalysis_count, 0) + 1,
             analysis_request_id         = ${newRequestId},
-            snapshot_hash               = NULL,
             analysis_retry_count        = 0,
             updated_at                  = now()
           WHERE id = ${reportId}
             AND deleted_at IS NULL
         `);
 
-        // READY_FOR_ANALYSIS is the real worker queue state. ANALYZING is a
-        // claimed/in-progress state and is intentionally not queued here.
+        // Transition: REVIEW_REQUIRED → ANALYZING
+        // (GR3 worker will pick this up if it polls ANALYZING — or fire directly)
         await transitionReportStatus({
           db:        superAdminDb,
           reportId,
-          toStatus:  "READY_FOR_ANALYSIS",
+          toStatus:  "ANALYZING",
           actorType: role as "teacher" | "pool_admin" | "super_admin",
           actorId:   userId,
           reason:    `TEACHER_REVIEW_REANALYSIS_REQUESTED:${reason_code ?? "OTHER"}`,
@@ -565,7 +567,7 @@ teacherGrowthReportReviewRouter.post(
           ` by=${userId} reason=${reason_code} new_request_id=${newRequestId}`,
         );
 
-        // Fire GR3 worker asynchronously; it claims the READY_FOR_ANALYSIS row.
+        // Fire GR3 worker asynchronously (new ANALYZING report will be picked up)
         setImmediate(async () => {
           try {
             await runGrowthReportAnalysisWorker(superAdminDb);
@@ -576,7 +578,7 @@ teacherGrowthReportReviewRouter.post(
 
         res.status(200).json({
           success:                    true,
-          product_status:             "READY_FOR_ANALYSIS",
+          product_status:             "ANALYZING",
           review_action:              "REQUEST_REANALYSIS",
           teacher_review_reason_code: reason_code ?? null,
           teacher_reanalysis_count:   reanalysisCount + 1,

@@ -29,7 +29,6 @@ import {
   MAX_CONCURRENT_CHUNKS,
   MAX_RETRY_ATTEMPTS,
   RETRY_BASE_DELAY_MS,
-  sendChunkWithRetry,
   sendRawPushWithResult,
   _setRetryDelayMs,
 } from "../push-service.js";
@@ -41,7 +40,7 @@ afterEach(() => _setRetryDelayMs(RETRY_BASE_DELAY_MS));
 
 // ── fetch mock ────────────────────────────────────────────────────────────────
 
-type MockTicket = { status: "ok" | "error"; id?: string; details?: { error?: string } };
+type MockTicket = { status: "ok" | "error"; details?: { error?: string } };
 
 /**
  * Build a global fetch mock that returns Expo-format ticket responses.
@@ -231,39 +230,6 @@ describe("WP5-A: 1 token → 1 request", async () => {
     expect(calls[0][0].to).toBe("ExponentPushToken[abc]");
     expect(result.successCount).toBe(1);
     expect(result.chunks).toBe(1);
-  });
-
-  it("returns provider receipt ids and definitive ticket rejections", async () => {
-    const accepted = await sendWithMock(
-      ["ExponentPushToken[accepted]"],
-      [[{ status: "ok", id: "expo-ticket-1" }]],
-    );
-    expect(accepted.result.providerReceiptIds).toEqual(["expo-ticket-1"]);
-    expect(accepted.result.definitiveRejectionCount).toBe(0);
-
-    const rejected = await sendWithMock(
-      ["ExponentPushToken[rejected]"],
-      [[{ status: "error", details: { error: "MessageTooBig" } }]],
-    );
-    expect(rejected.result.definitiveRejectionCount).toBe(1);
-  });
-
-  it("durable callers can disable ambiguous transport retries", async () => {
-    const { fetchImpl, calls } = mockFetch(["network-error", "ok"]);
-    vi.stubGlobal("fetch", fetchImpl);
-    vi.stubGlobal("AbortSignal", { timeout: (_ms: number) => undefined });
-    try {
-      const result = await sendChunkWithRetry(
-        [{ to: "ExponentPushToken[ambiguous]", title: "t", body: "b" }],
-        0,
-        { retryTransients: false },
-      );
-      expect(calls).toHaveLength(1);
-      expect(result.failure).toBe(1);
-      expect(result.definitiveRejections).toBe(0);
-    } finally {
-      vi.unstubAllGlobals();
-    }
   });
 });
 

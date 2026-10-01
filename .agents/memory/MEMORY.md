@@ -36,8 +36,7 @@
 - [Growth Report v3 eligibility + curriculum gauge fix](growth-report-v3-done.md) — v3(MIN_SOURCE=1)+punctuation filter+previous usable context+SCP 0%버그(cv.is_active→archived_at); SHA 622b956d
 - [Growth Report Engine Secret 설정 규칙](growth-report-engine-secret.md) — GROWTH_REPORT_ENGINE_SECRET=JWT_SECRET 96자 full값 필수; Render API truncate로 60자만 보임; 불일치시 항상 401
 - [성장 리포트 엔진 업그레이드 완료 상태](gr-engine-upgrade-state.md) — Engine Standard(2vCPU/2GB)+STAGE_B=20; API BATCH=200/CONCURRENCY=20+드레인+워치독; p50 실측 후 조정 필요
-- [★ 무료 성장리포트 발급 V1.0](growth-report-issuance-constitution.md) — KST 전월 분석·5일 관리자 검토·명시적 관리자 send 후에만 학부모 공개; 이전 자동 공개 정책 대체
-- [성장리포트 알림 전송 경계](growth-report-notification-delivery-policy.md) — 명시적 실패는 재시도, 제공자 수락 여부가 불확실한 PUSH는 확인 없이 재전송 금지
+- [★ 무료 성장리포트 발급 V1.0](growth-report-issuance-constitution.md) — 월간 자동화는 KST 전월 분석·5일 관리자 준비까지만; 이후 기존 관리자·PC·승인·발송·학부모 경로 보존
 - [업무 대화 스레드 구조](request-thread-structure.md) — parent_request_messages 테이블 auto-create 패턴; system message helper; teacher/parent 공통 API
 - [Production DB 연결 방법](prod-db-connection-method.md) — executeSql=NeonDB(Replit내장); 실제운영DB=SUPABASE_DATABASE_URL; /tmp tsx스크립트+buildConfig+pg Pool로 직접 연결
 - [Grounded support escalation](grounded-support-escalation.md) — GPT·Human 전환은 동일 Case의 반복·검증 근거·명시적 미해결 확인을 모두 거쳐야 함

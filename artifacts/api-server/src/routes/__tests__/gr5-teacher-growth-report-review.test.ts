@@ -104,9 +104,6 @@ function makeDb(opts: DbOptions = {}) {
       }
       // UPDATE growth_reports (review metadata + status)
       if (q.includes("UPDATE growth_reports")) {
-        if (q.includes("RETURNING id") && q.includes("product_status")) {
-          return { rowCount: 1, rows: [{ id: opts.reportRow?.id ?? REPORT_ID }] };
-        }
         return { rowCount: 1, rows: [] };
       }
       // audit
@@ -383,7 +380,7 @@ describe("B. APPROVE action", () => {
 // ─── C. REQUEST_REANALYSIS action ─────────────────────────────────────────────
 
 describe("C. REQUEST_REANALYSIS action", () => {
-  it("TC19: REQUEST_REANALYSIS → 200 product_status=READY_FOR_ANALYSIS", async () => {
+  it("TC19: REQUEST_REANALYSIS → 200 product_status=ANALYZING", async () => {
     setupDb({
       reportRow: BASE_REPORT, teacherOwns: true,
       forUpdateReport: { id: REPORT_ID, product_status: "REVIEW_REQUIRED", swimming_pool_id: POOL_ID, deleted_at: null },
@@ -393,11 +390,11 @@ describe("C. REQUEST_REANALYSIS action", () => {
       .send({ action: "REQUEST_REANALYSIS", reason_code: "WRONG_CONTEXT" });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.product_status).toBe("READY_FOR_ANALYSIS");
+    expect(res.body.product_status).toBe("ANALYZING");
     expect(res.body.review_action).toBe("REQUEST_REANALYSIS");
   });
 
-  it("TC20: REQUEST_REANALYSIS transitions REVIEW_REQUIRED → READY_FOR_ANALYSIS", async () => {
+  it("TC20: REQUEST_REANALYSIS transitions REVIEW_REQUIRED → ANALYZING", async () => {
     vi.mocked(transitionReportStatus).mockClear();
     setupDb({
       reportRow: BASE_REPORT, teacherOwns: true,
@@ -406,7 +403,7 @@ describe("C. REQUEST_REANALYSIS action", () => {
     await request(app).post(`/teacher/growth-reports/${REPORT_ID}/review`)
       .send({ action: "REQUEST_REANALYSIS", reason_code: "INSUFFICIENT_CONTEXT" });
     expect(vi.mocked(transitionReportStatus)).toHaveBeenCalledWith(
-      expect.objectContaining({ toStatus: "READY_FOR_ANALYSIS" }),
+      expect.objectContaining({ toStatus: "ANALYZING" }),
     );
   });
 
@@ -458,25 +455,6 @@ describe("C. REQUEST_REANALYSIS action", () => {
       s.includes("UPDATE growth_reports") && s.includes("analysis_retry_count") && s.includes("0"),
     );
     expect(updateCall).toBeDefined();
-  });
-
-  it("TC24b: REQUEST_REANALYSIS invalidates the snapshot hash before requeue", async () => {
-    setupDb({
-      reportRow: BASE_REPORT, teacherOwns: true,
-      forUpdateReport: { id: REPORT_ID, product_status: "REVIEW_REQUIRED", swimming_pool_id: POOL_ID, deleted_at: null },
-    });
-    await request(app).post(`/teacher/growth-reports/${REPORT_ID}/review`)
-      .send({ action: "REQUEST_REANALYSIS", reason_code: "OTHER" });
-    const calls = (vi.mocked(superAdminDb).execute as any).mock.calls
-      .map(([q]: any) => q?.queryChunks?.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("") ?? "");
-    const identityUpdate = calls.find((s: string) =>
-      s.includes("UPDATE growth_reports") && s.includes("analysis_request_id"),
-    );
-    expect(identityUpdate).toContain("snapshot_hash");
-    expect(identityUpdate).toContain("NULL");
-    expect(vi.mocked(transitionReportStatus)).toHaveBeenCalledWith(
-      expect.objectContaining({ toStatus: "READY_FOR_ANALYSIS" }),
-    );
   });
 
   it("TC25: REQUEST_REANALYSIS does NOT delete existing report_content", async () => {
@@ -699,8 +677,8 @@ describe("I. Regression", () => {
     expect(ALLOWED_TRANSITIONS.REVIEW_REQUIRED).toContain("APPROVED");
   });
 
-  it("REVIEW_REQUIRED → READY_FOR_ANALYSIS is in ALLOWED_TRANSITIONS", () => {
-    expect(ALLOWED_TRANSITIONS.REVIEW_REQUIRED).toContain("READY_FOR_ANALYSIS");
+  it("REVIEW_REQUIRED → ANALYZING is in ALLOWED_TRANSITIONS", () => {
+    expect(ALLOWED_TRANSITIONS.REVIEW_REQUIRED).toContain("ANALYZING");
   });
 
   it("GR4 regression — parentGrowthReportRouter still importable", async () => {

@@ -34,19 +34,10 @@ import {
 }                               from "../lib/growth-report-production-service.js";
 import { runMonthlyBatchCron }  from "../jobs/growth-report-batch-worker.js";
 import { notifyPoolEvent }      from "../lib/pg-realtime.js";
-import {
-  getMonthlyReportReadiness,
-  monthlyReadinessStatus,
-} from "../jobs/growth-report-monthly-readiness.js";
 
 const db = superAdminDb;
 
 const router = Router();
-
-function currentKstYearMonth(): { year: number; month: number } {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  return { year: kst.getUTCFullYear(), month: kst.getUTCMonth() + 1 };
-}
 
 /** DB에서 반환된 timestamp (Date | string | null) → ISO 8601 string | null
  *  PostgreSQL micro-seconds(6자리) → JS Date는 milli-seconds(3자리)만 지원
@@ -91,18 +82,14 @@ router.get(
       const poolId = parsePoolAdmin(req);
       if (!poolId) return res.status(403).json({ error: "pool_admin 전용" });
 
-      const current = currentKstYearMonth();
-      const year  = req.query["year"]  ? parseInt(String(req.query["year"]),  10) : current.year;
-      const month = req.query["month"] ? parseInt(String(req.query["month"]), 10) : current.month;
-      const prevMonth = month === 1 ? 12 : month - 1;
-      const prevYear = month === 1 ? year - 1 : year;
-      const reportPeriod = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+      const year  = req.query["year"]  ? parseInt(String(req.query["year"]),  10) : new Date().getFullYear();
+      const month = req.query["month"] ? parseInt(String(req.query["month"]), 10) : new Date().getMonth() + 1;
 
       const r = await db.execute(sql`
         SELECT
           id, swimming_pool_id, year, month, job_type,
           status, target_count, completed_count, failed_count, attempts,
-          started_at, completed_at,
+          started_at, completed_at, admin_push_sent_at,
           created_at, updated_at
         FROM growth_report_batch_jobs
         WHERE swimming_pool_id = ${poolId}
@@ -112,45 +99,11 @@ router.get(
         LIMIT 1
       `);
 
-      const [readiness, deliveryResult] = await Promise.all([
-        getMonthlyReportReadiness(db, { poolId, reportPeriod }),
-        db.execute(sql`
-          SELECT
-            COUNT(*)::int AS recipients,
-            COUNT(*) FILTER (WHERE status = 'DELIVERED')::int AS delivered,
-            COUNT(*) FILTER (WHERE status IN ('PENDING', 'CLAIMED'))::int AS pending,
-            COUNT(*) FILTER (WHERE status = 'DISPATCHING')::int AS dispatching,
-            COUNT(*) FILTER (WHERE status = 'UNCERTAIN')::int AS uncertain,
-            ARRAY_AGG(id ORDER BY created_at) FILTER (
-              WHERE status IN ('DISPATCHING', 'UNCERTAIN')
-            ) AS reconcile_ids
-          FROM growth_report_notification_outbox
-          WHERE notification_type = 'GROWTH_REPORT_BATCH_READY'
-            AND swimming_pool_id = ${poolId}
-            AND report_period = ${reportPeriod}
-            AND report_id IS NULL
-        `),
-      ]);
-      const delivery = (deliveryResult.rows[0] ?? {}) as any;
-      const adminNotificationStatus = Number(delivery.uncertain ?? 0) > 0 ? "UNCERTAIN"
-        : Number(delivery.dispatching ?? 0) > 0 ? "DISPATCHING"
-        : Number(delivery.pending ?? 0) > 0 ? "PENDING"
-        : Number(delivery.delivered ?? 0) > 0 ? "DELIVERED"
-        : "NOT_QUEUED";
-
       if (!r.rows.length) {
-        return res.json({
-          exists: false, year, month, pool_id: poolId, report_period: reportPeriod,
-          admin_readiness: readiness, admin_notification_status: adminNotificationStatus,
-          admin_notification_reconcile_ids: delivery.reconcile_ids ?? [],
-        });
+        return res.json({ exists: false, year, month, pool_id: poolId });
       }
 
-      return res.json({
-        exists: true, job: r.rows[0], report_period: reportPeriod,
-        admin_readiness: readiness, admin_notification_status: adminNotificationStatus,
-        admin_notification_reconcile_ids: delivery.reconcile_ids ?? [],
-      });
+      return res.json({ exists: true, job: r.rows[0] });
     } catch (err: any) {
       console.error("[WP8] batch-status error:", err.message);
       return res.status(500).json({ error: "서버 오류" });
@@ -169,16 +122,11 @@ router.get(
       const poolId = parsePoolAdmin(req);
       if (!poolId) return res.status(403).json({ error: "pool_admin 전용" });
 
-      const current = currentKstYearMonth();
-      const year  = req.query["year"]  ? parseInt(String(req.query["year"]),  10) : current.year;
-      const month = req.query["month"] ? parseInt(String(req.query["month"]), 10) : current.month;
+      const year  = req.query["year"]  ? parseInt(String(req.query["year"]),  10) : new Date().getFullYear();
+      const month = req.query["month"] ? parseInt(String(req.query["month"]), 10) : new Date().getMonth() + 1;
 
       const summary = await getMonthlyReportSummary(db, { poolId, year, month });
-      const readiness = await getMonthlyReportReadiness(db, {
-        poolId,
-        reportPeriod: summary.period,
-      });
-      return res.json({ ...summary, admin_readiness: readiness });
+      return res.json(summary);
     } catch (err: any) {
       console.error("[WP8] monthly-summary error:", err.message);
       return res.status(500).json({ error: "서버 오류" });
@@ -197,9 +145,8 @@ router.get(
       const poolId = parsePoolAdmin(req);
       if (!poolId) return res.status(403).json({ error: "pool_admin 전용" });
 
-      const current = currentKstYearMonth();
-      const year  = req.query["year"]  ? parseInt(String(req.query["year"]),  10) : current.year;
-      const month = req.query["month"] ? parseInt(String(req.query["month"]), 10) : current.month;
+      const year  = req.query["year"]  ? parseInt(String(req.query["year"]),  10) : new Date().getFullYear();
+      const month = req.query["month"] ? parseInt(String(req.query["month"]), 10) : new Date().getMonth() + 1;
       const limit  = Math.min(parseInt(String(req.query["limit"]  ?? "100"), 10), 200);
       const offset = parseInt(String(req.query["offset"] ?? "0"), 10);
       const q      = req.query["q"] ? String(req.query["q"]).trim() : null;
@@ -214,10 +161,6 @@ router.get(
           SELECT DISTINCT ON (gr.student_id, gr.cycle_id)
             gr.id, gr.student_id, gr.cycle_id,
             gr.product_status, gr.analysis_status, gr.version_number,
-            gr.exclusion_code, gr.eligibility_version, gr.attendance_count,
-            gr.source_event_count, gr.analysis_retry_count,
-            gr.report_fact_package, gr.sns_summary,
-            gr.swimming_pool_id,
             gr.discarded_at, gr.discard_reason, gr.discarded_by,
             gr.created_at, gr.updated_at, gr.published_at,
             gr.period_start, gr.period_end,
@@ -246,67 +189,6 @@ router.get(
           l.updated_at,
           l.admin_reviewed_at,
           l.admin_reviewed_by,
-          l.exclusion_code,
-          l.analysis_retry_count,
-          (
-            l.product_status IN ('REVIEW_REQUIRED', 'READY_TO_SEND', 'APPROVED')
-            AND l.analysis_status IN (
-              'COMPLETE', 'COMPLETE_WITH_QUESTIONS_AVAILABLE', 'COMPLETE_WITH_PARENT_EVIDENCE'
-            )
-            AND l.eligibility_version >= 4
-            AND l.exclusion_code IS NULL
-            AND l.attendance_count >= 3
-            AND l.source_event_count >= 1
-            AND jsonb_typeof(l.report_content) = 'object'
-            AND l.report_content <> '{}'::jsonb
-            AND jsonb_typeof(l.report_fact_package) = 'object'
-            AND jsonb_typeof(l.sns_summary) = 'object'
-            AND l.report_fact_package->>'grounding_result' IN ('PASS', 'REVISED_PASS')
-            AND l.report_fact_package->>'growth_framing_result' IN ('PASS', 'REVISED_PASS')
-            AND s.status = 'active'
-            AND s.deleted_at IS NULL
-            AND s.swimming_pool_id = l.swimming_pool_id
-            AND EXISTS (
-              SELECT 1
-              FROM student_class_history history
-              JOIN class_groups class_group ON class_group.id = history.class_group_id
-              WHERE history.student_id = l.student_id
-                AND class_group.swimming_pool_id = l.swimming_pool_id
-                AND history.enrolled_at < (to_date(l.report_period || '-01', 'YYYY-MM-DD') + INTERVAL '1 month')
-                AND (history.left_at IS NULL OR history.left_at >= (to_date(l.report_period || '-01', 'YYYY-MM-DD') + INTERVAL '1 month'))
-            )
-          ) AS readiness_eligible,
-          (
-            SELECT CASE
-              WHEN COUNT(*) FILTER (WHERE outbox.status = 'UNCERTAIN') > 0 THEN 'UNCERTAIN'
-              WHEN COUNT(*) FILTER (WHERE outbox.status = 'DISPATCHING') > 0 THEN 'DISPATCHING'
-              WHEN COUNT(*) FILTER (WHERE outbox.status IN ('PENDING', 'CLAIMED')) > 0
-                AND COUNT(*) FILTER (WHERE outbox.status = 'DELIVERED') > 0 THEN 'PARTIAL'
-              WHEN COUNT(*) FILTER (WHERE outbox.status IN ('PENDING', 'CLAIMED')) > 0 THEN 'PENDING'
-              WHEN COUNT(*) FILTER (WHERE outbox.status = 'DELIVERED') > 0 THEN 'DELIVERED'
-              ELSE 'NOT_QUEUED'
-            END
-            FROM growth_report_notification_outbox outbox
-            WHERE outbox.notification_type = 'GROWTH_REPORT_PUBLISHED'
-              AND outbox.report_id = l.id
-          ) AS parent_notification_status,
-          (
-            SELECT COUNT(*) FILTER (WHERE outbox.status = 'UNCERTAIN')::int
-            FROM growth_report_notification_outbox outbox
-            WHERE outbox.notification_type = 'GROWTH_REPORT_PUBLISHED'
-              AND outbox.report_id = l.id
-          ) AS parent_notification_uncertain_count,
-          (
-            SELECT COALESCE(
-              ARRAY_AGG(outbox.id ORDER BY outbox.created_at) FILTER (
-                WHERE outbox.status IN ('DISPATCHING', 'UNCERTAIN')
-              ),
-              ARRAY[]::text[]
-            )
-            FROM growth_report_notification_outbox outbox
-            WHERE outbox.notification_type = 'GROWTH_REPORT_PUBLISHED'
-              AND outbox.report_id = l.id
-          ) AS parent_notification_reconcile_ids,
           cg.name             AS class_name,
           u.name              AS teacher_name,
           -- snippet for preview
@@ -335,21 +217,12 @@ router.get(
         SELECT COUNT(*) AS cnt FROM latest
         WHERE product_status != 'NOT_OPEN'
       `);
-      const readiness = await getMonthlyReportReadiness(db, {
-        poolId,
-        reportPeriod: period,
-      });
-      const items = (rows.rows as any[]).map(item => ({
-        ...item,
-        readiness_status: monthlyReadinessStatus(item),
-      }));
 
       return res.json({
         year, month, period,
         total: Number((total.rows[0] as any)?.cnt ?? 0),
         limit, offset,
-        admin_readiness: readiness,
-        items,
+        items: rows.rows,
       });
     } catch (err: any) {
       console.error("[WP8] monthly-list error:", err.message);

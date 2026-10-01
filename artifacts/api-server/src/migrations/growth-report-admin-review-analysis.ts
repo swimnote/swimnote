@@ -1,8 +1,8 @@
 /**
  * Additive schema for durable growth-report ENGINE request replay.
  *
- * This migration is intentionally not registered or executed here. The
- * application migration registry will include it separately.
+ * The three persisted fields let recovery replay the exact APP→ENGINE request
+ * and apply a validated response without issuing a duplicate ENGINE call.
  */
 import { sql } from "drizzle-orm";
 import type { MigrationDb } from "../lib/migration-db.js";

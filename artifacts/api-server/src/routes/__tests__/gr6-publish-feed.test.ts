@@ -38,14 +38,7 @@ const BASE_APPROVED_REPORT = {
   id:                  REPORT_ID,
   student_id:          STUDENT_ID,
   swimming_pool_id:    POOL_ID,
-  cycle_id:            "gr6_cycle_01",
   product_status:      "APPROVED",
-  report_type:         "monthly",
-  analysis_status:     "COMPLETE",
-  eligibility_version: 4,
-  exclusion_code:      null,
-  attendance_count:    3,
-  source_event_count:  1,
   report_period:       PERIOD,
   report_content:      { summary_text: "잘 성장했어요" },
   report_fact_package: VALID_FACT_PACKAGE,
@@ -78,20 +71,6 @@ function makeDb(opts: DbOpts = {}) {
       const q: string = query?.queryChunks
         ? query.queryChunks.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("")
         : String(query?.sql ?? query ?? "");
-      const expandedSql: string[] = [];
-      const appendSql = (chunk: any) => {
-        if (typeof chunk === "string") {
-          expandedSql.push(chunk);
-        } else if (Array.isArray(chunk?.queryChunks)) {
-          chunk.queryChunks.forEach(appendSql);
-        } else if (Array.isArray(chunk?.value)) {
-          chunk.value.forEach(appendSql);
-        } else if (typeof chunk?.value === "string") {
-          expandedSql.push(chunk.value);
-        }
-      };
-      query?.queryChunks?.forEach(appendSql);
-      const sqlText = expandedSql.join("");
       calls.push(q.replace(/\s+/g, " ").trim());
 
       if (q.includes("FOR UPDATE")) {
@@ -101,52 +80,13 @@ function makeDb(opts: DbOpts = {}) {
         };
         return { rows: row ? [row] : [] };
       }
-      if (/SELECT\s+product_status,\s*deleted_at,\s*published_at\s+FROM\s+growth_reports/.test(sqlText)) {
-        const latest = opts.afterPublished ?? opts.reportRow;
-        return { rows: latest ? [latest] : [] };
+      if (q.includes("SELECT published_at") && q.includes("FROM growth_reports")) {
+        return { rows: [opts.afterPublished ?? { published_at: "2026-07-21T09:00:00.000Z" }] };
       }
       if (q.includes("FROM growth_reports") && q.includes("WHERE id") && !q.includes("UPDATE")) {
         return opts.reportRow ? { rows: [opts.reportRow] } : { rows: [] };
       }
       if (q.includes("UPDATE growth_reports")) {
-        const report = opts.reportRow;
-        const hasValidEligibilityFixture = Boolean(report?.cycle_id) &&
-          report?.report_type === "monthly" &&
-          ["COMPLETE", "COMPLETE_WITH_QUESTIONS_AVAILABLE", "COMPLETE_WITH_PARENT_EVIDENCE"].includes(report?.analysis_status) &&
-          Number(report?.eligibility_version) >= 4 &&
-          report?.exclusion_code == null &&
-          Number(report?.attendance_count) >= 3 &&
-          Number(report?.source_event_count) >= 1;
-        const isScopedMonthlyPublish = hasValidEligibilityFixture &&
-          sqlText.includes("UPDATE growth_reports AS gr") &&
-          sqlText.includes("WHERE gr.id =") &&
-          sqlText.includes("AND gr.swimming_pool_id =") &&
-          sqlText.includes("AND gr.product_status = 'APPROVED'") &&
-          sqlText.includes("AND gr.deleted_at IS NULL") &&
-          sqlText.includes("FROM growth_report_cycles AS publication_cycle") &&
-          sqlText.includes("publication_cycle.id = gr.cycle_id") &&
-          sqlText.includes("publication_cycle.swimming_pool_id = gr.swimming_pool_id") &&
-          sqlText.includes("JOIN swimming_pools AS publication_pool") &&
-          sqlText.includes("JOIN students AS publication_student") &&
-          sqlText.includes("publication_student.id = gr.student_id") &&
-          sqlText.includes("JOIN class_groups AS publication_class") &&
-          sqlText.includes("AT TIME ZONE 'Asia/Seoul'") &&
-          sqlText.includes("RETURNING gr.id, gr.student_id, gr.swimming_pool_id, gr.report_period, gr.published_at");
-        if (isScopedMonthlyPublish) {
-          if (opts.afterPublished?.product_status === "PUBLISHED") {
-            return { rowCount: 0, rows: [] };
-          }
-          return {
-            rowCount: 1,
-            rows: [{
-              id: opts.reportRow?.id ?? REPORT_ID,
-              student_id: opts.reportRow?.student_id ?? STUDENT_ID,
-              swimming_pool_id: opts.reportRow?.swimming_pool_id ?? POOL_ID,
-              report_period: opts.reportRow?.report_period ?? PERIOD,
-              published_at: "2026-07-21T09:00:00.000Z",
-            }],
-          };
-        }
         return { rowCount: 1, rows: [] };
       }
       if (q.includes("next_audit_version")) {
@@ -392,14 +332,24 @@ describe("A. publishGrowthReport service", () => {
     ).rejects.toThrow(PublishPreconditionError);
   });
 
-  it("TC14: concurrent publish loses guarded update → alreadyPublished=true", async () => {
+  it("blocks publishing when summary and all parent-facing sections are empty", async () => {
+    const db = makeDb({
+      reportRow: {
+        ...BASE_APPROVED_REPORT,
+        report_content: { summary_text: "  ", sections: {} },
+      },
+    });
+
+    await expect(
+      publishGrowthReport({ db, reportId: REPORT_ID, actorId: ADMIN_ID, actorType: "pool_admin" }),
+    ).rejects.toThrow("EMPTY_REPORT");
+    expect(db._calls.some((query) => query.includes("UPDATE growth_reports"))).toBe(false);
+  });
+
+  it("TC14: concurrent publish → ReportTerminalError → alreadyPublished=true", async () => {
     const db = makeDb({
       reportRow:    BASE_APPROVED_REPORT,
-      afterPublished: {
-        product_status: "PUBLISHED",
-        deleted_at: null,
-        published_at: "2026-07-21T09:00:00.000Z",
-      },
+      forUpdateRow: { id: REPORT_ID, swimming_pool_id: POOL_ID, deleted_at: null, product_status: "PUBLISHED" },
     });
     const result = await publishGrowthReport({ db, reportId: REPORT_ID, actorId: ADMIN_ID, actorType: "pool_admin" });
     expect(result.alreadyPublished).toBe(true);
@@ -437,22 +387,22 @@ describe("A. publishGrowthReport service", () => {
 describe("B. POST /teacher/growth-reports/:reportId/publish route", () => {
   // Standard success sequence for superAdminDb.execute:
   //   1. pool check SELECT (route level)
-  //   2. initial SELECT id/product_status/.../deleted_at/published_at
-  //   3. scoped monthly-guard UPDATE with a valid RETURNING row
-  //   4. next_audit_version
-  //   5. INSERT audit_logs
+  //   2. initial SELECT id/product_status/.../deleted_at/published_at  (publishGrowthReport)
+  //   3. SELECT FOR UPDATE (transitionReportStatus)
+  //   4. UPDATE product_status
+  //   5. UPDATE published_at
+  //   6. next_audit_version
+  //   7. INSERT audit_logs
+  //   8. SELECT published_at (re-fetch)
   const successSequence = [
     { rows: [{ swimming_pool_id: POOL_ID }] },                          // 1. pool check
     { rows: [BASE_APPROVED_REPORT] },                                    // 2. initial SELECT
-    { rows: [{
-      id: REPORT_ID,
-      student_id: STUDENT_ID,
-      swimming_pool_id: POOL_ID,
-      report_period: PERIOD,
-      published_at: "2026-07-21T09:00:00.000Z",
-    }] },                                                                // 3. guarded UPDATE RETURNING
-    { rows: [{ v: 1 }] },                                                // 4. audit version
-    { rowCount: 1, rows: [] },                                           // 5. audit insert
+    { rows: [{ id: REPORT_ID, swimming_pool_id: POOL_ID, deleted_at: null, product_status: "APPROVED" }] }, // 3. FOR UPDATE
+    { rowCount: 1, rows: [] },                                           // 4. UPDATE status
+    { rowCount: 1, rows: [] },                                           // 5. UPDATE published_at
+    { rows: [{ v: 1 }] },                                               // 6. audit version
+    { rowCount: 1, rows: [] },                                           // 7. audit insert
+    { rows: [{ published_at: "2026-07-21T09:00:00.000Z" }] },          // 8. re-fetch
   ];
 
   let adminApp: any;
@@ -496,15 +446,12 @@ describe("B. POST /teacher/growth-reports/:reportId/publish route", () => {
   it("TC18: super_admin → 200 (no pool check)", async () => {
     await setupSuperAdminSequence([
       { rows: [BASE_APPROVED_REPORT] },
-      { rows: [{
-        id: REPORT_ID,
-        student_id: STUDENT_ID,
-        swimming_pool_id: POOL_ID,
-        report_period: PERIOD,
-        published_at: "2026-07-21T09:00:00.000Z",
-      }] },
+      { rows: [{ id: REPORT_ID, swimming_pool_id: POOL_ID, deleted_at: null, product_status: "APPROVED" }] },
+      { rowCount: 1, rows: [] },
+      { rowCount: 1, rows: [] },
       { rows: [{ v: 1 }] },
       { rowCount: 1, rows: [] },
+      { rows: [{ published_at: "2026-07-21T09:00:00.000Z" }] },
     ]);
     const res = await request(superApp).post(`/teacher/growth-reports/${REPORT_ID}/publish`);
     expect(res.status).toBe(200);
@@ -577,7 +524,7 @@ describe("B. POST /teacher/growth-reports/:reportId/publish route", () => {
     expect(res.body.alreadyPublished).toBe(true);
   });
 
-  it("TC26: audit INSERT called after guarded publish", async () => {
+  it("TC26: audit INSERT called (via transitionReportStatus)", async () => {
     const db = makeDb({ reportRow: BASE_APPROVED_REPORT });
     await publishGrowthReport({ db, reportId: REPORT_ID, actorId: ADMIN_ID, actorType: "pool_admin" });
     const auditCalls = db._calls.filter((c: string) => c.includes("audit_logs"));

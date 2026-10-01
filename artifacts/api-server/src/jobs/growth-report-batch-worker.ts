@@ -34,7 +34,7 @@ import {
   transitionToReadyToSend,
   refreshWp8Snapshot,
 }                                          from "../lib/growth-report-production-service.js";
-import { retryGrowthReportNotificationOutbox } from "../utils/notify.js";
+import { retryGrowthReportNotifications } from "../utils/notify.js";
 import { runMonthlyFreeAutoPublication } from "./growth-report-auto-publisher.js";
 
 type Db = typeof superAdminDb;
@@ -580,8 +580,8 @@ export function startGrowthReportBatchWorker(): void {
         console.error("[gr-admin-review] worker error:", e.message)
       );
     }
-    await retryGrowthReportNotificationOutbox().catch(e =>
-      console.error("[gr-notification-outbox] worker error:", e.message)
+    await retryGrowthReportNotifications().catch(e =>
+      console.error("[gr-admin-notification] retry worker error:", e.message)
     );
   }, { timezone: "Asia/Seoul" });
 

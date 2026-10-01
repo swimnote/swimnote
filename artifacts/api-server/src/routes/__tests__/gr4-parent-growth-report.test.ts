@@ -45,10 +45,6 @@ const BASE_REPORT = {
   parent_input_close_at: CLOSE_AT,
 };
 
-// Parent question input remains supported for non-monthly report types.
-// "quarterly" is allowed by chk_gr_report_type in pool-db-x-init.ts.
-const NONMONTHLY_REPORT = { ...BASE_REPORT, report_type: "quarterly" };
-
 const BASE_QUESTIONS = [
   {
     id: Q1_ID, report_id: REPORT_ID,
@@ -149,7 +145,7 @@ function makeDb(opts: DbOptions = {}) {
       }
       // UPDATE growth_reports
       if (q.includes("UPDATE growth_reports")) {
-        return { rowCount: 1, rows: [{ id: REPORT_ID }] };
+        return { rowCount: 1, rows: [] };
       }
       // audit_logs
       if (q.includes("next_audit_version")) {
@@ -244,7 +240,7 @@ const app = buildApp();
 
 describe("A. Question API access", () => {
   it("TC1: parent own child report → 200 + questions", async () => {
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -253,24 +249,11 @@ describe("A. Question API access", () => {
   });
 
   it("TC2: other child report → 403 OWNERSHIP_DENIED", async () => {
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: false });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: false });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     expect(res.status).toBe(403);
     expect(res.body.error).toBe("OWNERSHIP_DENIED");
   });
-
-  it.each(["monthly", null])(
-    "TC2a: %s report does not expose parent questions",
-    async (reportType) => {
-      setupDb({
-        reportRow: { ...BASE_REPORT, report_type: reportType },
-        hasParentLink: true,
-      });
-      const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
-      expect(res.status).toBe(403);
-      expect(res.body.error).toBe("FREE_MONTHLY_QUESTIONS_DISABLED");
-    },
-  );
 
   it("TC3: report not found for pool → 404", async () => {
     setupDb({ reportRow: undefined });
@@ -284,7 +267,7 @@ describe("A. Question API access", () => {
       allowed: true, mode: "x", poolId: POOL_ID,
       modeResult: { mode: "x", xmode_entitlement: true } as any,
     });
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     expect(res.status).toBe(200);
   });
@@ -295,14 +278,14 @@ describe("A. Question API access", () => {
     vi.mocked(requireReportXAccess).mockImplementationOnce((_req: any, res: any) => {
       res.status(403).json({ success: false, error: "XMODE_NOT_ENTITLED" });
     });
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     expect(res.status).toBe(403);
     expect(res.body.error).toBe("XMODE_NOT_ENTITLED");
   });
 
   it("TC6: questions 0개 정상 (empty array)", async () => {
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true, questions: [] });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true, questions: [] });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     expect(res.status).toBe(200);
     expect(res.body.questions).toHaveLength(0);
@@ -310,7 +293,7 @@ describe("A. Question API access", () => {
   });
 
   it("TC7: question order by sequence (both sequences present)", async () => {
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     expect(res.status).toBe(200);
     const seqs = res.body.questions.map((q: any) => q.sequence);
@@ -319,7 +302,7 @@ describe("A. Question API access", () => {
   });
 
   it("TC8: SINGLE_CHOICE response contract (answer_type + options + is_required=false)", async () => {
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     const q = res.body.questions.find((q: any) => q.answer_type === "SINGLE_CHOICE");
     expect(q).toBeDefined();
@@ -329,7 +312,7 @@ describe("A. Question API access", () => {
   });
 
   it("TC9: MULTI_CHOICE contract (answer_type + options)", async () => {
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     const q = res.body.questions.find((q: any) => q.answer_type === "MULTI_CHOICE");
     expect(q).toBeDefined();
@@ -338,7 +321,7 @@ describe("A. Question API access", () => {
 
   it("TC10: existing answer included in response", async () => {
     setupDb({
-      reportRow: NONMONTHLY_REPORT, hasParentLink: true,
+      reportRow: BASE_REPORT, hasParentLink: true,
       answers: [{ question_id: Q1_ID, selected_values: ["YES"] }],
     });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
@@ -471,7 +454,7 @@ describe("C. Input window enforcement", () => {
   });
 
   it("TC23: CLOSED → GET questions allowed (read-only)", async () => {
-    setupDb({ reportRow: { ...NONMONTHLY_REPORT, parent_input_status: "CLOSED" }, hasParentLink: true });
+    setupDb({ reportRow: { ...BASE_REPORT, parent_input_status: "CLOSED" }, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     expect(res.status).toBe(200);
     expect(res.body.parent_input_status).toBe("CLOSED");
@@ -479,7 +462,7 @@ describe("C. Input window enforcement", () => {
 
   it("TC24: ANSWERED read → 200 with answered_questions=1", async () => {
     setupDb({
-      reportRow: { ...NONMONTHLY_REPORT, parent_input_status: "ANSWERED" },
+      reportRow: { ...BASE_REPORT, parent_input_status: "ANSWERED" },
       hasParentLink: true,
       answers: [{ question_id: Q1_ID, selected_values: ["YES"] }],
     });
@@ -664,7 +647,7 @@ describe("G. Audit", () => {
   });
 
   it("TC39: no other parent account data in questions response", async () => {
-    setupDb({ reportRow: NONMONTHLY_REPORT, hasParentLink: true });
+    setupDb({ reportRow: BASE_REPORT, hasParentLink: true });
     const res = await request(app).get(`/parent/growth-reports/${REPORT_ID}/questions`);
     const json = JSON.stringify(res.body);
     expect(json).not.toContain(OTHER_PARENT);
