@@ -30,7 +30,6 @@ import { acquireLock, releaseLock }        from "../lib/schedulerLock.js";
 import { notifyPoolEvent }                from "../lib/pg-realtime.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
 import {
-  getSealedMonthlyTargetRoster,
   sealMonthlyTargets,
 } from "../lib/growth-report-monthly-targets.js";
 import { computeMonthlyFreePeriodTimestamps } from "./growth-report-scheduler.js";
@@ -40,6 +39,12 @@ import {
 }                                          from "../lib/growth-report-production-service.js";
 import { retryGrowthReportNotifications } from "../utils/notify.js";
 import { runMonthlyFreeAutoPublication } from "./growth-report-auto-publisher.js";
+import {
+  registerMonthlyAutomationRun,
+  getMonthlyAutomationRunForCycle,
+  recordMonthlyFirstPassOutcome,
+  recordMonthlyPoolPreparation,
+} from "../lib/growth-report-monthly-run.js";
 
 type Db = typeof superAdminDb;
 
@@ -99,8 +104,15 @@ export async function getEligibleStudents(
   if (!cycle.rows.length) {
     throw new Error(`Monthly target roster is not sealed for cycle ${cycleId}.`);
   }
-  const roster = await getSealedMonthlyTargetRoster(db, cycleId);
-  return roster.map(({ studentId }) => ({ studentId, classGroupId: null }));
+  const roster = await db.execute(sql`
+    SELECT student_id, policy_excluded_at
+    FROM growth_report_eligible_targets
+    WHERE cycle_id = ${cycleId}
+    ORDER BY student_id
+  `);
+  return (roster.rows as any[])
+    .filter(row => !row.policy_excluded_at)
+    .map(row => ({ studentId: row.student_id as string, classGroupId: null }));
 }
 
 // ── ensureBatchJobs ───────────────────────────────────────────────────────────
@@ -232,6 +244,8 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
     return;
   }
   const resolvedCycleId: string = cycleId; // closure 내 타입 좁히기
+  const monthlyRun = await getMonthlyAutomationRunForCycle(db, resolvedCycleId);
+  const isManifestedPool = monthlyRun?.is_manifested_pool === true;
 
   // ── 2. 봉인된 cycle roster 확보 ───────────────────────────────────────────
   await sealMonthlyTargets(db, {
@@ -239,6 +253,27 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
     poolId,
     reportPeriod,
   });
+  if (isManifestedPool) {
+    const prepared = await recordMonthlyPoolPreparation(db, {
+      reportPeriod,
+      poolId,
+      cycleId: resolvedCycleId,
+    });
+    if (!prepared) throw new Error("MONTHLY_POOL_PREPARATION_ACCOUNTING_FAILED");
+    const excluded = await db.execute(sql`
+      SELECT student_id
+      FROM growth_report_eligible_targets
+      WHERE cycle_id = ${resolvedCycleId}
+        AND policy_excluded_at IS NOT NULL
+    `);
+    for (const target of excluded.rows as Array<{ student_id: string }>) {
+      await recordMonthlyFirstPassOutcome(db, {
+        cycleId: resolvedCycleId,
+        studentId: target.student_id,
+        outcome: "policy_excluded",
+      });
+    }
+  }
   await db.transaction(async (tx: any) => {
     await lockBatchJobOwner(tx, jobId, workerId);
     await tx.execute(sql`
@@ -312,6 +347,25 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
       } catch (err: any) {
         console.error(`[gr-batch] student preparation failed pool=${poolId}`);
         studentMutex.failed++;
+        if (isManifestedPool) {
+          const report = await db.execute(sql`
+            SELECT id
+            FROM growth_reports
+            WHERE cycle_id = ${resolvedCycleId}
+              AND student_id = ${studentId}
+              AND deleted_at IS NULL
+            LIMIT 1
+          `);
+          if (!report.rows.length) {
+            await recordMonthlyFirstPassOutcome(db, {
+              cycleId: resolvedCycleId,
+              studentId,
+              outcome: "missing",
+              errorCode: "BATCH_TARGET_REPORT_MISSING",
+              errorCategory: "MISSING",
+            });
+          }
+        }
         // 한 학생 오류가 전체 pool을 중단시키지 않도록 continue
       }
       // Atomic progress and lease heartbeat. Every write is fenced by owner ID.
@@ -632,14 +686,35 @@ export async function runMonthlyBatchCron(db: Db, now: Date = new Date()): Promi
 
   try {
     const poolIds = await getXEligiblePools(db);
-    if (!poolIds.length) {
-      console.log("[gr-batch] no X-eligible pools");
+    const current = getKSTNow(now);
+    const currentPeriod = computeMonthlyFreePeriodTimestamps(current.year, current.month).reportPeriod;
+    const frozenRun = await registerMonthlyAutomationRun(db, {
+      reportPeriod: currentPeriod,
+      poolIds,
+      now,
+    });
+    const frozenMembers = frozenRun
+      ? await db.execute(sql`
+          SELECT swimming_pool_id
+          FROM growth_report_monthly_run_pools
+          WHERE report_period = ${currentPeriod}
+        `)
+      : null;
+    const frozenPoolIds = frozenMembers
+      ? (frozenMembers.rows as any[]).map(row => row.swimming_pool_id as string)
+      : null;
+    if (!poolIds.length && !frozenPoolIds?.length) {
+      console.log("[gr-batch] no X-eligible pools and no frozen monthly manifest");
       return;
     }
     let ensured = 0;
     let failed = 0;
     for (const issueMonth of issueMonths) {
-      const prep = await ensureBatchJobs(db, poolIds, issueMonth.year, issueMonth.month);
+      const isCurrent = issueMonth.year === current.year && issueMonth.month === current.month;
+      const periodPools = isCurrent && frozenPoolIds
+        ? frozenPoolIds
+        : poolIds;
+      const prep = await ensureBatchJobs(db, periodPools, issueMonth.year, issueMonth.month);
       ensured += prep.ensured;
       failed += prep.failed;
     }

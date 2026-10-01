@@ -31,6 +31,10 @@ import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat, refreshLock } from "../lib/schedulerLock.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
 import { sealMonthlyTargets } from "../lib/growth-report-monthly-targets.js";
+import {
+  registerMonthlyAutomationRun,
+  recordMonthlyPoolPreparation,
+} from "../lib/growth-report-monthly-run.js";
 
 type Db = typeof superAdminDb;
 
@@ -475,11 +479,40 @@ export async function runGrowthReportScheduler(
     `closeAt=${ts.parentInputCloseAt.toISOString()}`,
   );
 
+  // Freeze the exact eligible pool cohort before any cycle/target preparation.
+  // The helper is idempotent after KST day 1 and only creates on day 1.
+  let monthlyRun: any = null;
+  try {
+    monthlyRun = await registerMonthlyAutomationRun(db, {
+      reportPeriod: ts.reportPeriod,
+      poolIds: xPools.map(pool => pool.id),
+      now,
+    });
+  } catch (err: any) {
+    result.failed++;
+    result.errors.push({ code: "MONTHLY_RUN_REGISTRATION_FAILED", message: err.message });
+    console.error("[gr-scheduler] monthly run registration failed:", err.message);
+    return result;
+  }
+  const frozenMembers = monthlyRun
+    ? await db.execute(sql`
+        SELECT swimming_pool_id
+        FROM growth_report_monthly_run_pools
+        WHERE report_period = ${ts.reportPeriod}
+      `)
+    : null;
+  const frozenPoolIds = frozenMembers
+    ? (frozenMembers.rows as any[]).map(row => row.swimming_pool_id as string)
+    : null;
+  const xPoolsToOpen = frozenPoolIds
+    ? frozenPoolIds.map(id => ({ id }))
+    : xPools;
+
   // ── Step 3: Cycle/Report ensure (1일 이후면 항상 실행) ───────────────────
   const shouldOpen = now.getTime() >= ts.parentInputOpenAt.getTime();
 
-  if (shouldOpen && xPools.length > 0) {
-    for (const pool of xPools) {
+  if (shouldOpen && xPoolsToOpen.length > 0) {
+    for (const pool of xPoolsToOpen) {
       // lock heartbeat — pool loop 진입마다 TTL 갱신
       // 갱신 실패(DB 오류 또는 lock row 없음) 시 loop 중단 → finally에서 release
       let lockRefreshed: boolean;
@@ -495,11 +528,27 @@ export async function runGrowthReportScheduler(
       }
 
       try {
-        await openCycleForPool(db, pool.id, ts, result);
+        const cycleId = await openCycleForPool(db, pool.id, ts, result);
+        if (monthlyRun && cycleId) {
+          await recordMonthlyPoolPreparation(db, {
+            cycleId,
+            poolId: pool.id,
+            reportPeriod: ts.reportPeriod,
+          });
+        }
       } catch (err: any) {
         console.error(`[gr-scheduler] OPEN 실패: pool=${pool.id}:`, err.message);
         result.failed++;
         result.errors.push({ pool_id: pool.id, code: "CYCLE_OPEN_FAILED", message: err.message });
+        if (monthlyRun) {
+          await recordMonthlyPoolPreparation(db, {
+            poolId: pool.id,
+            reportPeriod: ts.reportPeriod,
+            errorCode: "CYCLE_OPEN_FAILED",
+          }).catch((recordErr: any) => {
+            console.error(`[gr-scheduler] preparation outcome failed pool=${pool.id}:`, recordErr.message);
+          });
+        }
       }
     }
   } else if (!shouldOpen) {

@@ -48,6 +48,7 @@ describe("sealed monthly growth-report reconciliation", () => {
       { product_status: "OPEN" },
     ])).toEqual({
       analysis_ready: 1,
+      insufficient_evidence: 0,
       excluded: 1,
       data_accumulating: 1,
       retrying: 1,
@@ -77,6 +78,49 @@ describe("sealed monthly growth-report reconciliation", () => {
       resolved_total: 118,
       remaining_count: 1,
       failed: 1,
+      ready: false,
+    });
+  });
+
+  it("resolves only a proven insufficient-evidence disposition without changing the sealed denominator", () => {
+    const report = {
+      student_id: "s-insufficient",
+      target_pool_id: "pool-1",
+      report_id: "report-insufficient",
+      swimming_pool_id: "pool-1",
+      product_status: "READY_TO_SEND",
+      analysis_status: "DATA_ACCUMULATING",
+      monthly_final_disposition: "INSUFFICIENT_EVIDENCE",
+      monthly_disposition_version: 1,
+      first_pass_outcome: "insufficient_evidence",
+      report_content: {
+        student_name: "학생",
+        composition_version: "APP_MONTHLY_NOTICE_V1",
+        summary_text: "이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다.",
+        sections: {},
+      },
+    };
+
+    expect(run(1, [report])).toMatchObject({
+      eligible_total: 1,
+      generated_total: 0,
+      insufficient_evidence_total: 1,
+      policy_excluded_total: 0,
+      resolved_total: 1,
+      remaining_count: 0,
+      insufficient_evidence: 1,
+      data_accumulating: 0,
+      ready: true,
+    });
+
+    expect(run(1, [{
+      ...report,
+      first_pass_outcome: "failed",
+    }])).toMatchObject({
+      eligible_total: 1,
+      insufficient_evidence_total: 0,
+      resolved_total: 0,
+      remaining_count: 1,
       ready: false,
     });
   });
@@ -238,6 +282,8 @@ describe("sealed monthly growth-report reconciliation", () => {
     expect(targetQuery).toContain("current_student.withdrawn_at > target.confirmed_at");
     expect(targetQuery).toContain("current_student.withdrawn_at = withdrawal.withdrawn_at");
     expect(targetQuery).toContain("OR current_student.deleted_at IS NOT NULL");
+    expect(targetQuery).toContain("to_jsonb(report)->>'monthly_final_disposition'");
+    expect(targetQuery).toContain("to_jsonb(target)->>'first_pass_outcome'");
     expect(targetQuery).not.toContain("DISTINCT ON");
     expect(targetQuery).not.toContain("student.status = 'active'");
     expect(queryText(execute.mock.calls[3][0])).toContain("ready_at = COALESCE");

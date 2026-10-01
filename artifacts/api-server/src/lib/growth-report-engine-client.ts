@@ -460,6 +460,7 @@ export interface GrEngineCallResult {
  */
 export async function analyzeGrowthReport(
   request: GrowthReportAnalysisRequest,
+  options: { onHttpAttempt?: () => Promise<void> } = {},
 ): Promise<GrEngineCallResult> {
   const baseUrl = getEngineUrl();
   if (!baseUrl) {
@@ -484,6 +485,21 @@ export async function analyzeGrowthReport(
   let actualCallCount = 0;
 
   try {
+    try {
+      await options.onHttpAttempt?.();
+    } catch (attemptError) {
+      const blockedByPause = attemptError instanceof Error &&
+        attemptError.message === "MONTHLY_AUTOMATION_PAUSED";
+      throw new EngineCallError(
+        blockedByPause ? "MONTHLY_AUTOMATION_PAUSED" : "MONTHLY_ATTEMPT_ACCOUNTING_FAILED",
+        0,
+        false,
+        blockedByPause
+          ? "Monthly automation is paused; request was not sent"
+          : "Monthly ENGINE attempt accounting failed; request was not sent",
+        attemptError,
+      );
+    }
     actualCallCount = 1; // HTTP request is about to be sent
     const res = await fetch(`${baseUrl}/api/v1/growth-report/analyze`, {
       method:  "POST",

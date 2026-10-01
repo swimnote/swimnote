@@ -25,6 +25,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
 import {
   computeMonthlyFreePeriodTimestamps,
   getKSTDate,
@@ -56,8 +57,13 @@ vi.mock("../../lib/growth-report-eligibility.js", () => ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function makeTestDb(responses: any[][]) {
+  const dialect = new PgDialect();
   let idx = 0;
-  const execute = vi.fn(async (_q: any) => {
+  const execute = vi.fn(async (query: any) => {
+    const text = dialect.sqlToQuery(query).sql;
+    if (text.includes("AS schema_ready")) {
+      return { rows: [{ schema_ready: false }] };
+    }
     if (idx < responses.length) return { rows: responses[idx++] };
     return { rows: [] };
   });

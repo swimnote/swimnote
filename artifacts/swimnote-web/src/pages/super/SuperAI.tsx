@@ -29,7 +29,139 @@ interface TracesResponse {
   total: number;
 }
 
-type TabKey = "templates" | "growth_stats" | "usage" | "errors" | "ai_cost";
+type TabKey = "templates" | "growth_stats" | "usage" | "errors" | "ai_cost" | "monthly";
+
+interface MonthlyException {
+  swimming_pool_id: string;
+  report_id?: string;
+  product_status?: string;
+  first_pass_outcome?: string;
+  first_pass_error_code?: string;
+  first_pass_error_category?: string;
+  preparation_error?: string;
+  recovery_epoch?: number;
+  first_pass_engine_requests?: number;
+  recovery_engine_requests?: number;
+  lookup_requests?: number;
+  recovery_allowed?: boolean;
+}
+interface MonthlyDiagnostics {
+  summary: Record<string, number | string | unknown> | null;
+  first_pass_summary?: Record<string, unknown> | null;
+  run: { paused_at: string | null; pause_reason: string | null; circuit_status: string } | null;
+  exceptions: { rows: MonthlyException[]; total: number };
+}
+
+function MonthlyExceptionsTab() {
+  const previous = new Date(Date.now() + 9 * 3_600_000);
+  previous.setUTCDate(1); previous.setUTCMonth(previous.getUTCMonth() - 1);
+  const [period, setPeriod] = useState(() =>
+    new URLSearchParams(window.location.search).get("report_period") ?? previous.toISOString().slice(0, 7));
+  const [pool, setPool] = useState("");
+  const [category, setCategory] = useState("");
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<MonthlyDiagnostics | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const load = () => {
+      const query = new URLSearchParams({ report_period: period, limit: "50", offset: String(page * 50) });
+      if (pool) query.set("pool_id", pool);
+      if (category) query.set("category", category);
+      api.get<MonthlyDiagnostics>(`/super/growth-reports/monthly-automation?${query}`)
+        .then(result => { if (active) { setData(result); setError(""); } })
+        .catch(() => { if (active) { setData(null); setError("월간 실행 정보를 불러오지 못했습니다."); } });
+    };
+    setData(null); load();
+    const timer = window.setInterval(load, 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [period, pool, category, page, revision]);
+
+  async function operate(action: "recover" | "resume", poolId?: string) {
+    if (!reason.trim() || busy) return;
+    if (!window.confirm(action === "resume" ? "원인 수정 후 제한된 probe로 재개하시겠습니까?"
+      : "이 수영장의 허용된 실패만 recovery 승인하시겠습니까? 정상 결과와 UNKNOWN은 제외됩니다.")) return;
+    setBusy(true); setError("");
+    try {
+      await api.post(action === "resume" ? "/super/growth-reports/monthly-automation/resume"
+        : "/super/growth-reports/batch-recovery", action === "resume"
+        ? { report_period: period, reason: reason.trim() }
+        : { pool_id: poolId, report_month: period, reason: reason.trim() });
+      setReason(""); setRevision(n => n + 1);
+    } catch (e) { setError(e instanceof Error ? e.message : "작업이 허용되지 않았습니다."); }
+    finally { setBusy(false); }
+  }
+  return <div className="space-y-4">
+    <div className="flex flex-wrap gap-2">
+      <label className="text-xs">분석월 (발급월의 전월)
+        <input aria-label="분석월" type="month" value={period}
+          onChange={e => { setPeriod(e.target.value); setPage(0); }} className="block border rounded p-2" /></label>
+      <input aria-label="수영장 ID" placeholder="수영장 ID" value={pool}
+        onChange={e => { setPool(e.target.value); setPage(0); }} className="border rounded p-2 text-xs" />
+      <select aria-label="오류 분류" value={category} onChange={e => { setCategory(e.target.value); setPage(0); }}
+        className="border rounded p-2 text-xs">
+        <option value="">전체 오류 분류</option>
+        {["PROVIDER", "API", "ENGINE", "NETWORK", "TIMEOUT", "UNKNOWN", "DATA", "IDENTITY", "MISSING", "PREPARATION", "OTHER"]
+          .map(value => <option key={value}>{value}</option>)}
+      </select>
+      <button onClick={() => setRevision(n => n + 1)} className="border rounded px-3 text-xs">새로고침</button>
+    </div>
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {data && !data.run && <p className="text-sm text-gray-600">등록된 월간 자동화 run이 없습니다.
+      기존 cycle을 자동 등록하거나 재분석하지 않습니다.</p>}
+    {data?.summary && <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+      {[["pool_total", "대상 수영장"], ["eligible_total", "봉인 대상"], ["generated_total", "AI 정상 생성"],
+        ["insufficient_evidence_total", "근거부족 정상 결과"], ["unresolved_pool_total", "미완료 수영장"],
+        ["unresolved_member_total", "미완료 회원"]].map(([key, label]) =>
+        <div className="border rounded p-3" key={key}>{label}<strong className="block text-lg">{String(data.summary?.[key] ?? "—")}</strong></div>)}
+    </div>}
+    {data?.first_pass_summary?.completed_at != null && <p className="text-xs text-gray-600">
+      1차 종료 당시: 정상 생성 {String(data.first_pass_summary.generated_total ?? 0)}명 /
+      근거부족 {String(data.first_pass_summary.insufficient_evidence_total ?? 0)}명 /
+      미완료 {String(data.first_pass_summary.unresolved_member_total ?? 0)}명.
+      위 집계와 아래 예외 목록은 현재 상태입니다.
+    </p>}
+    <p className="text-xs text-gray-600">Provider 실제 비용: UNKNOWN (확인 가능한 비용 근거 없음).
+      아래 횟수는 APP→ENGINE 요청이며 비용이나 provider 호출 수가 아닙니다.</p>
+    {data?.run && <p className="text-sm">Circuit: {data.run.circuit_status ?? "CLOSED"}
+      {data.run.pause_reason && ` / ${data.run.pause_reason}`}</p>}
+    <div className="flex gap-2">
+      <input aria-label="원인 수정 및 승인 사유" maxLength={500} value={reason}
+        onChange={e => setReason(e.target.value)} placeholder="원인 수정 및 승인 사유 (필수)"
+        className="border rounded p-2 text-xs flex-1" />
+      {data?.run?.paused_at && <button disabled={busy || !reason.trim()} onClick={() => operate("resume")}
+        className="border rounded px-3 text-xs disabled:opacity-40">제한된 재개 승인</button>}
+    </div>
+    <div className="overflow-x-auto border rounded">
+      <table className="w-full text-xs"><thead><tr>
+        {["수영장 / report", "현재 상태", "오류", "recovery 회차", "first / recovery / lookup", "운영"].map(x =>
+          <th key={x} className="p-2 text-left">{x}</th>)}
+      </tr></thead><tbody>{(data?.exceptions.rows ?? []).map((row, i) =>
+        <tr key={`${row.swimming_pool_id}:${row.report_id ?? i}`} className="border-t">
+          <td className="p-2">{row.swimming_pool_id}<br />{row.report_id ?? "준비 단계"}</td>
+          <td className="p-2">{row.product_status ?? row.first_pass_outcome ?? "PREPARATION"}</td>
+          <td className="p-2">{row.first_pass_error_category}<br />{row.first_pass_error_code ?? row.preparation_error}</td>
+          <td className="p-2">{row.recovery_epoch ?? 0}</td>
+          <td className="p-2">{row.first_pass_engine_requests ?? 0} / {row.recovery_engine_requests ?? 0} / {row.lookup_requests ?? 0}</td>
+          <td className="p-2">{row.recovery_allowed
+            ? <button disabled={busy || !reason.trim()} onClick={() => operate("recover", row.swimming_pool_id)}
+              className="border rounded p-1 disabled:opacity-40">허용된 실패 recovery</button>
+            : <span>HOLD / 재분석 불가</span>}</td>
+        </tr>)}</tbody></table>
+    </div>
+    {data && data.exceptions.total === 0 && <p className="text-xs">조회 조건에 해당하는 미완료 내역이 없습니다.</p>}
+    <div className="flex gap-3 text-xs items-center">
+      <button disabled={page === 0} onClick={() => setPage(n => n - 1)}>이전</button>
+      <span>{page + 1} / {Math.max(1, Math.ceil((data?.exceptions.total ?? 0) / 50))}</span>
+      <button disabled={(page + 1) * 50 >= (data?.exceptions.total ?? 0)} onClick={() => setPage(n => n + 1)}>다음</button>
+    </div>
+    <p className="text-xs text-gray-500">정상 결과·근거부족 안내·정당한 제외·UNKNOWN은 recovery하지 않습니다.
+      관리자 PUSH는 준비 완료 안내이며 학부모 발송은 기존 관리자 절차입니다.</p>
+  </div>;
+}
 
 function fmtDate(s: string) {
   return new Date(s).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
@@ -174,7 +306,8 @@ function UsageTab({ mode }: { mode: "usage" | "errors" }) {
 }
 
 export default function SuperAI() {
-  const [tab, setTab] = useState<TabKey>("templates");
+  const [tab, setTab] = useState<TabKey>(() =>
+    new URLSearchParams(window.location.search).get("tab") === "monthly" ? "monthly" : "templates");
 
   const TABS: { key: TabKey; label: string }[] = [
     { key: "templates",    label: "Global Templates" },
@@ -182,6 +315,7 @@ export default function SuperAI() {
     { key: "usage",        label: "AI 사용현황" },
     { key: "errors",       label: "AI 오류" },
     { key: "ai_cost",      label: "AI 비용" },
+    { key: "monthly",      label: "월간 성장리포트 예외" },
   ];
 
   return (
@@ -211,6 +345,7 @@ export default function SuperAI() {
       {tab === "usage"        && <UsageTab mode="usage" />}
       {tab === "errors"       && <UsageTab mode="errors" />}
       {tab === "ai_cost"      && <AiCostDashboard />}
+      {tab === "monthly"      && <MonthlyExceptionsTab />}
     </div>
   );
 }

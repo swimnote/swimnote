@@ -7,9 +7,11 @@ import {
   sendPushToPoolAdmins,
 } from "../lib/push-service.js";
 import {
+  enqueueMonthlySuperAdminEvent as enqueueMonthlySuperAdminEventInOutbox,
   KnownGrowthReportPushRejection,
   notifyGrowthReportAdminsReady,
   retryPendingGrowthReportNotifications,
+  type MonthlySuperAdminEventType,
   UncertainGrowthReportPushError,
   type GrowthReportNotification,
 } from "./growth-report-notification-outbox.js";
@@ -694,7 +696,25 @@ export async function notifyMonthlyGrowthReportPrepared(params: {
   return notifyGrowthReportAdminsReady(db, params, sendMonthlyGrowthReportAdminPush);
 }
 
-/** Retry only admin-ready notification intents created by monthly automation. */
+/**
+ * Persist a gated, aggregate-only super-admin monthly event and immediately
+ * try its per-recipient outbox intents. The shared retry tick reclaims safe
+ * failures; ambiguous provider acceptance remains UNCERTAIN.
+ */
+export async function notifyMonthlySuperAdminEvent(params: {
+  reportPeriod: string;
+  eventType: MonthlySuperAdminEventType;
+  summary?: unknown;
+  pauseEpoch?: number;
+}): Promise<number> {
+  const inserted = await enqueueMonthlySuperAdminEventInOutbox(db, params);
+  if (inserted > 0) {
+    await retryPendingGrowthReportNotifications(db, sendMonthlyGrowthReportAdminPush, inserted);
+  }
+  return inserted;
+}
+
+/** Retry pending monthly admin-ready and super-admin event intents. */
 export async function retryGrowthReportNotifications(limit = 100): Promise<number> {
   return retryPendingGrowthReportNotifications(db, sendMonthlyGrowthReportAdminPush, limit);
 }

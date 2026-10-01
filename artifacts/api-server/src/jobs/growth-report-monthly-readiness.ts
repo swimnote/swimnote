@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 
 export type MonthlyReportReadiness = {
   analysis_ready: number;
+  insufficient_evidence: number;
   excluded: number;
   data_accumulating: number;
   retrying: number;
@@ -12,6 +13,7 @@ export type MonthlyReportReadiness = {
   total: number;
   eligible_total: number;
   generated_total: number;
+  insufficient_evidence_total: number;
   policy_excluded_total: number;
   resolved_total: number;
   remaining_count: number;
@@ -34,6 +36,7 @@ export type ReadinessReportRow = {
   exclusion_code?: string | null;
   analysis_retry_count?: number | string | null;
   readiness_eligible?: boolean | string | null;
+  monthly_final_disposition?: string | null;
 };
 
 type MonthlyCycle = {
@@ -63,6 +66,10 @@ type ReconciliationRow = {
   report_content?: unknown;
   report_fact_package?: unknown;
   sns_summary?: unknown;
+  monthly_final_disposition?: string | null;
+  monthly_disposition_version?: number | string | null;
+  first_pass_outcome?: string | null;
+  report_period?: string | null;
   withdrawal_evidence_valid?: boolean | string | null;
 };
 
@@ -95,6 +102,13 @@ export function monthlyReadinessStatus(row: ReadinessReportRow): string {
   const ready = row.readiness_eligible === true || row.readiness_eligible === "t";
   if (product === "PUBLISHED") return "PUBLISHED";
   if (product === "EXCLUDED" || row.exclusion_code) return "EXCLUDED";
+  if (
+    row.monthly_final_disposition === "INSUFFICIENT_EVIDENCE" &&
+    analysis === "DATA_ACCUMULATING" &&
+    ["REVIEW_REQUIRED", "READY_TO_SEND", "APPROVED", "PUBLISHED"].includes(product)
+  ) {
+    return "INSUFFICIENT_EVIDENCE";
+  }
   if (analysis === "DATA_ACCUMULATING" || product === "DATA_ACCUMULATING") {
     return "DATA_ACCUMULATING";
   }
@@ -115,11 +129,12 @@ export function monthlyReadinessStatus(row: ReadinessReportRow): string {
 export function classifyMonthlyReadiness(
   rows: ReadinessReportRow[],
 ): Pick<MonthlyReportReadiness,
-  "analysis_ready" | "excluded" | "data_accumulating" | "retrying" |
+  "analysis_ready" | "insufficient_evidence" | "excluded" | "data_accumulating" | "retrying" |
   "pending_analysis" | "terminal_failed" | "published" | "other" | "total"
 > {
   const result = {
     analysis_ready: 0,
+    insufficient_evidence: 0,
     excluded: 0,
     data_accumulating: 0,
     retrying: 0,
@@ -139,6 +154,7 @@ export function classifyMonthlyReadiness(
       case "RETRYING": result.retrying++; break;
       case "PENDING_ANALYSIS": result.pending_analysis++; break;
       case "ANALYSIS_READY": result.analysis_ready++; break;
+      case "INSUFFICIENT_EVIDENCE": result.insufficient_evidence++; break;
       default: result.other++; break;
     }
   }
@@ -171,6 +187,29 @@ function completedReportIsQualified(row: ReconciliationRow): boolean {
     hasObjectContent(row.sns_summary) &&
     passedStoredCheck(packageData?.grounding_result) &&
     passedStoredCheck(packageData?.growth_framing_result);
+}
+
+function insufficientEvidenceReportIsResolved(row: ReconciliationRow): boolean {
+  const content = row.report_content as Record<string, unknown> | null;
+  return row.monthly_final_disposition === "INSUFFICIENT_EVIDENCE" &&
+    Number(row.monthly_disposition_version) === 1 &&
+    row.first_pass_outcome === "insufficient_evidence" &&
+    ["REVIEW_REQUIRED", "READY_TO_SEND", "APPROVED", "PUBLISHED"]
+      .includes(String(row.product_status ?? "").toUpperCase()) &&
+    String(row.analysis_status ?? "").toUpperCase() === "DATA_ACCUMULATING" &&
+    row.analysis_uncertain_at == null &&
+    !row.exclusion_code &&
+    row.report_fact_package == null &&
+    row.sns_summary == null &&
+    typeof content?.["student_name"] === "string" &&
+    !!content["student_name"].trim() &&
+    content["composition_version"] === "APP_MONTHLY_NOTICE_V1" &&
+    content?.["summary_text"] ===
+      "이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다." &&
+    !!content["sections"] &&
+    typeof content["sections"] === "object" &&
+    !Array.isArray(content["sections"]) &&
+    Object.keys(content["sections"] as object).length === 0;
 }
 
 function isUnattemptedQueuedReport(row: ReconciliationRow): boolean {
@@ -263,6 +302,7 @@ function isEligiblePolicyDisposition(
 function emptyReadiness(snapshotSealed = false): MonthlyReportReadiness {
   return {
     analysis_ready: 0,
+    insufficient_evidence: 0,
     excluded: 0,
     data_accumulating: 0,
     retrying: 0,
@@ -273,6 +313,7 @@ function emptyReadiness(snapshotSealed = false): MonthlyReportReadiness {
     total: 0,
     eligible_total: 0,
     generated_total: 0,
+    insufficient_evidence_total: 0,
     policy_excluded_total: 0,
     resolved_total: 0,
     remaining_count: 0,
@@ -317,6 +358,7 @@ export function summarizeMonthlyTargetRows(
 
   const legacyReportRows: ReadinessReportRow[] = [];
   let generated = 0;
+  let insufficientEvidence = 0;
   let policyExcluded = 0;
 
   for (const rows of targets.values()) {
@@ -325,16 +367,22 @@ export function summarizeMonthlyTargetRows(
     const generatedReport = reports.length === 1 &&
       !wrongPool &&
       completedReportIsQualified(reports[0]);
+    const insufficientEvidenceReport = reports.length === 1 &&
+      !wrongPool &&
+      insufficientEvidenceReportIsResolved(reports[0]);
     const policyDisposition = !generatedReport &&
+      !insufficientEvidenceReport &&
       isEligiblePolicyDisposition(rows, reports, now);
 
     if (reports.length > 1) result.duplicate++;
     if (wrongPool) result.wrong_pool++;
     if (generatedReport) generated++;
+    if (insufficientEvidenceReport) insufficientEvidence++;
     if (policyDisposition) policyExcluded++;
     if (reports.length === 0 && !policyDisposition) result.missing++;
 
-    if (reports.length === 1 && !wrongPool && !generatedReport && !policyDisposition) {
+    if (reports.length === 1 && !wrongPool && !generatedReport &&
+      !insufficientEvidenceReport && !policyDisposition) {
       const report = reports[0];
       if (isFailure(report)) result.failed++;
       else if (isUnknown(report)) result.unknown++;
@@ -357,6 +405,9 @@ export function summarizeMonthlyTargetRows(
         exclusion_code: report.exclusion_code,
         analysis_retry_count: report.analysis_retry_count,
         readiness_eligible: completedReportIsQualified(report),
+        monthly_final_disposition: insufficientEvidenceReportIsResolved(report)
+          ? "INSUFFICIENT_EVIDENCE"
+          : null,
       });
     }
   }
@@ -365,8 +416,9 @@ export function summarizeMonthlyTargetRows(
   Object.assign(result, legacy);
   result.eligible_total = eligibleTotal;
   result.generated_total = generated;
+  result.insufficient_evidence_total = insufficientEvidence;
   result.policy_excluded_total = policyExcluded;
-  result.resolved_total = generated + policyExcluded;
+  result.resolved_total = generated + insufficientEvidence + policyExcluded;
   result.remaining_count = Math.max(0, result.eligible_total - result.resolved_total);
 
   const targetIdentityCount = targets.size;
@@ -439,6 +491,10 @@ async function reconcileWithinTransaction(
       report.report_content,
       report.report_fact_package,
       report.sns_summary,
+      to_jsonb(report)->>'monthly_final_disposition' AS monthly_final_disposition,
+      to_jsonb(report)->>'monthly_disposition_version' AS monthly_disposition_version,
+      to_jsonb(target)->>'first_pass_outcome' AS first_pass_outcome,
+      report.report_period,
       (
         target.policy_excluded_at IS NOT NULL
         AND target.policy_exclusion_reason IS NOT NULL

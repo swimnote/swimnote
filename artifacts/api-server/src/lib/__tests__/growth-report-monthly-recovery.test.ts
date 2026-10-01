@@ -17,6 +17,7 @@ function fixture(statuses: string[]) {
       analysis_request_payload: request, snapshot_hash: request.snapshot.payload_hash,
       analysis_identity_hash: getGrowthReportAnalysisIdentityHash(request, "FINAL_ANALYSIS"),
       analysis_uncertain_at: null as Date | null, policy_excluded_at: null as Date | null,
+      recovery_epoch: 0, recovery_attempt_limit: 3,
     };
   });
   const calls: string[] = [];
@@ -25,6 +26,8 @@ function fixture(statuses: string[]) {
     execute: async (query: any) => {
       const { sql: text, params } = dialect.sqlToQuery(query);
       calls.push(text);
+      if (text.includes("AS schema_ready")) return { rows: [{ schema_ready: true }] };
+      if (text.includes("growth_report_monthly_runs")) return { rows: [] };
       if (text.includes("FROM growth_report_cycles")) return {
         rows: [{ id: "cycle", eligible_total: rows.length, eligibility_sealed_at: sealed ? new Date() : null }],
       };
@@ -35,11 +38,21 @@ function fixture(statuses: string[]) {
         row.product_status = params[0] as string;
         return { rows: [{ id: row.id }] };
       }
+      if (text.includes("UPDATE growth_report_eligible_targets")) {
+        const row = rows.find(item => params.includes(item.student_id));
+        if (!row) return { rows: [] };
+        row.recovery_epoch++;
+        return { rows: [{ student_id: row.student_id }] };
+      }
       if (text.includes("next_audit_version")) return { rows: [{ v: 1 }] };
       return { rows: [] };
     },
   };
-  return { rows, calls, db: { transaction: (fn: any) => fn(tx) }, unseal: () => { sealed = false; } };
+  return {
+    rows, calls,
+    db: { execute: (query: any) => tx.execute(query), transaction: (fn: any) => fn(tx) },
+    unseal: () => { sealed = false; },
+  };
 }
 const scope = { poolId: "pool", reportPeriod: "2026-09", actorId: "operator" };
 
@@ -60,6 +73,14 @@ describe("scoped monthly operator recovery", () => {
     expect((await recoverMonthlyTargets(f.db, scope)).reactivated).toBe(2);
     expect((await recoverMonthlyTargets(f.db, scope)).reactivated).toBe(0);
     expect(f.calls.filter(call => call.includes("INSERT INTO growth_reports"))).toHaveLength(0);
+  });
+  it("bounds legacy recovery epochs independently of the reset retry counter", async () => {
+    const f = fixture(["FAILED"]);
+    f.rows[0].recovery_attempt_limit = 1;
+    expect((await recoverMonthlyTargets(f.db, scope)).reactivated).toBe(1);
+    f.rows[0].product_status = "FAILED";
+    expect((await recoverMonthlyTargets(f.db, scope)).blocked_recovery_limit).toBe(1);
+    expect(f.rows[0].recovery_epoch).toBe(1);
   });
   it("never bypasses ENGINE UNKNOWN or legitimate policy exclusion", async () => {
     const f = fixture(["FAILED", "FAILED"]);

@@ -1,5 +1,9 @@
 import { sql } from "drizzle-orm";
 import { getGrowthReportAnalysisIdentityHash } from "./growth-report-analysis-identity.js";
+import {
+  getMonthlyAutomationRunForCycle,
+  isMonthlyAutomationSchemaReady,
+} from "./growth-report-monthly-run.js";
 
 export interface MonthlyRecoveryResult {
   action: "RECOVERED_UNFINISHED" | "NO_RECOVERABLE_TARGETS";
@@ -13,6 +17,8 @@ export interface MonthlyRecoveryResult {
   skipped_pending_or_processing: number;
   blocked_unknown: number;
   blocked_identity: number;
+  skipped_not_first_pass_failure: number;
+  blocked_recovery_limit: number;
   missing: number;
   duplicate: number;
 }
@@ -24,13 +30,16 @@ export interface MonthlyRecoveryResult {
  */
 export async function recoverMonthlyTargets(
   db: any,
-  params: { poolId: string; reportPeriod: string; actorId: string },
+  params: { poolId: string; reportPeriod: string; actorId: string; reason?: string },
 ): Promise<MonthlyRecoveryResult> {
   if (!params.poolId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(params.reportPeriod)) {
     throw new Error("INVALID_MONTHLY_RECOVERY_SCOPE");
   }
   if (typeof db.transaction !== "function") {
     throw new Error("MONTHLY_RECOVERY_REQUIRES_TRANSACTION");
+  }
+  if (!await isMonthlyAutomationSchemaReady(db)) {
+    throw new Error("MONTHLY_AUTOMATION_SCHEMA_NOT_READY");
   }
   return db.transaction(async (tx: any) => {
     const cycles = await tx.execute(sql`
@@ -42,16 +51,30 @@ export async function recoverMonthlyTargets(
     `);
     const cycle = cycles.rows[0];
     if (!cycle?.eligibility_sealed_at) throw new Error("MONTHLY_TARGETS_NOT_SEALED");
+    const automationRun = await getMonthlyAutomationRunForCycle(tx, cycle.id);
+    const recoveryReason = params.reason?.trim();
+    if (automationRun && !recoveryReason) {
+      throw new Error("MONTHLY_RECOVERY_REASON_REQUIRED");
+    }
+    const configuredLimit = Number(process.env["GROWTH_REPORT_MONTHLY_RECOVERY_MAX_EPOCHS"] ?? 3);
+    const defaultRecoveryLimit = Number.isSafeInteger(configuredLimit) && configuredLimit > 0
+      ? configuredLimit
+      : 3;
 
     const result: MonthlyRecoveryResult = {
       action: "NO_RECOVERABLE_TARGETS", pool_id: params.poolId,
       report_month: params.reportPeriod, eligible_total: Number(cycle.eligible_total),
       reactivated: 0, skipped_success: 0, skipped_policy_excluded: 0,
       skipped_initial_excluded: 0, skipped_pending_or_processing: 0,
-      blocked_unknown: 0, blocked_identity: 0, missing: 0, duplicate: 0,
+      blocked_unknown: 0, blocked_identity: 0,
+      skipped_not_first_pass_failure: 0, blocked_recovery_limit: 0,
+      missing: 0, duplicate: 0,
     };
     const targets = await tx.execute(sql`
       SELECT target.student_id, target.policy_excluded_at,
+        target.first_pass_outcome, report.monthly_final_disposition,
+        target.recovery_epoch, target.recovery_attempt_limit,
+        target.recovery_approved_at,
         report.id, report.product_status, report.analysis_request_id,
         report.analysis_request_payload, report.analysis_identity_hash,
         report.snapshot_hash, report.analysis_uncertain_at
@@ -82,10 +105,28 @@ export async function recoverMonthlyTargets(
       // Missing historical work must be restored, not recreated with a fresh
       // request ID: remote execution may already have happened.
       if (!row.id) { result.missing++; continue; }
+      if (automationRun && row.first_pass_outcome !== "failed") {
+        result.skipped_not_first_pass_failure++;
+        continue;
+      }
+      const recoveryEpoch = Number(row.recovery_epoch ?? 0);
+      const recoveryLimit = Number(row.recovery_attempt_limit ?? defaultRecoveryLimit);
+      if (recoveryEpoch >= recoveryLimit) {
+        result.blocked_recovery_limit++;
+        continue;
+      }
       if (["REVIEW_REQUIRED", "READY_TO_SEND", "APPROVED", "PUBLISHED"].includes(row.product_status)) {
         result.skipped_success++; continue;
       }
       if (row.product_status === "EXCLUDED") { result.skipped_initial_excluded++; continue; }
+      if (
+        automationRun &&
+        row.monthly_final_disposition &&
+        row.monthly_final_disposition !== "FAILED"
+      ) {
+        result.skipped_not_first_pass_failure++;
+        continue;
+      }
       if (row.analysis_uncertain_at) { result.blocked_unknown++; continue; }
       if (row.product_status !== "FAILED") {
         result.skipped_pending_or_processing++; continue;
@@ -119,6 +160,29 @@ export async function recoverMonthlyTargets(
           AND deleted_at IS NULL
         RETURNING id
       `);
+      if (updated.rows.length > 0) {
+        const approval = await tx.execute(sql`
+          UPDATE growth_report_eligible_targets
+          SET recovery_epoch = ${recoveryEpoch + 1},
+              recovery_approved_at = NOW(),
+              recovery_approved_by = ${params.actorId},
+              recovery_approval_reason = ${recoveryReason || "LEGACY_OPERATOR_RECOVERY"},
+              recovery_attempt_limit = COALESCE(
+                recovery_attempt_limit,
+                ${defaultRecoveryLimit}
+              )
+          WHERE cycle_id = ${cycle.id}
+            AND student_id = ${row.student_id}
+            AND recovery_epoch = ${recoveryEpoch}
+            AND (
+              ${!automationRun}
+              OR first_pass_outcome = 'failed'
+            )
+            AND (recovery_attempt_limit IS NULL OR recovery_epoch < recovery_attempt_limit)
+          RETURNING student_id
+        `);
+        if (!approval.rows.length) throw new Error("MONTHLY_RECOVERY_FENCE_LOST");
+      }
       result.reactivated += updated.rows.length;
     }
     if (result.reactivated > 0) {

@@ -78,11 +78,155 @@ import {
 } from "../lib/growth-report-analysis-claim.js";
 import { saveAiTrace }  from "../lib/ai-trace-service.js";
 import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
+import {
+  getMonthlyAutomationRunForCycle,
+  canDispatchMonthlyAnalysis,
+  recordMonthlyFirstPassOutcome,
+  recordMonthlyServiceOutcome,
+  recordMonthlyHttpAttempt,
+  finishMonthlyFirstPass,
+  isMonthlyAutomationSchemaReady,
+  type MonthlyFirstPassOutcome,
+} from "../lib/growth-report-monthly-run.js";
+import { notifyMonthlySuperAdminEvent } from "../utils/notify.js";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
 const ANALYSIS_LOCK    = "growth-report-analysis";
 const LOCK_TTL_SECONDS = 600;  // 10 min (generous for slow GPT)
+
+async function notifyMonthlyCircuitPause(
+  db: any,
+  cycleId: string,
+  errorCode: string,
+): Promise<void> {
+  const paused = await db.execute(sql`
+    SELECT cycle.report_period, run.pause_epoch
+    FROM growth_report_cycles cycle
+    JOIN growth_report_monthly_runs run ON run.report_period = cycle.report_period
+    WHERE cycle.id = ${cycleId}
+      AND run.paused_at IS NOT NULL
+  `);
+  const row = paused.rows[0] as any;
+  if (!row || Number(row.pause_epoch) < 1) return;
+  await notifyMonthlySuperAdminEvent({
+    reportPeriod: row.report_period,
+    eventType: "PAUSED",
+    pauseEpoch: Number(row.pause_epoch),
+    summary: { error_code: errorCode },
+  });
+}
+
+export async function restoreUndispatchedMonthlyClaim(
+  db: any,
+  params: {
+    reportId: string;
+    cycleId: string;
+    studentId: string;
+    originalStatus: string;
+    requestId: string;
+    claimToken: string;
+    stage: AnalysisStage;
+    monthlyTracked: boolean;
+    monthlyPhase: "FIRST_PASS" | "RECOVERY";
+    admissionRecorded: boolean;
+  },
+): Promise<boolean> {
+  const activeStatus = params.stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
+  return db.transaction(async (tx: any) => {
+    const owned = await tx.execute(sql`
+      SELECT id
+      FROM growth_reports
+      WHERE id = ${params.reportId}
+        AND cycle_id = ${params.cycleId}
+        AND product_status = ${activeStatus}::gr_product_status_enum
+        AND analysis_request_id = ${params.requestId}
+        AND analysis_claim_token = ${params.claimToken}
+        AND analysis_lease_until > now()
+        AND analysis_response_payload IS NULL
+        AND analysis_uncertain_at IS NULL
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `);
+    if (!owned.rows.length) return false;
+
+    if (params.monthlyTracked && params.admissionRecorded) {
+      const target = await tx.execute(sql`
+        SELECT first_pass_completed_at, first_pass_engine_requests,
+               recovery_engine_requests, recovery_approved_at,
+               recovery_approved_by, recovery_approval_reason, recovery_epoch,
+               recovery_attempt_limit
+        FROM growth_report_eligible_targets
+        WHERE cycle_id = ${params.cycleId}
+          AND student_id = ${params.studentId}
+        FOR UPDATE
+      `);
+      const state = target.rows[0] as any;
+      if (!state) return false;
+      if (params.monthlyPhase === "RECOVERY") {
+        const epoch = Number(state.recovery_epoch ?? 0);
+        const count = Number(state.recovery_engine_requests ?? 0);
+        if (
+          state.recovery_approved_at != null ||
+          state.recovery_approved_by == null ||
+          !String(state.recovery_approval_reason ?? "").trim() ||
+          epoch < 1 ||
+          epoch > Number(state.recovery_attempt_limit ?? 0) ||
+          count < 1
+        ) return false;
+        const refunded = await tx.execute(sql`
+          UPDATE growth_report_eligible_targets
+          SET recovery_engine_requests = recovery_engine_requests - 1,
+              recovery_approved_at = NOW()
+          WHERE cycle_id = ${params.cycleId}
+            AND student_id = ${params.studentId}
+            AND recovery_epoch = ${epoch}
+            AND recovery_engine_requests = ${count}
+            AND recovery_approved_at IS NULL
+          RETURNING student_id
+        `);
+        if (!refunded.rows.length) return false;
+      } else {
+        const count = Number(state.first_pass_engine_requests ?? 0);
+        if (state.first_pass_completed_at != null || count < 1) return false;
+        const refunded = await tx.execute(sql`
+          UPDATE growth_report_eligible_targets
+          SET first_pass_engine_requests = first_pass_engine_requests - 1
+          WHERE cycle_id = ${params.cycleId}
+            AND student_id = ${params.studentId}
+            AND first_pass_completed_at IS NULL
+            AND first_pass_engine_requests = ${count}
+          RETURNING student_id
+        `);
+        if (!refunded.rows.length) return false;
+      }
+    }
+
+    const restored = await tx.execute(sql`
+      UPDATE growth_reports
+      SET product_status = ${params.originalStatus}::gr_product_status_enum,
+          analysis_call_started_at = NULL,
+          analysis_claim_token = NULL,
+          analysis_lease_until = NULL,
+          updated_at = now()
+      WHERE id = ${params.reportId}
+        AND cycle_id = ${params.cycleId}
+        AND product_status = ${activeStatus}::gr_product_status_enum
+        AND analysis_request_id = ${params.requestId}
+        AND analysis_claim_token = ${params.claimToken}
+        AND analysis_lease_until > now()
+        AND analysis_response_payload IS NULL
+        AND analysis_uncertain_at IS NULL
+        AND deleted_at IS NULL
+      RETURNING id
+    `);
+    if (!restored.rows.length) throw new Error("MONTHLY_UNDISPATCHED_RESTORE_FENCE_LOST");
+    return true;
+  }).catch((error: any) => {
+    if (error?.message === "MONTHLY_UNDISPATCHED_RESTORE_FENCE_LOST") return false;
+    throw error;
+  });
+}
 
 /**
  * GROWTH_REPORT_ANALYSIS_BATCH_SIZE — cron 실행당 최대 처리 report 수 (default 10).
@@ -158,6 +302,7 @@ interface PendingReport {
     timezone: string;
   };
   stage: AnalysisStage;
+  monthlyPhase: "FIRST_PASS" | "RECOVERY";
 }
 
 async function fetchPendingReports(db: any, limit?: number): Promise<PendingReport[]> {
@@ -258,6 +403,7 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
       },
       stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING" ||
         r.product_status === "PREANALYZING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
+      monthlyPhase: "FIRST_PASS",
     };
   });
 }
@@ -266,12 +412,37 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
 
 type OneReportResult =
   | { ok: true }
-  | { ok: false; errorCode: string; httpStatus: number; engineDetails?: unknown };
+  | { ok: false; errorCode: string; httpStatus: number; engineDetails?: unknown; skipped?: boolean };
 
 async function analyzeOneReport(
   db: any,
   pending: PendingReport,
 ): Promise<OneReportResult> {
+  const isMonthly = pending.report.report_type === "monthly" || pending.report.report_type === null;
+  const monthlyRun = isMonthly
+    ? await getMonthlyAutomationRunForCycle(db, pending.report.cycle_id)
+    : null;
+  const monthlyState = monthlyRun
+    ? await db.execute(sql`
+        SELECT first_pass_completed_at
+        FROM growth_report_eligible_targets
+        WHERE cycle_id = ${pending.report.cycle_id}
+          AND student_id = ${pending.report.student_id}
+        LIMIT 1
+      `)
+    : null;
+  const monthlyPhase = monthlyState?.rows[0]?.first_pass_completed_at
+    ? "RECOVERY"
+    : "FIRST_PASS";
+  const hasCachedResponse = pending.report.analysis_response_payload !== null &&
+    pending.report.analysis_response_payload !== undefined;
+  if (monthlyRun && !hasCachedResponse && !(await canDispatchMonthlyAnalysis(db, {
+    cycleId: pending.report.cycle_id,
+    studentId: pending.report.student_id,
+    phase: monthlyPhase,
+  }))) {
+    return { ok: false, errorCode: "MONTHLY_AUTOMATION_PAUSED", httpStatus: 0, skipped: true };
+  }
   const leaseMs = getAnalysisLeaseMs();
   const claimToken = await claimGrowthReportAnalysis(db, {
     reportId: pending.report.id,
@@ -303,7 +474,157 @@ async function analyzeOneReport(
   }, Math.max(5_000, Math.floor(leaseMs / 3)));
   renewalTimer.unref?.();
   try {
-    return await analyzeClaimedReport(db, pending, claimToken, () => leaseLost);
+    let result: OneReportResult;
+    try {
+      result = await analyzeClaimedReport(
+        db, pending, claimToken, () => leaseLost, Boolean(monthlyRun), monthlyPhase,
+      );
+    } catch (analysisErr) {
+      if (!monthlyRun) throw analysisErr;
+      const failureCode = "ANALYSIS_WORKER_EXCEPTION";
+      const recovered = await db.transaction(async (tx: any) => {
+        const owned = await tx.execute(sql`
+          SELECT product_status, analysis_request_id, analysis_response_payload,
+                 analysis_uncertain_at
+          FROM growth_reports
+          WHERE id = ${pending.report.id}
+            AND cycle_id = ${pending.report.cycle_id}
+            AND analysis_claim_token = ${claimToken}
+            AND analysis_lease_until > now()
+            AND deleted_at IS NULL
+          FOR UPDATE
+        `);
+        const row = owned.rows[0] as any;
+        if (!row || row.analysis_uncertain_at != null ||
+            !["OPEN", "READY_FOR_ANALYSIS", "REGENERATING", "PREANALYZING", "ANALYZING"].includes(
+              String(row.product_status),
+            )) return "stale";
+        let cached: any = row.analysis_response_payload;
+        if (typeof cached === "string") {
+          try { cached = JSON.parse(cached); } catch { cached = null; }
+        }
+        const hasMatchingResponse = cached?.request_id === row.analysis_request_id &&
+          cached?.report_id === pending.report.id;
+        if (hasMatchingResponse) {
+          if (monthlyRun && monthlyPhase === "FIRST_PASS") {
+            await tx.execute(sql`
+              UPDATE growth_report_eligible_targets target
+              SET first_pass_error_code = 'RESULT_PERSISTENCE_RETRY',
+                  first_pass_error_category = 'DATA'
+              FROM growth_report_monthly_run_pools member
+              WHERE target.cycle_id = ${pending.report.cycle_id}
+                AND target.student_id = ${pending.report.student_id}
+                AND target.first_pass_completed_at IS NULL
+                AND member.cycle_id = target.cycle_id
+                AND member.swimming_pool_id = ${pending.report.swimming_pool_id}
+                AND member.preparation_status = 'sealed'
+            `);
+          }
+          const released = await tx.execute(sql`
+            UPDATE growth_reports
+            SET analysis_claim_token = NULL, analysis_lease_until = NULL,
+                updated_at = now()
+            WHERE id = ${pending.report.id}
+              AND analysis_claim_token = ${claimToken}
+              AND analysis_lease_until > now()
+              AND product_status IN (
+                'OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING', 'PREANALYZING', 'ANALYZING'
+              )
+              AND analysis_response_payload IS NOT NULL
+              AND analysis_uncertain_at IS NULL
+            RETURNING id
+          `);
+          return released.rows.length ? "cached" : "stale";
+        }
+
+        const failed = await tx.execute(sql`
+          UPDATE growth_reports
+          SET product_status = 'FAILED'::gr_product_status_enum,
+              analysis_claim_token = NULL, analysis_lease_until = NULL,
+              analysis_next_attempt_at = NULL, updated_at = now()
+          WHERE id = ${pending.report.id}
+            AND cycle_id = ${pending.report.cycle_id}
+            AND analysis_claim_token = ${claimToken}
+            AND analysis_lease_until > now()
+            AND product_status IN (
+              'OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING', 'PREANALYZING', 'ANALYZING'
+            )
+            AND analysis_response_payload IS NULL
+            AND analysis_uncertain_at IS NULL
+            AND deleted_at IS NULL
+          RETURNING id
+        `);
+        if (!failed.rows.length) return "stale";
+        if (monthlyRun && monthlyPhase === "FIRST_PASS") {
+          const outcome = await recordMonthlyFirstPassOutcome(tx, {
+            cycleId: pending.report.cycle_id,
+            studentId: pending.report.student_id,
+            outcome: "failed",
+            errorCode: failureCode,
+            errorCategory: "OTHER",
+          });
+          if (outcome !== "recorded" && outcome !== "already_recorded") {
+            throw new Error("MONTHLY_EXCEPTION_ACCOUNTING_FAILED");
+          }
+        }
+        return "failed";
+      });
+      if (recovered === "stale") {
+        return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+      }
+      console.error(
+        `[gr3-worker] report=${pending.report.id} ${failureCode}` +
+        (recovered === "cached" ? " response retained for cached reconciliation" : " terminal FAILED"),
+      );
+      result = recovered === "cached"
+        ? { ok: false, errorCode: "RESULT_PERSISTENCE_RETRY", httpStatus: 0, skipped: true }
+        : { ok: false, errorCode: failureCode, httpStatus: 0 };
+    }
+    const resultErrorCode = result.ok ? null : result.errorCode;
+    if (monthlyRun && monthlyPhase === "FIRST_PASS" &&
+        resultErrorCode !== "STALE_ANALYSIS_CLAIM" &&
+        resultErrorCode !== "STALE_RESPONSE" &&
+        resultErrorCode !== "MONTHLY_AUTOMATION_PAUSED" &&
+        resultErrorCode !== "MONTHLY_ATTEMPT_ACCOUNTING_FAILED" &&
+        !("skipped" in result && result.skipped)) {
+      let outcome: MonthlyFirstPassOutcome = result.ok ? "unknown" : (
+        result.errorCode === "ENGINE_REQUEST_UNKNOWN" ? "unknown" : "failed"
+      );
+      if (result.ok) {
+        const persisted = await db.execute(sql`
+          SELECT product_status, monthly_final_disposition,
+            monthly_disposition_version, analysis_status
+          FROM growth_reports
+          WHERE id = ${pending.report.id}
+            AND cycle_id = ${pending.report.cycle_id}
+          LIMIT 1
+        `);
+        const saved = persisted.rows[0] as any;
+        if (saved?.analysis_status === "DATA_ACCUMULATING") {
+          outcome = saved.monthly_final_disposition === "INSUFFICIENT_EVIDENCE" &&
+              saved.monthly_disposition_version != null &&
+              saved.product_status === "REVIEW_REQUIRED"
+            ? "insufficient_evidence"
+            : "identity_error";
+        } else if (
+          ["REVIEW_REQUIRED", "APPROVED", "READY_TO_SEND", "PUBLISHED"].includes(saved?.product_status) &&
+          ["COMPLETE", "COMPLETE_WITH_QUESTIONS_AVAILABLE", "COMPLETE_WITH_PARENT_EVIDENCE"].includes(saved?.analysis_status) &&
+          saved?.monthly_final_disposition == null
+        ) {
+          outcome = "generated";
+        }
+      }
+      await recordMonthlyFirstPassOutcome(db, {
+        cycleId: pending.report.cycle_id,
+        studentId: pending.report.student_id,
+        outcome,
+        errorCode: result.ok
+          ? outcome === "identity_error" ? "MONTHLY_NOTICE_UNRESOLVED" : undefined
+          : result.errorCode,
+        errorCategory: outcome === "identity_error" ? "DATA" : undefined,
+      });
+    }
+    return result;
   } finally {
     clearInterval(renewalTimer);
   }
@@ -314,11 +635,16 @@ async function analyzeClaimedReport(
   { report, cycle, stage }: PendingReport,
   claimToken: string,
   hasLostLease: () => boolean,
+  monthlyTracked: boolean,
+  monthlyPhase: "FIRST_PASS" | "RECOVERY",
 ): Promise<OneReportResult> {
   const maxRetry = getMaxRetryCount();
+  const attemptRetryLimit = monthlyTracked
+    ? Math.min(maxRetry, report.analysis_retry_count + 1)
+    : maxRetry;
 
   // Guard: too many retries → skip this report
-  if (report.analysis_retry_count >= maxRetry) {
+  if (report.analysis_retry_count >= attemptRetryLimit) {
     await db.execute(sql`
       UPDATE growth_reports
       SET product_status = 'FAILED'::gr_product_status_enum,
@@ -328,13 +654,13 @@ async function analyzeClaimedReport(
           updated_at = now()
       WHERE id = ${report.id}
         AND product_status = ${report.product_status}::gr_product_status_enum
-        AND COALESCE(analysis_retry_count, 0) >= ${maxRetry}
+        AND COALESCE(analysis_retry_count, 0) >= ${attemptRetryLimit}
         AND analysis_claim_token = ${claimToken}
         AND analysis_lease_until > now()
         AND deleted_at IS NULL
     `);
     console.warn(
-      `[gr3-worker] report=${report.id} exceeded max retries (${maxRetry}), terminal FAILED`,
+      `[gr3-worker] report=${report.id} exceeded max retries (${attemptRetryLimit}), terminal FAILED`,
     );
     return { ok: false, errorCode: "MAX_RETRY_EXCEEDED", httpStatus: 0 };
   }
@@ -605,7 +931,7 @@ async function analyzeClaimedReport(
         requestId,
         stage,
         retryable: false,
-        maxRetryCount: maxRetry,
+        maxRetryCount: attemptRetryLimit,
         errorCode: "PERSISTED_RESPONSE_IDENTITY_MISMATCH",
         claimToken,
       });
@@ -617,26 +943,61 @@ async function analyzeClaimedReport(
     if (hasLostLease()) {
       return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
     }
-    const callStarted = await markAnalysisCallStarted({
-      db,
-      reportId: report.id,
-      requestId,
-      stage,
-      claimToken,
-    });
-    if (!callStarted) {
-      return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
-    }
+    let monthlyAttemptAdmitted = false;
     try {
-      const callResult  = await analyzeGrowthReport(request);
+      const callResult  = await analyzeGrowthReport(request, {
+        onHttpAttempt: async () => {
+          if (monthlyTracked) {
+            const allowed = await canDispatchMonthlyAnalysis(db, {
+              cycleId: report.cycle_id,
+              studentId: report.student_id,
+              phase: monthlyPhase,
+            });
+            if (!allowed) {
+              throw new EngineCallError(
+                "MONTHLY_AUTOMATION_PAUSED", 0, false,
+                "Monthly dispatch authorization is no longer available.",
+              );
+            }
+            const attemptRecorded = await recordMonthlyHttpAttempt(db, {
+              cycleId: report.cycle_id,
+              studentId: report.student_id,
+              phase: monthlyPhase,
+            });
+            if (!attemptRecorded) {
+              throw new EngineCallError(
+                "MONTHLY_AUTOMATION_PAUSED", 0, false,
+                "Monthly ENGINE attempt was not authorized or could not be durably counted.",
+              );
+            }
+            monthlyAttemptAdmitted = true;
+          }
+          const callStarted = await markAnalysisCallStarted({
+            db,
+            reportId: report.id,
+            requestId,
+            stage,
+            claimToken,
+          });
+          if (!callStarted) {
+            throw new EngineCallError(
+              "MONTHLY_ATTEMPT_ACCOUNTING_FAILED", 0, false,
+              "Analysis claim expired before the ENGINE request was sent.",
+            );
+          }
+        },
+      });
       response          = callResult.response;
       grActualCallCount = callResult.actualCallCount;
       grRetryCount      = callResult.retryCount;
     } catch (engineErr) {
       // AI01-05: count as 1 attempt if URL was configured (i.e. HTTP was sent).
       // analysis_retry_count is cross-invocation; actual_call_count is per call.
-      const httpWasSent = !(engineErr instanceof EngineCallError &&
-                            (engineErr as EngineCallError).errorCode === "ENGINE_URL_NOT_CONFIGURED");
+      const noHttpAdmissionFailure = engineErr instanceof EngineCallError &&
+        engineErr.statusCode === 0 &&
+        ["ENGINE_URL_NOT_CONFIGURED", "MONTHLY_AUTOMATION_PAUSED",
+          "MONTHLY_ATTEMPT_ACCOUNTING_FAILED"].includes(engineErr.errorCode);
+      const httpWasSent = !noHttpAdmissionFailure;
       grActualCallCount = httpWasSent ? 1 : 0;
       grRetryCount      = 0;
 
@@ -645,6 +1006,76 @@ async function analyzeClaimedReport(
         ? engineErr.errorCode
         : "UNKNOWN_ERROR";
 
+      if (noHttpAdmissionFailure && errorCode === "MONTHLY_AUTOMATION_PAUSED") {
+        let restored: boolean;
+        try {
+          restored = await restoreUndispatchedMonthlyClaim(db, {
+            reportId: report.id,
+            cycleId: report.cycle_id,
+            studentId: report.student_id,
+            originalStatus: report.product_status,
+            requestId,
+            claimToken,
+            stage,
+            monthlyTracked,
+            monthlyPhase,
+            admissionRecorded: monthlyAttemptAdmitted,
+          });
+        } catch {
+          return { ok: false, errorCode, httpStatus: 0, skipped: true };
+        }
+        if (!restored) {
+          return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+        }
+        return { ok: false, errorCode, httpStatus: 0, skipped: true };
+      }
+      if (noHttpAdmissionFailure && errorCode === "MONTHLY_ATTEMPT_ACCOUNTING_FAILED") {
+        console.error(`[gr3-worker] monthly ENGINE attempt accounting failed report=${report.id}`);
+        if (monthlyTracked && !monthlyAttemptAdmitted) {
+          // The admission transaction may have committed despite a lost acknowledgement.
+          // Keep the claim/start evidence for the watchdog rather than reopening a
+          // target whose approval or request counter cannot be proven.
+          return { ok: false, errorCode, httpStatus: 0, skipped: true };
+        }
+        let restored: boolean;
+        try {
+          restored = await restoreUndispatchedMonthlyClaim(db, {
+            reportId: report.id,
+            cycleId: report.cycle_id,
+            studentId: report.student_id,
+            originalStatus: report.product_status,
+            requestId,
+            claimToken,
+            stage,
+            monthlyTracked,
+            monthlyPhase,
+            admissionRecorded: monthlyAttemptAdmitted,
+          });
+        } catch {
+          return { ok: false, errorCode, httpStatus: 0, skipped: true };
+        }
+        if (!restored) {
+          return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+        }
+        return { ok: false, errorCode, httpStatus: 0, skipped: true };
+      }
+      if (monthlyTracked && httpWasSent) {
+        const circuitErrorCode = engineErr instanceof EngineCallError
+          ? engineErr.statusCode === 429
+            ? "ENGINE_RATE_LIMITED"
+            : engineErr.statusCode >= 500
+              ? `ENGINE_HTTP_${engineErr.statusCode}`
+              : errorCode
+          : errorCode;
+        const serviceOutcome = await recordMonthlyServiceOutcome(db, {
+          cycleId: report.cycle_id,
+          success: false,
+          errorCode: circuitErrorCode,
+        });
+        if (serviceOutcome.paused) {
+          await notifyMonthlyCircuitPause(db, report.cycle_id, circuitErrorCode);
+        }
+      }
       if (
         engineErr instanceof EngineCallError &&
         engineErr.requestState === "UNKNOWN"
@@ -664,6 +1095,11 @@ async function analyzeClaimedReport(
         pool_id: report.swimming_pool_id, contract_version: '1.0',
         feature: AI_FEATURE.GROWTH_REPORT_AI, pool_mode: null,
         sub_feature: stage, result_generated: false,
+        ...(monthlyTracked ? {
+          monthly_cycle_id: report.cycle_id,
+          monthly_report_period: report.report_period,
+          monthly_phase: monthlyPhase,
+        } : {}),
         trigger_type: 'SYSTEM_MAINTENANCE', service: 'analysis',
         error_stage: 'UNKNOWN' as const, error_code: errorCode,
         latency_ms:  Date.now() - grEngineStartMs,
@@ -676,7 +1112,7 @@ async function analyzeClaimedReport(
         requestId,
         stage,
         retryable,
-        maxRetryCount: maxRetry,
+        maxRetryCount: attemptRetryLimit,
         errorCode,
         claimToken,
         retryDelayMs: retryable
@@ -686,7 +1122,7 @@ async function analyzeClaimedReport(
       if (retryable) {
         console.warn(
           `[gr3-worker] retryable ENGINE error report=${report.id} code=${errorCode} ` +
-          `retry=${failure.retryCount}/${maxRetry} terminal=${failure.terminal}`,
+          `retry=${failure.retryCount}/${attemptRetryLimit} terminal=${failure.terminal}`,
         );
       } else {
         const httpStatus     = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).statusCode   : 0;
@@ -711,31 +1147,16 @@ async function analyzeClaimedReport(
       await auditStaleRejected(db, report.id, report.swimming_pool_id, requestId);
       return { ok: false, errorCode: "STALE_RESPONSE", httpStatus: 0 };
     }
+    if (monthlyTracked) {
+      const serviceOutcome = await recordMonthlyServiceOutcome(db, {
+        cycleId: report.cycle_id,
+        success: true,
+      });
+      if (serviceOutcome.paused) {
+        await notifyMonthlyCircuitPause(db, report.cycle_id, "ENGINE_CALL_COMPLETED_WHILE_PAUSED");
+      }
+    }
   }
-
-  // CS-PA1 / AI01-05: engine 성공 trace (persist 전)
-  if (!hasCachedResponse) void saveAiTrace({
-    status:                'SUCCESS',
-    request_id:            requestId,
-    internal_id:           requestId,
-    pool_id:               report.swimming_pool_id,
-    contract_version:      '1.0',
-    feature:               AI_FEATURE.GROWTH_REPORT_AI,
-    pool_mode:             null,
-    sub_feature:           stage,
-    result_generated:      true,
-    trigger_type:          'SYSTEM_MAINTENANCE',
-    service:               'analysis',
-    generation_mode:       'engine_call',
-    model:                 null,           // 외부 엔진 — model 정보 미노출
-    latency_ms:            Date.now() - grEngineStartMs,
-    input_tokens:          null,           // 외부 엔진 — token 정보 미노출
-    output_tokens:         null,
-    total_tokens:          null,
-    logical_request_count: 1,
-    actual_call_count:     grActualCallCount,
-    retry_count:           grRetryCount,
-  }).catch(() => {});
 
   // 6) Persist result
   try {
@@ -753,6 +1174,37 @@ async function analyzeClaimedReport(
       `[gr3-worker] report=${report.id} → ${persist.productStatus} ` +
       `questions=${persist.questionsCount}`,
     );
+    // Engine transport success is not equivalent to generated content. In
+    // particular DATA_ACCUMULATING is a successful response but never counts
+    // as a generated report; only a qualified final result does.
+    if (!hasCachedResponse) void saveAiTrace({
+      status:                'SUCCESS',
+      request_id:            requestId,
+      internal_id:           requestId,
+      pool_id:               report.swimming_pool_id,
+      contract_version:      '1.0',
+      feature:               AI_FEATURE.GROWTH_REPORT_AI,
+      pool_mode:             null,
+      sub_feature:           stage,
+      ...(monthlyTracked ? {
+        monthly_cycle_id: report.cycle_id,
+        monthly_report_period: report.report_period,
+        monthly_phase: monthlyPhase,
+      } : {}),
+      result_generated:      response.analysis_status !== "DATA_ACCUMULATING" &&
+        persist.productStatus === "REVIEW_REQUIRED",
+      trigger_type:          'SYSTEM_MAINTENANCE',
+      service:               'analysis',
+      generation_mode:       'engine_call',
+      model:                 null,           // 외부 엔진 — model 정보 미노출
+      latency_ms:            Date.now() - grEngineStartMs,
+      input_tokens:          null,           // 외부 엔진 — token 정보 미노출
+      output_tokens:         null,
+      total_tokens:          null,
+      logical_request_count: 1,
+      actual_call_count:     grActualCallCount,
+      retry_count:           grRetryCount,
+    }).catch(() => {});
     // Notify Dashboard SSE (fire-and-forget)
     notifyPoolEvent({ type: "growth_report.changed", pool_id: report.swimming_pool_id, entity_id: report.id }).catch(() => {});
   } catch (persistErr) {
@@ -773,7 +1225,7 @@ async function analyzeClaimedReport(
         requestId,
         stage,
         retryable: false,
-        maxRetryCount: maxRetry,
+        maxRetryCount: attemptRetryLimit,
         errorCode: code,
         claimToken,
       });
@@ -794,21 +1246,126 @@ async function analyzeClaimedReport(
  * resetStuckReports — 만료된 lease token만 해제한다.
  * Status/request/retry evidence stay intact so the next owner resumes the same request.
  */
-async function resetStuckReports(db: any): Promise<number> {
+export async function resetStuckReports(db: any): Promise<number> {
   try {
-    const res = await db.execute(sql`
-      UPDATE growth_reports
-      SET analysis_claim_token = NULL,
-          analysis_lease_until = NULL,
-          updated_at = now()
-      WHERE product_status IN ('PREANALYZING', 'ANALYZING')
-        AND deleted_at IS NULL
-        AND analysis_claim_token IS NOT NULL
-        AND analysis_lease_until <= now()
-        AND analysis_uncertain_at IS NULL
-      RETURNING id
-    `);
-    const count = (res.rows as any[]).length;
+    const expired = await db.transaction(async (tx: any) => {
+      const monthlySchemaReady = await isMonthlyAutomationSchemaReady(tx);
+      const candidates = await tx.execute(sql`
+        SELECT id, cycle_id, student_id, swimming_pool_id, report_period,
+               product_status, analysis_request_id, analysis_response_payload,
+               analysis_request_payload, analysis_identity_hash, snapshot_hash,
+               analysis_call_started_at, analysis_claim_token
+        FROM growth_reports
+        WHERE product_status IN ('PREANALYZING', 'ANALYZING')
+          AND deleted_at IS NULL
+          AND analysis_claim_token IS NOT NULL
+          AND analysis_lease_until <= now()
+          AND analysis_uncertain_at IS NULL
+        ORDER BY analysis_lease_until ASC, id ASC
+        LIMIT 500
+        FOR UPDATE SKIP LOCKED
+      `);
+      const recovered: Array<{ id: string; cycle_id: string; call_started: boolean }> = [];
+      for (const row of candidates.rows as any[]) {
+        let cached: any = row.analysis_response_payload;
+        if (typeof cached === "string") {
+          try { cached = JSON.parse(cached); } catch { cached = null; }
+        }
+        const hasMatchingResponse = cached?.request_id === row.analysis_request_id &&
+          cached?.report_id === row.id;
+        let consumedRecoveryAttempt = false;
+        let requestIdentityMatches = false;
+        const persistedRequest = typeof row.analysis_request_payload === "string"
+          ? (() => { try { return JSON.parse(row.analysis_request_payload); } catch { return null; } })()
+          : row.analysis_request_payload;
+        requestIdentityMatches = !!row.analysis_request_id &&
+          persistedRequest?.request_id === row.analysis_request_id &&
+          persistedRequest?.report_id === row.id &&
+          persistedRequest?.context?.student_id === row.student_id &&
+          persistedRequest?.context?.pool_id === row.swimming_pool_id &&
+          persistedRequest?.context?.report_period === row.report_period &&
+          persistedRequest?.snapshot?.payload_hash === row.snapshot_hash;
+        if (monthlySchemaReady && row.analysis_response_payload == null &&
+            requestIdentityMatches) {
+          const target = await tx.execute(sql`
+            SELECT target.first_pass_completed_at,
+                   target.recovery_approved_at,
+                   target.recovery_engine_requests
+            FROM growth_report_eligible_targets target
+            JOIN growth_report_cycles cycle ON cycle.id = target.cycle_id
+            JOIN growth_report_monthly_runs run ON run.report_period = cycle.report_period
+            JOIN growth_report_monthly_run_pools member
+              ON member.report_period = run.report_period
+             AND member.swimming_pool_id = cycle.swimming_pool_id
+             AND member.cycle_id = cycle.id
+             AND member.preparation_status = 'sealed'
+            WHERE target.cycle_id = ${row.cycle_id}
+              AND target.student_id = ${row.student_id}
+            LIMIT 1
+            FOR UPDATE OF target
+          `);
+          const recovery = target.rows[0] as any;
+          consumedRecoveryAttempt = recovery?.first_pass_completed_at != null &&
+            recovery.recovery_approved_at == null &&
+            Number(recovery.recovery_engine_requests ?? 0) > 0;
+        }
+
+        const reset = consumedRecoveryAttempt
+          ? await tx.execute(sql`
+              UPDATE growth_reports
+              SET analysis_uncertain_at = COALESCE(analysis_uncertain_at, now()),
+                  analysis_next_attempt_at = NULL,
+                  analysis_claim_token = NULL,
+                  analysis_lease_until = NULL,
+                  updated_at = now()
+              WHERE id = ${row.id}
+                AND cycle_id = ${row.cycle_id}
+                AND analysis_request_id = ${row.analysis_request_id}
+                AND analysis_claim_token = ${row.analysis_claim_token}
+                AND product_status = ${row.product_status}::gr_product_status_enum
+                AND analysis_response_payload IS NULL
+                AND analysis_uncertain_at IS NULL
+                AND analysis_lease_until <= now()
+                AND deleted_at IS NULL
+              RETURNING id
+            `)
+          : await tx.execute(sql`
+              UPDATE growth_reports
+              SET analysis_claim_token = NULL,
+                  analysis_lease_until = NULL,
+                  analysis_call_started_at = CASE
+                    WHEN ${hasMatchingResponse} THEN NULL
+                    ELSE analysis_call_started_at
+                  END,
+                  updated_at = now()
+              WHERE id = ${row.id}
+                AND cycle_id = ${row.cycle_id}
+                AND analysis_request_id IS NOT DISTINCT FROM ${row.analysis_request_id}
+                AND analysis_claim_token = ${row.analysis_claim_token}
+                AND product_status = ${row.product_status}::gr_product_status_enum
+                AND analysis_uncertain_at IS NULL
+                AND analysis_lease_until <= now()
+                AND deleted_at IS NULL
+              RETURNING id
+            `);
+        if (reset.rows.length) {
+          recovered.push({
+            id: row.id,
+            cycle_id: row.cycle_id,
+            call_started: Boolean(row.analysis_call_started_at),
+          });
+        }
+      }
+      return recovered;
+    });
+    const count = expired.length;
+    for (const row of expired) {
+      if (!row.call_started) continue;
+      const monthlyRun = await getMonthlyAutomationRunForCycle(db, row.cycle_id);
+      if (monthlyRun?.paused_at) {
+        await notifyMonthlyCircuitPause(db, row.cycle_id, "ENGINE_REQUEST_UNKNOWN");
+      }
+    }
     if (count > 0) {
       console.warn(
         `[gr3-watchdog] ${count}개 expired analysis lease 해제 ` +
@@ -965,6 +1522,8 @@ export async function runGrowthReportAnalysisWorker(
         const oneResult = await analyzeOneReport(db, item);
         if (oneResult.ok) {
           mutex.analyzed++;
+        } else if (oneResult.skipped) {
+          result.skipped++;
         } else if (
           oneResult.errorCode === "CONCURRENT_TRANSITION" ||
           oneResult.errorCode === "STALE_ANALYSIS_CLAIM" ||
@@ -1073,6 +1632,7 @@ export async function fetchSingleReport(db: any, reportId: string): Promise<Pend
     },
       stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING" ||
         r.product_status === "PREANALYZING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
+      monthlyPhase: "FIRST_PASS",
   };
 }
 
@@ -1169,6 +1729,26 @@ const MAX_RUN_MS = 4.5 * 60 * 1000; // 4분 30초
 // 락 갱신 주기: 배치 하나 완료마다 갱신 (TTL 만료 방지)
 const LOCK_REFRESH_INTERVAL_MS = 60 * 1000; // 1분마다 갱신
 
+async function finishMonthlyRunsWithCompleteAccounting(db: any): Promise<void> {
+  if (!await isMonthlyAutomationSchemaReady(db)) return;
+  const runs = await db.execute(sql`
+    SELECT report_period
+    FROM growth_report_monthly_runs
+    WHERE first_pass_completed_at IS NOT NULL
+       OR paused_at IS NULL
+    ORDER BY report_period
+  `);
+  for (const row of runs.rows as Array<{ report_period: string }>) {
+    const summary = await finishMonthlyFirstPass(db, row.report_period);
+    if (!summary?.completed_at) continue;
+    await notifyMonthlySuperAdminEvent({
+      reportPeriod: row.report_period,
+      eventType: "FIRST_PASS_FINISHED",
+      summary,
+    });
+  }
+}
+
 /**
  * drainAnalysisQueue — pending 리포트가 없어질 때까지 또는 MAX_RUN_MS 초과까지
  * 배치를 연속 실행한다. 배치 사이에 락을 갱신해 TTL 만료를 방지한다.
@@ -1233,6 +1813,13 @@ async function drainAnalysisQueue(db: any): Promise<{
       ).catch(() => {});
       break;
     }
+  }
+
+  try {
+    await finishMonthlyRunsWithCompleteAccounting(db);
+  } catch (err: any) {
+    errors.push(`monthly accounting finalization: ${err.message}`);
+    console.error("[gr3-worker] monthly accounting finalization failed:", err.message);
   }
 
   return { totalAnalyzed, totalFailed, batches, errors };

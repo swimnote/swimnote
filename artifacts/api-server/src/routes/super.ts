@@ -33,6 +33,73 @@ import { validateXModeReadiness } from "../lib/xmode-readiness.js";
 
 const router = Router();
 
+// Monthly automation exposes aggregate diagnostics only; it never publishes
+// reports, releases UNKNOWN identities, or calls ENGINE.
+function validMonthlyPeriod(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+router.get("/super/growth-reports/monthly-automation", requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const period = req.query.report_period;
+    if (!validMonthlyPeriod(period)) {
+      res.status(400).json({ error: "INVALID_REPORT_PERIOD" }); return;
+    }
+    try {
+      const { getMonthlyAutomationSummary, listMonthlyAutomationExceptions } =
+        await import("../lib/growth-report-monthly-run.js");
+      const bounded = (value: unknown, fallback: number, max: number) => {
+        const n = Number(value);
+        return Number.isSafeInteger(n) && n >= 0 ? Math.min(n, max) : fallback;
+      };
+      const [summary, firstPassSummary, exceptions] = await Promise.all([
+        getMonthlyAutomationSummary(superAdminDb, period, { live: true }),
+        getMonthlyAutomationSummary(superAdminDb, period),
+        listMonthlyAutomationExceptions(superAdminDb, {
+          reportPeriod: period,
+          poolId: typeof req.query.pool_id === "string" ? req.query.pool_id : undefined,
+          category: typeof req.query.category === "string" ? req.query.category : undefined,
+          limit: bounded(req.query.limit, 50, 100),
+          offset: bounded(req.query.offset, 0, 1_000_000),
+        }),
+      ]);
+      const run = await superAdminDb.execute(sql`
+        SELECT paused_at, pause_reason, pause_epoch, first_pass_completed_at,
+               circuit_state->>'status' AS circuit_status
+        FROM growth_report_monthly_runs WHERE report_period = ${period}
+      `);
+      res.json({ ok: true, report_period: period, summary, first_pass_summary: firstPassSummary,
+        run: run.rows[0] ?? null,
+        exceptions, provider_cost: { status: "UNKNOWN", amount: null } });
+    } catch (error: any) {
+      res.status(503).json({ error: "MONTHLY_AUTOMATION_UNAVAILABLE" });
+    }
+  });
+
+router.post("/super/growth-reports/monthly-automation/resume", requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const period = req.body?.report_period;
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    const actorId = req.user?.userId;
+    if (!validMonthlyPeriod(period) || !reason || reason.length > 500) {
+      res.status(400).json({ error: "INVALID_RESUME_APPROVAL" }); return;
+    }
+    if (!actorId) { res.status(401).json({ error: "UNAUTHENTICATED" }); return; }
+    try {
+      const { resumeMonthlyAutomationRun } = await import("../lib/growth-report-monthly-run.js");
+      const result = await resumeMonthlyAutomationRun(superAdminDb, { reportPeriod: period, actorId, reason });
+      if (!result) {
+        res.status(409).json({ error: "MONTHLY_RESUME_NOT_ALLOWED",
+          message: "등록된 실행 상태와 cooldown을 확인해 주세요." });
+        return;
+      }
+      res.json({ ok: true, result });
+    } catch (error: any) {
+      res.status(409).json({ error: "MONTHLY_RESUME_NOT_ALLOWED",
+        message: "등록된 실행 상태와 cooldown을 확인해 주세요." });
+    }
+  });
+
 // ── 시스템 정책 테이블 초기화 ─────────────────────────────────────
 async function ensurePoliciesTable() {
   await db.execute(sql`
@@ -3463,11 +3530,26 @@ router.post(
     try {
       // FAILED 상태인 경우: OPEN으로 복구 후 분석 (super_admin 운영 재처리 경로)
       const [curRow] = (await superAdminDb.execute(sql`
-        SELECT product_status FROM growth_reports WHERE id = ${reportId} LIMIT 1
+        SELECT gr.product_status, gr.analysis_uncertain_at,
+               to_jsonb(gr)->>'monthly_final_disposition' AS monthly_final_disposition,
+               EXISTS (
+                 SELECT 1 FROM growth_report_eligible_targets target
+                 JOIN growth_report_cycles cycle ON cycle.id = target.cycle_id
+                 WHERE target.cycle_id = gr.cycle_id AND target.student_id = gr.student_id
+                   AND cycle.eligibility_sealed_at IS NOT NULL
+               ) AS sealed_monthly
+        FROM growth_reports gr WHERE gr.id = ${reportId} LIMIT 1
       `)).rows as any[];
 
       if (!curRow) {
         res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
+        return;
+      }
+
+      if (curRow.analysis_uncertain_at || curRow.monthly_final_disposition ||
+          (curRow.sealed_monthly && curRow.product_status === "FAILED")) {
+        res.status(409).json({ error: "SCOPED_MONTHLY_RECOVERY_REQUIRED",
+          message: "봉인된 월간 실패는 batch-recovery만 사용합니다. UNKNOWN과 정상 결과는 재분석할 수 없습니다." });
         return;
       }
 
@@ -3559,11 +3641,24 @@ router.post(
 
     try {
       const [row] = (await superAdminDb.execute(sql`
-        SELECT product_status, analysis_retry_count FROM growth_reports WHERE id = ${reportId} LIMIT 1
+        SELECT gr.product_status, gr.analysis_retry_count, gr.analysis_uncertain_at,
+               EXISTS (
+                 SELECT 1 FROM growth_report_eligible_targets target
+                 JOIN growth_report_cycles cycle ON cycle.id = target.cycle_id
+                 WHERE target.cycle_id = gr.cycle_id AND target.student_id = gr.student_id
+                   AND cycle.eligibility_sealed_at IS NOT NULL
+               ) AS sealed_monthly
+        FROM growth_reports gr WHERE gr.id = ${reportId} LIMIT 1
       `)).rows as any[];
 
       if (!row) {
         res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
+        return;
+      }
+
+      if (row.sealed_monthly || row.analysis_uncertain_at) {
+        res.status(409).json({ error: "SCOPED_MONTHLY_RECOVERY_REQUIRED",
+          message: "월간 identity는 초기화할 수 없습니다. 허용된 실패만 batch-recovery를 사용해 주세요." });
         return;
       }
 
@@ -3804,7 +3899,9 @@ router.post(
   "/super/growth-reports/batch-recovery",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
-    const { pool_id, report_month } = req.body as { pool_id?: string; report_month?: string };
+    const { pool_id, report_month, reason } = req.body as {
+      pool_id?: string; report_month?: string; reason?: string;
+    };
     const actorId = (req as any).user?.userId ?? (req as any).user?.id ?? "super_admin";
 
     if (!pool_id || typeof pool_id !== "string") {
@@ -3817,10 +3914,15 @@ router.post(
       return;
     }
 
+    const approvalReason = typeof reason === "string" ? reason.trim() : "";
+    if (!approvalReason || approvalReason.length > 500) {
+      res.status(400).json({ error: "RECOVERY_REASON_REQUIRED" }); return;
+    }
+
     try {
       const { recoverMonthlyTargets } = await import("../lib/growth-report-monthly-recovery.js");
       const recovery = await recoverMonthlyTargets(superAdminDb, {
-        poolId: pool_id, reportPeriod: report_month, actorId,
+        poolId: pool_id, reportPeriod: report_month, actorId, reason: approvalReason,
       });
       res.json({ ok: true, ...recovery });
     } catch (err: any) {

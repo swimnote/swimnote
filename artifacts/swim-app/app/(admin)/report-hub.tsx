@@ -78,6 +78,7 @@ interface MonthlyReportSummary {
   target_count:      number;
   ready_count:       number;
   published_count:   number;
+  insufficient_evidence_count: number;
   failed_count:      number;
   regenerating_count: number;
   discarded_count:   number;
@@ -103,6 +104,7 @@ interface MonthlyListItem {
   class_name:         string | null;
   teacher_name:       string | null;
   content_snippet:    string | null;
+  monthly_final_disposition?: string | null;
 }
 
 // ── 상태 표시 정의 ───────────────────────────────────────────────────────────
@@ -147,16 +149,20 @@ interface KpiCounts {
   discarded:    number;  // DISCARDED
   excluded:     number;  // EXCLUDED
   failed:       number;  // FAILED, ANALYSIS_FAILED
+  insufficientEvidence: number;
 }
 
 function computeKpi(items: MonthlyListItem[]): KpiCounts {
   const counts: KpiCounts = {
     total: items.length, beforeGen: 0, analyzing: 0,
     unreviewed: 0, reviewed: 0,
-    published: 0, discarded: 0, excluded: 0, failed: 0,
+    published: 0, discarded: 0, excluded: 0, failed: 0, insufficientEvidence: 0,
   };
   for (const it of items) {
     const s = it.product_status;
+    if (it.monthly_final_disposition === "INSUFFICIENT_EVIDENCE") {
+      counts.insufficientEvidence++;
+    }
     if (["OPEN","READY_FOR_ANALYSIS"].includes(s)) {
       counts.beforeGen++;
     } else if (["PREANALYZING","ANALYZING","REGENERATING"].includes(s)) {
@@ -264,12 +270,14 @@ export default function ReportHubScreen() {
 
   // ── KPI 집계 (전체 rows 기준) ─────────────────────────────────────────────
   const kpi = useMemo(() => computeKpi(allRows), [allRows]);
+  const insufficientEvidenceCount =
+    summary?.insufficient_evidence_count ?? kpi.insufficientEvidence;
 
   // ── API 호출: summary (KPI 배지용, 에러 무시) ─────────────────────────────
   // ★ yr/mo = report_month (발행월) 그대로 전송 — 서버가 내부에서 분석월(-1) 변환
   const fetchSummary = useCallback(async (yr: number, mo: number) => {
     try {
-      const res = await apiRequest(token, `/admin/reports/summary?year=${yr}&month=${mo}&limit=1&offset=0`);
+      const res = await apiRequest(token, `/admin/growth-reports/monthly-summary?year=${yr}&month=${mo}`);
       if (!res.ok) return;
       // 서버 응답: { summary, students, pagination, ... }
       // MonthlyReportSummary 호환 형태로 변환 (batch_status 등 없으면 null)
@@ -293,7 +301,7 @@ export default function ReportHubScreen() {
       });
       if (qv) params.set("q", qv);
 
-      const res = await apiRequest(token, `/admin/reports/summary?${params.toString()}`);
+      const res = await apiRequest(token, `/admin/growth-reports/monthly-list?${params.toString()}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error((body as any)?.error ?? `오류 (${res.status})`);
@@ -564,6 +572,12 @@ export default function ReportHubScreen() {
           </View>
         </View>
 
+        {item.monthly_final_disposition === "INSUFFICIENT_EVIDENCE" && (
+          <Text style={{ marginTop: 6, color: C.textMuted, fontSize: 12 }}>
+            이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다.
+          </Text>
+        )}
+
         {/* 반 / 담당 선생님 */}
         {(item.class_name || item.teacher_name) ? (
           <View style={s.metaRow}>
@@ -666,6 +680,12 @@ export default function ReportHubScreen() {
               <KpiCard value={kpi.failed}    label="실패"      color="#C62828" onPress={() => setFilterStatuses(["FAILED","ANALYSIS_FAILED"])} />
             </View>
           </View>
+        )}
+
+        {insufficientEvidenceCount > 0 && (
+          <Text style={{ marginTop: 8, color: C.textMuted, fontSize: 12 }}>
+            판단 근거 부족 안내 {insufficientEvidenceCount}건 · AI 생성 리포트와 별도 집계
+          </Text>
         )}
 
         {/* 전체 발송 버튼 */}

@@ -27,6 +27,7 @@ import { isDbSeparated, isProtectDbConfigured, pool, superAdminDb, db } from "@w
 import { getRecentAvgResponseMs } from "./lib/responseTracker.js";
 import { createOpsAlert } from "./lib/opsAlerts.js";
 import { sendPushToSuperAdmins } from "./lib/push-service.js";
+import { isMonthlyAutomationSchemaReady } from "./lib/growth-report-monthly-run.js";
 
 const IS_WORKER = process.env.WORKER_MODE === "true";
 
@@ -102,6 +103,16 @@ const DB_INIT_BASE_DELAY_MS = 2000;
         initSuperDb(superAdminDb),
         runGrInteractionsMigration(superAdminDb),
       ]);
+      // Monthly automation is enabled only after its separately approved
+      // additive migration. This check is read-only; startup never applies it.
+      const monthlyAutomationReady =
+        await isMonthlyAutomationSchemaReady(superAdminDb);
+      if (!monthlyAutomationReady) {
+        console.warn(
+          "[growth-report-monthly] automation schema unavailable; " +
+          "new monthly automation remains fail-closed until the approved migration is applied",
+        );
+      }
       console.log(`[server] DB 초기화 완료 (attempt ${attempt})`);
       return;
     } catch (error) {

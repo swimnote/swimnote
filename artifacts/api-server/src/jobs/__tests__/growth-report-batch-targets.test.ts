@@ -60,5 +60,8 @@ describe("monthly batch uses the sealed target roster", () => {
     expect(source).toContain("target.eligibility_version");
     expect(source).toContain("target.eligibility_evidence->>'attendance_count'");
     expect(source).toContain("target.eligibility_evidence->>'source_event_count'");
+    expect(source).toContain("registerMonthlyAutomationRun");
+    expect(source).toContain("recordMonthlyPoolPreparation");
+    expect(source).toContain("recordMonthlyFirstPassOutcome");
   });
 });

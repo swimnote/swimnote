@@ -77,4 +77,20 @@ describe("ENGINE request state recovery classification", () => {
       expect(error).toMatchObject({ requestState: state, retryable: true });
     }
   });
+
+  it("does not issue an HTTP request when monthly attempt admission is denied", async () => {
+    vi.stubEnv("GROWTH_REPORT_ENGINE_URL", "https://engine.invalid");
+    vi.stubEnv("GROWTH_REPORT_ENGINE_SECRET", "test-only-secret");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const denial of ["MONTHLY_AUTOMATION_PAUSED", "MONTHLY_ATTEMPT_ACCOUNTING_FAILED"]) {
+      const error = await analyzeGrowthReport(request, {
+        onHttpAttempt: async () => { throw new Error(denial); },
+      }).catch(caught => caught);
+      expect(error).toBeInstanceOf(EngineCallError);
+      expect(error).toMatchObject({ errorCode: denial, statusCode: 0, retryable: false });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

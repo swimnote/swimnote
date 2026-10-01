@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
+import { PgDialect } from "drizzle-orm/pg-core";
 import {
   getGrowthReportAnalysisIdentityHash,
   getGrowthReportRetryDelayMs,
@@ -15,7 +16,11 @@ import {
   isGrowthReportParentInputWindowOpen,
   mapEngineStatusToProductStatus,
 } from "../growth-report-result-handler.js";
-import { recoverLegacyFreeMonthlyQuestionWaiters } from "../../jobs/growth-report-analysis-worker.js";
+import {
+  recoverLegacyFreeMonthlyQuestionWaiters,
+  restoreUndispatchedMonthlyClaim,
+  resetStuckReports,
+} from "../../jobs/growth-report-analysis-worker.js";
 import type { GrowthReportAnalysisResponse } from "../growth-report-engine-client.js";
 
 vi.mock("../growth-report-service.js", () => ({
@@ -319,6 +324,205 @@ describe("eligibility status race protection", () => {
     expect(excludedUpdate).toContain("deleted_at IS NULL");
     expect(excludedUpdate).toContain("RETURNING id");
     expect(excludedUpdate).not.toContain("product_status   != 'EXCLUDED'");
+  });
+});
+
+describe("monthly claimed-attempt exception accounting", () => {
+  it("fences terminal failures and retains cached ENGINE responses for reconciliation", () => {
+    const workerSource = readFileSync(
+      new URL("../../jobs/growth-report-analysis-worker.ts", import.meta.url),
+      "utf8",
+    );
+    expect(workerSource).toContain('const failureCode = "ANALYSIS_WORKER_EXCEPTION"');
+    expect(workerSource).toContain("analysis_claim_token = ${claimToken}");
+    expect(workerSource).toContain("analysis_response_payload IS NULL");
+    expect(workerSource).toContain("analysis_uncertain_at IS NULL");
+    expect(workerSource).toContain("product_status = 'FAILED'::gr_product_status_enum");
+    expect(workerSource).toContain("RESULT_PERSISTENCE_RETRY");
+    expect(workerSource).toContain("first_pass_error_code = 'RESULT_PERSISTENCE_RETRY'");
+    expect(workerSource).toContain("response retained for cached reconciliation");
+    expect(workerSource).toContain("restoreUndispatchedMonthlyClaim");
+    expect(workerSource).toContain("analysis_call_started_at = NULL");
+    expect(workerSource).toContain("product_status = ${params.originalStatus}");
+    expect(workerSource).toContain("AND analysis_request_id = ${params.requestId}");
+  });
+
+  it("limits each manifested first-pass or recovery claim to one APP attempt", () => {
+    const workerSource = readFileSync(
+      new URL("../../jobs/growth-report-analysis-worker.ts", import.meta.url),
+      "utf8",
+    );
+    expect(workerSource).toContain("const attemptRetryLimit = monthlyTracked");
+    expect(workerSource).toContain("report.analysis_retry_count + 1");
+  });
+});
+
+describe("consumed recovery watchdog crash reconciliation", () => {
+  const dialect = new PgDialect();
+  const expiredReport = (responsePayload: unknown = null) => ({
+    id: "report-1",
+    cycle_id: "cycle-1",
+    student_id: "student-1",
+    swimming_pool_id: "pool-1",
+    report_period: "2026-10",
+    product_status: "ANALYZING",
+    analysis_request_id: "request-1",
+    analysis_response_payload: responsePayload,
+    analysis_request_payload: {
+      request_id: "request-1",
+      report_id: "report-1",
+      context: { student_id: "student-1", pool_id: "pool-1", report_period: "2026-10" },
+      snapshot: { payload_hash: "hash-1" },
+    },
+    analysis_identity_hash: "identity-1",
+    snapshot_hash: "hash-1",
+    analysis_call_started_at: new Date(),
+    analysis_claim_token: "claim-1",
+  });
+
+  function watchdogDb(report: any) {
+    const statements: string[] = [];
+    const execute = async (query: unknown) => {
+      const text = dialect.sqlToQuery(query as any).sql;
+      statements.push(text);
+      if (text.includes("AS schema_ready")) return { rows: [{ schema_ready: true }] };
+      if (text.includes("SELECT id, cycle_id, student_id, swimming_pool_id")) {
+        return { rows: [report] };
+      }
+      if (text.includes("FROM growth_report_eligible_targets target")) {
+        return {
+          rows: [{
+            first_pass_completed_at: new Date(),
+            recovery_approved_at: null,
+            recovery_engine_requests: 1,
+          }],
+        };
+      }
+      if (text.includes("UPDATE growth_reports")) return { rows: [{ id: report.id }] };
+      return { rows: [] };
+    };
+    const tx = { execute };
+    return {
+      statements,
+      execute,
+      transaction: async (callback: (transaction: any) => Promise<unknown>) => callback(tx),
+    };
+  }
+
+  it("marks a consumed recovery with no response UNKNOWN under the same request fence", async () => {
+    const db = watchdogDb(expiredReport());
+    expect(await resetStuckReports(db)).toBe(1);
+    const unknown = db.statements.find(text => text.includes("analysis_uncertain_at = COALESCE"));
+    expect(unknown).toBeDefined();
+    expect(unknown).toContain("analysis_request_id =");
+    expect(unknown).toContain("analysis_claim_token =");
+    expect(unknown).toContain("analysis_response_payload IS NULL");
+  });
+
+  it("releases a matching cached response for replay without marking it UNKNOWN", async () => {
+    const db = watchdogDb(expiredReport({ request_id: "request-1", report_id: "report-1" }));
+    expect(await resetStuckReports(db)).toBe(1);
+    expect(db.statements.some(text => text.includes("analysis_uncertain_at = COALESCE"))).toBe(false);
+    expect(db.statements.some(text => text.includes("analysis_call_started_at = CASE"))).toBe(true);
+  });
+
+  it("refunds the same durably admitted recovery round when marking HTTP start fails", async () => {
+    const state = {
+      report: {
+        status: "ANALYZING",
+        requestId: "request-1",
+        claimToken: "claim-1" as string | null,
+        response: null as unknown,
+        uncertainAt: null as Date | null,
+        callStartedAt: null as Date | null,
+      },
+      target: {
+        firstPassCompletedAt: new Date(),
+        firstPassRequests: 0,
+        recoveryRequests: 2,
+        approvedAt: null as Date | null,
+        approvedBy: "operator-1",
+        approvalReason: "retry after service recovery",
+        epoch: 2,
+        limit: 3,
+      },
+    };
+    const statements: string[] = [];
+    const db = {
+      transaction: async (callback: (tx: any) => Promise<unknown>) => callback({
+        execute: async (query: unknown) => {
+          const text = dialect.sqlToQuery(query as any).sql;
+          statements.push(text);
+          if (text.includes("SELECT id") && text.includes("FROM growth_reports")) {
+            return { rows: [{ id: "report-1" }] };
+          }
+          if (text.includes("SELECT first_pass_completed_at")) {
+            return { rows: [{
+              first_pass_completed_at: state.target.firstPassCompletedAt,
+              first_pass_engine_requests: state.target.firstPassRequests,
+              recovery_engine_requests: state.target.recoveryRequests,
+              recovery_approved_at: state.target.approvedAt,
+              recovery_approved_by: state.target.approvedBy,
+              recovery_approval_reason: state.target.approvalReason,
+              recovery_epoch: state.target.epoch,
+              recovery_attempt_limit: state.target.limit,
+            }] };
+          }
+          if (text.includes("SET recovery_engine_requests = recovery_engine_requests - 1")) {
+            state.target.recoveryRequests--;
+            state.target.approvedAt = new Date();
+            return { rows: [{ student_id: "student-1" }] };
+          }
+          if (text.includes("SET product_status =")) {
+            state.report.status = "READY_FOR_ANALYSIS";
+            state.report.claimToken = null;
+            state.report.callStartedAt = null;
+            return { rows: [{ id: "report-1" }] };
+          }
+          return { rows: [] };
+        },
+      }),
+    };
+
+    expect(await restoreUndispatchedMonthlyClaim(db, {
+      reportId: "report-1",
+      cycleId: "cycle-1",
+      studentId: "student-1",
+      originalStatus: "READY_FOR_ANALYSIS",
+      requestId: "request-1",
+      claimToken: "claim-1",
+      stage: "FINAL_ANALYSIS",
+      monthlyTracked: true,
+      monthlyPhase: "RECOVERY",
+      admissionRecorded: true,
+    })).toBe(true);
+
+    expect(state.report).toMatchObject({
+      status: "READY_FOR_ANALYSIS",
+      requestId: "request-1",
+      claimToken: null,
+      response: null,
+      uncertainAt: null,
+    });
+    expect(state.target).toMatchObject({
+      recoveryRequests: 1,
+      approvedBy: "operator-1",
+      approvalReason: "retry after service recovery",
+      epoch: 2,
+      limit: 3,
+    });
+    expect(state.target.approvedAt).toBeInstanceOf(Date);
+    expect(statements.join(" ")).toContain("AND analysis_request_id =");
+    expect(statements.join(" ")).toContain("AND analysis_claim_token =");
+
+    const workerSource = readFileSync(
+      new URL("../../jobs/growth-report-analysis-worker.ts", import.meta.url),
+      "utf8",
+    );
+    expect(workerSource.indexOf("monthlyAttemptAdmitted = true")).toBeLessThan(
+      workerSource.indexOf("const callStarted = await markAnalysisCallStarted"),
+    );
+    expect(workerSource).toContain("admissionRecorded: monthlyAttemptAdmitted");
   });
 });
 

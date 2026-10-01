@@ -127,7 +127,10 @@ function NotificationPanel({ onClose, onRead }: { onClose: () => void; onRead: (
 
   const handleClick = async (n: SuperNotif) => {
     if (!n.is_read) await markRead(n.id);
-    if (n.pool_id) {
+    if (n.ref_type === "growth_report_monthly_run" && n.ref_id) {
+      navigate(`/super/ai?tab=monthly&report_period=${encodeURIComponent(n.ref_id)}`);
+      onClose();
+    } else if (n.pool_id) {
       navigate(`/super/pools/${n.pool_id}`);
       onClose();
     } else if (n.ref_type === "inquiry" && n.ref_id) {
@@ -237,6 +240,10 @@ export default function SuperNotifications() {
                 {n.body && <p className="text-[12px] text-[#666] mt-0.5">{n.body}</p>}
                 <div className="flex items-center gap-3 mt-1.5">
                   <span className="text-[11px] text-[#bbb]">{fmtAgo(n.created_at)}</span>
+                  {n.ref_type === "growth_report_monthly_run" && n.ref_id && (
+                    <button onClick={() => navigate(`/super/ai?tab=monthly&report_period=${encodeURIComponent(n.ref_id!)}`)}
+                      className="text-[11px] text-[#01B2F1] hover:underline">월간 예외 조회</button>
+                  )}
                   {n.pool_id && (
                     <button onClick={() => navigate(`/super/pools/${n.pool_id}`)}
                       className="text-[11px] text-[#01B2F1] hover:underline">수영장 이동 →</button>

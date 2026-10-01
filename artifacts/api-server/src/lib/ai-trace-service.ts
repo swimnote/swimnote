@@ -69,6 +69,10 @@ export interface AiTraceContext {
   user_role?:        string | null;
   /** multi-stage 기능의 단계 구분 (예: PREANALYSIS, FINAL_ANALYSIS, RETRY). */
   sub_feature?:      string | null;
+  /** Monthly automation correlation only; never contains report or student text. */
+  monthly_cycle_id?: string | null;
+  monthly_report_period?: string | null;
+  monthly_phase?: "FIRST_PASS" | "RECOVERY" | null;
   /** AI 결과가 사용자에게 정상 반환됐으면 true, parse/validation 실패면 false. */
   result_generated?: boolean | null;
   /** AI provider 식별자 (openai | 기타). */
@@ -207,6 +211,9 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
   // CS-PA1: 공통 계측 확장 필드 (metadata JSONB 활용)
   if (params.user_role         != null) metadata.user_role         = params.user_role;
   if (params.sub_feature       != null) metadata.sub_feature       = params.sub_feature;
+  if (params.monthly_cycle_id != null) metadata.monthly_cycle_id = params.monthly_cycle_id;
+  if (params.monthly_report_period != null) metadata.monthly_report_period = params.monthly_report_period;
+  if (params.monthly_phase != null) metadata.monthly_phase = params.monthly_phase;
   if (params.result_generated  != null) metadata.result_generated  = params.result_generated;
   if (params.provider          != null) metadata.provider          = params.provider;
   // cached_input_tokens: 신규 표준 이름 우선, legacy cached_tokens fallback (backward compat)

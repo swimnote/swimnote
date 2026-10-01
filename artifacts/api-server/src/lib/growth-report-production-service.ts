@@ -79,8 +79,53 @@ export function autoValidateForReadyToSend(row: {
   student_id:         string | null;
   swimming_pool_id:   string | null;
   analysis_status:    string | null;
+  monthly_final_disposition?: string | null;
+  monthly_disposition_version?: number | string | null;
+  analysis_uncertain_at?: unknown;
 }): ValidationResult {
   const issues: string[] = [];
+
+  // This is an APP-authored notice, not an AI-generated report. Never make
+  // ordinary grounding/fact/SNS requirements pass with fabricated data.
+  if (row.monthly_final_disposition === "INSUFFICIENT_EVIDENCE") {
+    const content = row.report_content as Record<string, unknown> | null;
+    if (Number(row.monthly_disposition_version) !== 1) {
+      issues.push("monthly_disposition_version 불일치");
+    }
+    if (row.analysis_status !== "DATA_ACCUMULATING") {
+      issues.push("INSUFFICIENT_EVIDENCE는 DATA_ACCUMULATING 상태여야 합니다");
+    }
+    if (row.analysis_uncertain_at != null) {
+      issues.push("INSUFFICIENT_EVIDENCE에 불확실한 ENGINE 상태가 있습니다");
+    }
+    if (!row.student_id) issues.push("student_id 누락");
+    if (!row.swimming_pool_id) issues.push("swimming_pool_id 누락");
+    if (
+      !content ||
+      typeof content !== "object" ||
+      Array.isArray(content) ||
+      typeof content["student_name"] !== "string" ||
+      !content["student_name"].trim() ||
+      content["composition_version"] !== "APP_MONTHLY_NOTICE_V1" ||
+      content["summary_text"] !==
+        "이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다." ||
+      !content["sections"] ||
+      typeof content["sections"] !== "object" ||
+      Array.isArray(content["sections"]) ||
+      Object.keys(content["sections"] as object).length !== 0 ||
+      Object.keys(content).sort().join(",") !==
+        "composition_version,sections,student_name,summary_text"
+    ) {
+      issues.push("INSUFFICIENT_EVIDENCE 안내 구조가 잘못되었습니다");
+    }
+    if (row.report_fact_package != null) {
+      issues.push("INSUFFICIENT_EVIDENCE에 report_fact_package가 설정되어 있습니다");
+    }
+    if (row.sns_summary != null) {
+      issues.push("INSUFFICIENT_EVIDENCE에 sns_summary가 설정되어 있습니다");
+    }
+    return { ok: issues.length === 0, issues };
+  }
 
   // content 존재 및 구조
   if (!row.report_content || typeof row.report_content !== "object" || Array.isArray(row.report_content)) {
@@ -142,7 +187,10 @@ export async function transitionToReadyToSend(
   const r = await db.execute(sql`
     SELECT id, product_status, swimming_pool_id,
            report_content, report_fact_package, sns_summary,
-           student_id, analysis_status, deleted_at
+           student_id, analysis_status, deleted_at,
+           to_jsonb(growth_reports)->>'monthly_final_disposition' AS monthly_final_disposition,
+           to_jsonb(growth_reports)->>'monthly_disposition_version' AS monthly_disposition_version,
+           analysis_uncertain_at
     FROM growth_reports
     WHERE id = ${reportId}
     LIMIT 1
@@ -171,7 +219,9 @@ export async function transitionToReadyToSend(
     toStatus:  "READY_TO_SEND",
     actorType: "system",
     actorId,
-    reason:    "BATCH_AUTO_VALIDATE_PASS",
+    reason: row.monthly_final_disposition === "INSUFFICIENT_EVIDENCE"
+      ? "APP_MONTHLY_INSUFFICIENT_EVIDENCE_PREPARE"
+      : "BATCH_AUTO_VALIDATE_PASS",
   });
 
   console.log(`[gr-production] READY_TO_SEND: report=${reportId}`);
@@ -644,6 +694,7 @@ export interface MonthlyReportSummary {
   target_count:     number;    // 대상 학생 수
   ready_count:      number;    // READY_TO_SEND
   published_count:  number;    // PUBLISHED
+  insufficient_evidence_count: number;
   failed_count:     number;    // FAILED (최종)
   regenerating_count: number;  // REGENERATING + ANALYZING 계열
   discarded_count:  number;    // DISCARDED (이력)
@@ -663,7 +714,10 @@ export async function getMonthlyReportSummary(
     WITH latest AS (
       -- 학생별 최신 활성 버전 (DISCARDED 제외)
       SELECT DISTINCT ON (student_id, cycle_id)
-        id, product_status, student_id, cycle_id
+        id, product_status, student_id, cycle_id,
+        to_jsonb(growth_reports)->>'monthly_final_disposition' AS monthly_final_disposition,
+        to_jsonb(growth_reports)->>'monthly_disposition_version' AS monthly_disposition_version,
+        analysis_status
       FROM growth_reports
       WHERE swimming_pool_id = ${poolId}
         AND report_period    = ${period}
@@ -684,6 +738,11 @@ export async function getMonthlyReportSummary(
       COUNT(*) FILTER (WHERE product_status != 'NOT_OPEN')     AS target_count,
       COUNT(*) FILTER (WHERE product_status = 'READY_TO_SEND') AS ready_count,
       COUNT(*) FILTER (WHERE product_status = 'PUBLISHED')      AS published_count,
+      COUNT(*) FILTER (
+        WHERE monthly_final_disposition = 'INSUFFICIENT_EVIDENCE'
+          AND monthly_disposition_version = '1'
+          AND analysis_status = 'DATA_ACCUMULATING'
+      ) AS insufficient_evidence_count,
       COUNT(*) FILTER (WHERE product_status = 'FAILED')         AS failed_count,
       COUNT(*) FILTER (WHERE product_status IN ('REGENERATING','ANALYZING','PREANALYZING','OPEN','READY_FOR_ANALYSIS')) AS regenerating_count,
       (SELECT cnt FROM discarded_hist)                           AS discarded_count
@@ -710,6 +769,7 @@ export async function getMonthlyReportSummary(
     target_count:      Number(kpi?.target_count     ?? 0),
     ready_count:       Number(kpi?.ready_count      ?? 0),
     published_count:   Number(kpi?.published_count  ?? 0),
+    insufficient_evidence_count: Number(kpi?.insufficient_evidence_count ?? 0),
     failed_count:      Number(kpi?.failed_count     ?? 0),
     regenerating_count: Number(kpi?.regenerating_count ?? 0),
     discarded_count:   Number(kpi?.discarded_count  ?? 0),
@@ -747,7 +807,8 @@ export async function refreshWp8Snapshot(
   const res = await db.execute(sql`
     WITH latest AS (
       SELECT DISTINCT ON (student_id, cycle_id)
-        student_id, product_status
+        student_id, product_status,
+        to_jsonb(growth_reports)->>'monthly_final_disposition' AS monthly_final_disposition
       FROM growth_reports
       WHERE swimming_pool_id = ${poolId}
         AND report_period    = ${period}
@@ -757,7 +818,10 @@ export async function refreshWp8Snapshot(
     )
     SELECT
       COUNT(*)                                                                        AS target_count,
-      COUNT(*) FILTER (WHERE product_status IN ('READY_TO_SEND','PUBLISHED'))         AS generated_count,
+      COUNT(*) FILTER (
+        WHERE product_status IN ('READY_TO_SEND','PUBLISHED')
+          AND monthly_final_disposition IS DISTINCT FROM 'INSUFFICIENT_EVIDENCE'
+      )                                                                               AS generated_count,
       COUNT(*) FILTER (WHERE product_status = 'FAILED')                               AS failed_count,
       COUNT(*) FILTER (WHERE product_status = 'PUBLISHED')                            AS sent_count
     FROM latest

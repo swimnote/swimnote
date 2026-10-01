@@ -29,6 +29,10 @@ import {
 } from "./growth-report-engine-client.js";
 import { transitionReportStatus } from "./growth-report-service.js";
 import { retryDisposition } from "./growth-report-analysis-identity.js";
+import {
+  isMonthlyDispositionRun,
+  prepareMonthlyInsufficientEvidence,
+} from "./growth-report-monthly-disposition.js";
 
 // ─── APP product status set (must not appear in ENGINE response) ──────────────
 
@@ -91,6 +95,7 @@ export function validateEngineResponse(
   requestId: string,
   reportId: string,
   sentPayloadHash: string,
+  allowMonthlyInsufficientEvidence = false,
 ): asserts response is GrowthReportAnalysisResponse {
   const r = response as Record<string, unknown>;
   if (!r || typeof r !== "object" || Array.isArray(r)) {
@@ -150,11 +155,12 @@ export function validateEngineResponse(
   }
 
   // sns_summary must be a plain object
-  if (
+  if (!(allowMonthlyInsufficientEvidence && r["analysis_status"] === "DATA_ACCUMULATING" &&
+      r["sns_summary"] === null) && (
     typeof r["sns_summary"] !== "object" ||
     r["sns_summary"] === null ||
     Array.isArray(r["sns_summary"])
-  ) {
+  )) {
     throw new EngineResponseValidationError(
       "sns_summary must be a plain object",
       "sns_summary",
@@ -722,8 +728,28 @@ async function persistEngineResultInTransaction(
     claimToken = "",
   } = input;
 
-  // 1) Shape validation
-  validateEngineResponse(response, requestId, report.id, payloadHash);
+  const monthlyDispositionEnabled = response.analysis_status === "DATA_ACCUMULATING" &&
+    await isMonthlyDispositionRun(db, report.id, requestId, payloadHash);
+
+  // 1) Shape validation. Nullable SNS is accepted only for an exact response
+  // associated with an active run's sealed monthly target.
+  validateEngineResponse(
+    response,
+    requestId,
+    report.id,
+    payloadHash,
+    monthlyDispositionEnabled,
+  );
+
+  if (response.analysis_status === "DATA_ACCUMULATING" && monthlyDispositionEnabled) {
+    const prepared = await prepareMonthlyInsufficientEvidence(db, {
+      reportId: report.id,
+      requestId,
+      payloadHash,
+      claimToken,
+    });
+    if (prepared) return { productStatus: "REVIEW_REQUIRED", questionsCount: 0 };
+  }
 
   // 2) Grounding / framing gate
   // Engine may return a string ("PASS") or a detail object ({ status: "PASS", ... })

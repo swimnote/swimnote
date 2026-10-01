@@ -11,6 +11,7 @@ import {
   type MonthlyReadinessDb,
   type MonthlyReportReadiness,
 } from "./growth-report-monthly-readiness.js";
+import { finishMonthlyFirstPass } from "../lib/growth-report-monthly-run.js";
 import { fireMonthlyGrowthReportIncident } from "../lib/incident-alerts.js";
 import { insertGrowthReportAdminReadyIntents } from "../utils/growth-report-notification-outbox.js";
 type Db = MonthlyReadinessDb;
@@ -79,6 +80,7 @@ export async function runMonthlyFreeAutoPublication(
 
   const cyclePools = await db.execute(sql`
     SELECT cycle.swimming_pool_id AS pool_id, cycle.report_period
+         , cycle.id AS cycle_id
     FROM growth_report_cycles cycle
     JOIN swimming_pools pool ON pool.id = cycle.swimming_pool_id
     WHERE cycle.eligibility_sealed_at IS NOT NULL
@@ -103,13 +105,15 @@ export async function runMonthlyFreeAutoPublication(
 
   let notificationCandidates = 0;
   let adminReviewReady = 0;
-  for (const row of cyclePools.rows as Array<{ pool_id: string; report_period?: string }>) {
+  for (const row of cyclePools.rows as Array<{
+    pool_id: string;
+    report_period?: string;
+    cycle_id: string;
+  }>) {
     const reportPeriod = row.report_period ?? window.reportPeriod;
     try {
-      const notificationMessage = (readiness: MonthlyReportReadiness) =>
-        `${reportPeriod} AI 성장리포트 발급 대상 ${readiness.eligible_total}명 중 ` +
-        `생성 ${readiness.generated_total}건, 정책상 제외 ${readiness.policy_excluded_total}건, ` +
-        `미해결 ${readiness.remaining_count}건입니다. 리포트를 확인해 주세요.`;
+      const notificationMessage = (_readiness: MonthlyReportReadiness) =>
+        "이번 달 AI 성장리포트 발행이 완료되었습니다.\nSWIMNOTE에서 확인해 주세요.";
 
       const readiness = await reconcileMonthlyCycle(
         db,
@@ -164,6 +168,23 @@ export async function runMonthlyFreeAutoPublication(
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  try {
+    const firstPassSummary = await finishMonthlyFirstPass(db, window.reportPeriod);
+    if (firstPassSummary) {
+      const { notifyMonthlySuperAdminEvent } = await import("../utils/notify.js");
+      await notifyMonthlySuperAdminEvent({
+        reportPeriod: window.reportPeriod,
+        eventType: "FIRST_PASS_FINISHED",
+        summary: firstPassSummary,
+      });
+    }
+  } catch (error) {
+    console.error(
+      `[growth-report-monthly] first-pass summary failed for month=${window.reportPeriod}:`,
+      error instanceof Error ? error.message : String(error),
+    );
   }
 
   // Explicitly no UPDATE to growth_reports and no parent notification call.

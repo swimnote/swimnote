@@ -5,7 +5,12 @@ vi.mock("../../lib/incident-alerts.js", () => ({
   fireMonthlyGrowthReportIncident: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../../lib/growth-report-monthly-run.js", () => ({
+  finishMonthlyFirstPass: vi.fn().mockResolvedValue(null),
+}));
+
 import { fireMonthlyGrowthReportIncident } from "../../lib/incident-alerts.js";
+import { finishMonthlyFirstPass } from "../../lib/growth-report-monthly-run.js";
 import {
   freeReportIssueWindow,
   runMonthlyFreeAutoPublication,
@@ -27,7 +32,12 @@ function makePublisherDb(
     const q = queryText(query);
     const params = queryParams(query);
     if (q.includes("FROM growth_report_cycles") && q.includes("SELECT cycle.swimming_pool_id")) {
-      return { rows: cyclePools };
+      return {
+        rows: cyclePools.map(row => ({
+          ...row,
+          cycle_id: `cycle-${row.pool_id}`,
+        })),
+      };
     }
     if (q.includes("FROM growth_report_cycles")) {
       const poolId = String(params[0]);
@@ -186,6 +196,7 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
       poolId: "pool-a",
       reportPeriod: "2026-09",
       readiness: expect.objectContaining({ eligible_total: 1, generated_total: 1, ready: true }),
+      message: "이번 달 AI 성장리포트 발행이 완료되었습니다.\nSWIMNOTE에서 확인해 주세요.",
     }));
     expect(notifyAdmin).toHaveBeenCalledWith(expect.objectContaining({
       poolId: "pool-c",
@@ -213,6 +224,31 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
     expect(calls.some(query => query.includes("INSERT INTO growth_report_notification_outbox"))).toBe(true);
     expect(calls.some(query => query.includes("UPDATE growth_reports"))).toBe(false);
     expect(calls.some(query => query.includes("GROWTH_REPORT_PUBLISHED"))).toBe(false);
+  });
+
+  it("preserves legacy reconciliation and admin-only READY notifications without a manifest", async () => {
+    const { db, execute } = makePublisherDb([
+      { pool_id: "pool-legacy", report_period: "2026-09" },
+    ]);
+    const notifyAdmin = vi.fn();
+    await runMonthlyFreeAutoPublication(db as any, issueAt, notifyAdmin);
+
+    expect(execute.mock.calls.some(([query]) =>
+      queryText(query).includes("FOR UPDATE OF target, report"),
+    )).toBe(true);
+    expect(notifyAdmin).toHaveBeenCalledWith(expect.objectContaining({
+      poolId: "pool-legacy",
+      reportPeriod: "2026-09",
+      message: "이번 달 AI 성장리포트 발행이 완료되었습니다.\nSWIMNOTE에서 확인해 주세요.",
+    }));
+  });
+
+  it("only asks the foundation to finish the active analysis-month first pass", async () => {
+    vi.mocked(finishMonthlyFirstPass).mockClear();
+    const { db } = makePublisherDb([]);
+    await runMonthlyFreeAutoPublication(db as any, issueAt, vi.fn());
+    expect(finishMonthlyFirstPass).toHaveBeenCalledOnce();
+    expect(finishMonthlyFirstPass).toHaveBeenCalledWith(db, "2026-09");
   });
 
   it("has no automatic parent-publication path and uses KST cron/review semantics", async () => {
