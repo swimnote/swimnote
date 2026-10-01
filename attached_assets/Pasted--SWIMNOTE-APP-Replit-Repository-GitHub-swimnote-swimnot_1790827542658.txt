@@ -1,0 +1,341 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[월간 AI 성장리포트 자동 운영 V1 — 현재 구현 최종 대조 WP]
+
+목적:
+
+Production 배포 전에 현재 GitHub main 기준
+
+8638f74e16a6ac3f43a2ea5f31ebccb2a32e89a5
+
+에 구현된 무료 월간 AI 성장리포트의 실제 자동 운영 흐름을
+코드 기준으로 완전히 확인한다.
+
+이번 WP는 읽기 전용 조사다.
+
+코드 수정 금지.
+commit/push 금지.
+Production deploy 금지.
+Production DB 접근/쓰기 금지.
+실제 cycle/batch/GPT/publish/feed/PUSH 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 조사할 목표 운영 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 만들 시스템의 시간축은:
+
+매월 1일
+→ 전월 리포트 cycle 자동 준비 시작
+
+1일~4일
+→ 대상자 산출
+→ snapshot 생성
+→ ENGINE 분석
+→ 성공 결과 저장
+→ 실패 항목 재시도
+→ restart/recovery
+→ 성공 결과 보존
+→ 중복 GPT 방지
+
+5일
+→ 관리자가 해당 월 리포트들을 확인할 수 있는 상태
+
+이다.
+
+이번 WP에서는 이것이 현재 코드에서
+어디까지 구현돼 있는지만 조사한다.
+
+아직 원하는 동작으로 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Scheduler / Cycle 시작 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료 월간 AI 성장리포트와 관련된 모든:
+
+- scheduler
+- cron
+- startup recovery
+- worker
+- cycle preparation
+- batch preparation
+- retry
+- recovery
+
+코드를 추적한다.
+
+정확히 보고:
+
+A. 매월 몇 일 몇 시에 시작되는가
+B. timezone은 무엇인가
+C. 1일 자동 시작이 현재 존재하는가
+D. 서버 restart 시 미완료 cycle을 복구하는가
+E. 동일 월 cycle 중복 생성 방지가 있는가
+F. 이미 성공한 학생을 다시 분석하지 않는가
+G. 실패한 학생만 재시도 가능한가
+H. retry 횟수/간격/종료 조건
+I. process crash/restart 후 이어서 처리 가능한가
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 상태 머신 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용되는 실제 상태를 전부 찾는다.
+
+예:
+
+PREPARING
+READY
+PROCESSING
+COMPLETED
+FAILED
+PUBLISHED
+DATA_ACCUMULATING
+
+등.
+
+예시는 이름을 강제하는 것이 아니다.
+실제 코드/DB의 상태명을 보고한다.
+
+각 상태별:
+
+- 진입 조건
+- 다음 상태
+- retry 가능 여부
+- 관리자 조회 가능 여부
+- 학부모 조회 가능 여부
+- publish 가능 여부
+
+를 정리한다.
+
+특히:
+
+batch/cycle COMPLETED와
+개별 report PUBLISHED가
+어떻게 구분되는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 5일 동작 집중 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요하다.
+
+현재 코드에서 매월 5일에:
+
+- 자동 PUBLISHED 되는가
+- 관리자 승인 없이 학부모에게 공개되는가
+- parent feed가 생성되는가
+- PUSH가 자동 발송되는가
+- 어떤 scheduler/job이 실행하는가
+- 몇 시에 실행하는가
+- 실패 후 재실행되는가
+- 중복 publish 방지가 있는가
+- 중복 PUSH 방지가 있는가
+
+를 코드 근거로 정확히 확인한다.
+
+"관리자가 5일에 확인 가능"과
+"5일 자동 학부모 공개"를
+절대 같은 의미로 취급하지 않는다.
+
+현재 구현 사실을 각각 분리해서 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 관리자 검토 UI/API 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP에 무료 월간 AI 성장리포트를
+관리자가 확인할 수 있는:
+
+- 화면
+- 목록
+- 상세보기
+- API
+- 상태 표시
+- 승인 버튼
+- 보류
+- 재분석
+- publish/send
+
+기능이 실제 존재하는지 조사한다.
+
+존재한다면 정확한 파일/API/route와 동작을 보고한다.
+
+존재하지 않는 기능을 있다고 추정하지 않는다.
+
+특히 관리자 승인이라는 개념이
+현재 시스템에 실제 존재하는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 발급 조건 유지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 main에서 다음 V1.0 조건이 유지되는지 확인한다.
+
+- 발급월 M은 전월 M-1 분석
+- Asia/Seoul
+- 전월 1일 00:00 KST 이상
+- 당월 1일 00:00 KST 미만
+- 전월 class-history overlap
+- 다음 달 1일 active/continuing 조건
+- recognized lessons >= 3
+- scheduled lessons - absences + completed makeups
+- holiday/no-class 미포함
+- student-specific valid diary >= 1
+- 공통 수업내용만으로 diary 조건 충족 금지
+- 발행 직전 active/nondeleted 재확인
+- 이미 PUBLISHED된 리포트는 이후 퇴원해도 row 보존
+- 실패/invalid/processing 상태 publish 금지
+
+변경 여부만 조사한다.
+
+수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Idempotency / 비용 보호 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+200,000건 장기 확장과 별개로
+현재 월간 시스템의 안전성을 확인한다.
+
+조사:
+
+- cycle unique key
+- student/report unique key
+- request_id
+- snapshot hash
+- 동일 request/hash 재사용
+- duplicate ENGINE call 방지
+- duplicate GPT 비용 방지
+- duplicate publish 방지
+- duplicate parent feed 방지
+- duplicate PUSH 방지
+- 성공 결과 재처리 방지
+- retry가 성공 결과를 덮어쓰지 않는지
+
+APP/API 코드에서 확인 가능한 범위만 보고한다.
+
+ENGINE 내부 구현을 조사하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 현재 설정값 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 기준으로 확인:
+
+- analysis concurrency
+- ENGINE HTTP timeout
+- batch size
+- retry 설정
+- scheduler interval
+- publish scheduler
+- 관련 env 이름
+- env가 없을 때 default
+
+Production 환경값은
+이번 WP에서 접근하지 않는다.
+
+코드의 설정 구조와 default만 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 GAP 분석
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표:
+
+1일 자동 준비
+→ 1~4일 분석/재시도/복구
+→ 5일 관리자 확인 가능
+
+과 현재 구현을 비교한다.
+
+각 항목을:
+
+PASS = 이미 정확히 구현
+PARTIAL = 일부 구현
+MISSING = 없음
+CONFLICT = 현재 구현이 목표와 충돌
+
+중 하나로 판정한다.
+
+특히 별도 판정:
+
+A. 1일 자동 시작
+B. 1~4일 지속 처리
+C. restart recovery
+D. 실패-only retry
+E. 성공 결과 보존
+F. duplicate GPT 방지
+G. 5일 관리자 조회
+H. 5일 자동 parent publish
+I. 관리자 승인 기능 존재 여부
+J. parent feed/PUSH 시점
+K. 다음 달 자동 새 cycle
+L. 장기 반복 실행 안전성
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 중요 경계
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE repository는 절대 조회하지 않는다.
+
+ENGINE GitLab main:
+
+bbe1e380248b0f86a274754994c9928c67db5295
+
+은 이미 별도 검증/보존 완료됐다.
+
+이번 WP에서는 ENGINE을 수정하거나
+다시 검증하지 않는다.
+
+또한:
+
+Production DB 접근 금지
+Production API 호출 금지
+실제 학생 데이터 조회 금지
+실제 GPT 호출 금지
+Render 설정 변경 금지
+deploy 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 scheduler 구조
+2. 월 cycle 시작 시점
+3. timezone
+4. recovery 구조
+5. retry 구조
+6. 실제 상태 머신
+7. 5일 현재 동작
+8. 관리자 검토 UI/API 존재 여부
+9. 관리자 승인 개념 존재 여부
+10. parent publish/feed/PUSH 현재 시점
+11. V1.0 발급조건 유지 여부
+12. idempotency 구조
+13. duplicate GPT 보호
+14. duplicate publish/feed/PUSH 보호
+15. concurrency default
+16. HTTP timeout default
+17. 관련 scheduler/env/default
+18. 목표 대비 PASS/PARTIAL/MISSING/CONFLICT 표
+19. 수정이 필요한 정확한 파일 목록
+20. Production 변경 없음 확인
+21. DB/GPT/batch/publish/PUSH 실행 없음 확인
+22. AI ENGINE 작업 없음 확인
+
+마지막에:
+
+MONTHLY AUTOMATION CURRENT STATE:
+PASS / HOLD
+
+그리고
+
+"다음 구현 WP에서 반드시 수정해야 할 항목"
+
+만 번호로 정리한다.
+
+이번 WP에서는 구현하지 않는다.
