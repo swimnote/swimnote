@@ -1,0 +1,245 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[AI 성장리포트 — 기존 완성 시스템 최종 연결 확인 ONLY]
+
+중요:
+이번 작업은 개발 WP가 아니다.
+새 기능을 만들지 않는다.
+기존 기능을 재설계하지 않는다.
+기존 관리자 리포트 기능을 수정하지 않는다.
+코드 수정/commit/push/deploy 금지.
+
+목적은 오직:
+“이미 구현되어 있는 AI 성장리포트 시스템이
+현재 서로 정상 연결되어 최종 운영 흐름대로 작동하도록 구성되어 있는가”
+를 확인하는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 새 기능 구현 금지
+- 기존 기능 리팩터링 금지
+- 관리자 UI 재구현 금지
+- 관리자 승인/발송 기능 수정 금지
+- 새로운 상태 머신 설계 금지
+- 새로운 capacity 구조 설계 금지
+- 신규 migration 작성 금지
+- 기존 migration 수정 금지
+- commit 금지
+- push 금지
+- Production deploy 금지
+- Production DB write 금지
+- 실제 GPT 호출 금지
+- 실제 PUSH 금지
+- AI ENGINE repository 수정/조회 금지
+
+720f78f65ebda78f246737bf2d1dc54bbee3066b 역시
+추가 수정하지 않는다.
+
+이번 작업은 READ-ONLY 조사다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 확인할 최종 운영 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 흐름이 기존 구현으로 연결되어 있는지만 확인한다.
+
+매월 1일
+→ 전월 AI 성장리포트 자동 준비 시작
+
+1일~4일
+→ 기존 APP/API가 기존 AI ENGINE 분석 경로를 사용
+→ 결과 수신 및 저장
+→ 기존 retry/recovery 동작
+
+5일 전/5일 관리자 검토 시점
+→ 관리자에게 해당 월 리포트 준비완료 PUSH
+→ 해당 수영장의 완성된 리포트 목록을 기존 관리자 화면에서 확인
+
+관리자
+→ 기존 승인/발송 기능 사용
+
+승인/발송 후
+→ 기존 학부모 공개
+→ 기존 학부모 feed/리포트 표시
+→ 기존 학부모 알림/PUSH
+
+관리자 승인/발송 전에
+학부모에게 리포트가 공개되면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 관리자 기능 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+새로 만들지 말고 기존 구현을 확인한다.
+
+확인:
+
+- 관리자 월간 리포트 목록
+- 리포트 상세
+- 상태 표시
+- 개별 승인/발송
+- 일괄 발송
+- 학부모 공개 연결
+- 학부모 PUSH 연결
+
+각 항목에 대해:
+
+EXISTING AND CONNECTED
+EXISTING BUT DISCONNECTED
+MISSING
+
+중 하나로만 판정한다.
+
+기존 기능이 정상 연결되어 있으면
+절대 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. APP → ENGINE 연결 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE 자체를 다시 검증하지 않는다.
+
+APP/API 코드에서 현재 기존 ENGINE endpoint로
+성장리포트 분석 요청을 보내도록 연결되어 있는지 확인한다.
+
+확인:
+
+APP/API
+→ growth-report snapshot
+→ ENGINE client
+→ /api/v1/growth-report/analyze
+→ ENGINE response validation
+→ 결과 저장
+→ 관리자 리포트
+
+이 연결이 존재하는지만 확인한다.
+
+ENGINE 성능/모델/DTA/내부 파이프라인을
+다시 조사하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 월간 자동화 연결 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 코드 기준으로 확인:
+
+- 1일 cycle 자동 준비
+- 분석 worker 자동 처리
+- retry
+- restart recovery
+- 월별 반복
+- 5일 관리자 검토 준비
+- 관리자 준비완료 PUSH
+
+각 항목이 실제 기존 코드에서 연결되어 있는지 확인한다.
+
+새 scheduler를 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 20만 건 / 5일 설계는 재개발하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+20만 건/5일 처리 목표와
+기존 ENGINE/Render capacity 설계는
+별도 완료 작업으로 취급한다.
+
+이번 APP 조사에서는 이를 다시 설계하거나
+부하테스트하지 않는다.
+
+APP/API 쪽에서 기존 대량처리 구조를 막는
+명백한 hard limit 또는 연결 단절이 있는지만 확인한다.
+
+예:
+
+- 고정된 매우 작은 전체 월간 처리 cap
+- 5일 전에 worker가 강제로 중단되는 구조
+- 특정 소수 pool만 처리하는 제한
+- 다음 페이지/배치를 처리하지 않는 구조
+
+이런 명백한 blocker가 없으면
+APP CAPACITY CONNECTION: OK
+
+로 판정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 720f78f6 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+720f78f65ebda78f246737bf2d1dc54bbee3066b에서
+추가된 변경을 다시 개발하지 않는다.
+
+오직 다음만 확인한다.
+
+A. 기존에 있던 정상 관리자 기능을 없애거나 끊었는가?
+B. 기존 승인/발송 흐름을 바꿔서 동작을 깨뜨렸는가?
+C. 기존 APP → ENGINE 연결을 깨뜨렸는가?
+D. 기존 학부모 발행 흐름을 깨뜨렸는가?
+E. 아니면 기존 기능은 유지하고 월간 자동화/안전장치만 보완했는가?
+
+각 항목에 코드 근거를 제시한다.
+
+문제가 발견돼도 이번 WP에서는 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 대규모 테스트 실행 금지.
+
+이미 완료보고된:
+
+- 관련 API 722 PASS
+- APP/UI 4 PASS
+- 총 726 PASS
+- 기존 지정 117 PASS
+- September Golden PASS
+- API build PASS
+- dashboard build PASS
+
+를 다시 실행하지 않는다.
+
+이번에는 코드 연결 확인만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 형식으로 짧고 명확하게 보고한다.
+
+1. 1일 자동 시작: CONNECTED / NOT CONNECTED
+2. APP → ENGINE 분석: CONNECTED / NOT CONNECTED
+3. 분석 결과 → 관리자 목록: CONNECTED / NOT CONNECTED
+4. 5일 관리자 준비완료: CONNECTED / NOT CONNECTED
+5. 관리자 준비완료 PUSH: CONNECTED / NOT CONNECTED
+6. 기존 관리자 목록/상세: CONNECTED / NOT CONNECTED
+7. 기존 개별 승인/발송: CONNECTED / NOT CONNECTED
+8. 기존 일괄 발송: CONNECTED / NOT CONNECTED
+9. 승인 전 학부모 비공개: PASS / FAIL
+10. 승인 후 학부모 리포트 공개: CONNECTED / NOT CONNECTED
+11. 승인 후 학부모 PUSH: CONNECTED / NOT CONNECTED
+12. 다음 달 자동 반복: CONNECTED / NOT CONNECTED
+13. APP 측 20만/5일 명백한 blocker: NONE / FOUND
+14. 720f78f6이 기존 정상 기능을 파괴한 항목: NONE / FOUND
+
+마지막에 딱 하나로 판정:
+
+EXISTING MONTHLY GROWTH REPORT END-TO-END:
+PASS / HOLD / FAIL
+
+PASS이면:
+“기존 구현이 정상 연결되어 있으며 추가 개발 필요 없음.”
+
+HOLD/FAIL이면:
+실제로 끊어진 지점만 정확한 파일/함수/원인으로 보고한다.
+수정은 하지 않는다.
+
+코드 수정 없음.
+commit 없음.
+push 없음.
+deploy 없음.
+DB/GPT/PUSH 실행 없음.
+AI ENGINE 작업 없음.
