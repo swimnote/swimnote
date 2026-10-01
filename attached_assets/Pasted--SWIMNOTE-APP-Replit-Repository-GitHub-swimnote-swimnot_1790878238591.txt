@@ -1,0 +1,199 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[성장리포트 V1 — 9월 잔여 20건 정상 귀결]
+
+현재 시스템 구현/Production 배포는 PASS다.
+기존 구현을 재조사하거나 수정하지 마세요.
+
+Production APP SHA:
+2a3b6fe538ee8e8563996ad98cd2eb00f4143f53
+
+현재 2026-09 cycle:
+
+eligible_total = 119
+generated_total = 99
+remaining = 20
+READY = false
+
+잔여:
+- 불확실 요청 17
+- PARTIAL / DATA_ACCUMULATING 3
+
+목표는 오직 이 20건의 정상 귀결이다.
+
+전체 audit 금지.
+migration 금지.
+리팩터링 금지.
+새 queue 금지.
+성공 99건 재처리 금지.
+새 request_id 발급 금지.
+policy exclusion 전환 금지.
+denominator 변경 금지.
+READY 강제 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 불확실 17건
+━━━━━━━━━━━━━━━━━━━━━━
+
+17건 각각의 기존:
+
+pool
+report_id
+student_id
+request_id
+payload/hash
+
+identity가 현재 저장값과 일치하는지 확인한다.
+
+새 request_id를 만들지 않는다.
+
+현재 ENGINE Production이 보장하는
+동일 request identity의 안전한 recovery/replay 계약만 사용한다.
+
+동일 요청의 COMPLETE 결과가 ENGINE에 존재하면:
+→ 기존 결과만 회수
+→ APP DB 정상 저장
+→ 새 provider 분석 금지
+
+PROCESSING이면:
+→ 중복 호출 금지
+→ 기존 상태에 따라 안전하게 대기/회수
+
+UNKNOWN이면:
+→ 강제 재호출 금지
+→ 새 identity 금지
+→ UNKNOWN 유지
+
+payload conflict / pool conflict이면:
+→ 자동 수정 금지
+→ 해당 건 HOLD
+
+17건을 묶어서 새로운 분석으로 다시 돌리는 방식은 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DATA_ACCUMULATING 3건
+━━━━━━━━━━━━━━━━━━━━━━
+
+3건은 왜 최종 생성 상태에 도달하지 못했는지만
+현재 저장 상태와 기존 정상 pipeline 기준으로 확인한다.
+
+입력 데이터가 이미 충족되어 있고
+기존 정상 worker continuation으로 진행 가능한 경우에만
+정상 경로로 계속 처리한다.
+
+데이터가 실제 부족하면
+성공으로 변경하지 않는다.
+
+AI/ENGINE 오류를 eligibility exclusion이나
+policy exclusion으로 변경하지 않는다.
+
+새 request identity 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실행 후 reconciliation
+━━━━━━━━━━━━━━━━━━━━━━
+
+20건 처리 후 기존 reconciliation을 다시 실행한다.
+
+반드시 보고:
+
+eligible_total
+generated_total
+policy_excluded_total
+resolved_total
+remaining
+
+queued
+processing
+retry_pending
+failed
+unknown
+missing
+duplicate
+wrong_pool
+
+READY
+ready_at
+
+기존 성공 99건 변경 여부
+기존 성공 99건 ENGINE 재분석 수
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. READY 규칙 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+119명 전원이 정상 최종 귀결되지 않으면
+READY=false 유지.
+
+예:
+
+119 generated
+→ READY 가능
+
+118 generated + 1 legitimate post-seal policy exclusion
+→ disposition 119/119 가능
+
+118 generated + 1 UNKNOWN
+→ NOT READY
+
+UNKNOWN/실패/누락을 제거하여
+분모를 축소하지 않는다.
+
+관리자 READY PUSH도 기존 준비시점과
+100% gate를 모두 충족하기 전에는 보내지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 수정 필요 시
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 우선 기존 Production 기능으로
+20건을 정상 recovery하는 작업이다.
+
+새로운 코드 결함이 실제로 확인되기 전에는
+코드를 수정하지 않는다.
+
+코드 결함이 발견되면:
+- 실행을 중단
+- 정확한 원인
+- 영향받는 건수
+- 최소 수정 위치
+만 보고한다.
+
+임의 수정/commit/push/deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+17 UNKNOWN:
+- COMPLETE replay 회수 수
+- PROCESSING 수
+- UNKNOWN 유지 수
+- conflict 수
+- 새 provider 호출 수
+
+3 DATA_ACCUMULATING:
+- 정상 continuation 완료 수
+- 미완료 수
+- 미완료 이유
+
+최종:
+- generated / eligible
+- remaining
+- blocking 상태별 count
+- READY 여부
+- 관리자 READY PUSH 여부
+- 운영자 alert 변화
+
+그리고:
+
+EXISTING SUCCESS 99 PRESERVED = PASS/HOLD
+UNKNOWN SAFE RECOVERY = PASS/HOLD
+DATA_ACCUMULATING RECOVERY = PASS/HOLD
+NO DUPLICATE PROVIDER CALL = PASS/HOLD
+SEPTEMBER 119/119 FINAL DISPOSITION = PASS/HOLD
+CURRENT SEPTEMBER CYCLE RECOVERY = PASS/HOLD
+
+여기서 정지하세요.
