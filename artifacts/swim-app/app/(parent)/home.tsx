@@ -1395,8 +1395,20 @@ export default function ParentHomeScreen() {
         body: JSON.stringify({}),
       });
       const data = await res.json().catch(() => ({}));
+      const requestCode = typeof data.code === "string" ? data.code : "";
+      const alreadyLinked = data.status === "linked"
+        || data.already_linked === true
+        || requestCode === "already_linked";
+      if (alreadyLinked) {
+        setV2Status("linked");
+        setAdminRequestMessage(responseMessage(data, "자녀 연결이 이미 완료되었습니다."));
+        setAdminRequestError(null);
+        await refresh();
+        return;
+      }
       if (!res.ok) {
         setAdminRequestError(responseMessage(data, "관리자에게 요청을 보내지 못했습니다."));
+        if (requestCode === "pending_not_found") await loadV2Status();
         return;
       }
       setAdminRequestMessage(responseMessage(data, "수영장에 승인 요청을 보냈습니다."));

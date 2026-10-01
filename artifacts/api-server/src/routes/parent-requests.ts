@@ -706,7 +706,7 @@ router.get("/admin/parent-v2-pending/:id/approval-info", requireAuth, requireRol
 // ─── 관리자: 학부모 V2 연결 승인/거절 ─────────────────────────────────────
 // PATCH /admin/parent-v2-pending/:id
 // { action: "approve", student_id?: string } | { action: "reject", reason?: string }
-// 구버전 클라이언트도 동일한 strict transaction을 통과하며 학생정보 편집은 하지 않는다.
+// Existing 52f5529 PATCH contract; keep legacy approval helper separate from rescue POST.
 router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
   async (req: AuthRequest, res) => {
     try {
@@ -719,57 +719,16 @@ router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admi
         res.status(400).json({ success: false, message: "action은 approve 또는 reject여야 합니다." }); return;
       }
 
+      const { approveParentV2Pending, rejectParentV2Pending } = await import("../lib/auto-link-v2.js");
+      let result: { success: boolean; message: string; linkedCount?: number };
+
       if (action === "approve") {
-        const { confirmParentV2Pending } = await import("../lib/parent-v2-admin-service.js");
-        const result = await confirmParentV2Pending(
-          req.params.id,
-          me.swimming_pool_id,
-          req.user!.userId,
-          typeof student_id === "string" && student_id.trim() ? { student_id: student_id.trim() } : {},
-        );
-        if (!result.success) {
-          const status = result.code === "phone_proof_missing" ? 403
-            : result.code === "pending_not_found" ? 404
-            : result.code === "admin_pool_mismatch" ? 403
-            : 409;
-          res.status(status).json({ success: false, message: result.message, code: result.code }); return;
-        }
-
-        // Same post-commit notification behavior as the new confirmation endpoint.
-        if ((result.newStudentIds?.length ?? 0) > 0) {
-          try {
-            const [pending] = (await db.execute(sql`
-              SELECT parent_id, child_name_raw FROM parent_v2_pending
-              WHERE id = ${req.params.id} AND pool_id = ${me.swimming_pool_id}
-              LIMIT 1
-            `)).rows as any[];
-            if (pending?.parent_id) {
-              const { sendPushToUser } = await import("../lib/push-service.js");
-              await sendPushToUser(
-                pending.parent_id,
-                true,
-                "parent_link_approved",
-                "자녀 연결 완료!",
-                `${pending.child_name_raw}과(와) 연결되었습니다.`,
-                { screen: "home" },
-                `link_approved_${req.params.id}`,
-              );
-            }
-          } catch (pushError) {
-            console.error("[admin/parent-v2-pending PATCH approval push]", pushError);
-          }
-        }
-
-        res.json({
-          success: true,
-          message: result.message,
-          linked_count: result.linkedCount ?? 0,
-        });
-        return;
+        // student_id: 관리자가 직접 선택한 학생 (없으면 자동 매칭 시도)
+        result = await approveParentV2Pending(req.params.id, me.swimming_pool_id, student_id || undefined);
+      } else {
+        result = await rejectParentV2Pending(req.params.id, me.swimming_pool_id, reason);
       }
 
-      const { rejectParentV2Pending } = await import("../lib/auto-link-v2.js");
-      const result = await rejectParentV2Pending(req.params.id, me.swimming_pool_id, reason);
       if (!result.success) {
         res.status(400).json({ success: false, message: result.message }); return;
       }
@@ -782,14 +741,20 @@ router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admi
 
         if (pending?.parent_id) {
           const { sendPushToUser } = await import("../lib/push-service.js");
-          await sendPushToUser(pending.parent_id, true, "parent_link_rejected",
-            "자녀 연결 요청 거절",
-            reason ? `거절 사유: ${reason}` : "수영장 관리자에게 문의해주세요.",
-            { screen: "home" }, `link_rejected_${req.params.id}`);
+          if (action === "approve") {
+            await sendPushToUser(pending.parent_id, true, "parent_link_approved",
+              "자녀 연결 완료!", `${pending.child_name_raw}과(와) 연결되었습니다.`,
+              { screen: "home" }, `link_approved_${req.params.id}`);
+          } else {
+            await sendPushToUser(pending.parent_id, true, "parent_link_rejected",
+              "자녀 연결 요청 거절",
+              reason ? `거절 사유: ${reason}` : "수영장 관리자에게 문의해주세요.",
+              { screen: "home" }, `link_rejected_${req.params.id}`);
+          }
         }
       } catch {}
 
-      res.json({ success: true, message: result.message });
+      res.json({ success: true, message: result.message, linked_count: result.linkedCount });
     } catch (e) {
       console.error("[admin/parent-v2-pending PATCH]", e);
       res.status(500).json({ success: false, message: "서버 오류" });
@@ -797,7 +762,7 @@ router.patch("/admin/parent-v2-pending/:id", requireAuth, requireRole("pool_admi
   }
 );
 
-// ─── 관리자: 확인한 학생 정보 저장 + 전화번호 재검증 + 승인 원자 처리 ────
+// ─── 관리자: 직접 선택한 학생에게 승인대기 요청 연결 ─────────────────────
 // POST /admin/parent-v2-pending/:id/confirm
 router.post("/admin/parent-v2-pending/:id/confirm", requireAuth, requireRole("pool_admin", "sub_admin", "super_admin"),
   async (req: AuthRequest, res) => {
@@ -806,29 +771,16 @@ router.post("/admin/parent-v2-pending/:id/confirm", requireAuth, requireRole("po
         .from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
       if (!me?.swimming_pool_id) { res.status(403).json({ success: false, message: "소속 수영장 없음" }); return; }
 
-      const allowedFields = new Set([
-        "student_id", "name", "parent_name", "parent_phone",
-        "parent_phone2", "parent_phone3", "parent_phone4",
-      ]);
       if (
         !req.body
         || typeof req.body !== "object"
         || Array.isArray(req.body)
-        || Object.keys(req.body).some(key => !allowedFields.has(key))
+        || Object.keys(req.body).length !== 1
+        || Object.keys(req.body)[0] !== "student_id"
+        || typeof req.body.student_id !== "string"
+        || !req.body.student_id.trim()
       ) {
-        res.status(400).json({ success: false, message: "허용되지 않은 학생 정보가 포함되어 있습니다." }); return;
-      }
-      if (
-        req.body.student_id !== undefined
-        && (typeof req.body.student_id !== "string" || !req.body.student_id.trim())
-      ) {
-        res.status(400).json({ success: false, message: "student_id가 올바르지 않습니다." }); return;
-      }
-      for (const field of ["name", "parent_name", "parent_phone", "parent_phone2", "parent_phone3", "parent_phone4"]) {
-        const value = req.body[field];
-        if (value !== undefined && value !== null && typeof value !== "string") {
-          res.status(400).json({ success: false, message: "학생 정보 입력값이 올바르지 않습니다." }); return;
-        }
+        res.status(400).json({ success: false, message: "student_id만 입력해야 합니다." }); return;
       }
 
       const { confirmParentV2Pending } = await import("../lib/parent-v2-admin-service.js");
@@ -836,18 +788,17 @@ router.post("/admin/parent-v2-pending/:id/confirm", requireAuth, requireRole("po
         req.params.id,
         me.swimming_pool_id,
         req.user!.userId,
-        req.body,
+        req.body.student_id.trim(),
       );
       if (!result.success) {
-        const status = result.code === "phone_proof_missing" ? 403
-          : result.code === "pending_not_found" ? 404
-          : result.code === "admin_pool_mismatch" ? 403
+        const status = result.code === "pending_not_found" ? 404
+          : result.code === "admin_pool_mismatch" || result.code === "parent_account_invalid" ? 403
           : 409;
         res.status(status).json({ success: false, message: result.message, code: result.code }); return;
       }
 
       // Approval notification is deliberately sent only after the transaction commits.
-      if ((result.newStudentIds?.length ?? 0) > 0) {
+      if (result.relationCreated) {
         try {
           const [pending] = (await db.execute(sql`
             SELECT parent_id, child_name_raw
@@ -929,6 +880,7 @@ router.post("/parent/v2/pending/request-admin", requireAuth,
       }
       res.json({
         message: result.message,
+        ...(result.already_linked ? { already_linked: true } : {}),
         ...(result.cooldown_seconds !== undefined ? { cooldown_seconds: result.cooldown_seconds } : {}),
         ...(result.push_delivery_status !== undefined
           ? { push_delivery_status: result.push_delivery_status }

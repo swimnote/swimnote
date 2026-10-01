@@ -5,7 +5,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import {
   buildParentApprovalConfirmBody, canonicalLinkedStudentNames,
-  parentAdminRequestEndpoint, parentApprovalConfirmEndpoint,
+  parentAdminRequestEndpoint, parentApprovalCandidates, parentApprovalConfirmEndpoint,
   parentApprovalInfoEndpoint, parentApprovalNotificationRoute, responseMessage,
 } from "../parentApprovalUtils";
 
@@ -31,12 +31,16 @@ function findFunction(source: string, name: string): ts.FunctionDeclaration {
 }
 
 describe("parent V2 approvals", () => {
-  it("removes the student list picker without changing member registration", () => {
-    expect(approvalsSource).not.toMatch(/StudentPickerModal|studentPicker|\/students|학생 선택/);
+  it("keeps the roster selector while removing search and preserving member registration", () => {
+    expect(approvalModalSource).toContain("info.child_name_raw");
+    expect(approvalModalSource).toContain("parentApprovalCandidates(info)");
+    expect(approvalModalSource).toContain("onPress={() => setSelectedStudentId(candidate.id)}");
+    expect(approvalModalSource).not.toMatch(/TextInput|searchStudents|student-search|autofocus/i);
+    expect(approvalsSource).not.toMatch(/searchStudents|student-search/i);
     expect(readArtifact("artifacts/swim-app/app/(admin)/members.tsx")).toContain("RegisterModal");
   });
 
-  it("uses only the approval-info GET and one-step confirm POST contracts", () => {
+  it("uses approval-info candidates and posts only the manager-selected student id", () => {
     expect(parentApprovalInfoEndpoint("pending-123"))
       .toBe("/admin/parent-v2-pending/pending-123/approval-info");
     expect(parentApprovalConfirmEndpoint("pending-123"))
@@ -45,26 +49,51 @@ describe("parent V2 approvals", () => {
     expect(approvalsSource).toContain("apiRequest(token, parentApprovalInfoEndpoint(item.id))");
     expect(approvalsSource).toContain("parentApprovalConfirmEndpoint(item.id)");
     expect(approvalsSource).toContain('method: "POST"');
+    expect(approvalsSource).toContain("buildParentApprovalConfirmBody(studentId)");
+    expect(approvalsSource).not.toContain("approvalInfo.student.id");
+    expect(approvalModalSource).toContain("onConfirm(selectedStudent.id)");
     expect(approvalsSource).toContain('item.status === "matched" || item.status === "approved"');
     expect(approvalsSource).toContain('if (statusFilter === "approved") return item.status === "matched"');
-    expect(approvalsSource).not.toContain('body: JSON.stringify({ action: "approve" })');
     expect(approvalsSource).not.toContain("/admin/students/");
   });
 
-  it("sends exactly the editable student/guardian fields and presents canonical server names", () => {
-    expect(buildParentApprovalConfirmBody("student-1", {
-      name: "Ari", parent_name: "Parent", parent_phone: "010-1",
-      parent_phone2: "", parent_phone3: "010-3", parent_phone4: "",
-    })).toEqual({
-      student_id: "student-1", name: "Ari", parent_name: "Parent",
+  it("keeps rejected retries on legacy PATCH while pending approvals use the new POST", () => {
+    const confirmHandler = findFunction(approvalsSource, "handleParentConfirm").getText();
+    const rejectedStart = confirmHandler.indexOf('if (item.status === "rejected")');
+    const pendingPostStart = confirmHandler.indexOf("parentApprovalConfirmEndpoint(item.id)", rejectedStart);
+    expect(rejectedStart).toBeGreaterThanOrEqual(0);
+    expect(pendingPostStart).toBeGreaterThan(rejectedStart);
+
+    const rejectedBranch = confirmHandler.slice(rejectedStart, pendingPostStart);
+    expect(rejectedBranch).toContain("/admin/parent-v2-pending/${item.id}");
+    expect(rejectedBranch).toContain('method: "PATCH"');
+    expect(rejectedBranch).toContain('JSON.stringify({ action: "approve", student_id: studentId })');
+    expect(rejectedBranch).toContain("d.success !== true");
+    expect(rejectedBranch).toContain("d.linked_count");
+    expect(rejectedBranch).toContain("responseMessage(d, fallbackMessage)");
+
+    const pendingBranch = confirmHandler.slice(pendingPostStart);
+    expect(pendingBranch).toContain('method: "POST"');
+    expect(pendingBranch).toContain("buildParentApprovalConfirmBody(studentId)");
+    expect(pendingBranch).toContain("d.data?.success !== true");
+    expect(approvalsSource).toContain("const showActions = isPending || isRejected;");
+  });
+
+  it("sends no member edits and keeps canonical server names for success messaging", () => {
+    expect(buildParentApprovalConfirmBody("student-1")).toEqual({ student_id: "student-1" });
+    const rosterStudent = {
+      id: "student-1", name: "Ari", parent_name: "Parent",
       parent_phone: "010-1", parent_phone2: "", parent_phone3: "010-3", parent_phone4: "",
-    });
+    };
+    expect(parentApprovalCandidates({ candidates: [rosterStudent], student: rosterStudent })).toEqual([rosterStudent]);
+    expect(parentApprovalCandidates({ candidates: [], student: rosterStudent })).toEqual([rosterStudent]);
     expect(canonicalLinkedStudentNames([{ name: "Canonical Name" }, { name: " Other " }, { name: "" }]))
       .toEqual(["Canonical Name", "Other"]);
     expect(approvalsSource).toContain("canonicalLinkedStudentNames(d.data.students)");
+    expect(approvalModalSource).not.toMatch(/EditField|TextInput|onChangeText|setParentPhone|setParentName/);
   });
 
-  it("keeps the pending item and modal draft on server verification errors", () => {
+  it("keeps the pending item and current modal selection on server errors", () => {
     const confirmHandler = findFunction(approvalsSource, "handleParentConfirm").getText();
     const errorBranchStart = confirmHandler.indexOf("if (!res.ok || d.data?.success !== true)");
     const errorBranchEnd = confirmHandler.indexOf("return;", errorBranchStart);
@@ -73,7 +102,10 @@ describe("parent V2 approvals", () => {
     expect(errorBranch).not.toMatch(/setApprovalTarget\(null\)|setApprovalInfo\(null\)|setParentPending/);
     expect(approvalModalSource).toContain("info.phone_verified ?");
     expect(approvalModalSource).toContain("소유권 미확인");
-    expect(approvalModalSource).toContain("phoneMatches(info.parent_phone, slot.value)");
+    expect(approvalModalSource).toContain("phoneMatches(info.parent_phone, value)");
+    expect(approvalModalSource).toContain("요청 번호와 불일치");
+    expect(approvalModalSource).toContain("processing || !selectedStudent");
+    expect(approvalModalSource).not.toMatch(/if\s*\(\s*!matches\s*\)/);
   });
 
   it("navigates a parent approval push to the parent tab and highlights its pending id", () => {
@@ -103,6 +135,8 @@ describe("parent V2 approvals", () => {
     expect(parentHomeSource).toContain("body: JSON.stringify({})");
     expect(parentHomeSource).toContain("data.cooldown_seconds");
     expect(parentHomeSource).toContain("관리자에게 승인 요청하기");
+    expect(parentHomeSource).toContain('requestCode === "pending_not_found"');
+    expect(parentHomeSource).toContain('setV2Status("linked")');
     expect(responseMessage({ message: "서버 안내" }, "fallback")).toBe("서버 안내");
   });
 });

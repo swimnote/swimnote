@@ -1,15 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, StyleSheet, Text, View,
+  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { EditField } from "@/components/admin/member/EditField";
 import { MemberSectionCard } from "@/components/admin/member/MemberSectionCard";
-import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { phoneMatches } from "@/lib/parentApprovalUtils";
-import type { ParentApprovalConfirmFields, ParentApprovalInfo } from "@/lib/parentApprovalUtils";
+import { parentApprovalCandidates, phoneMatches } from "@/lib/parentApprovalUtils";
+import type { ParentApprovalInfo } from "@/lib/parentApprovalUtils";
 
 const C = Colors.light;
 
@@ -22,14 +20,13 @@ interface Props {
   onClose: () => void;
   onRetry: () => void;
   onOpenMembers: () => void;
-  onConfirm: (fields: ParentApprovalConfirmFields) => void;
+  onConfirm: (studentId: string) => void;
 }
 
 export function ParentApprovalInfoModal({
   visible, info, loading, error, processing, onClose, onRetry, onOpenMembers, onConfirm,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const student = info?.student ?? null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -38,7 +35,7 @@ export function ParentApprovalInfoModal({
           <View style={m.header}>
             <View style={{ flex: 1 }}>
               <Text style={m.title}>학부모 연결 확인</Text>
-              {student ? <Text style={m.subtitle}>{student.name} 학생 정보</Text> : null}
+              {info?.child_name_raw ? <Text style={m.subtitle}>요청 자녀: {info.child_name_raw}</Text> : null}
             </View>
             <Pressable testID="parent-approval-close" onPress={onClose} disabled={processing} hitSlop={10}>
               <LucideIcon name="x" size={20} color={C.textMuted} />
@@ -58,24 +55,12 @@ export function ParentApprovalInfoModal({
                 <Text style={m.secondaryButtonText}>다시 불러오기</Text>
               </Pressable>
             </View>
-          ) : info && !student ? (
-            <View style={m.unresolved}>
-              <View style={m.unresolvedIcon}>
-                <LucideIcon name="user-x" size={24} color={C.warning} />
-              </View>
-              <Text style={m.unresolvedTitle}>등록된 학생 정보를 확인할 수 없습니다.</Text>
-              <Text style={m.unresolvedText}>
-                신규 회원 등록 또는 회원정보 확인이 필요합니다.{info.reason ? `\n${info.reason}` : ""}
-              </Text>
-              <Pressable testID="parent-approval-open-members" onPress={onOpenMembers} style={m.primaryButton}>
-                <Text style={m.primaryButtonText}>회원 관리로 이동</Text>
-              </Pressable>
-            </View>
-          ) : info && student ? (
-            <ResolvedApprovalForm
+          ) : info ? (
+            <ParentApprovalSelectionForm
               info={info}
               processing={processing}
               onClose={onClose}
+              onOpenMembers={onOpenMembers}
               onConfirm={onConfirm}
             />
           ) : null}
@@ -85,50 +70,47 @@ export function ParentApprovalInfoModal({
   );
 }
 
-function ResolvedApprovalForm({
-  info, processing, onClose, onConfirm,
+function ParentApprovalSelectionForm({
+  info, processing, onClose, onOpenMembers, onConfirm,
 }: {
   info: ParentApprovalInfo;
   processing: boolean;
   onClose: () => void;
-  onConfirm: (fields: ParentApprovalConfirmFields) => void;
+  onOpenMembers: () => void;
+  onConfirm: (studentId: string) => void;
 }) {
-  const student = info.student!;
-  const [name, setName] = useState(student.name ?? "");
-  const [parentName, setParentName] = useState(student.parent_name ?? "");
-  const [parentPhone, setParentPhone] = useState(student.parent_phone ?? "");
-  const [parentPhone2, setParentPhone2] = useState(student.parent_phone2 ?? "");
-  const [parentPhone3, setParentPhone3] = useState(student.parent_phone3 ?? "");
-  const [parentPhone4, setParentPhone4] = useState(student.parent_phone4 ?? "");
-  const phoneSlots = [
-    { label: "보호자 연락처 1", value: parentPhone },
-    { label: "보호자 연락처 2", value: parentPhone2 },
-    { label: "보호자 연락처 3", value: parentPhone3 },
-    { label: "보호자 연락처 4", value: parentPhone4 },
-  ];
+  const candidates = parentApprovalCandidates(info);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const selectedStudent = candidates.find(candidate => candidate.id === selectedStudentId) ?? null;
+
+  useEffect(() => {
+    setSelectedStudentId(null);
+  }, [info.pending_id]);
+
+  const selectedPhoneSlots = selectedStudent ? [
+    { label: "보호자 연락처 1", value: selectedStudent.parent_phone },
+    { label: "보호자 연락처 2", value: selectedStudent.parent_phone2 },
+    { label: "보호자 연락처 3", value: selectedStudent.parent_phone3 },
+    { label: "보호자 연락처 4", value: selectedStudent.parent_phone4 },
+  ] : [];
 
   return (
     <View style={m.form}>
-      <KeyboardAwareScrollViewCompat
+      <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={m.formContent}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        bottomOffset={76}
         showsVerticalScrollIndicator={false}
       >
         <View style={[
-          m.requestPhone,
+          m.requestInfo,
           { backgroundColor: info.phone_verified ? C.brandMist : C.iconOrangeBg, borderColor: info.phone_verified ? C.brandSoft : C.warning },
         ]}>
-          <View style={m.requestPhoneHeader}>
-            <Text style={m.sectionTitle}>
-              {info.phone_verified ? "학부모 인증 전화번호" : "학부모 요청 전화번호"}
-            </Text>
+          <View style={m.requestInfoHeader}>
+            <Text style={m.sectionTitle}>학부모 요청 정보</Text>
             {info.phone_verified ? (
               <View style={[m.verificationBadge, { backgroundColor: C.brandSoft }]}>
                 <LucideIcon name="check-circle" size={12} color={C.brandStrong} />
-                <Text style={[m.verificationText, { color: C.brandStrong }]}>소유 확인됨</Text>
+                <Text style={[m.verificationText, { color: C.brandStrong }]}>SMS 인증 근거 확인</Text>
               </View>
             ) : (
               <View style={[m.verificationBadge, { backgroundColor: C.iconOrangeBg }]}>
@@ -137,58 +119,112 @@ function ResolvedApprovalForm({
               </View>
             )}
           </View>
-          <View style={m.requestNameRow}>
-            <Text style={m.requestNameLabel}>학부모 계정명</Text>
-            <Text style={m.requestName}>{info.parent_name || "미입력"}</Text>
+          <View style={m.requestInfoRow}>
+            <Text style={m.requestInfoLabel}>요청 자녀명</Text>
+            <Text style={m.requestInfoValue}>{info.child_name_raw || "미입력"}</Text>
           </View>
-          <Text style={m.requestNumber}>{info.parent_phone || "전화번호 없음"}</Text>
+          <View style={m.requestInfoRow}>
+            <Text style={m.requestInfoLabel}>학부모 계정명</Text>
+            <Text style={m.requestInfoValue}>{info.parent_name || "미입력"}</Text>
+          </View>
+          <Text style={m.requestNumber}>
+            {info.phone_verified ? "인증 전화번호" : "요청 전화번호"}: {info.parent_phone || "전화번호 없음"}
+          </Text>
           {!info.phone_verified && (
-            <Text style={m.unverifiedHint}>이 번호의 소유 여부가 확인되지 않았습니다.</Text>
+            <Text style={m.unverifiedHint}>이 번호의 SMS 인증 근거가 확인되지 않았습니다.</Text>
           )}
         </View>
 
-        <MemberSectionCard title="기본 정보">
-          <EditField label="학생 이름" value={name} onChangeText={setName} placeholder="학생 이름" />
-        </MemberSectionCard>
-
-        <MemberSectionCard title="보호자 / 연락처">
-          <EditField label="보호자 이름" value={parentName} onChangeText={setParentName} placeholder="보호자 이름" />
-          <Text style={m.matchHelp}>각 등록 전화번호와 위 학부모 요청 번호의 일치 여부입니다.</Text>
-          {phoneSlots.map((slot, index) => {
-            const hasPhone = !!slot.value.trim();
-            const matches = hasPhone && phoneMatches(info.parent_phone, slot.value);
+        <MemberSectionCard title="연결할 학생 선택">
+          <Text style={m.matchHelp}>현재 수영장에 등록된 학생입니다. 연결할 학생을 직접 선택해 주세요.</Text>
+          {candidates.length === 0 ? (
+            <View style={m.emptyCandidates}>
+              <Text style={m.emptyCandidatesText}>선택 가능한 학생이 없습니다.</Text>
+              {info.reason ? <Text style={m.emptyCandidatesText}>{info.reason}</Text> : null}
+              <Pressable testID="parent-approval-open-members" onPress={onOpenMembers} style={m.secondaryButton}>
+                <Text style={m.secondaryButtonText}>회원 관리로 이동</Text>
+              </Pressable>
+            </View>
+          ) : candidates.map(candidate => {
+            const isSelected = selectedStudentId === candidate.id;
             return (
-              <View key={slot.label} style={m.phoneSlot}>
-                <EditField
-                  label={slot.label}
-                  value={slot.value}
-                  onChangeText={value => {
-                    if (index === 0) setParentPhone(value);
-                    else if (index === 1) setParentPhone2(value);
-                    else if (index === 2) setParentPhone3(value);
-                    else setParentPhone4(value);
-                  }}
-                  placeholder="010-0000-0000"
-                  keyboardType="phone-pad"
+              <Pressable
+                key={candidate.id}
+                testID={`parent-approval-student-${candidate.id}`}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+                onPress={() => setSelectedStudentId(candidate.id)}
+                disabled={processing}
+                style={[
+                  m.studentOption,
+                  {
+                    borderColor: isSelected ? C.brandStrong : C.border,
+                    backgroundColor: isSelected ? C.brandMist : C.card,
+                  },
+                ]}
+              >
+                <LucideIcon
+                  name={isSelected ? "check-circle" : "circle"}
+                  size={20}
+                  color={isSelected ? C.brandStrong : C.textMuted}
                 />
-                <View style={m.matchIndicator}>
-                  <LucideIcon
-                    name={matches ? "check-circle" : hasPhone ? "x-circle" : "minus"}
-                    size={13}
-                    color={matches ? C.success : hasPhone ? C.error : C.textMuted}
-                  />
-                  <Text style={[
-                    m.matchText,
-                    { color: matches ? C.success : hasPhone ? C.error : C.textMuted },
-                  ]}>
-                    {!hasPhone ? "등록된 번호 없음" : matches ? "요청 번호와 일치" : "요청 번호와 불일치"}
+                <View style={m.studentOptionText}>
+                  <Text style={m.studentOptionName}>{candidate.name || "이름 미입력"}</Text>
+                  <Text style={m.studentOptionGuardian}>
+                    {candidate.parent_name ? `보호자 ${candidate.parent_name}` : "보호자 이름 미입력"}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </MemberSectionCard>
-      </KeyboardAwareScrollViewCompat>
+
+        {selectedStudent ? (
+          <MemberSectionCard title="선택한 학생 등록 정보">
+            <View style={m.detailRow}>
+              <Text style={m.detailLabel}>학생 이름</Text>
+              <Text style={m.detailValue}>{selectedStudent.name || "미입력"}</Text>
+            </View>
+            <View style={m.detailRow}>
+              <Text style={m.detailLabel}>보호자 이름</Text>
+              <Text style={m.detailValue}>{selectedStudent.parent_name || "미입력"}</Text>
+            </View>
+            <Text style={m.matchHelp}>
+              등록 전화번호와 학부모 요청 전화번호의 비교 결과입니다. 참고 정보이며 승인 가능 여부를 차단하지 않습니다.
+            </Text>
+            {selectedPhoneSlots.map(slot => {
+              const value = slot.value ?? "";
+              const hasPhone = !!value.trim();
+              const matches = hasPhone && phoneMatches(info.parent_phone, value);
+              return (
+                <View key={slot.label} style={m.phoneSlot}>
+                  <View style={m.detailRow}>
+                    <Text style={m.detailLabel}>{slot.label}</Text>
+                    <Text style={m.detailValue}>{value || "등록된 번호 없음"}</Text>
+                  </View>
+                  {hasPhone ? (
+                    <View style={m.matchIndicator}>
+                      <LucideIcon
+                        name={matches ? "check-circle" : "x-circle"}
+                        size={13}
+                        color={matches ? C.success : C.error}
+                      />
+                      <Text style={[m.matchText, { color: matches ? C.success : C.error }]}>
+                        {matches ? "요청 번호와 일치" : "요청 번호와 불일치"}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </MemberSectionCard>
+        ) : (
+          <View style={m.selectionHint}>
+            <LucideIcon name="info" size={14} color={C.textMuted} />
+            <Text style={m.selectionHintText}>학생을 선택하면 등록된 보호자 정보와 전화번호 비교를 확인할 수 있습니다.</Text>
+          </View>
+        )}
+      </ScrollView>
 
       <View style={m.footer}>
         <View style={m.footerButtons}>
@@ -202,11 +238,8 @@ function ResolvedApprovalForm({
           </Pressable>
           <Pressable
             testID="parent-approval-confirm"
-            onPress={() => onConfirm({
-              name, parent_name: parentName, parent_phone: parentPhone,
-              parent_phone2: parentPhone2, parent_phone3: parentPhone3, parent_phone4: parentPhone4,
-            })}
-            disabled={processing}
+            onPress={() => selectedStudent && onConfirm(selectedStudent.id)}
+            disabled={processing || !selectedStudent}
             style={[m.primaryButton, processing && { opacity: 0.7 }]}
           >
             {processing
@@ -228,26 +261,33 @@ const m = StyleSheet.create({
   subtitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 3 },
   centerState: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 },
   stateText: { textAlign: "center", color: C.textSecondary, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 21 },
-  unresolved: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 14 },
-  unresolvedIcon: { width: 58, height: 58, borderRadius: 18, backgroundColor: C.iconOrangeBg, alignItems: "center", justifyContent: "center" },
-  unresolvedTitle: { color: C.text, fontSize: 16, fontFamily: "Pretendard-SemiBold", textAlign: "center" },
-  unresolvedText: { color: C.textSecondary, fontSize: 14, lineHeight: 22, fontFamily: "Pretendard-Regular", textAlign: "center" },
   form: { flex: 1, minHeight: 0 },
   formContent: { paddingHorizontal: 16, paddingTop: 2, paddingBottom: 14, gap: 12 },
-  requestPhone: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
-  requestPhoneHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  requestInfo: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
+  requestInfoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  requestInfoRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  requestInfoLabel: { color: C.textSecondary, fontSize: 12, fontFamily: "Pretendard-Regular" },
+  requestInfoValue: { color: C.text, fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   sectionTitle: { color: C.text, fontSize: 13, fontFamily: "Pretendard-SemiBold", flex: 1 },
   verificationBadge: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
   verificationText: { fontSize: 11, fontFamily: "Pretendard-SemiBold" },
-  requestNumber: { color: C.text, fontSize: 18, fontFamily: "Pretendard-SemiBold", letterSpacing: 0.2 },
+  requestNumber: { color: C.text, fontSize: 15, fontFamily: "Pretendard-SemiBold", letterSpacing: 0.2 },
   unverifiedHint: { color: C.iconOrange, fontSize: 12, fontFamily: "Pretendard-Regular" },
   matchHelp: { color: C.textMuted, fontSize: 11, lineHeight: 17, fontFamily: "Pretendard-Regular" },
-  requestNameRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  requestNameLabel: { color: C.textSecondary, fontSize: 12, fontFamily: "Pretendard-Regular" },
-  requestName: { color: C.text, fontSize: 13, fontFamily: "Pretendard-SemiBold" },
+  emptyCandidates: { alignItems: "center", gap: 10, paddingVertical: 16 },
+  emptyCandidatesText: { color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  studentOption: { minHeight: 58, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 10 },
+  studentOptionText: { flex: 1, gap: 3 },
+  studentOptionName: { color: C.text, fontSize: 14, fontFamily: "Pretendard-SemiBold" },
+  studentOptionGuardian: { color: C.textSecondary, fontSize: 12, fontFamily: "Pretendard-Regular" },
+  detailRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  detailLabel: { color: C.textSecondary, fontSize: 12, fontFamily: "Pretendard-Regular" },
+  detailValue: { flex: 1, textAlign: "right", color: C.text, fontSize: 13, fontFamily: "Pretendard-SemiBold" },
   phoneSlot: { gap: 4 },
   matchIndicator: { flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 2 },
   matchText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  selectionHint: { flexDirection: "row", alignItems: "flex-start", gap: 7, paddingHorizontal: 4, paddingBottom: 4 },
+  selectionHintText: { flex: 1, color: C.textMuted, fontSize: 11, lineHeight: 17, fontFamily: "Pretendard-Regular" },
   footer: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, backgroundColor: C.background, borderTopWidth: 1, borderTopColor: C.border },
   footerButtons: { flexDirection: "row", gap: 10 },
   primaryButton: { flex: 1, minHeight: 48, borderRadius: 12, backgroundColor: C.primaryAction, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },

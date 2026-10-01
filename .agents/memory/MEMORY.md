@@ -13,6 +13,7 @@
 - [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
 - [API_BASE 소스 규칙](api-base-source.md) — 실기기에서 /api fallback 사용 금지; 반드시 AuthContext에서 import
 - [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
+- [Expo 미리보기 검증 경계](expo-preview-evidence.md) — 다중 artifact 프록시가 다른 서비스를 표시할 수 있음; native 컴파일·컴포넌트 검증과 분리.
 - [OTA 배포 패턴](ota-deploy-pattern.md) — Replit RAM 부족으로 Metro OOM; 2단계(115s 번들→skip-bundler 업로드) 우회법; package.json dev 스크립트에 큰따옴표 금지(JSON 파싱 오류)
 - [★ OTA 채널 정책 (영구)](ota-channel-policy.md) — production-v2 사용; 운영 정리 전 원격 채널 매핑까지 확인. runtime은 현재 설정 기준.
 - [OTA 릴리즈 컨벤션](ota-release-convention.md) — 기본=iOS production+preview만; Android는 최종 검증 단계 누적 배포; 별도 지시 WP만 Android 동시 배포

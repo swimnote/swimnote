@@ -11,20 +11,14 @@ export interface ParentApprovalStudent {
 export interface ParentApprovalInfo {
   pending_id: string;
   parent_name: string;
+  child_name_raw: string | null;
   parent_phone: string;
   phone_verified: boolean;
-  student: ParentApprovalStudent | null;
+  candidates: ParentApprovalStudent[];
+  /** Compatibility candidate only; it must never be auto-selected. */
+  student?: ParentApprovalStudent | null;
   resolution: string | null;
   reason: string | null;
-}
-
-export interface ParentApprovalConfirmFields {
-  name: string;
-  parent_name: string;
-  parent_phone: string;
-  parent_phone2: string;
-  parent_phone3: string;
-  parent_phone4: string;
 }
 
 export function parentApprovalInfoEndpoint(pendingId: string): string {
@@ -37,19 +31,27 @@ export function parentApprovalConfirmEndpoint(pendingId: string): string {
 
 export const parentAdminRequestEndpoint = "/parent/v2/pending/request-admin";
 
-export function buildParentApprovalConfirmBody(
-  studentId: string,
-  fields: ParentApprovalConfirmFields,
-) {
-  return {
-    student_id: studentId,
-    name: fields.name,
-    parent_name: fields.parent_name,
-    parent_phone: fields.parent_phone,
-    parent_phone2: fields.parent_phone2,
-    parent_phone3: fields.parent_phone3,
-    parent_phone4: fields.parent_phone4,
-  };
+export function buildParentApprovalConfirmBody(studentId: string) {
+  return { student_id: studentId };
+}
+
+export function parentApprovalCandidates(info: Pick<ParentApprovalInfo, "candidates" | "student">): ParentApprovalStudent[] {
+  const candidates = new Map<string, ParentApprovalStudent>();
+  for (const candidate of Array.isArray(info.candidates) ? info.candidates : []) {
+    if (candidate && typeof candidate.id === "string" && candidate.id && !candidates.has(candidate.id)) {
+      candidates.set(candidate.id, candidate);
+    }
+  }
+  const preselectionCandidate = info.student;
+  if (
+    preselectionCandidate
+    && typeof preselectionCandidate.id === "string"
+    && preselectionCandidate.id
+    && !candidates.has(preselectionCandidate.id)
+  ) {
+    candidates.set(preselectionCandidate.id, preselectionCandidate);
+  }
+  return [...candidates.values()];
 }
 
 export function responseMessage(body: unknown, fallback: string): string {

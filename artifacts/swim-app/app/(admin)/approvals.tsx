@@ -21,9 +21,7 @@ import {
   buildParentApprovalConfirmBody, canonicalLinkedStudentNames,
   parentApprovalConfirmEndpoint, parentApprovalInfoEndpoint, responseMessage,
 } from "@/lib/parentApprovalUtils";
-import type {
-  ParentApprovalConfirmFields, ParentApprovalInfo,
-} from "@/lib/parentApprovalUtils";
+import type { ParentApprovalInfo } from "@/lib/parentApprovalUtils";
 
 const C = Colors.light;
 
@@ -242,7 +240,7 @@ export default function ApprovalsScreen() {
     } finally { setActionProcessing(false); }
   }
 
-  // 학부모 연결은 서버가 안전하게 특정한 학생의 정보만 먼저 반환한다.
+  // 승인 정보에서 같은 수영장 학생 후보를 불러오고, 관리자가 직접 선택한다.
   async function loadParentApprovalInfo(item: ParentPending) {
     setApprovalInfo(null);
     setApprovalInfoError(null);
@@ -273,25 +271,43 @@ export default function ApprovalsScreen() {
     await loadParentApprovalInfo(item);
   }
 
-  async function handleParentConfirm(fields: ParentApprovalConfirmFields) {
-    if (!approvalTarget || !approvalInfo?.student) return;
+  async function handleParentConfirm(studentId: string) {
+    if (!approvalTarget || !studentId) return;
     const item = approvalTarget;
     setParentProcessingId(item.id);
     try {
-      const res = await apiRequest(token, parentApprovalConfirmEndpoint(item.id), {
-        method: "POST",
-        body: JSON.stringify(buildParentApprovalConfirmBody(approvalInfo.student.id, fields)),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || d.data?.success !== true) {
-        Alert.alert("오류", responseMessage(d, "전화번호 확인이 완료되지 않아 승인을 처리하지 못했습니다."));
-        return;
+      let successMessage: string;
+      if (item.status === "rejected") {
+        const res = await apiRequest(token, `/admin/parent-v2-pending/${item.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ action: "approve", student_id: studentId }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d.success !== true) {
+          Alert.alert("오류", responseMessage(d, "선택한 학생 연결을 승인하지 못했습니다."));
+          return;
+        }
+        const linkedCount = Number(d.linked_count);
+        const fallbackMessage = Number.isFinite(linkedCount)
+          ? `학부모와 학생 ${linkedCount}명의 연결이 완료됐습니다.`
+          : "학부모와 학생 연결이 완료됐습니다.";
+        successMessage = responseMessage(d, fallbackMessage);
+      } else {
+        const res = await apiRequest(token, parentApprovalConfirmEndpoint(item.id), {
+          method: "POST",
+          body: JSON.stringify(buildParentApprovalConfirmBody(studentId)),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d.data?.success !== true) {
+          Alert.alert("오류", responseMessage(d, "선택한 학생 연결을 승인하지 못했습니다."));
+          return;
+        }
+        const studentNames = canonicalLinkedStudentNames(d.data.students);
+        successMessage = studentNames.length
+          ? `${studentNames.join(", ")} 학생 연결이 완료됐습니다.`
+          : "학부모와 학생 연결이 완료됐습니다.";
       }
-      const studentNames = canonicalLinkedStudentNames(d.data.students);
-      const message = studentNames.length
-        ? `${studentNames.join(", ")} 학생 연결이 완료됐습니다.`
-        : "학부모와 학생 연결이 완료됐습니다.";
-      Alert.alert("승인 완료", message);
+      Alert.alert("승인 완료", successMessage);
       setApprovalTarget(null);
       setApprovalInfo(null);
       setApprovalInfoError(null);

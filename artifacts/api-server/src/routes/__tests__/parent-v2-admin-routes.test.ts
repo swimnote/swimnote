@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   poolId: "pool_test",
   dbExecute: vi.fn(),
   getPendingByPool: vi.fn(),
+  approvePending: vi.fn(),
   rejectPending: vi.fn(),
   approvalInfo: vi.fn(),
   confirmPending: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock("../../middlewares/auth.js", () => ({
 
 vi.mock("../../lib/auto-link-v2.js", () => ({
   getParentV2PendingByPool: (...args: any[]) => mocks.getPendingByPool(...args),
+  approveParentV2Pending: (...args: any[]) => mocks.approvePending(...args),
   rejectParentV2Pending: (...args: any[]) => mocks.rejectPending(...args),
 }));
 
@@ -75,13 +77,15 @@ beforeEach(() => {
   mocks.poolId = "pool_test";
   mocks.dbExecute.mockReset().mockResolvedValue({ rows: [] });
   mocks.getPendingByPool.mockReset().mockResolvedValue([]);
+  mocks.approvePending.mockReset().mockResolvedValue({ success: true, message: "승인 완료", linkedCount: 1 });
   mocks.rejectPending.mockReset().mockResolvedValue({ success: true, message: "거절 완료" });
   mocks.approvalInfo.mockReset().mockResolvedValue({
     pending_id: "pending_test",
+    child_name_raw: "박하윤",
     parent_name: "김보호",
     parent_phone: "010-1111-2222",
     phone_verified: true,
-    student: {
+    candidates: [{
       id: "student_saved",
       name: "박하윤",
       parent_name: "김보호",
@@ -89,8 +93,7 @@ beforeEach(() => {
       parent_phone2: null,
       parent_phone3: null,
       parent_phone4: null,
-    },
-    resolution: "phone_match",
+    }],
     reason: "phone_mismatch",
   });
   mocks.confirmPending.mockReset().mockResolvedValue({
@@ -98,7 +101,7 @@ beforeEach(() => {
     message: "승인 완료",
     linkedCount: 1,
     newRelationCount: 1,
-    newStudentIds: ["student_saved"],
+    relationCreated: true,
     students: [{ id: "student_saved", name: "박하윤" }],
   });
   mocks.requestAdminHelp.mockReset();
@@ -115,10 +118,11 @@ describe("parent V2 approval routes", () => {
 
     expect(response.body.data).toEqual({
       pending_id: "pending_test",
+      child_name_raw: "박하윤",
       parent_name: "김보호",
       parent_phone: "010-1111-2222",
       phone_verified: true,
-      student: {
+      candidates: [{
         id: "student_saved",
         name: "박하윤",
         parent_name: "김보호",
@@ -126,10 +130,27 @@ describe("parent V2 approval routes", () => {
         parent_phone2: null,
         parent_phone3: null,
         parent_phone4: null,
-      },
-      resolution: "phone_match",
+      }],
       reason: "phone_mismatch",
     });
+    expect(mocks.approvalInfo).toHaveBeenCalledWith("pending_test", "pool_test");
+  });
+
+  it("also returns read-only approval-info for a rejected request", async () => {
+    mocks.approvalInfo.mockResolvedValueOnce({
+      pending_id: "pending_test",
+      child_name_raw: "원본 이름",
+      parent_name: "김보호",
+      parent_phone: "010-1111-2222",
+      phone_verified: false,
+      candidates: [{ id: "student_saved", name: "박하윤" }],
+      reason: "name_mismatch",
+    });
+    const response = await request(makeApp())
+      .get("/admin/parent-v2-pending/pending_test/approval-info")
+      .expect(200);
+    expect(response.body.data.child_name_raw).toBe("원본 이름");
+    expect(response.body.data.candidates).toEqual([{ id: "student_saved", name: "박하윤" }]);
     expect(mocks.approvalInfo).toHaveBeenCalledWith("pending_test", "pool_test");
   });
 
@@ -141,43 +162,33 @@ describe("parent V2 approval routes", () => {
     expect(mocks.getPendingByPool).toHaveBeenCalledWith("pool_test", "matched");
   });
 
-  it("routes legacy PATCH approval through the same proof guard while preserving compatible valid approval", async () => {
-    mocks.confirmPending.mockResolvedValueOnce({
-      success: false,
-      code: "phone_proof_missing",
-      message: "학부모 SMS 인증 정보를 확인할 수 없습니다.",
-    });
-    const denied = await request(makeApp())
-      .patch("/admin/parent-v2-pending/pending_test")
-      .send({ action: "approve", student_id: "arbitrary_student" })
-      .expect(403);
-
-    expect(denied.body.code).toBe("phone_proof_missing");
-    expect(mocks.confirmPending).toHaveBeenNthCalledWith(
-      1,
-      "pending_test",
-      "pool_test",
-      "admin_test",
-      { student_id: "arbitrary_student" },
-    );
-
+  it("routes rejected-row {action:'approve',student_id} through the baseline PATCH helper", async () => {
     mocks.dbExecute.mockResolvedValueOnce({ rows: [{ parent_id: "parent_test", child_name_raw: "박하윤" }] });
     const approved = await request(makeApp())
       .patch("/admin/parent-v2-pending/pending_test")
-      .send({ action: "approve", student_id: "student_saved", parent_phone: "forged-edit-must-be-ignored" })
+      .send({ action: "approve", student_id: "student_saved" })
       .expect(200);
-    expect(mocks.confirmPending).toHaveBeenNthCalledWith(
-      2,
+
+    expect(mocks.approvePending).toHaveBeenCalledWith(
       "pending_test",
       "pool_test",
-      "admin_test",
-      { student_id: "student_saved" },
+      "student_saved",
     );
     expect(approved.body).toMatchObject({ success: true, linked_count: 1 });
+    expect(mocks.confirmPending).not.toHaveBeenCalled();
     expect(mocks.rejectPending).not.toHaveBeenCalled();
+    expect(mocks.sendPushToUser).toHaveBeenCalledWith(
+      "parent_test",
+      true,
+      "parent_link_approved",
+      "자녀 연결 완료!",
+      "박하윤과(와) 연결되었습니다.",
+      { screen: "home" },
+      "link_approved_pending_test",
+    );
   });
 
-  it("requires an authorized administrator and forwards only the server-owned pool to strict confirmation", async () => {
+  it("requires an authorized administrator and accepts only {student_id} on the new POST", async () => {
     mocks.role = "teacher";
     await request(makeApp())
       .post("/admin/parent-v2-pending/pending_test/confirm")
@@ -186,21 +197,23 @@ describe("parent V2 approval routes", () => {
     expect(mocks.confirmPending).not.toHaveBeenCalled();
 
     mocks.role = "pool_admin";
+    await request(makeApp())
+      .post("/admin/parent-v2-pending/pending_test/confirm")
+      .send({ student_id: "student_saved", parent_phone: "010-1111-2222" })
+      .expect(400);
+    expect(mocks.confirmPending).not.toHaveBeenCalled();
+
     mocks.dbExecute.mockResolvedValueOnce({ rows: [{ parent_id: "parent_test", child_name_raw: "오타 이름" }] });
     const response = await request(makeApp())
       .post("/admin/parent-v2-pending/pending_test/confirm")
-      .send({
-        student_id: "student_saved",
-        name: "박하윤",
-        parent_phone: "010-1111-2222",
-      })
+      .send({ student_id: "student_saved" })
       .expect(200);
 
     expect(mocks.confirmPending).toHaveBeenCalledWith(
       "pending_test",
       "pool_test",
       "admin_test",
-      { student_id: "student_saved", name: "박하윤", parent_phone: "010-1111-2222" },
+      "student_saved",
     );
     expect(response.body).toEqual({
       data: {
@@ -284,5 +297,25 @@ describe("parent V2 approval routes", () => {
       cooldown_seconds: 600,
       push_delivery_status: "failed",
     });
+  });
+
+  it("exposes an already-linked suppression result without sending another push", async () => {
+    mocks.role = "parent_account";
+    mocks.requestAdminHelp.mockResolvedValueOnce({
+      success: true,
+      message: "이미 승인된 학생 연결이 확인되어 관리자에게 새 요청을 보내지 않았습니다.",
+      already_linked: true,
+      push_delivery_status: "suppressed_already_linked",
+    });
+    const response = await request(makeApp())
+      .post("/parent/v2/pending/request-admin")
+      .send({ pending_id: "pending_test" })
+      .expect(200);
+    expect(response.body).toEqual({
+      message: "이미 승인된 학생 연결이 확인되어 관리자에게 새 요청을 보내지 않았습니다.",
+      already_linked: true,
+      push_delivery_status: "suppressed_already_linked",
+    });
+    expect(mocks.sendPushToUserWithResult).not.toHaveBeenCalled();
   });
 });
