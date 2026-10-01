@@ -1,0 +1,547 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[월간 AI 성장리포트 자동 운영 V1 — 관리자 확인 후 발행 시스템 고정 WP]
+
+기준 APP main:
+8638f74e16a6ac3f43a2ea5f31ebccb2a32e89a5
+
+목적:
+
+무료 월간 AI 성장리포트 운영을 아래 확정 정책으로 하나의
+안정적인 반복 시스템으로 고정한다.
+
+이번 WP는 APP/API 영역만 작업한다.
+AI ENGINE repository는 절대 조회·수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 확정 운영 정책 — 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+매월 발급월 M의 1일:
+→ 전월 M-1 리포트 cycle 자동 준비
+→ 대상자 산출
+→ 분석 시작
+
+1일~4일:
+→ snapshot 생성
+→ ENGINE 분석
+→ 결과 저장
+→ retryable 실패 재시도
+→ crash/restart recovery
+→ 성공 결과 보존
+→ 중복 ENGINE/GPT 호출 방지
+→ 관리자 검토용 완성 리포트 준비
+
+5일:
+→ 관리자 화면에서 해당 월 완성 리포트 전체 목록 확인 가능
+→ 관리자에게 월 1회
+  "AI 성장리포트 발송 준비가 완료되었습니다"
+  성격의 준비완료 PUSH 발송
+
+중요:
+
+5일은 학부모 자동 발행일이 아니다.
+
+관리자가 리포트 목록과 내용을 확인한 후
+관리자가 승인/발송 동작을 해야만
+학부모에게 공개한다.
+
+관리자 승인/발송 전에는 절대:
+
+- PUBLISHED 전환
+- 학부모 성장리포트 본문 공개
+- 학부모 feed 노출
+- 학부모 PUSH
+
+가 발생하면 안 된다.
+
+관리자는:
+- 전체 완성 목록 확인
+- 개별 상세 확인
+- 개별 발송
+- 일괄 발송
+
+이 가능해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 자동 publisher 정책 제거/전환
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 5일 02:00 KST 이후:
+
+REVIEW_REQUIRED
+READY_TO_SEND
+APPROVED
+
+등의 성공 리포트를 관리자 승인 없이
+PUBLISHED로 바꾸는 자동 publisher 경로가 있다.
+
+이 동작을 제거하거나
+"관리자 준비완료 처리" 역할로 전환한다.
+
+절대 관리자 승인 없이 PUBLISHED 하지 않는다.
+
+기존 publisher의 유용한 기능:
+
+- eligibility 재검증
+- active/nondeleted 재검증
+- quality guard
+- 중복 방지
+
+는 폐기하지 말고
+공통 발행 guard로 재사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 관리자 발행을 유일한 학부모 공개 경로로 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 개별 발송/일괄 발송 경로를
+무료 월간 성장리포트의 공식 발행 경로로 통일한다.
+
+발행 직전에 반드시 공통 검증:
+
+- COMPLETE 계열 analysis_status
+- eligibility_version >= 현재 V1 기준
+- exclusion_code 없음
+- recognized lessons >= 3
+- student-specific source >= 1
+- 유효 report/fact/SNS
+- grounding/framing PASS 또는 REVISED_PASS
+- 현재 student active
+- nondeleted
+- 동일 pool
+- class-history continuation
+- 아직 PUBLISHED 아님
+
+을 수행한다.
+
+수동 send라고 해서
+자동 publisher보다 약한 조건으로 발행되면 안 된다.
+
+개별 발송과 일괄 발송 모두
+동일한 공통 guard를 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 관리자 준비완료 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+"batch COMPLETED"와
+"관리자에게 보여줄 리포트 준비 완료"를 동일하게 취급하지 않는다.
+
+해당 월의 대상 report들을 기준으로
+관리자 검토 가능 상태를 계산한다.
+
+다음은 각각 명확하게 구분한다.
+
+- 분석 성공/검토 가능
+- 발급조건 미충족 EXCLUDED
+- 데이터 부족
+- retry 진행 중
+- terminal FAILED
+- 이미 PUBLISHED
+
+5일까지 처리 가능한 항목을 최대한 완료하고
+관리자 화면에서는 각 상태를 정확히 보여준다.
+
+한두 건의 terminal FAILED 때문에
+나머지 정상 리포트 전체를 관리자에게 숨기지 않는다.
+
+관리자는:
+- 정상 완성 목록
+- 제외 수
+- 실패 수
+- 데이터 부족 수
+- 처리 상태
+
+를 구분해서 확인할 수 있어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 관리자 준비완료 PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+매월 5일 관리자 검토 단계가 열리면
+해당 pool 관리자에게 월 1회 준비완료 PUSH를 보낸다.
+
+의미:
+
+"이번 달 AI 성장리포트 발송 준비가 완료되었습니다.
+리포트를 확인해 주세요."
+
+정확한 카피는 기존 알림 스타일에 맞춘다.
+
+중복 PUSH 금지.
+
+pool + report_period + notification type 기준으로
+멱등성을 보장한다.
+
+서버 restart 또는 job 재실행으로
+같은 관리자에게 같은 월 준비완료 PUSH가 반복되면 안 된다.
+
+단, notification 저장 후 실제 PUSH 전송 실패는
+재시도 가능한 상태로 관리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. retry terminal 결함 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 retry_count가 max에 도달한 뒤에도
+OPEN/READY_FOR_ANALYSIS가 남을 수 있는 결함을 수정한다.
+
+retryable 실패:
+
+attempt 증가
+→ max 미만이면 retry 대기
+→ max 도달 시 terminal FAILED
+
+로 종료한다.
+
+MAX_RETRY_EXCEEDED를
+성공 analyzed 집계에 포함하지 않는다.
+
+FAILED는 자동 분석 대상에서 제외한다.
+
+관리자/명시적 recovery 경로가 아닌 이상
+무한 반복하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. crash/restart 및 duplicate GPT 비용 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 논리 분석 작업의:
+
+- request_id
+- canonical snapshot
+- snapshot hash
+
+를 재시도 가능한 형태로 저장/재사용한다.
+
+timeout/crash/watchdog 때문에
+같은 입력에 매번 새 request_id와
+새 snapshot.created_at/hash를 생성하지 않는다.
+
+동일 report/version/input이면
+동일 분석 identity를 재사용한다.
+
+이미 성공 결과가 있으면 ENGINE을 다시 호출하지 않는다.
+
+ENGINE 처리 후 APP 저장 과정에서 crash가 발생해도
+가능한 한 동일 request/hash로 recovery한다.
+
+stale CAS 보호는 유지한다.
+
+목표:
+
+같은 논리 작업에 대한
+중복 ENGINE/GPT 비용을 APP에서 최대한 차단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 결과 저장 일관성
+━━━━━━━━━━━━━━━━━━━━━━
+
+분석 결과 저장,
+질문 저장,
+analysis_status,
+product_status,
+request/hash,
+audit
+
+사이의 crash window를 최소화한다.
+
+가능한 DB transaction 범위는 원자적으로 처리한다.
+
+중간 저장 후 crash해도
+다음 worker가 성공 결과를 파괴하거나
+불필요하게 새 분석을 시작하지 않도록 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. scheduler/timezone 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 월간 성장리포트 시간 기준은:
+
+Asia/Seoul
+
+로 명시한다.
+
+월간 batch cron도
+process timezone에 의존하지 않도록 timezone을 명시한다.
+
+1일 cycle:
+KST 기준
+
+5일 관리자 검토 개방:
+KST 기준
+
+으로 고정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 월 rollover/recovery
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버가 1일 또는 5일에 내려가 있어도
+재시작 후 해당 월 상태를 복구한다.
+
+다음 달이 시작됐다고 해서
+이전 월의 미완료 정상 복구 대상이 영구 고립되지 않게 한다.
+
+단:
+
+이미 PUBLISHED
+EXCLUDED
+DISCARDED
+terminal FAILED
+
+등의 terminal 결과를 무조건 재처리하지 않는다.
+
+새 월 cycle은 이전 월 상태와 독립적으로
+정상 생성되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. PUSH 신뢰성
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 발행 PUSH:
+
+관리자 발송 성공
+→ PUBLISHED
+→ notification claim
+→ PUSH
+
+구조를 멱등하게 유지한다.
+
+notification row가 생성된 뒤
+실제 PUSH provider 전송이 실패한 경우에도
+재전송 가능한 상태를 갖도록 보완한다.
+
+PUBLISHED 자체는 PUSH 실패로 rollback하지 않는다.
+
+동일 학부모/동일 report에
+중복 PUSH는 보내지 않는다.
+
+관리자 준비완료 PUSH에도 같은 원칙을 적용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 관리자 모바일/API 연결 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP/(admin)/report-hub.tsx가
+현재 legacy summary route를 사용하는 문제를 정리한다.
+
+월간 성장리포트 공식 API:
+
+- monthly-summary
+- monthly-list
+- batch-status
+- detail
+- send
+- bulk-send
+- discard
+- regenerate
+
+와 관리자 화면을 일관되게 연결한다.
+
+관리자가 5일에 들어왔을 때
+완성된 리포트 목록과 상태를 정확하게 볼 수 있어야 한다.
+
+개별/일괄 발송을 지원한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 관리자 웹 GAP 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+웹 성장리포트 화면의:
+
+- discard PATCH/PUT 불일치
+- discard reason/상태 불일치
+- regenerate/reanalysis queue 연결
+- PUBLISHED "재발행" 버튼의 잘못된 의미
+
+를 실제 서버 계약과 맞춘다.
+
+이미 PUBLISHED된 리포트를
+"재발행" 버튼으로 PUSH만 다시 보내는 것처럼
+오해하게 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. schema/type 호환성
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Production DB를 파괴하지 않는 방식으로 보완한다.
+
+확인/수정:
+
+- report unique index predicate
+- scheduler ON CONFLICT predicate
+- WP8-A lifecycle index와 호환
+- EXCLUDED ProductStatus type
+- DATA_ACCUMULATING AnalysisStatus type
+
+기존 migration 파일을 무작정 수정하지 않는다.
+
+필요하면 새 additive migration을 만든다.
+
+기존 데이터 보존이 최우선이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 출석 집계 중복 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+V1.0 조건은 유지한다.
+
+recognized lessons:
+
+scheduled lessons
+- explicit absences
++ completed makeups
+
+단:
+
+동일 class/date의 정규 수업과 makeup이
+같은 실제 수업을 중복 카운트하지 않도록 확인/보완한다.
+
+holiday/no-class가
+정규 또는 makeup 어느 경로에서도
+부당하게 recognized lesson을 증가시키지 않도록 한다.
+
+기준 자체를 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 기존 V1.0 발급조건 절대 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 변경하지 않는다.
+
+- 발급월 M → 분석월 M-1
+- Asia/Seoul
+- [전월 1일 00:00 KST, 당월 1일 00:00 KST)
+- 전월 class-history
+- continuing 조건
+- recognized lessons >= 3
+- student-specific valid diary >= 1
+- common content만으로 source 충족 금지
+- 발행 직전 active/nondeleted 재확인
+- PUBLISHED row 보존
+- invalid/processing/failed/data accumulating publish 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 자동화 flag 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED
+GROWTH_REPORT_BATCH_AUTO_ENABLED
+
+의 의미를 현재 확정 운영정책에 맞춘다.
+
+특히 BATCH_AUTO_ENABLED가
+학부모 자동발행을 의미하면 안 된다.
+
+자동화 ON의 의미는:
+
+cycle 준비
+분석
+retry/recovery
+관리자 검토 준비
+관리자 준비완료 알림
+
+까지다.
+
+학부모 발행은 관리자 명시적 send 이후에만 가능하다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB 없이 검증한다.
+
+반드시 추가/보완:
+
+A. 1일 cycle 준비
+B. 1~4일 분석
+C. 5일 관리자 준비 상태
+D. 5일 관리자 PUSH
+E. 5일 학부모 자동 PUBLISH 없음
+F. 관리자 send 전 parent visibility 없음
+G. 관리자 개별 send 후 PUBLISHED
+H. 관리자 bulk-send
+I. send 직전 V1 guard
+J. retry 1→2→3→FAILED
+K. MAX_RETRY_EXCEEDED 성공 집계 금지
+L. crash 후 동일 request/hash 재사용
+M. 성공 결과 ENGINE 재호출 금지
+N. restart recovery
+O. month rollover recovery
+P. duplicate admin PUSH 금지
+Q. duplicate parent PUSH 금지
+R. PUSH 실패 후 안전한 재시도
+S. unique/index conflict
+T. EXCLUDED/DATA_ACCUMULATING type
+U. regular/makeup duplicate 방지
+V. KST timezone
+W. 기존 September Golden
+
+기존 117개 관련 regression도 함께 실행한다.
+
+기존 PASS 동작을 훼손하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 이번 WP에서 하지 않을 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE 수정 금지.
+AI ENGINE GitLab 작업 금지.
+
+Production deploy 금지.
+Render 설정 변경 금지.
+Production DB write 금지.
+실제 학생 cycle 실행 금지.
+실제 GPT 호출 금지.
+실제 PUSH 발송 금지.
+
+코드 구현 + 로컬/무DB 테스트 + commit까지만 수행한다.
+
+GitHub push도 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 변경 파일
+2. 새 migration 존재 여부
+3. 최종 상태 머신
+4. 1일 scheduler 동작
+5. 1~4일 분석/retry/recovery
+6. 5일 관리자 검토 개방 동작
+7. 관리자 준비완료 PUSH 멱등성
+8. 학부모 자동 publish 제거 확인
+9. 관리자 개별 send
+10. 관리자 bulk send
+11. 공통 publish guard
+12. retry terminal 처리
+13. request/hash replay
+14. duplicate GPT 보호
+15. crash/restart recovery
+16. month rollover
+17. notification/PUSH retry
+18. 관리자 APP API 연결
+19. 웹 GAP 수정
+20. schema/type/index 보완
+21. 출석/makeup 중복 보호
+22. V1.0 발급조건 유지
+23. 추가 테스트 결과
+24. 기존 regression 결과
+25. commit SHA
+26. GitHub push 미실행
+27. Production deploy 미실행
+28. Production DB/GPT/PUSH 미실행
+29. AI ENGINE 작업 없음
+
+최종 판정:
+
+MONTHLY AUTOMATION IMPLEMENTATION: PASS/HOLD/FAIL
+ADMIN REVIEW → PARENT PUBLISH POLICY: PASS/HOLD/FAIL
+RETRY/RECOVERY/IDEMPOTENCY: PASS/HOLD/FAIL
+REGRESSION: PASS/HOLD/FAIL
+
+문제가 없으면 commit까지만 하고 종료한다.
