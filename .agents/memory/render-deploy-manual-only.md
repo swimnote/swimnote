@@ -45,6 +45,13 @@ main HEAD SHA == Render LIVE /health commit SHA
 **How:** RENDER_API_KEY secret으로 Render API 직접 호출하여 deploy trigger.
 실패 시: build log 확인 → 최소 수정 → 재배포 → /health 재확인.
 
+## 무쓰기 배포 증거의 범위
+
+검증용 read-only 거래의 쓰기 0건과 Production 서버 전체의 쓰기 0건을 구분한다. 일부 테이블의 fingerprint 보존만으로 전체 DB 무쓰기를 주장하지 않는다.
+
+**Why:** 승인된 소스를 변경하지 않아도 서버 재시작 시 기존 seed·backfill·자동 초기화가 실행될 수 있다. 완료 로그의 처리 건수는 실제 변경 행 수와 다를 수 있다.
+**How to apply:** migration·DB 쓰기 금지 지시가 있으면 배포 전에 기존 startup 동작까지 포함하는지 확인한다. 보고에서는 직접 실행한 쓰기·migration, 자동 초기화, 실제 확인한 fingerprint 범위를 각각 명시한다.
+
 ## OTA 구분
 서버 코드만 변경: Render deploy만 (OTA 하지 않음)
 APP JS/TS 변경: OTA 필요 시 별도 수행

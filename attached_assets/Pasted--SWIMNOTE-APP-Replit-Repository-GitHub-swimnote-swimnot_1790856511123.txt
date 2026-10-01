@@ -1,0 +1,186 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[Production 배포 승인 — 검증 완료본 그대로 배포]
+
+검증 완료 SHA:
+
+c73d31880174bfee51f09b4fa847ab249623225a
+
+최종 검증 결과:
+
+NORMAL AUTO-LINK PRESERVED: PASS
+PENDING RESCUE FLOW: PASS
+ADMIN PUSH: PASS
+MANUAL VERIFIED APPROVAL: PASS
+STUDENT SELECTION WITHOUT SEARCH: PASS
+POOL ISOLATION: PASS
+EXISTING RELATIONS PRESERVED: PASS
+NO MEMBER DATA AUTO-MUTATION: PASS
+EXISTING APPROVAL REGRESSION: PASS
+STALE CLEANUP SAFETY: PASS
+
+관련 테스트 74 PASS
+API build PASS
+iOS Hermes bundle PASS
+Android Hermes bundle PASS
+
+Production 배포를 승인한다.
+
+추가 코드 수정 없이
+검증 완료 SHA를 그대로 배포한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 소스 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+TARGET_SHA =
+c73d31880174bfee51f09b4fa847ab249623225a
+
+현재 GitHub main의 정확한 SHA를 확인한다.
+
+검증 완료 SHA와 다르면 배포하지 말고 HOLD한다.
+
+새 코드 수정 금지.
+새 commit 추가 금지.
+reset/rebase/force push 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production API
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render swimnote-api에
+정확히 TARGET_SHA를 배포한다.
+
+확인:
+
+- Render LIVE
+- deployed SHA = TARGET_SHA
+- /api/healthz
+- /healthz
+- /health
+- startup fatal error 없음
+- restart loop 없음
+
+DB schema 변경 없음.
+migration 실행 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS/TS 변경이 포함되어 있으므로
+iOS + Android를 동시에 Production OTA 배포한다.
+
+branch/channel:
+production-v2
+
+runtimeVersion:
+2.2.0
+
+source SHA:
+c73d31880174bfee51f09b4fa847ab249623225a
+
+반드시 두 플랫폼 동일 release group으로 배포한다.
+
+신규 Store binary는 만들지 않는다.
+
+완료 후:
+
+iOS Update ID
+Android Update ID
+Group ID
+branch/channel
+runtimeVersion
+source SHA
+
+를 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. stale pending 운영 정리 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 배포에서는:
+
+Production stale pending 정리 = 0건
+
+으로 유지한다.
+
+기존 pending 35건을
+자동 삭제/수정/정리하지 않는다.
+
+cleanup apply 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포 후 무쓰기 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 회원정보를 변경하지 않는 범위에서 확인한다.
+
+- 기존 승인대기 목록 정상 조회
+- 관리자 자신의 pool 학생 목록 정상 조회
+- 새 endpoint 인증/권한 보호
+- cross-pool 요청 차단
+- 기존 approved 관계 fingerprint 보존
+- 학생 status/pointer 변경 없음
+- 정상 auto-link 경로 endpoint 정상
+- API 오류 증가 여부
+- startup/restart 이상 여부
+
+실제 학부모에게 PUSH를 보내지 않는다.
+실제 회원 승인하지 않는다.
+실제 학생 연결하지 않는다.
+실제 pending 정리하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 범위 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 배포에 추가 기능을 섞지 않는다.
+
+퇴원처리 조사/수정 금지.
+PC 수정 금지.
+성장리포트 수정 금지.
+AI ENGINE 수정 금지.
+
+퇴원처리는 별도 READ-ONLY 조사 작업으로 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로 보고한다.
+
+TARGET SHA:
+GITHUB MAIN SHA:
+
+RENDER DEPLOY ID:
+RENDER STATUS:
+DEPLOYED SHA:
+HEALTH CHECK:
+
+iOS UPDATE ID:
+Android UPDATE ID:
+GROUP ID:
+BRANCH/CHANNEL:
+RUNTIME VERSION:
+OTA SOURCE SHA:
+
+PRODUCTION DB WRITES:
+STALE PENDING CLEANUP COUNT:
+
+기존 pending 목록:
+기존 approved 관계 보존:
+student status/pointer 보존:
+cross-pool 차단:
+startup/restart 상태:
+
+최종 판정:
+
+PRODUCTION API DEPLOYMENT: PASS/HOLD/FAIL
+iOS PRODUCTION OTA: PASS/HOLD/FAIL
+ANDROID PRODUCTION OTA: PASS/HOLD/FAIL
+POST-DEPLOY SECURITY CHECK: PASS/HOLD/FAIL
+EXISTING RELATIONS PRESERVED: PASS/HOLD/FAIL
+STALE CLEANUP: 0건 확인
