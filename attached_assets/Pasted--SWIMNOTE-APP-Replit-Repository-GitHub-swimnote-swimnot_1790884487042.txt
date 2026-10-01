@@ -1,0 +1,308 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[성장리포트 V1 — 구현계획 범위 수정 / 최종 구현 직전]
+
+직전 구현계획의 기술 조사 결과는 인정합니다.
+전체 재조사하지 마세요.
+
+다만 “완전자동 발행” 범위를 잘못 넓게 해석했습니다.
+
+이번 작업의 자동화 범위를 아래로 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 자동화 범위 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 자동화할 것은:
+
+매월 1일 자동 시작
+→ 발급조건 대상 확정
+→ 전체 1차 분석
+→ 성공 즉시 보존
+→ 실패가 있어도 다른 회원/pool 계속 진행
+→ 1차 전체 종료
+→ 실패건 집계
+→ 실패가 있으면 슈퍼관리자에게 PUSH
+→ 운영자가 원인 확인/수정
+→ 실패건만 recovery
+→ pool별 100% 정상 귀결 확인
+→ READY
+→ 해당 수영장 관리자에게
+   “이번 달 성장리포트 발행이 완료되었습니다”
+   PUSH 자동 발송
+
+여기까지입니다.
+
+학부모 PUBLISHED 자동화는 이번 범위가 아닙니다.
+
+기존:
+수영장 관리자 확인/발송
+→ 학부모 공개
+
+경로를 그대로 유지합니다.
+
+따라서 이번 계획에서 제거:
+
+- 월간 system actor를 이용한 학부모 자동 PUBLISHED
+- 기존 관리자 승인 우회
+- 부모 자동 공개 로직
+- 부모 UI의 자동공개 대응
+- PublishedPage 자동공개 변경
+- 일반/유료 리포트 publish 정책 변경
+
+기존 관리자 발송 이후 학부모 공개 경로는 수정하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DATA_ACCUMULATING 정책 승인
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 계획의 추천안을 승인합니다.
+
+ENGINE:
+analysis_status = DATA_ACCUMULATING
+그대로 보존.
+
+APP 월간 final disposition:
+INSUFFICIENT_EVIDENCE
+
+의미:
+발급 대상에는 포함되었지만
+해당 월 데이터에서 성장 판단에 필요한 충분한 근거가 없었던 정상 최종 결과.
+
+사용자 안내:
+
+“이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다.”
+
+금지:
+
+- generated 성공으로 위장
+- failure로 위장
+- withdrawal exclusion으로 위장
+- denominator 제거
+- 동일 입력 재분석
+- 성장 평가 내용 창작
+
+reconciliation:
+
+resolved_total
+= generated_total
++ insufficient_evidence_total
++ policy_excluded_total
+
+pool READY는:
+
+resolved_total == eligible_total
+
+이면서
+
+UNKNOWN
+FAILED
+MISSING
+DUPLICATE
+WRONG_POOL
+QUEUED
+PROCESSING
+RETRY_PENDING
+
+등 unresolved blocker가 0일 때만 허용.
+
+INSUFFICIENT_EVIDENCE도
+수영장 관리자가 기존 발송 흐름에서 확인할 수 있는
+정상 월간 결과 형태여야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. UNKNOWN은 이번 자동화와 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 9월 UNKNOWN 17건을
+이번 구현에서 강제로 재분석하지 않습니다.
+
+UNKNOWN 자동 재분석 금지 유지.
+
+이번 자동화 구현은:
+
+- UNKNOWN을 정확히 실패/미완료 집계
+- 슈퍼관리자에게 보고
+- 해당 pool READY 차단
+
+까지만 합니다.
+
+UNKNOWN 안전 재분석 계약은 별도 후속 작업입니다.
+
+이 blocker 때문에
+정상적인 월간 1차 자동화 구현 전체를 중단하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실패 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1차 전체 종료 후 실패/미완료가 있으면
+슈퍼관리자에게 월 단위 집계 PUSH.
+
+포함:
+
+- 전체 처리 pool 수
+- 전체 eligible 대상 수
+- generated 수
+- insufficient_evidence 수
+- 미완료 pool 수
+- 미완료 회원 수
+- 오류 category별 건수
+- 예외 조회 진입점
+
+PII/AI 본문/payload 금지.
+
+동일 month + FIRST_PASS_FINISHED
+중복 PUSH 방지.
+
+정상적으로 100% 완료된 pool은
+다른 pool 실패 때문에 기다리지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Recovery
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 batch-recovery 최대한 재사용.
+
+성공 건 제외.
+PUBLISHED 건 제외.
+INSUFFICIENT_EVIDENCE 제외.
+정당한 policy exclusion 제외.
+
+실패/미완료 건만 대상.
+
+기존 성공 결과와
+request/response/hash는 절대 재작성하지 않습니다.
+
+recovery 회차는 지속적으로 기록하여
+retry_count 초기화 때문에 무한 반복되는 구조를 막습니다.
+
+UNKNOWN은 recovery 자동 대상에서 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 수영장 관리자 PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 pool이 100% 정상 귀결되어 READY가 되면
+기존 readiness outbox/dedupe를 사용하여
+수영장 관리자에게 자동 PUSH.
+
+문구:
+
+“이번 달 AI 성장리포트 발행이 완료되었습니다.
+SWIMNOTE에서 확인해 주세요.”
+
+pool + report_month 기준 논리적으로 1회.
+
+이 PUSH는
+“학부모에게 이미 발송됐다”는 의미가 아닙니다.
+
+수영장 관리자가 기존 화면에서 확인 후
+기존 발송 절차를 사용하는 구조를 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Circuit breaker
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 계획의 최소 circuit 구조 유지.
+
+개별 회원 실패나 단일 pool 데이터 문제는
+전체 작업을 멈추지 않습니다.
+
+provider/API/ENGINE 공통 장애처럼
+비정상적인 연속/대량 실패만 pause 가능.
+
+threshold/window/probe/cooldown configurable.
+
+pause 시:
+
+- 신규 provider dispatch만 중단
+- 성공 결과 보존
+- lookup/reconciliation 계속 가능
+- 슈퍼관리자 즉시 장애 PUSH
+- 원인 수정 후 기존 manifest에서 resume
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 비용 관측
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 구현에서는
+정확하지 않은 비용 금액을 만들지 않습니다.
+
+APP에서 확실히 관측 가능한:
+
+- first-pass ENGINE 요청 수
+- recovery ENGINE 요청 수
+- lookup 수
+- recovery 회차
+- 비용 정보 존재/부재
+
+까지만 기록.
+
+provider 실제 비용을 확인할 근거가 없으면
+UNKNOWN으로 표시.
+
+ENGINE 비용 시스템 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 조사에서 migration 필요 판정은 인정합니다.
+
+다만 학부모 자동 PUBLISHED 범위가 제거되었으므로
+migration 필드도 다시 최소화하세요.
+
+필요한 것만:
+
+- 월간 run / fixed pool manifest
+- first-pass outcome
+- recovery 회차/승인/제한
+- circuit pause/resume
+- INSUFFICIENT_EVIDENCE final disposition
+- super-admin summary notification event scope/dedupe
+
+기존 READY/PUBLISHED 구조는 불필요하게 변경하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 답변에서 할 일
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 구현은 아직 하지 마세요.
+
+직전 계획에서
+이번 범위 축소로 제거되는 파일과
+실제로 남는 수정 파일만 다시 산출하세요.
+
+특히:
+
+- 부모 모바일 파일이 정말 필요한지
+- PublishedPage 수정이 필요한지
+- growth-report-auto-publisher 수정이 필요한지
+
+다시 판정하세요.
+
+목표는 기존 36~38개 예상 변경을
+실제 필요한 최소 범위로 줄이는 것입니다.
+
+그리고 최종적으로:
+
+APP ONLY IMPLEMENTATION POSSIBLE = YES/NO
+ENGINE CHANGE REQUIRED = YES/NO
+MIGRATION REQUIRED = YES/NO
+INSUFFICIENT_EVIDENCE POLICY = READY/HOLD
+FIRST PASS AUTOMATION = READY/HOLD
+SUPER ADMIN FAILURE REPORT = READY/HOLD
+FAILED-ONLY RECOVERY = READY/HOLD
+POOL READY ADMIN PUSH = READY/HOLD
+CIRCUIT BREAKER PLAN = READY/HOLD
+
+예상 수정 파일 목록과
+관련 테스트 목록만 제출 후 정지하세요.
+
+전체 재감사 금지.
+ENGINE 조사 금지.
+Production mutation 금지.
+코드 수정 금지.
