@@ -10,7 +10,14 @@ Replit 환경에서 `eas update`는 bash tool 120초 제한 때문에 직접 완
 
 **Why:** Metro 캐시가 지워진 상태에서 iOS도 120s 초과. 캐시가 살아있을 때만 Metro kill → export 가능한데, 신뢰성이 낮음. 워크플로우 방식이 항상 안전.
 
-## 표준 배포 절차 (iOS / Android 공통)
+## 현재 우선 절차: 승인된 두 플랫폼 동시 OTA
+
+두 플랫폼 배포를 명시적으로 승인받았다면, production-v2 프로필의 EXPO_PUBLIC_* 환경을 번들링 프로세스에 주입하고 새 /tmp 경로로 `expo export --platform ios --platform android --max-workers 1`을 실행한다. Node heap은 2048MB로 제한한다. 두 플랫폼의 Hermes 번들·참조 자산이 모두 존재하는지 확인한 뒤, 그 통합 export를 `eas update --skip-bundler --platform all --input-dir ...`로 한 번에 발행할 수 있다. 채널·runtime은 현재 eas.json/app.json에서 확인한다.
+
+**Why:** 기본 worker 수는 공유 메모리에서 OOM을 일으켰지만 single-worker 통합 export와 두 플랫폼 일괄 업로드는 검증됐다. 오래된 우회 절차 때문에 package.json이나 워크플로우 설정을 불필요하게 수정하지 않는다.
+**How to apply:** 긴 export는 background shell로 실행하고 완료 결과를 기다린다. 두 플랫폼 모두 PASS해야 push·업로드로 진행한다. 이 절차는 Android 배포 승인 요건을 완화하지 않으며, 한 플랫폼씩 업로드하는 과거 방식과 통합 일괄 업로드를 혼동하지 않는다.
+
+## 과거 우회 배포 절차 (현재 우선 절차로 진행할 수 없는 경우에만 검토)
 
 1. `package.json` dev 스크립트를 더미 포트 + export로 임시 교체:
    ```
