@@ -1,0 +1,828 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[SWIMNOTE AI 성장리포트 V1 — 월간 자동발급 최종 설계도 확정 / 구현 전 오류 선제 차단]
+
+중요:
+이번 단계에서는 바로 코딩하지 않는다.
+
+현재 SWIMNOTE에 이미 구현되어 있는 성장리포트 월간 자동화 구조를 기준으로,
+기존 구현을 최대한 재사용하면서
+아래 최종 정책을 만족하는 “Production 최종 설계도”를 먼저 만든다.
+
+목표는 기능을 많이 만드는 것이 아니다.
+
+실제 매월 수백 개 수영장 / 대량 회원이 처리될 때도
+
+누락
+중복
+잘못된 READY
+무한 retry
+중복 AI 비용
+서버 restart 후 작업 유실
+worker 경쟁
+pool 간 데이터 혼합
+PUSH 오발송
+성공 결과 재분석
+
+등이 발생하지 않도록
+현재 구조의 위험 지점을 구현 전에 제거하는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 작업 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+저장소 전체 audit 금지.
+전체 test suite 금지.
+전체 typecheck 금지.
+500-pool 부하테스트 금지.
+AI ENGINE 내부 재조사 금지.
+APP 전체 architecture 재설계 금지.
+
+성장리포트 관련 기존 경로만 확인한다.
+
+확인 범위:
+
+monthly scheduler
+eligibility/preparation
+monthly batch/cycle
+analysis job
+queue/worker
+ENGINE request
+request identity
+retry/recovery
+report state
+readiness
+admin readiness PUSH
+operator/system alert
+admin review/approval/PUBLISHED
+
+현재 구현에서 이미 만족하는 구조는 그대로 사용한다.
+
+새 테이블/새 queue/새 상태를 무조건 만들지 않는다.
+
+“현재 구현”
+“부족한 부분”
+“최소 변경안”
+
+을 구분해서 설계한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 Business Sequence — 절대 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+매월 발급월 M에 대해:
+
+1일
+→ M-1 데이터 기준 대상 확정
+→ pool별 eligible snapshot 확정
+→ analysis jobs 생성
+→ persistent queue
+
+1~4일
+→ worker claim
+→ ENGINE 분석
+→ 결과 저장
+→ retry 가능한 실패 자동 retry
+→ restart/resume
+→ 계속 reconciliation
+
+5일까지 목표
+→ pool별 eligible 대상 100% 생성 완료
+
+100%인 pool만:
+
+READY
+→ 수영장 관리자에게 발급준비완료 PUSH
+→ 기존 관리자 검토
+→ 승인
+→ PUBLISHED
+→ 학부모 제공
+
+100%가 아닌 pool:
+
+NOT READY 유지
+→ 관리자 준비완료 PUSH 금지
+→ 실패/미완료 상태 보존
+→ SWIMNOTE 운영자에게 장애 알림
+→ 원인 해결
+→ explicit recovery trigger
+→ 미완료 대상만 다시 처리
+→ 100% 달성
+→ READY
+→ 관리자 PUSH
+
+한 pool의 실패는 다른 pool을 막지 않는다.
+
+이 sequence는 infrastructure 규모와 관계없이 동일해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Eligibility Snapshot 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+발급월 M은 M-1 데이터를 분석한다.
+
+KST:
+
+[전월 1일 00:00,
+ 현재월 1일 00:00)
+
+기존 eligibility:
+
+- 다음 달 1일 기준 재원
+- 전월 동일 pool 수강 이력
+- scheduled - absence + completed makeup
+- duplicate count 금지
+- holiday/no-class 증가 금지
+- 인정수업 >= 3
+- 같은 월 student-specific 유효 일지 >= 1
+- X entitlement/승인 pool
+
+을 유지한다.
+
+중요:
+
+월간 cycle 시작 후 eligible 모집단이
+worker 실행 시점마다 다시 계산되어 흔들리면 안 된다.
+
+해당 pool/report_month의
+발급 대상 모집단을 명확하게 고정할 수 있는 구조인지 확인한다.
+
+예:
+
+eligible_total = 119
+
+이면 해당 cycle의 목표는 119로 고정한다.
+
+분석 도중 회원 상태 변화 때문에
+119 → 117 → 121처럼 denominator가 흔들려
+잘못 READY 되는 구조를 금지한다.
+
+단 기존 정책대로 실제 발행 직전
+active/nondeleted 안전성 검사는 별도로 유지한다.
+
+즉:
+
+발급대상 snapshot
+≠
+발행 직전 안전성 확인
+
+을 구분한다.
+
+현재 구현이 이미 이를 보장하면 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Identity / Idempotency
+━━━━━━━━━━━━━━━━━━━━━━
+
+논리적 report identity 최소 기준:
+
+pool
+student
+report_month
+
+동일 identity에 대해:
+
+scheduler 중복 실행
+worker 중복 실행
+서버 restart
+explicit recovery
+동시 worker
+scheduler 재기동
+
+이 발생해도
+논리적 report가 중복 생성되면 안 된다.
+
+ENGINE request identity도 기존 구조를 유지한다.
+
+성공한 분석에 대해
+새 request identity를 만들어 ENGINE을 다시 호출하면 안 된다.
+
+PUBLISHED는 절대 재분석하지 않는다.
+
+현재 DB constraint / atomic operation / request identity가
+어디서 이를 보장하는지 설계도에 명시한다.
+
+application-level if-check만으로
+동시성을 막는 구조는 허용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Persistent Job State
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 상태가 process memory에만 존재하면 안 된다.
+
+APP instance restart
+Render restart
+worker restart
+worker scale-out
+
+후에도 unfinished work를 찾을 수 있어야 한다.
+
+현재 persistent DB/queue 구조를 확인한다.
+
+필요한 상태 의미는 논리적으로 최소:
+
+QUEUED
+CLAIMED/PROCESSING
+RETRY_PENDING
+COMPLETED/REVIEW_REQUIRED
+FAILED_NEEDS_ATTENTION
+PUBLISHED
+
+에 대응할 수 있어야 한다.
+
+현재 상태명이 다르면 기존 이름을 유지한다.
+
+새 enum을 무조건 만들지 않는다.
+
+중요한 것은 상태의 의미다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Atomic Claim / Lease / Stale Recovery
+━━━━━━━━━━━━━━━━━━━━━━
+
+worker A와 worker B가 동시에 같은 job을 잡을 때
+둘 다 ENGINE 호출을 하면 안 된다.
+
+기존 atomic claim 구조 확인.
+
+또한:
+
+worker가 job claim
+→ PROCESSING
+→ worker crash
+
+했을 때 그 job이 영원히 PROCESSING에 갇히면 안 된다.
+
+기존 lease / stale-job recovery / reclaim 구조가 있는지 확인한다.
+
+없다면 최소 안전장치를 설계한다.
+
+단:
+
+stale이라고 판단했다고
+무조건 새로운 ENGINE 요청을 보내면 안 된다.
+
+이미 ENGINE에 요청을 보냈는지 여부와
+UNKNOWN safety를 함께 고려해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ENGINE 호출 경계 — 가장 중요
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 failure window를 반드시 설계도에서 추적한다.
+
+CASE A
+ENGINE 호출 전 APP crash
+
+→ 안전하게 다시 queue 가능.
+
+CASE B
+ENGINE이 명확한 429/5xx를 반환
+
+→ 기존 retry 정책에 따라 retry 가능.
+
+CASE C
+ENGINE 성공 응답을 APP이 정상 수신
+→ APP DB 저장 전에 crash
+
+이 경우 가장 위험하다.
+
+새 request identity로 다시 ENGINE 분석하여
+중복 비용/중복 결과가 발생하면 안 된다.
+
+기존 request identity / ENGINE idempotency 구조를 이용하여
+동일 작업을 안전하게 reconciliation할 방법을 명시한다.
+
+CASE D
+timeout / connection drop 등으로
+ENGINE에서 실제 처리됐는지 APP이 모름
+
+→ UNKNOWN safety를 깨지 않는다.
+
+UNKNOWN을 일반 429처럼 자동 retry하면 안 된다.
+
+기존 ENGINE의 UNKNOWN 보호 의미를 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Retry 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 실패를 동일하게 retry하지 않는다.
+
+최소 논리 분류:
+
+TRANSIENT_RETRYABLE
+- 명시적 429
+- 일시적 5xx
+- 안전하게 retry 가능하다고 판정된 network failure
+
+UNKNOWN
+- 실제 처리 여부를 확정할 수 없는 ambiguous result
+
+DEFINITIVE / DATA / VALIDATION FAILURE
+- 같은 입력으로 반복해도 해결되지 않는 오류
+
+TRANSIENT만 자동 retry 대상으로 한다.
+
+UNKNOWN은 기존 안전정책을 따른다.
+
+DEFINITIVE 실패를 무한 자동 retry하지 않는다.
+
+자동 retry budget 소진 후에도
+report를 성공 처리하지 않는다.
+
+FAILED_NEEDS_ATTENTION에 해당하는 기존 상태로 남긴다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Retry Backoff / Thundering Herd 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+429가 발생했을 때
+수백/수천 job이 즉시 동시에 재시도하여
+다시 429를 만드는 구조를 금지한다.
+
+현재 retry scheduling/backoff 구조를 확인한다.
+
+가능하면 기존 설정을 이용한다.
+
+retry 횟수/간격/concurrency는
+business logic에 박지 말고 운영 설정으로 분리한다.
+
+단 이번 설계 단계에서
+임의의 새로운 숫자를 추측해서 확정하지 않는다.
+
+실제 capacity에 따라 조정 가능해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 100% Readiness Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+readiness는 반드시:
+
+pool + report_month
+
+단위다.
+
+해당 cycle의:
+
+eligible_total
+
+과
+
+관리자 검토 가능한 정상 생성 report 수
+
+를 비교한다.
+
+READY 조건:
+
+generated_total == eligible_total
+AND queued == 0
+AND processing == 0
+AND retry_pending == 0
+AND failed == 0
+
+이어야 한다.
+
+단순히:
+
+batch COMPLETED
+worker idle
+5일 도달
+retry 횟수 소진
+
+을 READY로 사용하면 안 된다.
+
+중요:
+
+Batch processing COMPLETED
+≠
+Report issuance READY
+
+를 명확히 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Reconciliation — 누락 탐지
+━━━━━━━━━━━━━━━━━━━━━━
+
+queue 상태만 믿고 READY를 결정하지 않는다.
+
+pool/report_month별로
+최종 reconciliation이 가능해야 한다.
+
+최소 확인:
+
+eligible snapshot identities
+vs
+실제 report/job identities
+
+누락 0
+duplicate logical identity 0
+미완료 0
+failure 0
+
+을 확인한 뒤 READY.
+
+즉:
+
+eligible_total
+=
+generated
++ queued
++ processing
++ retry_pending
++ failed
+
+관계가 깨지면 READY 금지.
+
+예:
+
+eligible = 119
+상태 합계 = 118
+
+이면
+“거의 완료”가 아니라 DATA INCONSISTENCY다.
+
+이 경우 운영자 장애 대상으로 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 5일 Deadline Watch
+━━━━━━━━━━━━━━━━━━━━━━
+
+5일은 강제 성공 처리 시점이 아니다.
+
+5일까지 100%이면 정상 READY.
+
+5일인데:
+
+119 eligible
+118 generated
+1 failed
+
+이면 NOT READY.
+
+수영장 관리자에게
+발급준비완료 PUSH 금지.
+
+성공한 118개는 보존한다.
+
+SWIMNOTE 운영자에게
+“월간 성장리포트 발급 미완료” 알림을 보낸다.
+
+최소 정보:
+
+report_month
+pool
+eligible_total
+generated_total
+remaining_count
+실패 유형별 count
+
+개인정보/AI 원문은 PUSH에 넣지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Early Failure Detection
+━━━━━━━━━━━━━━━━━━━━━━
+
+5일까지 아무것도 모르고 기다리는 구조로 만들지 않는다.
+
+현재 cycle에서 다음과 같은 명확한 비정상 상태를
+운영 중 탐지할 수 있는지 설계한다.
+
+예:
+
+worker가 계속 실패
+retry budget 소진
+job이 stale 상태
+상태 합계 불일치
+ENGINE 요청 실패율 급증
+queue가 진행되지 않음
+
+단순 transient retry 하나마다 운영자에게 PUSH해서
+알림 폭탄을 만들지 않는다.
+
+정상 자동복구 범위를 벗어난 상태가 되었을 때
+운영자가 알 수 있도록 한다.
+
+기존 알림/outbox 구조를 최대한 재사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Operator Recovery Trigger
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영자가 장애 원인을 해결한 뒤
+cycle 전체를 다시 생성하지 않는다.
+
+explicit recovery trigger는:
+
+해당 pool
+해당 report_month
+미완료/복구 가능한 대상
+
+만 다시 활성화한다.
+
+성공 report 제외.
+PUBLISHED 제외.
+excluded 제외.
+
+기존 report identity 유지.
+기존 request identity/idempotency 정책 유지.
+
+recovery trigger 자체도 반복 실행해도
+중복 작업을 만들지 않아야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Pool Independence
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+A = 300/300
+B = 297/300
+C = 150/150
+
+A READY
+B NOT READY
+C READY
+
+여야 한다.
+
+B 장애 때문에 A/C 관리자 PUSH가 지연되면 안 된다.
+
+worker scheduling 역시
+특정 pool의 대량 실패가
+전체 queue를 영구적으로 막는 구조인지 확인한다.
+
+필요하면 현재 queue 구조 안에서 최소 안전장치를 설계한다.
+
+새로운 대형 scheduling 시스템을 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 관리자 READY PUSH Exactly-Once 효과
+━━━━━━━━━━━━━━━━━━━━━━
+
+READY가 여러 번 계산될 수 있다.
+
+scheduler restart
+reconciliation 재실행
+worker 완료 이벤트
+
+등으로 READY 판단이 반복되어도
+관리자 준비완료 PUSH가 반복되면 안 된다.
+
+기존 readiness outbox/dedupe 구조를 사용한다.
+
+PUSH 전송 실패는:
+
+report READY 상태 rollback 금지.
+
+PUSH는 별도로 retry 가능해야 한다.
+
+즉:
+
+report readiness
+와
+notification delivery
+
+를 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 관리자 승인 / PUBLISHED
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 downstream:
+
+READY
+→ 관리자 검토
+→ 승인/발행
+→ PUBLISHED
+→ 학부모
+
+흐름을 변경하지 않는다.
+
+PUBLISHED는 immutable final delivery state로 취급한다.
+
+월간 recovery가 PUBLISHED를 건드리면 안 된다.
+
+발행 직전 기존 정책대로
+active/nondeleted 안전성 검사를 유지한다.
+
+퇴원한 회원 때문에
+이미 PUBLISHED된 과거 report를 삭제하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Scheduler Timezone / 중복 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+월 경계는 KST 기준이다.
+
+서버 timezone 또는 UTC 때문에
+9월/10월 데이터 경계가 바뀌면 안 된다.
+
+1일 scheduler가:
+
+deploy
+restart
+multiple instance
+
+때문에 두 번 실행되어도
+동일 cycle을 중복 생성하지 않는다.
+
+5일 deadline watcher도
+중복 실행에 안전해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Infrastructure Independence
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 다음을 업그레이드해도:
+
+APP CPU/RAM
+APP instance
+APP worker count
+APP DB
+DB connection pool
+ENGINE CPU/RAM
+ENGINE instance
+ENGINE DB
+provider/OpenAI capacity
+storage
+
+business sequence를 변경하지 않는다.
+
+고정 sequence:
+
+1일 snapshot
+→ jobs
+→ persistent queue
+→ atomic claim
+→ ENGINE
+→ result
+→ retry/reconciliation
+→ pool별 100%
+→ READY
+→ admin PUSH
+→ review/approval
+→ PUBLISHED
+
+인프라 증설은:
+
+concurrency
+batch size
+poll interval
+connection capacity
+provider throughput
+
+등 처리속도만 변경한다.
+
+pool/member 고정 숫자를
+business logic에 넣지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 현재 9월분 Recovery는 설계 완성 후 실행
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된 cycle:
+
+eligible 119
+기존 성공 69
+기존 실패 50
+excluded 91
+
+이다.
+
+이 숫자를 코드에 하드코딩하지 않는다.
+
+설계/구현 완료 후
+Production DB의 실제 현재 상태를 다시 기준으로 한다.
+
+현재 cycle을 처음부터 재생성하지 않는다.
+
+기존 성공은 보존.
+
+미완료/실패만
+정상 operator recovery trigger로 복구한다.
+
+목표는:
+
+“50건을 한번 다시 호출”
+
+이 아니다.
+
+목표는 해당 pool/report_month의:
+
+generated_total == eligible_total
+
+이다.
+
+100%가 아니면 READY 금지.
+
+원인 해결 후 같은 cycle을 계속 이어간다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 구현 전 반드시 제출할 설계도
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는 먼저 아래 설계도만 제출한다.
+
+1. 현재 구현 파일/컴포넌트/worker 목록
+2. 현재 실제 상태전이
+3. 최종 목표 상태전이
+4. 현재 구현으로 이미 충족되는 항목
+5. 부족한 항목
+6. 실제 수정이 필요한 파일만 목록화
+7. DB migration 필요/불필요
+8. 기존 DB constraint/idempotency 근거
+9. atomic claim 방식
+10. restart/resume 방식
+11. ENGINE 호출 직전/직후 crash 처리
+12. UNKNOWN 처리
+13. retry/backoff
+14. reconciliation 방식
+15. 100% readiness 계산
+16. 5일 미완료 감지
+17. 운영자 장애 알림
+18. explicit recovery trigger
+19. 관리자 READY PUSH dedupe
+20. pool independence
+21. infrastructure scaling 시 변경되는 설정과
+    절대 변경되지 않는 business logic
+22. 현재 9월분을 이 정상 시퀀스로 복구하는 정확한 절차
+
+그리고 아래 위험 시나리오를 표로 작성한다:
+
+- scheduler duplicate
+- scheduler 중간 crash
+- worker duplicate claim
+- worker crash before ENGINE call
+- ENGINE 429
+- ENGINE 5xx
+- ENGINE success 후 APP 저장 전 crash
+- ambiguous timeout/UNKNOWN
+- DB write failure
+- retry budget exhausted
+- APP restart
+- multiple APP instances
+- 5일 미완료
+- eligible/report count mismatch
+- READY PUSH failure
+- READY PUSH duplicate attempt
+- operator recovery 반복 실행
+- 한 pool 장애
+- PUBLISHED 대상 recovery 시도
+- 회원이 분석 후 발행 전에 퇴원
+
+각 항목마다:
+
+현재 보호장치
+남은 위험
+최소 수정안
+
+을 적는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직 코드 수정하지 않는다.
+commit하지 않는다.
+push하지 않는다.
+Production 배포하지 않는다.
+migration 실행하지 않는다.
+현재 실패 50건 재시도하지 않는다.
+실제 회원 데이터 변경하지 않는다.
+전체 테스트 실행하지 않는다.
+
+이번 답변은 “최종 구현 설계도”까지만.
+
+설계도가 승인된 뒤
+그 설계도 기준으로 한 번에 최소 구현한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 최종 설계 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+마지막에 다음을 판정한다.
+
+MONTHLY SEQUENCE DESIGN = PASS/HOLD
+ELIGIBILITY SNAPSHOT = PASS/HOLD
+PERSISTENT QUEUE = PASS/HOLD
+ATOMIC CLAIM = PASS/HOLD
+IDEMPOTENCY = PASS/HOLD
+CRASH RECOVERY = PASS/HOLD
+UNKNOWN SAFETY = PASS/HOLD
+RETRY POLICY = PASS/HOLD
+RECONCILIATION = PASS/HOLD
+POOL-LEVEL 100% READINESS = PASS/HOLD
+EARLY FAILURE DETECTION = PASS/HOLD
+OPERATOR ALERT = PASS/HOLD
+OPERATOR RECOVERY = PASS/HOLD
+READY PUSH DEDUPE = PASS/HOLD
+POOL INDEPENDENCE = PASS/HOLD
+INFRASTRUCTURE-INDEPENDENT SEQUENCE = PASS/HOLD
+
+IMPLEMENTATION READY = YES/NO
+
+여기서 정지한다.
