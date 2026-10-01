@@ -1,0 +1,215 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[성장리포트 V1 — 9월 불확실 17건 read-only recovery 실행]
+
+ENGINE Production에 조회 전용 recovery endpoint 배포 완료.
+
+ENGINE SHA:
+8b9c10d586f2b9c027ebfe15d4569ef034308827
+
+Endpoint:
+POST /api/v1/growth-report/recovery/lookup
+
+보장:
+- provider 호출 없음
+- DB mutation 없음
+- COMPLETE stored result 회수 가능
+- PROCESSING/UNKNOWN/FAILED/NOT_FOUND 조회 가능
+- identity/payload/pool 검증
+- 조회 자체가 분석을 시작하지 않음
+
+현재 APP Production:
+eligible_total = 119
+generated_total = 99
+remaining = 20
+
+구성:
+- 불확실 request 17
+- DATA_ACCUMULATING 3
+
+이번 작업에서는 17건만 처리합니다.
+DATA_ACCUMULATING 3건은 건드리지 않습니다.
+
+코드 수정 금지.
+migration 금지.
+commit/push/deploy 금지.
+새 request_id 발급 금지.
+분석 POST 금지.
+provider 호출 금지.
+denominator 변경 금지.
+policy exclusion 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 17건 lookup
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP에 이미 저장된 17건 각각의 원본:
+
+pool
+report_id
+student_id
+request_id
+payload
+payload hash/version
+기존 identity
+
+를 그대로 사용하여
+
+POST /api/v1/growth-report/recovery/lookup
+
+만 호출합니다.
+
+새 identity를 만들지 않습니다.
+
+각 결과를 분류:
+
+- COMPLETE + valid stored result
+- PROCESSING
+- UNKNOWN
+- FAILED
+- NOT_FOUND
+- CONFLICT
+- 기타 명시적 recovery error
+
+17건 전부 개별 accounting 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. COMPLETE 결과만 회수
+━━━━━━━━━━━━━━━━━━━━━━
+
+COMPLETE + valid stored result인 경우에만:
+
+기존 APP result-handler의 검증 규칙을 사용하여
+회수된 결과를 검증하고
+해당 기존 report에 정상 결과를 저장합니다.
+
+새 report 생성 금지.
+새 request_id 금지.
+ENGINE analyze POST 금지.
+
+기존 request identity와
+회수 결과 identity가 정확히 일치해야 합니다.
+
+정상 저장 후 해당 report만
+기존 reconciliation 기준으로 generated 여부를 재평가합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 나머지 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+PROCESSING:
+→ 성공 처리 금지
+→ 분석 호출 금지
+
+UNKNOWN:
+→ UNKNOWN 유지
+→ 분석 호출 금지
+
+FAILED:
+→ 자동 retry 금지
+
+NOT_FOUND:
+→ 새 분석 생성 금지
+
+CONFLICT:
+→ 자동 수정 금지
+
+어떤 상태도 denominator에서 제거하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 성공 99 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 generated 99건은:
+
+DB 내용 변경 금지
+ENGINE lookup 불필요
+ENGINE analyze 금지
+
+17건 외 report를 수정하지 않습니다.
+
+DATA_ACCUMULATING 3건도
+이번 작업에서 변경하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 reconciliation
+━━━━━━━━━━━━━━━━━━━━━━
+
+17건 lookup 및 COMPLETE 결과 회수 후
+기존 reconciliation을 실행합니다.
+
+보고:
+
+17건 lookup 결과:
+COMPLETE =
+PROCESSING =
+UNKNOWN =
+FAILED =
+NOT_FOUND =
+CONFLICT =
+OTHER =
+
+COMPLETE 중:
+APP 정상 저장 =
+APP 검증 실패 =
+
+ENGINE analyze POST 수 =
+새 provider 호출 수 =
+새 request_id 수 =
+
+최종 cycle:
+
+eligible_total =
+generated_total =
+policy_excluded_total =
+resolved_total =
+remaining =
+
+queued =
+processing =
+retry_pending =
+failed =
+unknown =
+missing =
+duplicate =
+wrong_pool =
+
+READY =
+ready_at =
+
+기존 성공 99 변경 수 =
+DATA_ACCUMULATING 3 변경 수 =
+
+관리자 READY PUSH 발생 여부 =
+운영자 alert 변화 =
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+lookup endpoint 자체에 실제 계약과 다른 문제가 발견되거나
+COMPLETE 결과를 APP에 저장하기 위해
+새 코드 수정이 필요하다고 확인되면:
+
+임의 수정하지 말고 중단.
+
+정확한 원인과 최소 수정 위치만 보고합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+17 REQUEST LOOKUP = PASS/HOLD
+COMPLETE RESULT IMPORT = PASS/HOLD
+ZERO ANALYZE CALL = PASS/HOLD
+EXISTING SUCCESS 99 PRESERVED = PASS/HOLD
+UNKNOWN SAFETY = PASS/HOLD
+
+SEPTEMBER 17 REQUEST RECOVERY = PASS/HOLD
+
+DATA_ACCUMULATING 3은
+이번 판정에서 제외합니다.
+
+여기서 정지하세요.
