@@ -18,6 +18,16 @@ main HEAD SHA == Render LIVE /health commit SHA
 **Why:** 검증된 소스 뒤에 추가된 무관한 commit을 함께 배포하면 사용자가 승인한 배포 범위를 벗어난다.
 **How to apply:** 로컬 HEAD·원격 HEAD·승인 TARGET을 구분해 보고한다. 필요한 push는 승인 TARGET의 정상 fast-forward만 사용하고, Render 요청에 commitId를 명시한다. SHA를 맞추려고 reset이나 force push하지 않는다.
 
+선행 commit에 다른 작업의 지시문이나 에이전트 메모가 있다는 이유만으로 배포를 HOLD하지 않는다. 실제 실행 코드·빌드 입력·운영 동작에 영향을 주는 범위 밖 변경인지 구분한다.
+
+**Why:** 사용자는 운영에 영향 없는 문서와 실제 unrelated 구현 변경을 구분하도록 명시했다. 문서만을 이유로 검증 완료본 배포를 막으면 승인된 작업을 불필요하게 중단한다.
+**How to apply:** 승인 TARGET까지의 파일·commit 차이를 확인하고 실행 영향이 없는 자료는 보고만 한다. 실제 범위 밖 실행 변경이 있으면 HOLD한다.
+
+특정 TARGET의 모바일 OTA도 EAS에 기록되는 source SHA가 TARGET과 일치해야 한다. 로컬 HEAD가 이후 문서 commit으로 앞선 경우 TARGET의 detached worktree에서 발행할 수 있다.
+
+**Why:** 같은 JS 소스라도 이후 HEAD에서 발행하면 EAS의 source SHA가 사용자 승인 SHA와 달라진다.
+**How to apply:** 기존 이력을 reset·rebase하지 않고 TARGET 작업 디렉터리와 해당 소스의 번들을 사용한다. 두 플랫폼의 gitCommitHash·runtimeVersion·branch를 발행 결과에서 확인한다.
+
 "GitHub push 완료" / "Render 배포 트리거됨" / "수동 배포 필요" 상태에서 완료보고 금지.
 
 **완료보고 필수 항목:**
