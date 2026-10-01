@@ -54,6 +54,7 @@ import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
 import CurriculumProgressGauge, { CurriculumProgressData } from "@/components/CurriculumProgressGauge";
 import { type LevelDef } from "@/components/common/LevelBadge";
+import { parentAdminRequestEndpoint, responseMessage } from "@/lib/parentApprovalUtils";
 
 const C = Colors.light;
 const TEAL = C.brandStrong;
@@ -1217,6 +1218,10 @@ export default function ParentHomeScreen() {
   const [v2PendingChildName, setV2PendingChildName] = useState<string | null>(null);
   const [v2PoolPhone, setV2PoolPhone] = useState<string | null>(null);
   const [v2Retrying, setV2Retrying] = useState(false);
+  const [adminRequesting, setAdminRequesting] = useState(false);
+  const [adminRequestCooldown, setAdminRequestCooldown] = useState(0);
+  const [adminRequestMessage, setAdminRequestMessage] = useState<string | null>(null);
+  const [adminRequestError, setAdminRequestError] = useState<string | null>(null);
 
   const noPool =
     !confirmedPool && !(parentAccount as any)?.swimming_pool_id && !pool;
@@ -1369,6 +1374,41 @@ export default function ParentHomeScreen() {
       }
     } catch {}
     setV2Retrying(false);
+  }
+
+  const adminRequestCooldownActive = adminRequestCooldown > 0;
+  useEffect(() => {
+    if (!adminRequestCooldownActive) return;
+    const timer = setInterval(() => {
+      setAdminRequestCooldown(seconds => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [adminRequestCooldownActive]);
+
+  async function handleRequestAdminApproval() {
+    setAdminRequesting(true);
+    setAdminRequestMessage(null);
+    setAdminRequestError(null);
+    try {
+      const res = await apiRequest(token, parentAdminRequestEndpoint, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAdminRequestError(responseMessage(data, "관리자에게 요청을 보내지 못했습니다."));
+        return;
+      }
+      setAdminRequestMessage(responseMessage(data, "수영장에 승인 요청을 보냈습니다."));
+      const cooldownSeconds = Number(data.cooldown_seconds);
+      if (Number.isFinite(cooldownSeconds) && cooldownSeconds > 0) {
+        setAdminRequestCooldown(Math.ceil(cooldownSeconds));
+      }
+    } catch (error) {
+      setAdminRequestError(error instanceof Error ? error.message : "네트워크 오류가 발생했습니다.");
+    } finally {
+      setAdminRequesting(false);
+    }
   }
 
   async function unlinkChild(studentId: string, studentName: string) {
@@ -1680,6 +1720,51 @@ export default function ParentHomeScreen() {
               </Pressable>
             )}
           </View>
+          <Pressable
+            testID="parent-request-admin-approval"
+            onPress={handleRequestAdminApproval}
+            disabled={adminRequesting || adminRequestCooldownActive}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? C.primaryActionPressed : C.primaryAction,
+              borderRadius: 14,
+              paddingVertical: 15,
+              alignItems: "center",
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: 9,
+              marginBottom: 12,
+              opacity: adminRequesting || adminRequestCooldownActive ? 0.65 : 1,
+            })}
+          >
+            {adminRequesting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <LucideIcon name="bell" size={17} color="#fff" />
+                <Text style={{ fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" }}>
+                  {adminRequestCooldownActive
+                    ? `요청 완료 · ${adminRequestCooldown}초 후 다시 요청`
+                    : "관리자에게 승인 요청하기"}
+                </Text>
+              </>
+            )}
+          </Pressable>
+          {!!adminRequestMessage && (
+            <Text style={{
+              color: C.success, fontSize: 13, fontFamily: "Pretendard-SemiBold",
+              textAlign: "center", marginBottom: 10,
+            }}>
+              {adminRequestMessage}
+            </Text>
+          )}
+          {!!adminRequestError && (
+            <Text style={{
+              color: C.error, fontSize: 13, fontFamily: "Pretendard-Regular",
+              textAlign: "center", lineHeight: 19, marginBottom: 10,
+            }}>
+              {adminRequestError}
+            </Text>
+          )}
           <Pressable
             onPress={handleV2Retry}
             disabled={v2Retrying}

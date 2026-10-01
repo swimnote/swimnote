@@ -34,6 +34,7 @@ import { Image as ExpoImageGlobal } from "expo-image";
   cachePolicy: "memory",
 };
 import { DevOtaRestartModal } from "@/components/common/DevOtaRestartModal";
+import { parentApprovalNotificationRoute } from "@/lib/parentApprovalUtils";
 
 // 1.6.3+: 명시적으로 "true"일 때만 점검 화면 진입. 기본값 = 정상 진입.
 export const MAINTENANCE_MODE = process.env.EXPO_PUBLIC_MAINTENANCE_MODE === "true";
@@ -452,6 +453,13 @@ function PushNavSync() {
       const role = adminUser?.roles?.[0] ?? adminUser?.role ?? "";
       const isSuperAdmin = role === "super_admin" || role === "platform_admin" || role === "super_manager";
       const isTeacher = role === "teacher";
+      const parentApprovalRoute = parentApprovalNotificationRoute(response);
+
+      // Parent approval pushes carry screen=approvals, tab=parent, pendingId.
+      if (kind === "admin" && parentApprovalRoute) {
+        router.push(parentApprovalRoute as any);
+        return;
+      }
 
       // ── 일지 알림 ─────────────────────────────────────────────────────
       if (notifType === "diary_upload") {

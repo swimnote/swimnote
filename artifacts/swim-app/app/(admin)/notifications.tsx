@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { parentApprovalNotificationRoute } from "@/lib/parentApprovalUtils";
 
 const C = Colors.light;
 
@@ -19,6 +20,9 @@ interface Notification {
   body: string;
   is_read: boolean;
   created_at: string;
+  ref_id?: string | null;
+  ref_type?: string | null;
+  data?: unknown;
 }
 
 const TYPE_CONFIG: Record<string, { icon: "message-circle" | "image" | "book-open" | "bell"; color: string; bg: string }> = {
@@ -61,6 +65,23 @@ export default function AdminNotificationsScreen() {
     await apiRequest(token, `/notifications/${id}/read`, { method: "POST" });
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
     setUnread(prev => Math.max(0, prev - 1));
+  }
+
+  async function handleNotificationPress(notification: Notification) {
+    if (!notification.is_read) {
+      try { await markRead(notification.id); } catch {}
+    }
+    if (notification.type !== "parent_link_admin_request") return;
+
+    const route = parentApprovalNotificationRoute(notification)
+      ?? (notification.ref_type === "parent_v2_pending" && notification.ref_id
+        ? parentApprovalNotificationRoute({
+            screen: "approvals",
+            tab: "parent",
+            pendingId: notification.ref_id,
+          })
+        : null);
+    if (route) router.push(route as any);
   }
 
   async function markAllRead() {
@@ -112,7 +133,7 @@ export default function AdminNotificationsScreen() {
               <Pressable
                 key={n.id}
                 style={[styles.card, { backgroundColor: n.is_read ? C.card : C.brandMist, shadowColor: C.shadow }]}
-                onPress={() => !n.is_read && markRead(n.id)}
+                onPress={() => handleNotificationPress(n)}
               >
                 <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
                   <LucideIcon name={cfg.icon} size={18} color={cfg.color} />

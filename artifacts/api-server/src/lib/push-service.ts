@@ -586,6 +586,49 @@ export async function sendPushToUser(
   }
 }
 
+/**
+ * Strict single-recipient variant for flows that must not report a successful
+ * push request when no token was available or Expo rejected every delivery.
+ * Existing callers retain the backward-compatible void helper above.
+ */
+export async function sendPushToUserWithResult(
+  userId: string,
+  isParent: boolean,
+  notifType: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {},
+  triggeredBy?: string,
+  options: PushOptions = {},
+): Promise<boolean> {
+  const role = isParent ? "parent" : "admin";
+  try {
+    if (!(await checkPushEnabled(userId, notifType, isParent))) {
+      await logPush(userId, role, notifType, "skipped", `${notifType} OFF`, triggeredBy);
+      return false;
+    }
+    const tokens = isParent ? await getTokensByParentId(userId) : await getTokensByUserId(userId);
+    if (!tokens.length) {
+      await logPush(userId, role, notifType, "failed", "No registered push token", triggeredBy);
+      return false;
+    }
+    const result = await sendRawPushWithResult(tokens, title, body, data, options, undefined, triggeredBy);
+    const delivered = result.successCount > 0;
+    await logPush(
+      userId,
+      role,
+      notifType,
+      delivered ? "sent" : "failed",
+      delivered ? body : `Push delivery failed (${result.failureCount}/${result.uniqueTokens})`,
+      triggeredBy,
+    );
+    return delivered;
+  } catch (error) {
+    await logPush(userId, role, notifType, "failed", "Push delivery failed", triggeredBy, undefined, undefined, (error as Error)?.message);
+    return false;
+  }
+}
+
 // ── 반 학부모 전체 푸시 ───────────────────────────────────────────────
 
 /**

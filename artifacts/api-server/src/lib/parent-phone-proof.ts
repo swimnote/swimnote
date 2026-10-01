@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { superAdminDb } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 
 export const PARENT_PHONE_PROOF_PURPOSE = "parent_signup_ownership_v1";
 
@@ -164,13 +164,14 @@ export async function claimParentPhoneProof(
 export async function isParentPhoneVerified(
   parentId: string,
   phoneNorm: string,
+  reader: { execute(query: SQL): Promise<any> } = superAdminDb,
 ): Promise<boolean> {
   const canonical = canonicalPhone(phoneNorm);
   if (!parentId || !/^01[016789]\d{7,8}$/.test(canonical) || canonical !== phoneNorm) {
     return false;
   }
 
-  const result = await superAdminDb.execute(sql`
+  const result = await reader.execute(sql`
     SELECT id
     FROM phone_verifications
     WHERE ref_id = ${parentId}
