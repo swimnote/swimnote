@@ -1,0 +1,330 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[월간 AI 성장리포트 — Production 복구본 배포 + 10월 자동화 복구]
+
+목적:
+추가 개발이 아니다.
+
+실제 Production에서 2026-10-01 자동 scheduler는 실행됐지만
+토이키즈스윔클럽 OPEN 단계가 실패하여
+2026-09 성장리포트가 0건인 상태를 복구한다.
+
+검증·복구 완료 commit:
+ccb146f02fe7d934a9452e4cca1f1d7050436450
+
+현재 Production 구버전:
+efee291e3e7bbb64c3fc1e6c6500a51ca59514bb
+
+이미 확인된 사항:
+- GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+- GROWTH_REPORT_BATCH_AUTO_ENABLED=true
+- scheduler 실행 중
+- analysis worker 실행 중
+- 2026-10-01 scheduler 실제 실행
+- 토이키즈 OPEN 실제 실패
+- 토이키즈 2026-09 cycle 존재
+- report 0건
+- Production에 analysis_request_payload 없음
+- Production에 growth_report_notification_outbox 없음
+
+새 기능 개발 금지.
+기존 관리자/PC/승인/발송/학부모 기능 변경 금지.
+AI ENGINE 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 대상 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production APP/API에 반영할 소스는
+복구 완료 commit:
+
+ccb146f02fe7d934a9452e4cca1f1d7050436450
+
+기준이어야 한다.
+
+이후 unrelated commit을 임의로 포함하지 않는다.
+
+배포 전에 반드시 확인:
+
+- target SHA
+- target에 필요한 migration 2개 존재
+- 기존 관리자 APP/PC/승인/발송 경로가 복구된 상태
+- monthly automation 변경만 포함된 상태
+
+코드 추가 수정은 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 필요한 migration만 Production 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+복구 commit에서 실제 월간 자동화에 필요하다고 확정된
+migration만 Production DB에 적용한다.
+
+특히 확인:
+
+- growth_reports.analysis_request_payload
+- 분석 request/response 재사용에 필요한 확정 컬럼
+- growth_report_notification_outbox
+- 관리자 준비완료 알림 dedupe/recovery에 필요한 구조
+
+복구 작업에서 제거하기로 한
+학부모 발행용 신규 구조나
+불필요한 admin/PC 구조를 추가하지 않는다.
+
+migration 적용 전 현재 schema를 확인하고,
+이미 존재하는 항목은 중복 생성하지 않는다.
+
+migration 성공 후 실제 schema를 다시 조회하여 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production APP/API 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 완료 복구본을 Production API에 배포한다.
+
+배포 후 반드시:
+
+Production deployed source =
+ccb146f02fe7d934a9452e4cca1f1d7050436450
+
+인지 확인한다.
+
+기존 automation flag:
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+GROWTH_REPORT_BATCH_AUTO_ENABLED=true
+
+를 그대로 유지한다.
+
+임의 환경변수 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production health 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후:
+
+- /api/healthz HTTP 200
+- scheduler 정상 등록
+- analysis worker 정상 등록
+- startup fatal error 없음
+- migration/schema error 없음
+- crash/restart loop 없음
+
+을 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실패한 2026-10 cycle 복구
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+새 cycle을 임의로 중복 생성하지 않는다.
+
+기존 2026-09 report period / 2026-10 issuance cycle을
+현재 recovery/idempotency 로직으로 복구한다.
+
+Production의 기존 scheduler/startup recovery가
+정상적으로 기존 cycle을 이어서 처리할 수 있으면
+그 경로를 사용한다.
+
+확인:
+
+토이키즈스윔클럽
+→ 기존 2026-09 cycle
+→ OPEN 성공
+→ eligibility 실행
+→ 발급 대상 report 생성
+→ analysis worker queue 진입
+
+여기까지 실제 Production 증거를 확보한다.
+
+실제 학생 이름/개인정보는 출력하지 않는다.
+
+중요:
+대상 report 수가 0이면 단순 PASS 금지.
+실제 eligibility 결과와 이유를 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 APP → ENGINE 연결 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 생성된 실제 report가
+기존 analysis worker를 통해
+
+APP
+→ snapshot
+→ growth-report-engine-client
+→ Production ENGINE
+→ /api/v1/growth-report/analyze
+
+경로로 진행되는지 확인한다.
+
+ENGINE 자체를 수정하지 않는다.
+
+ENGINE이 아직 배포/준비되지 않아 요청이 실패하면
+APP을 추가 수정하지 말고 정확히 ENGINE blocker로 보고한다.
+
+ENGINE이 준비된 상태라면
+실제 월간 자동 worker가 정상 분석 결과를 받아
+report에 저장하는 것까지 확인한다.
+
+불필요한 수동 GPT 반복 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 500개 수영장 공통 구조 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈 전용 로직이어서는 안 된다.
+
+현재 scheduler/batch/analysis worker가
+eligible/approved X pool들을 pool_id 기준으로 순회하는
+공통 multi-tenant 구조인지 확인한다.
+
+특정:
+- 토이키즈 이름
+- 토이키즈 pool_id
+- 특정 수영장
+- 특정 월
+
+하드코딩이 없는지 확인한다.
+
+실제 500개 수영장 데이터를 생성하거나
+500개 GPT 호출을 하지 않는다.
+
+확인해야 할 것은:
+
+“승인된 대상 수영장이 최대 500곳이어도
+각 pool에 동일한 월간 자동화 pipeline이 적용되는 구조”
+
+인지 여부다.
+
+pool isolation은 반드시 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 관리자 준비완료 PUSH 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production schema와 코드가 정상 반영된 뒤
+
+완성 리포트
+→ monthly readiness
+→ 해당 pool 관리자
+→ GROWTH_REPORT_BATCH_READY
+→ notification outbox
+→ PUSH
+
+경로가 연결돼 있는지 확인한다.
+
+10월 5일 이전이므로
+관리자 준비완료 PUSH를 지금 임의로 조기 발송하지 않는다.
+
+단,
+현재 완성본이 10월 5일에 자동으로 해당 경로에 들어갈 수 있는지
+Production 코드/DB 상태를 확인한다.
+
+기존 관리자 승인/발송 이후 학부모 경로는 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 11월 자동 반복 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 monthly scheduler가 다음 달에도 자동으로:
+
+2026-11-01
+→ reportPeriod 2026-10
+→ 대상 pool별 cycle
+→ eligibility
+→ analysis worker
+
+2026-11-05
+→ 10월 완성본 readiness
+→ 각 pool 관리자 준비완료 PUSH
+
+로 반복되는 구조인지 확인한다.
+
+별도 수동 작업이 필요한 구조라면 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE repository 작업 금지
+새 기능 개발 금지
+관리자 APP 기능 변경 금지
+PC 기능 변경 금지
+승인/발송 기능 변경 금지
+학부모 기능 변경 금지
+불필요한 migration 금지
+force push 금지
+history rewrite 금지
+실제 관리자 준비완료 PUSH 조기발송 금지
+
+이번 작업의 허용 범위:
+
+1. 필요한 확정 migration Production 적용
+2. 복구 완료 APP/API source Production 배포
+3. 기존 10월 cycle recovery
+4. 실제 자동 분석 시작/저장 확인
+
+뿐이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 Production 증거로 보고:
+
+- 배포 전 SHA
+- 배포 후 SHA
+- migration 적용 결과
+- 필요한 컬럼/table 실제 존재
+- health
+- scheduler
+- analysis worker
+- automation flags
+- 토이키즈 기존 cycle recovery
+- OPEN 성공 여부
+- eligibility 대상 수
+- report 생성 수
+- analysis queue 진입 수
+- ENGINE 요청/응답 여부
+- 성공 report 저장 여부
+- 500-pool 공통 pipeline 여부
+- pool isolation 여부
+- 10월 5일 관리자 readiness/PUSH 연결
+- 11월 자동 반복 구조
+- 기존 관리자/PC/승인/발송 기능 변경 없음
+
+최종 판정:
+
+PRODUCTION APP DEPLOYMENT:
+PASS / HOLD / FAIL
+
+OCTOBER RECOVERY:
+PASS / HOLD / FAIL
+
+REAL APP → ENGINE ANALYSIS:
+PASS / HOLD / FAIL
+
+500-POOL COMMON AUTOMATION:
+PASS / HOLD / FAIL
+
+OCT 5 ADMIN READY PUSH:
+PASS / HOLD / FAIL
+
+NOVEMBER AUTOMATIC REPEAT:
+PASS / HOLD / FAIL
+
+마지막에는 반드시:
+
+“현재부터 사용자가 개입하지 않아도
+각 대상 수영장에서 매월 1일 전월 성장리포트 작업이 자동 시작되고,
+5일까지 완성본이 준비되며,
+각 수영장 관리자에게 준비완료 PUSH가 자동 발송되는 상태다.”
+
+라고 실제 Production 증거가 있을 때만 적는다.
+
+하나라도 막혀 있으면 전체 PASS라고 하지 말고
+정확한 blocker만 보고한다.

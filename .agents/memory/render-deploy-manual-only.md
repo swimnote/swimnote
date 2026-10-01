@@ -13,6 +13,11 @@ description: 서버 코드 변경 시 Render Production 배포까지 Replit이 �
 **PASS 조건:**
 main HEAD SHA == Render LIVE /health commit SHA
 
+사용자가 검증된 특정 commit을 배포 대상으로 고정한 경우에는 **지정 TARGET SHA == Render LIVE SHA == 실제 commit을 반환하는 Production health SHA**를 검증한다. 로컬 HEAD가 이후 첨부파일·문서 commit으로 앞서 있어도 배포 대상을 HEAD로 바꾸지 않는다.
+
+**Why:** 검증된 소스 뒤에 추가된 무관한 commit을 함께 배포하면 사용자가 승인한 배포 범위를 벗어난다.
+**How to apply:** 로컬 HEAD·원격 HEAD·승인 TARGET을 구분해 보고한다. 필요한 push는 승인 TARGET의 정상 fast-forward만 사용하고, Render 요청에 commitId를 명시한다. SHA를 맞추려고 reset이나 force push하지 않는다.
+
 "GitHub push 완료" / "Render 배포 트리거됨" / "수동 배포 필요" 상태에서 완료보고 금지.
 
 **완료보고 필수 항목:**

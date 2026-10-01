@@ -9,7 +9,7 @@
 - [★ APP vs AI ENGINE 인프라 고정 기준](app-infra-baseline.md) — APP=GitHub/swimnote-api, AI ENGINE=GitLab/swimnote-professional-engine; 절대 혼동 금지 (2026-09-13 확정)
 - [성장리포트 APP↔ENGINE 계약 검증](growth-report-cross-repo-contract.md) — APP와 별도 GitLab ENGINE의 실코드를 함께 확인해야 함; 전송 필드 위치·월 경계·registry fallback 주의
 - [Production URL 실제 라우팅](production-url-routing.md) — swimnote.kr=Replit배포(재배포 필요), Render=swimnote-api.onrender.com(push→자동빌드); 둘은 별개
-- [★ Render 배포 Replit 책임 (영구)](render-deploy-manual-only.md) — 2026-09-08 영구 변경: 서버 코드 수정 시 Render LIVE SHA 확인까지 Replit 책임; RENDER_API_KEY로 직접 trigger; PASS 기준=main HEAD SHA==LIVE SHA
+- [★ Render 배포 Replit 책임](render-deploy-manual-only.md) — LIVE·health SHA까지 확인; 특정 commit 지정 시 로컬 HEAD 대신 승인 TARGET을 배포·검증, force/reset 금지
 - [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
 - [API_BASE 소스 규칙](api-base-source.md) — 실기기에서 /api fallback 사용 금지; 반드시 AuthContext에서 import
 - [서버 핫리로드 실패 패턴](server-hotreload.md) — tsx watch가 라우트 변경을 놓칠 때 404 발생; 재시작으로 해결
