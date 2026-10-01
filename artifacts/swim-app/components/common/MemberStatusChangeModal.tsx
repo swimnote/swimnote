@@ -3,10 +3,10 @@
  * 관리자 + 선생님 양쪽에서 재사용
  *
  * 선생님 모드: 정상/미배정/연기/퇴원 (아카이브·영구삭제 제외)
- * 연기/퇴원 선택 시 → 즉시 이동 / 다음 달 이동 2단계 선택
+ * 연기 선택 시 → 즉시 이동 / 다음 달 이동 선택, 퇴원 선택 시 → 최종 확인
  * 정상(active) 복귀 선택 시 → 복귀일 달력 선택 단계
  */
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -15,7 +15,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 
 type ActionStatus = "active" | "unassigned" | "suspended" | "withdrawn";
-type Step = "select" | "timing" | "datepick";
+type Step = "select" | "timing" | "datepick" | "withdraw-confirm";
 
 interface Props {
   visible: boolean;
@@ -32,7 +32,7 @@ const OPTIONS = [
   { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (복귀일 선택)",      color: C.success, bg: "#E6F5EF", emoji: "✅", hasTiming: false },
   { key: "unassigned" as ActionStatus, label: "미배정", sub: "반 배정 해제, 미배정 대기 상태",      color: "#D96C6C", bg: "#F9DEDA", emoji: "📋", hasTiming: false },
   { key: "suspended" as ActionStatus,  label: "연기",  sub: "연기 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FFF1BF", emoji: "⏸️", hasTiming: true  },
-  { key: "withdrawn" as ActionStatus,  label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",       color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", hasTiming: true  },
+  { key: "withdrawn" as ActionStatus,  label: "퇴원",  sub: "수강 종료, 퇴원 처리 전 영향 확인",    color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", hasTiming: false },
 ];
 
 const WEEK_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -50,6 +50,8 @@ export function MemberStatusChangeModal({
   const [step, setStep] = useState<Step>("select");
   const [pickedStatus, setPickedStatus] = useState<ActionStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
 
   // 복귀일 달력 상태
   const todayDate = new Date();
@@ -58,6 +60,7 @@ export function MemberStatusChangeModal({
   const [calSelected, setCalSelected] = useState(toYMD(todayDate));
 
   function handleClose() {
+    if (processingRef.current) return;
     setStep("select");
     setPickedStatus(null);
     setError(null);
@@ -65,6 +68,7 @@ export function MemberStatusChangeModal({
   }
 
   function handleOptionPress(opt: typeof OPTIONS[number]) {
+    if (processingRef.current) return;
     setError(null);
     if (opt.key === "active") {
       // 복귀일 달력 선택 단계
@@ -77,16 +81,20 @@ export function MemberStatusChangeModal({
     } else if (opt.hasTiming) {
       setPickedStatus(opt.key);
       setStep("timing");
+    } else if (opt.key === "withdrawn") {
+      setPickedStatus(opt.key);
+      setStep("withdraw-confirm");
     } else {
       doChange(opt.key, "immediate");
     }
   }
 
   async function doChange(status: ActionStatus, mode: "immediate" | "next_month", resumeDate?: string) {
+    if (processingRef.current) return;
+    processingRef.current = true;
+    setIsProcessing(true);
     setError(null);
-    setStep("select");
-    setPickedStatus(null);
-    onClose();
+    let succeeded = false;
     try {
       const body: Record<string, string> = { new_status: status, effective_mode: mode };
       if (resumeDate) body.resume_date = resumeDate;
@@ -95,9 +103,25 @@ export function MemberStatusChangeModal({
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        onChanged({ status, mode });
+        succeeded = true;
+      } else {
+        const responseBody = await res.json().catch(() => ({}));
+        setError(responseBody.message || responseBody.error || "상태 변경에 실패했습니다. 다시 시도해 주세요.");
       }
-    } catch { /* 실패 시 부모가 다음 갱신 시 자동 복구 */ }
+    } catch {
+      setError("네트워크 오류가 발생했습니다. 다시 시도해 주세요.");
+    } finally {
+      processingRef.current = false;
+      setIsProcessing(false);
+    }
+
+    if (succeeded) {
+      setStep("select");
+      setPickedStatus(null);
+      setError(null);
+      onClose();
+      onChanged({ status, mode });
+    }
   }
 
   // 달력 빌더
@@ -119,7 +143,7 @@ export function MemberStatusChangeModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={handleClose}>
-      <Pressable style={m.overlay} onPress={handleClose} />
+      <Pressable style={m.overlay} onPress={handleClose} disabled={isProcessing} />
       <View style={m.sheet}>
         {step === "select" && (
           <>
@@ -163,7 +187,7 @@ export function MemberStatusChangeModal({
 
             <View style={{ gap: 8 }}>
               {OPTIONS.map(opt => (
-                <Pressable key={opt.key} onPress={() => handleOptionPress(opt)}
+                <Pressable key={opt.key} onPress={() => handleOptionPress(opt)} disabled={isProcessing}
                   style={[m.option, { backgroundColor: opt.bg, borderColor: opt.color + "40" }]}>
                   <View style={[m.optIcon, { backgroundColor: opt.color + "18" }]}>
                     <Text style={{ fontSize: 18 }}>{opt.emoji}</Text>
@@ -182,7 +206,7 @@ export function MemberStatusChangeModal({
               ))}
             </View>
 
-            <Pressable onPress={handleClose} style={m.cancelBtn}>
+            <Pressable onPress={handleClose} style={m.cancelBtn} disabled={isProcessing}>
               <Text style={m.cancelText}>취소</Text>
             </Pressable>
           </>
@@ -203,6 +227,7 @@ export function MemberStatusChangeModal({
             <View style={{ gap: 10, marginTop: 8 }}>
               <Pressable
                 onPress={() => doChange(pickedStatus!, "immediate")}
+                disabled={isProcessing}
                 style={[m.option, { backgroundColor: "#FEF2F2", borderColor: "#991B1B40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#F9DEDA" }]}>
                   <LucideIcon name="zap" size={20} color="#991B1B" />
@@ -215,6 +240,7 @@ export function MemberStatusChangeModal({
 
               <Pressable
                 onPress={() => doChange(pickedStatus!, "next_month")}
+                disabled={isProcessing}
                 style={[m.option, { backgroundColor: "#DFF3EC", borderColor: "#16A34A40" }]}>
                 <View style={[m.optIcon, { backgroundColor: "#DCFCE7" }]}>
                   <LucideIcon name="calendar" size={20} color="#16A34A" />
@@ -226,8 +252,50 @@ export function MemberStatusChangeModal({
               </Pressable>
             </View>
 
-            <Pressable onPress={() => { setStep("select"); setPickedStatus(null); setError(null); }} style={m.cancelBtn}>
+            <Pressable onPress={() => {
+              if (processingRef.current) return;
+              setStep("select"); setPickedStatus(null); setError(null);
+            }} style={m.cancelBtn} disabled={isProcessing}>
               <Text style={m.cancelText}>뒤로</Text>
+            </Pressable>
+          </>
+        )}
+
+        {step === "withdraw-confirm" && (
+          <>
+            <Text style={m.title}>퇴원 처리 확인</Text>
+            <Text style={m.sub}>{studentName}님을 퇴원 처리하시겠습니까?</Text>
+
+            <View style={m.withdrawNotice}>
+              <Text style={m.withdrawNoticeTitle}>퇴원 처리 시 변경되는 내용</Text>
+              <Text style={m.withdrawNoticeText}>
+                학생의 서비스·교육·미디어 데이터와 보호자-학생 연결이 제거됩니다. 지난 회원 정보와 수업일지 사본은 아카이브에 보존되며, 출결·반 이력과 이미 발행된 월간 리포트는 유지됩니다. 보호자 계정이나 다른 자녀의 정보는 삭제되지 않습니다.
+              </Text>
+            </View>
+
+            {error && (
+              <View style={m.errorBox}>
+                <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
+                <Text style={m.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <Pressable
+              onPress={() => doChange("withdrawn", "immediate")}
+              disabled={isProcessing}
+              style={[m.actionBtn, { backgroundColor: "#991B1B", marginTop: 16, opacity: isProcessing ? 0.65 : 1 }]}>
+              <Text style={m.withdrawConfirmText}>{isProcessing ? "처리 중..." : "퇴원 처리"}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                if (processingRef.current) return;
+                setStep("select");
+                setPickedStatus(null);
+                setError(null);
+              }}
+              style={m.cancelBtn}
+              disabled={isProcessing}>
+              <Text style={m.cancelText}>취소</Text>
             </Pressable>
           </>
         )}
@@ -240,18 +308,20 @@ export function MemberStatusChangeModal({
             {/* 연월 네비게이션 */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <Pressable hitSlop={8} onPress={() => {
+                if (processingRef.current) return;
                 if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
                 else setCalMonth(prev => prev - 1);
-              }}>
+              }} disabled={isProcessing}>
                 <LucideIcon name="chevron-left" size={20} color={C.text} />
               </Pressable>
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>
                 {calYear}년 {calMonth + 1}월
               </Text>
               <Pressable hitSlop={8} onPress={() => {
+                if (processingRef.current) return;
                 if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
                 else setCalMonth(prev => prev + 1);
-              }}>
+              }} disabled={isProcessing}>
                 <LucideIcon name="chevron-right" size={20} color={C.text} />
               </Pressable>
             </View>
@@ -277,7 +347,9 @@ export function MemberStatusChangeModal({
                 const isToday = ds === todayStr;
                 const dow = idx % 7;
                 return (
-                  <Pressable key={ds} onPress={() => setCalSelected(ds)}
+                  <Pressable key={ds} onPress={() => {
+                    if (!processingRef.current) setCalSelected(ds);
+                  }} disabled={isProcessing}
                     style={{ width: `${100/7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center",
                       ...(isSel ? { backgroundColor: C.brandStrong, borderRadius: 20 } : {}) }}>
                     {isToday && !isSel && (
@@ -298,14 +370,26 @@ export function MemberStatusChangeModal({
               선택: {calSelected}
             </Text>
 
+            {error && (
+              <View style={m.errorBox}>
+                <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
+                <Text style={m.errorText}>{error}</Text>
+              </View>
+            )}
+
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable style={[m.actionBtn, { backgroundColor: "#F3F4F6", flex: 1 }]}
-                onPress={() => { setStep("select"); setPickedStatus(null); }}>
+                onPress={() => {
+                  if (processingRef.current) return;
+                  setStep("select"); setPickedStatus(null);
+                }} disabled={isProcessing}>
                 <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>뒤로</Text>
               </Pressable>
-              <Pressable style={[m.actionBtn, { backgroundColor: C.primaryAction, flex: 1 }]}
-                onPress={() => doChange("active", "immediate", calSelected)}>
-                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>복귀 확인</Text>
+              <Pressable style={[m.actionBtn, { backgroundColor: C.primaryAction, flex: 1, opacity: isProcessing ? 0.65 : 1 }]}
+                onPress={() => doChange("active", "immediate", calSelected)} disabled={isProcessing}>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>
+                  {isProcessing ? "처리 중..." : "복귀 확인"}
+                </Text>
               </Pressable>
             </View>
           </>
@@ -326,6 +410,10 @@ const m = StyleSheet.create({
   badgeText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   errorBox:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F9DEDA", borderRadius: 10, padding: 10, marginBottom: 12 },
   errorText:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", flex: 1 },
+  withdrawNotice: { backgroundColor: "#FFF7F7", borderColor: "#FECACA", borderWidth: 1, borderRadius: 12, padding: 14 },
+  withdrawNoticeTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#991B1B", marginBottom: 6 },
+  withdrawNoticeText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
+  withdrawConfirmText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   option:     { flexDirection: "row", alignItems: "center", gap: 14, borderRadius: 14, padding: 14, borderWidth: 1.5 },
   optIcon:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   optLabel:   { fontSize: 15, fontFamily: "Pretendard-Regular" },

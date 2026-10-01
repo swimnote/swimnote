@@ -43,6 +43,38 @@ export interface WithdrawResult {
 }
 
 /**
+ * Legacy student_photos/student_videos rows store a URL rather than an R2 key.
+ * Only unwrap URLs served by this API's known local upload route; file_url may
+ * also contain third-party URLs and those must never be sent to object storage
+ * as deletion keys.
+ */
+function resolveLegacyUploadKey(fileUrl: unknown): string | null {
+  if (typeof fileUrl !== "string" || !fileUrl.trim()) return null;
+
+  let pathname: string;
+  if (fileUrl.startsWith("/") && !fileUrl.startsWith("//")) {
+    pathname = fileUrl.split(/[?#]/, 1)[0];
+  } else {
+    try {
+      const url = new URL(fileUrl);
+      if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) return null;
+      pathname = url.pathname;
+    } catch {
+      return null;
+    }
+  }
+
+  const match = pathname.match(/^\/(?:api\/)?uploads\/(.+)$/);
+  if (!match) return null;
+  try {
+    const key = decodeURIComponent(match[1]);
+    return key && !key.startsWith("/") ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * withdrawStudent — canonical 퇴원 처리
  *
  * @param db          운영 DB (pool db)
@@ -70,31 +102,31 @@ export async function withdrawStudent(
 
   // ── 2. R2 삭제 대상 미리 수집 (transaction 전 — 조회만) ────────────────────
   const photoRows = (await db.execute(sql`
-    SELECT id, storage_key FROM student_photos
-    WHERE student_id = ${studentId} AND storage_key IS NOT NULL
-  `)).rows as { id: string; storage_key: string }[];
+    SELECT id, file_url FROM student_photos
+    WHERE student_id = ${studentId} AND file_url IS NOT NULL
+  `)).rows as { id: string; file_url: string | null }[];
 
   const videoRows = (await db.execute(sql`
-    SELECT id, storage_key FROM student_videos
-    WHERE student_id = ${studentId} AND storage_key IS NOT NULL
-  `)).rows as { id: string; storage_key: string }[];
+    SELECT id, file_url FROM student_videos
+    WHERE student_id = ${studentId} AND file_url IS NOT NULL
+  `)).rows as { id: string; file_url: string | null }[];
 
   const photoAssetRows = (await db.execute(sql`
-    SELECT id, storage_key FROM photo_assets_meta
-    WHERE student_id = ${studentId} AND storage_key IS NOT NULL
-  `)).rows as { id: string; storage_key: string }[];
+    SELECT id, object_key FROM photo_assets_meta
+    WHERE student_id = ${studentId} AND object_key IS NOT NULL
+  `)).rows as { id: string; object_key: string }[];
 
   const videoAssetRows = (await db.execute(sql`
-    SELECT id, storage_key FROM video_assets_meta
-    WHERE student_id = ${studentId} AND storage_key IS NOT NULL
-  `)).rows as { id: string; storage_key: string }[];
+    SELECT id, object_key FROM video_assets_meta
+    WHERE student_id = ${studentId} AND object_key IS NOT NULL
+  `)).rows as { id: string; object_key: string }[];
 
   const allR2Keys = [
-    ...photoRows.map(r => r.storage_key),
-    ...videoRows.map(r => r.storage_key),
-    ...photoAssetRows.map(r => r.storage_key),
-    ...videoAssetRows.map(r => r.storage_key),
-  ].filter(Boolean);
+    ...photoRows.map(r => resolveLegacyUploadKey(r.file_url)),
+    ...videoRows.map(r => resolveLegacyUploadKey(r.file_url)),
+    ...photoAssetRows.map(r => r.object_key),
+    ...videoAssetRows.map(r => r.object_key),
+  ].filter((key): key is string => typeof key === "string" && key.length > 0);
 
   // ── 3. DB transaction — 순서 중요 (자식 → 부모) ────────────────────────────
   const deletedTables: string[] = [];

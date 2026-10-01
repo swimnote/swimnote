@@ -1050,6 +1050,9 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
   };
   const valid = ["active", "unassigned", "suspended", "withdrawn"];
   if (!new_status || !valid.includes(new_status)) return err(res, 400, "new_status 값이 올바르지 않습니다.");
+  if (new_status === "withdrawn" && effective_mode === "next_month") {
+    return err(res, 400, "퇴원은 다음 달 예약을 지원하지 않습니다.");
+  }
 
   console.log(`[change-status] DB_TARGET: superAdminDb | student: ${req.params.id} | new_status: ${new_status} | effective_mode: ${effective_mode} | caller: ${req.user?.role}(${req.user?.userId})`);
 
@@ -1058,7 +1061,34 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
     const [existing] = await db.select().from(studentsTable)
       .where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생 없음");
-    if (poolId && existing.swimming_pool_id !== poolId) return err(res, 403, "접근 권한 없음");
+    if ((poolId && existing.swimming_pool_id !== poolId) ||
+        (!poolId && req.user!.role !== "super_admin")) {
+      return err(res, 403, "접근 권한 없음");
+    }
+
+    // Same assigned-student scope used by the teacher student list:
+    // students must be in one of this teacher's non-deleted classes in their pool.
+    if (req.user!.role === "teacher" && new_status === "withdrawn") {
+      const teacherClasses = await db.select({ id: classGroupsTable.id })
+        .from(classGroupsTable)
+        .where(and(
+          eq(classGroupsTable.swimming_pool_id, poolId!),
+          eq(classGroupsTable.teacher_user_id, req.user!.userId),
+          eq(classGroupsTable.is_deleted, false),
+        ));
+      const teacherClassIds = new Set(teacherClasses.map((classRow: any) => classRow.id));
+      const assignedIds: string[] = Array.isArray(existing.assigned_class_ids)
+        ? existing.assigned_class_ids
+        : (typeof existing.assigned_class_ids === "string"
+          ? JSON.parse(existing.assigned_class_ids || "[]")
+          : []);
+      const hasAssignedClass =
+        (!!existing.class_group_id && teacherClassIds.has(existing.class_group_id)) ||
+        assignedIds.some(classId => teacherClassIds.has(classId));
+      if (!hasAssignedClass) {
+        return err(res, 403, "본인이 담당하는 반에 배정된 학생만 변경할 수 있습니다.");
+      }
+    }
 
     console.log(`[change-status] 현재 상태: ${(existing as any).status} | pending: ${(existing as any).pending_status_change ?? "없음"} | pool: ${existing.swimming_pool_id}`);
 
