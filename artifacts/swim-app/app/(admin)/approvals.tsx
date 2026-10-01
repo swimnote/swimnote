@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, StyleSheet, Text, TextInput, View,
+  RefreshControl, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -105,30 +105,47 @@ function StudentPickerModal({
   processing: boolean;
 }) {
   const { token } = useAuth();
-  const [query, setQuery] = useState("");
   const [students, setStudents] = useState<StudentSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!visible) { setQuery(""); setStudents([]); }
-  }, [visible]);
+    if (!visible) {
+      setStudents([]);
+      setLoading(false);
+      setLoadError(null);
+      return;
+    }
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      if (!query.trim()) { setStudents([]); return; }
-      setSearching(true);
+    let cancelled = false;
+    setStudents([]);
+    setLoading(true);
+    setLoadError(null);
+    async function loadStudents() {
       try {
-        const res = await apiRequest(token, `/students/search?q=${encodeURIComponent(query.trim())}`);
-        if (res.ok) {
-          const d = await res.json();
-          setStudents(d.data ?? []);
-        }
-      } catch { /* ignore */ }
-      finally { setSearching(false); }
-    }, 300);
-  }, [query, token]);
+        const res = await apiRequest(token, "/students");
+        if (!res.ok) throw new Error("학생 목록을 불러오지 못했습니다.");
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error("학생 목록 응답을 확인할 수 없습니다.");
+        const selectable = data
+          .filter(student => !["withdrawn", "archived", "deleted"].includes(student.status))
+          .map(student => ({
+            id: student.id,
+            name: student.name,
+            birth_year: student.birth_year ?? null,
+            status: student.status,
+            class_name: student.class_group_name ?? null,
+          }));
+        if (!cancelled) setStudents(selectable);
+      } catch (error) {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "학생 목록을 불러오지 못했습니다.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void loadStudents();
+    return () => { cancelled = true; };
+  }, [visible, token]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -141,19 +158,14 @@ function StudentPickerModal({
             </Pressable>
           </View>
 
-          <TextInput
-            style={[sp.input, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
-            placeholder="학생 이름 검색"
-            placeholderTextColor={C.textMuted}
-            value={query}
-            onChangeText={setQuery}
-            autoFocus
-          />
+          {loading && <ActivityIndicator color={C.brandStrong} style={{ marginTop: 12 }} />}
 
-          {searching && <ActivityIndicator color={C.brandStrong} style={{ marginTop: 12 }} />}
+          {loadError && (
+            <Text style={[sp.empty, { color: C.textMuted }]}>{loadError}</Text>
+          )}
 
-          {!searching && query.trim().length > 0 && students.length === 0 && (
-            <Text style={[sp.empty, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
+          {!loading && !loadError && students.length === 0 && (
+            <Text style={[sp.empty, { color: C.textMuted }]}>선택 가능한 학생이 없습니다</Text>
           )}
 
           <FlatList
@@ -734,8 +746,6 @@ const sp = StyleSheet.create({
   header:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center",
               marginBottom: 14 },
   title:    { fontSize: 17, fontFamily: "Pretendard-Regular", fontWeight: "700" },
-  input:    { height: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14,
-              fontSize: 15, fontFamily: "Pretendard-Regular", marginBottom: 8 },
   list:     { maxHeight: 400 },
   row:      { flexDirection: "row", alignItems: "center", paddingVertical: 14,
               borderBottomWidth: 1 },
