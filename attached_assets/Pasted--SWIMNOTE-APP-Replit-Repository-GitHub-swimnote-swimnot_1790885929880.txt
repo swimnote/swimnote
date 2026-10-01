@@ -1,0 +1,417 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[성장리포트 V1 — 월간 완전자동 발행·실패 예외관리 구현]
+
+직전 제출한
+“범위 축소 후 최종 수정·테스트 목록”
+계획을 승인합니다.
+
+그 계획 그대로 구현하세요.
+
+추가 조사·전체 재감사 금지.
+ENGINE 수정/조사 금지.
+학부모 자동 PUBLISHED 추가 금지.
+범위 재확장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+매월 1일 자동 시작
+
+→ 대상 봉인
+→ 전체 1차 분석
+→ 성공 결과 즉시 보존
+→ 개별 실패가 있어도 다른 회원/pool 계속 처리
+→ 전체 1차 종료
+→ 실패/미완료 집계
+→ 슈퍼관리자 PUSH
+→ 원인 확인 후 실패건만 recovery
+→ pool별 reconciliation
+→ 100% 정상 귀결된 pool READY
+→ 해당 수영장 관리자에게 자동 PUSH
+
+관리자 PUSH:
+
+“이번 달 AI 성장리포트 발행이 완료되었습니다.
+SWIMNOTE에서 확인해 주세요.”
+
+학부모 공개는 기존 관리자 확인·발송 경로를 그대로 사용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 계획서에서 확정한
+21개 운영 코드/화면/migration 범위 안에서 구현합니다.
+
+불필요한 파일 수정 금지.
+
+특히 수정 금지:
+
+- 부모 자동 PUBLISHED 경로
+- 기존 일반 publish 승인 정책
+- 유료 리포트 publish 정책
+- ENGINE
+- 기존 성공 report의 AI 본문/request/response/hash
+
+실제 구현 과정에서 파생 타입 수정이 반드시 필요한 경우만
+최소 변경하고 완료보고서에 이유를 기록하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. DATA_ACCUMULATING
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인 정책:
+
+APP final disposition =
+INSUFFICIENT_EVIDENCE
+
+ENGINE의
+analysis_status = DATA_ACCUMULATING
+은 그대로 보존합니다.
+
+안내:
+
+“이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다.”
+
+집계:
+
+resolved_total
+= generated_total
++ insufficient_evidence_total
++ policy_excluded_total
+
+generated_total에는 포함하지 않습니다.
+failure에도 포함하지 않습니다.
+denominator에서도 제거하지 않습니다.
+
+동일 입력 재분석 금지.
+성장 평가 내용 창작 금지.
+가짜 grounding/AI 성공 처리 금지.
+
+기존 관리자 확인·발송 대기 형태와 호환되게 구현합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. First Pass
+━━━━━━━━━━━━━━━━━━━━━━
+
+월초 fixed pool manifest를 확정합니다.
+
+각 sealed target에 first-pass outcome을 지속적으로 기록합니다.
+
+개별 실패:
+→ 기록
+→ 같은 drain에서 즉시 반복하지 않음
+→ 다음 대상 계속
+
+pool 실패:
+→ 다른 pool 계속
+
+성공:
+→ 즉시 보존
+→ 이후 recovery 대상에서 제외
+
+batch COMPLETED를
+전체 분석 완료로 사용하지 않습니다.
+
+전체 first-pass 종료는
+고정 manifest의 모든 pool과 sealed target의
+실제 first-pass accounting을 기준으로 판정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실패 집계·슈퍼관리자 PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+first-pass 종료 후 미완료가 존재하면
+슈퍼관리자에게 집계 PUSH를 발송합니다.
+
+포함:
+
+- 전체 처리 pool 수
+- 전체 eligible 대상 수
+- generated 수
+- insufficient_evidence 수
+- 미완료 pool 수
+- 미완료 회원 수
+- 오류 category별 건수
+- 예외 조회 진입점
+
+PII / AI 본문 / payload / token 금지.
+
+month + FIRST_PASS_FINISHED 기준
+논리적 중복 발송 방지.
+
+SuperAI에서 월/pool/error category별
+미완료 내역을 확인할 수 있게 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Recovery
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 batch-recovery를 최대한 재사용합니다.
+
+대상:
+실제 실패/미완료 중
+현재 계약상 recovery가 허용되는 건만.
+
+제외:
+
+- 기존 성공
+- PUBLISHED
+- INSUFFICIENT_EVIDENCE
+- 정당한 policy exclusion
+- UNKNOWN
+
+recovery 회차를 지속적으로 기록합니다.
+
+retry_count 초기화로
+무한 recovery가 가능해지지 않게 합니다.
+
+기존 성공 report 재분석 금지.
+
+UNKNOWN을 새 request_id로 우회하는 기능 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Pool READY
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 pool은 독립적으로 판정합니다.
+
+READY 조건:
+
+resolved_total == eligible_total
+
+그리고 다음 blocker가 모두 0:
+
+- UNKNOWN
+- FAILED
+- MISSING
+- DUPLICATE
+- WRONG_POOL
+- QUEUED
+- PROCESSING
+- RETRY_PENDING
+- 기타 unresolved 상태
+
+다른 pool 실패 때문에
+완료 pool READY를 지연시키지 않습니다.
+
+recovery로 마지막 미완료가 해결되면
+해당 pool을 즉시 다시 reconciliation 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 관리자 자동 PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool READY 이후
+기존 readiness outbox/dedupe를 사용합니다.
+
+pool + report_month 기준 논리적으로 1회.
+
+문구:
+
+“이번 달 AI 성장리포트 발행이 완료되었습니다.
+SWIMNOTE에서 확인해 주세요.”
+
+이 PUSH는
+학부모에게 이미 발송되었다는 의미가 아닙니다.
+
+PUBLISHED 자동 전환 금지.
+부모 PUSH 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Circuit Breaker
+━━━━━━━━━━━━━━━━━━━━━━
+
+월간 growth-report worker 범위에서만 구현합니다.
+
+개별 회원 오류나
+단일 pool 데이터 오류는
+전체 breaker를 작동시키지 않습니다.
+
+provider/API/ENGINE 공통 장애처럼
+비정상적인 연속/대량 실패만 pause 대상으로 합니다.
+
+threshold
+window
+probe
+cooldown
+
+모두 configurable.
+
+pause 시:
+
+- 신규 provider dispatch 중단
+- 성공 결과 보존
+- lookup/reconciliation 허용
+- 슈퍼관리자 장애 PUSH
+- 원인 수정 후 기존 manifest에서 resume
+
+미처리 target이 존재하면
+first-pass 완료로 선언하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 비용/호출 관측
+━━━━━━━━━━━━━━━━━━━━━━
+
+확실하게 측정 가능한 것만 기록합니다.
+
+- first-pass ENGINE 요청 수
+- recovery ENGINE 요청 수
+- lookup 수
+- recovery 회차
+- 확인 가능한 비용 metadata
+
+provider 실제 비용 근거가 없으면 UNKNOWN.
+
+HTTP 요청 횟수 × 임의 단가를
+실제 비용으로 표시하지 않습니다.
+
+ENGINE 비용 로직 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Migration
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인된 additive migration 1개를 구현합니다.
+
+범위:
+
+- monthly run / fixed pool manifest
+- target first-pass outcome
+- recovery 회차/승인/제한
+- circuit pause/resume
+- APP final disposition
+- super summary/pause event scope/dedupe
+
+기존 데이터 보존.
+
+기존 READY/PUBLISHED 체계를 대체하지 않습니다.
+기존 readiness outbox 데이터 보존.
+
+migration은 additive/backward-compatible이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 계획의 관련 테스트 약 8개와
+명시한 직접 관련 회귀만 실행합니다.
+
+반드시 검증:
+
+- manifest 고정
+- restart/resume
+- 개별 실패 후 다음 대상 계속
+- pool 독립성
+- first-pass barrier
+- 성공 결과 보존
+- failed-only recovery
+- recovery 누적 제한
+- UNKNOWN 제외
+- DATA_ACCUMULATING → INSUFFICIENT_EVIDENCE
+- denominator 불변
+- 100% READY gate
+- 관리자 PUSH dedupe
+- 부모 자동 PUBLISHED 없음
+- circuit pause/resume
+- PUSH crash/UNCERTAIN 안전
+- 관련 PostgreSQL 동시성
+
+전체 suite/typecheck 금지.
+
+API build 실행.
+
+웹/모바일 수정 파일이 실제 변경되면
+해당 대상 bundle 검증만 실행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 9월 Production 데이터
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 구현/배포 과정에서는
+9월 119명 recovery를 실행하지 않습니다.
+
+현재:
+
+eligible = 119
+generated = 99
+UNKNOWN = 17
+DATA_ACCUMULATING = 3
+READY = false
+
+99 성공 보호.
+
+17 UNKNOWN 유지.
+
+3 DATA_ACCUMULATING도
+코드 배포 전 Production에서 임의 변경 금지.
+
+구현·배포가 완전히 PASS된 뒤
+별도 운영 단계에서 9월 cycle을 처리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 완료 후 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트 PASS
+→ build/bundle PASS
+→ commit
+→ GitHub main push
+→ 승인된 additive migration
+→ 동일 SHA Render APP/API Production 배포
+→ health
+→ deployed SHA 확인
+
+모바일 JS/TS 변경이 실제 존재하는 경우에만
+Production OTA를 iOS + Android 함께 진행합니다.
+
+웹 변경이 있으면 기존 배포 방식으로 배포 확인합니다.
+
+ENGINE 배포 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 파일
+migration 내용
+테스트 결과
+PostgreSQL 동시성 검증
+API build
+웹/모바일 bundle 결과
+commit SHA
+GitHub pushed SHA
+migration 결과
+Render Deploy ID
+Production LIVE
+deployed SHA
+health
+웹 배포 결과
+필요 시 iOS/Android OTA IDs
+
+그리고:
+
+FIRST PASS AUTOMATION = PASS/HOLD
+FAILURE DOES NOT BLOCK OTHERS = PASS/HOLD
+SUCCESS PRESERVATION = PASS/HOLD
+SUPER ADMIN FAILURE SUMMARY = PASS/HOLD
+FAILED-ONLY RECOVERY = PASS/HOLD
+RECOVERY LIMIT = PASS/HOLD
+UNKNOWN SAFETY = PASS/HOLD
+INSUFFICIENT_EVIDENCE = PASS/HOLD
+POOL 100% GATE = PASS/HOLD
+ADMIN READY PUSH = PASS/HOLD
+NO AUTO PUBLISHED = PASS/HOLD
+CIRCUIT BREAKER = PASS/HOLD
+OBSERVABILITY = PASS/HOLD
+MIGRATION = PASS/HOLD
+PRODUCTION DEPLOYMENT = PASS/HOLD
+
+SEPTEMBER 119 RECOVERY는
+이번 완료판정과 분리해서 보고하세요.
+
+여기서 정지하세요.
