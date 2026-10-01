@@ -1,0 +1,237 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[성장리포트 V1 — 구현 전 HOLD 3개 해소]
+
+제출한 최종 설계도는 승인한다.
+
+전체 설계 재검토 금지.
+이미 PASS/HOLD 판정한 항목 반복 조사 금지.
+
+IMPLEMENTATION READY=NO를 만든 아래 3개 blocker만 해소한다.
+
+1. Production DB 실제 제약/스키마 확인
+2. ENGINE 동일 request identity 안전성 확인에 필요한 APP측 계약 확인
+3. 사후 퇴원 정책 반영
+
+아직 코드 수정/배포/50건 recovery는 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production DB — 필요한 항목만 READ ONLY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 DB audit 금지.
+
+성장리포트 설계에 직접 필요한 실제 Production schema만
+READ ONLY로 확인한다.
+
+확인:
+
+- growth report cycle 관련 table
+- growth_report_batch_jobs
+- growth_reports
+- 현재 UNIQUE constraint/index
+- 현재 worker/lock/retry 관련 columns
+- 현재 request identity/result 관련 columns
+
+목적은 이전 설계에서 제안한 migration 중
+실제로 무엇이 필요한지 확정하는 것뿐이다.
+
+없는 column을 있다고 가정하지 않는다.
+
+필요한 additive migration만 최종 목록으로 제시한다.
+
+migration 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. ENGINE 계약 — APP에서 필요한 사실만 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE 전체 재조사 금지.
+ENGINE 코드 수정 금지.
+
+APP이 현재 Production ENGINE에 요청할 때 사용하는
+request identity 계약과 기존 API 동작만 확인한다.
+
+확인해야 할 질문은 하나다.
+
+“APP이 동일 request identity로 요청 결과를 안전하게
+reconcile/retrieve/replay할 수 있는 Production 계약이
+현재 존재하는가?”
+
+특히:
+
+ENGINE 성공
+→ APP이 성공 응답을 받기 전/DB 확정 전 crash
+
+상황에서 APP이 새 AI 분석을 발생시키지 않고
+동일 request identity의 기존 결과를 안전하게 회수할 방법이
+현재 계약상 존재하는지 확인한다.
+
+YES라면:
+정확한 기존 endpoint/동작/identity 근거만 기록.
+
+NO라면:
+APP 설계에서 UNKNOWN으로 격리해야 하는 정확한 경계를 기록하고
+ENGINE에 필요한 최소 계약을 별도 blocker로 명시.
+
+이번 단계에서 ENGINE 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 사후 퇴원 정책 — 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책을 다음으로 고정한다.
+
+1일 대상확정 시 발급조건을 충족한 회원은
+해당 pool/report_month의 확정 발급대상으로 기록한다.
+
+이후 퇴원했다고 해서
+과거의 발급대상 산정 자체를 없던 것으로 만들지 않는다.
+
+따라서 denominator를 몰래 축소하지 않는다.
+
+하지만 기존 정책대로
+실제 발행 직전 active/nondeleted 안전성 검사는 유지한다.
+
+발행 전에 퇴원한 회원은 학부모에게 발행하지 않는다.
+
+이 경우 해당 대상은
+AI 분석 실패와 구분되는
+정책상 발행제외 최종 귀결 상태로 처리한다.
+
+중요:
+
+이 상태는 AI 실패를 숨기기 위한 수단으로 사용할 수 없다.
+
+허용되는 것은
+발급대상 확정 이후 실제 회원 상태가 변경되어
+발행할 수 없게 된 명확한 경우뿐이다.
+
+따라서 pool별 월간 완료 조건은:
+
+확정 발급대상 전원이
+
+A. 정상 성장리포트 생성 완료
+또는
+B. 발급대상 확정 후 발생한 명확한 정책상 발행제외
+
+중 하나의 최종 귀결 상태를 가져야 한다.
+
+그리고:
+
+queued = 0
+processing = 0
+retry_pending = 0
+failed = 0
+unknown = 0
+missing = 0
+duplicate = 0
+
+이어야 한다.
+
+단,
+
+“AI 분석 실패”
+“ENGINE 오류”
+“APP 오류”
+“retry budget 소진”
+“데이터 유실”
+
+을 B로 전환하여 100%를 만드는 것은 절대 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 발급률 표시도 구분
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영상 숫자를 혼동하지 않는다.
+
+예:
+
+확정 발급대상 = 119
+정상 리포트 생성 = 118
+확정 후 퇴원으로 발행제외 = 1
+
+이면:
+
+처리 귀결률 = 119/119
+실제 생성 리포트 = 118
+정책상 발행제외 = 1
+
+로 구분한다.
+
+“119개 리포트 생성 성공”이라고 표시하면 안 된다.
+
+반대로:
+
+정상 생성 118
+AI 실패 1
+
+이면:
+
+118/119 NOT READY
+
+이며 실패 1건 recovery가 필요하다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 9월분은 아직 변경하지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+119 eligible
+69 success
+50 failed
+91 excluded
+
+는 아직 recovery하지 않는다.
+
+이번 READ ONLY 확인에서
+당시 119명의 identity/근거를 복원할 수 있는지만 확인한다.
+
+현재 회원상태로 119명을 새로 계산하지 않는다.
+
+성공 69를 건드리지 않는다.
+실패 50을 재호출하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고한다.
+
+[Production DB]
+- 실제 관련 table/constraint
+- 설계와 다른 부분
+- 최종 필요한 additive migration
+- migration 필요 YES/NO
+
+[ENGINE CONTRACT]
+- 동일 request identity 결과 회수/멱등 처리 가능 YES/NO
+- 가능하면 기존 근거
+- 불가능하면 정확한 blocker
+
+[대상 확정]
+- 9월 119명 identity 복원 가능 YES/NO
+- 실제 데이터 변경 없음 확인
+
+[최종 구현 준비]
+- 이전 설계에서 변경할 부분
+- 최종 수정 파일 목록
+- 최종 migration 목록
+
+최종 판정:
+
+PRODUCTION SCHEMA VERIFIED = PASS/HOLD
+SEPTEMBER TARGET RECOVERABILITY = PASS/HOLD
+ENGINE CRASH-BOUNDARY CONTRACT = PASS/HOLD
+POST-ELIGIBILITY WITHDRAWAL POLICY = PASS
+IMPLEMENTATION READY = YES/NO
+
+여기서 정지한다.
+
+코드 수정 금지.
+migration 실행 금지.
+commit/push/deploy 금지.
+50건 recovery 금지.
