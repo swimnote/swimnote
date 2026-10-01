@@ -3,8 +3,8 @@
  *
  * 핵심 Product Rule (MONTHLY_FREE 최종 정책):
  *   report_period = previous month (이번 달 실행 → 지난달 리포트)
- *   매월 1~4일 KST: cycle ensure → report ensure → AI analysis 준비
- *   매월 5일 KST: 정상 분석 완료분은 별도 무료 자동발급 워커에서 공개한다.
+ *   매월 1일부터 KST: cycle ensure → report ensure → AI analysis 준비
+ *   매월 5일 KST: admin review opens; parent publication always requires admin send.
  *
  * 원칙:
  *   - analysis_cutoff_at = 1일 00:00 KST (= 이전달 마지막 순간)
@@ -19,7 +19,7 @@
  *   - ENGINE API 호출 → GR3
  *   - Parent Question UI → GR4
  *   - Teacher Review UI → GR5
- *   - PUBLISHED 전환 (별도 auto-publisher 소유)
+ *   - PUBLISHED 전환 (관리자 send 전용)
  *
  * analysis_cutoff_at 정책:
  *   1일 00:00 KST = UTC 전날 15:00:00
@@ -29,13 +29,13 @@ import cron from "node-cron";
 import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat, refreshLock } from "../lib/schedulerLock.js";
-import { transitionReportStatus } from "../lib/growth-report-service.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
 
 type Db = typeof superAdminDb;
 
 const SCHEDULER_LOCK = "growth-report-cycle";
 const LOCK_TTL_SECONDS = 600; // 10분
+const MAX_RECOVERY_MONTHS = 12;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KST 헬퍼
@@ -93,7 +93,7 @@ export interface MonthlyFreePeriodTimestamps {
   parentInputOpenAt: Date;
   /** = parentInputOpenAt (이번달 1일 00:00 KST = 이전달 데이터 cutoff 상한선) */
   analysisCutoffAt: Date;
-  /** 이번달 5일 00:00:00 KST = UTC 이번달 4일 15:00:00 (auto-publish 트리거) */
+  /** 이번달 5일 00:00:00 KST = UTC 이번달 4일 15:00:00 (admin review opens) */
   parentInputCloseAt: Date;
 }
 
@@ -384,9 +384,7 @@ async function openCycleForPool(
         product_status, parent_input_status, snapshot_version,
         period_start, period_end
       ) VALUES ${valuesSql}
-      ON CONFLICT (student_id, cycle_id)
-        WHERE cycle_id IS NOT NULL AND deleted_at IS NULL
-      DO NOTHING
+      ON CONFLICT DO NOTHING
       RETURNING id
     `);
     reportsCreated += inserted.rows.length;
@@ -428,8 +426,8 @@ async function openCycleForPool(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
-// 사이클 준비와 PUBLISHED 전환은 별개이다. 무료 월간 자동 발급은
-// growth-report-auto-publisher.ts에서 5일 이후 성공 결과에만 적용한다.
+// Cycle preparation is separate from PUBLISHED; only administrator send routes
+// can make a monthly report visible to parents.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -552,11 +550,25 @@ export async function runGrowthReportScheduler(
 
   // missed-run recovery: 이전 주기의 PENDING cycles (open_at <= now)
   try {
+    const configuredRecovery = Number(process.env["GROWTH_REPORT_RECOVERY_MONTHS"] ?? 2);
+    const recoveryMonths = Number.isFinite(configuredRecovery)
+      ? Math.max(0, Math.min(MAX_RECOVERY_MONTHS, Math.floor(configuredRecovery)))
+      : 2;
+    const currentReportDate = new Date(Date.UTC(kst.year, kst.month - 2, 1));
+    const recoveryFloor = new Date(Date.UTC(
+      currentReportDate.getUTCFullYear(),
+      currentReportDate.getUTCMonth() - recoveryMonths,
+      1,
+    ));
+    const recoveryFloorPeriod =
+      `${recoveryFloor.getUTCFullYear()}-${String(recoveryFloor.getUTCMonth() + 1).padStart(2, "0")}`;
     const pRes = await db.execute(sql`
       SELECT id, swimming_pool_id, report_period, parent_input_open_at
       FROM growth_report_cycles
       WHERE cycle_status = 'PENDING'
         AND parent_input_open_at <= ${now.toISOString()}
+        AND report_period >= ${recoveryFloorPeriod}
+        AND report_period <= ${ts.reportPeriod}
     `);
     const pendingCycles = pRes.rows as any[];
 
@@ -582,14 +594,12 @@ export async function runGrowthReportScheduler(
     result.errors.push({ code: "PENDING_CYCLES_FETCH_FAILED", message: err.message });
   }
 
-  // ── Step 4: 상태 안내만 수행 (AI 분석 / publication 없음) ───────────────────
-  // 이 scheduler는 row 준비만 담당한다. 5일 이후 실제 발급은 별도
-  // auto-publisher가 ENGINE 결과/현재 active 여부를 검증하여 처리한다.
+  // ── Step 4: status only (analysis / parent publication are separate) ────────
   const pastPublishDate = now.getTime() >= ts.parentInputCloseAt.getTime();
   if (pastPublishDate) {
     console.log(
       `[gr-scheduler] 5일 경과 — cycle/report row preparation only. ` +
-      `period=${ts.reportPeriod} publication handled by free auto-publisher`,
+      `period=${ts.reportPeriod}; admin review is open, parent publication needs explicit admin send`,
     );
   } else {
     const daysUntil = Math.ceil(

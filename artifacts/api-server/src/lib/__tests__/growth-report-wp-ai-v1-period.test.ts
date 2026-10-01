@@ -106,10 +106,19 @@ describe("WP-AI-V1.0 monthly FREE growth report eligibility", () => {
     expect(snapshotBuilder).toContain("date::date       <  ${periodEndExclusive}::date");
     expect(snapshotBuilder).toContain("created_at       >= ${periodStartAt}::timestamptz");
     expect(snapshotBuilder).toContain("created_at       <  ${periodEndAt}::timestamptz");
-    expect(snapshotBuilder).toContain("ms.completed_at >= (${periodFrom}::date::timestamp AT TIME ZONE 'Asia/Seoul')");
-    expect(snapshotBuilder).toContain("ms.completed_at <  (${cutoffDate}::date::timestamp AT TIME ZONE 'Asia/Seoul')");
-    expect(snapshotBuilder).toContain("ms.status            = 'completed'");
-    expect(snapshotBuilder).toContain("a2.status           = 'absent'");
+    expect(snapshotBuilder).toMatch(
+      /ms\.completed_at\s*>=\s*\(\s*\$\{periodFrom\}::date::timestamp AT TIME ZONE 'Asia\/Seoul'\s*\)/,
+    );
+    expect(snapshotBuilder).toMatch(
+      /ms\.completed_at\s*<\s*\(\s*\$\{cutoffDate\}::date::timestamp AT TIME ZONE 'Asia\/Seoul'\s*\)/,
+    );
+    expect(snapshotBuilder).toMatch(/ms\.status\s*=\s*'completed'/);
+    expect(snapshotBuilder).toMatch(/a2\.status\s*=\s*'absent'/);
+    expect(snapshotBuilder).toContain("UNION");
+    expect(snapshotBuilder).toContain("SELECT DISTINCT cg.id AS class_group_id, gs.d::date AS lesson_date");
+    expect(snapshotBuilder).toMatch(
+      /SELECT makeup_class\.id AS class_group_id,\s*\(ms\.completed_at AT TIME ZONE 'Asia\/Seoul'\)::date AS lesson_date/,
+    );
     expect(snapshotBuilder).not.toContain("ms_linked.completed_attendance_id = a.id");
   });
 });

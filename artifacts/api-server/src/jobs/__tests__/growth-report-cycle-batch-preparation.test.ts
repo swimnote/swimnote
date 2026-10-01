@@ -1,4 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+
+const { mockDb } = vi.hoisted(() => ({
+  mockDb: { execute: vi.fn().mockResolvedValue({ rows: [] }) },
+}));
+
+vi.mock("@workspace/db", () => ({
+  superAdminDb: mockDb,
+  db: mockDb,
+}));
+
 import {
   ensureBatchCycle,
   ensureBatchJobs,
@@ -56,7 +66,7 @@ describe("growth report cycle/batch preparation blockers", () => {
     expect(scheduler).toContain("SELECT DISTINCT s.id, s.name");
     expect(scheduler).toContain("cg.swimming_pool_id = ${poolId}");
     expect(scheduler).toContain("sch.enrolled_at < ${nextMonthStr}::date");
-    expect(scheduler).toContain("ON CONFLICT (student_id, cycle_id)");
+    expect(scheduler).toContain("ON CONFLICT DO NOTHING");
     expect(scheduler).not.toMatch(/ANY\s*\(\s*\(/);
   });
 
@@ -119,7 +129,7 @@ describe("growth report cycle/batch preparation blockers", () => {
     try {
       await ensureBatchJobs({ execute } as any, ["pool-test"], 2026, 9);
       const query = queryText(execute.mock.calls[0]?.[0]);
-      expect(query).toContain("ON CONFLICT (swimming_pool_id, year, month, job_type) DO NOTHING");
+      expect(query).toContain("ON CONFLICT DO NOTHING");
       expect(log.mock.calls.flat().join(" ")).not.toMatch(/student|name=/i);
     } finally {
       log.mockRestore();
@@ -132,7 +142,7 @@ describe("growth report cycle/batch preparation blockers", () => {
       new URL("../growth-report-scheduler.ts", import.meta.url),
       "utf8",
     );
-    expect(scheduler).toContain("ON CONFLICT (student_id, cycle_id)");
+    expect(scheduler).toContain("ON CONFLICT DO NOTHING");
     expect(scheduler).not.toMatch(/ANY\s*\(/);
     expect(scheduler).not.toContain("parent_students");
     expect(scheduler).not.toContain("nameCounts");

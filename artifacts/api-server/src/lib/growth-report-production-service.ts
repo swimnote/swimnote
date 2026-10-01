@@ -26,10 +26,10 @@
 import { sql } from "drizzle-orm";
 import { superAdminDb }                 from "@workspace/db";
 import { computeAnalysisPeriod }        from "./growth-report-analysis-helper.js";
+import { monthlyPublicationGuard }      from "./growth-report-publication-guard.js";
 import {
   transitionReportStatus,
   ReportNotFoundError,
-  InvalidTransitionError,
 } from "./growth-report-service.js";
 import { notifyGrowthReportPublished }  from "../utils/notify.js";
 
@@ -44,7 +44,7 @@ export const DISCARD_REASONS = [
   "기타",
 ] as const;
 
-export type DiscardReason = typeof DISCARD_REASONS[number] | string;
+export type DiscardReason = typeof DISCARD_REASONS[number];
 
 // ── Validation result ─────────────────────────────────────────────────────────
 
@@ -190,9 +190,11 @@ export interface DiscardParams {
   memo?:      string;
 }
 
+type UntrustedDiscardParams = Omit<DiscardParams, "reason"> & { reason: string };
+
 export async function discardReportVersion(
   db: Db,
-  params: DiscardParams,
+  params: DiscardParams | UntrustedDiscardParams,
 ): Promise<void> {
   const { reportId, poolId, actorId, reason, memo } = params;
 
@@ -210,10 +212,17 @@ export async function discardReportVersion(
 
   if (row.product_status === "DISCARDED") return;  // idempotent
 
-  // READY_TO_SEND 또는 APPROVED 상태에서 폐기 가능
-  if (!["READY_TO_SEND", "APPROVED"].includes(row.product_status)) {
+  if (!DISCARD_REASONS.includes(reason as DiscardReason)) {
     throw new ReportProductionError(
-      `폐기는 READY_TO_SEND 또는 APPROVED 상태에서만 가능합니다. 현재: ${row.product_status}`,
+      `폐기 사유가 유효하지 않습니다. 허용값: ${DISCARD_REASONS.join(", ")}`,
+      "INVALID_DISCARD_REASON",
+    );
+  }
+
+  // Human review can explicitly discard either review-pending or send-ready rows.
+  if (!["REVIEW_REQUIRED", "READY_TO_SEND", "APPROVED"].includes(row.product_status)) {
+    throw new ReportProductionError(
+      `폐기는 REVIEW_REQUIRED, READY_TO_SEND 또는 APPROVED 상태에서만 가능합니다. 현재: ${row.product_status}`,
       "DISCARD_NOT_ALLOWED",
     );
   }
@@ -355,9 +364,6 @@ export async function regenerateReport(
 // publishGrowthReports — 개별·bulk 공통 발송 서비스 (단일 소스)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 발송 가능 상태 집합 (검수 여부 무관) */
-const SENDABLE_STATUSES = new Set(["REVIEW_REQUIRED", "APPROVED", "READY_TO_SEND"]);
-
 /** 발송 결과 (spec §11 응답 계약) */
 export interface PublishResult {
   requested_count:       number;
@@ -405,60 +411,55 @@ export async function publishGrowthReports(
 
   if (reportIds.length === 0) return result;
 
-  // ── Step 1: pool-scoped SELECT FOR UPDATE SKIP LOCKED (1 query) ──────────
-  // ANY(${array}::text[]) → SQL ERROR (이 코드베이스 known bug) → sql.join() 사용
-  const idParams = sql.join(reportIds.map(id => sql`${id}`), sql`, `);
-  const lockRows = (await db.execute(sql`
-    SELECT id, student_id, report_period, product_status, deleted_at
-    FROM growth_reports
-    WHERE id              IN (${idParams})
-      AND swimming_pool_id = ${poolId}
-    FOR UPDATE SKIP LOCKED
+  // Use sql.join() for driver-safe ID binding; only the guarded UPDATE may
+  // claim parent publication. Its returned rows are the only push/audit input.
+  const uniqueIds = [...new Set(reportIds)];
+  const idParams = sql.join(uniqueIds.map(id => sql`${id}`), sql`, `);
+  const publishedRows = (await db.execute(sql`
+    WITH claimable AS MATERIALIZED (
+      SELECT gr.id, gr.product_status
+      FROM growth_reports AS gr
+      WHERE gr.id IN (${idParams})
+        AND gr.swimming_pool_id = ${poolId}
+        AND gr.deleted_at IS NULL
+        AND ${monthlyPublicationGuard("gr")}
+      FOR UPDATE OF gr SKIP LOCKED
+    )
+    UPDATE growth_reports AS gr
+    SET product_status = 'PUBLISHED',
+        published_at = COALESCE(gr.published_at, NOW()),
+        updated_at = NOW()
+    FROM claimable
+    WHERE gr.id = claimable.id
+      AND gr.product_status = claimable.product_status
+      AND gr.swimming_pool_id = ${poolId}
+      AND gr.deleted_at IS NULL
+      AND ${monthlyPublicationGuard("gr")}
+    RETURNING
+      gr.id,
+      gr.student_id,
+      gr.swimming_pool_id,
+      gr.report_period,
+      gr.published_at,
+      claimable.product_status AS previous_status
   `)).rows as any[];
 
-  // ── Step 2: 행 분류 ───────────────────────────────────────────────────────
-  const foundIds   = new Set(lockRows.map((r: any) => r.id));
-  const sendable: any[]  = [];   // REVIEW_REQUIRED / APPROVED / READY_TO_SEND
-  const alreadyPub: any[] = [];  // PUBLISHED (멱등)
-  const skippedRows: any[] = []; // deleted / non-sendable
-
-  for (const row of lockRows) {
-    if (row.deleted_at) {
-      skippedRows.push(row);
-    } else if (row.product_status === "PUBLISHED") {
-      alreadyPub.push(row);
-    } else if (SENDABLE_STATUSES.has(row.product_status)) {
-      sendable.push(row);
-    } else {
-      skippedRows.push(row);
-    }
-  }
-
-  result.already_published_count = alreadyPub.length;
-  result.skipped_count = skippedRows.length + reportIds.filter(id => !foundIds.has(id)).length;
-
-  if (sendable.length === 0) {
-    console.log(
-      `[gr-production] PUBLISH: pool=${poolId} req=${result.requested_count}` +
-      ` ok=0 already=${result.already_published_count} skip=${result.skipped_count}`,
-    );
-    return result;
-  }
-
-  // ── Step 3: Bulk PUBLISH (단일 UPDATE, 트랜잭션 불필요 — 멱등) ──────────
-  const sendableIdParams = sql.join(sendable.map(r => sql`${r.id}`), sql`, `);
-  await db.execute(sql`
-    UPDATE growth_reports
-    SET product_status = 'PUBLISHED',
-        published_at   = COALESCE(published_at, NOW()),
-        updated_at     = NOW()
-    WHERE id              IN (${sendableIdParams})
+  const countIds = sql.join(uniqueIds.map(id => sql`${id}`), sql`, `);
+  const currentRows = (await db.execute(sql`
+    SELECT id, product_status, deleted_at
+    FROM growth_reports
+    WHERE id IN (${countIds})
       AND swimming_pool_id = ${poolId}
-      AND deleted_at IS NULL
-      AND product_status  IN ('REVIEW_REQUIRED', 'APPROVED', 'READY_TO_SEND')
-  `);
-
-  result.published_count = sendable.length;
+  `)).rows as any[];
+  const publishedIds = new Set(publishedRows.map(row => row.id));
+  result.published_count = publishedRows.length;
+  result.already_published_count = currentRows.filter(
+    row => row.product_status === "PUBLISHED" && !row.deleted_at && !publishedIds.has(row.id),
+  ).length;
+  result.skipped_count = Math.max(
+    0,
+    reportIds.length - result.published_count - result.already_published_count,
+  );
 
   console.log(
     `[gr-production] PUBLISH: pool=${poolId} req=${result.requested_count}` +
@@ -466,19 +467,17 @@ export async function publishGrowthReports(
     ` skip=${result.skipped_count}`,
   );
 
-  // ── Step 4: Audit batch INSERT — fire-and-forget (HTTP response에 영향 없음) ─
-  // lifecycle 의미 보존: REVIEW_REQUIRED는 →APPROVED, →PUBLISHED 2행 기록
-  batchInsertPublishAudit(db, sendable, poolId, actorId).catch((e: unknown) => {
+  // Audit and notification only for rows returned by the atomic claim.
+  batchInsertPublishAudit(db, publishedRows, poolId, actorId).catch((e: unknown) => {
     console.warn("[gr-production] audit batch failed:", (e as any)?.message ?? e);
   });
 
-  // ── Step 5: Push — fire-and-forget ────────────────────────────────────────
-  result.push_attempted_count = sendable.length;
-  void Promise.allSettled(sendable.map(row =>
+  result.push_attempted_count = publishedRows.length;
+  void Promise.allSettled(publishedRows.map(row =>
     notifyGrowthReportPublished({
       reportId:     row.id,
       studentId:    row.student_id,
-      poolId,
+      poolId:       row.swimming_pool_id,
       reportPeriod: row.report_period,
     }).catch((e: unknown) => {
       console.error(`[gr-production] push failed report=${row.id}:`, (e as any)?.message ?? e);
@@ -499,7 +498,7 @@ export async function publishGrowthReports(
  */
 async function batchInsertPublishAudit(
   db: Db,
-  rows: Array<{ id: string; product_status: string }>,
+  rows: Array<{ id: string; previous_status: string }>,
   poolId: string,
   actorId: string,
 ): Promise<void> {
@@ -509,11 +508,11 @@ async function batchInsertPublishAudit(
   type AuditRow = { reportId: string; from: string; to: string; reason: string };
   const auditRows: AuditRow[] = [];
   for (const row of rows) {
-    if (row.product_status === "REVIEW_REQUIRED") {
+    if (row.previous_status === "REVIEW_REQUIRED") {
       auditRows.push({ reportId: row.id, from: "REVIEW_REQUIRED", to: "APPROVED",  reason: "ADMIN_SEND_AUTO_APPROVE" });
       auditRows.push({ reportId: row.id, from: "APPROVED",        to: "PUBLISHED", reason: "ADMIN_SEND" });
     } else {
-      auditRows.push({ reportId: row.id, from: row.product_status, to: "PUBLISHED", reason: "ADMIN_SEND" });
+      auditRows.push({ reportId: row.id, from: row.previous_status, to: "PUBLISHED", reason: "ADMIN_SEND" });
     }
   }
 
@@ -599,7 +598,7 @@ export async function bulkSendReports(
     year:       number;    // report_month 발행 연도 (외부 API 계약)
     month:      number;    // report_month 발행 월   (외부 API 계약)
     actorId:    string;
-    reportIds?: string[];  // 지정 시 해당 ID만; 미지정 시 해당 월 전체 sendable
+    reportIds?: string[];  // 지정 시 해당 ID만; 미지정 시 해당 월 전체 월간 리포트
   },
 ): Promise<BulkSendResult> {
   const { poolId, year, month, actorId, reportIds: explicitIds } = params;
@@ -610,14 +609,14 @@ export async function bulkSendReports(
     // ── 선택 발송: 명시적 ID 목록 사용 ────────────────────────────────────
     targetIds = explicitIds;
   } else {
-    // ── 전체 발송: 해당 월 sendable 전체 조회 ─────────────────────────────
+    // ── 전체 발송: 해당 월 전체를 공유 guard에 넘겨 비대상은 skipped 처리 ──
     const { reportPeriod: period } = computeAnalysisPeriod(year, month);
     const rows = await db.execute(sql`
       SELECT id
       FROM growth_reports
       WHERE swimming_pool_id = ${poolId}
         AND report_period    = ${period}
-        AND product_status   IN ('READY_TO_SEND', 'APPROVED', 'REVIEW_REQUIRED')
+        AND report_type = 'monthly'
         AND deleted_at IS NULL
     `);
     targetIds = (rows.rows as any[]).map((r: any) => r.id);

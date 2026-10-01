@@ -110,6 +110,12 @@ function makeDb(options: {
       return { rows: reportRow ? [reportRow] : [] };
     }
 
+    // Lifecycle compare-and-swap source-state read
+    if (q.includes("SELECT id, product_status, swimming_pool_id, deleted_at") &&
+        q.includes("FROM growth_reports")) {
+      return { rows: reportRow ? [reportRow] : [] };
+    }
+
     // next_audit_version
     if (q.includes("next_audit_version")) {
       return { rows: [{ v: 1 }] };
@@ -137,6 +143,9 @@ function makeDb(options: {
 
     // UPDATE
     if (q.includes("UPDATE")) {
+      if (q.includes("RETURNING id") && q.includes("product_status")) {
+        return { rowCount: 1, rows: [{ id: reportRow?.id ?? "gr_test001" }] };
+      }
       return { rowCount: 1, rows: [] };
     }
 
@@ -284,16 +293,17 @@ describe("F–G. Growth Report Create", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("H–K. Status Values", () => {
-  it("H: ProductStatus 11개 canonical value 모두 존재", () => {
+  it("H: lifecycle, production, and exclusion ProductStatus values are valid", () => {
     const expected: ProductStatus[] = [
       "NOT_OPEN", "OPEN", "PREANALYZING", "QUESTION_AVAILABLE",
       "READY_FOR_ANALYSIS", "ANALYZING", "REVIEW_REQUIRED",
-      "APPROVED", "PUBLISHED", "PARTIAL", "FAILED",
+      "APPROVED", "PUBLISHED", "PARTIAL", "FAILED", "EXCLUDED",
+      "READY_TO_SEND", "DISCARDED", "REGENERATING",
     ];
     for (const s of expected) {
       expect(ALL_PRODUCT_STATUSES.has(s)).toBe(true);
     }
-    expect(ALL_PRODUCT_STATUSES.size).toBe(11);
+    expect(ALL_PRODUCT_STATUSES.size).toBe(15);
   });
 
   it("I: QUESTION_REQUIRED → ForbiddenStatusError", () => {
@@ -691,9 +701,25 @@ describe("AJ. Audit", () => {
       reason: "analysis_complete",
     });
 
-    // execute가 여러 번 호출됨 (SELECT FOR UPDATE + UPDATE + audit version + audit INSERT)
+    // Source-state SELECT, CAS UPDATE, audit version, and audit INSERT.
     expect(db._mock).toHaveBeenCalled();
     expect(db._mock.mock.calls.length).toBeGreaterThanOrEqual(3);
+    const updateSql = db._mock.mock.calls
+      .map(([query]: any[]) => query?.queryChunks?.map((chunk: any) =>
+        typeof chunk === "string" ? chunk : (chunk?.value ?? ""),
+      ).join("") ?? "")
+      .find((query: string) => query.includes("UPDATE growth_reports"));
+    expect(updateSql).toContain("AND product_status =");
+    expect(updateSql).toContain("RETURNING id");
+    const auditSql = db._mock.mock.calls
+      .map(([query]: any[]) => query?.queryChunks?.map((chunk: any) =>
+        typeof chunk === "string" ? chunk : (chunk?.value ?? ""),
+      ).join("") ?? "")
+      .find((query: string) => query.includes("INSERT INTO audit_logs"));
+    expect(auditSql).toContain("entity_type, entity_id, entity_version");
+    expect(auditSql).toContain("action, actor_type, actor_id, pool_id");
+    expect(auditSql).toContain("before_data, after_data, reason");
+    expect(auditSql).toContain("request_id, correlation_id, ip_hash");
   });
 });
 

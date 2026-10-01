@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { ApiError } from "@/lib/api-client";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ReportItem {
-  id: string;
+  report_id: string;
+  student_id: string;
   student_name: string;
   product_status: string;
+  analysis_status: string | null;
+  readiness_status: string;
   report_period: string;
   published_at: string | null;
   created_at: string;
@@ -37,11 +39,6 @@ function formatDate(s: string | null): string {
     if (isNaN(d.getTime())) return "—";
     return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
   } catch { return "—"; }
-}
-
-function errMsg(e: unknown): string {
-  if (e && typeof e === "object" && "message" in e) return (e as ApiError).message;
-  return "오류가 발생했습니다.";
 }
 
 function MonthPicker({ year, month, onChange }: { year: number; month: number; onChange: (y: number, m: number) => void }) {
@@ -73,14 +70,23 @@ export default function PublishedPage() {
   const [year, setYear] = useState(issueYear);
   const [month, setMonth] = useState(issueMonth);
   const [search, setSearch] = useState("");
-  const [confirmTarget, setConfirmTarget] = useState<ReportItem | null>(null);
-  const [resendError, setResendError] = useState("");
-
-  const qc = useQueryClient();
 
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
     queryKey: ["growth-reports-list", year, month],
-    queryFn: () => api.get(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=200`),
+    queryFn: async () => {
+      const limit = 200;
+      const first = await api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=${limit}&offset=0`);
+      if (!Array.isArray(first.items) || !Number.isFinite(first.total)) throw new Error("성장리포트 목록 응답 형식이 올바르지 않습니다.");
+      if (first.items.some((item) => typeof item.readiness_status !== "string")) throw new Error("월간 리포트 readiness_status 응답이 누락되었습니다.");
+      const items = [...first.items];
+      for (let offset = limit; offset < first.total; offset += limit) {
+        const page = await api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=${limit}&offset=${offset}`);
+        if (!Array.isArray(page.items) || page.items.some((item) => typeof item.readiness_status !== "string")) throw new Error("월간 리포트 readiness_status 응답이 누락되었습니다.");
+        items.push(...page.items);
+      }
+      if (items.length < first.total) throw new Error("성장리포트 목록 일부를 불러오지 못했습니다.");
+      return { ...first, items };
+    },
   });
 
   // READY_TO_SEND is pre-delivery (awaiting send) → belongs in PublishPage, not here
@@ -91,17 +97,6 @@ export default function PublishedPage() {
   const filtered = published.filter((r) => {
     if (!search) return true;
     return r.student_name?.toLowerCase().includes(search.toLowerCase());
-  });
-
-  // Re-send (re-publish) single report
-  const resendMut = useMutation({
-    mutationFn: (id: string) => api.post(`/admin/growth-reports/${id}/send`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
-      setConfirmTarget(null);
-      setResendError("");
-    },
-    onError: (e) => setResendError(errMsg(e)),
   });
 
   return (
@@ -147,14 +142,14 @@ export default function PublishedPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
-                {["회원명", "대상 기간", "발행일", "상태", "관리"].map((h) => (
+                {["회원명", "대상 기간", "발행일", "상태", "안내"].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", fontSize: "12px", fontWeight: 600, color: "#64748B", textAlign: "left", borderBottom: "1px solid #E2E8F0" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((r, i) => (
-                <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                <tr key={r.report_id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
                   <td style={{ padding: "10px 14px", fontSize: "13px", fontWeight: 600, color: "#1E293B", borderBottom: "1px solid #F1F5F9" }}>{r.student_name}</td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9" }}>{formatPeriod(r.report_period)}</td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9", whiteSpace: "nowrap" }}>{formatDate(r.published_at)}</td>
@@ -163,64 +158,14 @@ export default function PublishedPage() {
                       발행됨
                     </span>
                   </td>
-                  <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <button
-                        title="PDF 다운로드 미지원"
-                        disabled
-                        style={{ padding: "4px 10px", background: "#F1F5F9", border: "none", borderRadius: "4px", cursor: "not-allowed", fontSize: "11px", color: "#94A3B8" }}
-                      >
-                        PDF
-                      </button>
-                      <button
-                        onClick={() => { setConfirmTarget(r); setResendError(""); }}
-                        style={{ padding: "4px 10px", background: "#F1F5F9", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "11px", color: "#475569" }}
-                      >
-                        재발행
-                      </button>
-                    </div>
+                  <td style={{ padding: "10px 14px", fontSize: "11px", color: "#166534", borderBottom: "1px solid #F1F5F9" }}>
+                    학부모 공개 완료 · 재발송 없음
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Resend confirm */}
-      {confirmTarget && (
-        <>
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 60 }} />
-          <div style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-            zIndex: 70, background: "#fff", borderRadius: "10px",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.16)", padding: "28px",
-            width: "min(380px, calc(100vw - 48px))",
-          }}>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "10px" }}>재발행</div>
-            <div style={{ fontSize: "13px", color: "#475569", marginBottom: "20px", lineHeight: 1.6 }}>
-              {confirmTarget.student_name} 회원의 {formatPeriod(confirmTarget.report_period)} 성장리포트를 다시 발행합니다.
-            </div>
-            {resendError && (
-              <div style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>
-                {resendError}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmTarget(null)} disabled={resendMut.isPending}
-                style={{ padding: "8px 16px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}>
-                취소
-              </button>
-              <button
-                onClick={() => resendMut.mutate(confirmTarget.id)}
-                disabled={resendMut.isPending}
-                style={{ padding: "8px 16px", background: resendMut.isPending ? "#93A8C4" : "#1D4E8F", color: "#fff", border: "none", borderRadius: "6px", cursor: resendMut.isPending ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600 }}
-              >
-                {resendMut.isPending ? "처리 중…" : "재발행"}
-              </button>
-            </div>
-          </div>
-        </>
       )}
     </div>
   );

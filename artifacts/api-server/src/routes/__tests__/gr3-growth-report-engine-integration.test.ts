@@ -52,6 +52,16 @@ import {
 
 import { runGrowthReportAnalysisWorker } from "../../jobs/growth-report-analysis-worker.js";
 
+vi.mock("@workspace/db", () => {
+  const adapter: any = {
+    execute: vi.fn(async () => ({ rows: [] })),
+  };
+  adapter.transaction = vi.fn(async (operation: (tx: any) => Promise<unknown>) =>
+    operation(adapter),
+  );
+  return { superAdminDb: adapter, db: adapter };
+});
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const CUTOFF_AT    = "2026-08-24T15:00:00.000Z"; // 25일 00:00 KST
@@ -92,13 +102,16 @@ interface DbMockOptions {
   reportRow?: any;
   updateReturns?: boolean; // true = stale OK, false = stale rejected
   nextVersion?: number;
+  failOnQuery?: string;
 }
 
 function makeDb(opts: DbMockOptions = {}) {
   const calls: string[] = [];
+  const transactions: Array<{ outcome: "COMMITTED" | "ROLLED_BACK"; error?: string }> = [];
 
   const db = {
     _calls: calls,
+    _transactions: transactions,
     execute: vi.fn(async (query: any) => {
       const q: string = query?.queryChunks
         ? query.queryChunks
@@ -107,6 +120,9 @@ function makeDb(opts: DbMockOptions = {}) {
         : String(query?.sql ?? query ?? "");
 
       calls.push(q.replace(/\s+/g, " ").trim());
+      if (opts.failOnQuery && q.includes(opts.failOnQuery)) {
+        throw new Error(`mock DB failure: ${opts.failOnQuery}`);
+      }
 
       // Diary query
       if (q.includes("class_diary_student_notes") && q.includes("lesson_date")) {
@@ -136,6 +152,10 @@ function makeDb(opts: DbMockOptions = {}) {
       if (q.includes("growth_report_answers")) {
         return { rows: opts.parentAnswers ?? [] };
       }
+      // Lifecycle service read used to validate its status CAS.
+      if (q.includes("SELECT id, product_status, swimming_pool_id, deleted_at")) {
+        return opts.reportRow ? { rows: [opts.reportRow] } : { rows: [] };
+      }
       // FOR UPDATE (transitionReportStatus internal SELECT) — MUST come before product_status check
       if (q.includes("FOR UPDATE")) {
         if (opts.reportRow) return { rows: [opts.reportRow] };
@@ -150,6 +170,14 @@ function makeDb(opts: DbMockOptions = {}) {
       if (q.includes("next_audit_version")) {
         return { rows: [{ v: opts.nextVersion ?? 1 }] };
       }
+      // Lifecycle status CAS update (`transitionReportStatus`).
+      if (
+        q.includes("UPDATE growth_reports") &&
+        q.includes("SET product_status") &&
+        q.includes("RETURNING id")
+      ) {
+        return { rows: [{ id: "gr_test01" }] };
+      }
       // Published history (getPublishedReportHistory) — after FOR UPDATE check
       if (q.includes("product_status = 'PUBLISHED'") || q.includes("AND product_status")) {
         return { rows: opts.publishedHistory ?? [] };
@@ -159,6 +187,16 @@ function makeDb(opts: DbMockOptions = {}) {
         return { rowCount: 1, rows: [] };
       }
       return { rows: [] };
+    }),
+    transaction: vi.fn(async (operation: (tx: any) => Promise<unknown>) => {
+      try {
+        const value = await operation(db);
+        transactions.push({ outcome: "COMMITTED" });
+        return value;
+      } catch (error: any) {
+        transactions.push({ outcome: "ROLLED_BACK", error: error.message });
+        throw error;
+      }
     }),
   };
 
@@ -930,6 +968,9 @@ describe("I. Worker + Audit", () => {
         }
         return { rows: [], rowCount: 0 };
       }),
+      transaction: vi.fn(async (operation: (tx: any) => Promise<unknown>) =>
+        operation(db),
+      ),
     };
 
     // Worker should handle InvalidTransitionError gracefully (skip, no crash)

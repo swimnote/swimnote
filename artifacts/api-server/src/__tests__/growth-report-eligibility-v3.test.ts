@@ -34,6 +34,8 @@ const eligSrc         = read("artifacts/api-server/src/lib/growth-report-eligibi
 const snapshotSrc     = read("artifacts/api-server/src/lib/growth-report-snapshot-builder.ts");
 const workerSrc       = read("artifacts/api-server/src/jobs/growth-report-analysis-worker.ts");
 const schedulerSrc    = read("artifacts/api-server/src/jobs/growth-report-scheduler.ts");
+const resultHandlerSrc = read("artifacts/api-server/src/lib/growth-report-result-handler.ts");
+const reportServiceSrc = read("artifacts/api-server/src/lib/growth-report-service.ts");
 
 // ─── FREE monthly V1.0 상수 검증 ──────────────────────────────────────────────
 
@@ -304,10 +306,15 @@ describe("TC-J: unsafe discard_reason → previous context 제외", () => {
 
 describe("TC-K: Worker restart → pending job 재처리", () => {
   it("TC-K: worker가 서버 시작 시 startup run 수행", () => {
-    expect(workerSrc).toContain("startup analysis run");
-    expect(workerSrc).toContain("setTimeout");
-    // 45초 후 startup
-    expect(workerSrc).toContain("45_000");
+    const startupStart = workerSrc.indexOf("setTimeout(async () =>", workerSrc.indexOf("export function startGrowthReportAnalysisWorker"));
+    const startupEnd = workerSrc.indexOf("}, 45_000);", startupStart);
+    expect(startupStart).toBeGreaterThan(-1);
+    expect(startupEnd).toBeGreaterThan(startupStart);
+    const startupBlock = workerSrc.slice(startupStart, startupEnd);
+    expect(startupBlock).toContain("isAutoAnalysisEnabled()");
+    expect(startupBlock).toContain("getBatchSize()");
+    expect(startupBlock).toContain("acquireLock(ANALYSIS_LOCK");
+    expect(startupBlock).toContain("await drainAnalysisQueue(superAdminDb)");
   });
 
   it("TC-K: OPEN + READY_FOR_ANALYSIS 상태 report 자동 소비", () => {
@@ -324,11 +331,13 @@ describe("TC-L: Worker 동시 실행 중복 방지", () => {
     expect(workerSrc).toContain("ANALYSIS_LOCK");
   });
 
-  it("TC-L-2: transitionReportStatus FOR UPDATE로 row 잠금", () => {
+  it("TC-L-2: transitionReportStatus expected-status CAS로 stale transition 방지", () => {
     expect(workerSrc).toContain("transitionReportStatus");
     expect(workerSrc).toContain("InvalidTransitionError");
     // concurrent skip
     expect(workerSrc).toContain("concurrent");
+    expect(reportServiceSrc).toContain("AND product_status = ${fromStatus}");
+    expect(reportServiceSrc).toContain("RETURNING id");
   });
 
   it("TC-L-3: analysis_request_id CAS — stale 응답 거부", () => {
@@ -356,8 +365,12 @@ describe("TC-M: ENGINE timeout → retry", () => {
 
 describe("TC-N: ENGINE non-retryable error → FAILED", () => {
   it("TC-N: non-retryable → FAILED transition", () => {
-    expect(workerSrc).toContain("Non-retryable → FAILED");
-    expect(workerSrc).toContain('"FAILED"');
+    expect(workerSrc).toMatch(
+      /recordAnalysisAttemptFailure\(\{[\s\S]*?retryable,[\s\S]*?errorCode,/,
+    );
+    expect(resultHandlerSrc).toMatch(
+      /if \(terminal\)[\s\S]*?toStatus:\s*"FAILED"[\s\S]*?ENGINE_NON_RETRYABLE_/,
+    );
   });
 });
 
@@ -461,17 +474,18 @@ describe("TC-U: Curriculum Gauge", () => {
 // ─── 출석 event identity 기준 (makeup §8) ─────────────────────────────────────
 
 describe("Attendance event identity (§8)", () => {
-  it("makeup session separate event: makeup_sessions SoT, attendance row not required", () => {
+  it("makeup uses assigned class/date identity and does not require an attendance row", () => {
     // queryAttendanceForEligibility가 makeup을 makeup_sessions에서 직접 조회
     const fnIdx = snapshotSrc.indexOf("queryAttendanceForEligibility");
     expect(fnIdx).toBeGreaterThan(-1);
     // Completed makeup sessions are the source of truth.
     expect(snapshotSrc).toContain("makeup_sessions ms");
-    expect(snapshotSrc).toContain("ms.status            = 'completed'");
-    // Each completed makeup session is a separate event.
-    expect(snapshotSrc).toContain("COUNT(ms.id)::int");
+    expect(snapshotSrc).toContain("ms.status = 'completed'");
+    expect(snapshotSrc).toContain("assigned_class_group_id");
+    expect(snapshotSrc).toContain("AT TIME ZONE 'Asia/Seoul'");
     // Scheduled lessons are identified by class group and date.
-    expect(snapshotSrc).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
+    expect(snapshotSrc).toContain("SELECT DISTINCT cg.id AS class_group_id, gs.d::date AS lesson_date");
+    expect(snapshotSrc).toContain("UNION");
     // attendance row에 의존하지 않음 — attendance.session_type='makeup' 조회 없음
     expect(snapshotSrc).not.toContain("session_type = 'makeup'");
   });
@@ -492,19 +506,47 @@ describe("report_month 계약 (§11)", () => {
 
 describe("Eligibility gate 위치 (§9)", () => {
   it("worker가 PREANALYZING 전에 eligibility 판정", () => {
-    // ELIGIBILITY GATE 주석이 PREANALYZING 전환 로직보다 먼저 나타남
-    const eligIdx = workerSrc.indexOf("ELIGIBILITY GATE");
-    // EXCLUDED → PREANALYZING 전환 없이 직접 return 주석
-    const excludeIdx = workerSrc.indexOf("EXCLUDED — PREANALYZING");
-    expect(eligIdx).toBeGreaterThan(-1);
-    expect(excludeIdx).toBeGreaterThan(-1);
-    // EXCLUDED 처리가 ELIGIBILITY GATE 블록 내에 위치 (GATE 이후)
-    expect(excludeIdx).toBeGreaterThan(eligIdx);
+    // Assert executable order: eligibility → exclusion write + return →
+    // eligible-only lifecycle transition.
+    const eligibilityIdx = workerSrc.indexOf(
+      "const eligResult = evaluateStudentGrowthReportEligibility",
+    );
+    const excludedBranchIdx = workerSrc.indexOf(
+      "if (!eligResult.eligible)",
+      eligibilityIdx,
+    );
+    const excludedStatusMatch = workerSrc
+      .slice(excludedBranchIdx)
+      .match(/product_status\s*=\s*'EXCLUDED'/);
+    const excludedStatusIdx = excludedStatusMatch
+      ? excludedBranchIdx + excludedStatusMatch.index
+      : -1;
+    const excludedReturnIdx = workerSrc.indexOf(
+      "return { ok: true };",
+      excludedStatusIdx,
+    );
+    const inProgressStatusIdx = workerSrc.indexOf(
+      "const toInProgress =",
+      excludedReturnIdx,
+    );
+    const inProgressTransitionIdx = workerSrc.indexOf(
+      "transitionReportStatus({",
+      inProgressStatusIdx,
+    );
+    expect(eligibilityIdx).toBeGreaterThan(-1);
+    expect(excludedBranchIdx).toBeGreaterThan(eligibilityIdx);
+    expect(excludedStatusIdx).toBeGreaterThan(excludedBranchIdx);
+    expect(excludedReturnIdx).toBeGreaterThan(excludedStatusIdx);
+    expect(inProgressStatusIdx).toBeGreaterThan(excludedReturnIdx);
+    expect(inProgressTransitionIdx).toBeGreaterThan(inProgressStatusIdx);
   });
 
   it("EXCLUDED 학생은 PREANALYZING 도달 불가", () => {
-    // EXCLUDED 직후 return { ok: true }
-    expect(workerSrc).toContain("PREANALYZING / ANALYZING 상태를 절대 거치지 않음");
+    const excludedBranchIdx = workerSrc.indexOf("if (!eligResult.eligible)");
+    const excludedReturnIdx = workerSrc.indexOf("return { ok: true };", excludedBranchIdx);
+    const inProgressStatusIdx = workerSrc.indexOf("const toInProgress =", excludedReturnIdx);
+    expect(excludedReturnIdx).toBeGreaterThan(excludedBranchIdx);
+    expect(inProgressStatusIdx).toBeGreaterThan(excludedReturnIdx);
   });
 });
 
@@ -520,13 +562,13 @@ describe("TC-V~AA: V1.0 attendance event identity per-case", () => {
     // A scheduled, non-holiday date counts unless there is an explicit absence.
     expect(snapshotFn).toContain("generate_series");
     expect(snapshotFn).toContain("schedule_days LIKE");
-    expect(snapshotFn).toContain("a2.status           = 'absent'");
+    expect(snapshotFn).toMatch(/a2\.status\s*=\s*'absent'/);
   });
 
   it("TC-W: scheduled/explicit absent → NOT counted", () => {
     // The scheduled lesson is excluded by its matching absence row.
     expect(snapshotFn).toContain("AND NOT EXISTS");
-    expect(snapshotFn).toContain("a2.status           = 'absent'");
+    expect(snapshotFn).toMatch(/a2\.status\s*=\s*'absent'/);
   });
 
   it("TC-X: pool holiday → NOT counted", () => {
@@ -539,23 +581,25 @@ describe("TC-V~AA: V1.0 attendance event identity per-case", () => {
   it("TC-Y: completed makeup / no attendance row → counted (makeup_sessions SoT)", () => {
     // A completed makeup counts independently of attendance rows.
     expect(snapshotFn).toContain("FROM makeup_sessions ms");
-    expect(snapshotFn).toContain("ms.status            = 'completed'");
-    expect(snapshotFn).toContain("COUNT(ms.id)::int");
+    expect(snapshotFn).toContain("ms.status = 'completed'");
+    expect(snapshotFn).toContain("ms.assigned_class_group_id IS NOT NULL");
+    expect(snapshotFn).toContain("makeup_holiday.holiday_date::date");
   });
 
-  it("TC-Z: same day regular + completed makeup → count 2 (separate events)", () => {
-    // Scheduled class-group/date event and completed makeup session are distinct.
-    expect(snapshotFn).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
-    expect(snapshotFn).toContain("COUNT(ms.id)::int");
-    const plusOps = (snapshotFn.match(/^\s*\+\s*$/gm) ?? []).length;
-    expect(plusOps).toBeGreaterThanOrEqual(1);
+  it("TC-Z: same class/date regular + makeup is one recognized lesson", () => {
+    // UNION on (class_group_id, lesson_date) deduplicates both sources.
+    expect(snapshotFn).toContain("SELECT DISTINCT cg.id AS class_group_id");
+    expect(snapshotFn).toContain("SELECT makeup_class.id AS class_group_id");
+    expect(snapshotFn).toContain("UNION");
+    expect(snapshotFn).not.toContain("COUNT(ms.id)::int");
+    expect(snapshotFn).not.toContain(") + (");
   });
 
   it("TC-AA: same date / two different class_group regular events → count 2", () => {
     // Distinct (class_group, date) preserves two scheduled lessons on one date.
-    expect(snapshotFn).toContain("COUNT(DISTINCT (cg.id, gs.d::date))");
+    expect(snapshotFn).toContain("SELECT DISTINCT cg.id AS class_group_id, gs.d::date AS lesson_date");
     // Deduplicate by class group + date, not by date alone.
-    expect(snapshotFn).not.toContain("COUNT(DISTINCT gs.d::date)");
+    expect(snapshotFn).not.toContain("SELECT DISTINCT gs.d::date AS lesson_date");
   });
 });
 

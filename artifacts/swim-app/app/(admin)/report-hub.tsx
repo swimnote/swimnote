@@ -15,7 +15,7 @@
  *   POST /admin/growth-reports/bulk-send        — 전체 발송 (READY_TO_SEND만)
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -82,6 +82,17 @@ interface MonthlyReportSummary {
   regenerating_count: number;
   discarded_count:   number;
   batch_status:      string | null;
+  admin_readiness?: {
+    analysis_ready?: number;
+    excluded?: number;
+    data_accumulating?: number;
+    retrying?: number;
+    pending_analysis?: number;
+    terminal_failed?: number;
+    published?: number;
+    other?: number;
+    total?: number;
+  };
 }
 
 interface MonthlyListItem {
@@ -90,6 +101,10 @@ interface MonthlyListItem {
   student_name:       string;
   product_status:     string;
   analysis_status:    string | null;
+  readiness_status:   string;
+  analysis_retry_count?: number | null;
+  exclusion_code?:    string | null;
+  readiness_eligible?: boolean;
   version_number:     number;
   discard_reason:     string | null;
   discarded_at:       string | null;
@@ -108,71 +123,75 @@ interface MonthlyListItem {
 // ── 상태 표시 정의 ───────────────────────────────────────────────────────────
 
 const STATUS_DISPLAY: Record<string, { label: string; bg: string; text: string }> = {
-  READY_TO_SEND:      { label: "발송 대기",  bg: "#FFF8E1", text: "#E65100" },
+  ANALYSIS_READY:     { label: "검증 통과",  bg: "#E8F5E9", text: "#2E7D32" },
   PUBLISHED:          { label: "발행 완료",  bg: "#E8F5E9", text: "#2E7D32" },
   DISCARDED:          { label: "폐기됨",     bg: "#FFEBEE", text: "#B71C1C" },
-  REGENERATING:       { label: "재생성 중",  bg: "#E3F2FD", text: "#1565C0" },
-  ANALYZING:          { label: "분석 중",    bg: "#E3F2FD", text: "#1565C0" },
-  PREANALYZING:       { label: "분석 중",    bg: "#E3F2FD", text: "#1565C0" },
-  READY_FOR_ANALYSIS: { label: "분석 준비",  bg: "#E8EAF6", text: "#3949AB" },
-  REVIEW_REQUIRED:    { label: "검수 대기",  bg: "#FFF3E0", text: "#E65100" },
-  APPROVED:           { label: "검수 확인",  bg: "#E8F5E9", text: "#2E7D32" },  // 검수 완료 = 발송 가능
-  FAILED:             { label: "실패",       bg: "#FFEBEE", text: "#C62828" },
-  ANALYSIS_FAILED:    { label: "분석 실패",  bg: "#FFEBEE", text: "#C62828" },
-  OPEN:               { label: "대기 중",    bg: "#F5F5F5", text: "#757575" },
   EXCLUDED:           { label: "발급 제외",  bg: "#F5F5F5", text: "#9E9E9E" },
+  TERMINAL_FAILED:    { label: "최종 실패",  bg: "#FFEBEE", text: "#C62828" },
+  DATA_ACCUMULATING:  { label: "데이터 축적 중", bg: "#FFF8E1", text: "#8D6E00" },
+  RETRYING:           { label: "처리·재시도 중", bg: "#E3F2FD", text: "#1565C0" },
+  PENDING_ANALYSIS:   { label: "분석 대기",  bg: "#E8EAF6", text: "#3949AB" },
+  OTHER:              { label: "기타 상태",  bg: "#F5F5F5", text: "#757575" },
 };
 
-/** admin_reviewed_at 기반 검수 상태 표시 (product_status 무변경) */
-function getStatusDisplay(status: string, adminReviewedAt?: string | null) {
-  if (["REVIEW_REQUIRED", "APPROVED", "READY_TO_SEND"].includes(status) && adminReviewedAt) {
-    return { label: "검수 확인", bg: "#E8F5E9", text: "#2E7D32" };
-  }
+function getStatusDisplay(status: string) {
   return STATUS_DISPLAY[status] ?? { label: status, bg: "#F5F5F5", text: "#757575" };
 }
 
 function isAnalyzingState(status: string): boolean {
-  return ["PREANALYZING","ANALYZING","REGENERATING"].includes(status);
+  return ["RETRYING", "PENDING_ANALYSIS"].includes(status);
+}
+
+function getEffectiveStatus(item: MonthlyListItem): string {
+  if (item.product_status === "PUBLISHED" || item.readiness_status === "PUBLISHED") return "PUBLISHED";
+  if (item.product_status === "DISCARDED") return "DISCARDED";
+  return item.readiness_status || "OTHER";
+}
+
+function isReviewOpen(item: MonthlyListItem): boolean {
+  // The API does not emit a separate review_open flag; its product-level state is REVIEW_REQUIRED.
+  return item.product_status === "REVIEW_REQUIRED";
+}
+
+function isSendable(item: MonthlyListItem): boolean {
+  return item.readiness_status === "ANALYSIS_READY" &&
+    ["READY_TO_SEND", "APPROVED"].includes(item.product_status);
 }
 
 // ── KPI 집계 ─────────────────────────────────────────────────────────────────
 
 interface KpiCounts {
-  total:        number;
-  beforeGen:    number;  // OPEN, READY_FOR_ANALYSIS
-  analyzing:    number;  // PREANALYZING, ANALYZING, REGENERATING
-  unreviewed:   number;  // sendable + admin_reviewed_at IS NULL ("검수 대기")
-  reviewed:     number;  // sendable + admin_reviewed_at IS NOT NULL ("검수 확인")
-  published:    number;  // PUBLISHED
-  discarded:    number;  // DISCARDED
-  excluded:     number;  // EXCLUDED
-  failed:       number;  // FAILED, ANALYSIS_FAILED
+  sendable: number;
+  reviewOpen: number;
+  discarded: number;
+  analysisReady: number;
+  excluded: number;
+  dataAccumulating: number;
+  retrying: number;
+  pendingAnalysis: number;
+  terminalFailed: number;
+  published: number;
 }
 
 function computeKpi(items: MonthlyListItem[]): KpiCounts {
   const counts: KpiCounts = {
-    total: items.length, beforeGen: 0, analyzing: 0,
-    unreviewed: 0, reviewed: 0,
-    published: 0, discarded: 0, excluded: 0, failed: 0,
+    sendable: 0, reviewOpen: 0, discarded: 0,
+    analysisReady: 0, excluded: 0, dataAccumulating: 0, retrying: 0,
+    pendingAnalysis: 0, terminalFailed: 0, published: 0,
   };
   for (const it of items) {
-    const s = it.product_status;
-    if (["OPEN","READY_FOR_ANALYSIS"].includes(s)) {
-      counts.beforeGen++;
-    } else if (["PREANALYZING","ANALYZING","REGENERATING"].includes(s)) {
-      counts.analyzing++;
-    } else if (["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"].includes(s)) {
-      // 검수 여부 기준으로 분리
-      if (it.admin_reviewed_at) counts.reviewed++;
-      else                       counts.unreviewed++;
-    } else if (s === "PUBLISHED") {
-      counts.published++;
-    } else if (s === "DISCARDED") {
-      counts.discarded++;
-    } else if (s === "EXCLUDED") {
-      counts.excluded++;
-    } else if (["FAILED","ANALYSIS_FAILED"].includes(s)) {
-      counts.failed++;
+    const status = getEffectiveStatus(it);
+    if (isSendable(it)) counts.sendable++;
+    if (isReviewOpen(it)) counts.reviewOpen++;
+    if (it.product_status === "DISCARDED") counts.discarded++;
+    switch (status) {
+      case "ANALYSIS_READY": counts.analysisReady++; break;
+      case "EXCLUDED": counts.excluded++; break;
+      case "DATA_ACCUMULATING": counts.dataAccumulating++; break;
+      case "RETRYING": counts.retrying++; break;
+      case "PENDING_ANALYSIS": counts.pendingAnalysis++; break;
+      case "TERMINAL_FAILED": counts.terminalFailed++; break;
+      case "PUBLISHED": counts.published++; break;
     }
   }
   return counts;
@@ -182,10 +201,15 @@ function computeKpi(items: MonthlyListItem[]): KpiCounts {
 
 const FILTER_OPTIONS: { label: string; value: string[] | null }[] = [
   { label: "전체",     value: null },
-  { label: "검수 대기", value: ["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"] },  // 발송 가능 전체
+  { label: "검수 대기", value: ["REVIEW_OPEN"] },
+  { label: "품질 검증 통과", value: ["ANALYSIS_READY"] },
   { label: "발행 완료", value: ["PUBLISHED"] },
   { label: "발급 제외", value: ["EXCLUDED"] },
-  { label: "제외·실패", value: ["DISCARDED","FAILED","ANALYSIS_FAILED"] },
+  { label: "데이터 축적 중", value: ["DATA_ACCUMULATING"] },
+  { label: "처리·재시도 중", value: ["RETRYING","PENDING_ANALYSIS"] },
+  { label: "최종 실패", value: ["TERMINAL_FAILED"] },
+  { label: "기타 상태", value: ["OTHER"] },
+  { label: "폐기", value: ["DISCARDED"] },
 ];
 
 // ── BatchStatusBadge ──────────────────────────────────────────────────────────
@@ -196,6 +220,7 @@ const BATCH_STATUS_LABEL: Record<string, { label: string; color: string }> = {
   COMPLETED: { label: "배치 완료",      color: "#2E7D32" },
   PARTIAL:   { label: "배치 일부 완료", color: "#E65100" },
   FAILED:    { label: "배치 실패",      color: "#C62828" },
+  RETRYING:  { label: "재시도 중",      color: "#E65100" },
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -227,7 +252,6 @@ export default function ReportHubScreen() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const [q,        setQ]        = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── 필터 상태 ──────────────────────────────────────────────────────────────
   const [filterStatuses, setFilterStatuses] = useState<string[] | null>(null);
@@ -258,56 +282,96 @@ export default function ReportHubScreen() {
 
   // ── 화면에 표시할 rows (클라이언트 필터링) ────────────────────────────────
   const displayRows = useMemo(() => {
-    if (!filterStatuses) return allRows;
-    return allRows.filter(r => filterStatuses.includes(r.product_status));
-  }, [allRows, filterStatuses]);
+    const searched = q.trim()
+      ? allRows.filter(r => r.student_name?.toLowerCase().includes(q.trim().toLowerCase()))
+      : allRows;
+    if (!filterStatuses) return searched;
+    return searched.filter(r =>
+      filterStatuses.includes("REVIEW_OPEN")
+        ? isReviewOpen(r)
+        : filterStatuses.includes(getEffectiveStatus(r))
+    );
+  }, [allRows, filterStatuses, q]);
 
   // ── KPI 집계 (전체 rows 기준) ─────────────────────────────────────────────
   const kpi = useMemo(() => computeKpi(allRows), [allRows]);
 
-  // ── API 호출: summary (KPI 배지용, 에러 무시) ─────────────────────────────
-  // ★ yr/mo = report_month (발행월) 그대로 전송 — 서버가 내부에서 분석월(-1) 변환
+  // ── API 호출: 공식 월간 요약 + batch status ──────────────────────────────────
+  // yr/mo는 발행월 M. 서버가 분석월 M-1로 변환한다.
   const fetchSummary = useCallback(async (yr: number, mo: number) => {
     try {
-      const res = await apiRequest(token, `/admin/reports/summary?year=${yr}&month=${mo}&limit=1&offset=0`);
-      if (!res.ok) return;
-      // 서버 응답: { summary, students, pagination, ... }
-      // MonthlyReportSummary 호환 형태로 변환 (batch_status 등 없으면 null)
-      const d = await res.json();
-      setSummary(d as any);
-    } catch { /* ignore */ }
+      const [summaryRes, batchRes] = await Promise.all([
+        apiRequest(token, `/admin/growth-reports/monthly-summary?year=${yr}&month=${mo}`),
+        apiRequest(token, `/admin/growth-reports/batch-status?year=${yr}&month=${mo}`),
+      ]);
+      if (!summaryRes.ok) {
+        const body = await summaryRes.json().catch(() => ({}));
+        throw new Error((body as any)?.error ?? `요약 조회 오류 (${summaryRes.status})`);
+      }
+      if (!batchRes.ok) {
+        const body = await batchRes.json().catch(() => ({}));
+        throw new Error((body as any)?.error ?? `배치 상태 조회 오류 (${batchRes.status})`);
+      }
+      const summaryData = await summaryRes.json();
+      const batchData = await batchRes.json();
+      setSummary({
+        ...summaryData,
+        batch_status: batchData?.exists ? batchData?.job?.status ?? null : null,
+      } as MonthlyReportSummary);
+    } catch (e: any) {
+      setError(e?.message ?? "요약 조회에 실패했습니다.");
+    }
   }, [token]);
 
-  // ── API 호출: list (최대 200, 클라이언트 필터링) ───────────────────────────
-  // ★ yr/mo = report_month (발행월) 그대로 전송 — 서버가 내부에서 분석월(-1) 변환
+  // ── API 호출: 공식 월간 목록 (200건 단위 전체 페이지 수집) ──────────────────
+  // 검색/상태 필터는 전체 목록 수집 후 클라이언트에서 적용해 KPI를 유지한다.
   const fetchList = useCallback(async (opts: { yr?: number; mo?: number; qv?: string } = {}) => {
     const yr = opts.yr ?? year;
     const mo = opts.mo ?? month;
-    const qv = opts.qv !== undefined ? opts.qv : q;
 
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        year: String(yr), month: String(mo), limit: "200", offset: "0",
+      const limit = 200;
+      const firstParams = new URLSearchParams({
+        year: String(yr), month: String(mo), limit: String(limit), offset: "0",
       });
-      if (qv) params.set("q", qv);
-
-      const res = await apiRequest(token, `/admin/reports/summary?${params.toString()}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as any)?.error ?? `오류 (${res.status})`);
+      const firstRes = await apiRequest(token, `/admin/growth-reports/monthly-list?${firstParams.toString()}`);
+      if (!firstRes.ok) {
+        const body = await firstRes.json().catch(() => ({}));
+        throw new Error((body as any)?.error ?? `오류 (${firstRes.status})`);
       }
-      const d = await res.json();
-      // 서버 응답: { students: [...], pagination: { total }, summary }
-      setAllRows(d.students ?? d.items ?? []);
-      setTotal(d.pagination?.total ?? d.total ?? 0);
+      const firstPage = await firstRes.json();
+      if (!Array.isArray(firstPage?.items) || !Number.isFinite(firstPage?.total)) throw new Error("성장리포트 목록 응답 형식이 올바르지 않습니다.");
+      const rows: MonthlyListItem[] = [...firstPage.items];
+      const rowTotal = Number(firstPage.total);
+      if (rows.some(row => typeof row?.readiness_status !== "string")) {
+        throw new Error("월간 리포트 readiness_status 응답이 누락되었습니다.");
+      }
+      for (let offset = limit; offset < rowTotal; offset += limit) {
+        const params = new URLSearchParams({
+          year: String(yr), month: String(mo), limit: String(limit), offset: String(offset),
+        });
+        const res = await apiRequest(token, `/admin/growth-reports/monthly-list?${params.toString()}`);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error((body as any)?.error ?? `오류 (${res.status})`);
+        }
+        const page = await res.json();
+        if (!Array.isArray(page?.items) || page.items.some((row: MonthlyListItem) => typeof row?.readiness_status !== "string")) {
+          throw new Error("월간 리포트 readiness_status 응답이 누락되었습니다.");
+        }
+        rows.push(...page.items);
+      }
+      if (rows.length < rowTotal) throw new Error("성장리포트 목록 일부를 불러오지 못했습니다.");
+      setAllRows(rows);
+      setTotal(rowTotal);
     } catch (e: any) {
       setError(e?.message ?? "조회에 실패했습니다.");
     } finally {
       setLoading(false);
     }
-  }, [token, year, month, q]);
+  }, [token, year, month]);
 
   // 월 변경 시 재로딩
   useEffect(() => {
@@ -319,44 +383,47 @@ export default function ReportHubScreen() {
     setFilterStatuses(null);
   }, [year, month]);
 
-  // 검색어 debounce
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchList({ qv: q });
-    }, 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [q]);
-
   // ── 개별 발송 ──────────────────────────────────────────────────────────────
   const onSend = useCallback(async (item: MonthlyListItem) => {
-    setActionLoading(item.report_id);
-    try {
-      const res = await apiRequest(token, `/admin/growth-reports/${item.report_id}/send`, { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        Alert.alert("오류", (body as any)?.error ?? "발송에 실패했습니다.");
-        return;
-      }
-      setAllRows(prev => prev.map(r =>
-        r.report_id === item.report_id ? { ...r, product_status: "PUBLISHED" } : r
-      ));
-      await fetchSummary(year, month);
-    } catch (e: any) {
-      Alert.alert("오류", e?.message ?? "발송에 실패했습니다.");
-    } finally {
-      setActionLoading(null);
+    if (!isSendable(item)) {
+      Alert.alert("발송 불가", "분석 준비 검증을 통과하고 관리자 검수가 끝난 리포트만 발송할 수 있습니다.");
+      return;
     }
-  }, [token, year, month, fetchSummary]);
+    Alert.alert(
+      "리포트 발송",
+      `${item.student_name} 학생의 리포트를 학부모에게 발송하시겠습니까?`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "발송",
+          onPress: async () => {
+            setActionLoading(item.report_id);
+            try {
+              const res = await apiRequest(token, `/admin/growth-reports/${item.report_id}/send`, { method: "POST" });
+              if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                Alert.alert("오류", (body as any)?.error ?? "발송에 실패했습니다.");
+                return;
+              }
+              await fetchList({ yr: year, mo: month });
+              await fetchSummary(year, month);
+              Alert.alert("발송 완료", "리포트가 발송되었습니다.");
+            } catch (e: any) {
+              Alert.alert("오류", e?.message ?? "발송에 실패했습니다.");
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ],
+    );
+  }, [token, year, month, fetchList, fetchSummary]);
 
   // ── 선택 발송 (bulk-send with report_ids — 단일 요청) ─────────────────────
   const onSelectSend = useCallback(async () => {
     if (selectedIds.size === 0) return;
     // sendable 상태 필터
-    const targets = displayRows.filter(
-      r => selectedIds.has(r.report_id) &&
-           ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(r.product_status)
-    );
+    const targets = displayRows.filter(r => selectedIds.has(r.report_id) && isSendable(r));
     if (targets.length === 0) { Alert.alert("알림", "발송 가능한 상태의 리포트를 선택하세요."); return; }
 
     Alert.alert(
@@ -370,7 +437,7 @@ export default function ReportHubScreen() {
           onPress: async () => {
             setSelectSending(true);
             try {
-              // ★ 83개 개별 HTTP 호출 → 단일 bulk-send with report_ids
+              // 선택 항목을 공식 bulk-send 경로로 전송
               const res = await apiRequest(
                 token,
                 `/admin/growth-reports/bulk-send`,
@@ -392,11 +459,7 @@ export default function ReportHubScreen() {
               const alreadyOk = (d as any).already_published_count ?? 0;
               const skipped   = (d as any).skipped_count ?? (d as any).skipped ?? 0;
 
-              // 낙관적 UI 업데이트
-              const sentIds = new Set(targets.map(t => t.report_id));
-              setAllRows(prev => prev.map(r =>
-                sentIds.has(r.report_id) ? { ...r, product_status: "PUBLISHED" } : r
-              ));
+              await fetchList({ yr: year, mo: month });
               setSelectMode(false);
               setSelectedIds(new Set());
               const parts = [`${published}건 발송 완료`];
@@ -413,7 +476,7 @@ export default function ReportHubScreen() {
         },
       ],
     );
-  }, [selectedIds, displayRows, token, year, month, fetchSummary]);
+  }, [selectedIds, displayRows, token, year, month, fetchList, fetchSummary]);
 
   // ── 폐기 실행 ──────────────────────────────────────────────────────────────
   const onDiscardConfirm = useCallback(async () => {
@@ -477,13 +540,19 @@ export default function ReportHubScreen() {
 
   // ── 전체 발송 (모든 sendable — bulk-send API, 월 전체) ───────────────────
   const onBulkSend = useCallback(async () => {
+    const targets = allRows.filter(isSendable);
+    if (targets.length === 0) {
+      Alert.alert("알림", "발송 검증을 통과한 리포트가 없습니다.");
+      setBulkSendConfirm(false);
+      return;
+    }
     setBulkSendLoading(true);
     try {
       const res = await apiRequest(
         token,
         `/admin/growth-reports/bulk-send`,
         { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ year, month }) },  // report_ids 미지정 → 월 전체
+          body: JSON.stringify({ year, month, report_ids: targets.map(item => item.report_id) }) },
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -505,19 +574,20 @@ export default function ReportHubScreen() {
     } finally {
       setBulkSendLoading(false);
     }
-  }, [token, year, month, fetchList, fetchSummary]);
+  }, [allRows, token, year, month, fetchList, fetchSummary]);
 
   // ── 행 렌더링 ──────────────────────────────────────────────────────────────
   const renderRow = ({ item }: { item: MonthlyListItem }) => {
-    const sd = getStatusDisplay(item.product_status, item.admin_reviewed_at);
+    const status = getEffectiveStatus(item);
+    const sd = getStatusDisplay(status);
     const isLoading = actionLoading === item.report_id;
     const verLabel = item.version_number > 1 ? ` v${item.version_number}` : "";
-    const showSend    = ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
+    const showSend    = isSendable(item);
     const showDiscard = ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
     const showRegen   = ["DISCARDED", "READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
-    const showAnalyzing = isAnalyzingState(item.product_status);
+    const showAnalyzing = isAnalyzingState(status);
     const isSelected  = selectedIds.has(item.report_id);
-    const canSelect   = ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(item.product_status);
+    const canSelect   = isSendable(item);
 
     const toggleSelect = () => {
       if (!canSelect) return;
@@ -556,6 +626,11 @@ export default function ReportHubScreen() {
             </TouchableOpacity>
           ) : null}
           <Text style={[s.rowName, { flex: 1 }]}>{item.student_name}{verLabel}</Text>
+          {isReviewOpen(item) && (
+            <View style={[s.chip, { backgroundColor: "#FFF3E0" }]}>
+              <Text style={[s.chipText, { color: "#E65100" }]}>검수 대기</Text>
+            </View>
+          )}
           <View style={[s.chip, { backgroundColor: sd.bg }]}>
             {showAnalyzing && (
               <ActivityIndicator size={10} color={sd.text} style={{ marginRight: 4 }} />
@@ -644,7 +719,7 @@ export default function ReportHubScreen() {
           </View>
         )}
 
-        {/* KPI 8개 → 2줄 (4 + 4) */}
+        {/* Batch progress never hides reports or readiness lifecycle states. */}
         {loading && allRows.length === 0 ? (
           <View>
             <View style={s.kpiRow}>{[0,1,2,3].map(i => <View key={i} style={[s.kpiCard, s.kpiSkeleton]} />)}</View>
@@ -653,30 +728,29 @@ export default function ReportHubScreen() {
         ) : (
           <View>
             <View style={s.kpiRow}>
-              <KpiCard value={kpi.total}     label="전체"    color="#23415C" onPress={() => setFilterStatuses(null)} />
-              <KpiCard value={kpi.beforeGen} label="생성 전"  color="#757575" onPress={() => setFilterStatuses(["OPEN","READY_FOR_ANALYSIS"])} />
-              <KpiCard value={kpi.analyzing} label="분석 중"  color="#1565C0" onPress={() => setFilterStatuses(["PREANALYZING","ANALYZING","REGENERATING"])} />
-              <KpiCard value={kpi.unreviewed} label="검수 대기" color="#E65100" onPress={() => setFilterStatuses(["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"])} />
+              <KpiCard value={summary?.admin_readiness?.analysis_ready ?? kpi.analysisReady} label="검증 통과 · 검수 별도" color="#2E7D32" onPress={() => setFilterStatuses(["ANALYSIS_READY"])} />
+              <KpiCard value={kpi.reviewOpen} label="관리자 검수 대기" color="#E65100" onPress={() => setFilterStatuses(["REVIEW_OPEN"])} />
+              <KpiCard value={summary?.admin_readiness?.excluded ?? kpi.excluded} label="발급 제외" color="#9E9E9E" onPress={() => setFilterStatuses(["EXCLUDED"])} />
+              <KpiCard value={summary?.admin_readiness?.terminal_failed ?? kpi.terminalFailed} label="최종 실패" color="#C62828" onPress={() => setFilterStatuses(["TERMINAL_FAILED"])} />
             </View>
             <View style={[s.kpiRow, { marginTop: 6 }]}>
-              <KpiCard value={kpi.reviewed}  label="검수 확인" color="#2E7D32" onPress={() => setFilterStatuses(["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"])} />
-              <KpiCard value={kpi.published} label="발행 완료" color="#2E7D32" onPress={() => setFilterStatuses(["PUBLISHED"])} />
-              <KpiCard value={kpi.excluded} label="발급 제외"  color="#9E9E9E" onPress={() => setFilterStatuses(["EXCLUDED"])} />
-              <KpiCard value={kpi.discarded} label="폐기"      color="#B71C1C" onPress={() => setFilterStatuses(["DISCARDED"])} />
-              <KpiCard value={kpi.failed}    label="실패"      color="#C62828" onPress={() => setFilterStatuses(["FAILED","ANALYSIS_FAILED"])} />
+              <KpiCard value={summary?.admin_readiness?.data_accumulating ?? kpi.dataAccumulating} label="데이터 축적 중" color="#8D6E00" onPress={() => setFilterStatuses(["DATA_ACCUMULATING"])} />
+              <KpiCard value={(summary?.admin_readiness?.retrying ?? kpi.retrying) + (summary?.admin_readiness?.pending_analysis ?? kpi.pendingAnalysis)} label="처리·재시도 중" color="#1565C0" onPress={() => setFilterStatuses(["RETRYING","PENDING_ANALYSIS"])} />
+              <KpiCard value={summary?.admin_readiness?.published ?? kpi.published} label="발행 완료" color="#2E7D32" onPress={() => setFilterStatuses(["PUBLISHED"])} />
+              <KpiCard value={kpi.discarded} label="폐기" color="#B71C1C" onPress={() => setFilterStatuses(["DISCARDED"])} />
             </View>
           </View>
         )}
 
         {/* 전체 발송 버튼 */}
-        {(kpi.unreviewed + kpi.reviewed) > 0 && !selectMode && (
+        {kpi.sendable > 0 && !selectMode && (
           <TouchableOpacity
             style={s.bulkSendBtn}
             onPress={() => setBulkSendConfirm(true)}
           >
             <LucideIcon name="send" size={14} color="#fff" />
             <Text style={s.bulkSendBtnText}>
-              대기 중 {kpi.unreviewed + kpi.reviewed}건 전체 발송
+              발송 가능 {kpi.sendable}건 전체 발송
             </Text>
           </TouchableOpacity>
         )}
@@ -757,7 +831,7 @@ export default function ReportHubScreen() {
             {filterStatuses ? `${displayRows.length}건 (전체 ${total}건)` : `총 ${total}건`}
           </Text>
         )}
-        {(kpi.unreviewed + kpi.reviewed) > 0 && (
+        {kpi.sendable > 0 && (
           <TouchableOpacity
             style={[s.selectToggleBtn, selectMode && s.selectToggleBtnActive]}
             onPress={() => { setSelectMode(v => !v); setSelectedIds(new Set()); }}
@@ -821,7 +895,7 @@ export default function ReportHubScreen() {
           <View style={s.selectBarTop}>
             {(() => {
               const selectableIds = displayRows
-                .filter(r => ["READY_TO_SEND", "APPROVED", "REVIEW_REQUIRED"].includes(r.product_status))
+                .filter(isSendable)
                 .map(r => r.report_id);
               const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
               return (
@@ -939,7 +1013,7 @@ export default function ReportHubScreen() {
       <ConfirmModal
         visible={bulkSendConfirm}
         title="전체 발송"
-        message={`${kpi.unreviewed + kpi.reviewed}건을 모두 발송하시겠습니까?\n발송 후에는 학부모에게 즉시 알림이 전송됩니다.\n발송 가능 상태(검수 대기·검수 확인)만 처리됩니다.`}
+        message={`${kpi.sendable}건을 발송하시겠습니까?\n발송 후에는 학부모에게 즉시 알림이 전송됩니다.\n분석 검증 통과와 관리자 검수가 확인된 리포트만 처리됩니다.`}
         onConfirm={onBulkSend}
         onCancel={() => setBulkSendConfirm(false)}
       />

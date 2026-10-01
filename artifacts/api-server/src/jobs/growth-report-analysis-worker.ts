@@ -52,17 +52,21 @@ import {
   isRetryableEngineError,
   EngineCallError,
   type GrowthReportAnalysisResponse,
+  type GrowthReportAnalysisRequest,
 } from "../lib/growth-report-engine-client.js";
 import {
   persistEngineResult,
-  auditAnalysisStarted,
-  auditAnalysisFailed,
   auditStaleRejected,
   StaleEngineResponseError,
   GroundingFailError,
   EngineResponseValidationError,
+  persistAnalysisRequest,
+  persistAnalysisResponse,
+  recordAnalysisAttemptFailure,
+  isGrowthReportParentInputWindowOpen,
   type AnalysisStage,
 } from "../lib/growth-report-result-handler.js";
+import { resolveGrowthReportAnalysisIdentity } from "../lib/growth-report-analysis-identity.js";
 import { saveAiTrace }  from "../lib/ai-trace-service.js";
 import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
 
@@ -122,8 +126,13 @@ interface PendingReport {
     swimming_pool_id: string;
     cycle_id: string;
     report_period: string;
+    report_type: string | null;
     product_status: string;
     analysis_request_id: string | null;
+    analysis_request_payload: unknown;
+    analysis_response_payload: unknown;
+    analysis_identity_hash: string | null;
+    snapshot_hash: string | null;
     analysis_retry_count: number;
     teacher_reviewed_by: string | null;
     teacher_reviewed_at: string | null;
@@ -151,8 +160,13 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
       gr.swimming_pool_id,
       gr.cycle_id,
       gr.report_period,
+      gr.report_type,
       gr.product_status,
       gr.analysis_request_id,
+      gr.analysis_request_payload,
+      gr.analysis_response_payload,
+      gr.analysis_identity_hash,
+      gr.snapshot_hash,
       COALESCE(gr.analysis_retry_count, 0)  AS analysis_retry_count,
       gr.teacher_reviewed_by,
       gr.teacher_reviewed_at,
@@ -181,8 +195,13 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
         swimming_pool_id:     r.swimming_pool_id as string,
         cycle_id:             r.cycle_id as string,
         report_period:        r.report_period as string,
+        report_type:          (r.report_type ?? null) as string | null,
         product_status:       r.product_status as string,
         analysis_request_id:  (r.analysis_request_id ?? null) as string | null,
+        analysis_request_payload: r.analysis_request_payload ?? null,
+        analysis_response_payload: r.analysis_response_payload ?? null,
+        analysis_identity_hash: (r.analysis_identity_hash ?? null) as string | null,
+        snapshot_hash:        (r.snapshot_hash ?? null) as string | null,
         analysis_retry_count: Number(r.analysis_retry_count ?? 0),
         teacher_reviewed_by:  (r.teacher_reviewed_by ?? null) as string | null,
         teacher_reviewed_at:  (r.teacher_reviewed_at ?? null) as string | null,
@@ -215,8 +234,17 @@ async function analyzeOneReport(
 
   // Guard: too many retries → skip this report
   if (report.analysis_retry_count >= maxRetry) {
+    await db.execute(sql`
+      UPDATE growth_reports
+      SET product_status = 'FAILED'::gr_product_status_enum,
+          updated_at = now()
+      WHERE id = ${report.id}
+        AND product_status IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')
+        AND COALESCE(analysis_retry_count, 0) >= ${maxRetry}
+        AND deleted_at IS NULL
+    `);
     console.warn(
-      `[gr3-worker] report=${report.id} exceeded max retries (${maxRetry}), skipping`,
+      `[gr3-worker] report=${report.id} exceeded max retries (${maxRetry}), terminal FAILED`,
     );
     return { ok: false, errorCode: "MAX_RETRY_EXCEEDED", httpStatus: 0 };
   }
@@ -294,8 +322,9 @@ async function analyzeOneReport(
 
     const eligVersionNum = eligResult.eligibility_version;
     if (!eligResult.eligible) {
-      // EXCLUDED — PREANALYZING 전환 없이 직접 EXCLUDED 저장, 즉시 return
-      await db.execute(sql`
+      // EXCLUDED — CAS against the exact pending status/request we selected;
+      // never overwrite a concurrently published or otherwise terminal report.
+      const excluded = await db.execute(sql`
         UPDATE growth_reports
         SET product_status      = 'EXCLUDED'::gr_product_status_enum,
             exclusion_code      = ${eligResult.exclusion_code},
@@ -304,8 +333,14 @@ async function analyzeOneReport(
             eligibility_version = ${eligVersionNum},
             updated_at          = now()
         WHERE id                = ${report.id}
-          AND product_status   != 'EXCLUDED'   -- idempotent (crash 후 재실행 안전)
+          AND product_status   = ${report.product_status}::gr_product_status_enum
+          AND analysis_request_id IS NOT DISTINCT FROM ${report.analysis_request_id}
+          AND deleted_at IS NULL
+        RETURNING id
       `);
+      if (!(excluded.rows as any[] | undefined)?.length) {
+        return { ok: false, errorCode: "STALE_ELIGIBILITY_CLAIM", httpStatus: 0 };
+      }
       console.log(
         `[gr3-worker] report=${report.id} EXCLUDED` +
         ` code=${eligResult.exclusion_code}` +
@@ -315,7 +350,7 @@ async function analyzeOneReport(
     }
 
     // (E) ELIGIBLE: counts 저장 후 PREANALYZING/ANALYZING 전환으로 진행
-    await db.execute(sql`
+    const eligibilitySaved = await db.execute(sql`
       UPDATE growth_reports
       SET attendance_count    = ${attendanceCount},
           source_event_count  = ${sourceEventCount},
@@ -323,7 +358,14 @@ async function analyzeOneReport(
           exclusion_code      = NULL,
           updated_at          = now()
       WHERE id = ${report.id}
+        AND product_status = ${report.product_status}::gr_product_status_enum
+        AND analysis_request_id IS NOT DISTINCT FROM ${report.analysis_request_id}
+        AND deleted_at IS NULL
+      RETURNING id
     `);
+    if (!(eligibilitySaved.rows as any[] | undefined)?.length) {
+      return { ok: false, errorCode: "STALE_ELIGIBILITY_CLAIM", httpStatus: 0 };
+    }
     console.log(
       `[gr3-worker] report=${report.id} ELIGIBLE` +
       ` attend=${attendanceCount} source=${sourceEventCount} → PREANALYZING`,
@@ -352,108 +394,155 @@ async function analyzeOneReport(
     throw err;
   }
 
-  const parentInputWindowOpen = new Date() < new Date(cycle.parent_input_close_at);
-
-  // 2) Build immutable snapshot (new requestId = new analysis attempt)
-  const { request, requestId, payloadHash } = await buildAnalysisSnapshot(db, {
-    report, cycle,
-    // no requestId supplied → fresh UUID generated inside
-  });
-
-  // 3) Write analysis_request_id to DB before ENGINE call (enables stale CAS)
-  await db.execute(sql`
-    UPDATE growth_reports
-    SET analysis_request_id = ${requestId}, updated_at = now()
-    WHERE id = ${report.id}
-  `);
-
-  // 4) Audit: started
-  await auditAnalysisStarted(db, report.id, report.swimming_pool_id, requestId);
-  console.log(
-    `[gr3-worker] report=${report.id} stage=${stage} requestId=${requestId} ENGINE call starting`,
+  // Free monthly reports explicitly disable parent input; ENGINE questions are
+  // retained as optional context but cannot block the completed PRE result.
+  const parentInputWindowOpen = isGrowthReportParentInputWindowOpen(
+    report.report_type,
+    cycle.parent_input_close_at,
   );
 
-  // 5) ENGINE call
+  // 2) Build a candidate immutable snapshot. If the same logical input was
+  // already claimed, the persisted full request (including created_at/hash)
+  // wins so crash/watchdog recovery replays the exact ENGINE request.
+  const freshSnapshot = await buildAnalysisSnapshot(db, {
+    report, cycle,
+  });
+  const identity = resolveGrowthReportAnalysisIdentity({
+    freshRequest: freshSnapshot.request as unknown as Record<string, any>,
+    freshPayloadHash: freshSnapshot.payloadHash,
+    stage,
+    persistedRequest: report.analysis_request_payload,
+    persistedRequestId: report.analysis_request_id,
+    persistedPayloadHash: report.snapshot_hash,
+    persistedIdentityHash: report.analysis_identity_hash,
+  });
+  const request = identity.request as unknown as GrowthReportAnalysisRequest;
+  const { requestId, payloadHash, identityHash } = identity;
+
+  // 3) Persist the complete request and hash atomically before HTTP. A stale
+  // worker must not call ENGINE if it lost the status CAS.
+  const requestClaimed = await persistAnalysisRequest({
+    db,
+    reportId: report.id,
+    poolId: report.swimming_pool_id,
+    requestId,
+    payloadHash,
+    identityHash,
+    request,
+    stage,
+    preserveResponse: identity.reused,
+  });
+  if (!requestClaimed) {
+    return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+  }
+
+  // 4) Persisted ENGINE request and its started audit are now durable.
+  console.log(
+    `[gr3-worker] report=${report.id} stage=${stage} requestId=${requestId} ` +
+    `replayed=${identity.reused} ENGINE call starting`,
+  );
+
+  // 5) Prefer a durably stored response from the same logical request. This
+  // closes the ENGINE-success / APP-result-transaction-failure cost window.
   const grEngineStartMs = Date.now();  // CS-PA1: latency 측정
   let response: GrowthReportAnalysisResponse;
-  // AI01-05: actual HTTP call counts returned from engine client
   let grActualCallCount = 0;
   let grRetryCount      = 0;
-  try {
-    const callResult  = await analyzeGrowthReport(request);
-    response          = callResult.response;
-    grActualCallCount = callResult.actualCallCount;
-    grRetryCount      = callResult.retryCount;
-  } catch (engineErr) {
-    // AI01-05: count as 1 attempt if URL was configured (i.e. HTTP was sent).
-    // NOTE: analysis_retry_count in DB is cross-invocation retry count — do NOT
-    // use it as actual_call_count. Use grActualCallCount from the client.
-    const httpWasSent = !(engineErr instanceof EngineCallError &&
-                          (engineErr as EngineCallError).errorCode === "ENGINE_URL_NOT_CONFIGURED");
-    grActualCallCount = httpWasSent ? 1 : 0;
-    grRetryCount      = 0;
+  const cachedResponse = identity.reused ? report.analysis_response_payload : null;
+  const hasCachedResponse = cachedResponse !== null && cachedResponse !== undefined;
 
-    const retryable = isRetryableEngineError(engineErr);
-    const errorCode = engineErr instanceof EngineCallError
-      ? engineErr.errorCode
-      : "UNKNOWN_ERROR";
-
-    await auditAnalysisFailed(db, report.id, report.swimming_pool_id, requestId, errorCode);
-
-    // CS-PA1: engine 실패 trace
-    void saveAiTrace({
-      status: 'FAILED', request_id: requestId, internal_id: requestId,
-      pool_id: report.swimming_pool_id, contract_version: '1.0',
-      feature: AI_FEATURE.GROWTH_REPORT_AI, pool_mode: null,
-      sub_feature: stage, result_generated: false,
-      trigger_type: 'SYSTEM_MAINTENANCE', service: 'analysis',
-      error_stage: 'UNKNOWN' as const, error_code: errorCode,
-      latency_ms:  Date.now() - grEngineStartMs,
-    }).catch(() => {});
-
-    if (retryable) {
-      // Roll back to previous status so next worker run can retry
-      const rollbackStatus = stage === "PREANALYSIS" ? "OPEN" : "READY_FOR_ANALYSIS";
-      try {
-        await db.execute(sql`
-          UPDATE growth_reports
-          SET product_status        = ${rollbackStatus}::gr_product_status_enum,
-              analysis_retry_count  = COALESCE(analysis_retry_count, 0) + 1,
-              updated_at            = now()
-          WHERE id = ${report.id}
-        `);
-      } catch (rbErr: any) {
-        console.error(`[gr3-worker] rollback failed report=${report.id}:`, rbErr.message);
-      }
-      console.warn(
-        `[gr3-worker] retryable ENGINE error report=${report.id} code=${errorCode}`,
-      );
-    } else {
-      // Non-retryable → FAILED (no infinite retry)
-      try {
-        await transitionReportStatus({
-          db,
-          reportId:  report.id,
-          toStatus:  "FAILED",
-          actorType: "system",
-          actorId:   null,
-          reason:    `ENGINE_NON_RETRYABLE_${errorCode}`,
-        });
-      } catch (transErr: any) {
-        console.error(`[gr3-worker] FAILED transition error report=${report.id}:`, transErr.message);
-      }
-      const httpStatus     = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).statusCode   : 0;
-      const engineDetails  = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).engineDetails : undefined;
-      console.error(
-        `[gr3-worker] non-retryable ENGINE error report=${report.id} code=${errorCode} http=${httpStatus} msg=${(engineErr as Error).message}`,
-      );
-      return { ok: false, errorCode, httpStatus, engineDetails };
+  if (hasCachedResponse) {
+    const cached = cachedResponse as Record<string, unknown>;
+    if (
+      typeof cached !== "object" ||
+      Array.isArray(cached) ||
+      cached.request_id !== requestId ||
+      cached.report_id !== report.id
+    ) {
+      await recordAnalysisAttemptFailure({
+        db,
+        reportId: report.id,
+        poolId: report.swimming_pool_id,
+        requestId,
+        stage,
+        retryable: false,
+        maxRetryCount: maxRetry,
+        errorCode: "PERSISTED_RESPONSE_IDENTITY_MISMATCH",
+      });
+      return { ok: false, errorCode: "PERSISTED_RESPONSE_IDENTITY_MISMATCH", httpStatus: 0 };
     }
-    return { ok: false, errorCode, httpStatus: 0 };
+    response = cached as unknown as GrowthReportAnalysisResponse;
+    console.log(`[gr3-worker] report=${report.id} replaying saved ENGINE response; no ENGINE call`);
+  } else {
+    try {
+      const callResult  = await analyzeGrowthReport(request);
+      response          = callResult.response;
+      grActualCallCount = callResult.actualCallCount;
+      grRetryCount      = callResult.retryCount;
+    } catch (engineErr) {
+      // AI01-05: count as 1 attempt if URL was configured (i.e. HTTP was sent).
+      // analysis_retry_count is cross-invocation; actual_call_count is per call.
+      const httpWasSent = !(engineErr instanceof EngineCallError &&
+                            (engineErr as EngineCallError).errorCode === "ENGINE_URL_NOT_CONFIGURED");
+      grActualCallCount = httpWasSent ? 1 : 0;
+      grRetryCount      = 0;
+
+      const retryable = isRetryableEngineError(engineErr);
+      const errorCode = engineErr instanceof EngineCallError
+        ? engineErr.errorCode
+        : "UNKNOWN_ERROR";
+
+      void saveAiTrace({
+        status: 'FAILED', request_id: requestId, internal_id: requestId,
+        pool_id: report.swimming_pool_id, contract_version: '1.0',
+        feature: AI_FEATURE.GROWTH_REPORT_AI, pool_mode: null,
+        sub_feature: stage, result_generated: false,
+        trigger_type: 'SYSTEM_MAINTENANCE', service: 'analysis',
+        error_stage: 'UNKNOWN' as const, error_code: errorCode,
+        latency_ms:  Date.now() - grEngineStartMs,
+      }).catch(() => {});
+
+      const failure = await recordAnalysisAttemptFailure({
+        db,
+        reportId: report.id,
+        poolId: report.swimming_pool_id,
+        requestId,
+        stage,
+        retryable,
+        maxRetryCount: maxRetry,
+        errorCode,
+      });
+      if (retryable) {
+        console.warn(
+          `[gr3-worker] retryable ENGINE error report=${report.id} code=${errorCode} ` +
+          `retry=${failure.retryCount}/${maxRetry} terminal=${failure.terminal}`,
+        );
+      } else {
+        const httpStatus     = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).statusCode   : 0;
+        const engineDetails  = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).engineDetails : undefined;
+        console.error(
+          `[gr3-worker] non-retryable ENGINE error report=${report.id} code=${errorCode} http=${httpStatus} msg=${(engineErr as Error).message}`,
+        );
+        return { ok: false, errorCode, httpStatus, engineDetails };
+      }
+      return { ok: false, errorCode, httpStatus: 0 };
+    }
+
+    const responseSaved = await persistAnalysisResponse({
+      db,
+      reportId: report.id,
+      requestId,
+      response,
+      stage,
+    });
+    if (!responseSaved) {
+      await auditStaleRejected(db, report.id, report.swimming_pool_id, requestId);
+      return { ok: false, errorCode: "STALE_RESPONSE", httpStatus: 0 };
+    }
   }
 
   // CS-PA1 / AI01-05: engine 성공 trace (persist 전)
-  void saveAiTrace({
+  if (!hasCachedResponse) void saveAiTrace({
     status:                'SUCCESS',
     request_id:            requestId,
     internal_id:           requestId,
@@ -504,15 +593,16 @@ async function analyzeOneReport(
       persistErr instanceof EngineResponseValidationError
     ) {
       const code = persistErr.name;
-      await auditAnalysisFailed(db, report.id, report.swimming_pool_id, requestId, code);
-      await transitionReportStatus({
+      await recordAnalysisAttemptFailure({
         db,
         reportId:  report.id,
-        toStatus:  "FAILED",
-        actorType: "system",
-        actorId:   null,
-        reason:    code,
-      }).catch(() => {});
+        poolId: report.swimming_pool_id,
+        requestId,
+        stage,
+        retryable: false,
+        maxRetryCount: maxRetry,
+        errorCode: code,
+      });
       const groundingDetails = persistErr instanceof GroundingFailError
         ? { field: persistErr.field, value: persistErr.value, message: persistErr.message }
         : undefined;
@@ -530,21 +620,26 @@ async function analyzeOneReport(
  * resetStuckReports — PREANALYZING/ANALYZING 상태로 멈춘 리포트를 자동 복구.
  *
  * ENGINE timeout = 120초. 여유 포함 180초(3분) 이상 같은 상태면 stuck으로 판단.
- * PREANALYZING → OPEN, ANALYZING → READY_FOR_ANALYSIS 으로 리셋 후 재시도.
- * analysis_retry_count 는 유지 (무한 리셋 방지 — max retry 초과 시 다음 배치에서 FAILED).
+ * PREANALYZING → OPEN, ANALYZING → READY_FOR_ANALYSIS 으로 복구.
+ * Watchdog 복구도 retry를 소비하며, exhausted 상태는 FAILED로 terminal 처리.
  */
 async function resetStuckReports(db: any): Promise<number> {
   const STUCK_THRESHOLD_SECONDS = 180; // 3분
+  const maxRetry = getMaxRetryCount();
   try {
     const res = await db.execute(sql`
       UPDATE growth_reports
       SET
         product_status = CASE
-          WHEN product_status = 'PREANALYZING' THEN 'OPEN'
-          WHEN product_status = 'ANALYZING'    THEN 'READY_FOR_ANALYSIS'
+          WHEN COALESCE(analysis_retry_count, 0) + 1 >= ${maxRetry}
+            THEN 'FAILED'::gr_product_status_enum
+          WHEN product_status = 'PREANALYZING'
+            THEN 'OPEN'::gr_product_status_enum
+          WHEN product_status = 'ANALYZING'
+            THEN 'READY_FOR_ANALYSIS'::gr_product_status_enum
           ELSE product_status
         END,
-        analysis_request_id = NULL,
+        analysis_retry_count = COALESCE(analysis_retry_count, 0) + 1,
         updated_at          = NOW()
       WHERE product_status IN ('PREANALYZING', 'ANALYZING')
         AND deleted_at IS NULL
@@ -553,13 +648,76 @@ async function resetStuckReports(db: any): Promise<number> {
     `);
     const count = (res.rows as any[]).length;
     if (count > 0) {
-      console.warn(`[gr3-watchdog] ${count}개 stuck 리포트 리셋 (PREANALYZING/ANALYZING → OPEN/READY_FOR_ANALYSIS)`);
+      console.warn(
+        `[gr3-watchdog] ${count}개 stuck 리포트 복구 ` +
+        `(request/hash 보존, exhausted → FAILED)`,
+      );
     }
     return count;
   } catch (err: any) {
     console.warn("[gr3-watchdog] stuck 리셋 실패 (무시):", err.message);
     return 0;
   }
+}
+
+/**
+ * Recover legacy free-monthly rows that were left waiting for disabled parent
+ * questions. Only a complete, structurally valid PRE result can advance, and
+ * the row lock plus lifecycle CAS prevents stale/terminal status overwrites.
+ */
+export async function recoverLegacyFreeMonthlyQuestionWaiters(db: any): Promise<number> {
+  if (typeof db?.transaction !== "function") {
+    throw new Error("Free monthly question recovery requires a transactional database adapter.");
+  }
+
+  return db.transaction(async (tx: any) => {
+    const candidates = await tx.execute(sql`
+      SELECT gr.id
+      FROM growth_reports gr
+      WHERE gr.product_status = 'QUESTION_AVAILABLE'::gr_product_status_enum
+        AND (gr.report_type = 'monthly' OR gr.report_type IS NULL)
+        AND gr.deleted_at IS NULL
+        AND gr.analysis_status IN (
+          'COMPLETE',
+          'COMPLETE_WITH_QUESTIONS_AVAILABLE',
+          'COMPLETE_WITH_PARENT_EVIDENCE'
+        )
+        AND gr.analysis_request_id IS NOT NULL
+        AND gr.snapshot_hash IS NOT NULL
+        AND jsonb_typeof(gr.report_content) = 'object'
+        AND jsonb_typeof(gr.report_fact_package) = 'object'
+        AND jsonb_typeof(gr.sns_summary) = 'object'
+        AND (
+          gr.analysis_response_payload IS NULL
+          OR (
+            gr.analysis_response_payload->>'request_id' = gr.analysis_request_id
+            AND gr.analysis_response_payload->>'report_id' = gr.id
+            AND gr.analysis_response_payload->'trace'->>'payload_hash' = gr.snapshot_hash
+          )
+        )
+      ORDER BY gr.updated_at ASC, gr.id ASC
+      LIMIT 500
+      FOR UPDATE SKIP LOCKED
+    `);
+
+    let recovered = 0;
+    for (const row of candidates.rows as Array<{ id: string }>) {
+      await transitionReportStatus({
+        db: tx,
+        reportId: row.id,
+        toStatus: "READY_FOR_ANALYSIS",
+        actorType: "system",
+        actorId: null,
+        reason: "FREE_MONTHLY_QUESTION_RECOVERY",
+      });
+      recovered++;
+    }
+
+    if (recovered > 0) {
+      console.log(`[gr3-worker] recovered ${recovered} complete free-monthly question waiters`);
+    }
+    return recovered;
+  });
 }
 
 // ─── Worker run ───────────────────────────────────────────────────────────────
@@ -587,6 +745,22 @@ export async function runGrowthReportAnalysisWorker(
     analyzed: 0, skipped: 0, failed: 0, errors: [],
   };
 
+  // Old rows that reached the retry ceiling must be terminalized before they
+  // enter the queue; they are never polled or counted as analyzed again.
+  const maxRetry = getMaxRetryCount();
+  await db.execute(sql`
+    UPDATE growth_reports
+    SET product_status = 'FAILED'::gr_product_status_enum,
+        updated_at = now()
+    WHERE product_status IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')
+      AND COALESCE(analysis_retry_count, 0) >= ${maxRetry}
+      AND deleted_at IS NULL
+  `);
+
+  // Also invoked on startup and every 5-minute drain through this shared queue
+  // entrypoint, before READY_FOR_ANALYSIS rows are selected.
+  await recoverLegacyFreeMonthlyQuestionWaiters(db);
+
   const pending = await fetchPendingReports(db);
   if (pending.length === 0) return result;
 
@@ -603,8 +777,19 @@ export async function runGrowthReportAnalysisWorker(
       if (i >= pending.length) break;
       const item = pending[i];
       try {
-        await analyzeOneReport(db, item);
-        mutex.analyzed++;
+        const oneResult = await analyzeOneReport(db, item);
+        if (oneResult.ok) {
+          mutex.analyzed++;
+        } else if (
+          oneResult.errorCode === "CONCURRENT_TRANSITION" ||
+          oneResult.errorCode === "STALE_ANALYSIS_CLAIM" ||
+          oneResult.errorCode === "STALE_ELIGIBILITY_CLAIM"
+        ) {
+          result.skipped++;
+        } else {
+          mutex.failed++;
+          mutex.errors.push(`report=${item.report.id}: ${oneResult.errorCode}`);
+        }
       } catch (err: any) {
         mutex.failed++;
         mutex.errors.push(`report=${item.report.id}: ${err.message}`);
@@ -638,8 +823,13 @@ export async function fetchSingleReport(db: any, reportId: string): Promise<Pend
       gr.swimming_pool_id,
       gr.cycle_id,
       gr.report_period,
+      gr.report_type,
       gr.product_status,
       gr.analysis_request_id,
+      gr.analysis_request_payload,
+      gr.analysis_response_payload,
+      gr.analysis_identity_hash,
+      gr.snapshot_hash,
       COALESCE(gr.analysis_retry_count, 0)  AS analysis_retry_count,
       gr.teacher_reviewed_by,
       gr.teacher_reviewed_at,
@@ -670,8 +860,13 @@ export async function fetchSingleReport(db: any, reportId: string): Promise<Pend
       swimming_pool_id:     r.swimming_pool_id as string,
       cycle_id:             r.cycle_id as string,
       report_period:        r.report_period as string,
+        report_type:          (r.report_type ?? null) as string | null,
       product_status:       r.product_status as string,
       analysis_request_id:  (r.analysis_request_id ?? null) as string | null,
+      analysis_request_payload: r.analysis_request_payload ?? null,
+      analysis_response_payload: r.analysis_response_payload ?? null,
+      analysis_identity_hash: (r.analysis_identity_hash ?? null) as string | null,
+      snapshot_hash:        (r.snapshot_hash ?? null) as string | null,
       analysis_retry_count: Number(r.analysis_retry_count ?? 0),
       teacher_reviewed_by:  (r.teacher_reviewed_by ?? null) as string | null,
       teacher_reviewed_at:  (r.teacher_reviewed_at ?? null) as string | null,
@@ -721,7 +916,7 @@ export async function analyzeSingleReport(
   }
 
   const { product_status } = pending.report;
-  if (product_status !== "OPEN" && product_status !== "READY_FOR_ANALYSIS") {
+  if (product_status !== "OPEN" && product_status !== "READY_FOR_ANALYSIS" && product_status !== "REGENERATING") {
     return {
       report_id:      reportId,
       product_status,

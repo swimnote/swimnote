@@ -6,18 +6,20 @@ import type { ApiError } from "@/lib/api-client";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ReportItem {
-  id: string;
+  report_id: string;
   student_id: string;
   student_name: string;
   product_status: string;
+  analysis_status: string | null;
+  readiness_status: string;
+  version_number: number;
   report_period: string; // "2026-08" format
   published_at: string | null;
-  teacher_reviewed_at: string | null;
-  teacher_review_action: string | null;
   admin_reviewed_at: string | null;
+  admin_reviewed_by: string | null;
   created_at: string;
-  class_name?: string;
-  teacher_name?: string;
+  class_name: string | null;
+  teacher_name: string | null;
 }
 
 interface ReportListResponse {
@@ -73,6 +75,17 @@ const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   REGENERATING: { bg: "#F3F4F6", text: "#6B7280" },
 };
 
+const READINESS_LABEL: Record<string, string> = {
+  ANALYSIS_READY: "품질 검증 통과",
+  EXCLUDED: "발급 제외",
+  DATA_ACCUMULATING: "데이터 축적 중",
+  RETRYING: "처리·재시도 중",
+  PENDING_ANALYSIS: "분석 대기",
+  TERMINAL_FAILED: "최종 실패",
+  PUBLISHED: "발행 완료",
+  OTHER: "기타 상태",
+};
+
 const REANALYSIS_REASONS = [
   { value: "WRONG_CONTEXT", label: "잘못된 맥락" },
   { value: "STUDENT_ATTRIBUTION_CONCERN", label: "학생 귀속 우려" },
@@ -81,6 +94,13 @@ const REANALYSIS_REASONS = [
   { value: "TECHNICAL_FACT_CONCERN", label: "사실 오류" },
   { value: "OTHER", label: "기타" },
 ];
+
+const DISCARD_REASONS = [
+  "글자·레이아웃 오류",
+  "내용 오류",
+  "데이터 누락",
+  "기타",
+] as const;
 
 function formatPeriod(p: string | null): string {
   if (!p) return "—";
@@ -108,6 +128,25 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 600, background: c.bg, color: c.text }}>
       {STATUS_LABEL[status] ?? status}
+    </span>
+  );
+}
+
+function ReadinessBadge({ status }: { status: string }) {
+  const colors: Record<string, { bg: string; text: string }> = {
+    ANALYSIS_READY: { bg: "#DCFCE7", text: "#166534" },
+    EXCLUDED: { bg: "#F3F4F6", text: "#6B7280" },
+    DATA_ACCUMULATING: { bg: "#FEF3C7", text: "#92400E" },
+    RETRYING: { bg: "#DBEAFE", text: "#1E40AF" },
+    PENDING_ANALYSIS: { bg: "#E0E7FF", text: "#3730A3" },
+    TERMINAL_FAILED: { bg: "#FEE2E2", text: "#991B1B" },
+    PUBLISHED: { bg: "#E0F2FE", text: "#075985" },
+    OTHER: { bg: "#F3F4F6", text: "#374151" },
+  };
+  const color = colors[status] ?? colors.OTHER;
+  return (
+    <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 600, background: color.bg, color: color.text }}>
+      {READINESS_LABEL[status] ?? `판정 없음 (${status})`}
     </span>
   );
 }
@@ -152,7 +191,8 @@ function ReviewDrawer({
   const qc = useQueryClient();
   const [showDiscard, setShowDiscard] = useState(false);
   const [showReanalysis, setShowReanalysis] = useState(false);
-  const [discardReason, setDiscardReason] = useState("");
+  const [discardReason, setDiscardReason] = useState<(typeof DISCARD_REASONS)[number]>(DISCARD_REASONS[0]);
+  const [discardMemo, setDiscardMemo] = useState("");
   const [reanalysisCode, setReanalysisCode] = useState("OTHER");
   const [reanalysisNote, setReanalysisNote] = useState("");
   const [actionError, setActionError] = useState("");
@@ -180,11 +220,15 @@ function ReviewDrawer({
   });
 
   const discardMut = useMutation({
-    mutationFn: () => api.patch(`/admin/growth-reports/${reportId}/discard`, { reason: discardReason.trim() }),
+    mutationFn: () => api.put(`/admin/growth-reports/${reportId}/discard`, {
+      reason: discardReason,
+      memo: discardMemo.trim() || undefined,
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
+      qc.invalidateQueries({ queryKey: ["growth-reports-summary"] });
       setShowDiscard(false);
-      setDiscardReason("");
+      setDiscardMemo("");
       if (currentIndex < pendingList.length - 1) onNavigate(currentIndex + 1);
       else onClose();
     },
@@ -217,6 +261,10 @@ function ReviewDrawer({
     setShowDiscard(false);
     setShowReanalysis(false);
     setActionError("");
+    setDiscardReason(DISCARD_REASONS[0]);
+    setDiscardMemo("");
+    setReanalysisCode("OTHER");
+    setReanalysisNote("");
   }, [reportId]);
 
   const rc = detail?.report_content as Record<string, string | unknown> | null;
@@ -381,16 +429,23 @@ function ReviewDrawer({
                   <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px", color: "#DC2626" }}>
                     {detail.student.name} 회원의 {formatPeriod(detail.report_period)} 성장리포트를 반려합니다.
                   </div>
-                  <textarea
+                  <select
                     value={discardReason}
-                    onChange={(e) => setDiscardReason(e.target.value)}
-                    placeholder="반려 사유 *"
+                    onChange={(e) => setDiscardReason(e.target.value as (typeof DISCARD_REASONS)[number])}
+                    style={{ width: "100%", padding: "7px 8px", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", marginBottom: "8px" }}
+                  >
+                    {DISCARD_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+                  </select>
+                  <textarea
+                    value={discardMemo}
+                    onChange={(e) => setDiscardMemo(e.target.value)}
+                    placeholder="추가 메모 (선택)"
                     style={{ width: "100%", padding: "7px 8px", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", resize: "vertical", minHeight: "60px", boxSizing: "border-box", marginBottom: "8px" }}
                   />
                   <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
                     <button onClick={() => setShowDiscard(false)} style={{ padding: "6px 12px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>취소</button>
                     <button
-                      onClick={() => { if (!discardReason.trim()) { setActionError("사유를 입력해주세요."); return; } discardMut.mutate(); }}
+                      onClick={() => discardMut.mutate()}
                       disabled={discardMut.isPending}
                       style={{ padding: "6px 12px", background: "#DC2626", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
                     >
@@ -470,10 +525,24 @@ export default function PendingPage() {
 
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
     queryKey: ["growth-reports-list", year, month],
-    queryFn: () => api.get(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=200`),
+    queryFn: async () => {
+      const limit = 200;
+      const first = await api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=${limit}&offset=0`);
+      if (!Array.isArray(first.items) || !Number.isFinite(first.total)) throw new Error("성장리포트 목록 응답 형식이 올바르지 않습니다.");
+      if (first.items.some((item) => typeof item.readiness_status !== "string")) throw new Error("월간 리포트 readiness_status 응답이 누락되었습니다.");
+      const items = [...first.items];
+      for (let offset = limit; offset < first.total; offset += limit) {
+        const page = await api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=${limit}&offset=${offset}`);
+        if (!Array.isArray(page.items) || page.items.some((item) => typeof item.readiness_status !== "string")) throw new Error("월간 리포트 readiness_status 응답이 누락되었습니다.");
+        items.push(...page.items);
+      }
+      if (items.length < first.total) throw new Error("성장리포트 목록 일부를 불러오지 못했습니다.");
+      return { ...first, items };
+    },
   });
 
-  // Show only REVIEW_REQUIRED reports
+  // Review/approval/discard availability follows product_status, independently of the publication guard.
+  // review_open is represented by REVIEW_REQUIRED; the API readiness counters do not contain it.
   const pending = (data?.items ?? []).filter((r) => r.product_status === "REVIEW_REQUIRED");
 
   const filtered = pending.filter((r) => {
@@ -532,14 +601,14 @@ export default function PendingPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
-                {["회원명", "대상 기간", "반", "선생님", "생성일", "상태", "검수"].map((h) => (
+                 {["회원명", "대상 기간", "반", "선생님", "생성일", "관리자 검수", "품질 판정", "검수"].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", fontSize: "12px", fontWeight: 600, color: "#64748B", textAlign: "left", borderBottom: "1px solid #E2E8F0" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((r, i) => (
-                <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAFA", cursor: "pointer" }}
+                <tr key={r.report_id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAFA", cursor: "pointer" }}
                   onClick={() => openDrawer(i)}
                   onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "#F0F7FF")}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = i % 2 === 0 ? "#fff" : "#FAFAFA")}
@@ -549,7 +618,8 @@ export default function PendingPage() {
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9" }}>{(r as unknown as Record<string,string>).class_name || "—"}</td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9" }}>{(r as unknown as Record<string,string>).teacher_name || "—"}</td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9", whiteSpace: "nowrap" }}>{formatDate(r.created_at)}</td>
-                  <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}><StatusBadge status={r.product_status} /></td>
+                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}><StatusBadge status={r.product_status} /></td>
+                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}><ReadinessBadge status={r.readiness_status} /></td>
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>
                     <button
                       onClick={(e) => { e.stopPropagation(); openDrawer(i); }}
@@ -567,7 +637,7 @@ export default function PendingPage() {
 
       {drawerIndex !== null && filtered[drawerIndex] && (
         <ReviewDrawer
-          reportId={filtered[drawerIndex].id}
+          reportId={filtered[drawerIndex].report_id}
           pendingList={filtered}
           currentIndex={drawerIndex}
           onNavigate={(idx) => setDrawerIndex(idx)}

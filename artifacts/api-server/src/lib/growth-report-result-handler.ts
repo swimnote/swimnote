@@ -28,6 +28,7 @@ import {
   GROUNDING_PASS_VALUES,
 } from "./growth-report-engine-client.js";
 import { transitionReportStatus } from "./growth-report-service.js";
+import { retryDisposition } from "./growth-report-analysis-identity.js";
 
 // ─── APP product status set (must not appear in ENGINE response) ──────────────
 
@@ -205,6 +206,20 @@ export interface StatusMappingContext {
 }
 
 /**
+ * Free monthly reports do not offer parent input (the parent route explicitly
+ * rejects `monthly` report_type). Preserve ENGINE questions as optional data,
+ * but do not hold a complete PREANALYSIS result in QUESTION_AVAILABLE.
+ */
+export function isGrowthReportParentInputWindowOpen(
+  reportType: string | null,
+  parentInputCloseAt: string,
+  now = new Date(),
+): boolean {
+  if (reportType === null || reportType === "" || reportType === "monthly") return false;
+  return now < new Date(parentInputCloseAt);
+}
+
+/**
  * mapEngineStatusToProductStatus — central mapping function.
  * Mapping logic is NOT spread across routes.
  *
@@ -329,6 +344,7 @@ async function writeAnalysisAudit(
   requestId: string,
   analysisStatus?: string | null,
   errorCode?: string | null,
+  required = false,
 ): Promise<void> {
   try {
     const vRes = await db.execute(sql`
@@ -338,28 +354,206 @@ async function writeAnalysisAudit(
 
     await db.execute(sql`
       INSERT INTO audit_logs (
-        id, entity_type, entity_id, pool_id,
-        event_type, version,
-        actor_type, actor_id,
-        metadata,
-        created_at
+        entity_type, entity_id, entity_version,
+        action, actor_type, actor_id, pool_id,
+        before_data, after_data, reason, request_id,
+        correlation_id, ip_hash
       ) VALUES (
-        gen_random_uuid(), 'growth_report', ${reportId}, ${poolId},
-        ${event}, ${version},
-        'system', NULL,
+        'growth_report', ${reportId}, ${version},
+        'update', 'system', NULL, ${poolId},
+        NULL,
         ${JSON.stringify({
-          request_id:      requestId,
+          analysis_event:  event,
           analysis_status: analysisStatus ?? null,
           error_code:      errorCode      ?? null,
           // raw report text intentionally excluded (privacy §41)
         })}::jsonb,
-        now()
+        ${event}, ${requestId}, NULL, NULL
       )
     `);
   } catch (auditErr: any) {
-    // Audit failure must not block the main flow
+    if (required) throw auditErr;
+    // Non-transactional lifecycle diagnostics must not block their caller.
     console.warn(`[gr3-result] audit write failed for event=${event}:`, auditErr.message);
   }
+}
+
+async function inDbTransaction<T>(
+  db: any,
+  operation: (tx: any) => Promise<T>,
+): Promise<T> {
+  if (typeof db?.transaction !== "function") {
+    throw new Error("Growth report analysis requires a transactional database adapter.");
+  }
+  return db.transaction(operation);
+}
+
+/**
+ * Durably claim the exact request and audit it before any HTTP call is made.
+ * The compare-and-set protects against a stale worker after a status change.
+ */
+export async function persistAnalysisRequest(params: {
+  db: any;
+  reportId: string;
+  poolId: string;
+  requestId: string;
+  payloadHash: string;
+  identityHash: string;
+  request: object;
+  stage: AnalysisStage;
+  preserveResponse?: boolean;
+}): Promise<boolean> {
+  return inDbTransaction(params.db, async (tx) => {
+    const expectedStatus = params.stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
+    const saved = await tx.execute(sql`
+      UPDATE growth_reports
+      SET analysis_request_id      = ${params.requestId},
+          snapshot_hash            = ${params.payloadHash},
+          analysis_request_payload = ${JSON.stringify(params.request)}::jsonb,
+          analysis_identity_hash   = ${params.identityHash},
+          analysis_response_payload = CASE
+            WHEN ${params.preserveResponse === true} THEN analysis_response_payload
+            ELSE NULL
+          END,
+          updated_at               = now()
+      WHERE id                     = ${params.reportId}
+        AND product_status         = ${expectedStatus}::gr_product_status_enum
+        AND deleted_at IS NULL
+      RETURNING id
+    `);
+    if (!(saved.rows as any[] | undefined)?.length) return false;
+
+    await writeAnalysisAudit(
+      tx,
+      params.reportId,
+      params.poolId,
+      "ENGINE_ANALYSIS_STARTED",
+      params.requestId,
+      null,
+      null,
+      true,
+    );
+    return true;
+  });
+}
+
+/**
+ * Persist a validated-identity ENGINE response before attempting the larger
+ * result transaction. If that transaction crashes, the next worker can commit
+ * this exact response without another ENGINE invocation.
+ */
+export async function persistAnalysisResponse(params: {
+  db: any;
+  reportId: string;
+  requestId: string;
+  response: GrowthReportAnalysisResponse;
+  stage: AnalysisStage;
+}): Promise<boolean> {
+  return inDbTransaction(params.db, async (tx) => {
+    const expectedStatus = params.stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
+    const saved = await tx.execute(sql`
+      UPDATE growth_reports
+      SET analysis_response_payload = ${JSON.stringify(params.response)}::jsonb,
+          updated_at = now()
+      WHERE id = ${params.reportId}
+        AND analysis_request_id = ${params.requestId}
+        AND product_status = ${expectedStatus}::gr_product_status_enum
+        AND deleted_at IS NULL
+      RETURNING id
+    `);
+    return Boolean((saved.rows as any[] | undefined)?.length);
+  });
+}
+
+/**
+ * Record an ENGINE failure without allowing a stale timeout/error handler to
+ * roll a completed report back to OPEN/READY_FOR_ANALYSIS.
+ */
+export async function recordAnalysisAttemptFailure(params: {
+  db: any;
+  reportId: string;
+  poolId: string;
+  requestId: string;
+  stage: AnalysisStage;
+  retryable: boolean;
+  maxRetryCount: number;
+  errorCode: string;
+}): Promise<{ updated: boolean; terminal: boolean; retryCount: number }> {
+  return inDbTransaction(params.db, async (tx) => {
+    const current = await tx.execute(sql`
+      SELECT product_status, COALESCE(analysis_retry_count, 0) AS retry_count
+      FROM growth_reports
+      WHERE id = ${params.reportId}
+        AND analysis_request_id = ${params.requestId}
+        AND product_status IN ('PREANALYZING', 'ANALYZING')
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `);
+    const row = (current.rows as any[] | undefined)?.[0];
+    if (!row) return { updated: false, terminal: false, retryCount: 0 };
+
+    let retryCount = Number(row.retry_count ?? 0);
+    let terminal = false;
+    if (params.retryable) {
+      const incremented = await tx.execute(sql`
+        UPDATE growth_reports
+        SET analysis_retry_count = COALESCE(analysis_retry_count, 0) + 1,
+            updated_at = now()
+        WHERE id = ${params.reportId}
+          AND analysis_request_id = ${params.requestId}
+          AND product_status = ${row.product_status}::gr_product_status_enum
+          AND deleted_at IS NULL
+        RETURNING COALESCE(analysis_retry_count, 0) AS retry_count
+      `);
+      const incrementedRow = (incremented.rows as any[] | undefined)?.[0];
+      if (!incrementedRow) return { updated: false, terminal: false, retryCount };
+      retryCount = Number(incrementedRow.retry_count);
+      terminal = retryDisposition(retryCount - 1, params.maxRetryCount).terminal;
+    } else {
+      terminal = true;
+    }
+
+    if (terminal) {
+      await transitionReportStatus({
+        db: tx,
+        reportId: params.reportId,
+        toStatus: "FAILED",
+        actorType: "system",
+        actorId: null,
+        reason: params.retryable
+          ? `MAX_RETRY_EXCEEDED_${params.errorCode}`
+          : `ENGINE_NON_RETRYABLE_${params.errorCode}`,
+        requestId: params.requestId,
+      });
+    } else {
+      const rollbackStatus = params.stage === "PREANALYSIS" ? "OPEN" : "READY_FOR_ANALYSIS";
+      const rolledBack = await tx.execute(sql`
+        UPDATE growth_reports
+        SET product_status = ${rollbackStatus}::gr_product_status_enum,
+            updated_at = now()
+        WHERE id = ${params.reportId}
+          AND analysis_request_id = ${params.requestId}
+          AND product_status = ${row.product_status}::gr_product_status_enum
+          AND deleted_at IS NULL
+        RETURNING id
+      `);
+      if (!(rolledBack.rows as any[] | undefined)?.length) {
+        return { updated: false, terminal: false, retryCount };
+      }
+    }
+
+    await writeAnalysisAudit(
+      tx,
+      params.reportId,
+      params.poolId,
+      "ENGINE_ANALYSIS_FAILED",
+      params.requestId,
+      null,
+      params.errorCode,
+      true,
+    );
+    return { updated: true, terminal, retryCount };
+  });
 }
 
 // ─── Exported audit helpers ───────────────────────────────────────────────────
@@ -418,7 +612,7 @@ export interface PersistResult {
  *   GroundingFailError            — grounding/framing gate failed
  *   StaleEngineResponseError      — a newer result already written
  */
-export async function persistEngineResult(
+async function persistEngineResultInTransaction(
   input: PersistEngineResultInput,
 ): Promise<PersistResult> {
   const { db, report, requestId, payloadHash, response, stage, parentInputWindowOpen } = input;
@@ -447,16 +641,24 @@ export async function persistEngineResult(
   //   parent status endpoint가 analysis_status를 먼저 확인하므로
   //   부모 앱에는 DATA_ACCUMULATING UX(친절한 안내 메시지)가 표시된다.
   if (response.analysis_status === "DATA_ACCUMULATING") {
-    await db.execute(sql`
+    const expectedStatus = stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
+    const updateRes = await db.execute(sql`
       UPDATE growth_reports
       SET
         analysis_status     = ${"DATA_ACCUMULATING"}::gr_analysis_status_enum,
         analysis_request_id = ${requestId},
+        snapshot_version    = ${GR_SNAPSHOT_VERSION_DB},
+        snapshot_hash       = ${payloadHash},
         updated_at          = now()
       WHERE id                  = ${report.id}
         AND analysis_request_id = ${requestId}
+        AND product_status      = ${expectedStatus}::gr_product_status_enum
         AND deleted_at IS NULL
+      RETURNING id
     `);
+    if (!(updateRes.rows as any[] | undefined)?.length) {
+      throw new StaleEngineResponseError(report.id, requestId);
+    }
     await transitionReportStatus({
       db,
       reportId:  report.id,
@@ -472,6 +674,8 @@ export async function persistEngineResult(
       "ENGINE_ANALYSIS_SUCCEEDED",
       requestId,
       "DATA_ACCUMULATING",
+      null,
+      true,
     );
     return { productStatus: "PARTIAL", questionsCount: 0 };
   }
@@ -504,6 +708,7 @@ export async function persistEngineResult(
   const factJson      = JSON.stringify(factWithValidation);
   const contentJson   = JSON.stringify(response.report_content);
   const snsJson       = JSON.stringify(response.sns_summary);
+  const expectedStatus = stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
 
   const updateRes = await db.execute(sql`
     UPDATE growth_reports
@@ -525,6 +730,7 @@ export async function persistEngineResult(
       updated_at              = now()
     WHERE id                  = ${report.id}
       AND analysis_request_id = ${requestId}
+      AND product_status      = ${expectedStatus}::gr_product_status_enum
       AND deleted_at IS NULL
     RETURNING id
   `);
@@ -554,7 +760,17 @@ export async function persistEngineResult(
     "ENGINE_ANALYSIS_SUCCEEDED",
     requestId,
     response.analysis_status,
+    null,
+    true,
   );
 
   return { productStatus, questionsCount };
+}
+
+export async function persistEngineResult(
+  input: PersistEngineResultInput,
+): Promise<PersistResult> {
+  return inDbTransaction(input.db, (tx) =>
+    persistEngineResultInTransaction({ ...input, db: tx }),
+  );
 }

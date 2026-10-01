@@ -8,86 +8,88 @@ import {
 
 const dialect = new PgDialect();
 const queryText = (value: any) => dialect.sqlToQuery(value).sql;
-const report = {
-  id: "report-1",
-  student_id: "student-1",
-  swimming_pool_id: "pool-1",
-  report_period: "2026-09",
-};
-const issuedAt = new Date("2026-10-04T17:00:00.000Z"); // October 5, 02:00 KST
+const issueAt = new Date("2026-10-04T15:00:00.000Z"); // October 5, 00:00 KST
 
-describe("monthly FREE automatic growth-report publication", () => {
-  it("maps issuance to the previous analysis month with the required KST contract", () => {
-    expect(freeReportIssueWindow(issuedAt)).toMatchObject({
+describe("monthly FREE report admin-review opener (legacy publisher entrypoint)", () => {
+  it("maps issuance to the prior analysis month in KST", () => {
+    expect(freeReportIssueWindow(issueAt)).toMatchObject({
       reportPeriod: "2026-09",
       analysisStart: "2026-09-01",
       issueMonthStart: "2026-10-01",
     });
-    expect(freeReportIssueWindow(new Date("2026-11-04T17:00:00Z")).reportPeriod).toBe("2026-10");
+    expect(freeReportIssueWindow(new Date("2026-11-04T15:00:00Z")).reportPeriod).toBe("2026-10");
     expect(SEPTEMBER_2026_FREE_REPORT_PERIOD).toBe(
       "2026년 10월 5일 발급되는 무료 AI 성장리포트는 2026년 9월 1일 00:00 KST 이상, 2026년 10월 1일 00:00 KST 미만의 9월 수업 데이터를 대상으로 한다.",
     );
   });
 
-  it("does not publish or notify before the 5th-day 02:00 KST window", async () => {
+  it("does not open review or notify anyone before the fifth KST day", async () => {
     const execute = vi.fn();
-    const notify = vi.fn();
+    const notifyAdmin = vi.fn();
     const result = await runMonthlyFreeAutoPublication(
-      { execute } as any, new Date("2026-10-04T16:59:59Z"), notify,
+      { execute } as any,
+      new Date("2026-10-04T14:59:59Z"),
+      notifyAdmin,
     );
-    expect(result).toEqual({ published: 0, notificationCandidates: 0 });
+    expect(result).toMatchObject({ published: 0, notificationCandidates: 0, adminReviewReady: 0 });
     expect(execute).not.toHaveBeenCalled();
-    expect(notify).not.toHaveBeenCalled();
+    expect(notifyAdmin).not.toHaveBeenCalled();
   });
 
-  it("only claims validated monthly reports for active students and continued class membership", async () => {
-    const execute = vi.fn().mockResolvedValue({ rows: [] });
-    await runMonthlyFreeAutoPublication({ execute } as any, issuedAt, vi.fn());
-    const update = queryText(execute.mock.calls[0][0]);
-    expect(update).toContain("UPDATE growth_reports AS gr");
-    expect(update).toContain("gr.report_type = 'monthly'");
-    expect(update).toContain("gr.product_status IN ('REVIEW_REQUIRED', 'READY_TO_SEND', 'APPROVED')");
-    expect(update).toContain("gr.analysis_status IN (");
-    const allowedStatuses = update.match(/gr\.analysis_status IN \(([^)]+)\)/)?.[1];
-    expect(allowedStatuses).toContain("'COMPLETE'");
-    expect(allowedStatuses).not.toMatch(/DATA_ACCUMULATING|ATOMIZATION_ERROR|FAILED|INVALID_CONTRACT/);
-    expect(update).toContain("gr.eligibility_version >= 4");
-    expect(update).toContain("gr.exclusion_code IS NULL");
-    expect(update).toContain("gr.attendance_count >= 3");
-    expect(update).toContain("gr.source_event_count >= 1");
-    expect(update).toContain("jsonb_typeof(gr.report_content) = 'object'");
-    expect(update).toContain("gr.report_fact_package->>'grounding_result' IN ('PASS', 'REVISED_PASS')");
-    expect(update).toContain("student.status = 'active'");
-    expect(update).toContain("student.deleted_at IS NULL");
-    expect(update).toContain("history.enrolled_at < ");
-    expect(update).toContain("history.left_at >= ");
-    expect(update).toContain("class_group.swimming_pool_id = pool.id");
-    expect(update).toContain("RETURNING gr.id");
-    expect(queryText(execute.mock.calls[1][0])).toContain("NOT EXISTS");
-  });
-
-  it("keeps publication after push failure and never re-publishes or pushes on rerun", async () => {
+  it("opens review from actual report rows, includes partial failures, and never parent-publishes", async () => {
     const execute = vi.fn()
-      .mockResolvedValueOnce({ rows: [report] }) // first atomic publish
-      .mockResolvedValueOnce({ rows: [report] }) // notification still pending
-      .mockResolvedValueOnce({ rows: [] })       // rerun: already published
-      .mockResolvedValueOnce({ rows: [] });      // unique notification claimed
-    const notify = vi.fn().mockRejectedValueOnce(new Error("push offline"));
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      expect(await runMonthlyFreeAutoPublication({ execute } as any, issuedAt, notify))
-        .toEqual({ published: 1, notificationCandidates: 1 });
-      expect(await runMonthlyFreeAutoPublication({ execute } as any, issuedAt, notify))
-        .toEqual({ published: 0, notificationCandidates: 0 });
-      expect(notify).toHaveBeenCalledTimes(1);
-      expect(notify).toHaveBeenCalledWith({
-        reportId: "report-1",
-        studentId: "student-1",
-        poolId: "pool-1",
-        reportPeriod: "2026-09",
+      .mockResolvedValueOnce({ rows: [{ pool_id: "pool-1" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { product_status: "READY_TO_SEND", analysis_status: "COMPLETE", readiness_eligible: true },
+          { product_status: "EXCLUDED", analysis_status: "INVALID", exclusion_code: "NOT_ELIGIBLE" },
+          { product_status: "OPEN", analysis_status: "DATA_ACCUMULATING" },
+          { product_status: "FAILED", analysis_status: "FAILED" },
+          { product_status: "PUBLISHED", analysis_status: "COMPLETE" },
+        ],
       });
-    } finally {
-      log.mockRestore();
-    }
+    const notifyAdmin = vi.fn().mockResolvedValue(undefined);
+    const result = await runMonthlyFreeAutoPublication(
+      { execute } as any,
+      issueAt,
+      notifyAdmin,
+    );
+
+    expect(result).toEqual({
+      published: 0,
+      notificationCandidates: 1,
+      adminReviewReady: 1,
+      reportPeriod: "2026-09",
+    });
+    expect(notifyAdmin).toHaveBeenCalledWith(expect.objectContaining({
+      poolId: "pool-1",
+      reportPeriod: "2026-09",
+      readiness: {
+        analysis_ready: 1,
+        excluded: 1,
+        data_accumulating: 1,
+        retrying: 0,
+        pending_analysis: 0,
+        terminal_failed: 1,
+        published: 1,
+        other: 0,
+        total: 5,
+      },
+    }));
+    const cycleQuery = queryText(execute.mock.calls[0][0]);
+    expect(cycleQuery).toContain("growth_report_cycles");
+    expect(cycleQuery).not.toContain("UPDATE growth_reports");
+    expect(cycleQuery).not.toContain("GROWTH_REPORT_PUBLISHED");
+  });
+
+  it("has no automatic parent-publication path and uses KST cron/review semantics", async () => {
+    const { readFileSync } = await import("node:fs");
+    const batchWorker = readFileSync(new URL("../growth-report-batch-worker.ts", import.meta.url), "utf8");
+    const scheduler = readFileSync(new URL("../growth-report-scheduler.ts", import.meta.url), "utf8");
+    expect(batchWorker).not.toContain("sendAdminReadyPush");
+    expect(batchWorker).not.toContain("runScheduledPushes");
+    expect(batchWorker).toContain('{ timezone: "Asia/Seoul" }');
+    expect(scheduler).toContain('{ timezone: "Asia/Seoul" }');
+    expect(batchWorker).not.toContain("SET product_status = 'PUBLISHED'");
   });
 });

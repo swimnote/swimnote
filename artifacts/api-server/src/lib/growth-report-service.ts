@@ -25,6 +25,7 @@
  */
 import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
+import { monthlyPublicationGuard } from "./growth-report-publication-guard.js";
 
 // ── DB type ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ export type ProductStatus =
   | "PUBLISHED"
   | "PARTIAL"
   | "FAILED"
+  | "EXCLUDED"
   // WP8: Production workflow states
   | "READY_TO_SEND"   // AI generated + validated → admin 발송 대기 (부모 비노출)
   | "DISCARDED"       // 관리자 폐기 (이력 보존, 부모 비노출)
@@ -56,6 +58,7 @@ export const ALL_PRODUCT_STATUSES: ReadonlySet<ProductStatus> = new Set([
   "NOT_OPEN", "OPEN", "PREANALYZING", "QUESTION_AVAILABLE",
   "READY_FOR_ANALYSIS", "ANALYZING", "REVIEW_REQUIRED",
   "APPROVED", "PUBLISHED", "PARTIAL", "FAILED",
+  "EXCLUDED",
   // WP8
   "READY_TO_SEND", "DISCARDED", "REGENERATING",
 ]);
@@ -82,7 +85,8 @@ export type AnalysisStatus =
   | "COMPLETE"
   | "COMPLETE_WITH_QUESTIONS_AVAILABLE"
   | "COMPLETE_WITH_PARENT_EVIDENCE"
-  | "PARTIAL";
+  | "PARTIAL"
+  | "DATA_ACCUMULATING";
 
 // ── Allowed Lifecycle Transitions ─────────────────────────────────────────────
 //
@@ -101,12 +105,13 @@ export const ALLOWED_TRANSITIONS: Readonly<Record<ProductStatus, ReadonlyArray<P
   ANALYZING:          ["REVIEW_REQUIRED", "PARTIAL", "FAILED"],
   PARTIAL:            ["ANALYZING", "REVIEW_REQUIRED"],
   FAILED:             ["ANALYZING", "OPEN"],  // OPEN: super_admin 운영 재처리 경로
-  REVIEW_REQUIRED:    ["APPROVED", "ANALYZING", "READY_TO_SEND"],  // WP8: batch auto-validate → READY_TO_SEND
-  APPROVED:           ["PUBLISHED"],
+  REVIEW_REQUIRED:    ["APPROVED", "ANALYZING", "READY_FOR_ANALYSIS", "READY_TO_SEND", "DISCARDED"],
+  APPROVED:           ["PUBLISHED", "DISCARDED"],
   PUBLISHED:          [], // terminal
   // WP8 Production states
   READY_TO_SEND:      ["PUBLISHED", "DISCARDED"],  // admin: 발송 or 폐기
   DISCARDED:          [],   // terminal (재발급은 새 row INSERT — 이 row는 유지)
+  EXCLUDED:           [],   // terminal eligibility result
   REGENERATING:       ["PREANALYZING", "FAILED"],  // 재발급 분석 시작
 };
 
@@ -116,8 +121,9 @@ export class InvalidTransitionError extends Error {
   constructor(
     public readonly from: ProductStatus,
     public readonly to: string,
+    reason?: string,
   ) {
-    super(`Invalid transition: ${from} → ${to}`);
+    super(reason ?? `Invalid transition: ${from} → ${to}`);
     this.name = "InvalidTransitionError";
   }
 }
@@ -210,6 +216,8 @@ async function writeReportAudit(params: {
     db, reportId, poolId, actorType, actorId,
     fromStatus, toStatus, reason, requestId,
   } = params;
+  // pool-db-x-init audit_logs enforces actor_type='system' -> actor_id IS NULL.
+  const auditActorId = actorType === "system" ? null : actorId;
 
   try {
     const vRes = await db.execute(sql`
@@ -226,7 +234,7 @@ async function writeReportAudit(params: {
       ) VALUES (
         'growth_report', ${reportId}, ${version},
         'update',
-        ${actorType}, ${actorId}, ${poolId},
+        ${actorType}, ${auditActorId}, ${poolId},
         ${JSON.stringify({ product_status: fromStatus })}::jsonb,
         ${JSON.stringify({ product_status: toStatus })}::jsonb,
         ${reason ?? "lifecycle_transition"},
@@ -266,12 +274,16 @@ export interface TransitionResult {
  * - 금지값(QUESTION_REQUIRED, CLOSED) 차단
  * - allowed transition 검증
  * - audit_logs 기록
- * - 동시 update 방어: SELECT ... FOR UPDATE
+ * - 동시 update 방어: UPDATE ... WHERE product_status = expected-from (CAS)
  */
 export async function transitionReportStatus(
   params: TransitionParams,
 ): Promise<TransitionResult> {
   const { db, reportId, toStatus, actorType, actorId, reason, requestId } = params;
+
+  if (actorType !== "system" && !actorId) {
+    throw new Error(`actorId is required when actorType=${actorType}`);
+  }
 
   // 금지값 차단
   assertNotForbiddenStatus(toStatus);
@@ -281,12 +293,12 @@ export async function transitionReportStatus(
     throw new InvalidTransitionError("NOT_OPEN" as ProductStatus, toStatus);
   }
 
-  // SELECT ... FOR UPDATE (동시 update 방어)
+  // Read for validation only; the following UPDATE repeats the expected status
+  // predicate so concurrent changes cannot be overwritten or demoted.
   const selectRes = await db.execute(sql`
     SELECT id, product_status, swimming_pool_id, deleted_at
     FROM growth_reports
     WHERE id = ${reportId}
-    FOR UPDATE
   `);
 
   if (!selectRes.rows.length) {
@@ -307,27 +319,38 @@ export async function transitionReportStatus(
     throw new ReportTerminalError(reportId);
   }
 
+  // Publication is deliberately not a generic lifecycle transition. All
+  // parent-visible sends must go through an explicit-admin guarded UPDATE.
+  if (toStatus === "PUBLISHED") {
+    throw new InvalidTransitionError(
+      fromStatus,
+      toStatus,
+      "PUBLISHED requires the guarded explicit admin send path",
+    );
+  }
+
   // allowed transition 검증
   if (!isAllowedTransition(fromStatus, toStatus)) {
     throw new InvalidTransitionError(fromStatus, toStatus);
   }
 
-  // UPDATE
-  await db.execute(sql`
+  // Compare-and-swap transition. A concurrent status change (including a
+  // publication) makes this affect zero rows and prevents stale demotion.
+  const updateRes = await db.execute(sql`
     UPDATE growth_reports
     SET product_status = ${toStatus},
         updated_at = now()
     WHERE id = ${reportId}
+      AND product_status = ${fromStatus}
       AND deleted_at IS NULL
+    RETURNING id
   `);
-
-  // published_at 자동 기록
-  if (toStatus === "PUBLISHED") {
-    await db.execute(sql`
-      UPDATE growth_reports
-      SET published_at = now()
-      WHERE id = ${reportId}
-    `);
+  if (!((updateRes as any).rows?.length ?? (updateRes as any).rowCount ?? 0)) {
+    throw new InvalidTransitionError(
+      fromStatus,
+      toStatus,
+      `Concurrent status change prevented transition ${fromStatus} → ${toStatus}`,
+    );
   }
 
   // Audit
@@ -623,164 +646,16 @@ export interface AutoPublishResult {
 }
 
 /**
- * autoApproveAndPublishForDelivery — REVIEW_REQUIRED → APPROVED → PUBLISHED (시스템 자동)
- *
- * Monthly FREE 자동 발행 전용. 다음 순서로 처리:
- *   1. 현재 상태 확인 (REVIEW_REQUIRED 아니면 alreadyPublished or throw)
- *   2. teacher_reviewed_at = now(), teacher_reviewed_by = actorId (시스템 마커)
- *   3. REVIEW_REQUIRED → APPROVED (transitionReportStatus)
- *   4. APPROVED → PUBLISHED (publishGrowthReport 내부 로직 직접 실행)
- *
- * 멱등성:
- *   - 이미 PUBLISHED → alreadyPublished: true 반환
- *   - APPROVED 상태 → 4단계부터 실행
- *
- * human review gate 보존:
- *   - transitionReportStatus SELECT FOR UPDATE 경로 유지
- *   - teacher_reviewed_at 기록 (시스템 actor 명시)
- *   - audit 기록
- *
- * AI call 금지, ENGINE call 금지, GPT call 금지.
+ * @deprecated Automatic parent publication is disabled by policy. Only an
+ * authenticated admin's explicit send action may publish a monthly report.
  */
 export async function autoApproveAndPublishForDelivery(params: {
   db: Db;
   reportId: string;
   actorId: string; // e.g. "SYSTEM_MONTHLY_AUTO"
 }): Promise<AutoPublishResult> {
-  const { db, reportId, actorId } = params;
-
-  // ── 1. Fetch current state ────────────────────────────────────────────────
-  const fetchRes = await db.execute(sql`
-    SELECT id, product_status, report_content, report_fact_package, sns_summary,
-           teacher_reviewed_at, swimming_pool_id, deleted_at, published_at,
-           student_id, report_period, analysis_status
-    FROM growth_reports
-    WHERE id = ${reportId}
-    LIMIT 1
-  `);
-
-  if (!fetchRes.rows.length) throw new ReportNotFoundError(reportId);
-  const row = fetchRes.rows[0] as any;
-  if (row.deleted_at) throw new ReportNotFoundError(reportId);
-
-  // ── 2. Idempotency ────────────────────────────────────────────────────────
-  if (row.product_status === "PUBLISHED") {
-    return {
-      alreadyPublished: true,
-      publishedAt: row.published_at ?? undefined,
-      studentId:   row.student_id,
-      poolId:      row.swimming_pool_id,
-      reportPeriod: row.report_period,
-    };
-  }
-
-  // ── 3. Auto-approve: REVIEW_REQUIRED → APPROVED ───────────────────────────
-  if (row.product_status === "REVIEW_REQUIRED") {
-    // Set teacher_reviewed_at (system marker) before transition
-    await db.execute(sql`
-      UPDATE growth_reports
-      SET teacher_reviewed_at  = now(),
-          teacher_reviewed_by  = ${actorId},
-          updated_at           = now()
-      WHERE id = ${reportId}
-        AND teacher_reviewed_at IS NULL
-    `);
-
-    await transitionReportStatus({
-      db,
-      reportId,
-      toStatus:  "APPROVED",
-      actorType: "system",
-      actorId,
-      reason:    "MONTHLY_FREE_AUTO_APPROVE",
-    });
-
-    console.log(`[growth-report] AUTO_APPROVED: report=${reportId} actor=${actorId}`);
-  } else if (row.product_status !== "APPROVED") {
-    // 다른 상태면 이미 처리됨 또는 불가
-    throw new PublishNotAllowedError(row.product_status);
-  }
-
-  // ── 4. Publish: APPROVED → PUBLISHED ─────────────────────────────────────
-  // Re-fetch after APPROVED transition (teacher_reviewed_at 반영)
-  const approvedRes = await db.execute(sql`
-    SELECT product_status, report_content, report_fact_package, sns_summary,
-           teacher_reviewed_at, swimming_pool_id, deleted_at, published_at,
-           student_id, report_period
-    FROM growth_reports
-    WHERE id = ${reportId}
-    LIMIT 1
-  `);
-  const approvedRow = approvedRes.rows[0] as any;
-  if (!approvedRow || approvedRow.deleted_at) throw new ReportNotFoundError(reportId);
-
-  if (approvedRow.product_status === "PUBLISHED") {
-    return {
-      alreadyPublished: true,
-      publishedAt:  approvedRow.published_at ?? undefined,
-      studentId:    approvedRow.student_id,
-      poolId:       approvedRow.swimming_pool_id,
-      reportPeriod: approvedRow.report_period,
-    };
-  }
-
-  // Publish preconditions (same as publishGrowthReport)
-  const GROUNDING_PASS = new Set(["PASS", "REVISED_PASS"]);
-
-  const rc  = approvedRow.report_content;
-  const fp  = approvedRow.report_fact_package;
-  const sns = approvedRow.sns_summary;
-
-  if (!rc  || typeof rc  !== "object" || Array.isArray(rc))  throw new PublishPreconditionError("report_content must exist");
-  if (!fp  || typeof fp  !== "object" || Array.isArray(fp))  throw new PublishPreconditionError("report_fact_package must exist");
-  if (!sns || typeof sns !== "object" || Array.isArray(sns)) throw new PublishPreconditionError("sns_summary must exist");
-
-  const grounding = (fp as Record<string, unknown>).grounding_result;
-  if (!GROUNDING_PASS.has(grounding as string)) {
-    throw new PublishPreconditionError(`grounding_result=${grounding} must be PASS or REVISED_PASS`);
-  }
-  const framing = (fp as Record<string, unknown>).growth_framing_result;
-  if (!GROUNDING_PASS.has(framing as string)) {
-    throw new PublishPreconditionError(`growth_framing_result=${framing} must be PASS or REVISED_PASS`);
-  }
-  if (!approvedRow.teacher_reviewed_at) {
-    throw new PublishPreconditionError("teacher_reviewed_at is required");
-  }
-
-  try {
-    await transitionReportStatus({
-      db,
-      reportId,
-      toStatus:  "PUBLISHED",
-      actorType: "system",
-      actorId,
-      reason:    "MONTHLY_FREE_AUTO_PUBLISH",
-    });
-  } catch (err) {
-    if (err instanceof ReportTerminalError) {
-      return { alreadyPublished: true };
-    }
-    throw err;
-  }
-
-  // Re-fetch published_at
-  const afterRes = await db.execute(sql`
-    SELECT published_at, student_id, swimming_pool_id, report_period
-    FROM growth_reports WHERE id = ${reportId} LIMIT 1
-  `);
-  const afterRow = afterRes.rows[0] as any;
-
-  console.log(
-    `[growth-report] AUTO_PUBLISHED: report=${reportId} actor=${actorId} at=${afterRow?.published_at ?? "?"}`,
-  );
-
-  return {
-    alreadyPublished: false,
-    publishedAt:  afterRow?.published_at   ?? undefined,
-    studentId:    afterRow?.student_id     ?? undefined,
-    poolId:       afterRow?.swimming_pool_id ?? undefined,
-    reportPeriod: afterRow?.report_period  ?? undefined,
-  };
+  void params;
+  throw new PublishNotAllowedError("ADMIN_SEND_REQUIRED");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -806,7 +681,7 @@ export interface PublishGrowthReportResult {
 }
 
 /**
- * publishGrowthReport — APPROVED → PUBLISHED 공식 publication service
+ * publishGrowthReport — admin-only APPROVED → PUBLISHED path
  *
  * 전제조건 (spec §4):
  *   - product_status === APPROVED
@@ -819,10 +694,10 @@ export interface PublishGrowthReportResult {
  *
  * 멱등성 (spec §20):
  *   - already PUBLISHED → alreadyPublished=true (성공)
- *   - concurrent publish → ReportTerminalError → alreadyPublished=true
+ *   - final status, V1 eligibility and current enrollment are rechecked in one guarded UPDATE
  *
  * published_at (spec §5):
- *   - 첫 번째 호출에서만 기록 (transitionReportStatus 내부 처리)
+ *   - 첫 번째 호출에서만 기록 (guarded UPDATE 내부 처리)
  *   - 재호출 시 timestamp 변경 금지
  *
  * ENGINE 호출 금지 (spec §31).
@@ -923,32 +798,54 @@ export async function publishGrowthReport(
     }
   }
 
-  // ── Transition APPROVED → PUBLISHED ──────────────────────────────────────
-  // transitionReportStatus handles: SELECT FOR UPDATE, published_at, audit
-  // ReportTerminalError on concurrent publish → treat as already-published
-  try {
-    await transitionReportStatus({
-      db,
-      reportId,
-      toStatus: "PUBLISHED",
-      actorType,
-      actorId,
-      reason: "GROWTH_REPORT_PUBLISHED",
-    });
-  } catch (err) {
-    if (err instanceof ReportTerminalError) {
-      return { alreadyPublished: true };
+  // Publication claim and the shared monthly V1 guard are one atomic statement.
+  const publishRes = await db.execute(sql`
+    UPDATE growth_reports AS gr
+    SET product_status = 'PUBLISHED',
+        published_at = COALESCE(gr.published_at, NOW()),
+        updated_at = NOW()
+    WHERE gr.id = ${reportId}
+      AND gr.swimming_pool_id = ${row.swimming_pool_id}
+      AND gr.product_status = 'APPROVED'
+      AND gr.teacher_reviewed_at IS NOT NULL
+      AND gr.deleted_at IS NULL
+      AND ${monthlyPublicationGuard("gr")}
+    RETURNING gr.id, gr.student_id, gr.swimming_pool_id, gr.report_period, gr.published_at
+  `);
+  const afterRow = (publishRes.rows[0] as any) ?? null;
+
+  if (!afterRow) {
+    const latestRes = await db.execute(sql`
+      SELECT product_status, deleted_at, published_at
+      FROM growth_reports
+      WHERE id = ${reportId}
+      LIMIT 1
+    `);
+    const latest = latestRes.rows[0] as any;
+    if (!latest || latest.deleted_at) throw new ReportNotFoundError(reportId);
+    if (latest.product_status === "PUBLISHED") {
+      return { alreadyPublished: true, publishedAt: latest.published_at ?? undefined };
     }
-    throw err;
+    if (latest.product_status !== "APPROVED") {
+      throw new PublishNotAllowedError(latest.product_status);
+    }
+    throw new PublishPreconditionError(
+      "Monthly publication guard failed: eligibility, report quality, pool, student, or class continuation is not valid.",
+    );
   }
 
-  // Re-fetch published_at for caller (also grab GR7 notification payload fields)
-  const afterRes = await db.execute(sql`
-    SELECT published_at, student_id, swimming_pool_id, report_period
-    FROM growth_reports WHERE id = ${reportId} LIMIT 1
-  `);
-  const afterRow = afterRes.rows[0] as any;
-  const publishedAt: string | undefined = afterRow?.published_at ?? undefined;
+  const publishedAt: string | undefined = afterRow.published_at ?? undefined;
+
+  await writeReportAudit({
+    db,
+    reportId,
+    poolId: row.swimming_pool_id,
+    actorType,
+    actorId,
+    fromStatus: "APPROVED",
+    toStatus: "PUBLISHED",
+    reason: "GROWTH_REPORT_PUBLISHED",
+  });
 
   console.log(
     `[growth-report] PUBLISHED: report=${reportId} actor=${actorId} at=${publishedAt ?? "?"}`,

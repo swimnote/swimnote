@@ -101,11 +101,12 @@ export interface BuiltSnapshot {
  *         출석 계산에서 class_diaries 의존 완전 제거.
  *
  *   인정수업 = scheduled non-absent + completed makeup (WP-AI-V1.0).
- *   Off-schedule explicit attendance is not a scheduled lesson. A completed
- *   makeup is counted by makeup_sessions only, even if it has attendance.
+ *   Both sources share (class_group_id, KST date) identity so a regular lesson
+ *   and makeup recorded for the same class/date count once. Holidays and deleted
+ *   or one-time classes are excluded from both paths.
  *
  *     보강 완료 — SoT: makeup_sessions.status='completed'
- *                 event identity = makeup_sessions.id
+ *                 event identity = (assigned_class_group_id, KST completion date)
  *                 → attendance row 없어도 인정 (completed_attendance_id=NULL OK)
  *                 → 날짜: completed_at interpreted in Asia/Seoul
  *
@@ -139,45 +140,30 @@ export async function queryAttendanceForEligibility(
   cutoffDate: string,
 ): Promise<number> {
   const rows = await db.execute(sql`
-    SELECT
+    SELECT COUNT(*)::int AS cnt
       -- 보강 완료: SoT = makeup_sessions.status='completed'
       --   attendance row 없어도 인정 (completed_attendance_id=NULL이어도 OK)
-      --   event identity = makeup_sessions.id
+      --   event identity = (assigned_class_group_id, KST completion date)
       --   날짜 기준: completed_at timestamp를 KST 경계로 비교 (assigned_date 아님)
-      (
-        SELECT COUNT(ms.id)::int
-        FROM makeup_sessions ms
-        WHERE ms.student_id        = ${studentId}
-          AND ms.swimming_pool_id  = ${poolId}
-          AND ms.completed_at >= (${periodFrom}::date::timestamp AT TIME ZONE 'Asia/Seoul')
-          AND ms.completed_at <  (${cutoffDate}::date::timestamp AT TIME ZONE 'Asia/Seoul')
-          AND ms.status            = 'completed'
-      )
-      +
-      -- 예정수업 (diary 의존 완전 제거)
-      --   수업 예정일(class_groups.schedule_days 기준) 중 결석이 없는 날
-      --   event identity = (class_group_id, date) — 같은 날 다른 반 = 별도 event
-      --   pool_holidays 제외, 명시적 결석 제외
-      --   NOTE: attendance.date is TEXT; cast to date for comparison
-      (
-        SELECT COUNT(DISTINCT (cg.id, gs.d::date))::int
+      FROM (
+        -- Regular scheduled lessons: no explicit absence, no holiday/no-class.
+        SELECT DISTINCT cg.id AS class_group_id, gs.d::date AS lesson_date
         FROM generate_series(
           ${periodFrom}::date,
           ${cutoffDate}::date - INTERVAL '1 day',
           INTERVAL '1 day'
         ) gs(d)
         JOIN student_class_history sch ON (
-          sch.student_id           = ${studentId}
+          sch.student_id = ${studentId}
           AND sch.swimming_pool_id = ${poolId}
-          AND sch.enrolled_at      <= gs.d::date
+          AND sch.enrolled_at <= gs.d::date
           AND (sch.left_at IS NULL OR sch.left_at > gs.d::date)
         )
         JOIN class_groups cg ON (
-          cg.id                    = sch.class_group_id
-          AND cg.swimming_pool_id  = ${poolId}
-          AND cg.is_deleted        = false
+          cg.id = sch.class_group_id
+          AND cg.swimming_pool_id = ${poolId}
+          AND cg.is_deleted = false
           AND (cg.is_one_time IS NULL OR cg.is_one_time = false)
-          -- 요일 매핑: DOW 0=일 1=월 2=화 3=수 4=목 5=금 6=토
           AND (
             (EXTRACT(DOW FROM gs.d::date) = 0 AND cg.schedule_days LIKE '%일%')
             OR (EXTRACT(DOW FROM gs.d::date) = 1 AND cg.schedule_days LIKE '%월%')
@@ -188,23 +174,45 @@ export async function queryAttendanceForEligibility(
             OR (EXTRACT(DOW FROM gs.d::date) = 6 AND cg.schedule_days LIKE '%토%')
           )
         )
-        -- pool holiday 제외
         WHERE NOT EXISTS (
           SELECT 1 FROM pool_holidays ph
-          WHERE ph.pool_id          = ${poolId}
+          WHERE ph.pool_id = ${poolId}
             AND ph.holiday_date::date = gs.d::date
         )
-        -- 해당 (class_group_id, date) 명시적 결석 없음
         AND NOT EXISTS (
           SELECT 1 FROM attendance a2
-          WHERE a2.student_id       = ${studentId}
+          WHERE a2.student_id = ${studentId}
             AND a2.swimming_pool_id = ${poolId}
-            AND a2.date::date       = gs.d::date
-            AND a2.class_group_id   = cg.id
-            AND a2.status           = 'absent'
+            AND a2.date::date = gs.d::date
+            AND a2.class_group_id = cg.id
+            AND a2.status = 'absent'
         )
-      )
-    AS cnt
+
+        UNION
+
+        -- Completed makeups: assigned class/date is the event identity. UNION
+        -- removes duplicate makeup rows and overlap with a regular lesson.
+        SELECT makeup_class.id AS class_group_id,
+               (ms.completed_at AT TIME ZONE 'Asia/Seoul')::date AS lesson_date
+        FROM makeup_sessions ms
+        JOIN class_groups makeup_class
+          ON makeup_class.id = ms.assigned_class_group_id
+         AND makeup_class.swimming_pool_id = ${poolId}
+         AND makeup_class.is_deleted = false
+         AND (makeup_class.is_one_time IS NULL OR makeup_class.is_one_time = false)
+        WHERE ms.student_id = ${studentId}
+          AND ms.swimming_pool_id = ${poolId}
+          AND ms.completed_at >= (${periodFrom}::date::timestamp AT TIME ZONE 'Asia/Seoul')
+          AND ms.completed_at < (${cutoffDate}::date::timestamp AT TIME ZONE 'Asia/Seoul')
+          AND ms.status = 'completed'
+          AND ms.assigned_class_group_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM pool_holidays makeup_holiday
+            WHERE makeup_holiday.pool_id = ${poolId}
+              AND makeup_holiday.holiday_date::date
+                = (ms.completed_at AT TIME ZONE 'Asia/Seoul')::date
+          )
+      ) AS recognized_lessons
   `);
   return Number(rows.rows[0]?.cnt ?? 0);
 }

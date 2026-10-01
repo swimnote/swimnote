@@ -54,6 +54,8 @@ import { initGrowthReportGR5Schema }     from "./growth-report-gr5-review-init.j
 import { runMigration as runWp8Crm }     from "./wp8-support-case-crm.js";
 import { up as runWp8aLifecycle }        from "./step-wp8-a-lifecycle.js";
 import { up as runWp8bBatchJobs }        from "./step-wp8-b-batch-jobs.js";
+import { up as runMonthlyReviewNotifications } from "./growth-report-admin-review-notifications.js";
+import { initGrowthReportAdminReviewAnalysisSchema } from "./growth-report-admin-review-analysis.js";
 import { up as runStep0Kpi }             from "./step0-monthly-kpi-foundation.js";
 import { runWp6Wp7AdditiveSchema }       from "./wp6-wp7-additive-schema.js";
 import { backfillPoolAdminRoles }        from "./roles-backfill.js";
@@ -169,6 +171,8 @@ async function main() {
     await runStep("§6a wp8-support-case-crm",          runWp8Crm,                     db);
     await runStep("§6b step-wp8-a-lifecycle",          runWp8aLifecycle,              db);
     await runStep("§6c step-wp8-b-batch-jobs",         runWp8bBatchJobs,              db);
+    await runStep("§6c1 monthly-review-notifications", runMonthlyReviewNotifications, db);
+    await runStep("§6c2 monthly-analysis-replay", initGrowthReportAdminReviewAnalysisSchema, db);
     await runStep("§6d step0-monthly-kpi-foundation",  runStep0Kpi,                   db);
     await runStep("§7  wp6-wp7-additive-schema",       runWp6Wp7AdditiveSchema,       db);
     await runStep("§8  roles-backfill",                backfillPoolAdminRoles,        db);

@@ -43,6 +43,15 @@
 
 import { describe, it, expect, vi } from "vitest";
 
+const { mockDb } = vi.hoisted(() => ({
+  mockDb: { execute: vi.fn().mockResolvedValue({ rows: [] }) },
+}));
+
+vi.mock("@workspace/db", () => ({
+  superAdminDb: mockDb,
+  db: mockDb,
+}));
+
 // ── schedulerLock mock ─────────────────────────────────────────────────────────
 // refreshLock / acquireLock / releaseLock은 superAdminDb를 직접 사용하므로
 // 테스트에서 db mock을 우회함. vi.mock으로 모듈 전체를 stub 처리.
@@ -411,7 +420,7 @@ describe("N–P. 5일 Auto-Publish (신규 정책: parent input close 제거)", 
     expect(result.cycles_input_closed).toBe(0);
   });
 
-  it("O: scheduler prepares rows while the separate V1.0 worker publishes successful reports", async () => {
+  it("O: scheduler and compatibility publisher prepare review only; admin send owns publication", async () => {
     const { readFileSync } = await import("node:fs");
     const scheduler = readFileSync(
       "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
@@ -426,17 +435,25 @@ describe("N–P. 5일 Auto-Publish (신규 정책: parent input close 제거)", 
       "utf-8",
     );
     expect(batchWorker).toContain("runMonthlyFreeAutoPublication(db)");
+    const publisher = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-auto-publisher.ts",
+      "utf-8",
+    );
+    expect(publisher).toContain("published: 0");
+    expect(publisher).toContain("notifyAdminReady");
+    expect(publisher).not.toContain("UPDATE growth_reports");
+    expect(publisher).not.toContain("notifyGrowthReportPublished");
   });
 
-  it("P: 5일 이후 자동 공개는 최종 분석 결과만 대상으로 한다", async () => {
+  it("P: 5일 이후 auto-publisher only opens admin review and never publishes", async () => {
     const { readFileSync } = await import("node:fs");
     const publisher = readFileSync(
       "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-auto-publisher.ts",
       "utf-8",
     );
-    expect(publisher).toContain("gr.product_status IN ('REVIEW_REQUIRED', 'READY_TO_SEND', 'APPROVED')");
-    expect(publisher).toContain("gr.analysis_status IN (");
-    expect(publisher).toContain("student.status = 'active'");
+    expect(publisher).toContain("adminReviewReady");
+    expect(publisher).toContain("Parent publication and parent notifications");
+    expect(publisher).not.toContain("SET product_status = 'PUBLISHED'");
   });
 });
 
@@ -531,13 +548,13 @@ describe("X–Y. Published History 보존", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Z. Duplicate Report 방지", () => {
-  it("Z: scheduler code에 ON CONFLICT (student_id, cycle_id) DO NOTHING 포함", async () => {
+  it("Z: scheduler avoids partial-index inference with plain ON CONFLICT DO NOTHING", async () => {
     const { readFileSync } = await import("node:fs");
     const scheduler = readFileSync(
       "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
       "utf-8",
     );
-    expect(scheduler).toContain("ON CONFLICT (student_id, cycle_id)");
+    expect(scheduler).toContain("ON CONFLICT DO NOTHING");
     expect(scheduler).toContain("DO NOTHING");
   });
 });
@@ -780,7 +797,7 @@ describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
     expect(scheduler).toContain("STUDENT_CHUNK_SIZE = 200");
     expect(scheduler).toContain("sql.join");
     expect(scheduler).toContain("VALUES ${valuesSql}");
-    expect(scheduler).toContain("ON CONFLICT (student_id, cycle_id)");
+    expect(scheduler).toContain("ON CONFLICT DO NOTHING");
     expect(scheduler).toContain("DO NOTHING");
   });
 
@@ -792,7 +809,7 @@ describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
       "utf-8",
     );
     // 기존 row 덮어쓰기 없음
-    expect(scheduler).toContain("ON CONFLICT (student_id, cycle_id)");
+    expect(scheduler).toContain("ON CONFLICT DO NOTHING");
     expect(scheduler).toContain("DO NOTHING");
     // DO UPDATE 금지
     expect(scheduler).not.toContain("DO UPDATE");

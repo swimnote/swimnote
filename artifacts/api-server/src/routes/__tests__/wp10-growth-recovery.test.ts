@@ -3,11 +3,11 @@
  *
  * 스펙 §22 Required Test Matrix (A~V):
  *
- * A.  Sep 4 KST → no Aug auto batch
- * B.  Sep 5 KST → Aug eligible batch created
+ * A.  Daily KST preparation begins independently of fifth-day review
+ * B.  Sep 5 KST → August preparation batch exists
  * C.  Sep 5 scheduler twice → duplicate batch/report 0
- * D.  Sep 6 + Aug batch already exists → duplicate 0
- * E.  Sep 6 + Aug batch missing → recovery creates missing batch
+ * D.  Sep 6 recovery re-ensures bounded issue months idempotently
+ * E.  Startup recovery prepares the current and bounded prior issue months
  * F.  eligible: previous-month lessons + next-month continuing → included
  * G.  withdrawn/ended next month → excluded
  * H.  no previous-month lessons → excluded
@@ -116,10 +116,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockAcquireLock.mockResolvedValue(true);
   process.env["GROWTH_REPORT_BATCH_AUTO_ENABLED"] = "true";
+  process.env["GROWTH_REPORT_RECOVERY_MONTHS"] = "2";
 });
 
 afterEach(() => {
   delete process.env["GROWTH_REPORT_BATCH_AUTO_ENABLED"];
+  delete process.env["GROWTH_REPORT_RECOVERY_MONTHS"];
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -170,20 +172,23 @@ describe("Test U: Asia/Seoul month boundary", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// A. Sep 4 KST → no Aug auto batch
+// A. Daily KST preparation is independent of the fifth-day review gate
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("Test A: Sep 4 KST → scheduler should not auto-publish Aug reports", () => {
-  it("Sep 4 KST: shouldPublish=false (parentInputCloseAt not yet reached)", () => {
+describe("Test A: daily preparation is independent of the review gate", () => {
+  it("Sep 4 KST is before the fifth-day admin review opening", () => {
     const ts = computeMonthlyFreePeriodTimestamps(2026, 9);
-    // Sep 4 03:00 UTC < Sep 4 15:00 UTC (closeAt)
     expect(SEP4_KST.getTime() < ts.parentInputCloseAt.getTime()).toBe(true);
   });
 
-  it("Sep 4 KST: batch cron does NOT fire (UTC day 4 15:00 not yet reached)", () => {
-    // Sep4_KST = 2026-09-04T03:00 UTC, but cron fires at 17:00 UTC on day 4
-    // 03:00 < 17:00 → no fire
-    expect(SEP4_KST.getUTCHours()).toBeLessThan(17);
+  it("Sep 4 KST: preparation still creates issue-month work", async () => {
+    mockRows([{ id: "pool-001" }]);
+    mockExecute.mockResolvedValue({ rows: [] });
+    await runMonthlyBatchCron({ execute: mockExecute } as any, SEP4_KST);
+    expect(mockExecute.mock.calls.some(([query]: any) =>
+      String(query?.queryChunks?.map?.((chunk: any) => chunk?.value ?? chunk).join("") ?? query)
+        .includes("MONTHLY_AUTO"),
+    )).toBe(true);
   });
 });
 
@@ -192,7 +197,7 @@ describe("Test A: Sep 4 KST → scheduler should not auto-publish Aug reports", 
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Test B: Sep 5 KST → batch created for August", () => {
-  it("Sep 5 02:00 KST: shouldPublish=true", () => {
+  it("Sep 5 KST: the previous month is in the admin review window", () => {
     const ts = computeMonthlyFreePeriodTimestamps(2026, 9);
     expect(SEP5_KST.getTime() >= ts.parentInputCloseAt.getTime()).toBe(true);
   });
@@ -253,36 +258,31 @@ describe("Test C: Sep 5 scheduler twice → duplicate 0", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// D. Sep 6 + Aug batch already exists → duplicate 0
+// D. Sep 6 recovery re-ensures bounded issue months idempotently
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("Test D: Sep 6 + Aug batch exists → startupBatchRecovery skips", () => {
-  it("startupBatchRecovery: if batch exists → SKIP (no INSERT)", async () => {
-    // Sep 6 KST = day 6 → >= 5, check passes
-    // existing batch found
-    mockRows([{ id: "existing-job-001" }]);
+describe("Test D: Sep 6 recovery re-ensures bounded issue months", () => {
+  it("uses idempotent inserts for the current and bounded prior issue months", async () => {
+    mockRows([{ id: "pool-001" }]);
+    mockExecute.mockResolvedValue({ rows: [] });
 
     await startupBatchRecovery({ execute: mockExecute } as any, SEP6_KST);
 
-    // Should NOT call ensureBatchJobs (no MONTHLY_AUTO INSERT)
     const sqlStrings = mockExecute.mock.calls
       .map(([q]: any) => String(q?.queryChunks?.map?.((c: any) => c?.value ?? c).join("") ?? q));
-    const hasInsert = sqlStrings.some(s => s.includes("MONTHLY_AUTO") && s.includes("INSERT"));
-    expect(hasInsert).toBe(false);
+    const inserts = sqlStrings.filter(s => s.includes("MONTHLY_AUTO") && s.includes("INSERT"));
+    expect(inserts).toHaveLength(3);
+    expect(inserts.every(s => s.includes("ON CONFLICT DO NOTHING"))).toBe(true);
   });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// E. Sep 6 + Aug batch missing → recovery creates missing batch
+// E. Startup recovery prepares current and bounded prior issue months
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("Test E: Sep 6 + batch missing → startupBatchRecovery creates it", () => {
-  it("startupBatchRecovery: KST day=6 >= 5, no existing batch → creates batch", async () => {
-    // existing batch check → empty
-    mockRows([]);
-    // getXEligiblePools → pool list
+describe("Test E: startup recovery prepares bounded issue months", () => {
+  it("creates current and bounded prior batches when missing", async () => {
     mockRows([{ id: "pool-001" }]);
-    // ensureBatchJobs INSERT
     mockExecute.mockResolvedValue({ rows: [] });
 
     await startupBatchRecovery({ execute: mockExecute } as any, SEP6_KST);
@@ -290,13 +290,17 @@ describe("Test E: Sep 6 + batch missing → startupBatchRecovery creates it", ()
     const sqlStrings = mockExecute.mock.calls
       .map(([q]: any) => String(q?.queryChunks?.map?.((c: any) => c?.value ?? c).join("") ?? q));
     const hasInsert = sqlStrings.some(s => s.includes("MONTHLY_AUTO") && s.includes("INSERT"));
-    expect(hasInsert).toBe(true);
+    expect(sqlStrings.filter(s => s.includes("MONTHLY_AUTO") && s.includes("INSERT"))).toHaveLength(3);
   });
 
-  it("startupBatchRecovery: KST day=4 → skip (before 5th)", async () => {
+  it("startup recovery is independent of the fifth-day notification gate", async () => {
+    mockRows([{ id: "pool-001" }]);
+    mockExecute.mockResolvedValue({ rows: [] });
     await startupBatchRecovery({ execute: mockExecute } as any, SEP4_KST);
-    // Should not query DB at all
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockExecute.mock.calls.some(([query]: any) =>
+      String(query?.queryChunks?.map?.((chunk: any) => chunk?.value ?? chunk).join("") ?? query)
+        .includes("MONTHLY_AUTO"),
+    )).toBe(true);
   });
 });
 
@@ -305,9 +309,8 @@ describe("Test E: Sep 6 + batch missing → startupBatchRecovery creates it", ()
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Test F: eligible student — previous-month enrollment continuing", () => {
-  it("Sep 5 KST: parentInputCloseAt reached → auto-publish phase runs", () => {
+  it("Sep 5 review opening follows the parent-input close boundary", () => {
     const ts = computeMonthlyFreePeriodTimestamps(2026, 9);
-    // SEP5_KST >= parentInputCloseAt → should publish
     expect(SEP5_KST.getTime() >= ts.parentInputCloseAt.getTime()).toBe(true);
   });
 
@@ -490,13 +493,14 @@ describe("Test N: permanent validation failure → FAILED status, no infinite re
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Test O: REVIEW_REQUIRED preserved and visible", () => {
-  it("REVIEW_REQUIRED is not auto-overridden — auto-publish only transitions to PUBLISHED", () => {
-    // autoPublishMonthlyReports only calls autoApproveAndPublishForDelivery
-    // which transitions REVIEW_REQUIRED → PUBLISHED for eligible reports.
-    // Reports that fail safety check remain REVIEW_REQUIRED.
-    const safetyPass = false; // grounding not PASS
-    const nextStatus = safetyPass ? "PUBLISHED" : "REVIEW_REQUIRED";
-    expect(nextStatus).toBe("REVIEW_REQUIRED");
+  it("the review opener never updates a report to PUBLISHED", async () => {
+    const { readFileSync } = await import("node:fs");
+    const autoPublisher = readFileSync(
+      new URL("../../jobs/growth-report-auto-publisher.ts", import.meta.url),
+      "utf8",
+    );
+    expect(autoPublisher).not.toContain("SET product_status = 'PUBLISHED'");
+    expect(autoPublisher).not.toContain("autoApproveAndPublishForDelivery");
   });
 
   it("analysis worker: REVIEW_REQUIRED is terminal output of Pass 2 — not retried", () => {
@@ -538,20 +542,37 @@ describe("Test P: duplicate report prevention", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Test Q: success notification duplicate 0", () => {
-  it("sendAdminReadyPush: admin_push_sent_at guard prevents duplicate push", () => {
-    // DB check: if admin_push_sent_at IS NOT NULL → return early
-    const adminPushSentAt = new Date().toISOString();
-    const alreadySent = adminPushSentAt !== null && adminPushSentAt !== undefined;
-    expect(alreadySent).toBe(true); // early return path
+  it("monthly admin readiness uses the durable unique outbox, not the legacy sent-at path", async () => {
+    const { readFileSync } = await import("node:fs");
+    const batch = readFileSync(
+      new URL("../../jobs/growth-report-batch-worker.ts", import.meta.url),
+      "utf8",
+    );
+    const migration = readFileSync(
+      new URL("../../migrations/growth-report-admin-review-notifications.ts", import.meta.url),
+      "utf8",
+    );
+    expect(batch).not.toContain("sendAdminReadyPush");
+    expect(batch).not.toContain("runScheduledPushes");
+    expect(migration).toContain("uq_growth_report_outbox_admin_period_recipient");
+    expect(migration).toContain("report_period, recipient_id");
+    expect(migration).not.toContain("DROP TABLE");
   });
 
-  it("notifyGrowthReportPublished: fire-and-forget via setImmediate — at most once per report", () => {
-    // auto-publish uses autoApproveAndPublishForDelivery which transitions REVIEW_REQUIRED → PUBLISHED
-    // then setImmediate → notifyGrowthReportPublished called once per report_id
-    // Second run: alreadyPublished=true → skip → no second notification
-    const alreadyPublished = true;
-    const notifySent = !alreadyPublished;
-    expect(notifySent).toBe(false);
+  it("parent growth-report notifications retain their feed type and require admin publication", async () => {
+    const { readFileSync } = await import("node:fs");
+    const autoPublisher = readFileSync(
+      new URL("../../jobs/growth-report-auto-publisher.ts", import.meta.url),
+      "utf8",
+    );
+    const migration = readFileSync(
+      new URL("../../migrations/growth-report-admin-review-notifications.ts", import.meta.url),
+      "utf8",
+    );
+    expect(autoPublisher).not.toContain("notifyGrowthReportPublished");
+    expect(autoPublisher).not.toContain("SET product_status = 'PUBLISHED'");
+    expect(migration).toContain("GROWTH_REPORT_PUBLISHED");
+    expect(migration).toContain("uq_growth_report_outbox_parent_report_recipient");
   });
 });
 

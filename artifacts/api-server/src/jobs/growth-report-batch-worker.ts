@@ -2,9 +2,9 @@
  * growth-report-batch-worker.ts — WP8: Monthly Auto Generation Worker
  *
  * 역할:
- *   - 매월 5일 02:00 KST cron: X-active pool별 batch job 생성 (PENDING)
+ *   - 매월 1일 01:10 KST cron (daily recovery): X-active pool별 batch job 생성
  *   - Worker loop (매 5분): PENDING batch job claim → 학생별 report 생성/분석
- *   - Pool completion detection → REVIEW_REQUIRED → READY_TO_SEND → admin push
+ *   - Batch completion is preparation-only; admin readiness derives from reports
  *
  * 설계 원칙:
  *   - Durable: DB-backed batch_jobs (Render restart 후 작업 재개)
@@ -34,7 +34,7 @@ import {
   transitionToReadyToSend,
   refreshWp8Snapshot,
 }                                          from "../lib/growth-report-production-service.js";
-import { notifyBatchComplete }             from "../utils/notify.js";
+import { retryGrowthReportNotificationOutbox } from "../utils/notify.js";
 import { runMonthlyFreeAutoPublication } from "./growth-report-auto-publisher.js";
 
 type Db = typeof superAdminDb;
@@ -48,6 +48,7 @@ const MAX_POOL_WORKERS = 2;        // 동시 처리 pool 수 (부하 분산)
 const STUDENT_CONCURRENCY = 3;     // pool 내 학생 동시 처리 (병렬)
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;  // KST = UTC+9
 const MAX_BATCH_ATTEMPTS = 3;      // FAILED/PARTIAL 배치 최대 재시도 횟수
+const MAX_RECOVERY_MONTHS = 12;
 
 // 월별 자동 생성 실행 여부 (env fail-closed)
 function isBatchEnabled(): boolean {
@@ -59,42 +60,6 @@ function isBatchEnabled(): boolean {
 export function getKSTNow(utcNow: Date = new Date()): { year: number; month: number } {
   const kst = new Date(utcNow.getTime() + KST_OFFSET_MS);
   return { year: kst.getUTCFullYear(), month: kst.getUTCMonth() + 1 };
-}
-
-// 푸시 알림 금지 시간: KST 22:00 ~ 08:00
-// → 이 시간대에 완료된 배치는 다음 날(또는 당일) 08:00 KST에 예약 발송
-const PUSH_QUIET_START_H = 22;  // 22:00 KST
-const PUSH_QUIET_END_H   = 8;   // 08:00 KST
-
-/** 현재 UTC 기준으로 KST 푸시 금지 시간대인지 확인 */
-function isKSTQuietHour(utcNow: Date = new Date()): boolean {
-  const kst = new Date(utcNow.getTime() + KST_OFFSET_MS);
-  const h = kst.getUTCHours();
-  return h >= PUSH_QUIET_START_H || h < PUSH_QUIET_END_H;
-}
-
-/** 다음 KST 08:00 의 UTC Date 반환 */
-function nextKST8amUTC(utcNow: Date = new Date()): Date {
-  const kst = new Date(utcNow.getTime() + KST_OFFSET_MS);
-  const h = kst.getUTCHours();
-  // 오늘 KST 기준 08:00 UTC = kst날짜 00:00 UTC - 9h + 8h = kst날짜 -1h UTC
-  // 더 간단하게: KST 00:00 UTC = UTC 전날 15:00; KST 08:00 UTC = UTC 전날 23:00
-  const kstMidnightUTC = new Date(
-    Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate())
-    - KST_OFFSET_MS  // KST 00:00 → UTC
-  );
-  const kst8amUTC = new Date(kstMidnightUTC.getTime() + 8 * 60 * 60 * 1000);
-  // 이미 오늘 8am이 지났으면 → 내일 8am
-  if (h >= PUSH_QUIET_END_H && h < PUSH_QUIET_START_H) {
-    // 이 함수는 quiet hour에만 호출되므로 이 경우는 없지만 방어
-    return kst8amUTC;
-  }
-  if (h < PUSH_QUIET_END_H) {
-    // 자정~8시 → 오늘 8am KST
-    return kst8amUTC;
-  }
-  // 22:00 이후 → 내일 8am KST
-  return new Date(kst8amUTC.getTime() + 24 * 60 * 60 * 1000);
 }
 
 // ── getXEligiblePools ─────────────────────────────────────────────────────────
@@ -159,7 +124,7 @@ export async function ensureBatchJobs(
           (swimming_pool_id, year, month, job_type, status, next_attempt_at)
         VALUES
           (${poolId}, ${year}, ${month}, 'MONTHLY_AUTO', 'PENDING', NOW())
-        ON CONFLICT (swimming_pool_id, year, month, job_type) DO NOTHING
+        ON CONFLICT DO NOTHING
       `);
       ensured++;
     } catch (err: any) {
@@ -404,15 +369,8 @@ async function processStudentReport(
       console.log(`[gr-batch] SKIP already ${s}: pool=${poolId}`);
       return;
     }
-    // FAILED 상태면 재시도 위해 OPEN으로 리셋
-    if (s === "FAILED") {
-      await db.execute(sql`
-        UPDATE growth_reports
-        SET product_status = 'OPEN', analysis_retry_count = 0, updated_at = NOW()
-        WHERE id = ${existRow.id}
-      `);
-    }
-    // OPEN/PREANALYZING/... 는 기존 analysis worker가 처리 — pass
+    // Existing rows, including FAILED/EXCLUDED/DISCARDED terminal rows, remain
+    // authoritative. Recovery must never reset a terminal report automatically.
     return;
   }
 
@@ -474,129 +432,8 @@ async function finalizePoolBatch(
     console.error(`[gr-batch] KPI refresh failed:`, err.message);
   }
 
-  // Admin push notification (idempotency: admin_push_sent_at)
-  await sendAdminReadyPush(db, poolId, year, month, readyCount);
-}
-
-// ── sendAdminReadyPush ────────────────────────────────────────────────────────
-
-async function sendAdminReadyPush(
-  db: Db,
-  poolId: string,
-  year: number,
-  month: number,
-  readyCount: number,
-): Promise<void> {
-  if (readyCount === 0) {
-    console.log(`[gr-batch] no READY_TO_SEND reports; admin notification skipped pool=${poolId}`);
-    return;
-  }
-  // idempotency check
-  const r = await db.execute(sql`
-    SELECT admin_push_sent_at, scheduled_push_at FROM growth_report_batch_jobs
-    WHERE swimming_pool_id = ${poolId}
-      AND year = ${year} AND month = ${month}
-      AND job_type = 'MONTHLY_AUTO'
-    LIMIT 1
-  `);
-  if (!r.rows.length) return;
-  const job = r.rows[0] as any;
-  if (job.admin_push_sent_at) return;  // 이미 발송
-
-  try {
-    const prevMonth = month === 1 ? 12 : month - 1;
-    const prevYear  = month === 1 ? year - 1 : year;
-    const periodLabel = `${prevYear}년 ${prevMonth}월`;
-
-    const statusRes = await db.execute(sql`
-      SELECT failed_count FROM growth_report_batch_jobs
-      WHERE swimming_pool_id = ${poolId}
-        AND year = ${year} AND month = ${month} AND job_type = 'MONTHLY_AUTO'
-      LIMIT 1
-    `);
-    const failedCount = Number((statusRes.rows[0] as any)?.failed_count ?? 0);
-
-    const message = failedCount > 0
-      ? `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 일부 리포트는 생성에 실패했습니다. 리포트를 확인한 후 발송해 주세요.`
-      : `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 리포트를 확인한 후 발송해 주세요.`;
-
-    const now = new Date();
-    if (isKSTQuietHour(now)) {
-      // 푸시 금지 시간대 (KST 22:00~08:00) → 다음 08:00 KST로 예약
-      const scheduledAt = nextKST8amUTC(now);
-      await db.execute(sql`
-        UPDATE growth_report_batch_jobs
-        SET scheduled_push_at = ${scheduledAt.toISOString()}::timestamptz,
-            updated_at = NOW()
-        WHERE swimming_pool_id = ${poolId}
-          AND year = ${year} AND month = ${month}
-          AND job_type = 'MONTHLY_AUTO'
-          AND admin_push_sent_at IS NULL
-      `);
-      console.log(`[gr-batch] push quiet hour — scheduled pool=${poolId} at=${scheduledAt.toISOString()}`);
-      return;
-    }
-
-    await _doSendAdminPush(db, poolId, year, month, message);
-
-  } catch (err: any) {
-    console.error(`[gr-batch] admin push error pool=${poolId}:`, err.message);
-  }
-}
-
-/** 실제 push 발송 + mark sent */
-async function _doSendAdminPush(
-  db: Db,
-  poolId: string,
-  year: number,
-  month: number,
-  message: string,
-): Promise<void> {
-  await notifyBatchComplete({ poolId, message }).catch((e: unknown) => {
-    console.error(`[gr-batch] admin push failed pool=${poolId}:`, e);
-  });
-
-  await db.execute(sql`
-    UPDATE growth_report_batch_jobs
-    SET admin_push_sent_at = NOW(), updated_at = NOW()
-    WHERE swimming_pool_id = ${poolId}
-      AND year = ${year} AND month = ${month}
-      AND job_type = 'MONTHLY_AUTO'
-      AND admin_push_sent_at IS NULL
-  `);
-  console.log(`[gr-batch] admin push sent pool=${poolId} year=${year} month=${month}`);
-}
-
-// ── runScheduledPushes ────────────────────────────────────────────────────────
-// 매 5분 루프에서 호출: scheduled_push_at <= NOW() 인 미발송 배치 푸시 발송
-
-async function runScheduledPushes(db: Db): Promise<void> {
-  const pending = await db.execute(sql`
-    SELECT swimming_pool_id, year, month, failed_count
-    FROM growth_report_batch_jobs
-    WHERE scheduled_push_at IS NOT NULL
-      AND scheduled_push_at <= NOW()
-      AND admin_push_sent_at IS NULL
-      AND status IN ('COMPLETED', 'PARTIAL', 'FAILED')
-      AND job_type = 'MONTHLY_AUTO'
-  `);
-
-  for (const row of pending.rows as any[]) {
-    const { swimming_pool_id: poolId, year, month, failed_count } = row;
-    const prevMonth   = month === 1 ? 12 : month - 1;
-    const prevYear    = month === 1 ? year - 1 : year;
-    const periodLabel = `${prevYear}년 ${prevMonth}월`;
-    const failedCount = Number(failed_count ?? 0);
-
-    const message = failedCount > 0
-      ? `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 일부 리포트는 생성에 실패했습니다. 리포트를 확인한 후 발송해 주세요.`
-      : `${periodLabel} AI 성장리포트 발송 준비가 완료되었습니다. 리포트를 확인한 후 발송해 주세요.`;
-
-    console.log(`[gr-batch] sending scheduled push pool=${poolId} year=${year} month=${month}`);
-    await _doSendAdminPush(db, poolId, year, month, message).catch((e: any) =>
-      console.error(`[gr-batch] scheduled push error pool=${poolId}:`, e.message)
-    );
-  }
+  // Readiness notification is sent by the fifth-day admin review opener, not
+  // batch completion. Partial/failed batches never hide successful reports.
 }
 
 // ── markJobFailed / markJobComplete ──────────────────────────────────────────
@@ -631,8 +468,19 @@ async function markJobComplete(db: Db, jobId: string, completed: number, failed:
 }
 
 // ── runMonthlyBatchCron ───────────────────────────────────────────────────────
-// 매월 5일 02:00 KST = 전월 4일 17:00 UTC → cron "0 17 4 * *" UTC
-// KST 기준: 매월 5일 → UTC "0 17 4 * *"
+// Daily from KST day 1: the batch prepares analysis rows; it never publishes.
+
+function getRecoveryIssueMonths(now: Date): Array<{ year: number; month: number }> {
+  const current = getKSTNow(now);
+  const configured = Number(process.env["GROWTH_REPORT_RECOVERY_MONTHS"] ?? 2);
+  const recoveryMonths = Number.isFinite(configured)
+    ? Math.max(0, Math.min(MAX_RECOVERY_MONTHS, Math.floor(configured)))
+    : 2;
+  return Array.from({ length: recoveryMonths + 1 }, (_, offset) => {
+    const date = new Date(Date.UTC(current.year, current.month - 1 - offset, 1));
+    return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+  });
+}
 
 export async function runMonthlyBatchCron(db: Db, now: Date = new Date()): Promise<void> {
   if (!isBatchEnabled()) {
@@ -640,8 +488,8 @@ export async function runMonthlyBatchCron(db: Db, now: Date = new Date()): Promi
     return;
   }
 
-  const { year, month } = getKSTNow(now);
-  console.log(`[gr-batch] MONTHLY CRON: KST year=${year} month=${month}`);
+  const issueMonths = getRecoveryIssueMonths(now);
+  console.log(`[gr-batch] KST daily preparation run periods=${issueMonths.length}`);
 
   try {
     const poolIds = await getXEligiblePools(db);
@@ -649,8 +497,14 @@ export async function runMonthlyBatchCron(db: Db, now: Date = new Date()): Promi
       console.log("[gr-batch] no X-eligible pools");
       return;
     }
-    const prep = await ensureBatchJobs(db, poolIds, year, month);
-    console.log(`[gr-batch] batch preparation finished ensured=${prep.ensured} failed=${prep.failed}`);
+    let ensured = 0;
+    let failed = 0;
+    for (const issueMonth of issueMonths) {
+      const prep = await ensureBatchJobs(db, poolIds, issueMonth.year, issueMonth.month);
+      ensured += prep.ensured;
+      failed += prep.failed;
+    }
+    console.log(`[gr-batch] batch preparation finished ensured=${ensured} failed=${failed}`);
   } catch (err: any) {
     console.error("[gr-batch] monthly cron failed:", err.message);
   }
@@ -692,32 +546,12 @@ export async function runBatchWorker(db: Db): Promise<void> {
 }
 
 // ── startupBatchRecovery ──────────────────────────────────────────────────────
-// 서버 재시작 후: 오늘이 5일 이후 KST이고 이번 달 batch job이 없으면 즉시 생성.
-// process downtime으로 cron을 놓쳤을 때를 복구한다.
+// Server restart recovery re-ensures current and bounded prior preparation
+// months. Existing terminal report/batch states are never reset here.
 
 export async function startupBatchRecovery(db: Db, now: Date = new Date()): Promise<void> {
   if (!isBatchEnabled()) return;
-
-  const { year, month } = getKSTNow(now);
-  const kstDay = new Date(now.getTime() + KST_OFFSET_MS).getUTCDate();
-  if (kstDay < 5) {
-    console.log(`[gr-batch] startup recovery skip: KST day=${kstDay} (< 5)`);
-    return;
-  }
-
-  // 이번 달 batch job 존재 여부 확인
-  const existing = await db.execute(sql`
-    SELECT id FROM growth_report_batch_jobs
-    WHERE year = ${year} AND month = ${month} AND job_type = 'MONTHLY_AUTO'
-    LIMIT 1
-  `).catch(() => ({ rows: [] }));
-
-  if (existing.rows.length > 0) {
-    console.log(`[gr-batch] startup recovery skip: batch already exists year=${year} month=${month}`);
-    return;
-  }
-
-  console.log(`[gr-batch] startup recovery: creating missing batch year=${year} month=${month} KST_day=${kstDay}`);
+  console.log("[gr-batch] startup recovery: ensuring current and bounded incomplete periods");
   await runMonthlyBatchCron(db, now);
 }
 
@@ -726,28 +560,30 @@ export async function startupBatchRecovery(db: Db, now: Date = new Date()): Prom
 export function startGrowthReportBatchWorker(): void {
   const db = superAdminDb;
 
-  // 매월 5일 02:00 KST = UTC "0 17 4 * *" (UTC+9 고정; KST DST 없음)
-  cron.schedule("0 17 4 * *", async () => {
-    console.log("[gr-batch] monthly cron trigger");
+  // Daily at 01:10 KST so KST day-1 cycle/report preparation is independent
+  // of process timezone. Recovery also ensures the current period separately.
+  cron.schedule("10 1 * * *", async () => {
+    console.log("[gr-batch] daily monthly-cycle preparation trigger");
     await runMonthlyBatchCron(db).catch(e =>
       console.error("[gr-batch] monthly cron error:", e.message)
     );
-  });
+  }, { timezone: "Asia/Seoul" });
 
-  // 매 5분: 준비된 행 처리, 정상 분석 결과의 무료 자동 발급, 예약 관리자 푸시.
+  // Every five minutes: preparation/recovery, admin review opening, and
+  // durable push delivery. Auto-publisher is now review-only, never publish.
   cron.schedule("*/5 * * * *", async () => {
     await runBatchWorker(db).catch(e =>
       console.error("[gr-batch] worker error:", e.message)
     );
     if (isBatchEnabled()) {
       await runMonthlyFreeAutoPublication(db).catch(e =>
-        console.error("[gr-auto-publish] worker error:", e.message)
+        console.error("[gr-admin-review] worker error:", e.message)
       );
     }
-    await runScheduledPushes(db).catch(e =>
-      console.error("[gr-batch] scheduled push error:", e.message)
+    await retryGrowthReportNotificationOutbox().catch(e =>
+      console.error("[gr-notification-outbox] worker error:", e.message)
     );
-  });
+  }, { timezone: "Asia/Seoul" });
 
   // 서버 시작 45초 후 — 5일 이후 downtime recovery
   setTimeout(async () => {
@@ -756,5 +592,5 @@ export function startGrowthReportBatchWorker(): void {
     );
   }, 45_000);
 
-  console.log("[gr-batch] scheduler started (monthly 5일 02:00 KST + 5min worker + startup recovery)");
+  console.log("[gr-batch] scheduler started (daily KST preparation + 5min worker + startup recovery)");
 }
