@@ -1,0 +1,206 @@
+[전달 대상: SWIMNOTE AI ENGINE Replit]
+[Repository: GitLab swimnote-professional-engine]
+[APP Replit에는 절대 실행하지 말 것]
+
+[성장리포트 V1 — 9월 잔여 20건 recovery 계약 확인]
+
+현재 ENGINE Production SHA:
+996da04dae1ffecb7e92ea26c5302c94293e5346
+
+APP Production SHA:
+2a3b6fe538ee8e8563996ad98cd2eb00f4143f53
+
+현재 2026-09 cycle:
+eligible = 119
+generated = 99
+remaining = 20
+READY = false
+
+구성:
+- 기존 request identity가 보존된 불확실 요청 17건
+- DATA_ACCUMULATING 3건
+
+이번 작업은 ENGINE 코드의 기존 계약 확인만 합니다.
+
+코드 수정 금지.
+migration 금지.
+commit/push/deploy 금지.
+Production 분석 POST 금지.
+provider 실제 호출 금지.
+APP 수정 금지.
+전체 audit/test suite 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 17건 recovery에 사용할 안전한 조회 계약 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+질문:
+
+현재 ENGINE에서 provider 실행 없이
+
+pool
+report_id
+request_id
+payload identity
+
+를 이용하여 기존 registry의 상태와,
+존재한다면 저장된 COMPLETE 결과를
+조회/회수할 수 있는 endpoint가 실제 존재하는지 확인하세요.
+
+필요한 것은 분석 POST가 아니라 read/recovery 계약입니다.
+
+확인할 상태:
+
+- COMPLETE + stored result
+- PROCESSING
+- UNKNOWN
+- FAILED/RELEASED 등 기존 상태
+- NOT_FOUND
+- identity/payload conflict
+- cross-pool conflict
+
+기존 endpoint가 있다면 정확히 보고:
+
+method
+path
+필요한 auth
+필요 identity
+응답 status/code
+COMPLETE 결과 반환 형태
+PROCESSING 응답
+UNKNOWN 응답
+NOT_FOUND 응답
+conflict 동작
+
+그리고 이 endpoint가
+provider/pipeline을 절대 실행하지 않는다는 코드 근거를 제시하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. endpoint가 없다면 최소 설계만 제시
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 read-only recovery endpoint가 없다면
+이번 작업에서 구현하지 마세요.
+
+기존 DbGrowthReportRegistry와 저장된 response_json을 이용해
+provider를 절대 호출하지 않는
+최소 read-only status/result endpoint 설계만 제시하세요.
+
+새 queue 금지.
+새 registry 금지.
+새 분석 상태기계 금지.
+
+기존:
+
+request registry
+pool binding
+payload conflict
+COMPLETE response_json
+
+을 그대로 사용합니다.
+
+필수 의미:
+
+COMPLETE
+→ stored result 반환
+
+PROCESSING
+→ 상태만 반환, provider 호출 없음
+
+UNKNOWN
+→ 상태만 반환, provider 호출 없음
+
+NOT_FOUND
+→ NOT_FOUND만 반환, 새 분석 시작 금지
+
+identity/payload conflict
+→ conflict
+
+어떤 경우에도 이 조회 endpoint 자체가
+provider 분석을 시작해서는 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. DATA_ACCUMULATING 3건 의미 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP에 저장된 3건은:
+
+analysis_status = DATA_ACCUMULATING
+current_source_count = 1
+covered_metric_count = 0
+selected_metric_count = 0
+positive_signal_count = 0
+claim_registry = 0
+summary_claim_ids = 0
+
+입니다.
+
+ENGINE 코드 기준으로 DATA_ACCUMULATING이:
+
+A. 시간이 지나 추가 source가 쌓이면
+동일 report/month에서 정상적으로 다시 분석 가능한 중간 상태인지
+
+B. 해당 snapshot/request의 정상 최종 결과이며
+현재 근거로는 성장리포트를 생성하지 않는다는 의미인지
+
+C. 다른 의미인지
+
+정확히 확인하세요.
+
+특히:
+
+- 같은 request_id로 재실행해야 하는지
+- 새로운 snapshot/source 증가가 있어야 하는지
+- 새로운 request_id가 필요한 조건이 있는지
+- 기존 DATA_ACCUMULATING 결과를 COMPLETE 성장리포트로 바꾸는 것이 허용되는지
+- provider 재호출 없이 continuation 가능한지
+
+를 코드 근거로 보고하세요.
+
+실제 3건을 호출하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 COMPLETE replay / crash safety / UNKNOWN safety /
+paid-call identity / 429 RELEASED retry 등
+이미 PASS된 영역을 다시 감사하지 마세요.
+
+이번 질문은 오직:
+
+1. read-only recovery endpoint 존재 여부
+2. DATA_ACCUMULATING의 정확한 ENGINE 계약
+
+두 가지입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+READ-ONLY RECOVERY ENDPOINT EXISTS = YES/NO
+
+존재하면:
+METHOD =
+PATH =
+PROVIDER CALL POSSIBLE = YES/NO
+COMPLETE RESULT RECOVERY = PASS/HOLD
+PROCESSING STATUS LOOKUP = PASS/HOLD
+UNKNOWN STATUS LOOKUP = PASS/HOLD
+POOL/IDENTITY PROTECTION = PASS/HOLD
+
+없으면:
+MINIMAL ENGINE CHANGE REQUIRED = YES
+수정 예상 파일만 제시
+migration 필요 여부 제시
+
+DATA_ACCUMULATING SEMANTICS =
+A / B / C + 설명
+
+DATA_ACCUMULATING 3건의
+안전한 다음 처리 방식 =
+
+SEPTEMBER 17 UNKNOWN RECOVERY BLOCKER =
+RESOLVED / NOT RESOLVED
+
+여기서 정지하세요.
