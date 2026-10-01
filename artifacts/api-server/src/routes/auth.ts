@@ -6,8 +6,7 @@ import { eq, and, sql } from "drizzle-orm";
 import {
   normalizePhone as normPhoneV2,
   normalizeName as normNameV2,
-  tryMatchStudentV2,
-  linkParentToStudentV2,
+  linkVerifiedParentToRegisteredChildren,
   upsertParentV2Pending,
 } from "../lib/auto-link-v2.js";
 import { onParentApproved } from "../lib/parent-approval-hooks.js";
@@ -29,6 +28,13 @@ import {
   isSmsConfigured,
   getSmsConfigError,
 } from "../lib/sms/sendSms.js";
+import {
+  claimParentPhoneProof,
+  issueParentPhoneProof,
+  PARENT_PHONE_PROOF_PURPOSE,
+  isParentPhoneVerified,
+  verifyParentPhoneProof,
+} from "../lib/parent-phone-proof.js";
 import { logEvent } from "../lib/event-logger.js";
 import { insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
@@ -36,6 +42,12 @@ const router = Router();
 
 function err(res: any, status: number, message: string) {
   return res.status(status).json({ success: false, message, error: message });
+}
+
+async function parentPhoneVerifiedClaim(parentId: string, phone: unknown): Promise<{ parentPhoneVerified?: string }> {
+  const phoneNorm = normPhoneV2(typeof phone === "string" ? phone : "");
+  if (!parentId || !phoneNorm || !(await isParentPhoneVerified(parentId, phoneNorm))) return {};
+  return { parentPhoneVerified: phoneNorm };
 }
 
 // ── 관리자/선생님 로그인 ──────────────────────────────────────────────
@@ -500,6 +512,7 @@ router.post("/parent-login", loginLimiter, async (req, res) => {
       return err(res, 401, "등록되지 않은 아이디 또는 전화번호입니다.");
     }
     let matched: any = null;
+    let passwordVerified = false;
     // Apple 심사용 데모 학부모 계정 (demo_parent / Demo2024!) — 비밀번호 검증 우회
     if (accounts.length > 0 && accounts[0].login_id === "demo_parent" && pw === "Demo2024!") {
       matched = accounts[0];
@@ -517,7 +530,7 @@ router.post("/parent-login", loginLimiter, async (req, res) => {
     } else {
       for (const acc of accounts) {
         const valid = await comparePassword(pw, acc.pin_hash);
-        if (valid) { matched = acc; break; }
+        if (valid) { matched = acc; passwordVerified = true; break; }
       }
     }
     if (!matched) return err(res, 401, "비밀번호가 올바르지 않습니다.");
@@ -550,7 +563,15 @@ router.post("/parent-login", loginLimiter, async (req, res) => {
         matched.swimming_pool_id = resolvedPoolId;
       }
     }
-    const token = signToken({ userId: matched.id, role: "parent_account", poolId: matched.swimming_pool_id });
+    const phoneProofClaim = passwordVerified
+      ? await parentPhoneVerifiedClaim(matched.id, matched.phone)
+      : {};
+    const token = signToken({
+      userId: matched.id,
+      role: "parent_account",
+      poolId: matched.swimming_pool_id,
+      ...phoneProofClaim,
+    });
 
     // WP15.5-B/C Fix: LOGIN_SESSION_START → analytics_events (event_logs 사용 금지)
     // "parent-login 성공" = session proxy. 중복 방지는 rate-limit 수준 (로그인 자체가 트리거).
@@ -1271,7 +1292,13 @@ router.post("/unified-login", loginLimiter, async (req, res) => {
             .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, parentRow.swimming_pool_id)).limit(1);
           poolName = pool?.name ?? null;
         } catch {}
-        const token = signToken({ userId: parentRow.id, role: "parent_account", poolId: parentRow.swimming_pool_id });
+        const phoneProofClaim = await parentPhoneVerifiedClaim(parentRow.id, parentRow.phone);
+        const token = signToken({
+          userId: parentRow.id,
+          role: "parent_account",
+          poolId: parentRow.swimming_pool_id,
+          ...phoneProofClaim,
+        });
         available_accounts.push({
           kind: "parent",
           token,
@@ -1854,7 +1881,7 @@ router.post("/send-sms-code", passwordLimiter, async (req, res) => {
   const { phone, purpose } = req.body;
   const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "";
 
-  const validPurposes = ["pool_admin_signup", "parent_signup", "password_reset", "reset_password", "signup"];
+  const validPurposes = ["pool_admin_signup", "parent_signup", "password_reset", "reset_password", "signup", PARENT_PHONE_PROOF_PURPOSE];
   if (!validPurposes.includes(purpose)) {
     return err(res, 400, "invalid_purpose");
   }
@@ -1866,6 +1893,9 @@ router.post("/send-sms-code", passwordLimiter, async (req, res) => {
 
   // ── Apple 심사용 데모 번호 우회 (01000000000 → 고정 코드 000000) ──
   const DEMO_PHONE = "01000000000";
+  if (purpose === PARENT_PHONE_PROOF_PURPOSE && cleaned === DEMO_PHONE) {
+    return res.status(400).json({ success: false, error: "demo_phone_not_allowed", message: "데모 번호는 학부모 전화번호 소유 인증에 사용할 수 없습니다." });
+  }
   if (cleaned === DEMO_PHONE) {
     try {
       const demoCode = "000000";
@@ -1892,6 +1922,15 @@ router.post("/send-sms-code", passwordLimiter, async (req, res) => {
       success: false,
       error: "dev_provider_blocked",
       message: "운영 환경에서는 개발용 SMS provider를 사용할 수 없습니다.",
+    });
+  }
+
+  // A development/mock SMS code must never establish parent phone ownership.
+  if (purpose === PARENT_PHONE_PROOF_PURPOSE && provider === "dev") {
+    return res.status(503).json({
+      success: false,
+      error: "real_sms_required",
+      message: "학부모 전화번호 소유 인증에는 실제 SMS 발송이 필요합니다.",
     });
   }
 
@@ -1936,11 +1975,16 @@ router.post("/send-sms-code", passwordLimiter, async (req, res) => {
     const id        = randomUUID();
     const hash      = createHash("sha256").update(digits + id).digest("hex");
     const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
+    // Reuse the legacy plaintext-code column for an origin marker so a dev
+    // signup row cannot become proof-capable if SMS provider config later changes.
+    const signupOrigin = purpose === "signup" && provider !== null && provider !== "dev"
+      ? "real_sms"
+      : "";
 
     // ── phone_verifications 저장 (provider 무관 동일 구조) ───
     await superAdminDb.execute(sql`
       INSERT INTO phone_verifications (id, phone, code, code_hash, purpose, expires_at, attempt_count, request_ip)
-      VALUES (${id}, ${cleaned}, '', ${hash}, ${purpose}, ${expiresAt.toISOString()}, 0, ${ip})
+      VALUES (${id}, ${cleaned}, ${signupOrigin}, ${hash}, ${purpose}, ${expiresAt.toISOString()}, 0, ${ip})
     `);
 
     // ── provider 분기 발송 ────────────────────────────────────
@@ -1987,12 +2031,30 @@ router.post("/verify-sms-code", verifyLimiter, async (req, res) => {
     return res.status(400).json({ success: false, error: "missing_fields", message: "필수 항목이 누락되었습니다." });
   }
 
-  const cleaned = (phone as string).replace(/[-\s]/g, "");
-  const trimmed = (code as string).trim();
+  const cleaned = typeof phone === "string" ? phone.replace(/[-\s]/g, "") : "";
+  const trimmed = typeof code === "string" ? code.trim() : "";
+  const isParentProofPurpose = purpose === PARENT_PHONE_PROOF_PURPOSE;
+  const DEMO_PHONE = "01000000000";
+  if (isParentProofPurpose && (!/^01[016789]\d{7,8}$/.test(cleaned) || cleaned === DEMO_PHONE)) {
+    return res.status(400).json({ success: false, error: "invalid_phone", message: "올바른 휴대폰 번호를 입력해주세요." });
+  }
+  if (isParentProofPurpose && !/^\d{6}$/.test(trimmed)) {
+    return res.status(400).json({ success: false, error: "invalid_code", message: "6자리 인증번호를 입력해주세요." });
+  }
+  const proofCapablePurpose = isParentProofPurpose || purpose === "signup";
+  const otpProvider = proofCapablePurpose ? getActiveProvider() : null;
+  const smsConfigured = proofCapablePurpose && isSmsConfigured();
+  if (isParentProofPurpose && (otpProvider === "dev" || !smsConfigured)) {
+    return res.status(503).json({
+      success: false,
+      error: "real_sms_required",
+      message: "학부모 전화번호 소유 인증에는 실제 SMS 발송이 필요합니다.",
+    });
+  }
 
   try {
     const rows = (await superAdminDb.execute(sql`
-      SELECT id, code_hash, expires_at, is_used, attempt_count
+      SELECT id, code, code_hash, expires_at, is_used, attempt_count
       FROM phone_verifications
       WHERE phone = ${cleaned}
         AND purpose = ${purpose}
@@ -2031,13 +2093,39 @@ router.post("/verify-sms-code", verifyLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: "invalid_code", message: `인증번호가 올바르지 않습니다. (남은 시도: ${remaining}회)` });
     }
 
-    await superAdminDb.execute(sql`
-      UPDATE phone_verifications
-      SET is_used = true, verified_at = now()
-      WHERE id = ${rec.id}
-    `);
+    if (isParentProofPurpose) {
+      const consumed = await superAdminDb.execute(sql`
+        UPDATE phone_verifications
+        SET is_used = true, verified_at = now()
+        WHERE id = ${rec.id} AND is_used = false
+        RETURNING id
+      `);
+      if (!consumed.rows.length) {
+        return res.status(400).json({ success: false, error: "already_used", message: "이미 사용된 인증번호입니다." });
+      }
+    } else {
+      await superAdminDb.execute(sql`
+        UPDATE phone_verifications
+        SET is_used = true, verified_at = now()
+        WHERE id = ${rec.id}
+      `);
+    }
 
-    return res.json({ success: true, verified: true, message: "휴대폰 인증이 완료되었습니다." });
+    const canIssueParentProof =
+      (isParentProofPurpose || (purpose === "signup" && rec.code === "real_sms")) &&
+      otpProvider !== null &&
+      otpProvider !== "dev" &&
+      smsConfigured &&
+      cleaned !== DEMO_PHONE;
+    const phoneProof = canIssueParentProof
+      ? issueParentPhoneProof(cleaned.replace(/[^0-9]/g, ""), rec.id, purpose)
+      : undefined;
+    return res.json({
+      success: true,
+      verified: true,
+      message: "휴대폰 인증이 완료되었습니다.",
+      ...(phoneProof ? { phone_proof: phoneProof } : {}),
+    });
   } catch (e) {
     console.error("[verify-sms-code]", e);
     return err(res, 500, "서버 오류가 발생했습니다.");
@@ -2910,7 +2998,7 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
 // POST /auth/v2/parent-register
 // ══════════════════════════════════════════════════════════════════════
 router.post("/v2/parent-register", async (req, res) => {
-  const { parent_name, phone, password, pool_id, child_name, loginId, apple_id, kakao_id } = req.body;
+  const { parent_name, phone, password, pool_id, child_name, loginId, apple_id, kakao_id, phone_proof } = req.body;
 
   const name     = (parent_name || "").trim();
   const ph       = normPhoneV2(phone || "");
@@ -2932,6 +3020,14 @@ router.post("/v2/parent-register", async (req, res) => {
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
   if (!poolId)  return err(res, 400, "수영장을 선택해주세요.");
   if (!childRaw) return err(res, 400, "우리 아이 이름을 입력해주세요.");
+
+  if (!verifyParentPhoneProof(phone_proof, ph)) {
+    return res.status(403).json({
+      success: false,
+      error: "parent_phone_proof_required",
+      message: "학부모 가입을 위해 휴대폰 소유 인증을 완료해주세요.",
+    });
+  }
 
   const childNorm = normNameV2(childRaw);
 
@@ -2996,8 +3092,18 @@ router.post("/v2/parent-register", async (req, res) => {
     `)).rows as any[];
     if (!pool) return err(res, 404, "수영장을 찾을 수 없습니다.");
 
-    // 계정 생성
+    // Claim the verified OTP row before any account/relation/pending write.
     const parentId = `pa_v2_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    if (!(await claimParentPhoneProof(phone_proof, ph, parentId))) {
+      return res.status(403).json({
+        success: false,
+        error: "parent_phone_proof_invalid_or_used",
+        message: "휴대폰 인증 증명이 만료되었거나 이미 사용되었습니다. 다시 인증해주세요.",
+      });
+    }
+    const phoneProofClaim = await parentPhoneVerifiedClaim(parentId, ph);
+
+    // 계정 생성
     const pin_hash = await hashPassword(pw);
     createdParentId = parentId;  // 롤백 대상 등록
 
@@ -3011,35 +3117,17 @@ router.post("/v2/parent-register", async (req, res) => {
     `);
     console.log(`[v2-register] 신규 계정 생성 완료: parentId=${parentId}`);
 
-    // V2 매칭 시도 (3개 조건: pool_id + phone + child_name)
-    const { matched, studentId, studentName } = await tryMatchStudentV2(parentId, poolId, ph, childNorm);
-
     let status: "linked" | "waiting" = "waiting";
-
-    if (matched && studentId) {
-      const { success } = await linkParentToStudentV2(parentId, studentId, poolId);
-      if (success) {
-        status = "linked";
-        console.log(`[v2-register] ✓ 즉시 연결 성공: student="${studentName}"`);
-      }
+    const linkedStudents = await linkVerifiedParentToRegisteredChildren(parentId, poolId, ph);
+    if (linkedStudents.linkedCount > 0) {
+      status = "linked";
+      console.log(`[v2-register] ✓ 인증 전화번호 학생 연결: count=${linkedStudents.linkedCount}`);
     }
 
     if (status === "waiting") {
-      // 연결 실패 → pending 저장 (reason 포함)
-      const pendingReason = matched ? undefined : (await (async () => {
-        // 이름만으로 학생이 있는지 확인해서 reason 결정
-        const nameOnlyRows = await db.execute(sql`
-          SELECT id FROM students
-          WHERE swimming_pool_id = ${poolId}
-            AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNorm}
-            AND status NOT IN ('withdrawn','archived','deleted')
-          LIMIT 1
-        `);
-        return nameOnlyRows.rows.length > 0 ? "phone_mismatch" : "name_mismatch";
-      })());
-      // §5 원자성: pending 저장 실패 시 아래 catch에서 계정 롤백됨
-      await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph, pendingReason);
-      console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId} reason=${pendingReason}`);
+      // No phone-matched registered student: preserve the existing admin-pending flow.
+      await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph);
+      console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId}`);
       // 수영장 관리자에게 push 알림 (실패해도 가입은 성공)
       try {
         const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
@@ -3056,14 +3144,20 @@ router.post("/v2/parent-register", async (req, res) => {
     // 계정이 성공적으로 완성됐으므로 롤백 불필요
     createdParentId = null;
 
-    const token = signToken({ userId: parentId, role: "parent_account", poolId });
+    const token = signToken({
+      userId: parentId,
+      role: "parent_account",
+      poolId,
+      ...phoneProofClaim,
+    });
     console.log(`[v2-register] 완료: status=${status} parentId=${parentId}`);
 
     return res.status(201).json({
       token,
       status,
       pool_name: pool.name,
-      matched_student: matched ? { id: studentId, name: studentName } : null,
+      matched_student: linkedStudents.students[0] ?? null,
+      matched_students: linkedStudents.students,
       parent: { id: parentId, name, phone: ph, swimming_pool_id: poolId },
     });
   } catch (e: any) {

@@ -100,3 +100,4 @@
 - [★ students/student_class_history 컬럼명 원칙](wp2-production-bugfix.md) — students.class_group_id (current_class_id 아님); sch.class_group_id (class_id 아님); is_deleted 없음
 - [platform-banners POST 버그 패턴](platform-banners-post-bugs.md) — execute(sql) not iterable + req.user.id→userId + target_pool_id 컬럼 없음; ORM insert로 교체
 - [StoreKit 신규 상품 NOT FOUND](storekit-product-missing.md) — com.swimnote.*.monthly ASC 미승인→RC SDK offering 전체 제거; 진단버튼 유지 중; legacy solo_30/center_200는 정상
+- [학부모 전화 자동승인 경계](parent-phone-approval-boundary.md) — 보호자 관계만 변경; 학생 승인과 분리하고 인증 이력과 요청 세션의 신뢰도를 구분.

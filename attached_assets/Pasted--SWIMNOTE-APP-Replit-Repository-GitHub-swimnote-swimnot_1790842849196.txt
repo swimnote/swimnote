@@ -1,0 +1,475 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[학부모 연결 — 전화번호 기반 자동승인 최소 수정]
+
+목적:
+학부모 ↔ 학생 연결의 자동승인 조건만 수정한다.
+
+성장리포트 작업은 HOLD 상태 유지.
+AI ENGINE 작업 금지.
+관리자 승인관리 UI/PC/다른 기능 변경 금지.
+
+확정 정책:
+
+1. 학부모가 SMS/OTP로 실제 소유 인증한 전화번호와
+2. 선택한 수영장의 students.parent_phone1~4 중 하나가 일치하면
+
+학생 이름 입력값과 관계없이 자동승인한다.
+
+동일 수영장에 같은 보호자 전화번호로 등록된 학생이 여러 명이면
+해당 학생들을 모두 같은 학부모에게 연결한다.
+
+학부모에게 표시되는 학생 이름은
+가입자가 입력한 child_name이 아니라
+기존 students.name을 그대로 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 보안 전제부터 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 조사에서 확인된 문제:
+
+POST /api/auth/v2/parent-register가
+제출된 phone이 실제 SMS 인증을 완료한 번호인지
+서버에서 강제하지 않는다.
+
+따라서 이름 조건을 제거하기 전에
+반드시 서버에서 전화번호 소유 인증을 강제한다.
+
+기존:
+
+POST /api/auth/send-sms-code
+POST /api/auth/verify-sms-code
+
+및 기존 phone_verifications 구조를 최대한 재사용한다.
+
+요구사항:
+
+SMS 인증 성공
+→ 서버가 검증 가능한 짧은 수명의 proof 발급
+→ proof는 인증된 전화번호에 귀속
+→ parent-register에서 proof 검증
+→ proof 전화번호와 가입 phone이 동일한지 검증
+→ 성공한 경우에만 phone-only auto-link 허용
+
+클라이언트의 smsState === verified만 신뢰하면 안 된다.
+
+임의의 phone을 parent-register body에 넣는 직접 API 요청으로
+자동연결할 수 없어야 한다.
+
+새로운 대규모 인증 시스템을 만들지 않는다.
+현재 OTP 구조를 이용한 최소 변경으로 구현한다.
+
+필요한 경우 signup.tsx는
+인증 proof를 최종 가입 요청에 전달하는 최소 변경만 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. V2 자동승인 matching 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 대상:
+
+artifacts/api-server/src/lib/auto-link-v2.ts
+
+현재 tryMatchStudentV2():
+
+학생 이름 exact match
+→ 전화번호 match
+
+순서를 자동승인 기준에서 제거한다.
+
+새 기준:
+
+선택된 pool
++
+서버에서 인증 완료된 학부모 전화번호
++
+students.parent_phone / parent_phone2 / parent_phone3 / parent_phone4
+
+일치.
+
+childName은 자동승인 matching key로 사용하지 않는다.
+
+이름:
+정확
+오타
+여러 자녀 이름을 한 문자열로 입력
+완전히 다른 문자열
+
+어느 경우든 전화번호가 일치하면
+이름 때문에 pending으로 보내지 않는다.
+
+전화번호가 일치하지 않으면
+이름이 정확해도 자동승인 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 형제/자매 자동연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 pool에서 동일한 인증 전화번호가 등록된
+모든 해당 학생을 찾는다.
+
+예:
+
+박하윤 / 01011112222
+박유하 / 01011112222
+
+학부모 인증번호:
+01011112222
+
+→ 박하윤 연결
+→ 박유하 연결
+
+두 학생 모두 자동승인.
+
+기존:
+
+linkApprovedParentToRegisteredChildren()
+linkParentToStudentV2()
+
+구조를 재사용하되 중요한 제한:
+
+기존 helper가
+unregistered / pending_approval 학생을 active로 변경하는
+부수효과가 조사에서 확인됐다.
+
+이번 수정에서는
+“학부모 연결 조건 변경” 이외의
+학생 등록/승인 상태를 임의로 변경하면 안 된다.
+
+필요하다면 helper 전체를 그대로 호출하지 말고
+기존 approved/정상 학생에 대한 관계 생성 부분만
+최소 재사용/분리한다.
+
+학생 status 변경은 이번 작업 범위 밖이다.
+
+이미 같은 parent/student 관계가 approved라면 유지한다.
+중복 관계를 만들지 않는다.
+
+아직 연결되지 않은 동일 전화번호 학생만 추가한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. POOL 경계 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+전화번호 검색은 반드시 현재 선택한:
+
+swimming_pool_id
+
+내에서만 수행한다.
+
+같은 전화번호가 다른 수영장에도 존재한다고 해서
+다른 pool 학생까지 연결하면 안 된다.
+
+구형:
+
+autoLinkParentToStudents()
+parent-link-scheduler
+
+등의 pool 제한 없는 검색 로직을
+이번 phone-only 연결에 재사용하지 않는다.
+
+이번 작업에서 legacy 시스템 전체를 개편하지 않는다.
+
+새 V2 자동승인 경로에서만
+명확한 pool boundary를 보장한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 학생 이름 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+UI를 변경하지 않는다.
+
+현재:
+
+GET /api/parent/students
+→ approved parent_students
+→ students
+→ students.name
+
+경로를 그대로 사용한다.
+
+따라서 학부모가 가입할 때:
+
+"박하윤 박유하"
+"박하윤"
+"박하욘"
+"아무이름"
+
+등 무엇을 입력했더라도
+
+연결 성공 후에는:
+
+박하윤
+박유하
+
+처럼 수영장 DB의 students.name이 표시돼야 한다.
+
+child_name_raw는 표시 Source of Truth로 사용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 가입 성공 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /api/auth/v2/parent-register
+
+성공 시:
+
+인증 phone 기준으로 같은 pool의 대상 학생들을 조회
+→ 모두 정상 연결
+→ 승인 관계 생성
+→ 불필요한 pending 생성 금지
+
+전화번호에 해당하는 학생이 0명이면
+기존 pending/승인관리 흐름을 유지한다.
+
+전화번호가 일치하지 않는데
+이름만 일치한다고 자동승인하면 안 된다.
+
+이번 수정 때문에 기존 관리자 승인관리 기능을
+재설계하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 로그인 학부모의 자녀 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /api/parent/link-child 등
+현재 V2 학부모가 추가 자녀를 연결하는 정상 경로도 확인한다.
+
+단:
+
+parent_accounts.phone이
+실제로 인증된 전화번호임이 보장되는 계정에서만
+phone-only 자동연결을 허용한다.
+
+현재 구조상 인증 여부를 안전하게 증명할 수 없는
+legacy 계정까지 무조건 자동승인 범위를 넓히지 않는다.
+
+그 경우 기존 승인대기 흐름을 유지한다.
+
+구형 가입/소셜 로그인/Apple/Kakao 인증 전체를
+이번 작업에서 개편하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 필수 회귀 시나리오
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+DB:
+박하윤 / 01011112222
+
+OTP 인증:
+01011112222
+
+입력 이름:
+박하윤
+
+결과:
+자동승인
+표시 박하윤
+
+CASE B
+동일 DB/OTP
+입력 이름:
+박하욘
+
+결과:
+자동승인
+표시 박하윤
+
+CASE C
+DB:
+박하윤 / 01011112222
+박유하 / 01011112222
+
+OTP:
+01011112222
+
+입력:
+박하윤 박유하
+
+결과:
+두 학생 모두 자동승인
+표시 박하윤 / 박유하
+
+CASE D
+위 형제 데이터
+입력:
+박하윤
+
+결과:
+입력 이름과 관계없이 두 학생 모두 연결
+
+CASE E
+DB phone:
+01011112222
+
+OTP:
+01099998888
+
+이름:
+박하윤
+
+결과:
+자동승인 금지
+
+CASE F
+DB phone과 OTP 일치
+입력 이름 완전히 다름
+
+결과:
+자동승인
+표시 students.name
+
+CASE G
+parent-register에
+OTP 인증 없이 임의 phone 직접 제출
+
+결과:
+자동승인 절대 금지
+
+CASE H
+박하윤은 이미 approved
+박유하는 미연결
+둘 다 동일 phone
+
+결과:
+박하윤 관계 유지
+박유하만 추가
+중복 관계 없음
+
+CASE I
+다른 pool에 동일 phone 학생 존재
+
+결과:
+현재 선택 pool 학생만 연결
+다른 pool 관계 생성 0
+
+CASE J
+전화번호 일치 학생 없음
+
+결과:
+기존 승인대기 흐름 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 변경 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 최소 파일만 수정한다.
+
+우선 예상 범위:
+
+artifacts/api-server/src/lib/auto-link-v2.ts
+artifacts/api-server/src/routes/auth.ts
+필요 시 artifacts/swim-app/app/(auth)/signup.tsx
+
+parent.ts는 실제 필요한 경로만 최소 수정.
+
+금지:
+
+관리자 승인관리 UI 변경
+PC 변경
+학생 등록 UI 변경
+학부모 UI 디자인 변경
+성장리포트 변경
+AI ENGINE 변경
+회원관리 전반 리팩터링
+소셜 로그인 전체 개편
+Apple/Kakao 전체 개편
+parent-link scheduler 개편
+DB migration — 기존 구조로 가능하면 만들지 말 것
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 검증 후 Production 반영
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 수행한다.
+
+전체 프로젝트 대규모 회귀 금지.
+
+CASE A~J를 반드시 검증한다.
+
+특히:
+
+PHONE OWNERSHIP SECURITY
+POOL ISOLATION
+MULTI-CHILD
+DUPLICATE RELATION PREVENTION
+REGISTERED STUDENT NAME DISPLAY
+
+를 확인한다.
+
+전부 PASS하면:
+
+1. commit
+2. GitHub main 정상 push
+3. Production API 배포
+4. JS/TS 모바일 변경이 필요한 경우에만
+   iOS + Android production-v2 OTA 동시 배포
+
+Native 변경이 아니면 새 store binary 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Production 배포 후 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서:
+
+API health
+deployed SHA
+OTP proof 검증
+phone-only matching
+pool boundary
+
+확인.
+
+실제 사용자 관계를 임의로 생성하지 않는다.
+
+관리자 승인관리 기존 목록이 정상 조회되는지도
+읽기 전용으로 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+- 변경 파일
+- commit SHA
+- OTP proof 구현 방식
+- phone ownership 서버 검증 방식
+- 이름 조건 제거 위치
+- 형제 검색/연결 방식
+- 학생 status 부수효과 차단 방식
+- pool isolation
+- duplicate 방지
+- students.name 표시 유지
+- CASE A~J 결과
+- DB migration 여부
+- API Production SHA
+- OTA 여부 및 필요했다면 iOS/Android Update ID
+- 기존 관리자 승인관리 영향 없음
+- 성장리포트 변경 없음
+- ENGINE 변경 없음
+
+최종 판정:
+
+PHONE-ONLY AUTO APPROVAL: PASS/HOLD/FAIL
+PHONE OWNERSHIP SECURITY: PASS/HOLD/FAIL
+MULTI-CHILD AUTO LINK: PASS/HOLD/FAIL
+POOL ISOLATION: PASS/HOLD/FAIL
+REGISTERED STUDENT NAME DISPLAY: PASS/HOLD/FAIL
+EXISTING APPROVAL FLOW PRESERVED: PASS/HOLD/FAIL
+PRODUCTION DEPLOYMENT: PASS/HOLD/FAIL
+
+전부 PASS일 때만:
+
+“SMS 인증된 학부모 전화번호가
+선택 수영장에 등록된 보호자 전화번호와 일치하면,
+학부모가 입력한 학생 이름과 관계없이
+해당 전화번호의 등록 학생들이 자동승인되고,
+학부모에게는 수영장 DB의 실제 학생 이름으로 표시된다.”
+
+라고 완료 보고한다.

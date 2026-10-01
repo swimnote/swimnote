@@ -8,7 +8,8 @@ import { hashPassword, comparePassword } from "../lib/auth.js";
 import { sendPushToUser } from "../lib/push-service.js";
 import { logChange } from "../utils/change-logger.js";
 import { logEvent } from "../lib/event-logger.js";
-import { getParentStatusV2, upsertParentV2Pending, tryMatchStudentV2 as tryAutoLinkV2, linkParentToStudentV2 as linkParentToStudentV2Import, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
+import { getParentStatusV2, upsertParentV2Pending, linkParentToStudentV2 as linkParentToStudentV2Import, linkVerifiedParentToRegisteredChildren, normalizePhone as normPhoneV2, normalizeName as normNameV2 } from "../lib/auto-link-v2.js";
+import { isParentPhoneVerified } from "../lib/parent-phone-proof.js";
 import { canStudentAccessDiary } from "../lib/diary-access-guard.js";
 
 const router = Router();
@@ -1986,14 +1987,26 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       WHERE id = ${parentId}
     `);
 
-    // V2 매칭 시도 (이름 + 전화번호 동시 확인)
-    const { matched, studentId, studentName, reason } = await tryAutoLinkV2(parentId, swimming_pool_id, parentPhone, nameNorm);
-
-    if (matched && studentId) {
-      // 자동 승인
-      const linkResult = await linkParentToStudentV2Import(parentId, studentId, swimming_pool_id);
-      if (linkResult.success) {
-        return res.json({ success: true, status: "linked", message: "자녀가 연결되었습니다.", student: { id: studentId, name: studentName } });
+    // Name matching is never sufficient for this V2 route. Only a durable
+    // phone proof bound to the existing account's current pool and phone can
+    // authorize phone-only relation linking.
+    const verifiedCurrentPool =
+      paCheck?.swimming_pool_id === swimming_pool_id &&
+      !!parentPhone &&
+      (req.user as any)?.parentPhoneVerified === parentPhone &&
+      await isParentPhoneVerified(parentId, parentPhone);
+    if (verifiedCurrentPool) {
+      const linkResult = await linkVerifiedParentToRegisteredChildren(
+        parentId, swimming_pool_id, parentPhone
+      );
+      if (linkResult.linkedCount > 0) {
+        return res.json({
+          success: true,
+          status: "linked",
+          message: "자녀가 연결되었습니다.",
+          student: linkResult.students[0],
+          students: linkResult.students,
+        });
       }
     }
 
@@ -2006,15 +2019,15 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       LIMIT 5
     `)).rows as any[];
 
-    if (foundRows.length === 0) {
-      // 이름조차 없으면 에러 반환
-      return res.json({ success: false, status: "not_found", message: "수영장 회원 목록에 해당 이름의 학생이 없습니다. 관리자에게 이름 등록을 요청하세요." });
-    }
-
-    // 전화번호 불일치 → pending 저장
+    // No exact name match is also an approval request, not an early exit.
+    // Unverified parents remain pending even when the submitted name matches.
     const pendingStudentId = foundRows.length === 1 ? foundRows[0].id : null;
-    const pendingStudentName = foundRows.length === 1 ? foundRows[0].name : foundRows[0].name;
-    const pendingReason = foundRows.length >= 2 ? "duplicate_name" : "phone_mismatch";
+    const pendingStudentName = foundRows[0]?.name ?? nameRaw;
+    const pendingReason = foundRows.length === 0
+      ? "name_mismatch"
+      : foundRows.length >= 2
+        ? "duplicate_name"
+        : "phone_mismatch";
 
     await upsertParentV2Pending(parentId, swimming_pool_id, nameRaw, nameNorm, parentPhone, pendingReason, pendingStudentId ?? undefined);
 
@@ -2037,7 +2050,9 @@ router.post("/link-child", requireAuth, requireParent, async (req: AuthRequest, 
       pending_reason: pendingReason,
       message: pendingReason === "duplicate_name"
         ? "같은 이름의 학생이 여러 명입니다. 관리자가 확인 후 승인합니다."
-        : "등록된 보호자 전화번호와 일치하지 않습니다. 관리자가 확인 후 승인합니다.",
+        : pendingReason === "name_mismatch"
+          ? "학생 이름과 일치하는 등록 정보가 없습니다. 관리자가 확인 후 승인합니다."
+          : "등록된 보호자 전화번호와 일치하지 않습니다. 관리자가 확인 후 승인합니다.",
       student: { name: pendingStudentName },
     });
   } catch (e) { console.error(e); res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." }); }

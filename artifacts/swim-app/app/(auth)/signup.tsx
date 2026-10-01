@@ -53,6 +53,8 @@ export default function SignupScreen() {
     appleId?: string; appleEmail?: string; appleName?: string;
     kakaoId?: string; kakaoPhone?: string; kakaoName?: string;
     kakaoPhoneMissing?: string;  // "1" = 카카오 전화번호 scope 미동의 → 직접 입력 안내
+    parentIntent?: string; role?: string; phone?: string; parentName?: string; name?: string;
+    childName?: string; loginId?: string;
   }>();
   const appleId    = params.appleId    || "";
   const appleEmail = params.appleEmail || "";
@@ -60,41 +62,46 @@ export default function SignupScreen() {
   const kakaoId    = params.kakaoId    || "";
   const kakaoPhone = params.kakaoPhone || "";
   const kakaoName  = params.kakaoName  || "";
+  const parentIntent = params.parentIntent === "1";
+  const phonePrefill = params.phone || params.kakaoPhone || "";
   // phone_missing=true이면 카카오 scope 미동의 → Step2에서 "카카오 전화번호를 확인할 수 없어 직접 입력합니다" 안내
   const kakaoPhoneMissing = params.kakaoPhoneMissing === "1";
 
   const isSocial       = !!(appleId || kakaoId);
-  const socialPhone    = kakaoPhone || "";              // 카카오는 전화번호 제공, 애플은 없음
-  const hasSocialPhone = isSocial && !!socialPhone;    // 전화 이미 알면 Step2 건너뜀
+  const socialPhone    = phonePrefill;                   // 소셜/부모가입 전화번호 미리 채움
+  const hasSocialPhone = isSocial && !!kakaoPhone;     // 기존 카카오 전화번호 경로만 Step2 건너뜀
   const socialName     = appleName || kakaoName || "";  // 이름 미리채움용
 
   // 소셜: 전화있으면 Step3, 전화없으면 Step2, 일반은 Step1
-  const initialStep: Step = isSocial ? (hasSocialPhone ? 3 : 2) : 1;
+  const initialStep: Step = parentIntent
+    ? (isSocial ? 2 : 1)
+    : isSocial ? (hasSocialPhone ? 3 : 2) : 1;
 
   const [step, setStep] = useState<Step>(initialStep);
 
   /* ── Step 1 ── */
-  const [loginId, setLoginId] = useState("");
+  const [loginId, setLoginId] = useState(params.loginId || "");
   const [pw, setPw]           = useState("");
   const [pwc, setPwc]         = useState("");
   const [showPw, setShowPw]   = useState(false);
   const [showPwc, setShowPwc] = useState(false);
 
   /* ── Step 2 ── */
-  const [phone, setPhone]       = useState(socialPhone);  // 카카오 전화번호 미리 채움
-  const [smsState, setSmsState] = useState<SmsState>(hasSocialPhone ? "verified" : "idle");
+  const [phone, setPhone]       = useState(socialPhone);  // 소셜/부모가입 전화번호 미리 채움
+  const [smsState, setSmsState] = useState<SmsState>(hasSocialPhone && !parentIntent ? "verified" : "idle");
   const [smsCode, setSmsCode]   = useState("");
   const [smsError, setSmsError] = useState("");
+  const [parentPhoneProof, setParentPhoneProof] = useState<string | null>(null);
   const [timer, setTimer]       = useState(0);
   const [devCode, setDevCode]   = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /* ── Step 3 ── */
-  const [role, setRole] = useState<Role | null>(null);
+  const [role, setRole] = useState<Role | null>(parentIntent || params.role === "parent" ? "parent" : null);
 
   /* ── Step 4 ── */
-  const [name, setName]             = useState(socialName);  // 소셜 이름 미리채움
-  const [childName, setChildName]   = useState("");   // V2: 학부모 자녀 이름
+  const [name, setName]             = useState(params.parentName || params.name || socialName);  // 소셜/부모가입 이름 미리채움
+  const [childName, setChildName]   = useState(params.childName || "");   // V2: 학부모 자녀 이름
   const [poolSearch, setPoolSearch] = useState("");
   const [pools, setPools]           = useState<Pool[]>([]);
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
@@ -144,12 +151,13 @@ export default function SignupScreen() {
   function fmtTimer(s: number) { return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
 
   async function handleSendSms() {
-    setSmsError(""); setDevCode(null);
+    setSmsError(""); setDevCode(null); setParentPhoneProof(null);
     const cleaned = phone.replace(/[-\s]/g, "");
     if (!/^01[016789]\d{7,8}$/.test(cleaned)) { setSmsError("올바른 휴대폰 번호를 입력해주세요."); return; }
+    const purpose = parentIntent || role === "parent" ? "parent_signup_ownership_v1" : "signup";
     setSmsState("sending");
     try {
-      const res  = await fetch(`${API_BASE}/auth/send-sms-code`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: cleaned, purpose: "signup" }) });
+      const res  = await fetch(`${API_BASE}/auth/send-sms-code`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: cleaned, purpose }) });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.message || "발송에 실패했습니다.");
       setSmsState("sent"); setSmsCode(""); startTimer(180);
@@ -163,10 +171,17 @@ export default function SignupScreen() {
     setSmsState("verifying");
     try {
       const cleaned = phone.replace(/[-\s]/g, "");
-      const res  = await fetch(`${API_BASE}/auth/verify-sms-code`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose: "signup" }) });
+      const purpose = parentIntent || role === "parent" ? "parent_signup_ownership_v1" : "signup";
+      const res  = await fetch(`${API_BASE}/auth/verify-sms-code`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: cleaned, code: smsCode.trim(), purpose }) });
       const data = await safeJson(res);
       if (!res.ok) { setSmsState("sent"); setSmsError(data.message || "인증번호가 올바르지 않습니다."); return; }
+      if (purpose === "parent_signup_ownership_v1" && (typeof data.phone_proof !== "string" || !data.phone_proof)) {
+        setSmsState("sent");
+        setSmsError("휴대폰 소유 인증 증명을 발급할 수 없습니다. 실제 SMS 인증을 다시 진행해주세요.");
+        return;
+      }
       if (timerRef.current) clearInterval(timerRef.current);
+      setParentPhoneProof(typeof data.phone_proof === "string" ? data.phone_proof : null);
       setSmsState("verified");
     } catch { setSmsState("sent"); setSmsError("인증에 실패했습니다. 다시 시도해주세요."); }
   }
@@ -278,6 +293,14 @@ export default function SignupScreen() {
     }
     if (step === 3) {
       const e = validateStep3(); if (e) { setError(e); return; }
+      if (role === "parent" && !parentPhoneProof) {
+        // Social signup can skip Step 2 when Kakao supplied a phone.
+        // Require a dedicated OTP before letting parent signup proceed.
+        setSmsState("idle");
+        setSmsCode("");
+        setStep(2);
+        return;
+      }
       setStep(4); return;
     }
   }
@@ -315,6 +338,13 @@ export default function SignupScreen() {
       // V2: 가입 시 수영장 + 자녀 이름 필수
       if (!selectedPool) { setError("검색 결과에서 수영장을 선택해 주세요."); return; }
       if (!childName.trim()) { setError("우리 아이 이름을 입력해주세요."); return; }
+      if (!parentPhoneProof) {
+        setError("학부모 가입을 위해 휴대폰 소유 인증을 완료해주세요.");
+        setSmsState("idle");
+        setSmsCode("");
+        setStep(2);
+        return;
+      }
     }
 
     setLoading(true);
@@ -420,10 +450,26 @@ export default function SignupScreen() {
             password: effectivePw,
             pool_id: selectedPool!.id,
             child_name: childName.trim(),
+            phone_proof: parentPhoneProof,
             ...socialBody,
           }),
         });
         data = await safeJson(res);
+
+        if (
+          !res.ok &&
+          ["parent_phone_proof_required", "parent_phone_proof_invalid_or_used"].includes(
+            data?.error_code || data?.error,
+          )
+        ) {
+          setParentPhoneProof(null);
+          setSmsState("idle");
+          setSmsCode("");
+          setSmsError("휴대폰 인증이 만료되었거나 이미 사용되었습니다. 다시 인증해주세요.");
+          setError("");
+          setStep(2);
+          return;
+        }
 
         // ── KAKAO_MIGRATION_REQUIRED (1.6.3 임시 전환 flow) ──────────────
         if (!res.ok && data?.error_code === "KAKAO_MIGRATION_REQUIRED") {
@@ -628,7 +674,12 @@ export default function SignupScreen() {
                 placeholder="010-0000-0000"
                 placeholderTextColor={C.textMuted}
                 value={phone}
-                onChangeText={v => setPhone(v.replace(/[^0-9\-]/g, ""))}
+                onChangeText={v => {
+                  setPhone(v.replace(/[^0-9\-]/g, ""));
+                  setParentPhoneProof(null);
+                  setSmsState("idle");
+                  setSmsCode("");
+                }}
                 keyboardType="number-pad"
                 autoCorrect={false}
                 autoCapitalize="none"

@@ -35,6 +35,30 @@ export default function ParentRegisterScreen() {
   }>();
 
   const isSocialSignup = !!(prefillPhone && (kakaoId || appleId));
+  const parentSignupHandoffActive = useRef(true);
+  const signupRedirectIssued = useRef(false);
+
+  // Parent signup must use the unified credential + OTP flow. Keep the
+  // social identity and phone when handing off from legacy entry points.
+  function redirectToUnifiedSignup() {
+    if (signupRedirectIssued.current) return;
+    signupRedirectIssued.current = true;
+    router.replace({
+      pathname: "/(auth)/signup",
+      params: {
+        parentIntent: "1",
+        role: "parent",
+        ...(prefillPhone ? { phone: prefillPhone } : {}),
+        ...(kakaoId ? { kakaoId } : {}),
+        ...(appleId ? { appleId } : {}),
+        ...(kakaoId && prefillPhone ? { kakaoPhone: prefillPhone } : {}),
+      },
+    } as any);
+  }
+
+  useEffect(() => {
+    redirectToUnifiedSignup();
+  }, [prefillPhone, kakaoId, appleId]);
 
   const [parentName, setParentName] = useState("");
   const [phone, setPhone]           = useState(prefillPhone || "");
@@ -129,6 +153,10 @@ export default function ParentRegisterScreen() {
 
   // ── 제출 ───────────────────────────────────────────────────────────────
   async function handleRegister() {
+    if (parentSignupHandoffActive.current) {
+      redirectToUnifiedSignup();
+      return;
+    }
     setError("");
 
     if (!parentName.trim())  { setError("이름을 입력해주세요."); return; }

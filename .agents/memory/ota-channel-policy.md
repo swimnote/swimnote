@@ -43,7 +43,7 @@ Android OTA = 별도 명시 지시 시에만, 금지가 기본.
 
 ## runtimeVersion
 
-현재 앱 `runtimeVersion: 2.1.0` (app.json). `ota-publish-v2.sh`의 REQUIRED_RUNTIME=`"2.1.0"` 확인.
+runtimeVersion은 매번 현재 app.json과 설치 빌드 설정에서 확인한다. 오래된 메모의 버전을 그대로 사용하지 않는다. 업로드 wrapper의 REQUIRED_RUNTIME도 현재 설정과 비교한다.
 
 ## OTA 모달 동작
 

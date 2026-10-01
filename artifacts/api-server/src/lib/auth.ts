@@ -37,6 +37,7 @@ export type JwtPayload = {
   permissions?: PlatformPermissions;
   tv?: number;
   withdrawing?: boolean; // 90일 유예 중인 계정 (읽기 전용 모드)
+  parentPhoneVerified?: string;
 };
 
 export const TOKEN_VERSION = 1;

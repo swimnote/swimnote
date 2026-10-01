@@ -18,6 +18,7 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { onParentApproved } from "./parent-approval-hooks.js";
+import { isParentPhoneVerified } from "./parent-phone-proof.js";
 
 export function normalizePhone(phone: string): string {
   return (phone || "").replace(/[^0-9]/g, "");
@@ -255,6 +256,127 @@ export async function linkApprovedParentToRegisteredChildren(
 
   console.log(`[sibling-link] 결과: parent=${parentId} pool=${poolId} total=${studentIds.length} new=${newCount}`);
   return { linkedCount: studentIds.length, newCount, studentIds };
+}
+
+/**
+ * Secure V2 phone-only relation linking for an existing parent account.
+ *
+ * Unlike the legacy sibling helper above, this deliberately only creates or
+ * approves parent_students relations. It never changes a student's status or
+ * parent_user_id, and it never touches a relation already approved.
+ */
+export async function linkVerifiedParentToRegisteredChildren(
+  parentId: string,
+  poolId: string,
+  phoneNorm: string
+): Promise<{
+  linkedCount: number;
+  newCount: number;
+  studentIds: string[];
+  students: Array<{ id: string; name: string }>;
+}> {
+  const normalizedPhone = normalizePhone(phoneNorm);
+  const emptyResult = {
+    linkedCount: 0,
+    newCount: 0,
+    studentIds: [] as string[],
+    students: [] as Array<{ id: string; name: string }>,
+  };
+  if (!normalizedPhone) return emptyResult;
+
+  // A legacy parent_accounts.phone value is not proof of ownership.
+  if (!(await isParentPhoneVerified(parentId, normalizedPhone))) return emptyResult;
+
+  return db.transaction(async (tx) => {
+    // Lock the account while checking the binding so the pool/phone cannot
+    // change between validation and relation creation.
+    const [parent] = (await tx.execute(sql`
+      SELECT id, swimming_pool_id, phone
+      FROM parent_accounts
+      WHERE id = ${parentId}
+      FOR UPDATE
+    `)).rows as any[];
+    if (
+      !parent ||
+      parent.swimming_pool_id !== poolId ||
+      normalizePhone(parent.phone || "") !== normalizedPhone
+    ) {
+      return emptyResult;
+    }
+
+    // active and pending_parent_link are normal registered-member states in
+    // the student roster. The text column has no schema enum, so constrain
+    // eligible states explicitly and exclude soft-deleted/withdrawn records.
+    const students = (await tx.execute(sql`
+      SELECT id, name
+      FROM students
+      WHERE swimming_pool_id = ${poolId}
+        AND status IN ('active', 'pending_parent_link')
+        AND status NOT IN ('withdrawn', 'archived', 'deleted', 'unregistered', 'pending_approval')
+        AND deleted_at IS NULL
+        AND withdrawn_at IS NULL
+        AND (
+          REGEXP_REPLACE(COALESCE(parent_phone,''),  '[^0-9]', '', 'g') = ${normalizedPhone}
+          OR REGEXP_REPLACE(COALESCE(parent_phone2,''), '[^0-9]', '', 'g') = ${normalizedPhone}
+          OR REGEXP_REPLACE(COALESCE(parent_phone3,''), '[^0-9]', '', 'g') = ${normalizedPhone}
+          OR REGEXP_REPLACE(COALESCE(parent_phone4,''), '[^0-9]', '', 'g') = ${normalizedPhone}
+        )
+    `)).rows as Array<{ id: string; name: string }>;
+    if (students.length === 0) return emptyResult;
+
+    const studentIds = students.map((student) => student.id);
+    const existingLinks = (await tx.execute(sql`
+      SELECT student_id, status
+      FROM parent_students
+      WHERE parent_id = ${parentId}
+        AND student_id IN (${sql.join(
+          studentIds.map((studentId) => sql`${studentId}`),
+          sql`, `
+        )})
+    `)).rows as Array<{ student_id: string; status: string }>;
+    const linkByStudentId = new Map(existingLinks.map((link) => [link.student_id, link.status]));
+
+    let newCount = 0;
+    for (const student of students) {
+      // Leave approved relation rows byte-for-byte unchanged.
+      if (linkByStudentId.get(student.id) === "approved") continue;
+
+      const relationId = `ps_v2_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      const inserted = await tx.execute(sql`
+        INSERT INTO parent_students
+          (id, parent_id, student_id, swimming_pool_id, status, approved_at, created_at)
+        VALUES
+          (${relationId}, ${parentId}, ${student.id}, ${poolId}, 'approved', NOW(), NOW())
+        ON CONFLICT (parent_id, student_id) DO UPDATE SET
+          swimming_pool_id = EXCLUDED.swimming_pool_id,
+          status = 'approved',
+          approved_at = NOW(),
+          rejection_reason = NULL
+        WHERE parent_students.status <> 'approved'
+        RETURNING student_id
+      `);
+      if ((inserted.rows as any[]).length > 0) newCount++;
+    }
+
+    // Phone-only linking supersedes any same-pool name-based pending request;
+    // do not leave a stale request behind because its child-name key differed.
+    await tx.execute(sql`
+      UPDATE parent_v2_pending SET
+        status = 'matched',
+        matched_student_id = ${studentIds[0]},
+        matched_at = NOW()
+      WHERE parent_id = ${parentId}
+        AND pool_id = ${poolId}
+        AND status = 'pending'
+    `);
+
+    return {
+      linkedCount: students.length,
+      newCount,
+      studentIds,
+      students: students.map(({ id, name }) => ({ id, name })),
+    };
+  });
 }
 
 // ── 홈 연결 학생 조회 ──────────────────────────────────────────────────
