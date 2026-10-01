@@ -401,7 +401,10 @@ export async function persistAnalysisRequest(params: {
   identityHash: string;
   request: object;
   stage: AnalysisStage;
+  claimToken: string;
   preserveResponse?: boolean;
+  replacePreviousStageRequest?: boolean;
+  previousStageIdentityHash?: string | null;
 }): Promise<boolean> {
   return inDbTransaction(params.db, async (tx) => {
     const expectedStatus = params.stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
@@ -415,9 +418,20 @@ export async function persistAnalysisRequest(params: {
             WHEN ${params.preserveResponse === true} THEN analysis_response_payload
             ELSE NULL
           END,
+          analysis_next_attempt_at  = NULL,
           updated_at               = now()
       WHERE id                     = ${params.reportId}
         AND product_status         = ${expectedStatus}::gr_product_status_enum
+        AND analysis_claim_token   = ${params.claimToken}
+        AND analysis_lease_until   > now()
+        AND (
+          analysis_request_id IS NULL
+          OR analysis_request_id = ${params.requestId}
+          OR (
+            ${params.replacePreviousStageRequest === true}
+            AND analysis_identity_hash = ${params.previousStageIdentityHash ?? null}
+          )
+        )
         AND deleted_at IS NULL
       RETURNING id
     `);
@@ -448,6 +462,7 @@ export async function persistAnalysisResponse(params: {
   requestId: string;
   response: GrowthReportAnalysisResponse;
   stage: AnalysisStage;
+  claimToken: string;
 }): Promise<boolean> {
   return inDbTransaction(params.db, async (tx) => {
     const expectedStatus = params.stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
@@ -458,11 +473,65 @@ export async function persistAnalysisResponse(params: {
       WHERE id = ${params.reportId}
         AND analysis_request_id = ${params.requestId}
         AND product_status = ${expectedStatus}::gr_product_status_enum
+        AND analysis_claim_token = ${params.claimToken}
+        AND analysis_lease_until > now()
         AND deleted_at IS NULL
       RETURNING id
     `);
     return Boolean((saved.rows as any[] | undefined)?.length);
   });
+}
+
+/** Persist the at-risk boundary immediately before invoking ENGINE. */
+export async function markAnalysisCallStarted(params: {
+  db: any;
+  reportId: string;
+  requestId: string;
+  stage: AnalysisStage;
+  claimToken: string;
+}): Promise<boolean> {
+  const expectedStatus = params.stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
+  const started = await params.db.execute(sql`
+    UPDATE growth_reports
+    SET analysis_call_started_at = now(),
+        updated_at = now()
+    WHERE id = ${params.reportId}
+      AND analysis_request_id = ${params.requestId}
+      AND product_status = ${expectedStatus}::gr_product_status_enum
+      AND analysis_claim_token = ${params.claimToken}
+      AND analysis_lease_until > now()
+      AND analysis_uncertain_at IS NULL
+      AND deleted_at IS NULL
+    RETURNING id
+  `);
+  return Boolean((started.rows as any[] | undefined)?.length);
+}
+
+/** UNKNOWN is durably distinct from retryable provider/transport failure. */
+export async function recordAnalysisUncertain(params: {
+  db: any;
+  reportId: string;
+  requestId: string;
+  stage: AnalysisStage;
+  claimToken: string;
+}): Promise<boolean> {
+  const expectedStatus = params.stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
+  const uncertain = await params.db.execute(sql`
+    UPDATE growth_reports
+    SET analysis_uncertain_at = COALESCE(analysis_uncertain_at, now()),
+        analysis_next_attempt_at = NULL,
+        analysis_claim_token = NULL,
+        analysis_lease_until = NULL,
+        updated_at = now()
+    WHERE id = ${params.reportId}
+      AND analysis_request_id = ${params.requestId}
+      AND product_status = ${expectedStatus}::gr_product_status_enum
+      AND analysis_claim_token = ${params.claimToken}
+      AND analysis_lease_until > now()
+      AND deleted_at IS NULL
+    RETURNING id
+  `);
+  return Boolean((uncertain.rows as any[] | undefined)?.length);
 }
 
 /**
@@ -478,6 +547,8 @@ export async function recordAnalysisAttemptFailure(params: {
   retryable: boolean;
   maxRetryCount: number;
   errorCode: string;
+  claimToken: string;
+  retryDelayMs?: number;
 }): Promise<{ updated: boolean; terminal: boolean; retryCount: number }> {
   return inDbTransaction(params.db, async (tx) => {
     const current = await tx.execute(sql`
@@ -485,6 +556,8 @@ export async function recordAnalysisAttemptFailure(params: {
       FROM growth_reports
       WHERE id = ${params.reportId}
         AND analysis_request_id = ${params.requestId}
+        AND analysis_claim_token = ${params.claimToken}
+        AND analysis_lease_until > now()
         AND product_status IN ('PREANALYZING', 'ANALYZING')
         AND deleted_at IS NULL
       FOR UPDATE
@@ -501,6 +574,8 @@ export async function recordAnalysisAttemptFailure(params: {
             updated_at = now()
         WHERE id = ${params.reportId}
           AND analysis_request_id = ${params.requestId}
+            AND analysis_claim_token = ${params.claimToken}
+            AND analysis_lease_until > now()
           AND product_status = ${row.product_status}::gr_product_status_enum
           AND deleted_at IS NULL
         RETURNING COALESCE(analysis_retry_count, 0) AS retry_count
@@ -525,14 +600,32 @@ export async function recordAnalysisAttemptFailure(params: {
           : `ENGINE_NON_RETRYABLE_${params.errorCode}`,
         requestId: params.requestId,
       });
+      await tx.execute(sql`
+        UPDATE growth_reports
+        SET analysis_claim_token = NULL,
+            analysis_lease_until = NULL,
+            analysis_next_attempt_at = NULL,
+            updated_at = now()
+        WHERE id = ${params.reportId}
+          AND analysis_request_id = ${params.requestId}
+          AND analysis_claim_token = ${params.claimToken}
+          AND product_status = 'FAILED'::gr_product_status_enum
+          AND deleted_at IS NULL
+      `);
     } else {
       const rollbackStatus = params.stage === "PREANALYSIS" ? "OPEN" : "READY_FOR_ANALYSIS";
       const rolledBack = await tx.execute(sql`
         UPDATE growth_reports
         SET product_status = ${rollbackStatus}::gr_product_status_enum,
+            analysis_next_attempt_at = now() +
+              (${Math.max(0, params.retryDelayMs ?? 0)} * interval '1 millisecond'),
+            analysis_claim_token = NULL,
+            analysis_lease_until = NULL,
             updated_at = now()
         WHERE id = ${params.reportId}
           AND analysis_request_id = ${params.requestId}
+          AND analysis_claim_token = ${params.claimToken}
+          AND analysis_lease_until > now()
           AND product_status = ${row.product_status}::gr_product_status_enum
           AND deleted_at IS NULL
         RETURNING id
@@ -589,6 +682,7 @@ export interface PersistEngineResultInput {
   response: GrowthReportAnalysisResponse;
   stage: AnalysisStage;
   parentInputWindowOpen: boolean;
+  claimToken?: string;
 }
 
 export interface PersistResult {
@@ -615,7 +709,18 @@ export interface PersistResult {
 async function persistEngineResultInTransaction(
   input: PersistEngineResultInput,
 ): Promise<PersistResult> {
-  const { db, report, requestId, payloadHash, response, stage, parentInputWindowOpen } = input;
+  const {
+    db,
+    report,
+    requestId,
+    payloadHash,
+    response,
+    stage,
+    parentInputWindowOpen,
+    // Legacy internal callers without a claim fail the SQL CAS closed; queue
+    // and manual worker entrypoints always provide a real lease token.
+    claimToken = "",
+  } = input;
 
   // 1) Shape validation
   validateEngineResponse(response, requestId, report.id, payloadHash);
@@ -653,6 +758,8 @@ async function persistEngineResultInTransaction(
       WHERE id                  = ${report.id}
         AND analysis_request_id = ${requestId}
         AND product_status      = ${expectedStatus}::gr_product_status_enum
+        AND analysis_claim_token = ${claimToken}
+        AND analysis_lease_until > now()
         AND deleted_at IS NULL
       RETURNING id
     `);
@@ -667,6 +774,18 @@ async function persistEngineResultInTransaction(
       actorId:   null,
       reason:    "ENGINE_DATA_ACCUMULATING",
     });
+    await db.execute(sql`
+      UPDATE growth_reports
+      SET analysis_claim_token = NULL,
+          analysis_lease_until = NULL,
+          analysis_next_attempt_at = NULL,
+          updated_at = now()
+      WHERE id = ${report.id}
+        AND analysis_request_id = ${requestId}
+        AND analysis_claim_token = ${claimToken}
+        AND product_status = 'PARTIAL'::gr_product_status_enum
+        AND deleted_at IS NULL
+    `);
     await writeAnalysisAudit(
       db,
       report.id,
@@ -731,6 +850,8 @@ async function persistEngineResultInTransaction(
     WHERE id                  = ${report.id}
       AND analysis_request_id = ${requestId}
       AND product_status      = ${expectedStatus}::gr_product_status_enum
+      AND analysis_claim_token = ${claimToken}
+      AND analysis_lease_until > now()
       AND deleted_at IS NULL
     RETURNING id
   `);
@@ -751,6 +872,18 @@ async function persistEngineResultInTransaction(
     actorId:   null,
     reason:    `ENGINE_${stage}_${response.analysis_status}`,
   });
+  await db.execute(sql`
+    UPDATE growth_reports
+    SET analysis_claim_token = NULL,
+        analysis_lease_until = NULL,
+        analysis_next_attempt_at = NULL,
+        updated_at = now()
+    WHERE id = ${report.id}
+      AND analysis_request_id = ${requestId}
+      AND analysis_claim_token = ${claimToken}
+      AND product_status = ${productStatus}::gr_product_status_enum
+      AND deleted_at IS NULL
+  `);
 
   // 7) Audit
   await writeAnalysisAudit(

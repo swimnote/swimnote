@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   getGrowthReportAnalysisIdentityHash,
+  getGrowthReportRetryDelayMs,
   resolveGrowthReportAnalysisIdentity,
   retryDisposition,
 } from "../growth-report-analysis-identity.js";
@@ -194,6 +195,8 @@ const response = (overrides: Record<string, unknown> = {}): GrowthReportAnalysis
   ...overrides,
 } as GrowthReportAnalysisResponse);
 
+const claimToken = "claim-token-1";
+
 describe("growth report analysis durable identity", () => {
   it("ignores volatile created_at/request identifiers and detects logical input changes", () => {
     const first = logicalRequest("request-a", "2026-08-01T00:00:00Z");
@@ -208,7 +211,7 @@ describe("growth report analysis durable identity", () => {
       .not.toBe(getGrowthReportAnalysisIdentityHash(first, "FINAL_ANALYSIS"));
   });
 
-  it("reuses the complete persisted request only for a matching identity", () => {
+  it("pins the complete persisted request even when fresh inputs have changed", () => {
     const original = logicalRequest("request-a", "2026-08-01T00:00:00Z");
     const fingerprint = getGrowthReportAnalysisIdentityHash(original, "PREANALYSIS");
     const persisted = {
@@ -238,15 +241,40 @@ describe("growth report analysis durable identity", () => {
       persistedPayloadHash: "payload-original",
       persistedIdentityHash: fingerprint,
     });
-    expect(changed.reused).toBe(false);
-    expect(changed.requestId).toBe("request-new");
-    expect(changed.payloadHash).toBe("payload-new");
+    expect(changed.reused).toBe(true);
+    expect(changed.requestId).toBe("request-a");
+    expect(changed.payloadHash).toBe("payload-original");
+
+    const nextStage = resolveGrowthReportAnalysisIdentity({
+      freshRequest: logicalRequest("request-final", "2026-08-04T00:00:00Z"),
+      freshPayloadHash: "payload-final",
+      stage: "FINAL_ANALYSIS",
+      persistedRequest: persisted,
+      persistedRequestId: "request-a",
+      persistedPayloadHash: "payload-original",
+      persistedIdentityHash: fingerprint,
+    });
+    expect(nextStage.reused).toBe(false);
+    expect(nextStage.replacePreviousStageRequest).toBe(true);
+    expect(nextStage.requestId).toBe("request-final");
   });
 
   it("makes retry 3 terminal and permits retries 1 and 2", () => {
     expect(retryDisposition(0, 3)).toEqual({ nextRetryCount: 1, terminal: false });
     expect(retryDisposition(1, 3)).toEqual({ nextRetryCount: 2, terminal: false });
     expect(retryDisposition(2, 3)).toEqual({ nextRetryCount: 3, terminal: true });
+  });
+
+  it("uses configurable bounded exponential retry delay with jitter", () => {
+    vi.stubEnv("GROWTH_REPORT_RETRY_BASE_MS", "30000");
+    vi.stubEnv("GROWTH_REPORT_RETRY_MAX_MS", "120000");
+    try {
+      expect(getGrowthReportRetryDelayMs(1, () => 0)).toBe(24_000);
+      expect(getGrowthReportRetryDelayMs(3, () => 1)).toBe(120_000);
+      expect(getGrowthReportRetryDelayMs(5, () => 0.5)).toBe(120_000);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
@@ -528,6 +556,7 @@ describe("growth report analysis mock-DB recovery", () => {
       identityHash,
       request: first,
       stage: "PREANALYSIS",
+      claimToken,
     });
     expect(saved).toBe(true);
     expect(db.state.requestId).toBe("request-1");
@@ -565,6 +594,8 @@ describe("growth report analysis mock-DB recovery", () => {
       retryable: true,
       maxRetryCount: 3,
       errorCode: "TIMEOUT",
+      claimToken,
+      retryDelayMs: 1000,
     });
     expect(failure).toEqual({ updated: true, terminal: false, retryCount: 1 });
     expect(db.state.status).toBe("OPEN");
@@ -585,6 +616,8 @@ describe("growth report analysis mock-DB recovery", () => {
         retryable: true,
         maxRetryCount: 3,
         errorCode: "TIMEOUT",
+        claimToken,
+        retryDelayMs: 1000,
       });
       expect(failure.retryCount).toBe(attempt);
       expect(failure.terminal).toBe(attempt === 3);
@@ -603,6 +636,7 @@ describe("growth report analysis mock-DB recovery", () => {
       response: response(),
       stage: "PREANALYSIS",
       parentInputWindowOpen: false,
+      claimToken,
     })).rejects.toBeInstanceOf(StaleEngineResponseError);
     expect(db.state.questions).toHaveLength(0);
     expect(db.state.audits).toHaveLength(0);
@@ -620,6 +654,7 @@ describe("growth report analysis mock-DB recovery", () => {
       response: response({ analysis_status: "DATA_ACCUMULATING", questions: [] }),
       stage: "FINAL_ANALYSIS",
       parentInputWindowOpen: false,
+      claimToken,
     })).rejects.toBeInstanceOf(StaleEngineResponseError);
     expect(db.state.status).toBe("ANALYZING");
     expect(db.state.audits).toHaveLength(0);
@@ -636,6 +671,7 @@ describe("growth report analysis mock-DB recovery", () => {
       response: response(),
       stage: "PREANALYSIS",
       parentInputWindowOpen: false,
+      claimToken,
     })).rejects.toThrow("mock audit write failure");
     expect(db.state.content).toBeNull();
     expect(db.state.questions).toHaveLength(0);
@@ -658,6 +694,7 @@ describe("growth report analysis mock-DB recovery", () => {
         snapshot: { ...input.snapshot, payload_hash: "payload-1" },
       },
       stage: "PREANALYSIS",
+      claimToken,
     });
 
     const engineResponse = response();
@@ -668,6 +705,7 @@ describe("growth report analysis mock-DB recovery", () => {
       requestId: "request-1",
       response: engineResponse,
       stage: "PREANALYSIS",
+      claimToken,
     })).toBe(true);
     expect(db.state.responsePayload).toEqual(engineResponse);
 
@@ -680,6 +718,7 @@ describe("growth report analysis mock-DB recovery", () => {
       response: engineResponse,
       stage: "PREANALYSIS",
       parentInputWindowOpen: false,
+      claimToken,
     })).rejects.toThrow("mock audit write failure");
 
     expect(db.state.content).toBeNull();

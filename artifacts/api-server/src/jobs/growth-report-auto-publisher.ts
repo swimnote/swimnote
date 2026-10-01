@@ -6,8 +6,14 @@
  * intentionally absent; those remain behind explicit admin send routes.
  */
 import { sql } from "drizzle-orm";
-import { getMonthlyReportReadiness } from "./growth-report-monthly-readiness.js";
-type Db = { execute(query: unknown): Promise<{ rows: unknown[] }> };
+import {
+  reconcileMonthlyCycle,
+  type MonthlyReadinessDb,
+  type MonthlyReportReadiness,
+} from "./growth-report-monthly-readiness.js";
+import { fireMonthlyGrowthReportIncident } from "../lib/incident-alerts.js";
+import { insertGrowthReportAdminReadyIntents } from "../utils/growth-report-notification-outbox.js";
+type Db = MonthlyReadinessDb;
 
 export const SEPTEMBER_2026_FREE_REPORT_PERIOD =
   "2026년 10월 5일 발급되는 무료 AI 성장리포트는 2026년 9월 1일 00:00 KST 이상, 2026년 10월 1일 00:00 KST 미만의 9월 수업 데이터를 대상으로 한다.";
@@ -42,12 +48,19 @@ export type MonthlyReviewNotification = (params: {
   poolId: string;
   reportPeriod: string;
   message: string;
-  readiness: Record<string, number>;
+  readiness: Record<string, number | boolean>;
 }) => Promise<void>;
 
 async function defaultNotifyAdminReady(params: Parameters<MonthlyReviewNotification>[0]): Promise<void> {
   const { notifyMonthlyGrowthReportPrepared } = await import("../utils/notify.js");
-  await notifyMonthlyGrowthReportPrepared(params);
+  // The legacy notification wrapper accepts numeric summaries only. Boolean
+  // gate flags remain available to the outbox callers that support them.
+  const numericReadiness = Object.fromEntries(
+    Object.entries(params.readiness).filter((entry): entry is [string, number] =>
+      typeof entry[1] === "number",
+    ),
+  );
+  await notifyMonthlyGrowthReportPrepared({ ...params, readiness: numericReadiness });
 }
 
 export async function runMonthlyFreeAutoPublication(
@@ -61,49 +74,96 @@ export async function runMonthlyFreeAutoPublication(
   reportPeriod: string;
 }> {
   const window = freeReportIssueWindow(now);
-  if (window.issueDay < 5 || (window.issueDay === 5 && window.issueHour < 2)) {
-    return {
-      published: 0,
-      notificationCandidates: 0,
-      adminReviewReady: 0,
-      reportPeriod: window.reportPeriod,
-    };
-  }
+  const afterIssueWindow = window.issueDay > 5 ||
+    (window.issueDay === 5 && window.issueHour >= 2);
 
   const cyclePools = await db.execute(sql`
-    SELECT DISTINCT cycle.swimming_pool_id AS pool_id
+    SELECT cycle.swimming_pool_id AS pool_id, cycle.report_period
     FROM growth_report_cycles cycle
     JOIN swimming_pools pool ON pool.id = cycle.swimming_pool_id
-    WHERE cycle.report_period = ${window.reportPeriod}
+    WHERE cycle.eligibility_sealed_at IS NOT NULL
+      AND COALESCE(cycle.eligible_total, 0) > 0
       AND (
-        COALESCE(pool.x_paid_entitlement, false)
-        OR COALESCE(pool.x_manual_entitlement, false)
+        (
+          cycle.report_period = ${window.reportPeriod}
+          AND (
+            COALESCE(pool.x_paid_entitlement, false)
+            OR COALESCE(pool.x_manual_entitlement, false)
+          )
+          AND NOT COALESCE(pool.x_force_disabled, false)
+          AND pool.approval_status = 'approved'
+        )
+        OR (
+          cycle.report_period < ${window.reportPeriod}
+          AND cycle.ready_at IS NULL
+        )
       )
-      AND NOT COALESCE(pool.x_force_disabled, false)
-      AND pool.approval_status = 'approved'
+    ORDER BY cycle.report_period, cycle.swimming_pool_id
   `);
 
   let notificationCandidates = 0;
   let adminReviewReady = 0;
-  for (const row of cyclePools.rows as Array<{ pool_id: string }>) {
-    const readiness = await getMonthlyReportReadiness(db, {
-      poolId: row.pool_id,
-      reportPeriod: window.reportPeriod,
-    });
-    const message =
-      `${window.reportPeriod} AI 성장리포트 발송 준비가 완료되었습니다. ` +
-      `검토 가능 ${readiness.analysis_ready}건, 제외 ${readiness.excluded}건, ` +
-      `데이터 부족 ${readiness.data_accumulating}건, 분석 대기 ${readiness.pending_analysis}건, ` +
-      `재시도/처리 중 ${readiness.retrying}건, ` +
-      `실패 ${readiness.terminal_failed}건, 발송 완료 ${readiness.published}건입니다. 리포트를 확인해 주세요.`;
-    await notifyAdminReady({
-      poolId: row.pool_id,
-      reportPeriod: window.reportPeriod,
-      message,
-      readiness,
-    });
-    notificationCandidates++;
-    adminReviewReady += readiness.analysis_ready;
+  for (const row of cyclePools.rows as Array<{ pool_id: string; report_period?: string }>) {
+    const reportPeriod = row.report_period ?? window.reportPeriod;
+    try {
+      const notificationMessage = (readiness: MonthlyReportReadiness) =>
+        `${reportPeriod} AI 성장리포트 발급 대상 ${readiness.eligible_total}명 중 ` +
+        `생성 ${readiness.generated_total}건, 정책상 제외 ${readiness.policy_excluded_total}건, ` +
+        `미해결 ${readiness.remaining_count}건입니다. 리포트를 확인해 주세요.`;
+
+      const readiness = await reconcileMonthlyCycle(
+        db,
+        { poolId: row.pool_id, reportPeriod },
+        async (tx, readyReadiness) => {
+          await insertGrowthReportAdminReadyIntents(tx, {
+            poolId: row.pool_id,
+            reportPeriod,
+            message: notificationMessage(readyReadiness),
+            readiness: readyReadiness,
+          });
+        },
+        { recordReady: afterIssueWindow },
+      );
+
+      if (readiness.empty_target || !readiness.snapshot_sealed) continue;
+      if (!readiness.ready) {
+        const incidentType = readiness.failed > 0
+          ? "FAILED"
+          : readiness.unknown > 0
+            ? "UNKNOWN"
+            : readiness.missing > 0 || readiness.duplicate > 0 || readiness.wrong_pool > 0
+              ? "RECONCILIATION"
+              : afterIssueWindow
+                ? "NOT_READY"
+                : undefined;
+        if (incidentType) {
+          await fireMonthlyGrowthReportIncident({
+            poolId: row.pool_id,
+            reportPeriod,
+            incidentType,
+            readiness,
+          });
+        }
+        continue;
+      }
+
+      if (!afterIssueWindow) continue;
+      await notifyAdminReady({
+        poolId: row.pool_id,
+        reportPeriod,
+        message: notificationMessage(readiness),
+        readiness,
+      });
+      notificationCandidates++;
+      adminReviewReady += readiness.generated_total;
+    } catch (error) {
+      // Each pool/month is isolated: a transient failure here cannot block
+      // readiness evaluation or notification for another sealed cycle.
+      console.error(
+        `[growth-report-monthly] reconciliation failed for pool=${row.pool_id} month=${reportPeriod}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   // Explicitly no UPDATE to growth_reports and no parent notification call.

@@ -29,6 +29,10 @@ import { superAdminDb }                    from "@workspace/db";
 import { acquireLock, releaseLock }        from "../lib/schedulerLock.js";
 import { notifyPoolEvent }                from "../lib/pg-realtime.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
+import {
+  getSealedMonthlyTargetRoster,
+  sealMonthlyTargets,
+} from "../lib/growth-report-monthly-targets.js";
 import { computeMonthlyFreePeriodTimestamps } from "./growth-report-scheduler.js";
 import {
   transitionToReadyToSend,
@@ -83,28 +87,20 @@ export async function getEligibleStudents(
   reportPeriod: string,   // 'YYYY-MM'
   cycleId: string,
 ): Promise<Array<{ studentId: string; classGroupId: string | null }>> {
-  const [py, pm] = reportPeriod.split("-").map(Number);
-  const nextMonth   = pm === 12 ? `${py + 1}-01-01` : `${py}-${String(pm + 1).padStart(2, "0")}-01`;
-
-  const r = await db.execute(sql`
-    SELECT DISTINCT ON (s.id)
-      s.id            AS student_id,
-      sch.class_group_id
-    FROM students s
-    INNER JOIN student_class_history sch ON sch.student_id = s.id
-    INNER JOIN class_groups cg ON cg.id = sch.class_group_id
-    WHERE cg.swimming_pool_id = ${poolId}
-      AND s.status        = 'active'
-      AND s.deleted_at IS NULL
-      AND sch.enrolled_at < ${nextMonth}::date
-      AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonth}::date)
-    ORDER BY s.id, sch.class_group_id
+  const cycle = await db.execute(sql`
+    SELECT id
+    FROM growth_report_cycles
+    WHERE id = ${cycleId}
+      AND swimming_pool_id = ${poolId}
+      AND report_period = ${reportPeriod}
+      AND eligibility_sealed_at IS NOT NULL
+    LIMIT 1
   `);
-
-  return (r.rows as any[]).map(row => ({
-    studentId:    row.student_id as string,
-    classGroupId: row.class_group_id as string | null,
-  }));
+  if (!cycle.rows.length) {
+    throw new Error(`Monthly target roster is not sealed for cycle ${cycleId}.`);
+  }
+  const roster = await getSealedMonthlyTargetRoster(db, cycleId);
+  return roster.map(({ studentId }) => ({ studentId, classGroupId: null }));
 }
 
 // ── ensureBatchJobs ───────────────────────────────────────────────────────────
@@ -140,6 +136,7 @@ export async function ensureBatchJobs(
 
 interface BatchJob {
   id: string;
+  worker_id: string;
   swimming_pool_id: string;
   year: number;
   month: number;
@@ -161,6 +158,8 @@ async function claimJob(db: Db): Promise<BatchJob | null> {
         worker_id     = gen_random_uuid()::text,
         locked_at     = NOW(),
         attempts      = attempts + 1,
+        completed_count = 0,
+        failed_count    = 0,
         started_at    = COALESCE(started_at, NOW()),
         updated_at    = NOW()
     WHERE id = (
@@ -169,7 +168,7 @@ async function claimJob(db: Db): Promise<BatchJob | null> {
         -- PENDING — 첫 실행
         status = 'PENDING'
         -- stale RUNNING — heartbeat 없이 30분 경과 → 재claim
-        OR (status = 'RUNNING' AND locked_at < ${staleThreshold})
+        OR (status = 'RUNNING' AND (locked_at IS NULL OR locked_at < ${staleThreshold}))
         -- FAILED/PARTIAL — 재시도 가능 (attempts < max + next_attempt_at 경과)
         OR (status IN ('FAILED','PARTIAL') AND attempts < ${maxAttempts} AND next_attempt_at <= ${now})
       )
@@ -185,10 +184,38 @@ async function claimJob(db: Db): Promise<BatchJob | null> {
   return r.rows[0] as unknown as BatchJob;
 }
 
+async function heartbeatBatchJob(db: Db, jobId: string, workerId: string): Promise<void> {
+  const result = await db.execute(sql`
+    UPDATE growth_report_batch_jobs
+    SET locked_at = NOW(), updated_at = NOW()
+    WHERE id = ${jobId}
+      AND worker_id = ${workerId}
+      AND status = 'RUNNING'
+    RETURNING id
+  `);
+  if (!(result.rows as any[]).length) {
+    throw new Error("BATCH_WORKER_FENCE_LOST");
+  }
+}
+
+async function lockBatchJobOwner(tx: any, jobId: string, workerId: string): Promise<void> {
+  const owner = await tx.execute(sql`
+    SELECT id
+    FROM growth_report_batch_jobs
+    WHERE id = ${jobId}
+      AND worker_id = ${workerId}
+      AND status = 'RUNNING'
+    FOR UPDATE
+  `);
+  if (!(owner.rows as any[]).length) {
+    throw new Error("BATCH_WORKER_FENCE_LOST");
+  }
+}
+
 // ── processPoolBatch ──────────────────────────────────────────────────────────
 
 async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
-  const { id: jobId, swimming_pool_id: poolId, year, month } = job;
+  const { id: jobId, worker_id: workerId, swimming_pool_id: poolId, year, month } = job;
 
   // report_period = previous month
   const prevMonth = month === 1 ? 12 : month - 1;
@@ -201,24 +228,59 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
 
   if (!cycleId) {
     console.error(`[gr-batch] CYCLE_MISSING pool=${poolId} period=${reportPeriod}`);
-    await markJobFailed(db, jobId, "CYCLE_MISSING");
+    await markJobFailed(db, jobId, workerId, "CYCLE_MISSING");
     return;
   }
   const resolvedCycleId: string = cycleId; // closure 내 타입 좁히기
 
-  // ── 2. 대상 학생 확정 ────────────────────────────────────────────────────
+  // ── 2. 봉인된 cycle roster 확보 ───────────────────────────────────────────
+  await sealMonthlyTargets(db, {
+    cycleId: resolvedCycleId,
+    poolId,
+    reportPeriod,
+  });
+  await db.transaction(async (tx: any) => {
+    await lockBatchJobOwner(tx, jobId, workerId);
+    await tx.execute(sql`
+      UPDATE growth_reports
+      SET product_status = 'OPEN',
+          batch_job_id = COALESCE(batch_job_id, ${jobId}),
+          period_start = ${cycleTimes.periodStart}::date,
+          period_end = ${cycleTimes.periodEnd}::date,
+          updated_at = NOW()
+      WHERE cycle_id = ${resolvedCycleId}
+        AND product_status IN ('NOT_OPEN', 'OPEN')
+        AND deleted_at IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM growth_report_eligible_targets target
+          WHERE target.cycle_id = growth_reports.cycle_id
+            AND target.student_id = growth_reports.student_id
+        )
+    `);
+  });
   const students = await getEligibleStudents(db, poolId, reportPeriod, resolvedCycleId);
 
-  await db.execute(sql`
-    UPDATE growth_report_batch_jobs
-    SET target_count = ${students.length}, updated_at = NOW()
-    WHERE id = ${jobId}
-  `);
+  if (job.attempts <= 1) {
+    const targetCountSet = await db.execute(sql`
+      UPDATE growth_report_batch_jobs
+      SET target_count = ${students.length}, updated_at = NOW(), locked_at = NOW()
+      WHERE id = ${jobId}
+        AND worker_id = ${workerId}
+        AND status = 'RUNNING'
+      RETURNING id
+    `);
+    if (!(targetCountSet.rows as any[]).length) {
+      throw new Error("BATCH_WORKER_FENCE_LOST");
+    }
+  } else {
+    await heartbeatBatchJob(db, jobId, workerId);
+  }
 
   console.log(`[gr-batch] pool=${poolId} period=${reportPeriod} target_students=${students.length}`);
 
   if (students.length === 0) {
-    await markJobComplete(db, jobId, 0, 0, poolId);
+    await markJobComplete(db, jobId, workerId, 0, 0, poolId);
     return;
   }
 
@@ -238,25 +300,35 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
       const i = studentIdx++;
       if (i >= students.length) break;
       const { studentId, classGroupId } = students[i]!;
+      let studentSucceeded = false;
       try {
+        await heartbeatBatchJob(db, jobId, workerId);
         await processStudentReport(db, {
           studentId, poolId, cycleId: resolvedCycleId, classGroupId, reportPeriod, jobId,
-          periodStart, periodEnd,
+          workerId, periodStart, periodEnd,
         });
         studentMutex.completed++;
+        studentSucceeded = true;
       } catch (err: any) {
         console.error(`[gr-batch] student preparation failed pool=${poolId}`);
         studentMutex.failed++;
         // 한 학생 오류가 전체 pool을 중단시키지 않도록 continue
       }
-      // 진척도 업데이트 (atomic — 한 worker만 업데이트해도 됨)
-      await db.execute(sql`
+      // Atomic progress and lease heartbeat. Every write is fenced by owner ID.
+      const progress = await db.execute(sql`
         UPDATE growth_report_batch_jobs
-        SET completed_count = ${studentMutex.completed},
-            failed_count    = ${studentMutex.failed},
-            updated_at      = NOW()
+        SET completed_count = completed_count + ${studentSucceeded ? 1 : 0},
+            failed_count = failed_count + ${studentSucceeded ? 0 : 1},
+            locked_at = NOW(),
+            updated_at = NOW()
         WHERE id = ${jobId}
-      `).catch((e: any) => console.warn(`[gr-batch] progress update warn:`, e.message));
+          AND worker_id = ${workerId}
+          AND status = 'RUNNING'
+        RETURNING id
+      `);
+      if (!(progress.rows as any[]).length) {
+        throw new Error("BATCH_WORKER_FENCE_LOST");
+      }
     }
   }
 
@@ -268,7 +340,7 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
   failed    = studentMutex.failed;
 
   // ── 4. Pool completion: REVIEW_REQUIRED → READY_TO_SEND ─────────────────
-  await finalizePoolBatch(db, poolId, reportPeriod, year, month);
+  await finalizePoolBatch(db, poolId, reportPeriod, year, month, jobId, workerId);
 
   // ── 5. Job 완료 ───────────────────────────────────────────────────────────
   const finalStatus = failed > 0 && completed === 0 ? "FAILED"
@@ -277,7 +349,7 @@ async function processPoolBatch(db: Db, job: BatchJob): Promise<void> {
 
   // COMPLETED is terminal status for this batch-preparation pass only; it does
   // not imply that a report was published. Publication remains an admin action.
-  await markJobComplete(db, jobId, completed, failed, poolId);
+  await markJobComplete(db, jobId, workerId, completed, failed, poolId);
   console.log(
     `[gr-batch] PREPARATION_FINISHED pool=${poolId} period=${reportPeriod} ` +
     `batch_job_status=${finalStatus} prepared=${completed} failed=${failed} published=0`
@@ -343,13 +415,17 @@ interface StudentReportParams {
   periodStart:  string;
   periodEnd:    string;
   jobId:        string;
+  workerId:     string;
 }
 
 async function processStudentReport(
   db: Db,
   params: StudentReportParams,
 ): Promise<void> {
-  const { studentId, poolId, cycleId, classGroupId, reportPeriod, periodStart, periodEnd, jobId } = params;
+  const {
+    studentId, poolId, cycleId, classGroupId, reportPeriod,
+    periodStart, periodEnd, jobId, workerId,
+  } = params;
 
   // 이미 존재하는 active report 확인 (idempotency)
   const existing = await db.execute(sql`
@@ -376,21 +452,30 @@ async function processStudentReport(
 
   // 신규 report row INSERT (OPEN 상태)
   // class_group_id_at_creation 컬럼 운영 DB 미존재 — 제외
-  await db.execute(sql`
-    INSERT INTO growth_reports (
-      student_id, swimming_pool_id, cycle_id,
-      report_period, period_start, period_end,
-      product_status, version_number, batch_job_id,
-      created_at, updated_at
-    )
-    VALUES (
-      ${studentId}, ${poolId}, ${cycleId},
-      ${reportPeriod}, ${periodStart}::date, ${periodEnd}::date,
-      'OPEN', 1, ${jobId},
-      NOW(), NOW()
-    )
-    ON CONFLICT DO NOTHING
-  `);
+  await db.transaction(async (tx: any) => {
+    await lockBatchJobOwner(tx, jobId, workerId);
+    await tx.execute(sql`
+      INSERT INTO growth_reports (
+        student_id, swimming_pool_id, cycle_id,
+        report_period, period_start, period_end,
+        product_status, version_number, batch_job_id,
+        eligibility_version, attendance_count, source_event_count,
+        created_at, updated_at
+      )
+      SELECT
+        ${studentId}, ${poolId}, ${cycleId},
+        ${reportPeriod}, ${periodStart}::date, ${periodEnd}::date,
+        'OPEN', 1, ${jobId},
+        target.eligibility_version,
+        (target.eligibility_evidence->>'attendance_count')::integer,
+        (target.eligibility_evidence->>'source_event_count')::integer,
+        NOW(), NOW()
+      FROM growth_report_eligible_targets target
+      WHERE target.cycle_id = ${cycleId}
+        AND target.student_id = ${studentId}
+      ON CONFLICT DO NOTHING
+    `);
+  });
 
   console.log(`[gr-batch] REPORT_ROW_PREPARED: pool=${poolId}`);
 }
@@ -403,6 +488,8 @@ async function finalizePoolBatch(
   reportPeriod: string,
   year: number,
   month: number,
+  jobId: string,
+  workerId: string,
 ): Promise<void> {
   // 해당 pool/period의 batch-generated REVIEW_REQUIRED 리포트 → READY_TO_SEND
   const reviewRequired = await db.execute(sql`
@@ -410,14 +497,25 @@ async function finalizePoolBatch(
     WHERE swimming_pool_id = ${poolId}
       AND report_period    = ${reportPeriod}
       AND product_status   = 'REVIEW_REQUIRED'
-      AND batch_job_id IS NOT NULL
+      AND batch_job_id = ${jobId}
       AND deleted_at IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM growth_report_batch_jobs job
+        WHERE job.id = ${jobId}
+          AND job.worker_id = ${workerId}
+          AND job.status = 'RUNNING'
+      )
   `);
 
   let readyCount = 0;
   for (const row of reviewRequired.rows as any[]) {
+    await heartbeatBatchJob(db, jobId, workerId);
     try {
-      const r = await transitionToReadyToSend(db, row.id, "SYSTEM_WP8_FINALIZE");
+      const r = await db.transaction(async (tx: any) => {
+        await lockBatchJobOwner(tx, jobId, workerId);
+        return transitionToReadyToSend(tx, row.id, "SYSTEM_WP8_FINALIZE");
+      });
       if (r.success) readyCount++;
     } catch (err: any) {
       console.error(`[gr-batch] finalize error report=${row.id}:`, err.message);
@@ -438,13 +536,31 @@ async function finalizePoolBatch(
 
 // ── markJobFailed / markJobComplete ──────────────────────────────────────────
 
-async function markJobFailed(db: Db, jobId: string, reason: string): Promise<void> {
-  await db.execute(sql`
+async function markJobFailed(
+  db: Db,
+  jobId: string,
+  workerId: string,
+  reason: string,
+): Promise<void> {
+  const updated = await db.execute(sql`
     UPDATE growth_report_batch_jobs
-    SET status = 'FAILED', updated_at = NOW(),
-        next_attempt_at = NOW() + INTERVAL '10 minutes'
+    SET status = 'FAILED',
+        updated_at = NOW(),
+        locked_at = NULL,
+        next_attempt_at = CASE
+          WHEN attempts < ${MAX_BATCH_ATTEMPTS}
+            THEN NOW() + (
+              LEAST(60, 5 * power(2, GREATEST(attempts - 1, 0)))::int
+              * INTERVAL '1 minute'
+            )
+          ELSE NULL
+        END
     WHERE id = ${jobId}
+      AND worker_id = ${workerId}
+      AND status = 'RUNNING'
+    RETURNING id
   `);
+  if (!(updated.rows as any[]).length) return;
   console.log(`[gr-batch] JOB_FAILED id=${jobId} reason=${reason}`);
 
   // 운영자 알림 — 배치 잡 자체가 실패했을 때
@@ -454,14 +570,37 @@ async function markJobFailed(db: Db, jobId: string, reason: string): Promise<voi
   );
 }
 
-async function markJobComplete(db: Db, jobId: string, completed: number, failed: number, poolId?: string): Promise<void> {
+async function markJobComplete(
+  db: Db,
+  jobId: string,
+  workerId: string,
+  completed: number,
+  failed: number,
+  poolId?: string,
+): Promise<void> {
   const status = failed > 0 && completed === 0 ? "FAILED" : failed > 0 ? "PARTIAL" : "COMPLETED";
-  await db.execute(sql`
+  const updated = await db.execute(sql`
     UPDATE growth_report_batch_jobs
     SET status = ${status}, completed_count = ${completed}, failed_count = ${failed},
-        completed_at = NOW(), updated_at = NOW()
+        completed_at = CASE WHEN ${status} = 'COMPLETED' THEN NOW() ELSE NULL END,
+        locked_at = NULL,
+        next_attempt_at = CASE
+          WHEN ${status} IN ('FAILED', 'PARTIAL') AND attempts < ${MAX_BATCH_ATTEMPTS}
+            THEN NOW() + (
+              LEAST(60, 5 * power(2, GREATEST(attempts - 1, 0)))::int
+              * INTERVAL '1 minute'
+            )
+          ELSE NULL
+        END,
+        updated_at = NOW()
     WHERE id = ${jobId}
+      AND worker_id = ${workerId}
+      AND status = 'RUNNING'
+    RETURNING id
   `);
+  if (!(updated.rows as any[]).length) {
+    throw new Error("BATCH_WORKER_FENCE_LOST");
+  }
   if (poolId) {
     notifyPoolEvent({ type: "growth_report.changed", pool_id: poolId }).catch(() => {});
   }
@@ -528,12 +667,20 @@ export async function runBatchWorker(db: Db): Promise<void> {
       if (!job) break;
 
       console.log(`[gr-batch] claimed job=${job.id} pool=${job.swimming_pool_id} year=${job.year} month=${job.month}`);
+      const heartbeat = setInterval(() => {
+        heartbeatBatchJob(db, job.id, job.worker_id).catch((error: any) => {
+          console.warn(`[gr-batch] job heartbeat lost job=${job.id}:`, error.message);
+        });
+      }, 60_000);
+      heartbeat.unref?.();
       try {
         await processPoolBatch(db, job);
         processed++;
       } catch (err: any) {
         console.error(`[gr-batch] job=${job.id} failed:`, err.message);
-        await markJobFailed(db, job.id, err.message.slice(0, 200));
+        await markJobFailed(db, job.id, job.worker_id, err.message.slice(0, 200));
+      } finally {
+        clearInterval(heartbeat);
       }
     }
   } finally {

@@ -6,6 +6,7 @@ export interface AnalysisRequestIdentity {
   identityHash: string;
   request: Record<string, any>;
   reused: boolean;
+  replacePreviousStageRequest: boolean;
 }
 
 function stripVolatileIdentityFields(value: unknown): unknown {
@@ -43,10 +44,27 @@ export function getGrowthReportAnalysisIdentityHash(
   });
 }
 
+export function isGrowthReportRequestIdentityForStage(
+  request: unknown,
+  identityHash: string | null | undefined,
+  stage: "PREANALYSIS" | "FINAL_ANALYSIS",
+): boolean {
+  if (
+    !identityHash ||
+    request === null ||
+    typeof request !== "object" ||
+    Array.isArray(request)
+  ) return false;
+  return identityHash === getGrowthReportAnalysisIdentityHash(
+    request as Record<string, any>,
+    stage,
+  );
+}
+
 /**
- * Reuse the exact, previously persisted HTTP request only when its logical
- * identity is unchanged. A changed input keeps the freshly built request and
- * its new request ID, avoiding accidental replay of obsolete input.
+ * Once a request has been persisted, it is the durable identity of that
+ * unfinished analysis. Rebuilding inputs during recovery must never mint a
+ * second request_id (in particular after an ENGINE timeout/UNKNOWN outcome).
  */
 export function resolveGrowthReportAnalysisIdentity(params: {
   freshRequest: Record<string, any>;
@@ -57,37 +75,70 @@ export function resolveGrowthReportAnalysisIdentity(params: {
   persistedPayloadHash?: string | null;
   persistedIdentityHash?: string | null;
 }): AnalysisRequestIdentity {
-  const identityHash = getGrowthReportAnalysisIdentityHash(
+  const freshIdentityHash = getGrowthReportAnalysisIdentityHash(
     params.freshRequest,
     params.stage,
   );
   const persisted = params.persistedRequest;
-  const reusable =
-    params.persistedIdentityHash === identityHash &&
-    typeof params.persistedRequestId === "string" &&
-    typeof params.persistedPayloadHash === "string" &&
-    persisted !== null &&
-    typeof persisted === "object" &&
-    !Array.isArray(persisted) &&
-    (persisted as Record<string, unknown>).request_id === params.persistedRequestId &&
-    ((persisted as Record<string, any>).snapshot?.payload_hash === params.persistedPayloadHash);
+  if (typeof params.persistedRequestId === "string") {
+    const persistedRecord =
+      persisted !== null && typeof persisted === "object" && !Array.isArray(persisted)
+        ? persisted as Record<string, any>
+        : null;
+    if (
+      !persistedRecord ||
+      typeof params.persistedPayloadHash !== "string" ||
+      persistedRecord.request_id !== params.persistedRequestId ||
+      persistedRecord.snapshot?.payload_hash !== params.persistedPayloadHash
+    ) {
+      throw new Error(
+        "Persisted analysis request is incomplete; refusing to issue a new request identity.",
+      );
+    }
 
-  if (reusable) {
+    if (isGrowthReportRequestIdentityForStage(
+      persistedRecord,
+      params.persistedIdentityHash,
+      params.stage,
+    )) {
+      return {
+        requestId: params.persistedRequestId!,
+        payloadHash: params.persistedPayloadHash!,
+        identityHash: params.persistedIdentityHash!,
+        request: persistedRecord,
+        reused: true,
+        replacePreviousStageRequest: false,
+      };
+    }
+
+    const previousStage = params.stage === "PREANALYSIS" ? "FINAL_ANALYSIS" : "PREANALYSIS";
+    if (!isGrowthReportRequestIdentityForStage(
+      persistedRecord,
+      params.persistedIdentityHash,
+      previousStage,
+    )) {
+      throw new Error(
+        "Persisted analysis identity is invalid; refusing to issue a new request identity.",
+      );
+    }
+
     return {
-      requestId: params.persistedRequestId!,
-      payloadHash: params.persistedPayloadHash!,
-      identityHash,
-      request: persisted as Record<string, any>,
-      reused: true,
+      requestId: String(params.freshRequest.request_id),
+      payloadHash: params.freshPayloadHash,
+      identityHash: freshIdentityHash,
+      request: params.freshRequest,
+      reused: false,
+      replacePreviousStageRequest: true,
     };
   }
 
   return {
     requestId: String(params.freshRequest.request_id),
     payloadHash: params.freshPayloadHash,
-    identityHash,
+    identityHash: freshIdentityHash,
     request: params.freshRequest,
     reused: false,
+    replacePreviousStageRequest: false,
   };
 }
 
@@ -100,4 +151,21 @@ export function retryDisposition(
     nextRetryCount,
     terminal: nextRetryCount >= Math.max(1, maxRetryCount),
   };
+}
+
+export function getGrowthReportRetryDelayMs(
+  retryCount: number,
+  random = Math.random,
+): number {
+  const configuredBase = Number(process.env["GROWTH_REPORT_RETRY_BASE_MS"]);
+  const configuredMax = Number(process.env["GROWTH_REPORT_RETRY_MAX_MS"]);
+  const baseMs = Number.isFinite(configuredBase) && configuredBase > 0
+    ? configuredBase
+    : 30_000;
+  const maxMs = Number.isFinite(configuredMax) && configuredMax >= baseMs
+    ? configuredMax
+    : Math.max(30 * 60_000, baseMs);
+  const exponential = Math.min(maxMs, baseMs * 2 ** Math.max(0, retryCount - 1));
+  const jitter = 0.8 + Math.min(1, Math.max(0, random())) * 0.4;
+  return Math.min(maxMs, Math.max(1, Math.round(exponential * jitter)));
 }

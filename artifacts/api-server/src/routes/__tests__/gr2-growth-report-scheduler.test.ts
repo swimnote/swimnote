@@ -43,8 +43,24 @@
 
 import { describe, it, expect, vi } from "vitest";
 
-const { mockDb } = vi.hoisted(() => ({
+const { mockDb, mockSealMonthlyTargets } = vi.hoisted(() => ({
   mockDb: { execute: vi.fn().mockResolvedValue({ rows: [] }) },
+  mockSealMonthlyTargets: vi.fn(async (db: any, input: any) => {
+    const targetIds: string[] = db?._sealedTargetIds ?? [];
+    return {
+      cycleId: input.cycleId,
+      poolId: input.poolId,
+      reportPeriod: input.reportPeriod,
+      eligibleTotal: targetIds.length,
+      sealedAt: "2026-09-01T00:00:00.000Z",
+      targets: targetIds.map((studentId) => ({
+        studentId,
+        eligibilityVersion: 4,
+        eligibilityEvidence: { eligibility_version: 4, attendance_count: 3, source_event_count: 1 },
+        sourceProvenance: "LIVE_SEAL",
+      })),
+    };
+  }),
 }));
 
 vi.mock("@workspace/db", () => ({
@@ -60,6 +76,9 @@ vi.mock("../../lib/schedulerLock.js", () => ({
   releaseLock: vi.fn().mockResolvedValue(undefined),
   refreshLock: vi.fn().mockResolvedValue(true),   // 기본: 갱신 성공
   recordHeartbeat: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../../lib/growth-report-monthly-targets.js", () => ({
+  sealMonthlyTargets: mockSealMonthlyTargets,
 }));
 
 import {
@@ -91,7 +110,7 @@ interface MockDbOptions {
   existingCycleRow?: { id: string; cycle_status: string } | null;
   pendingCycles?: any[];
   activeCycles?: any[];
-  students?: Array<{ id: string }>;
+  sealedTargetIds?: string[];
   reportRow?: { id: string; product_status: string; swimming_pool_id: string; deleted_at: null } | null;
   qaReports?: Array<{ id: string }>;
   openReports?: Array<{ id: string }>;
@@ -104,13 +123,14 @@ function makeSchedulerDb(opts: MockDbOptions = {}) {
     existingCycleRow = null,
     pendingCycles = [],
     activeCycles = [],
-    students = [],
+    sealedTargetIds = [],
     reportRow = null,
     qaReports = [],
     openReports = [],
   } = opts;
 
   const calls: string[] = [];
+  const queries: string[] = [];
 
   const executeMock = vi.fn(async (query: any) => {
     const q: string = query?.queryChunks
@@ -120,6 +140,7 @@ function makeSchedulerDb(opts: MockDbOptions = {}) {
       : String(query?.sql ?? query ?? "");
 
     calls.push(q.substring(0, 80).replace(/\s+/g, " ").trim());
+    queries.push(q);
 
     // X-eligible pools (effective formula: x_paid_entitlement / x_manual_entitlement)
     if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
@@ -146,11 +167,6 @@ function makeSchedulerDb(opts: MockDbOptions = {}) {
     // ACTIVE cycles (close)
     if (q.includes("cycle_status = 'ACTIVE'") && q.includes("parent_input_close_at")) {
       return { rows: activeCycles };
-    }
-
-    // Students
-    if (q.includes("FROM students") || q.includes("students")) {
-      return { rows: students };
     }
 
     // QUESTION_AVAILABLE reports
@@ -182,7 +198,12 @@ function makeSchedulerDb(opts: MockDbOptions = {}) {
     return { rows: [] };
   });
 
-  return { execute: executeMock, _calls: calls };
+  return {
+    execute: executeMock,
+    _calls: calls,
+    _queries: queries,
+    _sealedTargetIds: sealedTargetIds,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -312,7 +333,6 @@ describe("H–I. Idempotency", () => {
     const db1 = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
       insertCycleReturnsId: "grc_001",
-      students: [],
       openReports: [],
     }) as any;
     const now = new Date("2026-09-01T00:30:00Z"); // 1일 09:30 KST
@@ -348,7 +368,6 @@ describe("J–K. X Mode Eligibility", () => {
     const db = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
       insertCycleReturnsId: "grc_001",
-      students: [],
       openReports: [],
     }) as any;
     const now = new Date("2026-09-01T00:30:00Z"); // 1일 09:30 KST
@@ -379,12 +398,24 @@ describe("L–M. 1일 Open", () => {
     const db = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
       insertCycleReturnsId: "grc_001",
-      students: [{ id: "s1" }, { id: "s2" }],
+      sealedTargetIds: ["s1", "s2"],
       openReports: [{ id: "gr_001" }, { id: "gr_002" }],
     }) as any;
+    mockSealMonthlyTargets.mockClear();
     const now = new Date("2026-09-01T00:30:00Z"); // 1일 09:30 KST
     const result = await runGrowthReportScheduler(db, now);
     expect(result.reports_opened).toBe(2);
+    expect(mockSealMonthlyTargets).toHaveBeenCalledWith(db, {
+      cycleId: "grc_001",
+      poolId: "pool_x",
+      reportPeriod: "2026-08",
+    });
+    const openQuery = db._queries.find((query: string) =>
+      query.includes("UPDATE growth_reports") && query.includes("RETURNING id")
+    );
+    expect(openQuery).toContain("growth_report_eligible_targets");
+    expect(openQuery).toContain("target.student_id = growth_reports.student_id");
+    expect(openQuery).not.toContain("FROM students");
   });
 
   it("M: parent NONE → AVAILABLE (scheduler SQL에 parent_input_status 포함)", async () => {
@@ -594,7 +625,6 @@ describe("AB. Clock Injection", () => {
     const db2 = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
       insertCycleReturnsId: "grc_001",
-      students: [],
       openReports: [],
     }) as any;
     const r2 = await runGrowthReportScheduler(db2, new Date("2026-08-31T15:00:00Z")); // KST Sept 1
@@ -639,8 +669,7 @@ describe("AC. Scheduler Failure Isolation", () => {
         throw new Error("DB_ERROR: pool_2 insert failed");
       }
 
-      // students, UPDATE etc.
-      if (q.includes("FROM students") || q.includes("students")) return { rows: [] };
+      // Seal helper is mocked at its boundary; scheduler no longer queries students.
       if (q.includes("UPDATE")) return { rowCount: 1, rows: [] };
       if (q.includes("next_audit_version")) return { rows: [{ v: 1 }] };
       if (q.includes("INSERT")) return { rowCount: 1, rows: [] };
@@ -740,65 +769,36 @@ describe("AE–AH. Regression Guard", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI–AM. 안전 수정 검증 (500 pools capacity 대비)
-//   A. 신규 cycle + 다수 학생 → bulk/chunk INSERT 정상
-//   B. 일부 report row 기존 존재 → 재실행 → 기존 유지 + 누락만 추가
-//   C. cycle 이미 ACTIVE → student ensure 계속 (재실행 복구)
-//   D. 동일 scheduler 재실행 → 중복 report 없음
-//   E. refreshLock 호출 위치 확인 (pool loop 진입마다 호출)
+// AI–AM. Sealed target roster and retry idempotency
+//   A. New cycle opens exactly the IDs returned by sealMonthlyTargets.
+//   B. Existing active cycle reuses the same manifest without recomputing students.
+//   C. Lock heartbeat behavior remains unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
-  it("AI: 신규 cycle + 학생 3명 → bulk INSERT 1회 호출 (chunk 기반, 3건 개별 아님)", async () => {
-    // 기존: for-loop → 3회 개별 INSERT / 수정 후: chunk bulk → 1회 INSERT
-    let grReportInsertCount = 0;
-    const executeMock = vi.fn(async (query: any) => {
-      const q: string = query?.queryChunks
-        ? query.queryChunks.map((c: any) =>
-            typeof c === "string" ? c : (c?.value ?? "")
-          ).join("")
-        : String(query?.sql ?? query ?? "");
-
-      if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
-        return { rows: [{ id: "pool_x" }] };
-      }
-      if (q.includes("growth_report_cycles") && q.includes("INSERT") && q.includes("RETURNING")) {
-        return { rows: [{ id: "grc_new" }] };
-      }
-      if (q.includes("growth_report_cycles") && q.includes("SELECT")) return { rows: [] };
-      if (q.includes("cycle_status = 'PENDING'")) return { rows: [] };
-      if (q.includes("FROM students") || (q.includes("students") && q.includes("SELECT"))) {
-        return { rows: [{ id: "s1", name: "김A" }, { id: "s2", name: "김B" }, { id: "s3", name: "김C" }] };
-      }
-      if (q.includes("parent_students")) return { rows: [] };
-      // growth_reports INSERT 횟수 추적 (cycle INSERT가 아닌 것만)
-      if (q.includes("growth_reports") && q.includes("INSERT")) {
-        grReportInsertCount++;
-        return { rowCount: 3, rows: [] };
-      }
-      if (q.includes("UPDATE") || q.includes("INSERT")) return { rowCount: 1, rows: [] };
-      if (q.includes("next_audit_version")) return { rows: [{ v: 1 }] };
-      return { rows: [] };
-    });
-
-    const db = { execute: executeMock } as any;
+describe("AI–AM. Sealed target roster and retry idempotency", () => {
+  it("AI: sealed target identities determine the exact report-open count", async () => {
+    const db = makeSchedulerDb({
+      xPools: [{ id: "pool_x" }],
+      insertCycleReturnsId: "grc_new",
+      sealedTargetIds: ["s1", "s2", "s3"],
+      openReports: [{ id: "gr_1" }, { id: "gr_2" }, { id: "gr_3" }],
+    }) as any;
+    mockSealMonthlyTargets.mockClear();
     const now = new Date("2026-09-01T00:30:00Z"); // KST 09:30
     const result = await runGrowthReportScheduler(db, now);
-
     expect(result.cycles_opened).toBe(1);
-    // 3명 ≤ STUDENT_CHUNK_SIZE(200) → chunk 1개 → INSERT 1회
-    expect(grReportInsertCount).toBe(1);
-
-    // 소스 파일에서 bulk 구조 확인
-    const { readFileSync } = await import("node:fs");
-    const scheduler = readFileSync(
-      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts", "utf-8",
+    expect(result.reports_opened).toBe(3);
+    expect(mockSealMonthlyTargets).toHaveBeenCalledWith(db, {
+      cycleId: "grc_new",
+      poolId: "pool_x",
+      reportPeriod: "2026-08",
+    });
+    const openQuery = db._queries.find((query: string) =>
+      query.includes("UPDATE growth_reports") && query.includes("RETURNING id")
     );
-    expect(scheduler).toContain("STUDENT_CHUNK_SIZE = 200");
-    expect(scheduler).toContain("sql.join");
-    expect(scheduler).toContain("VALUES ${valuesSql}");
-    expect(scheduler).toContain("ON CONFLICT DO NOTHING");
-    expect(scheduler).toContain("DO NOTHING");
+    expect(openQuery).toContain("growth_report_eligible_targets");
+    expect(openQuery).toContain("target.student_id = growth_reports.student_id");
+    expect(openQuery).not.toContain("FROM students");
   });
 
   it("AJ: 기존 report row 존재 → 재실행 → ON CONFLICT DO NOTHING (중복 방지)", async () => {
@@ -813,19 +813,17 @@ describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
     expect(scheduler).toContain("DO NOTHING");
     // DO UPDATE 금지
     expect(scheduler).not.toContain("DO UPDATE");
-    // CHUNK_SIZE=200 적용
-    expect(scheduler).toContain("STUDENT_CHUNK_SIZE = 200");
   });
 
   it("AK: cycle 이미 ACTIVE → student ensure 계속 실행 (재실행 복구성)", async () => {
-    // ACTIVE cycle에서 student INSERT가 실행되는지 확인
-    const studentInsertCalled = { flag: false };
+    const queries: string[] = [];
     const executeMock = vi.fn(async (query: any) => {
       const q: string = query?.queryChunks
         ? query.queryChunks.map((c: any) =>
             typeof c === "string" ? c : (c?.value ?? "")
           ).join("")
         : String(query?.sql ?? query ?? "");
+      queries.push(q);
 
       if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
         return { rows: [{ id: "pool_x" }] };
@@ -839,30 +837,33 @@ describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
         return { rows: [{ id: "grc_existing", cycle_status: "ACTIVE", analysis_cutoff_at: "2026-08-31T15:00:00Z" }] };
       }
       if (q.includes("cycle_status = 'PENDING'")) return { rows: [] };
-      // student 조회 → 누락 학생 1명 반환
-      if (q.includes("FROM students") || (q.includes("students") && q.includes("SELECT"))) {
-        return { rows: [{ id: "s_missing", name: "홍누락" }] };
-      }
-      if (q.includes("parent_students")) return { rows: [] };
-      // growth_reports INSERT → 누락 학생 ensure
-      if (q.includes("growth_reports") && q.includes("INSERT")) {
-        studentInsertCalled.flag = true;
-        return { rowCount: 1, rows: [] };
+      if (q.includes("growth_reports") && q.includes("UPDATE") && q.includes("RETURNING")) {
+        return { rows: [{ id: "gr_missing" }] };
       }
       if (q.includes("UPDATE") || q.includes("INSERT")) return { rowCount: 0, rows: [] };
       if (q.includes("next_audit_version")) return { rows: [{ v: 1 }] };
       return { rows: [] };
     });
 
-    const db = { execute: executeMock } as any;
+    const db = { execute: executeMock, _sealedTargetIds: ["s_missing"] } as any;
+    mockSealMonthlyTargets.mockClear();
     const now = new Date("2026-09-01T00:30:00Z");
     const result = await runGrowthReportScheduler(db, now);
 
     // ACTIVE cycle → skipped++, cycles_opened=0
     expect(result.skipped).toBe(1);
     expect(result.cycles_opened).toBe(0);
-    // 핵심: student INSERT가 실행됨 (재실행 복구)
-    expect(studentInsertCalled.flag).toBe(true);
+    expect(result.reports_opened).toBe(1);
+    expect(mockSealMonthlyTargets).toHaveBeenCalledWith(db, {
+      cycleId: "grc_existing",
+      poolId: "pool_x",
+      reportPeriod: "2026-08",
+    });
+    const openQuery = queries.find((query) =>
+      query.includes("UPDATE growth_reports") && query.includes("RETURNING id")
+    );
+    expect(openQuery).toContain("target.student_id = growth_reports.student_id");
+    expect(queries.some((query) => query.includes("FROM students"))).toBe(false);
   });
 
   it("AL: 동일 scheduler 재실행 → 중복 report 없음 (ON CONFLICT DO NOTHING)", async () => {
@@ -870,24 +871,34 @@ describe("AI–AM. 안전 수정 검증 (500 pools capacity)", () => {
     const db1 = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
       insertCycleReturnsId: "grc_001",
-      students: [{ id: "s1" }, { id: "s2" }],
+      sealedTargetIds: ["s1", "s2"],
       openReports: [{ id: "gr_001" }, { id: "gr_002" }],
     }) as any;
     const now = new Date("2026-09-01T00:30:00Z");
+    mockSealMonthlyTargets.mockClear();
     const r1 = await runGrowthReportScheduler(db1, now);
     expect(r1.cycles_opened).toBe(1);
+    expect(r1.reports_opened).toBe(2);
 
-    // 2회: cycle ACTIVE → skip; student INSERT → DO NOTHING (0 rows affected)
+    // 2회: cycle ACTIVE → skip; same sealed identities are ensured idempotently.
     const db2 = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
       insertCycleReturnsId: null,
       existingCycleRow: { id: "grc_001", cycle_status: "ACTIVE" },
-      students: [{ id: "s1" }, { id: "s2" }],
+      sealedTargetIds: ["s1", "s2"],
       openReports: [],
     }) as any;
     const r2 = await runGrowthReportScheduler(db2, now);
     expect(r2.cycles_opened).toBe(0);
     expect(r2.skipped).toBe(1);
+    expect(r2.reports_opened).toBe(0);
+    expect(mockSealMonthlyTargets).toHaveBeenCalledTimes(2);
+    expect(mockSealMonthlyTargets).toHaveBeenNthCalledWith(1, db1, {
+      cycleId: "grc_001", poolId: "pool_x", reportPeriod: "2026-08",
+    });
+    expect(mockSealMonthlyTargets).toHaveBeenNthCalledWith(2, db2, {
+      cycleId: "grc_001", poolId: "pool_x", reportPeriod: "2026-08",
+    });
     // 중복 cycle 생성 없음
     expect(r2.cycles_created).toBe(0);
   });

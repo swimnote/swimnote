@@ -30,6 +30,7 @@ import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat, refreshLock } from "../lib/schedulerLock.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
+import { sealMonthlyTargets } from "../lib/growth-report-monthly-targets.js";
 
 type Db = typeof superAdminDb;
 
@@ -333,66 +334,17 @@ async function openCycleForPool(
     await writeSchedulerAudit(db, cycleId, poolId, "PENDING", "ACTIVE", "MONTHLY_CYCLE_OPEN");
   }
 
-  // 3. 발급 대상 학생 선정 — 배치 워커와 동일한 3중 기준
-  //    (a) status = 'active'  (퇴원·정지·삭제 제외)
-  //    (b) deleted_at IS NULL
-  //    (c) student_class_history 이력:
-  //        enrolled_at < nextMonth (분석월 내 또는 이전 등록; 다음달 신규 제외)
-  //        left_at IS NULL OR left_at >= nextMonth (다음 달까지 유지)
-  //    → 분석월 수강 + 다음달 1일 계속 재원인 후보만 생성
-  //    → 주2회 등 여러 반 수강자도 student_id 기준 1건만 생성
-  const [_py, _pm] = periodStart.split("-").map(Number);
-  const nextMonthStr = _pm === 12
-    ? `${_py + 1}-01-01`
-    : `${_py}-${String(_pm + 1).padStart(2, "0")}-01`;
-
-  const students = await db.execute(sql`
-    SELECT DISTINCT s.id, s.name
-    FROM students s
-    INNER JOIN student_class_history sch ON sch.student_id = s.id
-    INNER JOIN class_groups cg ON cg.id = sch.class_group_id
-    WHERE cg.swimming_pool_id = ${poolId}
-      AND s.status = 'active'
-      AND s.deleted_at IS NULL
-      AND sch.enrolled_at < ${nextMonthStr}::date
-      AND (sch.left_at IS NULL OR sch.left_at >= ${nextMonthStr}::date)
-  `);
-
-  // Duplicate-name/parent-link diagnostics are intentionally omitted:
-  // they are non-blocking and risk exposing student names or identifiers in logs.
-
-  // 4. student report ensure — pool 단위 bulk chunk INSERT (ON CONFLICT DO NOTHING)
-  //    chunk 크기 200: PostgreSQL parameter 한도(65535)와 DB 부하 균형
-  //    재실행 시 기존 row는 DO NOTHING으로 건너뛰고 누락 row만 추가 (재실행 복구성 보장)
-  const STUDENT_CHUNK_SIZE = 200;
-  const studentRows = students.rows as Array<{ id: string; name: string }>;
-  let reportsCreated = 0;
-
-  for (let i = 0; i < studentRows.length; i += STUDENT_CHUNK_SIZE) {
-    const chunk = studentRows.slice(i, i + STUDENT_CHUNK_SIZE);
-    const valuesSql = sql.join(
-      chunk.map(s => sql`(
-        ${s.id}, ${poolId}, ${cycleId}, ${reportPeriod},
-        'NOT_OPEN', 'NONE', 0,
-        ${periodStart}::date, ${periodEnd}::date
-      )`),
-      sql`, `,
-    );
-    const inserted = await db.execute(sql`
-      INSERT INTO growth_reports (
-        student_id, swimming_pool_id, cycle_id, report_period,
-        product_status, parent_input_status, snapshot_version,
-        period_start, period_end
-      ) VALUES ${valuesSql}
-      ON CONFLICT DO NOTHING
-      RETURNING id
-    `);
-    reportsCreated += inserted.rows.length;
-  }
-
-  if (reportsCreated > 0) {
-    console.log(`[gr-scheduler] REPORT_ROWS_INSERTED: cycle=${cycleId} pool=${poolId} rows=${reportsCreated} chunks=${Math.ceil(studentRows.length / STUDENT_CHUNK_SIZE)}`);
-  }
+  // 3. Freeze the final eligibility roster before preparing report rows.
+  //    The cycle row lock and target primary key make scheduler retries safe.
+  const manifest = await sealMonthlyTargets(db, {
+    cycleId,
+    poolId,
+    reportPeriod,
+  });
+  console.log(
+    `[gr-scheduler] TARGETS_SEALED: cycle=${cycleId} pool=${poolId} ` +
+    `eligible_total=${manifest.eligibleTotal}`,
+  );
 
   // 4. NOT_OPEN → OPEN (bulk) — period_start/period_end도 올바르게 업데이트
   const openRes = await db.execute(sql`
@@ -405,6 +357,12 @@ async function openCycleForPool(
     WHERE cycle_id = ${cycleId}
       AND product_status = 'NOT_OPEN'
       AND deleted_at IS NULL
+      AND EXISTS (
+        SELECT 1
+        FROM growth_report_eligible_targets target
+        WHERE target.cycle_id = growth_reports.cycle_id
+          AND target.student_id = growth_reports.student_id
+      )
     RETURNING id
   `);
 

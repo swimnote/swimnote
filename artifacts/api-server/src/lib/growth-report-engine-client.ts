@@ -297,10 +297,116 @@ export class EngineCallError extends Error {
     public readonly retryable: boolean,
     message: string,
     public readonly engineDetails?: unknown,
+    public readonly requestState?: EngineRequestState,
   ) {
     super(message);
     this.name = "EngineCallError";
   }
+}
+
+export type EngineRequestState = "UNKNOWN" | "PROCESSING" | "IN_PROGRESS" | "RELEASED";
+
+function normalizeEngineRequestState(body: unknown): EngineRequestState | undefined {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return undefined;
+  const root = body as Record<string, unknown>;
+  const containers: Record<string, unknown>[] = [root];
+  for (let index = 0; index < containers.length && index < 8; index++) {
+    const current = containers[index]!;
+    for (const key of ["error", "details", "registry", "request"]) {
+      const value = current[key];
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        containers.push(value as Record<string, unknown>);
+      }
+    }
+  }
+
+  const explicitStates: EngineRequestState[] = [];
+  const errorCodeStates: EngineRequestState[] = [];
+  const stateKeys = [
+    "state",
+    "request_state",
+    "registry_state",
+    "analysis_state",
+    "requestState",
+    "request_status",
+    "requestStatus",
+    "execution_state",
+    "executionState",
+    "status",
+  ];
+  const codeKeys = ["error_code", "errorCode", "code"];
+
+  const stateFromValue = (raw: unknown): EngineRequestState | undefined => {
+    if (typeof raw !== "string") return undefined;
+    const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
+    if (
+      normalized === "UNKNOWN" ||
+      normalized === "REQUEST_UNKNOWN" ||
+      normalized === "ENGINE_REQUEST_UNKNOWN"
+    ) return "UNKNOWN";
+    if (
+      normalized === "PROCESSING" ||
+      normalized === "ENGINE_REQUEST_PROCESSING" ||
+      normalized === "REQUEST_PROCESSING"
+    ) return "PROCESSING";
+    if (
+      normalized === "IN_PROGRESS" ||
+      normalized === "ENGINE_REQUEST_IN_PROGRESS" ||
+      normalized === "REQUEST_IN_PROGRESS"
+    ) return "IN_PROGRESS";
+    if (
+      normalized === "RELEASED" ||
+      normalized === "ENGINE_REQUEST_RELEASED" ||
+      normalized === "REQUEST_RELEASED"
+    ) return "RELEASED";
+    return undefined;
+  };
+
+  const stateFromErrorCode = (raw: unknown): EngineRequestState | undefined => {
+    if (typeof raw !== "string") return undefined;
+    const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
+    const tokens = normalized.split(/[^A-Z0-9]+/).filter(Boolean);
+    // Error-code tokens describe request state only when explicitly scoped to
+    // a request/outcome/idempotency/registry/execution/analysis. This avoids
+    // treating unrelated codes such as UNKNOWN_METRIC_ID as uncertain calls.
+    const hasStateContext = tokens.some((token) => [
+      "REQUEST",
+      "OUTCOME",
+      "IDEMPOTENCY",
+      "REGISTRY",
+      "EXECUTION",
+      "ANALYSIS",
+    ].includes(token));
+    if (!hasStateContext) return undefined;
+    if (tokens.includes("UNKNOWN")) return "UNKNOWN";
+    if (tokens.includes("IN") && tokens.includes("PROGRESS")) return "IN_PROGRESS";
+    if (tokens.includes("PROCESSING")) return "PROCESSING";
+    if (tokens.includes("RELEASED")) return "RELEASED";
+    return undefined;
+  };
+
+  for (const container of containers) {
+    for (const key of stateKeys) {
+      const state = stateFromValue(container[key]);
+      if (state) explicitStates.push(state);
+    }
+    for (const key of codeKeys) {
+      const state = stateFromErrorCode(container[key]);
+      if (state) errorCodeStates.push(state);
+    }
+    // Some contracts place a short state-bearing error code in `error`.
+    const errorCodeState = stateFromErrorCode(container["error"]);
+    if (errorCodeState) errorCodeStates.push(errorCodeState);
+  }
+
+  const allStates = [...explicitStates, ...errorCodeStates];
+  // Ambiguity is fail-closed: any explicit UNKNOWN beats PROCESSING or
+  // RELEASED markers elsewhere in the response; PROCESSING beats RELEASED.
+  if (allStates.includes("UNKNOWN")) return "UNKNOWN";
+  if (allStates.includes("PROCESSING")) return "PROCESSING";
+  if (allStates.includes("IN_PROGRESS")) return "IN_PROGRESS";
+  if (allStates.includes("RELEASED")) return "RELEASED";
+  return undefined;
 }
 
 export function isRetryableEngineError(err: unknown): boolean {
@@ -393,12 +499,17 @@ export async function analyzeGrowthReport(
 
     if (!res.ok) {
       let errorCode = "ENGINE_HTTP_ERROR";
-      let retryable = res.status >= 500 || res.status === 429;
+      let retryable = res.status >= 500;
       let engineDetails: unknown;
+      let requestState: EngineRequestState | undefined;
       try {
         const body = (await res.json()) as {
           error_code?: string;
           retryable?: boolean;
+          state?: unknown;
+          request_state?: unknown;
+          request_status?: unknown;
+          execution_state?: unknown;
           details?: unknown;
           validation_errors?: unknown;
           message?: string;
@@ -418,12 +529,31 @@ export async function analyzeGrowthReport(
       } catch {
         // JSON parse failure — keep defaults
       }
+      if (engineDetails !== undefined) {
+        requestState = normalizeEngineRequestState(engineDetails);
+      }
+      if (requestState === "UNKNOWN") {
+        errorCode = "ENGINE_REQUEST_UNKNOWN";
+        retryable = false;
+      } else if (requestState === "PROCESSING" || requestState === "IN_PROGRESS") {
+        errorCode = "ENGINE_REQUEST_PROCESSING";
+        retryable = true;
+      } else if (requestState === "RELEASED") {
+        // A 429 is safe to retry only when ENGINE explicitly says the request
+        // was released. Never infer release from the HTTP status alone.
+        retryable = res.status === 429;
+      } else if (res.status === 429) {
+        errorCode = "ENGINE_REQUEST_STATE_UNCONFIRMED";
+        retryable = false;
+        requestState = "UNKNOWN";
+      }
       throw new EngineCallError(
         errorCode,
         res.status,
         retryable,
         `ENGINE ${res.status}: ${errorCode}`,
         engineDetails,
+        requestState,
       );
     }
 

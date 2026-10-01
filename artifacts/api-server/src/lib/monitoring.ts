@@ -201,6 +201,7 @@ export interface GrowthResult extends ComponentHealth {
   batchStuck: number;
   analysisFailed: number;
   analysisStuck: number;
+  monthlyOverdueCycles: number;
 }
 
 export async function checkGrowthWorkers(): Promise<GrowthResult> {
@@ -208,6 +209,7 @@ export async function checkGrowthWorkers(): Promise<GrowthResult> {
   const analysisStaleTs = new Date(Date.now() - THRESHOLDS.growthAnalysisStaleMs).toISOString();
 
   let batchFailed = 0, batchStuck = 0, analysisFailed = 0, analysisStuck = 0;
+  let monthlyOverdueCycles = 0;
 
   try {
     // growth_report_batch_jobs
@@ -239,16 +241,43 @@ export async function checkGrowthWorkers(): Promise<GrowthResult> {
     analysisStuck  = Number(arow.astuck  ?? 0);
   } catch { /* 테이블 없으면 무시 */ }
 
-  const hasProblem = batchFailed > 0 || batchStuck > 0 || analysisFailed > 0 || analysisStuck > 0;
+  try {
+    // Only sealed, non-empty monthly cycles past their fifth-day KST review
+    // deadline are surfaced; ordinary in-flight monthly analysis is expected.
+    const mr = await superAdminDb.execute(sql`
+      SELECT COUNT(*)::int AS overdue
+      FROM growth_report_cycles
+      WHERE eligibility_sealed_at IS NOT NULL
+        AND COALESCE(eligible_total, 0) > 0
+        AND ready_at IS NULL
+        AND (
+          to_date(report_period || '-01', 'YYYY-MM-DD')
+          + INTERVAL '1 month 4 days 2 hours'
+        ) < (NOW() AT TIME ZONE 'Asia/Seoul')
+      LIMIT 1
+    `);
+    monthlyOverdueCycles = Number((mr.rows as any[])[0]?.overdue ?? 0);
+  } catch { /* monthly readiness fields arrive with the additive cycle migration */ }
+
+  const hasProblem =
+    batchFailed > 0 || batchStuck > 0 || analysisFailed > 0 ||
+    analysisStuck > 0 || monthlyOverdueCycles > 0;
   if (hasProblem) {
     return {
       ...degraded(
-        `batch FAILED=${batchFailed} STUCK=${batchStuck}; analysis FAILED=${analysisFailed} STUCK=${analysisStuck}`
+        `batch FAILED=${batchFailed} STUCK=${batchStuck}; analysis FAILED=${analysisFailed} STUCK=${analysisStuck}; monthly overdue=${monthlyOverdueCycles}`
       ),
-      batchFailed, batchStuck, analysisFailed, analysisStuck,
+      batchFailed, batchStuck, analysisFailed, analysisStuck, monthlyOverdueCycles,
     };
   }
-  return { ...ok("정상"), batchFailed, batchStuck, analysisFailed, analysisStuck };
+  return {
+    ...ok(`정상; monthly overdue=${monthlyOverdueCycles}`),
+    batchFailed,
+    batchStuck,
+    analysisFailed,
+    analysisStuck,
+    monthlyOverdueCycles,
+  };
 }
 
 // ── Worker Heartbeat ──────────────────────────────────────────────────────────

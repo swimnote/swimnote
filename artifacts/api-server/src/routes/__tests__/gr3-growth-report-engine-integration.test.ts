@@ -43,6 +43,7 @@ import {
   auditAnalysisStarted,
   auditAnalysisFailed,
   auditStaleRejected,
+  recordAnalysisAttemptFailure,
 } from "../../lib/growth-report-result-handler.js";
 
 import {
@@ -102,6 +103,7 @@ interface DbMockOptions {
   reportRow?: any;
   updateReturns?: boolean; // true = stale OK, false = stale rejected
   nextVersion?: number;
+  nextRetryCount?: number;
   failOnQuery?: string;
 }
 
@@ -156,6 +158,9 @@ function makeDb(opts: DbMockOptions = {}) {
       if (q.includes("FOR UPDATE")) {
         if (opts.reportRow) return { rows: [opts.reportRow] };
         return { rows: [] };
+      }
+      if (q.includes("RETURNING COALESCE(analysis_retry_count")) {
+        return { rows: [{ retry_count: opts.nextRetryCount ?? 1 }] };
       }
       // Stale CAS UPDATE (WHERE analysis_request_id = ...)
       if (q.includes("analysis_request_id") && q.includes("RETURNING")) {
@@ -226,6 +231,10 @@ vi.mock("../../lib/growth-report-service.js", async (importOriginal) => {
 });
 
 import { getPublishedReportHistory } from "../../lib/growth-report-service.js";
+import {
+  getGrowthReportAnalysisIdentityHash,
+  resolveGrowthReportAnalysisIdentity,
+} from "../../lib/growth-report-analysis-identity.js";
 
 // ─── TC 1–5: Canonical hash ───────────────────────────────────────────────────
 
@@ -567,6 +576,79 @@ describe("D. Engine client", () => {
       const err = new EngineCallError(code, 400, false, "test");
       expect(isRetryableEngineError(err)).toBe(false);
     }
+  });
+
+  it("TC26b: request-state codes and nested status fields fail closed before PROCESSING", async () => {
+    vi.stubEnv("GROWTH_REPORT_ENGINE_URL", "https://fake-engine.test");
+    const cases: Array<{
+      status: number;
+      body: Record<string, unknown>;
+      expectedState: string | undefined;
+      expectedRetryable: boolean;
+    }> = [
+      {
+        status: 409,
+        body: { error_code: "OUTCOME_UNKNOWN", state: "PROCESSING" },
+        expectedState: "UNKNOWN",
+        expectedRetryable: false,
+      },
+      {
+        status: 409,
+        body: { error_code: "IDEMPOTENCY_UNKNOWN" },
+        expectedState: "UNKNOWN",
+        expectedRetryable: false,
+      },
+      {
+        status: 409,
+        body: { error_code: "STALE_PROCESSING_OUTCOME_UNKNOWN" },
+        expectedState: "UNKNOWN",
+        expectedRetryable: false,
+      },
+      {
+        status: 409,
+        body: { details: { request_status: "UNKNOWN" } },
+        expectedState: "UNKNOWN",
+        expectedRetryable: false,
+      },
+      {
+        status: 409,
+        body: { details: { execution_state: "IN_PROGRESS" } },
+        expectedState: "IN_PROGRESS",
+        expectedRetryable: true,
+      },
+      {
+        status: 409,
+        body: { error_code: "UNKNOWN_METRIC_ID" },
+        expectedState: undefined,
+        expectedRetryable: false,
+      },
+      {
+        status: 429,
+        body: { error_code: "RATE_LIMITED" },
+        expectedState: "UNKNOWN",
+        expectedRetryable: false,
+      },
+    ];
+    let caseIndex = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      const next = cases[caseIndex++]!;
+      return new Response(JSON.stringify(next.body), { status: next.status });
+    }));
+
+    for (const testCase of cases) {
+      const error = await analyzeGrowthReport({
+        request_id: "req_01",
+        context: { pool_id: "pool_x" },
+      } as any).catch((caught) => caught);
+      expect(error).toMatchObject({
+        requestState: testCase.expectedState,
+        retryable: testCase.expectedRetryable,
+      });
+      if (testCase.expectedState === undefined) {
+        expect(error.requestState).toBeUndefined();
+      }
+    }
+    vi.unstubAllGlobals();
   });
 
   it("TC27: request_id is UUID v4 format", async () => {
@@ -1067,20 +1149,77 @@ describe("L. APP responsibility boundary (structural)", () => {
     expect(resultSrc).not.toContain("buildQuestion");
   });
 
-  it("TC25b: same retry = same requestId + same hash (requestId passed in)", async () => {
+  it("TC25b: persistent retry reuses the saved request id and payload hash", async () => {
     const db = makeDb();
     const fixedRequestId = "aaaaaaaa-0000-4000-a000-000000000001";
-    const { requestId: r1, payloadHash: h1 } = await buildAnalysisSnapshot(db, {
+    const persisted = await buildAnalysisSnapshot(db, {
       report: BASE_REPORT, cycle: BASE_CYCLE, requestId: fixedRequestId,
     });
-    const { requestId: r2, payloadHash: h2 } = await buildAnalysisSnapshot(db, {
-      report: BASE_REPORT, cycle: BASE_CYCLE, requestId: fixedRequestId,
+    const fresh = {
+      ...persisted.request,
+      request_id: "a-different-fresh-id",
+      snapshot: {
+        ...persisted.request.snapshot,
+        payload_hash: "fresh-payload-hash",
+        diaries: [{ id: "changed-live-input" }],
+      },
+    };
+    const identityHash = getGrowthReportAnalysisIdentityHash(
+      persisted.request as unknown as Record<string, any>,
+      "PREANALYSIS",
+    );
+    const replay = resolveGrowthReportAnalysisIdentity({
+      freshRequest: fresh as unknown as Record<string, any>,
+      freshPayloadHash: "fresh-payload-hash",
+      stage: "PREANALYSIS",
+      persistedRequest: persisted.request,
+      persistedRequestId: persisted.requestId,
+      persistedPayloadHash: persisted.payloadHash,
+      persistedIdentityHash: identityHash,
     });
-    expect(r1).toBe(fixedRequestId);
-    expect(r2).toBe(fixedRequestId);
-    // Hashes may differ slightly if created_at differs — the important thing
-    // is that requestId is preserved (same attempt retries same id)
-    expect(r1).toBe(r2);
+    expect(replay.reused).toBe(true);
+    expect(replay.requestId).toBe(fixedRequestId);
+    expect(replay.payloadHash).toBe(persisted.payloadHash);
+    expect(replay.request).toBe(persisted.request);
+  });
+
+  it("TC25c: retryable failures persist backoff and release the claim without replacing the request", async () => {
+    const db = makeDb({
+      reportRow: {
+        id: "gr_test01",
+        product_status: "PREANALYZING",
+        retry_count: 0,
+      },
+      nextRetryCount: 1,
+    });
+    const result = await recordAnalysisAttemptFailure({
+      db,
+      reportId: "gr_test01",
+      poolId: "pool_x",
+      requestId: "req_stable",
+      stage: "PREANALYSIS",
+      retryable: true,
+      maxRetryCount: 3,
+      errorCode: "COMPOSITION_TIMEOUT",
+      claimToken: "claim-token",
+      retryDelayMs: 45_000,
+    });
+    expect(result).toEqual({ updated: true, terminal: false, retryCount: 1 });
+    const rollbackIndex = db._calls.findIndex((query: string) =>
+      query.includes("analysis_next_attempt_at = now() +"),
+    );
+    const rollback = db._calls[rollbackIndex];
+    expect(rollback).toContain("interval '1 millisecond'");
+    expect(rollback).toContain("analysis_request_id");
+    expect(rollback).toContain("analysis_claim_token");
+    expect(rollback).toContain("analysis_lease_until > now()");
+    expect(rollback).toContain("product_status = PREANALYZING::gr_product_status_enum");
+    expect(rollback).toContain("product_status = OPEN::gr_product_status_enum");
+    const resultHandlerSource = readFileSync(
+      new URL("../../lib/growth-report-result-handler.ts", import.meta.url),
+      "utf8",
+    );
+    expect(resultHandlerSource).toContain("Math.max(0, params.retryDelayMs ?? 0)");
   });
 
   it("TC26b: new analysis = new requestId (no requestId supplied → fresh UUID)", async () => {

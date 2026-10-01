@@ -7,14 +7,12 @@
  *   Pass 2 — READY_FOR_ANALYSIS → ANALYZING → ENGINE → REVIEW_REQUIRED | FAILED
  *
  * Concurrency protection:
- *   - Distributed lock (acquireLock) prevents duplicate worker runs across instances.
- *   - transitionReportStatus uses FOR UPDATE row lock, so concurrent workers
- *     transitioning the same report serialize; the second sees InvalidTransitionError
- *     and skips that report cleanly.
+ *   - A conditional growth_reports update grants one token-fenced lease per report.
+ *   - Lease renewal keeps slow ENGINE calls owned; every persistence CAS is fenced.
  *
  * Stale response protection:
  *   - analysis_request_id is written to DB before the ENGINE call.
- *   - persistEngineResult uses WHERE analysis_request_id = requestId (CAS).
+ *   - persistEngineResult uses request_id + analysis_claim_token (CAS).
  *   - A response that loses the race is rejected as StaleEngineResponseError.
  *
  * Retry policy:
@@ -62,11 +60,22 @@ import {
   EngineResponseValidationError,
   persistAnalysisRequest,
   persistAnalysisResponse,
+  markAnalysisCallStarted,
+  recordAnalysisUncertain,
   recordAnalysisAttemptFailure,
   isGrowthReportParentInputWindowOpen,
   type AnalysisStage,
 } from "../lib/growth-report-result-handler.js";
-import { resolveGrowthReportAnalysisIdentity } from "../lib/growth-report-analysis-identity.js";
+import {
+  getGrowthReportRetryDelayMs,
+  isGrowthReportRequestIdentityForStage,
+  resolveGrowthReportAnalysisIdentity,
+} from "../lib/growth-report-analysis-identity.js";
+import {
+  claimGrowthReportAnalysis,
+  getAnalysisLeaseMs,
+  renewGrowthReportAnalysisClaim,
+} from "../lib/growth-report-analysis-claim.js";
 import { saveAiTrace }  from "../lib/ai-trace-service.js";
 import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
 
@@ -134,6 +143,8 @@ interface PendingReport {
     analysis_identity_hash: string | null;
     snapshot_hash: string | null;
     analysis_retry_count: number;
+    analysis_call_started_at: string | null;
+    analysis_uncertain_at: string | null;
     teacher_reviewed_by: string | null;
     teacher_reviewed_at: string | null;
   };
@@ -168,6 +179,8 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
       gr.analysis_identity_hash,
       gr.snapshot_hash,
       COALESCE(gr.analysis_retry_count, 0)  AS analysis_retry_count,
+      gr.analysis_call_started_at,
+      gr.analysis_uncertain_at,
       gr.teacher_reviewed_by,
       gr.teacher_reviewed_at,
       grc.id                                AS cycle_db_id,
@@ -179,8 +192,32 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
       grc.timezone
     FROM growth_reports gr
     INNER JOIN growth_report_cycles grc ON grc.id = gr.cycle_id
-    WHERE gr.product_status IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')
+    WHERE gr.product_status IN (
+        'OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING', 'PREANALYZING', 'ANALYZING'
+      )
       AND gr.deleted_at IS NULL
+      AND gr.analysis_uncertain_at IS NULL
+      AND (gr.analysis_next_attempt_at IS NULL OR gr.analysis_next_attempt_at <= now())
+      AND (
+        gr.analysis_claim_token IS NULL
+        OR gr.analysis_lease_until IS NULL
+        OR gr.analysis_lease_until <= now()
+      )
+      AND (
+        (gr.report_type IS NOT NULL AND gr.report_type <> 'monthly')
+        OR EXISTS (
+          SELECT 1
+          FROM growth_report_cycles sealed_cycle
+          INNER JOIN growth_report_eligible_targets target
+            ON target.cycle_id = sealed_cycle.id
+           AND target.student_id = gr.student_id
+          WHERE sealed_cycle.id = gr.cycle_id
+            AND sealed_cycle.swimming_pool_id = gr.swimming_pool_id
+            AND sealed_cycle.report_period = gr.report_period
+            AND sealed_cycle.eligibility_sealed_at IS NOT NULL
+            AND target.policy_excluded_at IS NULL
+        )
+      )
     ORDER BY gr.updated_at ASC
     LIMIT ${batchLimit}
   `);
@@ -203,6 +240,10 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
         analysis_identity_hash: (r.analysis_identity_hash ?? null) as string | null,
         snapshot_hash:        (r.snapshot_hash ?? null) as string | null,
         analysis_retry_count: Number(r.analysis_retry_count ?? 0),
+        analysis_call_started_at: r.analysis_call_started_at
+          ? toIso(r.analysis_call_started_at) : null,
+        analysis_uncertain_at: r.analysis_uncertain_at
+          ? toIso(r.analysis_uncertain_at) : null,
         teacher_reviewed_by:  (r.teacher_reviewed_by ?? null) as string | null,
         teacher_reviewed_at:  (r.teacher_reviewed_at ?? null) as string | null,
       },
@@ -215,7 +256,8 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
         report_period:         r.cycle_report_period          as string,
         timezone:              (r.timezone ?? "Asia/Seoul")   as string,
       },
-      stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
+      stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING" ||
+        r.product_status === "PREANALYZING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
     };
   });
 }
@@ -228,7 +270,50 @@ type OneReportResult =
 
 async function analyzeOneReport(
   db: any,
+  pending: PendingReport,
+): Promise<OneReportResult> {
+  const leaseMs = getAnalysisLeaseMs();
+  const claimToken = await claimGrowthReportAnalysis(db, {
+    reportId: pending.report.id,
+    expectedStatus: pending.report.product_status,
+    leaseMs,
+    requireSealedMonthlyTarget:
+      pending.report.report_type === "monthly" || pending.report.report_type === null,
+  });
+  if (!claimToken) {
+    return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+  }
+
+  let leaseLost = false;
+  let renewalInFlight = false;
+  const renewalTimer = setInterval(() => {
+    if (renewalInFlight || leaseLost) return;
+    renewalInFlight = true;
+    void renewGrowthReportAnalysisClaim(db, {
+      reportId: pending.report.id,
+      claimToken,
+      leaseMs,
+    }).then((renewed) => {
+      if (!renewed) leaseLost = true;
+    }).catch(() => {
+      leaseLost = true;
+    }).finally(() => {
+      renewalInFlight = false;
+    });
+  }, Math.max(5_000, Math.floor(leaseMs / 3)));
+  renewalTimer.unref?.();
+  try {
+    return await analyzeClaimedReport(db, pending, claimToken, () => leaseLost);
+  } finally {
+    clearInterval(renewalTimer);
+  }
+}
+
+async function analyzeClaimedReport(
+  db: any,
   { report, cycle, stage }: PendingReport,
+  claimToken: string,
+  hasLostLease: () => boolean,
 ): Promise<OneReportResult> {
   const maxRetry = getMaxRetryCount();
 
@@ -237,10 +322,15 @@ async function analyzeOneReport(
     await db.execute(sql`
       UPDATE growth_reports
       SET product_status = 'FAILED'::gr_product_status_enum,
+          analysis_claim_token = NULL,
+          analysis_lease_until = NULL,
+          analysis_next_attempt_at = NULL,
           updated_at = now()
       WHERE id = ${report.id}
-        AND product_status IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')
+        AND product_status = ${report.product_status}::gr_product_status_enum
         AND COALESCE(analysis_retry_count, 0) >= ${maxRetry}
+        AND analysis_claim_token = ${claimToken}
+        AND analysis_lease_until > now()
         AND deleted_at IS NULL
     `);
     console.warn(
@@ -262,7 +352,9 @@ async function analyzeOneReport(
   //   enrolled_at <= report_month_start AND (left_at IS NULL OR left_at >= report_month_start)
   //   예) report_month=2026-09 → report_month_start=2026-09-01
   //       8월 15일 입회 학생: enrolled_at(2026-08-15) <= 2026-09-01 → 재원O
-  {
+  const isSealedMonthlyTarget =
+    report.report_type === "monthly" || report.report_type === null;
+  if (!isSealedMonthlyTarget) {
     const analysisPeriod   = getGrowthReportAnalysisPeriod(cycle.report_period);
     const periodFrom       = analysisPeriod.startDate;          // report_period is analysis month M-1
     const analysisFrom     = cycle.analysis_from
@@ -331,10 +423,15 @@ async function analyzeOneReport(
             attendance_count    = ${attendanceCount},
             source_event_count  = ${sourceEventCount},
             eligibility_version = ${eligVersionNum},
+            analysis_claim_token = NULL,
+            analysis_lease_until = NULL,
+            analysis_next_attempt_at = NULL,
             updated_at          = now()
         WHERE id                = ${report.id}
           AND product_status   = ${report.product_status}::gr_product_status_enum
           AND analysis_request_id IS NOT DISTINCT FROM ${report.analysis_request_id}
+          AND analysis_claim_token = ${claimToken}
+          AND analysis_lease_until > now()
           AND deleted_at IS NULL
         RETURNING id
       `);
@@ -360,6 +457,8 @@ async function analyzeOneReport(
       WHERE id = ${report.id}
         AND product_status = ${report.product_status}::gr_product_status_enum
         AND analysis_request_id IS NOT DISTINCT FROM ${report.analysis_request_id}
+        AND analysis_claim_token = ${claimToken}
+        AND analysis_lease_until > now()
         AND deleted_at IS NULL
       RETURNING id
     `);
@@ -377,14 +476,35 @@ async function analyzeOneReport(
   //    ELIGIBLE 학생만 이 단계에 도달 — PREANALYZING / ANALYZING 상태는 ELIGIBLE만 가짐.
   const toInProgress = stage === "PREANALYSIS" ? "PREANALYZING" : "ANALYZING";
   try {
-    await transitionReportStatus({
-      db,
-      reportId:  report.id,
-      toStatus:  toInProgress,
-      actorType: "system",
-      actorId:   null,
-      reason:    `ANALYSIS_WORKER_${stage}`,
-    });
+    if (report.product_status !== toInProgress) {
+      const transitioned = await db.transaction(async (tx: any) => {
+        const owned = await tx.execute(sql`
+          UPDATE growth_reports
+          SET analysis_lease_until = now() +
+                (${getAnalysisLeaseMs()} * interval '1 millisecond'),
+              updated_at = now()
+          WHERE id = ${report.id}
+            AND product_status = ${report.product_status}::gr_product_status_enum
+            AND analysis_claim_token = ${claimToken}
+            AND analysis_lease_until > now()
+            AND deleted_at IS NULL
+          RETURNING id
+        `);
+        if (!(owned.rows as any[] | undefined)?.length) return false;
+        await transitionReportStatus({
+          db: tx,
+          reportId:  report.id,
+          toStatus:  toInProgress,
+          actorType: "system",
+          actorId:   null,
+          reason:    `ANALYSIS_WORKER_${stage}`,
+        });
+        return true;
+      });
+      if (!transitioned) {
+        return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+      }
+    }
   } catch (err) {
     if (err instanceof InvalidTransitionError) {
       // Another worker instance already transitioned this report
@@ -404,12 +524,28 @@ async function analyzeOneReport(
   // 2) Build a candidate immutable snapshot. If the same logical input was
   // already claimed, the persisted full request (including created_at/hash)
   // wins so crash/watchdog recovery replays the exact ENGINE request.
-  const freshSnapshot = await buildAnalysisSnapshot(db, {
-    report, cycle,
-  });
+  let freshRequest: Record<string, any>;
+  let freshPayloadHash: string;
+  if (report.analysis_request_id && isGrowthReportRequestIdentityForStage(
+    report.analysis_request_payload,
+    report.analysis_identity_hash,
+    stage,
+  )) {
+    // A persisted request is immutable across every unfinished retry. Do not
+    // rebuild from changed live inputs or mint a replacement identity.
+    freshRequest = report.analysis_request_payload as Record<string, any>;
+    freshPayloadHash = report.snapshot_hash ?? "";
+  } else {
+    if (hasLostLease()) {
+      return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+    }
+    const freshSnapshot = await buildAnalysisSnapshot(db, { report, cycle });
+    freshRequest = freshSnapshot.request as unknown as Record<string, any>;
+    freshPayloadHash = freshSnapshot.payloadHash;
+  }
   const identity = resolveGrowthReportAnalysisIdentity({
-    freshRequest: freshSnapshot.request as unknown as Record<string, any>,
-    freshPayloadHash: freshSnapshot.payloadHash,
+    freshRequest,
+    freshPayloadHash,
     stage,
     persistedRequest: report.analysis_request_payload,
     persistedRequestId: report.analysis_request_id,
@@ -430,7 +566,10 @@ async function analyzeOneReport(
     identityHash,
     request,
     stage,
+    claimToken,
     preserveResponse: identity.reused,
+    replacePreviousStageRequest: identity.replacePreviousStageRequest,
+    previousStageIdentityHash: report.analysis_identity_hash,
   });
   if (!requestClaimed) {
     return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
@@ -468,12 +607,26 @@ async function analyzeOneReport(
         retryable: false,
         maxRetryCount: maxRetry,
         errorCode: "PERSISTED_RESPONSE_IDENTITY_MISMATCH",
+        claimToken,
       });
       return { ok: false, errorCode: "PERSISTED_RESPONSE_IDENTITY_MISMATCH", httpStatus: 0 };
     }
     response = cached as unknown as GrowthReportAnalysisResponse;
     console.log(`[gr3-worker] report=${report.id} replaying saved ENGINE response; no ENGINE call`);
   } else {
+    if (hasLostLease()) {
+      return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+    }
+    const callStarted = await markAnalysisCallStarted({
+      db,
+      reportId: report.id,
+      requestId,
+      stage,
+      claimToken,
+    });
+    if (!callStarted) {
+      return { ok: false, errorCode: "STALE_ANALYSIS_CLAIM", httpStatus: 0 };
+    }
     try {
       const callResult  = await analyzeGrowthReport(request);
       response          = callResult.response;
@@ -491,6 +644,20 @@ async function analyzeOneReport(
       const errorCode = engineErr instanceof EngineCallError
         ? engineErr.errorCode
         : "UNKNOWN_ERROR";
+
+      if (
+        engineErr instanceof EngineCallError &&
+        engineErr.requestState === "UNKNOWN"
+      ) {
+        await recordAnalysisUncertain({
+          db,
+          reportId: report.id,
+          requestId,
+          stage,
+          claimToken,
+        });
+        return { ok: false, errorCode: "ENGINE_REQUEST_UNKNOWN", httpStatus: engineErr.statusCode };
+      }
 
       void saveAiTrace({
         status: 'FAILED', request_id: requestId, internal_id: requestId,
@@ -511,6 +678,10 @@ async function analyzeOneReport(
         retryable,
         maxRetryCount: maxRetry,
         errorCode,
+        claimToken,
+        retryDelayMs: retryable
+          ? getGrowthReportRetryDelayMs(report.analysis_retry_count + 1)
+          : undefined,
       });
       if (retryable) {
         console.warn(
@@ -534,6 +705,7 @@ async function analyzeOneReport(
       requestId,
       response,
       stage,
+      claimToken,
     });
     if (!responseSaved) {
       await auditStaleRejected(db, report.id, report.swimming_pool_id, requestId);
@@ -575,6 +747,7 @@ async function analyzeOneReport(
       response,
       stage,
       parentInputWindowOpen,
+      claimToken,
     });
     console.log(
       `[gr3-worker] report=${report.id} → ${persist.productStatus} ` +
@@ -602,6 +775,7 @@ async function analyzeOneReport(
         retryable: false,
         maxRetryCount: maxRetry,
         errorCode: code,
+        claimToken,
       });
       const groundingDetails = persistErr instanceof GroundingFailError
         ? { field: persistErr.field, value: persistErr.value, message: persistErr.message }
@@ -617,40 +791,28 @@ async function analyzeOneReport(
 // ─── Stuck report watchdog ────────────────────────────────────────────────────
 
 /**
- * resetStuckReports — PREANALYZING/ANALYZING 상태로 멈춘 리포트를 자동 복구.
- *
- * ENGINE timeout = 120초. 여유 포함 180초(3분) 이상 같은 상태면 stuck으로 판단.
- * PREANALYZING → OPEN, ANALYZING → READY_FOR_ANALYSIS 으로 복구.
- * Watchdog 복구도 retry를 소비하며, exhausted 상태는 FAILED로 terminal 처리.
+ * resetStuckReports — 만료된 lease token만 해제한다.
+ * Status/request/retry evidence stay intact so the next owner resumes the same request.
  */
 async function resetStuckReports(db: any): Promise<number> {
-  const STUCK_THRESHOLD_SECONDS = 180; // 3분
-  const maxRetry = getMaxRetryCount();
   try {
     const res = await db.execute(sql`
       UPDATE growth_reports
-      SET
-        product_status = CASE
-          WHEN COALESCE(analysis_retry_count, 0) + 1 >= ${maxRetry}
-            THEN 'FAILED'::gr_product_status_enum
-          WHEN product_status = 'PREANALYZING'
-            THEN 'OPEN'::gr_product_status_enum
-          WHEN product_status = 'ANALYZING'
-            THEN 'READY_FOR_ANALYSIS'::gr_product_status_enum
-          ELSE product_status
-        END,
-        analysis_retry_count = COALESCE(analysis_retry_count, 0) + 1,
-        updated_at          = NOW()
+      SET analysis_claim_token = NULL,
+          analysis_lease_until = NULL,
+          updated_at = now()
       WHERE product_status IN ('PREANALYZING', 'ANALYZING')
         AND deleted_at IS NULL
-        AND updated_at < NOW() - (${String(STUCK_THRESHOLD_SECONDS)} || ' seconds')::interval
-      RETURNING id, product_status
+        AND analysis_claim_token IS NOT NULL
+        AND analysis_lease_until <= now()
+        AND analysis_uncertain_at IS NULL
+      RETURNING id
     `);
     const count = (res.rows as any[]).length;
     if (count > 0) {
       console.warn(
-        `[gr3-watchdog] ${count}개 stuck 리포트 복구 ` +
-        `(request/hash 보존, exhausted → FAILED)`,
+        `[gr3-watchdog] ${count}개 expired analysis lease 해제 ` +
+        `(status/request/retry count 보존, 동일 request 복구)`,
       );
     }
     return count;
@@ -745,15 +907,38 @@ export async function runGrowthReportAnalysisWorker(
     analyzed: 0, skipped: 0, failed: 0, errors: [],
   };
 
-  // Old rows that reached the retry ceiling must be terminalized before they
-  // enter the queue; they are never polled or counted as analyzed again.
+  // Only due, unowned rows at the retry ceiling become terminal. An active or
+  // uncertain in-flight request is never rewritten by this maintenance query.
   const maxRetry = getMaxRetryCount();
   await db.execute(sql`
     UPDATE growth_reports
     SET product_status = 'FAILED'::gr_product_status_enum,
+        analysis_claim_token = NULL,
+        analysis_lease_until = NULL,
+        analysis_next_attempt_at = NULL,
         updated_at = now()
     WHERE product_status IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')
       AND COALESCE(analysis_retry_count, 0) >= ${maxRetry}
+      AND analysis_uncertain_at IS NULL
+      AND (analysis_next_attempt_at IS NULL OR analysis_next_attempt_at <= now())
+      AND (
+        analysis_claim_token IS NULL
+        OR analysis_lease_until IS NULL
+        OR analysis_lease_until <= now()
+      )
+      AND (
+        (report_type IS NOT NULL AND report_type <> 'monthly')
+        OR EXISTS (
+          SELECT 1
+          FROM growth_report_cycles sealed_cycle
+          INNER JOIN growth_report_eligible_targets target
+            ON target.cycle_id = sealed_cycle.id
+           AND target.student_id = growth_reports.student_id
+          WHERE sealed_cycle.id = growth_reports.cycle_id
+            AND sealed_cycle.eligibility_sealed_at IS NOT NULL
+            AND target.policy_excluded_at IS NULL
+        )
+      )
       AND deleted_at IS NULL
   `);
 
@@ -831,6 +1016,8 @@ export async function fetchSingleReport(db: any, reportId: string): Promise<Pend
       gr.analysis_identity_hash,
       gr.snapshot_hash,
       COALESCE(gr.analysis_retry_count, 0)  AS analysis_retry_count,
+      gr.analysis_call_started_at,
+      gr.analysis_uncertain_at,
       gr.teacher_reviewed_by,
       gr.teacher_reviewed_at,
       grc.id                                AS cycle_db_id,
@@ -868,6 +1055,10 @@ export async function fetchSingleReport(db: any, reportId: string): Promise<Pend
       analysis_identity_hash: (r.analysis_identity_hash ?? null) as string | null,
       snapshot_hash:        (r.snapshot_hash ?? null) as string | null,
       analysis_retry_count: Number(r.analysis_retry_count ?? 0),
+      analysis_call_started_at: r.analysis_call_started_at
+        ? toIso(r.analysis_call_started_at) : null,
+      analysis_uncertain_at: r.analysis_uncertain_at
+        ? toIso(r.analysis_uncertain_at) : null,
       teacher_reviewed_by:  (r.teacher_reviewed_by ?? null) as string | null,
       teacher_reviewed_at:  (r.teacher_reviewed_at ?? null) as string | null,
     },
@@ -880,7 +1071,8 @@ export async function fetchSingleReport(db: any, reportId: string): Promise<Pend
       report_period:         r.cycle_report_period          as string,
       timezone:              (r.timezone ?? "Asia/Seoul")   as string,
     },
-    stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
+      stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING" ||
+        r.product_status === "PREANALYZING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
   };
 }
 
@@ -916,7 +1108,21 @@ export async function analyzeSingleReport(
   }
 
   const { product_status } = pending.report;
-  if (product_status !== "OPEN" && product_status !== "READY_FOR_ANALYSIS" && product_status !== "REGENERATING") {
+  if (pending.report.analysis_uncertain_at) {
+    return {
+      report_id: reportId,
+      product_status,
+      already_done: true,
+      error_code: "ENGINE_REQUEST_UNKNOWN",
+    };
+  }
+  if (![
+    "OPEN",
+    "READY_FOR_ANALYSIS",
+    "REGENERATING",
+    "PREANALYZING",
+    "ANALYZING",
+  ].includes(product_status)) {
     return {
       report_id:      reportId,
       product_status,
@@ -967,7 +1173,7 @@ const LOCK_REFRESH_INTERVAL_MS = 60 * 1000; // 1분마다 갱신
  * drainAnalysisQueue — pending 리포트가 없어질 때까지 또는 MAX_RUN_MS 초과까지
  * 배치를 연속 실행한다. 배치 사이에 락을 갱신해 TTL 만료를 방지한다.
  *
- * 워치독: 각 드레인 루프 시작 전 stuck 리포트(PREANALYZING/ANALYZING 3분 초과)를 리셋.
+ * 워치독: expired lease를 해제한다. Request/status are never reset by age alone.
  */
 async function drainAnalysisQueue(db: any): Promise<{
   totalAnalyzed: number;

@@ -1,8 +1,12 @@
 import { sql } from "drizzle-orm";
+import {
+  getMonthlyReportReadiness,
+  type MonthlyReadinessDb,
+} from "../jobs/growth-report-monthly-readiness.js";
 
-export type GrowthReportNotificationOutboxDb = {
-  execute(query: unknown): Promise<{ rows: unknown[] }>;
-};
+export type GrowthReportNotificationOutboxDb = MonthlyReadinessDb;
+type GrowthReportNotificationOutboxExecutor =
+  Pick<GrowthReportNotificationOutboxDb, "execute">;
 
 /** The monthly outbox is limited to the pool admins receiving a ready notice. */
 export type GrowthReportNotification = {
@@ -53,6 +57,25 @@ function outboxId(item: GrowthReportNotification): string {
   return `grnot_admin_${encodeURIComponent(item.poolId)}_${item.reportPeriod}_${encodeURIComponent(item.recipientId)}`;
 }
 
+function isReady(readiness: Awaited<ReturnType<typeof getMonthlyReportReadiness>>): boolean {
+  return readiness.ready && !readiness.empty_target;
+}
+
+async function releaseClaimForReadinessRetry(
+  db: GrowthReportNotificationOutboxDb,
+  row: any,
+  status: "CLAIMED" | "DISPATCHING",
+): Promise<void> {
+  await db.execute(sql`
+    UPDATE growth_report_notification_outbox
+    SET status = 'PENDING', next_attempt_at = NOW() + INTERVAL '1 minute',
+        lease_until = NULL, lease_token = NULL, updated_at = NOW()
+    WHERE id = ${row.id}
+      AND status = ${status}
+      AND lease_token = ${row.lease_token}
+  `);
+}
+
 async function deliverClaimedOutboxItem(
   db: GrowthReportNotificationOutboxDb,
   row: any,
@@ -61,6 +84,17 @@ async function deliverClaimedOutboxItem(
 ): Promise<void> {
   let dispatchStarted = false;
   try {
+    // Even an old durable intent is not dispatchable if the underlying sealed
+    // target gate is no longer complete.
+    const initialGate = await getMonthlyReportReadiness(db, {
+      poolId: item.poolId,
+      reportPeriod: item.reportPeriod,
+    });
+    if (!isReady(initialGate)) {
+      await releaseClaimForReadinessRetry(db, row, "CLAIMED");
+      return;
+    }
+
     // A stable feed id makes a retry safe if the process stopped before push.
     await db.execute(sql`
       INSERT INTO notifications (
@@ -86,6 +120,14 @@ async function deliverClaimedOutboxItem(
     `);
     if (!dispatching.rows.length) return;
 
+    const dispatchGate = await getMonthlyReportReadiness(db, {
+      poolId: item.poolId,
+      reportPeriod: item.reportPeriod,
+    });
+    if (!isReady(dispatchGate)) {
+      await releaseClaimForReadinessRetry(db, row, "DISPATCHING");
+      return;
+    }
     dispatchStarted = true;
     const acknowledgement = await sendPush(item);
     if (acknowledgement && typeof acknowledgement === "object" && acknowledgement.accepted === false) {
@@ -172,6 +214,18 @@ async function enqueueAdminNotification(
   sendPush: GrowthReportPushSender,
 ): Promise<void> {
   const id = outboxId(item);
+  await insertAdminIntent(db, id, item);
+
+  const row = await claimOutboxItem(db, id);
+  if (!row) return;
+  await deliverClaimedOutboxItem(db, row, item, sendPush);
+}
+
+async function insertAdminIntent(
+  db: GrowthReportNotificationOutboxExecutor,
+  id: string,
+  item: GrowthReportNotification,
+): Promise<void> {
   await db.execute(sql`
     INSERT INTO growth_report_notification_outbox (
       id, notification_type, swimming_pool_id, report_period, recipient_id,
@@ -184,49 +238,85 @@ async function enqueueAdminNotification(
     )
     ON CONFLICT DO NOTHING
   `);
-
-  const row = await claimOutboxItem(db, id);
-  if (!row) return;
-  await deliverClaimedOutboxItem(db, row, item, sendPush);
 }
 
-/** Create idempotent admin-ready intents for this pool/period only. */
-export async function notifyGrowthReportAdminsReady(
-  db: GrowthReportNotificationOutboxDb,
-  params: { poolId: string; reportPeriod: string; message: string; readiness?: Record<string, number> },
-  sendPush: GrowthReportPushSender,
-): Promise<number> {
+async function adminNotificationItems(
+  db: GrowthReportNotificationOutboxExecutor,
+  params: {
+    poolId: string;
+    reportPeriod: string;
+    message: string;
+    readiness?: Record<string, number | boolean>;
+  },
+): Promise<GrowthReportNotification[]> {
   const admins = await db.execute(sql`
     SELECT DISTINCT id AS user_id
     FROM users
     WHERE swimming_pool_id = ${params.poolId}
       AND role = 'pool_admin'
   `);
-  const recipients = admins.rows as Array<{ user_id: string }>;
-  const title = "AI 성장리포트 발송 준비 완료";
-  for (const admin of recipients) {
-    const item: GrowthReportNotification = {
-      type: "GROWTH_REPORT_BATCH_READY",
-      recipientId: admin.user_id,
-      recipientType: "user",
-      poolId: params.poolId,
-      reportPeriod: params.reportPeriod,
-      title,
-      body: params.message,
-      deepLink: "/admin/growth-reports/monthly-list",
-      payload: {
-        screen: "growth_report_list",
-        pool_id: params.poolId,
-        ...(params.readiness ? { readiness: params.readiness } : {}),
-      },
-    };
+  return (admins.rows as Array<{ user_id: string }>).map<GrowthReportNotification>(admin => ({
+    type: "GROWTH_REPORT_BATCH_READY",
+    recipientId: admin.user_id,
+    recipientType: "user",
+    poolId: params.poolId,
+    reportPeriod: params.reportPeriod,
+    title: "AI 성장리포트 발송 준비 완료",
+    body: params.message,
+    deepLink: "/admin/growth-reports/monthly-list",
+    payload: {
+      screen: "growth_report_list",
+      pool_id: params.poolId,
+      ...(params.readiness ? { readiness: params.readiness } : {}),
+    },
+  }));
+}
+
+/**
+ * Called from the cycle-lock transaction only after the sealed 100% gate
+ * passes. Persisting these intents alongside ready_at closes the crash window
+ * between recording readiness and creating durable delivery work.
+ */
+export async function insertGrowthReportAdminReadyIntents(
+  db: GrowthReportNotificationOutboxExecutor,
+  params: {
+    poolId: string;
+    reportPeriod: string;
+    message: string;
+    readiness?: Record<string, number | boolean>;
+  },
+): Promise<number> {
+  const items = await adminNotificationItems(db, params);
+  for (const item of items) await insertAdminIntent(db, outboxId(item), item);
+  return items.length;
+}
+
+/** Create idempotent admin-ready intents for this pool/period only. */
+export async function notifyGrowthReportAdminsReady(
+  db: GrowthReportNotificationOutboxDb,
+  params: {
+    poolId: string;
+    reportPeriod: string;
+    message: string;
+    readiness?: Record<string, number | boolean>;
+  },
+  sendPush: GrowthReportPushSender,
+): Promise<number> {
+  const gate = await getMonthlyReportReadiness(db, {
+    poolId: params.poolId,
+    reportPeriod: params.reportPeriod,
+  });
+  if (!isReady(gate)) return 0;
+
+  const items = await adminNotificationItems(db, params);
+  for (const item of items) {
     try {
       await enqueueAdminNotification(db, item, sendPush);
     } catch (error) {
       console.error("[growth-report-outbox] admin notification enqueue failed:", error);
     }
   }
-  return recipients.length;
+  return items.length;
 }
 
 /** Retry explicit failures and reclaim pre-dispatch claims; ambiguous sends stay uncertain. */

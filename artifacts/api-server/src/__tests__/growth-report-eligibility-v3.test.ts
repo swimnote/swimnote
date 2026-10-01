@@ -34,6 +34,9 @@ const eligSrc         = read("artifacts/api-server/src/lib/growth-report-eligibi
 const snapshotSrc     = read("artifacts/api-server/src/lib/growth-report-snapshot-builder.ts");
 const workerSrc       = read("artifacts/api-server/src/jobs/growth-report-analysis-worker.ts");
 const schedulerSrc    = read("artifacts/api-server/src/jobs/growth-report-scheduler.ts");
+const batchWorkerSrc  = read("artifacts/api-server/src/jobs/growth-report-batch-worker.ts");
+const monthlyTargetsSrc = read("artifacts/api-server/src/lib/growth-report-monthly-targets.ts");
+const monthlyTargetSchemaSrc = read("artifacts/api-server/src/migrations/growth-report-monthly-integrity.ts");
 const resultHandlerSrc = read("artifacts/api-server/src/lib/growth-report-result-handler.ts");
 const reportServiceSrc = read("artifacts/api-server/src/lib/growth-report-service.ts");
 
@@ -331,13 +334,17 @@ describe("TC-L: Worker 동시 실행 중복 방지", () => {
     expect(workerSrc).toContain("ANALYSIS_LOCK");
   });
 
-  it("TC-L-2: transitionReportStatus expected-status CAS로 stale transition 방지", () => {
+  it("TC-L-2: transitionReportStatus row lock으로 stale transition 방지", () => {
     expect(workerSrc).toContain("transitionReportStatus");
     expect(workerSrc).toContain("InvalidTransitionError");
     // concurrent skip
     expect(workerSrc).toContain("concurrent");
-    expect(reportServiceSrc).toContain("AND product_status = ${fromStatus}");
-    expect(reportServiceSrc).toContain("RETURNING id");
+    const transitionStart = reportServiceSrc.indexOf("export async function transitionReportStatus(");
+    const transitionEnd = reportServiceSrc.indexOf("export interface CreateCycleParams", transitionStart);
+    const transitionBody = reportServiceSrc.slice(transitionStart, transitionEnd);
+    expect(transitionBody).toMatch(/WHERE id = \$\{reportId\}\s+FOR UPDATE/);
+    expect(transitionBody).toContain("SET product_status = ${toStatus}");
+    expect(transitionBody).toContain("AND deleted_at IS NULL");
   });
 
   it("TC-L-3: analysis_request_id CAS — stale 응답 거부", () => {
@@ -718,30 +725,56 @@ describe("TC-AI: OLD eligible ⊆ NEW eligible", () => {
   });
 });
 
-// TC-AJ: multi-class student가 cohort에서 1명으로 count
-describe("TC-AJ: multi-class student cohort dedup", () => {
-  it("TC-AJ: scheduler/batch cohort query에 DISTINCT student_id 존재", () => {
-    const schedulerSrc = require("fs").readFileSync(
-      require("path").join(__dirname, "../jobs/growth-report-scheduler.ts"), "utf-8"
-    );
-    const batchSrc = require("fs").readFileSync(
-      require("path").join(__dirname, "../jobs/growth-report-batch-worker.ts"), "utf-8"
-    );
-    // DISTINCT s.id 또는 DISTINCT ON 사용
-    expect(schedulerSrc).toContain("SELECT DISTINCT s.id");
-    expect(batchSrc).toContain("SELECT DISTINCT");
+// TC-AJ: multi-class students are sealed once and all downstream work uses that roster
+describe("TC-AJ: multi-class student cohort uses sealed roster", () => {
+  it("TC-AJ: scheduler and batch worker consume the immutable target PK roster", () => {
+    expect(schedulerSrc).toContain('import { sealMonthlyTargets } from "../lib/growth-report-monthly-targets.js"');
+    expect(schedulerSrc).toContain("FROM growth_report_eligible_targets target");
+    expect(schedulerSrc).not.toContain("FROM students");
+
+    expect(batchWorkerSrc).toContain("getSealedMonthlyTargetRoster(db, cycleId)");
+    expect(batchWorkerSrc).toContain("return roster.map(({ studentId }) => ({ studentId, classGroupId: null }))");
+    expect(batchWorkerSrc).not.toContain("FROM students");
+    expect(batchWorkerSrc).not.toContain("FROM student_class_history");
+
+    expect(monthlyTargetSchemaSrc).toContain("PRIMARY KEY (cycle_id, student_id)");
+    expect(monthlyTargetsSrc).toContain("ON CONFLICT (cycle_id, student_id) DO NOTHING");
+  });
+
+  it("TC-AJ: live sealing deduplicates candidate students and uses canonical evidence helpers", () => {
+    const candidatesStart = monthlyTargetsSrc.indexOf("const candidates = await tx.execute(sql`");
+    const candidatesEnd = monthlyTargetsSrc.indexOf("const targets: MonthlyEligibilityTarget[]", candidatesStart);
+    const candidateQuery = monthlyTargetsSrc.slice(candidatesStart, candidatesEnd);
+    expect(candidatesStart).toBeGreaterThan(-1);
+    expect(candidateQuery).toContain("GROUP BY s.id");
+    expect(candidateQuery).toContain("ORDER BY s.id");
+    expect(candidateQuery).not.toMatch(/SELECT\s+DISTINCT\s+s\.id/i);
+
+    const sealStart = monthlyTargetsSrc.indexOf("export async function sealMonthlyTargets(");
+    const sealEnd = monthlyTargetsSrc.indexOf("function parseSavedRequest", sealStart);
+    const sealBody = monthlyTargetsSrc.slice(sealStart, sealEnd);
+    expect(sealBody).toContain("queryAttendanceForEligibility(");
+    expect(sealBody).toContain("queryDiariesForEligibility(");
+    expect(snapshotSrc).toContain("export async function queryAttendanceForEligibility(");
   });
 });
 
-// TC-AK: overlapping class history가 있어도 student unique count 1
+// TC-AK: overlapping class history still maps to one sealed student target
 describe("TC-AK: overlapping history dedup", () => {
-  it("TC-AK: getEligibleStudents returns unique studentId list — DISTINCT guarantees", () => {
-    const batchSrc = require("fs").readFileSync(
-      require("path").join(__dirname, "../jobs/growth-report-batch-worker.ts"), "utf-8"
-    );
-    // DISTINCT s.id → 같은 학생의 여러 sch row가 있어도 1회만 반환
-    expect(batchSrc).toContain("SELECT DISTINCT");
-    // ORDER BY s.id → consistent ordering
-    expect(batchSrc).toContain("ORDER BY s.id");
+  it("TC-AK: GROUP BY student PK collapses overlapping histories without hiding report reconciliation rows", () => {
+    const candidatesStart = monthlyTargetsSrc.indexOf("const candidates = await tx.execute(sql`");
+    const candidatesEnd = monthlyTargetsSrc.indexOf("const targets: MonthlyEligibilityTarget[]", candidatesStart);
+    const candidateQuery = monthlyTargetsSrc.slice(candidatesStart, candidatesEnd);
+    expect(candidateQuery).toContain("array_agg(DISTINCT sch.class_group_id ORDER BY sch.class_group_id)");
+    expect(candidateQuery).toContain("GROUP BY s.id");
+    expect(candidateQuery).toContain("ORDER BY s.id");
+
+    // Downstream report rows derive from persisted identities; DISTINCT must not
+    // mask a mismatch between the sealed target count and report reconciliation.
+    expect(batchWorkerSrc).toContain("FROM growth_report_eligible_targets target");
+    expect(batchWorkerSrc).toContain("AND target.student_id = ${studentId}");
+    expect(schedulerSrc).toContain("FROM growth_report_eligible_targets target");
+    expect(schedulerSrc).toContain("AND target.student_id = growth_reports.student_id");
+    expect(monthlyTargetsSrc).toContain("Sealed monthly target count mismatch");
   });
 });

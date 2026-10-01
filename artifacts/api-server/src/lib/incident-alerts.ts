@@ -26,6 +26,57 @@ export const INCIDENT = {
 
 export type IncidentKey = typeof INCIDENT[keyof typeof INCIDENT];
 
+export type MonthlyGrowthIncidentType =
+  | "NOT_READY"
+  | "FAILED"
+  | "UNKNOWN"
+  | "RECONCILIATION";
+
+/**
+ * Durable monthly dedupe is keyed by pool + report month + incident class,
+ * rather than the short cooldown buckets used by the general health monitor.
+ * Messages contain only operational counts and identifiers, never report or
+ * student content.
+ */
+export async function fireMonthlyGrowthReportIncident(params: {
+  poolId: string;
+  reportPeriod: string;
+  incidentType: MonthlyGrowthIncidentType;
+  readiness: {
+    eligible_total: number;
+    generated_total: number;
+    policy_excluded_total: number;
+    remaining_count: number;
+    queued: number;
+    processing: number;
+    retry_pending: number;
+    failed: number;
+    unknown: number;
+    missing: number;
+    duplicate: number;
+    wrong_pool: number;
+  };
+}): Promise<void> {
+  const { poolId, reportPeriod, incidentType, readiness } = params;
+  const dedupeKey =
+    `growth-report-monthly:${encodeURIComponent(poolId)}:${reportPeriod}:${incidentType}`;
+  await createOpsAlert({
+    type: `growth_report_monthly:${incidentType}`,
+    title: `월간 성장리포트 ${incidentType}`,
+    message:
+      `report_month=${reportPeriod}; pool_id=${poolId}; ` +
+      `eligible=${readiness.eligible_total}; generated=${readiness.generated_total}; ` +
+      `policy_excluded=${readiness.policy_excluded_total}; remaining=${readiness.remaining_count}; ` +
+      `queued=${readiness.queued}; processing=${readiness.processing}; ` +
+      `retry_pending=${readiness.retry_pending}; failed=${readiness.failed}; ` +
+      `unknown=${readiness.unknown}; missing=${readiness.missing}; ` +
+      `duplicate=${readiness.duplicate}; wrong_pool=${readiness.wrong_pool}`,
+    severity: incidentType === "FAILED" || incidentType === "UNKNOWN" ? "error" : "warning",
+    relatedPoolId: poolId,
+    dedupeKey,
+  });
+}
+
 // ── Time-Bucket Dedup ─────────────────────────────────────────────────────────
 
 function getTimeBucket(): number {

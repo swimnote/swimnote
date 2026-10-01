@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
+
+vi.mock("../../lib/incident-alerts.js", () => ({
+  fireMonthlyGrowthReportIncident: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { fireMonthlyGrowthReportIncident } from "../../lib/incident-alerts.js";
 import {
   freeReportIssueWindow,
   runMonthlyFreeAutoPublication,
@@ -8,7 +14,85 @@ import {
 
 const dialect = new PgDialect();
 const queryText = (value: any) => dialect.sqlToQuery(value).sql;
+const queryParams = (value: any) => dialect.sqlToQuery(value).params;
 const issueAt = new Date("2026-10-04T17:00:00.000Z"); // October 5, 02:00 KST
+
+function makePublisherDb(
+  cyclePools: Array<{ pool_id: string; report_period: string }>,
+  unreadyPools: string[] = [],
+  transientPools: string[] = [],
+) {
+  const poolByCycleId = new Map<string, string>();
+  const execute = vi.fn(async (query: unknown) => {
+    const q = queryText(query);
+    const params = queryParams(query);
+    if (q.includes("FROM growth_report_cycles") && q.includes("SELECT cycle.swimming_pool_id")) {
+      return { rows: cyclePools };
+    }
+    if (q.includes("FROM growth_report_cycles")) {
+      const poolId = String(params[0]);
+      const cycleId = `cycle-${poolId}`;
+      poolByCycleId.set(cycleId, poolId);
+      return { rows: [{
+        id: cycleId,
+        eligible_total: 1,
+        eligibility_sealed_at: "2026-10-01T00:00:00Z",
+      }] };
+    }
+    if (q.includes("FOR UPDATE OF target, report")) return { rows: [] };
+    if (q.includes("FROM growth_report_eligible_targets")) {
+      const cycleId = String(params.at(-1));
+      const poolId = poolByCycleId.get(cycleId)!;
+      if (unreadyPools.includes(poolId)) {
+        return { rows: [{
+          student_id: `${poolId}-student`,
+          target_pool_id: poolId,
+          report_id: `${poolId}-failed`,
+          swimming_pool_id: poolId,
+          product_status: "FAILED",
+          analysis_status: "FAILED",
+        }] };
+      }
+      if (transientPools.includes(poolId)) {
+        return { rows: [{
+          student_id: `${poolId}-student`,
+          target_pool_id: poolId,
+          report_id: `${poolId}-open`,
+          swimming_pool_id: poolId,
+          product_status: "OPEN",
+          analysis_status: "PENDING",
+          analysis_retry_count: 0,
+        }] };
+      }
+      return { rows: [{
+        student_id: `${poolId}-student`,
+        target_pool_id: poolId,
+        report_id: `${poolId}-report`,
+        swimming_pool_id: poolId,
+        product_status: "REVIEW_REQUIRED",
+        analysis_status: "COMPLETE",
+        eligibility_version: 4,
+        attendance_count: 3,
+        source_event_count: 1,
+        report_content: { present: true },
+        report_fact_package: {
+          grounding_result: "PASS",
+          growth_framing_result: "PASS",
+        },
+        sns_summary: { present: true },
+      }] };
+    }
+    if (q.includes("SELECT DISTINCT id AS user_id")) return { rows: [{ user_id: "admin-1" }] };
+    return { rows: [] };
+  });
+  const db = {
+    execute,
+    transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) =>
+      callback({ execute }),
+    ),
+  };
+  return { db, execute };
+}
 
 describe("monthly FREE report admin-review opener (legacy publisher entrypoint)", () => {
   it("maps issuance to the prior analysis month in KST", () => {
@@ -24,7 +108,7 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
   });
 
   it("does not open review or notify anyone before the fifth-day 02:00 KST window", async () => {
-    const execute = vi.fn();
+    const execute = vi.fn().mockResolvedValue({ rows: [] });
     const notifyAdmin = vi.fn();
     const result = await runMonthlyFreeAutoPublication(
       { execute } as any,
@@ -32,54 +116,103 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
       notifyAdmin,
     );
     expect(result).toMatchObject({ published: 0, notificationCandidates: 0, adminReviewReady: 0 });
-    expect(execute).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledOnce();
     expect(notifyAdmin).not.toHaveBeenCalled();
   });
 
-  it("opens review from actual report rows, includes partial failures, and never parent-publishes", async () => {
-    const execute = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ pool_id: "pool-1" }] })
-      .mockResolvedValueOnce({
-        rows: [
-          { product_status: "READY_TO_SEND", analysis_status: "COMPLETE", readiness_eligible: true },
-          { product_status: "EXCLUDED", analysis_status: "INVALID", exclusion_code: "NOT_ELIGIBLE" },
-          { product_status: "OPEN", analysis_status: "DATA_ACCUMULATING" },
-          { product_status: "FAILED", analysis_status: "FAILED" },
-          { product_status: "PUBLISHED", analysis_status: "COMPLETE" },
-        ],
-      });
-    const notifyAdmin = vi.fn().mockResolvedValue(undefined);
-    const result = await runMonthlyFreeAutoPublication(
-      { execute } as any,
-      issueAt,
+  it("alerts for a clear pre-deadline failure but not each transient queued report", async () => {
+    vi.mocked(fireMonthlyGrowthReportIncident).mockClear();
+    const failedDb = makePublisherDb([
+      { pool_id: "pool-failed", report_period: "2026-09" },
+    ], ["pool-failed"]);
+    const notifyAdmin = vi.fn();
+    await runMonthlyFreeAutoPublication(
+      failedDb.db as any,
+      new Date("2026-10-04T16:59:59Z"),
+      notifyAdmin,
+    );
+    expect(fireMonthlyGrowthReportIncident).toHaveBeenCalledWith(expect.objectContaining({
+      poolId: "pool-failed",
+      incidentType: "FAILED",
+    }));
+    expect(notifyAdmin).not.toHaveBeenCalled();
+
+    vi.mocked(fireMonthlyGrowthReportIncident).mockClear();
+    const transientDb = makePublisherDb([
+      { pool_id: "pool-transient", report_period: "2026-09" },
+    ], [], ["pool-transient"]);
+    await runMonthlyFreeAutoPublication(
+      transientDb.db as any,
+      new Date("2026-10-04T16:59:59Z"),
+      notifyAdmin,
+    );
+    expect(fireMonthlyGrowthReportIncident).not.toHaveBeenCalled();
+  });
+
+  it("does not record or announce READY before the fifth-day dispatch window", async () => {
+    const { db, execute } = makePublisherDb([
+      { pool_id: "pool-ready-early", report_period: "2026-09" },
+    ]);
+    const notifyAdmin = vi.fn();
+    await runMonthlyFreeAutoPublication(
+      db as any,
+      new Date("2026-10-04T16:59:59Z"),
       notifyAdmin,
     );
 
+    expect(notifyAdmin).not.toHaveBeenCalled();
+    const queries = execute.mock.calls.map(([query]) => queryText(query));
+    expect(queries.some(query => query.includes("SET ready_at = COALESCE"))).toBe(false);
+    expect(queries.some(query => query.includes("INSERT INTO growth_report_notification_outbox"))).toBe(false);
+  });
+
+  it("keeps cycles independent, scans sealed historical outstanding cycles, and notifies only READY", async () => {
+    const { db, execute } = makePublisherDb([
+      { pool_id: "pool-a", report_period: "2026-09" },
+      { pool_id: "pool-b", report_period: "2026-09" },
+      { pool_id: "pool-c", report_period: "2026-08" },
+    ], ["pool-b"]);
+    const notifyAdmin = vi.fn().mockResolvedValue(undefined);
+    const result = await runMonthlyFreeAutoPublication(db as any, issueAt, notifyAdmin);
+
     expect(result).toEqual({
       published: 0,
-      notificationCandidates: 1,
-      adminReviewReady: 1,
+      notificationCandidates: 2,
+      adminReviewReady: 2,
       reportPeriod: "2026-09",
     });
+    expect(notifyAdmin).toHaveBeenCalledTimes(2);
     expect(notifyAdmin).toHaveBeenCalledWith(expect.objectContaining({
-      poolId: "pool-1",
+      poolId: "pool-a",
       reportPeriod: "2026-09",
-      readiness: {
-        analysis_ready: 1,
-        excluded: 1,
-        data_accumulating: 1,
-        retrying: 0,
-        pending_analysis: 0,
-        terminal_failed: 1,
-        published: 1,
-        other: 0,
-        total: 5,
-      },
+      readiness: expect.objectContaining({ eligible_total: 1, generated_total: 1, ready: true }),
     }));
-    const cycleQuery = queryText(execute.mock.calls[0][0]);
-    expect(cycleQuery).toContain("growth_report_cycles");
-    expect(cycleQuery).not.toContain("UPDATE growth_reports");
-    expect(cycleQuery).not.toContain("GROWTH_REPORT_PUBLISHED");
+    expect(notifyAdmin).toHaveBeenCalledWith(expect.objectContaining({
+      poolId: "pool-c",
+      reportPeriod: "2026-08",
+    }));
+    expect(notifyAdmin).not.toHaveBeenCalledWith(expect.objectContaining({ poolId: "pool-b" }));
+
+    const cycleScan = queryText(execute.mock.calls[0][0]);
+    expect(cycleScan).toContain("eligibility_sealed_at IS NOT NULL");
+    expect(cycleScan).toContain("cycle.report_period < ");
+    expect(cycleScan).toContain("cycle.ready_at IS NULL");
+    expect(execute.mock.calls.map(([query]) => queryText(query))
+      .filter(query => query.includes("UPDATE growth_report_notification_outbox")).length).toBe(0);
+  });
+
+  it("persists READY notification intent under the cycle transaction and never parent-publishes", async () => {
+    const { db, execute } = makePublisherDb([
+      { pool_id: "pool-a", report_period: "2026-09" },
+    ]);
+    await runMonthlyFreeAutoPublication(db as any, issueAt, vi.fn());
+
+    const calls = execute.mock.calls.map(([query]) => queryText(query));
+    expect(calls.some(query => query.includes("FOR UPDATE"))).toBe(true);
+    expect(calls.some(query => query.includes("SET ready_at = COALESCE"))).toBe(true);
+    expect(calls.some(query => query.includes("INSERT INTO growth_report_notification_outbox"))).toBe(true);
+    expect(calls.some(query => query.includes("UPDATE growth_reports"))).toBe(false);
+    expect(calls.some(query => query.includes("GROWTH_REPORT_PUBLISHED"))).toBe(false);
   });
 
   it("has no automatic parent-publication path and uses KST cron/review semantics", async () => {
