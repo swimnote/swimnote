@@ -8,3 +8,9 @@ description: 고정 cohort와 한 round의 승인, 재시작 및 다음 유료 �
 **Why:** 사용자는 대량 대상 전체를 한 번에 승인하되, 성공 결과를 보존하고 남은 대상만 다음 round에서 명시적으로 승인하는 제품 계약을 지정했다. 실행 상태와 승인 증거를 구분하지 않으면 재시작이나 polling이 추가 유료 작업을 승인한 것처럼 동작할 수 있다.
 
 **How to apply:** cohort/승인 증거와 mutable 실행 상태를 분리한다. 승인된 일반 분석의 단계 전환은 추적하되 같은 round에서 재활성화하지 않는다. 중복 승인 요청을 기존 batch에 연결했다면 그 연결은 batch 완료 후에도 유지하여 타임아웃 재전송이 다음 round를 만들지 않게 한다.
+
+자동 first-pass 실행 설정은 명시적으로 승인한 recovery round의 소비 여부를 대신하지 않는다. 자동 실행을 켜거나 일반 pending queue 전체를 drain하는 방식으로 복구 batch를 진행하지 않는다.
+
+**Why:** 전역 자동 실행을 켜면 승인 cohort 밖의 유료 분석까지 시작할 수 있고, 반대로 자동 실행이 꺼졌다는 이유로 승인된 복구를 대기시키면 bulk 승인이 실제 처리로 이어지지 않는다.
+
+**How to apply:** 살아 있는 batch membership·claim과 고정된 한 recovery epoch를 검증하고 기존 RECOVERY 처리 경로를 해당 대상에만 적용한다. 저장된 PRE/FINAL identity와 다음에 처리할 단계는 구분하며, 다른 worker가 이미 완료한 결과는 새 실행 대신 관찰한다.

@@ -13,6 +13,7 @@ import {
 } from "../lib/growth-report-recovery-batch.js";
 import { signRecoveryBatchOperatorToken } from "../lib/auth.js";
 import { recoverMonthlyTargets } from "../lib/growth-report-monthly-recovery.js";
+import { analyzeApprovedMonthlyRecoveryReport } from "./growth-report-analysis-worker.js";
 import {
   isUnknownReissueSchemaReady,
   reissueUnknownGrowthReports,
@@ -86,6 +87,12 @@ function capturedRecoveryEpoch(target: RecoveryBatchTarget): number | null {
 function currentRecoveryEpoch(report: ReportState): number | null {
   const epoch = Number(report.current_recovery_epoch ?? 0);
   return Number.isSafeInteger(epoch) && epoch >= 0 ? epoch : null;
+}
+
+function expectedRecoveryEpoch(target: RecoveryBatchTarget): number | null {
+  const frozen = capturedRecoveryEpoch(target);
+  if (frozen === null || frozen >= Number.MAX_SAFE_INTEGER) return null;
+  return frozen + 1;
 }
 
 async function loadAndValidateTarget(db: any, target: RecoveryBatchTarget): Promise<ReportState | null> {
@@ -285,6 +292,48 @@ async function processFailedTarget(db: any, target: RecoveryBatchTarget): Promis
     return;
   }
   if (observedEpoch > frozenEpoch) {
+    const approvedEpoch = expectedRecoveryEpoch(target);
+    if (approvedEpoch === null || observedEpoch !== approvedEpoch) {
+      await settleRecoveryBatchTarget(db, target, "CONFLICT",
+        "RECOVERY_EPOCH_ADVANCED_BEYOND_APPROVED_ROUND");
+      return;
+    }
+    if (currentState === "WAITING" && circuitPaused(report)) {
+      await pauseBatchForCircuit(db, target, "MONTHLY_CIRCUIT_PAUSED");
+      return;
+    }
+    if (currentState === "WAITING") {
+      const consumed = await analyzeApprovedMonthlyRecoveryReport(db, target.report_id, {
+        cycleId: target.cycle_id,
+        expectedRecoveryEpoch: approvedEpoch,
+        batchTargetId: target.id,
+        batchClaimToken: target.claim_token,
+      });
+      const refreshed = await loadAndValidateTarget(db, target);
+      if (!refreshed) {
+        await settleRecoveryBatchTarget(db, target, "CONFLICT",
+          "REPORT_IDENTITY_REVALIDATION_FAILED_AFTER_ANALYSIS");
+        return;
+      }
+      if (currentRecoveryEpoch(refreshed) !== approvedEpoch) {
+        await settleRecoveryBatchTarget(db, target, "CONFLICT",
+          "RECOVERY_EPOCH_ADVANCED_BEYOND_APPROVED_ROUND");
+        return;
+      }
+      const refreshedState = terminalTargetState(refreshed);
+      if (consumed.error_code === "APPROVED_RECOVERY_TARGET_NOT_DISPATCHABLE" &&
+          refreshedState === "WAITING") {
+        await settleRecoveryBatchTarget(db, target, "CONFLICT",
+          "APPROVED_RECOVERY_MEMBERSHIP_NOT_DISPATCHABLE");
+        return;
+      }
+      await settleRecoveryBatchTarget(db, target, refreshedState,
+        "APPROVED_RECOVERY_ATTEMPT_OBSERVED");
+      if (refreshedState === "SUCCESS" || refreshedState === "INSUFFICIENT_EVIDENCE") {
+        await reconcileTarget(db, refreshed);
+      }
+      return;
+    }
     await settleRecoveryBatchTarget(db, target, currentState, "RECOVERY_EPOCH_ALREADY_ADVANCED");
     if (currentState === "SUCCESS" || currentState === "INSUFFICIENT_EVIDENCE") {
       await reconcileTarget(db, report);
@@ -318,7 +367,56 @@ async function processFailedTarget(db: any, target: RecoveryBatchTarget): Promis
     reportIds: [target.report_id],
   });
   if (recovery.reactivated) {
-    await settleRecoveryBatchTarget(db, target, "WAITING", "FAILED_REPORT_REACTIVATED");
+    const approvedEpoch = expectedRecoveryEpoch(target);
+    const refreshed = await loadAndValidateTarget(db, target);
+    if (!refreshed) {
+      await settleRecoveryBatchTarget(db, target, "CONFLICT", "REPORT_DISAPPEARED_AFTER_RECOVERY");
+      return;
+    }
+    const refreshedEpoch = currentRecoveryEpoch(refreshed);
+    if (approvedEpoch === null || refreshedEpoch !== approvedEpoch) {
+      await settleRecoveryBatchTarget(db, target, "CONFLICT",
+        "RECOVERY_EPOCH_ADVANCED_BEYOND_APPROVED_ROUND");
+      return;
+    }
+    const refreshedState = terminalTargetState(refreshed);
+    if (refreshedState === "WAITING" && !circuitPaused(refreshed)) {
+      const consumed = await analyzeApprovedMonthlyRecoveryReport(db, target.report_id, {
+        cycleId: target.cycle_id,
+        expectedRecoveryEpoch: approvedEpoch,
+        batchTargetId: target.id,
+        batchClaimToken: target.claim_token,
+      });
+      const afterAnalysis = await loadAndValidateTarget(db, target);
+      if (!afterAnalysis) {
+        await settleRecoveryBatchTarget(db, target, "CONFLICT",
+          "REPORT_IDENTITY_REVALIDATION_FAILED_AFTER_ANALYSIS");
+        return;
+      }
+      if (currentRecoveryEpoch(afterAnalysis) !== approvedEpoch) {
+        await settleRecoveryBatchTarget(db, target, "CONFLICT",
+          "RECOVERY_EPOCH_ADVANCED_BEYOND_APPROVED_ROUND");
+        return;
+      }
+      const afterState = terminalTargetState(afterAnalysis);
+      if (consumed.error_code === "APPROVED_RECOVERY_TARGET_NOT_DISPATCHABLE" &&
+          afterState === "WAITING") {
+        await settleRecoveryBatchTarget(db, target, "CONFLICT",
+          "APPROVED_RECOVERY_MEMBERSHIP_NOT_DISPATCHABLE");
+        return;
+      }
+      await settleRecoveryBatchTarget(db, target, afterState,
+        "APPROVED_RECOVERY_ATTEMPT_STARTED");
+      if (afterState === "SUCCESS" || afterState === "INSUFFICIENT_EVIDENCE") {
+        await reconcileTarget(db, afterAnalysis);
+      }
+      return;
+    }
+    if (refreshedState === "WAITING" && circuitPaused(refreshed)) {
+      await pauseBatchForCircuit(db, target, "MONTHLY_CIRCUIT_PAUSED");
+      return;
+    }
+    await settleRecoveryBatchTarget(db, target, refreshedState, "FAILED_REPORT_REACTIVATED");
   } else {
     const refreshed = await loadAndValidateTarget(db, target);
     if (!refreshed) {

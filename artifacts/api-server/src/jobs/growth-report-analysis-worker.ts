@@ -417,6 +417,7 @@ type OneReportResult =
 async function analyzeOneReport(
   db: any,
   pending: PendingReport,
+  options: { monthlyPhase?: "FIRST_PASS" | "RECOVERY" } = {},
 ): Promise<OneReportResult> {
   const isMonthly = pending.report.report_type === "monthly" || pending.report.report_type === null;
   const monthlyRun = isMonthly
@@ -431,9 +432,8 @@ async function analyzeOneReport(
         LIMIT 1
       `)
     : null;
-  const monthlyPhase = monthlyState?.rows[0]?.first_pass_completed_at
-    ? "RECOVERY"
-    : "FIRST_PASS";
+  const monthlyPhase = options.monthlyPhase ??
+    (monthlyState?.rows[0]?.first_pass_completed_at ? "RECOVERY" : "FIRST_PASS");
   const hasCachedResponse = pending.report.analysis_response_payload !== null &&
     pending.report.analysis_response_payload !== undefined;
   if (monthlyRun && !hasCachedResponse && !(await canDispatchMonthlyAnalysis(db, {
@@ -1705,6 +1705,184 @@ export async function analyzeSingleReport(
     ...(oneResult && !oneResult.ok ? {
       error_code:     oneResult.errorCode,
       http_status:    oneResult.httpStatus,
+      engine_details: oneResult.engineDetails,
+    } : {}),
+  };
+}
+
+/**
+ * Narrow recovery-batch consumer. It only enters the ordinary single-report
+ * pipeline after proving the live claim on one frozen FAILED batch member and
+ * the exact first recovery epoch authorized by that member.
+ */
+export async function analyzeApprovedMonthlyRecoveryReport(
+  db: any,
+  reportId: string,
+  context: {
+    cycleId: string;
+    expectedRecoveryEpoch: number;
+    batchTargetId: string;
+    batchClaimToken: string;
+  },
+): Promise<{
+  report_id: string;
+  product_status: string;
+  already_done: boolean;
+  error_code?: string;
+  http_status?: number;
+  engine_details?: unknown;
+}> {
+  const failClosed = (status = "UNKNOWN") => ({
+    report_id: reportId,
+    product_status: status,
+    already_done: true,
+    error_code: "APPROVED_RECOVERY_TARGET_NOT_DISPATCHABLE",
+  });
+  if (!Number.isSafeInteger(context.expectedRecoveryEpoch) ||
+      context.expectedRecoveryEpoch < 1 ||
+      !context.batchTargetId || !context.batchClaimToken) return failClosed();
+
+  const selected = await db.execute(sql`
+    SELECT batch_target.report_id, batch_target.cycle_id, batch_target.pool_id,
+      batch_target.original_recovery_epoch, batch_target.kind,
+      report.student_id, report.report_period, report.report_type,
+      report.product_status, report.analysis_request_id,
+      report.analysis_request_payload, report.analysis_identity_hash,
+      report.snapshot_hash, report.analysis_uncertain_at,
+      report.monthly_final_disposition, report.exclusion_code, report.deleted_at,
+      target.first_pass_outcome, target.recovery_epoch,
+      target.recovery_approved_by, target.recovery_approval_reason,
+      target.policy_excluded_at,
+      cycle.eligibility_sealed_at, cycle.eligible_total,
+      (SELECT COUNT(*)::int FROM growth_report_eligible_targets sealed_target
+       WHERE sealed_target.cycle_id = cycle.id) AS actual_eligible_total,
+      member.preparation_status
+    FROM growth_report_recovery_batch_targets batch_target
+    JOIN growth_report_recovery_batches batch ON batch.id = batch_target.batch_id
+    JOIN growth_reports report ON report.id = batch_target.report_id
+    JOIN growth_report_cycles cycle
+      ON cycle.id = report.cycle_id
+     AND cycle.swimming_pool_id = report.swimming_pool_id
+     AND cycle.report_period = report.report_period
+    JOIN growth_report_monthly_runs run ON run.report_period = cycle.report_period
+    JOIN growth_report_monthly_run_pools member
+      ON member.report_period = run.report_period
+     AND member.swimming_pool_id = cycle.swimming_pool_id
+     AND member.cycle_id = cycle.id
+    JOIN growth_report_eligible_targets target
+      ON target.cycle_id = cycle.id AND target.student_id = report.student_id
+    WHERE batch_target.id = ${context.batchTargetId}
+      AND batch_target.claim_token = ${context.batchClaimToken}
+      AND batch_target.state = 'PROCESSING'
+      AND batch_target.lease_until > now()
+      AND batch_target.kind = 'FAILED'
+      AND batch_target.report_id = ${reportId}
+      AND batch_target.cycle_id = ${context.cycleId}
+      AND batch_target.original_recovery_epoch + 1 = ${context.expectedRecoveryEpoch}
+      AND target.first_pass_outcome = 'failed'
+      AND target.recovery_epoch = ${context.expectedRecoveryEpoch}
+      AND target.recovery_epoch > 0
+      AND NULLIF(BTRIM(target.recovery_approved_by), '') IS NOT NULL
+      AND NULLIF(BTRIM(target.recovery_approval_reason), '') IS NOT NULL
+      AND target.policy_excluded_at IS NULL
+      AND report.analysis_uncertain_at IS NULL
+      AND report.monthly_final_disposition IS NULL
+      AND report.exclusion_code IS NULL
+      AND report.deleted_at IS NULL
+      AND report.product_status IN (
+        'OPEN', 'READY_FOR_ANALYSIS', 'PREANALYZING', 'ANALYZING'
+      )
+      AND (report.report_type = 'monthly' OR report.report_type IS NULL)
+      AND cycle.eligibility_sealed_at IS NOT NULL
+      AND cycle.eligible_total = (
+        SELECT COUNT(*) FROM growth_report_eligible_targets all_target
+        WHERE all_target.cycle_id = cycle.id
+      )
+      AND member.preparation_status = 'sealed'
+    FOR UPDATE OF batch_target, report, target
+  `);
+  const row = selected.rows[0] as any;
+  if (!row) return failClosed();
+  const currentStatus = String(row.product_status ?? "UNKNOWN");
+  if (row.kind !== "FAILED" || row.report_id !== reportId ||
+      row.cycle_id !== context.cycleId ||
+      Number(row.original_recovery_epoch) + 1 !== context.expectedRecoveryEpoch ||
+      Number(row.recovery_epoch) !== context.expectedRecoveryEpoch ||
+      row.first_pass_outcome !== "failed" || row.policy_excluded_at != null ||
+      row.analysis_uncertain_at != null || row.monthly_final_disposition != null ||
+      row.exclusion_code != null || row.deleted_at != null ||
+      row.eligibility_sealed_at == null ||
+      Number(row.eligible_total) !== Number(row.actual_eligible_total) ||
+      row.preparation_status !== "sealed" ||
+      !["OPEN", "READY_FOR_ANALYSIS", "PREANALYZING", "ANALYZING"].includes(currentStatus) ||
+      (row.report_type != null && row.report_type !== "monthly") ||
+      typeof row.recovery_approved_by !== "string" ||
+      !row.recovery_approved_by.trim() ||
+      typeof row.recovery_approval_reason !== "string" ||
+      !row.recovery_approval_reason.trim()) return failClosed(currentStatus);
+
+  const payload = typeof row.analysis_request_payload === "string"
+    ? (() => {
+        try { return JSON.parse(row.analysis_request_payload); } catch { return null; }
+      })()
+    : row.analysis_request_payload;
+  const storedIdentityValid = isGrowthReportRequestIdentityForStage(
+    payload, row.analysis_identity_hash, "PREANALYSIS",
+  ) || isGrowthReportRequestIdentityForStage(
+    payload, row.analysis_identity_hash, "FINAL_ANALYSIS",
+  );
+  if (!payload || payload.request_id !== row.analysis_request_id ||
+      payload.report_id !== reportId ||
+      payload.context?.student_id !== row.student_id ||
+      payload.context?.pool_id !== row.pool_id ||
+      payload.context?.report_period !== row.report_period ||
+      payload.snapshot?.payload_hash !== row.snapshot_hash ||
+      !storedIdentityValid) {
+    return failClosed(currentStatus);
+  }
+
+  const pending = await fetchSingleReport(db, reportId);
+  if (!pending) return failClosed(currentStatus);
+  const pendingStatus = pending.report.product_status;
+  if (!["OPEN", "READY_FOR_ANALYSIS", "PREANALYZING", "ANALYZING"].includes(pendingStatus)) {
+    // The automatic queue may have won the shared claim between proof lookup
+    // and this read. Observe its resulting state; do not convert that race into
+    // another recovery or an unnecessary provider call.
+    return {
+      report_id: reportId,
+      product_status: pendingStatus,
+      already_done: true,
+    };
+  }
+  if (pending.report.cycle_id !== context.cycleId ||
+      pending.report.student_id !== row.student_id ||
+      pending.report.swimming_pool_id !== row.pool_id ||
+      pending.report.report_period !== row.report_period ||
+      (pending.report.report_type != null && pending.report.report_type !== "monthly") ||
+      pending.report.analysis_request_id !== row.analysis_request_id ||
+      pending.report.analysis_identity_hash !== row.analysis_identity_hash ||
+      pending.report.analysis_uncertain_at != null ||
+      !(isGrowthReportRequestIdentityForStage(
+        pending.report.analysis_request_payload,
+        pending.report.analysis_identity_hash,
+        "PREANALYSIS",
+      ) || isGrowthReportRequestIdentityForStage(
+        pending.report.analysis_request_payload,
+        pending.report.analysis_identity_hash,
+        "FINAL_ANALYSIS",
+      ))) return failClosed(pendingStatus);
+
+  const oneResult = await analyzeOneReport(db, pending, { monthlyPhase: "RECOVERY" });
+  const afterRows = await db.execute(sql`
+    SELECT product_status FROM growth_reports WHERE id = ${reportId} LIMIT 1
+  `);
+  return {
+    report_id: reportId,
+    product_status: String((afterRows.rows[0] as any)?.product_status ?? currentStatus),
+    already_done: false,
+    ...(oneResult && !oneResult.ok ? {
+      error_code: oneResult.errorCode,
+      http_status: oneResult.httpStatus,
       engine_details: oneResult.engineDetails,
     } : {}),
   };

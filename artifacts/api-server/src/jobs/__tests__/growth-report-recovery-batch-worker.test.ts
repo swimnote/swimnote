@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   unknownSchemaReady: vi.fn(),
   insertIntents: vi.fn(),
   reconcile: vi.fn(),
+  analyzeApprovedRecovery: vi.fn(),
 }));
 
 vi.mock("../../lib/growth-report-recovery-batch.js", () => ({
@@ -59,6 +60,9 @@ vi.mock("../growth-report-auto-publisher.js", () => ({
   freeReportIssueWindow: () => ({
     issueDay: 6, issueHour: 0, reportPeriod: "2026-03",
   }),
+}));
+vi.mock("../growth-report-analysis-worker.js", () => ({
+  analyzeApprovedMonthlyRecoveryReport: mocks.analyzeApprovedRecovery,
 }));
 
 import {
@@ -164,6 +168,11 @@ describe("growth report recovery batch worker", () => {
     mocks.unknownSchemaReady.mockResolvedValue(true);
     mocks.insertIntents.mockResolvedValue(undefined);
     mocks.reconcile.mockResolvedValue(undefined);
+    mocks.analyzeApprovedRecovery.mockResolvedValue({
+      report_id: "report-1",
+      product_status: "ANALYZING",
+      already_done: false,
+    });
   });
 
   it("uses positive concurrency configuration and ignores invalid values", () => {
@@ -235,14 +244,20 @@ describe("growth report recovery batch worker", () => {
     mocks.recover.mockClear();
     mocks.settle.mockClear();
     const waitingDb = {
-      execute: vi.fn().mockResolvedValue({
-        rows: [failedReport("request-after-recovery", "ANALYZING", 1)],
-      }),
+      execute: vi.fn()
+        .mockResolvedValueOnce({ rows: [failedReport("request-after-recovery", "ANALYZING", 1)] })
+        .mockResolvedValueOnce({ rows: [failedReport("request-after-recovery", "ANALYZING", 1)] }),
     };
     await processRecoveryBatchTarget(waitingDb, failedTarget);
     expect(mocks.settle).toHaveBeenCalledWith(
-      waitingDb, failedTarget, "WAITING", "RECOVERY_EPOCH_ALREADY_ADVANCED",
+      waitingDb, failedTarget, "WAITING", "APPROVED_RECOVERY_ATTEMPT_OBSERVED",
     );
+    expect(mocks.analyzeApprovedRecovery).toHaveBeenCalledWith(waitingDb, "report-1", {
+      cycleId: "cycle-1",
+      expectedRecoveryEpoch: 1,
+      batchTargetId: "target-1",
+      batchClaimToken: "claim-1",
+    });
 
     const failedAgainDb = {
       execute: vi.fn().mockResolvedValue({
@@ -256,18 +271,96 @@ describe("growth report recovery batch worker", () => {
     expect(mocks.recover).not.toHaveBeenCalled();
   });
 
+  it("consumes exactly the epoch created by this FAILED batch activation", async () => {
+    const failedTarget = target({ kind: "FAILED", original_recovery_epoch: 0 });
+    const activated = failedReport("request-after-recovery", "READY_FOR_ANALYSIS", 1);
+    const analyzing = failedReport("request-after-recovery", "ANALYZING", 1);
+    const db = {
+      execute: vi.fn()
+        .mockResolvedValueOnce({ rows: [failedReport("request-1", "FAILED", 0)] })
+        .mockResolvedValueOnce({ rows: [activated] })
+        .mockResolvedValueOnce({ rows: [analyzing] }),
+    };
+    await processRecoveryBatchTarget(db, failedTarget);
+    expect(mocks.recover).toHaveBeenCalledOnce();
+    expect(mocks.analyzeApprovedRecovery).toHaveBeenCalledWith(db, "report-1", {
+      cycleId: "cycle-1",
+      expectedRecoveryEpoch: 1,
+      batchTargetId: "target-1",
+      batchClaimToken: "claim-1",
+    });
+    expect(mocks.settle).toHaveBeenCalledWith(
+      db, failedTarget, "WAITING", "APPROVED_RECOVERY_ATTEMPT_STARTED",
+    );
+  });
+
   it("observes an epoch increment after restart when the prior activation's settlement was lost", async () => {
     const failedTarget = target({ kind: "FAILED", original_recovery_epoch: 2 });
     const db = {
-      execute: vi.fn().mockResolvedValue({
-        rows: [failedReport("request-after-recovery", "ANALYZING", 3)],
-      }),
+      execute: vi.fn()
+        .mockResolvedValueOnce({ rows: [failedReport("request-after-recovery", "ANALYZING", 3)] })
+        .mockResolvedValueOnce({ rows: [failedReport("request-after-recovery", "ANALYZING", 3)] }),
     };
     await processRecoveryBatchTarget(db, failedTarget);
     expect(mocks.recover).not.toHaveBeenCalled();
     expect(mocks.settle).toHaveBeenCalledWith(
-      db, failedTarget, "WAITING", "RECOVERY_EPOCH_ALREADY_ADVANCED",
+      db, failedTarget, "WAITING", "APPROVED_RECOVERY_ATTEMPT_OBSERVED",
     );
+    expect(mocks.analyzeApprovedRecovery).toHaveBeenCalledWith(db, "report-1", {
+      cycleId: "cycle-1",
+      expectedRecoveryEpoch: 3,
+      batchTargetId: "target-1",
+      batchClaimToken: "claim-1",
+    });
+  });
+
+  it("conflicts without consuming a later external recovery epoch", async () => {
+    const failedTarget = target({ kind: "FAILED", original_recovery_epoch: 2 });
+    const db = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [failedReport("future-request", "ANALYZING", 4)],
+      }),
+    };
+    await processRecoveryBatchTarget(db, failedTarget);
+    expect(mocks.analyzeApprovedRecovery).not.toHaveBeenCalled();
+    expect(mocks.recover).not.toHaveBeenCalled();
+    expect(mocks.settle).toHaveBeenCalledWith(
+      db, failedTarget, "CONFLICT", "RECOVERY_EPOCH_ADVANCED_BEYOND_APPROVED_ROUND",
+    );
+  });
+
+  it("prefers a same-epoch success completed during the consumer race over its stale rejection", async () => {
+    const failedTarget = target({ kind: "FAILED", original_recovery_epoch: 2 });
+    mocks.analyzeApprovedRecovery.mockResolvedValue({
+      report_id: "report-1",
+      product_status: "REVIEW_REQUIRED",
+      already_done: true,
+      error_code: "APPROVED_RECOVERY_TARGET_NOT_DISPATCHABLE",
+    });
+    const db = {
+      execute: vi.fn()
+        .mockResolvedValueOnce({
+          rows: [failedReport("request-after-recovery", "ANALYZING", 3)],
+        })
+        .mockResolvedValueOnce({
+          rows: [failedReport("request-after-recovery", "REVIEW_REQUIRED", 3)],
+        })
+        .mockResolvedValueOnce({ rows: [{
+          report_period: "2026-02",
+          ready_at: null,
+          x_paid_entitlement: true,
+          x_manual_entitlement: false,
+          x_force_disabled: false,
+          approval_status: "approved",
+        }] }),
+    };
+    await processRecoveryBatchTarget(db, failedTarget);
+    expect(mocks.recover).not.toHaveBeenCalled();
+    expect(mocks.analyzeApprovedRecovery).toHaveBeenCalledOnce();
+    expect(mocks.settle).toHaveBeenCalledWith(
+      db, failedTarget, "SUCCESS", "APPROVED_RECOVERY_ATTEMPT_OBSERVED",
+    );
+    expect(mocks.settle.mock.calls.some(call => call[2] === "CONFLICT")).toBe(false);
   });
 
   it("allows a changed request ID only with an epoch advance and observes its success", async () => {
