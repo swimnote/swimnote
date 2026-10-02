@@ -123,9 +123,11 @@ function AdminPage({ children }: { children: React.ReactNode }) {
 }
 
 /** Super Admin 페이지 공통 wrapper — SuperGuard + SuperLayout */
-function SuperPage({ children }: { children: React.ReactNode }) {
+function SuperPage({ children, allowPlatformAdmin = false }: {
+  children: React.ReactNode; allowPlatformAdmin?: boolean;
+}) {
   return (
-    <SuperGuard>
+    <SuperGuard allowPlatformAdmin={allowPlatformAdmin}>
       <SuperLayout>{children}</SuperLayout>
     </SuperGuard>
   );
@@ -222,7 +224,7 @@ function Router() {
           <SuperPage><SuperXMode /></SuperPage>
         </Route>
         <Route path="/super/ai">
-          <SuperPage><SuperAI /></SuperPage>
+          <SuperPage allowPlatformAdmin><SuperAI /></SuperPage>
         </Route>
         <Route path="/super/support">
           <SuperPage><SuperSupport /></SuperPage>

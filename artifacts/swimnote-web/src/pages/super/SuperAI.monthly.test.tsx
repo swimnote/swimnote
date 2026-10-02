@@ -3,9 +3,19 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SuperAI from "./SuperAI";
+import SuperGuard from "@/components/super/SuperGuard";
 
-const mocked = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const mocked = vi.hoisted(() => ({
+  get: vi.fn(), post: vi.fn(), navigate: vi.fn(),
+  user: { role: "super_admin" },
+}));
 vi.mock("@/lib/api", () => ({ api: mocked }));
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: () => ({ user: mocked.user, loading: false }),
+}));
+vi.mock("wouter", () => ({
+  useLocation: () => ["/super/ai", mocked.navigate],
+}));
 vi.mock("@/pages/super/GlobalTemplateSets", () => ({ default: () => null }));
 vi.mock("@/pages/super/GrowthReviewStats", () => ({ default: () => null }));
 vi.mock("@/pages/super/AiCostDashboard", () => ({ default: () => null }));
@@ -13,6 +23,7 @@ vi.mock("@/pages/super/AiCostDashboard", () => ({ default: () => null }));
 describe("monthly growth-report operator controls", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocked.user = { role: "super_admin" };
     window.history.replaceState({}, "", "/super/ai?tab=monthly&report_period=2026-07");
     vi.spyOn(window, "confirm").mockReturnValue(true);
     mocked.post.mockResolvedValue({ ok: true });
@@ -37,7 +48,8 @@ describe("monthly growth-report operator controls", () => {
     const button = await screen.findByRole("button", { name: "허용된 실패 recovery" });
     expect((button as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByRole("button", { name: "허용된 실패 recovery" })).toHaveLength(1);
-    expect(screen.getByText("HOLD / 재분석 불가")).toBeTruthy();
+    expect(screen.queryByText("HOLD / 재분석 불가")).toBeNull();
+    expect(screen.getByRole("button", { name: "재분석 승인 대상 선택" })).toBeTruthy();
     expect(screen.getByText(/Provider 실제 비용: UNKNOWN/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "공통 장애 수정 확인" } });
     fireEvent.click(button);
@@ -228,6 +240,124 @@ describe("monthly growth-report operator controls", () => {
     });
     render(<SuperAI />);
     expect(await screen.findByText(/persisted-report: PROCESSING/)).toBeTruthy();
+    expect(mocked.post).not.toHaveBeenCalled();
+  });
+
+  it("renders monthly UNKNOWN approval on the actual default AI route without a hidden tab or auto-execution", async () => {
+    window.history.replaceState({}, "", "/super/ai");
+    render(<SuperGuard allowPlatformAdmin><SuperAI /></SuperGuard>);
+    expect(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "재분석 승인" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "월간 성장리포트 / UNKNOWN 재분석" })
+      .getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("선택 0건")).toBeTruthy();
+    expect(mocked.post).not.toHaveBeenCalled();
+  });
+
+  it("makes a single pilot selectable from its row and submits once after the confirmation dialog", async () => {
+    mocked.post.mockResolvedValue({ results: [{ report_id: "unknown-test", state: "COMPLETE" }] });
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("button", { name: "재분석 승인 대상 선택" }));
+    expect(screen.getByRole("checkbox", { name: "UNKNOWN unknown-test 선택" }))
+      .toHaveProperty("checked", true);
+    expect(screen.getByText("선택 1건")).toBeTruthy();
+    expect(mocked.post).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "파일럿 승인" } });
+    fireEvent.click(screen.getByRole("button", { name: "재분석 승인" }));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("대상 report: unknown-test"));
+    await waitFor(() => expect(mocked.post).toHaveBeenCalledTimes(1));
+    expect(mocked.post).toHaveBeenCalledWith("/super/growth-reports/unknown-reissue", {
+      report_ids: ["unknown-test"], confirmed: true, reason: "파일럿 승인",
+    });
+    expect(await screen.findByText(/unknown-test: COMPLETE/)).toBeTruthy();
+  });
+
+  it("displays an executing state until the requested terminal result arrives", async () => {
+    let complete!: (result: unknown) => void;
+    mocked.post.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" }));
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "진행 상태 확인" } });
+    fireEvent.click(screen.getByRole("button", { name: "재분석 승인" }));
+    expect(screen.getByRole("button", { name: "재분석 승인 처리 중..." })).toHaveProperty("disabled", true);
+    complete({ results: [{ report_id: "unknown-test", state: "UNKNOWN" }] });
+    expect(await screen.findByText(/unknown-test: UNKNOWN/)).toBeTruthy();
+  });
+
+  it.each(["UNKNOWN", "CONFLICT", "FAILED"])("displays %s results instead of reporting success", async state => {
+    mocked.post.mockResolvedValue({ results: [{ report_id: "unknown-test", state, error_code: "TEST_ERROR" }] });
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" }));
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "상태 표시 확인" } });
+    fireEvent.click(screen.getByRole("button", { name: "재분석 승인" }));
+    expect(await screen.findByText(new RegExp(`unknown-test: ${state}`))).toBeTruthy();
+    expect(screen.queryByText(/unknown-test: COMPLETE/)).toBeNull();
+  });
+
+  it("blocks completed and PUBLISHED rows even if historical UNKNOWN metadata remains", async () => {
+    mocked.get.mockResolvedValue({ summary: null, run: null, exceptions: { total: 2, rows: [
+      { swimming_pool_id: "pool", report_id: "published", product_status: "PUBLISHED",
+        first_pass_error_category: "UNKNOWN", unknown_reissue_allowed: true },
+      { swimming_pool_id: "pool", report_id: "complete", product_status: "REVIEW_REQUIRED", analysis_status: "COMPLETE",
+        first_pass_error_category: "UNKNOWN", unknown_reissue_allowed: true },
+    ] } });
+    render(<SuperAI />);
+    for (const id of ["published", "complete"]) {
+      expect(await screen.findByRole("checkbox", { name: `UNKNOWN ${id} 선택` })).toHaveProperty("disabled", true);
+    }
+    expect(screen.queryByRole("button", { name: "재분석 승인 대상 선택" })).toBeNull();
+    expect(mocked.post).not.toHaveBeenCalled();
+  });
+
+  it("replays a persisted operation without creating client UUIDs or requesting a new generation", async () => {
+    mocked.get.mockResolvedValue({ summary: null, run: null, exceptions: { total: 1, rows: [
+      { swimming_pool_id: "pool", report_id: "unknown-test", analysis_uncertain_at: "2026-09-01T00:00:00Z",
+        unknown_reissue_allowed: true, unknown_reissue_operation: {
+          recovery_operation_id: "stable-op", new_request_id: "stable-request", state: "PROCESSING",
+        } },
+    ] } });
+    mocked.post.mockResolvedValue({ results: [{
+      report_id: "unknown-test", recovery_operation_id: "stable-op", new_request_id: "stable-request", state: "PROCESSING",
+    }] });
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" }));
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "기존 승인 확인" } });
+    fireEvent.click(screen.getByRole("button", { name: "동일 승인 상태 확인 / 재시도" }));
+    await waitFor(() => expect(mocked.post).toHaveBeenCalledTimes(1));
+    expect(mocked.post.mock.calls[0]).toEqual(["/super/growth-reports/unknown-reissue", {
+      report_ids: ["unknown-test"], confirmed: true, reason: "기존 승인 확인",
+    }]);
+    expect(screen.getByText(/Operation stable-op/)).toBeTruthy();
+  });
+
+  it.each(["pool_admin", "teacher", "parent", "admin"])("denies %s before fetching or rendering operator controls", role => {
+    mocked.user = { role };
+    render(<SuperGuard allowPlatformAdmin><SuperAI /></SuperGuard>);
+    expect(screen.queryByRole("button", { name: "재분석 승인" })).toBeNull();
+    expect(mocked.get).not.toHaveBeenCalled();
+    expect(mocked.post).not.toHaveBeenCalled();
+    expect(mocked.navigate).toHaveBeenCalledWith("/login", { replace: true });
+  });
+
+  it("allows an already authenticated platform_admin only with the explicit AI route opt-in", async () => {
+    mocked.user = { role: "platform_admin" };
+    const page = render(<SuperGuard allowPlatformAdmin><SuperAI /></SuperGuard>);
+    expect(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" })).toBeTruthy();
+    expect(mocked.post).not.toHaveBeenCalled();
+    page.unmount();
+    mocked.get.mockClear();
+    render(<SuperGuard><SuperAI /></SuperGuard>);
+    expect(mocked.get).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "재분석 승인" })).toBeNull();
+  });
+
+  it("keeps other AI tabs reachable and preserves explicit tab URLs", async () => {
+    window.history.replaceState({}, "", "/super/ai?tab=templates");
+    render(<SuperAI />);
+    expect(screen.queryByRole("button", { name: "재분석 승인" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "월간 성장리포트 / UNKNOWN 재분석" }));
+    expect(await screen.findByRole("button", { name: "재분석 승인" })).toBeTruthy();
+    expect(new URLSearchParams(window.location.search).get("tab")).toBe("monthly");
     expect(mocked.post).not.toHaveBeenCalled();
   });
 });

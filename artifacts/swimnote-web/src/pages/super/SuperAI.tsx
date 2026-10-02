@@ -35,6 +35,8 @@ interface MonthlyException {
   swimming_pool_id: string;
   report_id?: string;
   product_status?: string;
+  analysis_status?: string;
+  monthly_final_disposition?: string;
   first_pass_outcome?: string;
   first_pass_error_code?: string;
   first_pass_error_category?: string;
@@ -72,7 +74,8 @@ function MonthlyExceptionsTab() {
   const [period, setPeriod] = useState(() =>
     new URLSearchParams(window.location.search).get("report_period") ?? previous.toISOString().slice(0, 7));
   const [pool, setPool] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(() =>
+    new URLSearchParams(window.location.search).get("category") ?? "");
   const [page, setPage] = useState(0);
   const [data, setData] = useState<MonthlyDiagnostics | null>(null);
   const [error, setError] = useState("");
@@ -97,9 +100,13 @@ function MonthlyExceptionsTab() {
   }
 
   function isResolvedUnknown(row: MonthlyException) {
-    const outcome = `${row.product_status ?? ""} ${row.first_pass_outcome ?? ""} ` +
-      `${unknownResults[row.report_id ?? ""]?.state ?? row.unknown_reissue_operation?.state ?? ""}`.toUpperCase();
-    return /GENERATED|COMPLETE|SUCCESS|INSUFFICIENT_EVIDENCE|EXCLUDED/.test(outcome);
+    const terminal = new Set(["GENERATED", "COMPLETE", "SUCCESS", "INSUFFICIENT_EVIDENCE",
+      "EXCLUDED", "PUBLISHED", "READY_TO_SEND", "APPROVED",
+      "COMPLETE_WITH_QUESTIONS_AVAILABLE", "COMPLETE_WITH_PARENT_EVIDENCE"]);
+    return [row.product_status, row.analysis_status, row.first_pass_outcome,
+      row.monthly_final_disposition,
+      unknownResults[row.report_id ?? ""]?.state, row.unknown_reissue_operation?.state]
+      .some(value => terminal.has(String(value ?? "").toUpperCase()));
   }
 
   useEffect(() => {
@@ -160,6 +167,7 @@ function MonthlyExceptionsTab() {
       .map(row => [row.report_id!, row]));
     const expectedOperationIds: Record<string, string> = {};
     if (nextGeneration) {
+      if (reportIds.length !== 1) return;
       for (const id of reportIds) {
         const row = rowsById.get(id);
         const operationId = row?.unknown_reissue_operation?.recovery_operation_id;
@@ -173,6 +181,7 @@ function MonthlyExceptionsTab() {
           "새로운 유료 분석 시도가 발생합니다. 가장 최근 UNKNOWN 귀결에 대한 별도 승인이며, 반드시 대상과 비용 가능성을 확인하세요."
         : `${period} 월 UNKNOWN ${reportIds.length}건을 재분석 승인하시겠습니까? ` +
           "재분석은 유료 신규 시도를 발생시킬 수 있습니다. 승인 후에도 결과 확인이 필요합니다."
+      + `\n대상 report: ${reportIds.join(", ")}\n승인 사유: ${reason.trim()}`
     );
     if (!confirmed) return;
     busyRef.current = true; setBusy(true); setError(""); setUnknownRetryNeeded(false);
@@ -250,13 +259,14 @@ function MonthlyExceptionsTab() {
       const selectableIds = new Set(unknownRows.filter(row => row.report_id &&
         (row.unknown_reissue_allowed === true || row.unknown_reissue_next_approval_allowed === true) &&
         !isResolvedUnknown(row)).map(row => row.report_id!));
-      const nextApprovalAllowed = selectedUnknownIds.length > 0 && selectedUnknownIds.every(id => {
+      const nextApprovalAllowed = selectedUnknownIds.length === 1 && selectedUnknownIds.every(id => {
         const row = unknownRowsById.get(id);
         return row?.unknown_reissue_next_approval_allowed === true &&
           Boolean(row.unknown_reissue_operation?.recovery_operation_id) && !isResolvedUnknown(row);
       });
       const replayPending = unknownRetryNeeded || selectedUnknownIds.some(id =>
-        unknownResults[id]?.state?.toUpperCase() === "PROCESSING");
+        Boolean(unknownResults[id]?.recovery_operation_id ||
+          unknownRowsById.get(id)?.unknown_reissue_operation?.recovery_operation_id));
       const selectedCount = selectedUnknownIds.filter(id => selectableIds.has(id) ||
         !unknownRowsById.has(id) ||
         (replayPending && !isResolvedUnknown(unknownRowsById.get(id)!))).length;
@@ -265,8 +275,8 @@ function MonthlyExceptionsTab() {
           <strong className="text-sm">UNKNOWN 재분석 승인</strong>
           <span aria-live="polite" className="text-xs">선택 {selectedCount}건</span>
           <button type="button" disabled={busy || !selectedCount || !reason.trim()}
-            onClick={() => approveUnknownReissue()} className="border rounded px-3 py-1.5 text-xs font-semibold disabled:opacity-40">
-            {replayPending ? "동일 승인 상태 확인 / 재시도" : "재분석 승인"}
+            onClick={() => approveUnknownReissue()} className="rounded bg-[#002F5F] text-white px-3 py-2 text-sm font-semibold disabled:opacity-40">
+            {busy ? "재분석 승인 처리 중..." : replayPending ? "동일 승인 상태 확인 / 재시도" : "재분석 승인"}
           </button>
           <button type="button" disabled={busy || !nextApprovalAllowed || !reason.trim()}
             onClick={() => approveUnknownReissue(true)}
@@ -275,8 +285,9 @@ function MonthlyExceptionsTab() {
           </button>
         </div>
         <p className="text-xs text-amber-900">
-          선택한 UNKNOWN만 요청합니다. 재분석은 유료 신규 시도를 발생시킬 수 있으며, 승인 전 확인이 필요합니다.
-          기존 실패 전용 recovery와는 별도 동작입니다.
+          아래 UNKNOWN 행을 선택하고 승인 사유를 입력한 뒤 재분석을 승인하세요. 파일럿은 1건만 선택할 수 있습니다.
+          재분석은 유료 신규 시도를 발생시킬 수 있습니다. 기존 operation은 동일 승인으로 상태 확인 / 재시도하며,
+          새 회차는 별도 추가 승인 1건으로만 요청합니다. 페이지 진입이나 선택만으로 실행하지 않습니다.
         </p>
         {Object.values(unknownResults).length > 0 && <ul className="space-y-1 text-xs" aria-label="UNKNOWN 재분석 결과">
           {Object.values(unknownResults).map(result => <li key={result.report_id} role="status">
@@ -312,7 +323,14 @@ function MonthlyExceptionsTab() {
           <td className="p-2">{row.recovery_epoch ?? 0}</td>
           <td className="p-2">{row.first_pass_engine_requests ?? 0} / {row.recovery_engine_requests ?? 0} / {row.lookup_requests ?? 0}</td>
           <td className="p-2">
-            {row.recovery_allowed
+            {row.report_id && isUnknownRow(row) && !isResolvedUnknown(row) &&
+              (row.unknown_reissue_allowed === true || row.unknown_reissue_next_approval_allowed === true)
+              ? <button type="button" disabled={busy}
+                  onClick={() => setSelectedUnknownIds([row.report_id!])}
+                  className="rounded border border-[#002F5F] px-2 py-1 text-[#002F5F] font-semibold disabled:opacity-40">
+                  {selectedUnknownIds.includes(row.report_id!) ? "재분석 승인 대상 선택됨" : "재분석 승인 대상 선택"}
+                </button>
+              : row.recovery_allowed
               ? <button disabled={busy || !reason.trim()} onClick={() => operate("recover", row.swimming_pool_id)}
                 className="border rounded p-1 disabled:opacity-40">허용된 실패 recovery</button>
               : <span>HOLD / 재분석 불가</span>}
@@ -488,23 +506,26 @@ function UsageTab({ mode }: { mode: "usage" | "errors" }) {
 }
 
 export default function SuperAI() {
-  const [tab, setTab] = useState<TabKey>(() =>
-    new URLSearchParams(window.location.search).get("tab") === "monthly" ? "monthly" : "templates");
+  const [tab, setTab] = useState<TabKey>(() => {
+    const value = new URLSearchParams(window.location.search).get("tab");
+    return ["templates", "growth_stats", "usage", "errors", "ai_cost", "monthly"].includes(value ?? "")
+      ? value as TabKey : "monthly";
+  });
 
   const TABS: { key: TabKey; label: string }[] = [
+    { key: "monthly",      label: "월간 성장리포트 / UNKNOWN 재분석" },
     { key: "templates",    label: "Global Templates" },
     { key: "growth_stats", label: "Growth Review Stats" },
     { key: "usage",        label: "AI 사용현황" },
     { key: "errors",       label: "AI 오류" },
     { key: "ai_cost",      label: "AI 비용" },
-    { key: "monthly",      label: "월간 성장리포트 예외" },
   ];
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-5">
         <h1 className="text-[20px] font-bold text-[#111]">AI 운영</h1>
-        <p className="text-[12px] text-[#999] mt-0.5">글로벌 템플릿, Growth 통계, AI 호출 추적</p>
+        <p className="text-[12px] text-[#999] mt-0.5">월간 성장리포트 UNKNOWN 승인, 글로벌 템플릿, Growth 통계, AI 호출 추적</p>
       </div>
 
       {/* Tabs */}
@@ -512,7 +533,13 @@ export default function SuperAI() {
         {TABS.map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              const url = new URL(window.location.href);
+              url.searchParams.set("tab", t.key);
+              window.history.replaceState(window.history.state, "", url);
+            }}
+            aria-pressed={tab === t.key}
             className={`px-4 py-2 text-[13px] font-medium border-b-2 transition-colors -mb-px ${
               tab === t.key ? "border-[#002F5F] text-[#002F5F]" : "border-transparent text-[#888] hover:text-[#444]"
             }`}
