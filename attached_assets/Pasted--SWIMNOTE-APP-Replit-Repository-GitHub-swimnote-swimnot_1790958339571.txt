@@ -1,0 +1,265 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[월간 전체 Recovery — 전체 재시도 승인 버튼 비활성 Production 버그 수정]
+
+Production 실제 화면에서 확인된 버그입니다.
+
+현재 /super/ai 월간 전체 recovery batch 영역에서:
+
+- Eligible 전체 = 17건
+- 실패 / UNKNOWN = 0 / 17건
+- 다음 회차 = 1
+- “미완료 전체 선택” 완료
+- “서버 cohort 선택: 17건” 표시
+
+까지 정상인데,
+
+“전체 재시도 승인” 버튼이 계속 disabled 상태라
+실제 일괄 recovery를 실행할 수 없습니다.
+
+이번 작업은 이 UI 실행 차단만 최소 수정합니다.
+
+ENGINE 수정 금지.
+bulk recovery backend 재설계 금지.
+migration 금지.
+2026-09 실제 recovery 실행 금지.
+provider 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 disabled predicate 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+SuperAI.tsx의
+“전체 재시도 승인” 버튼 disabled 조건만 추적하세요.
+
+확인:
+
+- eligible cohort count
+- 전체 선택 여부
+- approval reason
+- running/submitting state
+- server eligibility
+- 기존 batch 존재 여부
+
+현재 Production처럼
+
+eligible = 17
+selected cohort = 17
+batch 없음
+
+인데도 disabled인 정확한 조건을 찾아 수정합니다.
+
+전체 recovery 시스템 재조사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 승인 사유를 파란 recovery 영역에 명확히 배치
+━━━━━━━━━━━━━━━━━━━━━━
+
+월간 전체 recovery batch 영역 안에
+
+“원인 수정 및 일괄 재시도 승인 사유”
+
+입력칸을 명확하게 표시하세요.
+
+기존 approval reason state를 재사용할 수 있으면 재사용하세요.
+새 승인 시스템을 만들지 마세요.
+
+예:
+
+원인 수정 및 일괄 재시도 승인 사유
+[________________________________]
+
+운영자가 직접 입력해야 합니다.
+
+공백 trim 후 빈 값은 승인 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 버튼 활성 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+“전체 재시도 승인” 버튼은 다음 조건이면 활성화:
+
+- server eligible count > 0
+- 전체 cohort 선택 상태
+- approval reason.trim().length > 0
+- 현재 batch submit 중 아님
+- 서버가 bulk recovery 허용 상태
+
+즉 현재 17건을 전체 선택하고
+승인 사유를 입력하면 즉시 버튼이 활성화되어야 합니다.
+
+숨겨진 다른 UI 조건 때문에 막히면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. disabled 이유 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+버튼이 비활성인 경우 이유를 바로 보여주세요.
+
+예:
+
+대상 미선택:
+“미완료 전체 대상을 선택해 주세요.”
+
+사유 미입력:
+“승인 사유를 입력하면 전체 재시도를 실행할 수 있습니다.”
+
+실행 중:
+“Recovery batch 생성 중입니다.”
+
+server blocker:
+실제 서버 사유 표시.
+
+회색 버튼만 보여주는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 전체 선택 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+[미완료 전체 선택]
+[전체 선택 해제]
+
+기능은 유지합니다.
+
+전체 선택 시:
+
+“서버 cohort 선택: 17건”
+
+이 표시되고,
+승인 사유까지 입력되면
+
+[전체 재시도 승인]
+
+이 활성화되어야 합니다.
+
+pagination에 보이는 행 수와 무관하게
+서버 전체 cohort를 대상으로 한다는 기존 정책 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실행 확인창
+━━━━━━━━━━━━━━━━━━━━━━
+
+버튼 클릭 후 반드시 확인:
+
+“2026-09 미완료 17건을 Recovery Round 1로
+일괄 재시도 승인하시겠습니까?”
+
+승인 사유도 함께 표시 가능.
+
+확인 전에는 API 호출 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 SuperAI 테스트만 실행.
+
+필수:
+
+1. eligible 17 + 전체 선택 + 사유 없음
+   → 버튼 disabled
+
+2. eligible 17 + 전체 선택 + 사유 입력
+   → 버튼 enabled
+
+3. 사유 공백만 입력
+   → disabled
+
+4. 전체 선택 해제
+   → disabled
+
+5. eligible 0
+   → disabled
+
+6. 실행 중
+   → disabled
+
+7. enabled 상태에서 click
+   → 기존 bulk approval endpoint 정확히 1회 호출
+
+8. double click
+   → 중복 batch 생성 방지
+
+9. 페이지 진입/전체 선택만으로
+   → 자동 실행 0
+
+10. 확인창 cancel
+    → API 호출 0
+
+웹 production bundle 실행.
+
+API 코드 변경이 없으면
+API 테스트/build/redeploy 하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Production 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 수정 배포 중:
+
+2026-09 UNKNOWN 실제 실행 = 0
+recovery batch 생성 = 0
+reissue operation 생성 = 0
+provider 호출 = 0
+
+현재 상태 유지:
+
+eligible = 119
+generated = 99
+insufficient_evidence = 3
+unknown = 17
+resolved = 102
+READY = false
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+웹 최소 수정
+→ 관련 테스트
+→ production bundle
+→ commit
+→ GitHub main
+→ Web Production 배포
+
+API/ENGINE/모바일 수정 없음.
+OTA 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+ROOT CAUSE = ...
+
+BUTTON DISABLED PREDICATE = ...
+APPROVAL REASON STATE = ...
+
+FILES_CHANGED
+RELATED TESTS
+WEB BUNDLE
+
+NEW COMMIT SHA
+GitHub main SHA
+Web Deploy ID
+Production LIVE
+deployed SHA
+
+그리고:
+
+17 COHORT SELECTED = PASS/HOLD
+APPROVAL REASON VISIBLE = PASS/HOLD
+REASON ENABLES BULK BUTTON = PASS/HOLD
+SELECT ALL ENABLES BULK FLOW = PASS/HOLD
+DISABLED REASON VISIBLE = PASS/HOLD
+DOUBLE CLICK SAFETY = PASS/HOLD
+NO AUTO EXECUTION = PASS/HOLD
+PRODUCTION WEB DEPLOYMENT = PASS/HOLD
+
+2026-09 RECOVERY BATCH CREATED = 0
+2026-09 PROVIDER CALLS = 0
+
+실제 17건은 실행하지 말고 여기서 정지하세요.
