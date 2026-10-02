@@ -13,10 +13,13 @@ description: swimnote.kr vs swimnote-api.onrender.com 실제 라우팅 구조. �
   - GitHub main push → Render 자동 배포 (autoDeploy: yes)
   - swimnote-web.onrender.com도 동일 서비스
 - `swimnote-api.onrender.com` = Render web_service = **api-server (운영)**
-  - GitHub push → 자동 빌드·배포
+  - autoDeploy: no (2026-10-02 Render API 확인). GitHub push만으로 배포되지 않음; 승인 SHA를 지정해 Render 배포 후 LIVE·health SHA 검증.
   - DB: SUPABASE_DATABASE_URL (shared)
 
 ⚠ Replit 게시버튼으로는 swimnote.kr 배포 불가 — GitHub push만 유효
+
+**Why:** Replit에 등록된 custom domain 정보나 저장소의 render.yaml만으로 실제 웹 origin과 현재 autoDeploy 설정을 판단할 수 없다. 운영 Render 설정은 저장소 설정과 다를 수 있다.
+**How to apply:** 운영 웹 확인 시 Render 서비스·verified custom domain·실제 public bundle을 확인한다. API와 웹의 배포 상태를 각각 검증한다.
 
 ## 앱 API_BASE
 `https://swimnote-api.onrender.com/api` (SessionContext.tsx)

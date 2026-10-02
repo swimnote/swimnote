@@ -3,7 +3,7 @@
  * - 탭: Global Templates / Growth Review Stats / AI 사용현황 / AI 오류
  * - AI 사용현황 + 오류: /super/ai-traces 재활용 (기존 엔드포인트)
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import GlobalTemplateSets from "@/pages/super/GlobalTemplateSets";
 import GrowthReviewStats from "@/pages/super/GrowthReviewStats";
@@ -44,6 +44,20 @@ interface MonthlyException {
   recovery_engine_requests?: number;
   lookup_requests?: number;
   recovery_allowed?: boolean;
+  analysis_uncertain_at?: string | null;
+  unknown_reissue_allowed?: boolean;
+  unknown_reissue_next_approval_allowed?: boolean;
+  unknown_reissue_hold_reason?: string | null;
+  unknown_reissue_operation?: UnknownReissueResult | null;
+}
+interface UnknownReissueResult {
+  report_id: string;
+  recovery_operation_id?: string;
+  new_request_id?: string;
+  recovery_generation?: number;
+  state: string;
+  error_code?: string;
+  detail?: string;
 }
 interface MonthlyDiagnostics {
   summary: Record<string, number | string | unknown> | null;
@@ -65,6 +79,29 @@ function MonthlyExceptionsTab() {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
   const [revision, setRevision] = useState(0);
+  const [selectedUnknownIds, setSelectedUnknownIds] = useState<string[]>([]);
+  const [unknownResults, setUnknownResults] = useState<Record<string, UnknownReissueResult>>({});
+  const [unknownRetryNeeded, setUnknownRetryNeeded] = useState(false);
+  const busyRef = useRef(false);
+
+  function clearUnknownSelection() {
+    setSelectedUnknownIds([]);
+    setUnknownResults({});
+    setUnknownRetryNeeded(false);
+  }
+
+  function isUnknownRow(row: MonthlyException) {
+    if (row.unknown_reissue_hold_reason?.toUpperCase() === "NOT_UNKNOWN") return false;
+    return row.first_pass_error_category === "UNKNOWN" || row.first_pass_outcome === "UNKNOWN" ||
+      row.analysis_uncertain_at != null || row.unknown_reissue_operation != null;
+  }
+
+  function isResolvedUnknown(row: MonthlyException) {
+    const outcome = `${row.product_status ?? ""} ${row.first_pass_outcome ?? ""} ` +
+      `${unknownResults[row.report_id ?? ""]?.state ?? row.unknown_reissue_operation?.state ?? ""}`.toUpperCase();
+    return /GENERATED|COMPLETE|SUCCESS|INSUFFICIENT_EVIDENCE|EXCLUDED/.test(outcome);
+  }
+
   useEffect(() => {
     let active = true;
     const load = () => {
@@ -72,19 +109,40 @@ function MonthlyExceptionsTab() {
       if (pool) query.set("pool_id", pool);
       if (category) query.set("category", category);
       api.get<MonthlyDiagnostics>(`/super/growth-reports/monthly-automation?${query}`)
-        .then(result => { if (active) { setData(result); setError(""); } })
+        .then(result => {
+          if (active) {
+            setData(result); setError("");
+            const rows = result.exceptions?.rows ?? [];
+            const rowsById = new Map(rows.filter(row => row.report_id).map(row => [row.report_id!, row]));
+            setSelectedUnknownIds(current => current.filter(id => {
+              const row = rowsById.get(id);
+              return !row || (!isResolvedUnknown(row) && (row.unknown_reissue_allowed !== false ||
+                row.unknown_reissue_next_approval_allowed === true || unknownRetryNeeded ||
+                row.unknown_reissue_operation?.state.toUpperCase() === "PROCESSING"));
+            }));
+            setUnknownResults(current => {
+              const next = { ...current };
+              for (const row of rows) {
+                if (row.report_id && row.unknown_reissue_operation) {
+                  next[row.report_id] = { ...row.unknown_reissue_operation, report_id: row.report_id };
+                }
+              }
+              return next;
+            });
+          }
+        })
         .catch(() => { if (active) { setData(null); setError("월간 실행 정보를 불러오지 못했습니다."); } });
     };
     setData(null); load();
     const timer = window.setInterval(load, 30_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [period, pool, category, page, revision]);
+  }, [period, pool, category, page, revision, unknownRetryNeeded]);
 
   async function operate(action: "recover" | "resume", poolId?: string) {
-    if (!reason.trim() || busy) return;
+    if (!reason.trim() || busyRef.current) return;
     if (!window.confirm(action === "resume" ? "원인 수정 후 제한된 probe로 재개하시겠습니까?"
       : "이 수영장의 허용된 실패만 recovery 승인하시겠습니까? 정상 결과와 UNKNOWN은 제외됩니다.")) return;
-    setBusy(true); setError("");
+    busyRef.current = true; setBusy(true); setError("");
     try {
       await api.post(action === "resume" ? "/super/growth-reports/monthly-automation/resume"
         : "/super/growth-reports/batch-recovery", action === "resume"
@@ -92,16 +150,67 @@ function MonthlyExceptionsTab() {
         : { pool_id: poolId, report_month: period, reason: reason.trim() });
       setReason(""); setRevision(n => n + 1);
     } catch (e) { setError(e instanceof Error ? e.message : "작업이 허용되지 않았습니다."); }
-    finally { setBusy(false); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+
+  async function approveUnknownReissue(nextGeneration = false) {
+    const reportIds = [...selectedUnknownIds];
+    if (!reportIds.length || !reason.trim() || busyRef.current) return;
+    const rowsById = new Map((data?.exceptions.rows ?? []).filter(row => row.report_id)
+      .map(row => [row.report_id!, row]));
+    const expectedOperationIds: Record<string, string> = {};
+    if (nextGeneration) {
+      for (const id of reportIds) {
+        const row = rowsById.get(id);
+        const operationId = row?.unknown_reissue_operation?.recovery_operation_id;
+        if (!row || row.unknown_reissue_next_approval_allowed !== true || !operationId || isResolvedUnknown(row)) return;
+        expectedOperationIds[id] = operationId;
+      }
+    }
+    const confirmed = window.confirm(
+      nextGeneration
+        ? `${period} 월 UNKNOWN ${reportIds.length}건에 대해 추가 재분석을 승인하시겠습니까? ` +
+          "새로운 유료 분석 시도가 발생합니다. 가장 최근 UNKNOWN 귀결에 대한 별도 승인이며, 반드시 대상과 비용 가능성을 확인하세요."
+        : `${period} 월 UNKNOWN ${reportIds.length}건을 재분석 승인하시겠습니까? ` +
+          "재분석은 유료 신규 시도를 발생시킬 수 있습니다. 승인 후에도 결과 확인이 필요합니다."
+    );
+    if (!confirmed) return;
+    busyRef.current = true; setBusy(true); setError(""); setUnknownRetryNeeded(false);
+    try {
+      const body = {
+        report_ids: reportIds, confirmed: true, reason: reason.trim(),
+        ...(nextGeneration ? { next_generation: true, expected_operation_ids: expectedOperationIds } : {}),
+      };
+      const response = await api.post<{ results: UnknownReissueResult[] }>(
+        "/super/growth-reports/unknown-reissue", body,
+      );
+      const results = Array.isArray(response?.results) ? response.results : [];
+      setUnknownResults(current => {
+        const next = { ...current };
+        for (const result of results) next[result.report_id] = result;
+        return next;
+      });
+      const resolvedIds = new Set(results.filter(result =>
+        /GENERATED|COMPLETE|SUCCESS|INSUFFICIENT_EVIDENCE|EXCLUDED/.test(result.state.toUpperCase())
+      ).map(result => result.report_id));
+      if (resolvedIds.size) setSelectedUnknownIds(current => current.filter(id => !resolvedIds.has(id)));
+      setUnknownRetryNeeded(results.some(result => result.state.toUpperCase() === "PROCESSING"));
+      setRevision(n => n + 1);
+    } catch (e) {
+      setUnknownRetryNeeded(true);
+      setError(e instanceof Error ? e.message : "재분석 승인 결과를 확인하지 못했습니다. 같은 대상을 다시 확인하세요.");
+    } finally {
+      busyRef.current = false; setBusy(false);
+    }
   }
   return <div className="space-y-4">
     <div className="flex flex-wrap gap-2">
       <label className="text-xs">분석월 (발급월의 전월)
         <input aria-label="분석월" type="month" value={period}
-          onChange={e => { setPeriod(e.target.value); setPage(0); }} className="block border rounded p-2" /></label>
+          onChange={e => { clearUnknownSelection(); setPeriod(e.target.value); setPage(0); }} className="block border rounded p-2" /></label>
       <input aria-label="수영장 ID" placeholder="수영장 ID" value={pool}
-        onChange={e => { setPool(e.target.value); setPage(0); }} className="border rounded p-2 text-xs" />
-      <select aria-label="오류 분류" value={category} onChange={e => { setCategory(e.target.value); setPage(0); }}
+        onChange={e => { clearUnknownSelection(); setPool(e.target.value); setPage(0); }} className="border rounded p-2 text-xs" />
+      <select aria-label="오류 분류" value={category} onChange={e => { clearUnknownSelection(); setCategory(e.target.value); setPage(0); }}
         className="border rounded p-2 text-xs">
         <option value="">전체 오류 분류</option>
         {["PROVIDER", "API", "ENGINE", "NETWORK", "TIMEOUT", "UNKNOWN", "DATA", "IDENTITY", "MISSING", "PREPARATION", "OTHER"]
@@ -135,21 +244,94 @@ function MonthlyExceptionsTab() {
       {data?.run?.paused_at && <button disabled={busy || !reason.trim()} onClick={() => operate("resume")}
         className="border rounded px-3 text-xs disabled:opacity-40">제한된 재개 승인</button>}
     </div>
+    {(() => {
+      const unknownRows = (data?.exceptions.rows ?? []).filter(isUnknownRow);
+      const unknownRowsById = new Map(unknownRows.filter(row => row.report_id).map(row => [row.report_id!, row]));
+      const selectableIds = new Set(unknownRows.filter(row => row.report_id &&
+        (row.unknown_reissue_allowed === true || row.unknown_reissue_next_approval_allowed === true) &&
+        !isResolvedUnknown(row)).map(row => row.report_id!));
+      const nextApprovalAllowed = selectedUnknownIds.length > 0 && selectedUnknownIds.every(id => {
+        const row = unknownRowsById.get(id);
+        return row?.unknown_reissue_next_approval_allowed === true &&
+          Boolean(row.unknown_reissue_operation?.recovery_operation_id) && !isResolvedUnknown(row);
+      });
+      const replayPending = unknownRetryNeeded || selectedUnknownIds.some(id =>
+        unknownResults[id]?.state?.toUpperCase() === "PROCESSING");
+      const selectedCount = selectedUnknownIds.filter(id => selectableIds.has(id) ||
+        !unknownRowsById.has(id) ||
+        (replayPending && !isResolvedUnknown(unknownRowsById.get(id)!))).length;
+      return <section className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <strong className="text-sm">UNKNOWN 재분석 승인</strong>
+          <span aria-live="polite" className="text-xs">선택 {selectedCount}건</span>
+          <button type="button" disabled={busy || !selectedCount || !reason.trim()}
+            onClick={() => approveUnknownReissue()} className="border rounded px-3 py-1.5 text-xs font-semibold disabled:opacity-40">
+            {replayPending ? "동일 승인 상태 확인 / 재시도" : "재분석 승인"}
+          </button>
+          <button type="button" disabled={busy || !nextApprovalAllowed || !reason.trim()}
+            onClick={() => approveUnknownReissue(true)}
+            className="border rounded px-3 py-1.5 text-xs font-semibold disabled:opacity-40">
+            추가 재분석 승인
+          </button>
+        </div>
+        <p className="text-xs text-amber-900">
+          선택한 UNKNOWN만 요청합니다. 재분석은 유료 신규 시도를 발생시킬 수 있으며, 승인 전 확인이 필요합니다.
+          기존 실패 전용 recovery와는 별도 동작입니다.
+        </p>
+        {Object.values(unknownResults).length > 0 && <ul className="space-y-1 text-xs" aria-label="UNKNOWN 재분석 결과">
+          {Object.values(unknownResults).map(result => <li key={result.report_id} role="status">
+            {result.report_id}: {result.state}
+            {result.recovery_operation_id && ` / Operation ${result.recovery_operation_id}`}
+            {result.new_request_id && ` / Request ${result.new_request_id}`}
+            {result.recovery_generation != null && ` / 회차 ${result.recovery_generation}`}
+            {result.error_code && ` / ${result.error_code}`}
+            {result.detail && ` / ${result.detail}`}
+          </li>)}
+        </ul>}
+      </section>;
+    })()}
     <div className="overflow-x-auto border rounded">
       <table className="w-full text-xs"><thead><tr>
-        {["수영장 / report", "현재 상태", "오류", "recovery 회차", "first / recovery / lookup", "운영"].map(x =>
+        {["선택", "수영장 / report", "현재 상태", "오류", "recovery 회차", "first / recovery / lookup", "운영"].map(x =>
           <th key={x} className="p-2 text-left">{x}</th>)}
       </tr></thead><tbody>{(data?.exceptions.rows ?? []).map((row, i) =>
         <tr key={`${row.swimming_pool_id}:${row.report_id ?? i}`} className="border-t">
+          <td className="p-2">
+            {isUnknownRow(row) && row.report_id ? <input type="checkbox"
+              aria-label={`UNKNOWN ${row.report_id} 선택`}
+              checked={selectedUnknownIds.includes(row.report_id)}
+              disabled={busy || (row.unknown_reissue_allowed !== true &&
+                row.unknown_reissue_next_approval_allowed !== true) || isResolvedUnknown(row)}
+              onChange={e => setSelectedUnknownIds(current => e.target.checked
+                ? [...new Set([...current, row.report_id!])] : current.filter(id => id !== row.report_id))}
+            /> : "—"}
+          </td>
           <td className="p-2">{row.swimming_pool_id}<br />{row.report_id ?? "준비 단계"}</td>
           <td className="p-2">{row.product_status ?? row.first_pass_outcome ?? "PREPARATION"}</td>
           <td className="p-2">{row.first_pass_error_category}<br />{row.first_pass_error_code ?? row.preparation_error}</td>
           <td className="p-2">{row.recovery_epoch ?? 0}</td>
           <td className="p-2">{row.first_pass_engine_requests ?? 0} / {row.recovery_engine_requests ?? 0} / {row.lookup_requests ?? 0}</td>
-          <td className="p-2">{row.recovery_allowed
-            ? <button disabled={busy || !reason.trim()} onClick={() => operate("recover", row.swimming_pool_id)}
-              className="border rounded p-1 disabled:opacity-40">허용된 실패 recovery</button>
-            : <span>HOLD / 재분석 불가</span>}</td>
+          <td className="p-2">
+            {row.recovery_allowed
+              ? <button disabled={busy || !reason.trim()} onClick={() => operate("recover", row.swimming_pool_id)}
+                className="border rounded p-1 disabled:opacity-40">허용된 실패 recovery</button>
+              : <span>HOLD / 재분석 불가</span>}
+            {row.unknown_reissue_hold_reason && <div className="mt-1 text-amber-800">UNKNOWN HOLD: {row.unknown_reissue_hold_reason}</div>}
+            {row.report_id && (unknownResults[row.report_id] ?? row.unknown_reissue_operation) &&
+              <div className="mt-1" role="status">
+                UNKNOWN 재분석: {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.state}
+                {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.recovery_operation_id &&
+                  <><br />Operation: {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.recovery_operation_id}</>}
+                {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.new_request_id &&
+                  <><br />Request: {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.new_request_id}</>}
+                {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.recovery_generation != null &&
+                  <><br />회차: {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.recovery_generation}</>}
+                {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.error_code &&
+                  <><br />오류: {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.error_code}</>}
+                {(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.detail &&
+                  <><br />{(unknownResults[row.report_id] ?? row.unknown_reissue_operation)?.detail}</>}
+              </div>}
+          </td>
         </tr>)}</tbody></table>
     </div>
     {data && data.exceptions.total === 0 && <p className="text-xs">조회 조건에 해당하는 미완료 내역이 없습니다.</p>}

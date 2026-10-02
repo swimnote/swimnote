@@ -1181,18 +1181,34 @@ export async function listMonthlyAutomationExceptions(
           OR COALESCE((${insufficient}), FALSE)
         )
       )
+      OR (
+        target.first_pass_outcome IS NULL
+        AND target.policy_excluded_at IS NULL
+        AND report.analysis_uncertain_at IS NOT NULL
+        AND report.deleted_at IS NULL
+      )
     )
     ${params.poolId ? sql`AND member.swimming_pool_id = ${params.poolId}` : sql``}
     ${category ? sql`AND (
       (member.preparation_status = 'failed' AND ${category} = 'PREPARATION')
       OR target.first_pass_error_category = ${category}
+      OR (
+        ${category} = 'UNKNOWN'
+        AND report.analysis_uncertain_at IS NOT NULL
+        AND report.deleted_at IS NULL
+        AND target.policy_excluded_at IS NULL
+      )
     )` : sql``}
   `;
   const [rows, totals] = await Promise.all([
     db.execute(sql`
       SELECT member.report_period, member.swimming_pool_id,
              member.preparation_status, member.preparation_error,
-             cycle.id AS cycle_id, target.student_id,
+              cycle.id AS cycle_id, cycle.eligibility_sealed_at,
+              cycle.eligible_total,
+              (SELECT COUNT(*)::int FROM growth_report_eligible_targets sealed_target
+               WHERE sealed_target.cycle_id = cycle.id) AS actual_eligible_total,
+              target.student_id,
              target.policy_excluded_at,
              target.first_pass_outcome, target.first_pass_error_code,
              target.first_pass_error_category, target.recovery_epoch,
@@ -1234,10 +1250,12 @@ export async function listMonthlyAutomationExceptions(
     `),
   ]);
   const enrichedRows = rows.rows.map((row: any) => {
-    const {
-      analysis_request_payload: requestPayload,
-      ...publicFields
-    } = row;
+    const requestPayload = row.analysis_request_payload;
+    const publicFields = { ...row };
+    delete publicFields.analysis_request_payload;
+    delete publicFields.report_content;
+    delete publicFields.report_fact_package;
+    delete publicFields.sns_summary;
     const configuredLimit = Number(process.env["GROWTH_REPORT_MONTHLY_RECOVERY_MAX_EPOCHS"] ?? 3);
     const attemptLimit = Number(row.recovery_attempt_limit ?? configuredLimit);
     let identitySafe = false;
@@ -1269,9 +1287,88 @@ export async function listMonthlyAutomationExceptions(
       recovery_engine_requests: Number(row.recovery_engine_requests ?? 0),
       lookup_requests: Number(row.lookup_requests ?? 0),
       recovery_allowed: identitySafe,
+      unknown_reissue_allowed: isUnknownReissueEligible(row),
+      unknown_reissue_hold_reason: unknownReissueHoldReason(row),
+      unknown_reissue_operation: null,
+      unknown_reissue_next_approval_allowed: false,
     };
   });
+  const unknownReissueSchema = await db.execute(sql`
+    SELECT to_regclass('public.growth_report_unknown_reissue_operations') IS NOT NULL AS ready
+  `);
+  const hasUnknownReissueSchema =
+    unknownReissueSchema.rows[0]?.ready === true || unknownReissueSchema.rows[0]?.ready === "t";
+  if (enrichedRows.length && hasUnknownReissueSchema) {
+    const operations = await db.execute(sql`
+       SELECT DISTINCT ON (report_id) report_id, id AS recovery_operation_id,
+              new_request_id, recovery_generation, state, error_code, detail,
+              engine_confirmed_unknown
+      FROM growth_report_unknown_reissue_operations
+      WHERE report_id IN (${sql.join(enrichedRows.map((row: any) => sql`${row.report_id}`), sql`, `)})
+      ORDER BY report_id, recovery_generation DESC, created_at DESC
+    `);
+    const byReport = new Map(operations.rows.map((op: any) => [op.report_id, op]));
+    for (const row of enrichedRows) {
+      const op = byReport.get(row.report_id) as any;
+      if (op) {
+        row.unknown_reissue_operation = {
+          state: op.state,
+          recovery_operation_id: op.recovery_operation_id,
+          new_request_id: op.new_request_id,
+          recovery_generation: Number(op.recovery_generation),
+          ...(op.error_code ? { error_code: op.error_code } : {}),
+          ...(op.detail ? { detail: op.detail } : {}),
+        };
+        row.unknown_reissue_next_approval_allowed =
+          op.state === "UNKNOWN" && op.engine_confirmed_unknown === true &&
+          row.unknown_reissue_allowed === true &&
+          row.analysis_request_id === op.new_request_id;
+      }
+    }
+  }
+  if (!hasUnknownReissueSchema) {
+    for (const row of enrichedRows) {
+      if (row.analysis_uncertain_at != null) {
+        row.unknown_reissue_allowed = false;
+        row.unknown_reissue_hold_reason = "UNKNOWN_REISSUE_SCHEMA_NOT_READY";
+      }
+    }
+  }
   return { rows: enrichedRows, total: Number(totals.rows[0]?.total ?? 0) };
+}
+
+function isUnknownReissueEligible(row: any): boolean {
+  try {
+    const request = jsonObject<Record<string, any>>(row.analysis_request_payload, {});
+    return row.analysis_uncertain_at != null &&
+      ["ANALYZING", "PREANALYZING"].includes(String(row.product_status)) &&
+      row.eligibility_sealed_at != null &&
+      Number(row.eligible_total) > 0 &&
+      Number(row.eligible_total) === Number(row.actual_eligible_total) &&
+      (row.first_pass_outcome == null || row.first_pass_outcome === "unknown") &&
+      row.policy_excluded_at == null &&
+      row.exclusion_code == null &&
+      !row.monthly_final_disposition &&
+      typeof row.report_id === "string" &&
+      request.request_id === row.analysis_request_id &&
+      request.report_id === row.report_id &&
+      request.context?.student_id === row.student_id &&
+      request.context?.pool_id === row.swimming_pool_id &&
+      request.context?.report_period === row.report_period &&
+      request.snapshot?.payload_hash === row.snapshot_hash &&
+      typeof row.snapshot_hash === "string" && row.snapshot_hash.length > 0 &&
+      (["PREANALYSIS", "FINAL_ANALYSIS"] as const).some(stage =>
+        getGrowthReportAnalysisIdentityHash(request, stage) === row.analysis_identity_hash);
+  } catch {
+    return false;
+  }
+}
+
+function unknownReissueHoldReason(row: any): string | null {
+  if (row.analysis_uncertain_at == null) return null;
+  if (row.policy_excluded_at != null || row.exclusion_code != null ||
+      row.monthly_final_disposition) return "REPORT_ALREADY_RESOLVED_OR_EXCLUDED";
+  return isUnknownReissueEligible(row) ? null : "ORIGINAL_PAYLOAD_IDENTITY_INVALID";
 }
 
 export async function resumeMonthlyAutomationRun(

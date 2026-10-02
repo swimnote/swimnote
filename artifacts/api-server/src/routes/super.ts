@@ -39,7 +39,8 @@ function validMonthlyPeriod(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 }
 
-router.get("/super/growth-reports/monthly-automation", requireAuth, requireRole("super_admin"),
+router.get("/super/growth-reports/monthly-automation", requireAuth,
+  requireRole("super_admin", "platform_admin"),
   async (req: AuthRequest, res) => {
     const period = req.query.report_period;
     if (!validMonthlyPeriod(period)) {
@@ -97,6 +98,69 @@ router.post("/super/growth-reports/monthly-automation/resume", requireAuth, requ
     } catch (error: any) {
       res.status(409).json({ error: "MONTHLY_RESUME_NOT_ALLOWED",
         message: "등록된 실행 상태와 cooldown을 확인해 주세요." });
+    }
+  });
+
+router.post("/super/growth-reports/unknown-reissue", requireAuth,
+  requireRole("super_admin", "platform_admin"), async (req: AuthRequest, res) => {
+    const body = req.body as {
+      report_ids?: unknown; confirmed?: unknown; reason?: unknown;
+      next_generation?: unknown; expected_operation_ids?: unknown;
+    };
+    const reportIds = Array.isArray(body?.report_ids) ? body.report_ids : [];
+    const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+    const { operatorBearerFromRequest } =
+      await import("../lib/growth-report-unknown-reissue.js");
+    const authorization = operatorBearerFromRequest(req);
+    if (body?.confirmed !== true || reportIds.length < 1 || reportIds.length > 50 ||
+        reportIds.some(id => typeof id !== "string") ||
+        !reason || reason.length > 500) {
+      res.status(400).json({ error: "INVALID_UNKNOWN_REISSUE_APPROVAL" });
+      return;
+    }
+    if (!req.user?.userId || !authorization) {
+      res.status(401).json({ error: "OPERATOR_AUTHORIZATION_REQUIRED" });
+      return;
+    }
+    const expectedOperationIds = body.expected_operation_ids &&
+      typeof body.expected_operation_ids === "object" && !Array.isArray(body.expected_operation_ids)
+      ? body.expected_operation_ids as Record<string, unknown> : {};
+    if ((body.next_generation === true &&
+         (reportIds.length !== 1 ||
+          typeof expectedOperationIds[String(reportIds[0])] !== "string")) ||
+        (body.next_generation !== undefined && body.next_generation !== true) ||
+        (body.expected_operation_ids !== undefined && body.next_generation !== true)) {
+      res.status(400).json({ error: "INVALID_NEXT_GENERATION_APPROVAL" });
+      return;
+    }
+    try {
+      const { isUnknownReissueSchemaReady, reissueUnknownGrowthReports } =
+        await import("../lib/growth-report-unknown-reissue.js");
+      if (!await isUnknownReissueSchemaReady(superAdminDb as any)) {
+        res.json({ results: (reportIds as string[]).map(report_id => ({
+          report_id,
+          recovery_operation_id: null,
+          new_request_id: null,
+          recovery_generation: null,
+          state: "HOLD",
+          error_code: "UNKNOWN_REISSUE_SCHEMA_NOT_READY",
+          detail: "Apply the additive UNKNOWN reissue migration before approving reports.",
+        })) });
+        return;
+      }
+      const results = await reissueUnknownGrowthReports(superAdminDb as any, {
+        reportIds: reportIds as string[],
+        actorId: req.user.userId,
+        actorRole: req.user.role,
+        reason,
+        nextGeneration: body.next_generation === true,
+        expectedOperationIds: expectedOperationIds as Record<string, string>,
+        operatorAuthorization: authorization,
+      });
+      res.json({ results });
+    } catch (error: any) {
+      console.error("[super/growth-reports/unknown-reissue]", error?.message);
+      res.status(503).json({ error: "UNKNOWN_REISSUE_UNAVAILABLE" });
     }
   });
 

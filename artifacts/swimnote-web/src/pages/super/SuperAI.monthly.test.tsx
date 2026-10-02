@@ -26,7 +26,7 @@ describe("monthly growth-report operator controls", () => {
           recovery_allowed: true, first_pass_engine_requests: 1, recovery_engine_requests: 0 },
         { swimming_pool_id: "local-test-pool", report_id: "unknown-test",
           product_status: "PREANALYZING", first_pass_error_category: "UNKNOWN",
-          recovery_allowed: false },
+          recovery_allowed: false, unknown_reissue_allowed: true },
       ] },
     });
   });
@@ -48,6 +48,157 @@ describe("monthly growth-report operator controls", () => {
     expect(screen.getByText(/학부모 발송은 기존 관리자 절차/)).toBeTruthy();
   });
 
+  it("does not auto-select UNKNOWN rows and requires explicit approval confirmation", async () => {
+    render(<SuperAI />);
+    const checkbox = await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    const approve = screen.getByRole("button", { name: "재분석 승인" });
+    expect((approve as HTMLButtonElement).disabled).toBe(true);
+    expect(mocked.post).not.toHaveBeenCalled();
+
+    fireEvent.click(checkbox);
+    expect(screen.getByText("선택 1건")).toBeTruthy();
+    vi.mocked(window.confirm).mockReturnValue(false);
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "원인 수정 완료" } });
+    fireEvent.click(approve);
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("2026-07 월 UNKNOWN 1건"));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("유료 신규 시도"));
+    expect(mocked.post).not.toHaveBeenCalled();
+  });
+
+  it("posts only selected IDs through the authenticated API wrapper and displays each returned result", async () => {
+    mocked.post.mockResolvedValue({
+      results: [
+        { report_id: "unknown-test", recovery_operation_id: "operation-existing", new_request_id: "request-existing",
+          recovery_generation: 2, state: "COMPLETE" },
+        { report_id: "unknown-second", recovery_operation_id: "operation-second", new_request_id: "request-second",
+          state: "INSUFFICIENT_EVIDENCE", error_code: "DATA_ACCUMULATING", detail: "not enough evidence" },
+      ],
+    });
+    mocked.get.mockResolvedValue({
+      summary: null, run: null,
+      exceptions: { total: 2, rows: [
+        { swimming_pool_id: "local-test-pool", report_id: "unknown-test",
+          first_pass_error_category: "UNKNOWN", unknown_reissue_allowed: true },
+        { swimming_pool_id: "local-test-pool", report_id: "unknown-second",
+          first_pass_error_category: "UNKNOWN", unknown_reissue_allowed: true },
+      ] },
+    });
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "UNKNOWN unknown-second 선택" }));
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "복구 가능한 입력 확인" } });
+    fireEvent.click(screen.getByRole("button", { name: "재분석 승인" }));
+
+    await waitFor(() => expect(mocked.post).toHaveBeenCalledWith("/super/growth-reports/unknown-reissue", {
+      report_ids: ["unknown-test", "unknown-second"], confirmed: true, reason: "복구 가능한 입력 확인",
+    }));
+    expect(await screen.findByText(/unknown-test: COMPLETE/)).toBeTruthy();
+    expect(screen.getByText(/unknown-second: INSUFFICIENT_EVIDENCE/)).toBeTruthy();
+    expect(screen.getByText(/Operation operation-existing/)).toBeTruthy();
+    expect(screen.getByText(/Request request-existing/)).toBeTruthy();
+    expect(screen.getAllByText(/DATA_ACCUMULATING/)).toHaveLength(2);
+    expect(screen.getAllByText(/not enough evidence/)).toHaveLength(2);
+  });
+
+  it("excludes generated, insufficient-evidence, excluded, and held rows from selection", async () => {
+    mocked.get.mockResolvedValue({
+      summary: null, run: null,
+      exceptions: { total: 5, rows: [
+        { swimming_pool_id: "pool", report_id: "legacy-null-first-pass", analysis_uncertain_at: "2026-07-01T00:00:00Z",
+          unknown_reissue_allowed: true },
+        { swimming_pool_id: "pool", report_id: "generated", product_status: "GENERATED",
+          first_pass_error_category: "UNKNOWN", unknown_reissue_allowed: true },
+        { swimming_pool_id: "pool", report_id: "insufficient", product_status: "INSUFFICIENT_EVIDENCE",
+          first_pass_error_category: "UNKNOWN", unknown_reissue_allowed: true },
+        { swimming_pool_id: "pool", report_id: "excluded", product_status: "EXCLUDED",
+          first_pass_error_category: "UNKNOWN", unknown_reissue_allowed: true },
+        { swimming_pool_id: "pool", report_id: "held", first_pass_error_category: "UNKNOWN",
+          unknown_reissue_allowed: false, unknown_reissue_hold_reason: "original payload unavailable" },
+      ] },
+    });
+    render(<SuperAI />);
+    expect(await screen.findByRole("checkbox", { name: "UNKNOWN legacy-null-first-pass 선택" })).toBeTruthy();
+    for (const id of ["generated", "insufficient", "excluded", "held"]) {
+      expect((screen.getByRole("checkbox", { name: `UNKNOWN ${id} 선택` }) as HTMLInputElement).disabled).toBe(true);
+    }
+    expect((screen.getByRole("checkbox", { name: "UNKNOWN legacy-null-first-pass 선택" }) as HTMLInputElement).disabled).toBe(false);
+    expect(screen.getByText(/original payload unavailable/)).toBeTruthy();
+  });
+
+  it("guards double clicks and timeout retry reuses the identical report IDs", async () => {
+    let rejectFirst!: (error: Error) => void;
+    mocked.post.mockImplementationOnce(() => new Promise((_, reject) => { rejectFirst = reject; }))
+      .mockResolvedValueOnce({ results: [{ report_id: "unknown-test", state: "COMPLETE" }] });
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" }));
+    expect(screen.getByText("선택 1건")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "재시도 사유" } });
+    const approve = screen.getByRole("button", { name: "재분석 승인" });
+    expect((approve as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(approve);
+    fireEvent.click(approve);
+    expect(mocked.post).toHaveBeenCalledTimes(1);
+    rejectFirst(new Error("request timed out"));
+    const retry = await screen.findByRole("button", { name: "동일 승인 상태 확인 / 재시도" });
+    expect((screen.getByRole("button", { name: "추가 재분석 승인" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(retry);
+    await waitFor(() => expect(mocked.post).toHaveBeenCalledTimes(2));
+    expect(mocked.post.mock.calls[0]).toEqual(mocked.post.mock.calls[1]);
+    expect(mocked.post.mock.calls[1]).toEqual(["/super/growth-reports/unknown-reissue", {
+      report_ids: ["unknown-test"], confirmed: true, reason: "재시도 사유",
+    }]);
+  });
+
+  it("requires a separately confirmed next-generation approval with current operation IDs", async () => {
+    mocked.get.mockResolvedValue({
+      summary: null, run: null,
+      exceptions: { total: 3, rows: [
+        { swimming_pool_id: "pool", report_id: "unknown-next", first_pass_error_category: "UNKNOWN",
+          unknown_reissue_allowed: false, unknown_reissue_next_approval_allowed: true,
+          unknown_reissue_operation: { report_id: "unknown-next", recovery_operation_id: "latest-operation",
+            new_request_id: "latest-request", state: "UNKNOWN" } },
+        { swimming_pool_id: "pool", report_id: "unknown-processing", first_pass_error_category: "UNKNOWN",
+          unknown_reissue_allowed: true, unknown_reissue_next_approval_allowed: false,
+          unknown_reissue_operation: { report_id: "unknown-processing", recovery_operation_id: "processing-operation",
+            state: "PROCESSING" } },
+        { swimming_pool_id: "pool", report_id: "ordinary-failure", product_status: "FAILED",
+          first_pass_error_category: "ENGINE", unknown_reissue_allowed: false },
+      ] },
+    });
+    mocked.post.mockResolvedValue({ results: [{ report_id: "unknown-next", state: "PROCESSING" }] });
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-next 선택" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "UNKNOWN unknown-processing 선택" }));
+    expect((screen.getByRole("button", { name: "추가 재분석 승인" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "UNKNOWN unknown-processing 선택" }));
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "새 시도 별도 승인 사유" } });
+    expect((screen.getByRole("button", { name: "추가 재분석 승인" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "추가 재분석 승인" }));
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("추가 재분석"));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("새로운 유료 분석 시도"));
+    await waitFor(() => expect(mocked.post).toHaveBeenCalledWith("/super/growth-reports/unknown-reissue", {
+      report_ids: ["unknown-next"], confirmed: true, reason: "새 시도 별도 승인 사유",
+      next_generation: true, expected_operation_ids: { "unknown-next": "latest-operation" },
+    }));
+  });
+
+  it("clears UNKNOWN selection and results when the reporting filters change", async () => {
+    mocked.post.mockResolvedValue({
+      results: [{ report_id: "unknown-test", state: "PROCESSING", recovery_operation_id: "op-to-clear" }],
+    });
+    render(<SuperAI />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "UNKNOWN unknown-test 선택" }));
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "확인 사유" } });
+    fireEvent.click(screen.getByRole("button", { name: "재분석 승인" }));
+    expect(await screen.findByText(/unknown-test: PROCESSING/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("오류 분류"), { target: { value: "UNKNOWN" } });
+    await waitFor(() => expect(screen.queryByText(/unknown-test: PROCESSING/)).toBeNull());
+    expect(screen.getByText("선택 0건")).toBeTruthy();
+    expect(mocked.get).toHaveBeenCalledWith(expect.stringContaining("category=UNKNOWN"));
+  });
+
   it("shows unavailable state instead of pretending a failed read succeeded", async () => {
     mocked.get.mockRejectedValue(new Error("unavailable"));
     render(<SuperAI />);
@@ -60,6 +211,23 @@ describe("monthly growth-report operator controls", () => {
     render(<SuperAI />);
     expect(await screen.findByText(/등록된 월간 자동화 run이 없습니다/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "허용된 실패 recovery" })).toBeNull();
+    expect(mocked.post).not.toHaveBeenCalled();
+  });
+
+  it("labels persisted operation metadata with its enclosing report without auto-approval", async () => {
+    mocked.get.mockResolvedValue({
+      summary: null, run: null,
+      exceptions: { total: 1, rows: [{
+        swimming_pool_id: "pool", report_id: "persisted-report",
+        analysis_uncertain_at: "2026-07-01T00:00:00Z", unknown_reissue_allowed: true,
+        unknown_reissue_operation: {
+          recovery_operation_id: "persisted-operation", new_request_id: "persisted-request",
+          recovery_generation: 1, state: "PROCESSING",
+        },
+      }] },
+    });
+    render(<SuperAI />);
+    expect(await screen.findByText(/persisted-report: PROCESSING/)).toBeTruthy();
     expect(mocked.post).not.toHaveBeenCalled();
   });
 });
