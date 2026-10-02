@@ -1,0 +1,238 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[9월 AI 성장리포트 — Production 정상 가동 / Recovery 실행]
+
+현재 배포된 Production SHA:
+0e9191b1d33c03e4dabbfbf3c804a4f38404a083
+
+이번 작업은 신규 개발이 아니라
+현재 2026-09 성장리포트 cycle을
+배포된 월간 자동화 정책으로 안전하게 정상 가동시키는 운영 작업입니다.
+
+코드 수정 금지.
+migration 추가 금지.
+commit/push/deploy 금지.
+ENGINE 수정 금지.
+
+현재 기준:
+
+eligible_total = 119
+generated_total = 99
+UNKNOWN = 17
+DATA_ACCUMULATING = 3
+READY = false
+
+기존 성공 99건은 절대 변경·재분석하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production 사전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 현재 Production SHA와 migration 적용 상태,
+해당 pool/month의 target fingerprint가
+직전 완료보고와 동일한지만 확인합니다.
+
+현재 회원목록으로 denominator를 다시 계산하지 마세요.
+
+sealed eligible target = 119를 유지합니다.
+
+불일치가 있으면 즉시 HOLD하고 보고하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DATA_ACCUMULATING 3건 정상 귀결
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production에 구현된 승인 정책을 사용하여
+기존 DATA_ACCUMULATING 3건만 처리합니다.
+
+ENGINE 재호출 금지.
+
+ENGINE:
+analysis_status = DATA_ACCUMULATING
+원본 request/response/hash 보존.
+
+APP final disposition:
+INSUFFICIENT_EVIDENCE
+
+안내:
+
+“이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다.”
+
+처리 후 반드시 확인:
+
+generated_total은 99 유지
+insufficient_evidence_total = 3
+policy_excluded_total = 0
+
+resolved_total = 102
+
+이 3건을 generated 성공이나 failure,
+withdrawal exclusion으로 변경하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Reconciliation
+━━━━━━━━━━━━━━━━━━━━━━
+
+3건 처리 직후 reconciliation 실행.
+
+기대 상태:
+
+eligible_total = 119
+generated_total = 99
+insufficient_evidence_total = 3
+policy_excluded_total = 0
+resolved_total = 102
+remaining = 17
+
+READY = false
+
+17 UNKNOWN 때문에 READY가 차단되어야 합니다.
+
+이 단계에서 관리자 READY PUSH가 발생하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. UNKNOWN 17건
+━━━━━━━━━━━━━━━━━━━━━━
+
+UNKNOWN 17건은 자동 재호출하지 마세요.
+
+새 request_id 생성 금지.
+강제 analyze 금지.
+denominator 제거 금지.
+policy exclusion 전환 금지.
+실패로 위장 금지.
+
+현재 배포된 APP의 recovery/exception 조회 경로를 사용하여
+각 17건에 대해 현재 안전하게 가능한 operation을 분류하세요.
+
+분류:
+
+A. 기존 COMPLETE 결과를 provider 호출 없이 안전하게 회수 가능
+B. 현재 계약상 retry/recovery가 명시적으로 허용됨
+C. 여전히 UNKNOWN으로 재실행 금지
+D. 기타 blocker
+
+A가 있으면 기존 결과만 회수·저장합니다.
+
+B가 있으면 기존 approved failed-only recovery 경로로만 실행합니다.
+
+C는 절대 재실행하지 않습니다.
+
+D는 원인을 기록합니다.
+
+UNKNOWN이라는 이유만으로 B로 분류하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 안전한 Recovery
+━━━━━━━━━━━━━━━━━━━━━━
+
+A/B로 안전성이 확인된 건만 처리합니다.
+
+기존 성공 99건 제외.
+INSUFFICIENT_EVIDENCE 3건 제외.
+
+Recovery 후 성공한 건은 즉시 보존하고
+다시 recovery 대상으로 선택하지 않습니다.
+
+17건 전부가 C라면
+AI 호출 없이 그대로 HOLD하고 보고하세요.
+
+안전 계약 없이 119/119를 만들기 위해
+강제로 재분석하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 Reconciliation
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 안전한 처리가 끝난 뒤
+pool + 2026-09 reconciliation을 실행하세요.
+
+반드시 보고:
+
+eligible_total
+generated_total
+insufficient_evidence_total
+policy_excluded_total
+resolved_total
+remaining
+
+queued
+processing
+retry_pending
+failed
+unknown
+missing
+duplicate
+wrong_pool
+
+READY
+ready_at
+
+관리자 READY outbox 수
+관리자 PUSH 발송 여부
+
+ENGINE 신규 분석 호출 수
+provider-free result recovery 수
+recovery 실행 수
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. READY가 된 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+119명 전원이 정상 귀결되고
+blocking count가 모두 0이며
+현재 Production의 기존 준비시점 조건도 충족하는 경우에만
+기존 자동화에 따라 READY 처리하세요.
+
+READY 조건이 충족되면
+기존 readiness outbox를 통해 관리자 PUSH가
+정상적으로 생성되는지 확인합니다.
+
+단, 현재 날짜/준비시점 정책 때문에
+아직 PUSH 시점이 아니라면
+강제로 시간을 우회하거나 발송하지 마세요.
+
+학부모 PUBLISHED 실행 금지.
+부모 PUSH 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로 보고 후 정지하세요.
+
+SEPTEMBER OPERATION = PASS/HOLD
+
+99 EXISTING SUCCESS PRESERVED = PASS/HOLD
+3 INSUFFICIENT_EVIDENCE = PASS/HOLD
+
+UNKNOWN 17:
+- A recoverable stored result = n
+- B explicitly retryable = n
+- C still UNKNOWN / prohibited = n
+- D other blocker = n
+
+NEW ENGINE ANALYSIS CALLS = n
+PROVIDER-FREE RECOVERIES = n
+RECOVERY EXECUTIONS = n
+
+FINAL:
+eligible = n
+generated = n
+insufficient_evidence = n
+policy_excluded = n
+resolved = n
+remaining = n
+
+READY = true/false
+ADMIN READY PUSH = sent/not sent/not yet eligible
+
+미완료가 남으면
+각 원인과 다음에 필요한 최소 조치만 보고하세요.
+
+코드 수정이나 ENGINE 변경 제안은
+실제 blocker가 확인된 경우에만 적으세요.
+
+여기서 정지하세요.
