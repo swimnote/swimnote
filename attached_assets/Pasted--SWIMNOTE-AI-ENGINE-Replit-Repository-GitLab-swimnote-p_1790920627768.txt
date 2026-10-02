@@ -1,0 +1,352 @@
+[전달 대상: SWIMNOTE AI ENGINE Replit]
+[Repository: GitLab swimnote-professional-engine]
+[APP Replit에는 절대 실행하지 말 것]
+
+[Growth Report UNKNOWN — Operator Approved Reissue 계약 구현]
+
+목적:
+FAILED / provider_state=UNKNOWN / retryable=false 상태에서
+최종 결과가 없는 요청을 자동 retry하지 않고,
+
+SWIMNOTE 운영자가 명시적으로 승인한 경우에만
+기존 UNKNOWN 기록을 보존한 채
+새로운 analysis attempt를 안전하게 생성할 수 있는
+공식 recovery 계약을 구현합니다.
+
+이번 단계에서는 2026-09 UNKNOWN 17건을 실제 실행하지 않습니다.
+
+코드 구현 + 관련 테스트 + ENGINE Production 배포까지만 수행합니다.
+
+APP 수정 금지.
+17건 provider 호출 금지.
+17건 실제 recovery 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 핵심 불변조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 UNKNOWN request는 절대 변경하지 않습니다.
+
+기존:
+
+status = FAILED
+provider_state = UNKNOWN
+retryable = false
+
+를 그대로 보존합니다.
+
+금지:
+
+- 기존 UNKNOWN을 retryable=true로 변경
+- 기존 request_id 재사용
+- provider_state 강제 초기화
+- FAILED 상태 삭제
+- 기존 registry row 덮어쓰기
+- 결과가 있었던 것처럼 COMPLETE 처리
+- 자동 recovery
+- background retry
+
+UNKNOWN recovery는 반드시
+명시적 operator-approved reissue여야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 새 attempt 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영자가 승인하면:
+
+OLD UNKNOWN REQUEST
+        ↓
+명시적 recovery authorization
+        ↓
+NEW REQUEST_ID
+        ↓
+새 analysis attempt
+
+구조로 처리합니다.
+
+새 request는 기존 요청과 다음 lineage를
+영속적으로 연결해야 합니다.
+
+- original_request_id
+- replacement/new_request_id
+- recovery_operation_id 또는 동등한 stable idempotency key
+- recovery_generation
+- reason = OPERATOR_APPROVED_UNKNOWN_REISSUE
+- authorized_at
+- 기존 identity
+- payload_hash
+
+기존 UNKNOWN은 history로 그대로 남깁니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실행 허용 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 조건을 모두 만족해야만 reissue를 허용합니다.
+
+원본 request가:
+
+- registry에 존재
+- status = FAILED
+- provider_state = UNKNOWN
+- retryable = false
+- final stored result 없음
+
+그리고 새 요청의 입력이 원본과:
+
+- pool identity 일치
+- student/report identity 일치
+- contract/snapshot identity 일치
+- canonical payload_hash 일치
+
+해야 합니다.
+
+가능하면 기존 ENGINE의
+canonical hashing / identity validation을 그대로 재사용하세요.
+
+APP가 context_fingerprint를 보내지 못하더라도
+ENGINE이 payload로 검증 가능한 기존 fingerprint가 있다면
+ENGINE 내부에서 동일성 검증에 사용하세요.
+
+불일치하면 provider 호출 전에 거부합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Recovery endpoint
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 growth-report recovery route 구조를 재사용하여
+operator-approved UNKNOWN reissue용 내부 endpoint를 추가하세요.
+
+경로명은 기존 ENGINE naming convention을 따르고
+완료보고에 정확한 endpoint를 적으세요.
+
+이 endpoint는 일반 analyze endpoint가 아닙니다.
+
+일반 모바일/학부모/선생님 클라이언트가
+직접 사용할 수 없어야 합니다.
+
+기존 APP backend → ENGINE 내부 인증 계약을 사용하세요.
+
+요청에는 최소한 다음 개념이 필요합니다.
+
+- original_request_id
+- new_request_id
+- recovery_operation_id
+- original analysis payload
+- expected payload_hash
+- pool/report/student identity
+
+실제 필드명은 기존 ENGINE 계약에 맞추세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Idempotency — 최우선
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 endpoint 자체가 timeout/crash/retry되어도
+provider 중복 호출이 발생하면 안 됩니다.
+
+같은 recovery_operation_id 재호출:
+
+→ 기존 replacement attempt 상태 반환
+→ 새 request 생성 금지
+→ 새 provider dispatch 금지
+
+같은 original_request_id에 대해
+동일 recovery operation이 동시에 두 번 들어와도:
+
+→ replacement attempt 하나만 생성
+→ provider dispatch 최대 1회
+
+동일 operation_id인데
+new_request_id / payload_hash / identity가 다르면:
+
+→ CONFLICT
+
+멀티 인스턴스에서도 DB constraint/transaction을 이용해
+중복 실행을 차단하세요.
+
+메모리 lock만으로 해결하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Provider dispatch 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 attempt는 기존 crash-safety 계약을 그대로 사용합니다.
+
+provider 호출 전에
+새 request의 영속 상태와 lineage가 먼저 확보되어야 합니다.
+
+기존 ENGINE의:
+
+- registry
+- provider_state
+- provider ledger
+- stable paid-call identity
+- COMPLETE replay
+- PROCESSING protection
+- UNKNOWN safety
+
+를 재사용하세요.
+
+새 attempt 자체가 다시 UNKNOWN이 되면:
+
+→ UNKNOWN 그대로 보존
+→ 자동 재시도 금지
+→ 또 다른 operator 승인 없이는 재호출 금지
+
+UNKNOWN을 없애기 위해
+안전장치를 약화시키지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 결과 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 attempt가 정상 COMPLETE:
+
+→ 신규 request에 정상 result 저장
+→ old UNKNOWN은 변경하지 않음
+→ lineage를 통해 original → replacement 관계 확인 가능
+
+새 attempt가 DATA_ACCUMULATING:
+
+→ 기존 DATA_ACCUMULATING 계약 그대로 반환
+→ UNKNOWN으로 변환하지 않음
+
+새 attempt가 확정 retryable failure:
+
+→ 기존 일반 retry 계약 적용 가능
+
+새 attempt가 다시 실행 불확실:
+
+→ provider_state=UNKNOWN
+→ 자동 retry 차단
+
+이번 단계에서는 APP DB에 결과를 쓰는 기능은 만들지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 기존 registry 구조를 재사용하세요.
+
+명시적 lineage/idempotency를 영속화할 필드가 없다면
+최소 additive migration만 추가하세요.
+
+필요 개념:
+
+- original_request_id
+- replacement_request_id
+- recovery_operation_id UNIQUE
+- recovery_generation
+- recovery_reason
+- authorized_at
+
+기존 registry/result/provider ledger 데이터는 보존합니다.
+
+불필요한 schema redesign 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 실행합니다.
+
+반드시 검증:
+
+1. UNKNOWN → operator-approved reissue 정상 생성
+
+2. old UNKNOWN row 불변
+
+3. 새 request_id 사용
+
+4. same payload/hash/identity 검증
+
+5. payload mismatch 차단
+
+6. pool/report/student identity mismatch 차단
+
+7. COMPLETE result가 있는 original 차단
+
+8. UNKNOWN이 아닌 original 차단
+
+9. 같은 recovery_operation_id replay
+   → provider 중복 호출 0
+
+10. 동시 요청
+    → replacement 1개
+    → provider dispatch 최대 1회
+
+11. operation_id conflict 차단
+
+12. 새 attempt COMPLETE 저장 및 lineage 유지
+
+13. 새 attempt가 다시 UNKNOWN이 될 경우
+    자동 retry 없음
+
+14. 기존 analyze/recovery/lookup 회귀
+
+15. 기존 COMPLETE replay / UNKNOWN safety 회귀
+
+전체 test suite 금지.
+관련 테스트 + ENGINE build만 수행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 PASS
+→ build PASS
+→ commit
+→ GitLab push
+→ 필요한 additive migration
+→ ENGINE Production 배포
+→ health 확인
+→ deployed SHA 확인
+
+중요:
+
+Production에 계약만 배포합니다.
+
+2026-09의 실제 17개 request를
+이 작업 중 reissue하지 마세요.
+
+provider 호출 수는 0이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 파일
+migration 내용
+관련 테스트 결과
+build
+
+Commit SHA
+GitLab pushed SHA
+Render Deploy ID
+deployed SHA
+health
+
+정확한 신규 endpoint와 request/response 계약
+
+그리고:
+
+OPERATOR APPROVAL REQUIRED = PASS/HOLD
+OLD UNKNOWN IMMUTABLE = PASS/HOLD
+NEW REQUEST ID REQUIRED = PASS/HOLD
+LINEAGE PERSISTENCE = PASS/HOLD
+PAYLOAD HASH BINDING = PASS/HOLD
+IDENTITY BINDING = PASS/HOLD
+IDEMPOTENCY = PASS/HOLD
+MULTI INSTANCE DUPLICATE PREVENTION = PASS/HOLD
+PROVIDER DUPLICATE PREVENTION = PASS/HOLD
+SECOND UNKNOWN SAFETY = PASS/HOLD
+EXISTING ANALYZE REGRESSION = PASS/HOLD
+EXISTING LOOKUP REGRESSION = PASS/HOLD
+PRODUCTION DEPLOYMENT = PASS/HOLD
+
+2026-09 UNKNOWN 실제 실행 = 0
+NEW PROVIDER CALLS FOR SEPTEMBER 17 = 0
+
+여기서 정지하세요.
