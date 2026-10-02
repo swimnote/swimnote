@@ -1,0 +1,218 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[UNKNOWN Reissue — SuperAI 실제 Production 실행 UI 연결 수정]
+
+직전 완료보고에서는 SuperAI에
+UNKNOWN 승인·추가 승인·operation 확인 기능을 구현했다고 보고했지만,
+
+실제 Production의 슈퍼관리자 화면에서는
+UNKNOWN 재분석을 실행할 수 있는 버튼/액션이 보이지 않습니다.
+
+따라서 이번 작업은
+이미 구현된 backend UNKNOWN reissue 계약을 다시 조사하거나 재작성하는 작업이 아닙니다.
+
+목표는 딱 하나입니다.
+
+실제 swimnote.kr 슈퍼관리자 화면에서
+운영자가 UNKNOWN 건을 선택하고
+“재분석 승인”을 눌러
+기존 APP reissue API를 실제 실행할 수 있게 연결하세요.
+
+ENGINE 수정 금지.
+UNKNOWN recovery 계약 재설계 금지.
+migration 추가 금지 unless 실제 UI 연결에 절대 필요하지 않음.
+기존 월간 자동화 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 실제 원인만 짧게 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production SHA:
+d57436f02e764274005fdd5752ebd55ed025ce62
+
+확인:
+
+- SuperAI.tsx에 승인 UI 코드가 실제 존재하는지
+- 실제 운영 route에서 그 코드가 render되는지
+- feature flag / 조건문 / 잘못된 tab / 잘못된 state 때문에 숨겨져 있는지
+- UNKNOWN 월간 예외 목록과 승인 action이 실제 연결되어 있는지
+- 버튼이 존재하지만 CSS/display 조건으로 보이지 않는지
+
+조사 범위는 여기까지만.
+
+backend reissue 계약이나 ENGINE은 다시 조사하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 화면에 필요한 최소 UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 슈퍼관리자 SuperAI 화면에서
+월간 Growth Report UNKNOWN 예외를 볼 수 있어야 합니다.
+
+각 UNKNOWN row 또는 선택 영역에:
+
+[재분석 승인]
+
+액션을 명확하게 노출하세요.
+
+최소 기능:
+
+- UNKNOWN 건 선택
+- 선택 건수 표시
+- “재분석 승인” 버튼
+- 실행 전 확인 modal
+- 실행 중 상태
+- 성공/실패 결과 표시
+
+파일럿 1건을 선택해서 실행할 수 있어야 합니다.
+
+자동 실행 금지.
+페이지 진입만으로 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 backend만 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 구현된 APP UNKNOWN reissue API를 그대로 사용하세요.
+
+새 reissue API를 또 만들지 마세요.
+
+흐름:
+
+SuperAI
+→ 기존 APP API
+→ stable recovery_operation_id/new_request_id 영속
+→ ENGINE reissue
+→ 결과 저장
+→ reconciliation
+
+브라우저가 ENGINE을 직접 호출하면 안 됩니다.
+
+ENGINE service token은 계속 APP server에서만 사용합니다.
+
+현재 로그인된 super_admin/platform_admin의
+기존 인증/JWT를 사용하세요.
+
+별도의 신규 TOTP 입력 UI를 만들지 마세요.
+
+기존 제품 인증정책에서 추가 MFA가 실제 필수인 경우만
+현재 인증흐름을 그대로 사용하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 표시 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+재분석 승인 버튼은
+현재 UNKNOWN이며 operator-approved reissue가 가능한 건에만 표시/활성화하세요.
+
+다음은 실행 대상에서 제외:
+
+- generated COMPLETE
+- INSUFFICIENT_EVIDENCE
+- PUBLISHED
+- 이미 정상 귀결된 건
+
+이미 operation이 생성된 UNKNOWN은
+새 operation을 무조건 만드는 대신
+현재 operation 상태를 표시하고
+기존 idempotent replay 계약을 사용하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 9월 17건은 구현 중 실행 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는 실제 17건을 누르지 마세요.
+
+현재 상태 유지:
+
+eligible = 119
+generated = 99
+insufficient_evidence = 3
+unknown = 17
+resolved = 102
+READY = false
+
+provider 신규 호출 = 0
+
+UI 배포 완료 후
+사용자가 실제 화면을 확인한 다음 별도 운영합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 SuperAI 테스트만 수정/실행하세요.
+
+반드시 검증:
+
+- UNKNOWN row에 재분석 승인 버튼 표시
+- 정상 귀결 row에는 미표시/비활성
+- 1건 선택 가능
+- 선택 건수 표시
+- 확인 modal
+- cancel 시 API 호출 0
+- confirm 시 기존 APP reissue endpoint 1회 호출
+- double click 중복 요청 방지
+- 기존 operation 존재 시 새 UUID 남발 금지
+- 성공/UNKNOWN/CONFLICT 상태 표시
+- 일반 admin 접근 불가
+
+웹 production bundle 실행.
+
+API 코드 변경이 없다면 API 전체 테스트/build 다시 하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 최소 수정
+→ 관련 테스트
+→ 웹 production bundle
+→ commit
+→ GitHub main
+→ 웹 Production 배포
+
+API 코드가 실제 수정되지 않았다면
+API Render 재배포하지 마세요.
+
+모바일 수정 없음.
+OTA 없음.
+ENGINE 배포 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 원인이 무엇이었는지 한 줄로 보고:
+
+예:
+“코드는 존재했지만 실제 monthly exception render branch에 연결되지 않았음”
+
+수정 파일
+관련 테스트
+웹 bundle
+
+NEW COMMIT SHA
+GitHub main SHA
+Web Render Deploy ID
+Production LIVE
+deployed SHA
+
+그리고:
+
+UNKNOWN BUTTON VISIBLE = PASS/HOLD
+UNKNOWN ROW SELECTABLE = PASS/HOLD
+CONFIRM MODAL = PASS/HOLD
+EXISTING REISSUE API WIRED = PASS/HOLD
+DOUBLE CLICK SAFETY = PASS/HOLD
+EXISTING OPERATION REPLAY = PASS/HOLD
+SUPER ADMIN ONLY = PASS/HOLD
+NO AUTO EXECUTION = PASS/HOLD
+PRODUCTION WEB DEPLOYMENT = PASS/HOLD
+
+2026-09 UNKNOWN 실제 실행 = 0
+NEW PROVIDER CALLS = 0
+
+여기서 정지하세요.
