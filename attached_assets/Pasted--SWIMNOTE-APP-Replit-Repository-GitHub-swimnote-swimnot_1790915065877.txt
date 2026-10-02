@@ -1,0 +1,150 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[2026-09 UNKNOWN 17건 — ENGINE 조사용 Identity Manifest 추출]
+
+목적:
+현재 Production의 2026-09 성장리포트에서
+UNKNOWN으로 남아 있는 정확한 17건의 identity를
+ENGINE 읽기 전용 조사에 전달할 manifest로 추출합니다.
+
+이번 작업은 READ ONLY입니다.
+
+코드 수정 금지.
+DB 수정 금지.
+migration 금지.
+commit/push/deploy 금지.
+recovery 실행 금지.
+ENGINE 호출 금지.
+provider 호출 금지.
+새 request_id 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 대상 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+Cycle:
+grc_c2845ef789594145a9e6fbf699f70048
+
+report_period:
+2026-09
+
+현재 reconciliation에서
+UNKNOWN blocker로 남아 있는 정확한 17건만 추출하세요.
+
+INSUFFICIENT_EVIDENCE 3건 제외.
+generated 성공 99건 제외.
+
+반드시 최종 추출 건수 = 17이어야 합니다.
+
+17건이 아니면 즉시 HOLD하고
+데이터를 변경하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 각 건에서 추출할 필드
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- request_id
+- payload_hash
+- pool_id
+- student_id
+- report_id
+
+저장되어 있는 경우 추가:
+
+- contract_version
+- snapshot_version
+- context_fingerprint
+
+조사용으로 필요하면
+현재 APP 상태/marker도 별도 필드로 추가할 수 있습니다.
+
+학생 이름
+AI 결과 본문
+학부모 정보
+전화번호
+기타 PII
+
+는 출력하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Identity 무결성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 행이 현재 UNKNOWN 17건과
+정확히 1:1 대응하는지 확인하세요.
+
+검증:
+
+- request_id 중복
+- report_id 중복
+- 잘못된 pool
+- 잘못된 report_period
+- generated 성공 혼입
+- INSUFFICIENT_EVIDENCE 혼입
+- identity 필수값 NULL
+
+어느 하나라도 발견되면 HOLD.
+
+UNKNOWN 17건을 새로 계산하거나
+새 identity를 생성하지 마세요.
+
+현재 저장된 Production 값을 그대로 추출합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 출력
+━━━━━━━━━━━━━━━━━━━━━━
+
+ENGINE Replit에 그대로 전달할 수 있도록
+17건을 하나의 명확한 JSON 배열 또는 표로 출력하세요.
+
+예:
+
+[
+  {
+    "request_id": "...",
+    "payload_hash": "...",
+    "pool_id": "...",
+    "student_id": "...",
+    "report_id": "...",
+    "contract_version": "...",
+    "snapshot_version": "...",
+    "context_fingerprint": "..."
+  }
+]
+
+없는 optional 값은 추측하지 말고 null.
+
+AI 결과 본문은 포함하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+UNKNOWN IDENTITY MANIFEST = PASS/HOLD
+
+TOTAL = n
+
+REQUEST_ID UNIQUE = PASS/HOLD
+REPORT_ID UNIQUE = PASS/HOLD
+POOL MATCH = PASS/HOLD
+PERIOD MATCH = PASS/HOLD
+GENERATED CONTAMINATION = 0/n
+INSUFFICIENT_EVIDENCE CONTAMINATION = 0/n
+REQUIRED IDENTITY NULL = 0/n
+
+그리고 ENGINE 전달용
+17건 manifest 전체를 출력하세요.
+
+DB MUTATIONS = 0
+ENGINE CALLS = 0
+PROVIDER CALLS = 0
+NEW REQUEST IDS = 0
+
+여기서 정지하세요.
