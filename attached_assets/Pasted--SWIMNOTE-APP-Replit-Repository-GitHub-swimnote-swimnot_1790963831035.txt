@@ -1,0 +1,324 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[월초 AI 성장리포트 — 5일 관리자 완료 PUSH 최종 Production 검증]
+
+목적:
+현재 2026-09 토이키즈 성장리포트가 119/119 정상 귀결되었습니다.
+
+이제 월초 성장리포트 시퀀스의 마지막 단계인
+
+“5일 자동 READY 판정 → 수영장 관리자 PUSH → 관리자 검수·학부모 수동 발송”
+
+이 Production에서 사람 개입 없이 자동으로 실행되는지 최종 확인합니다.
+
+광범위한 재조사 금지.
+ENGINE 조사 금지.
+성장리포트 재분석 금지.
+현재 119건 데이터 변경 금지.
+
+문제가 실제 확인될 때만 최소 수정하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Production 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+pool_id =
+pool_1780849364252_l9k44rbk3
+
+report_period =
+2026-09
+
+현재 기대 상태:
+
+eligible_total = 119
+generated_total = 116
+insufficient_evidence_total = 3
+policy_excluded_total = 0
+resolved_total = 119
+
+remaining = 0
+unknown = 0
+failed = 0
+processing = 0
+retry_pending = 0
+missing = 0
+duplicate = 0
+wrong_pool = 0
+
+이 상태를 READ ONLY로 확인하세요.
+
+현재 report/result/target row를 수정하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 5일 자동 실행 조건 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 코드 기준으로 다음을 정확히 추적하세요.
+
+2026-09 리포트의 관리자 완료 알림이
+2026-10-05에 자동 실행되는 실제 경로:
+
+scheduler
+→ monthly readiness
+→ READY transition
+→ readiness outbox
+→ 관리자 PUSH
+
+다음을 확인:
+
+- 사람이 SuperAI에 로그인하지 않아도 실행됨
+- 브라우저가 열려 있지 않아도 실행됨
+- 서버 scheduler/worker가 자동 실행함
+- 서버 restart 이후에도 정상 실행 가능
+- 119/119 정상 귀결을 다시 계산함
+- blocker=0을 확인한 뒤에만 READY
+- 기존 5일 발급 시점 조건이 실제로 적용됨
+
+“코드가 존재한다”가 아니라
+Production에서 scheduler가 실제 활성 상태인지 확인하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 날짜 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+2026-09 report_period의 관리자 완료 알림은
+다음 달 5일인:
+
+2026-10-05 KST
+
+를 기준으로 해야 합니다.
+
+UTC 날짜 혼동으로
+4일 또는 6일에 실행되면 안 됩니다.
+
+실제 scheduler timezone과 실행 조건을 확인하세요.
+
+임의로 현재 시간을 변경하거나
+Production 시간을 우회해서 PUSH를 보내지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 관리자 PUSH 수신 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+PUSH 대상은 해당 수영장의 관리자 계정입니다.
+
+super_admin에게 보내는 failure alert와
+혼동하지 마세요.
+
+teacher
+parent
+일반 관계없는 사용자
+
+에게 보내면 안 됩니다.
+
+해당 pool의 실제 관리자 recipient를
+현재 Production 데이터에서 READ ONLY로 확인하세요.
+
+PII는 완료보고에 출력하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 관리자 PUSH 문구
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 월초 시퀀스의 의도는:
+
+“성장리포트 생성이 모두 끝났으니
+관리자가 검수한 뒤 학부모에게 발송한다”
+
+입니다.
+
+현재 Production의 실제 PUSH title/body를 확인하세요.
+
+권장 의미:
+
+Title:
+AI 성장리포트 발급 완료
+
+Body:
+이번 달 AI 성장리포트 발급이 완료되었습니다.
+SWIMNOTE에서 검수 후 학부모에게 발송해 주세요.
+
+현재 문구가 이미 같은 의미라면
+불필요하게 수정하지 마세요.
+
+현재 문구가 단순히
+“확인해 주세요”
+수준이라 관리자 행동이 불명확하면
+위 의미가 명확하도록 최소 수정합니다.
+
+중요:
+
+“학부모에게 이미 발송되었습니다”
+라는 의미가 되면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 정확히 1회
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool + report_month 기준
+관리자 완료 PUSH는 논리적으로 정확히 1회여야 합니다.
+
+확인:
+
+- scheduler 중복 실행
+- worker restart
+- multi-instance
+- PUSH timeout
+- outbox replay
+
+상황에서도 정상적으로 중복 발송되지 않는지
+기존 dedupe/outbox 계약을 확인하세요.
+
+이미 READY/PUSH 완료된 월에는
+다음 scheduler tick에서 다시 보내면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PUSH 실패 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+PUSH provider 실패가 발생해도:
+
+- 119개의 리포트 결과를 rollback하지 않음
+- READY/report 상태를 깨뜨리지 않음
+- 부모 PUBLISHED를 실행하지 않음
+
+기존 outbox 정책에 따라 안전하게 처리되어야 합니다.
+
+PUSH 전달 수락이 불확실한 경우
+무조건 반복 발송해서 중복 PUSH를 만들지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 학부모 공개 경계
+━━━━━━━━━━━━━━━━━━━━━━
+
+5일 자동 시퀀스의 끝은:
+
+관리자 PUSH
+
+입니다.
+
+그 뒤:
+
+관리자 검수
+→ 기존 관리자 개별/일괄 발송
+→ 부모 PUBLISHED/PUSH
+
+는 기존 수동 관리자 경로입니다.
+
+5일 scheduler가:
+
+- 부모 PUBLISHED
+- 부모 PUSH
+- 관리자 승인 우회
+
+를 자동 실행하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 다음 달 이후 자동 반복
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 9월 데이터만 특수 처리되는 구조가 아니라
+앞으로 모든 report_month에서 동일해야 합니다.
+
+예:
+
+2026-10 수업 데이터
+→ 2026-11-01 자동 first-pass 시작
+→ 정상/실패 처리
+→ pool별 100% 정상 귀결
+→ 2026-11-05 관리자 완료 PUSH
+
+수영장 수가 증가해도
+각 pool + report_month별 독립 READY/outbox를 사용해야 합니다.
+
+한 수영장의 blocker 때문에
+다른 완료 수영장의 5일 관리자 PUSH가 막히면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 검증 방법
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production은 READ ONLY 확인.
+
+실제 10월 5일 PUSH를 지금 강제로 보내지 마세요.
+
+필요한 시간 조건 테스트는
+격리 test/fixture에서 검증하세요.
+
+필수 검증:
+
+1. 119/119 + blocker 0
+2. 5일 이전 → PUSH 없음
+3. 5일 도달 → READY/outbox 생성
+4. 관리자 recipient만 대상
+5. 정확히 1회
+6. duplicate scheduler → 중복 없음
+7. restart/replay → 중복 없음
+8. 한 pool 실패 → 다른 완료 pool 정상 알림
+9. 부모 PUBLISHED = 0
+10. 부모 PUSH = 0
+11. 관리자 수동 발송 경로 그대로 유지
+12. 다음 report_month에서도 동일 반복
+
+관련 테스트만 실행하세요.
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 문제가 없으면
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정하지 마세요.
+commit/deploy도 하지 마세요.
+
+검증 결과만 보고하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 문제가 실제 발견되면
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 마지막 시퀀스만 최소 수정하세요.
+
+불필요한 성장리포트 구조 변경 금지.
+ENGINE 변경 금지.
+분석/recovery 구조 변경 금지.
+
+관련 테스트
+→ build
+→ commit
+→ 필요한 Production 배포
+
+까지만 수행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+MONTHLY REPORT FINAL SEQUENCE = PASS/HOLD
+
+CURRENT 119/119 = PASS/HOLD
+AUTOMATIC DAY-5 TRIGGER = PASS/HOLD
+KST DATE RULE = PASS/HOLD
+NO HUMAN ACTION REQUIRED = PASS/HOLD
+POOL ADMIN RECIPIENT = PASS/HOLD
+PUSH MESSAGE = 실제 title/body
+PUSH EXACTLY ONCE = PASS/HOLD
+OUTBOX IDEMPOTENCY = PASS/HOLD
+POOL INDEPENDENCE = PASS/HOLD
+PUSH FAILURE SAFETY = PASS/HOLD
+NO AUTO PUBLISHED = PASS/HOLD
+NO PARENT PUSH = PASS/HOLD
+NEXT-MONTH REPEAT = PASS/HOLD
+
+그리고 마지막에 정확히 한 줄로:
+
+“2026-10-05 KST에 토이키즈 관리자가 별도 조작 없이
+자동 완료 PUSH를 받을 준비가 되어 있음 = YES/NO”
+
+Production 데이터 mutation = 0
+현재 관리자 PUSH 강제 발송 = 0
+
+여기서 정지하세요.
