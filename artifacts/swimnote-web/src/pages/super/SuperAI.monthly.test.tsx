@@ -43,6 +43,32 @@ describe("monthly growth-report operator controls", () => {
   });
   afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+  it("uses the existing shared approval reason state from the visible bulk input for the 17-target cohort", async () => {
+    window.history.replaceState({}, "", "/super/ai?tab=monthly&report_period=2026-09");
+    mocked.get.mockImplementation(path => {
+      if (path.includes("/recovery-batches/preview?")) return Promise.resolve({
+        report_month: "2026-09", pool_id: null, eligible_total: 17,
+        failed_total: 0, unknown_total: 17, next_round: 1,
+      });
+      if (path.includes("/recovery-batches?")) return Promise.resolve({ batches: [] });
+      return Promise.resolve({ summary: null, run: null, exceptions: { rows: [], total: 0 } });
+    });
+    render(<SuperAI />);
+    await screen.findByText("17건");
+    const bulk = screen.getByRole("region", { name: "월간 전체 recovery batch" });
+    const button = within(bulk).getByRole("button", { name: "전체 재시도 승인" }) as HTMLButtonElement;
+    fireEvent.click(within(bulk).getByRole("button", { name: "미완료 전체 선택" }));
+    expect(button.disabled).toBe(true);
+    fireEvent.change(within(bulk).getByLabelText("원인 수정 및 일괄 재시도 승인 사유"),
+      { target: { value: "17건 공통 원인 수정 확인" } });
+    expect(button.disabled).toBe(false);
+    expect(screen.getByLabelText("원인 수정 및 승인 사유")).toHaveProperty("value", "17건 공통 원인 수정 확인");
+    fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), { target: { value: "   " } });
+    expect(within(bulk).getByLabelText("원인 수정 및 일괄 재시도 승인 사유")).toHaveProperty("value", "   ");
+    expect(button.disabled).toBe(true);
+    expect(mocked.post).not.toHaveBeenCalled();
+  });
+
   it("opens the notified month and requires approval before failed-only recovery", async () => {
     render(<SuperAI />);
     const button = await screen.findByRole("button", { name: "허용된 실패 recovery" });

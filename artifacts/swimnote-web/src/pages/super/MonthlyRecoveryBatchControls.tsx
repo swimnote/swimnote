@@ -48,6 +48,7 @@ interface Props {
   reportMonth: string;
   poolId: string;
   reason: string;
+  onReasonChange: (reason: string) => void;
 }
 
 const BASE = "/super/growth-reports/recovery-batches";
@@ -128,7 +129,7 @@ function queryString(month: string, pool: string) {
   return query.toString();
 }
 
-export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reason }: Props) {
+export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reason, onReasonChange }: Props) {
   const [preview, setPreview] = useState<RecoveryPreview | null>(null);
   const [batches, setBatches] = useState<RecoveryBatch[] | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -153,7 +154,8 @@ export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reas
       const parsed = readPreview(previewResult.value, reportMonth, poolId.trim());
       if (parsed) setPreview(parsed);
       else errors.push("월간 recovery 미리보기 응답 형식이 올바르지 않습니다.");
-    } else errors.push("월간 recovery 미리보기를 불러오지 못했습니다.");
+    } else errors.push(previewResult.reason instanceof Error
+      ? previewResult.reason.message : "월간 recovery 미리보기를 불러오지 못했습니다.");
     if (batchesResult.status === "fulfilled") {
       const value = batchesResult.value as { batches?: unknown } | null;
       if (value && Array.isArray(value.batches)) {
@@ -161,7 +163,8 @@ export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reas
         if (parsed.every((batch): batch is RecoveryBatch => batch !== null)) setBatches(parsed);
         else errors.push("월간 recovery batch 목록 응답 형식이 올바르지 않습니다.");
       } else errors.push("월간 recovery batch 목록 응답 형식이 올바르지 않습니다.");
-    } else errors.push("월간 recovery batch 목록을 불러오지 못했습니다.");
+    } else errors.push(batchesResult.reason instanceof Error
+      ? batchesResult.reason.message : "월간 recovery batch 목록을 불러오지 못했습니다.");
     setLoadError(errors.join(" "));
   }, [reportMonth, poolId]);
 
@@ -182,10 +185,19 @@ export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reas
     setReplayed(false);
   }, [reportMonth, poolId]);
 
-  const hasActiveBatch = batches?.some(batch =>
-    !isTerminal(batch) && batch.pool_id === (poolId.trim() || null)) ?? false;
-  const canCreate = Boolean((pending || (!loadError && preview && batches && preview.eligible_total > 0 &&
-    selected && !hasActiveBatch && reason.trim())) && !busy);
+  const activeBatch = batches?.find(batch =>
+    !isTerminal(batch) && batch.pool_id === (poolId.trim() || null));
+  const hasActiveBatch = Boolean(activeBatch);
+  const createDisabledReason = busy ? "Recovery batch 생성 중입니다."
+    : pending ? ""
+    : loadError ? loadError
+    : !preview || !batches ? "서버 eligibility 및 저장된 batch 상태를 확인하는 중입니다."
+    : hasActiveBatch ? `현재 범위에 진행 중인 Recovery batch가 있습니다 (${activeBatch!.state}).${activeBatch!.pause_reason ? ` 서버 사유: ${activeBatch!.pause_reason}` : ""}`
+    : preview.eligible_total <= 0 ? "서버가 허용한 미완료 recovery 대상이 없습니다."
+    : !selected ? "미완료 전체 대상을 선택해 주세요."
+    : !reason.trim() ? "승인 사유를 입력하면 전체 재시도를 실행할 수 있습니다."
+    : "";
+  const canCreate = createDisabledReason === "";
 
   async function createBatch() {
     if (busyRef.current || !canCreate || (!pending && !preview)) return;
@@ -205,8 +217,9 @@ export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reas
     };
     const body = approval.body;
     const confirmed = window.confirm(
-      `${body.report_month} 월 ${body.pool_id || "전체 수영장"} 범위의 eligible 대상 ${approval.eligibleTotal}건을 ` +
-      `${approval.hadPriorBatch ? `명시적으로 다음 recovery 회차(${approval.nextRound})` : "recovery batch"}로 승인하시겠습니까?\n` +
+      `${body.report_month} 미완료 ${approval.eligibleTotal}건을 Recovery Round ${approval.nextRound}로 일괄 재시도 승인하시겠습니까?\n` +
+      `${body.pool_id || "전체 수영장"} 범위의 eligible 대상 ${approval.eligibleTotal}건입니다.\n` +
+      (approval.hadPriorBatch ? "기존 batch와 별개의 다음 회차를 명시적으로 승인합니다.\n" : "") +
       `실패 ${approval.failedTotal}건 / UNKNOWN ${approval.unknownTotal}건 포함 여부는 서버 eligibility 기준입니다.\n` +
       "대상 전체에 유료 분석 시도가 발생할 수 있으며 비용은 달라질 수 있습니다. 비용 가능성을 확인하고 승인하세요.\n" +
       `승인 사유: ${body.reason}`
@@ -274,7 +287,7 @@ export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reas
         대상별 요청을 기다리지 않고 batch 진행 상태를 주기적으로 조회합니다.
       </p>
     </div>
-    {loadError && <p aria-live="polite" className="text-xs text-red-700">{loadError}</p>}
+    {loadError && loadError !== createDisabledReason && <p aria-live="polite" className="text-xs text-red-700">{loadError}</p>}
     {!preview && !loadError && <p className="text-xs text-gray-500">전체 cohort 미리보기를 불러오는 중...</p>}
     {preview && <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
       <div className="rounded border bg-white p-2">월 / 범위<strong className="mt-1 block">{preview.report_month} / {preview.pool_id ?? "전체 수영장"}</strong></div>
@@ -282,6 +295,13 @@ export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reas
       <div className="rounded border bg-white p-2">실패 / UNKNOWN<strong className="mt-1 block">{preview.failed_total.toLocaleString()} / {preview.unknown_total.toLocaleString()}건</strong></div>
       <div className="rounded border bg-white p-2">다음 회차<strong className="mt-1 block">{preview.next_round}</strong></div>
     </div>}
+    <label className="block space-y-1 text-xs font-medium text-[#002F5F]">
+      <span>원인 수정 및 일괄 재시도 승인 사유</span>
+      <input aria-label="원인 수정 및 일괄 재시도 승인 사유" maxLength={500} value={reason}
+        onChange={event => onReasonChange(event.target.value)}
+        placeholder="원인 수정 내용과 일괄 재시도 승인 사유를 직접 입력해 주세요 (필수)"
+        className="block w-full rounded border bg-white p-2 font-normal text-gray-900" />
+    </label>
     <div className="flex flex-wrap gap-2">
       <button type="button" disabled={!preview || !preview.eligible_total || Boolean(loadError) || busy}
         onClick={() => setSelected(true)} className="rounded border bg-white px-3 py-2 text-xs disabled:opacity-40">
@@ -292,11 +312,16 @@ export default function MonthlyRecoveryBatchControls({ reportMonth, poolId, reas
         전체 선택 해제
       </button>
       <span aria-live="polite" className="self-center text-xs">서버 cohort 선택: {selected ? preview?.eligible_total.toLocaleString() ?? "—" : 0}건</span>
-      <button type="button" disabled={!canCreate} onClick={() => void createBatch()}
+      <button type="button" disabled={!canCreate} aria-describedby={createDisabledReason ? "monthly-recovery-disabled-reason" : undefined}
+        onClick={() => void createBatch()}
         className="rounded bg-[#002F5F] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">
         {busy ? "승인 처리 중..." : awaitingRetry ? "동일 승인 재시도" : "전체 재시도 승인"}
       </button>
     </div>
+    {createDisabledReason && <p id="monthly-recovery-disabled-reason" aria-live="polite"
+      className={`text-xs ${loadError && createDisabledReason === loadError ? "text-red-700" : "text-blue-900"}`}>
+      {createDisabledReason}
+    </p>}
     {selected && <p className="text-xs text-blue-900">현재 선택은 미리보기의 전체 eligible cohort입니다. 실제 대상 수는 서버에서 승인 시 다시 판정합니다.</p>}
     {latest && batches?.length && !hasActiveBatch && <p className="text-xs text-blue-900">
       저장된 회차가 종료되었습니다. 다음 회차({preview?.next_round ?? "—"})는 전체 선택 후 별도 승인해야 시작됩니다.
