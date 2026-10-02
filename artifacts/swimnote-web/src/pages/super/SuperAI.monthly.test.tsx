@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import SuperAI from "./SuperAI";
 import SuperGuard from "@/components/super/SuperGuard";
 
@@ -270,6 +270,67 @@ describe("monthly growth-report operator controls", () => {
       report_ids: ["unknown-test"], confirmed: true, reason: "파일럿 승인",
     });
     expect(await screen.findByText(/unknown-test: COMPLETE/)).toBeTruthy();
+  });
+
+  it.each(["COMPLETE_WITH_QUESTIONS_AVAILABLE", "COMPLETE"])(
+    "uses server eligibility for an ANALYZING UNKNOWN blocker with residual %s analysis status",
+    async analysisStatus => {
+      mocked.get.mockResolvedValue({
+        summary: null, run: { paused_at: "2026-10-01", circuit_status: "OPEN",
+          pause_reason: "LEGACY_IMPORT_OPERATOR_HOLD" },
+        exceptions: { total: 1, rows: [{
+          swimming_pool_id: "pool", report_id: "production-shaped-unknown",
+          product_status: "ANALYZING", analysis_status: analysisStatus,
+          first_pass_outcome: null, first_pass_error_category: null,
+          monthly_final_disposition: null, analysis_uncertain_at: "2026-10-01T17:40:11Z",
+          recovery_allowed: false, unknown_reissue_allowed: true,
+          unknown_reissue_hold_reason: null, unknown_reissue_operation: null,
+          unknown_reissue_next_approval_allowed: false,
+        }] },
+      });
+      render(<SuperAI />);
+      const checkbox = await screen.findByRole("checkbox", {
+        name: "UNKNOWN production-shaped-unknown 선택",
+      });
+      expect(checkbox).toHaveProperty("disabled", false);
+      const row = checkbox.closest("tr")!;
+      expect(within(row).getByText("UNKNOWN")).toBeTruthy();
+      expect(within(row).getByText("재분석 승인 가능")).toBeTruthy();
+      expect(within(row).queryByText("HOLD / 재분석 불가")).toBeNull();
+      expect(mocked.post).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText("원인 수정 및 승인 사유"), {
+        target: { value: "현재 UNKNOWN blocker 파일럿 승인" },
+      });
+      fireEvent.click(checkbox);
+      expect(screen.getByText("선택 1건")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "재분석 승인" }))
+        .toHaveProperty("disabled", false);
+      expect(mocked.post).not.toHaveBeenCalled();
+      vi.mocked(window.confirm).mockReturnValue(false);
+      fireEvent.click(screen.getByRole("button", { name: "재분석 승인" }));
+      expect(mocked.post).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not infer permission from ANALYZING or UNKNOWN when the server denies identity/payload eligibility", async () => {
+    mocked.get.mockResolvedValue({ summary: null, run: null, exceptions: { total: 3, rows: [
+      { swimming_pool_id: "pool", report_id: "ordinary-analyzing", product_status: "ANALYZING",
+        analysis_status: "COMPLETE", analysis_uncertain_at: null, unknown_reissue_allowed: false },
+      ...["ORIGINAL_PAYLOAD_IDENTITY_INVALID", "UNKNOWN_REISSUE_SCHEMA_NOT_READY"].map(reason => ({
+        swimming_pool_id: "pool", report_id: reason, product_status: "ANALYZING",
+        analysis_uncertain_at: "2026-10-01T17:40:11Z", unknown_reissue_allowed: false,
+        unknown_reissue_hold_reason: reason,
+      })),
+    ] } });
+    render(<SuperAI />);
+    for (const reason of ["ORIGINAL_PAYLOAD_IDENTITY_INVALID", "UNKNOWN_REISSUE_SCHEMA_NOT_READY"]) {
+      expect(await screen.findByRole("checkbox", { name: `UNKNOWN ${reason} 선택` }))
+        .toHaveProperty("disabled", true);
+      expect(screen.getByText(`UNKNOWN HOLD: ${reason}`)).toBeTruthy();
+    }
+    expect(screen.queryByRole("checkbox", { name: "UNKNOWN ordinary-analyzing 선택" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "재분석 승인 대상 선택" })).toBeNull();
+    expect(mocked.post).not.toHaveBeenCalled();
   });
 
   it("displays an executing state until the requested terminal result arrives", async () => {

@@ -103,7 +103,12 @@ function MonthlyExceptionsTab() {
     const terminal = new Set(["GENERATED", "COMPLETE", "SUCCESS", "INSUFFICIENT_EVIDENCE",
       "EXCLUDED", "PUBLISHED", "READY_TO_SEND", "APPROVED",
       "COMPLETE_WITH_QUESTIONS_AVAILABLE", "COMPLETE_WITH_PARENT_EVIDENCE"]);
-    return [row.product_status, row.analysis_status, row.first_pass_outcome,
+    // A current uncertain report can retain an older COMPLETE analysis status.
+    // Only the server's existing reissue eligibility may override that residual
+    // field; actual terminal report/disposition/operation results still block.
+    const serverEligibleUnknown = row.analysis_uncertain_at != null &&
+      (row.unknown_reissue_allowed === true || row.unknown_reissue_next_approval_allowed === true);
+    return [row.product_status, serverEligibleUnknown ? undefined : row.analysis_status, row.first_pass_outcome,
       row.monthly_final_disposition,
       unknownResults[row.report_id ?? ""]?.state, row.unknown_reissue_operation?.state]
       .some(value => terminal.has(String(value ?? "").toUpperCase()));
@@ -318,18 +323,22 @@ function MonthlyExceptionsTab() {
             /> : "—"}
           </td>
           <td className="p-2">{row.swimming_pool_id}<br />{row.report_id ?? "준비 단계"}</td>
-          <td className="p-2">{row.product_status ?? row.first_pass_outcome ?? "PREPARATION"}</td>
+          <td className="p-2">{isUnknownRow(row) && !isResolvedUnknown(row)
+            ? <><strong>UNKNOWN</strong><div className="text-gray-500">
+                Lifecycle: {row.product_status ?? "—"}
+              </div></>
+            : row.product_status ?? row.first_pass_outcome ?? "PREPARATION"}</td>
           <td className="p-2">{row.first_pass_error_category}<br />{row.first_pass_error_code ?? row.preparation_error}</td>
           <td className="p-2">{row.recovery_epoch ?? 0}</td>
           <td className="p-2">{row.first_pass_engine_requests ?? 0} / {row.recovery_engine_requests ?? 0} / {row.lookup_requests ?? 0}</td>
           <td className="p-2">
             {row.report_id && isUnknownRow(row) && !isResolvedUnknown(row) &&
               (row.unknown_reissue_allowed === true || row.unknown_reissue_next_approval_allowed === true)
-              ? <button type="button" disabled={busy}
+              ? <div className="space-y-1"><div>재분석 승인 가능</div><button type="button" disabled={busy}
                   onClick={() => setSelectedUnknownIds([row.report_id!])}
                   className="rounded border border-[#002F5F] px-2 py-1 text-[#002F5F] font-semibold disabled:opacity-40">
                   {selectedUnknownIds.includes(row.report_id!) ? "재분석 승인 대상 선택됨" : "재분석 승인 대상 선택"}
-                </button>
+                </button></div>
               : row.recovery_allowed
               ? <button disabled={busy || !reason.trim()} onClick={() => operate("recover", row.swimming_pool_id)}
                 className="border rounded p-1 disabled:opacity-40">허용된 실패 recovery</button>
