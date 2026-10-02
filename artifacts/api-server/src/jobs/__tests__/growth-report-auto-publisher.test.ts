@@ -196,7 +196,7 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
       poolId: "pool-a",
       reportPeriod: "2026-09",
       readiness: expect.objectContaining({ eligible_total: 1, generated_total: 1, ready: true }),
-      message: "이번 달 AI 성장리포트 발행이 완료되었습니다.\nSWIMNOTE에서 확인해 주세요.",
+      message: "이번 달 AI 성장리포트 발급이 완료되었습니다.\nSWIMNOTE에서 검수 후 학부모에게 발송해 주세요.",
     }));
     expect(notifyAdmin).toHaveBeenCalledWith(expect.objectContaining({
       poolId: "pool-c",
@@ -239,7 +239,7 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
     expect(notifyAdmin).toHaveBeenCalledWith(expect.objectContaining({
       poolId: "pool-legacy",
       reportPeriod: "2026-09",
-      message: "이번 달 AI 성장리포트 발행이 완료되었습니다.\nSWIMNOTE에서 확인해 주세요.",
+      message: "이번 달 AI 성장리포트 발급이 완료되었습니다.\nSWIMNOTE에서 검수 후 학부모에게 발송해 주세요.",
     }));
   });
 
@@ -249,6 +249,37 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
     await runMonthlyFreeAutoPublication(db as any, issueAt, vi.fn());
     expect(finishMonthlyFirstPass).toHaveBeenCalledOnce();
     expect(finishMonthlyFirstPass).toHaveBeenCalledWith(db, "2026-09");
+  });
+
+  it.each([
+    ["2026-10-04T14:59:59Z", false],
+    ["2026-10-04T15:00:00Z", false],
+    ["2026-10-04T16:59:59Z", false],
+    ["2026-10-04T17:00:00Z", true],
+    ["2026-10-05T14:59:59Z", true],
+  ])("uses the KST day-5 02:00 boundary at %s", async (instant, dispatchable) => {
+    const { db, execute } = makePublisherDb([
+      { pool_id: "pool-boundary", report_period: "2026-09" },
+    ]);
+    const notify = vi.fn();
+    const result = await runMonthlyFreeAutoPublication(db as any, new Date(instant), notify);
+    const queries = execute.mock.calls.map(([query]) => queryText(query));
+    expect(notify).toHaveBeenCalledTimes(dispatchable ? 1 : 0);
+    expect(queries.some(query => query.includes("SET ready_at = COALESCE"))).toBe(dispatchable);
+    expect(queries.some(query => query.includes("INSERT INTO growth_report_notification_outbox"))).toBe(dispatchable);
+    expect(result.published).toBe(0);
+    expect(queries.some(query => query.includes("UPDATE growth_reports"))).toBe(false);
+  });
+
+  it("repeats the same review-only sequence for the next report month", async () => {
+    const { db } = makePublisherDb([{ pool_id: "pool-next", report_period: "2026-10" }]);
+    const notify = vi.fn();
+    const result = await runMonthlyFreeAutoPublication(db as any, new Date("2026-11-04T17:00:00Z"), notify);
+    expect(result).toMatchObject({ reportPeriod: "2026-10", published: 0, notificationCandidates: 1 });
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({
+      reportPeriod: "2026-10",
+      message: "이번 달 AI 성장리포트 발급이 완료되었습니다.\nSWIMNOTE에서 검수 후 학부모에게 발송해 주세요.",
+    }));
   });
 
   it("has no automatic parent-publication path and uses KST cron/review semantics", async () => {

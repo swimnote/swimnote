@@ -113,7 +113,7 @@ export async function runMonthlyFreeAutoPublication(
     const reportPeriod = row.report_period ?? window.reportPeriod;
     try {
       const notificationMessage = (_readiness: MonthlyReportReadiness) =>
-        "이번 달 AI 성장리포트 발행이 완료되었습니다.\nSWIMNOTE에서 확인해 주세요.";
+        "이번 달 AI 성장리포트 발급이 완료되었습니다.\nSWIMNOTE에서 검수 후 학부모에게 발송해 주세요.";
 
       const readiness = await reconcileMonthlyCycle(
         db,
