@@ -1,0 +1,248 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[SuperAI UNKNOWN 재분석 승인 — 실제 선택 불가 Production 버그 수정]
+
+Production 실제 화면에서 확인된 버그입니다.
+
+현재 /super/ai 의
+“UNKNOWN 재분석 승인” 영역에는
+9월 UNKNOWN 대상들이 표시되지만,
+
+각 행이:
+
+현재 상태 = ANALYZING
+운영 = HOLD / 재분석 불가
+
+로 표시되고 체크박스가 비활성화되어 있습니다.
+
+따라서 선택 0건에서 벗어날 수 없고
+“재분석 승인” 버튼도 누를 수 없습니다.
+
+이번 작업은 이 실제 선택 불가 버그만 수정합니다.
+
+ENGINE 수정 금지.
+UNKNOWN recovery 계약 재설계 금지.
+migration 금지 unless 실제로 절대 필요하지 않음.
+9월 17건 실제 실행 금지.
+provider 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 원인 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 현재 SuperAI UNKNOWN 행의 선택 가능 여부를 결정하는
+실제 predicate와 API response field만 추적하세요.
+
+특히 확인:
+
+- UI가 generic report status = ANALYZING을 보고
+  UNKNOWN reissue를 막고 있는지
+
+- monthly reconciliation의 UNKNOWN blocker와
+  일반 report lifecycle status를 혼동하고 있는지
+
+- API에는 UNKNOWN exception 정보가 있는데
+  SuperAI가 다른 status field를 사용하고 있는지
+
+- 이미 구현된 UNKNOWN reissue eligibility가
+  render branch에 전달되지 않는지
+
+전체 성장리포트 시스템 재조사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 올바른 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+UNKNOWN 재분석 승인 대상 여부는
+일반 화면용 status 문자열
+ANALYZING / REVIEW_REQUIRED 등을 기준으로 판단하면 안 됩니다.
+
+현재 월간 cycle에서
+실제로 unresolved UNKNOWN blocker로 확정되고,
+
+operator-approved UNKNOWN reissue의
+기존 서버 계약을 만족하는 건만 선택 가능해야 합니다.
+
+즉 현재 2026-09의 실제 UNKNOWN 17건은
+승인 가능한 UNKNOWN 대상으로 표시되어야 합니다.
+
+단 다음은 계속 선택 금지:
+
+- generated COMPLETE
+- INSUFFICIENT_EVIDENCE
+- PUBLISHED
+- 이미 정상 귀결된 report
+- UNKNOWN이 아닌 일반 failure
+- identity/payload가 없는 대상
+- 서버가 reissue 불가로 판정한 대상
+
+체크박스를 무조건 enable하는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. UI 표시 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+UNKNOWN 대상으로 판정된 행은 최소한:
+
+현재 상태 = UNKNOWN
+
+또는
+실제 lifecycle status를 유지해야 한다면
+
+예외 상태 = UNKNOWN
+
+을 별도로 명확히 표시하세요.
+
+“운영” 컬럼도 실제 operator reissue 가능 대상이면:
+
+재분석 승인 가능
+
+으로 표시되어야 합니다.
+
+그리고 체크박스를 활성화합니다.
+
+현재처럼 UNKNOWN 목록 안에서
+ANALYZING / HOLD / 재분석 불가로 표시되어
+선택 자체가 막히면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Backend가 필요한 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 기존 API response를 그대로 사용하세요.
+
+UI에서 안정적으로 판정할 field가 없다면
+APP API에 최소한의 명시적 field만 추가하세요.
+
+예:
+
+exception_type = UNKNOWN
+
+operator_reissue_eligible = true/false
+
+실제 이름은 기존 코드 convention을 따르세요.
+
+이 값은 서버의 기존 UNKNOWN/reissue 조건으로 계산하고,
+클라이언트가 임의 추론하지 않게 합니다.
+
+새 recovery API를 만들지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 9월 Production 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+eligible = 119
+generated = 99
+insufficient_evidence = 3
+unknown = 17
+resolved = 102
+READY = false
+
+유지.
+
+이번 수정·배포 중:
+
+reissue operations = 0
+new requests = 0
+provider calls = 0
+
+17건 실제 승인 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 증상을 그대로 재현하는 테스트를 먼저 추가/수정하세요.
+
+필수:
+
+1. lifecycle status가 ANALYZING이어도
+   monthly exception이 UNKNOWN이고
+   server reissue eligible이면
+   체크박스 활성화
+
+2. UNKNOWN row 1건 선택 가능
+
+3. 선택 1건이면
+   “재분석 승인” 버튼 활성화
+
+4. generated COMPLETE 선택 불가
+
+5. INSUFFICIENT_EVIDENCE 선택 불가
+
+6. PUBLISHED 선택 불가
+
+7. UNKNOWN이 아닌 일반 ANALYZING 선택 불가
+
+8. 기존 operation 존재 시
+   replay / 추가 승인 UI 정책 유지
+
+9. 페이지 진입만으로 API 실행 0
+
+10. 실제 승인 confirm 전까지
+    provider 호출 0
+
+관련 SuperAI 테스트만 실행.
+
+API 변경이 실제 있으면
+관련 API 테스트 + API build만 추가.
+
+웹 production bundle 실행.
+
+전체 suite/typecheck 재실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 수정
+→ 관련 테스트
+→ 웹 bundle
+→ commit
+→ GitHub main
+→ 필요한 대상만 Production 배포
+
+웹-only 수정이면 웹만 배포.
+
+API response 수정이 필요한 경우에만
+APP/API Render도 같은 SHA로 배포.
+
+ENGINE 배포 없음.
+모바일 OTA 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+ROOT CAUSE = 한 줄
+
+UNKNOWN ELIGIBILITY SOURCE = 실제 사용 field/조건
+
+FILES_CHANGED
+RELATED TESTS
+WEB BUNDLE
+
+NEW COMMIT SHA
+GitHub main SHA
+Web Deploy ID
+API Deploy ID if changed
+Production deployed SHA
+
+그리고:
+
+REAL UNKNOWN ROW SELECTABLE = PASS/HOLD
+ANALYZING FALSE BLOCK REMOVED = PASS/HOLD
+SERVER ELIGIBILITY PRESERVED = PASS/HOLD
+1 ROW SELECTION ENABLES BUTTON = PASS/HOLD
+NON-UNKNOWN STILL BLOCKED = PASS/HOLD
+NO AUTO EXECUTION = PASS/HOLD
+PRODUCTION WEB DEPLOYMENT = PASS/HOLD
+
+2026-09 REISSUE OPERATIONS = 0
+2026-09 PROVIDER CALLS = 0
+
+실제 17건은 실행하지 말고 여기서 정지하세요.
