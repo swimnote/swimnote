@@ -1,0 +1,282 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[2026-09 UNKNOWN 17건 — Production 실제 승인·재발행 및 최종 귀결]
+
+현재 APP Production SHA:
+d57436f02e764274005fdd5752ebd55ed025ce62
+
+현재 ENGINE Production SHA:
+86509b93c423016ad8c9cde0a4b0f3281f083aab
+
+이번 작업은 신규 개발이 아닙니다.
+
+코드 수정 금지.
+migration 금지.
+commit/push/deploy 금지.
+전체 재조사 금지.
+
+목적:
+현재 2026-09 UNKNOWN 17건을
+배포된 operator-approved reissue 계약으로 실제 처리하고
+해당 월 cycle을 정상 귀결시키는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+pool_id =
+pool_1780849364252_l9k44rbk3
+
+cycle =
+grc_c2845ef789594145a9e6fbf699f70048
+
+report_month =
+2026-09
+
+현재 기대값:
+
+eligible = 119
+generated = 99
+insufficient_evidence = 3
+unknown = 17
+resolved = 102
+READY = false
+
+UNKNOWN 17건 외 대상을 선택하지 마세요.
+
+기존 generated 99건과
+INSUFFICIENT_EVIDENCE 3건은
+reissue 대상에서 반드시 제외합니다.
+
+전체 행 fingerprint 재계산은 하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 파일럿 1건
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 아래 1건만
+super_admin 명시적 승인으로 실제 reissue 하세요.
+
+original_request_id =
+ee523c3a-e469-4a3a-be5b-e9f1aa94a2e9
+
+APP Production에 저장된
+원본 payload/hash/identity를 그대로 사용합니다.
+
+APP에서 stable:
+
+- recovery_operation_id
+- new_request_id
+
+를 먼저 영속화한 뒤
+ENGINE reissue endpoint를 호출합니다.
+
+새 payload 생성 금지.
+현재 회원 데이터로 snapshot 재구성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 파일럿 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 정상 terminal 결과만 PASS로 봅니다.
+
+A. COMPLETE 정상 성장리포트
+→ generated +1
+→ original UNKNOWN history 보존
+
+B. COMPLETE + DATA_ACCUMULATING
+→ INSUFFICIENT_EVIDENCE +1
+→ generated에는 포함하지 않음
+
+확정 retryable failure:
+→ 기존 정책에 따라 기록
+→ 이번 작업에서 임의 무한 재호출 금지
+
+다시 UNKNOWN:
+→ 즉시 전체 작업 HOLD
+→ 나머지 16건 실행 금지
+
+CONFLICT / identity mismatch / payload mismatch:
+→ 즉시 HOLD
+→ 나머지 16건 실행 금지
+
+timeout이 발생한 경우:
+→ 새 operation/new_request 생성 금지
+→ 동일 recovery_operation_id로 replay/status 확인
+
+파일럿에서 provider 중복 호출이 없어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 파일럿 PASS 시 나머지 16건
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일럿이 정상 terminal 귀결된 경우에만
+현재 남아 있는 정확한 UNKNOWN 16건을 진행합니다.
+
+각 건마다:
+
+operator approval
+→ stable operation/new request 영속
+→ ENGINE reissue
+→ terminal result 저장
+→ 해당 pool/month reconciliation
+
+순서를 사용합니다.
+
+기존 성공 결과를 다시 분석하지 마세요.
+
+동일 대상에 operation을 두 개 만들지 마세요.
+
+과도한 동시 실행은 하지 말고
+현재 배포된 안전한 worker/concurrency 설정을 그대로 사용하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 재발행 결과 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 COMPLETE:
+generated에 포함.
+
+DATA_ACCUMULATING:
+INSUFFICIENT_EVIDENCE로 귀결.
+
+다시 UNKNOWN:
+blocker로 유지.
+자동 추가 reissue 금지.
+
+확정 retryable failure:
+현재 일반 recovery 계약 밖으로 우회하지 않음.
+
+실패를 policy exclusion으로 변경하지 마세요.
+
+기존 original UNKNOWN registry/history는
+모든 경우 그대로 보존해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 reconciliation
+━━━━━━━━━━━━━━━━━━━━━━
+
+17건 처리 가능한 범위가 끝난 뒤
+2026-09 pool reconciliation을 실행합니다.
+
+반드시 보고:
+
+eligible
+generated
+insufficient_evidence
+policy_excluded
+resolved
+remaining
+
+queued
+processing
+retry_pending
+failed
+unknown
+missing
+duplicate
+wrong_pool
+
+READY
+ready_at
+
+reissue operation 총수
+새 request 총수
+COMPLETE 정상 생성 수
+DATA_ACCUMULATING/INSUFFICIENT_EVIDENCE 수
+다시 UNKNOWN 수
+확정 실패 수
+CONFLICT 수
+
+provider 신규 분석 호출 수
+중복 provider 호출 수
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. READY 및 관리자 PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+resolved = 119
+그리고 모든 blocker = 0인 경우에만
+기존 월간 정책에 따라 처리합니다.
+
+기존 준비시점/5일 규칙을 우회하지 마세요.
+
+현재 시점에 READY 또는 관리자 PUSH 조건이
+아직 충족되지 않는다면 강제로 만들지 않습니다.
+
+학부모 PUBLISHED 금지.
+부모 PUSH 금지.
+
+관리자 PUSH는 기존 자동화에만 맡깁니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 성공 보호 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체-row fingerprint 재계산은 하지 않습니다.
+
+대신 작업 전후 다음만 검증하세요.
+
+- 기존 성공 99건이 reissue 대상에 포함된 수 = 0
+- 기존 성공 99건에 신규 ENGINE request 생성 수 = 0
+- 기존 성공 99건의 generated 상태 감소 = 0
+- 기존 INSUFFICIENT_EVIDENCE 3건 reissue 수 = 0
+
+이 검증으로 충분합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+SEPTEMBER UNKNOWN REISSUE = PASS/HOLD
+
+PILOT RESULT =
+COMPLETE / INSUFFICIENT_EVIDENCE / UNKNOWN / FAILED / CONFLICT
+
+TOTAL ORIGINAL UNKNOWN = 17
+REISSUE OPERATIONS CREATED = n
+NEW REQUESTS CREATED = n
+
+NEW GENERATED = n
+NEW INSUFFICIENT_EVIDENCE = n
+SECOND UNKNOWN = n
+FAILED = n
+CONFLICT = n
+
+DUPLICATE PROVIDER CALLS = n
+
+99 EXISTING SUCCESS REISSUED = 0/n
+3 EXISTING INSUFFICIENT REISSUED = 0/n
+
+FINAL:
+
+eligible = n
+generated = n
+insufficient_evidence = n
+policy_excluded = n
+resolved = n
+remaining = n
+
+queued = n
+processing = n
+retry_pending = n
+failed = n
+unknown = n
+missing = n
+duplicate = n
+wrong_pool = n
+
+READY = true/false
+ready_at = ...
+ADMIN READY PUSH = sent / not sent / not yet eligible
+
+학부모 PUBLISHED = 0
+
+미완료가 남으면
+실제 남은 원인과 다음 최소 조치만 보고하세요.
+
+여기서 정지하세요.
