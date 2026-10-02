@@ -13,6 +13,7 @@ import { startQueueWorker }         from "./jobs/queue-worker.js";
 import { startGrowthReportScheduler }      from "./jobs/growth-report-scheduler.js";
 import { startGrowthReportAnalysisWorker } from "./jobs/growth-report-analysis-worker.js";
 import { startGrowthReportBatchWorker }    from "./jobs/growth-report-batch-worker.js";
+import { startGrowthReportRecoveryBatchWorker } from "./jobs/growth-report-recovery-batch-worker.js";
 import { startOpsMonitorScheduler }        from "./jobs/ops-monitor-scheduler.js";
 import { startProductionBackupScheduler }  from "./jobs/production-backup-scheduler.js";
 import { startDataPurgeWorker }            from "./jobs/data-purge-worker.js";
@@ -200,6 +201,7 @@ if (IS_WORKER) {
   startGrowthReportScheduler();
   startGrowthReportAnalysisWorker();
   startGrowthReportBatchWorker();
+  startGrowthReportRecoveryBatchWorker();
   startDataPurgeWorker();
   startOpsMonitorScheduler();
   startProductionBackupScheduler();
@@ -220,6 +222,7 @@ if (IS_WORKER) {
   startGrowthReportScheduler();
   startGrowthReportAnalysisWorker();
   startGrowthReportBatchWorker();
+  startGrowthReportRecoveryBatchWorker();
 
   // ── 서버 성능 감시 + 푸시 알림 (5분마다) ───────────────────────────────────
   const SLOW_CHECK_INTERVAL = 5 * 60 * 1000;

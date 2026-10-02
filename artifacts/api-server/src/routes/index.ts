@@ -36,6 +36,7 @@ import unregisteredRouter from "./unregistered.js";
 import privacyPageRouter from "./privacy-page.js";
 import superSyncRouter from "./super-sync.js";
 import superRouter from "./super.js";
+import recoveryBatchesRouter from "./growth-report-recovery-batches.js";
 import superAiCostRouter from "./super-ai-cost.js";
 import supportTicketsRouter from "./support-tickets.js";
 import supportCasesRouter from "./support-cases.js";
@@ -79,6 +80,7 @@ router.use(requireWritable as any);
 // ── Super 라우터 최우선 마운트 (다른 "/" 라우터들이 /super/* 경로를 가로채지 않도록) ──
 router.use("/", superSyncRouter);
 router.use("/", superRouter);
+router.use("/", recoveryBatchesRouter);
 router.use("/", superAiCostRouter);
 router.use("/", superSupportRouter);
 router.use("/super/db-status", dbStatusRouter);

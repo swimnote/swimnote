@@ -42,6 +42,21 @@ type Db = {
   transaction?<T>(callback: (tx: Db) => Promise<T>): Promise<T>;
 };
 
+export function hasUnknownRecoveryApprovalBoundary(row: {
+  first_pass_outcome?: unknown;
+  recovery_epoch?: unknown;
+  recovery_approved_by?: unknown;
+  recovery_approval_reason?: unknown;
+}): boolean {
+  if (row.first_pass_outcome == null || row.first_pass_outcome === "unknown") return true;
+  const epoch = Number(row.recovery_epoch);
+  return row.first_pass_outcome === "failed" &&
+    Number.isSafeInteger(epoch) && epoch > 0 &&
+    typeof row.recovery_approved_by === "string" && row.recovery_approved_by.trim().length > 0 &&
+    typeof row.recovery_approval_reason === "string" &&
+      row.recovery_approval_reason.trim().length > 0;
+}
+
 type CircuitConfig = {
   failureThreshold: number;
   windowMs: number;
@@ -565,13 +580,123 @@ function targetKey(cycleId: string, studentId: string): string {
   return `${cycleId}:${studentId}`;
 }
 
-function commonServiceFailure(code?: string): boolean {
+/**
+ * Shared circuit admission for an already-approved monthly request. A
+ * half-open run grants one lease-budgeted probe per target key; caller records
+ * the eventual service outcome through recordMonthlyServiceOutcome.
+ */
+function reserveMonthlyAdmission(state: CircuitState, key: string, now: number): boolean {
+  if (state.status === "OPEN") return false;
+  if (state.status !== "HALF_OPEN") return true;
+  const reservations = state.probeReservations.filter(
+    item => item.at + state.config.probeLeaseMs > now,
+  );
+  if (reservations.length !== state.probeReservations.length ||
+      reservations.length >= state.config.probeCount ||
+      reservations.some(item => item.key === key)) return false;
+  state.probeReservations = [...reservations, { key, at: now }];
+  return true;
+}
+
+function commonServiceFailure(code?: string | null): boolean {
   return !!code && (
     ["NETWORK_ERROR", "COMPOSITION_TIMEOUT", "ENGINE_URL_NOT_CONFIGURED",
       "ENGINE_SECRET_NOT_CONFIGURED", "ENGINE_TIMEOUT", "ENGINE_SERVICE_UNAVAILABLE",
+      "ENGINE_SERVICE_SECRET_NOT_CONFIGURED", "ENGINE_REISSUE_OUTCOME_UNKNOWN",
       "ENGINE_CONNECTION_ERROR", "ENGINE_RATE_LIMITED", "ENGINE_OVERLOADED"].includes(code) ||
     /^ENGINE_HTTP_5\d\d$/.test(code)
   );
+}
+
+/**
+ * Circuit admission for bulk UNKNOWN recovery. Unlike ordinary RECOVERY,
+ * UNKNOWN targets are not first-pass failures and must not pass through
+ * canDispatchMonthlyAnalysis(phase=RECOVERY). This only checks/reserves the
+ * existing monthly circuit budget; the persisted batch remains the operator
+ * approval boundary.
+ */
+export async function reserveMonthlyUnknownRecoveryAdmission(
+  db: Db,
+  params: { cycleId: string; studentId: string },
+): Promise<boolean> {
+  if (!await isMonthlyAutomationSchemaReady(db) || !db.transaction) return false;
+  return inTransaction(db, async tx => {
+    const runResult = await loadRunForCycle(tx, params.cycleId, true);
+    if (!runResult.rows.length) return false;
+    const run = runResult.rows[0];
+    if (run.preparation_status !== "sealed" ||
+        run.manifest_cycle_id !== params.cycleId ||
+        run.actual_cycle_id !== params.cycleId) return false;
+    const targetResult = await tx.execute(sql`
+      SELECT target.first_pass_outcome, target.recovery_epoch,
+        target.recovery_approved_by, target.recovery_approval_reason,
+        target.policy_excluded_at,
+        report.product_status, report.analysis_uncertain_at
+      FROM growth_report_eligible_targets target
+      JOIN growth_reports report
+        ON report.cycle_id = target.cycle_id
+       AND report.student_id = target.student_id
+       AND report.deleted_at IS NULL
+      WHERE target.cycle_id = ${params.cycleId}
+        AND target.student_id = ${params.studentId}
+      FOR UPDATE OF target
+    `);
+    const target = targetResult.rows[0];
+    if (!target || !hasUnknownRecoveryApprovalBoundary(target) ||
+        target.policy_excluded_at != null || target.analysis_uncertain_at == null ||
+        !["ANALYZING", "PREANALYZING"].includes(String(target.product_status))) {
+      return false;
+    }
+    const state = asCircuitState(run.circuit_state);
+    if (run.paused_at != null) return false;
+    const now = Date.now();
+    if (state.status === "HALF_OPEN" &&
+        state.probeReservations.some(item => item.at + state.config.probeLeaseMs <= now)) {
+      state.status = "OPEN";
+      state.openedAt = now;
+      state.probeReservations = [];
+      await tx.execute(sql`
+        UPDATE growth_report_monthly_runs
+        SET paused_at = NOW(),
+            pause_reason = 'HALF_OPEN_PROBE_LEASE_EXPIRED',
+            pause_epoch = pause_epoch + 1,
+            circuit_state = ${JSON.stringify(state)}::jsonb
+        WHERE report_period = ${run.report_period}
+      `);
+      return false;
+    }
+    if (!reserveMonthlyAdmission(
+      state, targetKey(params.cycleId, params.studentId), now,
+    )) {
+      return false;
+    }
+    const counted = await tx.execute(sql`
+      UPDATE growth_report_eligible_targets
+      SET recovery_engine_requests = recovery_engine_requests + 1
+      WHERE cycle_id = ${params.cycleId}
+        AND student_id = ${params.studentId}
+        AND (
+          first_pass_outcome IS NULL OR first_pass_outcome = 'unknown'
+          OR (
+            first_pass_outcome = 'failed'
+            AND recovery_epoch > 0
+            AND NULLIF(BTRIM(recovery_approved_by), '') IS NOT NULL
+            AND NULLIF(BTRIM(recovery_approval_reason), '') IS NOT NULL
+          )
+        )
+        AND policy_excluded_at IS NULL
+      RETURNING student_id
+    `);
+    if (!counted.rows.length) return false;
+    if (state.status === "HALF_OPEN") {
+      await tx.execute(sql`
+        UPDATE growth_report_monthly_runs
+        SET circuit_state = ${JSON.stringify(state)}::jsonb
+        WHERE report_period = ${run.report_period}
+      `);
+    }
+    return true;
+  });
 }
 
 async function loadRunForCycle(db: Db, cycleId: string, lock = false) {
@@ -762,15 +887,9 @@ export async function recordMonthlyHttpAttempt(
 
     const state = asCircuitState(run.circuit_state);
     if (run.paused_at != null || state.status === "OPEN") return false;
-    if (state.status === "HALF_OPEN") {
-      const now = Date.now();
-      const key = targetKey(params.cycleId, params.studentId);
-      const reservations = state.probeReservations.filter(item => item.at + state.config.probeLeaseMs > now);
-      if (reservations.length !== state.probeReservations.length ||
-          reservations.length >= state.config.probeCount ||
-          reservations.some(item => item.key === key)) return false;
-      state.probeReservations = [...reservations, { key, at: now }];
-    }
+    if (!reserveMonthlyAdmission(
+      state, targetKey(params.cycleId, params.studentId), Date.now(),
+    )) return false;
     const updated = params.phase === "RECOVERY"
       ? await tx.execute(sql`
           UPDATE growth_report_eligible_targets
@@ -1213,6 +1332,7 @@ export async function listMonthlyAutomationExceptions(
              target.first_pass_outcome, target.first_pass_error_code,
              target.first_pass_error_category, target.recovery_epoch,
              target.recovery_attempt_limit, target.recovery_approved_at,
+              target.recovery_approved_by, target.recovery_approval_reason,
              target.first_pass_engine_requests, target.recovery_engine_requests,
              target.lookup_requests,
              report.id AS report_id, report.analysis_request_id,
@@ -1345,7 +1465,7 @@ function isUnknownReissueEligible(row: any): boolean {
       row.eligibility_sealed_at != null &&
       Number(row.eligible_total) > 0 &&
       Number(row.eligible_total) === Number(row.actual_eligible_total) &&
-      (row.first_pass_outcome == null || row.first_pass_outcome === "unknown") &&
+      hasUnknownRecoveryApprovalBoundary(row) &&
       row.policy_excluded_at == null &&
       row.exclusion_code == null &&
       !row.monthly_final_disposition &&

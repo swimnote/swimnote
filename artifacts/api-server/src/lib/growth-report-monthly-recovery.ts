@@ -30,7 +30,14 @@ export interface MonthlyRecoveryResult {
  */
 export async function recoverMonthlyTargets(
   db: any,
-  params: { poolId: string; reportPeriod: string; actorId: string; reason?: string },
+  params: {
+    poolId: string;
+    reportPeriod: string;
+    actorId: string;
+    reason?: string;
+    /** Restrict recovery to an approved cohort; undefined preserves legacy scope. */
+    reportIds?: readonly string[];
+  },
 ): Promise<MonthlyRecoveryResult> {
   if (!params.poolId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(params.reportPeriod)) {
     throw new Error("INVALID_MONTHLY_RECOVERY_SCOPE");
@@ -87,6 +94,19 @@ export async function recoverMonthlyTargets(
         AND report.deleted_at IS NULL
         AND report.product_status <> 'DISCARDED'
       WHERE target.cycle_id = ${cycle.id}
+        AND (
+          ${params.reportIds === undefined}
+          OR EXISTS (
+            SELECT 1 FROM growth_reports scoped_report
+            WHERE scoped_report.id::text = ANY(${params.reportIds ?? []}::text[])
+              AND scoped_report.cycle_id = target.cycle_id
+              AND scoped_report.student_id = target.student_id
+              AND scoped_report.swimming_pool_id = ${params.poolId}
+              AND scoped_report.report_period = ${params.reportPeriod}
+              AND scoped_report.deleted_at IS NULL
+              AND scoped_report.product_status <> 'DISCARDED'
+          )
+        )
       ORDER BY target.student_id, report.id
     `);
     const groups = new Map<string, any[]>();
@@ -95,7 +115,10 @@ export async function recoverMonthlyTargets(
       group.push(row);
       groups.set(row.student_id, group);
     }
-    if (groups.size !== result.eligible_total) {
+    const expectedScopedCount = params.reportIds === undefined
+      ? result.eligible_total
+      : new Set(targets.rows.map((row: any) => row.id).filter(Boolean)).size;
+    if (groups.size !== expectedScopedCount) {
       throw new Error("MONTHLY_TARGET_COUNT_INCONSISTENT");
     }
     for (const rows of groups.values()) {

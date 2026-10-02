@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import GlobalTemplateSets from "@/pages/super/GlobalTemplateSets";
 import GrowthReviewStats from "@/pages/super/GrowthReviewStats";
 import AiCostDashboard from "@/pages/super/AiCostDashboard";
+import MonthlyRecoveryBatchControls from "@/pages/super/MonthlyRecoveryBatchControls";
 
 interface AiTrace {
   id: string;
@@ -258,6 +259,7 @@ function MonthlyExceptionsTab() {
       {data?.run?.paused_at && <button disabled={busy || !reason.trim()} onClick={() => operate("resume")}
         className="border rounded px-3 text-xs disabled:opacity-40">제한된 재개 승인</button>}
     </div>
+    <MonthlyRecoveryBatchControls reportMonth={period} poolId={pool} reason={reason} />
     {(() => {
       const unknownRows = (data?.exceptions.rows ?? []).filter(isUnknownRow);
       const unknownRowsById = new Map(unknownRows.filter(row => row.report_id).map(row => [row.report_id!, row]));

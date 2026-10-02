@@ -21,6 +21,7 @@ import { isGrowthReportParentInputWindowOpen, persistAnalysisResponse,
 import { reconcileMonthlyCycle } from "../jobs/growth-report-monthly-readiness.js";
 import { freeReportIssueWindow } from "../jobs/growth-report-auto-publisher.js";
 import { insertGrowthReportAdminReadyIntents } from "../utils/growth-report-notification-outbox.js";
+import { hasUnknownRecoveryApprovalBoundary } from "./growth-report-monthly-run.js";
 
 const APPROVAL_REASON = "OPERATOR_APPROVED_UNKNOWN_REISSUE";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -134,7 +135,9 @@ async function createOrFindOperation(
              report.monthly_final_disposition, report.report_content,
              report.report_fact_package, report.sns_summary,
              report.updated_at, report.created_at,
-             target.first_pass_outcome, target.first_pass_completed_at,
+              target.first_pass_outcome, target.first_pass_completed_at,
+              target.recovery_epoch, target.recovery_approved_by,
+              target.recovery_approval_reason,
              target.policy_excluded_at, target.policy_exclusion_reason,
              cycle.eligibility_sealed_at, cycle.eligible_total,
              cycle.parent_input_close_at,
@@ -155,16 +158,18 @@ async function createOrFindOperation(
         AND report.analysis_uncertain_at IS NOT NULL
         AND report.exclusion_code IS NULL
         AND report.monthly_final_disposition IS NULL
-        AND (target.first_pass_outcome IS NULL OR target.first_pass_outcome = 'unknown')
         AND cycle.eligible_total = (
           SELECT COUNT(*) FROM growth_report_eligible_targets all_target
           WHERE all_target.cycle_id = cycle.id
         )
         AND report.deleted_at IS NULL
-      FOR UPDATE OF report
+       FOR UPDATE OF report, target
     `);
     const row = selected.rows[0];
     if (!row) return { hold: "REPORT_NOT_FOUND" };
+    if (!hasUnknownRecoveryApprovalBoundary(row)) {
+      return { hold: "UNKNOWN_RECOVERY_APPROVAL_REQUIRED" };
+    }
     const lockedOperation = await tx.execute(sql`
       SELECT * FROM growth_report_unknown_reissue_operations
       WHERE report_id = ${reportId}

@@ -3,10 +3,14 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import {
   finishMonthlyFirstPass,
   getMonthlyAutomationSummary,
+  hasUnknownRecoveryApprovalBoundary,
   listMonthlyAutomationExceptions,
   recordMonthlyFirstPassOutcome,
   registerMonthlyAutomationRun,
+  reserveMonthlyUnknownRecoveryAdmission,
+  resumeMonthlyAutomationRun,
 } from "../growth-report-monthly-run.js";
+import { getGrowthReportAnalysisIdentityHash } from "../growth-report-analysis-identity.js";
 
 const dialect = new PgDialect();
 const queryText = (query: unknown) => dialect.sqlToQuery(query as any).sql;
@@ -31,6 +35,254 @@ function mockDb(handler: (text: string) => unknown[]) {
 }
 
 describe("monthly automation manifest and first-pass barrier", () => {
+  it("requires durable approval proof for historic failed targets", () => {
+    expect(hasUnknownRecoveryApprovalBoundary({ first_pass_outcome: null })).toBe(true);
+    expect(hasUnknownRecoveryApprovalBoundary({ first_pass_outcome: "unknown" })).toBe(true);
+    expect(hasUnknownRecoveryApprovalBoundary({
+      first_pass_outcome: "failed",
+      recovery_epoch: 1,
+      recovery_approved_by: "operator-1",
+      recovery_approval_reason: "retry was approved",
+    })).toBe(true);
+    for (const proof of [
+      { recovery_epoch: 0, recovery_approved_by: "operator-1", recovery_approval_reason: "retry" },
+      { recovery_epoch: 1, recovery_approved_by: "", recovery_approval_reason: "retry" },
+      { recovery_epoch: 1, recovery_approved_by: "operator-1", recovery_approval_reason: "   " },
+    ]) {
+      expect(hasUnknownRecoveryApprovalBoundary({
+        first_pass_outcome: "failed", ...proof,
+      })).toBe(false);
+    }
+  });
+
+  it("admits 17 newly UNKNOWN targets with explicit failed-recovery proof", async () => {
+    const reserve = (studentId: string) => {
+      const statements: string[] = [];
+      const rowFor = (text: string) => {
+        statements.push(text);
+        if (text.includes("AS schema_ready")) return [{ schema_ready: true }];
+        if (text.includes("SELECT run.report_period")) return [{
+          report_period: "2026-10",
+          paused_at: null,
+          pause_reason: null,
+          pause_epoch: 0,
+          circuit_state: { status: "CLOSED" },
+          manifest_cycle_id: "cycle-1",
+          preparation_status: "sealed",
+          actual_cycle_id: "cycle-1",
+        }];
+        if (text.includes("SELECT target.first_pass_outcome")) return [{
+          first_pass_outcome: "failed",
+          recovery_epoch: 1,
+          recovery_approved_by: "operator-1",
+          recovery_approval_reason: "approved next attempt",
+          policy_excluded_at: null,
+          product_status: "ANALYZING",
+          analysis_uncertain_at: new Date(),
+        }];
+        if (text.includes("SET recovery_engine_requests = recovery_engine_requests + 1")) {
+          return [{ student_id: studentId }];
+        }
+        return [];
+      };
+      return {
+        statements,
+        execute: async (query: unknown) => ({
+          rows: rowFor(queryText(query)),
+        }),
+        transaction: async (callback: (tx: any) => Promise<unknown>) => callback({
+          execute: async (query: unknown) => ({
+            rows: rowFor(queryText(query)),
+          }),
+        }),
+      };
+    };
+    const results = await Promise.all(Array.from({ length: 17 }, (_, index) => {
+      const studentId = `student-${index + 1}`;
+      const db = reserve(studentId);
+      return reserveMonthlyUnknownRecoveryAdmission(db as any, {
+        cycleId: "cycle-1", studentId,
+      }).then(admitted => ({ admitted, db }));
+    }));
+    expect(results.every(result => result.admitted)).toBe(true);
+    for (const { db } of results) {
+      const counterFence = db.statements.find(text =>
+        text.includes("SET recovery_engine_requests = recovery_engine_requests + 1"));
+      expect(counterFence).toContain("recovery_epoch > 0");
+      expect(counterFence).toContain("recovery_approved_by");
+      expect(counterFence).toContain("recovery_approval_reason");
+    }
+  });
+
+  it("surfaces a historically failed but approved current UNKNOWN as dispatch-eligible", async () => {
+    const request = {
+      request_id: "request-1",
+      report_id: "report-1",
+      context: { student_id: "student-1", pool_id: "pool-1", report_period: "2026-10" },
+      snapshot: { payload_hash: "snapshot-hash" },
+    };
+    const row = {
+      report_period: "2026-10",
+      swimming_pool_id: "pool-1",
+      preparation_status: "sealed",
+      cycle_id: "cycle-1",
+      eligibility_sealed_at: new Date(),
+      eligible_total: 1,
+      actual_eligible_total: 1,
+      student_id: "student-1",
+      first_pass_outcome: "failed",
+      recovery_epoch: 1,
+      recovery_approved_at: new Date(),
+      recovery_approved_by: "operator-1",
+      recovery_approval_reason: "approved next attempt",
+      policy_excluded_at: null,
+      report_id: "report-1",
+      analysis_request_id: "request-1",
+      analysis_request_payload: request,
+      analysis_identity_hash: getGrowthReportAnalysisIdentityHash(request, "FINAL_ANALYSIS"),
+      snapshot_hash: "snapshot-hash",
+      product_status: "ANALYZING",
+      analysis_status: null,
+      analysis_retry_count: 0,
+      analysis_uncertain_at: new Date(),
+      monthly_final_disposition: null,
+      exclusion_code: null,
+    };
+    const db = {
+      execute: async (query: unknown) => {
+        const text = queryText(query);
+        if (text.includes("AS schema_ready")) return { rows: [{ schema_ready: true }] };
+        if (text.includes("AS ready")) return { rows: [{ ready: true }] };
+        if (text.includes("SELECT COUNT(*)::int AS total")) return { rows: [{ total: 1 }] };
+        if (text.includes("SELECT DISTINCT ON (report_id)")) return { rows: [] };
+        if (text.includes("SELECT member.report_period")) return { rows: [row] };
+        return { rows: [] };
+      },
+    };
+    const result = await listMonthlyAutomationExceptions(db as any, {
+      reportPeriod: "2026-10", category: "UNKNOWN",
+    });
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].first_pass_outcome).toBe("failed");
+    expect(result.rows[0].unknown_reissue_allowed).toBe(true);
+    expect(result.rows[0].unknown_reissue_hold_reason).toBeNull();
+  });
+
+  it("pauses visibly when a HALF_OPEN probe lease expired across restart and permits explicit resume", async () => {
+    const statements: Array<{ text: string; params: unknown[] }> = [];
+    const db: any = {
+      execute: async (query: unknown) => {
+        const compiled = dialect.sqlToQuery(query as any);
+        statements.push({ text: compiled.sql, params: compiled.params });
+        if (compiled.sql.includes("AS schema_ready")) return { rows: [{ schema_ready: true }] };
+        if (compiled.sql.includes("FROM growth_report_cycles cycle")) {
+          return { rows: [{
+            report_period: "2026-10",
+            paused_at: null,
+            circuit_state: {
+              status: "HALF_OPEN",
+              recentFailures: [],
+              probeReservations: [{ key: "cycle-1:old-probe", at: Date.now() - 120_000 }],
+              probeSuccesses: 0,
+              resumeHistory: [],
+              config: {
+                failureThreshold: 2, windowMs: 60_000, probeCount: 1,
+                cooldownMs: 1_000, probeLeaseMs: 60_000,
+              },
+            },
+            swimming_pool_id: "pool-1",
+            manifest_cycle_id: "cycle-1",
+            preparation_status: "sealed",
+            actual_cycle_id: "cycle-1",
+          }] };
+        }
+        if (compiled.sql.includes("SELECT target.first_pass_outcome")) {
+          return { rows: [{
+            first_pass_outcome: "unknown",
+            policy_excluded_at: null,
+            product_status: "ANALYZING",
+            analysis_uncertain_at: new Date(),
+          }] };
+        }
+        return { rows: [] };
+      },
+      transaction: async (callback: (tx: any) => Promise<unknown>) =>
+        callback({ execute: async (query: unknown) => {
+          const compiled = dialect.sqlToQuery(query as any);
+          statements.push({ text: compiled.sql, params: compiled.params });
+          if (compiled.sql.includes("FROM growth_report_cycles cycle")) {
+            return { rows: [{
+              report_period: "2026-10",
+              paused_at: null,
+              circuit_state: {
+                status: "HALF_OPEN",
+                recentFailures: [],
+                probeReservations: [{ key: "cycle-1:old-probe", at: Date.now() - 120_000 }],
+                probeSuccesses: 0,
+                resumeHistory: [],
+                config: {
+                  failureThreshold: 2, windowMs: 60_000, probeCount: 1,
+                  cooldownMs: 1_000, probeLeaseMs: 60_000,
+                },
+              },
+              swimming_pool_id: "pool-1",
+              manifest_cycle_id: "cycle-1",
+              preparation_status: "sealed",
+              actual_cycle_id: "cycle-1",
+            }] };
+          }
+          if (compiled.sql.includes("SELECT target.first_pass_outcome")) {
+            return { rows: [{
+              first_pass_outcome: "unknown",
+              policy_excluded_at: null,
+              product_status: "ANALYZING",
+              analysis_uncertain_at: new Date(),
+            }] };
+          }
+          return { rows: [] };
+        } }),
+    };
+
+    const admitted = await reserveMonthlyUnknownRecoveryAdmission(db, {
+      cycleId: "cycle-1", studentId: "student-1",
+    });
+    expect(admitted).toBe(false);
+    const expiredPause = statements.find(row =>
+      row.text.includes("HALF_OPEN_PROBE_LEASE_EXPIRED"));
+    expect(expiredPause?.text).toContain("paused_at = NOW()");
+    expect(expiredPause?.text).toContain("pause_epoch = pause_epoch + 1");
+    const persistedCircuit = expiredPause?.params.find(value =>
+      typeof value === "string" && value.includes('"status":"OPEN"'));
+    expect(persistedCircuit).toBeTruthy();
+    expect(JSON.parse(String(persistedCircuit)).probeReservations).toEqual([]);
+
+    const resumeDb = mockDb(text => {
+      if (text.includes("AS schema_ready")) return [{ schema_ready: true }];
+      if (text.includes("SELECT paused_at, pause_epoch")) return [{
+        paused_at: new Date(Date.now() - 10_000).toISOString(),
+        pause_epoch: 1,
+        circuit_state: {
+          status: "OPEN",
+          recentFailures: [],
+          probeReservations: [],
+          probeSuccesses: 0,
+          resumeHistory: [],
+          config: {
+            failureThreshold: 2, windowMs: 60_000, probeCount: 1,
+            cooldownMs: 1_000, probeLeaseMs: 60_000,
+          },
+        },
+      }];
+      return [];
+    });
+    expect(await resumeMonthlyAutomationRun(resumeDb as any, {
+      reportPeriod: "2026-10",
+      actorId: "operator-1",
+      reason: "review expired probe after restart",
+    })).toBe(true);
+    expect(resumeDb.statements.some(text => text.includes("SET paused_at = NULL"))).toBe(true);
+  });
+
   it("does not create a missing run after KST day one", async () => {
     const db = mockDb(text => {
       if (text.includes("AS schema_ready")) return [{ schema_ready: true }];

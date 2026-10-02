@@ -69,6 +69,28 @@ export function signToken(payload: JwtPayload): string {
   return jwt.sign({ ...payload, tv: TOKEN_VERSION }, JWT_SECRET, { expiresIn: "30d" });
 }
 
+/**
+ * Short-lived delegation for a persisted, operator-approved recovery batch.
+ * This token is only suitable for the ENGINE operator-reissue boundary and
+ * must never be accepted as an ordinary APP session.
+ */
+export function signRecoveryBatchOperatorToken(
+  payload: Pick<JwtPayload, "userId" | "role" | "poolId"> & { batchId: string },
+): string {
+  return jwt.sign({
+    userId: payload.userId,
+    role: payload.role,
+    ...(payload.poolId !== undefined ? { poolId: payload.poolId } : {}),
+    tv: TOKEN_VERSION,
+    purpose: "growth_report_recovery_batch",
+    batchId: payload.batchId,
+  }, JWT_SECRET, { expiresIn: "5m" });
+}
+
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  const payload = jwt.verify(token, JWT_SECRET) as JwtPayload & { purpose?: string };
+  if (payload.purpose === "growth_report_recovery_batch") {
+    throw new Error("Recovery batch delegation tokens are not valid APP sessions");
+  }
+  return payload;
 }
