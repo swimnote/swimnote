@@ -1,0 +1,449 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[성장리포트 예외 대량 복구 — 1,700건 이상 서버측 일괄 재시도 구조]
+
+중요 정책 변경/확정:
+
+현재 17건만을 기준으로 UI를 설계하면 안 됩니다.
+
+향후 한 달에 실패/UNKNOWN이
+17건이 아니라 170건, 1,700건 이상 발생할 수 있습니다.
+
+운영자가 장애 원인을 수정한 뒤에는
+대상을 한 건씩 선택하거나
+브라우저에서 1,700번 API를 호출하는 구조가 아니라,
+
+“미완료 전체 재시도 승인” 1회
+
+로 서버가 전체 eligible 예외를
+안전하게 일괄 복구해야 합니다.
+
+ENGINE 계약은 이미 준비되어 있으므로
+ENGINE 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 운영 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+월간 first-pass 완료
+
+→ 실패/UNKNOWN 집계
+→ 슈퍼관리자에게 예외 보고
+→ 운영자가 원인 수정
+→ 슈퍼관리자에서 “미완료 전체 재시도 승인”
+→ 서버가 그 시점의 eligible 대상 cohort 고정
+→ 서버측 batch recovery 시작
+→ 각 대상별 기존 안전 계약 적용
+→ 성공은 즉시 보존 및 batch에서 제외
+→ 실패/UNKNOWN만 잔존
+→ batch 중단/재시작 시 이어서 처리
+→ pool별 100% 귀결
+→ READY
+→ 관리자 PUSH
+
+브라우저가 모든 대상을 개별 호출하는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 대량 승인 단위
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 범위를 지원하세요.
+
+A. 현재 pool + report_month 전체 예외 재시도
+
+B. 해당 report_month 전체 pool의
+   현재 recovery eligible 예외 일괄 재시도
+
+현재 화면에서 개별 선택 기능은 유지할 수 있지만
+대량 운영의 기본 기능은:
+
+[미완료 전체 선택]
+[전체 재시도 승인]
+
+이어야 합니다.
+
+pagination에 보이는 행만 선택하는
+“현재 페이지 전체 선택”으로 구현하지 마세요.
+
+서버가 query 조건에 맞는
+전체 대상 집합을 고정해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 승인 시 cohort 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영자가 전체 재시도를 승인한 순간:
+
+- report_month
+- 선택된 pool scope
+- failure/recovery eligibility 조건
+
+을 기준으로 복구 cohort를 서버에서 고정합니다.
+
+이후 화면 pagination이나 브라우저 종료와 무관하게
+동일 batch가 계속 처리되어야 합니다.
+
+승인 이후 새로 발생한 예외를
+기존 batch에 몰래 추가하지 마세요.
+
+새 예외는 다음 recovery batch/round 대상입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 대상별 처리 계약
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 대상은 상태에 따라 기존 계약을 사용합니다.
+
+일반 retryable failure:
+→ 기존 failed-only recovery
+
+UNKNOWN:
+→ 기존 operator-approved UNKNOWN reissue 계약
+
+INSUFFICIENT_EVIDENCE:
+→ 제외
+
+generated COMPLETE:
+→ 제외
+
+PUBLISHED:
+→ 제외
+
+policy exclusion:
+→ 제외
+
+이미 성공한 대상:
+→ 절대 재실행 금지
+
+UNKNOWN 대량 승인에서도
+대상별로 독립적인:
+
+- original_request_id
+- recovery_operation_id
+- new_request_id
+- lineage
+
+를 유지합니다.
+
+1,700건을 하나의 ENGINE request로 묶지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 서버측 batch job
+━━━━━━━━━━━━━━━━━━━━━━
+
+브라우저는 batch 생성만 요청합니다.
+
+실제 processing은 APP 서버/worker가 담당합니다.
+
+필수:
+
+- persistent batch
+- persistent target membership
+- atomic claim
+- bounded concurrency
+- multi-instance duplicate prevention
+- restart/resume
+- target별 terminal outcome
+- 성공 즉시 보존
+- 완료 대상 재선택 금지
+
+브라우저를 닫아도 계속 진행되어야 합니다.
+
+웹 요청 timeout과
+batch 실행 lifetime을 결합하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 대량 처리 concurrency
+━━━━━━━━━━━━━━━━━━━━━━
+
+1,700건이어도 동시에 1,700개 provider 호출 금지.
+
+기존 configurable concurrency를 재사용하거나
+recovery batch용 configurable concurrency를 사용합니다.
+
+값을 새로 하드코딩하지 마세요.
+
+시스템 장애가 다시 발생하면
+기존 circuit breaker가 신규 dispatch를 pause해야 합니다.
+
+이미 성공한 결과는 보존.
+
+resume 후 미완료만 이어서 처리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Idempotency
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 재시도 승인 버튼을
+두 번 클릭하거나 요청 응답이 timeout되어도
+동일 승인 batch가 중복 생성되면 안 됩니다.
+
+필요:
+
+stable recovery_batch_id
+
+논리적 key 예:
+
+report_month
++ scope
++ recovery_round
++ approval identity
+
+실제 schema/convention에 맞게 구현하세요.
+
+동일 batch replay:
+→ 기존 batch 상태 반환
+
+동일 UNKNOWN target:
+→ 기존 operation/replacement request 재사용
+
+새 provider 호출 중복 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Recovery round
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+1차 분석
+→ 실패 1,700건
+
+원인 수정
+→ recovery round 1 전체 승인
+
+1,650 성공
+50 미완료
+
+다시 원인 수정
+→ recovery round 2
+
+이 경우 round 2 대상은
+50건뿐이어야 합니다.
+
+1,650건을 다시 돌리면 안 됩니다.
+
+각 round의:
+
+- 시작 대상 수
+- 성공
+- insufficient evidence
+- retryable failure
+- UNKNOWN
+- conflict
+- remaining
+
+을 영속 기록합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. SuperAI UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 개별 체크박스는 유지 가능.
+
+추가:
+
+[미완료 전체 선택]
+[전체 선택 해제]
+[전체 재시도 승인]
+
+선택 범위를 명확히 표시:
+
+예:
+“2026-09 미완료 1,700건 전체”
+
+승인 사유 1회 입력.
+
+확인창:
+
+“현재 복구 가능한 미완료 1,700건을
+Recovery Round 1로 승인하시겠습니까?”
+
+승인 후에는:
+
+- batch 진행중
+- 전체 대상
+- 완료
+- 성공
+- 근거부족
+- 실패
+- UNKNOWN
+- 남은 수
+
+를 보여주세요.
+
+1,700개 개별 요청 결과를
+브라우저가 직접 기다리는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. UNKNOWN 안전성
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영자가 “전체 재시도 승인”을 실행했다는 것이
+UNKNOWN 각각의 명시적 operator approval 근거가 됩니다.
+
+그러나 각 UNKNOWN은 여전히
+기존 ENGINE 계약대로 별도 operation/new request를 사용합니다.
+
+한 번의 batch 승인으로
+UNKNOWN 안전장치를 해제하거나
+기존 request를 retryable=true로 변경하면 안 됩니다.
+
+새 attempt가 다시 UNKNOWN이 되면:
+
+→ 해당 target만 unresolved
+→ 자동 2차 reissue 금지
+→ 다음 operator recovery round 승인 필요
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 대량 처리 실패 격리
+━━━━━━━━━━━━━━━━━━━━━━
+
+1건 실패가 batch 전체 transaction을 rollback하면 안 됩니다.
+
+예:
+
+1,700건 중
+1,680 성공
+10 insufficient
+10 UNKNOWN
+
+이면:
+
+성공 1,680 보존
+insufficient 10 정상 귀결
+UNKNOWN 10만 다음 round 대상
+
+이어야 합니다.
+
+all-or-nothing transaction 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 현재 2026-09 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 구현/배포 중에는
+현재 UNKNOWN 17건을 실제 실행하지 않습니다.
+
+현재 상태:
+
+eligible = 119
+generated = 99
+insufficient_evidence = 3
+unknown = 17
+resolved = 102
+READY = false
+
+reissue operations = 0
+provider calls = 0
+
+유지.
+
+배포 PASS 후
+실제 운영 단계에서
+17건 전체를 recovery round로 승인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 월간 run/recovery 구조와
+UNKNOWN reissue API를 최대한 재사용하세요.
+
+새 거대한 subsystem을 만들지 마세요.
+
+필요한 최소 항목만:
+
+- server-side recovery batch/round
+- 고정 target membership
+- bulk approval endpoint
+- worker processing
+- progress/status endpoint
+- SuperAI 전체 승인/progress UI
+
+기존 schema로 충분하면 재사용.
+
+영속 batch/target membership 저장이 불가능한 경우에만
+최소 additive migration.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 1,700번 provider 호출 테스트 금지.
+
+DB/fixture 기반으로 대량 cohort를 검증하세요.
+
+필수:
+
+- 1건
+- 17건
+- 1,700건 target cohort 생성
+
+1,700건에서도:
+
+- 전체 cohort 고정
+- pagination 무관
+- duplicate target 없음
+- 성공 대상 skip
+- UNKNOWN별 independent operation
+- bounded concurrency
+- worker restart/resume
+- double approval idempotency
+- duplicate provider dispatch 없음
+- 일부 실패가 다른 성공 rollback 안 함
+- round 2는 remaining만 선택
+- circuit pause/resume
+- pool별 독립 reconciliation
+
+관련 테스트만 수행.
+
+전체 suite 금지.
+
+API build + 웹 production bundle.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현
+→ 관련 테스트
+→ build/bundle
+→ commit
+→ GitHub main
+→ 필요한 additive migration
+→ APP/API Production
+→ Web Production
+
+ENGINE 수정/배포 없음.
+모바일 수정/OTA 없음.
+
+2026-09 실제 17건 실행은 배포 중 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+BULK RECOVERY = PASS/HOLD
+SERVER SIDE BATCH = PASS/HOLD
+FIXED RECOVERY COHORT = PASS/HOLD
+1700 TARGET SCALE LOGIC = PASS/HOLD
+BOUNDED CONCURRENCY = PASS/HOLD
+RESTART RESUME = PASS/HOLD
+SUCCESS PRESERVATION = PASS/HOLD
+FAILED ONLY NEXT ROUND = PASS/HOLD
+UNKNOWN PER-TARGET LINEAGE = PASS/HOLD
+BULK OPERATOR APPROVAL = PASS/HOLD
+DOUBLE APPROVAL IDEMPOTENCY = PASS/HOLD
+CIRCUIT BREAKER = PASS/HOLD
+POOL INDEPENDENCE = PASS/HOLD
+NO AUTO PUBLISHED = PASS/HOLD
+PRODUCTION DEPLOYMENT = PASS/HOLD
+
+그리고:
+
+2026-09 UNKNOWN 실제 실행 = 0
+2026-09 PROVIDER CALLS = 0
+
+여기서 정지하세요.
