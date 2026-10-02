@@ -1,0 +1,286 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[2026-09 성장리포트 — Legacy Cycle Manifest 편입 후 정상 운영 재개]
+
+직전 HOLD 사유를 확인했습니다.
+
+이번에는 코드 수정/재배포가 아니라
+기존 봉인된 2026-09 cycle을
+현재 월간 자동화 manifest에 안전하게 편입한 뒤
+운영을 이어갑니다.
+
+ENGINE 수정 금지.
+코드 수정 금지.
+migration 추가 금지.
+commit/push/deploy 금지.
+현재 회원목록으로 eligibility 재산정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 fingerprint를 Legacy 기준선으로 승인
+━━━━━━━━━━━━━━━━━━━━━━
+
+과거 digest를 추가로 찾지 않습니다.
+
+현재 Production에서 READ ONLY로 확인한 다음 값을
+2026-09 legacy cycle의 인계 기준선으로 승인합니다.
+
+sealed target:
+
+count = 119
+
+SHA-256 =
+f4cc69a8c1ddb85341de8a9fbe00abbc426b956a1a4834cf875e345110f21b89
+
+산식:
+기존 봉인·정책 증거 9개 필드
+student_id 순
+JSON.stringify
+SHA-256
+
+기존 정상 완료 report:
+
+count = 99
+
+SHA-256 =
+68d60ad78af1c57a095dff3a62717fed7fdf8f67034d8ee28ee4e040b344495a
+
+산식:
+to_jsonb(report) 전체 행
+report ID 순
+JSON.stringify
+SHA-256
+
+이 값은
+“과거 digest와 일치함”을 주장하기 위한 값이 아닙니다.
+
+현재 검증된 Production 상태를
+legacy automation 편입 직전 baseline으로 확정하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Legacy cycle manifest 편입
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+Cycle:
+grc_c2845ef789594145a9e6fbf699f70048
+
+report_period:
+2026-09
+
+sealed eligible target:
+119
+
+이 기존 cycle을
+현재 월간 automation의 legacy/import 경로로 편입하세요.
+
+중요:
+
+- 새로운 eligibility 계산 금지
+- 현재 회원목록 기반 target 생성 금지
+- 기존 119 target 삭제/재생성 금지
+- denominator 변경 금지
+- 기존 eligibility evidence 변경 금지
+- confirmed_at 변경 금지
+- 기존 report identity 변경 금지
+- 새로운 분석 request 생성 금지
+
+manifest는
+기존 sealed cycle을 참조해야 합니다.
+
+새 cycle을 만들지 마세요.
+
+가능하면 현재 구현된
+legacy/import/backfill 운영 경로를 사용합니다.
+
+직접 SQL이 필요한 경우에도
+현재 schema invariant와 unique constraint를 준수하는
+최소 transaction으로 manifest/run metadata만 등록합니다.
+
+기존 119 target 자체는 수정하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Manifest 편입 직후 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+편입 직후 분석/recovery 전에 다시 확인:
+
+eligible_total = 119
+target rows = 119
+generated_total = 99
+DATA_ACCUMULATING = 3
+기존 uncertain = 17
+
+그리고 target fingerprint가:
+
+f4cc69a8c1ddb85341de8a9fbe00abbc426b956a1a4834cf875e345110f21b89
+
+그대로인지 확인합니다.
+
+기존 성공 99건 report fingerprint도:
+
+68d60ad78af1c57a095dff3a62717fed7fdf8f67034d8ee28ee4e040b344495a
+
+그대로인지 확인합니다.
+
+불일치하면 즉시 ROLLBACK/HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. DATA_ACCUMULATING 3건 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+manifest 편입이 정상 확인된 경우에만 진행합니다.
+
+현재 배포된 정책을 사용하여
+기존 DATA_ACCUMULATING 3건을:
+
+APP final disposition =
+INSUFFICIENT_EVIDENCE
+
+로 정상 귀결하세요.
+
+ENGINE 호출 금지.
+
+ENGINE analysis_status
+DATA_ACCUMULATING은 그대로 보존.
+
+원본 request/response/hash 보존.
+
+안내:
+
+“이번 달은 성장 판단에 필요한 충분한 변화 근거가 아직 축적되지 않았습니다.”
+
+처리 후:
+
+eligible = 119
+generated = 99
+insufficient_evidence = 3
+policy_excluded = 0
+resolved = 102
+remaining = 17
+
+이어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. UNKNOWN 17건 안전 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+그 다음에만 기존 UNKNOWN 17건을
+현재 배포된 recovery/exception 계약으로 분류합니다.
+
+A = stored COMPLETE result를 provider 호출 없이 회수 가능
+B = 현재 계약상 명시적으로 retry 허용
+C = 여전히 UNKNOWN / 재실행 금지
+D = 기타 blocker
+
+UNKNOWN이라는 이유만으로
+B로 분류하지 않습니다.
+
+A:
+provider-free recovery만 실행 가능.
+
+B:
+승인된 failed-only recovery 경로만 실행 가능.
+
+C:
+절대 재분석하지 않음.
+
+D:
+원인만 보고.
+
+새 request_id 생성 금지.
+UNKNOWN 강제 analyze 금지.
+policy exclusion 우회 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 reconciliation
+━━━━━━━━━━━━━━━━━━━━━━
+
+안전하게 가능한 A/B 처리 후
+최종 reconciliation 실행.
+
+보고:
+
+eligible
+generated
+insufficient_evidence
+policy_excluded
+resolved
+remaining
+
+queued
+processing
+retry_pending
+failed
+unknown
+missing
+duplicate
+wrong_pool
+
+READY
+ready_at
+
+관리자 READY outbox
+관리자 PUSH
+
+NEW ENGINE ANALYSIS CALLS
+PROVIDER-FREE RECOVERIES
+RECOVERY EXECUTIONS
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. READY / PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+119/119 정상 귀결 및
+모든 blocker = 0인 경우에만 READY.
+
+기존 준비시점 조건은 그대로 적용합니다.
+
+준비시점 조건까지 충족하면
+기존 자동화가 관리자 READY PUSH를 처리하게 합니다.
+
+강제 시간 우회 금지.
+
+학부모 PUBLISHED 금지.
+부모 PUSH 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+LEGACY MANIFEST IMPORT = PASS/HOLD
+
+TARGET BASELINE PRESERVED = PASS/HOLD
+99 SUCCESS BASELINE PRESERVED = PASS/HOLD
+3 INSUFFICIENT_EVIDENCE = PASS/HOLD
+
+UNKNOWN 17:
+A = n
+B = n
+C = n
+D = n
+
+NEW ENGINE ANALYSIS CALLS = n
+PROVIDER-FREE RECOVERIES = n
+RECOVERY EXECUTIONS = n
+
+FINAL:
+eligible = n
+generated = n
+insufficient_evidence = n
+policy_excluded = n
+resolved = n
+remaining = n
+
+READY = true/false
+ADMIN READY PUSH = sent/not sent/not yet eligible
+
+실제 blocker가 남으면
+그 blocker와 다음 최소 조치만 보고하세요.
+
+여기서 정지하세요.
