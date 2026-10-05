@@ -69,6 +69,8 @@ type ReconciliationRow = {
   monthly_final_disposition?: string | null;
   monthly_disposition_version?: number | string | null;
   first_pass_outcome?: string | null;
+  first_pass_error_code?: string | null;
+  analysis_response_payload?: unknown;
   report_period?: string | null;
   withdrawal_evidence_valid?: boolean | string | null;
 };
@@ -275,6 +277,22 @@ function isQueued(row: ReconciliationRow): boolean {
     ["QUEUED", "PENDING"].includes(String(row.analysis_status ?? "").toUpperCase());
 }
 
+/** Known completed notice failure, not an uncertain/in-flight AI request. */
+function isSettledUnresolvedMonthlyNotice(row: ReconciliationRow): boolean {
+  const response = row.analysis_response_payload as Record<string, unknown> | null;
+  return ["PARTIAL", "EXCLUDED"].includes(String(row.product_status ?? "").toUpperCase()) &&
+    String(row.analysis_status ?? "").toUpperCase() === "DATA_ACCUMULATING" &&
+    response?.analysis_status === "DATA_ACCUMULATING" &&
+    row.first_pass_outcome === "identity_error" &&
+    row.first_pass_error_code === "MONTHLY_NOTICE_UNRESOLVED" &&
+    row.monthly_final_disposition == null &&
+    row.monthly_disposition_version == null &&
+    row.analysis_claim_token == null &&
+    row.analysis_lease_until == null &&
+    row.analysis_next_attempt_at == null &&
+    row.analysis_uncertain_at == null;
+}
+
 function isEligiblePolicyDisposition(
   targetRows: ReconciliationRow[],
   reports: ReconciliationRow[],
@@ -290,7 +308,7 @@ function isEligiblePolicyDisposition(
     completedReportIsQualified(report) ||
     isFailure(report) ||
     isUnknown(report) ||
-    isDataAccumulating(report) ||
+    (isDataAccumulating(report) && !isSettledUnresolvedMonthlyNotice(report)) ||
     isProcessing(report) ||
     isRetryPending(report, now)
   ) return false;
@@ -485,6 +503,7 @@ async function reconcileWithinTransaction(
       report.analysis_lease_until,
       report.analysis_call_started_at,
       report.analysis_uncertain_at,
+      report.analysis_response_payload,
       report.eligibility_version,
       report.attendance_count,
       report.source_event_count,
@@ -494,6 +513,7 @@ async function reconcileWithinTransaction(
       to_jsonb(report)->>'monthly_final_disposition' AS monthly_final_disposition,
       to_jsonb(report)->>'monthly_disposition_version' AS monthly_disposition_version,
       to_jsonb(target)->>'first_pass_outcome' AS first_pass_outcome,
+      to_jsonb(target)->>'first_pass_error_code' AS first_pass_error_code,
       report.report_period,
       (
         target.policy_excluded_at IS NOT NULL
@@ -554,7 +574,9 @@ async function reconcileWithinTransaction(
 /**
  * Materialize a verified post-seal withdrawal only when delivery has become
  * impossible and the corresponding report is either untouched queued work or
- * a quality-qualified, non-PUBLISHED report. FOR UPDATE serializes this
+ * a quality-qualified, non-PUBLISHED report, or a settled unresolved monthly
+ * notice with a known DATA_ACCUMULATING response and no active/uncertain work.
+ * FOR UPDATE serializes this
  * transition against the analysis worker's atomic claim.
  */
 async function transitionPostSealWithdrawals(
@@ -576,6 +598,12 @@ async function transitionPostSealWithdrawals(
       report.analysis_lease_until,
       report.analysis_call_started_at,
       report.analysis_uncertain_at,
+      report.analysis_next_attempt_at,
+      report.analysis_response_payload,
+      to_jsonb(report)->>'monthly_final_disposition' AS monthly_final_disposition,
+      to_jsonb(report)->>'monthly_disposition_version' AS monthly_disposition_version,
+      to_jsonb(target)->>'first_pass_outcome' AS first_pass_outcome,
+      to_jsonb(target)->>'first_pass_error_code' AS first_pass_error_code,
       report.eligibility_version,
       report.attendance_count,
       report.source_event_count,
@@ -640,7 +668,10 @@ async function transitionPostSealWithdrawals(
 
     const queued = isUnattemptedQueuedReport(candidate);
     const generated = isGeneratedNonPublishedReport(candidate);
-    if (!queued && !generated) continue;
+    const settledNotice = isSettledUnresolvedMonthlyNotice(candidate) &&
+      String(candidate.product_status).toUpperCase() === "PARTIAL" &&
+      !candidate.exclusion_code;
+    if (!queued && !generated && !settledNotice) continue;
 
     const updatedReport = queued
       ? await tx.execute(sql`
@@ -663,7 +694,35 @@ async function transitionPostSealWithdrawals(
             AND exclusion_code IS NULL
           RETURNING id
         `)
-      : await tx.execute(sql`
+      : settledNotice ? await tx.execute(sql`
+          UPDATE growth_reports report
+          SET product_status = 'EXCLUDED',
+              exclusion_code = 'POST_ELIGIBILITY_WITHDRAWAL',
+              updated_at = NOW()
+          WHERE report.id = ${candidate.report_id}
+            AND report.cycle_id = ${cycle.id}
+            AND report.student_id = ${candidate.student_id}
+            AND report.swimming_pool_id = ${cycle.swimming_pool_id}
+            AND report.deleted_at IS NULL
+            AND report.product_status = 'PARTIAL'
+            AND report.analysis_status = 'DATA_ACCUMULATING'
+            AND report.analysis_response_payload->>'analysis_status' = 'DATA_ACCUMULATING'
+            AND report.monthly_final_disposition IS NULL
+            AND report.monthly_disposition_version IS NULL
+            AND report.analysis_claim_token IS NULL
+            AND report.analysis_lease_until IS NULL
+            AND report.analysis_next_attempt_at IS NULL
+            AND report.analysis_uncertain_at IS NULL
+            AND report.exclusion_code IS NULL
+            AND EXISTS (
+              SELECT 1 FROM growth_report_eligible_targets target
+              WHERE target.cycle_id = report.cycle_id
+                AND target.student_id = report.student_id
+                AND target.first_pass_outcome = 'identity_error'
+                AND target.first_pass_error_code = 'MONTHLY_NOTICE_UNRESOLVED'
+            )
+          RETURNING id
+        `) : await tx.execute(sql`
           UPDATE growth_reports
           SET product_status = 'EXCLUDED',
               exclusion_code = 'POST_ELIGIBILITY_WITHDRAWAL',

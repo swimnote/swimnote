@@ -11,6 +11,34 @@ const dialect = new PgDialect();
 const queryText = (value: any) => dialect.sqlToQuery(value).sql;
 const queryParams = (value: any) => dialect.sqlToQuery(value).params;
 
+describe("settled post-seal withdrawal notice policy gate", () => {
+  const withdrawn = {
+    student_id:"withdrawn",target_pool_id:"pool-1",report_id:"report-withdrawn",
+    swimming_pool_id:"pool-1",product_status:"EXCLUDED",analysis_status:"DATA_ACCUMULATING",
+    exclusion_code:"POST_ELIGIBILITY_WITHDRAWAL",withdrawal_evidence_valid:true,
+    first_pass_outcome:"identity_error",first_pass_error_code:"MONTHLY_NOTICE_UNRESOLVED",
+    analysis_response_payload:{analysis_status:"DATA_ACCUMULATING"},
+  };
+  it("counts the proven final disposition as policy exclusion, never AI generation", () => {
+    expect(summarizeMonthlyTargetRows(1,[withdrawn],true)).toMatchObject({
+      eligible_total:1,generated_total:0,policy_excluded_total:1,resolved_total:1,unknown:0,ready:true,
+    });
+  });
+  it.each([
+    {withdrawal_evidence_valid:false},
+    {analysis_uncertain_at:"2026-10-03"},
+    {analysis_claim_token:"active-claim"},
+    {analysis_lease_until:"2026-12-01"},
+    {analysis_next_attempt_at:"2026-12-01"},
+    {analysis_response_payload:null},
+    {first_pass_error_code:"OTHER"},
+    {analysis_status:"FAILED"},
+    {product_status:"PUBLISHED"},
+  ])("does not turn an unproven/in-flight/failure/publication case into policy exclusion: %j", override => {
+    expect(summarizeMonthlyTargetRows(1,[{...withdrawn,...override}],true).policy_excluded_total).toBe(0);
+  });
+});
+
 function generatedReport(studentId: string, poolId = "pool-1") {
   return {
     student_id: studentId,

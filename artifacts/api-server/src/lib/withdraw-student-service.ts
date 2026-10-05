@@ -16,7 +16,7 @@
  *             diary_reactions (student_id col),
  *             parent_student_requests, video_assets_meta, student_videos,
  *             photo_assets_meta (student-owned rows)
- *   KEEP    : swim_diary (공유 일지), PUBLISHED 무료 월간 growth_reports (과거 발급물),
+ *   KEEP    : swim_diary (공유 일지), PUBLISHED/봉인 대상 월간 growth_reports,
  *             attendance (정산), student_class_history (audit),
  *             member_activity_logs (audit), students row (soft)
  *
@@ -336,14 +336,28 @@ export async function withdrawStudent(
 
     // TODO(policy): 퇴원 후 학부모의 과거 PUBLISHED 리포트 열람 권한은 별도 결정.
     // parent_students 연결은 아래에서 기존대로 제거하므로 DB 보존만으로 열람되지는 않는다.
-    // 미완성/비월간 성장 리포트는 기존처럼 삭제하되,
-    // 발급 완료된 무료 월간 리포트는 퇴원 후에도 과거 발급물로 보존한다.
+    // PUBLISHED와 봉인된 월간 대상의 identity/result/evidence는 보존한다.
+    // 봉인 후 퇴원 귀결은 기존 monthly readiness helper가 archive 증거로 처리한다.
+    // 일반 비봉인/비월간 임시 리포트의 삭제 정책은 유지한다.
     // report_type='monthly'는 무료 월간 리포트이며 유료 insight는 'custom'이다.
     const grResult = await tx.execute(sql`
-      DELETE FROM growth_reports WHERE student_id = ${studentId}
+      DELETE FROM growth_reports gr WHERE gr.student_id = ${studentId}
         AND NOT (
-          report_type = 'monthly'
-          AND product_status = 'PUBLISHED'
+          gr.report_type = 'monthly'
+          AND gr.product_status = 'PUBLISHED'
+        )
+        AND NOT (
+          gr.report_type = 'monthly'
+          AND EXISTS (
+            SELECT 1
+            FROM growth_report_eligible_targets target
+            JOIN growth_report_cycles cycle ON cycle.id = target.cycle_id
+            WHERE target.cycle_id = gr.cycle_id
+              AND target.student_id = gr.student_id
+              AND cycle.swimming_pool_id = gr.swimming_pool_id
+              AND cycle.report_period = gr.report_period
+              AND cycle.eligibility_sealed_at IS NOT NULL
+          )
         )
     `);
     if (grResult.rowCount > 0) deletedTables.push(`growth_reports(${grResult.rowCount})`);

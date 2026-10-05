@@ -366,6 +366,7 @@ async function openCycleForPool(
         FROM growth_report_eligible_targets target
         WHERE target.cycle_id = growth_reports.cycle_id
           AND target.student_id = growth_reports.student_id
+          AND target.policy_excluded_at IS NULL
       )
     RETURNING id
   `);

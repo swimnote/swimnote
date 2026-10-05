@@ -163,6 +163,7 @@ async function insertReportRows(
            (target.eligibility_evidence->>'source_event_count')::integer
     FROM growth_report_eligible_targets target
     WHERE target.cycle_id = ${cycle.id}
+      AND target.policy_excluded_at IS NULL
     ON CONFLICT DO NOTHING
   `);
 }
