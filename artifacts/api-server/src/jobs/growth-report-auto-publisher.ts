@@ -52,6 +52,15 @@ export type MonthlyReviewNotification = (params: {
   readiness: Record<string, number | boolean>;
 }) => Promise<void>;
 
+export type Day5BlockedNotification = (params: {
+  poolId: string; reportPeriod: string; now: Date;
+}) => Promise<void>;
+
+async function defaultNotifyDay5Blocked(params: Parameters<Day5BlockedNotification>[0]): Promise<void> {
+  const { notifyMonthlyDay5Blocked } = await import("../utils/notify.js");
+  await notifyMonthlyDay5Blocked(params);
+}
+
 async function defaultNotifyAdminReady(params: Parameters<MonthlyReviewNotification>[0]): Promise<void> {
   const { notifyMonthlyGrowthReportPrepared } = await import("../utils/notify.js");
   // The legacy notification wrapper accepts numeric summaries only. Boolean
@@ -68,6 +77,7 @@ export async function runMonthlyFreeAutoPublication(
   db: Db,
   now: Date = new Date(),
   notifyAdminReady: MonthlyReviewNotification = defaultNotifyAdminReady,
+  notifyDay5Blocked: Day5BlockedNotification = defaultNotifyDay5Blocked,
 ): Promise<{
   published: 0;
   notificationCandidates: number;
@@ -84,16 +94,16 @@ export async function runMonthlyFreeAutoPublication(
     FROM growth_report_cycles cycle
     JOIN swimming_pools pool ON pool.id = cycle.swimming_pool_id
     WHERE cycle.eligibility_sealed_at IS NOT NULL
-      AND COALESCE(cycle.eligible_total, 0) > 0
+      AND (${afterIssueWindow} OR COALESCE(cycle.eligible_total, 0) > 0)
       AND (
         (
           cycle.report_period = ${window.reportPeriod}
-          AND (
-            COALESCE(pool.x_paid_entitlement, false)
-            OR COALESCE(pool.x_manual_entitlement, false)
-          )
-          AND NOT COALESCE(pool.x_force_disabled, false)
-          AND pool.approval_status = 'approved'
+          AND (${afterIssueWindow} OR (
+            (COALESCE(pool.x_paid_entitlement, false)
+              OR COALESCE(pool.x_manual_entitlement, false))
+            AND NOT COALESCE(pool.x_force_disabled, false)
+            AND pool.approval_status = 'approved'
+          ))
         )
         OR (
           cycle.report_period < ${window.reportPeriod}
@@ -129,8 +139,16 @@ export async function runMonthlyFreeAutoPublication(
         { recordReady: afterIssueWindow },
       );
 
-      if (readiness.empty_target || !readiness.snapshot_sealed) continue;
+      if (readiness.empty_target || !readiness.snapshot_sealed) {
+        if (afterIssueWindow) {
+          await notifyDay5Blocked({ poolId: row.pool_id, reportPeriod, now });
+        }
+        continue;
+      }
       if (!readiness.ready) {
+        if (afterIssueWindow) {
+          await notifyDay5Blocked({ poolId: row.pool_id, reportPeriod, now });
+        }
         const incidentType = readiness.failed > 0
           ? "FAILED"
           : readiness.unknown > 0
@@ -161,6 +179,16 @@ export async function runMonthlyFreeAutoPublication(
       notificationCandidates++;
       adminReviewReady += readiness.generated_total;
     } catch (error) {
+      if (afterIssueWindow) {
+        try {
+          await notifyDay5Blocked({ poolId: row.pool_id, reportPeriod, now });
+        } catch (alertError) {
+          console.error(
+            `[growth-report-day5] deadline event failed pool=${row.pool_id} month=${reportPeriod}:`,
+            alertError instanceof Error ? alertError.message : String(alertError),
+          );
+        }
+      }
       // Each pool/month is isolated: a transient failure here cannot block
       // readiness evaluation or notification for another sealed cycle.
       console.error(

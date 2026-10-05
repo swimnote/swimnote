@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 
+vi.mock("../../utils/notify.js", () => ({
+  notifyMonthlyDay5Blocked: vi.fn().mockResolvedValue(0),
+}));
+
 vi.mock("../../lib/incident-alerts.js", () => ({
   fireMonthlyGrowthReportIncident: vi.fn().mockResolvedValue(undefined),
 }));
@@ -210,6 +214,25 @@ describe("monthly FREE report admin-review opener (legacy publisher entrypoint)"
     expect(cycleScan).toContain("cycle.ready_at IS NULL");
     expect(execute.mock.calls.map(([query]) => queryText(query))
       .filter(query => query.includes("UPDATE growth_report_notification_outbox")).length).toBe(0);
+  });
+
+  it("still records the deadline when reconciliation throws and proceeds with another READY pool", async () => {
+    const { db } = makePublisherDb([{pool_id:"pool-broken",report_period:"2026-09"},
+      {pool_id:"pool-good",report_period:"2026-09"}]);
+    const execute = db.execute;
+    db.execute = vi.fn(async (query: any) => {
+      const text = queryText(query);
+      if (text.includes("FROM growth_report_cycles") && queryParams(query).includes("pool-broken")) {
+        throw new Error("pool-specific database error");
+      }
+      return execute(query);
+    });
+    db.transaction = vi.fn(async (callback: any) => callback({execute: db.execute}));
+    const ready = vi.fn().mockResolvedValue(undefined);
+    const blocked = vi.fn().mockResolvedValue(undefined);
+    await runMonthlyFreeAutoPublication(db as any,new Date("2026-10-04T17:00:00Z"),ready,blocked);
+    expect(blocked).toHaveBeenCalledWith(expect.objectContaining({poolId:"pool-broken"}));
+    expect(ready).toHaveBeenCalledWith(expect.objectContaining({poolId:"pool-good"}));
   });
 
   it("persists READY notification intent under the cycle transaction and never parent-publishes", async () => {

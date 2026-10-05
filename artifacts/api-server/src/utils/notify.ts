@@ -1,4 +1,5 @@
 import { db, superAdminDb } from "@workspace/db";
+import { enqueueDay5DeadlineBlocked } from "./growth-report-day5-watchdog.js";
 import { sql } from "drizzle-orm";
 import {
   checkPushEnabled,
@@ -592,10 +593,12 @@ export async function notifyBatchComplete(params: {
  * pool-admin review. This is deliberately separate from the legacy batch
  * notification and never notifies parents or publishes a report.
  */
-async function sendMonthlyGrowthReportAdminPush(
+export async function sendMonthlyGrowthReportAdminPush(
   item: GrowthReportNotification,
 ): Promise<void | { providerReceiptId?: string }> {
-  if (!await checkPushEnabled(item.recipientId, "growth_report")) return;
+  if (!await checkPushEnabled(item.recipientId, "growth_report")) {
+    throw new KnownGrowthReportPushRejection("Monthly recipient PUSH is disabled");
+  }
 
   const tokenRows = await db.execute(sql`
     SELECT DISTINCT token
@@ -605,7 +608,9 @@ async function sendMonthlyGrowthReportAdminPush(
       AND token != ''
   `);
   const tokens = (tokenRows.rows as Array<{ token: string }>).map(row => row.token);
-  if (!tokens.length) return;
+  if (!tokens.length) {
+    throw new KnownGrowthReportPushRejection("Monthly recipient has no PUSH token");
+  }
 
   const chunkSize = 100;
   let accepted = 0;
@@ -694,6 +699,15 @@ export async function notifyMonthlyGrowthReportPrepared(params: {
   readiness?: Record<string, number>;
 }): Promise<number> {
   return notifyGrowthReportAdminsReady(db, params, sendMonthlyGrowthReportAdminPush);
+}
+
+/** Persist pool/month deadline outcomes; the existing retry worker owns PUSH. */
+export async function notifyMonthlyDay5Blocked(params: {
+  poolId: string;
+  reportPeriod: string;
+  now?: Date;
+}): Promise<number> {
+  return enqueueDay5DeadlineBlocked(db, params);
 }
 
 /**

@@ -797,11 +797,10 @@ export function startGrowthReportBatchWorker(): void {
     await runBatchWorker(db).catch(e =>
       console.error("[gr-batch] worker error:", e.message)
     );
-    if (isBatchEnabled()) {
-      await runMonthlyFreeAutoPublication(db).catch(e =>
-        console.error("[gr-admin-review] worker error:", e.message)
-      );
-    }
+    // Deadline assurance is independent of analysis/batch admission flags.
+    await runMonthlyFreeAutoPublication(db).catch(e =>
+      console.error("[gr-admin-review] worker error:", e.message)
+    );
     await retryGrowthReportNotifications().catch(e =>
       console.error("[gr-admin-notification] retry worker error:", e.message)
     );

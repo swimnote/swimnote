@@ -3,6 +3,10 @@ import {
   getMonthlyReportReadiness,
   type MonthlyReadinessDb,
 } from "../jobs/growth-report-monthly-readiness.js";
+import {
+  day5BlockedDispatchAllowed,
+  type GrowthReportDay5BlockedNotification,
+} from "./growth-report-day5-watchdog.js";
 
 export type GrowthReportNotificationOutboxDb = MonthlyReadinessDb;
 type GrowthReportNotificationOutboxExecutor =
@@ -40,7 +44,8 @@ export type GrowthReportMonthlySuperAdminNotification = {
 
 export type GrowthReportNotification =
   | GrowthReportReadyNotification
-  | GrowthReportMonthlySuperAdminNotification;
+  | GrowthReportMonthlySuperAdminNotification
+  | GrowthReportDay5BlockedNotification;
 
 export type GrowthReportPushSender = (
   item: GrowthReportNotification,
@@ -62,6 +67,14 @@ export class UncertainGrowthReportPushError extends Error {
 
 function notificationFromRow(row: any): GrowthReportNotification {
   const payload = row.payload ?? {};
+  if (row.notification_type === "GROWTH_REPORT_DAY5_DEADLINE_BLOCKED") {
+    return {
+      type: row.notification_type, recipientId: row.recipient_id, recipientType: "user",
+      poolId: row.swimming_pool_id, reportPeriod: row.report_period,
+      title: row.title, body: row.body, deepLink: row.deep_link,
+      payload, eventKey: row.event_key,
+    };
+  }
   if (row.notification_type === "GROWTH_REPORT_BATCH_READY") {
     return {
       type: "GROWTH_REPORT_BATCH_READY",
@@ -113,7 +126,8 @@ function isReady(readiness: Awaited<ReturnType<typeof getMonthlyReportReadiness>
 function isMonthlySuperAdminNotification(
   item: GrowthReportNotification,
 ): item is GrowthReportMonthlySuperAdminNotification {
-  return item.type !== "GROWTH_REPORT_BATCH_READY";
+  return item.type === "GROWTH_REPORT_FIRST_PASS_FINISHED" ||
+    item.type === "GROWTH_REPORT_MONTHLY_PAUSED";
 }
 
 function reportPeriodIsValid(reportPeriod: string): boolean {
@@ -255,8 +269,24 @@ async function deliverClaimedOutboxItem(
   sendPush: GrowthReportPushSender,
 ): Promise<void> {
   let dispatchStarted = false;
+  const suppressResolvedDay5 = async () => {
+    // Retain the original deadline evidence, but never retry a resolved alert.
+    await db.execute(sql`
+      UPDATE growth_report_notification_outbox
+      SET status = 'PENDING', next_attempt_at = 'infinity'::timestamptz,
+          lease_until = NULL, lease_token = NULL,
+          last_error = 'DAY5_BLOCKER_RESOLVED_BEFORE_DISPATCH', updated_at = NOW()
+      WHERE id = ${row.id} AND lease_token = ${row.lease_token}
+        AND status IN ('CLAIMED', 'DISPATCHING')
+    `);
+  };
   try {
-    if (isMonthlySuperAdminNotification(item)) {
+    if (item.type === "GROWTH_REPORT_DAY5_DEADLINE_BLOCKED") {
+      if (!await day5BlockedDispatchAllowed(db, item)) {
+        await suppressResolvedDay5();
+        return;
+      }
+    } else if (isMonthlySuperAdminNotification(item)) {
       if (!await monthlyEventDispatchAllowed(db, item)) {
         await releaseClaimForReadinessRetry(db, row, "CLAIMED");
         return;
@@ -274,7 +304,7 @@ async function deliverClaimedOutboxItem(
       }
     }
 
-    if (!isMonthlySuperAdminNotification(item)) {
+    if (item.type === "GROWTH_REPORT_BATCH_READY") {
       // The existing pool-admin stable feed id is retained unchanged.
       await db.execute(sql`
         INSERT INTO notifications (
@@ -301,7 +331,12 @@ async function deliverClaimedOutboxItem(
     `);
     if (!dispatching.rows.length) return;
 
-    if (isMonthlySuperAdminNotification(item)) {
+    if (item.type === "GROWTH_REPORT_DAY5_DEADLINE_BLOCKED") {
+      if (!await day5BlockedDispatchAllowed(db, item)) {
+        await suppressResolvedDay5();
+        return;
+      }
+    } else if (isMonthlySuperAdminNotification(item)) {
       if (!await monthlyEventDispatchAllowed(db, item)) {
         await releaseClaimForReadinessRetry(db, row, "DISPATCHING");
         return;
@@ -666,7 +701,8 @@ export async function retryPendingGrowthReportNotifications(
     WHERE notification_type IN (
       'GROWTH_REPORT_BATCH_READY',
       'GROWTH_REPORT_FIRST_PASS_FINISHED',
-      'GROWTH_REPORT_MONTHLY_PAUSED'
+      'GROWTH_REPORT_MONTHLY_PAUSED',
+      'GROWTH_REPORT_DAY5_DEADLINE_BLOCKED'
     )
       AND status = 'DISPATCHING'
       AND dispatch_started_at < NOW() - INTERVAL '5 minutes'
@@ -677,7 +713,8 @@ export async function retryPendingGrowthReportNotifications(
     WHERE notification_type IN (
       'GROWTH_REPORT_BATCH_READY',
       'GROWTH_REPORT_FIRST_PASS_FINISHED',
-      'GROWTH_REPORT_MONTHLY_PAUSED'
+      'GROWTH_REPORT_MONTHLY_PAUSED',
+      'GROWTH_REPORT_DAY5_DEADLINE_BLOCKED'
     )
       AND (
         (status = 'PENDING' AND next_attempt_at <= NOW())

@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { monthlyOutboxScopeCheck } from "./growth-report-day5-watchdog.js";
 import type { MigrationDb } from "../lib/migration-db.js";
 
 /**
@@ -170,15 +171,7 @@ export async function up(db: MigrationDb): Promise<void> {
       CONSTRAINT growth_report_notification_outbox_status_chk
         CHECK (status IN ('PENDING','CLAIMED','DISPATCHING','DELIVERED','UNCERTAIN')),
       CONSTRAINT growth_report_notification_outbox_scope_chk
-        CHECK (
-          (notification_type = 'GROWTH_REPORT_BATCH_READY'
-            AND swimming_pool_id IS NOT NULL AND recipient_type = 'user'
-            AND event_scope = 'pool')
-          OR
-          (notification_type IN ('GROWTH_REPORT_FIRST_PASS_FINISHED','GROWTH_REPORT_MONTHLY_PAUSED')
-            AND swimming_pool_id IS NULL AND recipient_type = 'user'
-            AND event_scope = 'report_month' AND event_key IS NOT NULL)
-        )
+        CHECK (${monthlyOutboxScopeCheck})
     )
   `));
   await db.execute(sql.raw(`
@@ -191,15 +184,8 @@ export async function up(db: MigrationDb): Promise<void> {
     ALTER TABLE growth_report_notification_outbox
       DROP CONSTRAINT IF EXISTS growth_report_notification_outbox_admin_only_chk,
       DROP CONSTRAINT IF EXISTS growth_report_notification_outbox_scope_chk,
-      ADD CONSTRAINT growth_report_notification_outbox_scope_chk CHECK (
-        (notification_type = 'GROWTH_REPORT_BATCH_READY'
-          AND swimming_pool_id IS NOT NULL AND recipient_type = 'user'
-          AND event_scope = 'pool')
-        OR
-        (notification_type IN ('GROWTH_REPORT_FIRST_PASS_FINISHED','GROWTH_REPORT_MONTHLY_PAUSED')
-          AND swimming_pool_id IS NULL AND recipient_type = 'user'
-          AND event_scope = 'report_month' AND event_key IS NOT NULL)
-      )
+      ADD CONSTRAINT growth_report_notification_outbox_scope_chk
+        CHECK (${monthlyOutboxScopeCheck})
   `));
   await db.execute(sql.raw(`
     DROP INDEX IF EXISTS uq_growth_report_outbox_admin_pool_period_recipient

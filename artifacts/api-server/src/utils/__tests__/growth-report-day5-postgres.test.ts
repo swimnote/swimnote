@@ -11,6 +11,8 @@ import {
   notifyGrowthReportAdminsReady,
   retryPendingGrowthReportNotifications,
 } from "../growth-report-notification-outbox.js";
+import { enqueueDay5DeadlineBlocked } from "../growth-report-day5-watchdog.js";
+import { up as extendDay5Constraint } from "../../migrations/growth-report-day5-watchdog.js";
 
 // Never let fixture incidents or first-pass bookkeeping reach an app DB/provider.
 vi.mock("../../lib/incident-alerts.js", () => ({
@@ -18,6 +20,9 @@ vi.mock("../../lib/incident-alerts.js", () => ({
 }));
 vi.mock("../../lib/growth-report-monthly-run.js", () => ({
   finishMonthlyFirstPass: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("../notify.js", () => ({
+  notifyMonthlyDay5Blocked: vi.fn().mockResolvedValue(0),
 }));
 
 const enabled = process.env.GR_DAY5_POSTGRES_TEST === "true";
@@ -78,21 +83,30 @@ describe.skipIf(!enabled)("day-5 admin PUSH disposable PostgreSQL sequence", () 
         withdrawn_at timestamptz,deleted_at timestamptz);
       CREATE TABLE growth_report_notification_outbox(id text PRIMARY KEY,notification_type text,
         swimming_pool_id text,report_period text,recipient_id text,recipient_type text,
-        title text,body text,deep_link text,payload jsonb,status text,
+        title text,body text,deep_link text,payload jsonb,status text DEFAULT 'PENDING',
         next_attempt_at timestamptz DEFAULT NOW(),attempt_count int DEFAULT 0,
         lease_until timestamptz,lease_token text,dispatch_started_at timestamptz,
         delivered_at timestamptz,provider_receipt_id text,last_error text,
-        updated_at timestamptz DEFAULT NOW(),
+        updated_at timestamptz DEFAULT NOW(),event_scope text DEFAULT 'pool',event_key text,
+        created_at timestamptz DEFAULT NOW(),
         UNIQUE(notification_type,swimming_pool_id,report_period,recipient_id));
+      CREATE UNIQUE INDEX day5_event_recipient
+        ON growth_report_notification_outbox(event_key,recipient_id) WHERE event_key IS NOT NULL;
+      CREATE TABLE super_admin_notifications(id text PRIMARY KEY,type text,title text,body text,
+        pool_id text,ref_id text,ref_type text,is_read boolean,idempotency_key text,created_at timestamptz);
+      CREATE UNIQUE INDEX day5_inbox_key ON super_admin_notifications(idempotency_key)
+        WHERE idempotency_key IS NOT NULL;
       CREATE TABLE notifications(id text PRIMARY KEY,recipient_id text,recipient_type text,
         pool_id text,type text,title text,body text,ref_id text,ref_type text,
         deep_link text,is_read boolean);
     `);
+    await extendDay5Constraint(db);
+    await extendDay5Constraint(db);
   });
   beforeEach(async () => {
     await connections.query(`TRUNCATE swimming_pools,users,growth_report_cycles,growth_reports,
       growth_report_eligible_targets,withdrawn_member_archives,students,
-      growth_report_notification_outbox,notifications`);
+      growth_report_notification_outbox,notifications,super_admin_notifications`);
   });
   afterAll(async () => {
     await connections?.end();
@@ -139,6 +153,90 @@ describe.skipIf(!enabled)("day-5 admin PUSH disposable PostgreSQL sequence", () 
   async function reportsSnapshot() {
     return (await connections.query("SELECT to_jsonb(r) AS data FROM growth_reports r ORDER BY id")).rows;
   }
+
+  const watchdogTick = (sender: any, now = issueAt) =>
+    runMonthlyFreeAutoPublication(db, now, async params => {
+      await notifyGrowthReportAdminsReady(db, params, sender);
+    }, async params => { await enqueueDay5DeadlineBlocked(db, params); });
+
+  it("117/119 sends Day-5 even with an earlier incident, and concurrent restart/replay is exactly once", async () => {
+    const cycle = await fixture("pool-blocked", "2026-09", 119, 3);
+    await connections.query(`UPDATE growth_reports SET product_status='PARTIAL',
+      analysis_status='DATA_ACCUMULATING',report_content=NULL,report_fact_package=NULL,sns_summary=NULL
+      WHERE id IN ($1,$2)`,[`${cycle}_student_0_report`,`${cycle}_student_1_report`]);
+    await connections.query(`INSERT INTO super_admin_notifications
+      (id,type,idempotency_key) VALUES('prior','GROWTH_REPORT_FIRST_PASS_FINISHED','prior-incident')`);
+    const before = await reportsSnapshot();
+    const sender = vi.fn().mockResolvedValue({ providerReceiptId: "day5-ticket" });
+    await watchdogTick(sender, new Date(issueAt.getTime() - 1));
+    expect((await connections.query("SELECT * FROM growth_report_notification_outbox")).rowCount).toBe(0);
+    await Promise.all([watchdogTick(sender), watchdogTick(sender)]);
+    await Promise.all([
+      retryPendingGrowthReportNotifications(db,sender),
+      retryPendingGrowthReportNotifications(db,sender),
+    ]);
+    await watchdogTick(sender);
+    await retryPendingGrowthReportNotifications(db,sender);
+    expect(sender).toHaveBeenCalledOnce();
+    expect(sender.mock.calls[0][0]).toMatchObject({
+      type:"GROWTH_REPORT_DAY5_DEADLINE_BLOCKED",
+      recipientId:"pool-blocked_super",
+      payload:{eligible_total:119,resolved_total:117,remaining_count:2,unknown:2},
+    });
+    expect((await connections.query(`SELECT * FROM growth_report_notification_outbox
+      WHERE notification_type='GROWTH_REPORT_DAY5_DEADLINE_BLOCKED' AND status='DELIVERED'`)).rowCount).toBe(1);
+    expect((await connections.query(`SELECT * FROM super_admin_notifications
+      WHERE type='GROWTH_REPORT_DAY5_DEADLINE_BLOCKED'`)).rowCount).toBe(1);
+    expect(await reportsSnapshot()).toEqual(before);
+    expect((await connections.query("SELECT * FROM notifications")).rowCount).toBe(0);
+  });
+
+  it("a pending Day-5 alert resolved before dispatch never sends BLOCKED; existing READY sends once", async () => {
+    const cycle = await fixture("pool-recovered");
+    await connections.query(`UPDATE growth_reports SET product_status='FAILED',analysis_status='FAILED'
+      WHERE cycle_id=$1`,[cycle]);
+    await enqueueDay5DeadlineBlocked(db,{poolId:"pool-recovered",reportPeriod:"2026-09",now:issueAt});
+    await connections.query(`UPDATE growth_reports SET product_status='REVIEW_REQUIRED',analysis_status='COMPLETE'
+      WHERE cycle_id=$1`,[cycle]);
+    const sender = vi.fn().mockResolvedValue({ providerReceiptId:"ready-ticket" });
+    await watchdogTick(sender);
+    await retryPendingGrowthReportNotifications(db,sender);
+    await retryPendingGrowthReportNotifications(db,sender);
+    expect(sender).toHaveBeenCalledOnce();
+    expect(sender.mock.calls[0][0].type).toBe("GROWTH_REPORT_BATCH_READY");
+    const row = (await connections.query(`SELECT last_error,next_attempt_at::text AS due
+      FROM growth_report_notification_outbox
+      WHERE notification_type='GROWTH_REPORT_DAY5_DEADLINE_BLOCKED'`)).rows[0];
+    expect(row).toEqual({last_error:"DAY5_BLOCKER_RESOLVED_BEFORE_DISPATCH",due:"infinity"});
+  });
+
+  it("all sealed pools are checked despite disabled entitlement; one blocked pool never blocks another READY", async () => {
+    await fixture("pool-failed-day5");
+    await fixture("pool-ready-day5");
+    await connections.query(`UPDATE swimming_pools SET x_paid_entitlement=false,
+      x_force_disabled=true,approval_status='rejected' WHERE id='pool-failed-day5'`);
+    await connections.query(`UPDATE growth_reports SET product_status='FAILED',analysis_status='FAILED'
+      WHERE swimming_pool_id='pool-failed-day5'`);
+    const sender = vi.fn().mockResolvedValue({providerReceiptId:"ticket"});
+    await watchdogTick(sender);
+    await retryPendingGrowthReportNotifications(db,sender);
+    expect(sender.mock.calls.filter(([item])=>item.type==="GROWTH_REPORT_BATCH_READY")).toHaveLength(1);
+    expect(sender.mock.calls.filter(([item])=>item.type==="GROWTH_REPORT_DAY5_DEADLINE_BLOCKED")).toHaveLength(2);
+    expect((await connections.query("SELECT * FROM growth_reports WHERE product_status='PUBLISHED'")).rowCount).toBe(0);
+    expect((await connections.query("SELECT * FROM notifications WHERE recipient_type<>'user'")).rowCount).toBe(0);
+  });
+
+  it("a sealed empty pool is not silently skipped at the deadline", async () => {
+    await fixture("pool-empty-day5", "2026-09", 0);
+    const sender = vi.fn().mockResolvedValue({providerReceiptId:"empty-ticket"});
+    await watchdogTick(sender);
+    await retryPendingGrowthReportNotifications(db,sender);
+    expect(sender).toHaveBeenCalledOnce();
+    expect(sender.mock.calls[0][0]).toMatchObject({
+      type:"GROWTH_REPORT_DAY5_DEADLINE_BLOCKED",
+      payload:{eligible_total:0,empty_target:true},
+    });
+  });
 
   it("canonical withdrawal SQL preserves sealed/PUBLISHED reports, deletes only ordinary temporary reports", async () => {
     const cycle = await fixture("pool-preserve");
