@@ -14,3 +14,11 @@ For monthly automation, verify publication and parent-notification absence again
 **Why:** A cycle can retain reports outside its current sealed cohort, and the pool feed retains earlier manual sends. Historical parent notifications do not establish automatic publication of the current targets.
 
 **How to apply:** Preserve historical rows. Report zero current-target publication/notification separately from historical totals, and join notification report identities back to the sealed targets when establishing the current boundary.
+
+## Readiness evidence is time-bound
+
+A pre-issue readiness PASS is a snapshot, not a guarantee of readiness or device delivery at the issue deadline. Recheck lifecycle changes within the sealed cohort before attributing a missing PUSH to its provider.
+
+**Why:** In production, post-seal withdrawals removed previously completed, unpublished reports; subsequent preparation recreated unresolved rows and the READY gate correctly remained closed.
+
+**How to apply:** Trace the specific cohort's withdrawal, missing-row and recreation evidence without rerunning analysis or repairing data during diagnosis. Distinguish today's cycle-preparation log from today's readiness execution. A registered cron and an old deduplicated incident do not prove a particular day's reconciliation ran; report that evidence gap explicitly.

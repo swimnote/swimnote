@@ -1,0 +1,200 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[2026-10-05 성장리포트 관리자 PUSH 미수신 — Production 원인 추적]
+
+실제 운영 장애입니다.
+
+2026-09 토이키즈 성장리포트는 119/119 정상 귀결되었고,
+2026-10-05 KST 자동 관리자 PUSH가 예정되어 있었으나
+실제 토이키즈 관리자 단말에 PUSH가 도착하지 않았습니다.
+
+이번 단계는 원인 확인 우선입니다.
+
+광범위한 감사 금지.
+ENGINE 조사 금지.
+성장리포트 재분석 금지.
+리포트 데이터 수정 금지.
+지금 바로 수동 재발송 금지.
+
+대상:
+
+pool_id =
+pool_1780849364252_l9k44rbk3
+
+report_period =
+2026-09
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 실제 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB에서 다음만 확인하세요.
+
+- eligible_total
+- generated_total
+- insufficient_evidence_total
+- resolved_total
+- blocker counts
+- READY
+- ready_at
+
+그리고 해당 pool + report_month의:
+
+- readiness outbox row 존재 여부
+- event key
+- outbox status
+- created_at
+- claimed_at
+- sent_at
+- attempt count
+- last_error
+- recipient count
+
+현재 값을 그대로 보고하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 5일 scheduler 실제 실행 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-05 KST의 실제 scheduler 로그에서
+
+- scheduler가 실행됐는지
+- 해당 2026-09 cycle을 조회했는지
+- readiness reconciliation을 실행했는지
+- READY transition을 시도했는지
+- outbox enqueue를 시도했는지
+
+확인하세요.
+
+“scheduler가 설정되어 있음”이 아니라
+오늘 실제 Production 실행 증거를 확인해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PUSH 전달 경로 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+outbox가 존재한다면 해당 event 하나만 추적하세요.
+
+순서:
+
+READY
+→ outbox
+→ notification worker claim
+→ 관리자 recipient resolution
+→ device push token
+→ push provider request
+→ provider response/receipt
+
+각 단계가 실제로 어디까지 진행됐는지 확인하세요.
+
+관리자 이름, 전화번호, 토큰 원문 등 PII는 출력하지 마세요.
+
+보고할 것은:
+
+ADMIN RECIPIENT FOUND = YES/NO
+ACTIVE PUSH TOKEN COUNT = n
+PUSH REQUEST SENT = YES/NO
+PROVIDER RESPONSE = accepted/rejected/unknown/not_sent
+PROVIDER ERROR CODE = ...
+DELIVERY RECEIPT STATUS = 가능하면 확인
+
+provider가 accepted 했다는 이유만으로
+단말 수신 성공으로 단정하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 원인을 반드시 하나로 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. READINESS_NOT_TRIGGERED
+119/119인데 READY 전환 자체가 안 됨
+
+B. OUTBOX_NOT_CREATED
+READY는 됐지만 관리자 PUSH outbox가 생성되지 않음
+
+C. OUTBOX_NOT_PROCESSED
+outbox는 있으나 worker가 claim/send하지 않음
+
+D. RECIPIENT_OR_TOKEN_PROBLEM
+관리자 recipient/token 문제
+
+E. PUSH_PROVIDER_REJECTED
+provider가 명시적으로 거절
+
+F. PUSH_ACCEPTED_BUT_NOT_DELIVERED
+provider 수락 이후 실제 단말 전달 문제
+
+G. DEDUPE_FALSE_POSITIVE
+과거/다른 이벤트 때문에 이번 정상 이벤트가 중복으로 오판되어 차단
+
+H. OTHER
+구체적 원인 명시
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 데이터 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 조사 중에는:
+
+- ready_at 강제 수정 금지
+- outbox 수동 삽입 금지
+- sent 상태 강제 변경 금지
+- push token 수정 금지
+- 관리자 PUSH 재발송 금지
+- 부모 PUBLISHED/PUSH 금지
+
+먼저 실제 원인을 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 문제가 코드가 아니라 운영상 재처리만 필요한 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인이 확정되고 기존 계약 안에서
+안전한 outbox retry/replay가 가능한 경우에도
+이번 조사 단계에서는 실행하지 마세요.
+
+어떤 event를 어떤 idempotency key로
+안전하게 다시 처리할 수 있는지만 보고하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 문제가 코드 버그인 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 root cause가 코드 버그로 확인될 때만
+필요한 최소 수정 파일과 수정 내용을 제안하세요.
+
+이번 단계에서는 바로 수정하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+DAY-5 ADMIN PUSH = HOLD
+
+CURRENT:
+READY =
+ready_at =
+OUTBOX EXISTS =
+OUTBOX STATUS =
+OUTBOX ATTEMPTS =
+RECIPIENT COUNT =
+ACTIVE PUSH TOKEN COUNT =
+
+TODAY SCHEDULER RAN = YES/NO
+READINESS EXECUTED = YES/NO
+PUSH REQUEST SENT = YES/NO
+PROVIDER RESPONSE =
+DELIVERY RECEIPT =
+
+ROOT CAUSE = A/B/C/D/E/F/G/H
+
+그리고:
+
+Production DB mutations = 0
+Manual push resend = 0
+Parent PUBLISHED = 0
+Parent PUSH = 0
+
+마지막에
+“다음 최소 조치” 한 가지만 적고 정지하세요.
