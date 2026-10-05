@@ -1,0 +1,156 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[월간 성장리포트 — Day-5 최종 보증 Watchdog]
+
+목적:
+
+매월 5일 관리자 발송 준비 시점에
+모든 pool + report_month가 반드시 다음 둘 중 하나의
+명시적 운영 결과를 갖도록 합니다.
+
+A. READY 완료
+→ 수영장 관리자 READY PUSH
+
+B. READY 미완료
+→ SWIMNOTE 슈퍼관리자 DAY5 BLOCKED PUSH
+
+“아무 PUSH도 없이 조용히 끝나는 상태”를 금지합니다.
+
+기존 분석/recovery/READY 로직 재설계 금지.
+ENGINE 수정 금지.
+부모 PUBLISHED 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Day-5 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 5일 readiness scheduler에서
+해당 report_month의 sealed pool 전체를 확인합니다.
+
+각 pool마다 reconciliation 후:
+
+READY 조건 충족:
+→ 기존 관리자 READY outbox 사용
+
+READY 조건 미충족:
+→ DAY5_DEADLINE_BLOCKED 이벤트 생성
+
+한 pool의 실패가 다른 pool을 차단하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 슈퍼관리자 차단 PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+READY가 아닌 pool은 슈퍼관리자에게 다음을 알립니다.
+
+- report_month
+- pool
+- eligible_total
+- resolved_total
+- remaining
+- generated
+- insufficient_evidence
+- policy_excluded
+- queued
+- processing
+- retry_pending
+- failed
+- unknown
+- missing
+- duplicate
+- wrong_pool
+
+PII 및 AI 본문 금지.
+
+예:
+
+Title:
+AI 성장리포트 발급 차단
+
+Body:
+2026-10 성장리포트 중 미완료 수영장이 있습니다.
+미완료 2명 / UNKNOWN 2명.
+SWIMNOTE에서 확인해 주세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 incident dedupe와 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 first-pass 실패 알림이나 incident가 이미 존재하더라도
+5일 최종 마감 경보를 막으면 안 됩니다.
+
+별도 논리 이벤트:
+
+pool + report_month + DAY5_DEADLINE_BLOCKED
+
+로 정확히 1회만 발송합니다.
+
+따라서:
+
+3일 장애 PUSH 발생
+→ 5일까지 해결되지 않음
+→ 5일 DAY5_DEADLINE_BLOCKED PUSH도 1회 발생
+
+해야 합니다.
+
+반대로 5일 전에 해결되어 READY가 되면
+DAY5 BLOCKED PUSH는 발생하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 절대 불변조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+5일 이후 각 sealed pool은 반드시:
+
+ADMIN_READY_PUSH
+
+또는
+
+SUPER_ADMIN_DAY5_BLOCKED_PUSH
+
+중 하나의 결과를 가져야 합니다.
+
+둘 다 없는 상태를 허용하지 않습니다.
+
+READY가 아닌데 관리자 완료 PUSH를 보내면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 실행.
+
+필수:
+
+- 119/119 → 관리자 PUSH
+- 117/119 → 슈퍼관리자 DAY5 BLOCKED PUSH
+- 기존 incident가 있어도 Day-5 PUSH 발생
+- 같은 pool/month Day-5 경보 중복 없음
+- blocker 해결 후 READY된 pool은 blocked PUSH 없음
+- 한 pool 실패가 다른 pool 관리자 PUSH 차단 안 함
+- scheduler restart/replay 중복 없음
+- 부모 PUBLISHED/PUSH 없음
+
+API build.
+
+문제가 없으면 최소 수정만 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+DAY5 FINAL WATCHDOG = PASS/HOLD
+NO SILENT FAILURE = PASS/HOLD
+READY ADMIN PUSH = PASS/HOLD
+BLOCKED SUPER PUSH = PASS/HOLD
+DEDUPLICATION = PASS/HOLD
+POOL INDEPENDENCE = PASS/HOLD
+NO AUTO PUBLISHED = PASS/HOLD
+
+그리고 마지막에:
+
+“매월 5일 모든 수영장이
+관리자 완료 PUSH 또는 슈퍼관리자 차단 PUSH 중
+하나를 반드시 갖는다 = YES/NO”
