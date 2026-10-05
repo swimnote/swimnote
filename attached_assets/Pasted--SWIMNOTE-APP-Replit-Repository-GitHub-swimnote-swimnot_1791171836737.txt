@@ -1,0 +1,301 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[봉인 후 퇴원 — 월간 성장리포트 삭제 방지 + 현재 2건 정상 귀결]
+
+Production에서 원인이 확정되었습니다.
+
+2026-09 토이키즈는 한때 119/119 정상 귀결되었으나,
+2026-10-03 봉인 대상 회원 2명 퇴원 시
+withdraw-student-service가 미발송 월간 리포트까지 삭제했습니다.
+
+그 결과:
+
+generated 116 → 114
+insufficient_evidence 3
+resolved 119 → 117
+remaining/unknown 2
+
+scheduler가 2건을 다시 열었고
+현재 PARTIAL / DATA_ACCUMULATING +
+MONTHLY_NOTICE_UNRESOLVED 상태로 남아 있습니다.
+
+이번 작업은 이 root cause만 최소 수정하고
+현재 2건을 기존 정책에 맞게 정상 귀결합니다.
+
+ENGINE 수정 금지.
+AI 재분석 금지.
+새 request 생성 금지.
+부모 자동 PUBLISHED 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 확정 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+월간 eligible target이 이미 봉인된 뒤
+회원이 퇴원하면:
+
+- denominator에서 제거하지 않음
+- sealed target 삭제 금지
+- 월간 report 결과를 퇴원 처리 때문에 삭제하지 않음
+- AI 성공으로 강제 계산하지 않음
+- 학부모 공개/PUSH 금지
+- 실제 post-seal withdrawal 증거가 있으면
+  기존 policy exclusion/final disposition 계약으로 정상 귀결
+
+즉:
+
+POST-SEAL WITHDRAWAL
+= 정상 final disposition
+= policy_excluded_total에 포함
+= generated_total에는 포함하지 않음
+
+resolved_total =
+generated_total
++ insufficient_evidence_total
++ policy_excluded_total
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 예방 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선 실제 root cause인:
+
+artifacts/api-server/src/lib/withdraw-student-service.ts
+
+를 최소 수정하세요.
+
+회원 퇴원 처리 시
+해당 회원이 어떤 report_month의 sealed eligible target이면
+그 월간 성장리포트와 월간 identity/evidence를
+일괄 삭제하지 않도록 보호합니다.
+
+기존 PUBLISHED 보존뿐 아니라
+“sealed monthly target에 속한 report”도 보존 대상입니다.
+
+단 일반 비봉인 임시 데이터 삭제 정책까지
+광범위하게 변경하지 마세요.
+
+기존 post-eligibility withdrawal 처리 helper/계약이 있으면
+반드시 재사용하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. scheduler 재생성 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+post-seal withdrawal로 정상 policy disposition이 확정된 target은
+
+scheduler가:
+
+- missing으로 판단
+- 새 report OPEN
+- 재분석 대상 생성
+
+하지 않아야 합니다.
+
+기존 scheduler/final-disposition 조건으로 이미 막을 수 있으면
+코드 추가 없이 그 경로를 연결하세요.
+
+필요한 경우에만 최소 수정합니다.
+
+성공/근거부족/policy-excluded target을
+다시 분석 대상으로 열면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 현재 퇴원 2건 정상 귀결
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 배포가 PASS된 뒤에만
+현재 2026-09의 실제 2건을 운영 처리합니다.
+
+두 회원 모두:
+
+- 1일 sealed target에 포함
+- 10월 3일 실제 퇴원 archive/audit 증거 존재
+
+가 이미 확인되었습니다.
+
+따라서 AI 재분석하지 말고
+기존 post-seal withdrawal 정책을 사용하여:
+
+final disposition =
+정당한 POST_SEAL_WITHDRAWAL / policy exclusion
+
+으로 귀결하세요.
+
+현재 재생성된 PARTIAL / DATA_ACCUMULATING row는
+학부모 발송 불가 상태를 유지하고
+정책 귀결의 감사 증거를 훼손하지 마세요.
+
+임의로 generated 성공으로 바꾸지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 처리 후 기대 reconciliation
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+eligible_total = 119
+generated_total = 114
+insufficient_evidence_total = 3
+policy_excluded_total = 2
+
+resolved_total = 119
+remaining = 0
+
+queued = 0
+processing = 0
+retry_pending = 0
+failed = 0
+unknown = 0
+missing = 0
+duplicate = 0
+wrong_pool = 0
+
+이어야 합니다.
+
+“119개 리포트 생성 완료”라고 표현하면 안 됩니다.
+
+정확한 의미:
+
+114 AI 정상 생성
+3 근거부족 정상 귀결
+2 봉인 후 퇴원 정책 귀결
+= 119/119 final disposition
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 오늘 5일 READY / 관리자 PUSH
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재는 이미 2026-10-05이며
+기존 5일 준비시점이 지난 상태입니다.
+
+119/119 정상 귀결 후에는
+기존 readiness 경로를 그대로 사용하세요.
+
+reconciliation
+→ READY
+→ readiness outbox
+→ 수영장 관리자 PUSH
+
+직접 PUSH API를 강제 호출하지 마세요.
+
+직접 ready_at을 UPDATE하지 마세요.
+
+정상 scheduler/readiness 경로 또는
+기존 안전한 readiness 실행 경로를 사용합니다.
+
+관리자 PUSH:
+
+Title:
+AI 성장리포트 발송 준비 완료
+
+Body:
+이번 달 AI 성장리포트 발급이 완료되었습니다.
+SWIMNOTE에서 검수 후 학부모에게 발송해 주세요.
+
+pool + report_month 기준 1회만.
+
+부모 PUBLISHED = 0 유지.
+부모 PUSH = 0 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 관련 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 실행하세요.
+
+필수:
+
+1. sealed target 회원 퇴원
+   → 월간 report 삭제 안 됨
+
+2. PUBLISHED report 기존 보존 유지
+
+3. post-seal withdrawal
+   → denominator 유지
+
+4. post-seal withdrawal
+   → policy_excluded 증가
+
+5. generated에는 포함되지 않음
+
+6. parent publication 차단
+
+7. scheduler가 policy-excluded target 재OPEN하지 않음
+
+8. 다른 일반 withdrawal 삭제 정책 회귀 없음
+
+9. 114 + 3 + 2 = 119 READY
+
+10. 5일 이후 READY
+    → 관리자 outbox 1회
+
+11. scheduler 반복
+    → PUSH/outbox 중복 없음
+
+12. 부모 PUBLISHED/PUSH 없음
+
+전체 suite/typecheck 금지.
+
+관련 테스트 + API build만 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 수정
+→ 관련 테스트
+→ API build
+→ commit
+→ GitHub main
+→ APP/API Production 배포
+→ health/deployed SHA 확인
+
+migration은 정말 필요한 경우가 아니면 추가하지 마세요.
+
+ENGINE 배포 없음.
+모바일 OTA 없음.
+웹 수정이 없으면 웹 배포 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST-SEAL WITHDRAWAL FIX = PASS/HOLD
+SEALED REPORT PRESERVATION = PASS/HOLD
+DENOMINATOR PRESERVATION = PASS/HOLD
+POLICY EXCLUSION = PASS/HOLD
+SCHEDULER REOPEN PREVENTION = PASS/HOLD
+PARENT PUBLICATION BLOCK = PASS/HOLD
+
+FINAL:
+eligible =
+generated =
+insufficient_evidence =
+policy_excluded =
+resolved =
+remaining =
+unknown =
+
+READY =
+ready_at =
+ADMIN READY OUTBOX =
+ADMIN PUSH = sent/not_sent
+
+PARENT PUBLISHED = 0
+PARENT PUSH = 0
+
+Commit SHA
+GitHub main SHA
+Render Deploy ID
+deployed SHA
+health
+
+그리고 반드시 마지막에:
+
+“봉인 후 퇴원으로 완료 리포트가 다시 삭제되어
+월간 READY가 깨지는 경로 = CLOSED / NOT CLOSED”
+
+라고 보고 후 정지하세요.
