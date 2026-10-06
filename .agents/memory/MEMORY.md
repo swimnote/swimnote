@@ -108,3 +108,4 @@
 - [StoreKit 신규 상품 NOT FOUND](storekit-product-missing.md) — com.swimnote.*.monthly ASC 미승인→RC SDK offering 전체 제거; 진단버튼 유지 중; legacy solo_30/center_200는 정상
 - [학부모 전화 자동승인 경계](parent-phone-approval-boundary.md) — 보호자 관계만 변경; 학생 승인과 분리하고 인증 이력과 요청 세션의 신뢰도를 구분.
 - [임시 PostgreSQL 검증](temporary-postgres-verification.md) — 실제 SQL 경쟁 검증은 격리된 임시 DB로; 테스트 서버는 명시적 background task로 유지.
+- [로그인 복구 증거 경계](login-recovery-identifier-evidence.md) — DB identifier로 API 200이어도 사용자용 ID가 확인되지 않으면 실사용 로그인 복구 PASS 금지.
