@@ -1,0 +1,183 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[김동호 선생님 Kakao 로그인 복구 — canonical account 확인 후 일반 로그인 추가]
+
+대상:
+토이키즈
+pool_id = pool_1780849364252_l9k44rbk3
+선생님 = 김동호
+
+현재 증상:
+과거 Kakao 가입 계정으로 사용했고,
+로그인이 풀린 뒤 Kakao 재로그인이 되지 않음.
+
+목표:
+기존 teacher/pool/class 데이터와 권한을 보존하면서
+김동호 선생님이 일반 ID/비밀번호 로그인으로
+즉시 다시 사용할 수 있게 하는 가장 안전한 복구.
+
+이번에는 김동호 선생님 1명만 조사/처리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. canonical account 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 김동호 선생님과 연결된 실제 user identity만 확인하세요.
+
+확인:
+
+- teacher user_id
+- 현재 pool membership이 연결된 user_id
+- class/teacher assignment가 연결된 user_id
+- invite가 연결된 user_id
+- kakao_id가 연결된 user_id
+- active/inactive 상태
+- password_hash 존재 여부
+- 동일 전화번호/이메일로 별도 user가 존재하는지
+- 별도 user가 있다면 어느 계정이 실제 teacher 데이터의 canonical owner인지
+
+PII 전체값은 완료보고에 출력하지 말고
+user_id와 상태만 보고하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 복구 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 하지 말 것:
+
+- provider 값을 kakao → password로 덮어쓰기
+- kakao_id 삭제
+- 무조건 inactive 계정 재활성화
+- 전화번호가 같다는 이유만으로 자동 merge
+- teacher/class/membership를 임의 이동
+- 새 teacher account 생성
+
+목표는 기존 canonical SWIMNOTE user 하나를 유지하면서
+일반 로그인 credential만 추가하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 가능한 경우별 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A:
+현재 canonical teacher user가 하나이며
+Kakao-linked 상태지만 일반 password login만 없음
+
+→ 동일 user에 일반 로그인 credential을 추가
+→ 기존 kakao_id 유지
+→ teacher/pool/class/membership 그대로 유지
+
+CASE B:
+inactive Kakao user + active 일반 user가 동일인이고,
+실제 teacher/pool/class 데이터가 active 일반 user에 연결
+
+→ active 일반 user를 canonical로 유지
+→ 해당 계정의 ID/비밀번호 복구/재설정
+→ inactive Kakao alias는 이번 단계에서 삭제하지 않음
+→ 필요하면 Kakao identity relink는 별도 작업
+
+CASE C:
+teacher 데이터가 inactive Kakao user에 있고
+active 일반 user가 별도로 존재
+
+→ 자동 수정하지 말고 HOLD
+→ 어떤 account를 canonical로 만들지
+  데이터 이동 영향까지 보고 후 승인받기
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 일반 로그인
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반 로그인은 기존 SWIMNOTE password 로그인 계약을 그대로 사용하세요.
+
+새 auth 방식 만들지 마세요.
+
+필요 시:
+- 기존 username/login_id 확인
+- 일반 login_id가 없다면 기존 정책에 맞게 안전하게 생성/등록
+- 비밀번호는 운영자가 평문으로 DB에 넣지 말 것
+- 기존 password reset/set-password 경로를 사용
+
+가능하면 관리자 또는 본인이
+새 비밀번호를 설정할 수 있는 기존 안전한 reset flow를 사용하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Kakao 재로그인 버그
+━━━━━━━━━━━━━━━━━━━━━━
+
+김동호 선생님이 이전 조사에서 확인된:
+
+비활성 Kakao 계정
++
+동일 전화번호 활성 일반 계정
+
+조합과 동일인인지 확정하세요.
+
+동일인으로 확인된다면:
+
+/auth/kakao-social-login이 kakao_id로
+inactive user를 먼저 찾고 HTTP 403으로 종료하여
+active canonical user로 연결되지 않는 문제를
+별도 root cause로 기록하세요.
+
+이번 작업의 우선 목표는
+일반 ID/비밀번호 로그인 복구입니다.
+
+Kakao 자동 merge/relink는
+증거 없이 같이 수정하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+처리 후 반드시:
+
+- 김동호 teacher row 유지
+- pool membership 유지
+- class assignment 유지
+- invite 상태 유지
+- teacher count 유지
+- 다른 계정 변경 0
+- 일반 ID/password 로그인 가능
+- teacher role/pool 정상 진입
+- Kakao identity 데이터 임의 삭제 0
+
+관련 로그인 테스트만 실행.
+
+전체 auth 시스템 감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+KIM DONGHO ACCOUNT RECOVERY = PASS/HOLD
+
+CANONICAL USER_ID =
+KAKAO USER_ID =
+LOCAL LOGIN USER_ID =
+DUPLICATE ACCOUNT = YES/NO
+
+TEACHER DATA OWNER =
+POOL MEMBERSHIP OWNER =
+CLASS ASSIGNMENT OWNER =
+
+GENERAL LOGIN ADDED/RESTORED = YES/NO
+KAKAO ID PRESERVED = YES/NO
+OTHER USERS CHANGED = 0/n
+
+그리고:
+
+KAKAO LOGIN ROOT CAUSE =
+INACTIVE KAKAO MATCH /
+DUPLICATE ACCOUNT /
+OTHER /
+UNRESOLVED
+
+실제 수정이 안전하게 가능한 CASE A/B면
+일반 로그인 복구까지 진행하고 테스트하세요.
+
+CASE C면 DB 수정하지 말고 HOLD 후 보고하세요.
+
+여기서 정지하세요.
