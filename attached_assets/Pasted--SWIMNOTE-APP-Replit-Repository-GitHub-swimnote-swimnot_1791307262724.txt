@@ -1,0 +1,158 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[김동호 선생님 — 실제 일반 로그인 ID 존재 여부 확인 및 필요 시 설정]
+
+직전 완료보고에서:
+
+“기존 일반 로그인 ID 유지”
+“일반 ID + 새 비밀번호로 로그인 가능”
+
+이라고 보고했으나,
+
+운영자는 김동호 선생님에게
+일반 로그인 ID를 설정한 적이 없다고 확인했습니다.
+
+따라서 직전 보고의
+LOCAL LOGIN USER_ID와
+실제 사용자가 입력하는 login_id를 혼동했는지
+정확히 확인해야 합니다.
+
+대상:
+
+pool_id =
+pool_1780849364252_l9k44rbk3
+
+canonical user_id =
+u_teacher_1782285416270_yu5qf4u7q
+
+김동호 선생님 1명만 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 로그인 identifier 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 READ ONLY로 다음을 확인하세요.
+
+- 실제 일반 로그인 화면이 받는 identifier field
+- /auth/unified-login이 어떤 DB field를 기준으로 로그인하는지
+- 대상 user에 그 field가 실제 저장돼 있는지
+- 저장값이 운영자가/사용자가 알고 있는 일반 ID인지
+- 아니면 내부 user_id / 전화번호 / 이메일 / 자동 생성 값인지
+
+비밀번호·전화번호·이메일 원문은 완료보고에 출력하지 마세요.
+
+반드시 구분:
+
+INTERNAL USER_ID =
+u_teacher_1782285416270_yu5qf4u7q
+
+USER-FACING LOGIN_ID =
+EXISTS / NOT EXISTS
+
+LOGIN IDENTIFIER TYPE =
+username / login_id / phone / email / other
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 직전 unified-login 200의 의미 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 테스트에서
+POST /auth/unified-login = HTTP 200
+이라고 했습니다.
+
+그 테스트가 실제로 어떤 identifier 종류를 사용했는지 확인하세요.
+
+운영자가 설정하지 않은
+내부값/DB값을 테스트에 직접 넣어서
+“일반 로그인 가능”이라고 판정한 것이라면
+그건 사용자 실사용 가능 증거가 아닙니다.
+
+USER-KNOWN IDENTIFIER로 로그인 가능한지와
+DB 내부값으로 API가 통과하는지를 구분하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 사용자용 일반 ID가 없다면
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 user-facing login_id가 없다면:
+
+- 새 계정 생성 금지
+- 기존 canonical user 유지
+- Kakao identity 유지
+- teacher/pool/class/membership 유지
+
+하고,
+
+기존 SWIMNOTE 일반계정 정책에 맞는
+user-facing login_id를
+해당 canonical user에 추가하는 최소 복구 방법을 사용하세요.
+
+운영자가 이후 김동호 선생님에게 전달할 수 있는
+일반 로그인 ID가 명확히 존재해야 합니다.
+
+ID는 기존 unique 정책을 따라야 합니다.
+
+임의로 내부 user_id를 로그인 ID로 사용하게 만들지 마세요.
+
+비밀번호는 직전에 설정된 안전한 새 비밀번호를 그대로 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 처리 후 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 앱과 동일한 일반 로그인 경로로:
+
+user-facing login_id
++
+현재 새 비밀번호
+
+를 사용하여
+
+POST /auth/unified-login
+→ HTTP 200
+→ 동일 canonical user_id
+
+확인.
+
+이후:
+
+/auth/me
+/teacher/me
+
+까지 동일 teacher/pool로 확인하세요.
+
+Kakao 로그인은 이번 작업에서 수정하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+KIM DONGHO LOCAL LOGIN = PASS/HOLD
+
+USER-FACING LOGIN_ID EXISTED BEFORE = YES/NO
+
+PREVIOUS REPORT ERROR =
+YES/NO
+
+UNIFIED-LOGIN PREVIOUS TEST IDENTIFIER TYPE =
+...
+
+NEW LOGIN_ID SET = YES/NO
+
+CANONICAL USER PRESERVED = PASS/HOLD
+KAKAO ID PRESERVED = PASS/HOLD
+TEACHER DATA PRESERVED = PASS/HOLD
+OTHER USERS CHANGED = 0/n
+
+REAL LOCAL LOGIN WITH USER-FACING ID = PASS/HOLD
+
+실제 로그인 ID 값 자체는
+보안상 완료보고에 출력하지 말고,
+운영자가 안전한 경로로 확인할 수 있게 하세요.
+
+코드 수정이 필요 없으면
+commit/deploy 하지 마세요.
+
+여기서 정지하세요.
