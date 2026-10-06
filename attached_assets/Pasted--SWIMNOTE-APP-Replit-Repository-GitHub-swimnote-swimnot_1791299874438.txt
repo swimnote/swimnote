@@ -1,0 +1,249 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[Production 선생님관리 8명 집계 / 목록 0명 + 기존 Kakao 로그인 문제 원인 조사]
+
+실제 Production 앱에서 다음 불일치가 확인되었습니다.
+
+관리자 > 인원관리 메인:
+선생님관리 전체 = 8명
+
+하지만:
+관리자 > 선생님관리 목록
+→ “선생님이 없습니다”
+
+즉 동일 수영장에서
+summary/count는 8명인데 teacher list는 0명입니다.
+
+추가로 실제 선생님 중 한 명은
+과거 Kakao 로그인 연결 정보가 남아 있는 문제로
+로그인이 풀린 뒤 다시 로그인이 안 되는 증상이 있습니다.
+
+이번 단계는 원인 조사 우선입니다.
+
+코드 수정 금지.
+DB 수정 금지.
+계정 병합/삭제 금지.
+auth provider 변경 금지.
+commit/push/deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 대상 pool
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production pool:
+
+pool_1780849364252_l9k44rbk3
+
+현재 관리자 화면 기준:
+
+teacher summary count = 8
+teacher list rendered count = 0
+
+이 pool만 먼저 추적하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 관리자 메인 “선생님 8명”의 실제 출처
+━━━━━━━━━━━━━━━━━━━━━━
+
+인원관리 메인 카드에서
+선생님 전체 8명을 계산하는 실제:
+
+- frontend query
+- API endpoint
+- server query/service
+- DB 조건
+
+을 추적하세요.
+
+Production DB에서 실제로 그 조건으로
+8건이 존재하는지도 READ ONLY로 확인합니다.
+
+보고:
+
+SUMMARY API =
+SUMMARY DB COUNT =
+SUMMARY FILTER =
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 선생님관리 목록 “0명”의 실제 출처
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님관리 화면에서 사용하는 실제:
+
+- frontend query
+- API endpoint
+- request params
+- 현재 pool_id
+- role/filter
+- approval filter
+- active/deleted filter
+- auth/user join
+- teacher membership join
+
+을 추적하세요.
+
+Production에서 동일 관리자 권한/동일 pool 조건으로
+해당 endpoint의 실제 반환 건수를 확인합니다.
+
+보고:
+
+LIST API =
+HTTP STATUS =
+LIST RESPONSE COUNT =
+LIST DB RAW COUNT =
+LIST FILTER/JOIN =
+
+클라이언트가 8건 응답을 받고 화면에서 0건으로 만드는지,
+서버 자체가 0건을 반환하는지도 반드시 구분하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 8명 identity 무결성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB에서 선생님 8건 각각에 대해
+PII를 출력하지 않고 다음 상태만 검사하세요.
+
+- teacher/member row 존재
+- pool_id 정상
+- role
+- approval status
+- active/deleted status
+- linked user_id 존재 여부
+- auth identity 존재 여부
+- provider 종류
+- 중복 user/auth identity 여부
+- pool membership 연결 여부
+
+결과는 집계만 보고하세요.
+
+예:
+
+teacher rows = 8
+valid pool membership = n
+missing user link = n
+inactive = n
+deleted = n
+approval mismatch = n
+auth identity anomaly = n
+duplicate identity = n
+
+학생 이름/선생님 이름/전화번호/이메일/token은 출력하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Kakao legacy 로그인 구조 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+특정 개인정보를 출력하지 말고
+8명 중 기존 Kakao auth identity를 가진 선생님이 존재하는지 확인합니다.
+
+특히:
+
+- 동일 사람이 Kakao identity + 다른 auth identity로 중복 존재하는지
+- teacher row가 구 user_id에 연결되어 있는지
+- 현재 login identity가 다른 user_id를 반환하는지
+- provider migration/legacy linkage 때문에
+  teacher membership을 찾지 못하는 구조인지
+- 로그인 실패가 provider 인증 자체 문제인지
+  로그인 후 APP 사용자 매핑 문제인지
+
+를 구분하세요.
+
+Kakao 연결이 목록 0명의 직접 원인인지도
+증거가 있을 때만 연결해서 판단합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 반드시 원인을 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. CLIENT_FILTER_BUG
+API는 정상 8건인데 앱이 0건으로 렌더
+
+B. LIST_API_FILTER_BUG
+DB에는 정상 8건인데 list API 조건이 잘못되어 0건
+
+C. ROLE_APPROVAL_FILTER_MISMATCH
+summary와 list의 role/approval 기준 불일치
+
+D. AUTH_IDENTITY_JOIN_BUG
+auth/user join 때문에 teacher rows가 목록에서 탈락
+
+E. POOL_MEMBERSHIP_LINK_BUG
+teacher와 pool 연결 문제
+
+F. LEGACY_KAKAO_IDENTITY_BUG
+과거 Kakao identity/user mapping이 직접 원인
+
+G. DATA_LOSS
+실제 teacher 데이터 자체가 손실
+
+H. MULTIPLE
+복수 원인
+
+I. OTHER
+
+추측하지 말고 Production 증거로 판정하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 로그인 문제도 읽기 전용으로 분리 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 알려진 증상:
+
+과거 Kakao 로그인이 남아 있던 선생님이
+로그인이 풀린 뒤 다시 로그인 불가.
+
+다음 중 어디에서 실패하는지 구분:
+
+KAKAO AUTH FAILURE
+→ Kakao/provider 인증 자체 실패
+
+APP AUTH CALLBACK FAILURE
+→ provider 성공 후 APP callback 실패
+
+USER IDENTITY MAPPING FAILURE
+→ 로그인 성공 후 기존 user와 연결 실패
+
+POOL/TEACHER MEMBERSHIP FAILURE
+→ user는 로그인되지만 선생님 권한/수영장 연결 실패
+
+ACCOUNT DUPLICATION
+→ 동일 사용자에 auth identity/user row가 분리됨
+
+현재 조사 중 계정 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEACHER LIST INCIDENT = PASS/HOLD
+
+SUMMARY COUNT = n
+LIST API COUNT = n
+CLIENT RENDER COUNT = n
+PRODUCTION TEACHER ROWS = n
+
+ROOT CAUSE = A/B/C/D/E/F/G/H/I
+
+KAKAO LOGIN ISSUE =
+KAKAO AUTH FAILURE /
+APP AUTH CALLBACK FAILURE /
+USER IDENTITY MAPPING FAILURE /
+POOL MEMBERSHIP FAILURE /
+ACCOUNT DUPLICATION /
+NOT RELATED /
+UNRESOLVED
+
+그리고:
+
+DB MUTATIONS = 0
+AUTH MUTATIONS = 0
+CODE CHANGES = 0
+DEPLOYMENTS = 0
+
+마지막에 실제 root cause를 고치는
+“최소 수정”만 제안하고 정지하세요.
+
+전체 회원/인증 시스템 감사 금지.
+이 pool의 teacher list와 연관 auth 경로만 조사하세요.
