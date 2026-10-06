@@ -16,6 +16,7 @@ import {
 } from "../utils/historyUtils.js";
 import { isValidCalendarDate, validateMakeupDateRange } from "../lib/makeup-date-range.js";
 import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
+import { loadTeacherListStats } from "../lib/teacher-list-stats.js";
 import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { deleteGrowthReport } from "../lib/growth-report-service.js";
 import { computeAnalysisPeriod } from "../lib/growth-report-analysis-helper.js";
@@ -2937,42 +2938,20 @@ router.get("/teachers", requireAuth, requireRole("super_admin","pool_admin"),
       const today = new Date().toISOString().split("T")[0];
 
       // ① superAdminDb: 해당 수영장 선생님 유저 정보
-      const userRows = (await superAdminDb.execute(sql.raw(`
+      const userRows = (await superAdminDb.execute(sql`
         SELECT id, name, email, phone, is_activated, roles,
                (roles @> ARRAY['pool_admin']::text[]) AS is_admin_granted
         FROM users
-        WHERE swimming_pool_id = '${poolId}' AND role = 'teacher'
+        WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
         ORDER BY name
-      `))).rows as any[];
+      `)).rows as any[];
 
       if (userRows.length === 0) { res.json([]); return; }
 
-      const userIds = userRows.map((u: any) => `'${u.id}'`).join(",");
-
-      // ② superAdminDb: 초대 상태 + 운영 통계
-      const statRows = (await db.execute(sql.raw(`
-        SELECT
-          ti.user_id,
-          ti.id AS invite_id,
-          ti.invite_status,
-          ti.rejection_reason,
-          ti.approved_at,
-          ti.created_at AS joined_at,
-          COUNT(DISTINCT cg.id)::int AS class_count,
-          COUNT(DISTINCT s.id)::int AS student_count,
-          COUNT(DISTINCT a.id) FILTER (WHERE a.date = '${today}')::int AS today_att,
-          COUNT(DISTINCT cd.id) FILTER (WHERE cd.lesson_date = '${today}' AND cd.is_deleted = false)::int AS today_diary,
-          COUNT(DISTINCT mk.id) FILTER (WHERE mk.status IN ('waiting','transferred'))::int AS makeup_waiting
-        FROM teacher_invites ti
-        LEFT JOIN class_groups cg ON cg.teacher_user_id = ti.user_id AND cg.swimming_pool_id = '${poolId}' AND cg.is_deleted = false
-        LEFT JOIN students s ON s.class_group_id = cg.id AND s.status NOT IN ('withdrawn','deleted')
-        LEFT JOIN attendance a ON a.class_group_id = cg.id
-        LEFT JOIN class_diaries cd ON cd.class_group_id = cg.id AND cd.swimming_pool_id = '${poolId}'
-        LEFT JOIN makeup_sessions mk ON mk.swimming_pool_id = '${poolId}'
-          AND (mk.original_teacher_id = ti.user_id OR mk.assigned_teacher_id = ti.user_id OR mk.transferred_to_teacher_id = ti.user_id)
-        WHERE ti.swimming_pool_id = '${poolId}' AND ti.user_id IN (${userIds})
-        GROUP BY ti.user_id, ti.id
-      `))).rows as any[];
+      // ② Aggregate independent sources before combining them; never multiply raw rows.
+      const statRows = await loadTeacherListStats(
+        superAdminDb, poolId, userRows.map((u: any) => u.id), today,
+      );
 
       // ③ 합산
       const statMap = new Map<string, any>();

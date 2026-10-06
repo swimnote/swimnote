@@ -62,7 +62,8 @@ export default function PeopleTeachersScreen() {
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterKey>("전체");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -70,9 +71,15 @@ export default function PeopleTeachersScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setLoadError(false);
     try {
-      const r = await apiRequest(token, "/admin/teachers");
-      if (r.ok) setTeachers(await r.json());
+      const r = await apiRequest(token, "/admin/teachers", { _noCache: true });
+      if (!r.ok) throw new Error("TEACHER_LIST_REQUEST_FAILED");
+      const data = await r.json();
+      if (!Array.isArray(data)) throw new Error("TEACHER_LIST_RESPONSE_INVALID");
+      setTeachers(data);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -170,6 +177,19 @@ export default function PeopleTeachersScreen() {
 
       {loading ? (
         <ActivityIndicator style={{ flex: 1 }} color={themeColor} />
+      ) : loadError ? (
+        <View style={s.empty} accessibilityLiveRegion="polite">
+          <LucideIcon name="alert-circle" size={36} color={C.textMuted} />
+          <Text style={s.emptyTxt}>선생님 정보를 불러오지 못했습니다.</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="다시 시도"
+            style={[s.retryBtn, { borderColor: themeColor }]}
+            onPress={load}
+          >
+            <Text style={[s.chipTxt, { color: themeColor }]}>다시 시도</Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
           data={filtered}
@@ -335,5 +355,6 @@ const s = StyleSheet.create({
   hintTxt:          { fontSize: 11, fontWeight: "500" },
   empty:            { paddingVertical: 60, alignItems: "center", gap: 10 },
   emptyTxt:         { color: C.textSecondary, fontSize: 14 },
+  retryBtn:         { minHeight: 44, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   deleteBtn:        { padding: 6, borderRadius: 8, backgroundColor: "#FEF2F2" },
 });
