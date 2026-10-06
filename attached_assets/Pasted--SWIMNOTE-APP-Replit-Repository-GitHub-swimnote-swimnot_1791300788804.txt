@@ -1,0 +1,264 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[선생님관리 목록 — /admin/teachers 통계 JOIN 폭증 성능 수정 + 오류 UI 구분]
+
+Production 원인 조사 완료.
+
+확정 원인:
+
+- teacher user rows = 8
+- /api/admin/dashboard-stats = 8 정상
+- /api/admin/teachers도 최종적으로 8건 반환
+- 그러나 응답시간 약 84,981ms
+- 통계 JOIN 중간 행 약 5,142,155건
+- 모바일 apiRequest timeout = 30초
+- timeout 후 teachers 초기 [] 유지
+- UI가 timeout과 진짜 0명을 구분하지 않아
+  “선생님이 없습니다” 표시
+
+따라서 데이터 손실이 아니라
+API query fan-out + client error-state 부재 문제입니다.
+
+Kakao 로그인 문제는 이번 수정 범위에서 제외합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 서버 쿼리 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+GET /api/admin/teachers
+
+현재 통계 계산용:
+
+teacher_invites
+class_groups
+students
+attendance
+class_diaries
+makeup_sessions
+
+등의 다중 JOIN으로 row multiplication이 발생하는 경로를 수정합니다.
+
+원칙:
+
+teacher users를 기준 집합으로 먼저 고정하고,
+각 통계는 teacher_id 기준으로 먼저 aggregate한 뒤
+작은 결과를 teacher 목록에 결합하세요.
+
+예:
+
+teacher base
+LEFT JOIN (
+  SELECT teacher_id, ...
+  GROUP BY teacher_id
+) stats
+
+형태의 기존 schema에 맞는 구조.
+
+여러 one-to-many 테이블을 raw 상태로 동시에 JOIN하여
+곱집합을 만들지 마세요.
+
+기존 반환 JSON 계약,
+권한,
+pool isolation,
+teacher 8건 포함 기준,
+승인/비활성 사용자 표시 정책은 변경하지 않습니다.
+
+summary API도 변경할 필요가 없으면 건드리지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 성능 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production 데이터 기준
+/api/admin/teachers가 앱 30초 timeout보다
+충분히 빠르게 반환되어야 합니다.
+
+목표는 timeout을 늘리는 것이 아니라
+쿼리 자체를 정상화하는 것입니다.
+
+공통 apiRequest timeout 변경 금지.
+
+Production 배포 후 동일 pool에서
+READ ONLY GET으로 실제 응답시간을 측정하세요.
+
+반드시:
+
+HTTP 200
+response count = 8
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 인덱스
+━━━━━━━━━━━━━━━━━━━━━━
+
+우선 query 구조 수정만으로 해결하세요.
+
+관련 FK/filter column에 필요한 인덱스가 이미 있는지 확인.
+
+실제 EXPLAIN 근거상 필수 인덱스가 빠져 있을 때만
+최소 additive migration을 제안/적용하세요.
+
+불필요한 인덱스 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 모바일 오류 상태 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+app/(admin)/people-teachers.tsx
+
+API 요청 실패/timeout을
+정상 빈 목록과 분리합니다.
+
+정상 200 + teachers.length === 0:
+“선생님이 없습니다”
+
+timeout/network/API error:
+“선생님 정보를 불러오지 못했습니다.”
+“다시 시도” 버튼 표시
+
+다시 시도:
+기존 GET /api/admin/teachers 재호출
+
+API 실패 시 빈 목록인 것처럼 오해시키지 마세요.
+
+검색/전체/승인됨/미승인/관리자 필터의
+기존 동작은 변경하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 반드시 보존할 계약
+━━━━━━━━━━━━━━━━━━━━━━
+
+- pool isolation
+- pool_admin 권한
+- teacher 8명 목록
+- 기존 teacher 통계 값
+- Normal / X 공통 경로
+- inactive teacher 기존 표시 정책
+- invite/approval 기존 정책
+
+이번 성능 수정 때문에
+8명 중 일부를 query에서 제외하는 방식으로
+속도를 맞추면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Kakao 로그인은 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서:
+
+- user 병합 금지
+- Kakao ID 변경 금지
+- auth provider 변경 금지
+- password 변경 금지
+- invite/membership 재연결 금지
+
+현재 확인된 동일 전화번호 2계정 구조가
+제보된 실제 선생님인지 증거가 없습니다.
+
+목록 장애 수정 후
+로그인 문제가 계속되는 실제 선생님만
+별도 조사합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 관련 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 범위만 테스트.
+
+필수:
+
+1. teacher 8명 반환 계약 유지
+
+2. 여러 class/student/attendance/diary/makeup 데이터가 있어도
+   teacher 중복/누락 없음
+
+3. 통계 값 기존 의미 유지
+
+4. 다량 fixture에서도 raw JOIN 곱집합 방식 사용하지 않음
+
+5. 다른 pool teacher 혼입 없음
+
+6. unauthorized / 다른 관리자 접근 보호 유지
+
+7. API success + 0명
+   → “선생님이 없습니다”
+
+8. API timeout/error
+   → 오류 문구 + 다시 시도
+
+9. retry success
+   → teacher 목록 정상 표시
+
+10. Normal / X 공통 화면 회귀
+
+전체 suite/typecheck 금지.
+
+관련 API 테스트 + API build.
+관련 모바일 테스트 + iOS/Android bundle 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트 PASS
+→ API build PASS
+→ mobile bundle PASS
+→ commit
+→ GitHub main
+→ API Render Production 배포
+→ health / deployed SHA 확인
+→ Production 동일 pool GET 실제 latency 확인
+
+모바일 JS/TS 변경이 있으므로
+Production OTA를 iOS + Android 함께 배포합니다.
+
+ENGINE 배포 없음.
+웹 변경이 없다면 웹 배포 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEACHER LIST FIX = PASS/HOLD
+
+ROOT CAUSE CLOSED = PASS/HOLD
+TEACHER COUNT = n
+LIST API COUNT = n
+
+BEFORE LATENCY = 약 84,981ms
+AFTER LATENCY = 실제값
+
+JOIN EXPLOSION REMOVED = PASS/HOLD
+STATS PRESERVED = PASS/HOLD
+POOL ISOLATION = PASS/HOLD
+
+CLIENT EMPTY STATE = PASS/HOLD
+CLIENT ERROR STATE = PASS/HOLD
+RETRY = PASS/HOLD
+
+RELATED TESTS =
+API BUILD =
+IOS BUNDLE =
+ANDROID BUNDLE =
+
+Commit SHA =
+GitHub main SHA =
+Render Deploy ID =
+deployed SHA =
+health =
+
+Production OTA:
+iOS Update ID =
+Android Update ID =
+Group ID =
+channel =
+runtimeVersion =
+
+KAKAO LOGIN ISSUE = 별도 HOLD / 이번 작업에서 미수정
+
+여기서 정지하세요.
