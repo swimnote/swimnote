@@ -100,6 +100,7 @@ export function createPushTokenLifecycle() {
         if (generation !== logoutGeneration) throw new Error("PUSH_LOGOUT_SESSION_CHANGED");
       } catch (error) {
         // Fail explicitly: caller keeps local auth so server cleanup can be retried.
+        if (generation !== logoutGeneration) throw new Error("PUSH_LOGOUT_SESSION_CHANGED");
         if (generation === logoutGeneration) {
           closingAuth = null;
           session = previous ? { ...previous, generation: ++generation } : null;

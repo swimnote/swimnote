@@ -141,8 +141,8 @@ describe("device push token lifecycle", () => {
       if (init.method === "DELETE") { entered(); await hold; if (fail) throw Error("FIXTURE_DELETE_FAILURE"); }
       return actual(a, p, init);
     });
-    const exiting = logoutFunction(f, "A")();
-    const rejected = expect(exiting).rejects.toThrow(fail ? "FIXTURE_DELETE_FAILURE" : "PUSH_LOGOUT_SESSION_CHANGED");
+    const exiting = logoutFunction(f, "A")({ forceLocal: true });
+    const rejected = expect(exiting).rejects.toThrow("PUSH_LOGOUT_SESSION_CHANGED");
     await started;
     const current = f.life.beginSession("B")!;
     const rebinding = f.life.register(current, "T", f.api, f.storage);
