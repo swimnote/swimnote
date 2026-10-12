@@ -1,0 +1,317 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[신규 수영장 가입 → 슈퍼관리자 PUSH 안정성 최종 수정]
+
+직전 Production READ ONLY 조사 결과를 승인합니다.
+
+확정 상태:
+
+- POST /api/auth/register 의 pool_admin 가입 성공 경로에
+  POOL_SIGNUP 슈퍼관리자 알림/PUSH hook 존재
+- Production super_admin 계정 존재
+- 등록 PUSH token 2개 존재
+- 정상 가입 격리 테스트에서 provider dispatch 경로 확인
+
+하지만 최종 PASS를 막는 문제가 확인되었습니다.
+
+1. 동일 가입 이벤트 재처리 시 PUSH 중복 가능
+2. pool/admin/invite 생성이 atomic transaction 아님
+3. 모바일 logout과 PUSH token 제거가 연결되지 않음
+
+이번 작업은 이 세 가지를 최소 수정합니다.
+
+ENGINE 수정 금지.
+가입 정책 재설계 금지.
+전체 auth 시스템 감사 금지.
+Production 테스트 pool 생성 금지.
+실제 신규 가입 PUSH 강제 발송 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. POOL_SIGNUP PUSH 중복 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+notifySuperAdmin(type=POOL_SIGNUP)
+→ super_admin_notifications INSERT ON CONFLICT
+→ INSERT가 실제로 생략돼도
+→ sendPushToSuperAdmins 실행
+
+문제를 수정하세요.
+
+event key:
+
+pool_signup_{poolId}
+
+에 대해 알림 row가 실제 신규 생성된 경우에만
+최초 PUSH dispatch를 허용합니다.
+
+INSERT ... RETURNING 또는
+현재 DB abstraction에서 동등하게 안전한 방식으로 구현합니다.
+
+필수:
+
+첫 이벤트
+→ notification 1
+→ PUSH dispatch 1
+
+동일 이벤트 replay
+→ notification 여전히 1
+→ 추가 PUSH 0
+
+멀티 인스턴스에서도 DB unique/dedupe가 기준이어야 합니다.
+메모리 flag로 해결 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 가입 핵심 데이터 atomic transaction
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool_admin 신규 가입 시 핵심 생성:
+
+- swimming_pool
+- pool_admin user
+- approved teacher_invite
+
+를 하나의 DB transaction으로 묶습니다.
+
+세 단계 중 하나라도 실패하면
+전체 rollback 되어야 합니다.
+
+알림 hook은 transaction COMMIT이 성공한 뒤에만 실행합니다.
+
+즉:
+
+BEGIN
+→ pool 생성
+→ admin 생성
+→ invite 생성
+→ COMMIT
+→ POOL_SIGNUP notification/PUSH
+
+순서.
+
+알림 실패 때문에 가입 transaction 자체를 rollback하지는 마세요.
+
+가입 성공과 알림 전달은 분리합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PUSH token lifecycle 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 모바일 logout이 로컬 session만 삭제하고
+DELETE /push-token을 호출하지 않는 문제를 수정합니다.
+
+현재 단말에서 로그아웃할 때:
+
+→ 해당 단말의 현재 token만 서버에서 제거/비활성화
+→ 그 다음 local auth/session 삭제
+
+다른 기기의 token을 일괄 삭제하면 안 됩니다.
+
+또한 로그인 사용자/session이 바뀌거나
+Expo token 자체가 변경된 경우
+PushTokenSync의 registered 상태가 새 binding을 막지 않게 수정하세요.
+
+필수:
+
+A 계정 로그인 + token T
+→ A에 T 등록
+
+logout
+→ A의 T 제거
+
+B 계정 로그인 + 같은 단말 token T
+→ B에 T 정상 등록
+
+token T → T2 변경
+→ T2 정상 등록
+
+stale local registered flag 때문에
+새 user/token 등록이 skip되면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PUSH 전달 관측
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 시스템에 PUSH dispatch 로그/receipt 저장 구조가 이미 있으면
+POOL_SIGNUP 경로도 그 기존 구조를 재사용하세요.
+
+새 대형 logging subsystem은 만들지 마세요.
+
+최소한 이후 실제 신규 가입이 발생했을 때:
+
+- event key
+- recipient count
+- dispatch attempted
+- provider accepted/rejected/unknown
+- provider error
+
+를 PII 없이 추적할 수 있어야 합니다.
+
+이미 기존 push logging 함수로 가능한 경우
+그 경로만 연결합니다.
+
+불필요한 migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 가입 실패 / 알림 실패 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 계약을 명확히 유지합니다.
+
+가입 DB transaction 실패
+→ pool/admin/invite 모두 0
+→ notification 0
+→ PUSH 0
+
+가입 DB commit 성공 + PUSH provider 실패
+→ 가입 자체는 성공 유지
+→ in-app notification 보존
+→ push failure만 기록
+
+PUSH 문제 때문에 신규 수영장 계정이 rollback되면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 관련 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 범위만 실행하세요.
+
+필수:
+
+1. 정상 signup
+   → pool/admin/invite 각 1
+   → notification 1
+   → PUSH dispatch 1
+
+2. 동일 signup event replay
+   → notification 1
+   → 총 PUSH dispatch 1
+
+3. pool INSERT failure
+   → 전체 rollback
+
+4. admin INSERT failure
+   → pool도 rollback
+
+5. invite INSERT failure
+   → pool/admin도 rollback
+
+6. COMMIT 이전 PUSH 0
+
+7. COMMIT 성공 이후 PUSH hook
+
+8. PUSH provider 실패
+   → 가입 데이터 유지
+   → notification 유지
+
+9. 일반 admin/teacher/parent에게 오발송 0
+
+10. logout
+    → 현재 device token 삭제
+
+11. 다른 device token 보존
+
+12. user/session 변경
+    → token 새 사용자에게 정상 binding
+
+13. Expo token 변경
+    → 새 token 등록
+
+14. 동일 token 재등록
+    → 안전한 idempotent 처리
+
+전체 suite/typecheck 금지.
+
+관련 API 테스트 + API build.
+관련 모바일 테스트 + iOS/Android bundle 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트 PASS
+→ API build PASS
+→ mobile bundle PASS
+→ commit
+→ GitHub main
+→ API Render Production 배포
+→ health / deployed SHA 확인
+
+모바일 JS/TS가 수정되므로
+production-v2에 iOS + Android OTA를 함께 배포합니다.
+
+ENGINE 배포 없음.
+
+Production에서 가짜 신규 수영장을 만들지 마세요.
+Production에서 수동 PUSH도 보내지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포 후 READ ONLY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- super_admin active
+- 등록된 token 수
+- signup hook 코드가 새 SHA와 일치
+- event dedupe 경로 활성
+- 가입 transaction 경로 활성
+
+실제 token 원문/PII는 출력 금지.
+
+실제 provider 유효성은
+다음 실제 신규 수영장 가입 이벤트에서 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+NEW POOL SIGNUP SUPER PUSH = PASS/HOLD
+
+SIGNUP ATOMIC TRANSACTION = PASS/HOLD
+PARTIAL SIGNUP PREVENTION = PASS/HOLD
+
+POOL_SIGNUP EVENT DEDUPE = PASS/HOLD
+PUSH EXACTLY ONCE LOGIC = PASS/HOLD
+ROLE ISOLATION = PASS/HOLD
+
+LOGOUT TOKEN CLEANUP = PASS/HOLD
+SESSION CHANGE TOKEN REBIND = PASS/HOLD
+TOKEN CHANGE REBIND = PASS/HOLD
+
+PUSH DISPATCH OBSERVABILITY = PASS/HOLD
+PUSH FAILURE DOES NOT ROLLBACK SIGNUP = PASS/HOLD
+
+RELATED TESTS =
+API BUILD =
+IOS BUNDLE =
+ANDROID BUNDLE =
+
+Commit SHA =
+GitHub main SHA =
+Render Deploy ID =
+deployed SHA =
+health =
+
+Production OTA:
+iOS Update ID =
+Android Update ID =
+Group ID =
+channel =
+runtimeVersion =
+
+Production fake signup = 0
+Production manual PUSH = 0
+
+마지막에:
+
+“현재 슈퍼관리자 모바일 앱이 로그인되어 있고
+알림 권한이 허용되고 PUSH token 등록이 성공한 상태라면,
+다음 실제 신규 수영장 가입 완료 시
+슈퍼관리자 PUSH가 논리적으로 정확히 1회 발송되도록
+Production이 준비되어 있음 = YES/NO”
+
+라고 보고 후 정지하세요.
