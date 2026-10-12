@@ -1,0 +1,266 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[신규 수영장 가입 → 슈퍼관리자 PUSH Production 동작 최종 확인]
+
+목적:
+
+신규 수영장이 SWIMNOTE에 가입/등록 완료되었을 때
+현재 로그인되어 있고 PUSH 토큰이 등록된
+SWIMNOTE 슈퍼관리자에게 알림이 자동으로 오는 기능이
+Production에서 정상 작동 가능한 상태인지 확인합니다.
+
+이번 단계는 우선 조사/검증입니다.
+
+실제 Production 수영장 신규 생성 금지.
+Production DB mutation 금지.
+실제 PUSH 강제 발송 금지.
+코드 수정은 실제 문제가 확인된 경우에만 별도 보고 후 진행.
+ENGINE 조사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 가입 완료 trigger 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드에서 “신규 수영장 가입 완료”가 되는
+실제 endpoint/service를 찾으세요.
+
+확인:
+
+- 신규 pool 생성 endpoint
+- 가입 완료 transaction
+- pool_admin 생성/연결 시점
+- 어떤 시점에 가입 완료로 간주하는지
+- 그 직후 super_admin 알림 함수가 실제 호출되는지
+
+보고:
+
+POOL SIGNUP ENDPOINT =
+SIGNUP COMPLETE SERVICE =
+SUPER ADMIN NOTIFICATION CALL = YES/NO
+
+단순히 알림 함수가 존재한다는 것만으로 PASS 처리하지 마세요.
+
+실제 신규 가입 성공 경로에서 호출되는지 확인해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 알림 생성 경로 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 수영장 가입 성공 후 다음 경로를 끝까지 추적하세요.
+
+pool signup success
+→ super_admin notification event
+→ DB notification/inbox 생성 여부
+→ push recipient resolution
+→ push token 조회
+→ push provider 호출
+
+확인:
+
+- notification event type
+- title/body
+- recipient role
+- dedupe 여부
+- 앱 내부 알림함 저장 여부
+- PUSH 호출 여부
+
+학부모/teacher/pool_admin 알림과 혼동하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production 슈퍼관리자 수신 준비 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB를 READ ONLY로 확인합니다.
+
+현재 super_admin 계정에 대해:
+
+- active user = YES/NO
+- role = super_admin 또는 platform_admin
+- PUSH 설정 활성 = YES/NO
+- 등록된 active push token 수 = n
+- token platform = iOS/Android 집계만
+- 최근 token 갱신 상태
+- token이 현재 super_admin user에 귀속되어 있는지
+
+토큰 원문, 이메일, 전화번호 등 민감정보는 출력하지 마세요.
+
+중요:
+
+“웹/앱에 로그인 상태”와
+“실제 단말 PUSH token이 등록되어 있음”을 구분하세요.
+
+앱에 로그인되어 있어도 active push token이 없으면
+PUSH 수신 준비 완료라고 판정하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 로그인 상태와 PUSH 관계 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 모바일 앱에서 super_admin 로그인 시:
+
+- push permission 확인
+- device token 등록
+- user_id와 token binding
+- login/session 변경 시 token 갱신
+- logout 시 token 제거/비활성화 정책
+
+을 확인하세요.
+
+질문에 대한 실제 판정을 내리세요:
+
+“슈퍼관리자로 로그인해 놓은 상태라면
+신규 수영장 가입 시 PUSH를 받을 준비가 자동으로 되는가?”
+
+YES/NO로 답하고 근거를 적으세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 과거 실제 이벤트 증거 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 최근 신규 pool 가입/생성 사례가 있다면
+READ ONLY로 최근 이벤트 1~3건만 확인하세요.
+
+각 건에 대해 PII 없이:
+
+- pool created_at
+- super notification row 존재
+- push dispatch 기록 존재
+- provider accepted/rejected/unknown
+- receipt 존재 여부
+
+를 확인합니다.
+
+최근 실제 신규 가입 사례가 없으면
+“실제 Production 전달 사례 없음”이라고 명시하고
+억지로 PASS 처리하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 격리 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서는 실제 신규 pool을 만들지 않습니다.
+
+격리 DB/test fixture에서:
+
+신규 pool 가입 완료
+→ super_admin notification 생성
+→ push dispatch adapter 호출
+
+을 재현하세요.
+
+필수:
+
+1. 정상 신규 pool 가입
+   → super_admin notification 1건
+
+2. super_admin active token 존재
+   → PUSH dispatch 1회
+
+3. token 없음
+   → 앱 내부 알림은 보존
+   → PUSH는 안전하게 skip/failure 처리
+
+4. 동일 가입 transaction replay
+   → 중복 PUSH 방지 여부 확인
+
+5. 가입 transaction 실패/rollback
+   → super_admin PUSH 없음
+
+6. 다른 일반 admin에게 오발송 없음
+
+7. teacher/parent에게 오발송 없음
+
+8. pool isolation 유지
+
+관련 테스트만 실행.
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PUSH 문구 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 운영 문구를 보고하세요.
+
+예상 의미:
+
+Title:
+신규 수영장 가입
+
+Body:
+새로운 수영장이 SWIMNOTE에 가입했습니다.
+슈퍼관리자에서 확인해 주세요.
+
+현재 문구가 이미 적절하면 수정하지 마세요.
+
+가입자가 실제로 생성되기 전
+“가입 완료” PUSH가 나가면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음이 모두 확인돼야 PASS:
+
+- 실제 signup 성공 경로에 notification hook 존재
+- super_admin recipient 정확
+- Production super_admin active push token 존재
+- 격리 테스트에서 signup → PUSH dispatch 정상
+- transaction 실패 시 오발송 없음
+- 중복 가입/replay 시 중복 PUSH 방지
+- 일반 관리자/teacher/parent 오발송 없음
+
+provider accepted까지 과거 Production 증거가 있으면
+별도로 명시하세요.
+
+실제 단말 화면 표시까지 확인하지 못했다면
+DEVICE DISPLAY = UNVERIFIED로 두세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+NEW POOL SIGNUP SUPER PUSH = PASS/HOLD
+
+POOL SIGNUP TRIGGER = PASS/HOLD
+SUPER ADMIN NOTIFICATION HOOK = PASS/HOLD
+SUPER ADMIN RECIPIENT = PASS/HOLD
+
+PRODUCTION SUPER ADMIN ACTIVE = YES/NO
+PUSH ENABLED = YES/NO
+ACTIVE PUSH TOKEN COUNT = n
+
+LOGIN BINDS PUSH TOKEN = PASS/HOLD
+
+IN-APP NOTIFICATION = PASS/HOLD
+PUSH DISPATCH PATH = PASS/HOLD
+DUPLICATE PREVENTION = PASS/HOLD
+FAILED SIGNUP NO PUSH = PASS/HOLD
+ROLE ISOLATION = PASS/HOLD
+
+CURRENT PUSH TITLE =
+CURRENT PUSH BODY =
+
+RECENT PRODUCTION SIGNUP EVIDENCE =
+YES / NO / NONE AVAILABLE
+
+PROVIDER ACCEPTED EVIDENCE =
+YES / NO / NONE AVAILABLE
+
+DEVICE DISPLAY =
+VERIFIED / UNVERIFIED
+
+그리고 마지막에 정확히:
+
+“현재 슈퍼관리자 앱이 로그인되어 있고
+active PUSH token이 등록된 상태에서
+신규 수영장 가입이 완료되면
+자동 PUSH를 받을 준비가 되어 있음 = YES/NO”
+
+Production DB mutations = 0
+Manual PUSH sends = 0
+Test pool creation in Production = 0
+
+문제가 실제 확인되면
+root cause와 필요한 최소 수정만 제안하고 정지하세요.
