@@ -11,12 +11,14 @@ import { startPushFanoutWorker } from "./jobs/push-fanout-worker.js";
 import { recordResponseTime } from "./lib/responseTracker.js";
 import { requireNotDeactivated } from "./lib/deactivationGuard.js";
 import { errorTrackingMiddleware } from "./middlewares/error-tracking.js";
+import { requestLogger } from "./lib/logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const DEPLOYMENT_VERSION = `v${new Date().toISOString().slice(0,10).replace(/-/g,"")}.${process.env.NODE_ENV ?? "dev"}`;
 
 const app: Express = express();
+app.use(requestLogger);
 
 // ── CORS ─────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [

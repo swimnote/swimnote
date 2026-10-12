@@ -35,6 +35,7 @@ import { Image as ExpoImageGlobal } from "expo-image";
 };
 import { DevOtaRestartModal } from "@/components/common/DevOtaRestartModal";
 import { parentApprovalNotificationRoute } from "@/lib/parentApprovalUtils";
+import { pushTokenLifecycle } from "@/lib/push-token-lifecycle";
 
 // 1.6.3+: 명시적으로 "true"일 때만 점검 화면 진입. 기본값 = 정상 진입.
 export const MAINTENANCE_MODE = process.env.EXPO_PUBLIC_MAINTENANCE_MODE === "true";
@@ -393,12 +394,24 @@ async function setupNotificationChannels(N: NotificationsModule) {
 
 function PushTokenSync() {
   const { token, kind, parentAccount } = useAuth();
-  const registered = useRef(false);
+  const parentId = kind === "parent" ? parentAccount?.id ?? null : null;
 
   useEffect(() => {
+    pushTokenLifecycle.beginSession(token, parentId);
     // Expo Go SDK 53+: Android 원격 알림 미지원 → 스킵 (Notifications는 null)
-    if (!token || registered.current || Platform.OS === "web" || !Notifications) return;
+    if (!token || Platform.OS === "web" || !Notifications) return;
+    pushTokenLifecycle.setDeviceTokenResolver(async () => {
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      if (!projectId) return null;
+      return (await Notifications!.getExpoPushTokenAsync({ projectId }))?.data ?? null;
+    });
+    let cancelled = false;
+    let refreshVersion = 0;
     async function registerToken() {
+      if (cancelled) return;
+      const version = ++refreshVersion;
+      const handle = pushTokenLifecycle.beginSession(token, parentId);
+      if (!handle) return;
       try {
         const N = Notifications!;
         // Android 알림 채널 먼저 등록
@@ -410,17 +423,23 @@ function PushTokenSync() {
           finalStatus = status;
         }
         if (finalStatus !== "granted") return;
-        const tokenData = await N.getExpoPushTokenAsync();
-        if (!tokenData?.data) return;
-        await apiRequest(token, "/push-token", {
-          method: "POST",
-          body: JSON.stringify({ token: tokenData.data, parent_account_id: kind === "parent" && parentAccount ? parentAccount.id : null }),
-        });
-        registered.current = true;
-      } catch (_) {}
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+        if (!projectId) return;
+        const tokenData = await N.getExpoPushTokenAsync({ projectId });
+        if (!tokenData?.data || cancelled || version !== refreshVersion) return;
+        await pushTokenLifecycle.register(handle, tokenData.data, apiRequest, AsyncStorage);
+      } catch (_) {
+        console.warn("[PushTokenSync] device token registration failed");
+      }
     }
-    registerToken();
-  }, [token]);
+    void registerToken();
+    // Listener supplies a native APNs/FCM token. Re-fetch its Expo token, don't POST it directly.
+    const changed = Notifications.addPushTokenListener(() => { void registerToken(); });
+    const foreground = AppState.addEventListener("change", state => {
+      if (state === "active") void registerToken();
+    });
+    return () => { cancelled = true; changed.remove(); foreground.remove(); };
+  }, [token, parentId]);
 
   return null;
 }

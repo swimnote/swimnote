@@ -325,43 +325,47 @@ router.post("/register", signupLimiter, async (req, res) => {
         ? pool_name_en.trim().toLowerCase().replace(/[^a-z0-9_]/g, "")
         : pool_name.trim().toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").substring(0, 30) || `pool_${Date.now()}`;
 
-      await superAdminDb.execute(sql`
-        INSERT INTO swimming_pools
-          (id, name, name_en, address, phone, owner_name, owner_email,
-           admin_name, admin_email, admin_phone, approval_status, subscription_status, trial_end_at)
-        VALUES
-          (${poolId}, ${pool_name.trim()}, ${resolvedNameEn}, ${pool_address.trim()},
-           ${pool_phone.trim()}, ${pool_owner_name.trim()}, ${email.trim().toLowerCase()},
-           ${name.trim()}, ${email.trim().toLowerCase()}, ${phone || null},
-           'approved', 'trial', NOW() + INTERVAL '30 days')
-      `);
+      // 가입 핵심 데이터는 동일 connection/transaction에서 원자적으로 생성한다.
+      // 아래 transaction Promise가 resolve된 뒤에만 템플릿/알림 hook을 실행한다.
+      await superAdminDb.transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO swimming_pools
+            (id, name, name_en, address, phone, owner_name, owner_email,
+             admin_name, admin_email, admin_phone, approval_status, subscription_status, trial_end_at)
+          VALUES
+            (${poolId}, ${pool_name.trim()}, ${resolvedNameEn}, ${pool_address.trim()},
+             ${pool_phone.trim()}, ${pool_owner_name.trim()}, ${email.trim().toLowerCase()},
+             ${name.trim()}, ${email.trim().toLowerCase()}, ${phone || null},
+             'approved', 'trial', NOW() + INTERVAL '30 days')
+        `);
 
-      // ── 2) 관리자 계정 생성 (is_activated=true, is_admin_self_teacher=true) ─
-      await superAdminDb.execute(sql`
-        INSERT INTO users
-          (id, email, password_hash, name, phone, role,
-           swimming_pool_id, is_activated, is_admin_self_teacher,
-           phone_verified, roles, kakao_id, apple_id, created_at, updated_at)
-        VALUES
-          (${userId}, ${email.trim().toLowerCase()}, ${password_hash}, ${name.trim()},
-           ${phone || null}, 'pool_admin'::user_role,
-           ${poolId}, true, true,
-           true, '{"pool_admin","teacher"}'::TEXT[],
-           ${kakao_id || null}, ${apple_id || null}, now(), now())
-      `);
+        // ── 2) 관리자 계정 생성 (is_activated=true, is_admin_self_teacher=true) ─
+        await tx.execute(sql`
+          INSERT INTO users
+            (id, email, password_hash, name, phone, role,
+             swimming_pool_id, is_activated, is_admin_self_teacher,
+             phone_verified, roles, kakao_id, apple_id, created_at, updated_at)
+          VALUES
+            (${userId}, ${email.trim().toLowerCase()}, ${password_hash}, ${name.trim()},
+             ${phone || null}, 'pool_admin'::user_role,
+             ${poolId}, true, true,
+             true, '{"pool_admin","teacher"}'::TEXT[],
+             ${kakao_id || null}, ${apple_id || null}, now(), now())
+        `);
 
-      // ── 3) 선생님 엔티티 자동 생성 (teacher_invites — approved 상태) ─
-      const inviteId = `tinv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.execute(sql`
-        INSERT INTO teacher_invites
-          (id, swimming_pool_id, name, phone, position,
-           invite_token, invite_status, invited_by, user_id,
-           approved_at, approved_by, approved_role, created_at, requested_at)
-        VALUES
-          (${inviteId}, ${poolId}, ${'관리자선생님'}, ${(phone || pool_phone || '').trim()}, ${'관리자'},
-           ${inviteId}, ${'approved'}, ${userId}, ${userId},
-           now(), ${userId}, ${'teacher'}, now(), now())
-      `);
+        // ── 3) 선생님 엔티티 자동 생성 (teacher_invites — approved 상태) ─
+        const inviteId = `tinv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await tx.execute(sql`
+          INSERT INTO teacher_invites
+            (id, swimming_pool_id, name, phone, position,
+             invite_token, invite_status, invited_by, user_id,
+             approved_at, approved_by, approved_role, created_at, requested_at)
+          VALUES
+            (${inviteId}, ${poolId}, ${'관리자선생님'}, ${(phone || pool_phone || '').trim()}, ${'관리자'},
+             ${inviteId}, ${'approved'}, ${userId}, ${userId},
+             now(), ${userId}, ${'teacher'}, now(), now())
+        `);
+      });
 
       // ── 4) 기본 일지 템플릿 자동 삽입 ──────────────────────────────────
       insertDefaultTemplates(poolId, userId).catch((e: any) => console.error("[insertDefaultTemplates] pool_admin signup:", e));

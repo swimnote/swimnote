@@ -109,3 +109,4 @@
 - [학부모 전화 자동승인 경계](parent-phone-approval-boundary.md) — 보호자 관계만 변경; 학생 승인과 분리하고 인증 이력과 요청 세션의 신뢰도를 구분.
 - [임시 PostgreSQL 검증](temporary-postgres-verification.md) — 실제 SQL 경쟁 검증은 격리된 임시 DB로; 테스트 서버는 명시적 background task로 유지.
 - [로그인 복구 증거 경계](login-recovery-identifier-evidence.md) — DB identifier로 API 200이어도 사용자용 ID가 확인되지 않으면 실사용 로그인 복구 PASS 금지.
+- [신규 가입 PUSH 계약](pool-signup-push-boundary.md) — 최초 이벤트의 논리 dispatch만 허용; 불명확한 provider 결과 재발송 금지, 실기기 표시와 분리.

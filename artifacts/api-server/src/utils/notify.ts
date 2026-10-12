@@ -48,7 +48,7 @@ export async function notifySuperAdmin(params: {
     const id = `san_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const ikey = idempotencyKey ?? null;
 
-    await superAdminDb.execute(sql`
+    const inserted = await superAdminDb.execute(sql`
       INSERT INTO super_admin_notifications
         (id, type, title, body, pool_id, ref_id, ref_type, is_read, idempotency_key, created_at)
       VALUES
@@ -56,11 +56,21 @@ export async function notifySuperAdmin(params: {
          ${refType ?? null}, FALSE, ${ikey}, NOW())
       ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL
       DO NOTHING
+      RETURNING id
     `);
 
+    // POOL_SIGNUP의 최초 dispatch 권한은 DB unique INSERT 승자에게만 있다.
+    // 메모리 상태와 무관하므로 동시 호출/다중 인스턴스에서도 replay를 차단한다.
+    if (type === "POOL_SIGNUP" && !inserted.rows.length) return;
+
     // 앱 push (fire-and-forget, 실패해도 DB 저장은 유지)
-    sendPushToSuperAdmins(title, body || title, { type, pool_id: poolId ?? undefined, ref_id: refId ?? undefined })
+    const push = sendPushToSuperAdmins(title, body || title, {
+      type, pool_id: poolId ?? undefined, ref_id: refId ?? undefined,
+      ...(type === "POOL_SIGNUP" ? { event_key: ikey, notification_id: id } : {}),
+    })
       .catch(e => console.error("[notifySuperAdmin] push 오류:", e));
+    // 가입 route 자체는 이 함수를 background로 실행한다. 다른 알림의 기존 타이밍은 보존.
+    if (type === "POOL_SIGNUP") await push;
   } catch (err) {
     console.error("[notifySuperAdmin] 오류:", err);
   }

@@ -118,7 +118,7 @@ function WithdrawalGuard({ children }: { children: ReactNode }) {
     // 탈퇴·삭제 계정 → 강제 로그아웃
     setGlobalLogoutHandler(async () => {
       clearApiCache();
-      await session.logout();
+      await session.logout({ forceLocal: true });
       await role.clearRole();
     });
 
@@ -130,7 +130,7 @@ function WithdrawalGuard({ children }: { children: ReactNode }) {
         await _handleRoleRevokedLogic({
           switchRole: role.switchRole,
           onLogout: async () => {
-            await session.logout();
+            await session.logout({ forceLocal: true });
             await role.clearRole();
           },
         });

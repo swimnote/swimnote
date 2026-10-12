@@ -23,6 +23,7 @@
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logOperationalError } from "./event-logger.js";
+import { logger } from "./logger.js";
 
 // ── Expo Push API ─────────────────────────────────────────────────────────────
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -61,6 +62,8 @@ export interface PushOptions {
   channelId?: string;
   priority?: "default" | "normal" | "high";
   ttl?: number;
+  /** POOL_SIGNUP: don't resend an ambiguous request; require explicit provider tickets. */
+  singleAttempt?: boolean;
 }
 
 /** WP5: result summary returned by sendRawPush */
@@ -73,6 +76,8 @@ export interface PushResult {
   invalidTokenCount:  number;
   configFailureCount: number;  // InvalidCredentials — APNs/FCM credential issue, token NOT deleted
   retryCount:         number;
+  unknownCount?:      number;
+  errorCodes?:        string[];
 }
 
 // ── WP5 internal helpers ──────────────────────────────────────────────────────
@@ -115,12 +120,14 @@ const DEVICE_NOT_REGISTERED_ERRORS = new Set(["DeviceNotRegistered"]);
 const CONFIG_FAILURE_ERRORS = new Set(["InvalidCredentials"]);
 
 /** Delete a single bad token from push_tokens — exact token only */
-export async function cleanupInvalidToken(token: string): Promise<void> {
+export async function cleanupInvalidToken(token: string, redactLog = false): Promise<void> {
   try {
     await db.execute(sql`DELETE FROM push_tokens WHERE token = ${token}`);
-    console.log(`[push-service] invalid token cleanup: ${token.slice(0, 8)}...`);
+    if (redactLog) logger.info("Invalid signup recipient token removed");
+    else console.log(`[push-service] invalid token cleanup: ${token.slice(0, 8)}...`);
   } catch (e) {
-    console.error("[push-service] token cleanup error:", e);
+    if (redactLog) logger.error({ error_code: "INVALID_TOKEN_CLEANUP_FAILED" }, "Signup token cleanup failed");
+    else console.error("[push-service] token cleanup error:", e);
   }
 }
 
@@ -141,7 +148,8 @@ function isRetryable(httpStatus: number | null, err?: unknown): boolean {
 export async function sendChunkWithRetry(
   chunk: PushMessage[],
   attempt = 0,
-): Promise<{ success: number; failure: number; invalidTokens: string[]; configFailures: number; retries: number }> {
+  singleAttempt = false,
+): Promise<{ success: number; failure: number; invalidTokens: string[]; configFailures: number; retries: number; unknown?: number; errorCodes?: string[] }> {
   let httpStatus: number | null = null;
   try {
     const resp = await fetch(EXPO_PUSH_URL, {
@@ -152,6 +160,37 @@ export async function sendChunkWithRetry(
     });
     httpStatus = resp.status;
 
+    if (singleAttempt) {
+      const outcome = { success: 0, failure: 0, invalidTokens: [] as string[], configFailures: 0,
+        retries: 0, unknown: 0, errorCodes: [] as string[] };
+      if (!resp.ok) {
+        if (resp.status >= 500) outcome.unknown = chunk.length;
+        else outcome.failure = chunk.length;
+        outcome.errorCodes.push(`HTTP_${resp.status}`);
+        return outcome;
+      }
+      const json = await resp.json().catch(() => null) as any;
+      const tickets = Array.isArray(json?.data) ? json.data : [];
+      const safeErrors = new Set(["DeviceNotRegistered", "InvalidCredentials", "MessageTooBig",
+        "MessageRateExceeded", "MismatchSenderId", "InvalidPushToken"]);
+      for (let i = 0; i < chunk.length; i++) {
+        const ticket = tickets[i];
+        if (ticket?.status === "ok" && typeof ticket.id === "string" && ticket.id) {
+          outcome.success++;
+        } else if (ticket?.status === "error") {
+          outcome.failure++;
+          const code = safeErrors.has(ticket.details?.error) ? ticket.details.error : "PROVIDER_REJECTED";
+          outcome.errorCodes.push(code);
+          if (DEVICE_NOT_REGISTERED_ERRORS.has(code)) outcome.invalidTokens.push(chunk[i].to);
+          if (CONFIG_FAILURE_ERRORS.has(code)) outcome.configFailures++;
+        } else {
+          outcome.unknown++;
+          outcome.errorCodes.push("MISSING_OR_INVALID_TICKET");
+        }
+      }
+      return outcome;
+    }
+
     // Rate-limit or server error → retryable
     if (isRetryable(httpStatus, null)) {
       if (attempt < MAX_RETRY_ATTEMPTS) {
@@ -160,12 +199,12 @@ export async function sendChunkWithRetry(
         const sub = await sendChunkWithRetry(chunk, attempt + 1);
         return { ...sub, retries: sub.retries + 1 };
       }
-      return { success: 0, failure: chunk.length, invalidTokens: [], retries: attempt };
+      return { success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0, retries: attempt };
     }
 
     // Other non-OK status (4xx not 429) — permanent, don't retry
     if (!resp.ok) {
-      return { success: 0, failure: chunk.length, invalidTokens: [], retries: 0 };
+      return { success: 0, failure: chunk.length, invalidTokens: [], configFailures: 0, retries: 0 };
     }
 
     // Parse Expo ticket array
@@ -207,6 +246,10 @@ export async function sendChunkWithRetry(
     return { success, failure, invalidTokens, configFailures: configFailureTokens.length, retries: 0 };
 
   } catch (err: any) {
+    if (singleAttempt) {
+      return { success: 0, failure: 0, invalidTokens: [], configFailures: 0, retries: 0,
+        unknown: chunk.length, errorCodes: ["NETWORK_OR_TIMEOUT"] };
+    }
     // Network / timeout errors
     if (attempt < MAX_RETRY_ATTEMPTS && isRetryable(httpStatus, err)) {
       const delayMs = _retryDelayMs * 2 ** attempt;
@@ -286,7 +329,7 @@ export async function sendRawPushWithResult(
   );
 
   // ── 4. Bounded concurrency dispatch ──────────────────────────────
-  const chunkTasks = chunks.map((chunk) => () => sendChunkWithRetry(chunk));
+  const chunkTasks = chunks.map((chunk) => () => sendChunkWithRetry(chunk, 0, !!options.singleAttempt));
   const chunkResults = await runBounded(chunkTasks, MAX_CONCURRENT_CHUNKS);
 
   // ── 5. Aggregate results ──────────────────────────────────────────
@@ -310,7 +353,7 @@ export async function sendRawPushWithResult(
   // Exact token only — no user-wide or pool-wide side effects.
   // InvalidCredentials tokens are NOT cleaned up (credential config problem, not device).
   if (allInvalidTokens.length > 0) {
-    await Promise.all(allInvalidTokens.map(cleanupInvalidToken));
+    await Promise.all(allInvalidTokens.map(token => cleanupInvalidToken(token, !!options.singleAttempt)));
   }
 
   const latencyMs = Date.now() - startMs;
@@ -336,6 +379,10 @@ export async function sendRawPushWithResult(
   }
 
   const result: PushResult = { totalTokens, uniqueTokens, chunks: numChunks, successCount, failureCount, invalidTokenCount, configFailureCount, retryCount };
+  if (options.singleAttempt) {
+    result.unknownCount = chunkResults.reduce((sum, r) => sum + (r.unknown ?? 0), 0);
+    result.errorCodes = [...new Set(chunkResults.flatMap(r => r.errorCodes ?? []))];
+  }
   return result;
 }
 
@@ -803,13 +850,38 @@ export async function sendPushToSuperAdmins(
   body: string,
   data: Record<string, unknown> = {}
 ): Promise<void> {
+  const signup = data.type === "POOL_SIGNUP";
+  const eventKey = typeof data.event_key === "string" ? data.event_key : undefined;
+  const poolId = typeof data.pool_id === "string" ? data.pool_id : undefined;
+  let recipientCount = 0;
+  let attempted = false;
+  const recordSignup = async (phase: "attempt" | "result", providerStatus: "accepted" | "rejected" | "unknown",
+    providerError?: string, result?: PushResult) => {
+    const observation = {
+      event_key: eventKey, recipient_count: recipientCount, dispatch_attempted: attempted,
+      phase, provider_status: providerStatus, provider_error: providerError ?? null,
+      accepted_count: result?.successCount ?? 0, rejected_count: result?.failureCount ?? 0,
+      unknown_count: result?.unknownCount ?? 0,
+    };
+    logger.info(observation, "POOL_SIGNUP super-admin push");
+    // Intent is structured stdout; persist the final outcome in the existing
+    // three-state log rather than presenting an attempted send as "sent"/"skipped".
+    if (phase === "attempt") return;
+    await logPush("super_admin", "super_admin", "POOL_SIGNUP",
+      !attempted ? "skipped" : providerStatus === "accepted" ? "sent" : "failed",
+      JSON.stringify(observation), eventKey, poolId, recipientCount, providerError);
+  };
   try {
     const superRows = await superAdminDb.execute(sql`
       SELECT id FROM users
       WHERE role = 'super_admin'
+        AND (${!signup} OR (is_activated = true AND withdrawal_requested_at IS NULL))
     `);
     const superIds = (superRows.rows as any[]).map(r => r.id).filter(Boolean);
-    if (!superIds.length) return;
+    if (!superIds.length) {
+      if (signup) await recordSignup("result", "unknown", "NO_SUPER_ADMIN");
+      return;
+    }
 
     const tokens: string[] = [];
     for (const uid of superIds) {
@@ -819,9 +891,26 @@ export async function sendPushToSuperAdmins(
       `);
       tokens.push(...(rows.rows as any[]).map(r => r.token));
     }
+    if (signup) {
+      recipientCount = new Set(tokens).size;
+      if (!recipientCount) {
+        await recordSignup("result", "unknown", "NO_REGISTERED_TOKEN");
+        return;
+      }
+      attempted = true;
+      await recordSignup("attempt", "unknown");
+      const result = await sendRawPushWithResult(tokens, title, body, data, { singleAttempt: true }, poolId, eventKey);
+      const status = (result.unknownCount ?? 0) > 0 ? "unknown" : result.failureCount > 0 ? "rejected" : "accepted";
+      await recordSignup("result", status, result.errorCodes?.join(",") || undefined, result);
+      return;
+    }
     if (!tokens.length) return;
     await sendRawPush(tokens, title, body, data);
   } catch (e) {
+    if (signup) {
+      await recordSignup("result", "unknown", "DISPATCH_PATH_ERROR");
+      return;
+    }
     console.error("[push-service] sendPushToSuperAdmins 오류:", e);
   }
 }

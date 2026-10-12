@@ -4,6 +4,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { pushTokenLifecycle, createPushTokenCleanupRequest } from "../../lib/push-token-lifecycle";
 
 export const _DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
 // API_BASE: canonical production front door (Render.com api-server)
@@ -237,7 +238,7 @@ interface SessionContextType {
   appleSocialLogin: (identityToken: string, fullName?: string | null, traceId?: string) => Promise<"admin" | "parent">;
   setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
   setAdminSession: (token: string, user: AdminUser) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (options?: { forceLocal?: boolean }) => Promise<void>;
   refreshPool: () => Promise<void>;
   loadOwnedPools: () => Promise<void>;
   switchPool: (poolId: string) => Promise<void>;
@@ -1128,7 +1129,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (user.swimming_pool_id) fetchPool(token).catch(e => console.warn(`[fetchPool 실패] fetchPool 실패: ${e?.message}`));
   }
 
-  async function logout() {
+  async function logout(options?: { forceLocal?: boolean }) {
+    // Delete only this device's token using the current JWT, before clearing local auth.
+    try {
+      await pushTokenLifecycle.logout(token, createPushTokenCleanupRequest(API_BASE), AsyncStorage);
+    } catch (error) {
+      // Preserve forced security logout for withdrawn/revoked accounts with rejected JWTs.
+      // Ordinary logout remains retryable and does not falsely clear before cleanup.
+      if (!options?.forceLocal || (error instanceof Error && error.message === "PUSH_LOGOUT_SESSION_CHANGED")) throw error;
+      console.warn("[SessionContext] forced logout: push cleanup unavailable");
+    }
     setPendingRoute(null);
     await AsyncStorage.multiRemove([
       "auth_token", "auth_kind", "auth_admin", "auth_parent",
