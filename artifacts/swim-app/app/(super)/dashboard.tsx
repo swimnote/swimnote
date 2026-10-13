@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
+import PhotoPickerDiagnostic from "@/components/super/PhotoPickerDiagnostic";
 
 const P = "#7C3AED";
 const MINT = C.brandStrong;
@@ -204,7 +205,9 @@ const c = StyleSheet.create({
 
 /* ── 메인 컴포넌트 ── */
 export default function SuperDashboard() {
-  const { logout, token } = useAuth() as any;
+  const { logout, token, kind, adminUser, isLoading } = useAuth();
+  const canUsePickerDiagnostic = !isLoading && kind === "admin" && adminUser?.role === "super_admin";
+  const [showPickerDiagnostic, setShowPickerDiagnostic] = useState(false);
 
   const [stats,       setStats]       = useState<Stats | null>(null);
   const [todo,        setTodo]        = useState<Todo | null>(null);
@@ -270,10 +273,13 @@ export default function SuperDashboard() {
 
       {/* ── 헤더 ── */}
       <View style={s.header}>
-        <View>
+        <Pressable
+          delayLongPress={2000}
+          onLongPress={canUsePickerDiagnostic ? () => setShowPickerDiagnostic(true) : undefined}
+        >
           <Text style={s.headerTitle}>SWIMNOTE</Text>
           <Text style={s.headerSub}>{today}</Text>
-        </View>
+        </Pressable>
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <Pressable style={s.menuBtn} onPress={() => router.push("/(super)/global-menu" as any)}>
             <LucideIcon name="menu" size={18} color={P} />
@@ -291,6 +297,13 @@ export default function SuperDashboard() {
           </Pressable>
         </View>
       </View>
+
+      {showPickerDiagnostic && canUsePickerDiagnostic && (
+        <PhotoPickerDiagnostic
+          isAuthorized={canUsePickerDiagnostic}
+          onClose={() => setShowPickerDiagnostic(false)}
+        />
+      )}
 
       <ScrollView
         style={{ flex: 1, backgroundColor: BG }}
