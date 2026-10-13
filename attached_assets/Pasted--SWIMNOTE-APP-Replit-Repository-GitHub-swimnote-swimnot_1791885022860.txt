@@ -1,0 +1,345 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[긴급 수정 — 기존 SUPERADMIN X MODE 수동 부여 연결 복구]
+
+직전 조사 결과를 승인합니다.
+
+새 X entitlement 구조를 만들지 마십시오.
+RevenueCat 구조를 수정하지 마십시오.
+X Mode Gate를 재설계하지 마십시오.
+
+이미 구현된 기존 수동 X 부여 기능의
+끊어진 UI/API 연결 3곳만 최소 수정합니다.
+
+목표:
+
+슈퍼관리자
+→ 수영장 선택
+→ 기존 X MODE 부여
+→ 결제 없이 manual entitlement 저장
+→ mode=x
+→ 기존 X 기능 정상 활성화
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. PC SUPERADMIN X 부여 body 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swimnote-dashboard/src/pages/super/SuperPoolDetailPage.tsx
+
+현재 잘못된 요청:
+
+{ grant: true/false }
+
+실제 API contract:
+
+PATCH /api/super/operators/:id/xmode
+
+ON:
+{
+  xmode_entitlement: true,
+  x_plan_key: "<선택된 기존 X plan>",
+  reason?: "<기존 사유>"
+}
+
+OFF:
+{
+  xmode_entitlement: false,
+  reason?: "<기존 사유>"
+}
+
+로 맞추십시오.
+
+허용 plan:
+- x300
+- x500
+- x1000
+
+기존 화면에 plan 선택 UI가 이미 있다면 그대로 사용.
+없다면 최소한의 plan 선택만 추가하십시오.
+
+임의 plan을 서버에 하드코딩하지 마십시오.
+
+기존 pool에 x_plan_key가 있으면
+화면에서 기존 값을 초기 선택값으로 사용할 수 있습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 모바일 SUPERADMIN X 부여 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swim-app/app/(super)/operator-detail.tsx
+
+현재 ON:
+
+{ xmode_entitlement: true }
+
+만 보내 x_plan_key 누락으로 400 발생.
+
+PC와 동일한 canonical contract를 사용하십시오.
+
+ON:
+{
+  xmode_entitlement: true,
+  x_plan_key: "<선택된 plan>",
+  reason?: ...
+}
+
+OFF:
+{
+  xmode_entitlement: false,
+  reason?: ...
+}
+
+모바일에서도 x300/x500/x1000 중
+기존 UI 흐름에 맞는 최소 선택 기능을 제공합니다.
+
+PC와 Mobile이 서로 다른 X 부여 contract를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 모바일 성공 응답 판정 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 모바일은 성공 후 d.ok를 검사하지만
+실제 성공 response에는 ok field가 없습니다.
+
+실제 endpoint의 HTTP status/response contract를 기준으로
+성공을 판정하도록 수정하십시오.
+
+성공 시:
+
+- 오류 표시 금지
+- pool/operator 상태 재조회
+- 최신 X mode 상태 반영
+
+OFF 성공도 동일하게 처리.
+
+API 응답에 단순히 ok=true를 추가해서
+클라이언트 오류를 덮는 방식보다
+현재 canonical response에 맞추는 것을 우선하십시오.
+
+다른 소비자가 ok를 요구하는지 먼저 좁게 확인하고
+필요할 때만 API contract 변경.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Local Curriculum prerequisite 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기존 정책:
+
+manual X grant 전에
+active Pool Local Curriculum 필요
+
+조건:
+
+curriculum_versions.swimming_pool_id = 대상 pool
+is_global_reference = false
+is_active = true
+archived_at IS NULL
+
+이 prerequisite는 제거하지 마십시오.
+
+없으면:
+
+HTTP 422
+X_PREREQUISITE_NOT_MET
+LOCAL_CURRICULUM_NOT_ACTIVE
+
+를 유지합니다.
+
+단 SUPERADMIN UI에서 이 오류가 발생하면
+일반 실패처럼 뭉개지 말고
+
+“활성화된 수영장 커리큘럼이 필요합니다.”
+
+수준으로 관리자가 원인을 알 수 있게 표시하십시오.
+
+시범사업 pool도 순서는:
+
+가입
+→ Local Curriculum 준비/활성
+→ X MODE 부여
+
+입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Growth Report 즉시 보충 함수 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 super.ts:
+
+ensureCurrentMonthGrowthReportCycle(superAdminDb, poolId)
+
+실제 선언:
+
+ensureCurrentMonthGrowthReportCycle(poolId, db, now?)
+
+인자 순서가 반대입니다.
+
+정확히 canonical signature에 맞게 수정:
+
+ensureCurrentMonthGrowthReportCycle(poolId, superAdminDb)
+
+기존 함수 내부는 재설계하지 마십시오.
+
+목표:
+
+X manual grant 성공
+→ 해당 pool의 현재월 Growth Report cycle 보충 호출 정상
+
+단 이 background 작업 실패가
+이미 성공한 X entitlement 자체를 rollback하거나
+사용자에게 부여 실패로 오인시키지 않는
+현재 정책을 유지/확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Management Override 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+PATCH /api/super/operators/:id/management-override
+
+는 이번 시범사업 부여 경로로 사용하지 않습니다.
+
+시범사업도 기존:
+
+x_manual_entitlement
+
+경로를 사용합니다.
+
+이유:
+
+Growth Report 등 현재 X entitlement 판정과
+manual entitlement가 이미 연결되어 있기 때문입니다.
+
+override 구조 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 필수 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 실행합니다.
+
+격리 PostgreSQL fixture:
+
+Pool A
+- paid=false
+- manual=false
+- active Local Curriculum 있음
+
+PC ON:
+→ HTTP 200
+→ x_manual_entitlement=true
+→ x_plan_key 저장
+→ xmode_config_status=READY
+→ resolvePoolMode() = x
+
+Mobile ON:
+→ 동일 결과
+→ 성공 UI 처리
+→ 재조회 후 X 활성 표시
+
+PC OFF:
+→ manual=false
+→ 기존 curriculum 보존
+
+Mobile OFF:
+→ 동일
+→ 잘못된 오류 표시 없음
+
+Local Curriculum 없음:
+→ ON
+→ 422
+→ entitlement 미변경
+→ SUPERADMIN에게 prerequisite 안내
+
+다른 Pool B:
+→ 모든 DB row/state 불변
+
+Growth Report:
+→ manual grant 직후
+ensureCurrentMonthGrowthReportCycle
+올바른 인자 순서로 호출됨
+
+그리고 기존:
+
+- manual grant tests
+- X mode resolver
+- X management override regression
+- Growth Report entitlement 관련 테스트
+
+중 수정 관련 범위만 실행.
+
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트 및 build/bundle PASS 시 배포.
+
+API:
+Render Production
+
+PC:
+swimnote-web Production
+
+Mobile JS/TS:
+production-v2
+iOS + Android OTA
+
+Native 변경 없으므로
+binary/store build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+SUPERADMIN X GRANT = PASS/HOLD
+
+PC GRANT BODY = PASS/HOLD
+MOBILE GRANT BODY = PASS/HOLD
+MOBILE SUCCESS HANDLING = PASS/HOLD
+LOCAL CURRICULUM PREREQUISITE = PASS/HOLD
+X MANUAL ENTITLEMENT = PASS/HOLD
+X MODE RESOLVER = PASS/HOLD
+GROWTH REPORT IMMEDIATE CYCLE = PASS/HOLD
+MANUAL OFF = PASS/HOLD
+POOL ISOLATION = PASS/HOLD
+
+PAYMENT REQUIRED FOR MANUAL GRANT = NO
+
+RELATED TESTS =
+API BUILD =
+WEB BUILD =
+IOS BUNDLE =
+ANDROID BUNDLE =
+
+Commit full SHA =
+GitHub main full SHA =
+
+Render API Deploy ID =
+API LIVE full SHA =
+
+Web Deploy ID =
+Web LIVE full SHA =
+
+OTA:
+iOS Update ID =
+Android Update ID =
+Group ID =
+channel =
+runtimeVersion =
+source full SHA =
+
+마지막에 반드시 답하세요:
+
+“신규 가입 수영장에 활성 Local Curriculum을 준비한 뒤
+슈퍼관리자가 현재 X MODE 부여 화면에서
+X 플랜을 선택해 활성화하면,
+별도 결제 없이 해당 수영장이 정상 X MODE로 활성화됨 = YES/NO”
+
+보고 후 정지하세요.
