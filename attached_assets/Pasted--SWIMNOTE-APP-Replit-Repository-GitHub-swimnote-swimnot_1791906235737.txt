@@ -1,0 +1,217 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[사진 전체앨범 실제 제보 원인 확정 — iOS picker → upload index 경계 검증]
+
+직전 PHOTO ORDER FORENSIC 결과를 승인합니다.
+
+현재 확인된 사실:
+
+- 전체앨범 직접 업로드의 압축 순서 보존 = PASS
+- session files 순서 보존 = PASS
+- upload_sort_order 저장 = PASS
+- R2 병렬 완료가 순서에 영향 없음 = PASS
+- DB 전체앨범 ORDER BY = PASS
+- API response 순서 = PASS
+- teacher 전체앨범 UI render 순서 = PASS
+- 2026-10-13 Production 신규 50장:
+  upload_batch_id 존재
+  upload_sort_order 0~49 정상
+  현재 SQL도 0~49 반환
+
+따라서 이번 작업에서는
+서버/DB/ORDER BY/uploader를 수정하지 마십시오.
+
+목표는 단 하나:
+
+실제 iOS 전체앨범 업로드에서
+
+사용자가 탭한 순서
+→ expo-image-picker result.assets 순서
+→ upload_sort_order
+
+이 세 단계가 실제로 동일한지 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production 배포 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 현재 production-v2 OTA에서
+app/(teacher)/photos.tsx의
+
+orderedSelection=true
+uploadBatchId
+global upload_sort_order
+
+수정이 실제 활성 source에 포함되어 있는지 확인하세요.
+
+확인:
+
+- 현재 production-v2 최신 iOS Update ID
+- source SHA
+- 해당 source에서 photos.tsx orderedSelection=true 존재
+- runtimeVersion
+- 현재 App Store binary와 OTA 호환 여부
+
+코드에 있다고 끝내지 말고
+현재 iOS Production 사용자가 실제 받을 수 있는 OTA인지 확인.
+
+이 단계에서는 새 OTA 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. picker 직후 순서 추적 가능성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체앨범 photos.tsx에서
+
+launchImageLibraryAsync()
+직후 result.assets 배열이
+
+어떤 순서로 directUploadPhotos에 전달되는지 다시 좁게 확인.
+
+현재 선택 순서가 깨진다면
+이 지점보다 앞에는 SWIMNOTE 코드가 없습니다.
+
+확인할 값:
+
+picker result array index
+→ directUpload input index
+→ upload_sort_order
+
+현재 코드에서 이 mapping은:
+
+0→0
+1→1
+2→2
+...
+
+인지 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 개인정보 없는 실기기 진단 방법 제시
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 고객 사진을 출력하거나
+사진명/학생명/asset URI를 로그에 남기지 마십시오.
+
+실제 iPhone에서 아래를 확인할 수 있는
+최소 진단 방법만 준비하세요.
+
+10장의 테스트 이미지를
+눈으로 식별 가능한 번호 01~10으로 준비하고
+
+사용자가 picker에서 의도적으로:
+
+03 → 01 → 07 → 02 → 10 → 04 → 06 → 09 → 05 → 08
+
+순서로 탭.
+
+확인해야 할 것:
+
+A. picker 선택 badge 순서
+B. result.assets array index
+C. directUploadPhotos 전달 index
+D. upload_sort_order
+E. 최종 전체앨범 표시 순서
+
+사진 원본/파일명/URI는 기록하지 말고
+진단용 ordinal만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 원인 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+
+picker badge =
+03,01,07,02,10,04,06,09,05,08
+
+assets result =
+03,01,07,02,10,04,06,09,05,08
+
+최종 album =
+03,01,07,02,10,04,06,09,05,08
+
+이면:
+
+전체앨범 코드 경로는 정상.
+
+현재 제보는
+다른 업로드 진입점 또는 사용자가 기대한 정렬 기준과
+실제 선택 순서 차이를 다시 추적해야 함.
+
+CASE B
+
+picker badge는 정상인데
+assets result부터 순서가 다르면:
+
+FIRST BREAK =
+native/expo image picker result
+
+CASE C
+
+assets는 정상인데
+upload_sort_order가 달라지면:
+
+FIRST BREAK =
+SWIMNOTE client mapping
+
+CASE D
+
+upload_sort_order까지 정상인데
+최종 album이 다르면:
+
+직전 forensic 결과와 모순되므로
+실제 Production API response와 UI state를 다시 좁게 추적.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 다른 사진 경로는 이번에 수정하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 확인된:
+
+- 저장 개인앨범 created_at DESC 역순
+- 일지 retry batch/index 손실
+- clone metadata/order 문제
+- 관리자 legacy queue의 explicit order 없음
+
+은 별도 실제 버그로 기록만 유지.
+
+이번 작업에서는 고치지 마십시오.
+
+현재 사용자가 제보한
+“선생님 사진 전체앨범 직접 업로드”
+원인부터 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+PHOTO ALL-ALBUM ROOT CAUSE = PASS/HOLD
+
+PRODUCTION IOS OTA CONTAINS ORDER FIX = YES/NO
+ORDERED_SELECTION ACTIVE = YES/NO
+PICKER BADGE ORDER =
+PICKER RESULT ORDER =
+DIRECT UPLOAD INPUT ORDER =
+UPLOAD_SORT_ORDER =
+FINAL ALBUM ORDER =
+
+FIRST BREAK POINT =
+ROOT CAUSE =
+
+IS THIS SERVER/DB ORDER BUG = YES/NO
+IS THIS R2 COMPLETION ORDER BUG = YES/NO
+IS THIS PICKER/CLIENT BOUNDARY BUG = YES/NO
+
+CODE CHANGE = 0
+PRODUCTION WRITE = 0
+COMMIT/PUSH/DEPLOY = 0
+
+마지막에 반드시 답하세요:
+
+“현재 제보된 선생님 사진 전체앨범 순서 꼬임의 최초 발생 지점은 ______이며,
+원인은 ______로 확정됨 / 아직 확정 불가.”
+
+보고 후 정지하세요.
