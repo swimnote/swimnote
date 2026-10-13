@@ -1,0 +1,212 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[사진 순서 최종 원인 조사 — 후보 A의 촬영순서 vs upload_sort_order 비교]
+
+직전 조사 결과를 승인합니다.
+
+이미 PASS로 확정된 항목은 다시 조사하거나 수정하지 마십시오.
+
+확정:
+- 후보 A = 2026-10-13 23:15 KST / 50장
+- direct upload 50장
+- 단일 upload_batch_id
+- upload_sort_order 0~49 완전
+- retry 0
+- clone 0
+- legacy 0
+- NULL batch/order 0
+- 서버/DB/API/UI ordering PASS
+- 실제 iPhone diagnostic에서 수동 탭 순서 → picker result 순서 PASS
+
+이번 작업의 목적은 단 하나입니다.
+
+후보 A 50장이
+서버에 들어오기 전부터 이미
+“촬영 순서와 다른 배열”이었는지를 확인합니다.
+
+코드 수정 금지.
+Production write 금지.
+OTA 금지.
+진단 UI 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 후보 A 원본 metadata READ ONLY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+후보 A 50개의 R2 object를 READ ONLY로 확인하세요.
+
+사진 자체를 출력하거나 저장하지 마십시오.
+학생/수영장/파일명/object key/사진 ID 출력 금지.
+
+각 object에서 존재한다면 아래 metadata만 내부적으로 추출:
+
+- EXIF DateTimeOriginal
+- EXIF CreateDate
+- EXIF ModifyDate
+- 기타 실제 촬영시각 metadata
+
+우선순위는 실제 촬영시간을 가장 잘 나타내는 필드.
+
+압축 과정에서 EXIF가 제거되어 전부 존재하지 않는다면
+그 사실만 보고하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. upload order와 촬영시간 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 사진을 익명화:
+
+A00 = upload_sort_order 0
+A01 = upload_sort_order 1
+...
+A49 = upload_sort_order 49
+
+그리고 각 Axx의 촬영시간 rank를 계산하세요.
+
+실제 timestamp는 출력하지 말고
+다음처럼 rank만 보고:
+
+UPLOAD ORDER:
+A00,A01,A02,...,A49
+
+CAPTURE-TIME ORDER:
+예)
+A00,A01,A05,A02,A03,...
+
+확인:
+
+- 완전히 동일한가
+- 부분적으로 다른가
+- 완전히 뒤섞였는가
+- 역순인가
+
+계산:
+
+CAPTURE ORDER MONOTONIC = YES/NO
+ADJACENT INVERSIONS =
+TOTAL ORDER INVERSIONS =
+LONGEST MONOTONIC RUN =
+
+동일 timestamp가 있는 경우
+그 사진끼리는 순서 판정에서 제외하거나 tie로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 가장 중요한 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+
+upload_sort_order 0~49와
+capture-time order가 동일하거나 실질적으로 동일
+
+→ 후보 A는 촬영순서 자체도 보존.
+
+그러면 현재 확보 증거상
+후보 A가 사용자 제보의 실제 batch인지 다시 확인해야 함.
+
+CASE B
+
+upload_sort_order 0~49와
+capture-time order가 명확하게 다름
+
+→ 후보 A는 DB에 들어올 당시부터
+촬영순서와 다른 배열이었다는 뜻.
+
+이 경우 서버/DB 문제 아님.
+
+다음 중 하나로 좁혀짐:
+
+- 실제 사용자가 촬영순서와 다르게 선택
+- 실제 50장 선택 방법에서 picker가 다른 order 반환
+- 제품 계약이 선택순서이고 사용자는 촬영순서를 기대
+
+이 셋을 구분해서 보고.
+
+CASE C
+
+EXIF/촬영시간 metadata가 없음
+
+→ 임의 추론 금지.
+
+그 경우에만 다음 단계로
+실제 선생님의 50장 선택 방식
+(개별 탭 / 드래그 선택 / 스크롤하면서 선택)
+재현이 필요하다고 보고하고 정지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. client compression에서 EXIF 제거 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 direct uploader의 compression/image manipulation이
+EXIF를 보존하는지 확인하세요.
+
+후보 A R2 object에서 EXIF가 없는 경우:
+
+- 원래 picker asset에는 creationTime이 존재했는지
+- 앱이 그 값을 현재 upload contract에 전달하지 않는지
+
+코드만 READ ONLY로 확인.
+
+새 metadata 저장 기능은 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 화면과 후보 A 정합성
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자 제보 screenshot 정보와
+후보 A metadata를 개인정보 없이 비교하세요.
+
+확인 가능한 것만:
+
+- 업로드 시각
+- 사진 개수
+- 화면 표시 시각
+- 당시 전체앨범 count 변화 등
+
+이를 근거로:
+
+SCREENSHOT LIKELY BATCH A =
+HIGH / MEDIUM / LOW
+
+로만 판정.
+
+사진 내용 비교/얼굴 분석 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+CAPTURE ORDER FORENSIC = PASS/HOLD
+
+BATCH A EXIF AVAILABLE = YES/NO/PARTIAL
+CAPTURE ORDER MONOTONIC = YES/NO/UNKNOWN
+ADJACENT INVERSIONS =
+TOTAL ORDER INVERSIONS =
+LONGEST MONOTONIC RUN =
+
+UPLOAD ORDER VS CAPTURE ORDER =
+SAME / DIFFERENT / UNKNOWN
+
+PICKER ASSET CREATION TIME AVAILABLE IN CLIENT = YES/NO
+CLIENT CURRENTLY SENDS CAPTURE TIME = YES/NO
+COMPRESSION PRESERVES EXIF = YES/NO/PARTIAL
+
+SCREENSHOT LIKELY BATCH A =
+HIGH/MEDIUM/LOW
+
+FIRST BREAK POINT =
+ROOT CAUSE =
+
+CODE CHANGE = 0
+PRODUCTION WRITE = 0
+COMMIT/PUSH/DEPLOY = 0
+
+마지막에 정확히 답하세요:
+
+“후보 A 50장의 화면상 순서가 촬영순서와 비교했을 때
+______이며, 따라서 사진이 섞여 보이는 현상은
+______ 단계 이전/이후에서 발생한 것으로 판단된다.”
+
+EXIF가 없으면 원인을 만들지 말고 HOLD로 정지하세요.
