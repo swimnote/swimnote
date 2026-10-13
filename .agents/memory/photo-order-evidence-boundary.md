@@ -24,3 +24,11 @@ description: 사용자가 확인한 iOS picker 정상 결과와 사진 제보 pr
 **Why:** iOS의 모듈 컴파일·링크와 Android의 모듈 autolinking을 확인했어도, Android 빌드의 권한 제거 정책 때문에 앱 내부 사진첩 읽기는 별도 네이티브 변경이 필요했다. 모듈 존재와 읽기 권한 확보는 독립 조건이다.
 
 **How to apply:** 새 picker 구현 전에 iOS와 Android를 각각 검증한다. native change가 필요하면 OTA 금지라는 사용자 지시를 준수하며, 권한 정책을 임의 변경하거나 한 플랫폼의 확인을 다른 플랫폼에 일반화하지 않는다.
+
+## 휴대폰 custom picker 명시적 보류
+
+2026-10-14 사용자는 휴대폰 앨범 custom picker·drag multi-select·Android 사진 읽기 권한 작업을 중단하고 별도 재개 지시까지 보류했다. iOS/Android 시스템 picker와 기존 orderedSelection 계약을 유지한다.
+
+**Why:** 이번 보류가 Production 사진 업로드나 선택순서를 바꾸어서는 안 된다는 명시적 지시다.
+
+**How to apply:** 비활성 초안의 기본 경로 영향만 읽기 전용으로 확인한다. 별도 재개 지시 없이 custom picker 활성화·추가 구현·READ_MEDIA_IMAGES/READ_EXTERNAL_STORAGE 변경·새 native build·OTA·Store 제출을 하지 않는다.
