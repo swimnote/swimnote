@@ -1,0 +1,324 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[휴대폰 앨범 업로드 UX 수정 — iOS 시스템 picker 대신 SWIMNOTE 내부 사진선택기]
+
+현재 실기기 확인:
+
+사진 업로드 시 여전히 iOS 기본 PHPicker가 열리고 있음.
+
+현재 화면에서는:
+- 다중 선택 가능
+- 선택 순서 번호 표시
+- orderedSelection=true
+- 그러나 사진 위를 손가락으로 쓸면서 여러 장 연속 선택 불가
+- 화면 가장자리까지 드래그하면서 자동 스크롤 선택 불가
+
+사용자 요구:
+
+휴대폰 앨범에서도
+
+- 탭으로 개별 선택
+- 사진 위를 손가락으로 쭉 밀면서 연속 선택
+- 선택된 사진 위에서 드래그 시작 시 연속 해제
+- 화면 하단/상단으로 끌면 자동 스크롤하면서 계속 선택
+- 최대 100장
+- 선택 순서가 deterministic하게 유지
+
+되어야 함.
+
+중요:
+orderedSelection=false로 바꾸는 방식으로 해결하지 마십시오.
+기존 사진 순서 보존 기능을 약화시키지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 현재 binary에서 custom photo library 구현 가능 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 App Store binary / runtimeVersion 2.2.0에
+이미 포함된 사진 라이브러리 접근 native module을 확인하세요.
+
+우선 확인:
+
+- expo-media-library 설치 여부
+- expo-media-library가 현재 binary native bundle에 포함되어 있는지
+- 현재 JS/TS OTA만으로 사용할 수 있는지
+- 기타 이미 포함된 photo library access module 존재 여부
+
+판정:
+
+A. 현재 binary에서 이미 사용 가능
+→ 아래 custom picker 구현 진행
+
+B. dependency는 package에 없거나 native binary에 없음
+→ 새 native dependency 설치하지 말고 HOLD
+→ 새 iOS/Android binary가 필요한 정확한 이유만 보고
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 가능하면 시스템 picker를 custom in-app picker로 교체
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+선생님 사진 → 휴대폰에서 사진 추가
+
+현재:
+launchImageLibraryAsync()
+→ iOS PHPicker
+
+목표:
+SWIMNOTE 내부 Photo Library Picker
+→ 기존 directUploadPhotos
+
+즉 시스템 picker 대신
+앱 내부에서 사진 라이브러리를 grid로 보여줍니다.
+
+UI:
+
+- 3열 또는 현재 앱에 맞는 grid
+- 최신 사진부터
+- thumbnail만 로딩
+- 선택된 사진에는 선택 순번 표시
+- 상단 선택 개수
+- 완료
+- 취소
+
+최대 100장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 선택 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 지원:
+
+A. 탭 선택
+사진 한 장 선택.
+
+B. 탭 해제
+선택된 사진 다시 탭하면 해제.
+
+C. drag select
+사진 위에서 손가락을 누른 채
+옆/아래 셀을 지나가면 연속 선택.
+
+D. drag deselect
+선택된 셀에서 gesture 시작 시
+지나가는 사진을 연속 해제.
+
+gesture 시작 시 mode를:
+
+SELECT
+또는
+DESELECT
+
+중 하나로 고정.
+
+같은 셀을 다시 지나가도
+한 gesture 안에서 상태가 반복 toggle되지 않도록
+visited set 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. edge auto-scroll
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진을 많이 선택할 때 필수.
+
+drag 중 손가락이:
+
+하단 edge zone
+→ 아래 자동스크롤
+
+상단 edge zone
+→ 위 자동스크롤
+
+스크롤 중 새 셀도 계속 선택/해제.
+
+손가락 release:
+→ 즉시 auto-scroll stop
+→ gesture 종료
+
+화면 밖으로 runaway scroll 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 선택 순서 계약
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+기존 upload ordering은 유지합니다.
+
+새 custom picker에서 사진이 선택되는 순간마다
+selection sequence를 명시적으로 기록합니다.
+
+예:
+
+사진 A 선택 → order 0
+사진 B 선택 → order 1
+사진 C 선택 → order 2
+
+중간에 B 해제 후 다시 선택하면
+현재 제품 UX에 맞게
+새 마지막 order로 재부여하는 방식을 사용.
+
+완료 시:
+
+selectedAssets 배열을
+selection sequence ASC로 생성.
+
+그 배열을 그대로:
+
+compressPhotosParallel
+→ directUploadPhotos
+→ upload_sort_order
+
+에 전달.
+
+기존:
+
+upload_batch_id
+upload_sort_order
+global offset
+
+계약 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Photo Library pagination
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 사진을 한 번에 메모리에 올리지 마십시오.
+
+현재 사용 가능한 media library API 기준으로
+pagination/cursor 사용.
+
+thumbnail grid는 점진적으로 로드.
+
+scroll 위치 유지.
+
+대량 앨범에서도
+메모리 폭증이나 freeze가 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 권한 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 iOS/Android photo permission 정책을 재사용.
+
+iOS Limited Photos 권한도 고려.
+
+권한 없음:
+→ 기존 앱 UX에 맞게 권한 안내
+
+Limited:
+→ 허용된 사진만 표시
+
+권한 관련 native 설정을 새로 요구하면
+현재 binary에서 가능한지 먼저 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 시스템 picker fallback
+━━━━━━━━━━━━━━━━━━━━━━
+
+custom picker가 정상 구현되면
+선생님 사진 업로드의 기본 경로는 custom picker 사용.
+
+단 기존 PHPicker 코드를 즉시 삭제하지 마십시오.
+
+rollback/fallback용으로 유지 가능.
+
+그러나 정상 사용자 흐름에서는
+custom picker가 기본이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만.
+
+필수:
+
+1. 탭 1장 선택
+2. 탭 10장 선택
+3. drag로 10장 연속 선택
+4. drag select 중 가로/세로 이동
+5. drag deselect
+6. 같은 셀 재진입 시 double toggle 없음
+7. 하단 auto-scroll
+8. 상단 auto-scroll
+9. 50장 drag 선택
+10. 100장 제한
+11. 선택 순번 정확
+12. 일부 해제 후 다시 선택 순번 정확
+13. 완료 배열 순서 = selection sequence
+14. 기존 upload_sort_order와 동일
+15. 취소 시 업로드 0
+16. permission denied
+17. limited permission
+18. iOS/Android 공통 동작
+
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 binary에 필요한 native module이 이미 포함되어 있고
+JS/TS-only 구현이면:
+
+production-v2
+iOS + Android OTA
+
+Native change가 필요하면:
+OTA 금지
+새 binary 필요 여부만 보고하고 정지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+CUSTOM PHONE PHOTO PICKER = PASS/HOLD
+
+EXISTING MEDIA LIBRARY MODULE =
+AVAILABLE IN CURRENT BINARY = YES/NO
+NATIVE BUILD REQUIRED = YES/NO
+
+SYSTEM PHPICKER REPLACED AS DEFAULT = YES/NO
+
+TAP SELECT =
+DRAG SELECT =
+DRAG DESELECT =
+EDGE AUTO SCROLL =
+50 PHOTO SELECT =
+100 PHOTO LIMIT =
+SELECTION ORDER =
+UPLOAD ORDER REGRESSION =
+
+FILES CHANGED =
+RELATED TESTS =
+IOS BUNDLE =
+ANDROID BUNDLE =
+
+Commit full SHA =
+GitHub main full SHA =
+
+OTA:
+iOS Update ID =
+Android Update ID =
+Group ID =
+channel =
+runtimeVersion =
+source full SHA =
+
+마지막에 답하세요:
+
+“휴대폰 사진앨범에서도 한 장씩 탭하지 않고
+손가락으로 사진들을 쭉 밀면서 선택하고,
+화면 끝에서 자동스크롤하며 계속 선택할 수 있음 = YES/NO”
+
+그리고
+
+“기존 사진 선택순서 보존 기능도 그대로 유지됨 = YES/NO”
+
+보고 후 정지하세요.
