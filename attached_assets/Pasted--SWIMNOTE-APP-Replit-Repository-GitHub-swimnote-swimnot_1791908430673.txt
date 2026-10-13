@@ -1,0 +1,215 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[임시 진단 — iOS 사진 선택 순서 최초 깨짐 지점 확정]
+
+직전 조사 결과를 승인합니다.
+
+현재 확정:
+
+- Production iOS OTA에 orderedSelection=true 포함
+- picker result 이후 client index 보존 PASS
+- compress 순서 보존 PASS
+- directUpload 순서 보존 PASS
+- upload_sort_order 보존 PASS
+- DB/API/전체앨범 UI 순서 보존 PASS
+- R2 병렬 완료 순서는 원인 아님
+
+따라서 이번 작업에서는
+서버/API/DB/R2/upload/order query를 수정하지 마십시오.
+
+목표는 단 하나:
+
+실제 iPhone에서
+사용자 탭 순서와 expo-image-picker result.assets 순서가
+같은지 직접 확인하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 임시 진단 UI만 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 기능에는 넣지 않습니다.
+
+현재 production binary와 동일한:
+
+runtimeVersion = 2.2.0
+
+에서 동작 가능한
+JS/TS-only 진단 UI를 별도 preview OTA로 만드세요.
+
+Native 변경 금지.
+Store build 금지.
+Production-v2 배포 금지.
+
+가능하면 기존 teacher photos.tsx 흐름을 재사용하되
+실제 업로드 직전에서 멈추는 진단 모드로 구현합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 진단 동작
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 선택:
+
+allowsMultipleSelection = true
+orderedSelection = true
+selectionLimit = 10
+
+picker 완료 후
+절대 업로드하지 말고
+result.assets 배열을 그대로 화면에 표시합니다.
+
+화면에는:
+
+[1] thumbnail
+[2] thumbnail
+[3] thumbnail
+...
+[10] thumbnail
+
+형태로
+
+result.assets[0]
+result.assets[1]
+...
+
+순서대로 표시하세요.
+
+중요:
+
+- URI 텍스트 표시 금지
+- 파일명 표시 금지
+- assetId 표시 금지
+- EXIF 표시 금지
+- 서버 전송 금지
+- 로그 출력 금지
+
+오직 로컬 thumbnail과
+배열 index 번호만 표시합니다.
+
+버튼:
+
+[다시 선택]
+[닫기]
+
+만 있으면 됩니다.
+
+업로드 버튼 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 테스트 방법
+━━━━━━━━━━━━━━━━━━━━━━
+
+번호가 크게 적힌 테스트 이미지 10장을 사용.
+
+사용자가 다음 순서로 탭:
+
+03
+01
+07
+02
+10
+04
+06
+09
+05
+08
+
+picker badge가 위 순서대로:
+
+1,2,3,4,5,6,7,8,9,10
+
+붙는지 눈으로 확인.
+
+그 뒤 진단 화면에서 result.assets가:
+
+[1] 03
+[2] 01
+[3] 07
+[4] 02
+[5] 10
+[6] 04
+[7] 06
+[8] 09
+[9] 05
+[10] 08
+
+인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A:
+
+picker badge 순서와
+result.assets 순서가 동일
+
+→ iOS picker boundary PASS
+
+이 경우 현재 선생님 전체앨범 직접 업로드의
+canonical 경로에서는 순서가 깨질 지점이 없음.
+
+따라서 실제 제보가:
+
+- 다른 업로드 진입점
+- 재시도
+- 저장 개인앨범
+- 일지 사진
+- 기존 관리자 업로드
+- 사용자가 기대한 촬영순서와 선택순서의 차이
+
+중 어느 경로인지 다시 특정해야 함.
+
+CASE B:
+
+picker badge는 선택순서대로인데
+result.assets 배열 순서가 다름
+
+→ ROOT CAUSE 확정:
+
+iOS native / expo-image-picker picker result boundary.
+
+CASE C:
+
+result.assets는 정상
+
+→ 이번 진단에서는 client/server 수정 금지.
+실제 제보자가 사용한 정확한 화면/경로를 다시 식별.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production OTA 금지.
+
+별도 preview/debug branch로만 OTA.
+
+현재 App Store binary와 호환되는
+runtimeVersion 2.2.0 사용.
+
+진단 종료 후
+production-v2에는 아무 영향 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+PHOTO PICKER DEVICE DIAGNOSTIC = READY/HOLD
+
+FILES CHANGED =
+NATIVE CHANGE = 0
+SERVER CHANGE = 0
+DB CHANGE = 0
+
+Preview OTA:
+iOS Update ID =
+branch =
+runtimeVersion =
+source SHA =
+
+UPLOAD CAPABILITY IN DIAGNOSTIC = NO
+SERVER REQUEST = 0
+
+실제 테스트는 사용자가 iPhone에서 수행할 것이므로
+진단 화면 준비까지만 하고 정지하세요.
