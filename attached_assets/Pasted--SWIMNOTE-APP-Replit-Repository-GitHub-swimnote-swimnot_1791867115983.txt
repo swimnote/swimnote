@@ -1,0 +1,226 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[Attendance Identity 충돌 원인 조사 — READ ONLY]
+
+직전 MULTI-CLASS PREFLIGHT에서 발견된 Production attendance 충돌만 조사합니다.
+
+이번 작업에서는:
+
+- 코드 수정 금지
+- DB mutation 금지
+- migration 금지
+- duplicate 삭제/merge 금지
+- NULL class 보정 금지
+- commit/push/deploy 금지
+- 전체 audit 금지
+- 관련 없는 test 금지
+
+목표는 다음 두 항목의 의미를 확정하는 것입니다.
+
+A.
+student_id + class_group_id + date가 완전히 동일한
+중복 1개 그룹 / 2행
+
+B.
+class_group_id IS NULL attendance 87행
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 중복 2행 forensic
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 2행을 PII 없이 비교하세요.
+
+반드시 확인:
+
+- attendance.id
+- pool_id
+- student_id는 마스킹된 동일성 여부만
+- class_group_id는 마스킹된 동일성 여부만
+- date
+- status
+- session_type
+- created_at
+- updated_at
+- check_in/out 관련 필드
+- absence/makeup 연결 필드
+- created_by / teacher 관련 필드가 있으면 동일성 여부
+- memo/note가 있으면 내용 출력 금지, null/비어있음/서로다름 여부만
+- 기타 attendance 의미를 바꿀 수 있는 모든 필드
+
+그리고 두 행이:
+
+A. 완전한 의미 중복
+B. 같은 class/date지만 서로 다른 session
+C. 정규수업 + 보강
+D. 상태변경 과정에서 이중생성
+E. legacy migration 산물
+F. 기타
+
+중 무엇인지 실제 증거로 판정하세요.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 중복 생성 경로 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 행의 created_at과 관련 코드 경로를 기준으로
+어떤 API/서비스가 같은 식별키로 두 행을 만들 수 있는지 추적하세요.
+
+특히 확인:
+
+- 일반 attendance POST
+- attendance upsert/update
+- makeup completion
+- absence → makeup
+- bulk attendance
+- legacy endpoint
+- migration/import
+
+현재 코드에서
+동일 student/class/date에 INSERT가 두 번 가능해지는 경로를 찾으세요.
+
+실제 root cause가 증명되지 않으면
+“미확정”으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. NULL class 87행 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+87행을 삭제/보정하지 말고
+집계만 하세요.
+
+다음 기준별 count:
+
+- 연도/월
+- session_type
+- status
+- 학생 현재 active class 존재 여부
+- 해당 날짜 당시 student_class_history로 class 추론 가능 여부
+- 해당 날짜 당시 active class가 정확히 1개였는지
+- 해당 날짜 당시 active class가 2개 이상이었는지
+- 해당 날짜 당시 active class가 0개였는지
+- makeup/absence 연결 여부
+- 생성 endpoint/source를 식별할 수 있으면 source별 count
+
+중요:
+
+현재 대표 class_group_id를 이용해
+임의로 class를 채우지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. NULL 87행의 안전한 처리 가능성 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 NULL row를 다음 범주로만 분류하세요.
+
+A. HISTORIC_UNAMBIGUOUS
+해당 날짜 기준 active class가 정확히 1개이고
+다른 증거도 일치하여 class를 확정 가능
+
+B. HISTORIC_AMBIGUOUS
+해당 날짜 기준 가능한 class가 2개 이상
+
+C. NO_CLASS_CONTEXT
+당시 class membership 자체가 없음
+
+D. MAKEUP_OR_SPECIAL
+정규 class assignment만으로 판단하면 안 되는 기록
+
+E. UNKNOWN
+
+각 범주의 count만 보고하세요.
+
+아직 UPDATE 하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. attendance identity 후보 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 데이터와 코드 기준으로
+다음 후보를 비교하세요.
+
+후보 A:
+student_id + class_group_id + date
+
+후보 B:
+student_id + class_group_id + date + session_type
+
+후보 C:
+student_id + class_group_id + lesson/session identifier
+(기존 식별자가 실제 schema에 존재하는 경우만)
+
+후보 D:
+새 attendance_session_id 도입
+
+평가 기준:
+
+- 주2회 서로 다른 반
+- 같은 날 두 반
+- 정규수업 + 보강
+- 같은 반 하루 2타임 가능성
+- legacy row
+- 기존 API 변경량
+- migration 위험
+- 앞으로의 충돌 가능성
+
+새 구조를 설계하기 위한 일반론이 아니라
+현재 SWIMNOTE 실제 schema와 운영데이터에 맞춰 비교하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 이번 조사에서 결정해야 할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 세 가지를 명확히 답하세요.
+
+1.
+중복 2행은
+하나를 제거해도 의미 손실 없는 실제 duplicate인가?
+YES / NO / UNKNOWN
+
+2.
+NULL 87행 중
+과거 membership만으로 안전하게 class를 복원 가능한 행 수는 몇 개인가?
+
+3.
+앞으로의 canonical attendance identity로
+가장 안전한 최소 변경안은 무엇인가?
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+ATTENDANCE FORENSIC = PASS/HOLD
+
+DUPLICATE GROUP:
+row count =
+semantic duplicate = YES/NO/UNKNOWN
+root cause =
+safe cleanup possible = YES/NO
+
+NULL CLASS ROWS = 87
+
+HISTORIC_UNAMBIGUOUS =
+HISTORIC_AMBIGUOUS =
+NO_CLASS_CONTEXT =
+MAKEUP_OR_SPECIAL =
+UNKNOWN =
+
+CANONICAL IDENTITY RECOMMENDATION =
+이유 =
+
+MIGRATION PATH =
+단, 실제 migration은 실행하지 말 것.
+
+PRODUCTION WRITE = 0
+CODE CHANGE = 0
+COMMIT/PUSH/DEPLOY = 0
+
+마지막에 다음 문장으로 결론:
+
+“MULTI-CLASS 수정 재개를 위한 attendance 데이터 처리 규칙을
+안전하게 확정할 수 있음 = YES/NO”
+
+보고 후 정지하세요.
