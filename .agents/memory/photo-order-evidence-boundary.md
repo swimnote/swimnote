@@ -16,3 +16,11 @@ description: 사용자가 확인한 iOS picker 정상 결과와 사진 제보 pr
 **Why:** 선택 편의 개선은 기존 사진 순서 보존 계약을 약화할 이유가 아니다. 사용자는 orderedSelection=false로의 단순 변경과 upload_sort_order·upload_batch_id·direct upload·DB 정렬 변경을 금지했다.
 
 **How to apply:** 내부 선택 UX와 기기 사진첩 picker 교체를 별도 작업으로 취급한다. 기존 화면별 선택 제한과 저장/첨부 순서는 유지한다. 촬영시각 기준 라이브러리 표시 순서와 사용자의 선택 순서를 혼동하지 않는다.
+
+## 기기 사진첩 교체의 네이티브 검증 경계
+
+사진 라이브러리 모듈이 바이너리에 포함된 사실만으로 JS OTA 교체가 가능하다고 판정하지 않는다. 실제 배포 바이너리의 플랫폼별 읽기 권한 계약까지 먼저 확인한다.
+
+**Why:** iOS의 모듈 컴파일·링크와 Android의 모듈 autolinking을 확인했어도, Android 빌드의 권한 제거 정책 때문에 앱 내부 사진첩 읽기는 별도 네이티브 변경이 필요했다. 모듈 존재와 읽기 권한 확보는 독립 조건이다.
+
+**How to apply:** 새 picker 구현 전에 iOS와 Android를 각각 검증한다. native change가 필요하면 OTA 금지라는 사용자 지시를 준수하며, 권한 정책을 임의 변경하거나 한 플랫폼의 확인을 다른 플랫폼에 일반화하지 않는다.

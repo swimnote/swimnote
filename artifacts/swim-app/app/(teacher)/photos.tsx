@@ -23,6 +23,8 @@ import { useBrand } from "@/context/BrandContext";
 import { useUploadQueue } from "@/context/UploadQueueContext";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
 import { usePhotoDragSelection } from "@/hooks/usePhotoDragSelection";
+import { usePhonePhotoPicker } from "@/hooks/usePhonePhotoPicker";
+import { USE_CUSTOM_PHONE_PHOTO_PICKER } from "@/utils/phonePhotoPicker";
 
 const C = Colors.light;
 const { width: W } = Dimensions.get("window");
@@ -128,6 +130,7 @@ export default function TeacherPhotosScreen() {
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const mountedRef = useRef(true);
+  const phonePicker = usePhonePhotoPicker();
   const [groups,   setGroups]   = useState<TeacherClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -482,6 +485,11 @@ export default function TeacherPhotosScreen() {
     try {
       if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
       if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
+      if (!isVideo && USE_CUSTOM_PHONE_PHOTO_PICKER) {
+        const assets = await phonePicker.open();
+        if (assets?.length && mountedRef.current) await doUpload(assets, null, null, mt, sc);
+        return;
+      }
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -602,6 +610,11 @@ export default function TeacherPhotosScreen() {
     if (isVideo && !planFeatures.video_enabled) { setShowVideoGateModal(true); return; }
     if (planFeatures.storage_used_pct >= 100) { setShowStorageModal(true); return; }
     try {
+      if (!isVideo && USE_CUSTOM_PHONE_PHOTO_PICKER) {
+        const assets = await phonePicker.open();
+        if (assets?.length && mountedRef.current) await doUpload(assets, selGroup, selStudent);
+        return;
+      }
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) { Alert.alert("권한 필요", "미디어 접근 권한이 필요합니다."); return; }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -621,6 +634,7 @@ export default function TeacherPhotosScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
+        {phonePicker.modal}
         <SubScreenHeader title="사진 & 영상" homePath="/(teacher)/today-schedule" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
@@ -721,6 +735,7 @@ export default function TeacherPhotosScreen() {
             )}
           </View>
         </ScrollView>
+        {phonePicker.modal}
       </SafeAreaView>
     );
   }
@@ -1248,6 +1263,7 @@ export default function TeacherPhotosScreen() {
           onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/subscription" as any); }}
           onCancel={() => setShowStorageModal(false)}
         />
+        {phonePicker.modal}
       </SafeAreaView>
     );
   }
@@ -1281,6 +1297,7 @@ export default function TeacherPhotosScreen() {
             </Pressable>
           ))}
         </ScrollView>
+        {phonePicker.modal}
       </SafeAreaView>
     );
   }
@@ -1364,6 +1381,7 @@ export default function TeacherPhotosScreen() {
         onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/subscription" as any); }}
         onCancel={() => setShowStorageModal(false)}
       />
+      {phonePicker.modal}
     </SafeAreaView>
   );
 }
