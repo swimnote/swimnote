@@ -1,0 +1,122 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[최종 실기기 재현 — iOS 50장 실제 선택방식 순서 검증]
+
+직전 CAPTURE ORDER FORENSIC 결과를 승인합니다.
+
+이미 확정된 서버/DB/R2/upload_sort_order 경로를
+다시 조사하거나 수정하지 마십시오.
+
+이번 목표는 단 하나입니다.
+
+실제 운영과 비슷하게 iPhone에서 50장을 선택했을 때
+picker result.assets 순서가 어떻게 반환되는지 확인합니다.
+
+기존 super_admin 전용 숨은 진단 UI만 최소 수정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 진단 UI 확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 selectionLimit=10을
+
+selectionLimit=50
+
+으로 변경.
+
+orderedSelection=true 유지.
+
+picker 완료 후 result.assets[0..49]를
+현재처럼 로컬 thumbnail + 배열 index로만 표시.
+
+업로드/API/R2/DB 요청은 여전히 0이어야 합니다.
+
+파일명/URI/assetId/EXIF/log/analytics 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 세 가지 선택 방식 테스트 가능하게 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드에서 특별한 선택모드를 만들 필요는 없습니다.
+
+실기기에서 사용자가 직접 아래만 테스트합니다.
+
+A. 한 장씩 순서대로 빠르게 탭
+B. 스크롤하면서 여러 화면에 걸쳐 50장 선택
+C. iOS picker가 허용한다면 드래그/연속 선택 방식
+
+각 테스트마다 진단 결과의
+result.assets 순서만 눈으로 비교합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 테스트용 사진
+━━━━━━━━━━━━━━━━━━━━━━
+
+01~50 번호가 크게 표시된 테스트 이미지 사용.
+
+반드시 촬영내용이나 실제 학생사진 사용 금지.
+
+사용자가 선택한 번호 순서와
+진단 화면의 [1]~[50] 배열이 일치하는지만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 판정 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+어느 방식에서든
+
+선택 badge/order는 정상인데
+result.assets부터 순서가 달라지면:
+
+ROOT CAUSE =
+iOS/expo picker boundary under that selection pattern
+
+으로 확정.
+
+모든 방식에서 50장도 순서가 완전히 일치하면:
+
+IOS PICKER 50-PHOTO ORDER = PASS
+
+그 경우 현재 정상 전체앨범 직접 업로드 경로에는
+순서 버그가 없다고 최종 CLOSED 처리합니다.
+
+이 경우 실제 제보는
+사용자가 기대한 “촬영순서”와
+제품이 보존하는 “선택순서”가 다른 문제이거나,
+제보 당시 다른 업로드 경로를 사용한 것으로 분류합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS/TS-only.
+기존 숨은 super_admin 진단 UI 수정만.
+
+production-v2 iOS OTA.
+Android 불필요.
+Native build 불필요.
+
+관련 iOS bundle만 확인.
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+IOS 50 PHOTO PICKER DIAGNOSTIC = PASS/HOLD
+
+SELECTION LIMIT = 50
+ORDERED SELECTION = true
+UPLOAD = 0
+SERVER REQUEST = 0
+DB WRITE = 0
+
+iOS Update ID =
+Group ID =
+runtimeVersion =
+source full SHA =
+
+실기기 결과는 사용자가 직접 확인할 것이므로
+OTA 배포 후 정지하세요.
