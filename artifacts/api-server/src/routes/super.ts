@@ -4367,7 +4367,7 @@ router.patch(
       // 응답이 이미 전송된 뒤 background에서 실행 — 실패해도 grant 자체는 유효.
       if (grant) {
         const { ensureCurrentMonthGrowthReportCycle } = await import("../jobs/growth-report-scheduler.js");
-        ensureCurrentMonthGrowthReportCycle(superAdminDb, poolId).catch((err: any) => {
+        ensureCurrentMonthGrowthReportCycle(poolId, superAdminDb).catch((err: any) => {
           console.error(`[super] xmode grant 후 ensureCurrentMonthGrowthReportCycle 실패: pool=${poolId}`, err?.message);
         });
       }

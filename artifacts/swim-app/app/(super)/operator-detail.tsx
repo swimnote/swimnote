@@ -131,6 +131,7 @@ export default function OperatorDetailScreen() {
 
   // X 사용권 수동 제어
   const [xmodeLoading, setXmodeLoading] = useState(false);
+  const [xPlanKey, setXPlanKey] = useState("");
 
   // X 설정 심사 승인
   const [configLoading, setConfigLoading] = useState(false);
@@ -150,7 +151,10 @@ export default function OperatorDetailScreen() {
         setPool(null);
         return;
       }
-      setPool(data.pool ?? null);
+      const modeRes = await apiRequest(token, `/pools/x-mode?pool_id=${encodeURIComponent(id)}`, { cache: "no-store" });
+      if (!modeRes.ok) throw new Error("X 상태를 조회하지 못했습니다.");
+      const modeData = await modeRes.json();
+      setPool(data.pool ? { ...data.pool, xmode_entitlement: modeData.xmode_entitlement, x_mode: modeData.mode } : null);
       setTeachers(data.teachers ?? []);
       setLogs(data.logs ?? []);
       setPolicy(data.policy ?? {});
@@ -166,6 +170,9 @@ export default function OperatorDetailScreen() {
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setXPlanKey(["x300", "x500", "x1000"].includes(pool?.x_plan_key) ? pool.x_plan_key : "");
+  }, [id, pool?.x_plan_key]);
 
   // 화면 포커스 복귀 시 자동 재조회 (구독 변경 등 다른 화면에서 돌아왔을 때 반영)
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -236,9 +243,13 @@ export default function OperatorDetailScreen() {
 
   async function doXmodeToggle(activate: boolean) {
     if (xmodeLoading) return;
+    if (activate && !["x300", "x500", "x1000"].includes(xPlanKey)) {
+      Alert.alert("X 플랜 선택", "X300, X500, X1000 중 부여할 플랜을 선택해주세요.");
+      return;
+    }
     const title   = activate ? "X 사용권을 활성화할까요?" : "X 사용권을 비활성화할까요?";
     const message = activate
-      ? "결제 없이 이 운영처에\nSWIMNOTE X 사용권이 부여됩니다."
+      ? `결제 없이 이 운영처에\nSWIMNOTE ${xPlanKey.toUpperCase()} 사용권이 부여됩니다.`
       : "이 운영처의 SWIMNOTE X 사용 권한이 회수됩니다.\n운영 데이터는 삭제되지 않습니다.";
     Alert.alert(title, message, [
       { text: "취소", style: "cancel" },
@@ -250,13 +261,18 @@ export default function OperatorDetailScreen() {
             const res = await apiRequest(token, `/super/operators/${id}/xmode`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ xmode_entitlement: activate }),
+              body: JSON.stringify({
+                xmode_entitlement: activate,
+                ...(activate ? { x_plan_key: xPlanKey } : {}),
+              }),
             });
             const d = await res.json();
-            if (d.ok) {
+            if (res.ok) {
               await load(true);
             } else {
-              Alert.alert("오류", "X 사용권 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
+              Alert.alert("오류", d.error === "X_PREREQUISITE_NOT_MET"
+                ? "활성화된 수영장 커리큘럼이 필요합니다."
+                : d.message ?? d.error ?? "X 사용권 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
               console.warn("[xmode]", id, res.status, d.error);
             }
           } catch (e: any) {
@@ -499,7 +515,7 @@ export default function OperatorDetailScreen() {
                     fontSize: 12, fontFamily: "Pretendard-Regular",
                     color: pool.xmode_entitlement ? C.brandStrong : C.textSecondary,
                   }}>
-                    {pool.xmode_entitlement ? "X 활성" : "X 비활성"}
+                    {pool.x_mode === "x" ? "X 활성" : pool.x_mode === "x_pending" ? "X 설정 대기" : pool.x_mode === "x_trial" ? "X 체험" : "X 비활성"}
                   </Text>
                 </View>
               </View>
@@ -596,8 +612,16 @@ export default function OperatorDetailScreen() {
                 {"결제 여부와 관계없이 이 운영처에\nSWIMNOTE X 사용권을 직접 부여하거나 회수합니다."}
               </Text>
               <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 17, marginBottom: 14 }}>
-                {"사용권이 활성화되어도 설정 상태가 READY가 아니면\nX모드는 심사 대기 상태로 유지됩니다."}
+                {"활성화된 수영장 커리큘럼을 준비한 뒤\n부여할 X 플랜을 선택해주세요."}
               </Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+                {["x300", "x500", "x1000"].map(plan => (
+                  <Pressable key={plan} accessibilityRole="radio" accessibilityLabel={plan.toUpperCase()} accessibilityState={{ selected: xPlanKey === plan, disabled: xmodeLoading }} disabled={xmodeLoading} onPress={() => setXPlanKey(plan)}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: xPlanKey === plan ? C.brandStrong : C.border, backgroundColor: xPlanKey === plan ? C.brandSoft : C.backgroundSoft }}>
+                    <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: xPlanKey === plan ? C.brandStrong : C.textSecondary }}>{plan.toUpperCase()}</Text>
+                  </Pressable>
+                ))}
+              </View>
               {pool.xmode_entitlement ? (
                 <Pressable
                   disabled={xmodeLoading}

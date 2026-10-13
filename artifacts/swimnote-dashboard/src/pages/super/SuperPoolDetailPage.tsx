@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRoute, useLocation } from "wouter";
 import { api } from "@/lib/api-client";
@@ -14,6 +14,7 @@ type PoolDetail = {
   x_mode?: string;
   plan_key?: string;
   is_x?: boolean;
+  x_plan_key?: string | null;
   x_entitlement_status?: string;
   member_count?: number;
   active_member_count?: number;
@@ -56,13 +57,30 @@ export default function SuperPoolDetailPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
   const [creditAmount, setCreditAmount] = useState("");
+  const [xPlanKey, setXPlanKey] = useState("");
+  const [xGrantError, setXGrantError] = useState("");
 
   const { data: detail, isLoading, refetch } = useQuery({
     queryKey: ["super", "pool-detail", id],
-    queryFn: () => api.get<PoolDetail>(`/super/operators/${id}`),
+    queryFn: async () => {
+      const response = await api.get<{ pool: PoolDetail }>(`/super/operators/${id}`);
+      return response.pool;
+    },
     enabled: !!id,
     refetchInterval: 30_000,
   });
+
+  const { data: poolMode } = useQuery({
+    queryKey: ["super", "pool-x-mode", id],
+    queryFn: () => api.get<{ mode: string; xmode_entitlement: boolean }>(`/pools/x-mode?pool_id=${encodeURIComponent(id)}`),
+    enabled: !!id,
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    setXPlanKey(["x300", "x500", "x1000"].includes(detail?.x_plan_key ?? "") ? detail!.x_plan_key! : "");
+    setXGrantError("");
+  }, [id, detail?.x_plan_key]);
 
   const { data: credits, refetch: refetchCredits } = useQuery({
     queryKey: ["super", "pool-credits", id],
@@ -81,7 +99,28 @@ export default function SuperPoolDetailPage() {
   const restrictMut = useMutation({ mutationFn: () => api.patch(`/super/operators/${id}/restrict`, {}), onSuccess: () => { qc.invalidateQueries({ queryKey: ["super", "pool-detail", id] }); } });
   const creditMut = useMutation({ mutationFn: (amount: number) => api.post(`/super/pools/${id}/credits`, { amount }), onSuccess: () => { refetchCredits(); setCreditAmount(""); } });
 
-  const xGrantMut = useMutation({ mutationFn: (grant: boolean) => api.patch(`/super/operators/${id}/xmode`, { grant }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["super", "pool-detail", id] }); } });
+  const xGrantMut = useMutation({
+    mutationFn: (grant: boolean) => {
+      setXGrantError("");
+      if (grant && !["x300", "x500", "x1000"].includes(xPlanKey)) throw new Error("X 플랜을 선택해주세요.");
+      return api.patch(`/super/operators/${id}/xmode`, {
+        xmode_entitlement: grant,
+        ...(grant ? { x_plan_key: xPlanKey } : {}),
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["super", "pool-detail", id] }),
+        qc.invalidateQueries({ queryKey: ["super", "pool-x-mode", id] }),
+        qc.invalidateQueries({ queryKey: ["super", "pool-control", id] }),
+      ]);
+    },
+    onError: (error: { message?: string }) => {
+      setXGrantError(error.message?.includes("LOCAL_CURRICULUM_NOT_ACTIVE")
+        ? "활성화된 수영장 커리큘럼이 필요합니다."
+        : error.message ?? "X 사용권 변경에 실패했습니다.");
+    },
+  });
 
   if (!id) return <div style={{ padding: "32px" }}>잘못된 접근입니다.</div>;
 
@@ -93,8 +132,7 @@ export default function SuperPoolDetailPage() {
     { key: "control", label: "컨트롤센터" },
   ];
 
-  const xMode = detail?.x_mode ?? detail?.plan_key ?? "";
-  const isX = detail?.is_x || xMode.includes("x");
+  const isX = poolMode?.xmode_entitlement === true;
 
   return (
     <div style={{ padding: "32px 32px 48px", maxWidth: "1000px" }}>
@@ -179,12 +217,19 @@ export default function SuperPoolDetailPage() {
               <div style={{ background: "var(--surface-white)", border: "1px solid var(--border-default)", borderRadius: "10px", padding: "20px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-strong)", marginBottom: "12px" }}>X 모드 제어</div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>현재 상태: <strong style={{ color: isX ? "#7C3AED" : "#6B7280" }}>{isX ? "X 활성" : "일반"}</strong></div>
+                  <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>현재 상태: <strong style={{ color: isX ? "#7C3AED" : "#6B7280" }}>{!poolMode ? "상태 확인 중" : poolMode.mode === "x" ? "X 활성" : poolMode.mode === "x_pending" ? "X 설정 대기" : poolMode.mode === "x_trial" ? "X 체험" : "일반"}</strong></div>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => xGrantMut.mutate(true)} disabled={isX} style={{ padding: "8px 16px", background: isX ? "#F3F4F6" : "#7C3AED", color: isX ? "#9CA3AF" : "#fff", border: "none", borderRadius: "8px", fontSize: "12px", cursor: isX ? "not-allowed" : "pointer", fontWeight: 700 }}>X 부여</button>
-                    <button onClick={() => xGrantMut.mutate(false)} disabled={!isX} style={{ padding: "8px 16px", background: !isX ? "#F3F4F6" : "#FEE2E2", color: !isX ? "#9CA3AF" : "#991B1B", border: "none", borderRadius: "8px", fontSize: "12px", cursor: !isX ? "not-allowed" : "pointer", fontWeight: 700 }}>X 해제</button>
+                    <select aria-label="X 플랜 선택" value={xPlanKey} onChange={e => { setXPlanKey(e.target.value); setXGrantError(""); }} disabled={xGrantMut.isPending} style={{ border: "1px solid var(--border-default)", borderRadius: "8px", padding: "8px" }}>
+                      <option value="">X 플랜 선택</option>
+                      <option value="x300">X300</option>
+                      <option value="x500">X500</option>
+                      <option value="x1000">X1000</option>
+                    </select>
+                    <button onClick={() => xGrantMut.mutate(true)} disabled={isX || !poolMode || !xPlanKey || xGrantMut.isPending} style={{ padding: "8px 16px", background: isX ? "#F3F4F6" : "#7C3AED", color: isX ? "#9CA3AF" : "#fff", border: "none", borderRadius: "8px", fontSize: "12px", cursor: isX ? "not-allowed" : "pointer", fontWeight: 700 }}>X 부여</button>
+                    <button onClick={() => xGrantMut.mutate(false)} disabled={!isX || !poolMode || xGrantMut.isPending} style={{ padding: "8px 16px", background: !isX ? "#F3F4F6" : "#FEE2E2", color: !isX ? "#9CA3AF" : "#991B1B", border: "none", borderRadius: "8px", fontSize: "12px", cursor: !isX ? "not-allowed" : "pointer", fontWeight: 700 }}>X 해제</button>
                   </div>
                 </div>
+                {xGrantError && <div role="alert" style={{ marginTop: "12px", color: "#991B1B", fontSize: "13px" }}>{xGrantError}</div>}
               </div>
             </div>
           )}

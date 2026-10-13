@@ -135,9 +135,13 @@ describe("Growth Report Eligibility Architecture (TC1–TC13)", () => {
   });
 
   // ── TC9: READY onboarding guard not weakened by FREE change ──────────────
-  it("TC9 super.ts READY guard uses validateXModeReadiness — not weakened", () => {
-    expect(superRouteSrc).toContain("validateXModeReadiness");
-    expect(superRouteSrc).toContain("READY_PREREQUISITES_NOT_MET");
+  it("TC9 manual grant retains the current local-curriculum prerequisite guard", () => {
+    const start = superRouteSrc.indexOf('router.patch(\n  "/super/operators/:id/xmode"');
+    const end = superRouteSrc.indexOf('router.patch(\n  "/super/operators/:id/management-override"', start);
+    const grant = superRouteSrc.slice(start, end);
+    expect(grant).toContain("checkXPrerequisite(poolId, superAdminDb)");
+    expect(grant).toContain("if (!prereq.ready)");
+    expect(grant).toContain("X_PREREQUISITE_NOT_MET");
   });
 
   // ── TC10: FREE SQL has no READY condition ────────────────────────────────

@@ -111,3 +111,4 @@
 - [임시 PostgreSQL 검증](temporary-postgres-verification.md) — 실제 SQL 경쟁 검증은 격리된 임시 DB로; 테스트 서버는 명시적 background task로 유지.
 - [로그인 복구 증거 경계](login-recovery-identifier-evidence.md) — DB identifier로 API 200이어도 사용자용 ID가 확인되지 않으면 실사용 로그인 복구 PASS 금지.
 - [신규 가입 PUSH 계약](pool-signup-push-boundary.md) — 최초 이벤트의 논리 dispatch만 허용; 불명확한 provider 결과 재발송 금지, 실기기 표시와 분리.
+- [시범사업 X 수동 부여 정책](x-manual-pilot-policy.md) — 시범사업도 기존 manual 권한 경로 사용; Local Curriculum 준비·활성 후 부여, management override로 대체 금지.
