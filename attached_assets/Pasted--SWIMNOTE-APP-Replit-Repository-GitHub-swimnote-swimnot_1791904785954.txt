@@ -1,0 +1,497 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[긴급 조사 — 다중 사진 업로드 순서가 계속 섞이는 원인 END-TO-END FORENSIC]
+
+사용자 실제 제보:
+
+선생님이 여러 장의 사진을 한 번에 선택해서 업로드하면
+앨범에 사진 순서가 선택/업로드 의도와 다르게 섞여서 올라갑니다.
+
+이 문제는 과거에도 여러 차례 순서 관련 수정을 했지만
+2026-10-13 실제 운영에서 다시 재현되었습니다.
+
+이번 작업은 원인 조사만 합니다.
+
+코드 수정 금지.
+DB write 금지.
+Production upload 금지.
+commit/push/deploy 금지.
+
+관련 없는 사진/앨범 기능 재설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 먼저 "사진 순서"의 현재 계약부터 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+추측하지 말고 현재 코드와 git history를 기준으로
+SWIMNOTE가 의도한 사진 순서를 먼저 확인하세요.
+
+특히 과거 photo/order/sort/upload 관련 commit 및 blame을 조사해:
+
+- 이전에 무엇을 고쳤는지
+- 어떤 ordering field 또는 array order를 도입했는지
+- 어느 surface만 고쳤는지
+- 현재 코드에 그 수정이 아직 살아 있는지
+
+확인하세요.
+
+반드시 다음을 구분:
+
+A. 사용자가 사진 선택기에서 선택한 순서
+B. iOS/Android 사진 라이브러리 자체 정렬 순서
+C. 앱이 서버로 보내는 순서
+D. 서버가 저장한 순서
+E. 앨범에서 표시하는 순서
+
+최종적으로 현재 제품의 의도된 계약을 한 문장으로 보고하세요.
+
+예:
+"한 번에 선택한 사진은 selection index 순서를 보존하며,
+앨범에서는 해당 batch 내부 순서가 그대로 유지된다."
+
+실제 코드가 다른 계약이면 실제 계약을 적으세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 사진 선택 단계 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일에서 사진 여러 장을 고르는 모든 진입점을 찾으세요.
+
+예:
+- 전체앨범 업로드
+- 반 앨범
+- 학생 사진
+- 일지 사진
+- 기타 동일 uploader 재사용 경로
+
+각 경로에서 실제 photo picker library/API를 확인하세요.
+
+확인:
+
+- iOS picker
+- Android picker
+- allowsMultipleSelection
+- orderedSelection 지원 여부
+- selectionLimit
+- 결과 assets 배열의 순서 보장 여부
+- 앱에서 assets를 map/sort/reverse하는 코드 존재 여부
+- assetId / uri / filename / creationTime 등을 이용한 재정렬 여부
+
+중요:
+사진 선택기의 반환 배열 순서가
+사용자가 탭한 순서와 정말 같은지
+현재 library/version 공식 contract 또는 코드상 보장 여부를 확인하세요.
+
+보장되지 않는데 앱이 assets index를
+선택 순서라고 가정하고 있으면 명확히 표시하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 앱 내부 배열 변형 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+picker 반환 직후부터 API 호출 직전까지
+사진 하나마다 identity를 붙여 추적하세요.
+
+조사용 conceptual trace:
+
+selected_index
+asset_id/hash
+original_array_index
+processed_array_index
+upload_request_index
+
+실제 개인정보/사진 원본 로그 금지.
+
+다음을 모두 확인:
+
+- map
+- filter
+- sort
+- reverse
+- splice
+- concat
+- Promise.all
+- async map
+- forEach async
+- compression
+- resize
+- metadata normalization
+- retry
+- upload queue
+
+특히 이미지 압축/리사이즈가 병렬 처리되면서
+
+[1,2,3,4]
+→ 처리 완료 [3,1,4,2]
+
+순으로 배열이 재구성되는지 확인하세요.
+
+Promise.all은 입력 배열 순서를 반환하는지와
+그 이후 코드가 completion callback 순서로 push하는지는
+별도로 확인해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 업로드 동시성 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요합니다.
+
+여러 사진을:
+
+- 순차 upload 하는지
+- Promise.all 병렬 upload 하는지
+- concurrency queue를 쓰는지
+
+확인하세요.
+
+병렬 업로드라면:
+
+사진 선택 순서:
+1 → 2 → 3 → 4
+
+실제 upload 완료:
+3 → 1 → 4 → 2
+
+가 되었을 때
+서버 저장 순서가 무엇을 기준으로 결정되는지 확인.
+
+특히 서버가 다음 중 무엇을 사용하는지:
+
+- request 도착 순서
+- upload 완료 순서
+- DB insert created_at
+- id 생성시간
+- explicit sort_order
+- upload_index
+- batch_index
+- client_order
+
+를 확인하세요.
+
+"병렬 upload completion order를 created_at으로 저장"
+같은 구조라면 핵심 원인 후보로 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. API Request Contract 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 업로드 API에
+클라이언트가 명시적인 순서 값을 보내는지 확인하세요.
+
+각 사진에 다음과 같은 canonical field가 존재하는지:
+
+- sort_order
+- display_order
+- upload_order
+- sequence
+- position
+- batch_index
+- client_index
+
+없으면 "없음"이라고 명확히 보고.
+
+있다면:
+
+- 어디서 생성
+- batch 내 unique인지
+- DB에 실제 저장되는지
+- retry 시 동일 값 유지되는지
+- 서버가 값을 무시/덮어쓰는지
+
+확인.
+
+한 번에 여러 사진을 올리는데
+서버가 각 사진의 원래 순서를 알 수 있는 explicit key가 전혀 없다면
+그 자체가 중요한 root cause 후보입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DB schema / 실제 저장 순서 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진/앨범 관련 실제 table과 column을 확인하세요.
+
+예:
+- photos
+- album_photos
+- class_photos
+- student_photos
+- media
+- 기타 실제 schema
+
+다음 필드 존재 여부:
+
+- created_at
+- uploaded_at
+- sort_order
+- position
+- sequence
+- batch_id
+- original_filename
+- id
+
+그리고 실제 album query의 ORDER BY를 전부 찾으세요.
+
+예:
+
+ORDER BY created_at DESC
+ORDER BY id DESC
+ORDER BY sort_order ASC
+ORDER BY date DESC, created_at DESC
+
+모바일/API/PC마다 정렬 기준이 다른지도 확인.
+
+중요:
+created_at만으로 같은 batch 사진의 사용자가 의도한 순서를
+보존하려 하고 있는지 확인하세요.
+
+동일 millisecond 또는 근접 timestamp에서
+secondary ORDER BY가 없으면
+PostgreSQL 결과 순서가 안정적으로 보장되지 않는 경로도 확인하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 업로드 batch 개념 존재 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 여러 장을 한 번에 올렸다는
+batch identity가 존재하는지 확인하세요.
+
+예:
+upload_batch_id
+
+존재하면:
+- 사진마다 동일 batch id가 저장되는지
+- batch 내부 order가 별도 저장되는지
+
+없으면:
+- 서버가 서로 같은 업로드 묶음인지 구분할 방법이 있는지
+
+보고하세요.
+
+이번에는 새 batch 구조를 만들지 마세요.
+원인 조사만 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 앨범 조회 → 화면 렌더링 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 response 배열이 정상인데
+화면에서 다시 섞이는지도 확인하세요.
+
+각 관련 화면에서:
+
+- API response order
+- React state에 넣을 때 order
+- pagination merge
+- infinite scroll merge
+- dedupe
+- Set/Map 변환
+- Object.values
+- groupBy(date)
+- section grouping
+- flatMap
+- reverse
+- FlatList/FlashList data
+- keyExtractor
+
+를 확인하세요.
+
+특히 같은 날짜(2026/10/13) 사진을 그룹화하면서
+group 내부 순서가 다시 바뀌는지 확인.
+
+새 페이지 prepend/append 과정에서
+사진 순서가 재정렬되는지도 확인하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. R2/storage는 순서 source인지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+R2 object listing 결과를
+앨범 순서 결정에 사용하는지 확인하세요.
+
+사용한다면 문제 가능성을 조사.
+
+정상 구조라면
+R2 object key/list order가 아니라
+DB metadata/order를 source of truth로 사용해야 합니다.
+
+이번 조사에서는 storage 구조를 수정하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 재시도/실패 시 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 10장 중:
+
+1,2,3,4,5,6,7,8,9,10
+
+에서 4번 업로드가 늦거나 한 번 retry될 때
+
+최종 표시가:
+
+1,2,3,4,5...
+
+로 유지되는지,
+아니면 4가 맨 뒤로 가는지 확인하세요.
+
+다음 경로 확인:
+
+- retry
+- timeout
+- partial failure
+- 재업로드
+- background upload
+- app foreground/background 전환
+
+순서값이 업로드 시도마다 새로 만들어지는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 과거 순서 수정이 왜 재발했는지 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 문제는 "몇 번 고쳤는데 다시 발생"한 문제입니다.
+
+따라서 git history에서 관련 수정들을 찾아
+각 수정이 어디까지 해결했는지 반드시 분석하세요.
+
+완료보고에:
+
+PREVIOUS FIX 1 =
+무엇을 수정했음 =
+왜 현재 문제를 완전히 막지 못함 =
+
+PREVIOUS FIX 2 =
+...
+
+형태로 정리.
+
+과거 수정이:
+
+- picker order만 고침
+- UI sort만 고침
+- API query만 고침
+- 특정 앨범 화면만 고침
+
+같이 부분적으로 적용된 것인지 확인하세요.
+
+이 항목이 이번 조사의 핵심입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 격리 환경 재현
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production write 없이
+가능하면 현재 uploader/service/API를 사용한
+격리 fixture/test로 재현하세요.
+
+최소 10장:
+
+selection order:
+01,02,03,04,05,06,07,08,09,10
+
+각 사진의 처리 시간을 의도적으로 다르게:
+
+01 = 500ms
+02 = 50ms
+03 = 900ms
+04 = 100ms
+...
+
+등으로 만들어
+병렬 처리 completion 순서를 뒤섞으세요.
+
+단계별 실제 결과를 기록:
+
+PICKER RESULT =
+PROCESSING RESULT =
+UPLOAD REQUEST =
+SERVER INSERT =
+DB ORDER =
+API RESPONSE =
+UI DATA ORDER =
+
+어느 단계에서 처음:
+
+01,02,03...
+→ 03,01,04...
+
+로 바뀌는지 확정하세요.
+
+가능하면 iOS/Android 공통 코드인지
+platform-specific인지도 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Production READ ONLY 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 고객 데이터 수정 금지.
+
+PII 없이 최근 다중사진 upload 사례를
+READ ONLY로 분석할 수 있으면 확인하세요.
+
+특히 2026-10-13 같은 날
+짧은 시간 안에 다수 생성된 사진 batch 후보에서:
+
+- DB created_at
+- explicit order field
+- API 정렬 기준
+- id 순서
+
+만 비교.
+
+실제 사진 내용/학생명/수영장명 출력 금지.
+
+단 batch identity가 없어
+동일 업로드 묶음임을 확정할 수 없다면
+추측해서 묶지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+PHOTO ORDER FORENSIC = PASS/HOLD
+
+CANONICAL INTENDED ORDER =
+PICKER ORDER GUARANTEED = YES/NO/PARTIAL
+CLIENT ARRAY PRESERVED = YES/NO
+IMAGE PROCESSING PRESERVED = YES/NO
+UPLOAD REQUEST ORDER PRESERVED = YES/NO
+SERVER RECEIVES EXPLICIT ORDER = YES/NO
+DB STORES EXPLICIT ORDER = YES/NO
+DB QUERY ORDER =
+API RESPONSE ORDER PRESERVED = YES/NO
+UI RENDER ORDER PRESERVED = YES/NO
+
+FIRST ORDER BREAK POINT =
+ROOT CAUSE =
+SECONDARY CAUSE =
+
+PARALLEL UPLOAD INVOLVED = YES/NO
+CREATED_AT USED AS ORDER = YES/NO
+STABLE TIEBREAKER EXISTS = YES/NO
+BATCH ID EXISTS = YES/NO
+BATCH-INTERNAL ORDER EXISTS = YES/NO
+
+PREVIOUS FIXES =
+WHY BUG RECURRED =
+
+IOS =
+ANDROID =
+
+ISOLATED REPRODUCTION = PASS/HOLD
+PRODUCTION READ ONLY EVIDENCE = PASS/HOLD/NOT_AVAILABLE
+
+CODE CHANGE = 0
+PRODUCTION WRITE = 0
+MIGRATION = 0
+COMMIT/PUSH/DEPLOY = 0
+
+마지막에 반드시 한 문장으로 답하세요:
+
+“사진 10장을 1→10 순서로 선택했을 때
+현재 SWIMNOTE에서 그 순서가 처음 깨지는 정확한 지점은 ______이고,
+재발의 근본 원인은 ______이다.”
+
+그리고 최소 수정 방향만 제안하고
+실제 수정하지 말고 정지하세요.
