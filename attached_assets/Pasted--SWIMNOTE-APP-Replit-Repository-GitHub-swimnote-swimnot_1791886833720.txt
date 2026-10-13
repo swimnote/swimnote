@@ -1,0 +1,384 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[긴급 수정 — SUPERADMIN 직접 X MODE 부여 시 Local Curriculum prerequisite만 우회]
+
+현재 SUPERADMIN X MODE 수동 부여 기능은 Production PASS 상태입니다.
+
+이번 변경 목적은 단 하나입니다.
+
+현재:
+신규 수영장 가입
+→ Local Curriculum 등록/활성화
+→ SUPERADMIN X MODE 부여
+
+변경:
+신규 수영장 가입
+→ SUPERADMIN X MODE 즉시 부여
+→ X MODE 활성화
+→ 이후 해당 수영장에서 Local Curriculum 등록/활성화
+
+단,
+이 예외는 반드시 SUPERADMIN 직접 수동 부여 경로에만 적용합니다.
+
+일반 결제/구독/자동 entitlement/X 설정 완료 경로의
+기존 prerequisite 정책은 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 endpoint:
+
+PATCH /api/super/operators/:id/xmode
+
+파일:
+artifacts/api-server/src/routes/super.ts
+
+현재 ON 요청:
+
+{
+  "xmode_entitlement": true,
+  "x_plan_key": "x300" | "x500" | "x1000",
+  "reason": "..."
+}
+
+이 endpoint는 이미:
+
+requireAuth
++ requireRole("super_admin")
+
+로 보호되어 있습니다.
+
+이 SUPERADMIN 수동 ON 경로에서만
+
+LOCAL_CURRICULUM_NOT_ACTIVE
+
+prerequisite를 부여 차단 조건에서 제외하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 절대 변경하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 기존 그대로 유지:
+
+- RevenueCat
+- paid entitlement
+- subscription
+- 일반 X 가입/결제 flow
+- management override
+- pool isolation
+- X plan catalog
+- x_force_disabled
+- manual entitlement audit
+- 기존 Local Curriculum validation 자체
+- AI ENGINE
+
+checkXPrerequisite() 자체를 전역에서 느슨하게 만들지 마십시오.
+
+다른 caller가 계속 기존 prerequisite를 받을 수 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. SUPERADMIN 직접 부여 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+활성 Local Curriculum이 없는 신규 Pool A:
+
+paid = false
+manual = false
+Local Curriculum = 없음
+
+SUPERADMIN이:
+
+PATCH /api/super/operators/:id/xmode
+
+{
+  "xmode_entitlement": true,
+  "x_plan_key": "x300"
+}
+
+호출하면 성공해야 합니다.
+
+결과:
+
+x_manual_entitlement = true
+x_force_disabled = false
+x_plan_key = x300
+member/storage limit = 기존 plan catalog 기준
+X MODE = 활성
+
+즉 결제도 없고 커리큘럼도 아직 없어도
+SUPERADMIN 직접권한으로 X MODE에 들어갈 수 있어야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 커리큘럼 없는 X pool 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+X MODE 활성화와
+“Local Curriculum 준비 완료”는 별개 상태입니다.
+
+커리큘럼이 없는데도
+가짜 curriculum 데이터를 만들거나
+Global Curriculum을 Local Curriculum인 것처럼 생성하지 마십시오.
+
+커리큘럼을 필요로 하는 기능은
+현재 기존 empty/not-ready 처리 방식을 유지하십시오.
+
+예:
+
+X Curriculum 화면
+→ 커리큘럼 등록/업로드 가능
+
+Parent Curriculum AI 등
+실제 Local Curriculum 데이터가 필요한 기능
+→ 데이터가 없으면 기존의 안전한 준비중/근거없음 처리
+
+커리큘럼이 없는 상태에서
+AI가 임의의 수영장 커리큘럼을 생성해서 정상 데이터처럼 사용하면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. xmode_config_status 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 manual grant가
+xmode_config_status = READY
+
+를 설정하는 구조를 실제 코드에서 다시 확인하십시오.
+
+이번 정책에서는:
+
+“X 사용권 부여됨”
+와
+“Local Curriculum 준비됨”
+
+을 혼동하면 안 됩니다.
+
+따라서 현재 resolver가 mode=x를 위해 READY를 요구한다면
+최소 수정으로 다음 의미를 보장하십시오.
+
+SUPERADMIN manual entitlement = true
+→ Local Curriculum 유무와 관계없이 mode=x
+
+단:
+
+paid/subscription 등 일반 경로의
+READY prerequisite 정책은 그대로 유지.
+
+가능하면 기존 schema/state를 재사용하고,
+이번 한 건 때문에 새 대규모 상태 머신을 만들지 마십시오.
+
+중요:
+커리큘럼이 없다는 이유로 manual grant가 x_pending이 되어
+X Curriculum 등록 화면 자체에 못 들어가는 구조가 되면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Growth Report
+━━━━━━━━━━━━━━━━━━━━━━
+
+커리큘럼이 없는 상태에서 SUPERADMIN이 X를 부여하더라도
+Growth Report 즉시 cycle 생성이
+잘못된 리포트 생성으로 이어지면 안 됩니다.
+
+기존 Growth Report eligibility/readiness에서
+실제 필요한 데이터 조건을 계속 검증하도록 유지하십시오.
+
+즉:
+
+X entitlement 부여 성공
+≠
+즉시 AI Growth Report 생성 가능
+
+으로 취급.
+
+현재 ensureCurrentMonthGrowthReportCycle()이
+커리큘럼 없음으로 안전하게 no-op/HOLD 되는지 관련 테스트로 확인.
+
+이를 위해 Growth Report 전체를 재설계하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. OFF 동작 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+SUPERADMIN manual OFF:
+
+{
+  "xmode_entitlement": false
+}
+
+기존처럼 정상 회수.
+
+- manual entitlement 제거
+- X mode 정상 재판정
+- 이미 등록된 Local Curriculum 삭제 금지
+- 기존 X curriculum/diary/history 삭제 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 실행.
+
+CASE A — 신규 pool / curriculum 없음
+
+paid=false
+manual=false
+Local Curriculum 없음
+
+SUPERADMIN X300 ON
+
+기대:
+
+HTTP 200
+manual=true
+plan=x300
+mode=x
+
+CASE B — 동일 조건 X500
+→ PASS
+
+CASE C — 동일 조건 X1000
+→ PASS
+
+CASE D — 일반/비SUPERADMIN caller
+→ 기존 권한대로 403
+
+CASE E — 일반 결제/자동 X 경로
+Local Curriculum 없음
+→ 기존 prerequisite 정책 유지
+
+즉 SUPERADMIN 예외가 일반 경로까지 새지 않아야 함.
+
+CASE F — 이후 Local Curriculum 등록
+→ 기존 방식으로 정상 활성/사용 가능
+→ X entitlement 재부여 불필요
+
+CASE G — manual OFF
+→ mode 정상 복귀
+→ curriculum 보존
+
+CASE H — 다른 pool
+→ 상태 불변
+
+CASE I — curriculum 없는 manual X pool
+→ X Curriculum 등록 화면 접근 가능
+
+CASE J — Parent AI / Growth Report처럼
+실제 curriculum/evidence가 필요한 기능
+→ 커리큘럼 없을 때 임의 데이터 생성 없이 안전하게 처리
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+PC/Mobile SUPERADMIN의 기존 X 부여 화면은 그대로 사용합니다.
+
+Local Curriculum이 없다는 이유로
+“활성화된 수영장 커리큘럼이 필요합니다.”
+라고 부여 자체를 막던 처리는 제거하십시오.
+
+SUPERADMIN 부여 성공 후:
+
+“X 모드가 활성화되었습니다.”
+
+로 정상 처리.
+
+필요하다면 보조 안내만:
+
+“커리큘럼은 X 모드에서 등록할 수 있습니다.”
+
+정도로 표시.
+
+새 onboarding wizard 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 검증 및 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 suite/typecheck 금지.
+
+관련:
+
+- super manual grant
+- X resolver
+- prerequisite isolation
+- X curriculum access
+- Growth Report readiness
+- pool isolation
+
+테스트만 실행.
+
+API build
+PC web build
+iOS bundle
+Android bundle
+
+PASS 시:
+
+API → Render Production
+PC → Web Production
+Mobile JS/TS 변경 있으면 production-v2 iOS+Android OTA
+
+Native 변경 없으면 binary/store build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+SUPERADMIN PRE-CURRICULUM X GRANT = PASS/HOLD
+
+SUPERADMIN MANUAL GRANT WITHOUT CURRICULUM = PASS/HOLD
+MODE=X WITHOUT CURRICULUM = PASS/HOLD
+X CURRICULUM ACCESS = PASS/HOLD
+
+GENERAL PAID/SUBSCRIPTION PREREQUISITE PRESERVED = PASS/HOLD
+NON-SUPERADMIN BYPASS IMPOSSIBLE = PASS/HOLD
+
+PARENT AI SAFE WITHOUT CURRICULUM = PASS/HOLD
+GROWTH REPORT SAFE WITHOUT CURRICULUM = PASS/HOLD
+MANUAL OFF = PASS/HOLD
+POOL ISOLATION = PASS/HOLD
+
+RELATED TESTS =
+API BUILD =
+WEB BUILD =
+IOS BUNDLE =
+ANDROID BUNDLE =
+
+Commit full SHA =
+GitHub main full SHA =
+
+Render API Deploy ID =
+API LIVE full SHA =
+
+Web Deploy ID =
+Web LIVE full SHA =
+
+OTA:
+iOS Update ID =
+Android Update ID =
+Group ID =
+channel =
+runtimeVersion =
+source full SHA =
+
+마지막에 반드시 답하세요:
+
+1.
+“신규 수영장에 Local Curriculum이 전혀 없어도
+SUPERADMIN이 직접 X300/X500/X1000을 부여하면
+즉시 X MODE 활성화 가능 = YES/NO”
+
+2.
+“이 커리큘럼 prerequisite 우회는
+SUPERADMIN 직접 수동 부여에만 적용되고
+일반 가입·결제·자동 entitlement에는 적용되지 않음 = YES/NO”
+
+3.
+“X MODE 활성화 후 해당 수영장이
+Local Curriculum을 나중에 등록해도
+X 권한 재부여 없이 그대로 사용 가능 = YES/NO”
+
+보고 후 정지하세요.
