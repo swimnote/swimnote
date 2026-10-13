@@ -1,0 +1,508 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[긴급 수정 — 주2회 학생 / 서로 다른 반·선생님 다중반 운영 안전화]
+
+직전 READ ONLY 조사 결과를 승인합니다.
+
+목표:
+
+학생 A가
+
+- 화요일 16:00 class TUE / teacher T1
+- 목요일 16:00 class THU / teacher T2
+
+두 개의 서로 다른 active class에 동시에 등록되어도
+
+- 각 선생님의 반 접근
+- 회원 조회
+- 출석
+- 사진
+- 일지
+- 보강
+- 관리자 모바일
+- PC Dashboard
+
+가 안전하게 동작하도록
+현재 존재하는 multi-class 구조를 최소 수정합니다.
+
+요일별 teacher 신규 모델은 만들지 않습니다.
+
+기준 운영모델은 CASE 2입니다.
+
+학생
+→ assigned_class_ids = [TUE_CLASS, THU_CLASS]
+
+TUE_CLASS
+→ teacher_user_id = T1
+
+THU_CLASS
+→ teacher_user_id = T2
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+- AI ENGINE 수정 금지
+- 새 schedule-per-day teacher 모델 생성 금지
+- student.class_group_id 제거 금지
+- student-owned Diary history READ 정책 변경 금지
+- 기존 정상 single-class 회원 동작 훼손 금지
+- pool_admin은 자기 pool 전체 접근 유지
+- teacher만 현재 담당 class/student 기준으로 제한
+- co_teacher 기존 기능도 유지
+- unrelated refactor 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Canonical current class membership helper
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 여러 API마다
+
+- students.class_group_id
+- assigned_class_ids
+- student_class_history
+
+를 제각각 사용하는 문제를 정리합니다.
+
+새 대규모 도메인을 만들지 말고
+기존 구조 위에서 공통 helper/service를 만드세요.
+
+필요 개념:
+
+getCurrentStudentClassIds(studentId, date?)
+teacherCanAccessClass(teacherId, classId)
+teacherCanAccessStudent(teacherId, studentId, date?)
+
+현재 membership 기준은:
+
+1. student_class_history의 유효한 active membership
+2. assigned_class_ids의 현재 membership
+
+을 기존 데이터 계약에 맞춰 사용.
+
+students.class_group_id는
+대표/legacy pointer로만 취급하고
+전체 membership authorization의 유일한 근거로 사용하지 마세요.
+
+pool_id 서버 검증 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher class 권한 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반 teacher가 class에 접근할 수 있는 조건을 통일합니다.
+
+허용:
+
+- class_groups.teacher_user_id = teacher
+또는
+- co_teacher_ids에 teacher 포함
+
+pool_admin:
+- 자기 pool 전체 허용
+
+일반 teacher:
+- 담당하지 않은 다른 class GET/PATCH 금지
+
+최소한 다음 경로를 실제 코드 기준으로 통일:
+
+- class list
+- GET /class-groups/:id
+- PATCH /class-groups/:id
+- class students
+- today schedule
+- class attendance
+- class diary write
+- album/photo class access
+
+기존 endpoint 이름은 실제 repo 기준 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. /teacher/me/members 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 일반 teacher가
+수영장 전체 회원을 보는 구조를 수정합니다.
+
+일반 teacher는:
+
+현재 자신이 lead 또는 co-teacher로 배정된 active class
+→ 그 class의 현재 active student membership
+
+학생만 조회.
+
+같은 학생 A가
+
+TUE_CLASS → T1
+THU_CLASS → T2
+
+에 동시에 속한 경우:
+
+T1에게 A 표시 = YES
+T2에게 A 표시 = YES
+
+그러나
+
+T1에게 THU_CLASS 자체 관리권한 = NO
+T2에게 TUE_CLASS 자체 관리권한 = NO
+
+학생 A가 두 반에 있다는 이유만으로
+상대방 반 권한이 확장되면 안 됩니다.
+
+pool_admin 동작은 변경하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PC Dashboard 복수 반 배정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PC MembersPage의 단일 select 때문에
+multi-class 학생을 편집하면
+assigned_class_ids 전체가 한 반으로 축소될 수 있습니다.
+
+이를 수정하세요.
+
+PC 회원 상세/편집에서
+모바일과 동일하게 복수 class 선택 가능하도록 합니다.
+
+저장 시:
+
+assigned_class_ids 전체 배열 보존.
+
+기존 2개 class가 연결된 학생을
+이름/전화/기타 회원정보만 수정했을 때
+class assignment가 1개로 줄어들면 안 됩니다.
+
+주2회 회원:
+
+TUE_CLASS
+THU_CLASS
+
+둘 모두 선택/표시/보존 가능해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 개인 사진 접근
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 /photos/private/:studentId의
+teacher access가 대표 class_group_id 하나만 보는 문제를 수정합니다.
+
+teacherCanAccessStudent()의
+현재 실제 multi-class membership을 기준으로 검증하세요.
+
+예:
+
+A:
+TUE_CLASS / T1
+THU_CLASS / T2
+
+→ T1은 A의 허용된 개인 사진 접근 가능
+→ T2도 A의 허용된 개인 사진 접근 가능
+
+대표반 배열 순서에 따라
+한쪽 teacher가 403 되는 구조 제거.
+
+다른 학생 또는 비담당 학생 접근은 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Attendance class isolation
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 주의해서 처리합니다.
+
+현재 기존 row lookup/update가
+student_id + date 중심인 문제를 수정하여
+반 context를 포함시킵니다.
+
+현재 schema에 실제 session identifier가 이미 있다면
+그 기존 identifier를 우선 검토.
+
+없다면 최소 기준:
+
+student_id
++ class_group_id
++ date
+
+로 동일 출석을 식별합니다.
+
+중요:
+
+migration/index 변경 전에
+Production READ ONLY preflight 실행.
+
+확인:
+
+- 동일 student_id + class_group_id + date duplicate 수
+- null/legacy class_group_id
+- 기존 데이터가 새 unique contract와 충돌하는지
+
+충돌 데이터가 존재하면
+임의 delete/merge 금지.
+HOLD 보고 후 정지.
+
+충돌이 없다면
+안전한 migration으로 unique contract를 맞춥니다.
+
+출석 CREATE/UPDATE/조회/보강 완료 경로에서
+같은 식별 계약을 사용해야 합니다.
+
+목표:
+
+학생 A가 같은 날짜에 다른 두 class에 있어도
+출석 A/TUE와 A/THU가 서로 덮어쓰지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Makeup 권한 최소 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+보강 도메인을 재설계하지 않습니다.
+
+다만 일반 teacher에게 보이는 목록과
+실제 action 권한을 현재 담당 class 기준으로 일관화합니다.
+
+학생 A가 두 class에 속한다는 이유만으로
+T1이 T2 class에서 생성된 모든 보강 운영항목을
+자기 업무처럼 관리하면 안 됩니다.
+
+다음은 구분:
+
+- 보강 가능한 타 class 후보 조회:
+  기존 정책이 필요한 경우 유지
+- 보강 요청/대기/완료의 관리 ownership:
+  original/assigned/current class teacher 권한 유지
+
+출석 identity 수정과 충돌 없이 동작하는지 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Diary 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Diary는 현재 구조를 유지합니다.
+
+WRITE:
+class_id + lesson_date + 담당 teacher 권한
+
+READ:
+현재 담당 학생 A에 대해서는
+student-owned educational history 정책에 따라
+허용된 과거 기록 조회 가능.
+
+즉:
+
+T1이 A의 목요일 과거 기록을 읽을 수 있다는 사실과
+THU_CLASS를 관리/수정할 수 있다는 권한은 분리.
+
+Diary schema를 이번 작업에서 재설계하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 모바일 관리자 배정 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 모바일 member detail의 복수 class 배정을 유지.
+
+주2회 학생:
+
+TUE_CLASS
+THU_CLASS
+
+둘을 선택
+→ assigned_class_ids 2개 저장
+→ student_class_history 두 active membership 유지
+→ 대표 class_group_id는 legacy/representative pointer로만 유지.
+
+한 반을 제거할 때만 해당 membership을 종료.
+
+전체 배열 교체 API 특성 때문에
+다른 반을 실수로 누락시키지 않는지 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 핵심 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 실행.
+
+Fixture:
+
+Student A
+
+TUE_CLASS
+- Tuesday 16:00
+- teacher T1
+
+THU_CLASS
+- Thursday 16:00
+- teacher T2
+
+pool_admin P1
+
+필수:
+
+1.
+Admin mobile에서 A를 두 class에 배정
+→ assigned_class_ids 2
+→ active history 2
+
+2.
+PC에서 A 열기
+→ 두 class 모두 선택 표시
+
+3.
+PC에서 이름 등 class 외 필드만 수정
+→ 두 class 그대로 유지
+
+4.
+T1 class list
+→ TUE_CLASS 있음
+→ THU_CLASS 없음
+
+5.
+T2 class list
+→ THU_CLASS 있음
+→ TUE_CLASS 없음
+
+6.
+T1 /teacher/me/members
+→ A 있음
+→ 다른 비담당 학생 없음
+
+7.
+T2 /teacher/me/members
+→ A 있음
+→ 다른 비담당 학생 없음
+
+8.
+T1 GET/PATCH THU_CLASS
+→ forbidden
+
+9.
+T2 GET/PATCH TUE_CLASS
+→ forbidden
+
+10.
+T1 A private photo
+→ authorized
+
+11.
+T2 A private photo
+→ authorized
+
+12.
+비담당 teacher A private photo
+→ forbidden
+
+13.
+TUE attendance 저장
+→ TUE class context
+
+14.
+THU attendance 저장
+→ THU class context
+
+15.
+같은 student/date의 다른 class 기록이
+서로 overwrite되지 않음
+
+16.
+Diary T1 WRITE
+→ TUE_CLASS만 가능
+
+17.
+Diary T2 WRITE
+→ THU_CLASS만 가능
+
+18.
+학생 A의 허용된 historical diary READ
+→ student-owned policy 유지
+
+19.
+Makeup 관련 기존 정상 flow regression 없음
+
+20.
+pool_admin
+→ 자기 pool 전체 class/student 관리 유지
+
+21.
+다른 pool 접근
+→ 전부 forbidden
+
+전체 suite/typecheck 금지.
+관련 API/mobile/web tests만 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+Preflight 데이터 충돌이 없고
+관련 테스트가 모두 PASS한 경우에만 배포.
+
+API 수정:
+→ Render Production
+
+PC 수정:
+→ swimnote-web Production
+
+모바일 JS/TS 수정:
+→ production-v2
+→ iOS + Android OTA
+
+Native 변경이 없으면 binary build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+MULTI-CLASS DIFFERENT TEACHER = PASS/HOLD
+
+CANONICAL MEMBERSHIP CHECK = PASS/HOLD
+TEACHER CLASS SCOPE = PASS/HOLD
+TEACHER MEMBER SCOPE = PASS/HOLD
+PC MULTI-CLASS ASSIGNMENT = PASS/HOLD
+MOBILE MULTI-CLASS ASSIGNMENT = PASS/HOLD
+PRIVATE PHOTO ACCESS = PASS/HOLD
+ATTENDANCE CLASS ISOLATION = PASS/HOLD
+MAKEUP PERMISSION = PASS/HOLD
+DIARY WRITE ISOLATION = PASS/HOLD
+DIARY STUDENT HISTORY READ = PASS/HOLD
+POOL ADMIN ACCESS = PASS/HOLD
+POOL ISOLATION = PASS/HOLD
+
+PRODUCTION ATTENDANCE PREFLIGHT:
+duplicate student+class+date =
+legacy/null conflict =
+migration safe = YES/NO
+
+RELATED TESTS =
+API BUILD =
+WEB BUILD =
+IOS BUNDLE =
+ANDROID BUNDLE =
+
+Commit SHA =
+GitHub main SHA =
+
+Render API Deploy ID =
+API LIVE SHA =
+
+Web Deploy ID =
+Web LIVE SHA =
+
+Production OTA:
+iOS Update ID =
+Android Update ID =
+Group ID =
+channel =
+runtimeVersion =
+source SHA =
+
+Production data mutation outside migration = 0
+
+마지막에 실제 운영 질문에 답하세요:
+
+“학생 한 명을
+화요일 16시 T1 반 +
+목요일 16시 T2 반에 동시에 배정하고,
+각 선생님이 자기 반 수업을 독립적으로 관리하는 운영이
+Production에서 안전하게 가능함 = YES/NO”
+
+보고 후 정지하세요.
