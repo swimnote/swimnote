@@ -52,7 +52,7 @@ export default function PhotoPickerDiagnostic({ onClose, isAuthorized }: Props) 
         mediaTypes: ["images"],
         allowsMultipleSelection: true,
         orderedSelection: true,
-        selectionLimit: 10,
+        selectionLimit: 50,
         quality: 0.85,
         exif: false,
         base64: false,
@@ -83,8 +83,9 @@ export default function PhotoPickerDiagnostic({ onClose, isAuthorized }: Props) 
       <SafeAreaView style={s.root}>
         <ScrollView contentContainerStyle={s.body}>
           <Text style={s.hint}>
-            사진 선택기에서 이 순서로 탭하세요: 03 → 01 → 07 → 02 → 10 → 04 → 06 → 09 → 05 → 08.
-            선택기의 번호 배지와 아래 결과 번호를 비교하세요.
+            01~50 번호가 크게 표시된 테스트 이미지만 사용하세요. 실제 학생사진은 사용하지 마세요.
+            한 장씩 빠르게 탭하기, 스크롤하며 선택하기, 선택기가 허용하면 드래그/연속 선택하기를 각각 테스트하세요.
+            선택한 번호 순서와 선택기의 배지를 아래 [1]~[50] 결과와 비교하세요. 각 테스트는 다시 선택으로 시작하세요.
           </Text>
           <View style={s.row}>
             <Pressable
