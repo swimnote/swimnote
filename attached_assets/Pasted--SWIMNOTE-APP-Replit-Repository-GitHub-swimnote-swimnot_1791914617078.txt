@@ -1,0 +1,323 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[사진 다중선택 UX 개선 — 앱 내부 드래그 선택 구현 + iOS 시스템 picker 대체 가능성 조사]
+
+사용자 실제 요구:
+
+1. SWIMNOTE 사진 전체앨범에서 여러 장 선택할 때
+   한 장씩 탭하지 않고 손가락으로 사진들을 쭉 훑으면서
+   연속 선택할 수 있어야 함.
+
+2. 내앨범에 사진을 담는 선택 화면도 동일하게
+   탭 선택 + 드래그 연속선택이 가능해야 함.
+
+3. 많은 사진을 선택할 때 손가락을 화면 위/아래 끝으로 끌면
+   자동 스크롤되면서 계속 선택할 수 있어야 함.
+
+4. iPhone 시스템 사진 picker에서도 현재는 한 장씩 탭만 가능함.
+   다만 사진 순서 보존 기능을 깨뜨리면 안 됨.
+
+중요:
+기존 사진 순서 보존 계약은 유지합니다.
+upload_sort_order / upload_batch_id / ordered upload 로직을
+삭제하거나 약화하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 iOS 시스템 picker 제약을 전제로 할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+allowsMultipleSelection=true
+orderedSelection=true
+
+를 사용합니다.
+
+iOS PHPicker의 ordered selection은
+선택순서를 보존하지만 swipe-to-select를 비활성화하는
+시스템 동작입니다.
+
+따라서 단순히
+
+orderedSelection=false
+
+로 변경하여 문제를 해결하지 마십시오.
+
+그렇게 하면 기존 사진 순서 보존 계약이 다시 약해집니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SWIMNOTE 내부 사진 그리드 드래그 선택 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 코드에서 다음 선택 화면을 찾으세요.
+
+- 선생님 사진 전체앨범 선택 모드
+- 내앨범에 사진 저장/추가하는 선택 화면
+- 동일한 photo grid selection component를 공유하는 다른 화면
+
+실제 파일을 조사한 뒤
+가능하면 공통 gesture selection helper/component로 최소 구현합니다.
+
+원하는 UX:
+
+A. 일반 탭
+사진 1장 선택/해제.
+
+B. 드래그 선택
+선택 모드에서 사진 위에서 손가락을 누른 채
+옆/아래 사진으로 이동하면 지나간 사진들이 연속 선택.
+
+예:
+
+[1][2][3]
+[4][5][6]
+[7][8][9]
+
+1에서 시작해서 2→3→6→9로 드래그하면
+지나간 셀들이 즉시 선택됨.
+
+C. 드래그 해제
+이미 선택된 사진에서 drag를 시작하면
+지나간 사진을 연속 해제할 수 있음.
+
+gesture 시작 시점의 첫 셀 상태로
+이번 gesture가 select 또는 deselect인지 고정.
+
+중간에 셀을 다시 지나가도 상태가 뒤집히지 않도록
+한 gesture 안에서는 visited set을 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 드래그 중 자동 스크롤
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 수가 많을 때 필수.
+
+선택 상태로 드래그 중 손가락이:
+
+화면 하단 edge zone
+→ 아래로 자동 scroll
+
+화면 상단 edge zone
+→ 위로 자동 scroll
+
+되도록 구현.
+
+스크롤되는 동안 새로 지나가는 셀도 계속 선택.
+
+손가락을 떼면 즉시:
+
+- auto scroll 종료
+- drag selection 종료
+
+해야 함.
+
+무한 runaway scroll 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 일반 스크롤과 충돌 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 부분 중요.
+
+평상시에는 기존처럼
+한 손가락 vertical scroll이 정상 작동해야 합니다.
+
+selection mode가 아닌 상태에서는
+drag-selection gesture를 활성화하지 마십시오.
+
+selection mode에서는:
+
+- 사진 cell에서 시작한 drag = 연속 선택
+- 정상 목록 scroll도 사용 가능해야 함
+- edge auto-scroll로 다량 사진 선택 가능
+
+현재 FlatList/FlashList 구조와 충돌하는지 확인하고
+최소한의 gesture 구조를 사용하세요.
+
+기존 navigation swipe/back gesture도 깨뜨리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 선택 순서 의미
+━━━━━━━━━━━━━━━━━━━━━━
+
+drag selection을 추가하더라도
+사진 배열/업로드 순서 계약을 임의 변경하지 마십시오.
+
+현재 사진 업로드 ordering과
+앨범 저장 ordering은 별개로 유지.
+
+이번 작업은 “선택 UX” 개선입니다.
+
+upload_sort_order,
+upload_batch_id,
+direct upload,
+DB ORDER BY
+
+를 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 내앨범 UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+내앨범에 사진을 추가하는 화면에서는
+
+“전체 선택을 눌러야만 선택 가능”
+
+같은 구조가 있다면 실제 코드를 확인하세요.
+
+사용자 요구:
+
+- 사진 하나 탭 → 선택
+- 다른 사진 탭 → 추가 선택
+- 사진 위를 드래그 → 여러 장 연속 선택
+- 다시 선택된 사진 탭 → 해제
+- 선택된 사진에서 drag 시작 → 연속 해제
+
+즉 일반적인 multi-select grid로 동작해야 합니다.
+
+불필요하게 전체선택 모드에 종속시키지 마십시오.
+
+다만 기존 “전체선택” 버튼 자체는 유지해도 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. iOS 시스템 사진 picker는 먼저 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사진 업로드 시 사용하는
+expo-image-picker / PHPicker는
+
+orderedSelection=true 상태에서
+시스템 swipe-to-select가 비활성화됩니다.
+
+이번 단계에서 바로 orderedSelection=false로 바꾸지 마십시오.
+
+대신 현재 repository/native dependencies를 기준으로
+다음이 가능한지 조사하세요.
+
+목표:
+
+- 사진첩을 SWIMNOTE 내부 custom grid로 표시
+- 촬영/라이브러리 순서 보존
+- 탭 선택
+- drag 연속선택
+- edge auto-scroll
+- 최대 100장
+- 선택된 순서를 deterministic하게 생성
+- 기존 directUploadPhotos로 전달
+
+조사 대상:
+
+- expo-media-library가 이미 설치되어 있는지
+- 기타 Photo Library access dependency가 이미 binary에 포함되어 있는지
+- 현재 App Store binary/runtime 2.2.0에서
+  새 native build 없이 사용할 수 있는지
+
+이미 포함된 native module만으로 가능하면
+구현 가능 범위와 파일을 보고.
+
+새 native module 설치가 필요하면
+이번 작업에서는 설치/빌드하지 말고 HOLD로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 중요한 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- orderedSelection=false로 단순 변경
+- 사진 순서 보존 기능 제거
+- upload_sort_order 제거
+- system picker 내부 view hierarchy 조작
+- PHPicker private API 접근
+- 순서를 filename/assetId로 추측
+- 사진 서버/DB 구조 재설계
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 내부 custom grid:
+
+1. 단일 탭 선택
+2. 단일 탭 해제
+3. 3x3 가로 드래그
+4. 대각선 드래그
+5. 선택된 셀에서 시작한 drag 해제
+6. 같은 셀 재진입 시 double toggle 없음
+7. 하단 edge auto-scroll
+8. 상단 edge auto-scroll
+9. 50장 이상 연속 선택
+10. 빠른 drag
+11. drag 종료 후 일반 scroll 정상
+12. 전체선택 → 일부 drag 해제
+13. 일부 선택 → 전체선택
+14. 선택 count 정확
+15. 내앨범 저장 대상 정확
+
+관련 테스트만.
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 내부 custom grid 구현이
+JS/TS-only이고 관련 테스트/bundle PASS면
+production-v2 iOS + Android OTA 가능.
+
+단 iOS 시스템 photo picker를
+custom picker로 교체하는 작업은
+조사 결과를 먼저 보고하고 승인 전 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+IN-APP DRAG MULTISELECT = PASS/HOLD
+
+TEACHER ALL-ALBUM =
+MY ALBUM =
+TAP SELECT =
+DRAG SELECT =
+DRAG DESELECT =
+EDGE AUTO SCROLL =
+NORMAL SCROLL =
+SELECT COUNT =
+ORDERING REGRESSION = PASS/HOLD
+
+IOS SYSTEM PICKER:
+CURRENT SWIPE DISABLED BY ORDERED MODE = YES/NO
+CUSTOM PICKER POSSIBLE WITH CURRENT BINARY = YES/NO
+EXISTING PHOTO LIBRARY MODULE =
+NATIVE BUILD REQUIRED = YES/NO
+
+FILES CHANGED =
+RELATED TESTS =
+IOS BUNDLE =
+ANDROID BUNDLE =
+
+Commit full SHA =
+GitHub main full SHA =
+
+OTA:
+iOS Update ID =
+Android Update ID =
+Group ID =
+channel =
+runtimeVersion =
+source full SHA =
+
+마지막에 답하세요:
+
+“SWIMNOTE 내부 사진 선택 화면에서는
+탭 + 드래그 연속선택 + 자동스크롤이 정상 동작함 = YES/NO”
+
+그리고
+
+“iOS 기본 사진선택기에서도 사진 순서 보존과
+드래그 연속선택을 동시에 제공할 수 있음 = YES/NO,
+이유 = ______”
+
+보고 후 정지하세요.
