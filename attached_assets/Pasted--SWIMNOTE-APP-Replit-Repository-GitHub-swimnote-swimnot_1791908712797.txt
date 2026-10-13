@@ -1,0 +1,215 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[임시 Production 진단 OTA — iOS picker 순서 확인 전용]
+
+직전 조사에서 preview OTA는
+현재 App Store 설치본이 production-v2만 구독하므로
+실기기로 전달할 수 없음을 확인했습니다.
+
+따라서 이번에는
+production-v2에 아주 제한적인 임시 진단 UI만 넣습니다.
+
+목표:
+실제 App Store iPhone에서
+
+사용자 선택 순서
+→ expo-image-picker result.assets 순서
+
+가 일치하는지만 확인.
+
+중요:
+사진 업로드 금지.
+서버 요청 금지.
+DB write 금지.
+API 수정 금지.
+Native 변경 금지.
+새 binary/store build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 진단 UI 접근 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반 사용자에게 노출하지 마십시오.
+
+기존 super_admin만 접근 가능한
+숨겨진 진단 진입점으로 제한합니다.
+
+예:
+super_admin 화면 내부의 숨겨진 임시 버튼
+
+일반 pool_admin / teacher / parent는
+코드가 배포되어도 진입할 수 없어야 합니다.
+
+새 공개 메뉴 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 진단 기능
+━━━━━━━━━━━━━━━━━━━━━━
+
+expo-image-picker 호출:
+
+allowsMultipleSelection = true
+orderedSelection = true
+selectionLimit = 10
+
+picker 완료 후:
+
+result.assets 배열을 그대로 화면에 표시.
+
+표시:
+
+[1] thumbnail
+[2] thumbnail
+...
+[10] thumbnail
+
+즉:
+
+result.assets[0]
+result.assets[1]
+...
+
+순서 그대로.
+
+금지:
+
+- 업로드
+- directUploadPhotos 호출
+- API 요청
+- R2 요청
+- 파일명 표시
+- URI 표시
+- assetId 표시
+- EXIF 표시
+- console log
+- analytics 전송
+
+오직 로컬 thumbnail + 배열 index만 표시.
+
+버튼:
+- 다시 선택
+- 닫기
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+번호 이미지 10장:
+
+01~10
+
+다음 순서로 선택:
+
+03
+01
+07
+02
+10
+04
+06
+09
+05
+08
+
+picker 화면에서 badge:
+
+03=1
+01=2
+07=3
+02=4
+10=5
+04=6
+06=7
+09=8
+05=9
+08=10
+
+확인.
+
+선택 완료 후 진단 화면 결과가:
+
+[1] 03
+[2] 01
+[3] 07
+[4] 02
+[5] 10
+[6] 04
+[7] 06
+[8] 09
+[9] 05
+[10] 08
+
+인지 직접 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 순서가 동일하면:
+
+IOS PICKER ORDER = PASS
+
+즉 현재 전체앨범 canonical path에서는
+
+picker
+→ client
+→ upload_sort_order
+→ DB
+→ API
+→ UI
+
+전체가 순서 보존.
+
+이 경우 제보 원인은
+전체앨범 정상 직접 업로드 외의
+다른 진입점/재시도/저장앨범/일지 등으로 다시 좁혀야 함.
+
+picker badge와 result.assets가 다르면:
+
+IOS PICKER ORDER = FAIL
+
+FIRST BREAK POINT =
+expo-image-picker/native picker result
+
+로 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS/TS-only.
+
+production-v2
+iOS OTA만 우선 발행해도 됨.
+
+이번 진단은 iOS 원인 확인용이므로
+Android OTA는 불필요.
+
+runtimeVersion = 2.2.0
+
+새 native build 금지.
+
+배포 전 관련 파일 bundle 검증만 수행.
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEMP IOS PICKER DIAGNOSTIC = PASS/HOLD
+
+SUPERADMIN ONLY = YES/NO
+UPLOAD PATH PRESENT = NO
+SERVER REQUEST PRESENT = NO
+DB WRITE PRESENT = NO
+
+iOS Update ID =
+Group ID =
+channel = production-v2
+runtimeVersion = 2.2.0
+source full SHA =
+
+실기기 테스트는 사용자가 직접 수행할 것이므로
+진단 UI 배포까지만 하고 정지하세요.
