@@ -1,3 +1,4 @@
+- [사진 순서 실기기 증거 경계](photo-order-evidence-boundary.md) — iPhone picker 정상 확인; 후속 조사는 실제 문제 묶음의 provenance에 한정하고 정상 batch로 제보 원인을 추정하지 않는다.
 - [회원 엑셀 일괄등록 1,000명](bulk-import-1000-done.md) — canonical /bulk/validate+/bulk/commit, ALL-OR-NOTHING, +82 norm; SHA 4699183a; iOS OTA 01a0d8b0
 - [다중반 독립 수업 경계](multi-class-slot-boundary.md) — 주당 횟수와 반 수는 강제 일치하지 않는다; 대표반은 권한 근거가 아니며 과거 미확정 출석은 자동 보정하지 않는다.
 - [★ GLOBAL COMMON-FIX RULE](global-common-fix-rule.md) — X전용 명시 없으면 Normal+X 공통 수정; ONE SOURCE FIX + BOTH MODE VERIFICATION; 중복구현 금지 (영구 원칙)

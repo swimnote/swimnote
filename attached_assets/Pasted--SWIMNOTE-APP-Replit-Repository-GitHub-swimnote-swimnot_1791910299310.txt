@@ -1,0 +1,266 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[실제 사진 순서 꼬임 — 문제 batch 생성경로/provenance 확정]
+
+추가 실기기 결과:
+
+iOS picker diagnostic에서 사용자가
+
+03 → 01 → 07 → 02 → 10 → 04 → 06 → 09 → 05 → 08
+
+순서로 선택했고,
+
+result.assets 진단 화면도 정확히
+
+03 → 01 → 07 → 02 → 10 → 04 → 06 → 09 → 05 → 08
+
+순서였습니다.
+
+따라서 다음을 최종 PASS로 고정합니다.
+
+- iOS orderedSelection = PASS
+- picker result order = PASS
+- picker → client index mapping = PASS
+- compression order = PASS
+- normal direct upload order = PASS
+- upload_sort_order = PASS
+- DB order = PASS
+- API response order = PASS
+- teacher 전체앨범 UI render = PASS
+- R2 parallel completion = 원인 아님
+
+이 항목들을 다시 조사하거나 수정하지 마십시오.
+
+이번 목표:
+
+사용자가 실제 운영 화면에서 확인한
+“순서가 꼬인 사진 묶음”이
+어떤 생성경로를 거쳤는지 확정합니다.
+
+코드 수정 금지.
+Production write 금지.
+배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 2026-10-13 문제 후보 batch provenance 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 READ ONLY 조사에서 확인된:
+
+- 2026-10-13 KST 신규 group 원본 50장
+- clone 0
+- 동일 upload_batch_id
+- upload_sort_order 0~49
+- 동일 created_at
+- 현재 전체앨범 SQL 0~49 반환
+
+이 50장의 provenance를 더 좁게 추적하세요.
+
+PII/사진내용 출력 금지.
+
+확인:
+
+- 어떤 API endpoint로 생성되었는지
+- direct upload session인지
+- legacy /photos/batch인지
+- retry 발생 흔적이 있는지
+- 최초 session 수
+- finalize 수
+- 실패/재시도 기록
+- 동일 batch에서 누락 index가 있었는지
+- 나중에 추가된 사진이 batch에 섞였는지
+- source_photo_id/is_clone
+- journal_id/student_note_id 연결 여부
+- teacher_saved_photos 연결 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 정상 50장 외 주변 사진 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제 화면이 같은 날짜의 사진을 한 화면에 보여주므로
+“같은 날짜 = 같은 업로드 batch”라고 가정하지 마십시오.
+
+해당 50장 전후의 최근 사진들을 READ ONLY로 확인하여
+
+- 다른 upload_batch_id
+- upload_batch_id NULL
+- upload_sort_order NULL
+- retry 단일 session
+- legacy upload
+- clone
+- saved/attached 사진
+
+이 동일 날짜 목록 안에 섞여 있는지 확인하세요.
+
+즉 사용자가 보고 있는 화면이:
+
+Batch A 50장
++
+Batch B 몇 장
++
+retry 사진
++
+legacy 사진
+
+형태인지 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 전체앨범의 batch 간 순서 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 계약:
+
+batch_time DESC
+→ 동일 batch 내부 upload_sort_order ASC
+
+입니다.
+
+따라서 서로 다른 batch A/B가 짧은 시간 차이로 업로드되면
+
+최신 batch 전체
+→ 이전 batch 전체
+
+순으로 표시됩니다.
+
+사용자가 기대하는 것이
+
+“휴대폰에서 선택한 전체 80장 순서”
+
+인데 실제로 업로드가 두 번의 picker/session으로 나뉘었다면
+각 선택 묶음 내부는 정상이어도
+전체 화면에서는 순서가 뒤집혀 보일 수 있습니다.
+
+실제 문제 후보에서:
+
+- picker 실행 횟수
+- upload_batch_id 개수
+- batch별 사진 수
+- batch_time
+- 화면상 batch 배열 순서
+
+를 확인하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 재시도 경로 실제 개입 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 forensic에서 확인:
+
+사진 하나 실패 후 retry하면
+
+- 새 session
+- 새 upload_sort_order=0
+- 기존 batch 없음
+- 전체앨범에서 최신 위치로 이동
+
+할 수 있습니다.
+
+실제 문제 후보 데이터에서 이 패턴이 있는지 확인하세요.
+
+확인되면:
+
+FIRST BREAK =
+retry가 원래 batch/index를 버리는 시점
+
+으로 확정.
+
+없으면 원인으로 사용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. legacy/다른 uploader 개입 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 사진이 모두
+
+teacher photos.tsx
+→ directUploadPhotos
+
+에서 생성됐는지 확인하세요.
+
+다음 경로가 하나라도 섞였는지 확인:
+
+- 관리자 photo-upload
+- /photos/batch
+- diary upload
+- MyAlbum upload
+- clone
+- saved photo
+- 기타 legacy multipart
+
+각 경로별 사진 수만 보고하세요.
+
+사진 ID/이름 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 화면 배열을 metadata만으로 재구성
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production query와 동일하게
+metadata만 사용하여 해당 시점의 화면 순서를 재구성하세요.
+
+각 항목은 사진 대신:
+
+A00
+A01
+A02 ...
+B00
+B01 ...
+
+처럼 batch letter + upload_sort_order로 익명화.
+
+예:
+
+실제 화면 order:
+B00 B01 B02 ... A00 A01 ...
+
+이런 식으로만 보고.
+
+이를 통해:
+
+- batch 내부가 꼬였는지
+- batch 간 순서 때문에 그렇게 보이는지
+- retry 한 장이 앞에 튀어나왔는지
+- NULL-order legacy 사진이 뒤섞였는지
+
+구분하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+ACTUAL PHOTO BATCH FORENSIC = PASS/HOLD
+
+PROBLEM CANDIDATE BATCH COUNT =
+DIRECT UPLOAD COUNT =
+LEGACY UPLOAD COUNT =
+RETRY COUNT =
+CLONE COUNT =
+NULL BATCH COUNT =
+NULL UPLOAD_ORDER COUNT =
+
+BATCH INTERNAL ORDER = PASS/HOLD
+BATCH BETWEEN ORDER = PASS/HOLD
+
+RETRY INVOLVED = YES/NO
+OTHER UPLOADER INVOLVED = YES/NO
+MULTIPLE PICKER/BATCH INVOLVED = YES/NO
+
+ANONYMIZED ACTUAL DISPLAY ORDER =
+예: B00,B01,...,A00,A01,...
+
+FIRST BREAK POINT =
+ROOT CAUSE =
+
+CODE CHANGE = 0
+PRODUCTION WRITE = 0
+COMMIT/PUSH/DEPLOY = 0
+
+마지막에 반드시 답하세요:
+
+“실기기 picker까지 정상임이 확인된 상태에서,
+실제 운영 화면의 사진 순서가 꼬여 보인 원인은 ______이며,
+최초로 순서 의미가 깨지는 지점은 ______이다.”
+
+원인 확정 후 수정하지 말고 정지하세요.
