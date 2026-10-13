@@ -269,10 +269,9 @@ export default function OperatorDetailScreen() {
             const d = await res.json();
             if (res.ok) {
               await load(true);
+              Alert.alert("완료", activate ? "X 모드가 활성화되었습니다." : "X 사용권이 회수되었습니다.");
             } else {
-              Alert.alert("오류", d.error === "X_PREREQUISITE_NOT_MET"
-                ? "활성화된 수영장 커리큘럼이 필요합니다."
-                : d.message ?? d.error ?? "X 사용권 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
+              Alert.alert("오류", d.message ?? d.error ?? "X 사용권 변경에 실패했습니다.\n잠시 후 다시 시도해주세요.");
               console.warn("[xmode]", id, res.status, d.error);
             }
           } catch (e: any) {

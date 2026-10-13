@@ -85,10 +85,11 @@ export function resolveEffectiveXEntitlement(pool: {
 //
 // 우선순위 (WP2B CORRECTION — LOCKED MASTER DESIGN):
 //   1. x_force_disabled                            → normal  (force override 최우선)
-//   2. x_paid_entitlement || x_manual_entitlement  → READY이면 x, 아니면 x_pending
+//   2. SUPERADMIN x_manual_entitlement → x (curriculum 등록은 이후 가능)
+//   3. x_paid_entitlement → READY이면 x, 아니면 x_pending
 //      (paid가 config 완료 전에는 x_pending 유지 — 결제 직후 setup 필요)
-//   3. x_trial active                              → x_trial (lazy expiration: ends_at > NOW())
-//   4. otherwise                                   → normal
+//   4. x_trial active                              → x_trial (lazy expiration: ends_at > NOW())
+//   5. otherwise                                   → normal
 //
 // Trial lazy expiration: background worker 불필요.
 // x_trial_ends_at <= NOW() 이면 Trial 비활성 — 다음 API 요청에서 즉시 normal 반환.
@@ -121,8 +122,10 @@ export function computeMode(pool: {
 
   if (pool.x_force_disabled) return "normal";
   // WP2B CORRECTION: paid는 config 완료 전까지 x_pending (결제 직후 setup 필요)
-  // paid와 manual 모두 동일 규칙: READY → x / 그 외 → x_pending
-  if (pool.x_paid_entitlement || pool.x_manual_entitlement) {
+  // Only the SUPERADMIN manual grant can enter X before Local Curriculum setup.
+  // This must not relax paid/subscription setup or x_force_disabled.
+  if (pool.x_manual_entitlement) return "x";
+  if (pool.x_paid_entitlement) {
     return pool.xmode_config_status === "READY" ? "x" : "x_pending";
   }
   // X Trial: lazy expiration — ends_at > NOW() 조건만 확인

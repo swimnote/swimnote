@@ -75,13 +75,13 @@ describe("computeMode — Management Override", () => {
   });
 
   // F. override=false, manual=true, CURRICULUM_PENDING → "x_pending" (기존 동작)
-  it("F: override=false, manual=true, CURRICULUM_PENDING → mode=x_pending", () => {
+  it("F: override=false, manual=true, CURRICULUM_PENDING → mode=x (SUPERADMIN exception)", () => {
     expect(computeMode({
       ...BASE,
       x_manual_entitlement: true,
       xmode_config_status: "CURRICULUM_PENDING",
       x_management_override: false,
-    })).toBe("x_pending");
+    })).toBe("x");
   });
 
   // G. override=false, force_disabled=true → "normal" (기존 동작 유지)

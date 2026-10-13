@@ -59,6 +59,7 @@ export default function SuperPoolDetailPage() {
   const [creditAmount, setCreditAmount] = useState("");
   const [xPlanKey, setXPlanKey] = useState("");
   const [xGrantError, setXGrantError] = useState("");
+  const [xGrantNotice, setXGrantNotice] = useState("");
 
   const { data: detail, isLoading, refetch } = useQuery({
     queryKey: ["super", "pool-detail", id],
@@ -81,6 +82,7 @@ export default function SuperPoolDetailPage() {
     setXPlanKey(["x300", "x500", "x1000"].includes(detail?.x_plan_key ?? "") ? detail!.x_plan_key! : "");
     setXGrantError("");
   }, [id, detail?.x_plan_key]);
+  useEffect(() => { setXGrantNotice(""); }, [id]);
 
   const { data: credits, refetch: refetchCredits } = useQuery({
     queryKey: ["super", "pool-credits", id],
@@ -102,23 +104,23 @@ export default function SuperPoolDetailPage() {
   const xGrantMut = useMutation({
     mutationFn: (grant: boolean) => {
       setXGrantError("");
+      setXGrantNotice("");
       if (grant && !["x300", "x500", "x1000"].includes(xPlanKey)) throw new Error("X 플랜을 선택해주세요.");
       return api.patch(`/super/operators/${id}/xmode`, {
         xmode_entitlement: grant,
         ...(grant ? { x_plan_key: xPlanKey } : {}),
       });
     },
-    onSuccess: async () => {
+    onSuccess: async (_response, grant) => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["super", "pool-detail", id] }),
         qc.invalidateQueries({ queryKey: ["super", "pool-x-mode", id] }),
         qc.invalidateQueries({ queryKey: ["super", "pool-control", id] }),
       ]);
+      setXGrantNotice(grant ? "X 모드가 활성화되었습니다." : "X 사용권이 회수되었습니다.");
     },
     onError: (error: { message?: string }) => {
-      setXGrantError(error.message?.includes("LOCAL_CURRICULUM_NOT_ACTIVE")
-        ? "활성화된 수영장 커리큘럼이 필요합니다."
-        : error.message ?? "X 사용권 변경에 실패했습니다.");
+      setXGrantError(error.message ?? "X 사용권 변경에 실패했습니다.");
     },
   });
 
@@ -230,6 +232,7 @@ export default function SuperPoolDetailPage() {
                   </div>
                 </div>
                 {xGrantError && <div role="alert" style={{ marginTop: "12px", color: "#991B1B", fontSize: "13px" }}>{xGrantError}</div>}
+                {xGrantNotice && <div role="status" style={{ marginTop: "12px", fontSize: "13px" }}>{xGrantNotice}</div>}
               </div>
             </div>
           )}

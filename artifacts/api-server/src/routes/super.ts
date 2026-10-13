@@ -4141,8 +4141,8 @@ router.get(
 // WP7 변경:
 //   - blind READY 강제 로직 제거 (prerequisite 실제 검증으로 대체)
 //   - x_plan_key: "x300"/"x500"/"x1000" 3가지만 허용 (grant 시 필수)
-//   - grant 시: checkXPrerequisite (실제 X runtime 데이터 기준) → READY 시에만 허용
-//   - xmode_config_status: prerequisite PASS 시 "READY" 설정 (upload history 무관)
+//   - SUPERADMIN 직접 부여만 LOCAL_CURRICULUM_NOT_ACTIVE 차단 제외
+//   - Local Curriculum 준비 전에는 기존 config 상태 보존 (가짜 READY 금지)
 //
 // Body:
 //   xmode_entitlement: boolean  — true=부여, false=회수  (UI backward-compat key)
@@ -4150,11 +4150,11 @@ router.get(
 //   reason?: string
 //
 // 부여 시:
-//   prerequisite check → READY only
+//   prerequisite check → Local Curriculum 누락만 예외
 //   x_manual_entitlement = true
 //   x_force_disabled     = false  (강제 비활성화 해제)
 //   x_plan_key           = provided valid plan key
-//   xmode_config_status  = "READY" (prerequisite 통과 기반)
+//   xmode_config_status  = "READY" (실제 prerequisite 통과 시만; 그 외 기존값)
 //   member_limit         = catalog 기준 자동 설정
 //
 // 회수 시 (NONE):
@@ -4189,6 +4189,7 @@ router.patch(
 
     const actorId = req.user!.userId;
     const grant = xmode_entitlement; // true=부여, false=회수
+    let localCurriculumReady = false;
 
     // ── Plan key validation (grant 시 필수) ──────────────────────────────────
     const VALID_GRANT_PLANS = new Set(["x300", "x500", "x1000"]);
@@ -4204,11 +4205,15 @@ router.patch(
       // WP7: checkXPrerequisite — 실제 X runtime 데이터 기준 (upload history 무관)
       const { checkXPrerequisite } = await import("../lib/xmode-readiness.js");
       const prereq = await checkXPrerequisite(poolId, superAdminDb);
-      if (!prereq.ready) {
+      // This exception is confined to the authenticated super_admin manual route.
+      // Keep the shared prerequisite strict, and keep every other blocker.
+      const blockingMissing = prereq.missing.filter(m => m !== "LOCAL_CURRICULUM_NOT_ACTIVE");
+      localCurriculumReady = prereq.ready;
+      if (!prereq.ready && (blockingMissing.length > 0 || prereq.missing.length === 0)) {
         res.status(422).json({
           error:         "X_PREREQUISITE_NOT_MET",
           message:       prereq.reason ?? "X 운영 prerequisite를 충족하지 않습니다.",
-          missing:       prereq.missing,
+          missing:       blockingMissing,
           global_template_count: prereq.global_template_count,
         });
         return;
@@ -4252,8 +4257,9 @@ router.patch(
           newManual       = true;
           newForce        = false; // 강제 비활성화 해제 (spec §24)
           newPlanKey      = x_plan_key!;
-          // WP7: prerequisite PASS 기반 READY 설정 (blind 강제 아님)
-          newConfigStatus = "READY";
+          // Manual access is independent of curriculum readiness.
+          // No curriculum: preserve config; never claim setup is complete.
+          newConfigStatus = localCurriculumReady ? "READY" : before.xmode_config_status ?? null;
           // x_management_override: 변경하지 않음 (spec §3, §11)
         } else {
           // NONE / revoke
@@ -4363,9 +4369,9 @@ router.patch(
       });
 
       // ── Grant 후 즉시 cycle 보충 (cron 대기 없이) ───────────────────────
-      // grant + READY 설정 직후, 이번달 이전달 cycle이 없으면 바로 생성.
+      // Curriculum 준비 후에만 즉시 cycle 보충. Pre-curriculum manual grant는 HOLD.
       // 응답이 이미 전송된 뒤 background에서 실행 — 실패해도 grant 자체는 유효.
-      if (grant) {
+      if (grant && localCurriculumReady) {
         const { ensureCurrentMonthGrowthReportCycle } = await import("../jobs/growth-report-scheduler.js");
         ensureCurrentMonthGrowthReportCycle(poolId, superAdminDb).catch((err: any) => {
           console.error(`[super] xmode grant 후 ensureCurrentMonthGrowthReportCycle 실패: pool=${poolId}`, err?.message);

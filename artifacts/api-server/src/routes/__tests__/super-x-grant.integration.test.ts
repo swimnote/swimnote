@@ -18,10 +18,11 @@ vi.mock("@workspace/db", async () => {
 import { resolvePoolMode } from "../../lib/xmode";
 import { checkXPrerequisite } from "../../lib/xmode-readiness";
 import { getXMemberLimit, getXPlan } from "../../lib/xPlanCatalog";
-import { isFreeGrowthReportEligiblePool } from "../../lib/growth-report-eligibility";
+import { isFreeGrowthReportEligiblePool, evaluateStudentGrowthReportEligibility } from "../../lib/growth-report-eligibility";
+import { buildXCurriculumScope, CurriculumScopeError } from "../../lib/parent-curriculum-scope-builder";
 
 const root = new URL("../../../../", import.meta.url);
-function extract(relative: string, match: (node: ts.Node) => boolean) {
+function extract(relative: string, match: (node: ts.Node) => boolean, wrap = (code: string) => code) {
   const source = readFileSync(new URL(relative, root), "utf8");
   const ast = ts.createSourceFile(relative, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let found: ts.Node | undefined;
@@ -31,7 +32,7 @@ function extract(relative: string, match: (node: ts.Node) => boolean) {
   }
   visit(ast);
   if (!found) throw Error("SOURCE_STATEMENT_NOT_FOUND: " + relative);
-  return transformSync(found.getText(ast).replace(/^export\s+/, "").replace(/\bimport\(/g, "loadModule("),
+  return transformSync(wrap(found.getText(ast).replace(/^export\s+/, "").replace(/\bimport\(/g, "loadModule(")),
     { loader: "tsx", format: "cjs", target: "node20" }).code;
 }
 const superFile = "api-server/src/routes/super.ts";
@@ -44,6 +45,12 @@ const routeCode = extract(superFile, n => ts.isExpressionStatement(n) && ts.isCa
 const roleCode = extract("api-server/src/middlewares/auth.ts",
   n => ts.isFunctionDeclaration(n) && n.name?.text === "requireRole");
 const requireRole = new Function("superAdminDb", "sql", roleCode + "\nreturn requireRole;")(db, sql);
+const setupAccess = new Function("superAdminDb", "sql",
+  extract("api-server/src/routes/x-setup.ts",
+    n => ts.isFunctionDeclaration(n) && n.name?.text === "hasXEntitlement")
+  + "\nreturn hasXEntitlement;")(db, sql);
+const isXMode = new Function(extract("swim-app/constants/xTheme.ts",
+  n => ts.isFunctionDeclaration(n) && n.name?.text === "isXMode") + "\nreturn isXMode;")();
 const quiet = { log() {}, warn() {}, error: vi.fn() };
 let tasks: Promise<any>[] = [];
 let cycle: ReturnType<typeof vi.fn>;
@@ -86,10 +93,11 @@ function pc(client: any, plan: string) {
     if (res.status >= 400) throw { status: res.status, message: res.body.message ?? res.body.error };
     return res.body;
   }};
-  const mutation = new Function("useMutation", "api", "id", "xPlanKey", "setXGrantError", "qc",
+   const notice = vi.fn();
+   const mutation = new Function("useMutation", "api", "id", "xPlanKey", "setXGrantError", "qc", "setXGrantNotice",
     extract(pcFile, variable("xGrantMut")) + "\nreturn xGrantMut;")(
-    (config: any) => config, api, "A", plan, error, { invalidateQueries: invalidate });
-  return { mutation, error, invalidate };
+     (config: any) => config, api, "A", plan, error, { invalidateQueries: invalidate }, notice);
+   return { mutation, error, invalidate, notice };
 }
 function mobile(client: any, plan: string) {
   const alerts = vi.fn(), state = { pool: null as any };
@@ -133,6 +141,7 @@ describe.skipIf(process.env.RUN_X_GRANT_FIXTURE !== "1")("super X grant / isolat
         payment_suspended_at timestamptz,base_manual_entitlement boolean DEFAULT false
       );
       CREATE TABLE curriculum_versions(id text,swimming_pool_id text,is_global_reference boolean,is_active boolean,archived_at timestamptz);
+      CREATE TABLE curriculum_items(id text,curriculum_version_id text,title text,description text,sort_order int,is_active boolean);
       CREATE TABLE global_template_sets(status text);
       CREATE TABLE diary_templates(scope text,swimming_pool_id text,is_active boolean);
       CREATE TABLE audit_logs(entity_type text,entity_id text,entity_version bigint,action text,actor_type text,actor_id text,pool_id text,before_data jsonb,after_data jsonb,reason text);
@@ -140,7 +149,7 @@ describe.skipIf(process.env.RUN_X_GRANT_FIXTURE !== "1")("super X grant / isolat
     `);
   });
   beforeEach(async () => {
-    await pg.query("TRUNCATE swimming_pools,curriculum_versions,audit_logs; INSERT INTO swimming_pools(id) VALUES ('A'),('B'); INSERT INTO curriculum_versions VALUES ('cv-A','A',false,true,null)");
+    await pg.query("TRUNCATE swimming_pools,curriculum_versions,curriculum_items,audit_logs; INSERT INTO swimming_pools(id) VALUES ('A'),('B'); INSERT INTO curriculum_versions VALUES ('cv-A','A',false,true,null)");
     tasks = [];
     quiet.error.mockClear();
     cycle = vi.fn(async (poolId: string, passedDb: any) => {
@@ -156,7 +165,7 @@ describe.skipIf(process.env.RUN_X_GRANT_FIXTURE !== "1")("super X grant / isolat
   it.each(["x300", "x500", "x1000"])("PC selected %s ON → real SQL → resolver x → OFF / data preserved", async plan => {
     const b = await row("B"), client = app(), { mutation, invalidate } = pc(client, plan);
     const result = await mutation.mutationFn(true);
-    await mutation.onSuccess(result);
+    await mutation.onSuccess(result, true);
     await settle();
     expect(await row()).toMatchObject({ x_manual_entitlement: true, x_paid_entitlement: false, x_plan_key: plan, xmode_config_status: "READY", member_limit: getXMemberLimit(plan) });
     expect(await resolvePoolMode("A")).toMatchObject({ mode: "x", xmode_entitlement: true });
@@ -173,29 +182,115 @@ describe.skipIf(process.env.RUN_X_GRANT_FIXTURE !== "1")("super X grant / isolat
   it.each(["x300", "x500", "x1000"])("Mobile %s ON/OFF recognizes HTTP success and reloads canonical mode", async plan => {
     const b = await row("B"), client = app(), on = mobile(client, plan);
     await on.confirm(true); await settle();
-    expect(on.alerts).toHaveBeenCalledTimes(1); // Confirmation only; no false error.
+    expect(on.alerts).toHaveBeenCalledTimes(2);
+    expect(on.alerts).toHaveBeenLastCalledWith("완료", "X 모드가 활성화되었습니다.");
     expect(on.state.pool).toMatchObject({ x_plan_key: plan, x_manual_entitlement: true, x_paid_entitlement: false, x_mode: "x", xmode_entitlement: true });
     expect(cycle).toHaveBeenCalledWith("A", db);
     const off = mobile(client, plan);
     await off.confirm(false);
-    expect(off.alerts).toHaveBeenCalledTimes(1);
+    expect(off.alerts).toHaveBeenCalledTimes(2);
+    expect(off.alerts).toHaveBeenLastCalledWith("완료", "X 사용권이 회수되었습니다.");
     expect(off.state.pool).toMatchObject({ x_manual_entitlement: false, x_mode: "normal", xmode_entitlement: false });
     expect((await pg.query("SELECT count(*)::int AS n FROM curriculum_versions")).rows[0].n).toBe(1);
     expect(await row("B")).toEqual(b);
   });
 
-  it("missing local curriculum → 422 / unchanged state / explicit PC and mobile guidance", async () => {
+  it.each(["x300", "x500", "x1000"])("PC %s before curriculum → 200 / mode=x / config preserved / immediate GR HOLD", async plan => {
     await pg.query("TRUNCATE curriculum_versions");
-    const before = await row(), b = await row("B"), client = app(), web = pc(client, "x300");
-    const res = await request(client).patch("/api/super/operators/A/xmode").send({ xmode_entitlement: true, x_plan_key: "x300" });
+    const b = await row("B"), web = pc(app(), plan);
+    const response = await web.mutation.mutationFn(true);
+    await web.mutation.onSuccess(response, true); await settle();
+    expect(response).toMatchObject({ action: "granted", x_manual_entitlement: true });
+    expect(await row()).toMatchObject({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false,
+      x_plan_key: plan, xmode_config_status: "NOT_CONFIGURED", member_limit: getXMemberLimit(plan), storage_mb: getXPlan(plan)!.storageMb });
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "x", xmode_entitlement: true });
+    expect(web.notice).toHaveBeenLastCalledWith("X 모드가 활성화되었습니다.");
+    expect(web.error).not.toHaveBeenCalledWith(expect.stringContaining("커리큘럼이 필요"));
+    expect(await checkXPrerequisite("A", db)).toMatchObject({ ready: false, missing: ["LOCAL_CURRICULUM_NOT_ACTIVE"] });
+    expect((await pg.query("SELECT count(*)::int AS n FROM curriculum_versions")).rows[0].n).toBe(0);
+    expect(await row("B")).toEqual(b);
+    expect(cycle).not.toHaveBeenCalled();
+  });
+
+  it.each(["x300", "x500", "x1000"])("Mobile %s without curriculum → X success / OFF succeeds / no GR bootstrap", async plan => {
+    await pg.query("TRUNCATE curriculum_versions");
+    const b = await row("B"), client = app(), on = mobile(client, plan);
+    await on.confirm(true); await settle();
+    expect(on.state.pool).toMatchObject({ x_manual_entitlement: true, x_paid_entitlement: false,
+      x_plan_key: plan, x_mode: "x", xmode_config_status: "NOT_CONFIGURED" });
+    expect(on.alerts).toHaveBeenLastCalledWith("완료", "X 모드가 활성화되었습니다.");
+    const off = mobile(client, plan); await off.confirm(false); await settle();
+    expect(off.state.pool).toMatchObject({ x_manual_entitlement: false, x_mode: "normal" });
+    expect(off.alerts).toHaveBeenLastCalledWith("완료", "X 사용권이 회수되었습니다.");
+    expect(cycle).not.toHaveBeenCalled();
+    expect(await row("B")).toEqual(b);
+  });
+
+  it("manual X reaches the actual X setup upload gate; later local data works without another grant; OFF preserves it", async () => {
+    await pg.query("TRUNCATE curriculum_versions");
+    const client = app();
+    const grant = await request(client).patch("/api/super/operators/A/xmode")
+      .send({ xmode_entitlement: true, x_plan_key: "x300" });
+    expect(grant.status).toBe(200);
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "x" });
+    const mode = await resolvePoolMode("A");
+    expect(isXMode(mode!.mode)).toBe(true); // Actual mobile X setup route guard.
+    expect(await setupAccess("A")).toBe(true);
+    expect(await setupAccess("B")).toBe(false);
+    await expect(buildXCurriculumScope("A")).rejects.toMatchObject({ code: "CURRICULUM_NOT_REGISTERED" });
+    // Canonical data produced by existing upload/activate flow; no entitlement rewrite.
+    await pg.query(`INSERT INTO curriculum_versions VALUES ('late-A','A',false,true,null);
+      INSERT INTO curriculum_items VALUES ('item-A','late-A','실제 등록 교육과정','fixture content',1,true)`);
+    expect(await checkXPrerequisite("A", db)).toMatchObject({ ready: true });
+    const scope = await buildXCurriculumScope("A");
+    expect(scope.curriculum_items.map(item => item.id)).toEqual(["item-A"]);
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "x" });
+    expect((await row()).x_manual_entitlement).toBe(true);
+    await request(client).patch("/api/super/operators/A/xmode").send({ xmode_entitlement: false });
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "normal" });
+    expect((await pg.query("SELECT count(*)::int AS n FROM curriculum_items")).rows[0].n).toBe(1);
+  });
+
+  it("real Parent AI scope gate returns 422 before engine/quota; empty Growth Report evidence remains excluded", async () => {
+    await pg.query("TRUNCATE curriculum_versions");
+    await request(app()).patch("/api/super/operators/A/xmode").send({ xmode_entitlement: true, x_plan_key: "x300" });
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "x" });
+    const engine = vi.fn(), json = vi.fn(), res = { status: vi.fn(), json };
+    res.status.mockReturnValue(res);
+    const gateCode = extract("api-server/src/routes/parent-curriculum.ts",
+      n => ts.isTryStatement(n) && n.tryBlock.getText().includes("curriculumScope = await buildXCurriculumScope(poolId)"),
+      code => `async function parentGate(res) { let curriculumScope; ${code}; await engine(curriculumScope); }`);
+    const gate = new Function("buildXCurriculumScope", "CurriculumScopeError", "poolId", "console", "engine",
+      gateCode + "\nreturn parentGate;")(buildXCurriculumScope, CurriculumScopeError, "A", quiet, engine);
+    await gate(res);
+    expect(res.status).toHaveBeenCalledWith(422);
+    expect(json).toHaveBeenCalledWith(expect.objectContaining({ code: "CURRICULUM_NOT_REGISTERED" }));
+    expect(engine).not.toHaveBeenCalled();
+    expect(evaluateStudentGrowthReportEligibility({ attendanceCount: 3, sourceEventCount: 0, reregistered: true }))
+      .toMatchObject({ eligible: false, exclusion_code: "NO_SOURCE_DATA" });
+    expect(cycle).not.toHaveBeenCalled();
+  });
+
+  it("paid-only without curriculum remains x_pending; revoking manual cannot bypass paid readiness", async () => {
+    await pg.query("TRUNCATE curriculum_versions; UPDATE swimming_pools SET x_paid_entitlement=true WHERE id='A'");
+    expect(await checkXPrerequisite("A", db)).toMatchObject({ ready: false });
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "x_pending" });
+    const client = app();
+    await request(client).patch("/api/super/operators/A/xmode").send({ xmode_entitlement: true, x_plan_key: "x300" });
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "x" });
+    await request(client).patch("/api/super/operators/A/xmode").send({ xmode_entitlement: false });
+    expect(await row()).toMatchObject({ x_paid_entitlement: true, x_manual_entitlement: false, xmode_config_status: "NOT_CONFIGURED" });
+    expect(await resolvePoolMode("A")).toMatchObject({ mode: "x_pending" });
+  });
+
+  it("missing pool is still a prerequisite blocker, not covered by the SUPERADMIN exception", async () => {
+    const before = await row(), b = await row("B");
+    const res = await request(app()).patch("/api/super/operators/missing-pool/xmode")
+      .send({ xmode_entitlement: true, x_plan_key: "x300" });
     expect(res.status).toBe(422);
-    expect(res.body).toMatchObject({ error: "X_PREREQUISITE_NOT_MET", missing: ["LOCAL_CURRICULUM_NOT_ACTIVE"] });
-    try { await web.mutation.mutationFn(true); } catch (e) { web.mutation.onError(e); }
-    expect(web.error).toHaveBeenLastCalledWith("활성화된 수영장 커리큘럼이 필요합니다.");
-    const m = mobile(client, "x300");
-    await m.confirm(true);
-    expect(m.alerts).toHaveBeenLastCalledWith("오류", "활성화된 수영장 커리큘럼이 필요합니다.");
-    expect(await row()).toEqual(before); expect(await row("B")).toEqual(b);
+    expect(res.body).toMatchObject({ error: "X_PREREQUISITE_NOT_MET", missing: ["POOL_NOT_FOUND"] });
+    expect(await row()).toEqual(before);
+    expect(await row("B")).toEqual(b);
     expect(cycle).not.toHaveBeenCalled();
   });
 
@@ -203,15 +298,16 @@ describe.skipIf(process.env.RUN_X_GRANT_FIXTURE !== "1")("super X grant / isolat
     cycle.mockImplementation(async () => { throw Error("fixture background failure"); });
     const m = mobile(app(), "x500");
     await m.confirm(true); await settle();
-    expect(m.alerts).toHaveBeenCalledTimes(1);
+    expect(m.alerts).toHaveBeenCalledTimes(2);
     expect(m.state.pool.x_mode).toBe("x");
     expect((await row()).x_manual_entitlement).toBe(true);
     expect(quiet.error).toHaveBeenCalled();
   });
 
-  it("real role guard blocks non-superadmin", async () => {
+  it.each(["pool_admin", "teacher", "parent_account"])("real role guard blocks %s before curriculum lookup", async role => {
+    await pg.query("TRUNCATE curriculum_versions");
     const before = await row();
-    const res = await request(app()).patch("/api/super/operators/A/xmode").set("x-fixture-role", "pool_admin")
+    const res = await request(app()).patch("/api/super/operators/A/xmode").set("x-fixture-role", role)
       .send({ xmode_entitlement: true, x_plan_key: "x300" });
     expect(res.status).toBe(403); expect(await row()).toEqual(before);
   });

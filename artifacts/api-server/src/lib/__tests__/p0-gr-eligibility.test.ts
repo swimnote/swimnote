@@ -140,7 +140,9 @@ describe("Growth Report Eligibility Architecture (TC1–TC13)", () => {
     const end = superRouteSrc.indexOf('router.patch(\n  "/super/operators/:id/management-override"', start);
     const grant = superRouteSrc.slice(start, end);
     expect(grant).toContain("checkXPrerequisite(poolId, superAdminDb)");
-    expect(grant).toContain("if (!prereq.ready)");
+    expect(grant).toContain('m !== "LOCAL_CURRICULUM_NOT_ACTIVE"');
+    expect(grant).toContain("blockingMissing.length > 0");
+    expect(grant).toContain("if (grant && localCurriculumReady)");
     expect(grant).toContain("X_PREREQUISITE_NOT_MET");
   });
 

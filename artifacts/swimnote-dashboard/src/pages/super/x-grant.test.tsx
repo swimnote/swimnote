@@ -34,6 +34,7 @@ describe("PC superadmin X grant UI", () => {
     await waitFor(() => expect((screen.getByRole("button", { name: "X 부여" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "X 부여" }));
     await screen.findByText("X 활성");
+    await screen.findByText("X 모드가 활성화되었습니다.");
     expect(api.patch).toHaveBeenCalledWith("/super/operators/A/xmode", { xmode_entitlement: true, x_plan_key: plan });
     fireEvent.click(screen.getByRole("button", { name: "X 해제" }));
     await screen.findByText("일반", { selector: "strong" });
@@ -44,14 +45,14 @@ describe("PC superadmin X grant UI", () => {
     mount("x500");
     await waitFor(() => expect((screen.getByRole("combobox", { name: "X 플랜 선택" }) as HTMLSelectElement).value).toBe("x500"));
   });
-  it("prerequisite rejection is specific and never displays X active", async () => {
+  it("other server failures remain visible and never display X active", async () => {
     mount();
     await screen.findByText("Fixture");
-    api.patch.mockRejectedValue({ status: 422, message: "LOCAL_CURRICULUM_NOT_ACTIVE" });
+    api.patch.mockRejectedValue({ status: 400, message: "INVALID_PLAN_KEY" });
     fireEvent.change(screen.getByRole("combobox", { name: "X 플랜 선택" }), { target: { value: "x300" } });
     await waitFor(() => expect((screen.getByRole("button", { name: "X 부여" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "X 부여" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("활성화된 수영장 커리큘럼이 필요합니다.");
+    expect((await screen.findByRole("alert")).textContent).toBe("INVALID_PLAN_KEY");
     expect(screen.queryByText("X 활성")).toBeNull();
   });
 });

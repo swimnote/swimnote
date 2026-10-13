@@ -47,8 +47,8 @@ describe("A. computeMode — canonical X MODE rule (P0)", () => {
     expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x_pending");
   });
 
-  it("A-3: manual=true + config CURRICULUM_PENDING → mode='x_pending'", () => {
-    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe("x_pending");
+  it("A-3: SUPERADMIN manual=true + config CURRICULUM_PENDING → mode='x'", () => {
+    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe("x");
   });
 
   it("A-4: paid/manual + config READY → mode='x'", () => {
@@ -62,12 +62,12 @@ describe("A. computeMode — canonical X MODE rule (P0)", () => {
       { paid: false, manual: false, force: false, config: "NOT_CONFIGURED",     expected: "normal"    },
       { paid: false, manual: false, force: false, config: "CURRICULUM_PENDING", expected: "normal"    },
       { paid: false, manual: false, force: false, config: "READY",              expected: "normal"    },
-      // WP2B CORRECTION: paid requires READY (same as manual)
+      // Paid still requires READY; SUPERADMIN manual does not.
       { paid: true,  manual: false, force: false, config: "NOT_CONFIGURED",     expected: "x_pending" },
       { paid: true,  manual: false, force: false, config: "CURRICULUM_PENDING", expected: "x_pending" },
       { paid: true,  manual: false, force: false, config: "READY",              expected: "x"         },
-      { paid: false, manual: true,  force: false, config: "NOT_CONFIGURED",     expected: "x_pending" },
-      { paid: false, manual: true,  force: false, config: "CURRICULUM_PENDING", expected: "x_pending" },
+      { paid: false, manual: true,  force: false, config: "NOT_CONFIGURED",     expected: "x" },
+      { paid: false, manual: true,  force: false, config: "CURRICULUM_PENDING", expected: "x" },
       { paid: false, manual: true,  force: false, config: "READY",              expected: "x"         },
       { paid: true,  manual: false, force: true,  config: "READY",              expected: "normal"    },
       { paid: true,  manual: true,  force: true,  config: "READY",              expected: "normal"    },
@@ -139,13 +139,13 @@ describe("B. resolveEffectiveXEntitlement — X02-B2 CASE A~H", () => {
     expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x_pending");
   });
 
-  // CASE H: paid=false, manual=true, config!=READY → x_pending (manual path unchanged)
-  it("CASE H: manual=true, config CURRICULUM_PENDING → effective=true, mode=x_pending", () => {
+  // CASE H: SUPERADMIN manual bypasses only config readiness.
+  it("CASE H: manual=true, config CURRICULUM_PENDING → effective=true, mode=x", () => {
     const eff = resolveEffectiveXEntitlement({
       x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false,
     });
     expect(eff).toBe(true);
-    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe("x_pending");
+    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe("x");
   });
 });
 
