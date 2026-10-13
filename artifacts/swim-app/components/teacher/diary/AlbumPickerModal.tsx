@@ -11,6 +11,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AlbumPhotoInfo, AlbumVideoInfo } from "./types";
 import { API_BASE } from "@/context/AuthContext";
+import { usePhotoDragSelection } from "@/hooks/usePhotoDragSelection";
 
 const SCREEN_W = Dimensions.get("window").width;
 const ITEM_SIZE = Math.floor((SCREEN_W - 4 * 4) / 3);
@@ -90,7 +91,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
     const uri = item.presigned_url ?? ((item.file_url?.startsWith("http")) ? item.file_url : "");
     return (
       <Pressable
-        onPress={() => { togglePhoto(item.id); }}
+        {...photoDrag.cellProps(item.id, () => togglePhoto(item.id))}
         style={[s.item, isSel && s.itemSelected]}
       >
         {uri ? (
@@ -148,6 +149,12 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
   });
 
   const isEmpty = combined.length === 0;
+  const photoDrag = usePhotoDragSelection<MediaItem>({
+    enabled: visible && !loading && tab !== "video",
+    ids: combined.map(row => row._type === "photo" ? row.item.id : null),
+    selected: selPhotos, setSelected: setSelPhotos, limit: Math.max(0, 20 - selVideos.size),
+    columns: 3, cellSize: ITEM_SIZE, columnGap: 4, rowGap: 4, padding: 4,
+  });
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -184,7 +191,9 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
             <Text style={s.emptySubText}>사진/영상 탭에서 먼저 업로드해 주세요.</Text>
           </View>
         ) : (
+          <View {...photoDrag.containerProps} style={{ flex: 1 }}>
           <FlatList
+            {...photoDrag.listProps}
             data={combined}
             keyExtractor={it => `${it._type}-${it.item.id}`}
             numColumns={3}
@@ -196,6 +205,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
             contentContainerStyle={s.grid}
             showsVerticalScrollIndicator={false}
           />
+          </View>
         )}
 
         <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}>

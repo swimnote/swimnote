@@ -25,6 +25,7 @@ import { API_BASE } from "@/context/AuthContext";
 import { compressImageIfNeeded } from "@/utils/compressImage";
 import { directUploadPhotos, DirectUploadFile } from "@/utils/directUploadPhotos";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
+import { usePhotoDragSelection } from "@/hooks/usePhotoDragSelection";
 import { AlbumPhotoInfo, AlbumVideoInfo } from "./types";
 
 const C = Colors.light;
@@ -82,6 +83,11 @@ export default function MyAlbumPickerModal({
   const [selected, setSelected]       = useState<Set<string>>(new Set());
   const [error, setError]             = useState<string | null>(null);
   const [showFullAlbum, setShowFullAlbum] = useState(false);
+  const photoDrag = usePhotoDragSelection<RawItem>({
+    enabled: visible && mediaType === "photo" && !loading && !uploading && !showFullAlbum,
+    ids: items.map(item => item.id), selected, setSelected,
+    columns: 3, cellSize: CELL, columnGap: 4, rowGap: 4, padding: 3,
+  });
 
   // Per-photo upload progress items (photo path only)
   const [uploadItems, setUploadItems] = useState<PhotoUploadItem[]>([]);
@@ -435,7 +441,7 @@ export default function MyAlbumPickerModal({
     const isSel = selected.has(item.id);
     return (
       <Pressable
-        onPress={() => toggle(item.id)}
+        {...photoDrag.cellProps(item.id, () => toggle(item.id))}
         style={[s.cell, { width: CELL, height: CELL }]}
       >
         {uri ? (
@@ -564,7 +570,9 @@ export default function MyAlbumPickerModal({
             <Text style={s.emptyHint}>위 버튼으로 사진을 추가해보세요.</Text>
           </View>
         ) : (
+          <View {...photoDrag.containerProps} style={{ flex: 1 }}>
           <FlatList
+            {...photoDrag.listProps}
             data={items}
             keyExtractor={it => it.id}
             renderItem={renderItem}
@@ -573,6 +581,7 @@ export default function MyAlbumPickerModal({
             contentContainerStyle={{ gap: 2, padding: 2 }}
             showsVerticalScrollIndicator={false}
           />
+          </View>
         )}
       </View>
 

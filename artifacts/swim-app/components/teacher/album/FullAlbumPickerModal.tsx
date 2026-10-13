@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { API_BASE } from "@/context/AuthContext";
+import { usePhotoDragSelection } from "@/hooks/usePhotoDragSelection";
 
 const C = Colors.light;
 const { width: W } = Dimensions.get("window");
@@ -42,6 +43,11 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
   const [saving, setSaving]       = useState(false);
   const [selected, setSelected]   = useState<Set<string>>(new Set());
   const [error, setError]         = useState<string | null>(null);
+  const photoDrag = usePhotoDragSelection<PhotoItem>({
+    enabled: visible && mediaType === "photo" && !loading && !saving,
+    ids: items.map(item => item.id), selected, setSelected,
+    columns: 3, cellSize: CELL, columnGap: 1, rowGap: 0, padding: 1,
+  });
 
   const themeColor = mediaType === "photo" ? "#E4A93A" : "#7C3AED";
   const title      = mediaType === "photo" ? "전체앨범사진에서 선택" : "전체앨범영상에서 선택";
@@ -190,7 +196,9 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
           </View>
         ) : mediaType === "photo" ? (
           /* ── 사진: 3열 그리드 ── */
+          <View {...photoDrag.containerProps} style={{ flex: 1 }}>
           <FlatList
+            {...photoDrag.listProps}
             data={items}
             keyExtractor={item => item.id}
             numColumns={3}
@@ -201,7 +209,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
               const uri = photoUri((item as any).presigned_url ?? item.file_url);
               return (
                 <Pressable
-                  onPress={() => toggle(item.id)}
+                  {...photoDrag.cellProps(item.id, () => toggle(item.id))}
                   style={[
                     s.cell,
                     { width: CELL, height: CELL },
@@ -235,6 +243,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
               );
             }}
           />
+          </View>
         ) : (
           /* ── 영상: 카드 리스트 ── */
           <FlatList

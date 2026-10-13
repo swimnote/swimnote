@@ -22,6 +22,7 @@ import { API_BASE, apiRequest, safeJson, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useUploadQueue } from "@/context/UploadQueueContext";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
+import { usePhotoDragSelection } from "@/hooks/usePhotoDragSelection";
 
 const C = Colors.light;
 const { width: W } = Dimensions.get("window");
@@ -148,6 +149,12 @@ export default function TeacherPhotosScreen() {
   const [loadingMore,      setLoadingMore]      = useState(false);
   const [selectMode,  setSelectMode]  = useState(false);
   const [selected,    setSelected]    = useState<Set<string>>(new Set());
+  const photoDrag = usePhotoDragSelection<MediaItem>({
+    enabled: step === "list" && mediaType === "photo" && selectMode,
+    ids: items.map(item => item?.id ?? null),
+    selected, setSelected,
+    columns: 3, cellSize: PHOTO_SIZE, columnGap: 4, rowGap: 2, padding: 3,
+  });
   const [deleting,    setDeleting]    = useState(false);
   const [confirmDel,  setConfirmDel]  = useState(false);
   const [pendingDeleteIds,   setPendingDeleteIds]   = useState<string[]>([]);
@@ -367,27 +374,6 @@ export default function TeacherPhotosScreen() {
     if (selected.size === items.length) setSelected(new Set());
     else setSelected(new Set(items.map(i => i.id).filter(Boolean)));
   }
-  // ── drag-select: 사진 3열 그리드 ─────────────────────────────────────
-  function selectPhotoAt(pageX: number, pageY: number) {
-    if (!selectModeRef.current) return;
-    const relY = pageY - dragContainerPageYRef.current + dragScrollYRef.current - 2;
-    if (relY < 0) return;
-    const col = Math.min(2, Math.max(0, Math.floor(pageX / (PHOTO_SIZE + 2))));
-    const row = Math.floor(relY / (PHOTO_SIZE + 2));
-    const idx = row * 3 + col;
-    const target = itemsForDragRef.current[idx];
-    if (target?.id) {
-      setSelected(prev => {
-        if (prev.has(target.id)) return prev;
-        const n = new Set(prev); n.add(target.id); return n;
-      });
-    }
-  }
-  // BUG-2: drag-select 제거 — 세로 스크롤 우선. 탭 선택/해제 유지.
-  const photoGridDragPan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
-    onMoveShouldSetPanResponder: () => false,
-  })).current;
   // ── drag-select: 영상 리스트 (행 높이 약 76px) ───────────────────────
   const VIDEO_ROW_H = 76;
   function selectVideoAt(pageY: number) {
@@ -854,25 +840,17 @@ export default function TeacherPhotosScreen() {
           </View>
         ) : isPhoto ? (
           <View
-            ref={dragContainerRef}
+            {...photoDrag.containerProps}
             style={{ flex: 1 }}
-            onLayout={() => {
-              dragContainerRef.current?.measure((_x, _y, _w, _h, _px, py) => {
-                dragContainerPageYRef.current = py;
-              });
-            }}
-            {...(selectMode ? photoGridDragPan.panHandlers : {})}
           >
           <FlatList
+            {...photoDrag.listProps}
             data={safeItems}
             keyExtractor={(item, idx) => item?.id ?? String(idx)}
             numColumns={3}
-            scrollEnabled={true}
             contentContainerStyle={{ padding: 2, paddingBottom: insets.bottom + 100 }}
             columnWrapperStyle={{ gap: 2 }}
             removeClippedSubviews
-            onScroll={e => { dragScrollYRef.current = e.nativeEvent.contentOffset.y; }}
-            scrollEventThrottle={16}
             ListFooterComponent={studentScopeId ? (
               photoHasMore ? (
                 <Pressable
@@ -903,13 +881,14 @@ export default function TeacherPhotosScreen() {
               const uri = photoUri(item.file_url, token);
               return (
                 <Pressable
-                  onPress={() => selectMode ? toggleSelect(item.id) : setLightboxIdx(items.findIndex(i => i.id === item.id))}
-                  onLongPress={() => {
+                  {...photoDrag.cellProps(item.id,
+                    () => selectMode ? toggleSelect(item.id) : setLightboxIdx(items.findIndex(i => i.id === item.id)),
+                    () => {
                     if (!selectMode) {
                       setSelectMode(true);
                       setSelected(new Set([item.id]));
                     }
-                  }}
+                  })}
                   style={[
                     s.photoCell,
                     { width: PHOTO_SIZE, height: PHOTO_SIZE },
