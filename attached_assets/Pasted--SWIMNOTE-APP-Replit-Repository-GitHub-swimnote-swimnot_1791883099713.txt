@@ -1,0 +1,198 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[긴급 확인 — 기존 SUPERADMIN X MODE 부여 기능 E2E 검증]
+
+중요:
+X MODE 활성화 기능은 이미 구현되어 있습니다.
+
+새 기능을 설계하거나 만들지 마십시오.
+새 entitlement 구조를 제안하지 마십시오.
+RevenueCat 구조를 다시 설계하지 마십시오.
+관련 없는 X roadmap을 재조사하지 마십시오.
+
+이번 목적은 단 하나입니다.
+
+“슈퍼관리자가 이미 구현된 기능으로 특정 수영장에 X MODE를 부여하면,
+그 수영장이 실제로 X MODE로 활성화되어 정상 사용할 수 있는가?”
+
+를 현재 코드/Production 기준으로 확인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 기존 SUPERADMIN 활성화 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현된 실제 흐름만 추적:
+
+SUPERADMIN
+→ 수영장 선택
+→ X MODE 활성화/부여
+→ API
+→ DB 상태 변경
+→ 해당 pool의 X MODE Gate 활성화
+
+다음을 실제 파일/endpoint/field 기준으로 보고:
+
+- 슈퍼관리자 X 활성화 화면/버튼
+- 호출 API
+- 변경되는 DB table/column/value
+- X MODE Gate가 읽는 최종 값
+
+새 구조 제안 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 가장 중요한 연결 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+슈퍼관리자가 X MODE를 ON 했을 때
+
+저장되는 값과
+실제 앱/PC가 X MODE 활성 여부를 판단하는 값이
+
+정확히 같은 source인지 확인하세요.
+
+즉:
+
+SUPERADMIN에서 ON
+→ DB ACTIVE
+→ pool admin이 X MODE로 인식
+
+이 연결이 끊어져 있지 않은지 확인.
+
+별도의 결제값 때문에
+SUPERADMIN이 ON해도 다시 일반모드로 판단되는 경로가 있는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 X 기능 Gate 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+X MODE를 부여받은 pool에서
+현재 이미 구현된 주요 X 기능이 같은 활성 상태를 정상 인식하는지 확인:
+
+- 모바일 관리자 X MODE
+- PC Dashboard X 기능
+- X Curriculum
+- X DOCX upload
+- X diary/template 관련 기능
+- Parent AI에서 X pool 판정
+- Growth Report에서 X entitlement/pool 판정
+- 기타 현재 코드에서 X Mode Gate를 사용하는 핵심 기능
+
+각각 PASS/HOLD만 보고.
+
+새 기능 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SUPERADMIN OFF도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 비활성화 기능이 있다면:
+
+SUPERADMIN
+→ X MODE OFF
+
+했을 때
+
+- DB 상태 정상 변경
+- 일반모드로 Gate 복귀
+- 기존 데이터 삭제 없음
+
+인지 확인.
+
+실제 Production pool을 임의로 OFF 하지 마세요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 검증 방법
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 실수 방지를 위해
+실제 고객 pool 상태를 변경하지 마십시오.
+
+가능한 순서:
+
+1. 현재 코드 추적
+2. 기존 관련 테스트 실행
+3. 격리된 테스트 DB/fixture에서
+   SUPERADMIN ON → pool X 활성
+   SUPERADMIN OFF → 일반모드 복귀
+   E2E 검증
+
+이미 안전한 테스트 pool이 코드/환경에 명확히 존재하는 경우에만 사용.
+
+Production은 READ ONLY.
+
+전체 suite/typecheck 금지.
+X 활성화 관련 테스트만 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 특히 확인할 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 질문에 정확히 YES/NO로 답하세요.
+
+A.
+신규 수영장이 일반 가입한 뒤
+슈퍼관리자가 기존 X MODE 활성화 기능을 사용하면
+해당 pool을 X MODE로 바꿀 수 있는가?
+
+B.
+결제가 없어도 SUPERADMIN 수동 활성화가 우선되어
+X MODE가 실제 활성화되는가?
+
+C.
+활성화 후 pool admin이 앱을 새로고침/재로그인하면
+X MODE로 정상 인식되는가?
+
+D.
+PC에서도 동일 pool이 X MODE로 인식되는가?
+
+E.
+X Curriculum/Parent AI/Growth Report 등
+현재 구현된 X gate들도 같은 pool을 X 활성으로 인식하는가?
+
+F.
+다른 일반 수영장에는 영향이 없는가?
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+SUPERADMIN X GRANT = PASS/HOLD
+
+SUPERADMIN UI =
+API =
+DB STATE =
+X MODE GATE =
+MOBILE ADMIN =
+PC =
+X CURRICULUM =
+X DOCX =
+PARENT AI =
+GROWTH REPORT =
+POOL ISOLATION =
+
+PAYMENT WITHOUT MANUAL GRANT =
+기존 정책 그대로 설명
+
+MANUAL SUPERADMIN GRANT WITHOUT PAYMENT =
+YES/NO
+
+MANUAL DEACTIVATE =
+YES/NO
+
+RELATED TESTS =
+
+CODE CHANGE = 0
+PRODUCTION WRITE = 0
+MIGRATION = 0
+COMMIT/PUSH/DEPLOY = 0
+
+마지막에 정확히 답하세요:
+
+“신규 가입 수영장을 시범사업 대상으로 선정한 뒤
+슈퍼관리자가 현재 만들어져 있는 X MODE 활성화 기능으로 부여하면
+결제 여부와 관계없이 해당 수영장에서 X MODE가 정상 활성화됨 = YES/NO”
+
+문제가 발견되면
+정확한 끊긴 지점만 보고하고 수정하지 말고 정지하세요.
