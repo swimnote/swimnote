@@ -6,6 +6,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { logChange } from "../utils/change-logger.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { notifyPoolEvent } from "../lib/pg-realtime.js";
+import { teacherCanAccessClass, membershipPredicate } from "../lib/class-membership.js";
 
 const router = Router();
 
@@ -148,6 +149,9 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
     const [group] = await db.select().from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
     if (!group) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
     if (group.is_deleted) return err(res, 404, "삭제된 반입니다.");
+    if (req.user!.role === "teacher" && !(await teacherCanAccessClass(req.user!.userId, req.params.id))) {
+      return err(res, 403, "담당 반이 아닙니다.");
+    }
 
     if (req.user!.role !== "super_admin" && poolId && group.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
@@ -166,6 +170,9 @@ router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
       .where(and(eq(classGroupsTable.id, req.params.id), eq(classGroupsTable.is_deleted, false)))
       .limit(1);
     if (!group) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
+    if (req.user!.role === "teacher" && !(await teacherCanAccessClass(req.user!.userId, req.params.id))) {
+      return err(res, 403, "담당 반이 아닙니다.");
+    }
     if (req.user!.role !== "super_admin" && poolId && group.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
@@ -173,7 +180,7 @@ router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
     // active 학생만 출결 대상 (반 배정일이 있으면 조회날짜 이후 배정 학생 제외)
     const students = await db.select().from(studentsTable)
       .where(and(
-        eq(studentsTable.class_group_id, req.params.id),
+        membershipPredicate(sql`${studentsTable.id}`, sql`${req.params.id}`, sql`${poolId}`, date as string),
         sql`status NOT IN ('withdrawn', 'deleted')`,
         sql`(${studentsTable.class_enrolled_at} IS NULL OR ${studentsTable.class_enrolled_at} <= ${date as string})`
       ));
@@ -195,6 +202,9 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin", "teac
     const [existing] = await db.select({ swimming_pool_id: classGroupsTable.swimming_pool_id, is_deleted: classGroupsTable.is_deleted })
       .from(classGroupsTable).where(eq(classGroupsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "수업 그룹을 찾을 수 없습니다.");
+    if (req.user!.role === "teacher" && !(await teacherCanAccessClass(req.user!.userId, req.params.id))) {
+      return err(res, 403, "담당 반이 아닙니다.");
+    }
     if (existing.is_deleted) return err(res, 400, "삭제된 반은 수정할 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
@@ -317,7 +327,8 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin", "tea
     `);
 
     // 5) attendance: class_group_id null 처리 (출결 기록 보존)
-    await db.execute(sql`UPDATE attendance SET class_group_id = NULL WHERE class_group_id = ${cgId}`);
+    // Attendance retains its historical identity when a class is removed.
+    // Never downgrade explicit or legacy attendance to NULL class context.
 
     // 6) teacher_schedule_notes 삭제
     await db.execute(sql`DELETE FROM teacher_schedule_notes WHERE class_group_id = ${cgId}`);
@@ -384,12 +395,8 @@ router.get("/:id/students", requireAuth, requireRole("super_admin", "pool_admin"
 
     // 선생님은 본인 담당 반 또는 pool_admin-as-teacher만 조회 가능
     if (req.user!.role === "teacher") {
-      const teacherId = (cls as any).teacher_user_id as string | null;
-      if (teacherId !== req.user!.userId) {
-        const dbRole = await getUserDbRole(req.user!.userId);
-        if (dbRole !== "pool_admin") {
-          return err(res, 403, "본인이 담당하는 반만 조회할 수 있습니다.");
-        }
+      if (!(await teacherCanAccessClass(req.user!.userId, classGroupId))) {
+        return err(res, 403, "본인이 담당하는 반만 조회할 수 있습니다.");
       }
     }
 
@@ -415,10 +422,11 @@ router.get("/:id/students", requireAuth, requireRole("super_admin", "pool_admin"
              h.enrolled_at  AS class_enrolled_at,
              h.left_at      AS class_left_at
       FROM students s
-      JOIN student_class_history h ON h.student_id = s.id
-      WHERE h.class_group_id = ${classGroupId}
+      LEFT JOIN student_class_history h ON h.student_id = s.id
+        AND h.class_group_id = ${classGroupId}
         AND h.enrolled_at::text <= ${targetDate}
         AND (h.left_at IS NULL OR h.left_at::text > ${targetDate})
+      WHERE ${membershipPredicate(sql`s.id`, sql`${classGroupId}`, sql`${effectivePoolId}`, targetDate)}
         AND s.deleted_at IS NULL
         AND s.swimming_pool_id = ${effectivePoolId}
       ORDER BY s.id, h.enrolled_at DESC

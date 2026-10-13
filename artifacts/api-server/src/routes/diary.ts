@@ -17,6 +17,7 @@ import multer from "multer";
 import { Client } from "@replit/object-storage";
 import { getPresignedUrl } from "../lib/objectStorage.js";
 import { db, superAdminDb, pool as pgPool } from "@workspace/db";
+import { teacherCanAccessClass, teacherCanAccessStudent, getCurrentStudentClassIds } from "../lib/class-membership.js";
 import { lookupAiOrigin }                   from "../lib/ai-origin-registry.js";
 import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
@@ -371,19 +372,7 @@ router.get("/diaries/index",
           // 학생 상세 → 일지보기: 현재 담당 여부 확인 (현재 배정된 반 기준)
           // PASS → 해당 학생에게 귀속된 전체 일지 역사 반환 (classFilter 없음)
           // 접근 체크: class_group_id(현재 배정) OR assigned_class_ids(다중배정) OR student_class_history(수강이력) 중 하나
-          const accessCheck = await db.execute(sql`
-            SELECT 1 FROM class_groups cg
-            WHERE (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text))
-              AND cg.swimming_pool_id = ${poolId}
-              AND cg.is_deleted = false
-              AND (
-                cg.id = (SELECT class_group_id FROM students WHERE id = ${studentIdParam} AND class_group_id IS NOT NULL LIMIT 1)
-                OR EXISTS (SELECT 1 FROM students WHERE id = ${studentIdParam} AND assigned_class_ids @> to_jsonb(cg.id::text))
-                OR EXISTS (SELECT 1 FROM student_class_history WHERE student_id = ${studentIdParam} AND class_group_id = cg.id AND left_at IS NULL)
-              )
-            LIMIT 1
-          `);
-          if ((accessCheck.rows as any[]).length === 0) return apiErr(res, 403, "접근 권한이 없습니다.");
+          if (!(await teacherCanAccessStudent(userId, studentIdParam))) return apiErr(res, 403, "접근 권한이 없습니다.");
           // 접근 허용: classFilter 없음 → 학생의 수강 이력 전체 반 일지 조회
           classFilter = sql`true`;
         } else {
@@ -999,8 +988,7 @@ router.post("/diaries",
         const dbUserRow = await superAdminDb.execute(sql`SELECT role FROM users WHERE id = ${userId} LIMIT 1`);
         const dbRole = (dbUserRow.rows[0] as any)?.role;
         if (dbRole !== "pool_admin") {
-          const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))`);
-          if (r.rows.length === 0) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
+          if (!(await teacherCanAccessClass(userId, class_group_id))) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
         } else {
           // pool_admin이 teacher 모드 → 풀 내 반인지만 확인
           const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND is_deleted = false`);
@@ -1040,6 +1028,7 @@ router.post("/diaries",
         WHERE class_group_id = ${class_group_id}
           AND date = ${dateStr}
           AND status = 'absent'
+          AND (session_type = 'regular' OR session_type IS NULL)
       `);
       const absentStudentIds = new Set((absentRowsForDate.rows as any[]).map((r: any) => r.student_id));
       if (absentStudentIds.size > 0) {
@@ -1048,6 +1037,21 @@ router.post("/diaries",
 
       // 학생별 추가 일지 저장 — 결석 학생 제외
       const allNotes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      for (const note of allNotes) {
+        if (note.student_id && !(await getCurrentStudentClassIds(note.student_id, dateStr)).includes(class_group_id)) {
+          const guest = await db.execute(sql`SELECT 1 FROM students guest_s
+            WHERE guest_s.id = ${note.student_id} AND guest_s.swimming_pool_id = ${poolId}
+              AND (EXISTS (SELECT 1 FROM makeup_sessions guest_m
+                WHERE guest_m.student_id = guest_s.id AND guest_m.swimming_pool_id = ${poolId}
+                  AND guest_m.assigned_class_group_id = ${class_group_id} AND guest_m.assigned_date = ${dateStr}
+                  AND guest_m.status IN ('assigned','completed'))
+                OR EXISTS (SELECT 1 FROM attendance guest_a
+                  WHERE guest_a.student_id = guest_s.id AND guest_a.swimming_pool_id = ${poolId}
+                    AND guest_a.class_group_id = ${class_group_id} AND guest_a.date = ${dateStr}
+                    AND guest_a.session_type = 'makeup' AND guest_a.status IN ('present','late'))) LIMIT 1`);
+          if (!guest.rows.length) return apiErr(res, 403, "해당 날짜의 수강·보강 학생만 일지를 작성할 수 있습니다.");
+        }
+      }
       const notes: any[] = absentStudentIds.size > 0
         ? allNotes.filter((n: any) => !absentStudentIds.has(n.student_id))
         : allNotes;
@@ -1921,8 +1925,7 @@ router.post("/diaries/with-media",
         const dbUserRow = await db.execute(sql`SELECT role FROM users WHERE id = ${userId}`);
         const dbRole = (dbUserRow.rows[0] as any)?.role;
         if (dbRole !== "pool_admin") {
-          const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))`);
-          if (r.rows.length === 0) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
+          if (!(await teacherCanAccessClass(userId, class_group_id))) return apiErr(res, 403, "본인 반의 일지만 작성할 수 있습니다.");
         }
       } else {
         const r = await db.execute(sql`SELECT id FROM class_groups WHERE id = ${class_group_id} AND swimming_pool_id = ${poolId} AND is_deleted = false`);

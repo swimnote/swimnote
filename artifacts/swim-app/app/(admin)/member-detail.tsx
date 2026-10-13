@@ -81,7 +81,8 @@ export default function MemberDetailScreen() {
   function togglePickedClass(id: string) {
     setPickedClassIds(prev => {
       if (prev.includes(id)) return prev.filter(x => x !== id);
-      if (prev.length >= weeklyCount) return prev; // maxSelect 초과 → 무시
+      // weekly_count is billing/attendance frequency, not a membership cap.
+      // The existing /assign contract allows special schedules independently.
       return [...prev, id];
     });
   }
@@ -490,7 +491,7 @@ export default function MemberDetailScreen() {
             {/* 헤더 */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text }}>
-                반 선택 (최대 {weeklyCount}개)
+                수업 반 복수 선택
               </Text>
               <Pressable hitSlop={12} onPress={() => setShowClassPicker(false)}>
                 <LucideIcon name="x" size={20} color={C.textSecondary} />

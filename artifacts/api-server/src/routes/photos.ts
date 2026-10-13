@@ -34,6 +34,7 @@ import { usersTable, parentAccountsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { sendPushToClassParents, sendPushToUser } from "../lib/push-service.js";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { teacherCanAccessClass, teacherCanAccessStudent } from "../lib/class-membership.js";
 import { genFilename, sanitizePoolName } from "../utils/filename.js";
 import {
   getDiaryPhotos,
@@ -88,10 +89,7 @@ async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pc
 
 /** teacher가 해당 class를 담당하는지 확인 */
 async function teacherOwnsClass(teacherUserId: string, classId: string): Promise<boolean> {
-  const rows = await db.execute(sql`
-    SELECT id FROM class_groups WHERE id = ${classId} AND teacher_user_id = ${teacherUserId}
-  `);
-  return rows.rows.length > 0;
+  return teacherCanAccessClass(teacherUserId, classId);
 }
 
 /** parent가 해당 student에 연결되어 있는지 확인 (approved) */
@@ -157,10 +155,10 @@ router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: R
       }
     } else if (role === "teacher") {
       const classId = photo.class_id || photo.student_class_id;
-      if (classId) {
-        const ok = await teacherOwnsClass(userId, classId);
-        if (!ok) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
-      }
+      const ok = photo.album_type === "private"
+        ? await teacherCanAccessStudent(userId, photo.student_id)
+        : !!classId && await teacherOwnsClass(userId, classId);
+      if (!ok) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
     } else if (role === "pool_admin") {
       const poolId = await getUserPoolId(userId);
       if (photo.pool_id !== poolId) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
@@ -319,17 +317,7 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
     if (role === "teacher") {
       // 현재 담당 학생인지 확인: 학생의 현재 배정 반이 이 선생님(main + co-teacher) 담당인지
       // READ 정책: 현재 접근 권한 있는 선생님 → 학생의 전체 사진 역사 조회 가능
-      const teacherPoolId = await getUserPoolId(userId);
-      const authRows = await db.execute(sql`
-        SELECT 1 FROM class_groups cg
-        JOIN students s ON s.class_group_id = cg.id
-        WHERE s.id = ${studentId}
-          AND (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text))
-          AND cg.swimming_pool_id = ${teacherPoolId}
-          AND cg.is_deleted = false
-        LIMIT 1
-      `);
-      if (authRows.rows.length === 0) {
+      if (!(await teacherCanAccessStudent(userId, studentId))) {
         res.status(403).json({ error: "현재 담당 학생이 아닙니다." });
         return;
       }

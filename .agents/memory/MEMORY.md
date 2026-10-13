@@ -1,4 +1,5 @@
 - [회원 엑셀 일괄등록 1,000명](bulk-import-1000-done.md) — canonical /bulk/validate+/bulk/commit, ALL-OR-NOTHING, +82 norm; SHA 4699183a; iOS OTA 01a0d8b0
+- [다중반 독립 수업 경계](multi-class-slot-boundary.md) — 주당 횟수와 반 수는 강제 일치하지 않는다; 대표반은 권한 근거가 아니며 과거 미확정 출석은 자동 보정하지 않는다.
 - [★ GLOBAL COMMON-FIX RULE](global-common-fix-rule.md) — X전용 명시 없으면 Normal+X 공통 수정; ONE SOURCE FIX + BOTH MODE VERIFICATION; 중복구현 금지 (영구 원칙)
 - [월간 UNKNOWN 상태 경계](monthly-unknown-state-boundary.md) — 이전 분석 성공 표시와 현재 월간 귀결은 별개; UNKNOWN 승인 가능 여부는 기존 서버 계약을 따른다.
 - [Day-5 최종 마감 알림](day5-deadline-policy.md) — 모든 봉인 수영장은 READY 또는 별도 차단 알림; 이전 장애 알림으로 최종 경보를 생략하지 않는다.

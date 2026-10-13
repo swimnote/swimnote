@@ -170,7 +170,8 @@ export default function TeacherAttendanceScreen() {
       if (attRes.ok) {
         const arr: any[] = await attRes.json();
         const map: Record<string, number> = {};
-        arr.forEach(a => { const cid = a.class_group_id || a.class_id; if (cid) map[cid] = (map[cid] || 0) + 1; });
+        arr.filter(a => a.session_type == null || a.session_type === "regular")
+          .forEach(a => { const cid = a.class_group_id || a.class_id; if (cid) map[cid] = (map[cid] || 0) + 1; });
         setAttTodayMap(map);
       }
       if (dRes.ok) {
@@ -278,7 +279,8 @@ export default function TeacherAttendanceScreen() {
       const map: Record<string, AttStatus> = {};
       if (r.ok) {
         const arr: any[] = await r.json();
-        arr.forEach(a => { map[a.student_id ?? a.member_id] = a.status; });
+        arr.filter(a => a.session_type == null || a.session_type === "regular")
+          .forEach(a => { map[a.student_id ?? a.member_id] = a.status; });
       }
       // 수업 종료 후 → 기록 없는 학생 자동 출석 처리
       if (over) {
@@ -311,10 +313,14 @@ export default function TeacherAttendanceScreen() {
     haptic.light();
     setSavingId(studentId);
     try {
-      await apiRequest(token, `/attendance`, {
+      const saved = await apiRequest(token, `/attendance`, {
         method: "POST",
         body: JSON.stringify({ date, status, class_group_id: selectedGroup?.id, student_id: studentId }),
       });
+      if (!saved.ok) {
+        const error = await saved.json();
+        throw new Error(error.message || error.error || "출결 저장에 실패했습니다.");
+      }
       const newAttState = { ...attState, [studentId]: status };
       setAttState(newAttState);
       // 전원 출석 완료 시 성공 햅틱
@@ -340,12 +346,14 @@ export default function TeacherAttendanceScreen() {
       }
       // 출석 전환 시 보강 즉시 제거
       if (status === "present" && prevStatus === "absent") {
-        setMakeupList(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === date)));
+        setMakeupList(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === date
+          && m.original_class_group_id === selectedGroup?.id)));
       }
     } catch (e) {
       console.error(e);
       // 저장 실패 시 이전 상태로 롤백
       setAttState(prev => ({ ...prev, [studentId]: prevStatus }));
+      Alert.alert("출결 저장 실패", e instanceof Error ? e.message : "출결을 저장하지 못했습니다.");
     }
     finally { setSavingId(null); }
   }
@@ -354,7 +362,8 @@ export default function TeacherAttendanceScreen() {
   async function handleMove(student: Student) {
     if (attState[student.id] !== "absent") return;
     // 현재 makeupList에서 먼저 탐색
-    let mk = makeupList.find(m => m.student_id === student.id && m.absence_date === date);
+    let mk = makeupList.find(m => m.student_id === student.id && m.absence_date === date
+      && m.original_class_group_id === selectedGroup?.id);
     if (!mk) {
       // 없으면 API 다시 조회 (방금 결석 처리해서 생성됐을 수 있음)
       try {
@@ -362,7 +371,8 @@ export default function TeacherAttendanceScreen() {
         if (res.ok) {
           const list: MakeupSession[] = await res.json();
           setMakeupList(list);
-          mk = list.find(m => m.student_id === student.id && m.absence_date === date);
+          mk = list.find(m => m.student_id === student.id && m.absence_date === date
+            && m.original_class_group_id === selectedGroup?.id);
         }
       } catch { }
     }

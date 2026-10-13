@@ -411,7 +411,8 @@ export default function ClassDetailSheet({
       .then(r => r.ok ? r.json() : [])
       .then((arr: any[]) => {
         const map: Record<string, "present" | "absent"> = {};
-        arr.forEach(r => { if (r.student_id && r.status) map[r.student_id] = r.status; });
+        arr.filter(r => r.session_type == null || r.session_type === "regular")
+          .forEach(r => { if (r.student_id && r.status) map[r.student_id] = r.status; });
         setStudentAttState(map);
       })
       .catch(() => {});

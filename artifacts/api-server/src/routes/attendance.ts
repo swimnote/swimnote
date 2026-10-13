@@ -4,8 +4,26 @@ import { attendanceTable, studentsTable, usersTable, parentAccountsTable, classG
 import { eq, and, gte, lte, like, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
+import { teacherCanAccessClass, classAccessPredicate, getCurrentStudentClassIds, getAccessibleClassIds } from "../lib/class-membership.js";
+import { writeCanonicalAttendance, AttendanceConflict } from "../lib/canonical-attendance.js";
 
 const router = Router();
+
+// Aggregate endpoints also restrict rows/rosters when no class filter is supplied.
+router.use(requireAuth, async (req: AuthRequest, res, next) => {
+  if (req.method !== "GET" || req.user!.role !== "teacher" || req.path === "/" || req.path === "/makeup-students") return next();
+  try {
+    const allowed = new Set(await getAccessibleClassIds(req.user!.userId));
+    const send = res.json.bind(res);
+    res.json = ((body: any) => {
+      const restrict = (rows: any[]) => rows.filter(row => allowed.has(row.class_group_id ?? row.class_id));
+      if (Array.isArray(body)) body = restrict(body);
+      else if (Array.isArray(body?.data)) body = { ...body, data: restrict(body.data) };
+      return send(body);
+    }) as typeof res.json;
+    next();
+  } catch (e) { next(e); }
+});
 
 async function getPoolId(userId: string, role: string, tokenPoolId?: string | null): Promise<string | null> {
   if (role === "parent_account") return userId;
@@ -24,10 +42,7 @@ async function getPoolIdForParent(parentId: string): Promise<string | null> {
  * Returns true if teacher_user_id owns the class (primary teacher).
  */
 async function teacherOwnsClass(teacherUserId: string, classId: string): Promise<boolean> {
-  const rows = await db.execute(sql`
-    SELECT id FROM class_groups WHERE id = ${classId} AND teacher_user_id = ${teacherUserId}
-  `);
-  return rows.rows.length > 0;
+  return teacherCanAccessClass(teacherUserId, classId);
 }
 
 function addDays(dateStr: string, days: number): string {
@@ -57,6 +72,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
     // DB 레벨 필터링 (메모리 필터 제거 → 네트워크 전송량 감소)
     const conditions: any[] = [eq(attendanceTable.swimming_pool_id, poolId)];
+    if (role === "teacher") conditions.push(classAccessPredicate(req.user!.userId, sql`${attendanceTable.class_group_id}`));
     if (class_group_id) conditions.push(eq(attendanceTable.class_group_id, class_group_id as string));
     if (student_id) conditions.push(eq(attendanceTable.student_id, student_id as string));
     if (date) conditions.push(eq(attendanceTable.date, date as string));
@@ -185,7 +201,8 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
       .where(and(
         eq(attendanceTable.swimming_pool_id, poolId),
         gte(attendanceTable.date, startDateStr),
-        lte(attendanceTable.date, endDate)
+        lte(attendanceTable.date, endDate),
+        sql`(${attendanceTable.session_type} = 'regular' OR ${attendanceTable.session_type} IS NULL)`
       ));
 
     const classGroups = await db.select().from(classGroupsTable)
@@ -273,7 +290,8 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
       .where(and(
         eq(attendanceTable.swimming_pool_id, poolId),
         gte(attendanceTable.date, monthStart),
-        lte(attendanceTable.date, monthEnd)
+        lte(attendanceTable.date, monthEnd),
+        sql`(${attendanceTable.session_type} = 'regular' OR ${attendanceTable.session_type} IS NULL)`
       ));
 
     const classGroups = await db.select().from(classGroupsTable)
@@ -433,6 +451,7 @@ async function autoCreateMakeup(
   const [existing] = ((await (db as any).execute(sql`
     SELECT id, status FROM makeup_sessions
     WHERE student_id = ${studentId} AND absence_date = ${date} AND status NOT IN ('cancelled','expired')
+      AND swimming_pool_id = ${poolId} AND original_class_group_id = ${classGroupId}
     LIMIT 1
   `)) as any).rows as any[];
   if (existing) {
@@ -527,6 +546,9 @@ async function autoCreateMakeup(
 //   - 현재는 today-schedule(history 기반)을 통해서만 생성되어 간접 보호됨
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   const { class_group_id, student_id, date, status } = req.body;
+  if (!class_group_id || (req.body.session_type != null && req.body.session_type !== "regular")) {
+    res.status(400).json({ success: false, message: "정규 출석에는 명확한 반과 regular 수업 구분이 필요합니다." }); return;
+  }
   if (!student_id || !date || !status) {
     res.status(400).json({ success: false, message: "student_id, date, status가 필요합니다." }); return;
   }
@@ -552,9 +574,18 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     if (studentCheck.swimming_pool_id !== poolId) {
       res.status(403).json({ success: false, message: "접근 권한이 없습니다." }); return;
     }
+    if (!(await getCurrentStudentClassIds(student_id, date)).includes(class_group_id)) {
+      res.status(403).json({ success: false, message: "해당 날짜의 학생 수강 반이 아닙니다." }); return;
+    }
 
     const [existing] = await db.select().from(attendanceTable)
-      .where(and(eq(attendanceTable.student_id, student_id), eq(attendanceTable.date, date))).limit(1);
+      .where(and(
+        eq(attendanceTable.student_id, student_id),
+        eq(attendanceTable.class_group_id, class_group_id),
+        eq(attendanceTable.date, date),
+        eq(attendanceTable.session_type, "regular"),
+        eq(attendanceTable.swimming_pool_id, poolId),
+      )).limit(1);
 
     if (existing) {
       // Double-check: existing record must also belong to same pool (defense-in-depth)
@@ -562,10 +593,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         res.status(403).json({ success: false, message: "접근 권한이 없습니다." }); return;
       }
       const prevStatus = existing.status;
-      const [updated] = await db.update(attendanceTable)
-        .set({ status, class_group_id: class_group_id || existing.class_group_id })
-        .where(eq(attendanceTable.id, existing.id))
-        .returning();
+      const updated = await writeCanonicalAttendance({
+        poolId, studentId: student_id, classId: class_group_id, date, status,
+        kind: "regular", actorId: req.user!.userId,
+      });
       const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
       let makeupResult: { created: boolean; reason?: string } | null = null;
       if (status === "absent") {
@@ -577,6 +608,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
           UPDATE makeup_sessions
           SET status = 'cancelled', cancelled_at = now(), cancelled_reason = 'absent_cleared'
           WHERE student_id = ${student_id} AND absence_date = ${date}
+            AND swimming_pool_id = ${poolId} AND original_class_group_id = ${class_group_id}
             AND status IN ('waiting', 'assigned', 'transferred')
         `).catch(e => console.error("[cancelMakeup] 취소 실패:", e));
       }
@@ -584,10 +616,11 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       res.json({ success: true, data: { ...updated, student_name: s?.name || null }, makeup_queued: makeupResult?.created ?? null, makeup_skip_reason: makeupResult?.reason ?? null }); return;
     }
 
-    const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const [record] = await db.insert(attendanceTable).values({
-      id, swimming_pool_id: poolId, class_group_id: class_group_id || null, student_id, date, status,
-    }).returning();
+    const record = await writeCanonicalAttendance({
+      poolId, studentId: student_id, classId: class_group_id, date, status,
+      kind: "regular", actorId: req.user!.userId,
+    });
+    const id = record.id;
     const [s] = await db.select({ name: studentsTable.name }).from(studentsTable).where(eq(studentsTable.id, student_id)).limit(1);
     let makeupResult2: { created: boolean; reason?: string } | null = null;
     if (status === "absent") {
@@ -603,6 +636,9 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     console.log("[PERF][attendance-post]", { elapsed_ms: Date.now() - _attStartedAt, op: "insert", status });
     res.status(201).json({ success: true, data: { ...record, student_name: s?.name || null }, makeup_queued: makeupResult2?.created ?? null, makeup_skip_reason: makeupResult2?.reason ?? null });
   } catch (err) {
+    if (err instanceof AttendanceConflict) {
+      res.status(409).json({ success: false, code: err.code, message: err.message }); return;
+    }
     console.error(err);
     res.status(500).json({ success: false, message: "서버 오류가 발생했습니다." });
   }

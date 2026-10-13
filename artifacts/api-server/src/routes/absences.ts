@@ -7,6 +7,8 @@
  * GET  /absences?pool_id=&month=     — 결근 이력
  */
 import { Router, type Response } from "express";
+import { writeCanonicalAttendance, AttendanceConflict } from "../lib/canonical-attendance.js";
+import { membershipPredicate, teacherCanAccessClass } from "../lib/class-membership.js";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -106,13 +108,16 @@ router.post("/absences", requireAuth, requireRole("pool_admin", "teacher"), asyn
     const cgRow = await db.execute(sql`SELECT * FROM class_groups WHERE id = ${class_group_id}`);
     const cg = cgRow.rows[0] as any;
     if (!cg) return err(res, 404, "반을 찾을 수 없습니다.");
+    if (cg.swimming_pool_id !== pool_id_final) return err(res, 403, "다른 수영장의 반입니다.");
+    if (role === "teacher" && !(await teacherCanAccessClass(userId, class_group_id))) return err(res, 403, "담당 반이 아닙니다.");
 
     const teacherRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${cg.teacher_user_id}`);
     const teacherName = (teacherRow.rows[0] as any)?.name || "알 수 없음";
     const time = absence_time || cg.schedule_time || "09:00";
 
     // 결근 기록 생성
-    const absenceRows = await db.execute(sql`
+    const result = await db.transaction(async tx => {
+    const absenceRows = await tx.execute(sql`
       INSERT INTO teacher_absences (id, pool_id, teacher_user_id, teacher_name, class_group_id, class_group_name, absence_date, absence_time, created_by)
       VALUES (gen_random_uuid()::text, ${pool_id_final}, ${cg.teacher_user_id}, ${teacherName}, ${class_group_id}, ${cg.name}, ${absence_date}, ${time}, ${userId})
       RETURNING *
@@ -120,8 +125,10 @@ router.post("/absences", requireAuth, requireRole("pool_admin", "teacher"), asyn
     const absence = absenceRows.rows[0] as any;
 
     // 해당 반 학생 모두 조회
-    const studentRows = await db.execute(sql`
-      SELECT id, name FROM students WHERE class_group_id = ${class_group_id} AND status IN ('active', 'pending_parent_link', 'unregistered')
+    const studentRows = await tx.execute(sql`
+      SELECT id, name FROM students WHERE swimming_pool_id = ${pool_id_final}
+        AND ${membershipPredicate(sql`students.id`, sql`${class_group_id}`, sql`${pool_id_final}`, absence_date)}
+        AND status IN ('active', 'pending_parent_link', 'unregistered')
     `);
     const students = studentRows.rows as any[];
 
@@ -129,16 +136,15 @@ router.post("/absences", requireAuth, requireRole("pool_admin", "teacher"), asyn
     const makeupIds: string[] = [];
     for (const student of students) {
       // 출결 기록 (absent)
-      const attId = `att_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
-      await db.execute(sql`
-        INSERT INTO attendance (id, swimming_pool_id, class_group_id, student_id, date, status, session_type, teacher_user_id, teacher_name, created_by, created_by_name)
-        VALUES (${attId}, ${pool_id_final}, ${class_group_id}, ${student.id}, ${absence_date}, 'absent', 'regular', ${cg.teacher_user_id}, ${teacherName}, ${userId}, ${teacherName})
-        ON CONFLICT DO NOTHING
-      `);
+      const attendance = await writeCanonicalAttendance({
+        poolId: pool_id_final, studentId: student.id, classId: class_group_id,
+        date: absence_date, kind: "regular", status: "absent", actorId: userId, actorName: teacherName,
+      }, tx);
+      const attId = attendance.id;
 
       // 미실시(선생님) 보강 생성
       const mkId = `mk_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
-      await db.execute(sql`
+      await tx.execute(sql`
         INSERT INTO makeup_sessions
           (id, swimming_pool_id, student_id, student_name, original_class_group_id, original_class_group_name, original_teacher_id, original_teacher_name, absence_date, absence_attendance_id, status, source_type, absence_id, can_expire)
         VALUES
@@ -148,14 +154,17 @@ router.post("/absences", requireAuth, requireRole("pool_admin", "teacher"), asyn
       makeupIds.push(mkId);
     }
 
-    return res.status(201).json({
+    return {
       success: true,
       absence,
       affected_students: students.length,
       makeup_count: makeupIds.length,
+    };
     });
+    return res.status(201).json(result);
   } catch (e: any) {
     console.error("[absences POST]", e);
+    if (e instanceof AttendanceConflict) return res.status(409).json({ code: e.code, error: e.message });
     return err(res, 500, e.message);
   }
 });

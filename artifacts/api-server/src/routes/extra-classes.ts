@@ -7,6 +7,8 @@
  * POST /extra-classes/:id/attendance — 출결 처리
  */
 import { Router, type Response } from "express";
+import { writeCanonicalAttendance, AttendanceConflict } from "../lib/canonical-attendance.js";
+import { teacherCanAccessClass } from "../lib/class-membership.js";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
@@ -114,24 +116,26 @@ router.post("/extra-classes/:id/attendance", requireAuth, requireRole("pool_admi
     const ecRow = await db.execute(sql`SELECT * FROM extra_classes WHERE id = ${id}`);
     const ec = ecRow.rows[0] as any;
     if (!ec) return err(res, 404, "기타 수업을 찾을 수 없습니다.");
+    if (!ec.class_group_id) return res.status(409).json({ code: "EXTRA_CLASS_CONTEXT_REQUIRED", error: "명확한 반 연결이 필요합니다." });
+    if (ec.pool_id !== await getPoolId(userId) ||
+        !(await teacherCanAccessClass(userId, ec.class_group_id))) return err(res, 403, "접근 권한이 없습니다.");
 
     const teacherRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
     const teacherName = (teacherRow.rows[0] as any)?.name || "선생님";
 
     const results = [];
     for (const att of (attendances || [])) {
-      const attId = `att_extra_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
-      await db.execute(sql`
-        INSERT INTO attendance (id, swimming_pool_id, student_id, date, status, session_type, teacher_user_id, teacher_name, extra_class_id, created_by, created_by_name)
-        VALUES (${attId}, ${ec.pool_id}, ${att.student_id}, ${ec.class_date}, ${att.status || 'present'}, 'extra', ${ec.teacher_user_id}, ${ec.teacher_name}, ${id}, ${userId}, ${teacherName})
-        ON CONFLICT (student_id, date) WHERE student_id IS NOT NULL
-        DO UPDATE SET status = EXCLUDED.status, session_type = EXCLUDED.session_type, extra_class_id = EXCLUDED.extra_class_id, updated_at = now()
-      `);
-      results.push(attId);
+      const record = await writeCanonicalAttendance({
+        poolId: ec.pool_id, studentId: att.student_id, classId: ec.class_group_id,
+        date: ec.class_date, kind: "extra", status: att.status || "present",
+        actorId: userId, actorName: teacherName,
+      });
+      results.push(record.id);
     }
 
     return res.json({ success: true, count: results.length });
   } catch (e: any) {
+    if (e instanceof AttendanceConflict) return res.status(409).json({ code: e.code, error: e.message });
     return err(res, 500, e.message);
   }
 });

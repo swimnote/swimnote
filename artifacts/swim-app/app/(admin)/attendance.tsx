@@ -171,7 +171,8 @@ export default function AttendanceScreen() {
       const data = await res.json();
       const arr = Array.isArray(data) ? data : (data.data ?? []);
       const map: Record<string, AttStatus> = {};
-      arr.forEach((r: any) => { if (r.student_id) map[r.student_id] = r.status; });
+      arr.filter((r:any)=>r.session_type == null || r.session_type === "regular")
+        .forEach((r: any) => { if (r.student_id) map[r.student_id] = r.status; });
       setDailyAtt(map);
     } catch (e) { console.error(e); }
     finally { setLoadingDaily(false); }
@@ -388,6 +389,10 @@ export default function AttendanceScreen() {
         method: "POST",
         body: JSON.stringify({ student_id: studentId, class_group_id: selectedClass, date: baseDate, status }),
       });
+      if (!attRes.ok) {
+        const error = await attRes.json();
+        throw new Error(error.message || error.error || "출결 저장에 실패했습니다.");
+      }
       const attData = attRes.ok ? await attRes.json().catch(() => ({})) : {};
       setDailyAtt(prev => ({ ...prev, [studentId]: status }));
 
@@ -404,6 +409,8 @@ export default function AttendanceScreen() {
       if (status !== "absent" && prevStatus === "absent") {
         fetchMakeup(); // 서버와 동기화
       }
+    } catch (error) {
+      Alert.alert("출결 저장 실패", error instanceof Error ? error.message : "출결을 저장하지 못했습니다.");
     } finally { setSavingId(null); }
   }
 
@@ -427,7 +434,7 @@ export default function AttendanceScreen() {
   }
 
   const classStudents = students.filter(s =>
-    s.class_group_id === selectedClass &&
+    (s.class_group_id === selectedClass || (s as Student & {assigned_class_ids?:string[]}).assigned_class_ids?.includes(selectedClass)) &&
     (!s.class_enrolled_at || s.class_enrolled_at <= baseDate)
   );
   // 일자별 뷰: 결석 학생만 표시 (결석 중심)

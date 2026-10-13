@@ -30,6 +30,7 @@ type Student = {
   parent_phone?: string;
   created_at?: string;
   class_group_id?: string;
+  assigned_class_ids?: string[];
   class_group_name?: string;
   assignedClasses?: AssignedClass[];
   schedule_labels?: string[];
@@ -465,7 +466,7 @@ type EditModalProps = {
   onSaved: () => void;
 };
 
-function EditModal({ student, classGroups, onClose, onSaved }: EditModalProps) {
+export function EditModal({ student, classGroups, onClose, onSaved }: EditModalProps) {
   const qc = useQueryClient();
   const [form, setForm] = useState({
     name: student.name,
@@ -473,27 +474,31 @@ function EditModal({ student, classGroups, onClose, onSaved }: EditModalProps) {
     parent_name: student.parent_name ?? "",
     parent_phone: student.parent_phone ?? "",
     memo: student.memo ?? student.notes ?? "",
-    class_group_id: student.class_group_id ?? "",
+    assigned_class_ids: Array.isArray(student.assigned_class_ids)
+      ? [...student.assigned_class_ids] : student.assignedClasses?.length
+        ? student.assignedClasses.map(group => group.id)
+        : student.class_group_id ? [student.class_group_id] : [],
   });
   const [error, setError] = useState<string | null>(null);
+  const [assignmentChanged, setAssignmentChanged] = useState(false);
 
   const infoMutation = useMutation({
-    mutationFn: () =>
-      api.patch(`/admin/students/${student.id}/info`, {
+    mutationFn: async () => {
+      await api.patch(`/admin/students/${student.id}/info`, {
         name: form.name.trim(),
         birth_year: form.birth_year ? Number(form.birth_year) : undefined,
         parent_name: form.parent_name || undefined,
         parent_phone: form.parent_phone || undefined,
         memo: form.memo || undefined,
-      }),
+      });
+      if (assignmentChanged) {
+        await api.patch(`/students/${student.id}/assign`, {
+          assigned_class_ids: form.assigned_class_ids,
+        });
+      }
+    },
     onError: (e: ApiError) => setError(e.message ?? "저장 중 오류가 발생했습니다."),
     onSuccess: async () => {
-      // Assign class if changed
-      if (form.class_group_id && form.class_group_id !== student.class_group_id) {
-        await api.patch(`/students/${student.id}/assign`, {
-          assigned_class_ids: [form.class_group_id],
-        }).catch(() => {});
-      }
       qc.invalidateQueries({ queryKey: ["students"] });
       onSaved();
     },
@@ -573,17 +578,18 @@ function EditModal({ student, classGroups, onClose, onSaved }: EditModalProps) {
               style={inputStyle}
             />
           </Field>
-          <Field label="반 변경">
-            <select
-              value={form.class_group_id}
-              onChange={(e) => setForm((f) => ({ ...f, class_group_id: e.target.value }))}
-              style={{ ...inputStyle, background: "#fff" }}
-            >
-              <option value="">반 선택 (현재 유지)</option>
-              {classGroups.map((cg) => (
-                <option key={cg.id} value={cg.id}>{cg.name}</option>
-              ))}
-            </select>
+          <Field label="수업 반 (복수 선택)">
+            {classGroups.map(cg => (
+              <label key={cg.id} style={{ display: "flex", gap: 8, padding: "6px 0" }}>
+                <input type="checkbox" checked={form.assigned_class_ids.includes(cg.id)}
+                  onChange={event => {
+                    setAssignmentChanged(true);
+                    setForm(f => ({ ...f, assigned_class_ids: event.target.checked
+                      ? [...f.assigned_class_ids, cg.id] : f.assigned_class_ids.filter(id => id !== cg.id) }));
+                  }} />
+                {cg.name}
+              </label>
+            ))}
           </Field>
           <Field label="메모">
             <textarea

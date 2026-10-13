@@ -13,6 +13,8 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 import { isFeatureEnabled } from "../lib/featureFlags.js";
+import { membershipPredicate } from "../lib/class-membership.js";
+import { writeCanonicalAttendance } from "../lib/canonical-attendance.js";
 
 const JOB_NAME = "auto-attendance";
 const TTL_SECONDS = 600; // 10분
@@ -106,6 +108,7 @@ export async function runAutoAttendance(): Promise<{ processed: number; marked: 
         WHERE class_group_id = ${cgId}
           AND date = ${dateStr}
           AND swimming_pool_id = ${poolId}
+          AND (session_type = 'regular' OR session_type IS NULL)
       `)).rows as Array<{ student_id: string }>;
 
       const alreadyMarked = new Set(existingRows.map((r) => r.student_id));
@@ -118,28 +121,17 @@ export async function runAutoAttendance(): Promise<{ processed: number; marked: 
         WHERE swimming_pool_id = ${poolId}
           AND status NOT IN ('withdrawn', 'archived', 'deleted')
           AND deleted_at IS NULL
-          AND (
-            class_group_id = ${cgId}
-            OR (assigned_class_ids IS NOT NULL
-                AND assigned_class_ids @> ${JSON.stringify([cgId])}::jsonb)
-          )
+          AND ${membershipPredicate(sql`students.id`, sql`${cgId}`, sql`${poolId}`, dateStr)}
       `)).rows as Array<{ id: string; name: string }>;
 
       for (const student of students) {
         if (alreadyMarked.has(student.id)) continue; // 이미 출결 처리됨
 
         // 자동 출석(present) 삽입
-        const attId = `att_auto_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
         try {
-          await db.execute(sql`
-            INSERT INTO attendance (
-              id, swimming_pool_id, class_group_id, student_id,
-              date, status, session_type, created_by_name, created_at
-            ) VALUES (
-              ${attId}, ${poolId}, ${cgId}, ${student.id},
-              ${dateStr}, 'present', 'regular', '자동출석', NOW()
-            )
-          `);
+          await writeCanonicalAttendance({ poolId, studentId: student.id, classId: cgId,
+            date: dateStr, kind: "regular", status: "present", actorName: "자동출석",
+            preserveExisting: true });
           marked++;
           // 중복 방지: 같은 학생이 복수 반에 속해도 첫 번째만 처리
           alreadyMarked.add(student.id);

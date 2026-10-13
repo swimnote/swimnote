@@ -5,6 +5,9 @@
  * - 관리자 본인용 선생님 계정은 최대 1개
  */
 import { Router } from "express";
+import { classAccessPredicate, studentAccessPredicate, teacherCanAccessClass } from "../lib/class-membership.js";
+import { writeCanonicalAttendance, AttendanceConflict } from "../lib/canonical-attendance.js";
+import { completeMakeupAttendance } from "../lib/makeup-attendance.js";
 import { db, superAdminDb } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -18,6 +21,23 @@ import {
 import { recomputeGaugePctForLevelPatch } from "../lib/curriculum-confirmation-engine.js";
 
 const router = Router();
+
+// A student's other memberships do not grant ownership of another class's makeup.
+router.use("/teacher/makeups/:id", requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const userId = req.user!.userId;
+    const rows = await db.execute(sql`SELECT m.id FROM makeup_sessions m JOIN users actor
+      ON actor.swimming_pool_id = m.swimming_pool_id
+      WHERE m.id = ${req.params.id} AND actor.id = ${userId}
+        AND (actor.role::text IN ('pool_admin','super_admin')
+          OR ${classAccessPredicate(userId, sql`m.original_class_group_id`)}
+          OR ${classAccessPredicate(userId, sql`m.assigned_class_group_id`)}
+          OR m.handed_to_teacher_id = ${userId}
+          OR m.transferred_to_teacher_id = ${userId})`);
+    if (!rows.rows.length) { res.status(403).json({ error: "담당 보강이 아닙니다." }); return; }
+    next();
+  } catch (e) { next(e); }
+});
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -612,30 +632,20 @@ router.get("/teacher/makeups", requireAuth,
       // Source of Truth: student_class_history.left_at IS NULL (현재 재적)
       //   + class_groups.teacher_user_id / co_teacher_ids (현재 담임/부담임)
       // handoff 예외: handed_to_teacher_id = 나 → 인계받은 보강도 표시
-      const rows = ((await (db as any).execute(sql.raw(`
+      const rows = ((await (db as any).execute(sql`
         SELECT ms.*, u.name AS student_name_from_user
         FROM makeup_sessions ms
         LEFT JOIN users u ON u.id = ms.student_id
-        WHERE ms.swimming_pool_id = '${poolId}'
-          ${statusClause}
+        WHERE ms.swimming_pool_id = ${poolId}
+          ${sql.raw(statusClause)}
           AND ms.cancelled_at IS NULL
           AND (
-            ms.student_id IN (
-              SELECT sch.student_id
-              FROM student_class_history sch
-              JOIN class_groups cg ON cg.id = sch.class_group_id
-              WHERE sch.left_at IS NULL
-                AND cg.swimming_pool_id = '${poolId}'
-                AND (cg.is_deleted IS NULL OR cg.is_deleted = false)
-                AND (
-                  cg.teacher_user_id = '${userId}'
-                  OR cg.co_teacher_ids @> to_jsonb('${userId}'::text)
-                )
-            )
-            OR ms.handed_to_teacher_id = '${userId}'
+            ${classAccessPredicate(userId, sql`ms.original_class_group_id`)}
+            OR ${classAccessPredicate(userId, sql`ms.assigned_class_group_id`)}
+            OR ms.handed_to_teacher_id = ${userId}
           )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
-      `))) as any).rows as any[];
+      `)) as any).rows as any[];
 
       // is_expired 필드 추가: status=expired 또는 expire_at이 KST 현재 시각 이전
       const kstNow = toKstDateStr(new Date());
@@ -887,11 +897,7 @@ router.patch("/teacher/makeups/:id/assign", requireAuth, requireRole("teacher"),
       const isOriginal = prev.original_teacher_id === userId;
       let isCo = false;
       if (!isOriginal && prev.original_class_group_id) {
-        const coRows = (await superAdminDb.execute(sql`
-          SELECT 1 FROM class_groups WHERE id = ${prev.original_class_group_id}
-            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
-        `)).rows;
-        isCo = coRows.length > 0;
+        isCo = await teacherCanAccessClass(userId, prev.original_class_group_id);
       }
       if (!isOriginal && !isCo) {
         res.status(403).json({ error: "담당 선생님만 보강 일정을 배정할 수 있습니다." }); return;
@@ -1003,11 +1009,7 @@ router.post("/teacher/makeups/:id/handover", requireAuth, requireRole("teacher")
       const isOriginal = mk.original_teacher_id === userId;
       let isCo = false;
       if (!isOriginal && mk.original_class_group_id) {
-        const coRows = (await superAdminDb.execute(sql`
-          SELECT 1 FROM class_groups WHERE id = ${mk.original_class_group_id}
-            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
-        `)).rows;
-        isCo = coRows.length > 0;
+        isCo = await teacherCanAccessClass(userId, mk.original_class_group_id);
       }
       if (!isOriginal && !isCo) { res.status(403).json({ error: "담당 선생님만 인계할 수 있습니다." }); return; }
 
@@ -1151,7 +1153,9 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
         `)).rows;
         isCdCo = coRows.length > 0;
       }
-      if (!isAssigned && !isCdCo) {
+      const classOwner = (mk.original_class_group_id && await teacherCanAccessClass(userId, mk.original_class_group_id))
+        || (mk.assigned_class_group_id && await teacherCanAccessClass(userId, mk.assigned_class_group_id));
+      if (!isAssigned && !isCdCo && !classOwner) {
         res.status(403).json({ error: "담당 선생님만 보강을 직접 완료할 수 있습니다." }); return;
       }
 
@@ -1196,37 +1200,17 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
 
       // 오늘·과거 정원 초과는 실제 참여 기록이므로 허용 (isFull 체크 없음)
 
-      await db.execute(sql`
-        UPDATE makeup_sessions SET
-          status                    = 'completed',
-          is_substitute             = TRUE,
-          substitute_teacher_id     = ${userId},
-          substitute_teacher_name   = ${userName},
-          assigned_date             = ${date},
-          assigned_class_group_id   = ${class_group_id},
-          assigned_class_group_name = ${validation.classGroup.name},
-          completed_at              = now(),
-          updated_at                = now()
-        WHERE id = ${req.params.id}
-      `);
-
-      const attId = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.execute(sql`
-        INSERT INTO attendance
-          (id, swimming_pool_id, student_id, date, status, session_type,
-           class_group_id, teacher_user_id, teacher_name, created_by, created_by_name)
-        VALUES
-          (${attId}, ${poolId}, ${mk.student_id}, ${date}, 'present', 'makeup',
-           ${class_group_id}, ${userId}, ${userName}, ${userId}, ${userName})
-        ON CONFLICT (student_id, date) DO UPDATE SET
-          status = 'present', session_type = 'makeup',
-          class_group_id = ${class_group_id},
-          teacher_user_id = ${userId}, teacher_name = ${userName},
-          updated_at = now()
-      `);
+      await completeMakeupAttendance({
+        makeupId: req.params.id, poolId, studentId: mk.student_id,
+        classId: class_group_id, date, actorId: userId, actorName: userName,
+        className: validation.classGroup.name, isSubstitute: true,
+      });
 
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (err) {
+      if (err instanceof AttendanceConflict) { res.status(409).json({ code: err.code, error: err.message }); return; }
+      console.error(err); res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 
@@ -1278,11 +1262,7 @@ router.patch("/teacher/makeups/:id/revert", requireAuth,
       const isAssignedTeacher = mk.assigned_teacher_id === userId;
       let isCo = false;
       if (!isAssignedTeacher && mk.assigned_class_group_id) {
-        const coRows = (await superAdminDb.execute(sql`
-          SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
-            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
-        `)).rows;
-        isCo = coRows.length > 0;
+        isCo = await teacherCanAccessClass(userId, mk.assigned_class_group_id);
       }
       if (!isAssignedTeacher && !isCo) {
         console.log(`[teacher/makeups/revert] ownership fail: assigned_teacher=${mk.assigned_teacher_id} user=${userId}`);
@@ -1339,7 +1319,9 @@ router.patch("/teacher/makeups/:id/complete", requireAuth, requireRole("teacher"
       const mk = rows[0];
 
       // original_teacher, assigned_teacher, transferred_teacher만 완료 처리 가능
-      const canComplete = mk.original_teacher_id === userId
+      const canComplete = (mk.original_class_group_id && await teacherCanAccessClass(userId, mk.original_class_group_id))
+        || (mk.assigned_class_group_id && await teacherCanAccessClass(userId, mk.assigned_class_group_id))
+        || mk.original_teacher_id === userId
         || mk.assigned_teacher_id === userId
         || mk.transferred_to_teacher_id === userId;
       if (!canComplete) {
@@ -1349,37 +1331,16 @@ router.patch("/teacher/makeups/:id/complete", requireAuth, requireRole("teacher"
       const targetDate = mk.assigned_date || mk.absence_date;
       const targetClassId = mk.assigned_class_group_id || mk.original_class_group_id || null;
 
-      await db.execute(sql`
-        UPDATE makeup_sessions SET
-          status                  = 'completed',
-          is_substitute           = TRUE,
-          substitute_teacher_id   = ${userId},
-          substitute_teacher_name = ${userName},
-          completed_at            = now(),
-          updated_at              = now()
-        WHERE id = ${req.params.id}
-      `);
-
-      // 출석 기록 생성
-      if (poolId && targetDate && mk.student_id) {
-        const attId = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        await db.execute(sql`
-          INSERT INTO attendance
-            (id, swimming_pool_id, student_id, date, status, session_type,
-             class_group_id, teacher_user_id, teacher_name, created_by, created_by_name)
-          VALUES
-            (${attId}, ${poolId}, ${mk.student_id}, ${targetDate}, 'present', 'makeup',
-             ${targetClassId}, ${userId}, ${userName}, ${userId}, ${userName})
-          ON CONFLICT (student_id, date) DO UPDATE SET
-            status = 'present', session_type = 'makeup',
-            class_group_id = ${targetClassId},
-            teacher_user_id = ${userId}, teacher_name = ${userName},
-            updated_at = now()
-        `);
-      }
+      await completeMakeupAttendance({
+        makeupId: req.params.id, poolId, studentId: mk.student_id,
+        classId: targetClassId, date: targetDate, actorId: userId, actorName: userName,
+      });
 
       res.json({ success: true });
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (err) {
+      if (err instanceof AttendanceConflict) { res.status(409).json({ code: err.code, error: err.message }); return; }
+      console.error(err); res.status(500).json({ error: "서버 오류" });
+    }
   }
 );
 
@@ -1507,6 +1468,7 @@ router.get("/teacher/me/members/counts", requireAuth,
           COUNT(*) FILTER (WHERE deleted_at IS NULL AND status = 'withdrawn')::int AS withdrawn
         FROM students
         WHERE swimming_pool_id = ${poolId}
+          AND ${studentAccessPredicate(userId, sql`students.id`)}
       `)).rows as any[];
 
       res.json({
@@ -1555,6 +1517,7 @@ router.get("/teacher/me/members", requireAuth,
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
+            AND ${studentAccessPredicate(userId, sql`s.id`)}
             AND s.status IN ('active', 'pending_parent_link', 'unregistered')
             AND s.deleted_at IS NULL
             AND s.class_group_id IS NULL
@@ -1568,6 +1531,7 @@ router.get("/teacher/me/members", requireAuth,
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
+            AND ${studentAccessPredicate(userId, sql`s.id`)}
             AND s.pending_status_change = 'suspended'
             AND s.deleted_at IS NULL
           ORDER BY s.name ASC
@@ -1579,6 +1543,7 @@ router.get("/teacher/me/members", requireAuth,
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
+            AND ${studentAccessPredicate(userId, sql`s.id`)}
             AND s.pending_status_change = 'withdrawn'
             AND s.deleted_at IS NULL
           ORDER BY s.name ASC
@@ -1590,6 +1555,7 @@ router.get("/teacher/me/members", requireAuth,
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
+            AND ${studentAccessPredicate(userId, sql`s.id`)}
             AND s.status = 'suspended'
             AND s.deleted_at IS NULL
           ORDER BY s.name ASC
@@ -1601,6 +1567,7 @@ router.get("/teacher/me/members", requireAuth,
           FROM students s
           LEFT JOIN class_groups cg ON s.class_group_id = cg.id
           WHERE s.swimming_pool_id = ${poolId}
+            AND ${studentAccessPredicate(userId, sql`s.id`)}
             AND s.status = 'withdrawn'
             AND s.deleted_at IS NULL
           ORDER BY s.name ASC
@@ -1617,6 +1584,7 @@ router.get("/teacher/me/members", requireAuth,
               s.status IN ('active', 'suspended', 'withdrawn', 'pending_parent_link', 'unregistered')
               OR s.pending_status_change IS NOT NULL
             )
+            AND ${studentAccessPredicate(userId, sql`s.id`)}
           ORDER BY s.name ASC
         `);
       }

@@ -23,6 +23,8 @@ import {
   closeAllActiveClassHistory, closeClassHistory,
 } from "../utils/historyUtils.js";
 import { withdrawStudent } from "../lib/withdraw-student-service.js";
+import { teacherCanAccessClass, teacherCanAccessStudent, getCurrentStudentClassIds, studentAccessPredicate, classAccessPredicate } from "../lib/class-membership.js";
+import { writeCanonicalAttendance, AttendanceConflict } from "../lib/canonical-attendance.js";
 
 const router = Router();
 
@@ -131,29 +133,11 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
     if (req.user!.role === "teacher" && !poolAll) {
       // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
-      const teacherClasses = await db.select({ id: classGroupsTable.id })
-        .from(classGroupsTable)
-        .where(and(
-          eq(classGroupsTable.swimming_pool_id, poolId!),
-          eq(classGroupsTable.teacher_user_id, req.user!.userId),
-          eq(classGroupsTable.is_deleted, false)
-        ));
-      const classIds = teacherClasses.map(c => c.id);
-      if (classIds.length === 0) {
-        return res.json([]);
-      }
-      const classIdsLiteral = classIds.map(id => `'${id}'`).join(",");
       students = await db.select().from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
           sql`status NOT IN ('archived', 'deleted')`,
-          sql`(
-            class_group_id = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
-            OR EXISTS (
-              SELECT 1 FROM jsonb_array_elements_text(COALESCE(assigned_class_ids, '[]'::jsonb)) AS cid
-              WHERE cid = ANY(ARRAY[${sql.raw(classIdsLiteral)}])
-            )
-          )`
+          studentAccessPredicate(req.user!.userId, sql`${studentsTable.id}`)
         ));
     } else {
       // admin / super_admin / teacher(pool_all=true): 해당 수영장의 모든 학생 반환
@@ -1371,21 +1355,24 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
     }
 
     // 선생님 scope check: 배정하려는 반이 모두 본인 담당인지 확인
-    if (req.user!.role === "teacher" && assigned_class_ids.length > 0) {
-      const myClasses = await db.select({ id: classGroupsTable.id })
-        .from(classGroupsTable)
-        .where(and(
-          eq(classGroupsTable.swimming_pool_id, poolId!),
-          eq(classGroupsTable.teacher_user_id, req.user!.userId),
-          eq(classGroupsTable.is_deleted, false)
-        ));
-      const myClassIds = new Set(myClasses.map(c => c.id));
-      const unauthorized = assigned_class_ids.filter((id: string) => !myClassIds.has(id));
-      if (unauthorized.length > 0) {
-        return err(res, 403, "본인이 담당하는 반에만 학생을 배정할 수 있습니다.");
+    for (const classId of assigned_class_ids) {
+      const classes = await db.execute(sql`SELECT 1 FROM class_groups
+        WHERE id = ${classId} AND swimming_pool_id = ${existing.swimming_pool_id} AND is_deleted = false`);
+      if (!classes.rows.length) return err(res, 403, "같은 수영장의 활성 반만 배정할 수 있습니다.");
+    }
+    if (req.user!.role === "teacher") {
+      if (!(await teacherCanAccessStudent(req.user!.userId, req.params.id))) {
+        return err(res, 403, "현재 담당 학생이 아닙니다.");
+      }
+      const previous = Array.isArray(existing.assigned_class_ids) ? existing.assigned_class_ids : [];
+      const changed = [...new Set([...previous, ...assigned_class_ids])]
+        .filter(id => previous.includes(id) !== assigned_class_ids.includes(id));
+      for (const classId of changed) {
+        if (!(await teacherCanAccessClass(req.user!.userId, classId))) {
+          return err(res, 403, "다른 담당 반의 배정을 변경할 수 없습니다.");
+        }
       }
     }
-
     const wc = weekly_count !== undefined ? Number(weekly_count) : (existing.weekly_count || 1);
 
     // 배정된 class의 schedule_labels 계산
@@ -1482,7 +1469,7 @@ router.patch("/:id/weekly-count", requireAuth, requireRole("super_admin", "pool_
     const [existing] = await db.select().from(studentsTable)
       .where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
-    if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
+    if (req.user!.role !== "super_admin" && (!poolId || existing.swimming_pool_id !== poolId)) {
       return err(res, 403, "접근 권한이 없습니다.");
     }
 
@@ -1573,8 +1560,21 @@ router.delete("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asy
 // ── Attendance routes (unchanged) ─────────────────────────────────
 router.get("/:id/attendance", requireAuth, async (req: AuthRequest, res) => {
   try {
+    const poolId = await getPoolId(req.user!.userId);
+    const student = await db.execute(sql`SELECT swimming_pool_id FROM students WHERE id = ${req.params.id}`);
+    const ownerPool = (student.rows[0] as any)?.swimming_pool_id;
+    if (!ownerPool || (req.user!.role !== "super_admin" && ownerPool !== poolId)) {
+      return err(res, 403, "접근 권한이 없습니다.");
+    }
+    if (req.user!.role === "teacher" && !(await teacherCanAccessStudent(req.user!.userId, req.params.id))) {
+      return err(res, 403, "현재 담당 학생이 아닙니다.");
+    }
     const { month } = req.query;
-    let records = await db.select().from(attendanceTable).where(eq(attendanceTable.student_id, req.params.id));
+    let records = await db.select().from(attendanceTable).where(and(
+      eq(attendanceTable.student_id, req.params.id),
+      req.user!.role === "teacher" ? sql`(${attendanceTable.class_group_id} IS NULL
+        OR ${classAccessPredicate(req.user!.userId, sql`${attendanceTable.class_group_id}`)})` : sql`true`,
+    ));
     if (month) records = records.filter(r => r.date.startsWith(month as string));
     res.json(records.sort((a, b) => a.date.localeCompare(b.date)));
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
@@ -1586,6 +1586,7 @@ async function autoCreateMakeupForAbsent(
   const existing = (await db.execute(sql`
     SELECT id FROM makeup_sessions
     WHERE student_id = ${studentId} AND absence_date = ${date} AND status != 'cancelled'
+      AND swimming_pool_id = ${poolId} AND original_class_group_id = ${cgId}
     LIMIT 1
   `)).rows as any[];
   if (existing.length > 0) return;
@@ -1612,11 +1613,12 @@ async function autoCreateMakeupForAbsent(
   `);
 }
 
-async function cancelWaitingMakeup(studentId: string, date: string) {
+async function cancelWaitingMakeup(studentId: string, date: string, classId: string, poolId: string) {
   await db.execute(sql`
     UPDATE makeup_sessions
     SET status = 'cancelled', cancelled_at = now(), cancelled_reason = 'absent_cleared'
     WHERE student_id = ${studentId} AND absence_date = ${date} AND status = 'waiting'
+      AND original_class_group_id = ${classId} AND swimming_pool_id = ${poolId}
   `);
 }
 
@@ -1635,42 +1637,47 @@ router.post("/:id/attendance", requireAuth, requireRole("super_admin", "pool_adm
 
     const [student] = await db.select().from(studentsTable)
       .where(eq(studentsTable.id, req.params.id)).limit(1);
-    const cgId = class_group_id || student?.class_group_id || null;
+    const cgId = class_group_id || null;
+    if (!student || student.swimming_pool_id !== poolId) return err(res, 403, "접근 권한이 없습니다.");
+    if (!cgId || (req.body.session_type != null && req.body.session_type !== "regular")) {
+      return err(res, 400, "명확한 정규 수업 반이 필요합니다.");
+    }
+    if (req.user!.role === "teacher" && !(await teacherCanAccessClass(req.user!.userId, cgId))) {
+      return err(res, 403, "담당 반이 아닙니다.");
+    }
+    if (!(await getCurrentStudentClassIds(req.params.id, date)).includes(cgId)) {
+      return err(res, 403, "해당 날짜의 학생 수강 반이 아닙니다.");
+    }
 
     const existing = await db.select().from(attendanceTable)
-      .where(and(eq(attendanceTable.student_id, req.params.id), eq(attendanceTable.date, date))).limit(1);
+      .where(and(eq(attendanceTable.student_id, req.params.id), eq(attendanceTable.date, date),
+        eq(attendanceTable.class_group_id, cgId), eq(attendanceTable.session_type, "regular"),
+        eq(attendanceTable.swimming_pool_id, poolId))).limit(1);
 
     if (existing.length > 0) {
       const prevStatus = existing[0].status;
-      const [updated] = await db.update(attendanceTable)
-        .set({
-          status,
-          class_group_id: cgId || existing[0].class_group_id,
-          updated_at: new Date(),
-          modified_by: req.user!.userId,
-          modified_by_name: actorName,
-        })
-        .where(eq(attendanceTable.id, existing[0].id)).returning();
+      const updated = await writeCanonicalAttendance({ poolId, studentId: req.params.id,
+        classId: cgId, date, status, kind: "regular", actorId: req.user!.userId, actorName });
       if (status === "absent") {
         // autoCreateMakeupForAbsent 내부에서 중복 방지 처리 (non-cancelled 보강 있으면 skip)
         await autoCreateMakeupForAbsent(poolId, req.params.id, cgId, date, existing[0].id);
       } else if (status === "present" && prevStatus === "absent") {
-        await cancelWaitingMakeup(req.params.id, date);
+        await cancelWaitingMakeup(req.params.id, date, cgId, poolId);
       }
       res.json({ success: true, ...updated, was_modified: true });
     } else {
-      const id = `att_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const [created] = await db.insert(attendanceTable).values({
-        id, student_id: req.params.id, swimming_pool_id: poolId,
-        class_group_id: cgId || null,
-        date, status, created_by: req.user!.userId, created_by_name: actorName,
-      }).returning();
+      const created = await writeCanonicalAttendance({ poolId, studentId: req.params.id,
+        classId: cgId, date, status, kind: "regular", actorId: req.user!.userId, actorName });
+      const id = created.id;
       if (status === "absent") {
         await autoCreateMakeupForAbsent(poolId, req.params.id, cgId, date, id);
       }
       res.status(201).json({ success: true, ...created, was_modified: false });
     }
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+  } catch (e) {
+    if (e instanceof AttendanceConflict) return res.status(409).json({ success: false, code: e.code, message: e.message });
+    console.error(e); return err(res, 500, "서버 오류가 발생했습니다.");
+  }
 });
 
 router.patch("/:id/attendance/:attendanceId", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
@@ -1678,9 +1685,12 @@ router.patch("/:id/attendance/:attendanceId", requireAuth, requireRole("super_ad
   if (!["present", "absent"].includes(status)) return err(res, 400, "출결 상태는 present 또는 absent여야 합니다.");
   try {
     const [actor] = await superAdminDb.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
+    const poolId = await getPoolId(req.user!.userId);
     const [updated] = await db.update(attendanceTable)
       .set({ status, updated_at: new Date(), modified_by: req.user!.userId, modified_by_name: actor?.name || req.user!.userId })
-      .where(eq(attendanceTable.id, req.params.attendanceId)).returning();
+      .where(and(eq(attendanceTable.id, req.params.attendanceId),
+        eq(attendanceTable.student_id, req.params.id),
+        req.user!.role === "super_admin" ? sql`true` : eq(attendanceTable.swimming_pool_id, poolId ?? ""))).returning();
     if (!updated) return err(res, 404, "출결 기록을 찾을 수 없습니다.");
     res.json({ success: true, ...updated });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }

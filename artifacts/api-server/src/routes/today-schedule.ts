@@ -12,6 +12,7 @@ import multer from "multer";
 import { Client } from "@replit/object-storage";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { classAccessPredicate } from "../lib/class-membership.js";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 
 const router = Router();
@@ -56,7 +57,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
     // 주 담당(teacher_user_id) + 보조 담당(co_teacher_ids) 모두 포함
     const rows = await db.execute(sql`
       SELECT * FROM class_groups
-      WHERE (teacher_user_id = ${user.userId} OR co_teacher_ids @> to_jsonb(${user.userId}::text))
+      WHERE ${classAccessPredicate(user.userId, sql`class_groups.id`)}
       AND schedule_days LIKE ${"%" + targetDayKO + "%"}
       AND is_deleted = false
       ORDER BY schedule_time ASC
@@ -102,6 +103,7 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       JOIN class_groups cg ON cg.id = a.class_group_id
       WHERE cg.swimming_pool_id = ${poolId}
       AND a.date = ${dateParam}
+      AND (a.session_type = 'regular' OR a.session_type IS NULL)
       GROUP BY a.class_group_id
     `);
     const attMap: Record<string, { total: number; present: number }> = {};
