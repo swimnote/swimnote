@@ -1,0 +1,251 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[선생님 홈 스케줄 — 타 담당 선생님 반 노출 신규 Production 장애 조사]
+
+실제 Production 실기기 제보:
+
+현재 화면:
+- 로그인 표시: 서경민선생님
+- 버튼: “관리자로 전환”
+- 즉 현재 UI context는 선생님 모드
+- 오늘 수업 카드에 본인이 담당하지 않는 반들이 여러 개 노출됨
+
+사용자 요구/정상 계약:
+선생님 모드의 오늘 수업/스케줄에는
+“현재 로그인한 선생님이 담당자로 배정된 반”만 표시되어야 함.
+
+이번 작업은 우선 READ ONLY forensic입니다.
+원인 확정 전 수정/배포하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 화면 호출 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+스크린샷의 선생님 홈 화면에서
+
+오늘 수업
+→ schedule/class fetch
+→ API
+→ client mapping/filter
+→ render
+
+전체 실제 경로를 확인하십시오.
+
+보고:
+
+- 화면 파일
+- hook/service/context
+- endpoint
+- request params/query
+- auth header 외 role/mode 관련 전달값
+- response shape
+- client-side 추가 filter 존재 여부
+- 오늘 날짜/요일 filter 위치
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 로그인 사용자와 “현재 모드”를 분리해서 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 계정은 관리자와 선생님 역할을 함께 가질 수 있습니다.
+
+반드시 다음을 따로 확인:
+
+A. DB/account의 원래 role 또는 권한
+B. 현재 앱 UI mode = teacher/admin 중 무엇인지
+C. JWT 안의 role
+D. API가 실제 authorization에 사용하는 role
+E. “관리자로 전환” 버튼이 의미하는 현재 effective mode
+F. teacher identity를 어떤 user_id / teacher_id로 결정하는지
+
+특히:
+
+“관리자 권한을 가진 계정이 선생님 모드로 전환했지만,
+서버는 여전히 pool_admin으로 판단해서
+전체 수영장 반을 반환하는가?”
+
+를 증거로 확인하십시오.
+
+단정하지 말고 실제 코드/Production 응답으로 판정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production READ ONLY 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+2026-10-15 기준 동일 pool의 오늘 스케줄을 READ ONLY로 확인.
+
+개인정보/학생 이름은 보고서에 출력하지 마십시오.
+
+확인:
+
+TOTAL TODAY CLASSES =
+LOGGED-IN TEACHER ASSIGNED CLASSES =
+OTHER TEACHER CLASSES =
+
+각 오늘 수업 class에 대해 익명으로:
+
+C01:
+- class_group_id 존재
+- canonical 담당 teacher identity
+- 로그인 teacher와 동일/다름
+- API response 포함 YES/NO
+- UI 표시 대상 YES/NO
+
+형태로 count 중심 보고.
+
+실제 학생 이름/반 이름 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 담당 선생님 canonical source 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 시스템에서 반 담당자를 결정하는 실제 canonical source를 찾으십시오.
+
+예:
+- class_groups.teacher_user_id
+- 별도 class_teacher_membership
+- schedule-level teacher
+- 기타 실제 schema
+
+추측 금지.
+
+그리고 모바일 홈이
+그 canonical source와 동일한 기준을 사용하는지 확인.
+
+다중 담당 선생님 구조가 실제 존재한다면
+그 구조까지 현재 코드 기준으로 따르되,
+새 규칙을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. FIRST BREAK 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 중 하나로 정확히 판정:
+
+CASE A
+API 자체가 선생님에게 pool 전체 오늘 수업을 반환
+→ server scope/role 문제
+
+CASE B
+API는 담당반만 반환하지만
+client가 다른 endpoint/data와 합쳐 타 반을 표시
+→ client 문제
+
+CASE C
+API와 client 모두 현재 teacher identity로 필터하지만
+teacher assignment 데이터 자체가 잘못됨
+→ DB assignment/data 문제
+
+CASE D
+관리자+선생님 겸임 계정에서만
+effective role/mode가 잘못 전달됨
+→ role-switch contract 문제
+
+CASE E
+스케줄의 담당 teacher source와
+반의 담당 teacher source가 서로 달라
+잘못된 canonical source를 사용
+→ assignment source mismatch
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 다른 화면과 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 audit 금지.
+
+단 아래 화면만 좁게 비교:
+
+- 선생님 홈 “오늘 수업”
+- 선생님 스케줄 화면
+
+두 화면이 같은 endpoint/filter를 쓰는지 확인.
+
+한쪽만 오류면 그 차이만 보고.
+
+회원/일지/사진/보강 등
+관련 없는 영역 조사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 권한 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사에서 다음을 절대 약화하지 마십시오.
+
+teacher mode:
+현재 담당/허용된 반만
+
+admin mode:
+자기 swimming_pool_id 전체 운영 범위
+
+즉 같은 사용자라도
+앱에서 명시적으로 선생님 모드이면
+선생님 홈 스케줄은 담당반 기준이어야 한다는
+현재 UX 계약을 확인하십시오.
+
+단 실제 서버 authorization과
+UI mode의 기존 설계가 어떻게 연결되어 있는지는
+코드 기준으로 조사 후 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 1차 작업에서는:
+
+- 코드 수정 금지
+- DB 수정 금지
+- role migration 금지
+- 임시 client filter 추가 금지
+- 전체 수업 endpoint 재설계 금지
+- OTA 금지
+- Server deploy 금지
+
+원인만 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEACHER SCHEDULE SCOPE INCIDENT = PASS/HOLD
+
+CURRENT UI MODE =
+JWT ROLE =
+EFFECTIVE API ROLE =
+LOGIN TEACHER ID SOURCE =
+CANONICAL CLASS TEACHER SOURCE =
+
+TOTAL TODAY CLASSES =
+ASSIGNED TO LOGIN TEACHER =
+OTHER TEACHER CLASSES =
+API RETURNED =
+CLIENT DISPLAYED =
+
+HOME ENDPOINT =
+SCHEDULE ENDPOINT =
+SAME FILTER CONTRACT = YES/NO
+
+FIRST BREAK POINT =
+ROOT CAUSE =
+CASE = A/B/C/D/E
+
+ADMIN+TEACHER DUAL ROLE INVOLVED = YES/NO
+DB ASSIGNMENT DATA WRONG = YES/NO
+SERVER SCOPE WRONG = YES/NO
+CLIENT FILTER WRONG = YES/NO
+
+CODE CHANGE = 0
+DB WRITE = 0
+DEPLOY = 0
+OTA = 0
+
+마지막에 정확히 답하세요:
+
+“선생님 모드에서 타 담당 선생님의 수업이
+SWIMNOTE 오류로 노출되고 있음 = YES/NO”
+
+그리고
+
+“원인은 ______ 레이어에서 처음 발생함.”
+
+보고 후 정지하세요.

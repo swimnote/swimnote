@@ -27,7 +27,7 @@
 - [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
 - [API 서버 DB 구성](api-server-db-config.md) — executeSql≠운영DB; tsx 스크립트(@workspace/db)로만 실제 데이터 접근; swimnote.kr=Render.com 동일 외부DB 확인
 - [EAS 빌드 tarball 구조 및 패치](eas-build-tarball.md) — tarball은 workspace root 기준 project/artifacts/swim-app/ 구조; git.js 3개 메서드 no-op 패치; lockfile 없음+.npmrc frozen-lockfile=false가 안정적
-- [JWT role 정규화 버그](jwt-role-normalization.md) — teacher 전환 후 앱 재시작 시 teacher 토큰이 pool_admin API 호출에 사용 → 403; loadStored에서 JWT role vs DB role 비교 후 자동 교체로 해결
+- [활성 역할과 선생님 범위](jwt-role-normalization.md) — DB 기본 역할·활성 JWT·UI 역할을 구분; 관리자 겸임도 선생님 홈·스케줄은 주/보조 담당반만 표시.
 - [Optimistic Update 누락 패턴](optimistic-update-pattern.md) — 모달/액션의 onClose·onMoved를 API await 이후 호출하면 딜레이 발생; 반드시 즉시 호출 후 API는 .catch()로 백그라운드 처리
 - [날짜 시스템 통합 완료](date-system-integration.md) — student_class_history(enrolled_at/left_at) 단일 소스 42개 통합 테스트 전체 통과; 핵심 패턴 및 함정 기록
 - [학부모 앨범 사진 URL 패턴](parent-photo-url-pattern.md) — home.tsx/swim-diary.tsx는 API_BASE+file_url; photos.tsx는 API_BASE.replace(/\/api$/,"")+fileUrl; parent.ts는 각 소비처에 맞는 형식 반환 필요
