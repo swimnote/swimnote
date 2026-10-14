@@ -54,6 +54,7 @@ vi.mock('../../middlewares/auth.js', () => ({
   },
   requireRole: (..._roles: string[]) => (_req: any, _res: any, next: any) => next(),
   requirePermission: (..._args: any[]) => (_req: any, _res: any, next: any) => next(),
+  requireXMode: (_req: any, _res: any, next: any) => next(),
 }));
 
 vi.mock('@workspace/db', () => ({
@@ -152,6 +153,93 @@ function makeCgRow(overrides: Partial<Record<string, any>> = {}) {
 // ════════════════════════════════════════════════════════════════════════════
 // Part D — teacher assign Gate (정원 초과 허용)
 // ════════════════════════════════════════════════════════════════════════════
+describe('I. makeup routing — collection vs record ownership', () => {
+  let server: nodeHttp.Server;
+  let base: string;
+  beforeAll(async () => {
+    const { default: router } = await import('../teachers.js');
+    const app = express();
+    app.use(express.json());
+    app.use(router);
+    server = app.listen(0);
+    await new Promise<void>(resolve => server.once('listening', resolve));
+    base = `http://127.0.0.1:${(server.address() as any).port}`;
+  });
+  afterAll(() => new Promise<void>(resolve => server.close(() => resolve())));
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser.userId = 'u1';
+    mockUser.role = 'teacher';
+    mockUser.poolId = 'pool1';
+    mockSuperDbSelect.mockReturnValue({
+      from: () => ({ where: () => ({ limit: async () => [{ swimming_pool_id: 'pool1' }] }) }),
+    });
+    mockDbExecute.mockResolvedValue({ rows: [] });
+    mockSuperDbExec.mockResolvedValue({ rows: [] });
+  });
+  it.each(['teacher', 'pool_admin'])('%s collection reaches canonical query, not record guard', async role => {
+    mockUser.role = role;
+    mockSuperDbExec.mockResolvedValue({ rows: [{ id: 'cg1', is_mine: true }] });
+    const r = await fetch(`${base}/teacher/makeups/eligible-classes?all=true`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual([{ id: 'cg1', is_mine: true }]);
+    expect(mockDbExecute).not.toHaveBeenCalled();
+    expect(mockSuperDbExec).toHaveBeenCalledTimes(1);
+  });
+  it('genuinely empty canonical result stays HTTP 200 []', async () => {
+    const r = await fetch(`${base}/teacher/makeups/eligible-classes?all=true`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual([]);
+  });
+  it('missing pool still denies collection access', async () => {
+    mockSuperDbSelect.mockReturnValue({
+      from: () => ({ where: () => ({ limit: async () => [] }) }),
+    });
+    const r = await fetch(`${base}/teacher/makeups/eligible-classes?all=true`);
+    expect(r.status).toBe(403);
+    expect(mockSuperDbExec).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['completed', 'MAKEUP_ALREADY_COMPLETED'],
+    ['cancelled', 'MAKEUP_ALREADY_CANCELLED'],
+  ])('%s assignment remains blocked without writes', async (status, error) => {
+    mockDbExecute.mockResolvedValueOnce({ rows: [{ id: 'm1' }] })
+      .mockResolvedValueOnce({ rows: [makeMkRow({ status })] });
+    const r = await fetch(`${base}/teacher/makeups/m1/assign`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ class_group_id: 'cg1', assigned_date: '2026-10-15' }),
+    });
+    expect(r.status).toBe(409);
+    expect((await r.json()).error).toBe(error);
+    expect(mockDbExecute).toHaveBeenCalledTimes(2);
+  });
+  it('cross-pool source remains denied without writes', async () => {
+    mockDbExecute.mockResolvedValueOnce({ rows: [{ id: 'm1' }] })
+      .mockResolvedValueOnce({ rows: [makeMkRow({ swimming_pool_id: 'other-pool' })] });
+    const r = await fetch(`${base}/teacher/makeups/m1/assign`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ class_group_id: 'cg1', assigned_date: '2026-10-15' }),
+    });
+    expect(r.status).toBe(403);
+    expect(mockDbExecute).toHaveBeenCalledTimes(2);
+  });
+  it.each([
+    ['GET', 'm1/eligible-occurrences?class_group_id=cg1'],
+    ['PATCH', 'm1/assign'],
+    ['POST', 'm1/handover'],
+    ['PATCH', 'm1/complete-direct'],
+    ['PATCH', 'm1/revert'],
+    ['PATCH', 'm1/complete'],
+    ['POST', 'm1/extinguish'],
+  ])('%s %s retains record ownership gate', async (method, path) => {
+    const r = await fetch(`${base}/teacher/makeups/${path}`, { method });
+    expect(r.status).toBe(403);
+    expect(await r.json()).toEqual({ error: '담당 보강이 아닙니다.' });
+    expect(mockDbExecute).toHaveBeenCalledTimes(1);
+    expect(mockSuperDbExec).not.toHaveBeenCalled();
+  });
+});
+
 describe('D. teacher assign — 5/5·6/5 정원 초과 허용 (실제 Route)', () => {
   let server: nodeHttp.Server;
   let baseUrl: string;

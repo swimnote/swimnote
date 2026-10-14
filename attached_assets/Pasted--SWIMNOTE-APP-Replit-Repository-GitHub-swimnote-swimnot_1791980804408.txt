@@ -1,0 +1,239 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[보강반 배정 — “배정 가능한 반이 없습니다” 신규 Production 장애]
+
+실제 운영 제보가 들어왔습니다.
+
+재현 흐름:
+보충 수업
+→ 학생 검색
+→ 보강반 배정 클릭
+→ 보강반 배정 Modal
+→ “배정 가능한 반이 없습니다”
+
+제보 화면에서 최소 2명의 실제 결석 건에서 동일 증상이 확인됨.
+예시 결석일: 2026-10-08.
+
+이번 작업은 기존 Makeup 전체를 재설계하는 작업이 아닙니다.
+이미 PASS였던 보강 기능 중
+eligible class 조회 경로의 신규 장애만 좁게 추적하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 실제 호출 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일에서 아래 흐름의 실제 코드 경로를 찾으십시오.
+
+학생 검색
+→ 보강 대상 선택
+→ “보강반 배정”
+→ eligible classes 요청
+→ API response
+→ Modal render
+
+보고:
+
+- 화면/component 파일
+- 호출 service/hook
+- 실제 endpoint
+- request params
+- response shape
+- “배정 가능한 반이 없습니다”가 표시되는 정확한 조건
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production READ ONLY로 실제 실패 건 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+제보된 2026-10-08 결석 건을 기준으로
+Production DB/API를 READ ONLY로 확인하십시오.
+
+개인정보는 보고서에 출력하지 마십시오.
+학생 이름/전화번호 출력 금지.
+
+확인 항목:
+
+A. 해당 absence/makeup source record 존재 여부
+B. student_id / pool_id / class_group_id 정상 여부
+C. absence status가 보강 배정 가능한 상태인지
+D. eligible-class endpoint가 실제 몇 건 반환하는지
+E. DB 기준 후보 class가 실제로 존재하는지
+F. API 필터 중 어느 단계에서 후보가 0건이 되는지
+
+후보반 필터를 단계별 count로 확인:
+
+- 같은 pool
+- active class
+- schedule/day 조건
+- 날짜 범위
+- capacity/정원 조건
+- 이미 배정된 보강 여부
+- 원래 소속반 제외 여부
+- teacher access/scope
+- 중복/완료/cancel 상태
+- 기타 현재 코드의 canonical eligibility 조건
+
+각 필터 적용 전/후 count만 보고하십시오.
+학생/반 이름은 출력하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 권한 문제 여부 반드시 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히 다음을 분리해서 확인:
+
+- pool_admin
+- teacher
+
+teacher 화면에서만 0건이 되는지,
+API 자체가 0건을 반환하는지 구분하십시오.
+
+기존 권한 원칙을 변경하지 마십시오.
+
+pool_admin:
+자기 pool 전체 운영범위
+
+teacher:
+현재 허용된 학생/반 범위
+
+단, “보강 배정 시 어떤 반까지 선택 가능해야 하는가”는
+기존 canonical code/business rule을 확인하여 따르십시오.
+
+새 규칙을 임의로 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 날짜/요일 계산 경로 집중 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+결석일과 보강 가능반 조회에서 사용되는:
+
+- YYYY-MM-DD parsing
+- timezone
+- weekday 계산
+- local/KST 기준
+- future date filter
+- schedule_days 비교
+
+를 실제 코드 기준으로 확인하십시오.
+
+2026-10-08 같은 날짜가
+UTC 변환이나 weekday mismatch 때문에
+잘못 제외되는지 증거로 확인하십시오.
+
+증거 없으면 이 원인으로 단정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A:
+DB상 실제 eligible class가 존재하는데
+API/UI에서 0건
+
+→ ROOT CAUSE를 확정하고 최소 수정.
+
+CASE B:
+API는 정상적으로 후보를 반환하는데
+UI가 0건 표시
+
+→ client mapping/filter/render만 최소 수정.
+
+CASE C:
+현재 canonical business rule상
+실제로 eligible class가 0건
+
+→ 코드 수정하지 말고 HOLD.
+어떤 조건 때문에 0건인지 보고.
+
+CASE D:
+teacher scope가 잘못 축소되어
+정상 후보반이 제거됨
+
+→ 기존 권한 헌법을 유지하면서
+보강 배정용 scope만 현재 의도와 맞게 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 수정 시 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Makeup 전체 refactor 금지
+- DB schema 변경 금지
+- 기존 완료/취소/배정 상태머신 재설계 금지
+- 모든 반을 무조건 노출하는 임시 우회 금지
+- 권한검사 제거 금지
+- pool isolation 약화 금지
+- 이미 PASS인 다른 보강 기능 재테스트 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정이 필요한 경우 관련 테스트만 수행.
+
+필수:
+
+1. 제보 실패 케이스에서 eligible class 표시
+2. 다른 pool class 노출 안 됨
+3. 이미 배정된 건 중복배정 안 됨
+4. 완료/cancel 상태 계약 유지
+5. teacher 권한 유지
+6. pool_admin 권한 유지
+7. 실제 eligible class가 없는 경우 빈 화면 정상
+
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server/API 수정이면:
+Production API 배포.
+
+JS/TS mobile 수정이 필요하면:
+production-v2 iOS + Android OTA.
+
+한쪽만 수정됐으면 영향 없는 배포는 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+MAKEUP ELIGIBLE CLASS INCIDENT = PASS/HOLD/FAIL
+
+FIRST BREAK POINT =
+ROOT CAUSE =
+
+PRODUCTION SOURCE RECORD =
+DB CANDIDATE CLASS COUNT =
+API ELIGIBLE CLASS COUNT =
+CLIENT RECEIVED COUNT =
+CLIENT DISPLAYED COUNT =
+
+TEACHER SCOPE =
+POOL_ADMIN SCOPE =
+DATE/TIMEZONE ISSUE = YES/NO
+
+FILES CHANGED =
+RELATED TESTS =
+
+Server:
+commit full SHA =
+deploy ID =
+live SHA =
+
+OTA if needed:
+iOS Update ID =
+Android Update ID =
+Group ID =
+runtimeVersion =
+source full SHA =
+
+마지막에 정확히 답하세요:
+
+“실제 배정 가능한 반이 존재했는데
+SWIMNOTE 오류로 0건 표시됨 = YES/NO”
+
+보고 후 정지하세요.
