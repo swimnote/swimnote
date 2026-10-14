@@ -23,7 +23,8 @@ import { recomputeGaugePctForLevelPatch } from "../lib/curriculum-confirmation-e
 const router = Router();
 
 // A student's other memberships do not grant ownership of another class's makeup.
-router.use("/teacher/makeups/:id", requireAuth, async (req: AuthRequest, res, next) => {
+// Record operations all have a subresource; collection names are not makeup IDs.
+router.use("/teacher/makeups/:id/:action", requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const userId = req.user!.userId;
     const rows = await db.execute(sql`SELECT m.id FROM makeup_sessions m JOIN users actor
