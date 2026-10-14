@@ -158,6 +158,19 @@ export default function DiaryAIModalV2({
               }
               onVoicePress={hook.handleVoicePress}
             />
+            <View style={styles.learningGuide}>
+              <Text style={styles.learningGuideTitle}>
+                🤖 AI 일지는 사용할수록 더 좋아집니다
+              </Text>
+              <Text style={styles.learningGuideBody}>
+                {'SWIMNOTE AI는 각 수영장별로 독립적으로\n수업 커리큘럼과 일지 작성 내용을 학습합니다.\n\n' +
+                  '일지를 많이 작성할수록 우리 수영장의\n수업 순서, 교육 방식, 표현을 더 잘 이해하여\n우리 수영장에 맞는 일지를 작성할 수 있습니다.\n\n' +
+                  '수영장별 커리큘럼 학습 상태는\n다른 수영장과 공유되지 않습니다.'}
+              </Text>
+              <Text style={styles.learningGuideEmphasis}>
+                많이 사용할수록 우리 수영장에 더 잘 맞는 AI가 됩니다.
+              </Text>
+            </View>
           </View>
         );
 
@@ -534,6 +547,37 @@ const styles = StyleSheet.create({
   contentPad: {
     paddingHorizontal: AIThemeSpacing.section,
     paddingTop:        AIThemeSpacing.element,
+  },
+
+  learningGuide: {
+    marginTop:       AIThemeSpacing.element,
+    padding:         AIThemeSpacing.element,
+    gap:             AIThemeSpacing.tight,
+    backgroundColor: AIThemeColor.surfaceLight,
+    borderRadius:    AIThemeRadius.card,
+    borderWidth:     1,
+    borderColor:     AIThemeColor.border,
+  },
+  learningGuideTitle: {
+    ...AIThemeTypography.label,
+    color:      AIThemeColor.text,
+    fontWeight: '600',
+    lineHeight: 20,
+    textAlign:  'left',
+  },
+  learningGuideBody: {
+    ...AIThemeTypography.label,
+    color:      AIThemeColor.textSub,
+    fontWeight: '400',
+    lineHeight: 20,
+    textAlign:  'left',
+  },
+  learningGuideEmphasis: {
+    ...AIThemeTypography.label,
+    color:      AIThemeColor.text,
+    fontWeight: '600',
+    lineHeight: 20,
+    textAlign:  'left',
   },
 
   // 로딩 상태
