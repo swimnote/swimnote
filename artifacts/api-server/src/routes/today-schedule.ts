@@ -40,8 +40,7 @@ function todayDayKO(): string {
 
 /** ─────────────────────────────────────────────────────────
  *  GET /today-schedule
- *  선생님 홈 전용 — role 무관하게 항상 자신(teacher_user_id = userId)이 담당하는 수업만 반환
- *  (pool_admin이 teacher 화면으로 전환 도중 이전 token으로 호출해도 전체 반 노출 방지)
+ *  활성 JWT 역할 기준: teacher는 주/보조 담당반, 관리자는 기존 수영장 범위.
  * ───────────────────────────────────────────────────────── */
 router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res) => {
   try {
@@ -53,11 +52,14 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
     const targetDate = new Date(dateParam + "T12:00:00Z");
     const targetDayKO = ["일", "월", "화", "수", "목", "금", "토"][targetDate.getUTCDay()];
 
-    // 항상 자신이 담당하는 반만 반환 (role 무관)
-    // 주 담당(teacher_user_id) + 보조 담당(co_teacher_ids) 모두 포함
+    // DB 기본 역할이 관리자여도 teacher JWT에서는 주/보조 담당반만 허용.
     const rows = await db.execute(sql`
       SELECT * FROM class_groups
-      WHERE ${classAccessPredicate(user.userId, sql`class_groups.id`)}
+      WHERE ${classAccessPredicate({
+        userId: user.userId,
+        poolId: user.poolId,
+        effectiveRole: user.role,
+      }, sql`class_groups.id`)}
       AND schedule_days LIKE ${"%" + targetDayKO + "%"}
       AND is_deleted = false
       ORDER BY schedule_time ASC
