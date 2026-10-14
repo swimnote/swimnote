@@ -1,14 +1,28 @@
 import { db } from "@workspace/db";
 import { sql, type SQL } from "drizzle-orm";
 
-/** Pool, lead/co-teacher and active-class checks share one server-side contract. */
-export function classAccessPredicate(userId: string, classId: SQL): SQL {
+export interface ClassAccessContext {
+  userId: string;
+  poolId?: string | null;
+  effectiveRole: string;
+}
+
+/** Explicit auth context uses the active JWT role; legacy callers keep their contract. */
+export function classAccessPredicate(user: string | ClassAccessContext, classId: SQL): SQL {
+  const userId = typeof user === "string" ? user : user.userId;
+  const adminAccess = typeof user === "string"
+    ? sql`access_u.role::text IN ('pool_admin','super_admin')`
+    : sql`${user.effectiveRole === "pool_admin" || user.effectiveRole === "super_admin"}`;
+  const tokenPoolScope = typeof user !== "string" && user.poolId
+    ? sql`AND access_cg.swimming_pool_id = ${user.poolId}`
+    : sql``;
   return sql`EXISTS (
     SELECT 1 FROM class_groups access_cg JOIN users access_u
       ON access_u.swimming_pool_id = access_cg.swimming_pool_id
     WHERE access_u.id = ${userId} AND access_cg.id = ${classId}
       AND access_cg.is_deleted = false
-      AND (access_u.role::text IN ('pool_admin','super_admin')
+      ${tokenPoolScope}
+      AND (${adminAccess}
         OR access_cg.teacher_user_id = ${userId}
         OR access_cg.co_teacher_ids @> to_jsonb(${userId}::text))
   )`;

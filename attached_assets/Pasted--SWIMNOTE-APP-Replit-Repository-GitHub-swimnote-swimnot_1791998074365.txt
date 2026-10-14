@@ -1,0 +1,185 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+[선생님 홈 스케줄 — dual-role 계정의 관리자 우회 제거]
+
+직전 READ ONLY forensic 결과를 승인합니다.
+
+ROOT CAUSE는 확정되었습니다.
+
+문제:
+artifacts/api-server/src/lib/class-membership.ts
+classAccessPredicate()
+
+현재 관리자 우회 조건이
+JWT의 현재 effective role이 아니라
+DB users.role을 기준으로 동작함.
+
+따라서 DB 기본 role=pool_admin,
+roles=[pool_admin, teacher]인 겸임 계정이
+teacher JWT로 호출해도 관리자 전체반 접근이 허용됨.
+
+목표 계약:
+
+- effective JWT role=teacher
+  → 주담당 teacher_user_id 또는 co_teacher_ids에 포함된 반만
+- effective JWT role=pool_admin
+  → 자기 swimming_pool_id 전체 반
+- super_admin
+  → 기존 계약 유지
+- DB 기본 role이 pool_admin이어도
+  teacher JWT에서는 관리자 우회 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+classAccessPredicate() 또는 해당 호출부에서
+“관리자 우회 여부”를 DB users.role로 판단하지 말고
+현재 인증 컨텍스트의 effective JWT role로 판단하도록 수정하십시오.
+
+권장 방향:
+
+classAccessPredicate({
+  userId,
+  poolId,
+  effectiveRole
+})
+
+형태처럼 현재 role을 명시적으로 전달.
+
+단순히 DB role 조건을 제거해서
+pool_admin 정상 접근까지 깨뜨리면 안 됩니다.
+
+현재 로그인 userId를 teacher identity로 사용하는 구조,
+주담당 teacher_user_id,
+보조담당 co_teacher_ids
+기준은 그대로 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 장애와 직접 관련된:
+
+- class-membership helper
+- today-schedule route
+- 관련 테스트
+
+만 수정.
+
+관련 없는 회원/일지/사진/보강/PC 화면 수정 금지.
+
+DB schema/migration 금지.
+client 수정 금지.
+OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 수행.
+
+필수:
+
+A. 일반 teacher
+- 담당반만 반환
+- 타 담당반 0
+
+B. dual-role 계정
+DB:
+role=pool_admin
+roles=[pool_admin, teacher]
+
+teacher JWT:
+- 담당반만 반환
+- 타 담당반 0
+
+C. 동일 dual-role 계정의 pool_admin JWT
+- 같은 pool 전체반 반환
+
+D. co_teacher
+- 보조담당 반 포함
+
+E. 다른 pool
+- 노출 0
+
+F. 2026-10-15 Production 조건 재현
+수정 전:
+12 = 담당 1 + 타 담당 11
+
+수정 후 teacher JWT:
+1 = 담당 1 + 타 담당 0
+
+pool_admin JWT:
+12 유지
+
+전체 suite/typecheck 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+server-only 수정.
+
+GitHub main push
+→ Production API 배포
+→ /api/health live SHA 확인
+
+모바일 OTA 없음.
+
+배포 후 Production GET만으로 확인:
+
+teacher JWT:
+GET /api/today-schedule?date=2026-10-15
+→ 담당반만
+
+pool_admin JWT:
+동일 요청
+→ 관리자 계약에 맞는 전체반
+
+Production 데이터 write 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+TEACHER SCHEDULE SCOPE FIX = PASS/HOLD/FAIL
+
+ROOT CAUSE =
+FIX =
+DB ROLE USED FOR EFFECTIVE AUTH = YES/NO
+
+DUAL ROLE + TEACHER JWT:
+TOTAL RETURNED =
+ASSIGNED =
+OTHER TEACHER =
+
+DUAL ROLE + POOL_ADMIN JWT:
+TOTAL RETURNED =
+
+GENERAL TEACHER =
+CO_TEACHER =
+OTHER POOL LEAK = YES/NO
+
+FILES CHANGED =
+RELATED TESTS =
+
+Server:
+commit full SHA =
+GitHub main full SHA =
+deploy ID =
+status =
+live SHA =
+
+OTA = NONE
+
+마지막에 정확히 답하세요:
+
+“관리자+선생님 겸임 계정도
+선생님 모드에서는 담당반만 표시됨 = YES/NO”
+
+“관리자 모드의 전체반 접근은 그대로 유지됨 = YES/NO”
+
+보고 후 정지하세요.
