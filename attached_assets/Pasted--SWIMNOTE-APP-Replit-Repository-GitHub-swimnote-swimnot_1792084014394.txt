@@ -1,0 +1,227 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에서는 실행 금지]
+
+PROJECT = SWIMNOTE OFFICE V1
+TASK ID = F01
+TASK NAME = Current Contract & Policy Gate
+WORK_TYPE = LIMITED READ ONLY CONTRACT CONFIRMATION
+
+AUTHORIZATION =
+사용자가 F01 진행을 승인했다.
+F02 구현·Production 로그인·쓰기·빌드·배포 승인은 아니다.
+
+GOAL =
+F02 개발에 필요한 현재 계약, 대상 계정 준비 상태,
+인증정책, Desktop Origin/CORS 승인 경계,
+Windows 검증환경과 예상 수정범위를 확인한다.
+코드를 작성하거나 F02를 실행하지 않는다.
+
+REFERENCE =
+- 첨부 OFFICE V1 전체개발 고정계획서 V1.0
+- docs/office/ui-ux-constitution-v1.0.md
+- 현재 적용되는 AGENTS.md / replit.md
+
+UX00 PROVEN FACTS =
+- 문서 등록 및 필수 참조 연결 PASS.
+- UX01~UX12 반영 및 원문 222/222 문단 대조 완료.
+- UI 구현·시안·치수·Windows 검증은 미완료.
+- UX00 변경:
+  신규 docs/office/ui-ux-constitution-v1.0.md
+  신규 AGENTS.md
+  수정 replit.md
+- 위 변경은 commit/push하지 않은 로컬 변경이다.
+- 이번 F01에서 원문 대조나 UX00 전체 검증을 반복하지 않는다.
+- 위 문서 변경과 사용자 첨부파일을 보존한다.
+- 시안 미완료를 이유로 이번 F01에서 UI 설계를 시작하지 않는다.
+
+BASELINE =
+UX00 보고 branch:
+release/ai-diary-learning-ota
+
+UX00 보고 full HEAD:
+e53247b564dd3c56ee909618fef8b508f64a68b5
+
+Blueprint 당시 참고 HEAD:
+40825ee03f44996d750c4478259cde8394346e58
+
+현재 branch/full HEAD/status를 확인한다.
+위 SHA로 reset/checkout하지 않는다.
+차이가 있으면 관련 변경만 설명한다.
+설명되지 않는 관련 변경은 HOLD.
+
+CURRENT REUSE =
+- 기존 React / TypeScript / Vite PC Dashboard
+- 현재 Web 디자인과 화면
+- Electron 우선
+- 현재 API / PostgreSQL 공유
+- 기존 Login / Web PIN / Pool / X 권한
+- 기존 fetch SSE
+- 모바일 APP 변경 목표 0
+- 별도 OFFICE ERP DB 없음
+
+EXPECTED READ SCOPE =
+artifacts/swimnote-dashboard/
+- src/main.tsx
+- src/App.tsx
+- src/pages/LoginPage.tsx
+- src/contexts/AuthContext.tsx
+- src/lib/token.ts
+- src/lib/api-client.ts
+- src/context/RealtimeContext.tsx
+- vite.config.ts
+- package.json: 필요한 실행·빌드 정보만
+
+서버는 필요한 부분만:
+- artifacts/api-server/src/app.ts
+- artifacts/api-server/src/routes/auth.ts
+- artifacts/api-server/src/routes/admin.ts
+
+기존 Blueprint/보고서에서 확정된 내용을 재증명하기 위한
+전체 Repository 조사는 하지 않는다.
+
+IMPLEMENTATION =
+
+1. 기준과 문서 접근
+현재 repo/branch/full HEAD/status 보고.
+첨부 고정계획서를 읽을 수 있는지 확인한다.
+읽을 수 없다면 문서 전체 검색을 반복하지 말고 blocker로 보고한다.
+이번에는 계획서 복사·역링크 추가 등 문서 수정도 하지 않는다.
+
+2. 관련 변경
+Blueprint 이후 F02~F04 계약에 영향을 주는 관련 diff만 확인한다.
+무관한 APP/ENGINE 기능·CLOSED 영역 재감사 금지.
+
+3. 현재 인증 계약
+다음 흐름과 token 전환 시점을 관련 코드로 확인한다.
+- /auth/login
+- /auth/web-pin/verify
+- /auth/me
+- 임시 web_session과 최종 token의 구분
+- pool_admin / Pool / X entitlement 검증
+- TOTP 분기와 기존 PC UI 지원 여부
+비밀번호·PIN·JWT·secret 출력 금지.
+
+4. 테스트 계정 준비 상태
+기존 제공 정보와 승인된 설정 범위에서만 확인한다.
+- pool_admin 계정 준비 여부
+- 대상 테스트 Pool
+- Web PIN 준비 여부
+- X entitlement 준비 여부
+- TOTP 대상 여부
+확인할 수 없으면 UNKNOWN으로 보고한다.
+무승인 Production 로그인·API 호출·DB 조회/쓰기 금지.
+계정 생성·PIN 재설정·권한 부여 금지.
+
+5. Desktop 인증 저장정책
+고정된 기본 정책을 다시 선택 질문으로 되돌리지 않는다.
+- 기본: 앱 재시작 시 로그인/PIN 재수행
+- 명시적 로그인 유지 시에만 safeStorage/DPAPI 지속 저장
+- 비밀번호·PIN·임시 web_session 디스크 저장 금지
+- 유지 token도 시작 시 /auth/me 및 권한 재검증
+로그인 유지 사용자의 재실행 PIN 처리 등
+문서만으로 확정되지 않은 세부사항은
+현재 계약과 가능한 선택지·영향을 짧게 보고한다.
+임의 결정·구현 금지.
+
+6. Desktop Origin / CORS
+packaged app://office를 기본안으로 한다.
+실제 Origin은 F02에서 검증할 사항으로 구분한다.
+현재 CORS 설정과 정확한 Origin 추가 필요 여부,
+F04 서버 수정·통합 배포의 승인 경계를 보고한다.
+실제 검증 전에 Origin이 확인됐다고 선언하지 않는다.
+webSecurity 해제·wildcard·Origin 위조·무제한 native proxy 금지.
+
+7. Windows 환경
+확인 가능한 실제 정보만 보고한다.
+- Windows 10/11 x64 검증 호스트 준비 여부
+- 빌드·실행·증거 수집 담당 및 경로
+- unsigned 내부 실행 가능 여부
+- signing 준비 상태와 고객 배포 Gate
+사용자가 Windows PC를 사용한다는 사실만으로
+Agent가 해당 호스트에서 실행 가능하다고 간주하지 않는다.
+Linux cross-build와 실제 Windows 검증을 구분한다.
+Windows 실행·빌드·설치는 하지 않는다.
+
+8. Archive 후보
+App.tsx의 user?.role 참조와 Archive API client 후보는
+Foundation compile/runtime blocker 여부만 분류한다.
+기능 전체 감사·수정 금지.
+필수 경로가 아니면 기존 backlog로 유지한다.
+
+9. F02 예상 수정범위
+다음을 현재 코드 기준으로 짧게 제시한다.
+- 최소 Electron main/preload/protocol
+- allowlisted typed IPC
+- 별도 Desktop Vite 설정
+- 필요한 package/lockfile 변경
+- 기존 Web route 보존
+- /admin asset / SPA fallback / 새로고침 처리
+- UX 헌법 중 F02 적용 항목
+F02에서는 인증 전체·Navigation 전체·AI·Billing을 구현하지 않는다.
+
+10. 최종 판정과 정지
+필수 입력이 없으면 HOLD.
+F02 선행조건과 F03/F04/Commercial에서 확인할 항목을 구분한다.
+후속 단계로 미룰 수 있다는 근거 없이 blocker를 임의 해제하지 않는다.
+PASS여도 사용자 승인 전 F02 시작 금지.
+
+VALIDATION =
+관련 파일 정적 계약 대조 및 필요한 관련 diff만 확인.
+새 소프트웨어 테스트나 실행 검증은 하지 않는다.
+확인하지 못한 사항은 UNKNOWN / NOT VERIFIED로 남긴다.
+
+DO NOT RUN =
+코드·문서 수정
+package 설치
+전체 Repository inventory/audit
+전체 test / typecheck
+Windows 실행 / build / installer
+Production 로그인 / API 호출
+DB 조회·쓰기 / migration
+비밀번호 변경 / PIN 재설정 / X 권한 부여
+commit / push / deploy / OTA
+F02 자동 실행
+
+PASS CRITERIA =
+- F02에 필요한 입력과 환경이 확인됨.
+- 인증·PIN·Pool·X·TOTP 계약과 준비 상태가 명확함.
+- 인증 저장 및 재실행 정책의 미확정 부분이 해소됨.
+- Desktop Origin 검증계획과 CORS 승인 경계가 명확함.
+- Windows 검증 경로와 unsigned/signed 구분이 명확함.
+- F02 예상 변경범위가 기존 Web/Mobile 계약을 보존함.
+
+STOP CONDITIONS =
+Repository 불일치
+설명되지 않는 관련 코드 변경
+필수 계정·인증정책·Windows 환경 미확정
+PIN/X/Pool 권한 우회 필요
+Foundation에서 DB migration 또는 모바일 변경 필요
+기존 API 계약 파괴 필요
+승인 없이 기술방향·제품범위 변경 필요
+
+RESULT FORMAT =
+TASK F01 = PASS / HOLD
+
+BASELINE =
+REFERENCE ACCESS =
+RELATED DIFF =
+CONFIRMED CONTRACTS =
+AUTH POLICY =
+ACCOUNT GATES =
+ORIGIN / CORS =
+WINDOWS ENVIRONMENT =
+ARCHIVE BLOCKER / BACKLOG =
+EXPECTED F02 FILE SCOPE =
+UX RULES APPLIED =
+BLOCKERS =
+USER DECISIONS NEEDED =
+DEFERRED GATES =
+VALIDATED =
+NOT RUN =
+CREDIT/USAGE = 실제 확인값 또는 NOT AVAILABLE
+SHA = NOT CREATED
+PUSH = NOT RUN
+NEXT = F02 실행 승인 요청 가능 YES / NO
+
+완료보고 후 정지.
