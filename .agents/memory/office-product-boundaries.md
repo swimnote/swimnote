@@ -7,7 +7,7 @@ OFFICE는 기존 APP·PC Dashboard·API·데이터를 공유하는 확장 제품
 
 **Why:** 사용자가 2026-10-15 제공한 OFFICE Master Blueprint와 조사 지시문에서 동일 업무 의미와 기존 디자인 재사용을 절대 전제로 지정했다.
 
-**How to apply:** 신규 구현 전에 실제 화면·API의 재사용 범위를 확인한다. 업종중립 Core는 기존 수영장 데이터 위에 Adapter로 도입하는 방향을 검토하며, 기존 테이블 일괄 개명을 전제하지 않는다.
+**How to apply:** 신규 구현 전에 실제 화면·API의 재사용 범위를 확인한다. 현재 OFFICE V1에서는 수영장 업무만 확장하고, 업종중립 Core나 미래 산업 Adapter를 선개발하지 않는다. 기존 테이블 일괄 개명을 전제하지 않는다.
 
 OFFICE의 주 인터페이스는 AI 작업창이다. 모든 업무 기능은 메뉴와 AI가 동일한 Action·권한·검증을 사용해야 한다(Zero Orphan Feature). AI는 대상을 확인하고 계획을 제안하며 DB를 직접 변경하거나 실제 사용자 권한을 높이지 않는다.
 
@@ -26,3 +26,23 @@ Windows 10/11 x64 설치형이 우선 목표다. 최소 Desktop Foundation과 �
 **Why:** 사용자가 두 메시지의 기록·권한을 분리하고, 회원 미확정 음성 업무도 계획을 유지한 채 부족한 대상만 질문하도록 명시했다.
 
 **How to apply:** 기존 교육 Thread나 직원 메신저를 운영 Inbox로 단순 재명명하지 않는다. 관리자 일정 공유는 일상 출결이 아닌 중요 업무에 한해 제안한다.
+
+## 현재 OFFICE V1의 축소 범위
+
+APP의 필요한 운영기능을 PC에서 제공하되, 신규 PC 업무를 APP에도 추가하지 않는다. 현재 V1의 모바일 APP 코드와 UI 변경 목표는 0이다. 공통 Backend는 기존 APP 계약을 유지하는 호환 확장만 허용한다.
+
+**Why:** 사용자가 2026-10-15 후속 지시에서 전체 Master Blueprint가 아닌 PC 전용 OFFICE V1로 범위를 축소하고, “APP → PC”와 “PC → APP”을 대칭으로 취급하지 말라고 명시했다.
+
+**How to apply:** 상담 CRM·대기자·직원 관리·대량처리·통계·Audit 등은 PC 전용으로 구현할 수 있다. 새 학부모 Inbox나 모바일 결제 화면을 V1에 끼워 넣지 않는다. 학부모 소통은 현재 APP가 읽고 답할 수 있는 기존 계약을 활용한다.
+
+현재 V1은 Desktop, 필요한 기존 업무 PC parity, 간소화한 학원 운영, PC Payment Core, Navigation/Dashboard, 얇은 Action Core, AI Workspace 및 실제 공개 업무의 AI 100% coverage가 대상이다. Smartro 실제 Production 결제·환불·등록카드는 별도 증분 범위다. 미래 모바일 결제는 공통 Invoice/Payment 계약만 열어두고 별도 개발한다.
+
+**Why:** 사용자는 PC 기능 비용과 AI 호출 비용·coverage 자동검증 비용을 분리하고, engineering hour를 Agent 실제 실행시간처럼 표시하지 말라고 요구했다.
+
+**How to apply:** 견적은 일반 PC 기능, AI 증분, Smartro 증분을 중복 없이 구분한다. Action은 V1 실제 업무에만 등록하고, 기존 검증을 AI용으로 복제하지 않는다. 메뉴·실행 Action·AI Tool 연결 누락을 출시 실패 조건으로 둔다.
+
+Dispatch·차량 Navigation·Driver·지도·관제·Kiosk·출입·다업종 Adapter·고급 Vault·고급 Scheduler·완전 회계는 현재 V1에서 실제 구현하지 않는다. 필요한 Placeholder는 메뉴 ID·Route·feature flag·namespace 예약까지만 허용한다.
+
+**Why:** 사용자는 “나중에 쉽게 붙일 수 있음”과 “미래 기능을 지금 미리 구현”을 분리하고, 미사용 API·미래 DB schema·빈 backend domain 생성을 금지했다.
+
+**How to apply:** 이전 전체 Blueprint는 미래 방향으로만 참고한다. PC Breadcrumb/History/Side Workspace 같은 필수 화면 Navigation과 제외된 차량 Navigation을 혼동하지 않는다. 조사·견적만 요청된 턴에서는 제품 구현·DB write·배포·OTA·Windows build를 하지 않는다.

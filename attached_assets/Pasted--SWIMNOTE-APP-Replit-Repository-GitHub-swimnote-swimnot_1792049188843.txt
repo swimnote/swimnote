@@ -1,0 +1,921 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+PROJECT = SWIMNOTE OFFICE V1
+WORK_TYPE = READ ONLY revised scope estimate
+DATE = 2026-10-15
+
+중요:
+이번 작업은 개발 착수가 아닙니다.
+
+CODE CHANGE = 0
+DB WRITE = 0
+DEPLOY = 0
+OTA = 0
+WINDOWS BUILD = 0
+
+이전에 제출한
+SWIMNOTE OFFICE IMPLEMENTATION ESTIMATE를 기준으로
+아래와 같이 범위를 크게 축소했습니다.
+
+현재 Repository를 다시 대규모 조사하지 마십시오.
+이전 조사 결과를 최대한 재사용하고,
+이번에 변경된 범위 때문에 견적에 영향을 주는 부분만 확인하십시오.
+
+목표:
+"SWIMNOTE 모바일 APP의 현재 기능을 PC OFFICE에서도 사용할 수 있고,
+기존 레거시 학원관리 프로그램의 주요 운영기능을 PC 메뉴에 추가하며,
+PC에서 실제 구현된 모든 업무를 AI 작업창이 100% 제어할 수 있는
+Windows OFFICE V1"
+
+까지만 개발합니다.
+
+Dispatch/Navigation 등 후속 제품은
+이번에는 실제 개발하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 이번 V1의 핵심 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 SWIMNOTE OFFICE V1은
+PC 전용 관리 프로그램입니다.
+
+가장 중요한 범위 원칙:
+
+1. 현재 SWIMNOTE APP에 이미 있는 관리 기능은
+   가능한 한 PC OFFICE에서도 사용할 수 있어야 합니다.
+
+2. PC에서 새로 만드는 모든 기능을
+   모바일 APP에도 억지로 추가하지 않습니다.
+
+3. APP에 없어도 PC에서만 필요한 관리업무는
+   PC 전용 기능으로 개발할 수 있습니다.
+
+4. 이번 V1 개발 때문에
+   SWIMNOTE 모바일 APP UI/UX를 수정하지 않습니다.
+
+5. 기존 모바일 APP는 현재 상태를 유지합니다.
+
+6. 필요하면 기존 공통 API는
+   backward-compatible하게 확장할 수 있지만
+   모바일 APP 수정이 필수가 되는 설계는 피하십시오.
+
+7. 예외:
+   결제 관련 기능은 OFFICE에서 먼저 구축한 뒤
+   추후 별도 WP에서 학부모 APP 결제 UI와 연동할 예정입니다.
+
+이번 견적에는
+"향후 APP 결제 연동이 쉽게 가능한 계약/구조 확보"
+까지만 포함하고,
+
+실제 모바일 APP 결제화면 개발/OTA/App Store 배포는
+현재 견적에서 제외하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 이번 V1에서 실제 완성할 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. Windows OFFICE
+
+- Windows 설치형 실행
+- 로그인
+- 인증
+- pool scope
+- 기존 Dashboard
+- 기존 PC Design 유지
+- Windows 창 관리
+- 안전한 token 저장
+- 설치/업데이트 기반
+- Realtime
+- 오류/재실행 처리
+
+기존 React/Vite PC Dashboard를 최대한 재사용합니다.
+
+새로운 디자인으로 전면 재작성하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 SWIMNOTE APP → PC OFFICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP에서 운영자가 사용하는 업무 중
+PC에서 관리하기 적절한 것은
+PC에서도 사용할 수 있도록 합니다.
+
+실제 Repository를 기준으로
+이미 PC에 구현된 것은 재사용하고
+없는 것만 추가합니다.
+
+예:
+
+- 회원
+- 보호자
+- 회원 검색
+- 회원 상세
+- 회원 등록
+- 회원 수정
+- 반배정
+- 반이동
+- 퇴원
+- 지난회원
+- 복원
+- 반
+- 수업
+- 일정
+- 출결
+- 결석
+- 보강
+- 일지
+- 피드
+- 앨범/교육기록 중 PC 관리가 필요한 영역
+- 선생님
+- 공지
+- 학부모 요청
+- 커리큘럼
+- 성장리포트
+- 정산
+- 설정
+- Excel Import/Export
+- 기타 현재 APP/API에 존재하는 운영자 업무
+
+중요:
+
+모바일 UX를 PC에 그대로 복사하는 것이 아닙니다.
+
+동일 데이터/동일 업무를
+PC 업무에 맞는 Table/Drawer/Modal/Side Workspace 방식으로 제공합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 레거시 학원관리 프로그램 핵심기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 학원관리 프로그램에서
+실제 센터 운영에 필요한 주요 기능은
+OFFICE 메뉴 구조에 배치합니다.
+
+이번 V1에서 우선 고려할 핵심 메뉴:
+
+대시보드
+
+회원관리
+- 재원회원
+- 신규회원
+- 지난회원
+- 보호자
+- 회원메모
+- 상담이력
+
+수업관리
+- 반
+- 시간표
+- 정원
+- 대기자
+- 반이동
+
+출결/보강
+- 출석
+- 결석
+- 보강
+- 출결 수정이력
+
+신규/상담
+- 신규문의
+- 상담
+- 체험
+- 레벨테스트
+- 등록전환
+- 미등록 관리
+
+재등록/수납
+- 재등록 대상
+- 재등록 상태
+- 미납
+- 수납
+- 할인
+- 회차조정
+
+결제
+- PC 결제관리
+- 결제내역
+- 환불
+- 결제수단/PG 연결영역
+
+학부모 소통
+- 운영 메시지
+- Push/SMS
+- 요청사항
+- 메시지 이력
+
+직원
+- 선생님
+- 직원
+- 역할/권한
+
+자료/통계
+- 매출
+- 정산
+- 회원현황
+- 재등록현황
+- 미납현황
+- Excel
+- CSV
+- PDF 등
+
+설정
+
+현재 Repository에 없는 기능은
+실제 필요성과 개발량을 조사해
+V1 필수 / V1 간소화 / Future Placeholder
+로 분류하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PC ONLY 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 개발에서 매우 중요한 원칙입니다.
+
+예:
+
+PC에서 추가한
+
+- 상담 CRM
+- 신규문의 관리
+- 대기자
+- 매출 상세
+- 운영자용 대량처리
+- 직원 관리
+- 상세 통계
+- 일괄수정
+- Excel
+- 업무용 Dashboard
+- 관리자용 Audit
+
+등이 모바일 APP에 반드시 필요하지 않다면
+
+모바일 APP에는 추가하지 않습니다.
+
+즉:
+
+APP 기능 → 필요한 경우 PC에서도 제공
+
+그러나
+
+PC 기능 → 무조건 APP에도 추가
+
+가 아닙니다.
+
+PC OFFICE와 모바일 APP는
+같은 서버와 데이터를 사용할 수 있지만
+표면 기능은 서로 다를 수 있습니다.
+
+이번 V1의 모바일 APP CODE CHANGE 목표 = 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. AI 작업창 — 이번 V1의 핵심
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 V1에서 가장 중요한 신규 개발은
+AI WORKSPACE입니다.
+
+OFFICE에서 실제로 제공하는 모든 업무는
+
+메뉴에서는 가능한데
+AI 작업창에서는 불가능한 상태가
+단 하나도 있어서는 안 됩니다.
+
+Zero Orphan Feature를 유지하십시오.
+
+즉 V1에서 실제 구현된 기능 N개라면:
+
+MENU COVERAGE = N
+AI ACTION COVERAGE = N
+
+이어야 합니다.
+
+예:
+
+"김똘똘 찾아줘"
+
+"김똘똘 전화번호 바꿔줘"
+
+"김똘똘 수요일 8시반으로 옮겨줘"
+
+"오늘 결석한 회원 보여줘"
+
+"이번달 미납자 보여줘"
+
+"지난달 재등록 안 한 회원 보여줘"
+
+"김똘똘 상담이력 보여줘"
+
+"이번주 체험회원 보여줘"
+
+"회원명단 엑셀로 만들어줘"
+
+"11월 수강료 한 회 차감해줘"
+
+등.
+
+모두 AI 작업창에서 실행 가능하게 설계합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Action Core 범위 축소
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Action Engine을
+미래 모든 산업을 위한 거대한 플랫폼으로
+처음부터 만들지 마십시오.
+
+이번 V1에서 실제 제공하는 OFFICE 기능만
+Action으로 등록합니다.
+
+얇은 공통 Core:
+
+Action Definition
+Action Permission
+Input Validation
+Entity Resolution
+Preview
+Confirmation
+Execution
+Audit
+Realtime
+Result
+
+정도만 구축합니다.
+
+기존 APP/API의 검증 업무규칙을
+AI용으로 중복 구현하지 않습니다.
+
+기존 API/service를 최대한 활용합니다.
+
+향후 기능은 Action Registry에
+새 Action을 추가할 수 있도록만 열어둡니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. AI FAST PATH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI 작업창이라고 해서
+모든 입력을 GPT에 보내지 않습니다.
+
+예:
+
+전화번호
+회원명
+회원번호
+반명
+날짜
+결제번호
+
+등 명확한 검색은 FAST PATH로 처리.
+
+예:
+
+01099897767
+
+입력
+
+→ 즉시 회원 검색
+→ 회원카드
+→ [회원정보 열기]
+
+복잡한 자연어/복합업무만
+LLM Planner를 사용합니다.
+
+목표:
+
+AI 작업창이 편하지만
+기존 메뉴보다 답답하게 느려지지 않게 설계.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. AI와 화면 연동
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI는 텍스트 답변만 하면 안 됩니다.
+
+예:
+
+"김똘똘 보여줘"
+
+→ 오른쪽 Side Workspace에
+   실제 회원정보 화면 OPEN.
+
+"미납 보여줘"
+
+→ 미납 메뉴 + 해당 filter OPEN.
+
+"이번달 재등록 현황"
+
+→ 해당 Dashboard/Menu OPEN.
+
+AI가 업무를 말할 때마다
+적절한 기존 메뉴 화면을
+Side Workspace에 자동으로 가져옵니다.
+
+반대로 사용자가 메뉴에서 회원을 열면
+그 현재 회원 Context를 AI가 알아야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. PC Navigation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PC에서는 데이터 단어를 타고
+계속 이동할 수 있어야 합니다.
+
+예:
+
+대시보드
+→ 미납 18명
+→ 김똘똘
+→ 11월 수강료
+→ 결제내역
+→ 환불
+
+필수:
+
+- Breadcrumb
+- 뒤로가기
+- History
+- filter 복원
+- scroll 복원
+- Side Workspace
+- 필요하면 내부 tab
+- Dashboard Drill-down
+
+Dashboard의 숫자와 단어는
+가능한 경우 모두 해당 업무화면과 연결.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 결제 — 이번 견적 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+결제는 OFFICE V1에 포함합니다.
+
+단, 이번 견적에서는
+PC OFFICE 결제기능과 Payment Core까지입니다.
+
+포함:
+
+- 가격표
+- 수강료
+- 재등록
+- Invoice
+- 할인
+- 금액조정
+- 회차 +/-
+- 미납
+- 수납
+- 결제내역
+- 전체환불
+- 부분환불
+- 승인정보
+- TID
+- 영수증
+- PG Adapter
+- Smartro 연결 구조
+- 등록카드/자동결제 구조가 필요하면 포함
+- PC 결제/관리
+
+단말/VAN이 이번 실제 출시범위에 필요한지
+현재 계획 기준으로 별도 평가하십시오.
+
+모바일 APP에:
+
+- 결제하기
+- 카드등록
+- 자동결제
+- 간편결제
+- 환불확인
+
+등을 구현하는 작업은
+이번 V1에서 제외합니다.
+
+그러나 추후 APP 결제 UI를 추가할 때
+같은 Invoice/Payment Core를 바로 사용할 수 있도록
+API Contract는 열어둡니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Future Placeholder 전략
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 개발할 기능을
+지금 완성하지 마십시오.
+
+대신 OFFICE Menu에 필요한 경우
+
+"준비중"
+"Coming Soon"
+
+수준의 Menu/Button/Route Placeholder를
+배치할 수 있습니다.
+
+예:
+
+AI 배차
+Navigation
+차량관제
+
+Document Vault
+
+관리자 AI Scheduler 고도화
+
+Kiosk
+
+Public Pool
+
+일반 학원 확장
+
+Fitness
+
+고급 회계
+
+재고/시설 고급관리
+
+각 Placeholder는
+
+- Route 자리
+- 메뉴 ID
+- feature flag
+- Action namespace 예약
+
+정도만 허용합니다.
+
+금지:
+
+- Future DB schema를 미리 대량 생성
+- 사용하지 않을 API 개발
+- Empty backend domain 구현
+- Dispatch Core 선개발
+- Kiosk 선개발
+- 다업종 Core 선개발
+- 미래를 이유로 기존 코드 대규모 refactor
+
+"나중에 쉽게 붙일 수 있음"
+
+까지만 확보하십시오.
+
+"미래 기능을 지금 미리 구현"
+
+하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 이번에 명시적으로 제외
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 견적에서 제외:
+
+- Dispatch Core
+- Navigation
+- 기사 APP/기사단말
+- 차량 실시간 관제
+- 자동배차
+- 지도/경로 API
+- Kiosk
+- Public Pool 구현
+- General Academy Adapter 구현
+- Fitness Adapter 구현
+- 출입통제
+- 고급 Document Vault 실제 구현
+- 관리자 AI Scheduler 고도화
+- 완전 회계 ERP
+- 모바일 APP 신규 관리기능
+- 모바일 APP 결제 UI
+- 모바일 OTA/App Store 작업
+
+단 Placeholder/extension point는 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 기존 모바일 APP 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 OFFICE 개발 때문에
+
+현재 모바일 APP에서 안정적으로 작동하는:
+
+회원
+반
+출결
+보강
+일지
+사진
+커리큘럼
+성장리포트
+학부모
+교사
+
+기능을 이유 없이 refactor하지 마십시오.
+
+공통 Backend 보강이 필요한 경우에도:
+
+- backward-compatible
+- 현재 APP Contract 유지
+- mobile regression 최소화
+
+를 우선합니다.
+
+OFFICE 때문에
+APP를 대규모 동시개발하는 구조를 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 기능분류를 먼저 다시 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+견적 전에 모든 기능을 아래 4등급으로 분류하십시오.
+
+A = EXISTING REUSE
+현재 Web/API 그대로 또는 소폭 수정하여 사용.
+
+B = OFFICE V1 NEW
+이번에 실제 구현.
+
+C = PC ONLY
+이번에 PC에만 실제 구현.
+모바일 APP 개발 없음.
+
+D = FUTURE PLACEHOLDER
+메뉴/Route/버튼/확장계약만.
+실제 업무 구현 없음.
+
+각 기능마다:
+
+기능명
+A/B/C/D
+현재 자산
+이번 작업
+APP 영향
+Backend 영향
+DB 영향
+AI Action 필요 여부
+
+를 표로 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. AI 100% Coverage 견적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 견적에서 별도로 계산하십시오.
+
+1. 일반 PC 기능 구현비용
+
+2. 해당 기능을
+   AI 작업창에서 100% 호출 가능하게 만드는 추가비용
+
+3. AI Action Coverage 자동검증 도구/테스트
+
+예:
+
+Action Registry의 모든 public V1 Action이
+AI Tool Registry에 등록됐는지
+
+menu operation과 AI operation이
+동일 service를 호출하는지
+
+자동으로 확인 가능한
+coverage check를 설계하십시오.
+
+목표:
+
+VISIBLE OFFICE FUNCTION
+→ ACTION EXISTS
+→ AI TOOL EXISTS
+
+누락 = Build/QA 실패
+
+수준으로 만들 수 있는지 평가하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 다시 받고 싶은 견적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 Master Blueprint 전체 견적은
+이번 판단에 사용하지 않습니다.
+
+새 범위만 다시 계산하십시오.
+
+SCENARIO A
+Desktop Foundation만
+
+SCENARIO B
+Desktop
++ 현재 SWIMNOTE APP 핵심기능 PC parity
++ 레거시 학원관리 주요기능
++ Navigation/Dashboard
++ PC Payment Core
++ AI Workspace
++ V1 기능 AI 100% coverage
+
+SCENARIO C
+SCENARIO B
++ Smartro 실제 Production 결제연동/환불/등록카드까지
+
+각각 별도로 계산하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 견적 단위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 Scenario마다:
+
+- development engineering hours
+- verification engineering hours
+- total engineering hours
+- 예상 Replit Agent 집중 작업회차
+- 1인 개발 기준 전통적 calendar estimate
+- AI Agent 중심 실제 구현 시 예상 작업단계 수
+- 외부업체 대기시간
+- 주요 리스크
+
+를 제출.
+
+그리고 매우 중요:
+
+기존 보고서의
+전통적인 engineering hour를
+Replit Agent 실제 실행시간처럼 표시하지 마십시오.
+
+둘을 분리하십시오.
+
+가능하다면:
+
+"AI Agent를 현재 사용자 방식으로
+단계별 지시/완료보고/검수하면서 개발할 경우
+현실적으로 예상되는 구현 회차"
+
+를 별도로 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 비용 견적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replit 자체 비용을
+현재 Account/Plan/Agent 가격정보 없이
+정확히 계산할 수 없다면
+
+원화 비용을 임의 생성하지 마십시오.
+
+대신:
+
+LOW
+EXPECTED
+HIGH
+
+3단계 Agent workload를 제출하십시오.
+
+현재 Replit 환경에서
+실제 사용량 기반으로 비용 산정이 가능하다면
+그 근거와 함께 계산.
+
+외부비용은 별도:
+
+- Windows Code Signing
+- Smartro/PG
+- VAN/단말
+- 문자
+- AI API
+- STT
+- Storage
+- Windows Test 장비
+- 기타
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. 이전 견적과 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서의
+
+SCENARIO 2 =
+1,750–2,942 engineering h
+
+와 비교하여
+
+이번 축소안이:
+
+- 몇 시간으로 감소하는지
+- 감소율 %
+- 어떤 WP가 사라져서 감소했는지
+- 어떤 WP가 Placeholder로 바뀌었는지
+
+를 반드시 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 추천 개발 ROADMAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 축소 범위를 기준으로
+WP를 새로 작성하십시오.
+
+가능하면 8~12 WP 안으로 줄이십시오.
+
+예:
+
+WP0 Reconciliation
+WP1 Desktop Foundation
+WP2 Navigation + PC Shell
+WP3 Thin Action Core
+WP4 Existing SWIMNOTE PC Parity
+WP5 Legacy Academy Operations
+WP6 Billing/Payment Core
+WP7 AI Workspace
+WP8 AI 100% Action Coverage
+WP9 Smartro Production Integration
+WP10 Commercial Hardening
+
+단 실제 Repo 구조를 기준으로 조정하십시오.
+
+Navigation/Dispatch 등 미래기능을
+현재 WP로 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 최종 질문
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+마지막에 반드시 아래를 답하십시오.
+
+1.
+"모바일 SWIMNOTE APP을 수정하지 않고
+PC OFFICE V1을 구축할 수 있음 = YES / NO / PARTIAL"
+
+2.
+"현재 APP 기능 중 PC에서도 필요한 기능을
+기존 API를 이용하여 대부분 재사용 가능 = YES / NO / PARTIAL"
+
+3.
+"PC 전용 레거시 학원관리 기능을 추가하면서
+모바일 APP에 같은 기능을 만들지 않아도 됨 = YES / NO"
+
+4.
+"향후 APP 결제 UI를 별도 추가할 수 있도록
+Payment Core 계약을 미리 열어둘 수 있음 = YES / NO"
+
+5.
+"Dispatch/Navigation/Kiosk 등을 Placeholder만 두고
+후속 개발로 미뤄도 구조적 문제 없음 = YES / NO"
+
+6.
+"이번 V1의 모든 실제 업무기능을
+AI 작업창에서 100% 호출 가능하게 설계 가능 = YES / NO / PARTIAL"
+
+7.
+"이전 Scenario 2보다 수정된 예상 총 개발량 = ______ h"
+
+8.
+"이전 Scenario 2 대비 개발량 감소율 = ______ %"
+
+9.
+"예상 Replit Agent 집중 작업회차 = ______"
+
+10.
+"가장 합리적인 첫 상용 출시범위 = ______"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE OFFICE V1 REVISED ESTIMATE = PASS/HOLD
+
+1. SCOPE INTERPRETATION
+
+2. FUNCTION CLASSIFICATION
+A Existing Reuse
+B Office V1 New
+C PC Only
+D Future Placeholder
+
+3. MOBILE APP IMPACT
+- APP code modification =
+- APP UI modification =
+- Backend compatibility work =
+
+4. REVISED ARCHITECTURE
+
+5. REVISED WP ROADMAP
+
+6. SCENARIO A ESTIMATE
+
+7. SCENARIO B ESTIMATE
+
+8. SCENARIO C ESTIMATE
+
+9. AI 100% COVERAGE COST
+
+10. PAYMENT SCOPE
+
+11. FUTURE PLACEHOLDER LIST
+
+12. PREVIOUS ESTIMATE COMPARISON
+
+13. TOP RISKS
+
+14. RECOMMENDED FIRST RELEASE
+
+15. FINAL ANSWERS
+
+이번에는 코드 수정하지 말고
+견적 보고 후 정지하십시오.
+
+CODE CHANGE = 0
+DB WRITE = 0
+DEPLOY = 0
+OTA = 0
+WINDOWS BUILD = 0
