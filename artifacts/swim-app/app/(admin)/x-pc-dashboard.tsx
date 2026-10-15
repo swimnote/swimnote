@@ -3,7 +3,7 @@
  *
  * X모드 PIN 설정 + PC 접속 방법 안내.
  * PIN 설정/변경은 기존 web-pin-settings로 push.
- * API/DB: 기존 /pools/web-pin-status 재사용.
+ * API/DB: 기존 /auth/web-pin/status 재사용.
  */
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -48,10 +48,12 @@ export default function XPcDashboardScreen() {
     if (!token) return;
     setLoadingPin(true);
     try {
-      const res = await apiRequest(token, "/pools/web-pin-status");
+      const res = await apiRequest(token, "/auth/web-pin/status");
       if (res.ok) {
         const data = await res.json();
-        setPinSet(!!data.isSet);
+        if (data?.success === true && typeof data.web_pin_set === "boolean") {
+          setPinSet(data.web_pin_set);
+        }
       }
     } catch {
       // 조용히

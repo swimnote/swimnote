@@ -29,13 +29,15 @@ export default function WebPinSettingsScreen() {
     if (!token) return;
     setLoading(true);
     try {
-      const r = await apiRequest(token, "/pools/web-pin-status");
-      if (r.ok) {
-        const data = await r.json();
-        setWebPinSet(!!data.isSet);
+      const r = await apiRequest(token, "/auth/web-pin/status");
+      const data = await r.json().catch(() => null);
+      if (r.ok && data?.success === true && typeof data.web_pin_set === "boolean") {
+        setWebPinSet(data.web_pin_set);
+      } else {
+        setMsg({ text: data?.error || data?.message || `PIN 상태를 확인하지 못했습니다. (HTTP ${r.status})`, ok: false });
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      setMsg({ text: "PIN 상태를 확인하지 못했습니다. 네트워크 연결을 확인해주세요.", ok: false });
     } finally {
       setLoading(false);
     }
@@ -59,25 +61,25 @@ export default function WebPinSettingsScreen() {
     setSaving(true);
     setMsg(null);
     try {
-      const r = await apiRequest(token, "/pools/web-pin", {
-        method: "PUT",
+      const r = await apiRequest(token, "/auth/web-pin", {
+        method: "PATCH",
         body: JSON.stringify({
-          currentPassword: currentPw,
-          newPin,
+          current_password: currentPw,
+          web_pin: newPin,
         }),
       });
-      const data = await r.json();
-      if (r.ok) {
+      const data = await r.json().catch(() => null);
+      if (r.ok && data?.success === true && data.web_pin_set === true) {
         setMsg({ text: "성공적으로 저장되었습니다.", ok: true });
         setWebPinSet(true);
         setCurrentPw("");
         setNewPin("");
         setConfirmPin("");
       } else {
-        setMsg({ text: data.error || "저장에 실패했습니다.", ok: false });
+        setMsg({ text: data?.error || data?.message || `PIN 저장을 확인하지 못했습니다. (HTTP ${r.status})`, ok: false });
       }
-    } catch (e) {
-      setMsg({ text: "오류가 발생했습니다.", ok: false });
+    } catch {
+      setMsg({ text: "요청을 완료하지 못했습니다. 네트워크 연결을 확인한 뒤 PIN 상태를 확인해주세요.", ok: false });
     } finally {
       setSaving(false);
     }
@@ -93,11 +95,22 @@ export default function WebPinSettingsScreen() {
           if (!token) return;
           setSaving(true);
           try {
-            const r = await apiRequest(token, "/pools/web-pin", { method: "DELETE" });
-            if (r.ok) {
+            const r = await apiRequest(token, "/auth/web-pin", {
+              method: "PATCH",
+              body: JSON.stringify({ current_password: currentPw, web_pin: null }),
+            });
+            const data = await r.json().catch(() => null);
+            if (r.ok && data?.success === true && data.web_pin_set === false) {
               setWebPinSet(false);
+              setCurrentPw("");
+              setNewPin("");
+              setConfirmPin("");
               setMsg({ text: "비밀번호가 해제되었습니다.", ok: true });
+            } else {
+              setMsg({ text: data?.error || data?.message || `PIN 해제를 확인하지 못했습니다. (HTTP ${r.status})`, ok: false });
             }
+          } catch {
+            setMsg({ text: "요청을 완료하지 못했습니다. 네트워크 연결을 확인한 뒤 PIN 상태를 확인해주세요.", ok: false });
           } finally {
             setSaving(false);
           }
