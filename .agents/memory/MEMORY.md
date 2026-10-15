@@ -112,3 +112,4 @@
 - [로그인 복구 증거 경계](login-recovery-identifier-evidence.md) — DB identifier로 API 200이어도 사용자용 ID가 확인되지 않으면 실사용 로그인 복구 PASS 금지.
 - [신규 가입 PUSH 계약](pool-signup-push-boundary.md) — 최초 이벤트의 논리 dispatch만 허용; 불명확한 provider 결과 재발송 금지, 실기기 표시와 분리.
 - [시범사업 X 수동 부여 정책](x-manual-pilot-policy.md) — SUPERADMIN 직접 manual 부여는 커리큘럼 없이 X 진입 허용; 일반 경로 prerequisite·AI 데이터 검증 유지.
+- [OFFICE 제품 경계](office-product-boundaries.md) — 기존 APP/PC 공유 확장·Zero Orphan Action·Windows Foundation 분리·운영 메시지와 교육 메시지 분리.
