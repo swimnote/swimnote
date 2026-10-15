@@ -1,0 +1,892 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+[AI ENGINE Replit에는 절대 실행하지 말 것]
+
+PROJECT = SWIMNOTE OFFICE V1
+WORK_TYPE = READ ONLY IMPLEMENTATION BLUEPRINT
+GOAL = CURRENT SWIMNOTE WEB/PC → RUNNABLE WINDOWS SWIMNOTE OFFICE
+MODE = MINIMUM CREDIT / ACTUAL REPOSITORY BASED / EXECUTION READY
+
+중요:
+이번 작업에서는 절대 개발하지 않습니다.
+
+CODE CHANGE = 0
+DB WRITE = 0
+COMMIT = 0
+PUSH = 0
+DEPLOY = 0
+OTA = 0
+WINDOWS BUILD = 0
+
+이번 작업의 목적은
+향후 Replit Agent가 실제로 순서대로 실행할
+SWIMNOTE OFFICE 개발 설계도를 확정하는 것입니다.
+
+일반적인 기술 제안서가 아니라,
+
+"작업 01을 실행한다
+→ 완료보고
+→ 사용자 검수
+→ PASS 후 작업 02"
+
+방식으로 실제 개발에 그대로 사용할 수 있는
+EXECUTION BLUEPRINT를 작성하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 이미 확정된 사실 — 다시 조사하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사 결과를 재사용합니다.
+
+확정:
+
+- 현재 PC/Web = React + TypeScript + Vite
+- 기존 Dashboard/Web 디자인 재사용
+- 현재 Web UI 대규모 재작성 불필요
+- Windows Shell = Electron 우선
+- 기존 APP/API/DB 상당 부분 재사용
+- 현재 서버/API/DB를 그대로 공유
+- 별도 OFFICE ERP DB 생성하지 않음
+- 모바일 SWIMNOTE APP UI 변경 목표 = 0
+- PC 전용 기능은 모바일 APP에 만들 필요 없음
+- 공통 Backend 변경 시 backward-compatible
+- PC Menu와 AI는 동일 업무 Action 사용
+- Thin Action Core
+- AI Workspace
+- V1 실제 공개 기능은 AI 100% coverage 목표
+- Future 기능은 Placeholder/extension point만
+- Dispatch/차량 Navigation/Kiosk 등은 후속
+- Smartro 실결제는 별도 후속 단계 가능
+
+Repository 전체를 처음부터 다시 조사하거나
+위 사항을 다시 증명하지 마십시오.
+
+이번 Blueprint 작성에 필요한 파일만
+최소 범위로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 이번 Blueprint가 다루는 정확한 목표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 설계도의 첫 번째 목표는:
+
+현재 SWIMNOTE Web PC 화면을 기반으로
+
+Windows에서
+
+SWIMNOTE OFFICE 실행
+→ 로그인
+→ PIN
+→ Pool 확인
+→ 기존 Dashboard 표시
+→ 기존 회원 화면 사용
+→ API 통신
+→ Realtime 연결
+→ 종료
+→ 재실행
+
+까지 가능한 상태를 만드는 것입니다.
+
+즉 최초 Milestone:
+
+MILESTONE = OFFICE RUNNABLE FOUNDATION
+
+입니다.
+
+아직 이 단계에서
+레거시 학원 기능 전체,
+Payment 전체,
+AI 기능 전체를 구현하는 것이 아닙니다.
+
+하지만 이후 개발할 기능이
+현재 Foundation 위에 그대로 확장될 수 있도록
+전체 OFFICE V1 구조와 연결관계는 Blueprint에 포함합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. OFFICE 최종 UX 방향
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE OFFICE는
+현재 Web PC 디자인을 기반으로 합니다.
+
+새로운 ERP 디자인을 처음부터 만들지 않습니다.
+
+최종적으로 두 가지 사용방식을 지원합니다.
+
+A. 업무집중 모드
+
+- 기존 학원관리 프로그램처럼
+  왼쪽 메뉴 중심으로 빠르게 사용.
+- 회원
+- 수업
+- 출결
+- 보강
+- 재등록
+- 미납
+- 결제
+- 상담
+- 통계 등.
+
+B. AI 작업창 중심 모드
+
+- 중앙/좌측 AI Workspace
+- 관련 실제 업무화면은 Side Workspace에 표시.
+- AI가 텍스트만 답하는 것이 아니라
+  실제 메뉴/회원/청구/반 화면을 OPEN.
+
+두 모드는 같은 Backend/Action을 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PC Navigation 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 OFFICE Navigation은:
+
+Menu
+Dashboard
+데이터 링크
+AI Workspace
+
+어느 경로에서 들어오더라도
+같은 Navigation Layer를 사용합니다.
+
+필요:
+
+- Sidebar
+- Breadcrumb
+- Back
+- History
+- Filter restore
+- Scroll restore
+- Side Workspace
+- 필요한 범위의 internal tabs
+- Dashboard drill-down
+- 현재 화면 Context → AI 전달
+- AI → 실제 화면 OPEN
+
+예:
+
+Dashboard
+→ 미납 18
+→ 김똘똘
+→ 11월 Invoice
+→ 결제내역
+→ 환불
+
+뒤로가기 시
+기존 미납목록 filter/scroll 상태 복원.
+
+이번 Foundation에서 전부 구현할 필요는 없지만
+나중에 갈아엎지 않도록
+어느 시점에서 Navigation Layer를 넣을지
+정확히 Blueprint에 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. OFFICE 메뉴 최종 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Blueprint에
+최종 V1 Menu Map도 포함하십시오.
+
+예상 범위:
+
+대시보드
+
+회원관리
+- 재원회원
+- 신규회원
+- 지난회원
+- 보호자
+- 회원메모
+- 상담이력
+
+신규/상담
+- 신규문의
+- 상담
+- 체험
+- 레벨테스트
+- 등록전환
+- 미등록
+
+수업관리
+- 반
+- 시간표
+- 정원
+- 대기자
+- 반이동
+
+출결/보강
+- 출석
+- 결석
+- 보강
+- 수정이력
+
+교육관리
+- 일지
+- 피드
+- 앨범/교육기록
+- 커리큘럼
+- 성장리포트
+
+재등록/수납
+- 재등록
+- 가격표
+- 할인
+- 회차조정
+- Invoice
+- 미납
+- 수납
+- 환불
+
+결제
+- 결제내역
+- PG 연결영역
+- Smartro Future/후속
+
+학부모 소통
+- 요청
+- 답장
+- 공지
+- Push
+- SMS
+
+직원
+- 선생님
+- 직원
+- 역할/권한
+
+통계/자료
+- 회원
+- 매출
+- 재등록
+- 미납
+- 강사정산
+- Excel/CSV/PDF
+
+설정
+
+AI WORKSPACE
+
+Future Placeholder:
+- AI 배차
+- 차량 Navigation
+- Kiosk
+- Document Vault
+- 기타 후속 기능
+
+실제 Repository의 기존 메뉴/route를 기준으로
+불필요한 중복 메뉴는 조정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 모바일 APP 경계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 OFFICE 개발에서는:
+
+MOBILE APP CODE CHANGE = 0 목표.
+
+APP에 현재 존재하는 업무 중
+PC에서 필요한 기능은
+기존 Backend/API를 이용하여 PC에서 제공.
+
+반대로:
+
+PC OFFICE에서 새로 만든
+
+- 상담 CRM
+- 대기자
+- 관리자 통계
+- 대량 작업
+- PC 권한관리
+- 재등록 관리
+- Invoice 관리
+- 운영자 Audit
+
+등이 모바일에 필요하지 않으면
+APP에 추가하지 않습니다.
+
+OFFICE 때문에
+모바일 APP을 동시개발하는 구조 금지.
+
+공유 Backend 변경만 필요한 경우
+현재 모바일 Contract를 깨지 않는
+최소 확장만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. AI 작업창 최종 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Foundation 이후 구축할 AI Workspace도
+Blueprint에 정확한 연결 위치를 표시하십시오.
+
+최종 원칙:
+
+VISIBLE OFFICE FUNCTION
+→ ACTION EXISTS
+→ AI TOOL EXISTS
+
+실제 공개된 OFFICE 업무 중
+AI에서 실행 불가능한 기능 = 0.
+
+Menu와 AI가
+서로 다른 비즈니스 로직을 가지면 안 됩니다.
+
+구조:
+
+MENU ─┐
+       ├→ SAME ACTION → SAME SERVICE/API
+AI ───┘
+
+GPT가 DB를 직접 수정하거나
+SQL write 하지 않습니다.
+
+AI:
+해석/계획/Entity resolution.
+
+SWIMNOTE:
+권한/검증/금액계산/실행/Audit/Realtime.
+
+이번 Foundation 단계에서
+AI 전체를 구현하지 말고,
+
+어느 작업부터
+Action/AI Vertical Slice를 시작해야 하는지
+설계도에 표시하십시오.
+
+첫 예시는:
+
+회원검색
+→ 회원 화면
+→ FAST PATH
+
+회원수정
+→ Action
+→ AI Tool
+→ Audit
+
+반이동
+→ Preview
+→ Action
+→ AI
+→ Realtime
+
+등.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Future 확장 방식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+향후:
+
+Dispatch
+Navigation
+Driver
+Kiosk
+Document
+Public Pool
+Academy
+Fitness
+
+등을 추가할 예정입니다.
+
+이번에는 구현하지 않습니다.
+
+허용:
+
+- menu id
+- route namespace
+- feature flag
+- Action namespace
+- extension point
+
+정도.
+
+금지:
+
+- 미래 DB 대량 생성
+- 미래 API 선개발
+- Dispatch Core 구현
+- 범용 Workflow Engine
+- 다업종 Core 선개발
+- 사용하지 않는 abstraction
+
+향후 바로 붙일 수 있을 정도로만
+열어둡니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. CREDIT 최소화가 설계 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 실제 개발의 매우 중요한 제약:
+
+Replit credit 낭비 금지.
+
+Blueprint도 이 기준으로 작성하십시오.
+
+금지:
+
+- 매 작업 Repository 전체 재조사
+- PASS 기능 반복 검증
+- 전체 test 반복
+- 전체 typecheck 반복
+- 매 UI 변경마다 Windows build
+- Slice마다 Production deploy
+- 대형 문서 반복 생성
+- 같은 원인 반복 조사
+- 미래 기능 선개발
+- 필요 없는 refactor
+
+기본 개발단위:
+
+기능 Vertical Slice
+→ 필요한 파일 확인
+→ 최소 변경
+→ 관련 테스트
+→ 완료보고.
+
+Windows 전체 Build는
+필요한 Gate에서만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 이번에 필요한 핵심 산출물
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요합니다.
+
+현재 Repository 기준으로
+
+"OFFICE RUNNABLE FOUNDATION"
+
+까지 실제로 Replit Agent가 수행할
+작업을 번호 순서대로 작성하십시오.
+
+예:
+
+TASK 01
+TASK 02
+TASK 03
+...
+
+각 TASK는
+독립적으로 사용자에게 완료보고할 수 있어야 합니다.
+
+너무 잘게 쪼개지 마십시오.
+
+예:
+
+API 조사
+UI 조사
+test 조사
+
+를 각각 Task로 만들지 마십시오.
+
+하나의 의미 있는 결과가 나오는
+최소 Vertical Task 단위로 구성하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 각 TASK에 반드시 포함할 정보
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 TASK마다 아래 형식을 정확히 작성하십시오.
+
+TASK ID =
+
+TASK NAME =
+
+GOAL =
+이 작업 완료 후 무엇이 실제로 가능해지는가.
+
+CURRENT REUSE =
+현재 어떤 파일/컴포넌트/API를 재사용하는가.
+
+EXPECTED FILE SCOPE =
+수정 예상 기존 파일.
+
+EXPECTED NEW FILES =
+신규 생성 예상 파일/모듈.
+아직 만들지 말 것.
+
+BACKEND CHANGE =
+YES/NO
+필요 시 정확한 목적.
+
+DB CHANGE =
+YES/NO
+필요 시 migration 목적.
+불필요한 DB 변경 금지.
+
+MOBILE APP CHANGE =
+반드시 0 또는 별도 승인 필요.
+
+NATIVE/WINDOWS =
+Electron main/preload/IPC/build 등 필요 여부.
+
+IMPLEMENTATION =
+실제 Agent가 수행해야 할 작업 순서.
+
+VALIDATION =
+관련 테스트만 명시.
+
+DO NOT RUN =
+이번 Task에서 불필요한
+전체 suite/build/deploy 등을 명시.
+
+PASS CRITERIA =
+무엇을 확인하면 완료인가.
+
+STOP CONDITIONS =
+막혔을 때 Agent가 추측 구현하지 않고
+중단해야 할 조건.
+
+CREDIT RISK =
+LOW/MEDIUM/HIGH.
+
+EXPECTED AGENT ROUND =
+가능하면 1회 / 2회 등의 예상.
+
+NEXT TASK =
+PASS 후 다음 Task.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Foundation Task 수 제한
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OFFICE RUNNABLE FOUNDATION까지는
+가능하면 5~8개의 Task 안으로 설계하십시오.
+
+불필요하게 20개 이상으로 쪼개지 마십시오.
+
+반대로
+하나의 거대한 Task로 모두 구현하지도 마십시오.
+
+권장 형태 예:
+
+F01 Current Contract Gate
+F02 Electron Bootstrap
+F03 Auth/Secure Storage/API
+F04 Routing/SSE/Recovery
+F05 Existing Dashboard/Members Runtime
+F06 Installer/Window/Update Foundation
+F07 Windows Runtime Verification
+
+실제 Repository를 확인하여
+필요하면 합치거나 조정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. '실행 가능'의 정의
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OFFICE RUNNABLE FOUNDATION PASS는
+최소 다음이 실제 가능해야 합니다.
+
+Windows PC에서 SWIMNOTE OFFICE 실행.
+
+→ SWIMNOTE OFFICE 창 표시.
+
+→ 기존 PC 디자인 정상 렌더링.
+
+→ 기존 로그인 사용.
+
+→ Web PIN 사용.
+
+→ 올바른 pool scope.
+
+→ Dashboard 표시.
+
+→ 회원목록 표시.
+
+→ 회원 상세 열기.
+
+→ 기존 API 정상 호출.
+
+→ Realtime 연결.
+
+→ 네트워크 실패 상태 처리.
+
+→ Logout.
+
+→ 프로그램 종료.
+
+→ 재실행.
+
+→ 인증 저장정책 정상.
+
+→ Windows 설치/실행 방식 확정.
+
+개발용 실행파일과
+최종 Signed Installer를 구분하십시오.
+
+Foundation의 어느 Task에서
+unsigned dev build,
+어느 Task에서 signed installer가 필요한지 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 보안 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Electron Foundation:
+
+- nodeIntegration=false
+- contextIsolation=true
+- sandbox 검토/적용
+- typed/allowlisted IPC
+- renderer에 arbitrary native API 노출 금지
+- webSecurity 비활성화 금지
+- CORS 전체 허용 금지
+- Windows safe storage/DPAPI 기반 token adapter
+- localStorage 장기 credential 금지
+- 로그에 token/secret 금지
+- 임의 URL/file/shell 실행 금지
+
+현재 Web Auth/API 계약은 유지하면서
+Desktop adapter를 추가하는 방향.
+
+보안 때문에
+기존 모바일 인증을 전면 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Repository 실제 경로 기반으로 작성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+일반적인:
+
+"Electron을 설치한다"
+"로그인을 연결한다"
+
+수준으로 끝내지 마십시오.
+
+현재 Repository에서 확인 가능한 실제 경로를 사용하십시오.
+
+기존 조사에서 확인된 예:
+
+artifacts/swimnote-dashboard/
+src/App.tsx
+src/contexts/AuthContext.tsx
+src/lib/api-client.ts
+src/lib/token.ts
+src/context/RealtimeContext.tsx
+src/layouts/*
+src/pages/*
+
+api-server/
+
+등.
+
+단 현재 실제 구조와 다르면
+최소 확인 후 정확한 경로를 사용하십시오.
+
+각 Task에서
+어느 파일을 왜 건드릴 가능성이 있는지
+정확히 표시하십시오.
+
+하지만 코드 작성은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 기존 발견 오류 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 조사에서:
+
+- Archive route user?.role scope 위험
+- ArchiveMembersPage api client 호출 위험
+
+후보가 보고되었습니다.
+
+이번 Blueprint에서는
+이를 Foundation 전체를 지연시키는
+대규모 감사 대상으로 만들지 마십시오.
+
+실제 해당 화면이 Foundation Gate에 필요하면
+좁게 재현 → 최소 수정 Task에 포함.
+
+Foundation에 필요하지 않으면
+별도 기존 PC bug backlog로 표시.
+
+관련 없는 전체 Archive 재개발 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 전체 OFFICE V1 후속 ROADMAP도 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Foundation 작업 이후의
+후속 개발순서도 보여주십시오.
+
+단 Foundation만큼 세세할 필요는 없습니다.
+
+예상:
+
+STAGE 1
+OFFICE RUNNABLE FOUNDATION
+
+STAGE 2
+Navigation / Side Workspace
+
+STAGE 3
+Thin Action Core + 첫 Vertical Slice
+
+STAGE 4
+Existing SWIMNOTE PC Parity
+
+STAGE 5
+Legacy Academy Operations
+
+STAGE 6
+Billing / Payment Core
+
+STAGE 7
+AI Workspace Expansion
+
+STAGE 8
+AI 100% Coverage Gate
+
+STAGE 9
+Smartro Production — 별도 승인 시
+
+STAGE 10
+Commercial Hardening
+
+실제 가장 credit 효율적인 순서로 조정하십시오.
+
+중요:
+
+Action Core 전체를 먼저 만들고
+그 다음 모든 AI를 만드는 방식 금지.
+
+작은 Vertical Slice로
+Menu/Action/AI를 동시에 확장하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 개발 중 완료보고 규격
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+향후 실제 Task를 실행할 때
+각 완료보고는 길게 쓰지 않습니다.
+
+다음 형식으로 통일할 수 있는지 설계하십시오.
+
+TASK XX = PASS / HOLD / FAIL
+
+CHANGED =
+핵심 변경 파일/내용.
+
+VALIDATED =
+실행한 제한 테스트.
+
+NOT RUN =
+불필요해서 하지 않은 전체 test/build/deploy.
+
+KNOWN ISSUES =
+새로 발견된 관련 문제만.
+
+CREDIT/USAGE =
+Agent가 확인 가능한 경우 실제 표시 비용.
+
+NEXT =
+다음 Task 진행 가능 YES/NO.
+
+SHA =
+commit을 하는 단계라면 결과 SHA.
+
+이 형식으로 다음 Task의 Context를 최소화합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE OFFICE EXECUTION BLUEPRINT = PASS / HOLD
+
+1. CURRENT BASELINE
+- branch
+- HEAD
+- Desktop/Web entry
+- 기존 재사용 핵심 경로
+
+2. OFFICE TARGET ARCHITECTURE
+간단한 구조도.
+
+3. FINAL V1 MENU MAP
+
+4. FOUNDATION DEFINITION
+
+5. FOUNDATION TASK MAP
+F01~Fn
+
+6. EACH TASK SPECIFICATION
+위 10번 형식으로 상세 작성.
+
+7. FOUNDATION DEPENDENCY GRAPH
+
+예:
+F01
+→ F02
+→ F03/F04
+→ F05
+→ F06
+→ F07
+
+병행 가능한 작업이 있으면 표시.
+
+8. WINDOWS BUILD STRATEGY
+- dev execution
+- test build
+- signed installer
+- update
+각 시점.
+
+9. VALIDATION STRATEGY
+- Slice
+- Foundation Gate
+- Windows Gate
+- Release Gate
+
+10. CREDIT OPTIMIZATION
+각 Task에서 무엇을 반복하지 않는지.
+
+11. STOP CONDITIONS
+
+12. POST-FOUNDATION ROADMAP
+전체 OFFICE V1 후속 Stage.
+
+13. FIRST TASK READY-TO-EXECUTE SPEC
+
+마지막에는
+향후 실제 첫 개발 지시로 바로 사용할 수 있도록
+
+F01의 완전한 실행 지시 초안도 별도로 작성하십시오.
+
+단 지금 F01을 실행하지 마십시오.
+
+14. FINAL ANSWERS
+
+반드시 답하십시오:
+
+"현재 SWIMNOTE Web/PC 자산에서
+Windows OFFICE 실행까지 필요한 Foundation Task 수 = ___"
+
+"현재 Web UI 대규모 재작성 필요 = YES/NO"
+
+"모바일 APP 코드 수정 필요 = YES/NO/PARTIAL"
+
+"Foundation 단계 DB migration 필요 = YES/NO/PARTIAL"
+
+"Foundation 완료 후 기존 Dashboard/회원 업무 사용 가능 = YES/NO"
+
+"Foundation 이후 같은 구조에서
+Navigation/Action/AI/Payment 확장 가능 = YES/NO"
+
+"가장 먼저 실행할 Task = F__ ______"
+
+"Foundation 개발 중 Windows 전체 build 예상 횟수 = ___"
+
+보고 후 정지하십시오.
+
+코드를 수정하거나
+첫 Task를 실행하지 마십시오.
+
+CODE CHANGE = 0
+DB WRITE = 0
+COMMIT = 0
+PUSH = 0
+DEPLOY = 0
+OTA = 0
+WINDOWS BUILD = 0
