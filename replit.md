@@ -25,6 +25,10 @@ I prefer the AI to operate with a clear understanding of the existing system's m
 
 ## System Architecture
 
+### SWIMNOTE OFFICE UI·UX 필수 부속 기준
+
+OFFICE 설계·구현·검수 전 [SWIMNOTE OFFICE UI·UX 헌법 V1.0](docs/office/ui-ux-constitution-v1.0.md)을 반드시 참조한다. [AGENTS.md](AGENTS.md)의 OFFICE 참조 지침도 적용한다. UX01~UX12 통합본이 이전 UX00/UX01~UX10의 중복 UI·UX 기준을 대신하며, 기존 OFFICE 전체개발 계획의 기능 범위·아키텍처·F01~F07·Stage 순서는 유지한다. 확정 원칙과 시안 검증 전 권장값을 구분하고, 이 문서 등록만으로 구현·테스트·빌드·배포 또는 다음 Task 실행이 승인된 것으로 해석하지 않는다. 아래 기존 APP UI/UX 설명은 보존하며 OFFICE 전용 규칙을 모바일 APP에 임의 적용하지 않는다.
+
 ### UI/UX Decisions
 The administrator application features a 6-tab structure (Dashboard, People, Classes, Communication, Messenger, More), while the teacher application has a 7-tab structure (Today's Schedule, Class Management, Attendance, Swim Diary, Photos, Messenger, Settings). A consistent selection mode UX is implemented for bulk actions. The member detail screen is an 8-tab hub for managing student information. Common UI components like `SubScreenHeader`, `PageHeader`, and `ModalSheet` are used across the application. Navigation rules emphasize a structured flow (e.g., `시간표 → 선생님 선택 → 반 목록 → 반 현황판`). `Alert.alert` is prohibited in favor of custom `Modal` components. Tab navigation supports resetting scroll positions on re-selection and maintaining tab state. Logout buttons are consistently placed in the header of each mode's home screen. The parent application was reconfigured to a Stack-based navigation, removing the bottom tab bar.
 
