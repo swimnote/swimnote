@@ -21,6 +21,14 @@ Replit 환경에서 `eas update`는 bash tool 120초 제한 때문에 직접 완
 **Why:** EAS branch/channel과 EAS environment는 별개이므로 production-v2 branch 지정만으로 환경이 선택되지 않는다. 환경 누락은 번들 검증과 무관하게 업로드를 중단시킨다.
 **How to apply:** 검증한 번들은 그대로 사용하고 업로드 명령에 환경을 지정한다. 이 요구 때문에 SDK·패키지·앱 설정을 바꾸거나 재번들링하지 않는다.
 
+게시 명령 이후 로컬 결과 파싱이 실패했다고 같은 업데이트를 재게시하지 않는다.
+**Why:** EAS의 JSON 출력 앞에 경고 문구가 붙어 로컬 JSON 파서가 실패했지만 실제 원격 게시는 성공한 사례가 있다. 특히 skip-bundler와 metadata 출력 옵션을 함께 사용하면 경고가 JSON 앞에 나올 수 있다.
+**How to apply:** 게시 단계의 결과와 로컬 후처리 오류를 분리한다. 재시도 전에 원격 채널의 최신 플랫폼별 Update ID·Group ID·source·runtime을 확인한다. 이미 성공한 플랫폼은 반복 게시하지 않는다.
+
+격리 worktree에서 기존 의존성을 재사용할 때 외부 workspace의 node_modules 디렉터리 전체를 가리키는 심볼릭 링크를 당연히 지원한다고 가정하지 않는다.
+**Why:** Metro가 격리된 프로젝트 경계 밖의 의존성 링크를 해석하지 못해 실제로 존재하는 expo-router entry를 찾지 못한 사례가 있다. 이는 앱 코드 오류나 dependency 버전 오류와 구분해야 한다.
+**How to apply:** 승인 source와 lockfile을 보존하고, 먼저 의존성의 실제 경로와 Metro 탐색 경계를 확인한다. 필요하면 기존 설치본을 격리 작업 위치에 복사한다. 이를 이유로 앱 소스·dependency 버전을 바꾸거나 새 binary를 만들지 않는다.
+
 ## 과거 우회 배포 절차 (현재 우선 절차로 진행할 수 없는 경우에만 검토)
 
 1. `package.json` dev 스크립트를 더미 포트 + export로 임시 교체:
@@ -78,11 +86,10 @@ Replit 환경에서 `eas update`는 bash tool 120초 제한 때문에 직접 완
 
 ## OTA 앱 적용
 
-- 앱 코드에 `Updates.reloadAsync()` 있음 → 업데이트 감지 시 **앱이 자동으로 재시작**
-- 사용자가 수동으로 재시작할 필요 없음 — 앱 열면 자동 적용
-- "2회 열기" 안내 금지
+사용자 적용 안내는 해당 배포 source의 업데이트 감지·다운로드·재시작 처리를 확인해서 작성한다. `reloadAsync()`가 존재한다는 사실만으로 자동 재시작을 단정하지 않는다.
+**Why:** 사용자 버튼으로 적용하는 모달과 background 복귀 시 적용하는 경로가 함께 있을 수 있어, 과거의 "앱을 열면 자동 적용" 안내를 그대로 재사용하면 부정확하다.
+**How to apply:** 현재 source가 실제로 요구하는 버튼이나 동작만 안내한다. 근거 없는 "자동 적용" 또는 "무조건 두 번 열기"를 안내하지 않는다.
 
 ## runtimeVersion
 
-- `runtimeVersion: {policy: appVersion}` → app.json `version` 필드(현재 1.6.0)와 일치해야 함
-- app.json version 절대 변경 금지
+runtime이 고정 문자열인지 appVersion policy인지 현재 설정에서 확인한다. 오래된 버전값이나 policy를 그대로 사용하지 않는다. OTA만을 위해 승인 없이 app version·runtime을 변경하지 않는다.
