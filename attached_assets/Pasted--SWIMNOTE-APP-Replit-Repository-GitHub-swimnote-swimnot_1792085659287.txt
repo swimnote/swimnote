@@ -1,0 +1,97 @@
+[전달 대상: SWIMNOTE APP Replit]
+[Repository: GitHub swimnote/swimnote]
+
+TASK = PIN 수정 iOS·Android Production OTA 배포
+사용자 승인 = release branch push + 두 플랫폼 OTA
+
+RELEASE SOURCE =
+569257ecfaf065efa10e8e42b046b9357975cffe
+
+GIT BRANCH =
+release/ai-diary-learning-ota
+
+EAS PROJECT =
+7d0e0faa-32d8-4f40-88c4-2c99e0613afc
+
+OTA BRANCH / CHANNEL =
+production-v2 / production-v2
+
+RUNTIME =
+2.2.0
+
+PROVEN FACTS =
+- Production source:
+  04b120515c693f75a58ede06f74d2814ec1a099f
+- 위 source 대비 모바일 실행 코드 변경은 PIN 두 화면뿐.
+- 관련 격리 테스트 12/12 PASS.
+- native/dependency/lockfile/app.json/eas.json 변경 없음.
+- 서버 배포·새 binary 불필요.
+- 실제 사용자 설치 binary 및 PIN 설정 성공은 미확인.
+- 전체 원인 조사와 동일 테스트를 반복하지 않는다.
+
+진행 =
+
+1. 배포 전 현재 HEAD / git status 확인.
+   승인 SHA와 일치하고 작업 트리가 clean인지 확인한다.
+   다르면 임의 reset/checkout하지 말고 차이만 보고한다.
+
+2. push 대상에 포함되는 문서·첨부·신규 Git 이력에서
+   비밀번호·PIN·JWT·API secret 포함 여부만 제한 확인한다.
+   원문이나 값은 출력하지 않는다.
+   발견 시 push·OTA 중단 후 파일 경로와 정보 종류만 보고한다.
+   임의 이력 재작성·삭제·force push 금지.
+
+3. 현재 production-v2 channel 매핑·runtime과
+   직전 iOS/Android OTA 메타데이터를 확인한다.
+   준비 보고 이후 달라졌다면 변경 부분만 확인한다.
+   다른 배포가 진행됐거나 source가 충돌하면 HOLD.
+
+4. 현재 승인 branch를 GitHub의 동일 이름 branch로 push.
+   문서·첨부 이력 포함은 승인됐으나,
+   2번의 민감정보 확인을 통과해야 한다.
+   main push / merge / force push 금지.
+   원격 branch full SHA가 승인 SHA와 일치하는지 확인한다.
+
+5. 동일 승인 source에서 iOS·Android OTA를 생성해
+   production-v2 / runtime 2.2.0으로 게시한다.
+   기존 프로젝트의 승인된 Production 환경 설정을 사용한다.
+   구형 production / runtime 2.1.0 / preview는 변경하지 않는다.
+   채널 매핑·runtime·buildNumber·versionCode 변경 금지.
+
+6. 각 플랫폼 게시 결과 확인.
+   source full SHA / Update ID / Group ID /
+   branch / channel / runtime / 게시 시각을 기록한다.
+   한 플랫폼만 성공하면 부분 완료로 보고하고
+   성공 플랫폼을 불필요하게 다시 게시하지 않는다.
+
+7. 게시 성공과 사용자 기기 적용·PIN 설정 성공을 구분한다.
+   Agent가 운영 계정에서 PIN 쓰기를 수행하지 않는다.
+   사용자에게 필요한 앱 재실행·업데이트 확인 절차를
+   현재 expo-updates 설정에 근거해 짧게 제공한다.
+
+금지 =
+추가 기능 수정 / 새 commit·merge·이력 재작성
+전체 audit / 전체 suite / 전체 typecheck
+새 binary / 서버 배포 / DB migration
+운영 계정 PIN 설정·해제·초기화
+운영 회원·계정·권한·X 정보 변경
+민감정보 출력
+OFFICE F01/F02 재개
+
+완료보고 =
+TASK = PASS / HOLD / PARTIAL
+SOURCE FULL SHA =
+GIT PUSH = branch / remote full SHA
+SENSITIVE DATA CHECK = PASS 또는 차단 사유
+iOS = Update ID / Group ID / branch / channel / runtime
+Android = Update ID / Group ID / branch / channel / runtime
+PUBLISHED AT = UTC / KST
+POST-PUBLISH VERIFICATION =
+USER UPDATE STEPS =
+DEVICE APPLICATION = NOT VERIFIED 또는 실제 증거
+PIN SETTING SUCCESS = NOT VERIFIED
+PRODUCTION BUSINESS DATA CHANGE = NONE
+NOT RUN =
+CREDIT/USAGE = 실제 확인값 또는 NOT AVAILABLE
+
+보고 후 정지.
