@@ -46,3 +46,17 @@ Dispatch·차량 Navigation·Driver·지도·관제·Kiosk·출입·다업종 Ad
 **Why:** 사용자는 “나중에 쉽게 붙일 수 있음”과 “미래 기능을 지금 미리 구현”을 분리하고, 미사용 API·미래 DB schema·빈 backend domain 생성을 금지했다.
 
 **How to apply:** 이전 전체 Blueprint는 미래 방향으로만 참고한다. PC Breadcrumb/History/Side Workspace 같은 필수 화면 Navigation과 제외된 차량 Navigation을 혼동하지 않는다. 조사·견적만 요청된 턴에서는 제품 구현·DB write·배포·OTA·Windows build를 하지 않는다.
+
+## Credit 절약형 개발 제약
+
+OFFICE 개발은 관련 Backend·UI·Action·AI Tool·제한 테스트를 하나의 명확한 Vertical Slice로 처리한다. 완료된 조사·PASS/CLOSED 영역을 근거 없이 다시 감사하지 않고, 기존 Context·컴포넌트·service·테스트 결과를 재사용한다.
+
+**Why:** 사용자가 2026-10-15 credit 절약을 최우선 개발 제약으로 명시하고, 전체 Repo 재조사·매 Slice 전체 suite/typecheck/build·불필요한 문서·중복 Agent 조사를 금지했다.
+
+**How to apply:** Slice에서는 변경영역의 검증만 한다. WP Gate는 관련 회귀, Core/Release Gate는 승인된 통합 검증을 수행한다. installer는 Foundation·native 변경·통합/Release Gate에서만 빌드하고 Production 배포는 승인된 묶음으로 한다. 권한·금액·경쟁 조건 검증 자체를 절약 이유로 생략하지 않는다.
+
+실제 계정 Billing/Usage 근거 없이 engineering hour·작업회차를 credit·USD·KRW로 환산하지 않는다. 외부 문서·권한·MID·서명·정책·migration 승인이 없으면 해당 Slice를 중단하고, 추측 개발이나 반복 조회를 하지 않는다.
+
+**Why:** 사용자는 실제 과금정보나 calibration 없이 “1회당 금액”을 만들지 말고, blocker 및 예산 초과 시 승인받도록 요구했다.
+
+**How to apply:** 계정 사용량과 작업별 비용이 확보된 뒤 위험별 예산을 잡는다. 80% 경고·100% 추가 작업 중지 원칙을 적용하되, 실시간 usage 접근이나 자동 집행이 없으면 자동중지를 보장하지 않는다. Provider 대기기간은 Agent 작업비로 계산하지 않는다.
