@@ -26,3 +26,9 @@ Replit source-control 연결에 일반 커넥터의 상태 해석을 기계적�
 **Why:** 기존 임시 worktree의 디렉터리가 사라지고 Git 객체와 worktree 등록 정보만 남아 있는 상태를 관찰했다. 등록 정보가 존재하는 것과 실제 checkout 보존은 다르다.
 
 **How to apply:** 승인 커밋의 객체 존재를 확인하고 작업 공간 내부의 Git 추적 제외 경로에 detached worktree를 보존한다. 원래 작업 트리와 기존 worktree 등록 정보를 삭제·prune·reset하지 않는다. 인증 복구 후 실제 push는 새 보존 경로의 SHA와 clean 상태를 확인한 뒤 수행한다.
+
+중첩된 보존 폴더가 존재해도 `.git` 표식이 사라졌다면 `git -C`가 부모 저장소를 찾아 다른 HEAD와 branch를 반환할 수 있다.
+
+**Why:** 승인 source 폴더와 Git 객체는 남아 있었지만 worktree 표식이 없어, 해당 폴더에서 Git을 실행했을 때 원래 작업 공간의 최신 HEAD로 해석되는 상태를 관찰했다.
+
+**How to apply:** 폴더 존재나 worktree 목록만으로 격리를 판정하지 않는다. 실제 Git 표식과 승인 full SHA·clean 상태를 함께 검증하고, 일치하지 않으면 인증 검사와 push 전에 중단한다. Push refspec은 검증한 승인 SHA를 직접 사용하며 현재 HEAD로 대체하지 않는다.
