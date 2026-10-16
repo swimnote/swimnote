@@ -28,7 +28,8 @@ export async function checkStreamAccess(principal: StreamPrincipal): Promise<boo
     await tx.execute(sql`SET LOCAL statement_timeout = '1500ms'`);
     const result = await tx.execute(sql`
       SELECT u.is_activated, u.withdrawal_requested_at, u.roles, u.role,
-             u.swimming_pool_id, p.id AS pool_id, p.deactivated_at
+             u.swimming_pool_id, p.id AS pool_id, p.deactivated_at,
+             (u.email NOT LIKE 'deleted_%@deleted.local') AS retain_mode
       FROM users u
       LEFT JOIN swimming_pools p ON p.id = ${principal.poolId}
       WHERE u.id = ${principal.userId} LIMIT 1
@@ -36,11 +37,16 @@ export async function checkStreamAccess(principal: StreamPrincipal): Promise<boo
     const row = result.rows[0] as {
       is_activated: boolean; withdrawal_requested_at: unknown; roles: string[] | null;
       role: string; swimming_pool_id: string | null; pool_id: string | null; deactivated_at: unknown;
+      retain_mode: boolean | string | number | null;
     } | undefined;
-    if (!row || row.is_activated !== true || row.withdrawal_requested_at ||
+    if (!row || row.is_activated !== true ||
         row.pool_id !== principal.poolId || row.deactivated_at) return false;
     // Preserve requireRole's strict pool_admin roles-array contract.
     if (principal.role === "pool_admin") {
+      // This is a GET stream: retain-mode reading remains allowed for active accounts,
+      // just as requireAuth permits it. Deactivated accounts still fail closed above.
+      const retain = row.retain_mode === true || row.retain_mode === "true" || row.retain_mode === 1;
+      if (row.withdrawal_requested_at && !retain) return false;
       return Array.isArray(row.roles) && row.roles.includes("pool_admin") &&
         row.swimming_pool_id === principal.poolId;
     }

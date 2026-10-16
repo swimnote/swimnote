@@ -82,6 +82,7 @@ const authority = new StreamAuthority();
 export async function openAdminStream(
   req: Request, res: Response, poolId: string, shared = authority,
 ): Promise<void> {
+  if (req.aborted || res.destroyed || res.writableEnded) return;
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
     res.status(401).json({ error: "인증이 필요합니다." });
@@ -101,6 +102,7 @@ export async function openAdminStream(
     onWriteError: () => close(),
     beforeEvent: (type: string) => lease?.beforeEvent(type),
     canSend: () => {
+      if (closed || req.aborted || res.destroyed || res.writableEnded) { close(); return false; }
       if (Date.now() >= principal.expiresAt) { close("expired"); return false; }
       const allowed = !closed && !!lease?.allowed();
       if (!allowed) needsResync = true;
@@ -147,13 +149,16 @@ export async function openAdminStream(
     expiry = setTimeout(armExpiry, Math.min(remaining, 2_147_483_647));
   }
   armExpiry();
+  if (closed) return;
   if (!(await lease.ready()) || closed) return;
   if (!client.canSend()) return;
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders();
+  try {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+  } catch { close(); return; }
   started = true;
   addSseClient(client);
   try { res.write('data: {"type":"connected"}\n\n'); } catch { close(); return; }
