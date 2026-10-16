@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Router } from "wouter";
@@ -62,4 +62,15 @@ it("preserves Web dashboard quick actions and logout isolation", async () => {
   fireEvent.click(screen.getByRole("button", { name: "로그아웃", exact: true }));
   expect(getToken()).toBeNull();
   expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+});
+
+it("N01 keeps Web menu routing on the existing router without Desktop history controls", async () => {
+  mount(<HomePage />);
+  await screen.findByText("안녕하세요, 웹검증관리자님");
+  fireEvent.click(screen.getByRole("button", { name: "홈", exact: true }));
+  await waitFor(() => expect(window.location.pathname).toBe("/admin"));
+  fireEvent.click(screen.getByRole("button", { name: "전체 회원", exact: true }));
+  await waitFor(() => expect(window.location.pathname).toBe("/admin/members"));
+  expect(screen.queryByRole("navigation", { name: "현재 업무 위치" })).toBeNull();
+  expect(isDesktopTokenStorage()).toBe(false);
 });

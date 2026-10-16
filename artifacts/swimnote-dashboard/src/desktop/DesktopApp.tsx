@@ -4,12 +4,13 @@ import { Button } from "../components/ui/Button";
 import { DesktopSessionController } from "./session-controller";
 import { DesktopRealtime } from "./DesktopRealtime";
 import { getToken } from "../lib/token";
-import { Redirect, Route, Switch, useLocation } from "wouter";
+import { Redirect, Route, Switch } from "wouter";
 import { AuthProvider } from "../contexts/AuthContext";
 import { DashboardLayout } from "../layouts/DashboardLayout";
 import HomePage from "../pages/HomePage";
 import MembersPage from "../pages/members/MembersPage";
 import type { LoginPreferences } from "../../desktop/contracts";
+import { OfficeNavigationProvider, OfficeNavigationBar, useOfficeNavigate } from "./OfficeNavigation";
 
 declare const __OFFICE_VERIFICATION_ID__: string;
 
@@ -111,7 +112,9 @@ export function DesktopApp() {
               서버 사용자·Pool·권한 재검증 완료 · Pool: {state.user.poolName} · 역할: {state.user.role} · X 응답: {state.user.xMode}
               {" · "}로그인 유지: {state.remembered ? "켜짐 — main 안전 저장 성공 응답 확인" : "꺼짐"}
             </p>
-            <DesktopRoutes />
+            <OfficeNavigationProvider key={`${state.user.id}:${state.user.swimming_pool_id ?? ""}:${state.user.role}:${state.user.xMode}`}>
+              <DesktopRoutes />
+            </OfficeNavigationProvider>
           </AuthProvider>
         </DesktopRealtime>
       )}
@@ -119,9 +122,10 @@ export function DesktopApp() {
   );
 }
 
-function DesktopRoutes() {
-  const [, navigate] = useLocation();
+export function DesktopRoutes() {
+  const navigate = useOfficeNavigate();
   return <DashboardLayout>
+    <OfficeNavigationBar />
     <div role="note" style={{ padding: "12px 32px" }}>
       현재 사용 가능: 홈 현황·회원목록·회원 상세 조회. 등록·수정·연기·퇴원 및 다른 업무 메뉴는 이 단계에서 사용할 수 없습니다.
     </div>

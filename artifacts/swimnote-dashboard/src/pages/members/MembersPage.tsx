@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { useOfficeNavigation } from "@/desktop/OfficeNavigation";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
@@ -105,6 +106,7 @@ type DrawerProps = {
 
 function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewDiary }: DrawerProps) {
   const readOnly = isDesktopTokenStorage();
+  const navigationEnabled = !!useOfficeNavigation();
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,16 +114,26 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+    const outside = (e: MouseEvent) => {
+      if (!navigationEnabled || !(e.target instanceof Element)) return;
+      if (drawerRef.current?.contains(e.target) ||
+          e.target.closest("[data-office-navigation], aside, [data-office-member-open]")) return;
+      onClose();
+    };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [student, onClose]);
+    document.addEventListener("click", outside);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      document.removeEventListener("click", outside);
+    };
+  }, [student, onClose, navigationEnabled]);
 
   if (!student) return null;
 
   return (
     <>
       {/* Overlay */}
-      <div
+      {!navigationEnabled && <div
         onClick={onClose}
         style={{
           position: "fixed",
@@ -129,7 +141,7 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
           background: "rgba(0,0,0,0.18)",
           zIndex: 200,
         }}
-      />
+      />}
       {/* Drawer */}
       <div
         ref={drawerRef}
@@ -757,25 +769,44 @@ async function downloadMembersExcel(statusFilter: string, classFilter: string) {
 }
 
 export default function MembersPage() {
+  const office = useOfficeNavigation();
+  const rootRef = useRef<HTMLDivElement>(null);
   const readOnly = isDesktopTokenStorage();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const [excelLoading, setExcelLoading] = useState(false);
 
   // Filter state
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("active");
-  const [classFilter, setClassFilter] = useState("");
-  const [page, setPage] = useState(1);
+  const [localSearch, setLocalSearch] = useState("");
+  const [localStatus, setLocalStatus] = useState("active");
+  const [localClass, setLocalClass] = useState("");
+  const [localPage, setLocalPage] = useState(1);
+  const search = office ? office.view.search : localSearch;
+  const statusFilter = office ? office.view.status : localStatus;
+  const classFilter = office ? office.view.classId : localClass;
+  const page = office ? office.view.page : localPage;
+  const setSearch = (value: string) => office ? office.updateView({ search: value, page: 1 }) : setLocalSearch(value);
+  const setStatusFilter = (value: string) => office ? office.updateView({ status: value, page: 1 }) : setLocalStatus(value);
+  const setClassFilter = (value: string) => office ? office.updateView({ classId: value, page: 1 }) : setLocalClass(value);
+  const setPage = (value: number | ((page: number) => number)) => {
+    const next = typeof value === "function" ? value(page) : value;
+    if (next === page) return;
+    if (office) office.updateView({ page: next }); else setLocalPage(next);
+  };
 
   // UI state
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [localSelectedStudent, setLocalSelectedStudent] = useState<Student | null>(null);
+  const setSelectedStudent = (value: Student | null) => {
+    if (!office) setLocalSelectedStudent(value);
+    else if (value) office.open({ screen: "members", memberId: value.id });
+    else office.closeDetail();
+  };
   const [editStudent, setEditStudent] = useState<Student | null>(null);
   const [withdrawTarget, setWithdrawTarget] = useState<{ id: string; name: string } | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Fetch all students
-  const { data: allStudents = [], isLoading, isError, refetch } = useQuery<Student[]>({
+  const { data: allStudents = [], isLoading, isError, isFetched, isFetching, error, refetch } = useQuery<Student[]>({
     queryKey: ["students"],
     queryFn: ({ signal }) => api.get<Student[]>("/students?pool_all=true", { signal }),
     staleTime: 30_000,
@@ -790,7 +821,28 @@ export default function MembersPage() {
 
   // Keep selection by identity, not an open-time data snapshot. A refresh never closes
   // the drawer or resets search/filter; a removed member is explicitly reported.
-  const currentStudent = selectedStudent ? allStudents.find(student => student.id === selectedStudent.id) : null;
+  const memberId = office?.destination.screen === "members" ? office.destination.memberId : undefined;
+  const selectedStudent = office ? allStudents.find(student => student.id === memberId) ?? null : localSelectedStudent;
+  const currentStudent = isError ? null : selectedStudent ? allStudents.find(student => student.id === selectedStudent.id) : null;
+  useEffect(() => {
+    const forbidden = isError && error && "status" in error && (error.status === 403 || error.status === 404);
+    if (memberId && ((!isFetching && isFetched && !isError && !currentStudent) || forbidden))
+      office?.missingMember();
+  }, [memberId, isFetching, isFetched, isError, error, currentStudent, office?.missingMember]);
+  const updateView = office?.updateView;
+  const restoredScroll = useRef(office?.view.scroll ?? 0);
+  useLayoutEffect(() => {
+    if (!updateView || !isFetched || isError) return;
+    const scroller = rootRef.current?.closest("main");
+    if (!scroller) return;
+    scroller.scrollTop = restoredScroll.current;
+    const saveScroll = () => {
+      restoredScroll.current = scroller.scrollTop;
+      updateView({ scroll: scroller.scrollTop });
+    };
+    scroller.addEventListener("scroll", saveScroll);
+    return () => scroller.removeEventListener("scroll", saveScroll);
+  }, [updateView, isFetched, isError]);
 
   // Client-side filtering
   const filtered = useMemo(() => {
@@ -810,6 +862,7 @@ export default function MembersPage() {
   // Reset page when filter changes
   const searchRef = useRef(search);
   useEffect(() => {
+    if (office) return; // Desktop filter setters reset paging only on actual input changes.
     if (searchRef.current !== search || statusFilter || classFilter) {
       setPage(1);
     }
@@ -817,7 +870,7 @@ export default function MembersPage() {
   }, [search, statusFilter, classFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  useEffect(() => { setPage(current => Math.min(current, totalPages)); }, [totalPages]);
+  useEffect(() => { if (isFetched && !isError) setPage(current => Math.min(current, totalPages)); }, [totalPages, isFetched, isError]);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Withdraw mutation
@@ -849,11 +902,13 @@ export default function MembersPage() {
     setEditStudent(s);
   }, []);
 
-  // Close drawer on route change handled by React unmount
-  const handleDrawerClose = useCallback(() => setSelectedStudent(null), []);
+  const closeDetail = office?.closeDetail;
+  const handleDrawerClose = useCallback(() => {
+    if (closeDetail) closeDetail(); else setLocalSelectedStudent(null);
+  }, [closeDetail]);
 
   return (
-    <div style={{ padding: "28px 32px", maxWidth: "1200px" }}>
+    <div ref={rootRef} style={{ padding: "28px 32px", maxWidth: "1200px" }}>
       {/* Page header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: 0 }}>회원</h1>
@@ -1007,6 +1062,7 @@ export default function MembersPage() {
               {paged.map((s, idx) => (
                 <tr
                   key={s.id}
+                  data-office-member-open
                   onClick={() => setSelectedStudent(s)}
                   style={{
                     borderBottom: idx < paged.length - 1 ? "1px solid #F3F4F6" : "none",

@@ -227,6 +227,8 @@ it("unmounts private state and cancels late reads on logout and next Pool mount"
   const view = open();
   await screen.findByText("검증회원A-1");
   fireEvent.change(screen.getByPlaceholderText("이름 또는 전화번호 검색"), { target: { value: "검증회원A" } });
+  fireEvent.click(screen.getByText("검증회원A-1"));
+  expect((screen.getByRole("button", { name: "앱 내 뒤로" }) as HTMLButtonElement).disabled).toBe(false);
   let resolve!: (value: unknown) => void;
   delayList = new Promise(value => { resolve = value; });
   await act(async () => emit("member.changed"));
@@ -245,6 +247,8 @@ it("unmounts private state and cancels late reads on logout and next Pool mount"
   await screen.findByText("등록된 회원이 없습니다.");
   expect(screen.queryByText(/검증수영장-pool-a/)).toBeNull();
   expect((screen.getByPlaceholderText("이름 또는 전화번호 검색") as HTMLInputElement).value).toBe("");
+  expect((screen.getByRole("button", { name: "앱 내 뒤로" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "앱 내 앞으로" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it("shows loading until the actual dashboard response and blocks unsupported direct routes", async () => {

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopTokenStorage } from "@/lib/token";
+import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 
 type NavItem =
   | { kind: "link"; label: string; icon: React.ReactNode; path: string }
@@ -98,6 +99,7 @@ export function Sidebar() {
     : NAV_ITEMS;
   const { state, logout } = useAuth();
   const [location, navigate] = useLocation();
+  const officeNavigate = useOfficeNavigate();
 
   const poolName =
     state.status === "authenticated" ? (state.user.poolName ?? "내 수영장") : "";
@@ -118,7 +120,7 @@ export function Sidebar() {
   }
 
   function goTo(path: string) {
-    navigate(path);
+    officeNavigate(path);
   }
 
   function handleLogout() {
@@ -208,6 +210,7 @@ export function Sidebar() {
           return (
             <div key={item.label}>
               <button
+                aria-expanded={open}
                 onClick={() => toggleGroup(item.label)}
                 style={{
                   display: "flex",

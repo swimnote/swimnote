@@ -1,8 +1,8 @@
-import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
+import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import {
   UserPlus, BookOpen, Calendar, TrendingUp,
   FileText, Settings, AlertCircle,
@@ -71,7 +71,7 @@ type StatCard = {
 export default function HomePage() {
   const desktop = isDesktopTokenStorage();
   const { state } = useAuth();
-  const [, navigate] = useLocation();
+  const navigate = useOfficeNavigate();
 
   const poolId =
     state.status === "authenticated" ? state.user.swimming_pool_id : null;
