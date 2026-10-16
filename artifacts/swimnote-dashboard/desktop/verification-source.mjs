@@ -1,0 +1,37 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const dashboard = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+export const repo = path.resolve(dashboard, "../..");
+export const output = path.join(repo, "generated-artifacts/office-f03-f04");
+export const sha = bytes => createHash("sha256").update(bytes).digest("hex");
+const git = args => execFileSync("git", args, { cwd: repo });
+
+export async function sourceIdentity() {
+  const head = git(["rev-parse", "HEAD"]).toString().trim();
+  const diff = git(["diff", "--binary", "HEAD", "--"]);
+  const newFiles = git(["ls-files", "--others", "--exclude-standard", "-z", "--",
+    "artifacts/swimnote-dashboard/desktop", "artifacts/swimnote-dashboard/src/desktop"])
+    .toString().split("\0").filter(Boolean).sort();
+  const untracked = [];
+  for (const file of newFiles) {
+    untracked.push({ path: file, sha256: sha(await readFile(path.join(repo, file))) });
+  }
+  const trackedDiffSha256 = sha(diff);
+  const diffId = sha(JSON.stringify({ trackedDiffSha256, untracked }));
+  return { head, trackedDiffSha256, untracked, diffId,
+    buildId: `F03-F04-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
+    scope: "HEAD plus tracked binary diff and explicitly listed untracked Desktop source; attachments and generated output excluded",
+    apiSource: "e3018d51262091981b444fb30ab476520f45ddcd" };
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await mkdir(output, { recursive: true });
+  const identity = await sourceIdentity();
+  await writeFile(path.join(output, "source-identity.json"), JSON.stringify(identity, null, 2) + "\n");
+  await writeFile(path.join(output, "source-tracked.diff"), git(["diff", "--binary", "HEAD", "--"]));
+  console.log(JSON.stringify(identity));
+}

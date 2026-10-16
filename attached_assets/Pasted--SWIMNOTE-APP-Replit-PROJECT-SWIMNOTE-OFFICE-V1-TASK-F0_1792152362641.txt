@@ -1,0 +1,119 @@
+[전달 대상: SWIMNOTE APP Replit]
+PROJECT = SWIMNOTE OFFICE V1
+TASK = F03/F04 Windows 통합 검증본 제작
+
+목표 =
+기존 구현을 통합한 Windows 검증본 1회 제작·전달.
+실제 인증·안전저장·SSE의 사용자 실기기 검증 준비.
+F05 업무 화면 개발은 진행하지 않는다.
+
+필수 참조 =
+AGENTS.md / replit.md
+docs/office/ui-ux-constitution-v1.0.md
+기존 고정계획서·F03/F04 기록.
+
+운영 API 기준 =
+e3018d51262091981b444fb30ab476520f45ddcd
+deploy:
+dep-db90le7f3r2c73fmgksg
+
+기존 운영 배포·health·CORS 검증 증거 재사용.
+서버 재배포·GitLab 인증 조사 반복 금지.
+
+1. source 보존·확정
+- 현재 branch·full HEAD·未커밋 변경을 확인·보존.
+- F03 인증·safeStorage·F04 SSE/client 보완과
+  개발 source에 반영된 서버 보정의 포함 여부 확인.
+- 패키징 source를 HEAD와 미커밋 diff 식별값으로 기록.
+  HEAD만으로 미커밋 구현까지 식별했다고 표현하지 않는다.
+- 자격증명·저장 token·로컬 로그·첨부·테스트 증거가
+  패키지에 들어가지 않도록 포함 파일을 확인.
+- 새 commit/push·reset/checkout 금지.
+
+2. 패키징 전 제한 확인
+- F03/F04 통합에 영향받는 Desktop 타입검사·테스트·
+  renderer build만 수행.
+- 기존 결과는 재사용하고 변경 없는 전체 suite 반복 금지.
+- 실제 API URL·Origin app://office·허용 경로 확인.
+- 로그인 유지 기본 OFF.
+- ON에서 최종 token만 main의 safeStorage로 암호화 저장.
+- 비밀번호·PIN·TOTP·임시 web_session 저장 금지.
+- 암호화 불가 시 평문 대체 금지.
+- 기존 Electron 보안 설정·IPC 검증 유지.
+- 로그아웃·권한 상실 시 개인정보와 cache 정리 확인.
+- 실제 계정 로그인·운영정보 변경은 Agent가 실행하지 않는다.
+
+3. 통합 검증 화면
+기존 F03 인증 완료 화면을 사용한다.
+새 업무 화면이나 범용 진단 도구를 확장하지 않는다.
+
+사용자가 확인할 수 있는 최소 상태:
+- 검증본 식별값·실제 Origin.
+- 인증 진행/실패/완료와 OFFICE 진입 허용 여부.
+- 로그인 유지 선택·저장 성공/실패.
+- 서버 재검증 완료 여부.
+- SSE 연결/재연결/재동기화 상태.
+- 로그아웃.
+
+token·PIN·비밀번호·불필요한 개인정보 표시 금지.
+인증된 SSE 연결만으로 업무 데이터 동기화까지
+완료했다고 표시하지 않는다.
+조회 대상이 없으면 그 사실을 구분한다.
+
+4. Windows 패키징
+- unsigned Windows x64 unpacked 검증본 1회 제작 승인.
+- F02 ZIP과 구분되는 이름으로 저장하고 기존 파일 보존.
+- 원본 ZIP 크기·SHA-256·포함 source 식별값 제공.
+- exe 형식·필수 파일·asar 포함 확인.
+- 실제 Windows 실행 전 실기기 PASS 선언 금지.
+- signed installer·자동업데이트·Windows 자동 실행 제외.
+
+전달 편의:
+- 가능하면 원본 ZIP 하나로 전달.
+- 첨부 제한으로 분할이 필요하면 같은 폴더에 풀고
+  더블클릭하면 결합·해시 검증까지 하는 명령 파일 제공.
+- 명령 파일은 상대 경로만 사용하고 관리자 권한·
+  PowerShell 실행 정책 변경·추가 다운로드를 요구하지 않는다.
+- 결합/해시 검증 실패 시 실행 단계로 넘어가지 않는다.
+- 해당 전달 스크립트도 검증한다.
+- 사용자가 경로 입력·수동 copy 명령을 반복하지 않게 한다.
+
+5. 사용자 검증 안내
+기존 F02 창 동작 검증은 반복하지 않는다.
+
+최소 순서:
+① toykids 계정으로 기존 로그인/PIN/TOTP 절차 진행.
+② 실제 응답 기준 Pool·역할·X 접근 확인.
+③ 로그인 유지 OFF → 종료/재실행 시 로그인 화면 확인.
+④ ON으로 로그인 → 종료/재실행 시 서버 재검증 후 진입 확인.
+⑤ 네트워크 끊김/복구 시 SSE 상태 변화 확인.
+   업무 조회가 없다면 재동기화 완료 검증과 구분.
+⑥ 로그아웃 → 재실행 시 자동 진입하지 않는지 확인.
+⑦ 보조 swimnote 계정은 일반 모드의 기존 접근 정책 확인만.
+
+실제 자격증명은 사용자 PC에서만 입력.
+운영 PIN·TOTP·권한·회원정보 변경 실험 금지.
+보안 경고·입력 오류가 발생하면 해당 화면만 수집.
+보안 기능 해제·관리자 실행 요구 금지.
+
+Windows DPAPI 저장/삭제는 안전한 상태 표시와
+제한 진단 근거를 사용하고, 암호문 파일 자체 제출은 요구하지 않는다.
+실제 권한 회수·장시간 token 만료·부하 검증은
+이번 사용자 단순 테스트의 필수 항목으로 강요하지 않는다.
+
+완료보고 =
+TASK = PASS / HOLD
+SOURCE HEAD / UNCOMMITTED DIFF ID =
+INCLUDED F03/F04 CHANGES =
+LIMITED VALIDATION =
+PACKAGE / SIZE / SHA-256 =
+DELIVERY / SCRIPT VALIDATION =
+AUTH / STORAGE / SSE EXPECTED BEHAVIOR =
+USER TEST STEPS =
+NOT VERIFIED =
+NOT RUN =
+
+판정은 “검증본 제작·전달”과
+“실제 Windows 인증 성공”을 구분한다.
+Render 배포·OTA·F05·새 commit/push 금지.
+보고 후 정지.

@@ -281,3 +281,31 @@ mtime_ms = 1792133756773
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/62e8dc83-b16b-4011-b419-933260177c9b/c0d45545-3a3b-4757-ad59-a0dd350cfa4b"
 storage_version_token = "1792133774062511"
 content_type = "text/plain"
+
+[[outputs]]
+id = "UlnqwR-gDOTO7mTcdZ6QZ"
+uri = "file://generated-artifacts/office-f03-f04/SWIMNOTE-OFFICE-F03-F04-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE F03/F04 검증본 — 다운로드 1/2"
+description = "두 ZIP의 내용을 같은 새 폴더에 모두 풀고 START-F03-F04.cmd를 더블클릭하세요. 첫 조각·결합 명령·검증 안내가 포함됩니다."
+logical_id = "29819fb7-d5b4-4a26-8af1-10617e1304ae"
+content_hash = "sha256:74ef290de307f5bfcb367bc9abc8631009665c40b226b1f33c7e3bfc75f4e40e"
+size = 83891747
+mtime_ms = 1792152872787
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/29819fb7-d5b4-4a26-8af1-10617e1304ae/22d9c95d-39b9-47f8-8f86-5bd269753418"
+storage_version_token = "1792152990600637"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "13aSlary4wmtPimW5BkJ_"
+uri = "file://generated-artifacts/office-f03-f04/SWIMNOTE-OFFICE-F03-F04-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE F03/F04 검증본 — 다운로드 2/2"
+description = "두 번째 조각입니다. 반드시 1/2 ZIP의 내용물과 같은 폴더에 풀어주세요. 기존 F02와 다른 F03/F04 통합 검증본입니다."
+logical_id = "694db495-0313-4bd6-aafb-fae0fb234d21"
+content_hash = "sha256:8b60f99f1fde24bac80c24080517b7cb8a58735a7b766624e500b92ec863ae00"
+size = 74431004
+mtime_ms = 1792152873379
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/694db495-0313-4bd6-aafb-fae0fb234d21/e324c102-0e3c-4716-9043-7afdd689ba37"
+storage_version_token = "1792152992592818"
+content_type = "application/octet-stream"

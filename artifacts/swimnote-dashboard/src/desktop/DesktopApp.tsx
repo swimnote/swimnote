@@ -5,6 +5,8 @@ import { DesktopSessionController } from "./session-controller";
 import { DesktopRealtime } from "./DesktopRealtime";
 import { getToken } from "../lib/token";
 
+declare const __OFFICE_VERIFICATION_ID__: string;
+
 export function DesktopApp() {
   const bridge = window.officeDesktop;
   const [controller] = useState(() => new DesktopSessionController(bridge));
@@ -29,6 +31,7 @@ export function DesktopApp() {
         SWIMNOTE OFFICE F03/F04 · 인증 및 실시간 연결 검증
         <div style={{ marginTop: 4, fontSize: 12 }}>
           {bridgeStatus} · 실제 renderer Origin: <output data-testid="renderer-origin">{window.location.origin}</output>
+          <div>검증본: {typeof __OFFICE_VERIFICATION_ID__ === "string" ? __OFFICE_VERIFICATION_ID__ : "개발 미지정"}</div>
         </div>
       </div>
       {state.status === "checking" && <p role="status" style={{ padding: 24 }}>인증 및 현재 접근 권한 확인 중…</p>}
@@ -58,12 +61,13 @@ export function DesktopApp() {
         </>
       )}
       {state.status === "authenticated" && (
-        <DesktopRealtime token={getToken()}
+        <DesktopRealtime token={getToken()} onAccessLost={controller.logout}
           scopeKey={`${state.user.id}:${state.user.swimming_pool_id ?? ""}`}>
         <section style={{ padding: 24 }}>
           <h1 style={{ fontSize: 20 }}>인증 및 OFFICE 접근 권한 확인 완료</h1>
-          <p>{state.user.poolName} · {state.user.name}</p>
-          <p>로그인 유지: {state.remembered ? "켜짐" : "꺼짐 — 프로그램 종료 시 인증정보를 보존하지 않습니다."}</p>
+          <p>Pool: {state.user.poolName} · 역할: {state.user.role} · X 응답: {state.user.xMode}</p>
+          <p>서버 사용자·Pool·권한 재검증 완료 · OFFICE 진입 허용</p>
+          <p>로그인 유지: {state.remembered ? "켜짐 — main 안전 저장 성공 응답 확인" : "꺼짐 — 프로그램 종료 시 인증정보를 보존하지 않습니다."}</p>
           <p>F03/F04 인증·연결 확인 화면입니다. 실제 업무 조회·편집 화면은 아직 연결하지 않았습니다.</p>
           <Button onClick={() => void controller.logout()}>로그아웃 / 다른 계정으로 로그인</Button>
         </section>

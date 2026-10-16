@@ -56,12 +56,13 @@ const EVENT_QUERY_MAP: Record<string, string[][]> = {
 // ── Context ───────────────────────────────────────────────────────────────────
 interface RealtimeCtx {
   connected: boolean;
+  accessDenied: boolean;
   syncStatus: SyncStatus;
   coordinator: RealtimeSync | null;
 }
 
 const RealtimeContext = createContext<RealtimeCtx>({
-  connected: false, syncStatus: "idle", coordinator: null,
+  connected: false, accessDenied: false, syncStatus: "idle", coordinator: null,
 });
 
 const BACKOFF_STEPS = [1000, 2000, 5000, 10000, 30000];
@@ -252,6 +253,7 @@ export function RealtimeProvider({ children, token, scopeKey = "" }: {
   return (
     <RealtimeContext.Provider value={{
       connected: !!token && transport === coordinator,
+      accessDenied: denied === coordinator,
       syncStatus,
       coordinator,
     }}>
