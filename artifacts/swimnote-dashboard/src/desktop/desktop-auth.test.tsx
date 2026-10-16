@@ -2,12 +2,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { Router } from "wouter";
+import type { ReactNode } from "react";
 import { DesktopApp } from "./DesktopApp";
 import { useDesktopTokenStorage } from "../lib/token";
 
 const { publicPost, get } = vi.hoisted(() => ({ publicPost: vi.fn(), get: vi.fn() }));
 vi.mock("../lib/api-client", () => ({ publicPost, api: { get } }));
 vi.mock("../lib/query-client", () => ({ queryClient: { clear: vi.fn() } }));
+// Keep this F03 credential-flow suite isolated; F04's real boundary has its own SSE fixture.
+vi.mock("./DesktopRealtime", () => ({
+  DesktopRealtime: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 let bridge: {
   getBootstrapInfo: ReturnType<typeof vi.fn>;
   restoreSession: ReturnType<typeof vi.fn>;

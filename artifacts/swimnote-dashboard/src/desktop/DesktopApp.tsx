@@ -2,6 +2,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { LoginForm } from "../pages/LoginPage";
 import { Button } from "../components/ui/Button";
 import { DesktopSessionController } from "./session-controller";
+import { DesktopRealtime } from "./DesktopRealtime";
+import { getToken } from "../lib/token";
 
 export function DesktopApp() {
   const bridge = window.officeDesktop;
@@ -24,7 +26,7 @@ export function DesktopApp() {
   return (
     <div style={{ fontFamily: "'Segoe UI', 'Malgun Gothic', system-ui, sans-serif" }}>
       <div role="status" style={{ padding: "12px 24px", background: "#EEF2FF", color: "#243B6B", fontSize: 14 }}>
-        SWIMNOTE OFFICE F03 · 인증 및 로그인 유지 검증
+        SWIMNOTE OFFICE F03/F04 · 인증 및 실시간 연결 검증
         <div style={{ marginTop: 4, fontSize: 12 }}>
           {bridgeStatus} · 실제 renderer Origin: <output data-testid="renderer-origin">{window.location.origin}</output>
         </div>
@@ -56,13 +58,16 @@ export function DesktopApp() {
         </>
       )}
       {state.status === "authenticated" && (
+        <DesktopRealtime token={getToken()}
+          scopeKey={`${state.user.id}:${state.user.swimming_pool_id ?? ""}`}>
         <section style={{ padding: 24 }}>
           <h1 style={{ fontSize: 20 }}>인증 및 OFFICE 접근 권한 확인 완료</h1>
           <p>{state.user.poolName} · {state.user.name}</p>
           <p>로그인 유지: {state.remembered ? "켜짐" : "꺼짐 — 프로그램 종료 시 인증정보를 보존하지 않습니다."}</p>
-          <p>F03 인증 확인 화면입니다. 업무 화면·실시간 연결은 이번 범위에 포함하지 않습니다.</p>
+          <p>F03/F04 인증·연결 확인 화면입니다. 실제 업무 조회·편집 화면은 아직 연결하지 않았습니다.</p>
           <Button onClick={() => void controller.logout()}>로그아웃 / 다른 계정으로 로그인</Button>
         </section>
+        </DesktopRealtime>
       )}
     </div>
   );

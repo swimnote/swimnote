@@ -67,6 +67,12 @@ Dispatch·차량 Navigation·Driver·지도·관제·Kiosk·출입·다업종 Ad
 
 **How to apply:** CORS·source 준비·push 성공으로 이 Gate를 완료 처리하지 않는다. 별도 승인된 구현과 검증 증거를 확보하기 전 업무 화면의 실제 데이터 연결을 진행하지 않는다.
 
+편집 화면이 아직 없으면 공통 편집 보호와 격리 fixture까지만 검증할 수 있다. 화면별 실제 적용과 저장 시 서버 버전 검증은 별도 필수 Gate로 남긴다. revision 계약이 없는 API에 임의 버전값을 추가하거나 입력 보존을 저장 충돌 안전성으로 표현하지 않는다.
+
+**Why:** 사용자가 F04 보완에서 공통 보호 검증과 실제 화면·저장 충돌 검증을 명시적으로 구분했다.
+
+**How to apply:** 재연결 성공, 재조회 완료, 입력 보존, 저장 경쟁 검증을 각각 보고한다. 실제 계정 TOTP·Pool·역할·X 및 Windows DPAPI는 격리 테스트 결과로 PASS 처리하지 않는다.
+
 Windows 내부 검증 환경은 Windows 10 Pro x64이며 unsigned unpacked 검증이 승인됐다. Windows 11은 지원 목표이지 실제 실행 검증 완료가 아니다.
 
 **Why:** 사용자는 패키지 생성과 실제 Windows 실행 증거를 구분하고, 사용자 PC에서 실행 결과를 확인하기 전 Desktop Foundation 최종 PASS를 금지했다.

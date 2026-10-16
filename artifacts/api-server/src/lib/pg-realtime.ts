@@ -39,6 +39,9 @@ export interface PoolEventPayload {
 interface SseClient {
   poolId: string;
   res: Response;
+  beforeEvent?: (type: PoolEventType) => void;
+  canSend?: () => boolean;
+  onWriteError?: () => void;
 }
 
 const clients = new Set<SseClient>();
@@ -60,11 +63,13 @@ function broadcastToPool(event: PoolEventPayload): void {
   for (const client of clients) {
     // Pool isolation: only deliver to matching pool
     if (client.poolId !== event.pool_id) continue;
+    client.beforeEvent?.(event.type);
+    if (client.canSend && !client.canSend()) continue;
     try {
       client.res.write(`data: ${payload}\n\n`);
       sent++;
     } catch {
-      // write fails if client disconnected — cleanup handled by close event
+      client.onWriteError?.();
     }
   }
   if (sent > 0) {

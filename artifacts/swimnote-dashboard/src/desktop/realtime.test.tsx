@@ -7,7 +7,7 @@ const { invalidateQueries } = vi.hoisted(() => ({ invalidateQueries: vi.fn() }))
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => client,
 }));
-const client = { invalidateQueries };
+const client = { invalidateQueries, cancelQueries: vi.fn(async () => {}), clear: vi.fn() };
 vi.mock("@/lib/api-client", () => ({ api: { getBaseUrl: () => "https://api.fixture/api" } }));
 let fetcher: ReturnType<typeof vi.fn>;
 let streams: Array<{ controller: ReadableStreamDefaultController<Uint8Array>; signal: AbortSignal }>;
@@ -22,6 +22,7 @@ async function flush() { await act(async () => { await Promise.resolve(); }); }
 beforeEach(() => {
   vi.useFakeTimers();
   invalidateQueries.mockClear();
+  invalidateQueries.mockResolvedValue(undefined);
   streams = [];
   fetcher = vi.fn(async (_url, options) => {
     let controller!: ReadableStreamDefaultController<Uint8Array>;
@@ -41,7 +42,10 @@ it("uses canonical bearer SSE, reports actual transport and preserves an edited 
   fireEvent.change(screen.getByLabelText("draft"), { target: { value: "미저장 입력" } });
   await act(async () => streams[0].controller.enqueue(
     new TextEncoder().encode('data: {"type":"member.changed"}\n\ndata: ping\n\n')));
-  expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["students"] });
+  expect(invalidateQueries).toHaveBeenCalled();
+  const predicate = invalidateQueries.mock.calls[0][0].predicate;
+  expect(predicate({ queryKey: ["students"] })).toBe(true);
+  expect(predicate({ queryKey: ["unrelated"] })).toBe(false);
   expect((screen.getByLabelText("draft") as HTMLInputElement).value).toBe("미저장 입력");
 });
 it("does not claim a connection while the handshake is pending", async () => {

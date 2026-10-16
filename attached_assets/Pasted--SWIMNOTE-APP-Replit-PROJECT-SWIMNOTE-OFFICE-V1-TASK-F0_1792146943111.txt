@@ -1,0 +1,105 @@
+[전달 대상: SWIMNOTE APP Replit]
+PROJECT = SWIMNOTE OFFICE V1
+TASK = F04 잔여 SSE 인증·재동기화 보완
+
+선행 증거 =
+API CORS 배포 PASS.
+LIVE:
+08ad801188848a54b563be096fa38776678711a9
+deploy:
+dep-db8vmd3l550s73fc6p00
+
+운영 health·Desktop/Web CORS 확인 결과 재사용.
+운영 배포·GitLab 인증·기존 CORS 테스트를 반복하지 않는다.
+
+필수 참조 =
+AGENTS.md / replit.md
+docs/office/ui-ux-constitution-v1.0.md
+기존 F03/F04 구현 및 고정계획서.
+
+1. 보존 및 범위
+- 현재 branch·HEAD·미커밋 변경 확인 및 보존.
+- 현재 OFFICE 작업 위치에서 최소 수정.
+- 기존 운영 CORS 변경이 개발 source에도 유지되는지 확인.
+- 새 commit·push·Render 배포·Windows 패키징은 실행하지 않는다.
+
+2. 열린 SSE의 인증 만료·권한 회수
+- 기존 token·세션·권한 검증 계약을 먼저 확인.
+- 연결 시작 시뿐 아니라 연결 중에도 인증 만료와
+  OFFICE 접근에 필요한 현재 권한을 확인할 수 있도록 보완.
+- 기존 검증 함수를 재사용하고 새 인증 체계를 만들지 않는다.
+- token 만료 이후 연결이 유지되지 않도록 한다.
+- 권한 회수·계정 비활성화·Pool 접근 상실의 반영 방식과
+  최대 지연을 구체적으로 정하고 보고한다.
+- 기존 변경 알림 경로가 있으면 활용.
+  주기 조회가 필요하면 연결별 과도한 DB 조회를 피하고
+  검사 간격·부하·실패 정책을 명시한다.
+- 인증 확인 실패와 일시적 통신 실패를 구분.
+- 권한을 확인할 수 없는 상태에서 데이터 전송을 계속하지 않는다.
+- 종료 시 listener·timer·DB 자원 정리.
+- token을 URL query·로그·이벤트 본문에 노출하지 않는다.
+- 기존 Web SSE와 Pool 격리 정책을 보존.
+
+3. 재접속 후 재조회
+- 기존 query/cache 구조로 관련 조회를 재동기화.
+- 단절 중 이벤트를 놓칠 수 있으므로 재접속 성공만으로
+  최신 데이터 확보 완료를 표시하지 않는다.
+- 최초 연결과 재연결을 구분하고 재조회 중복을 제한.
+- 계정/Pool 변경 후 이전 연결의 응답·재조회 결과가
+  새 계정 화면에 반영되지 않도록 한다.
+- 서버에 영구 이벤트 재생 기능을 불필요하게 추가하지 않는다.
+
+4. 편집 충돌 보호
+- 기존 편집 상태·query 갱신 경로를 확인.
+- 재조회나 이벤트로 사용자 입력을 무단 덮어쓰지 않는다.
+- 편집 중 원격 변경은 갱신 필요/충돌 상태로 표시.
+- 실제 편집 화면이 아직 연결되지 않았다면
+  공통 처리와 격리 fixture로 검증하고
+  화면별 적용은 미검증으로 명시.
+- revision이 없는 API에 임의 버전값을 만들거나
+  충돌 안전성을 확보했다고 주장하지 않는다.
+- 저장 시 버전 검증이 미구현이면 후속 필수 Gate로 기록.
+
+5. 제한 검증
+- token 만료·권한 회수·검증 실패 시 전송 중단.
+- cross-pool 차단·연결 종료 자원 정리.
+- 재연결 후 필요한 조회 실행·중복 억제.
+- 로그아웃·계정 교체·늦은 응답 무시.
+- 편집 입력 보존·원격 변경 표시.
+- 기존 Web SSE 회귀.
+- 변경 영향이 있는 테스트·제한 타입검사·build만 실행.
+- 운영 권한 변경이나 운영 데이터 수정으로 테스트하지 않는다.
+
+6. 다음 배포·통합 검증 준비
+- 서버 변경이 필요하면 현재 운영 SHA 대비
+  최소 서버 patch와 포함 파일을 정리.
+- 기존 운영 startup 코드의 변경은 포함하지 않는다.
+- 별도 배포 source·commit·push·배포는 아직 실행하지 않는다.
+- F03/F04 Windows 통합 패키지에 포함할 변경과
+  실기기 확인 항목을 정리하되 패키징은 하지 않는다.
+- 기존 F02 실행·창 동작 증거 재사용.
+- 실제 계정 TOTP/Pool/역할/X 및 Windows DPAPI는
+  미검증 상태를 유지한다.
+
+금지 =
+운영 계정·PIN·TOTP·권한·회원정보 변경
+Render 배포·OTA·새 binary·Windows 패키징
+새 commit/push/main 반영
+모바일·AI ENGINE 수정·F05 진행
+전체 감사·무관한 기능 확장
+
+완료보고 =
+TASK = PASS / HOLD
+BASELINE / BRANCH / FULL HEAD =
+CHANGED FILES =
+SSE AUTH EXPIRY / REVOCATION / MAX DELAY =
+RECONNECT / RESYNC =
+EDIT PRESERVATION / CONFLICT LIMITS =
+WEB REGRESSION / LIMITED TESTS =
+SERVER PATCH / DEPLOYMENT NEEDED =
+WINDOWS INTEGRATION CONTENTS =
+NOT VERIFIED =
+PRODUCTION DATA CHANGE =
+NOT RUN =
+
+報告後停止ではなく、日本語を使用せず韓国語で報告 후 정지.

@@ -21,7 +21,8 @@ import { uploadToR2, getPresignedUrl } from "../lib/objectStorage.js";
 import { deleteGrowthReport } from "../lib/growth-report-service.js";
 import { computeAnalysisPeriod } from "../lib/growth-report-analysis-helper.js";
 import { recomputeGaugePctForLevelPatch } from "../lib/curriculum-confirmation-engine.js";
-import { notifyPoolEvent, addSseClient, removeSseClient } from "../lib/pg-realtime.js";
+import { notifyPoolEvent } from "../lib/pg-realtime.js";
+import { openAdminStream } from "../lib/sse-session.js";
 import { createStudentCore } from "../lib/student-create-service.js";
 import { withdrawStudent as withdrawStudentCanonical } from "../lib/withdraw-student-service.js";
 
@@ -5794,32 +5795,7 @@ router.get("/events/stream",
     const poolId = await getAdminPoolId(req);
     if (!poolId) { res.status(403).json({ error: "소속된 수영장이 없습니다." }); return; }
 
-    // SSE headers
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
-
-    // Register SSE client (pool-isolated)
-    const client = { poolId, res };
-    addSseClient(client);
-
-    // Initial connected event
-    res.write(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
-
-    // Heartbeat every 30s
-    const hb = setInterval(() => {
-      try { res.write("data: ping\n\n"); } catch { /* client gone */ }
-    }, 30_000);
-
-    // Cleanup on disconnect
-    const cleanup = () => {
-      clearInterval(hb);
-      removeSseClient(client);
-    };
-    req.on("close", cleanup);
-    req.on("aborted", cleanup);
+    await openAdminStream(req, res, poolId);
   }
 );
 

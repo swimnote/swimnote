@@ -9,9 +9,10 @@
  * - 개인정보 payload 없음: { type, entity_id } 만 수신
  */
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { RealtimeSync, type SyncStatus } from "./realtime-sync";
 
 // ── Query key mapping ─────────────────────────────────────────────────────────
 const EVENT_QUERY_MAP: Record<string, string[][]> = {
@@ -55,53 +56,59 @@ const EVENT_QUERY_MAP: Record<string, string[][]> = {
 // ── Context ───────────────────────────────────────────────────────────────────
 interface RealtimeCtx {
   connected: boolean;
+  syncStatus: SyncStatus;
+  coordinator: RealtimeSync | null;
 }
 
-const RealtimeContext = createContext<RealtimeCtx>({ connected: false });
+const RealtimeContext = createContext<RealtimeCtx>({
+  connected: false, syncStatus: "idle", coordinator: null,
+});
 
 const BACKOFF_STEPS = [1000, 2000, 5000, 10000, 30000];
 
-export function RealtimeProvider({ children, token }: { children: React.ReactNode; token: string | null }) {
+export function RealtimeProvider({ children, token, scopeKey = "" }: {
+  children: React.ReactNode; token: string | null; scopeKey?: string;
+}) {
   const qc = useQueryClient();
-  const abortRef = useRef<AbortController | null>(null);
-  const backoffIdx = useRef(0);
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
-  const [connected, setConnected] = useState(false);
+  const [transport, setTransport] = useState<RealtimeSync | null>(null);
+  const [activeSession, setActiveSession] = useState<RealtimeSync | null>(null);
+  const [denied, setDenied] = useState<RealtimeSync | null>(null);
+  const [sync, setSync] = useState<{ owner: RealtimeSync; status: SyncStatus } | null>(null);
+  const coordinator = useMemo(() => new RealtimeSync(qc, status =>
+    setSync({ owner: coordinator, status })), [qc, token, scopeKey]);
 
   useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  useEffect(() => {
-    setConnected(false);
-    backoffIdx.current = 0;
-    if (!token) {
-      // Not logged in — abort any existing connection
-      abortRef.current?.abort();
-      abortRef.current = null;
-      return;
-    }
+    coordinator.activate();
+    setActiveSession(coordinator);
+    setSync({ owner: coordinator, status: "idle" });
+    setTransport(null);
+    if (!token) return () => coordinator.dispose();
 
     let stopped = false;
     let authRejected = false;
+    let offline = navigator.onLine === false;
+    let connectedOnce = false;
+    let abort: AbortController | null = null;
+    let backoffIdx = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const allKeys = Object.values(EVENT_QUERY_MAP).flat();
 
     function clearReconnect() {
-      if (reconnectTimer.current) {
-        clearTimeout(reconnectTimer.current);
-        reconnectTimer.current = null;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
     }
 
     async function connect() {
-      if (stopped || authRejected || !mountedRef.current) return;
+      if (stopped || authRejected || offline) return;
       clearReconnect();
-      abortRef.current?.abort();
-      setConnected(false);
+      abort?.abort();
+      setTransport(null);
 
       const controller = new AbortController();
-      abortRef.current = controller;
+      abort = controller;
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
       try {
         const BASE = api.getBaseUrl();
@@ -116,30 +123,39 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
           },
           signal: controller.signal,
         });
-        if (stopped || controller.signal.aborted || abortRef.current !== controller) return;
+        if (stopped || controller.signal.aborted || abort !== controller) {
+          await resp.body?.cancel().catch(() => {});
+          return;
+        }
 
         if (resp.status === 401 || resp.status === 403) {
           // Token invalid — stop reconnecting, let auth layer handle
           authRejected = true;
-          setConnected(false);
+          setDenied(coordinator);
+          setTransport(null);
+          coordinator.required();
+          await resp.body?.cancel().catch(() => {});
           return;
         }
 
         if (!resp.ok || !resp.body) {
+          await resp.body?.cancel().catch(() => {});
           throw new Error(`SSE ${resp.status}`);
         }
 
         // Reset backoff on successful connection
-        backoffIdx.current = 0;
-        setConnected(true);
+        backoffIdx = 0;
+        setTransport(coordinator);
+        if (connectedOnce) void coordinator.refresh(allKeys);
+        connectedOnce = true;
 
-        const reader = resp.body.getReader();
+        reader = resp.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
 
         while (true) {
           const { value, done } = await reader.read();
-          if (stopped || controller.signal.aborted || abortRef.current !== controller) return;
+          if (stopped || controller.signal.aborted || abort !== controller) return;
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
 
@@ -153,58 +169,107 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
             if (!raw || raw === "ping") continue;
             try {
               const event: { type: string; entity_id?: string } = JSON.parse(raw);
-              const keys = EVENT_QUERY_MAP[event.type];
-              if (keys) {
-                for (const key of keys) {
-                  qc.invalidateQueries({ queryKey: key });
-                }
+              if (event.type === "session.invalid") {
+                const reason = (event as { reason?: string }).reason;
+                authRejected = reason !== "unavailable";
+                if (authRejected) setDenied(coordinator);
+                setTransport(null);
+                coordinator.required();
+                controller.abort();
+                if (!authRejected) scheduleReconnect();
+                return;
               }
+              if (event.type === "resync.required") {
+                void coordinator.refresh(allKeys);
+                continue;
+              }
+              const keys = EVENT_QUERY_MAP[event.type];
+              if (keys) void coordinator.refresh(keys);
             } catch { /* ignore malformed */ }
           }
         }
 
         // Stream ended normally — reconnect
-        if (!stopped) { setConnected(false); scheduleReconnect(); }
+        if (!stopped) { setTransport(null); coordinator.required(); scheduleReconnect(); }
 
       } catch (e: any) {
-        if (e?.name === "AbortError" || stopped || controller.signal.aborted || abortRef.current !== controller) return;
-        setConnected(false);
-        console.warn("[realtime] SSE error:", e?.message);
+        if (e?.name === "AbortError" || stopped || controller.signal.aborted || abort !== controller) return;
+        setTransport(null);
+        coordinator.required();
         scheduleReconnect();
+      } finally {
+        if (reader) {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
+        }
       }
     }
 
     function scheduleReconnect() {
-      if (stopped || authRejected || !mountedRef.current) return;
-      const delay = BACKOFF_STEPS[Math.min(backoffIdx.current, BACKOFF_STEPS.length - 1)];
-      backoffIdx.current = Math.min(backoffIdx.current + 1, BACKOFF_STEPS.length - 1);
-      console.log(`[realtime] reconnect in ${delay}ms`);
-      reconnectTimer.current = setTimeout(connect, delay);
+      if (stopped || authRejected || offline) return;
+      clearReconnect();
+      const delay = BACKOFF_STEPS[Math.min(backoffIdx, BACKOFF_STEPS.length - 1)];
+      backoffIdx = Math.min(backoffIdx + 1, BACKOFF_STEPS.length - 1);
+      reconnectTimer = setTimeout(connect, delay);
     }
 
     // Handle browser online event for fast reconnect
     function onOnline() {
       clearReconnect();
-      backoffIdx.current = 0;
-      abortRef.current?.abort();
-      connect();
+      offline = false;
+      backoffIdx = 0;
+      void connect();
+    }
+    function onOffline() {
+      offline = true;
+      clearReconnect();
+      abort?.abort();
+      setTransport(null);
+      coordinator.required();
     }
     window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
 
     connect();
 
     return () => {
       stopped = true;
       clearReconnect();
-      abortRef.current?.abort();
-      abortRef.current = null;
+      abort?.abort();
+      coordinator.dispose();
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
-  }, [token, qc]);
+  }, [token, qc, coordinator]);
 
+  const syncStatus = sync?.owner === coordinator ? sync.status : "idle";
+  const messages: Partial<Record<SyncStatus, string>> = {
+    required: "실시간 갱신이 중단되었습니다. 재연결 후 데이터를 다시 조회합니다.",
+    syncing: "연결은 복구됐으며 데이터를 다시 조회하고 있습니다.",
+    editing: "편집 입력은 유지했습니다. 원격 변경이 있어 갱신 확인이 필요합니다.",
+    failed: "최신 데이터 조회에 실패했습니다. 입력은 유지되며 다시 조회가 필요합니다.",
+  };
   return (
-    <RealtimeContext.Provider value={{ connected: !!token && connected }}>
-      {children}
+    <RealtimeContext.Provider value={{
+      connected: !!token && transport === coordinator,
+      syncStatus,
+      coordinator,
+    }}>
+      {token && (denied === coordinator || messages[syncStatus]) && (
+        <div role="status" aria-live="polite">
+          {denied === coordinator
+            ? "인증 또는 수영장 접근 권한을 다시 확인해 주세요. 실시간 전송이 중단됐습니다."
+            : messages[syncStatus]}
+          {denied !== coordinator && syncStatus === "failed" && (
+            <button type="button" onClick={() => void coordinator.refresh(Object.values(EVENT_QUERY_MAP).flat())}>
+              다시 조회
+            </button>
+          )}
+        </div>
+      )}
+      {token && activeSession !== coordinator
+        ? <p role="status">사용자·수영장 조회 상태를 전환하고 있습니다.</p>
+        : children}
     </RealtimeContext.Provider>
   );
 }

@@ -170,8 +170,12 @@ function AppRoutes() {
 }
 
 function RealtimeWrapper({ children }: { children: React.ReactNode }) {
-  const token = getToken();
-  return <RealtimeProvider token={token}>{children}</RealtimeProvider>;
+  const { state } = useAuth();
+  const user = state.status === "authenticated" ? state.user : null;
+  const token = user ? getToken() : null;
+  return <RealtimeProvider token={token} scopeKey={user ? `${user.id}:${user.swimming_pool_id ?? ""}` : ""}>
+    {children}
+  </RealtimeProvider>;
 }
 
 export default function App() {

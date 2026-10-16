@@ -49,3 +49,27 @@ it("disconnect cleanup prevents later delivery", () => {
   notify("fixture-pool-a");
   expect(a.write).not.toHaveBeenCalled();
 });
+it("gates matching-pool broadcasts while authority is unknown, without touching another pool", () => {
+  const a = client("fixture-pool-a"), b = client("fixture-pool-b");
+  const gate = vi.fn(() => false), before = vi.fn();
+  Object.assign(a.entry, { canSend: gate, beforeEvent: before });
+  const otherGate = vi.fn(() => true);
+  Object.assign(b.entry, { canSend: otherGate });
+  notify("fixture-pool-a");
+  expect(a.write).not.toHaveBeenCalled();
+  expect(gate).toHaveBeenCalledTimes(1);
+  expect(before).toHaveBeenCalledWith("member.changed");
+  expect(otherGate).not.toHaveBeenCalled();
+  expect(b.write).not.toHaveBeenCalled();
+  gate.mockReturnValue(true);
+  notify("fixture-pool-a");
+  expect(a.write).toHaveBeenCalledTimes(1);
+});
+it("delegates a broken socket write to the guarded cleanup callback", () => {
+  const a = client("fixture-pool-a");
+  const close = vi.fn();
+  Object.assign(a.entry, { onWriteError: close });
+  a.write.mockImplementation(() => { throw new Error("fixture socket closed"); });
+  notify("fixture-pool-a");
+  expect(close).toHaveBeenCalledTimes(1);
+});
