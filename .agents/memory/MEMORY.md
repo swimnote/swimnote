@@ -9,8 +9,8 @@
 - [★ 작업 규칙 헌법](task-constitution.md) — 모든 작업 시작 전 branch/HEAD/status 보고, push 없으면 완료 불인정, 파일삭제·merge·reset 별도 승인 필수
 - [★ SWIMNOTE X 개발 통제 헌법](constitution.md) — PART 1·2·3 완료까지 불변. 10조 통제원칙. WP0 조사+WP1 설계서 대기중. 복사패널: docs/constitution-copier.html
 - [앱·웹 운영 헌법](app-web-constitution.md) — 앱 우선 원칙·공유 콘텐츠 단일 소스·홈페이지 업데이트 범위·테스트 환경 규칙
-- [Production 서버 작업 원칙](production-server-rule.md) — 최우선 원칙: 실제 앱은 swimnote.kr(Render.com) 연결, Replit API 서버는 개발 전용, 서버 수정은 반드시 GitHub push→Render.com 배포 완료까지
-- [★ APP vs AI ENGINE 인프라 고정 기준](app-infra-baseline.md) — APP=GitHub/swimnote-api, AI ENGINE=GitLab/swimnote-professional-engine; 절대 혼동 금지 (2026-09-13 확정)
+- [Production 서버 작업 원칙](production-server-rule.md) — Replit API는 개발 전용; 운영 반영은 현재 Render 연결 저장소·승인 SHA 기준으로 검증.
+- [★ APP vs AI ENGINE 인프라 고정 기준](app-infra-baseline.md) — APP 개발 origin·Render 연결을 구분하고 replit.md의 현재 승인 기준 참조; ENGINE은 별개.
 - [성장리포트 APP↔ENGINE 계약 검증](growth-report-cross-repo-contract.md) — APP와 별도 GitLab ENGINE의 실코드를 함께 확인해야 함; 전송 필드 위치·월 경계·registry fallback 주의
 - [Production URL 실제 라우팅](production-url-routing.md) — swimnote.kr=Render static_site main 자동 배포; API는 별도 Render 수동 배포·health SHA 검증.
 - [Production validation evidence](production-validation-evidence.md) — baseline 해시에는 동일한 query scope·정렬·직렬화 방식 보존; 집계 보존과 전체행 동일성은 별도 검증.

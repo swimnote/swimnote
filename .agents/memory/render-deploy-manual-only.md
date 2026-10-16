@@ -8,7 +8,9 @@ description: 서버 코드 변경 시 Render Production 배포까지 Replit이 �
 서버 코드가 수정되는 모든 작업에서 Render Production 배포는 **Replit 작업 범위에 기본 포함**.
 
 **기본 실행 체인:**
-코드 수정 → 테스트 → git main push → Render deploy trigger → 완료 대기 → /health SHA 확인 → smoke test
+코드 수정 → 테스트 → 승인된 운영 SHA를 해당 APP Render 연결 저장소·branch에 준비 → Render deploy trigger → 완료 대기 → /health SHA 확인 → smoke test
+
+연결 저장소·branch는 `replit.md`의 현재 APP Render 기준을 따른다. 개발 GitHub origin에 push한 것만으로 Render source가 준비됐다고 판단하지 않는다. 저장소 설정만 전환하는 승인에서는 불필요한 재배포를 실행하지 않는다.
 
 **PASS 조건:**
 main HEAD SHA == Render LIVE /health commit SHA
@@ -42,7 +44,7 @@ main HEAD SHA == Render LIVE /health commit SHA
 9. 잔존 blocker
 
 **Why:** 2026-09-08 사용자 영구 지시. 이전 "수동 전용" 규칙 완전 대체.
-**How:** RENDER_API_KEY secret으로 Render API 직접 호출하여 deploy trigger.
+**How:** 실제 배포가 승인된 작업에서만 RENDER_API_KEY secret으로 Render API 직접 호출하여 deploy trigger.
 실패 시: build log 확인 → 최소 수정 → 재배포 → /health 재확인.
 
 ## 무쓰기 배포 증거의 범위

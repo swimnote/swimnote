@@ -1,0 +1,124 @@
+[전달 대상: SWIMNOTE APP Replit]
+[현재 Repository: GitHub swimnote/swimnote]
+[GitLab: https://gitlab.com/swimnote.admin/swimnote-app.git]
+
+TASK = APP Render GitLab 연결 전환
+사용자 승인 = 필요한 APP Render 저장소 연결 변경.
+기존 서비스·DB·도메인·환경변수 보존.
+
+GOAL =
+APP 관련 Render 서비스를 확인하고,
+현재 운영 source를 보존하며 GitLab 저장소 연결로 전환한다.
+이번 작업에 새 기능이나 OFFICE 개발을 섞지 않는다.
+
+기존 증거 재사용 =
+- GitLab 인증·실제 push·LFS 다운로드 검증 PASS.
+- GitLab verification/pin-source-569257ec:
+  569257ecfaf065efa10e8e42b046b9357975cffe
+- GitHub origin은 유지 중.
+- PIN 수정 iOS·Android OTA는 이미 완료. 재게시 금지.
+- ENGINE Render는 기존 GitLab main 연결. 변경 대상 아님.
+
+진행 =
+
+1. APP 관련 Render 서비스만 식별한다.
+   API·PC 웹 및 같은 APP 저장소를 사용하는 관련 worker/cron이
+   실제 존재하면 포함한다. ENGINE·무관 서비스 제외.
+   서비스별 다음을 읽기 전용 확인:
+   service ID/type, repository, branch,
+   최신 성공 배포 SHA, 현재 배포 상태,
+   auto-deploy, root/build/start 설정.
+   환경변수는 값 출력 없이 보존 여부만 확인.
+
+2. 실제 운영 source와 GitLab의 준비 상태 비교.
+   현재 Replit HEAD나 검증 branch를 운영 source로 임의 사용하지 않는다.
+   서비스별 현재 성공 배포 commit을 확보하고,
+   공통 운영 branch를 사용하는 경우 그 관계를 유지한다.
+   서로 다른 운영 SHA 때문에 branch 구성을 달리해야 하면 명시한다.
+
+3. 현재 운영 source에 필요한 Git 이력·LFS 객체를
+   GitLab의 정식 배포 branch로 준비한다.
+   비어 있는 main을 쓸 수 있으면 기존 운영 기준과 맞춰 생성한다.
+   기존 branch와 충돌하면 force push하지 말고 보고한다.
+   새 commit·코드 수정·이력 재작성은 하지 않는다.
+   무제한 mirror push 금지.
+   기존 GitLab 검증 결과는 재사용하고 새 전송분만 확인한다.
+   새로 전송하는 문서·첨부의 민감정보는 값 노출 없이 제한 확인한다.
+
+4. 연결 변경 전 자동 배포 영향을 확인한다.
+   기존 auto-deploy 상태를 기록하고,
+   전환 중 의도하지 않은 배포가 발생하지 않도록 제어한다.
+   불가피하게 즉시 배포되는 방식이면 실행 전에 영향 보고 후 정지.
+
+5. 기존 Render 서비스에서 repository 변경이 지원되면
+   해당 서비스의 저장소·branch 연결만 GitLab으로 변경한다.
+   서비스 삭제·재생성·DB 재생성 금지.
+   GitLab provider 승인이 필요하면 정확한 사용자 절차만 안내.
+   기존 서비스에서 전환 불가하면 새 서비스를 임의 생성하지 말고 HOLD.
+
+6. 보존 확인:
+   service ID / URL / custom domain /
+   환경변수 / DB 연결 / disk /
+   root/build/start / region / plan 등
+   저장소 전환 외 설정은 유지한다.
+
+7. 연결 및 source 일치 확인 후, 필요한 경우에만
+   동일 운영 코드의 통제된 수동 배포를 수행한다.
+   현재 운영과 다른 코드의 배포는 이번 승인에 포함되지 않는다.
+   서비스별 성공 여부 확인 후 다음 서비스로 진행한다.
+   실패하면 추가 전환을 중단하고 기존 저장소·branch 연결로 복구.
+   DB migration·파괴적 작업을 실행하지 않는다.
+
+8. 기존 health endpoint·배포 메타데이터 등으로
+   live 상태와 source를 확인한다.
+   운영 회원·PIN·수납 데이터를 변경하는 검증 금지.
+   사용자가 직접 확인해야 하는 화면은 미검증으로 표시한다.
+
+9. 기존 auto-deploy 정책을 복원한다.
+   자동배포를 새로 켜거나 CI 정책을 확대하지 않는다.
+   GitHub origin은 보존하고 이력 삭제·강제 동기화하지 않는다.
+   작업 지침에 APP의 새 Render 배포 저장소·branch와
+   ENGINE 분리 원칙을 필요한 만큼만 기록한다.
+   보고서의 문서 변경을 운영 branch로 자동 push하지 않는다.
+
+STOP =
+운영 source commit 확보 불가
+GitLab source/LFS 불완전
+기존 운영 코드와 다른 배포 필요
+서비스 재생성·DB 변경·권한 확대 필요
+예상 밖 자동 배포 위험
+실패 시 기존 연결 복구 불가
+
+금지 =
+ENGINE 저장소·Render 변경
+GitHub 저장소·기존 프로젝트 삭제
+force push·이력 재작성
+현재 로컬 HEAD를 검수 없이 운영 배포
+새 기능·OFFICE 구현
+OTA·binary 재배포
+운영 PIN·계정·회원·결제정보 변경
+불필요한 전체 감사·테스트 반복
+
+완료보고 =
+TASK = PASS / HOLD / PARTIAL
+
+서비스별:
+SERVICE / ID =
+BEFORE REPO / BRANCH / LIVE SHA =
+AFTER REPO / BRANCH / LIVE SHA =
+GITLAB REMOTE SHA / LFS =
+DEPLOY ID / STATUS =
+AUTO-DEPLOY BEFORE / AFTER =
+PRESERVED SETTINGS =
+HEALTH VERIFIED =
+NOT VERIFIED =
+ROLLBACK = 필요 여부 / 실행 결과
+
+ENGINE = UNCHANGED
+GITHUB = PRESERVED
+PRODUCTION BUSINESS DATA CHANGE = NONE
+DOCUMENTATION CHANGED =
+REMAINING BLOCKERS =
+CREDIT/USAGE = 실제 확인값 또는 NOT AVAILABLE
+
+보고 후 정지. OFFICE는 자동 재개하지 않는다.

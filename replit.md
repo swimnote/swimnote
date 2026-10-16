@@ -17,11 +17,23 @@ I prefer the AI to operate with a clear understanding of the existing system's m
 ---
 
 **[최우선 원칙] Production 서버에서만 작업**
-- 실제 iOS/Android 앱 API Base URL: `https://swimnote.kr/api` (Render.com)
+- 실제 iOS/Android 앱 API Base URL: `https://swimnote-api.onrender.com/api` (Render.com)
 - Replit API 서버(artifacts/api-server)는 개발/테스트 전용 — 실제 앱과 무관
-- 서버 코드(routes/*.ts 등) 수정 후 반드시 GitHub push → Render.com 배포 완료까지 진행
+- 서버 코드(routes/*.ts 등) 수정 후 승인된 운영 SHA를 아래 APP Render 연결 저장소·branch에 준비 → 승인 범위 내 Render.com 배포·LIVE/health SHA 확인까지 진행
 - Replit에서만 수정하고 "완료" 보고 절대 금지
 - 완료 보고 시 필수: Production API Base URL, Render.com 배포 확인, 실제 API 호출 결과 제출
+
+### APP Render 저장소 연결 기준 (2026-10-16 사용자 승인)
+
+- 개발 저장소 및 GitHub origin은 `https://github.com/swimnote/swimnote.git`으로 유지한다. Render 연결 전환은 기본 개발 저장소 변경 승인이 아니다.
+- 기존 APP Render 서비스의 연결 저장소는 `https://gitlab.com/swimnote.admin/swimnote-app.git`이다.
+  - `swimnote-api`, `swimnote-web`: 공통 `main`.
+  - `swimnote-production-backup`: `release/v2.0.0`.
+  - `swimnote-worker`: `deploy-photo-clone`; 기존 suspended 상태 유지.
+- 운영 배포는 서비스별 현재 LIVE SHA와 연결 branch의 tip을 구분한다. 공통 main이라도 서비스별 LIVE SHA가 다를 수 있으며, 로컬 HEAD나 branch tip을 검수 없이 배포하지 않는다.
+- API 자동 배포는 off, 웹·백업 cron·중지된 worker는 기존 commit 정책을 유지한다. 저장소 설정 전환만으로 새 빌드·배포·cron 실행·worker 재개를 승인하지 않는다.
+- ENGINE의 기존 GitLab 저장소·Render 연결은 별개이며 APP 작업에서 변경하지 않는다. EAS·OTA·DB·도메인·환경변수 변경은 이 연결 전환 승인에 포함되지 않는다.
+- 이 지침 변경을 운영 branch에 자동 commit/push하지 않는다.
 
 ## System Architecture
 
