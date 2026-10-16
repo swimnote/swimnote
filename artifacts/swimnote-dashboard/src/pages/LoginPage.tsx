@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { publicPost } from "@/lib/api-client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,13 +6,16 @@ import { Button } from "@/components/ui/Button";
 
 type LoginStep =
   | { kind: "credentials" }
-  | { kind: "pin-required"; webSession: string };
+  | { kind: "pin-required"; webSession: string }
+  | { kind: "totp"; totpSession: string };
 
 type LoginResponse = {
   success: boolean;
   token?: string;
   web_pin_required?: boolean;
   web_session?: string;
+  totp_required?: boolean;
+  totp_session?: string;
   message?: string;
 };
 
@@ -27,9 +30,15 @@ export default function LoginPage() {
   return <LoginForm login={login} />;
 }
 
-export function LoginForm({ login, bootstrapOnly = false }: {
+export function LoginForm({
+  login, bootstrapOnly = false, desktop = false, beforeCredentials, footer, redirectAfterLogin = true,
+}: {
   login: (token: string) => Promise<void>;
   bootstrapOnly?: boolean;
+  desktop?: boolean;
+  beforeCredentials?: () => Promise<void>;
+  footer?: ReactNode;
+  redirectAfterLogin?: boolean;
 }) {
   const [, navigate] = useLocation();
 
@@ -37,6 +46,8 @@ export function LoginForm({ login, bootstrapOnly = false }: {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const inFlight = useRef(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,8 +57,18 @@ export function LoginForm({ login, bootstrapOnly = false }: {
     }
   }, [pin, step]);
 
+  async function completeLogin(token: string) {
+    await login(token);
+    setPassword("");
+    setPin("");
+    setOtpCode("");
+    setStep({ kind: "credentials" });
+    if (redirectAfterLogin) navigate("/admin");
+  }
+
   async function handlePinVerify(pinValue: string, webSession: string) {
-    if (bootstrapOnly) return;
+    if (bootstrapOnly || inFlight.current) return;
+    inFlight.current = true;
     setError(null);
     setLoading(true);
     try {
@@ -56,8 +77,7 @@ export function LoginForm({ login, bootstrapOnly = false }: {
         web_pin: pinValue,
       });
       if (res.token) {
-        await login(res.token);
-        navigate("/admin");
+        await completeLogin(res.token);
       } else {
         setError(res.message ?? "PIN 인증에 실패했습니다.");
         setPin("");
@@ -73,13 +93,15 @@ export function LoginForm({ login, bootstrapOnly = false }: {
       }
       setPin("");
     } finally {
+      inFlight.current = false;
       setLoading(false);
     }
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (bootstrapOnly) return;
+    if (bootstrapOnly || inFlight.current) return;
+    inFlight.current = true;
     setError(null);
     setLoading(true);
 
@@ -87,25 +109,44 @@ export function LoginForm({ login, bootstrapOnly = false }: {
       if (step.kind === "credentials") {
         if (email.trim().length < 6) {
           setError("아이디는 6자 이상 입력해주세요.");
-          setLoading(false);
           return;
         }
+        if (beforeCredentials) await beforeCredentials();
         const res = await publicPost<LoginResponse>("/auth/login", {
           email: email.trim(),
           password,
           web_login: true,
         });
 
-        if (res.web_pin_required && res.web_session) {
+        if (res.totp_required && desktop && res.totp_session) {
+          setPassword("");
+          setStep({ kind: "totp", totpSession: res.totp_session });
+        } else if (res.totp_required) {
+          setError("추가 인증 상태를 확인할 수 없습니다. 다시 로그인해주세요.");
+        } else if (res.web_pin_required && res.web_session) {
           // Need PIN verification
+          if (desktop) setPassword("");
           setStep({ kind: "pin-required", webSession: res.web_session });
+        } else if (res.web_pin_required) {
+          setError("추가 인증 상태를 확인할 수 없습니다. 다시 로그인해주세요.");
         } else if (res.token) {
           // No PIN required (shouldn't happen for pool_admin with PIN set, but handle it)
-          await login(res.token);
-          navigate("/admin");
+          await completeLogin(res.token);
         } else {
           setError("로그인에 실패했습니다.");
         }
+      } else if (step.kind === "totp") {
+        if (!/^\d{6}$/.test(otpCode)) {
+          setError("인증 앱의 6자리 코드를 입력해주세요.");
+          return;
+        }
+        const res = await publicPost<PinVerifyResponse>("/auth/totp/verify-login", {
+          totp_session: step.totpSession,
+          otp_code: otpCode,
+        });
+        setOtpCode("");
+        if (res.token) await completeLogin(res.token);
+        else setError("추가 인증에 실패했습니다.");
       } else {
         // PIN verification step
         if (!pin.trim()) {
@@ -118,8 +159,7 @@ export function LoginForm({ login, bootstrapOnly = false }: {
           web_pin: pin,
         });
         if (res.token) {
-          await login(res.token);
-          navigate("/admin");
+          await completeLogin(res.token);
         } else {
           setError(res.message ?? "PIN 인증에 실패했습니다.");
         }
@@ -127,7 +167,10 @@ export function LoginForm({ login, bootstrapOnly = false }: {
     } catch (err: unknown) {
       const e = err as { status?: number; message?: string };
       if (e.status === 401 || e.status === 403) {
-        if (step.kind === "pin-required") {
+        if (step.kind === "totp") {
+          setOtpCode("");
+          setError("OTP 코드가 올바르지 않거나 인증 세션이 만료되었습니다.");
+        } else if (step.kind === "pin-required") {
           setError("PIN 번호가 올바르지 않습니다.");
         } else {
           setError("아이디 또는 비밀번호가 올바르지 않습니다.");
@@ -138,6 +181,7 @@ export function LoginForm({ login, bootstrapOnly = false }: {
         setError(e.message ?? "로그인 중 오류가 발생했습니다.");
       }
     } finally {
+      inFlight.current = false;
       setLoading(false);
     }
   }
@@ -145,6 +189,8 @@ export function LoginForm({ login, bootstrapOnly = false }: {
   function handleBackToCredentials() {
     setStep({ kind: "credentials" });
     setPin("");
+    setPassword("");
+    setOtpCode("");
     setError(null);
   }
 
@@ -216,7 +262,7 @@ export function LoginForm({ login, bootstrapOnly = false }: {
 
         {/* Form */}
         <form onSubmit={handleSubmit} noValidate>
-          <fieldset disabled={bootstrapOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+          <fieldset disabled={bootstrapOnly || (desktop && loading)} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           {step.kind === "credentials" ? (
             <>
               <Field label="아이디">
@@ -244,6 +290,20 @@ export function LoginForm({ login, bootstrapOnly = false }: {
               </Field>
 
             </>
+          ) : step.kind === "totp" ? (
+            <Field label="추가 인증">
+              <input
+                type="text"
+                value={otpCode}
+                onChange={event => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="인증 앱의 6자리 코드"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                autoFocus
+                style={inputStyle}
+              />
+            </Field>
           ) : (
             <>
               <div style={{ textAlign: "center", marginBottom: "24px" }}>
@@ -316,15 +376,16 @@ export function LoginForm({ login, bootstrapOnly = false }: {
             </div>
           )}
 
+          {footer}
           <Button
             type="submit"
             loading={loading}
             style={{ width: "100%", marginTop: "24px", height: "44px", fontSize: "15px" }}
           >
-            {step.kind === "credentials" ? "로그인" : "PIN 확인"}
+            {step.kind === "credentials" ? "로그인" : step.kind === "totp" ? "추가 인증 확인" : "PIN 확인"}
           </Button>
 
-          {step.kind === "pin-required" && (
+          {step.kind !== "credentials" && (
             <button
               type="button"
               onClick={handleBackToCredentials}

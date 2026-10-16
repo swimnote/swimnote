@@ -5,6 +5,7 @@ import {
   resolveRendererPath, isInsideDirectory, validateDevelopmentURL,
   isTrustedRendererURL, isValidBootstrapPayload, clampWindowBounds,
   CONTENT_SECURITY_POLICY,
+  isAllowedAuthRequest,
 } from "./security.cts";
 
 const root = path.resolve("/tmp/office-renderer-fixture");
@@ -31,12 +32,39 @@ describe("secure local protocol", () => {
     expect(isInsideDirectory(root, path.join(root, "../secret"))).toBe(false);
     expect(isInsideDirectory(root, path.join(root, "assets/login.js"))).toBe(true);
   });
-  it("does not allow network, inline scripts, objects, forms, or frames", () => {
-    expect(CONTENT_SECURITY_POLICY).toContain("connect-src 'none'");
+  it("allows only the canonical auth origin, not unsafe scripts, objects, forms, or frames", () => {
+    expect(CONTENT_SECURITY_POLICY).toContain("connect-src https://swimnote-api.onrender.com");
     expect(CONTENT_SECURITY_POLICY).toContain("script-src 'self'");
     expect(CONTENT_SECURITY_POLICY).not.toContain("unsafe-eval");
     expect(CONTENT_SECURITY_POLICY).toContain("form-action 'none'");
     expect(CONTENT_SECURITY_POLICY).toContain("frame-ancestors 'none'");
+  });
+  it("keeps the HTML CSP in sync with the protocol's auth-only origin", () => {
+    const html = readFileSync(new URL("../desktop.html", import.meta.url), "utf8");
+    expect(html).toContain("connect-src https://swimnote-api.onrender.com;");
+    expect(html).not.toContain("connect-src *");
+  });
+  it.each([
+    ["/api/auth/login", "POST"], ["/api/auth/web-pin/verify", "POST"],
+    ["/api/auth/totp/verify-login", "POST"], ["/api/auth/me", "GET"],
+    ["/api/pools/my-pools", "GET"], ["/api/pools/x-mode", "GET"],
+    ["/api/auth/login", "OPTIONS"],
+  ])("permits only canonical F03 request %s %s", (route, method) => {
+    expect(isAllowedAuthRequest("https://swimnote-api.onrender.com" + route, method)).toBe(true);
+  });
+  it.each([
+    ["http://swimnote-api.onrender.com/api/auth/login", "POST"],
+    ["https://swimnote-api.onrender.com.evil/api/auth/login", "POST"],
+    ["https://swimnote-api.onrender.com/api/students", "GET"],
+    ["https://swimnote-api.onrender.com/api/auth/web-pin", "PATCH"],
+    ["https://swimnote-api.onrender.com/api/auth/totp/enable", "POST"],
+    ["https://swimnote-api.onrender.com/api/auth/me", "PATCH"],
+    ["https://swimnote-api.onrender.com/api/auth/me?pool_id=other", "GET"],
+    ["https://user:secret@swimnote-api.onrender.com/api/auth/me", "GET"],
+    ["https://swimnote-api.onrender.com:444/api/auth/me", "GET"],
+    ["https://remote.example/api/auth/login", "POST"],
+  ])("denies broader network access %s %s", (url, method) => {
+    expect(isAllowedAuthRequest(url, method)).toBe(false);
   });
 });
 
@@ -65,12 +93,13 @@ describe("renderer trust and minimal IPC", () => {
   it("accepts the sole no-data bootstrap request", () => {
     expect(isValidBootstrapPayload([null])).toBe(true);
   });
-  it("preload exposes one frozen method, not IPC/Node/filesystem", () => {
+  it("preload exposes only bootstrap/session lifecycle, not IPC/Node/filesystem/network", () => {
     const source = readFileSync(new URL("./preload.cts", import.meta.url), "utf8");
     expect(source).toContain("Object.freeze");
     expect(source).toContain('exposeInMainWorld("officeDesktop", bridge)');
     expect(source).toContain('ipcRenderer.invoke("office:bootstrap-info", null)');
-    expect(source).not.toMatch(/node:fs|nodeIntegration|sendSync|shell\.|process\.env/);
+    expect(source.match(/ipcRenderer\.invoke\(/g)).toHaveLength(4);
+    expect(source).not.toMatch(/node:fs|nodeIntegration|sendSync|shell\.|process\.env|fetch\(|https?:/);
   });
   it("main checks exact sender and main frame and keeps all security settings", () => {
     const source = readFileSync(new URL("./main.cts", import.meta.url), "utf8");
@@ -83,6 +112,13 @@ describe("renderer trust and minimal IPC", () => {
     expect(source).toContain('action: "deny"');
     expect(source).toContain("!app.isPackaged && process.env.OFFICE_DEV_URL");
     expect(source).not.toMatch(/disable-web-security|no-sandbox|openExternal|setLoginItemSettings/);
+  });
+  it("a second launch only restores/focuses the existing window, never reloads its input", () => {
+    const source = readFileSync(new URL("./main.cts", import.meta.url), "utf8");
+    const secondInstance = source.split('app.on("second-instance",')[1].split('app.on("window-all-closed"')[0];
+    expect(secondInstance).toContain("mainWindow.restore()");
+    expect(secondInstance).toContain("mainWindow.focus()");
+    expect(secondInstance).not.toMatch(/loadURL|reload|executeJavaScript|send\(/);
   });
 });
 

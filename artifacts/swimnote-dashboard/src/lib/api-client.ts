@@ -1,4 +1,4 @@
-import { getToken, clearToken } from "./token";
+import { getToken, clearToken, isDesktopTokenStorage } from "./token";
 
 const API_BASE = import.meta.env.VITE_API_BASE as string | undefined;
 
@@ -34,8 +34,8 @@ async function request<T>(
   });
 
   if (res.status === 401) {
-    clearToken();
-    window.location.replace("/admin/login");
+    if (!isDesktopTokenStorage() || getToken() === token) clearToken();
+    if (!isDesktopTokenStorage()) window.location.replace("/admin/login");
     throw { status: 401, message: "인증이 만료되었습니다." } as ApiError;
   }
 
@@ -55,7 +55,7 @@ async function request<T>(
 
 export const api = {
   getBaseUrl: () => API_BASE as string,
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, options?: RequestInit) => request<T>(path, options),
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
@@ -69,7 +69,11 @@ export const api = {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: formData });
-    if (res.status === 401) { clearToken(); window.location.replace("/admin/login"); throw { status: 401, message: "인증이 만료되었습니다." } as ApiError; }
+    if (res.status === 401) {
+      if (!isDesktopTokenStorage() || getToken() === token) clearToken();
+      if (!isDesktopTokenStorage()) window.location.replace("/admin/login");
+      throw { status: 401, message: "인증이 만료되었습니다." } as ApiError;
+    }
     if (!res.ok) {
       let message = `서버 오류 (${res.status})`;
       try { const b = await res.json(); message = b.error ?? b.message ?? message; } catch {}

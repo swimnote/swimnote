@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, screen } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, screen, safeStorage } from "electron";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { writeFileSync, renameSync } from "node:fs";
 import path from "node:path";
@@ -6,8 +6,10 @@ import type { BootstrapInfo } from "./contracts.js";
 import {
   BOOTSTRAP_CHANNEL, CONTENT_SECURITY_POLICY, ENTRY_URL, clampWindowBounds,
   isInsideDirectory, isTrustedRendererURL, isValidBootstrapPayload,
-  resolveRendererPath, validateDevelopmentURL,
+  resolveRendererPath, validateDevelopmentURL, isAllowedAuthRequest,
 } from "./security.cjs";
+import { TokenStore } from "./token-store.cjs";
+import { registerSessionIPC } from "./session-ipc.cjs";
 
 protocol.registerSchemesAsPrivileged([{
   scheme: "app",
@@ -46,7 +48,7 @@ async function createWindow() {
       webSecurity: true,
       webviewTag: false,
       devTools: !app.isPackaged,
-      partition: "office-f02", // Memory-only session; no persisted auth/cookies.
+      partition: "office-f02", // Memory-only Chromium session. Only main safeStorage persists an opted-in final token.
     },
   });
   mainWindow = win;
@@ -67,7 +69,8 @@ async function createWindow() {
           !candidate.username && !candidate.password;
       } catch { /* Deny malformed network URLs. */ }
     }
-    callback({ cancel: !local && !devSocket && !details.url.startsWith("data:image/") });
+    callback({ cancel: !local && !devSocket && !details.url.startsWith("data:image/") &&
+      !isAllowedAuthRequest(details.url, details.method) });
   });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {
@@ -91,8 +94,10 @@ async function createWindow() {
         !isValidBootstrapPayload(args)) {
       throw new Error("Invalid OFFICE bootstrap request");
     }
-    return { version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, stage: "F02" };
+    return { version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, stage: "F03" };
   });
+  const store = new TokenStore(app.getPath("userData"), safeStorage, process.platform);
+  const removeSessionIPC = registerSessionIPC(ipcMain, win.webContents, store, developmentURL);
   win.once("ready-to-show", () => {
     if (saved.maximized === true) win.maximize();
     win.show();
@@ -108,6 +113,7 @@ async function createWindow() {
   });
   win.on("closed", () => {
     ipcMain.removeHandler(BOOTSTRAP_CHANNEL);
+    removeSessionIPC();
     mainWindow = null;
   });
   await win.loadURL(developmentURL || ENTRY_URL);
@@ -157,7 +163,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     await createWindow();
   }).catch(() => {
-    dialog.showErrorBox("SWIMNOTE OFFICE", "OFFICE 시작에 실패했습니다. F02 검증 결과로 이 오류를 전달해주세요.");
+    dialog.showErrorBox("SWIMNOTE OFFICE", "OFFICE 시작에 실패했습니다. 검증 결과로 이 오류를 전달해주세요.");
     app.exit(1);
   });
 }

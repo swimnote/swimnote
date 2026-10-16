@@ -8,7 +8,7 @@ export default defineConfig({
   base: "/admin/",
   envPrefix: "OFFICE_PUBLIC_",
   define: {
-    // Existing login component imports the API module; F02 blocks all requests.
+    // Approved canonical API only. Electron's allowlist restricts paths and methods further.
     "import.meta.env.VITE_API_BASE": JSON.stringify("https://swimnote-api.onrender.com/api"),
   },
   plugins: [

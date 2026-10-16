@@ -4,5 +4,8 @@ import type { OfficeDesktopBridge } from "./contracts.js";
 // Sandboxed preload is deliberately self-contained: no filesystem or Node APIs.
 const bridge: OfficeDesktopBridge = Object.freeze({
   getBootstrapInfo: () => ipcRenderer.invoke("office:bootstrap-info", null),
+  restoreSession: () => ipcRenderer.invoke("office:session-restore", null),
+  commitSession: (session) => ipcRenderer.invoke("office:session-commit", session),
+  clearSession: () => ipcRenderer.invoke("office:session-clear", null),
 });
 contextBridge.exposeInMainWorld("officeDesktop", bridge);

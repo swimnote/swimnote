@@ -55,6 +55,12 @@ Dispatch·차량 Navigation·Driver·지도·관제·Kiosk·출입·다업종 Ad
 
 **How to apply:** 인증 구현 단계에서 이 정책을 적용하고 Windows 자동 실행은 선개발하지 않는다. 로컬 renderer·로그인 화면 표시 단계에서는 실제 인증을 하지 않으며, 실제 인증 시작 전 계정의 TOTP·Pool·권한·X 준비 증거를 필수 Gate로 확인한다.
 
+실제 인증은 renderer에서 기존 서버의 Origin·CORS 검증을 유지한다. main의 HTTP 요청으로 인증을 옮기거나 Origin을 위조하여 차단을 우회하지 않는다.
+
+**Why:** 사용자가 인증·안전 저장 단계와 서버 Origin·연결 단계를 별도 승인 경계로 정했다. 격리 테스트 성공은 실제 계정 Gate 통과나 Windows DPAPI 검증 완료가 아니다.
+
+**How to apply:** 서버 Origin 차단이 있으면 구현 가능한 인증·저장 부분을 격리 검증하고 실제 계정 상태는 UNKNOWN으로 보고한다. 서버 변경과 배포는 후속 승인 대상으로 남기며, 인증 단계만을 위한 Windows 패키지를 자동 생성하지 않는다.
+
 Windows 내부 검증 환경은 Windows 10 Pro x64이며 unsigned unpacked 검증이 승인됐다. Windows 11은 지원 목표이지 실제 실행 검증 완료가 아니다.
 
 **Why:** 사용자는 패키지 생성과 실제 Windows 실행 증거를 구분하고, 사용자 PC에서 실행 결과를 확인하기 전 Desktop Foundation 최종 PASS를 금지했다.

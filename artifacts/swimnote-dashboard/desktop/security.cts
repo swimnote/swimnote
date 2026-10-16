@@ -2,13 +2,31 @@ import path from "node:path";
 
 export const ENTRY_URL = "app://office/admin/login";
 export const BOOTSTRAP_CHANNEL = "office:bootstrap-info";
+// F03 is authentication-only. No business API, wildcard host, arbitrary URL or main HTTP proxy.
+export const AUTH_API_ORIGIN = "https://swimnote-api.onrender.com";
+const AUTH_ROUTES: Record<string, readonly string[]> = {
+  "/api/auth/login": ["POST", "OPTIONS"],
+  "/api/auth/web-pin/verify": ["POST", "OPTIONS"],
+  "/api/auth/totp/verify-login": ["POST", "OPTIONS"],
+  "/api/auth/me": ["GET", "OPTIONS"],
+  "/api/pools/my-pools": ["GET", "OPTIONS"],
+  "/api/pools/x-mode": ["GET", "OPTIONS"],
+};
+
+export function isAllowedAuthRequest(raw: string, method: string): boolean {
+  try {
+    const url = new URL(raw);
+    return url.origin === AUTH_API_ORIGIN && !url.username && !url.password &&
+      !url.search && !url.hash && !!AUTH_ROUTES[url.pathname]?.includes(method);
+  } catch { return false; }
+}
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",
-  "connect-src 'none'",
+  `connect-src ${AUTH_API_ORIGIN}`,
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
