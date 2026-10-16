@@ -15,6 +15,12 @@ GitHub push 인증 문제는 Replit 개발환경의 source-control 자격증명 
 
 **How to apply:** 공식 전체 상태가 정상이어도 개별 작업 환경의 문제까지 정상이라고 단정하지 않는다. 반대로 timeout만으로 점검 중이라고 확정하지도 않는다. 실제 업데이트 중이라면 추가 인증 변경을 멈추고 종료 후 기존 경로로 검증한다.
 
+새 source-control 연결 생성이 확인됐는데도 Git 인증이 실패한다면, 재연결 미실행으로 몰아가지 말고 작업 환경의 관리형 인증 전달 경로를 별도로 확인한다.
+
+**Why:** 새 연결을 관리 도구는 active/healthy로, 재인증 도구는 not connected로 처리하면서 로컬 인증 서비스의 TCP 연결은 열리고 HTTP 요청은 timeout되는 불일치를 관찰했다. 이는 사용자 재승인 반복만으로 해결된다는 근거가 아니다.
+
+**How to apply:** 자격증명 값 없이 전달 서비스의 응답 여부를 확인한다. 작업 환경 재시작이 필요하면 앱 workflow 재시작과 compute 재시작을 구분하고, 개발 미리보기·실행 중인 작업 중단 영향을 알린다. timeout만으로 GitHub 토큰 무효나 근본 원인을 확정하지 않는다.
+
 Replit source-control 연결에 일반 커넥터의 상태 해석을 기계적으로 적용하지 않는다. 목록의 `not_added`만으로 프로젝트 연결 누락을 확정하지 말고, 연결 도구의 실제 응답과 Git 인증 결과를 함께 확인한다.
 
 **Why:** source-control 연결은 목록에서 `not_added`로 보이면서 연결 도구는 이미 활성이라고 응답할 수 있다. 관리 상태가 healthy이거나 scope가 등록되어 있어도 실제 Git push 인증 성공의 증거는 아니다. 일반 OAuth 재연결 도구가 source-control 연결을 처리하지 못할 수도 있다.
