@@ -12,6 +12,8 @@ import MembersPage from "../pages/members/MembersPage";
 import type { LoginPreferences } from "../../desktop/contracts";
 import { OfficeNavigationProvider, OfficeNavigationBar, useOfficeNavigate } from "./OfficeNavigation";
 import { OfficeWorkspace } from "./OfficeWorkspace";
+import { OfficeManagerProvider } from "./OfficeManagerContext";
+import "./OfficeInteractions.css";
 
 declare const __OFFICE_VERIFICATION_ID__: string;
 
@@ -62,17 +64,28 @@ export function DesktopApp() {
     }
   }, [state]);
   return (
-    <div style={{ fontFamily: "'Segoe UI', 'Malgun Gothic', system-ui, sans-serif",
+    <div className="office-surface office-app" style={{ fontFamily: "'Segoe UI', 'Malgun Gothic', system-ui, sans-serif",
       ...(state.status === "authenticated" ? { height: "100dvh", display: "flex", flexDirection: "column" as const, overflow: "hidden" } : {}) }}>
-      <div role="status" style={{ padding: "12px 24px", background: "#EEF2FF", color: "#243B6B", fontSize: 14 }}>
-        SWIMNOTE OFFICE {verificationStage} · Dashboard·회원 조회 전용
-        <div style={{ marginTop: 4, fontSize: 12 }}>
+      <header className="office-status-header">
+        <span className="office-brand">SWIMNOTE OFFICE</span>
+        <span className="office-status-compact">{state.status === "authenticated" ? `${state.user.poolName} · 조회 전용` : "인증 확인 · 조회 전용"}</span>
+        <details className="office-diagnostics">
+          <summary>검증본·인증 진단</summary>
+          <div className="office-diagnostics-body">
+          <p>SWIMNOTE OFFICE {verificationStage} · Dashboard·회원 조회 전용</p>
           {bridgeStatus} · 실제 renderer Origin: <output data-testid="renderer-origin">{window.location.origin}</output>
           <div>{verificationStage} 조회 전용 · unsigned 내부 검증본 · 해당 검증본 Windows UI 수용 미완료.
             검증본 ID: {verificationId}
           </div>
-        </div>
-      </div>
+          {state.status === "authenticated" && <p>
+            서버 사용자·Pool·권한 재검증 완료 · Pool: {state.user.poolName} · 역할: {state.user.role} · X 응답: {state.user.xMode}
+            {" · "}로그인 유지: {state.remembered ? "켜짐 — main 안전 저장 성공 응답 확인" : "꺼짐"}.
+            서버 권한 확인·안전 저장·SSE 연결·업무 재조회는 각각 별도 상태입니다.
+          </p>}
+          </div>
+        </details>
+      </header>
+      {(!bridge || bridgeStatus === "Desktop 보안 연결 실패") && <p className="office-warning" role="alert">{bridgeStatus}</p>}
       {preferencesError && <p role="alert">{preferencesError}</p>}
       {state.status === "checking" && <p role="status" style={{ padding: 24 }}>인증 및 현재 접근 권한 확인 중…</p>}
       {state.status === "retry" && (
@@ -112,10 +125,6 @@ export function DesktopApp() {
           businessRuntime token={getToken()} onAccessLost={controller.logout}
           scopeKey={`${state.user.id}:${state.user.swimming_pool_id ?? ""}`}>
           <AuthProvider desktopSession={controller}>
-            <p style={{ margin: 0, padding: "4px 16px", fontSize: 12, flexShrink: 0 }}>
-              서버 사용자·Pool·권한 재검증 완료 · Pool: {state.user.poolName} · 역할: {state.user.role} · X 응답: {state.user.xMode}
-              {" · "}로그인 유지: {state.remembered ? "켜짐 — main 안전 저장 성공 응답 확인" : "꺼짐"}
-            </p>
             <OfficeNavigationProvider key={`${state.user.id}:${state.user.swimming_pool_id ?? ""}:${state.user.role}:${state.user.xMode}`}>
               <DesktopRoutes />
             </OfficeNavigationProvider>
@@ -128,7 +137,7 @@ export function DesktopApp() {
 
 export function DesktopRoutes() {
   const navigate = useOfficeNavigate();
-  return <DashboardLayout fillAvailable>
+  return <OfficeManagerProvider><DashboardLayout fillAvailable>
     <OfficeWorkspace>
     <OfficeNavigationBar />
     <div role="note" style={{ padding: "12px 32px" }}>
@@ -147,5 +156,5 @@ export function DesktopRoutes() {
       </Route>
     </Switch>
     </OfficeWorkspace>
-  </DashboardLayout>;
+  </DashboardLayout></OfficeManagerProvider>;
 }

@@ -12,7 +12,8 @@ import { assemblyCommand } from "./integration-delivery.mjs";
 
 if (verificationStage !== "STAGE2") throw new Error("Use --stage2");
 const readability = process.argv.includes("--readability");
-const unified = process.argv.includes("--unified");
+const manager = process.argv.includes("--manager");
+const unified = process.argv.includes("--unified") || manager;
 const require = createRequire(import.meta.url);
 const asar = createRequire(require.resolve("@electron/packager"))("@electron/asar");
 const run = (command, args, cwd = dashboard) => execFileSync(command, args, { cwd, stdio: "inherit" });
@@ -68,7 +69,7 @@ async function frozen() {
 }
 const compiled = path.join(output, "compiled"), stage = path.join(output, "stage");
 await mkdir(stage);
-run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
+run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", manager ? "stage2-manager" : unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
 run("pnpm", ["exec", "tsc", "-p", "desktop/tsconfig.json", "--outDir", path.join(compiled, "desktop")]);
 await mkdir(path.join(stage, "desktop"));
 const mainFiles = ["main.cjs", "preload.cjs", "security.cjs", "session-ipc.cjs", "token-store.cjs"];
@@ -103,6 +104,12 @@ if (unified) {
     if (!bundle.includes(value)) throw new Error("Unified layout missing from renderer: " + value);
   for (const value of ["office-workspace-divider", "Side Workspace", "AI 중심"])
     if (bundle.includes(value)) throw new Error("Obsolete layout still in renderer: " + value);
+}
+if (manager) {
+  for (const value of ["AI 매니저", "파일 선택", "크게 보기", "원래 크기", "검증본·인증 진단"])
+    if (!bundle.includes(value)) throw new Error("Manager UI missing: " + value);
+  for (const value of ["합성 검증 요청", "synthetic-only"])
+    if (bundle.includes(value)) throw new Error("Synthetic task leaked into product bundle: " + value);
 }
 const pkg = JSON.parse(await readFile(path.join(dashboard, "package.json"), "utf8"));
 await fresh(path.join(stage, "package.json"), {
@@ -152,7 +159,12 @@ CMD는 SHA-256 확인·압축 해제·폴더 열기만 합니다. 설치 EXE는 
 설치·제거·로그인 유지 전체 검사는 반복하지 않습니다. 로그인이 필요하면 기존 절차만 사용하세요.
 
 현재 Windows 버전과 디스플레이 배율(%)을 먼저 기록하고 아래만 조회로 확인하세요.
-${unified ? `1. 전체 배치와 좁은 창 가독성: Sidebar 접기/펼치기, 기존 홈·회원·상세 위/처리 영역·입력창 아래 배치, 홈 4/2/1열, 회원표 내부 가로 스크롤과 보기 접근.
+${manager ? `1. AI 매니저 카드: 드래그·키보드 높이 조절, 접기/펼치기·크게 보기/복원, 초안·로컬 첨부 유지. 버튼/Enter 미연결 전송 차단, Shift+Enter·한글 IME 확인.
+2. 상단 진단·Sidebar AI 매니저 포커스와 공통 클릭 표시: hover/pressed/선택/키보드 포커스/실제 disabled. 정상 진단은 접히고 필요한 장애 표시는 유지.
+3. 넓은/중간/좁은/낮은 창의 회원표·보기·Drawer·독립 스크롤 및 메뉴 왕복 상태 보존.
+첨부는 최대 5개, 파일당 10MiB, 합계 25MiB의 로컬 선택일 뿐입니다. 파일 읽기·업로드·분석·보관·AI·업무 실행은 연결하지 않았습니다.
+작업 카드의 상태·결과 열람은 합성 fixture에서만 검증했습니다. 실제 완료 사례가 아닙니다.
+기존 인증·설치 수명주기 전체 검사를 반복하지 않습니다.` : unified ? `1. 전체 배치와 좁은 창 가독성: Sidebar 접기/펼치기, 기존 홈·회원·상세 위/처리 영역·입력창 아래 배치, 홈 4/2/1열, 회원표 내부 가로 스크롤과 보기 접근.
 2. 메뉴 이동·검색/필터·상세·스크롤 상태 보존: 홈↔회원, 뒤로/앞으로·Breadcrumb, 선택 회원·Drawer와 가로/세로 스크롤.
 3. 하단 입력 유지·독립 스크롤: 메뉴 이동·접기 후 초안·포커스 유지, 업무·처리 영역 독립 스크롤, 작은/낮은 창 입력 가림 없음.
 입력은 가능하지만 AI 미연결 전송은 차단됩니다. 실제 AI·쓰기 기능 완료가 아닙니다.

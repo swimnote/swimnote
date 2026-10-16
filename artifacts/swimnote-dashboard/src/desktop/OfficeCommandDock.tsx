@@ -1,16 +1,31 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useOfficeManager } from "./OfficeManagerContext";
+import { ACCEPT_ATTR, MAX_FILES, formatBytes } from "./local-attachments";
 
 /** Future common Action boundary. Not connected: no submit handler exists yet. */
 export type OfficeCommandAction = { type: "command"; text: string };
 export type OfficeCommandHandler = (action: OfficeCommandAction) => void;
 
-/** Persistent dock. Draft lives in component state only (session memory); keyed provider resets it. */
-export function OfficeCommandDock() {
-  const [draft, setDraft] = useState("");
+const BUSINESS_MIN = 160;
+const BUSINESS_MIN_LOW = 80;
+const CARD_MIN = 168;
+const STEP = 24;
+
+export function OfficeCommandDock({ available = 0 }: { available?: number }) {
+  const m = useOfficeManager();
+  if (!m) throw new Error("OfficeCommandDock requires OfficeManagerProvider");
   const input = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const composing = useRef(false);
+  const drag = useRef<{ y: number; h: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const id = useId();
+  const reason = `${id}-reason`;
+
   useEffect(() => {
     let timer: number | undefined;
-    const retainNavigationFocus = (event: PointerEvent) => {
+    const retain = (event: PointerEvent) => {
       const node = input.current;
       if (!node || document.activeElement !== node || !(event.target instanceof Element) ||
           !event.target.closest("aside, [data-office-navigation]") || event.target.closest(".office-dock")) return;
@@ -22,27 +37,123 @@ export function OfficeCommandDock() {
         node.setSelectionRange(start, end);
       }, 0);
     };
-    document.addEventListener("pointerdown", retainNavigationFocus, true);
-    return () => {
-      document.removeEventListener("pointerdown", retainNavigationFocus, true);
-      window.clearTimeout(timer);
-    };
+    document.addEventListener("pointerdown", retain, true);
+    return () => { document.removeEventListener("pointerdown", retain, true); window.clearTimeout(timer); };
   }, []);
-  const id = useId();
-  const reason = `${id}-reason`;
-  return <section className="office-dock" data-office-navigation aria-label="AI 업무 입력">
-    <div className="office-dock-log" role="log" aria-live="off" tabIndex={0} aria-label="AI 업무 처리 영역">
+
+  useEffect(() => {
+    if (m.focusToken > 0) input.current?.focus({ preventScroll: true });
+  }, [m.focusToken]);
+
+  const low = available > 0 && available < 560;
+  const bizMin = low ? BUSINESS_MIN_LOW : BUSINESS_MIN;
+  const hardMax = available > 0 ? Math.max(0, available - bizMin - 16) : 392;
+  const minimum = Math.min(CARD_MIN + (low && m.attachments.length ? 48 : 0), hardMax);
+  const maxH = Math.max(minimum, low ? Math.min(hardMax, Math.round(available * 0.5)) : hardMax);
+  const wanted = m.large ? Math.max(m.preferredHeight, Math.round(available * 0.7)) : m.preferredHeight;
+  const height = Math.min(Math.max(wanted, minimum), maxH);
+  const clampPref = (h: number) => Math.min(Math.max(Math.round(h), minimum), maxH);
+
+  const onResizeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!m.expanded) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { y: e.clientY, h: height };
+    setDragging(true);
+  };
+  const onResizeMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    m.setLarge(false);
+    m.setPreferredHeight(clampPref(drag.current.h + drag.current.y - e.clientY));
+  };
+  const endDrag = () => { drag.current = null; setDragging(false); };
+  const onResizeKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const set = (h: number) => { e.preventDefault(); m.setLarge(false); m.setPreferredHeight(clampPref(h)); };
+    if (e.key === "ArrowUp") set(height + STEP);
+    else if (e.key === "ArrowDown") set(height - STEP);
+    else if (e.key === "Home") set(minimum);
+    else if (e.key === "End") set(maxH);
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter") return;
+    if (e.shiftKey) return; // newline
+    // Plain Enter, IME confirm (isComposing/229/ref) and Ctrl/Meta+Enter are all non-sending.
+    if (composing.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+  };
+  const pickFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length) m.addFiles(files);
+  };
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData.files ?? []).filter(f => f.type.startsWith("image/"));
+    if (files.length) { e.preventDefault(); m.addFiles(files); }
+  };
+  const onDrop = (e: DragEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length) m.addFiles(files);
+  };
+
+  const cls = `office-dock${m.expanded ? "" : " is-collapsed"}${m.large ? " is-large" : ""}${dragging ? " is-dragging" : ""}`;
+  return <section className={cls} data-office-navigation aria-label="AI 매니저"
+    style={m.expanded ? { height } : undefined}>
+    {m.expanded && <div className="office-dock-resize" role="separator" aria-orientation="horizontal" tabIndex={0}
+      aria-label="AI 매니저 높이 조절" aria-valuemin={minimum} aria-valuemax={maxH} aria-valuenow={height}
+      onPointerDown={onResizeDown} onPointerMove={onResizeMove} onPointerUp={endDrag} onPointerCancel={endDrag}
+      onKeyDown={onResizeKey}><span aria-hidden="true" /></div>}
+    <header className="office-dock-head">
+      <div className="office-dock-title">
+        <h2>AI 매니저</h2>
+        <span className="office-dock-badge">AI 연결 전</span>
+      </div>
+      <div className="office-dock-tools">
+        <button type="button" onClick={() => m.setLarge(!m.large)} disabled={!m.expanded} aria-pressed={m.large}>
+          {m.large ? "원래 크기" : "크게 보기"}
+        </button>
+        <button type="button" onClick={() => m.setExpanded(!m.expanded)} aria-expanded={m.expanded}
+          aria-controls={`${id}-body`}>{m.expanded ? "접기" : "펼치기"}</button>
+      </div>
+    </header>
+    <div id={`${id}-body`} className="office-dock-log" role="log" aria-live="off" tabIndex={0}
+      aria-label="AI 업무 처리 영역" hidden={!m.expanded}>
       <p className="office-dock-status">AI 연결 전 · 처리 결과가 없습니다.</p>
-      <p className="office-dock-hint">입력은 이 창을 닫을 때까지 임시로만 유지됩니다. 모델 호출과 업무 실행은 제공하지 않습니다.</p>
+      <p className="office-dock-hint">입력과 선택한 파일은 이 창을 닫을 때까지 임시로만 유지됩니다. 모델 호출, 파일 업로드·분석, 업무 실행은 제공하지 않습니다.</p>
     </div>
-    <form className="office-dock-form" onSubmit={event => {
-      event.preventDefault();
-    }}>
-      <textarea ref={input} className="office-dock-input" rows={2} value={draft} aria-label="업무 입력"
-        aria-describedby={reason} placeholder="업무 내용을 입력하세요 (아직 전송되지 않습니다)"
-        onChange={event => setDraft(event.target.value)} />
-      <button type="submit" disabled aria-describedby={reason}>전송</button>
-      <p id={reason} className="office-dock-reason">전송 불가: AI가 아직 연결되지 않았습니다.</p>
+    <form className={`office-dock-form${dragOver ? " is-dragover" : ""}`}
+      onSubmit={event => { event.preventDefault(); }}
+      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
+      {(m.attachments.length > 0 || m.attachmentErrors.length > 0) && <div className="office-dock-attachments" hidden={!m.expanded && m.attachmentErrors.length === 0}>
+        {m.attachments.length > 0 && <ul aria-label="선택한 파일 (업로드되지 않음)">
+          {m.attachments.map(a => <li key={a.id}>
+            <span className="office-dock-file-name" title={a.name}>{a.name}</span>
+            <span className="office-dock-file-meta" title={`${a.type} · ${formatBytes(a.size)}`}>{a.type} · {formatBytes(a.size)}</span>
+            <button type="button" aria-label={`${a.name} 제거`} onClick={() => m.removeFile(a.id)}>제거</button>
+          </li>)}
+        </ul>}
+        {m.attachmentErrors.length > 0 && <div className="office-dock-errors" role="alert">
+          {m.attachmentErrors.map((t, i) => <p key={i}>{t}</p>)}
+        </div>}
+      </div>}
+      <div className="office-dock-composer">
+        <textarea ref={input} className="office-dock-input" rows={2} value={m.draft} aria-label="업무 입력"
+          aria-describedby={reason} placeholder="업무 내용을 입력하세요 (아직 전송되지 않습니다)"
+          onChange={event => m.setDraft(event.target.value)} onKeyDown={onKeyDown} onPaste={onPaste}
+          onCompositionStart={() => { composing.current = true; }}
+          onCompositionEnd={() => { composing.current = false; }} />
+        <input ref={fileInput} type="file" multiple accept={ACCEPT_ATTR} hidden tabIndex={-1} onChange={pickFiles} />
+        <div className="office-dock-actions">
+          <button type="button" className="office-dock-attach" title="로컬 선택만 · 최대 5개, 각 10MiB, 총 25MiB · PDF/PNG/JPG/WEBP/HWP/HWPX/DOCX/XLSX/CSV/TXT"
+            onClick={() => fileInput.current?.click()}>파일 선택</button>
+          <button type="submit" className="office-dock-send" disabled aria-describedby={reason}>전송</button>
+        </div>
+      </div>
+      <p id={reason} className="office-dock-reason">
+        전송 불가: AI가 아직 연결되지 않았습니다. 파일은 이 PC에서 선택만 되며 읽거나 업로드하지 않습니다 (최대 {MAX_FILES}개, 파일당 10MiB, 합계 25MiB · PDF, PNG, JPG, WEBP, HWP, HWPX, DOCX, XLSX, CSV, TXT).
+      </p>
     </form>
   </section>;
 }

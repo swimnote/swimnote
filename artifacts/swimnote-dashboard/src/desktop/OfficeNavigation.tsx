@@ -20,7 +20,7 @@ export function validOfficeDestination(value: unknown): value is OfficeDestinati
 type Navigation = {
   destination: OfficeDestination; view: View; notice: string;
   canBack: boolean; canForward: boolean;
-  open: (target: OfficeDestination) => boolean;
+  open: (target: OfficeDestination, options?: { directReturn?: boolean }) => boolean;
   back: () => void; forward: () => void; closeDetail: () => void;
   missingMember: () => void;
   updateView: (patch: Partial<View>) => void;
@@ -44,7 +44,7 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
     // Keep the existing router, but not personal Context in browser history/URLs.
     navigate(route(next.entries[next.index]), { replace: true });
   }, [navigate]);
-  const open = useCallback((input: OfficeDestination) => {
+  const open = useCallback((input: OfficeDestination, options?: { directReturn?: boolean }) => {
     if (!validOfficeDestination(input)) {
       setNotice("현재 지원하지 않는 이동 대상입니다.");
       return false;
@@ -60,7 +60,7 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
     if (target.screen === "members") lastMembers.current = target;
     const entries = current.entries.slice(0, current.index + 1);
     // A direct OPEN/resume from Home still gives Back a valid list before leaving members.
-    if (target.screen === "members" && target.memberId && current.entries[current.index].screen !== "members")
+    if (!options?.directReturn && target.screen === "members" && target.memberId && current.entries[current.index].screen !== "members")
       entries.push({ screen: "members" });
     entries.push(target);
     commit({ entries, index: entries.length - 1 });

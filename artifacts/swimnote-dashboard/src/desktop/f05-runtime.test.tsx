@@ -292,12 +292,21 @@ it("integrated workspace keeps one authentication, SSE and business observer acr
   const token = getToken();
   const command = screen.getByRole("textbox", { name: "업무 입력" }) as HTMLTextAreaElement;
   fireEvent.change(command, { target: { value: "메모 유지 검증" } });
+  fireEvent.drop(command.closest("form")!, {
+    dataTransfer: { files: [new File(["fixture"], "session-only.txt", { type: "text/plain" })] },
+  });
   for (let i = 0; i < 3; i++) {
     fireEvent.click(screen.getByRole("button", { name: "메뉴 접기" }));
     fireEvent.click(screen.getByRole("button", { name: "메뉴 펼치기" }));
+    fireEvent.click(screen.getByRole("button", { name: "접기", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "펼치기", exact: true }));
+    fireEvent.keyDown(screen.getByRole("separator"), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("button", { name: "크게 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "원래 크기" }));
   }
   expect(screen.getByRole("textbox", { name: "업무 입력" })).toBe(command);
   expect(command.value).toBe("메모 유지 검증");
+  expect(screen.getByText("session-only.txt")).toBeTruthy();
   expect(screen.getByPlaceholderText("이름 또는 전화번호 검색")).toBe(input);
   expect(vi.mocked(api.get).mock.calls.length).toBe(reads);
   expect(streams.length).toBe(transportCount);
@@ -310,4 +319,5 @@ it("integrated workspace keeps one authentication, SSE and business observer acr
   expect(document.body.textContent).not.toContain(id);
   expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
   expect(command.isConnected).toBe(false);
+  expect(screen.queryByText("session-only.txt")).toBeNull();
 });

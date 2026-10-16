@@ -485,3 +485,31 @@ mtime_ms = 1792175001009
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/eb59a64d-08c1-48d1-909a-781c9d98f5dd/6fdd4ef9-dc36-4a52-8f3f-bb3ae62fe394"
 storage_version_token = "1792175068142758"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "9kxvnH8UOMsdwb9tGOqy5"
+uri = "file://generated-artifacts/office-stage2-manager-delivery/SWIMNOTE-OFFICE-STAGE2-3b82eb0298c7-bd2fe92ab123-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 내부 설치본 1/2"
+description = "80.01 MiB · 두 ZIP 모두 필요 · STAGE2-3b82eb0298c7-bd2fe92ab123"
+logical_id = "69c2cb4e-b069-485b-957f-f4995671ca40"
+content_hash = "sha256:4547d7ba800b7bae19191d0d334e702c18ec25fb6a53a46c957494498bcc7fa3"
+size = 83892258
+mtime_ms = 1792179737569
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/69c2cb4e-b069-485b-957f-f4995671ca40/a6b35501-d876-4dd7-9f09-a9a4c1d68082"
+storage_version_token = "1792179787438657"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "HzOCJvpDPHWsnaJRGeNQo"
+uri = "file://generated-artifacts/office-stage2-manager-delivery/SWIMNOTE-OFFICE-STAGE2-3b82eb0298c7-bd2fe92ab123-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 내부 설치본 2/2"
+description = "28.30 MiB · 두 ZIP 모두 필요 · STAGE2-3b82eb0298c7-bd2fe92ab123"
+logical_id = "dad6153b-1617-470d-85c8-0a2f84d3ac3b"
+content_hash = "sha256:bec5061c27433b5943ca66641ae88e910c8de4fecaeae9e137ddfdf1eb815e79"
+size = 29674230
+mtime_ms = 1792179738321
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/dad6153b-1617-470d-85c8-0a2f84d3ac3b/1ed54c63-509c-4627-8c50-f595fdb007c2"
+storage_version_token = "1792179789076245"
+content_type = "application/octet-stream"

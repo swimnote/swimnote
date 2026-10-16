@@ -74,65 +74,120 @@
 .office-workspace .office-members-table-scroll :is(th, td):nth-child(7) { min-width: 88px; }
 
 
-/* Command dock: normal flow below business, never an overlay. */
+/* AI manager card: normal flow below business, never an overlay. Height set inline by OfficeCommandDock. */
 .office-dock {
-  flex: 0 1 auto;
+  position: relative;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: 55%;
+  margin: 0 12px 12px;
   background: var(--surface-white);
-  border-top: 1px solid var(--border-strong);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(20, 30, 50, 0.06), 0 4px 14px rgba(20, 30, 50, 0.06);
+  overflow: hidden;
 }
+.office-dock.is-collapsed { height: auto; }
+.office-dock-resize {
+  flex: 0 0 auto;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.office-dock-resize span { width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); }
+.office-dock-resize:hover span, .office-dock.is-dragging .office-dock-resize span { background: var(--x-highlight); }
+.office-dock-resize:focus-visible { outline: 2px solid var(--x-highlight); outline-offset: -2px; }
+.office-dock.is-dragging { user-select: none; }
+.office-dock-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 16px 4px;
+}
+.office-dock.is-collapsed .office-dock-head { padding-top: 10px; }
+.office-dock-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.office-dock-title h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--text-strong); white-space: nowrap; }
+.office-dock-badge {
+  font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  color: var(--text-muted); background: var(--surface-subtle); border: 1px solid var(--border-default);
+}
+.office-dock-tools { display: flex; gap: 6px; flex: 0 0 auto; }
+.office-dock-tools button, .office-dock-attach, .office-dock-attachments li button {
+  min-height: 30px; padding: 0 10px; font: inherit; font-size: 12px; cursor: pointer;
+  color: var(--text-body); background: var(--surface-white);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+}
+.office-dock-tools button:disabled { color: var(--text-faint); cursor: not-allowed; }
 .office-dock-log {
-  flex: 0 1 calc(10 * 1.5em + 16px);
-  min-height: 36px;
+  flex: 1 1 0;
+  min-height: 0;
   overflow: auto;
-  padding: 8px 16px;
+  padding: 4px 16px 8px;
   font-size: 13px;
   line-height: 1.5;
+  max-height: calc(10 * 1.5em + 16px);
 }
+.office-dock.is-large .office-dock-log { max-height: none; }
 .office-dock-status { margin: 0; color: var(--text-strong); font-weight: 700; }
 .office-dock-hint { margin: 4px 0 0; color: var(--text-muted); }
 .office-dock-form {
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border-default);
+}
+.office-dock-form.is-dragover { background: var(--surface-subtle); outline: 2px dashed var(--x-highlight); outline-offset: -4px; }
+.office-dock-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 8px;
-  padding: 8px 16px 10px;
-  border-top: 1px solid var(--border-default);
+  gap: 8px;
+  align-items: end;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-white);
 }
 .office-dock-input {
   min-width: 0;
   min-height: 44px;
   max-height: 120px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   font: inherit;
   font-size: 14px;
   color: var(--text-body);
-  background: var(--surface-white);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
   resize: none;
 }
-.office-dock-form button {
-  align-self: end;
-  min-height: 36px;
-  padding: 0 14px;
-  font: inherit;
-  font-size: 13px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--surface-subtle);
-  color: var(--text-faint);
-  cursor: not-allowed;
+.office-dock-actions { display: flex; gap: 6px; align-items: center; }
+.office-dock-send {
+  min-height: 32px; padding: 0 14px; font: inherit; font-size: 13px;
+  border: 1px solid var(--border-strong); border-radius: 999px;
+  background: var(--surface-subtle); color: var(--text-faint); cursor: not-allowed;
 }
-.office-dock-reason { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--text-muted); }
+.office-dock-attachments { display: flex; flex-direction: column; gap: 4px; max-height: 96px; overflow: auto; }
+.office-dock-attachments ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.office-dock-attachments li {
+  display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 4px 3px 10px;
+  font-size: 12px; background: var(--surface-subtle); border: 1px solid var(--border-default); border-radius: 8px;
+}
+.office-dock-file-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); }
+.office-dock-file-meta { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); white-space: nowrap; }
+.office-dock-errors p { margin: 0; font-size: 12px; color: var(--text-strong); font-weight: 700; }
+.office-dock-reason { margin: 0; font-size: 12px; color: var(--text-muted); }
 @media (max-height: 560px) {
-  .office-dock { max-height: 42%; }
   .office-workspace-business { min-height: 80px; }
-  .office-dock-log { flex-basis: 36px; }
-  .office-dock-hint { display: none; }
+  .office-dock { margin: 0 8px 8px; }
+  .office-dock-hint, .office-dock-reason { display: none; }
+  .office-dock-attachments { max-height: 40px; }
 }
 
 /* Reusable scoped classes for main-agent integration */

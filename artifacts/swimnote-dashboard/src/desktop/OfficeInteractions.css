@@ -1,0 +1,67 @@
+/* OFFICE-only interaction contract. Web keeps its existing component styles. */
+.office-surface {
+  --office-hover: var(--x-accent-soft, #E8F2FC);
+  --office-pressed: #d5e6f7;
+  --office-focus: var(--x-primary);
+}
+.office-surface :is(button, a[href], summary, [role="button"]):not(:disabled):not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+.office-surface :is(button, a[href], summary, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.bg-red-600):not([data-office-tone="danger"]):hover {
+  background-color: var(--office-hover) !important;
+  color: var(--text-strong) !important;
+}
+.office-surface :is(button, a[href], summary, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.bg-red-600):not([data-office-tone="danger"]):active {
+  background-color: var(--office-pressed) !important;
+  color: var(--text-strong) !important;
+}
+.office-surface [aria-current]:not([aria-current="false"]),
+.office-surface [aria-selected="true"] {
+  box-shadow: inset 3px 0 0 var(--x-primary);
+  font-weight: 700;
+}
+.office-surface :is(button, a[href], summary, [tabindex], textarea, input, select):focus-visible {
+  outline: 2px solid var(--office-focus);
+  outline-offset: -2px;
+}
+.office-surface :is(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; opacity: .5; }
+.office-surface :is(textarea, input[type="text"], input:not([type]), input[type="password"]) { cursor: text; }
+.office-surface [role="separator"] { cursor: ns-resize !important; touch-action: none; }
+.office-surface .office-sidebar button { box-sizing: border-box; max-width: calc(100% - 8px); }
+.office-surface .office-sidebar nav { overflow-x: hidden; }
+.office-surface .office-members-table-scroll tbody tr { cursor: pointer; }
+.office-surface .office-members-table-scroll tbody tr[data-office-selected="true"] {
+  background: var(--office-hover);
+  box-shadow: inset 3px 0 0 var(--x-primary);
+}
+.office-surface .office-members-table-scroll tbody tr:hover { background: var(--office-hover) !important; }
+.office-surface .office-members-table-scroll tbody tr:active { background: var(--office-pressed) !important; }
+.office-surface .office-members-table-scroll tbody tr:focus-within { outline: 2px solid var(--office-focus); outline-offset: -2px; }
+.office-manager-entry {
+  margin: 4px; padding: 9px 12px; border: 1px solid var(--border-default);
+  background: var(--surface-white); color: var(--text-body); border-radius: 8px;
+  text-align: left; font: inherit; font-size: 13px;
+}
+.office-status-header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+  padding: 8px 16px; flex-shrink: 0; font-size: 12px;
+  background: var(--surface-white); border-bottom: 1px solid var(--border-default);
+}
+.office-brand { font-weight: 750; color: var(--x-primary); font-size: 13px; }
+.office-status-compact { color: var(--text-muted); }
+.office-diagnostics { min-width: 0; }
+.office-diagnostics[open] { flex-basis: 100%; }
+.office-diagnostics-body { padding: 6px 0; max-height: 110px; overflow: auto; overflow-wrap: anywhere; }
+.office-warning { margin: 0; padding: 4px 16px; color: var(--color-warning, #D97706); font-size: 12px; flex-shrink: 0; }
+.office-task-card { padding: 14px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--surface-white); }
+.office-task-card header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.office-task-card h3 { margin: 0; font-size: 14px; }
+.office-task-card p { margin: 6px 0; }
+.office-task-status { font-size: 12px; font-weight: 650; }
+.office-task-status[data-tone="unread"] { color: #2563eb; }
+.office-task-status[data-tone="neutral"] { color: var(--text-body); }
+.office-task-status[data-tone="partial"] { color: #b45309; }
+.office-task-status[data-tone="failed"] { color: var(--color-error, #DC2626); }
+.office-task-status[data-tone="unknown"] { color: #6d28d9; }
+.office-task-previews { max-height: 160px; overflow: auto; }
+.office-task-card button { padding: 6px 10px; border: 1px solid var(--border-default); border-radius: 6px; background: var(--surface-white); }

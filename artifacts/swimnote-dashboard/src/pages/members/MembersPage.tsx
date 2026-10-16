@@ -1098,6 +1098,7 @@ export default function MembersPage() {
                 <tr
                   key={s.id}
                   data-office-member-open
+                  data-office-selected={office ? selectedStudent?.id === s.id : undefined}
                   onClick={() => setSelectedStudent(s)}
                   style={{
                     borderBottom: idx < paged.length - 1 ? "1px solid #F3F4F6" : "none",

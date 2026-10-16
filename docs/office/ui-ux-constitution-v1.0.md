@@ -6,6 +6,8 @@ Windows의 익숙함과 AI 업무 실행을 연결하는 공통 기준
 
 ## 저장소 등록 정보 — UX00
 
+> 후속 사용자 합의: [Stage 2 AI 매니저 보완](stage2-manager-supplement.md)이 두 모드·오른쪽 AI 패널 및 AI 입력 동작을 대체한다. 아래 원문은 당시 기준으로 보존하며, 나머지 원칙과 고정계획서 단계 순서는 유지한다.
+
 - 원본: `attached_assets/SWIMNOTE_OFFICE_UI_UX_헌법_V1.0_20261016_1792083461509.docx`
 - 등록일: 2026-10-16
 - 역할: 2026-10-15 OFFICE 전체개발 고정계획서의 UI·UX 부속 기준.

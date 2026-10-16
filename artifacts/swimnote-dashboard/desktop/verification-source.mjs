@@ -10,7 +10,8 @@ export const verificationStage = process.argv.includes("--stage2") ? "STAGE2"
   : process.argv.includes("--f06") ? "F06"
   : process.argv.includes("--f05-fix") ? "F05-FIX"
   : process.argv.includes("--f05") ? "F05" : "F03-F04";
-export const output = path.join(repo, verificationStage === "STAGE2" ? (process.argv.includes("--unified")
+export const output = path.join(repo, verificationStage === "STAGE2" ? (process.argv.includes("--manager")
+  ? "generated-artifacts/office-stage2-manager-delivery" : process.argv.includes("--unified")
   ? "generated-artifacts/office-stage2-unified-delivery" : process.argv.includes("--readability")
     ? "generated-artifacts/office-stage2-readability-delivery" : "generated-artifacts/office-stage2-n01-n02-delivery")
   : verificationStage === "F06" ? "generated-artifacts/office-f06" : verificationStage === "F05-FIX"
@@ -23,7 +24,7 @@ export async function sourceIdentity() {
   const head = git(["rev-parse", "HEAD"]).toString().trim();
   const diff = git(["diff", "--binary", "HEAD", "--"]);
   const newFiles = git(["ls-files", "--others", "--exclude-standard", "-z", "--",
-    "artifacts/swimnote-dashboard/desktop", "artifacts/swimnote-dashboard/src/desktop"])
+    "artifacts/swimnote-dashboard/desktop", "artifacts/swimnote-dashboard/src/desktop", "docs/office"])
     .toString().split("\0").filter(Boolean).sort();
   const untracked = [];
   for (const file of newFiles) {
@@ -33,7 +34,7 @@ export async function sourceIdentity() {
   const diffId = sha(JSON.stringify({ trackedDiffSha256, untracked }));
   return { head, trackedDiffSha256, untracked, diffId,
     buildId: `${verificationStage}-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
-    scope: "HEAD plus tracked binary diff and explicitly listed untracked Desktop source; attachments and generated output excluded",
+    scope: "HEAD plus tracked binary diff and explicitly listed untracked Desktop source and OFFICE docs; attachments and generated output excluded",
     apiSource: verificationStage.startsWith("F05") || verificationStage === "F06" || verificationStage === "STAGE2" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
 }
 

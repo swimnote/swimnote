@@ -75,6 +75,7 @@ export function DashboardLayout({ children, fillAvailable = false }: { children:
   return (
     <MobileGuard enabled={!fillAvailable}>
       <div
+        className={fillAvailable ? "office-surface" : undefined}
         style={{
           display: "flex",
           height: fillAvailable ? "100%" : "100vh",

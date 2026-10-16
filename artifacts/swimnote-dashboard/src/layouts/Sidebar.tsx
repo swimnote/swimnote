@@ -9,6 +9,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopTokenStorage } from "@/lib/token";
 import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
+import { useOfficeManager } from "@/desktop/OfficeManagerContext";
 
 type NavItem =
   | { kind: "link"; label: string; icon: React.ReactNode; path: string }
@@ -100,6 +101,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
   const { state, logout } = useAuth();
   const [location, navigate] = useLocation();
   const officeNavigate = useOfficeNavigate();
+  const manager = useOfficeManager();
 
   const poolName =
     state.status === "authenticated" ? (state.user.poolName ?? "내 수영장") : "";
@@ -200,9 +202,12 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
           display: collapsed ? "none" : undefined,
           flex: 1,
           overflowY: "auto",
+          ...(desktop ? { overflowX: "hidden" as const } : {}),
           padding: "8px 0",
         }}
       >
+        {desktop && manager && <button type="button" className="office-manager-entry"
+          data-office-navigation onClick={() => manager.activate()}>AI 매니저</button>}
         {items.map((item) => {
           if (item.kind === "link") {
             const active = isActive(item.path);
@@ -223,6 +228,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
           return (
             <div key={item.label}>
               <button
+                aria-current={desktop && groupActive ? "true" : undefined}
                 aria-expanded={open}
                 onClick={() => toggleGroup(item.label)}
                 style={{
@@ -265,6 +271,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
                     const childActive = isActive(child.path);
                     return (
                       <button
+                        aria-current={desktop && childActive ? "page" : undefined}
                         key={child.path}
                         onClick={() => goTo(child.path)}
                         style={{
@@ -318,6 +325,8 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
           onClick={() => goTo("/admin/settings")}
         />}
       </nav>
+      {desktop && collapsed && manager && <button type="button" className="office-manager-entry"
+        aria-label="AI 매니저" title="AI 매니저" data-office-navigation onClick={() => manager.activate()}>AI</button>}
 
       {/* Logout */}
       <div style={{ display: collapsed ? "none" : undefined, borderTop: "1px solid var(--border-default)", flexShrink: 0 }}>
@@ -365,6 +374,7 @@ function NavLinkItem({
 }) {
   return (
     <button
+      aria-current={isDesktopTokenStorage() && active ? "page" : undefined}
       onClick={onClick}
       style={{
         display: "flex",

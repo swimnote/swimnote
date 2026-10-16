@@ -4,6 +4,8 @@
 
 ## OFFICE 필수 UI·UX 참조
 
+- 현재 Stage 2에는 [AI 매니저 UI·UX 보완 및 확장 계약](docs/office/stage2-manager-supplement.md)을 함께 적용한다. 두 모드·오른쪽 AI 패널의 대체 근거와 후속 단계 경계를 별도 기록하며 기존 원문·Stage 순서는 보존한다.
+
 SWIMNOTE OFFICE 관련 설계·구현·검수 전에 [UI·UX 헌법 V1.0](docs/office/ui-ux-constitution-v1.0.md)을 반드시 읽고 적용한다.
 
 - OFFICE 전체개발 고정계획서의 UI·UX 부속 기준이며, 기존 기능 범위·아키텍처·F01~F07·Stage 순서를 유지한다.
