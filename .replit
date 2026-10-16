@@ -54,6 +54,7 @@ EXPO_PUBLIC_API_URL = "https://swimnote-api.onrender.com/api"
 EXPO_PUBLIC_DOMAIN = "swimnote-api.onrender.com"
 REVENUECAT_X_PRODUCT_IDS = "x300,x300:monthly,x500,x500:monthly,x1000,x1000:monthly,com.swimnote.x300.monthly,com.swimnote.x500.monthly,com.swimnote.x1000.monthly,com.swimnote.x300.monthly:monthly,com.swimnote.x500.monthly:monthly,com.swimnote.x1000.monthly:monthly"
 PROFESSIONAL_ENGINE_BASE_URL = "https://swimnote-professional-engine.onrender.com"
+GITLAB_APP_PUSH_TOKEN = "glpat-YX1hQwsbcsCUWWfF2jNAp2M6MQpvOjEKdTpvb2k3Mg8.01.171lawy8z"
 
 [userenv.development]
 SMS_DEV_EXPOSE_CODE = "true"
