@@ -2,7 +2,8 @@ import { type ReactNode } from "react";
 
 const MOBILE_BREAKPOINT = 900;
 
-export function MobileGuard({ children }: { children: ReactNode }) {
+export function MobileGuard({ children, enabled = true }: { children: ReactNode; enabled?: boolean }) {
+  if (!enabled) return <>{children}</>;
   return (
     <>
       {/* Mobile message */}

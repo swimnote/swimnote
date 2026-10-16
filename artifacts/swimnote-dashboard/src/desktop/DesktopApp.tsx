@@ -11,6 +11,7 @@ import HomePage from "../pages/HomePage";
 import MembersPage from "../pages/members/MembersPage";
 import type { LoginPreferences } from "../../desktop/contracts";
 import { OfficeNavigationProvider, OfficeNavigationBar, useOfficeNavigate } from "./OfficeNavigation";
+import { OfficeWorkspace } from "./OfficeWorkspace";
 
 declare const __OFFICE_VERIFICATION_ID__: string;
 
@@ -59,7 +60,8 @@ export function DesktopApp() {
     }
   }, [state]);
   return (
-    <div style={{ fontFamily: "'Segoe UI', 'Malgun Gothic', system-ui, sans-serif" }}>
+    <div style={{ fontFamily: "'Segoe UI', 'Malgun Gothic', system-ui, sans-serif",
+      ...(state.status === "authenticated" ? { height: "100dvh", display: "flex", flexDirection: "column" as const, overflow: "hidden" } : {}) }}>
       <div role="status" style={{ padding: "12px 24px", background: "#EEF2FF", color: "#243B6B", fontSize: 14 }}>
         SWIMNOTE OFFICE F05 · Dashboard·회원 조회 전용
         <div style={{ marginTop: 4, fontSize: 12 }}>
@@ -124,7 +126,8 @@ export function DesktopApp() {
 
 export function DesktopRoutes() {
   const navigate = useOfficeNavigate();
-  return <DashboardLayout>
+  return <DashboardLayout fillAvailable>
+    <OfficeWorkspace>
     <OfficeNavigationBar />
     <div role="note" style={{ padding: "12px 32px" }}>
       현재 사용 가능: 홈 현황·회원목록·회원 상세 조회. 등록·수정·연기·퇴원 및 다른 업무 메뉴는 이 단계에서 사용할 수 없습니다.
@@ -141,5 +144,6 @@ export function DesktopRoutes() {
         </section>
       </Route>
     </Switch>
+    </OfficeWorkspace>
   </DashboardLayout>;
 }

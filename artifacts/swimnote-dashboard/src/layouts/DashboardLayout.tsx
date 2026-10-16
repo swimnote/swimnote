@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar } from "./Sidebar";
 import { MobileGuard } from "./MobileGuard";
 
-export function DashboardLayout({ children }: { children: ReactNode }) {
+export function DashboardLayout({ children, fillAvailable = false }: { children: ReactNode; fillAvailable?: boolean }) {
   const { state } = useAuth();
   const [, navigate] = useLocation();
 
@@ -73,20 +73,21 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <MobileGuard>
+    <MobileGuard enabled={!fillAvailable}>
       <div
         style={{
           display: "flex",
-          height: "100vh",
+          height: fillAvailable ? "100%" : "100vh",
+          ...(fillAvailable ? { flex: "1 1 0%", minHeight: 0 } : {}),
           overflow: "hidden",
         }}
       >
-        <Sidebar />
+        <Sidebar fillAvailable={fillAvailable} />
         <main
           style={{
             flex: 1,
             minWidth: 0,
-            height: "100vh",
+            height: fillAvailable ? "100%" : "100vh",
             overflowY: "auto",
             background: "var(--surface-off)",
           }}

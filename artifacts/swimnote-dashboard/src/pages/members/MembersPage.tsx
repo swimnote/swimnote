@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useOfficeNavigation } from "@/desktop/OfficeNavigation";
+import { useOfficeBusinessVisible } from "@/desktop/OfficeWorkspace";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
@@ -107,10 +108,11 @@ type DrawerProps = {
 function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewDiary }: DrawerProps) {
   const readOnly = isDesktopTokenStorage();
   const navigationEnabled = !!useOfficeNavigation();
+  const businessVisible = useOfficeBusinessVisible();
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!student) return;
+    if (!student || !businessVisible) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -126,7 +128,7 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
       document.removeEventListener("keydown", handler);
       document.removeEventListener("click", outside);
     };
-  }, [student, onClose, navigationEnabled]);
+  }, [student, onClose, navigationEnabled, businessVisible]);
 
   if (!student) return null;
 
@@ -770,6 +772,7 @@ async function downloadMembersExcel(statusFilter: string, classFilter: string) {
 
 export default function MembersPage() {
   const office = useOfficeNavigation();
+  const businessVisible = useOfficeBusinessVisible();
   const rootRef = useRef<HTMLDivElement>(null);
   const readOnly = isDesktopTokenStorage();
   const [, navigate] = useLocation();
@@ -832,8 +835,8 @@ export default function MembersPage() {
   const updateView = office?.updateView;
   const restoredScroll = useRef(office?.view.scroll ?? 0);
   useLayoutEffect(() => {
-    if (!updateView || !isFetched || isError) return;
-    const scroller = rootRef.current?.closest("main");
+    if (!updateView || !isFetched || isError || !businessVisible) return;
+    const scroller = rootRef.current?.closest<HTMLElement>("[data-office-business-scroll], main");
     if (!scroller) return;
     scroller.scrollTop = restoredScroll.current;
     const saveScroll = () => {
@@ -842,7 +845,7 @@ export default function MembersPage() {
     };
     scroller.addEventListener("scroll", saveScroll);
     return () => scroller.removeEventListener("scroll", saveScroll);
-  }, [updateView, isFetched, isError]);
+  }, [updateView, isFetched, isError, businessVisible]);
 
   // Client-side filtering
   const filtered = useMemo(() => {

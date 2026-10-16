@@ -92,7 +92,7 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) {
   const desktop = isDesktopTokenStorage();
   const items = desktop ? NAV_ITEMS.filter(item => item.kind === "link" ? item.path === "/admin" : item.label === "회원")
     .map(item => item.kind === "group" ? { ...item, children: item.children.filter(child => child.path === "/admin/members") } : item)
@@ -138,7 +138,7 @@ export function Sidebar() {
       style={{
         width: "240px",
         minWidth: "240px",
-        height: "100vh",
+        height: fillAvailable ? "100%" : "100vh",
         background: "var(--surface-white)",
         borderRight: "1px solid var(--border-default)",
         display: "flex",

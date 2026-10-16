@@ -60,7 +60,7 @@ it("N01 restores filter, scroll and ID-based Drawer across real menu/dashboard/h
   const filters = screen.getAllByRole("combobox") as HTMLSelectElement[];
   fireEvent.change(filters[0], { target: { value: "" } });
   fireEvent.change(filters[1], { target: { value: "class-a" } });
-  const main = view.container.querySelector("main")!;
+  const main = view.container.querySelector<HTMLElement>("[data-office-business-scroll]")!;
   main.scrollTop = 460; fireEvent.scroll(main);
   fireEvent.click(screen.getByText("조회회원001-v1"));
   await screen.findByRole("dialog", { name: "회원 상세" });

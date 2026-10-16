@@ -265,3 +265,36 @@ it("shows loading until the actual dashboard response and blocks unsupported dir
   await screen.findByText("현재 단계에서 지원하지 않는 메뉴입니다.");
   expect(calls("/students?pool_all=true")).toBe(0);
 });
+
+it("N02 layout changes keep the same authentication, SSE transport and business requests until logout", async () => {
+  open();
+  await screen.findByText("안녕하세요, 사용자-pool-a님");
+  fireEvent.click(screen.getByRole("button", { name: /회원목록 회원 검색/ }));
+  await screen.findByText("검증회원A-1");
+  fireEvent.click(screen.getByText("검증회원A-1"));
+  await within(screen.getByRole("dialog")).findByText("발행된 성장리포트가 없습니다.");
+  const input = screen.getByPlaceholderText("이름 또는 전화번호 검색");
+  const reads = vi.mocked(api.get).mock.calls.length;
+  const transportCount = streams.length;
+  expect(transportCount).toBe(1);
+  const token = getToken();
+  for (let i = 0; i < 3; i++) {
+    fireEvent.click(screen.getByRole("button", { name: "AI 중심", exact: true }));
+    const restore = screen.queryByRole("button", { name: "Side Workspace 열기" });
+    if (restore) fireEvent.click(restore);
+    fireEvent.click(screen.getByRole("button", { name: "Side Workspace 접기" }));
+    fireEvent.click(screen.getByRole("button", { name: "Side Workspace 열기" }));
+    fireEvent.click(screen.getByRole("button", { name: "업무집중", exact: true }));
+  }
+  expect(screen.getByPlaceholderText("이름 또는 전화번호 검색")).toBe(input);
+  expect(vi.mocked(api.get).mock.calls.length).toBe(reads);
+  expect(streams.length).toBe(transportCount);
+  expect(getToken()).toBe(token);
+  expect(calls("/auth/me")).toBe(1);
+  expect(calls("/pools/x-mode")).toBe(1);
+  fireEvent.click(screen.getByRole("button", { name: "로그아웃", exact: true }));
+  await screen.findByPlaceholderText("아이디를 입력하세요");
+  expect(document.querySelector(".office-workspace")).toBeNull();
+  expect(document.body.textContent).not.toContain(id);
+  expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+});

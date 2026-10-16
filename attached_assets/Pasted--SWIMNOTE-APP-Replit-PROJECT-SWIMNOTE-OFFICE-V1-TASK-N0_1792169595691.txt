@@ -1,0 +1,85 @@
+[전달 대상: SWIMNOTE APP Replit]
+PROJECT = SWIMNOTE OFFICE V1
+TASK = N02 Side Workspace 및 업무집중/AI 중심 배치 전환
+
+근거 =
+고정계획서 Stage 2 — Navigation / Side Workspace
+UI·UX 헌법의 두 모드·공통 Context·상태 보존 원칙.
+N02 명칭과 완료 조건은 이번 지시로 확정한다.
+
+필수 참조 =
+AGENTS.md / replit.md
+docs/office/ui-ux-constitution-v1.0.md
+고정계획서 Stage 2 및 관련 레이아웃 기준.
+
+1. 범위
+- 기존 Dashboard·회원목록·조회 상세를 재사용.
+- 업무집중 모드와 AI 중심 모드의 배치 전환 구현.
+- Side Workspace 열기·접기·크기 조절·복원.
+- N01 공통 Navigation과 연결.
+- AI 영역은 후속 연결용 빈 상태와 Context 표시까지만.
+- 모델 호출·채팅 기능·업무 실행·새 업무 화면 제외.
+
+2. 공통 상태
+- 두 모드는 같은 인증·Pool·QueryClient·Navigation 사용.
+- 모드 전환으로 재로그인·중복 SSE 연결·전체 재조회 유발 금지.
+- 검색·필터·스크롤·선택 회원·상세 상태 보존.
+- 동일 업무 화면을 두 벌 mount해 상태·요청을 중복 생성하지 않는다.
+- AI 영역에는 현재 화면·선택 대상의 최소 Context만 연결.
+- 회원 전체 데이터·token을 별도 Context 저장소에 복제하지 않는다.
+- AI 연결 전 개인정보를 외부로 전송하지 않는다.
+
+3. UX
+- 모드 전환은 같은 제품의 배치 변경으로 표현.
+- 메뉴 접기·패널 접기는 업무 종료로 처리하지 않는다.
+- 조회 상세는 N01의 비모달 탐색 동작을 유지.
+- 패널 조절은 마우스와 키보드로 가능하게 하고
+  접근 가능한 이름·상태·포커스를 제공.
+- 좁은 창·Windows 배율에서 주요 화면과 닫기/복원 조작이
+  화면 밖으로 사라지지 않게 처리.
+- 권장 폭·최소 크기는 헌법 기준을 우선 적용하되
+  Windows 검증 완료값으로 확정하지 않는다.
+- 로그인/로그아웃 후 개인정보 화면 잔존 금지.
+- 모드·패널 크기 등 비민감 배치 설정은 기존 전용 설정
+  구조를 활용할 수 있으나 범용 파일/설정 IPC는 만들지 않는다.
+- 회원 선택·검색어·업무 Context는 디스크에 저장하지 않는다.
+
+4. 미구현 AI 영역
+- 연결 전 상태를 명확히 표시.
+- 실행되지 않는 전송 버튼·가짜 답변·성공 연출 금지.
+- 현재 업무로 돌아가기 등 이동은 N01 open 계약 사용.
+- 화면 OPEN과 실제 업무 실행 완료를 구분.
+- 새 Action·서버 계약·AI ENGINE 호출 추가 금지.
+
+5. 완료 조건
+- 두 모드 전환 시 동일 업무 Context와 조회 상태 유지.
+- 패널 접기/복원·크기 조절·좁은 화면 fallback 정상.
+- 불필요한 remount·중복 요청·중복 SSE 없음.
+- N01 뒤로/앞으로·Breadcrumb 동작 보존.
+- 로그아웃·계정/Pool 전환 시 Context 정리.
+- 기존 Web 레이아웃·편집 기능 회귀 없음.
+- 현재 Desktop 쓰기 차단 유지.
+
+6. 검증·보존
+- 현재 branch·HEAD·미커밋 변경·첨부 보존.
+- 변경 범위 fixture·Desktop 타입검사·필요 build만 수행.
+- 기존 N01/F05 통과 증거 재사용.
+- 미리보기 HMR·외부 폰트 차단 로그만으로
+  packaged 오류를 단정하거나 CSP를 완화하지 않는다.
+- 실제 제품 리소스 로딩 blocker가 있으면 별도로 구분.
+- Windows 패키징은 이번에 하지 않고 N01/N02 통합 검증으로 묶는다.
+- 새 commit/push·서버/API/DB 수정·Render 배포·OTA 금지.
+- 모바일·AI ENGINE 수정·후속 단계 자동 실행 금지.
+
+완료보고 =
+TASK = PASS / HOLD
+BASELINE / BRANCH / FULL HEAD =
+CHANGED FILES =
+LAYOUT MODES / SIDE WORKSPACE =
+SHARED CONTEXT / STATE PRESERVATION =
+MOUNT / REQUEST / SSE LIFECYCLE =
+ACCESSIBILITY / NARROW WINDOW =
+WEB REGRESSION / LIMITED VALIDATION =
+NOT VERIFIED / NOT RUN =
+
+N02 구현·제한 검증 완료 후 보고하고 정지.
