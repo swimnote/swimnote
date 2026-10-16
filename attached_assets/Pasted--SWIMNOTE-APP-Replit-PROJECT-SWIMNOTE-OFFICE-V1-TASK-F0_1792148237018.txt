@@ -1,0 +1,107 @@
+[전달 대상: SWIMNOTE APP Replit]
+PROJECT = SWIMNOTE OFFICE V1
+TASK = F04 SSE 보완 서버 release source 확정
+
+승인 범위 =
+격리 source 준비·제한 검증·전용 release commit·GitLab push.
+Render 배포·Windows 패키징은 이번에 실행하지 않는다.
+
+필수 참조 =
+AGENTS.md / replit.md
+docs/office/ui-ux-constitution-v1.0.md
+기존 F03/F04 기록.
+
+1. 기존 작업 보존
+- 현재 branch·HEAD·미커밋 변경·첨부 보존.
+- 별도 작업 위치에서 운영 기준으로 release 준비.
+- 원래 작업 위치 reset/checkout·이력 재작성 금지.
+
+BASE SOURCE =
+08ad801188848a54b563be096fa38776678711a9
+
+허용 서버 실행 파일 =
+artifacts/api-server/src/lib/sse-access.ts
+artifacts/api-server/src/lib/sse-session.ts
+artifacts/api-server/src/lib/pg-realtime.ts
+artifacts/api-server/src/routes/admin.ts
+
+- 위 네 파일만 적용.
+- import 의존성이 기준 source에 모두 존재하는지 확인.
+- 추가 실행 파일이 꼭 필요하면 누락을 숨기거나
+  임의 포함하지 말고 필요한 차이를 보고.
+- CORS·startup·dependency·lockfile·Desktop·첨부 제외.
+
+2. release 대상으로 제한 검증
+기존 서버 테스트를 격리 release의 실제 모듈에 연결해 실행.
+기존 개발 source 테스트만으로 release 검증을 대체하지 않는다.
+
+중점 확인 =
+- 최초 인증 검사 완료 전 업무 이벤트 전송 금지.
+- JWT 만료·TOKEN_VERSION 변경·접근 권한 상실 처리.
+- 재검사 실패/timeout 시 전송 차단 및 자원 반환.
+- 검사 중복 합치기와 공유 검사 그룹 정리.
+- 연결 종료 후 timer/listener/client 누수 방지.
+- 기존 Web 접근·Pool 격리 유지.
+- expired/revoked/unavailable 종료 사유를
+  클라이언트가 실제로 구분할 수 있는지 확인.
+- 기존 middleware 대비 허용 역할·접근 범위가
+  의도치 않게 축소되거나 확대되지 않았는지 확인.
+
+15초 검사·2초 대기 한도의 테스트 근거를 제시.
+“17초 + 스케줄링 지연”은 조건부 상한으로 표현하고
+운영 부하 실측값으로 보고하지 않는다.
+
+제한 타입검사·서버 모듈/route build 검증.
+변경 없는 client·CORS·전체 suite 반복 금지.
+실제 운영 DB startup·계정 권한 변경 테스트 금지.
+
+3. commit / push
+대상 branch =
+release/office-sse-f04
+
+- 원격 동일 branch 상태부터 확인.
+- 위 네 실행 파일만 새 commit에 포함.
+- 테스트 증거는 별도 보존.
+- 원격 이력 충돌 시 force push 금지.
+- 기존 성공한 GITLAB_APP_PUSH_TOKEN 전용
+  명령 한정 askpass 사용.
+- GITHUB_PERSONAL_ACCESS_TOKEN fallback 금지.
+- Secret 값·일부 문자열·해시 출력 금지.
+- 고정된 새 commit을 지정 release branch로만 push.
+- ci.skip 적용, LFS hook 보존.
+- 원격 full SHA 일치 및 main 불변 확인.
+- 예상 밖 CI·Render 배포 여부 확인.
+
+4. 배포 준비
+- swimnote-api 현재 LIVE가 기준 SHA인지 읽기 확인.
+- 기존 성공한 Render commitId 배포 방식 재사용.
+- 현재 HEAD 전체나 main tip을 후보로 삼지 않는다.
+- 기존 CORS 변경이 release에 보존됐는지 확인.
+- 이전 LIVE deploy를 롤백 기준으로 기록.
+- Render 설정 변경·배포는 하지 않는다.
+
+5. 미검증 범위 유지
+- 운영 SSE 동작·부하
+- 실제 계정 TOTP/Pool/역할/X
+- Windows DPAPI·로그인 유지·로그아웃
+- 실제 업무 화면별 draft 보호·저장 버전 검증
+
+업무 화면이 없는 현재 통합 검증본에서
+실제 업무 편집 보호까지 검증 가능하다고 안내하지 않는다.
+fixture 검증과 화면별 적용을 구분한다.
+
+완료보고 =
+TASK = PASS / HOLD
+BASE / NEW RELEASE FULL SHA =
+COMMIT FILES / DIFF =
+RELEASE-SOURCE TESTS =
+AUTH / REVOCATION / TIMEOUT LIMITS =
+WEB / POOL COMPATIBILITY =
+REMOTE BRANCH / FULL SHA =
+MAIN / ORIGINAL WORKSPACE PRESERVED =
+CURRENT LIVE / ROLLBACK =
+CI / UNEXPECTED DEPLOYMENTS =
+NOT VERIFIED / NOT RUN =
+NEXT = 확정 SHA의 API 단독 배포
+
+보고 후 정지.

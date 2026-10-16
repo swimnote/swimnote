@@ -114,3 +114,4 @@
 - [시범사업 X 수동 부여 정책](x-manual-pilot-policy.md) — SUPERADMIN 직접 manual 부여는 커리큘럼 없이 X 진입 허용; 일반 경로 prerequisite·AI 데이터 검증 유지.
 - [OFFICE 제품 경계](office-product-boundaries.md) — 기존 APP/PC 공유 확장·Zero Orphan Action·Windows Foundation 분리·운영 메시지와 교육 메시지 분리.
 - [GitHub 개발 인증 경계](github-source-control-auth.md) — Git push 인증과 제품 로그인을 구분; source-control 연결 상태와 실제 인증 성공을 혼동하지 않는다.
+- [격리 release 테스트의 DB 차단](worktree-test-isolation.md) — importer별 mock ID 차이를 막기 위해 DB 의존성을 단일 경로와 fail-closed trap으로 통일한다.
