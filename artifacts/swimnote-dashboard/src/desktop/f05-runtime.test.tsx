@@ -278,7 +278,7 @@ it("shows loading until the actual dashboard response and blocks unsupported dir
   expect(calls("/students?pool_all=true")).toBe(0);
 });
 
-it("N02 layout changes keep the same authentication, SSE transport and business requests until logout", async () => {
+it("integrated workspace keeps one authentication, SSE and business observer across menu collapse until logout", async () => {
   open();
   await screen.findByText("안녕하세요, 사용자-pool-a님");
   fireEvent.click(screen.getByRole("button", { name: /회원목록 회원 검색/ }));
@@ -290,14 +290,14 @@ it("N02 layout changes keep the same authentication, SSE transport and business 
   const transportCount = streams.length;
   expect(transportCount).toBe(1);
   const token = getToken();
+  const command = screen.getByRole("textbox", { name: "업무 입력" }) as HTMLTextAreaElement;
+  fireEvent.change(command, { target: { value: "메모 유지 검증" } });
   for (let i = 0; i < 3; i++) {
-    fireEvent.click(screen.getByRole("button", { name: "AI 중심", exact: true }));
-    const restore = screen.queryByRole("button", { name: "Side Workspace 열기" });
-    if (restore) fireEvent.click(restore);
-    fireEvent.click(screen.getByRole("button", { name: "Side Workspace 접기" }));
-    fireEvent.click(screen.getByRole("button", { name: "Side Workspace 열기" }));
-    fireEvent.click(screen.getByRole("button", { name: "업무집중", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 접기" }));
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 펼치기" }));
   }
+  expect(screen.getByRole("textbox", { name: "업무 입력" })).toBe(command);
+  expect(command.value).toBe("메모 유지 검증");
   expect(screen.getByPlaceholderText("이름 또는 전화번호 검색")).toBe(input);
   expect(vi.mocked(api.get).mock.calls.length).toBe(reads);
   expect(streams.length).toBe(transportCount);
@@ -309,4 +309,5 @@ it("N02 layout changes keep the same authentication, SSE transport and business 
   expect(document.querySelector(".office-workspace")).toBeNull();
   expect(document.body.textContent).not.toContain(id);
   expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+  expect(command.isConnected).toBe(false);
 });

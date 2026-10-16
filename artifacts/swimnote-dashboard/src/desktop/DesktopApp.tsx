@@ -112,7 +112,7 @@ export function DesktopApp() {
           businessRuntime token={getToken()} onAccessLost={controller.logout}
           scopeKey={`${state.user.id}:${state.user.swimming_pool_id ?? ""}`}>
           <AuthProvider desktopSession={controller}>
-            <p style={{ margin: 0, padding: "8px 24px" }}>
+            <p style={{ margin: 0, padding: "4px 16px", fontSize: 12, flexShrink: 0 }}>
               서버 사용자·Pool·권한 재검증 완료 · Pool: {state.user.poolName} · 역할: {state.user.role} · X 응답: {state.user.xMode}
               {" · "}로그인 유지: {state.remembered ? "켜짐 — main 안전 저장 성공 응답 확인" : "꺼짐"}
             </p>

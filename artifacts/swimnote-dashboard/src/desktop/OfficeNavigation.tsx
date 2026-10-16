@@ -2,9 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLocation } from "wouter";
 
 export type OfficeDestination = { screen: "home" } | { screen: "members"; memberId?: string };
-type View = { search: string; status: string; classId: string; page: number; scroll: number };
+type View = { search: string; status: string; classId: string; page: number; scroll: number; horizontalScroll: number };
 type History = { entries: OfficeDestination[]; index: number };
-const initialView: View = { search: "", status: "active", classId: "", page: 1, scroll: 0 };
+const initialView: View = { search: "", status: "active", classId: "", page: 1, scroll: 0, horizontalScroll: 0 };
 const route = (target: OfficeDestination) => target.screen === "home" ? "/admin" : "/admin/members";
 const same = (a: OfficeDestination, b: OfficeDestination) =>
   a.screen === b.screen && (a.screen === "home" || (b.screen === "members" && a.memberId === b.memberId));
@@ -124,7 +124,7 @@ export function OfficeNavigationBar() {
   const nav = useOfficeNavigation();
   if (!nav) return null;
   return <section data-office-navigation style={{ padding: "8px 32px", position: "sticky", top: 0, zIndex: 20, background: "var(--surface-white)" }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
       <button disabled={!nav.canBack} onClick={nav.back} aria-label="앱 내 뒤로">뒤로</button>
       <button disabled={!nav.canForward} onClick={nav.forward} aria-label="앱 내 앞으로">앞으로</button>
       <nav aria-label="현재 업무 위치">

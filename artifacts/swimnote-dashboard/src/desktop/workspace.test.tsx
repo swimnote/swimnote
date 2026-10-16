@@ -49,9 +49,6 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); queryClient.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const business = () => document.getElementById("office-business-region")!;
-const ai = () => document.getElementById("office-ai-region")!;
-const switchAI = () => fireEvent.click(screen.getByRole("button", { name: "AI 중심", exact: true }));
-const switchBusiness = () => fireEvent.click(screen.getByRole("button", { name: "업무집중", exact: true }));
 async function selected() {
   await screen.findByText("PRIVATE_MEMBER_NAME");
   fireEvent.click(screen.getByText("PRIVATE_MEMBER_NAME"));
@@ -60,7 +57,7 @@ async function selected() {
   return dialog;
 }
 
-it("N02 preserves one business mount, query observers, filters, scroll and selection through mode/collapse changes", async () => {
+it("integrated layout preserves one business mount, observers, filters, scroll and Drawer on sidebar collapse", async () => {
   const disk = vi.spyOn(Storage.prototype, "setItem");
   const view = render(<App />);
   const dialog = await selected();
@@ -74,15 +71,10 @@ it("N02 preserves one business mount, query observers, filters, scroll and selec
   const reads = vi.mocked(api.get).mock.calls.length;
   const observerCount = queryClient.getQueryCache().getAll().map(query => query.getObserversCount());
   for (let i = 0; i < 2; i++) {
-    switchAI();
-    expect(screen.getByRole("dialog")).toBe(dialog);
-    fireEvent.click(screen.getByRole("button", { name: "Side Workspace 접기" }));
-    expect(business().hidden).toBe(true);
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(ai().textContent).toContain("student_legacy_001");
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 접기" }));
     expect(input.isConnected).toBe(true);
     expect(queryClient.getQueryCache().getAll().map(query => query.getObserversCount())).toEqual(observerCount);
-    fireEvent.click(screen.getByRole("button", { name: "Side Workspace 열기" }));
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 펼치기" }));
     expect(business().hidden).toBe(false);
     expect(screen.getByPlaceholderText("이름 또는 전화번호 검색")).toBe(input);
     expect(input.value).toBe("PRIVATE_MEMBER");
@@ -90,7 +82,6 @@ it("N02 preserves one business mount, query observers, filters, scroll and selec
     expect(filters[1].value).toBe("class-a");
     expect(scroll.scrollTop).toBe(520);
     expect(screen.getByRole("dialog")).toBe(dialog);
-    switchBusiness();
   }
   expect(vi.mocked(api.get).mock.calls.length).toBe(reads);
   expect(disk).not.toHaveBeenCalled();
@@ -98,25 +89,33 @@ it("N02 preserves one business mount, query observers, filters, scroll and selec
   expect(api.patch).not.toHaveBeenCalled();
 });
 
-it("N02 exposes only minimal live Context, with no fake chat, and reuses OPEN/history", async () => {
+it("integrated command draft is session-only, persists through navigation, and never submits", async () => {
+  const disk = vi.spyOn(Storage.prototype, "setItem");
   render(<App />);
   await selected();
-  switchAI();
-  expect(ai().textContent).toContain("student_legacy_001");
-  expect(ai().textContent).not.toMatch(/PRIVATE_MEMBER|PRIVATE_PHONE|PRIVATE_PARENT/);
-  expect(within(ai()).queryByRole("textbox")).toBeNull();
-  expect(within(ai()).queryByRole("button", { name: /전송/ })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "현재 업무로 돌아가기" }));
-  expect(document.activeElement).toBe(business());
+  const command = screen.getByRole("textbox", { name: "업무 입력" }) as HTMLTextAreaElement;
+  fireEvent.change(command, { target: { value: "아직 보내지 않는 업무 메모" } });
+  expect(command.disabled).toBe(false);
+  expect((screen.getByRole("button", { name: "전송" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.submit(command.closest("form")!);
+  expect(command.value).toBe("아직 보내지 않는 업무 메모");
+  expect(screen.getByRole("log").textContent).not.toMatch(/PRIVATE_MEMBER|PRIVATE_PHONE|PRIVATE_PARENT/);
+  expect(screen.queryByRole("button", { name: "AI 중심", exact: true })).toBeNull();
+  expect(document.querySelector(".office-workspace-divider")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "앱 내 뒤로" }));
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(ai().textContent).toContain("선택 없음");
   fireEvent.click(screen.getByRole("button", { name: "앱 내 앞으로" }));
   expect(screen.getByRole("dialog")).toBeTruthy();
-  expect(ai().textContent).toContain("student_legacy_001");
+  fireEvent.click(screen.getByRole("button", { name: "홈 현황", exact: true }));
+  await screen.findByText("오늘 현황");
+  expect(screen.getByRole("textbox", { name: "업무 입력" })).toBe(command);
+  expect(command.value).toBe("아직 보내지 않는 업무 메모");
+  expect(disk).not.toHaveBeenCalled();
+  expect(api.post).not.toHaveBeenCalled();
+  expect(api.patch).not.toHaveBeenCalled();
 });
 
-it("N02 keeps the table's desired horizontal offset through resize clamping and panel hiding", async () => {
+it("keeps the desired horizontal offset through width clamping and menu navigation", async () => {
   render(<App />);
   await screen.findByText("PRIVATE_MEMBER_NAME");
   const table = screen.getByRole("region", { name: "회원표 가로 스크롤" });
@@ -131,87 +130,55 @@ it("N02 keeps the table's desired horizontal offset through resize clamping and 
     await act(async () => { observers.forEach(callback => callback()); });
     fireEvent.scroll(table); // Browser-generated scroll after layout clamping must not erase the intent.
   };
-  switchAI();
   await resize(800);
   expect(table.scrollLeft).toBe(48);
   await resize(1000);
   expect(table.scrollLeft).toBe(0);
   await resize(216);
   expect(table.scrollLeft).toBe(500);
-  fireEvent.click(screen.getByRole("button", { name: "Side Workspace 접기" }));
   await resize(0);
-  fireEvent.click(screen.getByRole("button", { name: "Side Workspace 열기" }));
   await resize(216);
   expect(screen.getByRole("region", { name: "회원표 가로 스크롤" })).toBe(table);
   expect(table.scrollLeft).toBe(500);
+  fireEvent.click(screen.getByRole("button", { name: "홈 현황", exact: true }));
+  await screen.findByText("오늘 현황");
+  fireEvent.click(screen.getByRole("button", { name: /회원목록 회원 검색/ }));
+  await screen.findByText("PRIVATE_MEMBER_NAME");
+  const returned = screen.getByRole("region", { name: "회원표 가로 스크롤" });
+  Object.defineProperties(returned, {
+    clientWidth: { configurable: true, get: () => 216 },
+    scrollWidth: { configurable: true, get: () => 848 },
+  });
+  await act(async () => { observers.forEach(callback => callback()); });
+  expect(returned.scrollLeft).toBe(500);
 });
 
-it("N02 supports pointer/keyboard sizing and restores mode-specific width after collapse", async () => {
+it("does not remount the command input on sidebar changes and retains pointer navigation focus/caret", async () => {
   render(<App />);
   await screen.findByText("PRIVATE_MEMBER_NAME");
-  switchAI();
-  let separator = screen.getByRole("separator", { name: "Side Workspace 크기 조절" });
-  expect(separator.getAttribute("aria-orientation")).toBe("vertical");
-  expect(separator.getAttribute("aria-valuenow")).toBe("480");
-  fireEvent.keyDown(separator, { key: "ArrowLeft" });
-  expect(separator.getAttribute("aria-valuenow")).toBe("504");
-  fireEvent.pointerDown(separator, { button: 0, pointerId: 1, clientX: 900 });
-  fireEvent.pointerMove(separator, { pointerId: 1, clientX: 840 });
-  fireEvent.pointerUp(separator, { pointerId: 1 });
-  expect(separator.getAttribute("aria-valuenow")).toBe("564");
-  fireEvent.click(screen.getByRole("button", { name: "Side Workspace 접기" }));
-  expect(screen.queryByRole("separator")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Side Workspace 열기" }));
-  separator = screen.getByRole("separator");
-  expect(separator.getAttribute("aria-valuenow")).toBe("564");
-  fireEvent.keyDown(separator, { key: "Home" });
-  expect(separator.getAttribute("aria-valuenow")).toBe("280");
-  fireEvent.keyDown(separator, { key: "End" });
-  expect(separator.getAttribute("aria-valuenow")).toBe("952");
-  switchBusiness();
-  expect(screen.getByRole("separator").getAttribute("aria-valuenow")).toBe("360");
-  switchAI();
-  expect(screen.getByRole("separator").getAttribute("aria-valuenow")).toBe("952");
-  act(() => screen.getByRole("separator").focus());
-  await act(async () => { width = 600; observers.forEach(callback => callback()); });
-  expect(screen.queryByRole("separator")).toBeNull();
-  expect(document.activeElement).toBe(screen.getByRole("button", { name: "업무집중", exact: true }));
-  await act(async () => { width = 1440; observers.forEach(callback => callback()); });
-  expect(screen.getByRole("separator").getAttribute("aria-valuenow")).toBe("952");
-});
-
-it("N02 keeps restore controls reachable in narrow fallback and recovers focus/width without remount", async () => {
-  render(<App />);
-  const dialog = await selected();
-  switchAI();
-  act(() => business().focus());
-  expect(document.activeElement).toBe(business());
-  await act(async () => { width = 600; observers.forEach(callback => callback()); });
-  expect(screen.queryByRole("separator")).toBeNull();
-  expect(document.activeElement).toBe(screen.getByRole("button", { name: "업무집중", exact: true }));
-  expect(business().hidden).toBe(true);
-  expect(ai().hidden).toBe(false);
-  expect(document.querySelector(".mobile-guard-overlay")).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "현재 업무 보기" }));
+  const command = screen.getByRole("textbox", { name: "업무 입력" }) as HTMLTextAreaElement;
+  fireEvent.change(command, { target: { value: "연결 전 업무 초안" } });
+  act(() => { command.focus(); command.setSelectionRange(2, 5); });
+  const toggle = screen.getByRole("button", { name: "메뉴 접기" });
+  fireEvent.pointerDown(toggle);
+  act(() => toggle.focus());
+  fireEvent.click(toggle);
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
+  expect(document.activeElement).toBe(command);
+  expect(command.selectionStart).toBe(2);
+  expect(command.selectionEnd).toBe(5);
+  expect(screen.getByRole("textbox", { name: "업무 입력" })).toBe(command);
   expect(business().hidden).toBe(false);
-  expect(ai().hidden).toBe(true);
-  expect(screen.getByRole("dialog")).toBe(dialog);
-  fireEvent.click(screen.getByRole("button", { name: "AI 영역 보기" }));
-  expect(business().hidden).toBe(true);
-  await act(async () => { width = 1440; observers.forEach(callback => callback()); });
-  expect(screen.getByRole("dialog")).toBe(dialog);
-  expect(screen.getByRole("separator").getAttribute("aria-valuenow")).toBe("480");
 });
 
-it.each(["user-b:pool-a", "user-a:pool-b"])("N02 resets layout and minimal Context on verified scope change: %s", async scope => {
+it.each(["user-b:pool-a", "user-a:pool-b"])("resets command draft, history and selection on verified scope change: %s", async scope => {
   const view = render(<App />);
-  await selected(); switchAI();
-  fireEvent.click(screen.getByRole("button", { name: "Side Workspace 접기" }));
+  await selected();
+  fireEvent.change(screen.getByRole("textbox", { name: "업무 입력" }), { target: { value: "PRIVATE_DRAFT" } });
   view.rerender(<App scope={scope} />);
   await screen.findByText("PRIVATE_MEMBER_NAME");
   expect(business().hidden).toBe(false);
-  expect(ai().hidden).toBe(true);
-  expect(ai().textContent).not.toContain("student_legacy_001");
+  expect((screen.getByRole("textbox", { name: "업무 입력" }) as HTMLTextAreaElement).value).toBe("");
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(screen.getByRole("button", { name: "업무집중", exact: true }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getAllByRole("log")).toHaveLength(1);
 });

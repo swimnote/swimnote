@@ -114,6 +114,8 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
     }
   });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(initialOpen);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const collapsed = desktop && sidebarCollapsed;
 
   function toggleGroup(label: string) {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -135,9 +137,11 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
 
   return (
     <aside
+      className={desktop ? "office-sidebar" : undefined}
+      data-collapsed={collapsed}
       style={{
-        width: "240px",
-        minWidth: "240px",
+        width: collapsed ? "64px" : "240px",
+        minWidth: collapsed ? "64px" : "240px",
         height: fillAvailable ? "100%" : "100vh",
         background: "var(--surface-white)",
         borderRight: "1px solid var(--border-default)",
@@ -146,9 +150,17 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
         overflow: "hidden",
       }}
     >
+      {desktop && <button type="button" data-office-navigation
+        aria-label={collapsed ? "메뉴 펼치기" : "메뉴 접기"} aria-expanded={!collapsed}
+        onClick={() => setSidebarCollapsed(value => !value)}
+        style={{ margin: 8, padding: "8px 4px", flexShrink: 0, border: "1px solid var(--border-default)",
+          borderRadius: 6, background: "var(--surface-white)", color: "var(--text-body)", cursor: "pointer" }}>
+        {collapsed ? <ChevronRight size={18} style={{ margin: "auto" }} /> : "메뉴 접기"}
+      </button>}
       {/* Logo + Pool name */}
       <div
         style={{
+          display: collapsed ? "none" : undefined,
           padding: "20px 16px 16px",
           borderBottom: "1px solid var(--border-default)",
           flexShrink: 0,
@@ -185,6 +197,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
       {/* Navigation */}
       <nav
         style={{
+          display: collapsed ? "none" : undefined,
           flex: 1,
           overflowY: "auto",
           padding: "8px 0",
@@ -307,7 +320,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
       </nav>
 
       {/* Logout */}
-      <div style={{ borderTop: "1px solid var(--border-default)", flexShrink: 0 }}>
+      <div style={{ display: collapsed ? "none" : undefined, borderTop: "1px solid var(--border-default)", flexShrink: 0 }}>
         <button
           onClick={handleLogout}
           style={{

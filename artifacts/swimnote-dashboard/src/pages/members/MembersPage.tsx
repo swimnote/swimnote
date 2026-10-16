@@ -775,8 +775,9 @@ export default function MembersPage() {
   const businessVisible = useOfficeBusinessVisible();
   const rootRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
-  const tableScrollLeft = useRef(0);
+  const tableScrollLeft = useRef(office?.view.horizontalScroll ?? 0);
   const officeEnabled = !!office;
+  const updateTableView = office?.updateView;
   useLayoutEffect(() => {
     const node = tableScrollRef.current;
     if (!officeEnabled || !node) return;
@@ -791,13 +792,15 @@ export default function MembersPage() {
       if (node.clientWidth && node.scrollLeft !== applied) {
         tableScrollLeft.current = node.scrollLeft;
         applied = node.scrollLeft;
+        updateTableView?.({ horizontalScroll: node.scrollLeft });
       }
     };
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(restore) : undefined;
     observer?.observe(node);
+    restore();
     node.addEventListener("scroll", remember);
     return () => { observer?.disconnect(); node.removeEventListener("scroll", remember); };
-  }, [officeEnabled]);
+  }, [officeEnabled, updateTableView]);
   const readOnly = isDesktopTokenStorage();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
@@ -935,11 +938,11 @@ export default function MembersPage() {
   }, [closeDetail]);
 
   return (
-    <div ref={rootRef} style={{ padding: "28px 32px", maxWidth: "1200px" }}>
+    <div ref={rootRef} className={officeEnabled ? "office-members-page" : undefined} style={{ padding: "28px 32px", maxWidth: "1200px" }}>
       {/* Page header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+      <div className={officeEnabled ? "office-members-header" : undefined} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: 0 }}>회원</h1>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div className={officeEnabled ? "office-members-actions" : undefined} style={{ display: "flex", gap: "8px" }}>
           <button
             disabled={readOnly}
             onClick={() => navigate("/admin/members/withdrawn")}

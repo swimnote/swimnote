@@ -6,7 +6,8 @@ import { queryClient } from "../lib/query-client";
 function ConnectionStatus({ onAccessLost, businessRuntime }: { onAccessLost?: () => void; businessRuntime?: boolean }) {
   const { connected, accessDenied, syncStatus } = useRealtime();
   useEffect(() => { if (accessDenied) onAccessLost?.(); }, [accessDenied, onAccessLost]);
-  return <div role="status" style={{ padding: "12px 24px" }}>
+  return <details role="status" style={{ padding: "4px 16px", fontSize: 12, flexShrink: 0 }}>
+    <summary>{connected ? "실시간 연결 확인됨" : "실시간 연결 대기 또는 중단"} · 연결 진단</summary>
     <p>{connected
       ? "실시간 연결 확인됨 — 연결 상태와 업무 데이터 재조회 완료는 별개입니다."
       : "실시간 연결 대기 또는 중단 — 네트워크 복구 후 자동 재연결합니다."}</p>
@@ -16,7 +17,7 @@ function ConnectionStatus({ onAccessLost, businessRuntime }: { onAccessLost?: ()
     })[syncStatus]}</p>
     <p>{businessRuntime ? "업무 조회 대상: Dashboard·회원목록·반·선택 회원의 발행 이력. 초기 조회 상태는 각 화면에서 확인합니다."
       : "업무 조회 대상: 없음. 업무 데이터 재동기화 완료는 이번 화면에서 검증하지 않습니다."}</p>
-  </div>;
+  </details>;
 }
 
 /** Shared F04 transport/coordinator; F05 mounts the existing business query consumers. */

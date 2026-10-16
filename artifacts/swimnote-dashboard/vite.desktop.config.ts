@@ -8,11 +8,13 @@ import { readFileSync } from "node:fs";
 export default defineConfig(({ mode }) => {
 const fixed = mode === "f05-fix";
 const readability = mode === "stage2-readability";
-const stage2 = mode === "stage2" || readability;
+const unified = mode === "stage2-unified";
+const stage2 = mode === "stage2" || readability || unified;
 let verificationId = "개발 미지정";
 try {
   const identity = JSON.parse(readFileSync(new URL(stage2
-    ? (readability ? "../../generated-artifacts/office-stage2-readability-delivery/source-identity.json"
+    ? (unified ? "../../generated-artifacts/office-stage2-unified-delivery/source-identity.json"
+      : readability ? "../../generated-artifacts/office-stage2-readability-delivery/source-identity.json"
       : "../../generated-artifacts/office-stage2-n01-n02-delivery/source-identity.json") : fixed
     ? "../../generated-artifacts/office-f05-fix/source-identity.json"
     : "../../generated-artifacts/office-f05/source-identity.json", import.meta.url), "utf8"));

@@ -120,7 +120,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div style={{ padding: "32px", maxWidth: "1100px" }}>
+    <div className={desktop ? "office-home-page" : undefined} style={{ padding: "32px", maxWidth: "1100px" }}>
       {/* Header */}
       <div style={{ marginBottom: "32px" }}>
         <h1
@@ -176,15 +176,17 @@ export default function HomePage() {
           </div>
         ) : (
           <div
+            className={desktop ? "office-home-cards" : undefined}
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateColumns: desktop ? undefined : "repeat(4, 1fr)",
               gap: "12px",
             }}
           >
             {statCards.map((card) => (
               <div
                 key={card.label}
+                className={desktop ? "office-home-card" : undefined}
                 style={{
                   background: "#fff",
                   border: "1px solid var(--border-default, #E5E7EB)",
@@ -266,9 +268,10 @@ export default function HomePage() {
           빠른 실행
         </h2>
         <div
+          className={desktop ? "office-home-actions" : undefined}
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
+            gridTemplateColumns: desktop ? undefined : "repeat(3, 1fr)",
             gap: "12px",
           }}
         >

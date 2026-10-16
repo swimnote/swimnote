@@ -10,8 +10,9 @@ export const verificationStage = process.argv.includes("--stage2") ? "STAGE2"
   : process.argv.includes("--f06") ? "F06"
   : process.argv.includes("--f05-fix") ? "F05-FIX"
   : process.argv.includes("--f05") ? "F05" : "F03-F04";
-export const output = path.join(repo, verificationStage === "STAGE2" ? (process.argv.includes("--readability")
-  ? "generated-artifacts/office-stage2-readability-delivery" : "generated-artifacts/office-stage2-n01-n02-delivery")
+export const output = path.join(repo, verificationStage === "STAGE2" ? (process.argv.includes("--unified")
+  ? "generated-artifacts/office-stage2-unified-delivery" : process.argv.includes("--readability")
+    ? "generated-artifacts/office-stage2-readability-delivery" : "generated-artifacts/office-stage2-n01-n02-delivery")
   : verificationStage === "F06" ? "generated-artifacts/office-f06" : verificationStage === "F05-FIX"
   ? "generated-artifacts/office-f05-fix" : verificationStage === "F05"
     ? "generated-artifacts/office-f05" : "generated-artifacts/office-f03-f04");
