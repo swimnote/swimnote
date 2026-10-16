@@ -87,10 +87,39 @@ it("result OPEN uses one N01 history and Back returns directly to previous Home,
   expect(screen.getByTestId("destination").textContent).toContain("r1");
 });
 
-function ManagerFixture() {
+function ManagerFixture({ available = 900 }: { available?: number }) {
   const manager = useOfficeManager()!;
-  return <><button onClick={manager.activate}>매니저 진입</button><OfficeCommandDock available={900} /></>;
+  return <><button onClick={manager.activate}>매니저 진입</button><OfficeCommandDock available={available} /></>;
 }
+it("keeps normal budget separate from explicit large and restores preferred height after low-window clamping", () => {
+  const view = render(<OfficeManagerProvider><ManagerFixture /></OfficeManagerProvider>);
+  fireEvent.keyDown(screen.getByRole("separator"), { key: "End" });
+  const preferred = screen.getByRole("separator").getAttribute("aria-valuenow");
+  expect(preferred).toBe("495");
+  fireEvent.click(screen.getByRole("button", { name: "크게 보기" }));
+  expect(Number(screen.getByRole("separator").getAttribute("aria-valuenow"))).toBeGreaterThan(495);
+  fireEvent.click(screen.getByRole("button", { name: "원래 크기" }));
+  expect(screen.getByRole("separator").getAttribute("aria-valuenow")).toBe(preferred);
+  view.rerender(<OfficeManagerProvider><ManagerFixture available={300} /></OfficeManagerProvider>);
+  expect(Number(screen.getByRole("separator").getAttribute("aria-valuenow"))).toBeLessThan(300);
+  view.rerender(<OfficeManagerProvider><ManagerFixture /></OfficeManagerProvider>);
+  expect(screen.getByRole("separator").getAttribute("aria-valuenow")).toBe(preferred);
+});
+it("offers click-accessible attachment help and grows the same textarea only to its bound", () => {
+  render(<OfficeManagerProvider><ManagerFixture /></OfficeManagerProvider>);
+  const input = screen.getByRole("textbox", { name: "업무 입력" }) as HTMLTextAreaElement;
+  Object.defineProperty(input, "scrollHeight", { configurable: true, value: 400 });
+  fireEvent.change(input, { target: { value: "긴 입력\n".repeat(40) } });
+  expect(input.style.height).toBe("120px");
+  const button = screen.getByRole("button", { name: "파일 안내" });
+  fireEvent.click(button);
+  expect(button.getAttribute("aria-expanded")).toBe("true");
+  expect(document.getElementById(button.getAttribute("aria-controls")!)).toBe(screen.getByRole("region", { name: "첨부 도움말" }));
+  expect(screen.getByText(/합계 25MiB/)).toBeTruthy();
+  fireEvent.click(button);
+  expect(screen.queryByRole("region", { name: "첨부 도움말" })).toBeNull();
+  expect(screen.getByRole("textbox", { name: "업무 입력" })).toBe(input);
+});
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { configurable: true, value: vi.fn() });
 });

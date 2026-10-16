@@ -12,7 +12,8 @@ import { assemblyCommand } from "./integration-delivery.mjs";
 
 if (verificationStage !== "STAGE2") throw new Error("Use --stage2");
 const readability = process.argv.includes("--readability");
-const manager = process.argv.includes("--manager");
+const finalLayout = process.argv.includes("--final-layout");
+const manager = process.argv.includes("--manager") || finalLayout;
 const unified = process.argv.includes("--unified") || manager;
 const require = createRequire(import.meta.url);
 const asar = createRequire(require.resolve("@electron/packager"))("@electron/asar");
@@ -69,7 +70,7 @@ async function frozen() {
 }
 const compiled = path.join(output, "compiled"), stage = path.join(output, "stage");
 await mkdir(stage);
-run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", manager ? "stage2-manager" : unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
+run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", finalLayout ? "stage2-final-layout" : manager ? "stage2-manager" : unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
 run("pnpm", ["exec", "tsc", "-p", "desktop/tsconfig.json", "--outDir", path.join(compiled, "desktop")]);
 await mkdir(path.join(stage, "desktop"));
 const mainFiles = ["main.cjs", "preload.cjs", "security.cjs", "session-ipc.cjs", "token-store.cjs"];
@@ -100,7 +101,7 @@ if (readability || unified) {
     if (!css.includes(value)) throw new Error("Readability fix missing from CSS: " + value);
 }
 if (unified) {
-  for (const value of ["office-dock-input", "전송 불가: AI가 아직 연결되지 않았습니다.", "메뉴 접기"])
+  for (const value of ["office-dock-input", finalLayout ? "전송 불가 · 첨부는 로컬 선택만" : "전송 불가: AI가 아직 연결되지 않았습니다.", "메뉴 접기"])
     if (!bundle.includes(value)) throw new Error("Unified layout missing from renderer: " + value);
   for (const value of ["office-workspace-divider", "Side Workspace", "AI 중심"])
     if (bundle.includes(value)) throw new Error("Obsolete layout still in renderer: " + value);
@@ -110,6 +111,13 @@ if (manager) {
     if (!bundle.includes(value)) throw new Error("Manager UI missing: " + value);
   for (const value of ["합성 검증 요청", "synthetic-only"])
     if (bundle.includes(value)) throw new Error("Synthetic task leaked into product bundle: " + value);
+}
+if (finalLayout) {
+  for (const value of ["office-dock-footer", "office-breadcrumb-current", "첨부 도움말", "파일 안내", "사용 범위"])
+    if (!bundle.includes(value)) throw new Error("Final layout missing from renderer: " + value);
+  const css = (await Promise.all((await readdir(path.join(stage, "renderer/assets")))
+    .filter(file => file.endsWith(".css")).map(file => readFile(path.join(stage, "renderer/assets", file), "utf8")))).join("\n");
+  if (/\.office-dock-log\{[^}]*max-height:/.test(css)) throw new Error("Normal processing area still capped");
 }
 const pkg = JSON.parse(await readFile(path.join(dashboard, "package.json"), "utf8"));
 await fresh(path.join(stage, "package.json"), {
@@ -159,7 +167,12 @@ CMD는 SHA-256 확인·압축 해제·폴더 열기만 합니다. 설치 EXE는 
 설치·제거·로그인 유지 전체 검사는 반복하지 않습니다. 로그인이 필요하면 기존 절차만 사용하세요.
 
 현재 Windows 버전과 디스플레이 배율(%)을 먼저 기록하고 아래만 조회로 확인하세요.
-${manager ? `1. AI 매니저 카드: 드래그·키보드 높이 조절, 접기/펼치기·크게 보기/복원, 초안·로컬 첨부 유지. 버튼/Enter 미연결 전송 차단, Shift+Enter·한글 IME 확인.
+${finalLayout ? `1. AI 크기 변경 때 업무 영역·회원 상세가 가려지지 않고 실제 공간이 줄어드는지.
+2. 접기·크게 보기·원래 크기 복원과 입력창 하단 위치, 큰 빈 여백이나 잘린 문구가 없는지.
+3. 메뉴·초안·로컬 첨부·검색/필터·선택·스크롤 유지와 클릭/키보드로 파일 안내 접근.
+4. 홈 현황·회원목록 앞 검은 세로줄의 잔존 여부.
+첨부는 최대 5개, 파일당 10MiB, 합계 25MiB의 로컬 선택이며 실제 읽기·업로드·보관·AI·업무 실행은 없습니다.
+Windows 버전·실제 배율과 변경 항목만 확인합니다. 기존 인증·설치·제거 전체 검사는 반복하지 않습니다.` : manager ? `1. AI 매니저 카드: 드래그·키보드 높이 조절, 접기/펼치기·크게 보기/복원, 초안·로컬 첨부 유지. 버튼/Enter 미연결 전송 차단, Shift+Enter·한글 IME 확인.
 2. 상단 진단·Sidebar AI 매니저 포커스와 공통 클릭 표시: hover/pressed/선택/키보드 포커스/실제 disabled. 정상 진단은 접히고 필요한 장애 표시는 유지.
 3. 넓은/중간/좁은/낮은 창의 회원표·보기·Drawer·독립 스크롤 및 메뉴 왕복 상태 보존.
 첨부는 최대 5개, 파일당 10MiB, 합계 25MiB의 로컬 선택일 뿐입니다. 파일 읽기·업로드·분석·보관·AI·업무 실행은 연결하지 않았습니다.

@@ -15,11 +15,21 @@
   background-color: var(--office-pressed) !important;
   color: var(--text-strong) !important;
 }
-.office-surface [aria-current]:not([aria-current="false"]),
+.office-surface :is(button, a[href], [role="button"])[aria-current]:not([aria-current="false"]),
 .office-surface [aria-selected="true"] {
   box-shadow: inset 3px 0 0 var(--x-primary);
   font-weight: 700;
 }
+.office-surface .office-navigation-bar { padding: 4px 16px; position: sticky; top: 0; z-index: 20; background: var(--surface-white); }
+.office-surface .office-navigation-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.office-surface .office-navigation-controls :is(button, .office-breadcrumb-current) {
+  display: inline-flex; align-items: center; min-height: 32px; padding: 4px 10px; border-radius: 6px;
+}
+.office-surface .office-navigation-controls nav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.office-surface .office-breadcrumb-current { font-weight: 700; background: var(--surface-subtle); }
+.office-surface .office-capability { padding: 2px 16px 4px; font-size: 12px; color: var(--text-muted); }
+.office-surface .office-capability summary { width: fit-content; min-height: 24px; padding: 2px 6px; border-radius: 4px; }
+.office-surface .office-capability p { max-height: 60px; overflow: auto; margin: 4px 0; }
 .office-surface :is(button, a[href], summary, [tabindex], textarea, input, select):focus-visible {
   outline: 2px solid var(--office-focus);
   outline-offset: -2px;

@@ -128,16 +128,25 @@
   flex: 1 1 0;
   min-height: 0;
   overflow: auto;
-  padding: 4px 16px 8px;
+  padding: 0 16px;
   font-size: 13px;
   line-height: 1.5;
-  max-height: calc(10 * 1.5em + 16px);
+  container: office-log / size;
 }
-.office-dock.is-large .office-dock-log { max-height: none; }
-.office-dock-status { margin: 0; color: var(--text-strong); font-weight: 700; }
-.office-dock-hint { margin: 4px 0 0; color: var(--text-muted); }
+.office-dock-status { margin: 0; padding: 4px 0 8px; color: var(--text-strong); font-weight: 700; }
+@container office-log (max-height: 32px) {
+  .office-dock-status { visibility: hidden; }
+}
+.office-dock-help { flex: 0 1 auto; min-height: 26px; margin: 0; padding: 4px 2px; font-size: 12px; line-height: 1.5; color: var(--text-muted); max-height: 72px; overflow: auto; }
+.office-dock-help-toggle { margin-left: 8px; min-height: 24px; padding: 0 8px; font: inherit; font-size: 12px; cursor: pointer; color: var(--text-body); background: var(--surface-white); border: 1px solid var(--border-strong); border-radius: 8px; }
+.office-workspace:has(.office-dock.is-large) .office-workspace-business { min-height: 96px; }
+.office-workspace:has(.office-dock.is-low) .office-workspace-business { min-height: 80px; }
+.office-dock.is-collapsed .office-dock-log { display: none; }
 .office-dock-form {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-height: calc(100% - var(--office-dock-chrome, 54px));
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -146,6 +155,7 @@
 }
 .office-dock-form.is-dragover { background: var(--surface-subtle); outline: 2px dashed var(--x-highlight); outline-offset: -4px; }
 .office-dock-composer {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
@@ -159,6 +169,8 @@
   min-width: 0;
   min-height: 44px;
   max-height: 120px;
+  overflow-y: auto;
+  box-sizing: border-box;
   padding: 6px 8px;
   font: inherit;
   font-size: 14px;
@@ -173,7 +185,7 @@
   border: 1px solid var(--border-strong); border-radius: 999px;
   background: var(--surface-subtle); color: var(--text-faint); cursor: not-allowed;
 }
-.office-dock-attachments { display: flex; flex-direction: column; gap: 4px; max-height: 96px; overflow: auto; }
+.office-dock-attachments { display: block; min-height: 40px; max-height: 96px; overflow: auto; flex: 0 1 auto; }
 .office-dock-attachments ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .office-dock-attachments li {
   display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 4px 3px 10px;
@@ -183,10 +195,13 @@
 .office-dock-file-meta { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; color: var(--text-muted); white-space: nowrap; }
 .office-dock-errors p { margin: 0; font-size: 12px; color: var(--text-strong); font-weight: 700; }
 .office-dock-reason { margin: 0; font-size: 12px; color: var(--text-muted); }
+.office-dock-footer { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.office-dock.is-low .office-dock-form { padding: 6px 8px; gap: 4px; }
+.office-dock.is-low { margin: 0 8px 8px; }
+.office-dock.is-low .office-dock-attachments { max-height: 40px; }
+.office-dock.is-low .office-dock-help { max-height: 40px; }
 @media (max-height: 560px) {
-  .office-workspace-business { min-height: 80px; }
   .office-dock { margin: 0 8px 8px; }
-  .office-dock-hint, .office-dock-reason { display: none; }
   .office-dock-attachments { max-height: 40px; }
 }
 

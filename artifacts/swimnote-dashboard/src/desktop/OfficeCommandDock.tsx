@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useOfficeManager } from "./OfficeManagerContext";
 import { ACCEPT_ATTR, MAX_FILES, formatBytes } from "./local-attachments";
 
@@ -9,6 +9,7 @@ export type OfficeCommandHandler = (action: OfficeCommandAction) => void;
 const BUSINESS_MIN = 160;
 const BUSINESS_MIN_LOW = 80;
 const CARD_MIN = 168;
+const BUSINESS_LARGE = 96;
 const STEP = 24;
 
 export function OfficeCommandDock({ available = 0 }: { available?: number }) {
@@ -16,6 +17,12 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
   if (!m) throw new Error("OfficeCommandDock requires OfficeManagerProvider");
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const head = useRef<HTMLElement>(null);
+  const composer = useRef<HTMLDivElement>(null);
+  const footer = useRef<HTMLDivElement>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const [essential, setEssential] = useState(CARD_MIN);
+  const [chrome, setChrome] = useState(54);
   const composing = useRef(false);
   const drag = useRef<{ y: number; h: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -47,12 +54,43 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
 
   const low = available > 0 && available < 560;
   const bizMin = low ? BUSINESS_MIN_LOW : BUSINESS_MIN;
-  const hardMax = available > 0 ? Math.max(0, available - bizMin - 16) : 392;
-  const minimum = Math.min(CARD_MIN + (low && m.attachments.length ? 48 : 0), hardMax);
-  const maxH = Math.max(minimum, low ? Math.min(hardMax, Math.round(available * 0.5)) : hardMax);
+  const bizLarge = low ? BUSINESS_MIN_LOW : BUSINESS_LARGE;
+  const gutter = low ? 8 : 12;
+  const hardMax = available > 0 ? Math.max(0, available - bizMin - gutter) : 392;
+  const largeMax = available > 0 ? Math.max(0, available - bizLarge - gutter) : 392;
+  const minimum = Math.min(Math.max(CARD_MIN, essential), hardMax);
+  const normalMax = Math.max(minimum, available > 0 ? Math.min(hardMax, Math.round(available * (low ? 0.5 : 0.55))) : hardMax);
+  const maxH = m.large ? Math.max(minimum, largeMax) : normalMax;
   const wanted = m.large ? Math.max(m.preferredHeight, Math.round(available * 0.7)) : m.preferredHeight;
   const height = Math.min(Math.max(wanted, minimum), maxH);
-  const clampPref = (h: number) => Math.min(Math.max(Math.round(h), minimum), maxH);
+  const clampPref = (h: number) => Math.min(Math.max(Math.round(h), minimum), normalMax);
+  const [help, setHelp] = useState(false);
+
+  useLayoutEffect(() => {
+    const n = input.current;
+    if (!n) return;
+    n.style.height = "auto";
+    n.style.height = `${Math.max(44, Math.min(n.scrollHeight, low ? (available < 380 ? 44 : 72) : 120))}px`;
+  }, [m.draft, m.expanded, available, low]);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (!head.current || !form.current || !composer.current || !footer.current) return;
+      const header = head.current.offsetHeight + (m.expanded ? 12 : 0);
+      const css = getComputedStyle(form.current);
+      const gap = parseFloat(css.rowGap) || 0;
+      const extras = (m.attachments.length || m.attachmentErrors.length ? 40 : 0) + (help ? 26 : 0);
+      setChrome(header);
+      setEssential(Math.ceil(header + composer.current.offsetHeight + footer.current.offsetHeight +
+        (parseFloat(css.paddingTop) || 0) + (parseFloat(css.paddingBottom) || 0) + 2 + extras +
+        gap * (1 + (extras ? 1 : 0) + (help ? 1 : 0))));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    [head.current, composer.current, footer.current].forEach(n => n && observer.observe(n));
+    return () => observer.disconnect();
+  }, [m.expanded, m.attachments.length, m.attachmentErrors.length, help, low]);
 
   const onResizeDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!m.expanded) return;
@@ -97,17 +135,17 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
     if (files.length) m.addFiles(files);
   };
 
-  const cls = `office-dock${m.expanded ? "" : " is-collapsed"}${m.large ? " is-large" : ""}${dragging ? " is-dragging" : ""}`;
+  const cls = `office-dock${m.expanded ? "" : " is-collapsed"}${m.large ? " is-large" : ""}${dragging ? " is-dragging" : ""}${low ? " is-low" : ""}`;
   return <section className={cls} data-office-navigation aria-label="AI 매니저"
-    style={m.expanded ? { height } : undefined}>
+    style={{ ...(m.expanded ? { height } : {}), "--office-dock-chrome": `${chrome}px` } as CSSProperties}>
     {m.expanded && <div className="office-dock-resize" role="separator" aria-orientation="horizontal" tabIndex={0}
       aria-label="AI 매니저 높이 조절" aria-valuemin={minimum} aria-valuemax={maxH} aria-valuenow={height}
       onPointerDown={onResizeDown} onPointerMove={onResizeMove} onPointerUp={endDrag} onPointerCancel={endDrag}
       onKeyDown={onResizeKey}><span aria-hidden="true" /></div>}
-    <header className="office-dock-head">
+    <header ref={head} className="office-dock-head">
       <div className="office-dock-title">
         <h2>AI 매니저</h2>
-        <span className="office-dock-badge">AI 연결 전</span>
+        <span id={`${id}-connection`} className="office-dock-badge">AI 연결 전</span>
       </div>
       <div className="office-dock-tools">
         <button type="button" onClick={() => m.setLarge(!m.large)} disabled={!m.expanded} aria-pressed={m.large}>
@@ -119,10 +157,9 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
     </header>
     <div id={`${id}-body`} className="office-dock-log" role="log" aria-live="off" tabIndex={0}
       aria-label="AI 업무 처리 영역" hidden={!m.expanded}>
-      <p className="office-dock-status">AI 연결 전 · 처리 결과가 없습니다.</p>
-      <p className="office-dock-hint">입력과 선택한 파일은 이 창을 닫을 때까지 임시로만 유지됩니다. 모델 호출, 파일 업로드·분석, 업무 실행은 제공하지 않습니다.</p>
+      <p className="office-dock-status">처리 내역이 없습니다.</p>
     </div>
-    <form className={`office-dock-form${dragOver ? " is-dragover" : ""}`}
+    <form ref={form} className={`office-dock-form${dragOver ? " is-dragover" : ""}`}
       onSubmit={event => { event.preventDefault(); }}
       onDragOver={e => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
@@ -138,22 +175,28 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
           {m.attachmentErrors.map((t, i) => <p key={i}>{t}</p>)}
         </div>}
       </div>}
-      <div className="office-dock-composer">
+      {help && <div id={`${id}-file-help`} className="office-dock-help" role="region" aria-label="첨부 도움말" tabIndex={0}>
+        파일 선택만 가능하며 읽기·업로드·보관 기능은 연결되지 않았습니다.
+        최대 {MAX_FILES}개, 파일당 10MiB, 합계 25MiB.
+        허용 형식: PDF, PNG, JPG/JPEG, WEBP, HWP, HWPX, DOCX, XLSX, CSV, TXT.
+      </div>}
+      <div ref={composer} className="office-dock-composer">
         <textarea ref={input} className="office-dock-input" rows={2} value={m.draft} aria-label="업무 입력"
-          aria-describedby={reason} placeholder="업무 내용을 입력하세요 (아직 전송되지 않습니다)"
+          aria-describedby={`${id}-connection ${reason}`} placeholder="업무 내용을 입력하세요"
           onChange={event => m.setDraft(event.target.value)} onKeyDown={onKeyDown} onPaste={onPaste}
           onCompositionStart={() => { composing.current = true; }}
           onCompositionEnd={() => { composing.current = false; }} />
         <input ref={fileInput} type="file" multiple accept={ACCEPT_ATTR} hidden tabIndex={-1} onChange={pickFiles} />
         <div className="office-dock-actions">
-          <button type="button" className="office-dock-attach" title="로컬 선택만 · 최대 5개, 각 10MiB, 총 25MiB · PDF/PNG/JPG/WEBP/HWP/HWPX/DOCX/XLSX/CSV/TXT"
-            onClick={() => fileInput.current?.click()}>파일 선택</button>
-          <button type="submit" className="office-dock-send" disabled aria-describedby={reason}>전송</button>
+          <button type="button" className="office-dock-attach" onClick={() => fileInput.current?.click()}>파일 선택</button>
+          <button type="submit" className="office-dock-send" disabled aria-describedby={`${id}-connection ${reason}`}>전송</button>
         </div>
       </div>
-      <p id={reason} className="office-dock-reason">
-        전송 불가: AI가 아직 연결되지 않았습니다. 파일은 이 PC에서 선택만 되며 읽거나 업로드하지 않습니다 (최대 {MAX_FILES}개, 파일당 10MiB, 합계 25MiB · PDF, PNG, JPG, WEBP, HWP, HWPX, DOCX, XLSX, CSV, TXT).
-      </p>
+      <div ref={footer} className="office-dock-footer">
+        <p id={reason} className="office-dock-reason">전송 불가 · 첨부는 로컬 선택만</p>
+        <button type="button" className="office-dock-help-toggle" aria-expanded={help} aria-controls={`${id}-file-help`}
+          onClick={() => setHelp(v => !v)}>파일 안내</button>
+      </div>
     </form>
   </section>;
 }

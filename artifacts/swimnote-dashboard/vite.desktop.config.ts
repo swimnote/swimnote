@@ -10,11 +10,13 @@ const fixed = mode === "f05-fix";
 const readability = mode === "stage2-readability";
 const unified = mode === "stage2-unified";
 const manager = mode === "stage2-manager";
-const stage2 = mode === "stage2" || readability || unified || manager;
+const finalLayout = mode === "stage2-final-layout";
+const stage2 = mode === "stage2" || readability || unified || manager || finalLayout;
 let verificationId = "개발 미지정";
 try {
   const identity = JSON.parse(readFileSync(new URL(stage2
-    ? (manager ? "../../generated-artifacts/office-stage2-manager-delivery/source-identity.json"
+    ? (finalLayout ? "../../generated-artifacts/office-stage2-final-layout-delivery/source-identity.json"
+      : manager ? "../../generated-artifacts/office-stage2-manager-delivery/source-identity.json"
       : unified ? "../../generated-artifacts/office-stage2-unified-delivery/source-identity.json"
       : readability ? "../../generated-artifacts/office-stage2-readability-delivery/source-identity.json"
       : "../../generated-artifacts/office-stage2-n01-n02-delivery/source-identity.json") : fixed

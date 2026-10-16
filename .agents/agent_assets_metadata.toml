@@ -513,3 +513,31 @@ mtime_ms = 1792179738321
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/dad6153b-1617-470d-85c8-0a2f84d3ac3b/1ed54c63-509c-4627-8c50-f595fdb007c2"
 storage_version_token = "1792179789076245"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "4wnPLNGtfIKXyA79FrgcS"
+uri = "file://generated-artifacts/office-stage2-final-layout-delivery/SWIMNOTE-OFFICE-STAGE2-eafa09b54cc3-cba253469d7d-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 내부 검증본 — 다운로드 1/2"
+description = "두 ZIP을 모두 같은 새 폴더에 압축 해제하세요. 1/2에는 START-STAGE2.cmd와 안내문이 포함되어 있습니다."
+logical_id = "bd6eb10e-c393-4103-9017-c8c7f9d23883"
+content_hash = "sha256:441949502cba04f3a3eadb8dfe95d3802ec83230431a7f24496e9073136d871a"
+size = 83892072
+mtime_ms = 1792182559223
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/bd6eb10e-c393-4103-9017-c8c7f9d23883/1a9fd0ce-3107-4514-9aed-58b0141b81ec"
+storage_version_token = "1792182839106493"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "o6rSGBkPsPzpiyXK6P5Jv"
+uri = "file://generated-artifacts/office-stage2-final-layout-delivery/SWIMNOTE-OFFICE-STAGE2-eafa09b54cc3-cba253469d7d-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 내부 검증본 — 다운로드 2/2"
+description = "1/2와 함께 필요한 분할 ZIP입니다. SHA-256·재결합 검증 완료. 내부 unsigned Windows x64 설치본이며 Windows UI 수용은 미검증입니다."
+logical_id = "2188742f-ffdf-43ca-8fd3-505dc2b98ff3"
+content_hash = "sha256:f307e9ba3a2c29e7b05065f955d61a20692e7555962cc0f753cbfcb0863b0ccf"
+size = 29710161
+mtime_ms = 1792182560647
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/2188742f-ffdf-43ca-8fd3-505dc2b98ff3/bbe130ac-82eb-4f5f-b839-518893cea1f5"
+storage_version_token = "1792182840679801"
+content_type = "application/octet-stream"

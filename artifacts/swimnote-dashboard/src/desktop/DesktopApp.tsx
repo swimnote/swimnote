@@ -140,9 +140,10 @@ export function DesktopRoutes() {
   return <OfficeManagerProvider><DashboardLayout fillAvailable>
     <OfficeWorkspace>
     <OfficeNavigationBar />
-    <div role="note" style={{ padding: "12px 32px" }}>
-      현재 사용 가능: 홈 현황·회원목록·회원 상세 조회. 등록·수정·연기·퇴원 및 다른 업무 메뉴는 이 단계에서 사용할 수 없습니다.
-    </div>
+    <details className="office-capability" data-office-navigation>
+      <summary>조회 전용 · 사용 범위</summary>
+      <p role="note">홈 현황·회원목록·회원 상세만 조회할 수 있습니다. 등록·수정·연기·퇴원 및 다른 업무 메뉴는 아직 연결되지 않았습니다.</p>
+    </details>
     <Switch>
       <Route path="/admin/login"><Redirect to="/admin" /></Route>
       <Route path="/admin" component={HomePage} />

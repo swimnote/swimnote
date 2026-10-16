@@ -123,17 +123,17 @@ export function useOfficeNavigate() {
 export function OfficeNavigationBar() {
   const nav = useOfficeNavigation();
   if (!nav) return null;
-  return <section data-office-navigation style={{ padding: "8px 32px", position: "sticky", top: 0, zIndex: 20, background: "var(--surface-white)" }}>
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+  return <section data-office-navigation className="office-navigation-bar">
+    <div className="office-navigation-controls">
       <button disabled={!nav.canBack} onClick={nav.back} aria-label="앱 내 뒤로">뒤로</button>
       <button disabled={!nav.canForward} onClick={nav.forward} aria-label="앱 내 앞으로">앞으로</button>
       <nav aria-label="현재 업무 위치">
-        {nav.destination.screen === "home" ? <span aria-current="page">홈 현황</span> : <>
+        {nav.destination.screen === "home" ? <span className="office-breadcrumb-current" aria-current="page">홈 현황</span> : <>
           <button onClick={() => nav.open({ screen: "home" })}>홈 현황</button>
           {" / "}
           {nav.destination.memberId
-            ? <><button onClick={nav.closeDetail}>회원목록</button>{" / "}<span aria-current="page">회원 상세</span></>
-            : <span aria-current="page">회원목록</span>}
+            ? <><button onClick={nav.closeDetail}>회원목록</button>{" / "}<span className="office-breadcrumb-current" aria-current="page">회원 상세</span></>
+            : <span className="office-breadcrumb-current" aria-current="page">회원목록</span>}
         </>}
       </nav>
     </div>
