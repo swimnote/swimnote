@@ -309,3 +309,17 @@ mtime_ms = 1792152873379
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/694db495-0313-4bd6-aafb-fae0fb234d21/e324c102-0e3c-4716-9043-7afdd689ba37"
 storage_version_token = "1792152992592818"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "SbV31qan9-9hgch7U7sI9"
+uri = "file://generated-artifacts/office-f03-f04/START-F03-F04.cmd"
+type = "unspecified"
+title = "START-F03-F04.cmd — 문장 구분자 수정본"
+description = "기존 part01·part02가 있는 폴더에서 이전 CMD만 이 파일로 교체하세요. 두 조각은 그대로 사용합니다. Windows 실제 호출은 미검증입니다."
+logical_id = "ab37bfbe-af64-4518-b688-0c485fb2b5fb"
+content_hash = "sha256:a7253a72926ab6882f56bd813c94a186c2e9505990038f363f65c9bedf64183f"
+size = 2059
+mtime_ms = 1792153551459
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/ab37bfbe-af64-4518-b688-0c485fb2b5fb/dd91be0d-3d36-43bb-ac44-d6d8f77702d8"
+storage_version_token = "1792153612334331"
+content_type = "application/octet-stream"

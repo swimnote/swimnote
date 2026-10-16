@@ -87,6 +87,12 @@ Electron 검증 ZIP의 첨부 등록에는 파일당 100 MiB 제한이 확인됐
 
 ## Credit 절약형 개발 제약
 
+Windows 전달 명령의 문자열·해시·안전 분기 정적 검사는 실제 `cmd.exe → PowerShell` 실행 검증을 대신하지 않는다. Windows 환경이 없으면 호출 경로는 미검증으로 명시한다.
+
+**Why:** 정적 안전성 검사를 통과한 전달 명령도 PowerShell 문장 구분자 누락으로 사용자 Windows에서 ParserError가 발생한 사례가 있다.
+
+**How to apply:** 새 전달 명령은 생성된 최종 파일을 기준으로 검증한다. 실행 환경이 없으면 구문·escaping·안전 분기 검토와 실제 실행 증거를 구분하고, 정적 검사만으로 Windows 실행 PASS를 선언하지 않는다.
+
 OFFICE 개발은 관련 Backend·UI·Action·AI Tool·제한 테스트를 하나의 명확한 Vertical Slice로 처리한다. 완료된 조사·PASS/CLOSED 영역을 근거 없이 다시 감사하지 않고, 기존 Context·컴포넌트·service·테스트 결과를 재사용한다.
 
 **Why:** 사용자가 2026-10-15 credit 절약을 최우선 개발 제약으로 명시하고, 전체 Repo 재조사·매 Slice 전체 suite/typecheck/build·불필요한 문서·중복 Agent 조사를 금지했다.
