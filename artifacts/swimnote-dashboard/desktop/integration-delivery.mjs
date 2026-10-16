@@ -1,8 +1,10 @@
 /** Windows built-ins only. No execution policy override, downloads, elevation or EXE autorun. */
-export function assemblyCommand(zipName, parts, sha256, destinationName = "F03-F04-Windows") {
+export function assemblyCommand(zipName, parts, sha256, destinationName = "F03-F04-Windows",
+  applicationName = "SwimnoteOffice-win32-x64", executableName = "SwimnoteOffice.exe") {
   if (!/^[A-Za-z0-9.-]+\.zip$/.test(zipName) || !/^[a-f0-9]{64}$/.test(sha256) ||
       !parts.length || parts.some(p => !/^[A-Za-z0-9.-]+$/.test(p)) ||
-      !/^[A-Za-z0-9-]+$/.test(destinationName)) throw new Error("Unsafe delivery name");
+      !/^[A-Za-z0-9-]+$/.test(destinationName) || !/^[A-Za-z0-9-]+$/.test(applicationName) ||
+      !/^[A-Za-z0-9.-]+\.exe$/.test(executableName)) throw new Error("Unsafe delivery name");
   const code = [
     "$ErrorActionPreference='Stop';",
     "$tmp=$null;",
@@ -20,9 +22,9 @@ export function assemblyCommand(zipName, parts, sha256, destinationName = "F03-F
     `$actual=(Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant(); if ($actual -cne '${sha256}') { throw 'SHA-256 mismatch. STOP. Do not run this package.' };`,
     "[IO.File]::Move($tmp,$zip); $tmp=$null;",
     "Expand-Archive -LiteralPath $zip -DestinationPath $destination;",
-    "$application=Join-Path $destination 'SwimnoteOffice-win32-x64';",
-    "if (!(Test-Path -LiteralPath (Join-Path $application 'SwimnoteOffice.exe') -PathType Leaf)) { throw 'Required EXE missing. STOP.' };",
-    "Write-Host 'PASS: ZIP SHA-256 verified and extracted. Run SwimnoteOffice.exe as your normal user.';",
+    `$application=Join-Path $destination '${applicationName}';`,
+    `if (!(Test-Path -LiteralPath (Join-Path $application '${executableName}') -PathType Leaf)) { throw 'Required EXE missing. STOP.' };`,
+    `Write-Host 'PASS: ZIP SHA-256 verified and extracted. Run ${executableName} as your normal user.';`,
     "if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { Invoke-Item -LiteralPath $application };",
     "exit 0",
     "} catch { if ($tmp -and (Test-Path -LiteralPath $tmp)) { Remove-Item -LiteralPath $tmp }; Write-Host ('STOP: '+$_.Exception.Message); exit 1 }",

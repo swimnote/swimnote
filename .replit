@@ -28,7 +28,7 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
-packages = ["eas-cli", "pm2"]
+packages = ["eas-cli", "pm2", "nsis", "p7zip"]
 
 [userenv]
 

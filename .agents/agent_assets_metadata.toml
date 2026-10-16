@@ -379,3 +379,31 @@ mtime_ms = 1792166102634
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/f28e280f-e1e7-4d8b-b512-350acf176849/109a8bb0-1bbd-48ac-a03f-2420210851a4"
 storage_version_token = "1792166179434144"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "vOJD81nC22JhJ-0OFtJMt"
+uri = "file://generated-artifacts/office-f06/SWIMNOTE-OFFICE-F06-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "F06 Windows 내부 설치본 — 1/2"
+description = "두 ZIP 모두 필요합니다. 같은 새 폴더에 내용물을 풀고 START-F06.cmd를 실행하세요. 이 파일에 전달 CMD와 F07 단계별 안내문이 포함돼 있습니다."
+logical_id = "7cad2099-2857-438f-8ead-b9a46123ebdc"
+content_hash = "sha256:cfe1d49a89cba0d7517270c9abeba643b55962a63b238b73f522db988cb1e424"
+size = 83892127
+mtime_ms = 1792167615653
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/7cad2099-2857-438f-8ead-b9a46123ebdc/87bb6231-ccfd-4a70-9eb3-5c091556fa15"
+storage_version_token = "1792167731609171"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "zTIgYay-WBsOmfEYx022J"
+uri = "file://generated-artifacts/office-f06/SWIMNOTE-OFFICE-F06-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "F06 Windows 내부 설치본 — 2/2"
+description = "1/2와 같은 폴더에 내용물을 풀어 주세요. 결합 완료 후 SWIMNOTE-OFFICE-F06-Setup.exe를 직접 일반 사용자로 실행합니다. 보안 차단 시 우회하지 말고 중단하세요."
+logical_id = "92904576-f10d-47f3-be05-5a672fea59da"
+content_hash = "sha256:beefd57d62deba0ecc2f75560f6d647c4dbeec76298dd17071f2cd3977ff8314"
+size = 29734303
+mtime_ms = 1792167615825
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/92904576-f10d-47f3-be05-5a672fea59da/3645f00e-10e0-4cbb-a025-f1710b357d97"
+storage_version_token = "1792167733261483"
+content_type = "application/octet-stream"

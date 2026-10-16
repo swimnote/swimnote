@@ -1,0 +1,91 @@
+[전달 대상: SWIMNOTE APP Replit]
+PROJECT = SWIMNOTE OFFICE V1
+TASK = F06 Windows 내부 검증용 설치 프로그램 제작
+
+선행 상태 =
+F05-FIX-cbbf328c7aa7-3b4af4238756에서 사용자 확인:
+- Dashboard·Pool 표시 정상.
+- 회원 검색·상태/반 필터 정상.
+- 회원 상세 정상.
+- 처음 실패했던 동일 회원의 성장리포트 발행 이력 정상.
+- Desktop 미지원 버튼의 비활성 스타일·이유 표시 확인.
+
+위 증거를 기록하고 동일 검사를 반복하지 않는다.
+네트워크 복구·로그인 유지 ON/OFF·보조 계정 접근은
+미검증으로 보존하여 F07에서 묶어 확인한다.
+운영 변경→SSE·저장 충돌 안전성도 미검증 유지.
+
+필수 참조 =
+AGENTS.md / replit.md
+docs/office/ui-ux-constitution-v1.0.md
+고정계획서 F06·F07 원문.
+
+1. 보존·범위
+- 현재 branch·HEAD·미커밋 변경·첨부·기존 패키지 보존.
+- F06 원문 범위에 맞춰 기존 Electron 앱을 설치형으로 제작.
+- 새 업무 기능·Backend·모바일 변경 금지.
+- 기존 source에 필요한 패키징 설정만 최소 추가.
+- 새 commit/push·reset/checkout 금지.
+
+2. 설치 UX
+- Windows 10/11 x64 대상, 실제 Windows 11 검증은 미완료 유지.
+- 내부 검증용 unsigned installer.
+- 사용자별 설치를 우선하고 관리자 권한을 요구하지 않는다.
+- 바탕화면·시작 메뉴 실행 아이콘 제공.
+- Windows 앱 목록에서 제거 가능.
+- 설치 후 실행은 사용자 선택으로 제공.
+- Windows 시작 시 자동 실행·자동업데이트 추가 금지.
+- 인증정보·회원 데이터·개발 Secret을 설치 파일에 포함하지 않는다.
+- 기존 실행본과 userData 식별·저장 위치 관계를 확인.
+  임의 변경으로 기존 인증정보를 중복 저장하지 않는다.
+
+3. 재설치·제거
+- 기존 앱 실행 중 설치 처리와 중복 프로세스 방지 확인.
+- 재설치 시 사용자 설정·인증정보 처리 정책을 명시.
+- 제거 시 인증정보·설정의 보존/삭제 동작을 명시.
+- 사용자 폴더나 다른 프로그램 파일을 광범위하게 삭제하지 않는다.
+- 로그아웃의 token 삭제 정책 유지.
+- 미서명 실행 경고가 나올 수 있음을 안내하되
+  보안 기능 해제·관리자 실행·강제 우회를 요구하지 않는다.
+- 고객용 공개 배포나 서명 완료로 표현하지 않는다.
+
+4. 검증·빌드
+- 기존 F05 통과 테스트 재사용.
+- 패키징 변경에 필요한 검사·build만 수행.
+- installer 생성 1회.
+- EXE 아키텍처·설치 구성·포함 파일·source 식별 확인.
+- 파일 크기·SHA-256 제공.
+- 실제 Windows 설치·제거를 실행하지 못했다면
+  정적 검증과 구분하여 미검증으로 보고.
+- 전달 한도 초과 시 검증된 분할 전달 방식 재사용.
+- installer를 받기 위한 추가 설치 도구는 요구하지 않는다.
+
+5. F07 통합 수용 안내
+이번 설치본 하나로 아래를 묶어 확인하도록 준비:
+- 일반 사용자 설치·바탕화면/시작 메뉴 실행.
+- 로그인 유지 OFF 종료/재실행.
+- ON 저장·종료/재실행·서버 재검증.
+- 명시적 로그아웃 후 재인증 및 마지막 아이디/선택값 유지.
+- 네트워크 단절/복구와 검색·필터·Drawer 보존.
+- 보조 계정의 기존 OFFICE 접근 정책.
+- 정상 종료·재설치·제거.
+
+이미 통과한 회원별 상세·발행 이력 검사를 반복 요구하지 않는다.
+운영 회원·권한·PIN·TOTP 변경 실험 금지.
+
+완료보고 =
+TASK = PASS / HOLD
+F06 ORIGINAL SCOPE =
+SOURCE HEAD / DIFF ID / PACKAGE ID =
+CHANGED FILES =
+INSTALL / SHORTCUT / REINSTALL / UNINSTALL POLICY =
+BUILD / LIMITED VALIDATION =
+INSTALLER / SIZE / SHA-256 =
+DELIVERY =
+WINDOWS VERIFIED / NOT VERIFIED =
+F07 USER CHECKS =
+NOT RUN =
+
+Render 배포·OTA·공개 배포·새 업무 기능 실행 금지.
+제작 PASS와 Windows 설치 수용 PASS를 구분.
+보고 후 정지.
