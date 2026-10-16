@@ -23,6 +23,8 @@ function bridge() {
     restoreSession: vi.fn(async () => ({ token: null, remembered: false })),
     commitSession: vi.fn(async () => ({ ok: true })),
     clearSession: vi.fn(async () => ({ ok: true })),
+    readLoginPreferences: vi.fn(async () => ({ loginId: "", remember: false })),
+    saveLoginPreferences: vi.fn(async () => ({ ok: true })),
   };
 }
 beforeEach(() => { vi.clearAllMocks(); useDesktopTokenStorage(); allow(); });

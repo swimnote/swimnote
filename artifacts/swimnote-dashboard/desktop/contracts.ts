@@ -16,9 +16,14 @@ export type SessionRestore = Readonly<{
   error?: StorageError;
 }>;
 
+/** Only login convenience; never credentials, temporary sessions or arbitrary settings. */
+export type LoginPreferences = Readonly<{ loginId: string; remember: boolean }>;
+
 export type OfficeDesktopBridge = Readonly<{
   getBootstrapInfo: () => Promise<BootstrapInfo>;
   restoreSession: () => Promise<SessionRestore>;
   commitSession: (session: SessionWrite) => Promise<SessionResult>;
   clearSession: () => Promise<SessionResult>;
+  readLoginPreferences: () => Promise<LoginPreferences>;
+  saveLoginPreferences: (preferences: LoginPreferences) => Promise<{ ok: boolean }>;
 }>;

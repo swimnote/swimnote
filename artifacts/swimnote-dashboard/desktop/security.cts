@@ -2,7 +2,7 @@ import path from "node:path";
 
 export const ENTRY_URL = "app://office/admin/login";
 export const BOOTSTRAP_CHANNEL = "office:bootstrap-info";
-// Authentication + the existing pool-scoped SSE only. No wildcard host or main HTTP proxy.
+// Canonical authentication, pool SSE and the F05 read-only runtime. No HTTP proxy.
 export const AUTH_API_ORIGIN = "https://swimnote-api.onrender.com";
 const AUTH_ROUTES: Record<string, readonly string[]> = {
   "/api/auth/login": ["POST", "OPTIONS"],
@@ -17,8 +17,14 @@ const AUTH_ROUTES: Record<string, readonly string[]> = {
 export function isAllowedAuthRequest(raw: string, method: string): boolean {
   try {
     const url = new URL(raw);
-    return url.origin === AUTH_API_ORIGIN && !url.username && !url.password &&
-      !url.search && !url.hash && !!AUTH_ROUTES[url.pathname]?.includes(method);
+    if (url.origin !== AUTH_API_ORIGIN || url.username || url.password || url.hash) return false;
+    if (!url.search && AUTH_ROUTES[url.pathname]?.includes(method)) return true;
+    if (method !== "GET" && method !== "OPTIONS") return false;
+    if (url.pathname === "/api/students") return url.search === "?pool_all=true";
+    return !url.search && (
+      url.pathname === "/api/admin/dashboard-stats" || url.pathname === "/api/class-groups" ||
+      /^\/api\/admin\/growth-reports\/students\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(url.pathname)
+    );
   } catch { return false; }
 }
 export const CONTENT_SECURITY_POLICY = [

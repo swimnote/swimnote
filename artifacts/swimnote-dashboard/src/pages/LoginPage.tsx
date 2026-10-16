@@ -32,6 +32,7 @@ export default function LoginPage() {
 
 export function LoginForm({
   login, bootstrapOnly = false, desktop = false, beforeCredentials, footer, redirectAfterLogin = true,
+  initialLoginId = "", onLoginCandidate,
 }: {
   login: (token: string) => Promise<void>;
   bootstrapOnly?: boolean;
@@ -39,11 +40,13 @@ export function LoginForm({
   beforeCredentials?: () => Promise<void>;
   footer?: ReactNode;
   redirectAfterLogin?: boolean;
+  initialLoginId?: string;
+  onLoginCandidate?: (loginId: string) => void;
 }) {
   const [, navigate] = useLocation();
 
   const [step, setStep] = useState<LoginStep>({ kind: "credentials" });
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialLoginId);
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -58,6 +61,8 @@ export function LoginForm({
   }, [pin, step]);
 
   async function completeLogin(token: string) {
+    // Candidate identity stays in renderer memory until canonical verification succeeds.
+    onLoginCandidate?.(email.trim());
     await login(token);
     setPassword("");
     setPin("");

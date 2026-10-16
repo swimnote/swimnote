@@ -1,4 +1,4 @@
-import { getToken, clearToken, isDesktopTokenStorage } from "./token";
+import { getToken, clearToken, isDesktopTokenStorage, getAuthGeneration } from "./token";
 
 const API_BASE = import.meta.env.VITE_API_BASE as string | undefined;
 
@@ -20,6 +20,15 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
+  const generation = getAuthGeneration();
+  const assertSession = () => {
+    if (isDesktopTokenStorage() && generation !== getAuthGeneration()) {
+      throw new DOMException("이전 로그인 조회를 취소했습니다.", "AbortError");
+    }
+  };
+  if (isDesktopTokenStorage() && options.method && options.method !== "GET") {
+    throw { status: 403, message: "현재 Desktop은 조회 전용입니다." } as ApiError;
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -32,10 +41,12 @@ async function request<T>(
     ...options,
     headers,
   });
+  assertSession();
 
   if (res.status === 401) {
     if (!isDesktopTokenStorage() || getToken() === token) clearToken();
     if (!isDesktopTokenStorage()) window.location.replace("/admin/login");
+    else window.dispatchEvent(new Event("office:session-invalid"));
     throw { status: 401, message: "인증이 만료되었습니다." } as ApiError;
   }
 
@@ -43,6 +54,7 @@ async function request<T>(
     let message = `서버 오류 (${res.status})`;
     try {
       const body = await res.json();
+      assertSession();
       message = body.message ?? body.error ?? message;
     } catch {
       // non-JSON error
@@ -50,7 +62,9 @@ async function request<T>(
     throw { status: res.status, message } as ApiError;
   }
 
-  return res.json() as Promise<T>;
+  const body = await res.json();
+  assertSession();
+  return body as T;
 }
 
 export const api = {
@@ -65,6 +79,7 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   /** Multipart/form-data upload — no Content-Type override (browser sets boundary) */
   postForm: async <T>(path: string, formData: FormData): Promise<T> => {
+    if (isDesktopTokenStorage()) throw { status: 403, message: "현재 Desktop은 조회 전용입니다." } as ApiError;
     const token = getToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;

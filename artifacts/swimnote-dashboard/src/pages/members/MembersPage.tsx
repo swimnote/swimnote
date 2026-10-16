@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { isDesktopTokenStorage } from "@/lib/token";
 import { api, type ApiError } from "@/lib/api-client";
 import {
   Search, X, ChevronLeft, ChevronRight, UserMinus,
@@ -101,7 +102,8 @@ type DrawerProps = {
   onViewDiary: (studentId: string) => void;
 };
 
-function MemberDrawer({ student, classGroups, onClose, onWithdraw, onSuspend, onEdit, onViewDiary }: DrawerProps) {
+function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewDiary }: DrawerProps) {
+  const readOnly = isDesktopTokenStorage();
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -130,6 +132,8 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onSuspend, on
       {/* Drawer */}
       <div
         ref={drawerRef}
+        role="dialog"
+        aria-label="회원 상세"
         style={{
           position: "fixed",
           right: 0,
@@ -253,6 +257,7 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onSuspend, on
           }}
         >
           <button
+            disabled={readOnly}
             onClick={() => onEdit(student)}
             style={{
               flex: 1,
@@ -273,6 +278,7 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onSuspend, on
             <Edit2 size={14} /> 수정
           </button>
           <button
+            disabled={readOnly}
             onClick={() => { onViewDiary(student.id); onClose(); }}
             style={{
               flex: 1,
@@ -294,6 +300,7 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onSuspend, on
           </button>
           {student.status === "active" && (
             <button
+              disabled={readOnly}
               onClick={() => onSuspend(student.id, student.name)}
               style={{
                 flex: 1,
@@ -316,6 +323,7 @@ function MemberDrawer({ student, classGroups, onClose, onWithdraw, onSuspend, on
           )}
           {(student.status === "active" || student.status === "suspended") && (
             <button
+              disabled={readOnly}
               onClick={() => onWithdraw(student.id, student.name)}
               style={{
                 flex: 1,
@@ -363,9 +371,9 @@ function formatGrPeriod(period: string): string {
 }
 
 function GrHistorySection({ studentId }: { studentId: string }) {
-  const { data, isLoading, isError } = useQuery<{ success: boolean; reports: GrSummaryItem[] }>({
+  const { data, isLoading, isError, refetch } = useQuery<{ success: boolean; reports: GrSummaryItem[] }>({
     queryKey: ["member-gr-history", studentId],
-    queryFn: () => api.get(`/admin/growth-reports/students/${studentId}`),
+    queryFn: ({ signal }) => api.get(`/admin/growth-reports/students/${studentId}`, { signal }),
     staleTime: 60_000,
   });
 
@@ -379,7 +387,9 @@ function GrHistorySection({ studentId }: { studentId: string }) {
       {isLoading ? (
         <div style={{ fontSize: "13px", color: "#9CA3AF" }}>로딩 중…</div>
       ) : isError ? (
-        <div style={{ fontSize: "13px", color: "#EF4444" }}>불러오지 못했습니다.</div>
+        <div style={{ fontSize: "13px", color: "#EF4444" }}>불러오지 못했습니다.
+          <button type="button" onClick={() => void refetch()}>다시 조회</button>
+        </div>
       ) : items.length === 0 ? (
         <div style={{ fontSize: "13px", color: "#9CA3AF" }}>발행된 성장리포트가 없습니다.</div>
       ) : (
@@ -739,6 +749,7 @@ async function downloadMembersExcel(statusFilter: string, classFilter: string) {
 }
 
 export default function MembersPage() {
+  const readOnly = isDesktopTokenStorage();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const [excelLoading, setExcelLoading] = useState(false);
@@ -758,16 +769,20 @@ export default function MembersPage() {
   // Fetch all students
   const { data: allStudents = [], isLoading, isError, refetch } = useQuery<Student[]>({
     queryKey: ["students"],
-    queryFn: () => api.get<Student[]>("/students?pool_all=true"),
+    queryFn: ({ signal }) => api.get<Student[]>("/students?pool_all=true", { signal }),
     staleTime: 30_000,
   });
 
   // Fetch class groups for filter + edit
-  const { data: classGroups = [] } = useQuery<ClassGroup[]>({
+  const { data: classGroups = [], isError: classesError, refetch: refetchClasses } = useQuery<ClassGroup[]>({
     queryKey: ["class-groups"],
-    queryFn: () => api.get<ClassGroup[]>("/class-groups"),
+    queryFn: ({ signal }) => api.get<ClassGroup[]>("/class-groups", { signal }),
     staleTime: 120_000,
   });
+
+  // Keep selection by identity, not an open-time data snapshot. A refresh never closes
+  // the drawer or resets search/filter; a removed member is explicitly reported.
+  const currentStudent = selectedStudent ? allStudents.find(student => student.id === selectedStudent.id) : null;
 
   // Client-side filtering
   const filtered = useMemo(() => {
@@ -794,6 +809,7 @@ export default function MembersPage() {
   }, [search, statusFilter, classFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => { setPage(current => Math.min(current, totalPages)); }, [totalPages]);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Withdraw mutation
@@ -835,6 +851,7 @@ export default function MembersPage() {
         <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: 0 }}>회원</h1>
         <div style={{ display: "flex", gap: "8px" }}>
           <button
+            disabled={readOnly}
             onClick={() => navigate("/admin/members/withdrawn")}
             style={{
               display: "flex", alignItems: "center", gap: "5px",
@@ -846,7 +863,7 @@ export default function MembersPage() {
             <RefreshCw size={13} /> 지난 회원
           </button>
           <button
-            disabled={excelLoading}
+            disabled={readOnly || excelLoading}
             onClick={async () => {
               setExcelLoading(true);
               try { await downloadMembersExcel(statusFilter, classFilter); }
@@ -864,6 +881,7 @@ export default function MembersPage() {
             <Download size={13} /> {excelLoading ? "다운로드 중…" : "Excel"}
           </button>
           <button
+            disabled={readOnly}
             onClick={() => navigate("/admin/members/new")}
             style={{
               display: "flex", alignItems: "center", gap: "5px",
@@ -877,6 +895,9 @@ export default function MembersPage() {
         </div>
       </div>
 
+      {classesError && <p role="alert">반 정보를 불러오지 못했습니다. 반 필터 정보를 확인할 수 없습니다.
+        <button type="button" onClick={() => void refetchClasses()}>다시 조회</button>
+      </p>}
       {/* Filters */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
         {/* Search */}
@@ -949,7 +970,7 @@ export default function MembersPage() {
           </div>
         ) : paged.length === 0 ? (
           <div style={{ padding: "48px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
-            {search || statusFilter || classFilter
+            {allStudents.length > 0 && (search || statusFilter || classFilter)
               ? "검색 결과가 없습니다."
               : "등록된 회원이 없습니다."}
           </div>
@@ -1053,7 +1074,7 @@ export default function MembersPage() {
 
       {/* Detail Drawer */}
       <MemberDrawer
-        student={selectedStudent}
+        student={readOnly ? currentStudent ?? null : selectedStudent}
         onViewDiary={(sid) => navigate(`/admin/diary?student_id=${sid}`)}
         classGroups={classGroups}
         onClose={handleDrawerClose}
@@ -1063,7 +1084,12 @@ export default function MembersPage() {
       />
 
       {/* Edit Modal */}
-      {editStudent && (
+      {readOnly && selectedStudent && !currentStudent && !isLoading && (
+        <section role="status">선택한 회원이 현재 목록에 없습니다.
+          <button onClick={handleDrawerClose}>선택 해제</button>
+        </section>
+      )}
+      {!readOnly && editStudent && (
         <EditModal
           student={editStudent}
           classGroups={classGroups}

@@ -9,7 +9,7 @@ import {
   resolveRendererPath, validateDevelopmentURL, isAllowedAuthRequest,
 } from "./security.cjs";
 import { TokenStore } from "./token-store.cjs";
-import { registerSessionIPC } from "./session-ipc.cjs";
+import { registerSessionIPC, registerLoginPreferencesIPC, LoginPreferencesStore } from "./session-ipc.cjs";
 
 protocol.registerSchemesAsPrivileged([{
   scheme: "app",
@@ -98,6 +98,9 @@ async function createWindow() {
   });
   const store = new TokenStore(app.getPath("userData"), safeStorage, process.platform);
   const removeSessionIPC = registerSessionIPC(ipcMain, win.webContents, store, developmentURL);
+  const removePreferencesIPC = registerLoginPreferencesIPC(
+    ipcMain, win.webContents, new LoginPreferencesStore(app.getPath("userData")), developmentURL,
+  );
   win.once("ready-to-show", () => {
     if (saved.maximized === true) win.maximize();
     win.show();
@@ -114,6 +117,7 @@ async function createWindow() {
   win.on("closed", () => {
     ipcMain.removeHandler(BOOTSTRAP_CHANNEL);
     removeSessionIPC();
+    removePreferencesIPC();
     mainWindow = null;
   });
   await win.loadURL(developmentURL || ENTRY_URL);

@@ -7,6 +7,7 @@ import {
   Settings, LogOut, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { isDesktopTokenStorage } from "@/lib/token";
 
 type NavItem =
   | { kind: "link"; label: string; icon: React.ReactNode; path: string }
@@ -91,6 +92,10 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export function Sidebar() {
+  const desktop = isDesktopTokenStorage();
+  const items = desktop ? NAV_ITEMS.filter(item => item.kind === "link" ? item.path === "/admin" : item.label === "회원")
+    .map(item => item.kind === "group" ? { ...item, children: item.children.filter(child => child.path === "/admin/members") } : item)
+    : NAV_ITEMS;
   const { state, logout } = useAuth();
   const [location, navigate] = useLocation();
 
@@ -183,7 +188,7 @@ export function Sidebar() {
           padding: "8px 0",
         }}
       >
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           if (item.kind === "link") {
             const active = isActive(item.path);
             return (
@@ -290,12 +295,12 @@ export function Sidebar() {
           }}
         />
 
-        <NavLinkItem
+        {!desktop && <NavLinkItem
           icon={<Settings size={16} />}
           label="설정"
           active={isActive("/admin/settings")}
           onClick={() => goTo("/admin/settings")}
-        />
+        />}
       </nav>
 
       {/* Logout */}

@@ -7,5 +7,7 @@ const bridge: OfficeDesktopBridge = Object.freeze({
   restoreSession: () => ipcRenderer.invoke("office:session-restore", null),
   commitSession: (session) => ipcRenderer.invoke("office:session-commit", session),
   clearSession: () => ipcRenderer.invoke("office:session-clear", null),
+  readLoginPreferences: () => ipcRenderer.invoke("office:login-preferences-read", null),
+  saveLoginPreferences: (preferences) => ipcRenderer.invoke("office:login-preferences-save", preferences),
 });
 contextBridge.exposeInMainWorld("officeDesktop", bridge);

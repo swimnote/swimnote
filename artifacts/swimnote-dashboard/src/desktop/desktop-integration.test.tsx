@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DesktopApp } from "./DesktopApp";
 import { getToken, useDesktopTokenStorage } from "../lib/token";
 import { queryClient } from "../lib/query-client";
+import { Router } from "wouter";
 
 vi.mock("../lib/api-client", () => ({
   publicPost: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("../lib/api-client", () => ({
       };
       if (route === "/pools/my-pools") return [{ id: "fixture-pool", name: "검증 Pool" }];
       if (route === "/pools/x-mode") return { pool_id: "fixture-pool", mode: "x" };
+      if (route === "/admin/dashboard-stats") return { total_members: 0, today_present: 0, pending_makeups: 0, pending_requests: 0 };
       throw new Error("Unexpected fixture route");
     }),
   },
@@ -27,12 +29,15 @@ let clear: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   useDesktopTokenStorage();
   queryClient.clear();
+  window.history.replaceState({}, "", "/admin/login");
   clear = vi.fn(async () => ({ ok: true }));
   Object.defineProperty(window, "officeDesktop", { configurable: true, value: {
     getBootstrapInfo: async () => ({ stage: "F03", platform: "win32", packaged: true, version: "fixture" }),
     restoreSession: async () => ({ token, remembered: true }),
     commitSession: async () => ({ ok: true }),
     clearSession: clear,
+    readLoginPreferences: async () => ({ loginId: "", remember: false }),
+    saveLoginPreferences: async () => ({ ok: true }),
   } });
   vi.stubGlobal("fetch", vi.fn(async (_url, init) => ({
     status: 200, ok: true,
@@ -54,12 +59,12 @@ afterEach(() => {
 });
 
 it("shows safe identity/revalidation/storage/SSE states; offline does not erase the session", async () => {
-  const view = render(<DesktopApp />);
+  const view = render(<Router><DesktopApp /></Router>);
   await screen.findByText(/실시간 연결 확인됨/);
   expect(screen.getByText(/서버 사용자·Pool·권한 재검증 완료/)).toBeTruthy();
   expect(screen.getByText(/main 안전 저장 성공 응답 확인/)).toBeTruthy();
-  expect(screen.getByText(/업무 조회 대상: 없음/)).toBeTruthy();
-  expect(view.container.textContent).not.toMatch(/PRIVATE_NAME|PRIVATE_EMAIL|fixture\.final\.token/);
+  expect(screen.getByText(/업무 조회 대상: Dashboard/)).toBeTruthy();
+  expect(view.container.textContent).not.toMatch(/PRIVATE_EMAIL|fixture\.final\.token/);
   await act(async () => window.dispatchEvent(new Event("offline")));
   expect(screen.getByText(/네트워크 복구 후 자동 재연결/)).toBeTruthy();
   expect(clear).not.toHaveBeenCalled();
@@ -71,7 +76,7 @@ it("shows safe identity/revalidation/storage/SSE states; offline does not erase 
 });
 
 it("clears main storage, in-memory token, private UI and query cache on authoritative SSE denial", async () => {
-  const view = render(<DesktopApp />);
+  const view = render(<Router><DesktopApp /></Router>);
   await screen.findByText(/실시간 연결 확인됨/);
   queryClient.setQueryData(["students"], [{ phone: "PRIVATE_PHONE" }]);
   await act(async () => {

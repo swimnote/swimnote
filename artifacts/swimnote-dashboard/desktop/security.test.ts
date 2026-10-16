@@ -105,7 +105,9 @@ describe("renderer trust and minimal IPC", () => {
     expect(source).toContain("Object.freeze");
     expect(source).toContain('exposeInMainWorld("officeDesktop", bridge)');
     expect(source).toContain('ipcRenderer.invoke("office:bootstrap-info", null)');
-    expect(source.match(/ipcRenderer\.invoke\(/g)).toHaveLength(4);
+    expect(source.match(/ipcRenderer\.invoke\(/g)).toHaveLength(6);
+    expect(source).toContain('"office:login-preferences-read", null');
+    expect(source).toContain('"office:login-preferences-save", preferences');
     expect(source).not.toMatch(/node:fs|nodeIntegration|sendSync|shell\.|process\.env|fetch\(|https?:/);
   });
   it("main checks exact sender and main frame and keeps all security settings", () => {

@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useSyncExternalStore, type ReactNode } from "react";
+import type { DesktopSessionController } from "../desktop/session-controller";
 import { readAuthSession } from "@/lib/auth-session";
 import type { AuthUser } from "@/lib/auth-session";
 import { getToken, setToken, clearToken } from "@/lib/token";
@@ -19,7 +20,27 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children, desktopSession }: {
+  children: ReactNode; desktopSession?: DesktopSessionController;
+}) {
+  return desktopSession
+    ? <DesktopAuthProvider controller={desktopSession}>{children}</DesktopAuthProvider>
+    : <WebAuthProvider>{children}</WebAuthProvider>;
+}
+
+function DesktopAuthProvider({ controller, children }: {
+  controller: DesktopSessionController; children: ReactNode;
+}) {
+  const source = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  const state: AuthState = source.status === "authenticated"
+    ? { status: "authenticated", user: source.user }
+    : source.status === "login" ? { status: "unauthenticated" } : { status: "loading" };
+  return <AuthContext.Provider value={{
+    state, login: token => controller.accept(token, false), logout: () => { void controller.logout(); },
+  }}>{children}</AuthContext.Provider>;
+}
+
+function WebAuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
   const loadUser = useCallback(async () => {

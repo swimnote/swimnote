@@ -2,6 +2,41 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => { localStorage.clear(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+it.each([200, 401])("a late Desktop response %s cannot populate or clear a replacement session", async status => {
+  vi.resetModules();
+  vi.stubEnv("VITE_API_BASE", "https://fixture.invalid/api");
+  const storage = await import("../lib/token");
+  storage.useDesktopTokenStorage();
+  storage.setToken("old-fixture");
+  let resolve!: (response: Response) => void;
+  vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(done => { resolve = done; })));
+  const { api } = await import("../lib/api-client");
+  const pending = api.get("/students?pool_all=true");
+  const assertion = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  storage.clearToken(); storage.setToken("new-fixture");
+  resolve(new Response('{"private":"old"}', { status }));
+  await assertion;
+  expect(storage.getToken()).toBe("new-fixture");
+});
+
+it("blocks Desktop business writes before fetch, while leaving Web writes unchanged", async () => {
+  vi.resetModules();
+  vi.stubEnv("VITE_API_BASE", "https://fixture.invalid/api");
+  const storage = await import("../lib/token");
+  const fetcher = vi.fn(async () => new Response('{"ok":true}'));
+  vi.stubGlobal("fetch", fetcher);
+  const { api } = await import("../lib/api-client");
+  await api.patch("/admin/students/fixture/info", {});
+  expect(fetcher).toHaveBeenCalledOnce();
+  fetcher.mockClear();
+  storage.useDesktopTokenStorage();
+  await expect(api.patch("/admin/students/fixture/info", {})).rejects.toMatchObject({ status: 403 });
+  await expect(api.post("/students", {})).rejects.toMatchObject({ status: 403 });
+  await expect(api.delete("/students/fixture")).rejects.toMatchObject({ status: 403 });
+  await expect(api.postForm("/students", new FormData())).rejects.toMatchObject({ status: 403 });
+  expect(fetcher).not.toHaveBeenCalled();
+});
 describe("Web adapter compatibility and Desktop memory-only boundary", () => {
   it("Web continues to use its existing x_token storage key", async () => {
     vi.resetModules();

@@ -2,6 +2,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
+import { isDesktopTokenStorage } from "@/lib/token";
 import {
   UserPlus, BookOpen, Calendar, TrendingUp,
   FileText, Settings, AlertCircle,
@@ -68,6 +69,7 @@ type StatCard = {
 };
 
 export default function HomePage() {
+  const desktop = isDesktopTokenStorage();
   const { state } = useAuth();
   const [, navigate] = useLocation();
 
@@ -78,9 +80,10 @@ export default function HomePage() {
     data: stats,
     isError,
     isLoading,
+    refetch,
   } = useQuery<DashboardStats>({
     queryKey: ["dashboard-stats", poolId],
-    queryFn: () => api.get<DashboardStats>("/admin/dashboard-stats"),
+    queryFn: ({ signal }) => api.get<DashboardStats>("/admin/dashboard-stats", { signal }),
     enabled: !!poolId,
     staleTime: 60_000,
   });
@@ -169,6 +172,7 @@ export default function HomePage() {
           >
             <AlertCircle size={16} />
             현황 정보를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.
+            <button type="button" onClick={() => void refetch()}>다시 조회</button>
           </div>
         ) : (
           <div
@@ -268,7 +272,9 @@ export default function HomePage() {
             gap: "12px",
           }}
         >
-          {QUICK_ACTIONS.map((action) => (
+          {(desktop ? [{
+            icon: <BookOpen size={20} />, label: "회원목록", description: "회원 검색·필터·상세를 조회합니다.", path: "/admin/members",
+          }] : QUICK_ACTIONS).map((action) => (
             <button
               key={action.path}
               onClick={() => navigate(action.path)}

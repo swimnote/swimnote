@@ -20,6 +20,7 @@ const EVENT_QUERY_MAP: Record<string, string[][]> = {
     ["students"],
     ["withdrawn-members"],
     ["dashboard-stats"],
+    ["member-gr-history"],
   ],
   "class.changed": [
     ["class-groups"],
@@ -31,6 +32,7 @@ const EVENT_QUERY_MAP: Record<string, string[][]> = {
     ["dashboard-stats"],
   ],
   "growth_report.changed": [
+    ["member-gr-history"],
     ["growth-reports-list"],
     ["growth-reports-pending"],
     ["growth-reports-published"],
