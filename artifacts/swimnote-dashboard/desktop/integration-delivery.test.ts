@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error Small build-only ESM helper has no runtime renderer dependency.
-import { assemblyCommand } from "./integration-delivery.mjs";
+import { assemblyCommand, f05FixInstructions } from "./integration-delivery.mjs";
 
 const zip = "SWIMNOTE-OFFICE-F03-F04-win32-x64-unpacked.zip";
 const parts = [zip + ".part01", zip + ".part02"];
 const hash = "a".repeat(64);
 
 describe("F03/F04 delivery script static safety contract (not Windows execution)", () => {
+  it("reuses the corrected CMD for a distinct F05-FIX output and focused instructions", () => {
+    const script = assemblyCommand("SWIMNOTE-OFFICE-F05-FIX-win32-x64-unpacked.zip",
+      ["SWIMNOTE-OFFICE-F05-FIX-win32-x64-unpacked.zip.part01"], hash, "F05-FIX-Windows");
+    expect(script).toContain("$destination=Join-Path $root 'F05-FIX-Windows';");
+    expect(script).toContain("$ErrorActionPreference='Stop'; $tmp=$null; try {");
+    expect(f05FixInstructions).toContain("START-F05-FIX.cmd");
+    expect(f05FixInstructions).toContain("동일 회원");
+    expect(f05FixInstructions).toContain("홈·창 동작을 처음부터 반복하지 않습니다");
+  });
   it("uses relative inputs, CRLF and ordinary Windows PowerShell without policy overrides", () => {
     const script = assemblyCommand(zip, parts, hash);
     expect(script).toContain('pushd "%~dp0"\r\n');

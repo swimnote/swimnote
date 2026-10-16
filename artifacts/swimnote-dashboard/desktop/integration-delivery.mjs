@@ -67,6 +67,33 @@ DPAPI의 실제 복원·삭제는 재실행과 로그아웃 결과로 제한 확
 실제 권한 회수·장시간 만료·부하 테스트는 이번 사용자 검사의 필수 항목이 아닙니다.
 `;
 
+export const f05FixInstructions = `SWIMNOTE OFFICE F05-FIX Windows 조회 수정 검증본
+
+unsigned Windows x64 unpacked입니다. installer가 아닙니다.
+F05-FIX-SOURCE.json 및 앱 상단 새 검증본 ID를 확인합니다.
+제작·전달 성공과 실제 Windows 오류 해결은 별개입니다.
+
+1. DOWNLOAD ZIP 전부의 내용물을 같은 새 폴더에 압축 해제합니다.
+   모든 .part 조각과 START-F05-FIX.cmd를 한곳에 모읍니다.
+2. START-F05-FIX.cmd 실행 → SHA-256 확인·압축 해제 → 프로그램 폴더 열기.
+   기존 출력·누락·해시 불일치 시 STOP합니다. EXE는 자동 실행하지 않습니다.
+3. 열린 폴더의 SwimnoteOffice.exe를 직접 일반 사용자로 실행합니다.
+   보안 차단 시 중단하며 관리자 권한·정책 변경·추가 다운로드는 요구하지 않습니다.
+
+확인 범위:
+- 이미 실패했던 동일 회원의 상세에서 발행 이력 또는 정상 빈 상태를 확인합니다.
+- 실패하면 새 오류 분류와 표시된 HTTP 상태만 확인합니다.
+  네트워크·보안 정책 계열의 세부 원인은 표시만으로 확정하지 않습니다.
+- 수정·일지 보기·연기·퇴원 버튼의 비활성 스타일과 이유를 확인합니다.
+- 이미 통과한 홈·창 동작을 처음부터 반복하지 않습니다.
+- 나머지 기존 F05 수용 항목은 이번 확인으로 PASS 처리하지 않습니다.
+
+운영 쓰기·테스트 회원 생성·권한/PIN/TOTP 변경은 하지 않습니다.
+화면 전달 시 회원·보호자 식별정보를 가립니다.
+token·암호문 파일·비밀번호·PIN·TOTP 원문을 제출하지 마세요.
+Windows CMD→PowerShell 및 수정 앱의 실제 실행은 제작 환경에서 미검증입니다.
+`;
+
 export const f05Instructions = `SWIMNOTE OFFICE F05 Windows 조회 통합 검증본
 
 unsigned Windows x64 unpacked입니다. installer·최종 출시본이 아닙니다.

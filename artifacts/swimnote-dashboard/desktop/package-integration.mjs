@@ -6,9 +6,10 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { sourceIdentity, dashboard, repo, output, sha, verificationStage } from "./verification-source.mjs";
-import { assemblyCommand, instructions as legacyInstructions, f05Instructions } from "./integration-delivery.mjs";
+import { assemblyCommand, instructions as legacyInstructions, f05Instructions, f05FixInstructions } from "./integration-delivery.mjs";
 
-const instructions = verificationStage === "F05" ? f05Instructions : legacyInstructions;
+const instructions = verificationStage === "F05-FIX" ? f05FixInstructions
+  : verificationStage === "F05" ? f05Instructions : legacyInstructions;
 
 const require = createRequire(import.meta.url);
 const asar = createRequire(require.resolve("@electron/packager"))("@electron/asar");
