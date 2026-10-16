@@ -12,6 +12,7 @@ import { recordResponseTime } from "./lib/responseTracker.js";
 import { requireNotDeactivated } from "./lib/deactivationGuard.js";
 import { errorTrackingMiddleware } from "./middlewares/error-tracking.js";
 import { requestLogger } from "./lib/logger.js";
+import { createCorsOptions, OriginDeniedError } from "./lib/cors-policy.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,33 +22,7 @@ const app: Express = express();
 app.use(requestLogger);
 
 // ── CORS ─────────────────────────────────────────────────────────────
-const ALLOWED_ORIGINS = [
-  // 프로덕션 도메인
-  "https://swimnote.kr",
-  "https://www.swimnote.kr",
-  // Render production 서버 (신규)
-  /^https:\/\/.*\.onrender\.com$/,
-  // Replit 운영 도메인
-  /^https:\/\/[\w-]+\.replit\.app$/,
-  // EAS 빌드 / 개발 Expo
-  /^https:\/\/.*\.expo\.dev$/,
-  /^https:\/\/.*\.replit\.dev$/,
-  /^https:\/\/.*\.sisko\.replit\.dev$/,
-  /^https:\/\/.*\.pike\.replit\.dev$/,
-];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (process.env.NODE_ENV !== "production") return callback(null, true);
-    const allowed = ALLOWED_ORIGINS.some(o =>
-      typeof o === "string" ? o === origin : o.test(origin)
-    );
-    if (allowed) return callback(null, true);
-    return callback(new Error(`CORS 차단: ${origin}`));
-  },
-  credentials: true,
-}));
+app.use(cors(createCorsOptions()));
 
 // ── Route-scoped body limit: 대량 회원등록 bulk 전용 5MB ──────────────────
 // 반드시 global express.json() 보다 먼저 등록해야 함
@@ -391,6 +366,10 @@ app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
 // 전역 에러 핸들러 — 프로덕션에서는 내부 메시지 노출 안 함
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof OriginDeniedError) {
+    res.status(403).json({ success: false, error: "origin_not_allowed", message: err.message });
+    return;
+  }
   console.error("[Global Error]", err);
   const isProd = process.env.NODE_ENV === "production";
   res.status(500).json({

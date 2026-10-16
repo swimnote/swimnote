@@ -9,7 +9,7 @@
  * - 개인정보 payload 없음: { type, entity_id } 만 수신
  */
 
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 
@@ -67,6 +67,7 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
   const backoffIdx = useRef(0);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -74,6 +75,8 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
   }, []);
 
   useEffect(() => {
+    setConnected(false);
+    backoffIdx.current = 0;
     if (!token) {
       // Not logged in — abort any existing connection
       abortRef.current?.abort();
@@ -82,6 +85,7 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
     }
 
     let stopped = false;
+    let authRejected = false;
 
     function clearReconnect() {
       if (reconnectTimer.current) {
@@ -91,8 +95,10 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
     }
 
     async function connect() {
-      if (stopped || !mountedRef.current) return;
+      if (stopped || authRejected || !mountedRef.current) return;
       clearReconnect();
+      abortRef.current?.abort();
+      setConnected(false);
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -110,10 +116,12 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
           },
           signal: controller.signal,
         });
+        if (stopped || controller.signal.aborted || abortRef.current !== controller) return;
 
-        if (resp.status === 401) {
+        if (resp.status === 401 || resp.status === 403) {
           // Token invalid — stop reconnecting, let auth layer handle
-          console.warn("[realtime] SSE 401 — stopping");
+          authRejected = true;
+          setConnected(false);
           return;
         }
 
@@ -123,6 +131,7 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
 
         // Reset backoff on successful connection
         backoffIdx.current = 0;
+        setConnected(true);
 
         const reader = resp.body.getReader();
         const decoder = new TextDecoder();
@@ -130,6 +139,7 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
 
         while (true) {
           const { value, done } = await reader.read();
+          if (stopped || controller.signal.aborted || abortRef.current !== controller) return;
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
 
@@ -154,17 +164,18 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
         }
 
         // Stream ended normally — reconnect
-        if (!stopped) scheduleReconnect();
+        if (!stopped) { setConnected(false); scheduleReconnect(); }
 
       } catch (e: any) {
-        if (e?.name === "AbortError" || stopped) return;
+        if (e?.name === "AbortError" || stopped || controller.signal.aborted || abortRef.current !== controller) return;
+        setConnected(false);
         console.warn("[realtime] SSE error:", e?.message);
         scheduleReconnect();
       }
     }
 
     function scheduleReconnect() {
-      if (stopped || !mountedRef.current) return;
+      if (stopped || authRejected || !mountedRef.current) return;
       const delay = BACKOFF_STEPS[Math.min(backoffIdx.current, BACKOFF_STEPS.length - 1)];
       backoffIdx.current = Math.min(backoffIdx.current + 1, BACKOFF_STEPS.length - 1);
       console.log(`[realtime] reconnect in ${delay}ms`);
@@ -192,7 +203,7 @@ export function RealtimeProvider({ children, token }: { children: React.ReactNod
   }, [token, qc]);
 
   return (
-    <RealtimeContext.Provider value={{ connected: !!token }}>
+    <RealtimeContext.Provider value={{ connected: !!token && connected }}>
       {children}
     </RealtimeContext.Provider>
   );

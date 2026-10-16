@@ -1,0 +1,108 @@
+[전달 대상: SWIMNOTE APP Replit]
+PROJECT = SWIMNOTE OFFICE V1
+TASK = F04 Desktop Origin/CORS 연결 및 API·SSE 검증 준비
+
+선행 상태 =
+F02 제한 범위 PASS.
+F03 구현 보존, 실제 인증·Windows 안전저장 검증은 HOLD.
+관측된 차단:
+- app://office preflight HTTP 500, 허용 Origin 헤더 없음.
+- https://swimnote.kr preflight HTTP 204, 허용 헤더 있음.
+같은 원인 조사·실패 요청을 불필요하게 반복하지 않는다.
+
+필수 참조 =
+AGENTS.md
+replit.md
+docs/office/ui-ux-constitution-v1.0.md
+기존 OFFICE 고정계획서·F03 구현/검증 기록.
+
+1. 시작 상태 및 변경 이력
+- 현재 branch·full HEAD·작업 트리 확인.
+- 기존 코드·문서·첨부·미커밋 변경 보존.
+- F03 기준 d6b889d2a564dc1eaf44d01594d9572f9b9d258b
+  이후 현재 HEAD까지 관련 diff와 commit 범위를 확인.
+- 기존 commit의 생성 주체는 증거 없이 추정하지 않는다.
+- 현재 HEAD를 운영 배포 source로 자동 지정하지 않는다.
+- reset/checkout·이력 재작성·새 commit/push 금지.
+
+2. CORS 최소 수정
+- 기존 서버 CORS·Origin 검증 구조를 재사용.
+- OFFICE packaged Origin인 app://office만 정확히 허용.
+- null Origin·전체 app://·와일드카드 허용 금지.
+- Origin 문자열 부분 일치로 허용하지 않는다.
+- 기존 웹·모바일의 허용 정책을 보존.
+- 필요한 method·header·credentials 정책은
+  실제 기존 인증/API 계약에 맞춰 최소 적용.
+- CORS 실패가 500이 되는 경로도 확인하고,
+  기존 오류 처리 구조 안에서 최소 정정.
+- Origin 허용은 인증·권한 검증의 대체가 아니다.
+- 인증 middleware·Pool 격리·역할·X 정책 완화 금지.
+
+3. F03 연결 및 제한 검증
+- 수정된 로컬/격리 서버에서 Desktop Origin의
+  preflight와 실제 인증 요청 경로를 확인.
+- 기존 Web Origin 허용과 비허용 Origin 거부 확인.
+- 로그인→필요한 PIN/TOTP→최종 token→
+  사용자/Pool/역할/X 재검증 흐름 유지.
+- 실제 운영 계정의 UNKNOWN 항목은
+  응답 증거 확보 전까지 UNKNOWN으로 둔다.
+- 운영 서버가 아직 수정 전이면 운영 로그인 실패를
+  반복 재현하지 않는다.
+- 인증정보·token·개인정보를 로그나 문서에 남기지 않는다.
+
+4. API·SSE
+- 기존 OFFICE 계획에 포함된 API·SSE 계약만 확인.
+- 기존 canonical client·인증·권한 체계 재사용.
+- SSE의 연결·해제·인증 만료·재연결·중복 연결 방지를
+  현재 구현 방식에 맞춰 제한 검증.
+- 서버 이벤트 수신만으로 편집 중 입력을 덮어쓰지 않는다.
+- 미구현 업무 기능이나 새로운 이벤트 체계를 확장하지 않는다.
+- F04 범위 밖 항목은 backlog로 기록.
+
+5. 검증 범위
+- 변경된 CORS/Origin 경로의 제한 테스트.
+- Desktop 관련 타입검사 및 필요한 build.
+- 기존 Web 인증/CORS 회귀 확인.
+- F03의 기존 통과 테스트는 변경 영향이 있을 때만 재실행.
+- 전체 suite·전체 저장소 감사·기존 무관한 타입 오류 수정 금지.
+- 격리 검증·운영 검증·Windows 실기기 검증을 구분.
+
+6. 배포 준비
+- 서버 변경 diff·필요 환경변수·적용 서비스·
+  정확한 배포 source 후보·롤백 방법을 정리.
+- 기존 Render API 서비스 설정과 운영 SHA를
+  실제 배포 준비에 필요한 범위에서 확인.
+- 현재 개발 HEAD에 섞인 다른 변경을 확인하고
+  무관한 변경을 운영 배포에 포함하지 않는다.
+- 서버 배포와 Windows 통합 패키징은 실행하지 않는다.
+- 필요한 준비를 완료한 구체적인 결과를 보고한 뒤
+  배포 승인만 요청할 수 있도록 한다.
+
+금지 =
+운영 회원·수업·결제 데이터 변경
+PIN·비밀번호·TOTP·권한·X 상태 변경
+모바일·AI ENGINE 수정
+Render 배포·OTA·새 binary·Windows 패키징
+main 반영·새 commit·push·force push
+CORS/인증 우회·보안 기능 해제
+F05 자동 진행
+
+완료보고 =
+TASK = PASS / HOLD
+BASELINE / BRANCH / FULL HEAD =
+F03 COMMIT RANGE / DIFF =
+CHANGED FILES =
+CORS BEFORE / AFTER =
+AUTH / API / SSE VALIDATION =
+WEB REGRESSION =
+ACCOUNT GATES =
+NOT VERIFIED =
+DEPLOYMENT CANDIDATE / INCLUDED CHANGES =
+RENDER SERVICE / CURRENT LIVE SHA =
+ROLLBACK =
+WINDOWS VERIFICATION PLAN =
+PRODUCTION BUSINESS DATA CHANGE =
+NOT RUN =
+REQUIRED NEXT APPROVAL =
+
+보고 후 정지.

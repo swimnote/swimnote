@@ -2,7 +2,7 @@ import path from "node:path";
 
 export const ENTRY_URL = "app://office/admin/login";
 export const BOOTSTRAP_CHANNEL = "office:bootstrap-info";
-// F03 is authentication-only. No business API, wildcard host, arbitrary URL or main HTTP proxy.
+// Authentication + the existing pool-scoped SSE only. No wildcard host or main HTTP proxy.
 export const AUTH_API_ORIGIN = "https://swimnote-api.onrender.com";
 const AUTH_ROUTES: Record<string, readonly string[]> = {
   "/api/auth/login": ["POST", "OPTIONS"],
@@ -11,6 +11,7 @@ const AUTH_ROUTES: Record<string, readonly string[]> = {
   "/api/auth/me": ["GET", "OPTIONS"],
   "/api/pools/my-pools": ["GET", "OPTIONS"],
   "/api/pools/x-mode": ["GET", "OPTIONS"],
+  "/api/admin/events/stream": ["GET", "OPTIONS"],
 };
 
 export function isAllowedAuthRequest(raw: string, method: string): boolean {

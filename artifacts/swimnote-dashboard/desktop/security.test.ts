@@ -9,6 +9,13 @@ import {
 } from "./security.cts";
 
 const root = path.resolve("/tmp/office-renderer-fixture");
+it("allows only the existing SSE GET/OPTIONS, without token query strings or writes", () => {
+  const stream = "https://swimnote-api.onrender.com/api/admin/events/stream";
+  expect(isAllowedAuthRequest(stream, "GET")).toBe(true);
+  expect(isAllowedAuthRequest(stream, "OPTIONS")).toBe(true);
+  expect(isAllowedAuthRequest(stream, "POST")).toBe(false);
+  expect(isAllowedAuthRequest(stream + "?token=fixture", "GET")).toBe(false);
+});
 describe("secure local protocol", () => {
   it.each(["/admin", "/admin/", "/admin/login", "/admin/members/123"])("SPA fallback %s", (route) => {
     expect(resolveRendererPath("app://office" + route, root)).toBe(path.join(root, "desktop.html"));
