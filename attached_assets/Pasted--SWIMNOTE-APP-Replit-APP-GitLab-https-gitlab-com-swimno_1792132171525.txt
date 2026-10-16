@@ -1,0 +1,95 @@
+[전달 대상: SWIMNOTE APP Replit]
+[APP GitLab: https://gitlab.com/swimnote.admin/swimnote-app.git]
+[AI ENGINE Replit에서는 실행 금지]
+
+TASK = OFFICE F01 재개 및 잔여 조건 확인
+WORK_TYPE = LIMITED CONTRACT CONFIRMATION
+
+GOAL =
+기존 F01 조사 결과를 재사용하고,
+변경된 인프라와 남은 입력만 확인해 PASS/HOLD를 재판정한다.
+F02는 실행하지 않는다.
+
+최신 확정 사항 =
+- 사용자가 업데이트된 앱에서 PIN 설정 성공을 확인했다.
+- PIN 값은 지시문·문서·코드·로그·보고서에 기록하지 않는다.
+- 주 검증 계정: toykids, X모드, 운영정보 조회 전용.
+- 보조 계정: swimnote, 일반 모드 접근 제한 확인용.
+- Agent의 운영 PIN 설정·변경·해제 금지.
+- 검증 PC: 사용자 Windows 10 Pro.
+- Windows 11 지원 목표 유지. 실제 검증은 미완료.
+- APP GitLab 실제 push 및 LFS 원격 검증 완료.
+- APP Render 저장소 연결은 GitLab으로 전환 완료.
+- Render 신규 clone/build는 아직 미검증.
+- ENGINE 저장소와 Render는 변경하지 않는다.
+
+기존 F01 증거 재사용 =
+로그인/PIN/TOTP 계약, API/SSE, CORS, Archive 후보,
+F02 예상 파일 범위는 재조사하지 않는다.
+관련 변경이 있을 때만 그 diff를 확인한다.
+
+확인 =
+
+1. 현재 branch/full HEAD/status 및 기존 F01 이후
+   Foundation 관련 파일 변경만 확인.
+   Render 전환 보고의 문서 변경 등 기존 작업 보존.
+   checkout/reset/자동 commit 금지.
+
+2. 개발 저장소 기준
+   GitHub origin은 보존한다.
+   현재 GitLab remote와 APP 작업 branch의 fetch/push 대상 확인.
+   앞으로 일반 push가 실패한 GitHub 인증으로 향하지 않도록
+   필요한 branch별 upstream/push 설정안을 보고한다.
+   이번에는 설정 변경·push·main 반영하지 않는다.
+   main은 웹 자동배포 대상이므로 검증용 push 금지.
+
+3. 계정 조건
+   사용자 확인으로 PIN 설정 성공을 반영한다.
+   toykids 계정의 TOTP 여부·Pool·X 상태는
+   기존 확보 증거가 있으면 재사용하고 없으면 UNKNOWN.
+   운영 로그인/API 호출/DB 조회는 이번에 하지 않는다.
+   사용자가 설정했다는 사실을 Agent 런타임 검증으로 표현하지 않는다.
+
+4. 인증 정책
+   기본 로그인 유지 OFF 및 기존 안전저장 정책 유지.
+   로그인 유지 ON일 때는 유효 token과 권한 재검증 후 진입하고
+   추가 시작 PIN 흐름은 선개발하지 않는 방안을 권장안으로 보고한다.
+   기존 계약을 바꾸거나 사용자 승인 없이 정책을 확정하지 않는다.
+
+5. Windows 검증 준비
+   사용자 PC에서 x64 여부를 확인하는 간단한 방법과,
+   F02 unsigned unpacked 실행본의 전달·실행·결과 수집 절차를
+   짧게 제시한다.
+   아직 실행본을 만들거나 Windows 실행 성공을 선언하지 않는다.
+   보안 기능 해제는 요구하지 않는다.
+
+6. 기존 Archive 후보
+   F02 타입검사에서 실제 blocker일 때만 최소 수정하는 범위를 제시.
+   전체 Archive 감사나 수정은 하지 않는다.
+
+7. 실제 남은 사용자 결정만 한 번에 정리한다.
+   이미 확정된 계정·Windows 버전·기본 정책을 다시 묻지 않는다.
+
+금지 =
+코드·문서·Git 설정 수정
+패키지 설치·전체 조사·테스트·빌드
+운영 로그인·DB/API 조회·쓰기
+계정·PIN·X·TOTP 변경
+commit/push/Render 배포/OTA
+F02 자동 실행
+
+완료보고 =
+TASK F01 = PASS / HOLD
+BASELINE =
+RELATED CHANGES =
+PIN STATUS = 사용자 실기기 확인 / Agent 미검증
+ACCOUNT GATES =
+AUTH POLICY = 확정 / 승인 필요한 부분 구분
+GITLAB DEVELOPMENT ROUTING =
+WINDOWS READINESS =
+F02 MINIMUM BLOCKER SCOPE =
+REMAINING USER DECISIONS =
+NOT RUN =
+NEXT = F02 승인 요청 가능 YES / NO
+
+보고 후 정지.
