@@ -7,11 +7,13 @@ import { readFileSync } from "node:fs";
 // Prepared from HEAD + tracked diff + untracked Desktop source, never from credentials.
 export default defineConfig(({ mode }) => {
 const fixed = mode === "f05-fix";
-const stage2 = mode === "stage2";
+const readability = mode === "stage2-readability";
+const stage2 = mode === "stage2" || readability;
 let verificationId = "개발 미지정";
 try {
   const identity = JSON.parse(readFileSync(new URL(stage2
-    ? "../../generated-artifacts/office-stage2-n01-n02-delivery/source-identity.json" : fixed
+    ? (readability ? "../../generated-artifacts/office-stage2-readability-delivery/source-identity.json"
+      : "../../generated-artifacts/office-stage2-n01-n02-delivery/source-identity.json") : fixed
     ? "../../generated-artifacts/office-f05-fix/source-identity.json"
     : "../../generated-artifacts/office-f05/source-identity.json", import.meta.url), "utf8"));
   const pattern = stage2 ? /^STAGE2-[a-f0-9]{12}-[a-f0-9]{12}$/

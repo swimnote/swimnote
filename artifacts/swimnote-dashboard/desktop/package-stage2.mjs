@@ -11,6 +11,7 @@ import { renderInstaller, APP_ID } from "./installer-config.mjs";
 import { assemblyCommand } from "./integration-delivery.mjs";
 
 if (verificationStage !== "STAGE2") throw new Error("Use --stage2");
+const readability = process.argv.includes("--readability");
 const require = createRequire(import.meta.url);
 const asar = createRequire(require.resolve("@electron/packager"))("@electron/asar");
 const run = (command, args, cwd = dashboard) => execFileSync(command, args, { cwd, stdio: "inherit" });
@@ -66,7 +67,7 @@ async function frozen() {
 }
 const compiled = path.join(output, "compiled"), stage = path.join(output, "stage");
 await mkdir(stage);
-run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", "stage2", "--outDir", path.join(compiled, "renderer")]);
+run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
 run("pnpm", ["exec", "tsc", "-p", "desktop/tsconfig.json", "--outDir", path.join(compiled, "desktop")]);
 await mkdir(path.join(stage, "desktop"));
 const mainFiles = ["main.cjs", "preload.cjs", "security.cjs", "session-ipc.cjs", "token-store.cjs"];
@@ -88,6 +89,14 @@ const js = (await readdir(path.join(stage, "renderer/assets"))).filter(name => n
 const bundle = (await Promise.all(js.map(file => readFile(path.join(stage, "renderer/assets", file), "utf8")))).join("\n");
 for (const value of [identity.buildId, "Stage 2 N01/N02", "office-workspace", "AI 중심", "앱 내 뒤로"])
   if (!bundle.includes(value)) throw new Error("Required identity/N01/N02 missing from renderer: " + value);
+if (readability) {
+  for (const value of ["office-members-table-scroll", "회원표 가로 스크롤", "auto hidden"])
+    if (!bundle.includes(value)) throw new Error("Readability fix missing from renderer: " + value);
+  const css = (await Promise.all((await readdir(path.join(stage, "renderer/assets")))
+    .filter(file => file.endsWith(".css")).map(file => readFile(path.join(stage, "renderer/assets", file), "utf8")))).join("\n");
+  for (const value of ["office-members-table-scroll", "min-width:848px", "word-break:keep-all", "office-workspace-footnote"])
+    if (!css.includes(value)) throw new Error("Readability fix missing from CSS: " + value);
+}
 const pkg = JSON.parse(await readFile(path.join(dashboard, "package.json"), "utf8"));
 await fresh(path.join(stage, "package.json"), {
   name: "swimnote-office", productName: "SWIMNOTE OFFICE", version: pkg.version,
@@ -136,14 +145,17 @@ CMD는 SHA-256 확인·압축 해제·폴더 열기만 합니다. 설치 EXE는 
 설치·제거·로그인 유지 전체 검사는 반복하지 않습니다. 로그인이 필요하면 기존 절차만 사용하세요.
 
 현재 Windows 버전과 디스플레이 배율(%)을 먼저 기록하고 아래만 조회로 확인하세요.
-1. 회원 검색·상태/반 필터·스크롤·상세 선택 후 홈→회원 복귀 시 상태 보존.
+${readability ? `1. AI 중심 모드에서 업무 패널을 좁혔을 때 이름·상태·날짜가 글자 단위로 세로 줄바꿈되지 않는지.
+2. 표 내부 가로 스크롤로 오른쪽 ‘보기’까지 접근 가능한지.
+3. 패널을 다시 넓히면 표가 정상 표시되는지.
+이미 통과한 Navigation·상태 보존·모드 전환·패널 복원·설치 수명주기 전체 검사는 다시 요구하지 않습니다.` : `1. 회원 검색·상태/반 필터·스크롤·상세 선택 후 홈→회원 복귀 시 상태 보존.
 2. 상세→뒤로→앞으로 및 Breadcrumb.
 3. 메뉴 접기/펼치기·같은 메뉴 재선택 시 상태 보존.
 4. 업무집중↔AI 중심 전환 시 같은 회원·조회 상태 유지.
 5. Side Workspace 마우스 크기 조절·접기·복원.
 6. 창을 좁혔을 때 업무/AI 전환·닫기·복원 조작.
-7. 조절 막대에서 좌우 화살표·Home·End, 숨겨진 영역의 포커스 처리.
-100/125/150%는 실제 수행한 배율만 보고합니다. 운영 회원정보 변경·테스트 회원 생성은 하지 않습니다.
+7. 조절 막대에서 좌우 화살표·Home·End, 숨겨진 영역의 포커스 처리.`}
+${readability ? "배율은 실제 확인한 값만 기록합니다." : "100/125/150%는 실제 수행한 배율만 보고합니다."} 운영 회원정보 변경·테스트 회원 생성은 하지 않습니다.
 결과는 항목별 PASS/FAIL/미실시와 현재 배율로 알려주세요. 화면 공유 시 개인정보를 가리세요.
 비밀번호·PIN·TOTP·token·암호화 저장파일을 보내지 마세요.
 
