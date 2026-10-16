@@ -16,6 +16,8 @@ import { OfficeWorkspace } from "./OfficeWorkspace";
 declare const __OFFICE_VERIFICATION_ID__: string;
 
 export function DesktopApp() {
+  const verificationId = typeof __OFFICE_VERIFICATION_ID__ === "string" ? __OFFICE_VERIFICATION_ID__ : "개발 미지정";
+  const verificationStage = verificationId.startsWith("STAGE2-") ? "Stage 2 N01/N02" : "F05";
   const bridge = window.officeDesktop;
   const [controller] = useState(() => new DesktopSessionController(bridge));
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -28,7 +30,7 @@ export function DesktopApp() {
     let active = true;
     if (!bridge) setBridgeStatus("Desktop 보안 연결 없음 — 인증 차단");
     else bridge.getBootstrapInfo()
-      .then(info => { if (active) setBridgeStatus(`${info.stage} · ${info.platform} · ${info.packaged ? "packaged" : "development"} · ${info.version}`); })
+      .then(info => { if (active) setBridgeStatus(`Shell ${info.stage} · ${info.platform} · ${info.packaged ? "packaged" : "development"} · ${info.version}`); })
       .catch(() => { if (active) setBridgeStatus("Desktop 보안 연결 실패"); });
     void controller.restore();
     return () => { active = false; controller.cancel(); };
@@ -63,11 +65,11 @@ export function DesktopApp() {
     <div style={{ fontFamily: "'Segoe UI', 'Malgun Gothic', system-ui, sans-serif",
       ...(state.status === "authenticated" ? { height: "100dvh", display: "flex", flexDirection: "column" as const, overflow: "hidden" } : {}) }}>
       <div role="status" style={{ padding: "12px 24px", background: "#EEF2FF", color: "#243B6B", fontSize: 14 }}>
-        SWIMNOTE OFFICE F05 · Dashboard·회원 조회 전용
+        SWIMNOTE OFFICE {verificationStage} · Dashboard·회원 조회 전용
         <div style={{ marginTop: 4, fontSize: 12 }}>
           {bridgeStatus} · 실제 renderer Origin: <output data-testid="renderer-origin">{window.location.origin}</output>
-          <div>F05 조회 전용 · unsigned 내부 검증본 · 실제 Windows 수용 미완료.
-            검증본 ID: {typeof __OFFICE_VERIFICATION_ID__ === "string" ? __OFFICE_VERIFICATION_ID__ : "개발 미지정"}
+          <div>{verificationStage} 조회 전용 · unsigned 내부 검증본 · 해당 검증본 Windows UI 수용 미완료.
+            검증본 ID: {verificationId}
           </div>
         </div>
       </div>

@@ -31,6 +31,18 @@ function emit(type: string) {
 }
 const calls = (route: string) => vi.mocked(api.get).mock.calls.filter(call => call[0] === route).length;
 
+it("Stage 2 shows the injected package identity without changing authentication", async () => {
+  const packageId = "STAGE2-" + "a".repeat(12) + "-" + "b".repeat(12);
+  vi.stubGlobal("__OFFICE_VERIFICATION_ID__", packageId);
+  try {
+    open();
+    await screen.findByText("안녕하세요, 사용자-pool-a님");
+    expect(screen.getByText(/SWIMNOTE OFFICE Stage 2 N01\/N02/)).toBeTruthy();
+    expect(screen.getByText(new RegExp("검증본 ID: " + packageId))).toBeTruthy();
+    expect(calls("/auth/me")).toBe(1);
+  } finally { vi.unstubAllGlobals(); }
+});
+
 beforeEach(() => {
   useDesktopTokenStorage();
   queryClient.clear();

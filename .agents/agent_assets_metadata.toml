@@ -407,3 +407,31 @@ mtime_ms = 1792167615825
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/92904576-f10d-47f3-be05-5a672fea59da/3645f00e-10e0-4cbb-a025-f1710b357d97"
 storage_version_token = "1792167733261483"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "DlJe7JvFf_yYaHlurkqY7"
+uri = "file://generated-artifacts/office-stage2-n01-n02-delivery/SWIMNOTE-OFFICE-STAGE2-159184e4cf9e-95be58ac64e4-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE Stage 2 설치본 — 1/2"
+description = "STAGE2-159184e4cf9e-95be58ac64e4. 두 ZIP 모두 같은 새 폴더에 풀고 START-STAGE2.cmd 실행. 해시 확인 후 설치 EXE를 일반 사용자로 직접 실행하세요. Windows UI 수용은 아직 미검증입니다."
+logical_id = "d2b24f77-ba02-4b86-a718-ef9fe5a3e788"
+content_hash = "sha256:3dd602137790397ebd647bad3419484f60a8a8146e8f90aa1e00a511d83e2640"
+size = 83891869
+mtime_ms = 1792171554869
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/d2b24f77-ba02-4b86-a718-ef9fe5a3e788/5687043b-f5b4-4801-98fe-f41e4a2a4ebb"
+storage_version_token = "1792171619751849"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "0iaErLnh5aarLjtmi6_uq"
+uri = "file://generated-artifacts/office-stage2-n01-n02-delivery/SWIMNOTE-OFFICE-STAGE2-159184e4cf9e-95be58ac64e4-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE Stage 2 설치본 — 2/2"
+description = "STAGE2-159184e4cf9e-95be58ac64e4. 두 ZIP 모두 같은 새 폴더에 풀고 START-STAGE2.cmd 실행. 해시 확인 후 설치 EXE를 일반 사용자로 직접 실행하세요. Windows UI 수용은 아직 미검증입니다."
+logical_id = "8906adec-0d39-4d19-bf93-d542f1d7db9b"
+content_hash = "sha256:b8ee419bbf0a9707583ca450145309bc4033b0fc566f4a58e9cb8597c34ca597"
+size = 29653356
+mtime_ms = 1792171555641
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/8906adec-0d39-4d19-bf93-d542f1d7db9b/68761c1a-2cc0-4f01-82d5-3a75ad00225f"
+storage_version_token = "1792171621684523"
+content_type = "application/octet-stream"

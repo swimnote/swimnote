@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 
 export const dashboard = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const repo = path.resolve(dashboard, "../..");
-export const verificationStage = process.argv.includes("--f06") ? "F06"
+export const verificationStage = process.argv.includes("--stage2") ? "STAGE2"
+  : process.argv.includes("--f06") ? "F06"
   : process.argv.includes("--f05-fix") ? "F05-FIX"
   : process.argv.includes("--f05") ? "F05" : "F03-F04";
-export const output = path.join(repo, verificationStage === "F06" ? "generated-artifacts/office-f06" : verificationStage === "F05-FIX"
+export const output = path.join(repo, verificationStage === "STAGE2" ? "generated-artifacts/office-stage2-n01-n02-delivery"
+  : verificationStage === "F06" ? "generated-artifacts/office-f06" : verificationStage === "F05-FIX"
   ? "generated-artifacts/office-f05-fix" : verificationStage === "F05"
     ? "generated-artifacts/office-f05" : "generated-artifacts/office-f03-f04");
 export const sha = bytes => createHash("sha256").update(bytes).digest("hex");
@@ -30,7 +32,7 @@ export async function sourceIdentity() {
   return { head, trackedDiffSha256, untracked, diffId,
     buildId: `${verificationStage}-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
     scope: "HEAD plus tracked binary diff and explicitly listed untracked Desktop source; attachments and generated output excluded",
-    apiSource: verificationStage.startsWith("F05") || verificationStage === "F06" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
+    apiSource: verificationStage.startsWith("F05") || verificationStage === "F06" || verificationStage === "STAGE2" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -5,10 +5,14 @@ export const RUNTIME_ID = "F05-FIX-cbbf328c7aa7-3b4af4238756";
 export const SETUP_NAME = "SWIMNOTE-OFFICE-F06-Setup.exe";
 const quote = s => s.replaceAll("$", "$$").replaceAll('"', '$\\"');
 
-export function renderInstaller({ payloadDir, outputFile, packageId, files }) {
-  if (!/^F06-[a-f0-9]{12}-[a-f0-9]{12}$/.test(packageId) || !files.length ||
+export function renderInstaller({ payloadDir, outputFile, packageId, files, stage = "F06" }) {
+  if (!["F06", "STAGE2"].includes(stage) || !new RegExp(`^${stage}-[a-f0-9]{12}-[a-f0-9]{12}$`).test(packageId) || !files.length ||
       files.some(f => !/^[A-Za-z0-9_./ -]+$/.test(f) || f.startsWith("/") ||
         f.split("/").some(s => !s || s === "." || s === ".."))) throw new Error("Unsafe installer input");
+  const label = stage === "STAGE2" ? "Stage 2 N01/N02" : "F06";
+  const version = stage === "STAGE2" ? "0.0.0.7" : "0.0.0.6";
+  const displayVersion = stage === "STAGE2" ? "0.0.0-stage2-internal" : "0.0.0-f06-internal";
+  // Keep the F06 ownership marker, app ID, userData and removal rules for compatible reinstalls.
   const directories = [...new Set(files.map(f => path.posix.dirname(f)).filter(d => d !== "."))]
     .sort((a, b) => b.length - a.length);
   const installFiles = files.map(file => {
@@ -24,17 +28,17 @@ RequestExecutionLevel user
 !include "StrFunc.nsh"
 \${StrStr}
 \${UnStrStr}
-Name "SWIMNOTE OFFICE Internal F06 (unsigned)"
+Name "SWIMNOTE OFFICE Internal ${label} (unsigned)"
 OutFile "${quote(outputFile)}"
 InstallDir "$LOCALAPPDATA\\Programs\\SWIMNOTE OFFICE"
 SetCompressor /SOLID lzma
 SetCompressorDictSize 16
 CRCCheck on
-VIProductVersion "0.0.0.6"
+VIProductVersion "${version}"
 VIAddVersionKey "ProductName" "SWIMNOTE OFFICE Internal"
-VIAddVersionKey "FileDescription" "Unsigned internal F06 installer - Windows x64 only"
-VIAddVersionKey "FileVersion" "0.0.0.6"
-VIAddVersionKey "ProductVersion" "0.0.0-f06-internal"
+VIAddVersionKey "FileDescription" "Unsigned internal ${label} installer - Windows x64 only"
+VIAddVersionKey "FileVersion" "${version}"
+VIAddVersionKey "ProductVersion" "${displayVersion}"
 VIAddVersionKey "LegalCopyright" "SWIMNOTE"
 VIAddVersionKey "Comments" "${packageId}"
 !define MUI_ABORTWARNING
@@ -125,8 +129,8 @@ Section "SWIMNOTE OFFICE (필수)"
   CreateDirectory "$SMPROGRAMS\\SWIMNOTE OFFICE Internal"
   CreateShortCut "$DESKTOP\\SWIMNOTE OFFICE Internal.lnk" "$INSTDIR\\SwimnoteOffice.exe"
   CreateShortCut "$SMPROGRAMS\\SWIMNOTE OFFICE Internal\\SWIMNOTE OFFICE.lnk" "$INSTDIR\\SwimnoteOffice.exe"
-  WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_ID}" "DisplayName" "SWIMNOTE OFFICE (Internal F06, unsigned)"
-  WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_ID}" "DisplayVersion" "0.0.0-f06-internal"
+  WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_ID}" "DisplayName" "SWIMNOTE OFFICE (Internal ${label}, unsigned)"
+  WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_ID}" "DisplayVersion" "${displayVersion}"
   WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_ID}" "Publisher" "SWIMNOTE"
   WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_ID}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_ID}" "DisplayIcon" "$INSTDIR\\SwimnoteOffice.exe"
