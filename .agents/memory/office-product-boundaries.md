@@ -61,6 +61,12 @@ Dispatch·차량 Navigation·Driver·지도·관제·Kiosk·출입·다업종 Ad
 
 **How to apply:** 서버 Origin 차단이 있으면 구현 가능한 인증·저장 부분을 격리 검증하고 실제 계정 상태는 UNKNOWN으로 보고한다. 서버 변경과 배포는 후속 승인 대상으로 남기며, 인증 단계만을 위한 Windows 패키지를 자동 생성하지 않는다.
 
+열린 SSE의 인증 만료·권한 회수 처리와 재접속 후 재조회·편집 충돌 보호는 업무 화면의 실제 데이터 연결 전에 통과해야 하는 필수 Gate다.
+
+**Why:** 사용자가 2026-10-16 두 항목을 단순 권장 backlog가 아닌 업무 데이터 연결 전 필수 조건으로 명시했다.
+
+**How to apply:** CORS·source 준비·push 성공으로 이 Gate를 완료 처리하지 않는다. 별도 승인된 구현과 검증 증거를 확보하기 전 업무 화면의 실제 데이터 연결을 진행하지 않는다.
+
 Windows 내부 검증 환경은 Windows 10 Pro x64이며 unsigned unpacked 검증이 승인됐다. Windows 11은 지원 목표이지 실제 실행 검증 완료가 아니다.
 
 **Why:** 사용자는 패키지 생성과 실제 Windows 실행 증거를 구분하고, 사용자 PC에서 실행 결과를 확인하기 전 Desktop Foundation 최종 PASS를 금지했다.
