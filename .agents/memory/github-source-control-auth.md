@@ -50,3 +50,13 @@ Replit source-control 연결에 일반 커넥터의 상태 해석을 기계적�
 **Why:** 승인 source 폴더와 Git 객체는 남아 있었지만 worktree 표식이 없어, 해당 폴더에서 Git을 실행했을 때 원래 작업 공간의 최신 HEAD로 해석되는 상태를 관찰했다.
 
 **How to apply:** 폴더 존재나 worktree 목록만으로 격리를 판정하지 않는다. 실제 Git 표식과 승인 full SHA·clean 상태를 함께 검증하고, 일치하지 않으면 인증 검사와 push 전에 중단한다. Push refspec은 검증한 승인 SHA를 직접 사용하며 현재 HEAD로 대체하지 않는다.
+
+표식이 없더라도 보존된 전용 메타데이터와 checkout이 일치한다면, 명시적인 `GIT_DIR`·`GIT_WORK_TREE`로 격리 대상을 지정하고 SHA·parent·diff·clean을 확인할 수 있다. 자식 Git/LFS 명령에도 같은 격리 경로를 전달하고 기존 LFS pre-push hook을 우회하지 않는다.
+
+## APP GitLab 인증 경로 선택
+
+승인된 APP GitLab push에서는 기존 APP 전용 Secret 변수를 명시하고 GitHub용 helper로 fallback하지 않는다. Secret 관리 조회의 부재 표시만으로 현재 프로세스 환경에서도 변수가 없다고 단정하지 않는다.
+
+**Why:** Secret 관리 조회는 APP 전용 변수를 없다고 표시했지만 실제 APP 프로세스에는 비어 있지 않은 변수가 있었고, 이를 명시한 명령 한정 인증으로 GitLab 조회와 push가 성공했다. 이전 helper는 GitHub 변수만 참조하여 다른 인증을 시도했다. 사용자는 기존 성공 경로부터 확인하고 불필요한 재연결·새 토큰 발급 요구를 피하라고 재차 명시했다.
+
+**How to apply:** APP 환경 안에서 관련 변수의 존재·비어 있지 않음과 helper의 선택 코드를 비교한다. 값·일부 문자열·해시를 출력하거나 과거 값과의 동일성·만료·변경 주체를 추정하지 않는다. ENGINE 자격증명은 조회하지 않는다. 인증은 해당 Git 명령에만 적용하고 전역 설정·remote URL·기존 Secret 값을 변경하지 않는다.
