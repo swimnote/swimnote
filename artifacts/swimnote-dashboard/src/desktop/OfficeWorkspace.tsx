@@ -138,8 +138,8 @@ export function OfficeWorkspace({ children }: { children: ReactNode }) {
           <dt>현재 화면</dt><dd>{nav?.destination.screen === "members" ? "회원목록" : "홈 현황"}</dd>
           <dt>선택 대상 ID</dt><dd>{nav?.destination.screen === "members" ? nav.destination.memberId ?? "선택 없음" : "선택 없음"}</dd>
         </dl>
-        <button onClick={returnToBusiness}>현재 업무로 돌아가기</button>
-        <p>화면 열기는 업무 처리 완료가 아닙니다. Context는 외부로 전송하지 않습니다.</p>
+        <button className="office-workspace-return" onClick={returnToBusiness}>현재 업무로 돌아가기</button>
+        <p className="office-workspace-footnote">화면 열기는 업무 처리 완료가 아닙니다. Context는 외부로 전송하지 않습니다.</p>
       </section>
     </div>
   </div>;

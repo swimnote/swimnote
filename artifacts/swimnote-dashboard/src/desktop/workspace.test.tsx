@@ -116,6 +116,36 @@ it("N02 exposes only minimal live Context, with no fake chat, and reuses OPEN/hi
   expect(ai().textContent).toContain("student_legacy_001");
 });
 
+it("N02 keeps the table's desired horizontal offset through resize clamping and panel hiding", async () => {
+  render(<App />);
+  await screen.findByText("PRIVATE_MEMBER_NAME");
+  const table = screen.getByRole("region", { name: "회원표 가로 스크롤" });
+  let viewport = 216;
+  Object.defineProperties(table, {
+    clientWidth: { configurable: true, get: () => viewport },
+    scrollWidth: { configurable: true, get: () => 848 },
+  });
+  table.scrollLeft = 500; fireEvent.scroll(table);
+  const resize = async (next: number) => {
+    viewport = next;
+    await act(async () => { observers.forEach(callback => callback()); });
+    fireEvent.scroll(table); // Browser-generated scroll after layout clamping must not erase the intent.
+  };
+  switchAI();
+  await resize(800);
+  expect(table.scrollLeft).toBe(48);
+  await resize(1000);
+  expect(table.scrollLeft).toBe(0);
+  await resize(216);
+  expect(table.scrollLeft).toBe(500);
+  fireEvent.click(screen.getByRole("button", { name: "Side Workspace 접기" }));
+  await resize(0);
+  fireEvent.click(screen.getByRole("button", { name: "Side Workspace 열기" }));
+  await resize(216);
+  expect(screen.getByRole("region", { name: "회원표 가로 스크롤" })).toBe(table);
+  expect(table.scrollLeft).toBe(500);
+});
+
 it("N02 supports pointer/keyboard sizing and restores mode-specific width after collapse", async () => {
   render(<App />);
   await screen.findByText("PRIVATE_MEMBER_NAME");

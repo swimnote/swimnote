@@ -97,6 +97,36 @@
   max-width: 100%;
 }
 
+/* Reuse the Web member table; only OFFICE owns these overflow/column rules. */
+.office-workspace .office-members-table-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+.office-workspace .office-members-table-scroll:focus-visible {
+  outline: 2px solid var(--x-highlight);
+  outline-offset: -2px;
+}
+.office-workspace .office-members-table-scroll > table {
+  min-width: 848px;
+  table-layout: auto;
+}
+.office-workspace .office-members-table-scroll :is(th, td) {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+.office-workspace .office-members-table-scroll :is(th, td):nth-child(1) { min-width: 112px; }
+.office-workspace .office-members-table-scroll :is(th, td):nth-child(2) { min-width: 176px; }
+.office-workspace .office-members-table-scroll td:nth-child(2) {
+  white-space: normal;
+  word-break: keep-all;
+}
+.office-workspace .office-members-table-scroll :is(th, td):nth-child(3) { min-width: 80px; }
+.office-workspace .office-members-table-scroll :is(th, td):nth-child(4) { min-width: 112px; }
+.office-workspace .office-members-table-scroll :is(th, td):nth-child(5) { min-width: 160px; }
+.office-workspace .office-members-table-scroll :is(th, td):nth-child(6) { min-width: 120px; }
+.office-workspace .office-members-table-scroll :is(th, td):nth-child(7) { min-width: 88px; }
+
 .office-workspace-ai {
   background: var(--surface-white);
   overflow: auto;
@@ -123,6 +153,18 @@
 }
 .office-workspace-context dt { color: var(--text-muted); }
 .office-workspace-context dd { color: var(--text-body); }
+.office-workspace-return,
+.office-workspace-footnote {
+  flex-shrink: 0;
+  margin: 12px 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.office-workspace-return {
+  align-self: flex-start;
+  max-width: calc(100% - 32px);
+  padding: 8px 12px;
+}
 
 .office-workspace-divider {
   flex: 0 0 8px;

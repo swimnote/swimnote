@@ -774,6 +774,30 @@ export default function MembersPage() {
   const office = useOfficeNavigation();
   const businessVisible = useOfficeBusinessVisible();
   const rootRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollLeft = useRef(0);
+  const officeEnabled = !!office;
+  useLayoutEffect(() => {
+    const node = tableScrollRef.current;
+    if (!officeEnabled || !node) return;
+    // Keep the desired offset when a wider/hidden pane temporarily clamps scrollLeft.
+    let applied = node.scrollLeft;
+    const restore = () => {
+      if (!node.clientWidth) return;
+      applied = Math.min(tableScrollLeft.current, Math.max(0, node.scrollWidth - node.clientWidth));
+      node.scrollLeft = applied;
+    };
+    const remember = () => {
+      if (node.clientWidth && node.scrollLeft !== applied) {
+        tableScrollLeft.current = node.scrollLeft;
+        applied = node.scrollLeft;
+      }
+    };
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(restore) : undefined;
+    observer?.observe(node);
+    node.addEventListener("scroll", remember);
+    return () => { observer?.disconnect(); node.removeEventListener("scroll", remember); };
+  }, [officeEnabled]);
   const readOnly = isDesktopTokenStorage();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
@@ -1015,11 +1039,16 @@ export default function MembersPage() {
 
       {/* Table */}
       <div
+        ref={tableScrollRef}
+        className={officeEnabled ? "office-members-table-scroll" : undefined}
+        role={officeEnabled ? "region" : undefined}
+        aria-label={officeEnabled ? "회원표 가로 스크롤" : undefined}
+        tabIndex={officeEnabled ? 0 : undefined}
         style={{
           background: "#fff",
           border: "1px solid #E5E7EB",
           borderRadius: "12px",
-          overflow: "hidden",
+          overflow: officeEnabled ? "auto hidden" : "hidden",
         }}
       >
         {isError ? (
