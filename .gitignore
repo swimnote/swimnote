@@ -71,4 +71,6 @@ logs/
 build/
 android/
 ios/
+/generated-artifacts/
+/artifacts/swimnote-dashboard/dist-desktop/
 

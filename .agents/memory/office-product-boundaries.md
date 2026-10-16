@@ -47,6 +47,26 @@ Dispatch·차량 Navigation·Driver·지도·관제·Kiosk·출입·다업종 Ad
 
 **How to apply:** 이전 전체 Blueprint는 미래 방향으로만 참고한다. PC Breadcrumb/History/Side Workspace 같은 필수 화면 Navigation과 제외된 차량 Navigation을 혼동하지 않는다. 조사·견적만 요청된 턴에서는 제품 구현·DB write·배포·OTA·Windows build를 하지 않는다.
 
+## Desktop 인증과 실제 실행 검증의 승인 경계
+
+로그인 유지가 선택된 PC에서는 안전 저장된 최종 token을 복구하고 서버에서 사용자·Pool·권한을 재검증한 뒤 진입한다. 별도 시작 PIN은 추가하지 않으며 비밀번호·PIN·임시 web_session은 저장하지 않는다. 네트워크 오류와 인증 만료를 구분한다.
+
+**Why:** 사용자가 로그인 유지 선택 PC의 자동 로그인을 명시 승인했다. Windows 시작 시 프로그램 자동 실행까지 승인한 것은 아니다.
+
+**How to apply:** 인증 구현 단계에서 이 정책을 적용하고 Windows 자동 실행은 선개발하지 않는다. 로컬 renderer·로그인 화면 표시 단계에서는 실제 인증을 하지 않으며, 실제 인증 시작 전 계정의 TOTP·Pool·권한·X 준비 증거를 필수 Gate로 확인한다.
+
+Windows 내부 검증 환경은 Windows 10 Pro x64이며 unsigned unpacked 검증이 승인됐다. Windows 11은 지원 목표이지 실제 실행 검증 완료가 아니다.
+
+**Why:** 사용자는 패키지 생성과 실제 Windows 실행 증거를 구분하고, 사용자 PC에서 실행 결과를 확인하기 전 Desktop Foundation 최종 PASS를 금지했다.
+
+**How to apply:** ZIP·SHA-256·실행 절차를 제공하되 패키징 성공이나 Linux 검증을 Windows 실행 성공으로 표현하지 않는다. 보안 기능을 끄도록 요구하지 않는다.
+
+Electron 검증 ZIP의 첨부 등록에는 파일당 100 MiB 제한이 확인됐다. 패키징 횟수 제한과 다운로드용 분할을 구분한다.
+
+**Why:** 완성된 Windows unpacked ZIP은 이 한도를 넘을 수 있으며, 재빌드해도 Electron 런타임 크기는 해결되지 않는다.
+
+**How to apply:** 원본 ZIP·SHA-256을 유지하고 필요하면 다운로드 파일만 분할한다. Windows 기본 명령으로 합치는 안내와 재결합 해시 검증을 제공하며, 분할을 새 installer 생성으로 취급하지 않는다.
+
 ## Credit 절약형 개발 제약
 
 OFFICE 개발은 관련 Backend·UI·Action·AI Tool·제한 테스트를 하나의 명확한 Vertical Slice로 처리한다. 완료된 조사·PASS/CLOSED 영역을 근거 없이 다시 감사하지 않고, 기존 Context·컴포넌트·service·테스트 결과를 재사용한다.

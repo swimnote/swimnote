@@ -1,0 +1,140 @@
+[전달 대상: SWIMNOTE APP Replit]
+[APP Repository: https://gitlab.com/swimnote.admin/swimnote-app.git]
+[AI ENGINE Replit에서는 실행 금지]
+
+PROJECT = SWIMNOTE OFFICE V1
+TASK = F01 잔여 결정 반영 및 F02 실행
+사용자 승인 = 아래 정책·GitLab 기본 저장소 전환·F02 구현
+
+기존 확인 결과를 재사용한다.
+F01 전체 조사나 같은 승인 질문을 반복하지 않는다.
+
+사용자 확정 =
+1. 실제 검증 PC: Windows 10 Pro x64.
+2. unsigned unpacked 내부 검증 절차 수용.
+3. 나머지 구현 선택은 기존 권장안 적용.
+4. APP의 기본 개발 저장소를 GitLab으로 전환.
+   GitHub 저장소와 기존 이력은 보존.
+5. 로그인 유지 선택 PC에서는 OFFICE 실행 시 자동 로그인.
+   safeStorage/DPAPI에 저장한 최종 token을 복구하고,
+   사용자·Pool·권한을 서버에서 재검증한 뒤 진입.
+   별도 시작 PIN은 추가하지 않는다.
+   비밀번호·PIN·임시 web_session 저장 금지.
+   네트워크 오류와 인증 만료를 구분한다.
+6. Windows 시작 시 OFFICE 자동 실행은 후속 검토.
+   이번 F02에서 선개발하지 않는다.
+
+ACCOUNT =
+toykids: X모드 운영정보 조회 전용.
+swimnote: 일반 모드 접근 제한 확인용.
+사용자가 앱 PIN 설정 성공을 확인했다.
+credential·PIN 값을 문서·로그·코드에 기록하지 않는다.
+계정·회원·PIN·X·TOTP 변경 금지.
+
+F01 처리 =
+- 위 결정과 x64 확인을 반영한다.
+- F02는 로컬 renderer와 로그인 화면 표시까지만 수행한다.
+- 계정의 TOTP/Pool/X 런타임 확인은 F03 실제 인증 시작 전
+  필수 Gate로 명시하여 이관한다.
+- UNKNOWN을 검증 완료로 바꾸지 않는다.
+- 이 선행조건 조정은 이번 사용자 승인 범위다.
+- 다른 실질 blocker가 없으면 F01 종료 후 F02 진행.
+
+GitLab 기본 개발 경로 =
+- 현재 HEAD/status와 기존 변경 보존.
+- origin을 GitLab으로 설정하고 기존 GitHub remote는
+  github-backup 등 충돌 없는 이름으로 보존한다.
+- 기존 GitLab remote와 중복·upstream 관계를 정리한다.
+- 현재 로컬 branch를 변경하거나 main으로 checkout하지 않는다.
+- OFFICE 전용 작업 branch를 현재 기준에서 생성한다.
+  예: office/f02-foundation
+- 작업 branch는 GitLab의 동일 이름 branch를 추적하게 한다.
+- 기존 성공한 Secret 인증 경로 재사용.
+  token 값 출력·remote URL 삽입·평문 저장 금지.
+- 설정 변경은 새 Production 배포를 뜻하지 않는다.
+- 이번에는 commit/push하지 않는다.
+  최초 push가 필요하면 완료보고에서 정확한 대상 제시.
+- GitLab main은 웹 자동배포 대상이므로 반영 금지.
+
+TASK F02 =
+Secure Electron Bootstrap & Local Renderer
+
+GOAL =
+기존 React/Vite PC 화면을 안전한 Electron 창에서 실행한다.
+기존 Web 진입과 동작은 유지한다.
+
+범위 =
+artifacts/swimnote-dashboard의
+최소 Electron main/preload/protocol/typed IPC,
+Desktop Vite 설정, 필요한 package/lockfile,
+실제 필요한 bootstrap·route 부분.
+
+보안 =
+nodeIntegration=false
+contextIsolation=true
+sandbox=true
+webSecurity=true
+CSP 적용
+외부 navigation·새 창·경로 traversal 차단
+IPC sender/frame/origin/payload 검증
+개발 URL은 개발 모드에서만 허용
+packaged local renderer는 secure custom protocol 사용
+
+구현 =
+1. 기존 Web build와 Desktop build output 분리.
+2. /admin asset·SPA fallback·새로고침 경로 보존.
+3. 기본 단일 창, 재실행 시 기존 창 복원.
+4. 창 위치·크기 정책은 F02에 필요한 최소 범위 적용.
+5. 실제 packaged Origin을 확인하고 보고.
+   app://office를 검증 전 확정된 전송 Origin으로 단정하지 않는다.
+6. 기존 Archive 후보가 제한 타입검사를 실제 차단할 때만
+   참조·API 호출의 최소 정정 허용.
+   전체 Archive 감사·권한 변경·타입검사 무력화 금지.
+
+검증 =
+- protocol 경로·traversal 차단
+- preload 최소 노출
+- 관련 package 타입 확인
+- Desktop renderer build
+- 기존 Web 진입 회귀
+- unsigned Windows x64 unpacked 패키지 1회
+- ZIP·SHA-256·사용자 실행 절차 제공
+
+현재 환경에서 Windows용 패키지 생성이 불가능하면
+동일 실패를 반복하지 말고 정확한 오류와 필요한 호스트만 보고.
+Linux build 성공을 Windows 실행 PASS로 처리하지 않는다.
+
+사용자 Windows 실행은 결과물 전달 후 확인한다.
+실제 Windows 실행 증거 전까지 F02 최종 판정은 HOLD로 둔다.
+이유 없는 installer 반복 생성 금지.
+
+F02에서 제외 =
+로그인 유지 전체 구현·실제 운영 로그인
+서버 CORS 수정·배포
+DB migration·모바일 APP 변경
+전체 Navigation·업무 탭·AI·Billing
+signed installer·자동업데이트·Windows 자동 실행
+운영정보 변경
+OTA·Render 배포
+commit/push/main 반영
+F03 자동 실행
+
+완료보고 =
+F01 = 종료 여부 / 이관 Gate
+TASK F02 = PASS / HOLD / FAIL
+BASELINE / WORK BRANCH =
+GIT REMOTES / UPSTREAM = 민감정보 제외
+CHANGED =
+VALIDATED =
+PACKAGED ORIGIN =
+WEB COMPATIBILITY =
+WINDOWS PACKAGE = ZIP 경로 / SHA-256
+USER TEST STEPS =
+WINDOWS EXECUTION = 실제 증거 없으면 NOT VERIFIED
+UX RULES APPLIED =
+KNOWN BLOCKERS =
+NOT RUN =
+CREDIT/USAGE =
+NEXT =
+
+보고 후 정지.

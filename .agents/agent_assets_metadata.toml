@@ -239,3 +239,45 @@ mtime_ms = 1792118660038
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/f065f2c6-8079-4884-a45a-0c04a9bba036/c85b3d23-1222-4ec5-99b1-e159d1565c9b"
 storage_version_token = "1792118671478495"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "5aTBCBWQdUxlr6oFfcPiA"
+uri = "file://generated-artifacts/office-f02/SWIMNOTE-OFFICE-F02-delivery-1-of-2.zip"
+type = "unspecified"
+title = "OFFICE F02 Windows — 다운로드 1/2"
+description = "두 ZIP을 모두 받은 뒤 같은 폴더에 압축 해제하세요. 포함된 안내문대로 원본 Windows 패키지를 합칩니다."
+logical_id = "c146c492-d11c-40b0-8eb5-5e4396a6ed2b"
+content_hash = "sha256:b1cd08e676cf86ff9901f49640ac7dea6327b8ed0379e5cd674ffcd794ab9710"
+size = 83888002
+mtime_ms = 1792133756341
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/c146c492-d11c-40b0-8eb5-5e4396a6ed2b/d56c06ec-e37e-4d6e-b230-4f011cf75b74"
+storage_version_token = "1792133770452530"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "XtZ11k7-ww09C76ST5WBM"
+uri = "file://generated-artifacts/office-f02/SWIMNOTE-OFFICE-F02-delivery-2-of-2.zip"
+type = "unspecified"
+title = "OFFICE F02 Windows — 다운로드 2/2"
+description = "두 번째 분할 파일입니다. 단독 실행 파일이 아니며, 1/2와 함께 원본 ZIP을 복원해야 합니다."
+logical_id = "0689c1fd-4653-4643-93ff-c13e3e1c8827"
+content_hash = "sha256:e2cc8960ceb9c4bfd7824ecfe43df9c8d5f735a5cdb1adbde3a55dde86e78c22"
+size = 74422345
+mtime_ms = 1792133756585
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/0689c1fd-4653-4643-93ff-c13e3e1c8827/c82aa969-4ed3-4bbc-a7c5-b9bf791de684"
+storage_version_token = "1792133772668210"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "XpYx6E0PtelSkoqYNS6g_"
+uri = "file://generated-artifacts/office-f02/F02-DOWNLOAD-AND-RUN.txt"
+type = "text"
+title = "OFFICE F02 — 합치기·해시 확인·실행 안내"
+description = "Windows 기본 명령을 이용한 원본 ZIP 복원 및 안전한 내부 실행 절차입니다."
+logical_id = "62e8dc83-b16b-4011-b419-933260177c9b"
+content_hash = "sha256:eb593c6492af38c78df92bb69880b87e570f38f627178defdce8f5e6efe84026"
+size = 1319
+mtime_ms = 1792133756773
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/62e8dc83-b16b-4011-b419-933260177c9b/c0d45545-3a3b-4757-ad59-a0dd350cfa4b"
+storage_version_token = "1792133774062511"
+content_type = "text/plain"

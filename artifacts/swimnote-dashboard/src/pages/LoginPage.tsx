@@ -24,6 +24,13 @@ type PinVerifyResponse = {
 
 export default function LoginPage() {
   const { login } = useAuth();
+  return <LoginForm login={login} />;
+}
+
+export function LoginForm({ login, bootstrapOnly = false }: {
+  login: (token: string) => Promise<void>;
+  bootstrapOnly?: boolean;
+}) {
   const [, navigate] = useLocation();
 
   const [step, setStep] = useState<LoginStep>({ kind: "credentials" });
@@ -40,6 +47,7 @@ export default function LoginPage() {
   }, [pin, step]);
 
   async function handlePinVerify(pinValue: string, webSession: string) {
+    if (bootstrapOnly) return;
     setError(null);
     setLoading(true);
     try {
@@ -71,6 +79,7 @@ export default function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (bootstrapOnly) return;
     setError(null);
     setLoading(true);
 
@@ -207,6 +216,7 @@ export default function LoginPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} noValidate>
+          <fieldset disabled={bootstrapOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           {step.kind === "credentials" ? (
             <>
               <Field label="아이디">
@@ -333,6 +343,7 @@ export default function LoginPage() {
               ← 처음으로 돌아가기
             </button>
           )}
+          </fieldset>
         </form>
       </div>
     </div>

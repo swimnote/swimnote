@@ -33,7 +33,7 @@ OTA 필요 여부: yes/no
 ## APP GitLab과 개발 저장소의 제품 경계
 - GitLab 인증·push·LFS 검증 성공만으로 기본 개발 저장소나 배포 연결 전환을 추론하지 않는다. 실제 전환 범위는 별도 사용자 승인과 현재 작업 지침을 따른다.
 
-**Why:** 최초 승인은 검증용이었고, 후속 승인은 기존 APP Render 서비스의 저장소 연결에 한정됐다. 두 승인을 합쳐 전체 개발 환경 이전이나 ENGINE 변경으로 확대하면 안 된다.
+**Why:** 검증 push, Render 연결 전환, 기본 개발 저장소 전환은 서로 다른 승인이다. 어느 승인도 ENGINE·EAS·OTA 변경 승인으로 확대하면 안 된다.
 
 **How to apply:** 현재 연결과 branch는 `replit.md`를 확인한다. APP Render 연결 변경과 개발 origin·EAS·OTA 변경 승인을 분리한다.
 

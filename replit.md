@@ -25,7 +25,7 @@ I prefer the AI to operate with a clear understanding of the existing system's m
 
 ### APP Render 저장소 연결 기준 (2026-10-16 사용자 승인)
 
-- 개발 저장소 및 GitHub origin은 `https://github.com/swimnote/swimnote.git`으로 유지한다. Render 연결 전환은 기본 개발 저장소 변경 승인이 아니다.
+- 후속 사용자 승인으로 APP 기본 개발 저장소와 `origin`은 `https://gitlab.com/swimnote.admin/swimnote-app.git`으로 전환한다. 기존 GitHub 저장소·이력은 `github-backup` remote로 보존한다.
 - 기존 APP Render 서비스의 연결 저장소는 `https://gitlab.com/swimnote.admin/swimnote-app.git`이다.
   - `swimnote-api`, `swimnote-web`: 공통 `main`.
   - `swimnote-production-backup`: `release/v2.0.0`.
@@ -34,6 +34,7 @@ I prefer the AI to operate with a clear understanding of the existing system's m
 - API 자동 배포는 off, 웹·백업 cron·중지된 worker는 기존 commit 정책을 유지한다. 저장소 설정 전환만으로 새 빌드·배포·cron 실행·worker 재개를 승인하지 않는다.
 - ENGINE의 기존 GitLab 저장소·Render 연결은 별개이며 APP 작업에서 변경하지 않는다. EAS·OTA·DB·도메인·환경변수 변경은 이 연결 전환 승인에 포함되지 않는다.
 - 이 지침 변경을 운영 branch에 자동 commit/push하지 않는다.
+- OFFICE 개발은 전용 작업 branch에서 수행하며 GitLab의 동일 이름 branch를 추적하도록 설정한다. 원격 branch 생성·최초 push는 별도 승인 전 실행하지 않는다. `main`은 웹 자동배포 대상이므로 검증용 push를 하지 않는다.
 
 ## System Architecture
 
