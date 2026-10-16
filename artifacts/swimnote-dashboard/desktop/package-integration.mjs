@@ -5,8 +5,10 @@ import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { sourceIdentity, dashboard, repo, output, sha } from "./verification-source.mjs";
-import { assemblyCommand, instructions } from "./integration-delivery.mjs";
+import { sourceIdentity, dashboard, repo, output, sha, verificationStage } from "./verification-source.mjs";
+import { assemblyCommand, instructions as legacyInstructions, f05Instructions } from "./integration-delivery.mjs";
+
+const instructions = verificationStage === "F05" ? f05Instructions : legacyInstructions;
 
 const require = createRequire(import.meta.url);
 const asar = createRequire(require.resolve("@electron/packager"))("@electron/asar");
@@ -32,6 +34,19 @@ async function copyRenderer(source, destination) {
   }
 }
 await copyRenderer(path.join(dashboard, "dist-desktop/app/renderer"), path.join(stage, "renderer"));
+const artifactHashes = {};
+async function recordHashes(directory, prefix = "") {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const name = prefix + entry.name;
+    if (entry.isDirectory()) await recordHashes(path.join(directory, entry.name), name + "/");
+    else artifactHashes[name] = sha(await readFile(path.join(directory, entry.name)));
+  }
+}
+await recordHashes(path.join(stage, "desktop"), "desktop/");
+await recordHashes(path.join(stage, "renderer"), "renderer/");
+await writeFile(path.join(stage, "verification-artifacts.json"), JSON.stringify({
+  buildId: identity.buildId, head: identity.head, diffId: identity.diffId, files: artifactHashes,
+}, null, 2));
 const pkg = JSON.parse(await readFile(path.join(dashboard, "package.json"), "utf8"));
 await writeFile(path.join(stage, "package.json"), JSON.stringify({
   name: "swimnote-office", productName: "SWIMNOTE OFFICE", version: pkg.version,
@@ -51,7 +66,7 @@ const electronVersion = pkg.devDependencies.electron.replace(/^[~^]/, "");
 const paths = await packager({
   dir: stage, out: output, name: "SwimnoteOffice", executableName: "SwimnoteOffice",
   platform: "win32", arch: "x64", electronVersion, asar: true, overwrite: false, prune: false,
-  win32metadata: { CompanyName: "SWIMNOTE", FileDescription: "SWIMNOTE OFFICE F03 F04 internal verification" },
+  win32metadata: { CompanyName: "SWIMNOTE", FileDescription: `SWIMNOTE OFFICE ${verificationStage} internal verification` },
 });
 if (paths.length !== 1) throw new Error("Expected one package");
 const unpacked = paths[0];
@@ -61,6 +76,8 @@ for (const entry of entries) {
   if (/(\.env|node_modules|attached_assets|\.test\.|\.map$|\.log$|office-session\.bin|\.git(?:\/|$))/i.test(entry)) {
     throw new Error("Forbidden package entry: " + entry);
   }
+  if (!["desktop", "renderer", "renderer/assets", "package.json", "verification-source.json", "verification-artifacts.json"].includes(entry) &&
+      !Object.hasOwn(artifactHashes, entry)) throw new Error("Unexpected package entry: " + entry);
 }
 for (const file of mainFiles) {
   const stored = asar.extractFile(archive, "desktop/" + file);
@@ -68,6 +85,9 @@ for (const file of mainFiles) {
 }
 if (JSON.parse(asar.extractFile(archive, "verification-source.json").toString()).diffId !== identity.diffId) {
   throw new Error("ASAR identity mismatch");
+}
+for (const [file, expected] of Object.entries(artifactHashes)) {
+  if (sha(asar.extractFile(archive, file)) !== expected) throw new Error("Packaged artifact mismatch: " + file);
 }
 const exe = await readFile(path.join(unpacked, "SwimnoteOffice.exe"));
 const pe = exe.readUInt32LE(0x3c);
@@ -78,11 +98,12 @@ if (exe.toString("ascii", 0, 2) !== "MZ" || exe.readUInt32LE(pe) !== 0x4550 ||
 for (const file of ["resources/app.asar", "chrome_100_percent.pak", "icudtl.dat", "v8_context_snapshot.bin", "ffmpeg.dll"]) {
   if (!(await stat(path.join(unpacked, file))).size) throw new Error("Missing required runtime file");
 }
-await writeFile(path.join(unpacked, "F03-F04-READ-ME.txt"), instructions, "utf8");
-await writeFile(path.join(unpacked, "F03-F04-SOURCE.json"), JSON.stringify(identity, null, 2));
-const zipName = "SWIMNOTE-OFFICE-F03-F04-win32-x64-unpacked.zip";
+await writeFile(path.join(unpacked, `${verificationStage}-READ-ME.txt`), instructions, "utf8");
+await writeFile(path.join(unpacked, `${verificationStage}-SOURCE.json`), JSON.stringify(identity, null, 2));
+const zipName = `SWIMNOTE-OFFICE-${verificationStage}-win32-x64-unpacked.zip`;
 const zipPath = path.join(output, zipName);
 execFileSync("zip", ["-q", "-r", zipPath, path.basename(unpacked)], { cwd: output, stdio: "inherit" });
+execFileSync("unzip", ["-tq", zipPath], { stdio: "inherit" });
 const hash = createHash("sha256");
 for await (const chunk of createReadStream(zipPath)) hash.update(chunk);
 const sha256 = hash.digest("hex");
@@ -113,13 +134,13 @@ if (bytes > 100 * 1024 * 1024) {
   const rebuilt = createHash("sha256");
   for (const part of parts) for await (const chunk of createReadStream(path.join(output, part))) rebuilt.update(chunk);
   if (rebuilt.digest("hex") !== sha256) throw new Error("Part reassembly mismatch");
-  const command = assemblyCommand(zipName, parts, sha256);
-  await writeFile(path.join(output, "START-F03-F04.cmd"), command, "ascii");
-  await writeFile(path.join(output, "F03-F04-READ-ME.txt"), instructions, "utf8");
+  const command = assemblyCommand(zipName, parts, sha256, `${verificationStage}-Windows`);
+  await writeFile(path.join(output, `START-${verificationStage}.cmd`), command, "ascii");
+  await writeFile(path.join(output, `${verificationStage}-READ-ME.txt`), instructions, "utf8");
   result.delivery = [];
   for (let n = 0; n < parts.length; n++) {
-    const name = `SWIMNOTE-OFFICE-F03-F04-DOWNLOAD-${n + 1}-of-${parts.length}.zip`;
-    const files = n === 0 ? [parts[n], "START-F03-F04.cmd", "F03-F04-READ-ME.txt", zipName + ".sha256"] : [parts[n]];
+    const name = `SWIMNOTE-OFFICE-${verificationStage}-DOWNLOAD-${n + 1}-of-${parts.length}.zip`;
+    const files = n === 0 ? [parts[n], `START-${verificationStage}.cmd`, `${verificationStage}-READ-ME.txt`, zipName + ".sha256"] : [parts[n]];
     execFileSync("zip", ["-q", "-0", path.join(output, name), ...files], { cwd: output });
     const size = (await stat(path.join(output, name))).size;
     if (size > 100 * 1024 * 1024) throw new Error("Delivery limit exceeded");

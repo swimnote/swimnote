@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 
 export const dashboard = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const repo = path.resolve(dashboard, "../..");
-export const output = path.join(repo, "generated-artifacts/office-f03-f04");
+export const verificationStage = process.argv.includes("--f05") ? "F05" : "F03-F04";
+export const output = path.join(repo, verificationStage === "F05"
+  ? "generated-artifacts/office-f05" : "generated-artifacts/office-f03-f04");
 export const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 const git = args => execFileSync("git", args, { cwd: repo });
 
@@ -23,9 +25,9 @@ export async function sourceIdentity() {
   const trackedDiffSha256 = sha(diff);
   const diffId = sha(JSON.stringify({ trackedDiffSha256, untracked }));
   return { head, trackedDiffSha256, untracked, diffId,
-    buildId: `F03-F04-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
+    buildId: `${verificationStage}-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
     scope: "HEAD plus tracked binary diff and explicitly listed untracked Desktop source; attachments and generated output excluded",
-    apiSource: "e3018d51262091981b444fb30ab476520f45ddcd" };
+    apiSource: verificationStage === "F05" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

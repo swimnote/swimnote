@@ -113,6 +113,8 @@ Windows 전달 명령의 문자열·해시·안전 분기 정적 검사는 실�
 
 **Why:** 정적 안전성 검사를 통과한 전달 명령도 PowerShell 문장 구분자 누락으로 사용자 Windows에서 ParserError가 발생한 사례가 있다.
 
+수정된 전달 CMD와 소스 생성기를 함께 대조한다. 전달 파일만 수정하고 생성기를 남겨두면 다음 검증본에서 같은 구문 오류가 재발한다.
+
 **How to apply:** 새 전달 명령은 생성된 최종 파일을 기준으로 검증한다. 실행 환경이 없으면 구문·escaping·안전 분기 검토와 실제 실행 증거를 구분하고, 정적 검사만으로 Windows 실행 PASS를 선언하지 않는다.
 
 OFFICE 개발은 관련 Backend·UI·Action·AI Tool·제한 테스트를 하나의 명확한 Vertical Slice로 처리한다. 완료된 조사·PASS/CLOSED 영역을 근거 없이 다시 감사하지 않고, 기존 Context·컴포넌트·service·테스트 결과를 재사용한다.

@@ -15,6 +15,15 @@ describe("F03/F04 delivery script static safety contract (not Windows execution)
     expect(script).not.toMatch(/ExecutionPolicy|RunAs|Invoke-WebRequest|DownloadString|https?:\/\/|[A-Z]:\\/i);
     expect(script).not.toContain("Start-Process");
     expect(script.split("\r\n").every((line: string) => line.length < 8191)).toBe(true);
+    expect(script).toContain("$ErrorActionPreference='Stop'; $tmp=$null; try {");
+  });
+  it("uses a separate F05 output folder and retains the corrected statement separators", () => {
+    const script = assemblyCommand("SWIMNOTE-OFFICE-F05-win32-x64-unpacked.zip",
+      ["SWIMNOTE-OFFICE-F05-win32-x64-unpacked.zip.part01"], hash, "F05-Windows");
+    expect(script).toContain("$destination=Join-Path $root 'F05-Windows';");
+    expect(script).not.toContain("F03-F04");
+    expect(script).toContain("$ErrorActionPreference='Stop'; $tmp=$null; try {");
+    expect(() => assemblyCommand(zip, parts, hash, "../escape")).toThrow();
   });
   it("checks missing parts before creating output and verifies SHA before extraction or opening the folder", () => {
     const script = assemblyCommand(zip, parts, hash);

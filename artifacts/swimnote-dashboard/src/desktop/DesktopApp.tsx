@@ -63,8 +63,8 @@ export function DesktopApp() {
         SWIMNOTE OFFICE F05 · Dashboard·회원 조회 전용
         <div style={{ marginTop: 4, fontSize: 12 }}>
           {bridgeStatus} · 실제 renderer Origin: <output data-testid="renderer-origin">{window.location.origin}</output>
-          <div>F05 로컬 구현 · Windows 통합본 미검증.
-            이전 F03/F04 검증본 참고(현재 F05 소스의 검증 ID 아님): {typeof __OFFICE_VERIFICATION_ID__ === "string" ? __OFFICE_VERIFICATION_ID__ : "개발 미지정"}
+          <div>F05 조회 전용 · unsigned 내부 검증본 · 실제 Windows 수용 미완료.
+            검증본 ID: {typeof __OFFICE_VERIFICATION_ID__ === "string" ? __OFFICE_VERIFICATION_ID__ : "개발 미지정"}
           </div>
         </div>
       </div>
