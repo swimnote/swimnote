@@ -23,7 +23,9 @@ export function isAllowedAuthRequest(raw: string, method: string): boolean {
     if (url.pathname === "/api/students") return url.search === "?pool_all=true";
     return !url.search && (
       url.pathname === "/api/admin/dashboard-stats" || url.pathname === "/api/class-groups" ||
-      /^\/api\/admin\/growth-reports\/students\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(url.pathname)
+      /^\/api\/admin\/growth-reports\/students\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(url.pathname) ||
+      // Existing students.ts/student-create-service.ts IDs are text, not UUID-only.
+      /^\/api\/admin\/growth-reports\/students\/student_[0-9]{13}_[a-z0-9]{1,9}$/.test(url.pathname)
     );
   } catch { return false; }
 }

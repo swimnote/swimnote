@@ -8,6 +8,22 @@ import { isLoginPreferences, LoginPreferencesStore, registerLoginPreferencesIPC 
 const root = "https://swimnote-api.onrender.com/api";
 const id = "11111111-1111-4111-8111-111111111111";
 describe("F05 exact read allowlist", () => {
+  it.each(["student_1790000000000_abc123xyz", "student_1790000000000_a"])(
+    "supports existing server-generated text IDs without allowing writes: %s", studentId => {
+      const url = `${root}/admin/growth-reports/students/${studentId}`;
+      for (const method of ["GET", "OPTIONS"]) expect(isAllowedAuthRequest(url, method)).toBe(true);
+      for (const method of ["POST", "PUT", "PATCH", "DELETE", "HEAD"]) expect(isAllowedAuthRequest(url, method)).toBe(false);
+      for (const suffix of ["?pool_id=other", "?token=fixture", "/download", "/send", "#fragment"]) {
+        expect(isAllowedAuthRequest(url + suffix, "GET")).toBe(false);
+      }
+    },
+  );
+  it.each(["student_other", "student_1790000000000_", "student_1790000000000_abcdefghij",
+    "student_1790000000000_a%2Fsend", "student_1790000000000_a/../send"])(
+    "rejects non-contract text IDs: %s", studentId => {
+      expect(isAllowedAuthRequest(`${root}/admin/growth-reports/students/${studentId}`, "GET")).toBe(false);
+    },
+  );
   it.each(["/admin/dashboard-stats", "/students?pool_all=true", "/class-groups", `/admin/growth-reports/students/${id}`])(
     "allows only GET/preflight for %s", route => {
       expect(isAllowedAuthRequest(root + route, "GET")).toBe(true);

@@ -15,6 +15,8 @@ let listError: boolean;
 let statsError: boolean;
 let classError: boolean;
 let studentsEmpty: boolean;
+let historyError: unknown;
+let historyResult: unknown;
 let delayList: Promise<unknown> | undefined;
 let delayStats: Promise<unknown> | undefined;
 let streams: ReadableStreamDefaultController<Uint8Array>[];
@@ -35,6 +37,7 @@ beforeEach(() => {
   queryClient.setDefaultOptions({ queries: { retry: false } });
   vi.clearAllMocks();
   version = 1; pool = "pool-a"; listError = statsError = classError = studentsEmpty = false;
+  historyError = undefined; historyResult = { success: true, reports: [] };
   delayList = delayStats = undefined; streams = [];
   window.history.replaceState({}, "", "/admin/login");
   clear = vi.fn(async () => ({ ok: true }));
@@ -63,7 +66,10 @@ beforeEach(() => {
       if (classError) throw new Error("fixture class failure");
       return [{ id: "class-a", name: "기초반" }, { id: "class-b", name: "상급반" }] as never;
     }
-    if (route === `/admin/growth-reports/students/${id}`) return { success: true, reports: [] } as never;
+    if (route === `/admin/growth-reports/students/${id}`) {
+      if (historyError) throw historyError;
+      return historyResult as never;
+    }
     throw new Error("Unapproved fixture route: " + route);
   });
   vi.stubGlobal("fetch", vi.fn(async (_url, init) => ({
@@ -97,8 +103,16 @@ it("hands one verified session to the existing dashboard, routes, Pool and sideb
   const drawer = await screen.findByRole("dialog", { name: "회원 상세" });
   await within(drawer).findByText("발행된 성장리포트가 없습니다.");
   for (const label of ["수정", "연기", "퇴원", "일지 보기"]) {
-    expect((within(drawer).getByRole("button", { name: label }) as HTMLButtonElement).disabled).toBe(true);
+    const button = within(drawer).getByRole("button", { name: label }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.style.opacity).toBe("0.45");
+    expect(button.getAttribute("aria-describedby")).toBe("member-drawer-readonly");
+    fireEvent.click(button);
+    expect(screen.getByRole("dialog", { name: "회원 상세" })).toBe(drawer);
+    expect(screen.queryByText("회원 정보 수정")).toBeNull();
+    expect(window.location.pathname).toBe("/admin/members");
   }
+  expect(within(drawer).getByText(/Desktop 조회 전용: 수정·연기·퇴원/)).toBeTruthy();
   expect(calls(`/admin/growth-reports/students/${id}`)).toBe(1);
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -126,6 +140,36 @@ it("retains search/filter/selection while event refresh updates the open drawer 
   expect(screen.queryByText("검증회원B")).toBeNull();
   fireEvent.change(search, { target: { value: "없는검증회원" } });
   await screen.findByText("검색 결과가 없습니다.");
+});
+
+it.each([
+  [new TypeError("fixture network rejection"), "세부 원인은 미확인"],
+  [{ status: 500, message: "PRIVATE_FIXTURE_MESSAGE" }, "HTTP 500"],
+  [new SyntaxError("fixture invalid JSON"), "응답 형식"],
+])("distinguishes history failures and retries without masking them as empty: %s", async (error, message) => {
+  window.history.replaceState({}, "", "/admin/members");
+  historyError = error;
+  open();
+  await screen.findByText("검증회원A-1");
+  fireEvent.click(screen.getByText("검증회원A-1"));
+  const drawer = screen.getByRole("dialog", { name: "회원 상세" });
+  await within(drawer).findByText(new RegExp(message as string));
+  expect(within(drawer).queryByText("발행된 성장리포트가 없습니다.")).toBeNull();
+  expect(drawer.textContent).not.toContain("PRIVATE_FIXTURE");
+  historyError = undefined;
+  fireEvent.click(within(drawer).getByRole("button", { name: "다시 조회" }));
+  await within(drawer).findByText("발행된 성장리포트가 없습니다.");
+});
+
+it("does not silently treat a malformed history response as no published reports", async () => {
+  window.history.replaceState({}, "", "/admin/members");
+  historyResult = { success: true };
+  open();
+  await screen.findByText("검증회원A-1");
+  fireEvent.click(screen.getByText("검증회원A-1"));
+  const drawer = screen.getByRole("dialog", { name: "회원 상세" });
+  await within(drawer).findByText(/응답 형식/);
+  expect(within(drawer).queryByText("발행된 성장리포트가 없습니다.")).toBeNull();
 });
 
 it("does not claim resync success before the reconnected active query finishes", async () => {

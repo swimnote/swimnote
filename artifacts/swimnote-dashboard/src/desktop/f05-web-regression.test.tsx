@@ -42,8 +42,13 @@ it("preserves Web authentication, all navigation and member editing affordances"
   expect((screen.getByRole("button", { name: "Excel" }) as HTMLButtonElement).disabled).toBe(false);
   expect(screen.getByRole("button", { name: "설정", exact: true })).toBeTruthy();
   fireEvent.click(screen.getByText("웹검증회원"));
-  expect((screen.getByRole("button", { name: "수정", exact: true }) as HTMLButtonElement).disabled).toBe(false);
-  expect((screen.getByRole("button", { name: "퇴원", exact: true }) as HTMLButtonElement).disabled).toBe(false);
+  for (const label of ["수정", "일지 보기", "연기", "퇴원"]) {
+    const button = screen.getByRole("button", { name: label, exact: true }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.style.opacity).toBe("1");
+    expect(button.getAttribute("aria-describedby")).toBeNull();
+  }
+  expect(screen.queryByText(/Desktop 조회 전용: 수정·연기·퇴원/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "수정", exact: true }));
   await screen.findByText("회원 정보 수정");
   expect(api.patch).not.toHaveBeenCalled();

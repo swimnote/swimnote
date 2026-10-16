@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
 import { api, type ApiError } from "@/lib/api-client";
+import { loadGrHistory, grHistoryErrorMessage } from "./gr-history";
 import {
   Search, X, ChevronLeft, ChevronRight, UserMinus,
   Edit2, RefreshCw, AlertCircle, Download, BookOpen, FileText,
@@ -252,12 +253,18 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
             borderTop: "1px solid var(--border-default, #E5E7EB)",
             padding: "14px 20px",
             display: "flex",
+            flexDirection: "column",
             gap: "8px",
             flexShrink: 0,
           }}
         >
+          {readOnly && <p id="member-drawer-readonly" style={{ margin: 0, fontSize: "12px", color: "#64748B" }}>
+            Desktop 조회 전용: 수정·연기·퇴원은 사용할 수 없습니다. 일지 보기는 현재 검증 단계에서 지원하지 않습니다.
+          </p>}
+          <div style={{ display: "flex", gap: "8px" }}>
           <button
             disabled={readOnly}
+            aria-describedby={readOnly ? "member-drawer-readonly" : undefined}
             onClick={() => onEdit(student)}
             style={{
               flex: 1,
@@ -272,13 +279,15 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
               fontSize: "13px",
               fontWeight: 500,
               color: "#374151",
-              cursor: "pointer",
+              cursor: readOnly ? "not-allowed" : "pointer",
+              opacity: readOnly ? 0.45 : 1,
             }}
           >
             <Edit2 size={14} /> 수정
           </button>
           <button
             disabled={readOnly}
+            aria-describedby={readOnly ? "member-drawer-readonly" : undefined}
             onClick={() => { onViewDiary(student.id); onClose(); }}
             style={{
               flex: 1,
@@ -293,7 +302,8 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
               fontSize: "13px",
               fontWeight: 500,
               color: "#1d4ed8",
-              cursor: "pointer",
+              cursor: readOnly ? "not-allowed" : "pointer",
+              opacity: readOnly ? 0.45 : 1,
             }}
           >
             <BookOpen size={14} /> 일지 보기
@@ -301,6 +311,7 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
           {student.status === "active" && (
             <button
               disabled={readOnly}
+              aria-describedby={readOnly ? "member-drawer-readonly" : undefined}
               onClick={() => onSuspend(student.id, student.name)}
               style={{
                 flex: 1,
@@ -315,7 +326,8 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
                 fontSize: "13px",
                 fontWeight: 500,
                 color: "#92400E",
-                cursor: "pointer",
+                cursor: readOnly ? "not-allowed" : "pointer",
+                opacity: readOnly ? 0.45 : 1,
               }}
             >
               연기
@@ -324,6 +336,7 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
           {(student.status === "active" || student.status === "suspended") && (
             <button
               disabled={readOnly}
+              aria-describedby={readOnly ? "member-drawer-readonly" : undefined}
               onClick={() => onWithdraw(student.id, student.name)}
               style={{
                 flex: 1,
@@ -338,12 +351,14 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
                 fontSize: "13px",
                 fontWeight: 500,
                 color: "#DC2626",
-                cursor: "pointer",
+                cursor: readOnly ? "not-allowed" : "pointer",
+                opacity: readOnly ? 0.45 : 1,
               }}
             >
               <UserMinus size={14} /> 퇴원
             </button>
           )}
+          </div>
         </div>
       </div>
     </>
@@ -351,14 +366,6 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
 }
 
 // ── GR History inline section ──────────────────────────────────────────────
-
-interface GrSummaryItem {
-  report_id:     string;
-  student_id:    string;
-  report_period: string;
-  published_at:  string | null;
-  summary_text:  string | null;
-}
 
 function formatGrPeriod(period: string): string {
   const parts = period.split("-");
@@ -371,9 +378,9 @@ function formatGrPeriod(period: string): string {
 }
 
 function GrHistorySection({ studentId }: { studentId: string }) {
-  const { data, isLoading, isError, refetch } = useQuery<{ success: boolean; reports: GrSummaryItem[] }>({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["member-gr-history", studentId],
-    queryFn: ({ signal }) => api.get(`/admin/growth-reports/students/${studentId}`, { signal }),
+    queryFn: ({ signal }) => loadGrHistory(studentId, signal),
     staleTime: 60_000,
   });
 
@@ -388,6 +395,7 @@ function GrHistorySection({ studentId }: { studentId: string }) {
         <div style={{ fontSize: "13px", color: "#9CA3AF" }}>로딩 중…</div>
       ) : isError ? (
         <div style={{ fontSize: "13px", color: "#EF4444" }}>불러오지 못했습니다.
+          <span role="alert" style={{ display: "block", margin: "4px 0" }}>{grHistoryErrorMessage(error)}</span>
           <button type="button" onClick={() => void refetch()}>다시 조회</button>
         </div>
       ) : items.length === 0 ? (
