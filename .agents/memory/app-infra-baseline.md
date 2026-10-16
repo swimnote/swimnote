@@ -39,3 +39,10 @@ OTA 필요 여부: yes/no
 **Why:** 사용자는 GitHub를 유지한 채 현재 Replit에서 GitLab push 가능 여부만 확인하도록 범위를 한정했다.
 
 **How to apply:** APP 검증은 별도 추가 remote와 명시 승인된 ref에만 수행한다. 저장소 이전이나 배포 전환은 별도의 승인이 필요하다.
+
+## 검증 push의 LFS 전송 경계
+검증 push에서 로컬 hook을 제외하면 Git LFS의 자동 pre-push 전송도 제외된다. 이를 인증 성공이나 Git 객체 전송 성공만으로 LFS 전송 완료로 판단하지 않는다.
+
+**Why:** 이 저장소의 pre-push hook은 Git LFS 전송을 호출한다. 명령 한정으로 hook을 비활성화한 검증 push에서 대상 GitLab이 LFS 객체 누락을 이유로 거절했다.
+
+**How to apply:** 자동 실행 방지를 위해 hook을 제외해야 한다면 승인 SHA에 필요한 LFS 객체만 별도로 전송하는 범위를 먼저 확인한다. 이력 재작성·LFS 검사 해제·ref 범위 없는 전체 업로드로 우회하지 않으며, 추가 push 횟수 제한을 준수한다.
