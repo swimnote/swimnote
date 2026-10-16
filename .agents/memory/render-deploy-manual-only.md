@@ -20,6 +20,11 @@ main HEAD SHA == Render LIVE /health commit SHA
 **Why:** 검증된 소스 뒤에 추가된 무관한 commit을 함께 배포하면 사용자가 승인한 배포 범위를 벗어난다.
 **How to apply:** 로컬 HEAD·원격 HEAD·승인 TARGET을 구분해 보고한다. 필요한 push는 승인 TARGET의 정상 fast-forward만 사용하고, Render 요청에 commitId를 명시한다. SHA를 맞추려고 reset이나 force push하지 않는다.
 
+같은 연결 GitLab 저장소의 release SHA는 서비스가 main에 연결된 상태에서도 공식 `commitId` 지정 API로 배포된 사례가 있다. 자동 배포용 skip 표식도 명시적 수동 배포를 차단하지 않았다. 먼저 승인 full SHA를 지정하고, 실제 branch 제약 오류가 확인될 때만 승인된 임시 branch 전환을 사용한다.
+
+**Why:** main에 아직 포함되지 않은 release source가 branch 변경 없이 수락됐고 LIVE·실제 health SHA까지 일치했다. 미리 branch를 바꾸면 불필요한 설정 변경·복원과 중복 배포 위험이 생긴다.
+**How to apply:** 연결 저장소·원격 SHA·기존 LIVE·진행 중 배포·autoDeploy를 먼저 확인한다. 요청 성공만으로 완료 처리하지 않으며 새 deploy의 SHA와 실제 health를 검증한다. API의 `commitId` 지정은 자동 배포를 끄지 않으므로 기존 `autoDeploy=no` 보존을 별도로 확인한다.
+
 선행 commit에 다른 작업의 지시문이나 에이전트 메모가 있다는 이유만으로 배포를 HOLD하지 않는다. 실제 실행 코드·빌드 입력·운영 동작에 영향을 주는 범위 밖 변경인지 구분한다.
 
 **Why:** 사용자는 운영에 영향 없는 문서와 실제 unrelated 구현 변경을 구분하도록 명시했다. 문서만을 이유로 검증 완료본 배포를 막으면 승인된 작업을 불필요하게 중단한다.
