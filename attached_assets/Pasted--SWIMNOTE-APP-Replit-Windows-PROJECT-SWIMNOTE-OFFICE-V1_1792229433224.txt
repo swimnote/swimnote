@@ -1,0 +1,179 @@
+[전달 대상: SWIMNOTE APP Replit / Windows 검증 담당]
+
+PROJECT = SWIMNOTE OFFICE V1
+TASK = 고정 후보의 실제 Windows 격리 통합 수용
+
+1. 기준·보존
+
+branch: office/f02-foundation
+기준 HEAD:
+523ab3201912c6f4652d0977fefc24c9ff283491
+
+후보:
+OFFICE-WIN-AUTH-fad5704318bc64c4
+
+ZIP SHA-256:
+fe099940f540b679b872c76d2932ce6f2fdea4258467aa2f0a27848264a3f9ee
+
+Manifest SHA-256:
+f0b2659ea4eb1ffc9cded0af38bb6f6f4f428178db842e15db7f3a0314a0e555
+
+기존 source·후보·ZIP·증거 보존.
+checkout/reset·commit/push·배포 금지.
+기존 Linux 검증은 재사용하고 반복하지 않는다.
+
+2. 실행 환경 확인
+
+실제 접근 가능한 Windows x64에서만 수행한다.
+Windows 접근이 없으면 실행을 주장하지 않는다.
+
+그 경우:
+- Windows 실행 대기 상태로 보고.
+- 사용자가 수행할 최초 준비 단계만 안내.
+- 새 Linux 준비 작업·후보 재생성 반복 금지.
+
+Windows 접근이 있다면 OS·PowerShell·Node·pnpm·PG 버전 기록.
+기존 운영 설치본·DB·환경변수·계정과 분리한다.
+
+3. 1차 검증 — 실행·인증·종료
+
+새 ZIP을 새 빈 폴더에 해제한다.
+WINDOWS-RUN-GUIDE.md의 정확한 명령을 사용한다.
+
+순서:
+- ZIP 해시 확인.
+- 수동 toolchain 확인.
+- frozen-lockfile 설치.
+- 명시적 Electron binary 준비.
+- runtime-info 기록.
+- VerifyCandidate.
+- BuildDesktop.
+- Prepare와 ACL 확인.
+- Start와 schema/identity marker 확인.
+- Check.
+- ShowLogin으로 로컬 자격증명 확인.
+- LaunchDesktop.
+- 지정 Pool ID로 정상 PIN 로그인.
+- me/my-pools/x-mode 및 회원 화면 확인.
+- Desktop 정상 종료와 Stop.
+
+최초 실패를 보존한다.
+준비·빌드·인증 실패가 있으면 업무 검사를 무리하게 진행하지 않는다.
+오류가 난 명령·비밀 없는 출력·기대/실제 결과를 기록한다.
+
+비밀번호·PIN·OTP·JWT·private/login-info·userData는 공유하지 않는다.
+관리자 권한·실행 정책 완화·운영 설정 복사 금지.
+
+4. 2차 검증 — Windows 네이티브 경계
+
+1차 통과 후 같은 고정 후보로 확인:
+
+- 실제 app://office 창과 단일 API origin.
+- preload·IPC의 허용/거부 동작.
+- Windows 안전 저장과 재조회.
+- 로그인 유지 ON/OFF 각각 종료·재실행.
+- 로그아웃 후 재인증.
+- 기존 제품 userData·세션과 분리.
+- 정상 TOTP 및 잘못된 OTP 거부.
+- 제한 역할·타 Pool·비활성 상태의 실제 동작.
+
+단순 로그인 유지 성공만으로 DPAPI 검증 PASS 선언 금지.
+실제 safeStorage 사용·암호화 저장 여부와 재조회 근거를
+비밀 원문 없이 구분해 기록한다.
+
+제품에 없는 서버 logout/refresh/revocation은 추가하지 않는다.
+PIN 지정 Pool ID 경계는 유지한다.
+이메일/non-web 거부를 제품 전체 PIN 문제 해결로 표현하지 않는다.
+
+5. 3차 검증 — 업무·오류 복구
+
+기록된 모델 응답만 사용한다.
+지원 입력은 replay 자료·안내에서 정확히 확인한다.
+신규 유료 모델 호출과 네트워크 fallback은 0회.
+
+WINDOWS-CHECKLIST의 업무 항목 수행:
+- 검색 0명·1명·동명이인.
+- 한글 정보 수정과 재조회.
+- 지정 소속 반이동.
+- 다른 소속·weekly_count 3 보존.
+- 임시 실행 확인과 취소.
+- 완료 카드·결과 보기·열람.
+- 뒤로/앞으로·검색·필터·스크롤 보존.
+- AI 초안·로컬 첨부·미저장 편집 보존.
+- 실제 commit 후 응답 유실.
+- 쓰기/event/receipt 1회 및 자동 재실행 없음.
+- 같은 receipt 결과 조회로 복구.
+- WritesOff에서 신규 실행 거부·기존 결과 조회.
+- stale writer 충돌 409·덮어쓰기 없음.
+- 결과 조회 실패 시 미열람 유지.
+- 실제 로그아웃·다른 Pool 로그인 후 이전 상태 격리.
+
+오류 주입은 제공된 Fault 명령만 사용한다.
+Clear와 WritesOn/Off가 별개라는 점을 유지한다.
+운영 API·방화벽·임의 proxy로 장애를 만들지 않는다.
+
+DB 증거는 제공된 읽기 전용 방법을 사용한다.
+방법이 부족하면 격리 전용 read-only 진단만 최소 보완한다.
+비밀·과거 개인정보 원문을 출력하지 않는다.
+
+6. 종료·소유권
+
+Desktop 정상 종료 후 Stop.
+이번 실행이 만든 API·PG만 종료됐는지 확인.
+
+포트 점유 검사는 기존 점유자를 종료하지 않고 수행.
+강제 종료 검사는 별도 합성 run에서 수행한다.
+DiagnoseLock의 PID·path·creation time·candidate·session을 대조.
+소유권 미확인 자원 종료·lock 삭제 금지.
+
+DeleteData는 사용자가 해당 run 삭제를 명시적으로 선택한 경우만 수행.
+선택하지 않았다면 NOT RUN으로 기록한다.
+
+7. 실패 시 수정 원칙
+
+최초 실패 증거를 보존한다.
+원인이 후보 결함이면 직접 관련 범위만 최소 수정.
+고정 ZIP을 몰래 수정하거나 기존 해시를 유지하지 않는다.
+
+수정 시:
+- 새 후보 ID·manifest·ZIP 해시 생성.
+- 변경 파일·원인·영향 범위 기록.
+- 실패 항목과 직접 영향 항목만 재검증.
+- 변경 없는 전체 suite·유료 호출 반복 금지.
+
+정상 인증·Origin·IPC·ACL을 우회해 통과시키지 않는다.
+
+8. 금지
+
+운영 DB·metadata·startup·migration.
+운영 계정·회원·Pool·권한 변경.
+실제 발송·결제·환불·업로드.
+신규 유료 모델 호출.
+모바일·AI ENGINE 변경.
+설치본 패키징·서명·외부 배포.
+commit/push·main·Render·OTA.
+
+운영 PIN schema/조회 불일치 수정은 이번 범위에서 제외.
+별도 과제로 원인·영향·근거만 유지한다.
+
+9. 완료 보고
+
+TASK = PASS / HOLD
+실제 Windows 환경·실행 주체 =
+검증 후보·ZIP/manifest/build 해시 =
+설치·빌드·ACL·Start =
+정상 PIN/TOTP·권한·상태 경계 =
+실제 DPAPI/preload/IPC 근거 =
+업무 변경·DB/receipt 확인 =
+응답 유실·중복 방지·복구 =
+화면 왕복·초안·첨부·세션 격리 =
+정상 종료·포트·소유권 =
+최초 실패·수정 후 결과 =
+수정 여부·새 후보 여부 =
+체크리스트별 PASS/FAIL/HOLD/NOT RUN =
+운영 Gate·残여 한계 =
+NOT RUN =
+
+Windows 격리 수용과 운영 배포 승인을 구분한다.
+사용자 수행 증거는 사용자 보고로 식별한다.
+완료 후 보고하고 정지.
