@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const net = require("node:net");
+const os = require("node:os");
 const { spawn, spawnSync } = require("node:child_process");
 
 const BASE = "OFFICE-WIN-AUTH-fad5704318bc64c4";
@@ -123,6 +124,11 @@ function writeInitdbPassword(file, password) {
     throw Object.assign(new Error("Synthetic password format rejected"), { code: "INITDB_PASSWORD_FORMAT_REJECTED" });
   fs.writeFileSync(file, Buffer.from(password + "\n", "utf8"), { flag: "wx", mode: 0o600 });
 }
+function supportsUtf8ProcessCodePage(release) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(release);
+  return !!match && (Number(match[1]) > 10 ||
+    (Number(match[1]) === 10 && Number(match[3]) >= 18362));
+}
 
 function assertPlainDirectory(folder) {
   const absolute = path.resolve(folder);
@@ -188,6 +194,8 @@ class IsolatedRuntime {
   async start() {
     if (process.platform !== "win32" || process.arch !== "x64")
       throw Object.assign(new Error("Windows x64 required"), { code: "WINDOWS_X64_REQUIRED" });
+    if (!supportsUtf8ProcessCodePage(os.release()))
+      throw Object.assign(new Error("Windows UTF8 process codepage support required"), { code: "WINDOWS_UTF8_CODEPAGE_REQUIRED" });
     if (!process.env.LOCALAPPDATA || !process.env.SYSTEMROOT)
       throw Object.assign(new Error("Windows profile unavailable"), { code: "PROFILE_UNAVAILABLE" });
     const manifest = json(path.join(this.isolation, "runtime-manifest.json"));
@@ -238,6 +246,13 @@ class IsolatedRuntime {
       writeInitdbPassword(passwordFile, this.credentials.dbPassword);
       try {
         this.stage = "prepare-initdb";
+        this.initdbInputProfile = {
+          explicitAsciiRole: true, dbEncoding: "UTF8", locale: "C",
+          passwordFile: "ASCII_UTF8_NO_BOM_LF", relativeDbAndPasswordPaths: true,
+          resourcePathHasNonAscii: /[^\x00-\x7f]/.test(this.resources),
+          runPathHasNonAscii: /[^\x00-\x7f]/.test(this.run),
+          declaredProcessCodePage: "UTF-8", effectiveProcessCodePage: "NOT_MEASURED",
+        };
         const invocation = initdbInvocation(this.run);
         command(this.tool("initdb"), invocation.args, { cwd: invocation.cwd, env: this.childEnv(),
           diagnosticSecrets: secretValues(this.credentials) });
@@ -372,6 +387,14 @@ class IsolatedRuntime {
       childException: /^0X[A-F0-9]{8}$/.test(error?.initdb?.exception ?? "") ? error.initdb.exception : undefined,
       initdbMessages: messages.length ? messages : undefined,
       initdbMessagePolicy: error?.initdb ? "bounded PostgreSQL error excerpts; unknown values withheld; no raw log" : undefined,
+      initdbInputProfile: this.initdbInputProfile ? {
+        explicitAsciiRole: this.initdbInputProfile.explicitAsciiRole === true,
+        dbEncoding: "UTF8", locale: "C", passwordFile: "ASCII_UTF8_NO_BOM_LF",
+        relativeDbAndPasswordPaths: true,
+        resourcePathHasNonAscii: this.initdbInputProfile.resourcePathHasNonAscii === true,
+        runPathHasNonAscii: this.initdbInputProfile.runPathHasNonAscii === true,
+        declaredProcessCodePage: "UTF-8", effectiveProcessCodePage: "NOT_MEASURED",
+      } : undefined,
       initdbCapture: error?.initdb?.capture ? {
         stdoutBytes: Number.isSafeInteger(error.initdb.capture.stdoutBytes) && error.initdb.capture.stdoutBytes >= 0 ?
           error.initdb.capture.stdoutBytes : undefined,
@@ -402,4 +425,5 @@ class IsolatedRuntime {
   }
 }
 module.exports = { IsolatedRuntime, cleanEnv, systemError, assertPlainDirectory, BASE, PORTS,
-  classifyInitdbFailure, initdbInvocation, safeInitdbMessage, collectInitdbMessages, writeInitdbPassword };
+  classifyInitdbFailure, initdbInvocation, safeInitdbMessage, collectInitdbMessages, writeInitdbPassword,
+  supportsUtf8ProcessCodePage };

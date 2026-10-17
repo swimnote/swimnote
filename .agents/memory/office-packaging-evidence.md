@@ -68,3 +68,9 @@ Windows PostgreSQL CLI의 파일 경로 처리를 Node의 Unicode 파일 I/O와 
 **Why:** 사용자는 상대 경로 보완 후에도 post-bootstrap 인코딩 분류가 발생했으며, 한글 경로를 근본 원인으로 단정하지 말라고 명시했다. 공식 보고에는 Windows 설치 binary 경로의 비ASCII 문자로 유사 오류가 발생한 사례가 있으나 버전·PC별 재현 증거는 별도다.
 
 **How to apply:** 근거 없는 encoding/locale 변경이나 SQL_ASCII 전환을 피한다. 원인 미확정 후보는 진단 보완본으로 표시하고 초기화 성공·API 준비·실제 Windows 수용을 구분한다. 참조: https://www.postgresql.org/message-id/16926-e4ef345545d185ab%40postgresql.org
+
+Windows의 LANG/LC_ALL과 프로세스 ANSI code page는 별개다. DB를 UTF-8로 만들고 상대 ASCII 인자를 주어도, 프로세스 시작 전 argv/environ 및 내부에서 구한 절대 경로는 각 실행 파일의 ACP 영향을 받는다. 부모 Electron/Node의 Unicode 처리가 자식 native 프로세스의 ACP를 바꾸지는 않는다.
+
+**Why:** 실제 PostgreSQL 인코딩 오류가 확보된 뒤 조사에서 ASCII 역할명·비밀번호·locale 인자와 ASCII 초기화 자료를 확인했다. PostgreSQL 개발자 설명과 Microsoft 문서는 이와 별도로 native 경로의 ACP 경계를 명시한다. 특정 실패 바이트만으로 사용자 PC의 코드페이지·경로를 확정할 수는 없다.
+
+**How to apply:** per-process UTF-8 선언을 사용할 때 서로 경로 바이트를 주고받는 native 실행 파일을 함께 검토한다. 시스템 코드페이지·사용자 계정명 변경을 요구하지 않는다. manifest의 정적 존재·코드 영역 보존·실제 Windows loader 적용은 다른 증거이며, Linux에 잘못된 바이트를 주입해 같은 오류를 재현해도 사용자 PC의 원인 확정이나 Windows 해결 PASS가 아니다. 참조: https://www.postgresql.org/message-id/CA%2BhUKGL%3DF0pSLLf3nLpA_-sBwYsLg7s%3DFD6YFo_PDvS84FE_hw%40mail.gmail.com ; https://learn.microsoft.com/en-us/windows/apps/design/globalizing/use-utf8-code-page

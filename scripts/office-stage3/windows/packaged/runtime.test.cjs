@@ -5,7 +5,7 @@ const path = require("node:path");
 const os = require("node:os");
 const { IsolatedRuntime, cleanEnv, systemError, assertPlainDirectory, BASE,
   classifyInitdbFailure, initdbInvocation, safeInitdbMessage, collectInitdbMessages,
-  writeInitdbPassword } = require("./runtime.cjs");
+  writeInitdbPassword, supportsUtf8ProcessCodePage } = require("./runtime.cjs");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "office-package-contract-"));
 const identity = { packageId: "OFFICE-WIN-PACKAGED-contract", parentId: BASE };
 const runtime = () => new IsolatedRuntime({ resources: root, localData: root, identity });
@@ -84,6 +84,13 @@ test("initdb uses ASCII relative arguments with a Unicode wide-character cwd and
   assert.equal(invocation.args[invocation.args.indexOf("-D") + 1], "db");
   assert.equal(invocation.args.includes("--no-clean"), true);
   assert.equal(invocation.args.includes("--auth-host=scram-sha-256"), true);
+  assert.equal(invocation.args[invocation.args.indexOf("-U") + 1], "office_fixture");
+});
+test("UTF8 process manifests require Windows 10 1903 or newer and never change system locale", () => {
+  for (const version of ["10.0.18362", "10.0.19045", "10.0.22631"])
+    assert.equal(supportsUtf8ProcessCodePage(version), true);
+  for (const version of ["10.0.17763", "6.3.9600", "unknown"])
+    assert.equal(supportsUtf8ProcessCodePage(version), false);
 });
 test("initdb errors emit known categories, progress and constrained messages, never raw output", () => {
   const secret = "UNSHAREABLE-TEST-SECRET";
@@ -186,6 +193,7 @@ test("supervisor captures a failed initdb command without selecting or reusing i
     } },
     require(name) {
       if (name === "../normal/credentials.mjs") return { localCredentials: () => credentials };
+      if (name === "node:os") return { release: () => "10.0.22631" };
       if (name === "node:net") return { createServer: () => ({
         once() {}, listen(_port, _host, callback) { callback(); }, close(callback) { callback(); },
       }) };
@@ -227,6 +235,9 @@ test("supervisor captures a failed initdb command without selecting or reusing i
   for (const value of [credentials.dbPassword, credentials.jwtKey, credentials.accounts[0].password, "9876", local])
     assert.equal(text.includes(value), false);
   assert.equal(data.lockRetained, false);
+  assert.equal(data.initdbInputProfile.explicitAsciiRole, true);
+  assert.equal(data.initdbInputProfile.runPathHasNonAscii, true);
+  assert.equal(data.initdbInputProfile.effectiveProcessCodePage, "NOT_MEASURED");
   assert.equal(fs.existsSync(path.join(r.run, "init-password.txt")), false);
   assert.equal(fs.existsSync(path.join(r.run, "db/failed-evidence")), true);
   assert.equal(fs.existsSync(path.join(r.root, "selected-run.json")), false);

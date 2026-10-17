@@ -3,9 +3,10 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
+import { withUtf8Manifest } from "./utf8-manifest.mjs";
 
 const repo = path.resolve(import.meta.dirname, "../../../..");
-const attempt = process.argv[2] ?? "attempt-08";
+const attempt = process.argv[2] ?? "attempt-09";
 if (!/^attempt-\d{2}$/.test(attempt)) throw new Error("Explicit new attempt name required");
 const deliveryRoot = path.join(repo, "generated-artifacts/office-windows-packaged-auth");
 const output = path.join(deliveryRoot, attempt);
@@ -44,7 +45,7 @@ if (parentBuild.candidateId !== parentId) throw new Error("Prior compiled eviden
 for (const entry of parentBuild.files) if (hash(path.join(frozen, entry.path)) !== entry.sha256) throw new Error("Prior build changed");
 if (fs.existsSync(source)) throw new Error("Output attempt already exists; preserve it");
 
-const packagingFiles = ["runtime.cjs", "integration.cts", "package.mjs"];
+const packagingFiles = ["runtime.cjs", "integration.cts", "package.mjs", "utf8-manifest.mjs"];
 const packageSource = Object.fromEntries(packagingFiles.map(name => [name, hash(path.join(import.meta.dirname, name))]));
 const packageId = "OFFICE-WIN-PACKAGED-" + sha(JSON.stringify({ parentId, packageSource })).slice(0, 16);
 const identity = {
@@ -53,7 +54,7 @@ const identity = {
   headAtPackaging: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo }).toString().trim(),
   packagingFiles: packageSource, node: "24.13.0", electron: "44.7.2", postgres: "16.15",
   scope: "Unsigned isolated Windows x64 verification only; Windows execution NOT RUN",
-  initdbChangeScope: "Diagnostic correction only; initialization arguments/locale/environment unchanged; Windows cause UNCONFIRMED",
+  initdbChangeScope: "UTF-8 process manifest for initdb.exe and postgres.exe only; initialization arguments/locale/environment unchanged; Windows cause not yet confirmed",
 };
 write(path.join(output, "package-identity.json"), identity);
 fs.cpSync(base, source, { recursive: true, errorOnExist: true, force: false });
@@ -171,6 +172,15 @@ for dll in (vendor/'vc-minimum').glob('*.dll_amd64'):
   'vcruntime140.dll_amd64','vcruntime140_1.dll_amd64']:continue
  (resources/'postgres/bin'/dll.name.removesuffix('_amd64')).write_bytes(dll.read_bytes())
 `]);
+// Isolated extracted copies only. Keep the original archive and all failed installations intact.
+const utf8ProcessEvidence = [];
+for (const filename of ["initdb.exe", "postgres.exe"]) {
+  const file = path.join(resources, "postgres/bin", filename);
+  const patched = withUtf8Manifest(fs.readFileSync(file), filename);
+  fs.writeFileSync(file, patched.bytes);
+  utf8ProcessEvidence.push(patched.evidence);
+}
+write(path.join(output, "postgres-utf8-process-manifests.json"), utf8ProcessEvidence);
 
 const licenses = path.join(resources, "licenses");
 fs.mkdirSync(licenses);
@@ -344,7 +354,10 @@ write(path.join(delivery, "사용안내.txt"), `SWIMNOTE OFFICE 격리 검증본
 ID: ${packageId}
 원본: ${parentId}
 
-이번 후보는 initdb 오류 진단 보완본입니다. Windows 초기화 오류 해결을 확인한 수정본이 아닙니다.
+이번 후보는 initdb/postgres 프로세스의 UTF-8 코드페이지 선언 수정본입니다.
+Windows 10 1903(build 18362) 이상 또는 Windows 11 x64 전용입니다.
+시스템 코드페이지·Windows 계정·보안 설정은 변경하지 않습니다.
+Windows 초기화 오류 해결은 아직 미검증입니다.
 실패하면 stdout/stderr 중 제한된 PostgreSQL 오류 문구만 공유 진단에 남깁니다.
 비밀번호·PIN·키·연결정보·사용자 경로·SQL·알 수 없는 원문은 공유 진단에 기록하지 않습니다.
 

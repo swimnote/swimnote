@@ -767,3 +767,31 @@ mtime_ms = 1792242128407
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/47b16f6f-5345-4793-b256-e806e8218863/0223a97e-688e-4eac-bbae-161d3d532f4f"
 storage_version_token = "1792242158607406"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "jWRcMSWG_92JF3ZaoHkLh"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-09/OFFICE-WIN-PACKAGED-11ee5f9eb3c7e6be-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "Windows UTF-8 수정 검증본 — 1/2"
+description = "후보 b3c7e6be. 두 ZIP 모두 필요합니다. Windows 10 1903 이상/Windows 11 x64. 시스템 설정 변경 없이 native 프로세스 UTF-8 선언 수정. 실제 Windows 해결은 미검증."
+logical_id = "c8c34aaa-9567-496f-85c7-476ef0f4c4df"
+content_hash = "sha256:53043d802f3f947be5d903534db218579d4ced250162dce10c4352ac2b744026"
+size = 83891194
+mtime_ms = 1792243894210
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/c8c34aaa-9567-496f-85c7-476ef0f4c4df/2b49c46f-6c5f-4aab-88f9-0859a7a4502f"
+storage_version_token = "1792243954998037"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "hILEDfz4W-Ddh43w5dpO3"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-09/OFFICE-WIN-PACKAGED-11ee5f9eb3c7e6be-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "Windows UTF-8 수정 검증본 — 2/2"
+description = "두 ZIP을 같은 새 빈 폴더에 압축 해제 → START-ISOLATED.cmd 더블클릭 → 열린 폴더의 Setup.exe 설치. 기존 실패 DB와 설치본은 보존하세요."
+logical_id = "b027d7a1-f376-4026-8aac-4f5515b684fa"
+content_hash = "sha256:84e7d1fc550a7a5f238f209ce6d16960e6785c29e3e401aee9d4223191c37f8a"
+size = 72133420
+mtime_ms = 1792243896130
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/b027d7a1-f376-4026-8aac-4f5515b684fa/9e3d91fa-fa6a-45a3-a37d-38703212989b"
+storage_version_token = "1792243956916514"
+content_type = "application/octet-stream"

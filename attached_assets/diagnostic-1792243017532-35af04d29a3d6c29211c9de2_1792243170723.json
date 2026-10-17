@@ -1,0 +1,36 @@
+{
+  "packageId": "OFFICE-WIN-PACKAGED-50f8c7f01d733cfb",
+  "candidateId": "OFFICE-WIN-AUTH-fad5704318bc64c4",
+  "at": "2026-10-17T13:16:57.531Z",
+  "platform": "win32",
+  "arch": "x64",
+  "electronHostNode": "v24.21.0",
+  "stage": "prepare-initdb",
+  "code": "LOCAL_COMMAND_FAILED",
+  "tool": "initdb.exe",
+  "exitCode": 1,
+  "nativeCode": "UNCLASSIFIED",
+  "initdbCategory": "INITDB_ENCODING_FAILED",
+  "initdbPhase": "POST_BOOTSTRAP",
+  "initdbMessages": [
+    {
+      "stream": "stderr",
+      "severity": "FATAL",
+      "text": "invalid byte sequence for encoding \"UTF8\": 0xbc"
+    },
+    {
+      "stream": "stderr",
+      "severity": "CHILD",
+      "text": "child process exited with exit code 1"
+    }
+  ],
+  "initdbMessagePolicy": "bounded PostgreSQL error excerpts; unknown values withheld; no raw log",
+  "initdbCapture": {
+    "stdoutBytes": 786,
+    "stderrBytes": 191,
+    "incomplete": false
+  },
+  "lockRetained": false,
+  "windowsAcceptance": "NOT RUN by build environment",
+  "paidCalls": 0
+}

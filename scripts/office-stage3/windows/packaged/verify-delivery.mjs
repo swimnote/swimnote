@@ -3,6 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
+import { inspectPe } from "./utf8-manifest.mjs";
 const repo = path.resolve(import.meta.dirname, "../../../..");
 const attempt = path.resolve(process.argv[2]);
 if (!attempt.startsWith(path.join(repo, "generated-artifacts/office-windows-packaged-auth/")))
@@ -62,6 +63,21 @@ if (installer.readUInt32LE(at) !== 0x4550) throw new Error("Installer is not a W
 const optional = at + 24, certificate = optional + (installer.readUInt16LE(optional) === 0x20b ? 112 : 96) + 4 * 8;
 if (installer.readUInt32LE(certificate) || installer.readUInt32LE(certificate + 4))
   throw new Error("Unexpected installer signing");
+const processManifestEvidence = read(path.join(attempt, "postgres-utf8-process-manifests.json"));
+for (const entry of processManifestEvidence) {
+  const file = path.join(extraction, "resources/postgres/bin", entry.file);
+  if (hash(file) !== entry.patchedSha256) throw new Error("Patched PostgreSQL executable hash mismatch");
+  const bytes = fs.readFileSync(file), pe = inspectPe(bytes);
+  if (!pe.xml.includes('<activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>') ||
+      !pe.xml.includes("level='asInvoker'"))
+    throw new Error("Extracted process manifest rejected");
+  for (const section of entry.unchangedSections) {
+    const actual = pe.sections.find(s => s.name === section.name);
+    if (!actual || crypto.createHash("sha256").update(bytes.subarray(actual.rawOffset,
+      actual.rawOffset + actual.rawSize)).digest("hex") !== section.sha256)
+      throw new Error("Vendor executable section hash changed: " + section.name);
+  }
+}
 const result = {
   packageId: build.packageId, setup: build.setup, bytes: build.bytes, sha256: build.sha256,
   extractedPayloadFilesMatch: verified.length, runtimeManifestVerified: Object.keys(unpackedRuntimeManifest).length,
@@ -70,6 +86,8 @@ const result = {
   postgresBootstrapLibraries: read(path.join(attempt, "postgres-bootstrap-libraries.json")).length,
   unchangedSecurityModules: unchangedSecurity, installerSigning: "unsigned; no signing performed",
   normalAuthEvidenceReused: read(path.join(source, "normal-auth-evidence.json")).passed,
+  utf8ProcessManifestsVerified: processManifestEvidence.map(entry => entry.file),
+  postgresVendorCodeSectionsPreserved: true,
   windowsInstallationExecutionDpapiIpcBusiness: "NOT RUN",
   verificationScope: "Static cross-package inspection and actual NSIS extraction on Linux; not Windows loader/execution proof",
 };
