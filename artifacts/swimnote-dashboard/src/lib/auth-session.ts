@@ -19,7 +19,7 @@ export class SessionAccessError extends Error {
 /** Same canonical identity and access APIs for Web and Desktop, never JWT claims as authority. */
 export async function readAuthSession(strict = false, signal?: AbortSignal): Promise<AuthUser> {
   const raw = await api.get<AuthUser>("/auth/me", { signal });
-  if (raw.role !== "pool_admin" && raw.role !== "super_admin") {
+  if (raw.role !== "pool_admin" && raw.role !== "super_admin" && !(strict && raw.role === "teacher")) {
     throw new SessionAccessError("이 계정은 PC 관리자 접근 권한이 없습니다.");
   }
   // Whitelist identity fields; /auth/me can contain unrelated sensitive server fields.

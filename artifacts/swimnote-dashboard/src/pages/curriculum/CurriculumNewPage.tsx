@@ -37,7 +37,7 @@ export default function CurriculumNewPage() {
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState("");
 
-  function handleSelect(e: Event) {
+  function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const f = (e.target as HTMLInputElement).files?.[0];
     if (!f) return;
     const ext = f.name.split(".").pop()?.toLowerCase();
@@ -48,7 +48,7 @@ export default function CurriculumNewPage() {
     setResult(null);
   }
 
-  async function handleUpload(e: Event) {
+  async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     if (!file) { setError("파일을 선택하세요."); return; }
     setLoading(true);
@@ -59,17 +59,15 @@ export default function CurriculumNewPage() {
       if (versionName.trim()) form.append("version_name", versionName.trim());
 
       // POST /x-setup/upload/curriculum — pool_admin + X entitlement
-      const r = await api.axiosInstance.post<UploadResult>("/x-setup/upload/curriculum", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setResult(r.data);
-      if (r.data.ok) {
+      const r = await api.postForm<UploadResult>("/x-setup/upload/curriculum", form);
+      setResult(r);
+      if (r.ok) {
         qc.invalidateQueries({ queryKey: ["curriculum-levels"] });
         qc.invalidateQueries({ queryKey: ["curriculum-versions"] });
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.response?.data?.message || "업로드 실패";
-      const code = e?.response?.data?.code;
+      const msg = e?.message || "업로드 실패";
+      const code = e?.code;
       if (code === "XMODE_REQUIRED") {
         setError("SWIMNOTE X 구독이 필요합니다. 앱에서 X 플랜을 구독하면 사용 가능합니다.");
       } else {

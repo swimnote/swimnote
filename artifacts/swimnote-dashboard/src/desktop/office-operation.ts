@@ -1,5 +1,5 @@
 /** Session-owned bridge into the existing Action core, not a second business service. */
-type Operation = { path: string; method: string; body?: string };
+type Operation = { path: string; method: string; body?: string | FormData };
 type Handler = (operation: Operation) => Promise<unknown>;
 let handler: Handler | undefined;
 export function registerOfficeOperations(next: Handler) {

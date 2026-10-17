@@ -38,10 +38,10 @@ async function request<T>(
       throw { status: 403, code: "OFFICE_NOT_CONNECTED", message: "이 동작은 현재 PC에서 실행하지 않았습니다. 발송·금융·권한 변경 등 별도 승인 또는 추가 연결이 필요합니다." } as ApiError;
     }
     if (throughAction) return runOfficeOperation({ path, method: options.method,
-      body: typeof options.body === "string" ? options.body : undefined }) as Promise<T>;
+      body: typeof options.body === "string" || options.body instanceof FormData ? options.body : undefined }) as Promise<T>;
   }
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
   if (token) {
@@ -81,7 +81,7 @@ async function request<T>(
 }
 
 /** Only called by the session-owned Action executor. Native policy and server auth still apply. */
-export const performOfficeOperation = (path: string, method: string, body?: string) =>
+export const performOfficeOperation = (path: string, method: string, body?: string | FormData) =>
   request<unknown>(path, { method, ...(body === undefined ? {} : { body }) }, false);
 
 export const api = {
@@ -96,22 +96,7 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   /** Multipart/form-data upload — no Content-Type override (browser sets boundary) */
   postForm: async <T>(path: string, formData: FormData): Promise<T> => {
-    if (isDesktopTokenStorage()) throw { status: 403, message: "파일 업로드·구조화/AI 처리는 아직 PC에 연결되지 않았습니다. 파일을 전송하지 않았습니다." } as ApiError;
-    const token = getToken();
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: formData });
-    if (res.status === 401) {
-      if (!isDesktopTokenStorage() || getToken() === token) clearToken();
-      if (!isDesktopTokenStorage()) window.location.replace("/admin/login");
-      throw { status: 401, message: "인증이 만료되었습니다." } as ApiError;
-    }
-    if (!res.ok) {
-      let message = `서버 오류 (${res.status})`;
-      try { const b = await res.json(); message = b.error ?? b.message ?? message; } catch {}
-      throw { status: res.status, message } as ApiError;
-    }
-    return res.json() as Promise<T>;
+    return request<T>(path, { method: "POST", body: formData });
   },
 };
 

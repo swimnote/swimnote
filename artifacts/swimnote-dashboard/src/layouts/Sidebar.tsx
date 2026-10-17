@@ -20,7 +20,7 @@ type NavItem =
       children: { label: string; path: string }[];
     };
 
-import { OFFICE_PAGES } from "../../desktop/office-access.cts";
+import { OFFICE_PAGES, officePageAllowed } from "../../desktop/office-access.cts";
 const NAV_ITEMS: NavItem[] = [
   { kind: "link", label: "홈", icon: <Home size={16} />, path: "/admin" },
   {
@@ -96,13 +96,15 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) {
   const desktop = isDesktopTokenStorage();
-  const items: NavItem[] = desktop ? [NAV_ITEMS[0], ...[...new Set(OFFICE_PAGES.map(p => p[2]))].map(label => ({
+  const { state, logout } = useAuth();
+  const role = state.status === "authenticated" ? state.user.role : "";
+  const visiblePages = OFFICE_PAGES.filter(([path]) => officePageAllowed(path, role));
+  const items: NavItem[] = desktop ? [NAV_ITEMS[0], ...[...new Set(visiblePages.map(p => p[2]))].map(label => ({
     kind: "group" as const, label, icon: <Users size={16} />,
     children: [...(label === "회원" ? [{ label: "전체 회원", path: "/admin/members" }] : []),
-      ...OFFICE_PAGES.filter(p => p[2] === label).map(([path, title]) => ({ path, label: title }))],
+      ...visiblePages.filter(p => p[2] === label).map(([path, title]) => ({ path, label: title }))],
   }))]
     : NAV_ITEMS;
-  const { state, logout } = useAuth();
   const officeNavigation = useOfficeNavigation();
   const [location, navigate] = useLocation();
   const officeNavigate = useOfficeNavigate();

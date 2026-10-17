@@ -60,7 +60,8 @@ export default function TeachersPage() {
     queryFn: async () => {
       const q = statusFilter ? `?status=${statusFilter}` : "";
       const r = await api.get<{ success: boolean; data: TeacherInvite[] }>(`/admin/teacher-invites${q}`);
-      return r.data.data;
+      if (!r.success || !Array.isArray(r.data)) throw new Error("초대 목록 응답을 확인할 수 없습니다.");
+      return r.data;
     },
   });
 
@@ -73,7 +74,7 @@ export default function TeachersPage() {
       setForm({ name: "", phone: "", position: "", notes: "" });
       setFormErr("");
     },
-    onError: (e: any) => setFormErr(e?.response?.data?.message || "초대 실패"),
+    onError: (e: any) => setFormErr(e?.message || "초대 실패"),
   });
 
   const actionMutation = useMutation({
@@ -84,20 +85,21 @@ export default function TeachersPage() {
       setSelected(null);
       setActionError("");
     },
-    onError: (e: any) => setActionError(e?.response?.data?.message || "처리 실패"),
+    onError: (e: any) => setActionError(e?.message || "처리 실패"),
   });
 
   async function openDetail(invite: TeacherInvite) {
     try {
       const r = await api.get<{ success: boolean; data: TeacherDetail }>(`/admin/teacher-invites/${invite.id}/detail`);
-      setSelected(r.data.data);
+      if (!r.success || !r.data) throw new Error("초대 상세 응답을 확인할 수 없습니다.");
+      setSelected(r.data);
       setActionError("");
     } catch {
       setSelected({ ...invite, is_activated: null, class_count: 0, member_count: 0 });
     }
   }
 
-  function handleInvite(e: Event) {
+  function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) { setFormErr("이름과 연락처는 필수입니다."); return; }
     inviteMutation.mutate({ name: form.name, phone: form.phone, position: form.position || undefined, notes: form.notes || undefined });
@@ -166,7 +168,7 @@ export default function TeachersPage() {
       {/* Invite Modal */}
       {showInviteForm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowInviteForm(false)}>
-          <form onSubmit={handleInvite} onClick={(e: Event) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, padding: 28, width: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
+          <form onSubmit={handleInvite} onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, padding: 28, width: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.15)" }}>
             <h3 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600 }}>선생님 초대</h3>
             {[
               { label: "이름 *", key: "name", placeholder: "홍길동" },
@@ -194,7 +196,7 @@ export default function TeachersPage() {
       {/* Detail Drawer */}
       {selected && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 999 }} onClick={() => setSelected(null)}>
-          <div onClick={(e: Event) => e.stopPropagation()} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420, background: "#fff", padding: 28, overflowY: "auto", boxShadow: "-4px 0 20px rgba(0,0,0,0.1)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 420, background: "#fff", padding: 28, overflowY: "auto", boxShadow: "-4px 0 20px rgba(0,0,0,0.1)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{selected.name}</h3>
               <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#6b7280" }}>×</button>

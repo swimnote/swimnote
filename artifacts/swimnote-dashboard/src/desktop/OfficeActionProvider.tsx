@@ -67,13 +67,20 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     });
     const core = new OfficeActionCore({
       existingApi: performOfficeOperation,
+      confirmExisting: message => window.confirm(message),
       changedExisting: async path => {
         const keys = path.includes("attendance") ? ["oap", "attendance", "makeups", "admin-makeups"] :
-          path.includes("makeups") ? ["makeups", "admin-makeups"] :
+          path.includes("makeups") ? ["oap", "makeups", "admin-makeups"] :
           path.includes("diary-template") ? ["diary-template-levels", "diary-templates"] :
-          path.includes("diaries") ? ["diaries", "admin-diaries"] :
-          path.includes("homepage") ? ["homepage-settings"] : ["students", "class-groups", "dashboard-stats"];
-        await Promise.all(keys.map(key => qc.invalidateQueries({ queryKey: [key] })));
+          path.includes("diaries") ? ["oap", "diaries", "admin-diaries", "diaries-admin", "diary-detail"] :
+          path.includes("growth-reports") ? ["oap", "growth-reports-list", "gr-monthly-list", "growth-reports"] :
+          path.includes("teacher-invites") ? ["teacher-invites", "teachers", "oap"] :
+          path.includes("photos") || path.includes("notices") || path.includes("parent-requests") ? ["oap", "photos", "notices", "parent-requests"] :
+          path.includes("curriculum") ? ["curriculum-levels", "curriculum-versions", "curriculum-nodes", "curriculum-facets"] :
+          path.includes("homepage") ? ["homepage-settings"] :
+          path.includes("settlement") ? ["settlement-admin-overview", "settlement-admin-teacher-detail"] :
+          ["oap", "students", "class-groups", "dashboard-stats"];
+        await Promise.all(keys.map(key => qc.invalidateQueries({ queryKey: [key] }, { throwOnError: true })));
       },
       stage3,
       changed: async () => {
@@ -173,7 +180,9 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
         const pending = session.core.execute({ action: "office.operation.execute", input: operation }, "menu");
         session.publish();
         const result = await pending;
-        if (result.status !== "success") throw { status: 403, message: "현재 로그인 업무를 실행할 수 없습니다." };
+        if (result.status === "cancelled") throw { status: 499, code: "OFFICE_CANCELLED", message: "실행 전 승인을 취소했습니다. 서버 요청은 보내지 않았습니다." };
+        if (result.status === "unknown") throw { status: 409, code: "OFFICE_OUTCOME_UNKNOWN", message: result.message };
+        if (result.status !== "success") throw { status: result.code === "forbidden" ? 403 : 400, code: result.code, message: result.message };
         return result.data;
       } finally {
         session.publish();
@@ -187,7 +196,7 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
       queueMicrotask(() => { if (!session.life.live) session.core.dispose(); });
     };
   }, [session]);
-  return <OfficeActionContext.Provider value={{ ...session,
+  return <OfficeActionContext.Provider value={{ ...session, actorRole: actor.role,
     notice: noticeState.owner === session.life ? noticeState.text : "",
     tasks: taskState.owner === session.life ? taskState.tasks : [], stage3Enabled: !!stage3,
     aiMode: stage3 ? stage3.mode ?? "server" : "off" }}>{children}</OfficeActionContext.Provider>;

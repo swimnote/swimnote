@@ -120,7 +120,8 @@ type DrawerProps = {
 };
 
 function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewDiary, onOpenFull }: DrawerProps) {
-  const readOnly = isDesktopTokenStorage();
+  const actions = useOfficeActions();
+  const readOnly = isDesktopTokenStorage() && actions?.actorRole !== "pool_admin";
   const navigationEnabled = !!useOfficeNavigation();
   const businessVisible = useOfficeBusinessVisible();
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -1027,9 +1028,9 @@ export default function MembersPage() {
           if (actions) void actions.execute({ action: "office.members.open", input: { view: "list" } }, "menu");
           else office?.closeDetail();
         }}
-        editable={!!actions?.stage3Enabled}
+        editable={!!actions?.stage3Enabled && actions.actorRole === "pool_admin"}
         editor={<OfficeMemberEditor student={currentStudent} tab={fullTab} classes={classGroups}
-          enabled={!!actions?.stage3Enabled} registerGuard={office!.registerGuard}
+          enabled={!!actions?.stage3Enabled && actions.actorRole === "pool_admin"} registerGuard={office!.registerGuard}
           confirmedRequestIds={actions?.tasks.filter(t => t.status === "completed" && t.id.includes(":write:")).map(t => t.id.split(":write:")[1])}
           execute={request => actions!.execute(request, "menu")} />}
         growth={<GrHistorySection key={currentStudent.id} studentId={currentStudent.id} />} />

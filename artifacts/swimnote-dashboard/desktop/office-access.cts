@@ -1,4 +1,4 @@
-/** Shared, explicit OFFICE surface. No arbitrary URL, financial execution or messaging transport. */
+/** Explicit, shared OFFICE surface. No arbitrary URL/API; consequential existing operations require runtime confirmation. */
 export const OFFICE_PAGES = [
   ["/admin/members/new", "회원 등록", "회원"],
   ["/admin/members/bulk", "엑셀 일괄등록", "회원"],
@@ -11,9 +11,11 @@ export const OFFICE_PAGES = [
   ["/admin/makeups", "보강 현황", "출결·보강"],
   ["/admin/makeups/assign", "보강 배정", "출결·보강"],
   ["/admin/diary", "일지·피드", "교육"],
+  ["/admin/diary/new", "일지 작성", "교육"],
   ["/admin/album", "앨범", "교육"],
   ["/admin/curriculum", "커리큘럼", "교육"],
   ["/admin/curriculum/new", "커리큘럼 등록", "교육"],
+  ["/admin/curriculum/review", "커리큘럼 접수·검토 상태", "교육"],
   ["/admin/curriculum/levels", "레벨·교육과정", "교육"],
   ["/admin/curriculum/templates", "일지 템플릿", "교육"],
   ["/admin/growth-reports/pending", "성장리포트 검수", "교육"],
@@ -49,14 +51,17 @@ const reads = [
   `/admin/growth-reports/(?:monthly-list|${id}|students/${id})`,
   "/diary-template-levels", "/diary-templates",
   "/curriculum/diary/(?:levels|facets|nodes)",
-  `/diaries/(?:admin/all-entries|${id})`,
+  "/diaries", `/diaries/(?:admin/all-entries|${id})`,
   "/settlement/(?:admin-overview|admin-teacher-detail)",
   "/homepage/settings", "/x-setup/status",
   `/archive(?:/members)?(?:/${id}(?:/diaries|/links)?)?`,
   `/admin/archives(?:/${id}(?:/diaries)?)?`,
   "/admin/makeups/(?:pending|eligible-classes)",
+  "/admin/archive-link-candidates",
+  `/admin/parent-v2-pending(?:/${id}/approval-info)?`,
+  `/teacher/growth-reports(?:/${id}/review)?`,
   "/attendance", `/notices(?:/${id}/read-stats)?`, "/parent-requests",
-  `/parent-requests/${id}/messages`, "/photos/teacher-all",
+  `/parent-requests/${id}/messages`, "/photos/teacher-all", `/photos/private/${id}`,
 ];
 const saves: [string, string][] = [
   ["POST", "/students"], ["POST", "/admin/members/bulk/(?:validate|commit)"],
@@ -68,6 +73,29 @@ const saves: [string, string][] = [
   ["POST", "/diary-templates(?:/reorder)?"], ["PATCH", `/diary-templates/${id}`],
   ["PUT", `/diaries/${id}`],
   ["POST", "/attendance"], ["PATCH", "/homepage/settings"],
+  ["PATCH", `/admin/students/${id}/info`], ["PATCH", `/students/${id}/assign`],
+  ["POST", `/admin/students/${id}/withdraw`], ["POST", `/students/${id}/change-status`],
+  ["POST", `/students/${id}/move-class`], ["POST", `/students/${id}/remove-from-class`],
+  ["POST", `/teacher/growth-reports/${id}/review`],
+  ["PATCH", `/admin/growth-reports/${id}/discard`],
+  ["POST", `/admin/growth-reports/(?:${id}/send|bulk-send)`],
+  ["POST", "/admin/teacher-invites"], ["PATCH", `/admin/teacher-invites/${id}`],
+  ["POST", `/admin/teacher-invites/${id}/transfer`],
+  ["POST", "/admin/archive-links"], ["DELETE", `/admin/archive-links/${id}`],
+  ["POST", "/x-setup/upload/curriculum"], ["POST", "/settlement/finalize"],
+  ["DELETE", `/class-groups/${id}`], ["DELETE", `/diaries/${id}`],
+  ["DELETE", `/diary-templates/${id}`], ["DELETE", `/diary-template-levels/${id}`],
+  ["PATCH", `/teacher/makeups/${id}/(?:assign|complete-direct|revert|complete)`],
+  ["POST", `/teacher/makeups/${id}/extinguish`],
+  ["PATCH", `/admin/makeups/${id}/status-override`],
+  ["POST", `/parent-requests/${id}/messages`], ["PATCH", `/parent-requests/${id}`],
+  ["POST", "/notices"], ["PATCH", `/notices/${id}`], ["DELETE", `/notices/${id}`],
+  ["POST", "/photos/(?:group|private)"], ["DELETE", `/photos/${id}`],
+  ["PATCH", `/students/${id}`], ["PATCH", `/teachers/${id}`], ["DELETE", `/teachers/${id}`],
+  ["POST", "/diaries"], ["POST", "/teachers"], ["POST", "/v1/teacher-diary/generate"],
+  ["POST", `/admin/parent-v2-pending/${id}/confirm`], ["PATCH", `/admin/parent-v2-pending/${id}`],
+  ["POST", "/photos/diary-attach"], ["POST", "/photos/note-attach"],
+  ["PUT", `/diaries/student-notes/${id}`],
 ];
 export function isOfficeApiRequest(raw: string, method: string): boolean {
   if (!raw.startsWith("/") || raw.startsWith("//") || /[\\#\u0000-\u001f]/.test(raw) ||
@@ -80,6 +108,7 @@ export function isOfficeApiRequest(raw: string, method: string): boolean {
       "date", "from", "to", "start_date", "end_date", "month", "year", "limit", "offset", "page",
       "search", "level_order", "level_id", "category", "stroke", "skill", "q", "include_archived",
       "domain", "include_inactive", "scope",
+      "archive_id", "lesson_date", "cursor",
     ].includes(k))) return false;
     if (method === "OPTIONS")
       return reads.some(p => new RegExp(`^${p}$`).test(u.pathname)) ||
@@ -99,4 +128,35 @@ export function isAllowedOfficeImage(raw: string): boolean {
         /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.r2\.cloudflarestorage\.com$/.test(u.hostname) ||
         /^[a-z0-9-]+\.r2\.dev$/.test(u.hostname));
   } catch { return false; }
+}
+
+const teacherPages = new Set([
+  "/admin/guardians", "/admin/schedule", "/admin/attendance", "/admin/makeups", "/admin/makeups/assign",
+  "/admin/diary", "/admin/diary/new", "/admin/album", "/admin/curriculum", "/admin/curriculum/templates",
+  "/admin/growth-reports/pending", "/admin/growth-reports/published", "/admin/communication",
+  "/admin/notices", "/admin/desktop-settings",
+]);
+export function officePageAllowed(path: string, role: string) {
+  const page = officePage(path);
+  return !!page && (role === "pool_admin" || role === "teacher" && teacherPages.has(page[0]));
+}
+export function officeRoleRequest(path: string, method: string, role: string) {
+  if (!isOfficeApiRequest(path, method)) return false;
+  if (role === "pool_admin") return true;
+  if (role !== "teacher") return false;
+  return method === "GET" || new RegExp(`^/(?:attendance|teacher/|diaries(?:/|$)|photos(?:/|$)|parent-requests(?:/|$)|v1/teacher-diary/generate$|students/${id}/(?:change-status|move-class|remove-from-class))`).test(path);
+}
+export function officeConfirmation(path: string, method: string, body?: string | FormData): string | null {
+  let action = "";
+  if (typeof body === "string") { try { action = JSON.parse(body)?.action ?? ""; } catch { /* Server validates JSON. */ } }
+  if (method === "DELETE") return "삭제하면 기존 앱과 동일하게 운영 데이터에 반영됩니다. 대상과 영향을 확인하고 삭제하시겠습니까?";
+  if (path === "/v1/teacher-diary/generate") return "기존 앱과 동일한 유료 AI 초안을 생성합니다. 이용량·비용이 발생할 수 있습니다. 현재 초안 변경과 실제 호출을 승인하시겠습니까?";
+  if (path === "/teachers") return "실제 선생님 로그인 계정을 생성합니다. 계정·소속·자기 강사 여부를 확인하고 생성하시겠습니까?";
+  if (path === "/x-setup/upload/curriculum") return "DOCX 파일을 실제 업로드하고 기존 서버의 접수·구조화·검토 처리를 요청합니다. 파일과 대상 수영장을 확인하고 진행하시겠습니까?";
+  if (/\/send$|bulk-send|teacher-invites|parent-requests.*messages|\/notices|parent-v2-pending/.test(path))
+    return "기존 앱과 같은 발송·초대 또는 권한 처리를 요청합니다. 대상과 내용을 확인했으며 실제 처리를 승인하시겠습니까?";
+  if (path === "/settlement/finalize") return "이 정산 확정은 실제 운영 금액에 반영됩니다. 월·대상·금액을 확인했으며 확정하시겠습니까?";
+  if (action === "REQUEST_REANALYSIS") return "기존 재분석 요청을 실행합니다. 유료 AI 처리로 이어질 수 있습니다. 대상·사유를 확인하고 요청하시겠습니까?";
+  if (path.includes("archive-links")) return "퇴원 기록과 재원생의 연결 관계를 변경합니다. 비교 정보·전화 일치 여부·대상을 확인했으며 처리하시겠습니까?";
+  return null;
 }

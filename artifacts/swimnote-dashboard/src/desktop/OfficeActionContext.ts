@@ -11,6 +11,7 @@ export const OfficeActionContext = createContext<{
   homeQueryFn: typeof loadDashboardStats;
   notice: string;
   stage3Enabled: boolean;
+  actorRole?: string;
   aiMode: "off" | "server" | "fixture";
   tasks: OfficeTask[];
   interpret: (text: string) => Promise<void>;

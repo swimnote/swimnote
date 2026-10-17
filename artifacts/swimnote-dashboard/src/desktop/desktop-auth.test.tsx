@@ -8,7 +8,7 @@ import { useDesktopTokenStorage } from "../lib/token";
 import { queryClient } from "../lib/query-client";
 
 const { publicPost, get } = vi.hoisted(() => ({ publicPost: vi.fn(), get: vi.fn() }));
-vi.mock("../lib/api-client", () => ({ publicPost, api: { get } }));
+vi.mock("../lib/api-client", () => ({ publicPost, api: { get }, performOfficeOperation: vi.fn(() => { throw new Error("Unexpected operation in authentication test"); }) }));
 // Keep this F03 credential-flow suite isolated; F04's real boundary has its own SSE fixture.
 vi.mock("./DesktopRealtime", async () => {
   const { QueryClientProvider } = await import("@tanstack/react-query");

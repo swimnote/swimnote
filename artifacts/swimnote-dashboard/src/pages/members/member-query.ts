@@ -4,7 +4,7 @@ import type { Student } from "./MembersPage";
 /** The existing canonical list query, shared by Web, Desktop and read-only Actions. */
 export const memberQuery = {
   queryKey: ["students"],
-  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<Student[]>("/students?pool_all=true", { signal }),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.get<Student[]>("/students", { signal }),
   staleTime: 30_000,
 };
 export type MemberFilters = { search: string; status: string; classId: string };

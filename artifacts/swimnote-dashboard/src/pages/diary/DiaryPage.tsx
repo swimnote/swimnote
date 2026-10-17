@@ -1,3 +1,4 @@
+import { StudentNoteEditor } from "./StudentNoteEditor";
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -173,7 +174,8 @@ function DiaryDetailDrawer({ diaryId, onClose }: { diaryId: string; onClose: () 
                       {detail.student_notes.map((note) => (
                         <div key={note.id} style={{ padding: "10px 12px", background: "#F8FAFC", borderRadius: "6px", border: "1px solid #E2E8F0" }}>
                           <div style={{ fontSize: "12px", fontWeight: 600, color: "#1E293B", marginBottom: "4px" }}>{note.student_name}</div>
-                          <div style={{ fontSize: "13px", color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{note.note_text ?? note.content ?? "내용 없음"}</div>
+                          <StudentNoteEditor noteId={note.id} content={"note_content" in note && typeof note.note_content === "string" ? note.note_content : note.note_text ?? note.content ?? ""}
+                            onSaved={() => qc.invalidateQueries({ queryKey: ["diary-detail", diaryId] })} />
                         </div>
                       ))}
                     </div>

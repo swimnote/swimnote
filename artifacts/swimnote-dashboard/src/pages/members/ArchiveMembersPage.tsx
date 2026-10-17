@@ -122,9 +122,10 @@ export default function ArchiveMembersPage({ userRole, readOnly = false }: { use
     if (!q.trim()) { setLinkCandidates([]); return; }
     setLinkLoading(true);
     try {
-      const data = await api.get<StudentCandidate[] | { students: StudentCandidate[] }>(`/admin/students?search=${encodeURIComponent(q)}&limit=20`);
-      setLinkCandidates(Array.isArray(data) ? data : data.students);
-    } catch { /* ignore */ } finally { setLinkLoading(false); }
+      const data = await api.get<StudentCandidate[]>("/students?pool_all=true");
+      if (!Array.isArray(data)) throw new Error("회원 검색 응답을 확인할 수 없습니다.");
+      setLinkCandidates(data.filter(s => s.name.includes(q.trim())).slice(0, 20));
+    } catch (e) { setLoadError((e as Error)?.message ?? "회원 검색에 실패했습니다."); } finally { setLinkLoading(false); }
   };
 
   const selectLinkCandidate = async (candidate: StudentCandidate) => {
@@ -132,7 +133,7 @@ export default function ArchiveMembersPage({ userRole, readOnly = false }: { use
     try {
       const data = await api.get<Record<string, unknown>>(`/admin/archive-link-candidates?archive_id=${detail.id}&student_id=${candidate.id}`);
       setLinkConfirm({ ...data, candidate });
-    } catch { /* ignore */ }
+    } catch (e) { setLoadError((e as Error)?.message ?? "연결 비교 정보를 확인하지 못했습니다."); }
   };
 
   const doLink = async () => {

@@ -73,7 +73,7 @@ const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   REGENERATING: { bg: "#F3F4F6", text: "#6B7280" },
 };
 
-const REANALYSIS_REASONS = [
+export const REANALYSIS_REASONS = [
   { value: "WRONG_CONTEXT", label: "잘못된 맥락" },
   { value: "STUDENT_ATTRIBUTION_CONCERN", label: "학생 귀속 우려" },
   { value: "INSUFFICIENT_CONTEXT", label: "컨텍스트 부족" },

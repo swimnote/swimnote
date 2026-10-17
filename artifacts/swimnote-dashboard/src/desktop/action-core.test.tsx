@@ -19,6 +19,52 @@ function fixture(overrides: Partial<ActionDependencies> = {}) {
 }
 const request = (action: string, input: unknown = {}) => ({ action, input });
 
+it("does not send a destructive operation when its actual execution confirmation is cancelled", async () => {
+  const api = vi.fn(), confirm = vi.fn().mockReturnValue(false);
+  const { core } = fixture({ existingApi: api, confirmExisting: confirm });
+  expect((await core.execute(request("office.operation.execute", { path: "/photos/photo_1", method: "DELETE" }))).status).toBe("cancelled");
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(api).not.toHaveBeenCalled();
+  expect(core.getTasks()[0].status).toBe("cancelled");
+});
+it("forwards multipart without serializing file bytes and blocks a fresh multipart resend after an unknown result", async () => {
+  const fd = new FormData(); fd.append("photos", new File(["synthetic"], "test.png", { type: "image/png" }));
+  const api = vi.fn().mockRejectedValue({ status: 503 });
+  const { core } = fixture({ existingApi: api });
+  await expect(core.execute(request("office.operation.execute", { path: "/photos/group", method: "POST", body: fd }))).rejects.toMatchObject({ status: 503 });
+  expect(api).toHaveBeenCalledWith("/photos/group", "POST", fd);
+  const retry = new FormData(); retry.append("photos", new File(["synthetic"], "test.png"));
+  await expect(core.execute(request("office.operation.execute", { path: "/photos/group", method: "POST", body: retry }))).rejects.toMatchObject({ status: 409 });
+  expect(api).toHaveBeenCalledOnce();
+  expect(JSON.stringify(core.getTasks())).not.toContain("test.png");
+});
+it("keeps successful-HTTP business failure out of completed tasks", async () => {
+  const { core } = fixture({ existingApi: vi.fn().mockResolvedValue({ success: false, message: "partial result" }) });
+  await expect(core.execute(request("office.operation.execute", { path: "/diaries", method: "POST", body: "{}" }))).rejects.toMatchObject({ status: 200 });
+  expect(core.getTasks()[0].status).toBe("unknown");
+});
+it("does not call partial media attachment completion a fully completed operation", async () => {
+  const { core } = fixture({ existingApi: vi.fn().mockResolvedValue({ success: true, requested: 2, attached: 1, failed: 1 }) });
+  expect((await core.execute(request("office.operation.execute", { path: "/photos/note-attach", method: "POST", body: "{}" }))).status).toBe("success");
+  expect(core.getTasks()[0].status).toBe("partial");
+});
+it("allows teacher-owned operating actions but not administrator staff or guardian changes", async () => {
+  const api = vi.fn().mockResolvedValue({ success: true });
+  const { core } = fixture({ actor: { userId: "teacher_1", poolId: "fixture-pool", role: "teacher" }, existingApi: api });
+  expect((await core.execute(request("office.page.open", { path: "/admin/attendance" }))).status).toBe("success");
+  expect((await core.execute(request("office.operation.execute", { path: "/teacher/makeups/makeup_1/complete", method: "PATCH", body: "{}" }))).status).toBe("success");
+  for (const [path, method] of [["/teachers/teacher_2", "PATCH"], ["/students/member_1", "PATCH"], ["/admin/teacher-invites", "POST"]]) {
+    expect(await core.execute(request("office.operation.execute", { path, method, body: "{}" }))).toMatchObject({ status: "failed", code: "forbidden" });
+  }
+  expect(api).toHaveBeenCalledOnce();
+});
+it("leaves a confirmation failure as a pre-execution failure rather than an unknown write", async () => {
+  const api = vi.fn();
+  const { core } = fixture({ existingApi: api, confirmExisting: () => { throw new Error("confirmation unavailable"); } });
+  await expect(core.execute(request("office.operation.execute", { path: "/photos/photo_1", method: "DELETE" }))).rejects.toMatchObject({ message: "confirmation unavailable" });
+  expect(api).not.toHaveBeenCalled();
+  expect(core.getTasks()[0].status).toBe("failed");
+});
 it("opens a migrated page through the existing permission-checked Action without reading unrelated members", async () => {
   const { core, deps } = fixture();
   const result = await core.execute(request("office.page.open", { path: "/admin/schedule/classes" }));
@@ -75,7 +121,7 @@ it.each([
   expect(await core.execute(input)).toMatchObject({ status: "failed", code });
   expect(deps.open).not.toHaveBeenCalled(); expect(deps.members).not.toHaveBeenCalled();
 });
-it.each(["teacher", "parent_account", "super_admin", ""])("does not replace server auth or allow unapproved role %s", async role => {
+it.each(["parent_account", "super_admin", ""])("does not replace server auth or allow unapproved role %s", async role => {
   const { core, deps } = fixture({ actor: { userId: "u", poolId: "p", role } });
   expect(await core.execute(request("office.home.open"))).toMatchObject({ status: "failed", code: "forbidden" });
   expect(deps.open).not.toHaveBeenCalled();

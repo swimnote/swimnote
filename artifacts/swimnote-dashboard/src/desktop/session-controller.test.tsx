@@ -77,7 +77,7 @@ describe("Desktop token lifecycle with mocked canonical API and storage bridge",
     expect(desktop.clearSession).toHaveBeenCalled();
   });
   it("rejects changed role or mismatched Pool", async () => {
-    for (const altered of [{ ...identity, role: "teacher" }, { ...identity, swimming_pool_id: "different-pool" }]) {
+    for (const altered of [{ ...identity, role: "parent_account" }, { ...identity, swimming_pool_id: "different-pool" }]) {
       allow();
       const implementation = get.getMockImplementation()!;
       get.mockImplementation(async route => route === "/auth/me" ? altered : implementation(route));
@@ -87,6 +87,15 @@ describe("Desktop token lifecycle with mocked canonical API and storage bridge",
       expect(controller.getSnapshot().status).toBe("login");
       expect(desktop.commitSession).not.toHaveBeenCalled();
     }
+  });
+  it("accepts an actual teacher only after the same canonical identity, Pool and X checks", async () => {
+    const implementation = get.getMockImplementation()!;
+    get.mockImplementation(async route => route === "/auth/me" ? { ...identity, role: "teacher" } : implementation(route));
+    const desktop = bridge();
+    const controller = new DesktopSessionController(desktop);
+    await controller.accept("synthetic-teacher-token", false);
+    expect(controller.getSnapshot()).toMatchObject({ status: "authenticated", user: { role: "teacher", swimming_pool_id: "fixture-pool" } });
+    expect(desktop.commitSession).toHaveBeenCalledWith({ token: "synthetic-teacher-token", remember: false });
   });
   it.each([0, 500, 503])("network/CORS/server failure %s preserves stored auth but blocks entry", async status => {
     const desktop = bridge();

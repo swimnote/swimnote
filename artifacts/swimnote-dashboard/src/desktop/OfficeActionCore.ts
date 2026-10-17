@@ -3,7 +3,7 @@ import { confirmResultRead, type OfficeTask, type ResultReadEvidence } from "./O
 import type { OfficeDestination } from "./OfficeNavigation";
 import { OFFICE_MEMBER_TABS, type OfficeMemberTab } from "./OfficeNavigation";
 import type { OfficeStage3Transport, OfficeWriteReceipt } from "./office-stage3-transport";
-import { officePage, isOfficeApiRequest } from "../../desktop/office-access.cts";
+import { officePage, isOfficeApiRequest, officeRoleRequest, officePageAllowed, officeConfirmation } from "../../desktop/office-access.cts";
 
 export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search" | "office.member.update" | "office.member.move" | "office.page.open" | "office.operation.execute";
 export type ActionOrigin = "menu" | "shortcut" | "result" | "structured";
@@ -36,7 +36,8 @@ export type ActionDependencies = {
   now?: () => number;
   stage3?: OfficeStage3Transport;
   changed?: () => Promise<void>;
-  existingApi?: (path: string, method: string, body?: string) => Promise<unknown>;
+  existingApi?: (path: string, method: string, body?: string | FormData) => Promise<unknown>;
+  confirmExisting?: (message: string) => boolean | Promise<boolean>;
   changedExisting?: (path: string) => Promise<void>;
 };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -49,8 +50,9 @@ function inputFor(action: ActionId, input: unknown): Record<string, any> | null 
   if (action === "office.page.open") return Object.keys(input).length === 1 &&
     typeof input.path === "string" && officePage(input.path) ? input : null;
   if (action === "office.operation.execute") return Object.keys(input).every(k => ["path", "method", "body"].includes(k)) &&
-    typeof input.path === "string" && typeof input.method === "string" && ["POST", "PATCH", "PUT"].includes(input.method) &&
-    isOfficeApiRequest(input.path, input.method) && (input.body === undefined || typeof input.body === "string" && input.body.length <= 5_000_000) ? input : null;
+    typeof input.path === "string" && typeof input.method === "string" && ["POST", "PATCH", "PUT", "DELETE"].includes(input.method) &&
+    isOfficeApiRequest(input.path, input.method) && (input.body === undefined || typeof input.body === "string" && input.body.length <= 5_000_000 ||
+      typeof FormData !== "undefined" && input.body instanceof FormData) ? input : null;
   if (action === "office.member.update" || action === "office.member.move") {
     const keys = ["memberId", "requestId", "expectedRevision", ...(action === "office.member.update" ? ["changes"] : ["fromClassId", "toClassId"])];
     if (Object.keys(input).some(k => !keys.includes(k)) || !id(input.memberId) || !id(input.requestId) ||
@@ -89,10 +91,11 @@ export class OfficeActionCore {
   private now: () => number;
   private writes = new Map<string, { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt; serverRequestId?: string }>();
   private unknownOperations = new Set<string>();
-  canWrite() { return !!this.deps.stage3; }
+  private uploadIds = new WeakMap<FormData, string>();
+  canWrite() { return !!this.deps.stage3 && this.deps.actor.role === "pool_admin"; }
   constructor(private deps: ActionDependencies) { this.now = deps.now ?? Date.now; }
   private current() { return this.active && this.deps.isCurrent(); }
-  private permitted() { return this.deps.actor.role === "pool_admin" && !!this.deps.actor.userId && !!this.deps.actor.poolId; }
+  private permitted() { return ["pool_admin", "teacher"].includes(this.deps.actor.role) && !!this.deps.actor.userId && !!this.deps.actor.poolId; }
   dispose() {
     this.active = false;
     for (const request of this.pending.values()) request.abort.abort();
@@ -110,11 +113,22 @@ export class OfficeActionCore {
       return Promise.resolve(failed("unsupported", "현재 지원하지 않는 Action입니다."));
     const action = request.action as ActionId, input = inputFor(action, request.input);
     if (!input) return Promise.resolve(failed("input", "Action 입력 형식이 올바르지 않습니다."));
-    const key = JSON.stringify([action, Object.entries(input).sort()]);
+    if (action === "office.page.open" && !officePageAllowed(input.path, this.deps.actor.role) ||
+      action === "office.operation.execute" && !officeRoleRequest(input.path, input.method, this.deps.actor.role) ||
+      ["office.member.update", "office.member.move"].includes(action) && this.deps.actor.role !== "pool_admin")
+      return Promise.resolve(failed("forbidden", "현재 역할에서 사용할 수 없는 업무입니다. 서버 요청은 보내지 않았습니다."));
+    let uploadId = "";
+    if (typeof FormData !== "undefined" && input.body instanceof FormData) {
+      uploadId = this.uploadIds.get(input.body) ?? `upload:${++this.sequence}`;
+      this.uploadIds.set(input.body, uploadId);
+    }
+    const key = JSON.stringify([action, Object.entries(input).sort(), uploadId]);
     const existing = this.pending.get(key);
     if (existing) return existing.promise;
     if (action === "office.operation.execute") {
-      if (this.unknownOperations.has(key))
+      const sensitive = typeof input.body === "string" && /"(?:password|token|pin|secret)"\s*:/i.test(input.body);
+      const unknownKey = uploadId || sensitive ? JSON.stringify([action, input.path, input.method, uploadId ? "multipart" : "sensitive"]) : key;
+      if (this.unknownOperations.has(unknownKey))
         return Promise.reject({ status: 409, message: "이 요청의 저장 결과가 불명입니다. 기존 화면에서 상태를 조회하고 중복 실행하지 마세요." });
       const abort = new AbortController();
       const taskId = `${this.deps.scope}:operation:${++this.sequence}`;
@@ -125,22 +139,34 @@ export class OfficeActionCore {
       this.tasks.set(taskId, task);
       const run = Promise.resolve().then(async (): Promise<ActionOutcome> => {
         if (!this.current() || !this.deps.existingApi) return cancelled();
-        let responded = false;
+        let responded = false, attempted = false;
         try {
+          const message = officeConfirmation(input.path, input.method, input.body);
+          if (message && !(await this.deps.confirmExisting?.(message))) {
+            this.tasks.set(taskId, { ...task, status: "cancelled", summary: "사용자가 실제 처리를 승인하지 않았습니다. 서버 요청 없음." });
+            return cancelled();
+          }
+          if (!this.current()) return cancelled();
+          attempted = true;
           const data = await this.deps.existingApi(input.path, input.method, input.body);
           responded = true;
+          if (object(data) && (data.success === false || data.ok === false ||
+            object(data.data) && data.data.success === false))
+            throw { status: 200, message: String(data.message ?? data.error ?? "서버가 실패 결과를 반환했습니다.") };
           if (!this.current()) return cancelled();
           await this.deps.changedExisting?.(input.path);
           if (!this.current()) return cancelled();
-          this.tasks.set(taskId, { ...task, status: "completed", summary: "기존 API 응답 수신 · 해당 화면의 처리 결과를 확인하세요.",
-            completedAt: this.now(), results: [] });
+          const partial = /^\/photos\/(?:diary|note)-attach$/.test(input.path) && object(data) && typeof data.failed === "number" && data.failed > 0;
+          this.tasks.set(taskId, { ...task, status: partial ? "partial" : "completed",
+            summary: partial ? "일부 미디어 연결에 실패했습니다. 저장된 일지와 개별 첨부 결과를 확인하세요." : "기존 API 응답 수신 · 해당 화면의 처리 결과를 확인하세요.",
+            completedAt: this.now(), results: [{ id: taskId + ":result", label: "처리한 업무 화면", target, kind: "screen", storage: "not_stored" }] });
           return { status: "success", kind: "mutation", destination: target, data };
         } catch (e) {
           const error = e as { status?: number; message?: string; code?: string };
-          const rejected = !responded && !!error.status && error.status >= 400 && error.status < 500 && error.status !== 410;
+          const rejected = !attempted || !responded && !!error.status && error.status >= 400 && error.status < 500 && error.status !== 410;
           const message = rejected ? error.message ?? "서버가 요청을 거부했습니다." :
             "저장 결과를 확인할 수 없습니다. 기존 화면에서 상태를 조회하고 같은 요청을 재전송하지 마세요.";
-          if (!rejected) this.unknownOperations.add(key);
+          if (!rejected) this.unknownOperations.add(unknownKey);
           if (this.current()) this.tasks.set(taskId, { ...task, status: rejected ? "failed" : "unknown", summary: message });
           throw { ...error, message };
         }

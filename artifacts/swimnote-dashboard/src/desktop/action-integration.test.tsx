@@ -14,7 +14,7 @@ import type { ActionActor } from "./OfficeActionCore";
 import { api } from "../lib/api-client";
 import { useDesktopTokenStorage } from "../lib/token";
 
-vi.mock("../lib/api-client", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
+vi.mock("../lib/api-client", () => ({ api: { get: vi.fn(), post: vi.fn(), patch: vi.fn() }, performOfficeOperation: vi.fn(() => { throw new Error("Unexpected mutation in navigation test"); }) }));
 let actor: ActionActor;
 vi.mock("../contexts/AuthContext", () => ({
   useAuth: () => ({ state: { status: "authenticated", user: { id: actor.userId, role: actor.role, name: "격리 합성 수영장",
@@ -46,7 +46,7 @@ beforeEach(() => {
   useDesktopTokenStorage(); window.history.replaceState({}, "", "/admin");
   vi.mocked(api.get).mockImplementation(async path => {
     if (path === "/admin/dashboard-stats") return { total_members: 2, today_present: 0, pending_makeups: 0, pending_requests: 0 } as never;
-    if (path === "/students?pool_all=true") return rows as never;
+    if (path === "/students") return rows as never;
     if (path === "/class-groups") return [{ id: "class_a", name: "기초반" }, { id: "class_b", name: "상급반" }] as never;
     if (path.startsWith("/admin/growth-reports/students/")) return { success: true, reports: [] } as never;
     throw new Error("Fixture denied route: " + path);
@@ -55,7 +55,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); client.clear(); vi.clearAllMocks(); });
 const request = (action: string, input = {}) => ({ action, input });
 const search = () => screen.getByPlaceholderText("이름 또는 전화번호 검색");
-const calls = () => vi.mocked(api.get).mock.calls.filter(([p]) => p === "/students?pool_all=true").length;
+const calls = () => vi.mocked(api.get).mock.calls.filter(([p]) => p === "/students").length;
 async function execute(action: string, input = {}) {
   let result; await act(async () => { result = await service.execute(request(action, input), "structured"); }); return result;
 }
@@ -148,7 +148,7 @@ it.each(["user", "pool", "role"])("isolates tasks and late network results on %s
   const view = render(<Fixture />); await screen.findByText("안녕하세요, 격리 합성 수영장님");
   const old = service.core;
   let finish!: (data: unknown) => void;
-  vi.mocked(api.get).mockImplementation(path => path === "/students?pool_all=true" ? new Promise(r => { finish = r; }) as never : Promise.resolve({ total_members: 0 }) as never);
+  vi.mocked(api.get).mockImplementation(path => path === "/students" ? new Promise(r => { finish = r; }) as never : Promise.resolve({ total_members: 0 }) as never);
   let pending!: ReturnType<typeof old.runStructured>;
   act(() => { pending = old.runStructured(request("office.member.open", { memberId: "fixture_1" })); });
   await waitFor(() => expect(finish).toBeTypeOf("function"));
@@ -207,7 +207,7 @@ it("opens list -> quick Drawer -> wide member information and preserves tab hist
 it("renders multiple actual classes, literal guardian names, extra phones and independent long memo without fake fees", async () => {
   const original = vi.mocked(api.get).getMockImplementation()!;
   const longName = "긴이름".repeat(18), memo = "수업 참고 메모\n".repeat(120);
-  vi.mocked(api.get).mockImplementation((p, options) => p === "/students?pool_all=true"
+  vi.mocked(api.get).mockImplementation((p, options) => p === "/students"
     ? Promise.resolve([{ ...rows[0], name: longName, parent_name: "합성 보호자 A / 합성 보호자 B",
       parent_phone: "000-0000-0001", parent_phone2: "000-0000-0002",
       weekly_count: 2, schedule_labels: "월4·목7", memo, notes: "별도 기존 notes",
