@@ -613,3 +613,17 @@ mtime_ms = 1792222836771
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/6a47a8dd-d548-4834-b2b6-92f6bfcbed22/cfb07419-2bb9-45e5-b9ef-4058c071f05e"
 storage_version_token = "1792223286844923"
 content_type = "image/png"
+
+[[outputs]]
+id = "3RPYitwWL9VY80uGaNj_H"
+uri = "file://generated-artifacts/office-windows-isolated-prep/Windows-Preparation-Guide.html"
+type = "html"
+title = "Windows 격리 통합 준비 안내·체크리스트"
+description = "후보/소스 ZIP 위치·전체 해시·PowerShell 명령·정상 인증 차단 사유·직접 검증 범위. Windows 실행과 DPAPI는 미검증입니다."
+logical_id = "e1c4988d-5f4d-4e52-aace-abbfa7659cb7"
+content_hash = "sha256:539639de14d8bd292c35bf9ffe0d6862622ed12816852b133f9321d1cf98800e"
+size = 21025
+mtime_ms = 1792225393303
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/e1c4988d-5f4d-4e52-aace-abbfa7659cb7/4094606a-0e34-4ae4-b792-7a9123d27a86"
+storage_version_token = "1792225418134478"
+content_type = "text/html"

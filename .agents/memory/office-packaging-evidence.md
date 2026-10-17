@@ -20,3 +20,15 @@ Replit 내부 loopback API는 사용자 Windows의 localhost가 아니다. Linux
 **Why:** 사용자는 접근할 수 없는 loopback 주소를 전달 가능한 환경으로 표현하거나 환경 준비 전에 설치본부터 만드는 것을 금지했다.
 
 **How to apply:** Windows가 실제로 접근할 API의 위치·bind·단일 Origin·서버 인증·검증 수명·종료·비용을 먼저 정한다. 로컬 PC 구성이면 그 PC에서 API/DB가 실행돼야 한다. test 전용 pinning이 필요해도 wildcard·임의 proxy·제품 인증 alias로 제한을 완화하지 않는다.
+
+격리 API를 사용하는 검증 후보는 기존 운영 설치본의 userData·single-instance namespace를 공유하지 않는다.
+
+**Why:** 설치본끼리 설정을 보존하는 제품 정책과 달리, 검증 환경이 운영 DPAPI token·자동 로그인 설정을 읽으면 합성 인증 검증이 오염되거나 기존 로그인 상태가 손상될 수 있다.
+
+**How to apply:** preload·IPC·DPAPI 구현은 유지하되 검증 후보의 저장 위치·실행 이름만 분리한다. 운영 인증정보를 복사하지 않으며 정상 합성 인증이 없으면 업무 실행을 HOLD한다.
+
+대상 OS용 lockfile 준비와 기존 호스트 의존성을 재사용한 컴파일은 별도 증거다.
+
+**Why:** Linux용 workspace override는 Windows 네이티브 의존성을 제외할 수 있다. Windows 패키지가 들어 있는 별도 lock을 만들었어도 기존 Linux node_modules로 컴파일한 결과가 그 lock의 새 Windows 설치 성공을 증명하지 않는다.
+
+**How to apply:** 기존 workspace lock을 보존하고 대상용 의존성을 따로 동결한다. 실제 사용한 빌드 도구체인을 기록하고 Windows 설치·실행 검증은 미검증으로 남긴다.

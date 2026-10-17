@@ -1,0 +1,169 @@
+[전달 대상: SWIMNOTE APP Replit]
+
+PROJECT = SWIMNOTE OFFICE V1
+TASK = Windows 격리 통합 검증 환경·후보 준비
+
+1. 기준과 보존
+
+branch: office/f02-foundation
+직전 보고 HEAD:
+cf2d6396c2b3a33087bd0f8a3da79e68f6c5bb87
+
+현재 HEAD·working tree를 먼저 확인하고 차이를 기록.
+기존 source·미커밋 변경·증거·첨부·후보 모두 보존.
+checkout/reset·commit/push 금지.
+
+최신 서버 후보:
+OFFICE-S3-SEARCH-3d1e7e03a84c9152
+
+기존 실제 AI·합성 DB·브라우저 PASS 증거 재사용.
+변경 없는 모델 호출·전체 suite·Stage 2 UI 반복 금지.
+
+2. 이번 목표
+
+사용자 Windows PC에서 다음 구성을 실행할 수 있게 준비:
+
+- 운영과 분리된 로컬 PostgreSQL.
+- 승인 후보 source로 실행하는 격리 API.
+- 합성 데이터와 정상 인증·권한 검증.
+- 실제 Electron main/preload/renderer.
+- 기록된 모델 응답을 이용한 통합 업무 검증.
+
+현재 실행 가능한 Windows 환경이 있는지 먼저 구분.
+없으면 실행 준비와 전달 자료까지 완료하고,
+Windows 실행 결과는 미검증으로 남긴다.
+사용자 PC에 접근했다고 주장하지 않는다.
+
+3. 후보 식별
+
+서버 후보 외에 Windows 검증에 필요한 항목을 명시:
+
+- Desktop source와 의존성 lockfile.
+- Electron main/preload/renderer.
+- API source와 receipt migration draft.
+- 격리 실행·seed·인증·응답 재생 도구.
+- origin·CSP·API 주소·gate 설정.
+- 필요한 런타임과 버전 근거.
+
+파일 목록·기준 source·patch/manifest SHA-256으로 식별.
+현재 HEAD 전체를 무조건 후보로 삼지 않는다.
+서버·Desktop 후보의 조합이 호환되는지 확인.
+
+추적 dist는 임의 삭제·복원하지 않는다.
+dist 실행이 필요하면 후보 source에서 별도 경로로 빌드하고
+빌드 입력·명령·출력 해시를 기록한다.
+
+4. Windows 실행 도구
+
+저장소의 기존 실행 방식을 조사한 뒤
+Windows용 준비·시작·점검·종료 도구를 만든다.
+PowerShell 등 구체적인 실행 명령을 제공한다.
+
+필수 조건:
+
+- DB 127.0.0.1:55440, API 127.0.0.1:20411.
+- 모든 서비스 loopback 바인딩.
+- 전용 합성 DB만 사용.
+- 운영 DB URL·운영 Secret을 가져오지 않음.
+- 기존 포트 점유 시 해당 프로세스를 임의 종료하지 않음.
+- 기존 DB·파일·설정을 덮어쓰지 않음.
+- 신규 로컬 자격증명은 실행 시 생성하고 로그에 출력하지 않음.
+- 설치·시스템 설정 변경이 필요하면 항목을 명시.
+- 자동 다운로드·설치와 관리자 권한 실행은 기본으로 넣지 않음.
+
+종료 시 이번 도구가 시작한 프로세스만 정리한다.
+합성 데이터 삭제는 별도 명시적 명령으로 분리한다.
+비밀값 없는 실행 로그를 남긴다.
+
+5. 인증과 제품 경계
+
+정상 로그인/JWT·actor·Pool·권한 검증을 유지한다.
+기존 preload·IPC·DPAPI 보안 경계를 유지한다.
+
+합성 인증을 준비하려면 필요한 인증 의존성과
+현재 로컬에서 충족 가능한 범위를 먼저 확인한다.
+
+- 제품 인증 우회 코드 금지.
+- 제품 빌드에 테스트 계정·fixture·격리 주소 포함 금지.
+- wildcard Origin·임의 host·광범위 proxy 허용 금지.
+- 별도 검증 빌드는 정확한 단일 origin만 허용.
+- 인증 fixture만으로 제품 로그인 검증 PASS 선언 금지.
+
+정상 인증을 격리 환경에서 구현할 수 없다면
+우회로 통과시키지 말고 정확한 차단 지점과
+최소 해결 조건을 기록한다.
+그와 무관한 실행 도구·후보 준비는 계속 완료한다.
+
+6. 모델 응답 재생 경계
+
+이번 신규 유료 모델 호출은 0회.
+
+기록된 응답 재생은 격리 API에서만 제공한다.
+제품 경로에 재생 분기·테스트 endpoint를 추가하지 않는다.
+
+가능한 한 실제 interpretation handler·공통 Action·receipt를
+그대로 사용하고, 모델 transport만 격리 도구에서 대체한다.
+재생 검증은 신규 모델 품질 검증과 구분한다.
+
+7. Windows 검증 절차 준비
+
+실제 Electron에서 아래를 확인할 체크리스트와
+증거 수집 방법을 준비한다.
+
+- 정상 로그인·세션 저장·재실행·로그아웃.
+- 회원 검색 0명·1명·동명이인.
+- 정보 수정·지정 소속 반이동.
+- 다른 소속·주당 횟수 보존.
+- 임시 실행 확인 유지.
+- 완료 카드→결과 보기→열람 처리.
+- 뒤로/앞으로·검색·필터·스크롤 복원.
+- AI 입력·첨부·미저장 편집 보존.
+- stale revision 충돌.
+- 응답 유실→결과 불명→receipt 재확인.
+- 실행 OFF에서 기존 receipt 조회.
+- 세션 교체 후 이전 결과 격리.
+- preload/IPC·origin 제한 유지.
+
+Windows 실행 환경이 실제 제공된 경우에만 수행.
+Linux 브라우저·교차 빌드를 Windows 실행 증거로 쓰지 않는다.
+
+8. 제한 검증
+
+새 실행 도구·설정·후보 구성에 직접 관련된 검증만 수행.
+Windows에서 실행하지 못한 PowerShell·DPAPI 동작은
+정적 확인 또는 미검증으로 명시한다.
+
+검증용 코드가 제품 빌드에 섞이지 않는지 확인.
+기존 API 타입 오류와 신규 진단을 구분한다.
+
+9. 이번 금지
+
+운영 DB·metadata 접속·API startup·migration.
+운영 계정·회원·Pool·권한 변경.
+실제 발송·결제·환불·업로드.
+신규 유료 모델 호출.
+모바일·AI ENGINE 변경.
+Windows 설치본 패키징·서명·외부 배포.
+commit/push·main 반영·Render·OTA.
+
+로컬 합성 DB에만 receipt migration 허용.
+Electron 개발 실행 준비와 설치본 제작은 구분한다.
+
+10. 완료 보고
+
+TASK = PASS / HOLD
+현재 실행 환경과 Windows 접근 가능 여부 =
+Windows 후보 ID·구성·해시 =
+서버 후보와 Desktop 조합 =
+필수 런타임·설치 필요 항목 =
+정상 인증 구성·남은 차단 지점 =
+준비/시작/점검/종료 명령 =
+응답 재생과 제품 코드 분리 =
+직접 수행한 검증 =
+Windows 실기기 미검증 항목 =
+사용자가 수행할 최소 작업 =
+운영 schema·legacy 잔여 Gate =
+NOT RUN =
+
+이번 준비 완료와 Windows 통합 수용을 별도로 판정.
+완료 후 보고하고 정지.
