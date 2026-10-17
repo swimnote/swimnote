@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { withUtf8Manifest } from "./utf8-manifest.mjs";
 
 const repo = path.resolve(import.meta.dirname, "../../../..");
-const attempt = process.argv[2] ?? "attempt-12";
+const attempt = process.argv[2] ?? "attempt-13";
 if (!/^attempt-\d{2}$/.test(attempt)) throw new Error("Explicit new attempt name required");
 const deliveryRoot = path.join(repo, "generated-artifacts/office-windows-packaged-auth");
 const output = path.join(deliveryRoot, attempt);
@@ -46,7 +46,7 @@ for (const entry of parentBuild.files) if (hash(path.join(frozen, entry.path)) !
 if (fs.existsSync(source)) throw new Error("Output attempt already exists; preserve it");
 
 const packagingFiles = ["runtime.cjs", "integration.cts", "package.mjs", "utf8-manifest.mjs",
-  "database-monitor.cjs", "database-ownership.cjs"];
+  "database-monitor.cjs", "database-ownership.cjs", "database-output.cjs", "database-profile.cjs", "previous-output.cjs"];
 const packageSource = Object.fromEntries(packagingFiles.map(name => [name, hash(path.join(import.meta.dirname, name))]));
 const packageId = "OFFICE-WIN-PACKAGED-" + sha(JSON.stringify({ parentId, packageSource })).slice(0, 16);
 const identity = {
@@ -56,7 +56,7 @@ const identity = {
   packagingFiles: packageSource, node: "24.13.0", electron: "44.7.2", postgres: "16.15",
   scope: "Unsigned isolated Windows x64 verification only; Windows execution NOT RUN",
   initdbChangeScope: "UTF-8 process manifest for initdb.exe and postgres.exe only; initialization arguments/locale/environment unchanged; Windows cause not yet confirmed",
-  databaseStartChangeScope: "Bounded PostgreSQL startup logs, exit/readiness evidence, verified-only graceful shutdown and read-only retained-resource UI; no automatic restart",
+  databaseStartChangeScope: "Prefixless startup output sanitization, raw-byte/decoding/exclusion accounting, input profile and read-only legacy-log export; DB exit cause unconfirmed; no automatic restart",
 };
 write(path.join(output, "package-identity.json"), identity);
 fs.cpSync(base, source, { recursive: true, errorOnExist: true, force: false });
@@ -358,6 +358,8 @@ ID: ${packageId}
 
 이번 후보는 DB 기동 로그·종료 코드·준비 확인 진단과 안전한 상태 확인 UI 보완본입니다.
 이전 initdb·프로세스 UTF-8 선언은 유지하며 Windows DB 기동 해결은 미검증입니다.
+오류 접두사 없는 출력의 비밀 제거와 제외 사유·원시 바이트·UTF-8 디코딩 상태를 추가했습니다.
+DB 종료 원인은 미확정이며 timeout·기동 인자·DB 설정을 임의 변경하지 않았습니다.
 Windows 10 1903(build 18362) 이상 또는 Windows 11 x64 전용입니다.
 시스템 코드페이지·Windows 계정·보안 설정은 변경하지 않습니다.
 Windows 초기화 오류 해결은 아직 미검증입니다.
@@ -377,6 +379,9 @@ Windows 초기화 오류 해결은 아직 미검증입니다.
 오류 창에서 상태를 다시 확인할 수 있습니다. 충분한 소유권 증거가 있는 이번 검증본 DB만 정상 종료 버튼이 표시됩니다.
 이전 검증본의 PID·잠금만으로는 종료하지 않습니다. 확인 불가 시 자료를 보존하고 진단만 전달합니다.
 상태 확인은 DB 재기동이나 복구 실행이 아니며 불완전 DB를 정상 DB로 재사용하지 않습니다.
+앱의 '이전 오류 로그 확인·내보내기'는 알려진 이전 DB의 별도 로그만 읽기 전용으로 확인합니다.
+이전 설치본은 stderr 원문을 저장하지 않았습니다. 별도 로그도 없으면 소실된 출력은 복원할 수 없습니다.
+별도 로그가 있어도 같은 실패 실행의 stderr인지 자동으로 확정하지 않습니다.
 진단 경로: %LOCALAPPDATA%\\SwimNoteOffice-Isolated\\${packageId}\\diagnostics
 private.json/login-info.txt/OTP/DB/userData/토큰은 공유하지 마세요.
 진단 파일은 설치본 최초 실행 전에는 생성되지 않습니다.

@@ -6,12 +6,12 @@ export const SETUP_NAME = "SWIMNOTE-OFFICE-F06-Setup.exe";
 const quote = s => s.replaceAll("$", "$$").replaceAll('"', '$\\"');
 
 export function renderInstaller({ payloadDir, outputFile, packageId, files, stage = "F06" }) {
-  if (!["F06", "STAGE2", "MEMBER"].includes(stage) || !new RegExp(`^${stage}-[a-f0-9]{12}-[a-f0-9]{12}$`).test(packageId) || !files.length ||
+  if (!["F06", "STAGE2", "MEMBER", "PRODUCT"].includes(stage) || !new RegExp(`^${stage}-[a-f0-9]{12}-[a-f0-9]{12}$`).test(packageId) || !files.length ||
       files.some(f => !/^[A-Za-z0-9_./ -]+$/.test(f) || f.startsWith("/") ||
         f.split("/").some(s => !s || s === "." || s === ".."))) throw new Error("Unsafe installer input");
-  const label = stage === "MEMBER" ? "회원 상세 보완" : stage === "STAGE2" ? "Stage 2 N01/N02" : "F06";
-  const version = stage === "MEMBER" ? "0.0.0.8" : stage === "STAGE2" ? "0.0.0.7" : "0.0.0.6";
-  const displayVersion = stage === "MEMBER" ? "0.0.0-member-internal" : stage === "STAGE2" ? "0.0.0-stage2-internal" : "0.0.0-f06-internal";
+  const label = stage === "PRODUCT" ? "OFFICE V1" : stage === "MEMBER" ? "회원 상세 보완" : stage === "STAGE2" ? "Stage 2 N01/N02" : "F06";
+  const version = stage === "PRODUCT" ? "0.0.0.9" : stage === "MEMBER" ? "0.0.0.8" : stage === "STAGE2" ? "0.0.0.7" : "0.0.0.6";
+  const displayVersion = stage === "PRODUCT" ? "0.0.0-office-v1" : stage === "MEMBER" ? "0.0.0-member-internal" : stage === "STAGE2" ? "0.0.0-stage2-internal" : "0.0.0-f06-internal";
   // Keep the F06 ownership marker, app ID, userData and removal rules for compatible reinstalls.
   const directories = [...new Set(files.map(f => path.posix.dirname(f)).filter(d => d !== "."))]
     .sort((a, b) => b.length - a.length);

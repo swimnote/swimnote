@@ -10,6 +10,7 @@ import {
 } from "./security.cjs";
 import { TokenStore } from "./token-store.cjs";
 import { registerSessionIPC, registerLoginPreferencesIPC, LoginPreferencesStore } from "./session-ipc.cjs";
+declare const __OFFICE_STAGE3_ACTIVE__: boolean;
 
 protocol.registerSchemesAsPrivileged([{
   scheme: "app",
@@ -83,7 +84,8 @@ async function createWindow() {
       } catch { /* Deny malformed network URLs. */ }
     }
     callback({ cancel: !local && !devSocket && !details.url.startsWith("data:image/") &&
-      !isAllowedAuthRequest(details.url, details.method) });
+      !isAllowedAuthRequest(details.url, details.method,
+        typeof __OFFICE_STAGE3_ACTIVE__ === "boolean" && __OFFICE_STAGE3_ACTIVE__) });
   });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {

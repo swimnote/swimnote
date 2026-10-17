@@ -6,11 +6,14 @@ import { fileURLToPath } from "node:url";
 
 export const dashboard = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const repo = path.resolve(dashboard, "../..");
-export const verificationStage = process.argv.includes("--member-detail") ? "MEMBER" : process.argv.includes("--stage2") ? "STAGE2"
+export const verificationStage = process.argv.includes("--product") ? "PRODUCT" : process.argv.includes("--member-detail") ? "MEMBER" : process.argv.includes("--stage2") ? "STAGE2"
   : process.argv.includes("--f06") ? "F06"
   : process.argv.includes("--f05-fix") ? "F05-FIX"
   : process.argv.includes("--f05") ? "F05" : "F03-F04";
-export const output = path.join(repo, verificationStage === "MEMBER" ? "generated-artifacts/office-member-detail-delivery" : verificationStage === "STAGE2" ? (process.argv.includes("--final-layout")
+const productAttempt = process.argv.find(arg => arg.startsWith("--product-attempt="))?.split("=")[1] ?? "02";
+if (!/^\d{2}$/.test(productAttempt)) throw new Error("Explicit immutable product attempt required");
+export const productMode = `office-product-${productAttempt}`;
+export const output = path.join(repo, verificationStage === "PRODUCT" ? `generated-artifacts/office-product-v1-delivery-${productAttempt}` : verificationStage === "MEMBER" ? "generated-artifacts/office-member-detail-delivery" : verificationStage === "STAGE2" ? (process.argv.includes("--final-layout")
   ? "generated-artifacts/office-stage2-final-layout-delivery" : process.argv.includes("--manager")
   ? "generated-artifacts/office-stage2-manager-delivery" : process.argv.includes("--unified")
   ? "generated-artifacts/office-stage2-unified-delivery" : process.argv.includes("--readability")

@@ -6,16 +6,17 @@ import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { sourceIdentity, dashboard, repo, output, sha, verificationStage } from "./verification-source.mjs";
+import { sourceIdentity, dashboard, repo, output, sha, verificationStage, productMode } from "./verification-source.mjs";
 import { renderInstaller, APP_ID } from "./installer-config.mjs";
 import { assemblyCommand } from "./integration-delivery.mjs";
 
-if (!["STAGE2", "MEMBER"].includes(verificationStage)) throw new Error("Use --stage2 or --member-detail");
+if (!["STAGE2", "MEMBER", "PRODUCT"].includes(verificationStage)) throw new Error("Use --stage2, --member-detail or --product");
+const product = verificationStage === "PRODUCT";
 const memberDetail = verificationStage === "MEMBER";
-const tag = memberDetail ? "MEMBER" : "STAGE2";
+const tag = product ? "PRODUCT" : memberDetail ? "MEMBER" : "STAGE2";
 const startFile = `START-${tag}.cmd`, readmeFile = `${tag}-READ-ME.txt`, sourceFile = `${tag}-SOURCE.json`;
 const readability = process.argv.includes("--readability");
-const finalLayout = process.argv.includes("--final-layout") || memberDetail;
+const finalLayout = process.argv.includes("--final-layout") || memberDetail || product;
 const manager = process.argv.includes("--manager") || finalLayout;
 const unified = process.argv.includes("--unified") || manager;
 const require = createRequire(import.meta.url);
@@ -80,8 +81,16 @@ async function frozen() {
 }
 const compiled = path.join(output, "compiled"), stage = path.join(output, "stage");
 await mkdir(stage);
-run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", memberDetail ? "member-detail" : finalLayout ? "stage2-final-layout" : manager ? "stage2-manager" : unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
+run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", product ? productMode : memberDetail ? "member-detail" : finalLayout ? "stage2-final-layout" : manager ? "stage2-manager" : unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
 run("pnpm", ["exec", "tsc", "-p", "desktop/tsconfig.json", "--outDir", path.join(compiled, "desktop")]);
+if (product) {
+  const main = path.join(compiled, "desktop/main.cjs");
+  const esbuild = createRequire(require.resolve("vite"))("esbuild");
+  const transformed = esbuild.transformSync(await readFile(main, "utf8"), {
+    loader: "js", format: "cjs", target: "node24", define: { __OFFICE_STAGE3_ACTIVE__: "true" },
+  });
+  await writeFile(main, transformed.code);
+}
 await mkdir(path.join(stage, "desktop"));
 const mainFiles = ["main.cjs", "preload.cjs", "security.cjs", "session-ipc.cjs", "token-store.cjs"];
 for (const file of mainFiles) await copyFile(path.join(compiled, "desktop", file), path.join(stage, "desktop", file));
@@ -100,7 +109,7 @@ await renderer(path.join(compiled, "renderer"), path.join(stage, "renderer"));
 const compiledHashes = { ...await inventory(path.join(stage, "desktop"), "desktop/"), ...await inventory(path.join(stage, "renderer"), "renderer/") };
 const js = (await readdir(path.join(stage, "renderer/assets"))).filter(name => name.endsWith(".js"));
 const bundle = (await Promise.all(js.map(file => readFile(path.join(stage, "renderer/assets", file), "utf8")))).join("\n");
-for (const value of [identity.buildId, memberDetail ? "회원 상세 보완" : "Stage 2 N01/N02", "office-workspace", unified ? "업무 입력" : "AI 중심", "앱 내 뒤로",
+for (const value of [identity.buildId, ...(product ? [] : [memberDetail ? "회원 상세 보완" : "Stage 2 N01/N02"]), "office-workspace", unified ? "업무 입력" : "AI 중심", "앱 내 뒤로",
   ...(memberDetail ? ["office-member-detail", "전체 회원정보", "office.member.open"] : [])])
   if (!bundle.includes(value)) throw new Error("Required identity/N01/N02 missing from renderer: " + value);
 if (readability || unified) {
@@ -112,7 +121,7 @@ if (readability || unified) {
     if (!css.includes(value)) throw new Error("Readability fix missing from CSS: " + value);
 }
 if (unified) {
-  for (const value of ["office-dock-input", finalLayout ? "전송 불가 · 첨부는 로컬 선택만" : "전송 불가: AI가 아직 연결되지 않았습니다.", "메뉴 접기"])
+  for (const value of ["office-dock-input", ...(product ? [] : [finalLayout ? "전송 불가 · 첨부는 로컬 선택만" : "전송 불가: AI가 아직 연결되지 않았습니다."]), "메뉴 접기"])
     if (!bundle.includes(value)) throw new Error("Unified layout missing from renderer: " + value);
   for (const value of ["office-workspace-divider", "Side Workspace", "AI 중심"])
     if (bundle.includes(value)) throw new Error("Obsolete layout still in renderer: " + value);
@@ -145,7 +154,8 @@ const paths = await packager({
   dir: stage, out: output, name: "SwimnoteOffice", executableName: "SwimnoteOffice",
   platform: "win32", arch: "x64", electronVersion: pkg.devDependencies.electron.replace(/^[~^]/, ""),
   asar: true, overwrite: false, prune: false,
-  win32metadata: { CompanyName: "SWIMNOTE", FileDescription: "SWIMNOTE OFFICE Stage 2 N01/N02 internal verification" },
+  download: { cacheRoot: path.join(repo, ".cache/electron") },
+  win32metadata: { CompanyName: "SWIMNOTE", FileDescription: product ? "SWIMNOTE OFFICE V1" : "SWIMNOTE OFFICE Stage 2 N01/N02 internal verification" },
 });
 if (paths.length !== 1) throw new Error("Expected exactly one Windows package");
 const payload = paths[0], archive = path.join(payload, "resources/app.asar");
@@ -160,7 +170,21 @@ const pe = executable.readUInt32LE(0x3c);
 if (executable.toString("ascii", 0, 2) !== "MZ" || executable.readUInt32LE(pe) !== 0x4550 ||
     executable.readUInt16LE(pe + 4) !== 0x8664 || executable.readUInt16LE(pe + 24) !== 0x20b)
   throw new Error("Expected AMD64 PE32+ runtime");
-const readme = `SWIMNOTE OFFICE ${memberDetail ? "회원 상세 보완 (기존 제작 도구 재사용)" : `Stage 2 ${unified ? "통합 업무 레이아웃" : "N01/N02"}`} — 내부 검증용 unsigned Windows x64
+const readme = product ? `SWIMNOTE OFFICE V1 — Windows x64 (unsigned)
+제품 빌드: ${identity.buildId}
+기존 OFFICE 설치·로그인·서버 연결·AI 매니저·회원 화면을 그대로 사용합니다.
+다운로드한 ZIP을 같은 폴더에 풀고 START-PRODUCT.cmd를 더블클릭한 뒤 열린 폴더에서 Setup.exe를 실행하세요.
+기존 계정으로 로그인합니다. Node·PostgreSQL·소스 빌드·명령 입력은 필요 없습니다.
+로컬 DB·검증 서버·가짜 계정·AI 응답 재생은 이 제품에 포함되지 않습니다.
+
+회원 검색과 결과 보기, 지원 필드 수정·지정 소속 반이동은 기존 공통 Action을 사용합니다.
+실제 AI·수정·반이동은 서버의 Stage 3 배포·DB 준비·활성화 승인이 별도로 필요합니다.
+서버 미활성 또는 권한·revision 미확인 상태에서는 실행하지 않으며 완료로 표시하지 않습니다.
+기존 작업 카드·명시적 확인·권한·중복 방지·결과 불명 시 재조회·충돌 보호는 유지합니다.
+연결 오류가 표시되면 반복 실행하지 말고 화면을 전달하세요.
+Windows에서 직접 실행 검증하지 않았습니다. 운영 배포·schema 적용은 수행하지 않았습니다.
+로그인 정보·개인정보·토큰은 공유하지 마세요.
+` : `SWIMNOTE OFFICE ${memberDetail ? "회원 상세 보완 (기존 제작 도구 재사용)" : `Stage 2 ${unified ? "통합 업무 레이아웃" : "N01/N02"}`} — 내부 검증용 unsigned Windows x64
 검증본 ID: ${identity.buildId}
 HEAD: ${identity.head}
 DIFF ID: ${identity.diffId}
@@ -215,7 +239,7 @@ ${readability || unified ? "배율은 실제 확인한 값만 기록합니다." 
 미검증: 이번 Windows UI 수용·CMD→PowerShell 직접 실행, 운영 변경→SSE·편집 보호·저장 충돌,
 Windows 11·서명·공개 배포. 서버/API/DB 변경·Render 배포·OTA·자동업데이트 없음.
 `;
-await fresh(path.join(payload, sourceFile), { ...identity, appId: APP_ID, installerVersion: memberDetail ? "0.0.0.8" : "0.0.0.7" });
+await fresh(path.join(payload, sourceFile), { ...identity, appId: APP_ID, installerVersion: product ? "0.0.0.9" : memberDetail ? "0.0.0.8" : "0.0.0.7" });
 await fresh(path.join(payload, readmeFile), readme);
 const payloadHashes = await inventory(payload);
 await fresh(path.join(output, "payload-manifest.json"), payloadHashes);

@@ -41,9 +41,11 @@ const archive = path.join(payload, "resources/app.asar");
 const source = path.join(attempt, "source");
 const compiledMain = asar.extractFile(archive, "desktop/main.cjs").toString("utf8");
 const buildInputs = Object.keys(read(path.join(attempt, "desktop-build-inputs.json")).inputs);
-for (const file of ["database-monitor.cjs", "database-ownership.cjs"])
+for (const file of ["database-monitor.cjs", "database-ownership.cjs", "database-output.cjs",
+  "database-profile.cjs", "previous-output.cjs"])
   if (!buildInputs.some(input => input.endsWith("/" + file))) throw new Error("Missing DB startup supervisor module");
 if (!compiledMain.includes("Get-CimInstance Win32_Process") ||
+    !compiledMain.includes("NO_SAFE_PUBLIC_WORDS") || !compiledMain.includes("UNSUPPORTED_UTF16_BOM") ||
     !/stdio:\s*\[\s*"ignore",\s*"pipe",\s*"pipe"\s*\]/.test(compiledMain))
   throw new Error("Startup capture or process inspection missing from actual package");
 const forbiddenURLs = ["https://swimnote-api.onrender.com", "https://swimnote.kr", "http://swimnote.kr"];
@@ -95,6 +97,7 @@ const result = {
   utf8ProcessManifestsVerified: processManifestEvidence.map(entry => entry.file),
   postgresVendorCodeSectionsPreserved: true,
   databaseStartupMonitorAndOwnershipBundled: true,
+  prefixlessOutputDecodingAccountingAndReadOnlyLogExportBundled: true,
   windowsInstallationExecutionDpapiIpcBusiness: "NOT RUN",
   verificationScope: "Static cross-package inspection and actual NSIS extraction on Linux; not Windows loader/execution proof",
 };

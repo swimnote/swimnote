@@ -7,7 +7,9 @@ const net = require("node:net");
 const os = require("node:os");
 const { spawn, spawnSync } = require("node:child_process");
 const { DatabaseMonitor, databaseReason } = require("./database-monitor.cjs");
-const { PRIOR, processInfo, pidInfo, ownership, publicOwnership } = require("./database-ownership.cjs");
+const { PREVIOUS_PACKAGES, processInfo, pidInfo, ownership, publicOwnership } = require("./database-ownership.cjs");
+const { recoverPrevious } = require("./previous-output.cjs");
+const { databaseProfile } = require("./database-profile.cjs");
 
 const BASE = "OFFICE-WIN-AUTH-fad5704318bc64c4";
 const PORTS = [55440, 20411];
@@ -290,9 +292,13 @@ class IsolatedRuntime {
       session: this.session, pid: process.pid, createdAt: new Date().toISOString() });
     this.ownsLock = true;
     this.stage = "start-database";
-    this.dbMonitor = new DatabaseMonitor(line => safeInitdbMessage(line, secretValues(this.credentials)));
+    this.dbMonitor = new DatabaseMonitor(line => safeInitdbMessage(line, secretValues(this.credentials)),
+      () => secretValues(this.credentials));
     this.dbRequestedAt = Date.now();
     const dbInvocation = databaseInvocation(this.run);
+    this.databaseInputProfile = databaseProfile({ executable: this.tool("postgres"), run: this.run,
+      args: dbInvocation.args, env: this.childEnv(), expectedHash: this.manifest["postgres/bin/postgres.exe"],
+      initializedHere: this.needsSeed });
     this.db = spawn(this.tool("postgres"), dbInvocation.args, {
       cwd: dbInvocation.cwd, env: this.childEnv(), stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
     });
@@ -462,10 +468,7 @@ class IsolatedRuntime {
         this.retainedContext(this.root, this.identity.packageId, this.resources, "CURRENT");
       this.currentResidue = own;
       if (own) statuses.push(this.checkDatabase(own, this.db));
-      const previousRoot = path.join(this.localData, "SwimNoteOffice-Isolated", PRIOR);
-      const previousResources = path.join(this.localData, "Programs", "SWIMNOTE OFFICE Isolated", PRIOR, "resources");
-      const previous = this.retainedContext(previousRoot, PRIOR, previousResources, "PREVIOUS");
-      if (previous) statuses.push(this.checkDatabase(previous));
+      for (const previous of this.previousContexts()) statuses.push(this.checkDatabase(previous));
     } catch {
       statuses.push({ scope: "CURRENT", processState: "UNKNOWN", reason: "INSPECTION_FAILED",
         verified: false, hasRetainedLock: true });
@@ -524,6 +527,27 @@ class IsolatedRuntime {
     }
     this.stage = "stopped";
   }
+  previousContexts() {
+    return PREVIOUS_PACKAGES.flatMap(packageId => {
+      const root = path.join(this.localData, "SwimNoteOffice-Isolated", packageId);
+      const resources = path.join(this.localData, "Programs", "SWIMNOTE OFFICE Isolated", packageId, "resources");
+      const context = this.retainedContext(root, packageId, resources, "PREVIOUS");
+      return context ? [context] : [];
+    });
+  }
+  exportPreviousOutput() {
+    const folder = path.join(this.root, "diagnostics"); fs.mkdirSync(folder, { recursive: true });
+    let evidence;
+    try { evidence = this.previousContexts().map(context =>
+      recoverPrevious(context, line => safeInitdbMessage(line))); }
+    catch { evidence = [{ status: "LOG_INSPECTION_UNAVAILABLE_NO_RECOVERY_CLAIM" }]; }
+    const file = path.join(folder, `diagnostic-${Date.now()}-${crypto.randomBytes(12).toString("hex")}.json`);
+    fresh(file, { packageId: this.identity.packageId, kind: "READ_ONLY_PREVIOUS_OUTPUT_EXPORT",
+      originalStderrRecovery: "NOT_CLAIMED", processStateAtExport: "NOT_INFERRED_FROM_OLD_DIAGNOSTIC",
+      previousOutput: evidence, windowsAcceptance: "HOLD" });
+    this.previousExportFile = path.basename(file);
+    return { file, foundLog: evidence.some(item => !!item.capture) };
+  }
   diagnose(error, { currentStatus = false } = {}) {
     // Explicit allowlist: never stringify error/stack, env, SQL, credentials or raw child output.
     const secrets = secretValues(this.credentials);
@@ -539,6 +563,8 @@ class IsolatedRuntime {
       at: new Date().toISOString(), platform: process.platform, arch: process.arch,
       electronHostNode: this.nodeVersion, stage: this.failureStage ?? this.stage, code: systemError(error),
       database: this.dbMonitor?.snapshot(),
+      databaseInputProfile: this.databaseInputProfile,
+      previousOutputExport: this.previousExportFile,
       shutdownOutcome: ["NOT_ATTEMPTED", "UNVERIFIED_RESOURCE_PRESERVED", "VERIFIED_DB_STOPPED",
         "OWNED_DB_ALREADY_EXITED", "STOP_FAILED"].includes(this.shutdownOutcome) ? this.shutdownOutcome : "NOT_ATTEMPTED",
       shutdownErrorCode: this.shutdownErrorCode ? systemError({ code: this.shutdownErrorCode }) : undefined,

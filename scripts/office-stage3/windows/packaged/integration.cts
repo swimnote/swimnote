@@ -31,6 +31,7 @@ async function failure(error: unknown) {
     const buttons = ["상태 다시 확인"];
     if (status?.canStop) buttons.push("소유 확인된 DB 정상 종료");
     if (location) buttons.push("진단 폴더 열기");
+    buttons.push("이전 오류 로그 확인·내보내기");
     buttons.push("종료");
     const result = await dialog.showMessageBox({
     type: "error", title: "SWIMNOTE OFFICE 격리 검증본",
@@ -47,6 +48,7 @@ async function failure(error: unknown) {
     const action = buttons[result.response];
     if (action === "종료") break;
     if (action === "진단 폴더 열기") shell.showItemInFolder(location);
+    if (action === "이전 오류 로그 확인·내보내기") await exportPrevious();
     if (action === "소유 확인된 DB 정상 종료") {
       try { await runtime.stop({ preserveEvidence: true, allowRetained: true }); }
       catch (stopError: any) { runtime.shutdownErrorCode = stopError?.code; }
@@ -54,6 +56,19 @@ async function failure(error: unknown) {
   } while (true);
   exitAllowed = true;
   app.quit();
+}
+async function exportPrevious() {
+  try {
+    const exported = runtime.exportPreviousOutput();
+    await dialog.showMessageBox({ type: "info", message: exported.foundLog ?
+      "이전 DB의 별도 로그를 비밀 제거해 내보냈습니다. 실패한 stderr와 동일한 실행인지 확인되지 않았습니다." :
+      "이전 설치본은 stderr 원문을 저장하지 않았고, 읽을 수 있는 별도 DB 로그를 찾지 못했습니다. 소실된 출력은 복원할 수 없습니다.",
+      detail: "기존 DB·잠금·설치본은 변경하지 않았습니다. 내보낸 JSON만 전달하세요.",
+      buttons: ["확인"] });
+    shell.showItemInFolder(exported.file);
+  } catch {
+    await dialog.showMessageBox({ type: "warning", message: "이전 로그를 확인하거나 내보내지 못했습니다. 출력 복원을 보장할 수 없습니다.", buttons: ["확인"] });
+  }
 }
 export async function startIsolation() {
   const identity = JSON.parse(fs.readFileSync(path.join(process.resourcesPath, "isolation", "package-identity.json"), "utf8"));
@@ -88,7 +103,7 @@ export async function showLocalHelp() {
       "다른 Pool·제한 역할·TOTP 계정도 같은 파일에 있습니다.\n\n" +
       "이 창 다시 열기: Ctrl+Shift+L\n기록된 AI 입력만 사용하며 실제 발송·결제·업로드는 지원하지 않습니다.\n" +
       "창을 정상 종료하면 이번 실행이 시작한 API·DB만 종료합니다.\n로그인 정보·OTP·DB·userData는 외부로 공유하지 마세요.",
-    buttons: ["로그인 정보 열기", "현재 TOTP 보기", "닫기"], defaultId: 0, cancelId: 2, noLink: true,
+    buttons: ["로그인 정보 열기", "현재 TOTP 보기", "이전 오류 로그 확인·내보내기", "닫기"], defaultId: 0, cancelId: 3, noLink: true,
   });
   if (result.response === 0) {
     const error = await shell.openPath(path.join(runtime.run, "login-info.txt"));
@@ -102,5 +117,6 @@ export async function showLocalHelp() {
       message: String(code), detail: "isolation_totp 계정용 현재 코드입니다. 만료되면 다시 확인하세요.",
       buttons: ["닫기"] });
   }
+  if (result.response === 2) await exportPrevious();
 }
 export const packagingFailure = failure;

@@ -823,3 +823,31 @@ mtime_ms = 1792245912637
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/c147fda3-a142-4760-ada7-f781cc5d3200/1885d55e-49c0-420d-abb8-92129016d65a"
 storage_version_token = "1792245997789073"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "09pdG6xcQS51kHtBuKjJj"
+uri = "file://generated-artifacts/office-product-v1-delivery-02/SWIMNOTE-OFFICE-PRODUCT-d22a88fb6e5a-1b9f35ed4d1a-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE V1 설치본 1/2"
+description = "두 ZIP 모두 필요합니다. SHA-256: 3848dd1945c3ec1ca3bb0f62b296df8de227dca0b3fcb2c2d72354dcddb4d264"
+logical_id = "6fb8531a-ef3c-4014-af5f-08c94a46d5fe"
+content_hash = "sha256:3848dd1945c3ec1ca3bb0f62b296df8de227dca0b3fcb2c2d72354dcddb4d264"
+size = 83890495
+mtime_ms = 1792248007996
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/6fb8531a-ef3c-4014-af5f-08c94a46d5fe/540979a5-37a4-4e79-aec1-57aa471aeb58"
+storage_version_token = "1792248036011894"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "YTRJ0w8362zCkpmiLFwXw"
+uri = "file://generated-artifacts/office-product-v1-delivery-02/SWIMNOTE-OFFICE-PRODUCT-d22a88fb6e5a-1b9f35ed4d1a-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE V1 설치본 2/2"
+description = "두 ZIP 모두 필요합니다. SHA-256: 860b60d14d6c04d530f2ecaaa1db4cdac9f7dade4858a751760588945c197f70"
+logical_id = "2344d35f-c606-4751-ba8b-f9e7addcffe4"
+content_hash = "sha256:860b60d14d6c04d530f2ecaaa1db4cdac9f7dade4858a751760588945c197f70"
+size = 29730761
+mtime_ms = 1792248008716
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/2344d35f-c606-4751-ba8b-f9e7addcffe4/1e2d3084-ba56-475d-b7d8-745cf0435cd4"
+storage_version_token = "1792248037647428"
+content_type = "application/octet-stream"

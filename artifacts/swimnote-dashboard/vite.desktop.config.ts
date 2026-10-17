@@ -7,6 +7,8 @@ import { readFileSync } from "node:fs";
 // Prepared from HEAD + tracked diff + untracked Desktop source, never from credentials.
 export default defineConfig(({ mode }) => {
 const fixed = mode === "f05-fix";
+const product = /^office-product-\d{2}$/.test(mode);
+const productSuffix = product ? mode.slice("office-product".length) : "";
 const memberDetail = mode === "member-detail";
 const readability = mode === "stage2-readability";
 const unified = mode === "stage2-unified";
@@ -15,7 +17,7 @@ const finalLayout = mode === "stage2-final-layout";
 const stage2 = mode === "stage2" || readability || unified || manager || finalLayout;
 let verificationId = "개발 미지정";
 try {
-  const identity = JSON.parse(readFileSync(new URL(memberDetail ? "../../generated-artifacts/office-member-detail-delivery/source-identity.json" : stage2
+  const identity = JSON.parse(readFileSync(new URL(product ? `../../generated-artifacts/office-product-v1-delivery${productSuffix}/source-identity.json` : memberDetail ? "../../generated-artifacts/office-member-detail-delivery/source-identity.json" : stage2
     ? (finalLayout ? "../../generated-artifacts/office-stage2-final-layout-delivery/source-identity.json"
       : manager ? "../../generated-artifacts/office-stage2-manager-delivery/source-identity.json"
       : unified ? "../../generated-artifacts/office-stage2-unified-delivery/source-identity.json"
@@ -23,17 +25,18 @@ try {
       : "../../generated-artifacts/office-stage2-n01-n02-delivery/source-identity.json") : fixed
     ? "../../generated-artifacts/office-f05-fix/source-identity.json"
     : "../../generated-artifacts/office-f05/source-identity.json", import.meta.url), "utf8"));
-  const pattern = memberDetail ? /^MEMBER-[a-f0-9]{12}-[a-f0-9]{12}$/ : stage2 ? /^STAGE2-[a-f0-9]{12}-[a-f0-9]{12}$/
+  const pattern = product ? /^PRODUCT-[a-f0-9]{12}-[a-f0-9]{12}$/ : memberDetail ? /^MEMBER-[a-f0-9]{12}-[a-f0-9]{12}$/ : stage2 ? /^STAGE2-[a-f0-9]{12}-[a-f0-9]{12}$/
     : fixed ? /^F05-FIX-[a-f0-9]{12}-[a-f0-9]{12}$/ : /^F05-[a-f0-9]{12}-[a-f0-9]{12}$/;
   if (pattern.test(identity.buildId)) verificationId = identity.buildId;
 } catch { /* Ordinary renderer development has no frozen packaging identity. */ }
-if ((stage2 || memberDetail) && verificationId === "개발 미지정") throw new Error("Frozen source identity required");
+if ((stage2 || memberDetail || product) && verificationId === "개발 미지정") throw new Error("Frozen source identity required");
 
 return {
   root: import.meta.dirname,
   base: "/admin/",
   envPrefix: "OFFICE_PUBLIC_",
   define: {
+    __OFFICE_STAGE3_ACTIVE__: JSON.stringify(product),
     __OFFICE_VERIFICATION_ID__: JSON.stringify(verificationId),
     // Approved canonical API only. Electron's allowlist restricts paths and methods further.
     "import.meta.env.VITE_API_BASE": JSON.stringify("https://swimnote-api.onrender.com/api"),

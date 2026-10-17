@@ -3,7 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
-const PRIOR = "OFFICE-WIN-PACKAGED-11ee5f9eb3c7e6be";
+const PRIOR = "OFFICE-WIN-PACKAGED-3a2e2cc06332bfde";
+const PREVIOUS_PACKAGES = [PRIOR, "OFFICE-WIN-PACKAGED-11ee5f9eb3c7e6be"];
 const samePath = (a, b) => typeof a === "string" && typeof b === "string" &&
   path.win32.normalize(a).toLowerCase() === path.win32.normalize(b).toLowerCase();
 function windowsArgs(text) {
@@ -108,4 +109,4 @@ function publicOwnership(status) {
     verified: status.verified === true, hasRetainedLock: status.hasRetainedLock === true,
   };
 }
-module.exports = { PRIOR, samePath, windowsArgs, processInfo, pidInfo, ownership, publicOwnership };
+module.exports = { PRIOR, PREVIOUS_PACKAGES, samePath, windowsArgs, processInfo, pidInfo, ownership, publicOwnership };

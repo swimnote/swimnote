@@ -1,0 +1,71 @@
+{
+  "packageId": "OFFICE-WIN-PACKAGED-3a2e2cc06332bfde",
+  "candidateId": "OFFICE-WIN-AUTH-fad5704318bc64c4",
+  "at": "2026-10-17T14:13:54.682Z",
+  "platform": "win32",
+  "arch": "x64",
+  "electronHostNode": "v24.21.0",
+  "stage": "start-database",
+  "code": "DB_START_FAILED",
+  "database": {
+    "spawned": true,
+    "failureKind": "EARLY_EXIT",
+    "exitCode": 1,
+    "exitCodeHex": "0x00000001",
+    "outputClosed": true,
+    "capturedUtf8Bytes": {
+      "stdout": 0,
+      "stderr": 276
+    },
+    "truncated": false,
+    "partialOutputPending": false,
+    "startupReason": "QUERY_FAILED",
+    "readiness": {
+      "attempts": 1,
+      "lastReason": "PID_FILE_PENDING"
+    },
+    "messages": []
+  },
+  "shutdownOutcome": "OWNED_DB_ALREADY_EXITED",
+  "resourceInspection": [
+    {
+      "scope": "CURRENT",
+      "processState": "ABSENT",
+      "reason": "OWNED_CHILD_EXITED",
+      "pid": 11216,
+      "executableMatch": false,
+      "startTimeMatch": false,
+      "dataDirectoryMatch": false,
+      "argumentsMatch": false,
+      "verified": false,
+      "hasRetainedLock": true
+    },
+    {
+      "scope": "PREVIOUS",
+      "processState": "ABSENT",
+      "reason": "PROCESS_ABSENT",
+      "pid": 8348,
+      "executableMatch": false,
+      "startTimeMatch": false,
+      "dataDirectoryMatch": false,
+      "argumentsMatch": false,
+      "verified": false,
+      "hasRetainedLock": false
+    }
+  ],
+  "initdbInputProfile": {
+    "explicitAsciiRole": true,
+    "dbEncoding": "UTF8",
+    "locale": "C",
+    "passwordFile": "ASCII_UTF8_NO_BOM_LF",
+    "relativeDbAndPasswordPaths": true,
+    "resourcePathHasNonAscii": true,
+    "runPathHasNonAscii": true,
+    "declaredProcessCodePage": "UTF-8",
+    "effectiveProcessCodePage": "NOT_MEASURED"
+  },
+  "ownedDbPid": 11216,
+  "lockRetained": true,
+  "windowsAcceptance": "NOT RUN by build environment",
+  "paidCalls": 0
+}
