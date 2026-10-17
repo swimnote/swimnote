@@ -74,3 +74,15 @@ Windows의 LANG/LC_ALL과 프로세스 ANSI code page는 별개다. DB를 UTF-8�
 **Why:** 실제 PostgreSQL 인코딩 오류가 확보된 뒤 조사에서 ASCII 역할명·비밀번호·locale 인자와 ASCII 초기화 자료를 확인했다. PostgreSQL 개발자 설명과 Microsoft 문서는 이와 별도로 native 경로의 ACP 경계를 명시한다. 특정 실패 바이트만으로 사용자 PC의 코드페이지·경로를 확정할 수는 없다.
 
 **How to apply:** per-process UTF-8 선언을 사용할 때 서로 경로 바이트를 주고받는 native 실행 파일을 함께 검토한다. 시스템 코드페이지·사용자 계정명 변경을 요구하지 않는다. manifest의 정적 존재·코드 영역 보존·실제 Windows loader 적용은 다른 증거이며, Linux에 잘못된 바이트를 주입해 같은 오류를 재현해도 사용자 PC의 원인 확정이나 Windows 해결 PASS가 아니다. 참조: https://www.postgresql.org/message-id/CA%2BhUKGL%3DF0pSLLf3nLpA_-sBwYsLg7s%3DFD6YFo_PDvS84FE_hw%40mail.gmail.com ; https://learn.microsoft.com/en-us/windows/apps/design/globalizing/use-utf8-code-page
+
+초기화 성공·DB 프로세스 생성·DB 준비 완료·정상 종료는 각각 별도 증거다. 과거 진단에 PID와 잠금만 있고 생성 시각 소유 기록이 없으면, 나중에 같은 PID·경로를 발견해도 과거 소유권을 소급 확정하거나 종료하지 않는다.
+
+**Why:** 사용자는 초기화를 통과한 뒤 DB 시작 실패와 잔여 잠금을 보고했지만 당시 PostgreSQL 출력·종료 코드가 수집되지 않았다. PID 재사용과 실패 직후의 실제 정리 결과를 구분하지 않으면 잘못된 프로세스를 종료하거나 원인을 허위 확정할 수 있다.
+
+**How to apply:** 공유 진단에는 제한된 비밀값 제거 출력·spawn/exit·readiness 사유와 종료 후 상태를 연결한다. 현재 child 문맥 또는 당시 생성한 소유 기록에 실행 경로·생성 시각·DB 디렉터리가 모두 맞을 때만 정상 종료를 허용한다. 재연결 자원은 다른 검증 앱 인스턴스가 사용 중일 수 있으므로, 실행 실패 정리에서 자동 종료하지 않고 앱 내 명시적 종료 조작을 받는다. 불명 자원·실패 DB·이전 잠금은 보존하고 앱 안에서 읽기 전용 상태 확인과 안전한 안내를 제공한다. 진단 보완 설치본을 만들었다는 사실은 Windows 기동 해결이나 수용 PASS가 아니다.
+
+API 번들 바이트 비교와 빌드 메타데이터 수집 순서 비교는 구분한다. 허용하는 소스 경로 라벨 정규화는 정확한 두 후보 경로에 한정한다.
+
+**Why:** 병렬 번들러의 seam 발견 순서만 달라도 메타데이터 배열은 바뀌지만 API 번들은 동일할 수 있다. 이를 업무 계약 변경으로 오인하거나, 반대로 광범위한 정규화로 실제 코드 차이를 숨기면 안 된다.
+
+**How to apply:** 실제 entry·seed·writer 번들은 제한된 경로 정규화 후 바이트로 대조한다. 수집 순서가 의미 없는 seam 증거만 importer/dependency 키로 정렬해 별도 비교하고, 그 처리를 실행 코드·업무 데이터의 순서에 적용하지 않는다.

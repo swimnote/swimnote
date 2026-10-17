@@ -1,0 +1,25 @@
+{
+  "packageId": "OFFICE-WIN-PACKAGED-11ee5f9eb3c7e6be",
+  "candidateId": "OFFICE-WIN-AUTH-fad5704318bc64c4",
+  "at": "2026-10-17T13:40:17.415Z",
+  "platform": "win32",
+  "arch": "x64",
+  "electronHostNode": "v24.21.0",
+  "stage": "start-database",
+  "code": "DB_START_FAILED",
+  "initdbInputProfile": {
+    "explicitAsciiRole": true,
+    "dbEncoding": "UTF8",
+    "locale": "C",
+    "passwordFile": "ASCII_UTF8_NO_BOM_LF",
+    "relativeDbAndPasswordPaths": true,
+    "resourcePathHasNonAscii": true,
+    "runPathHasNonAscii": true,
+    "declaredProcessCodePage": "UTF-8",
+    "effectiveProcessCodePage": "NOT_MEASURED"
+  },
+  "ownedDbPid": 8348,
+  "lockRetained": true,
+  "windowsAcceptance": "NOT RUN by build environment",
+  "paidCalls": 0
+}

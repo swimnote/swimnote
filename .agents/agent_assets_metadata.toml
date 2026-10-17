@@ -795,3 +795,31 @@ mtime_ms = 1792243896130
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/b027d7a1-f376-4026-8aac-4f5515b684fa/9e3d91fa-fa6a-45a3-a37d-38703212989b"
 storage_version_token = "1792243956916514"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "uS4qcgELS0HHmkDLEEHjq"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-12/OFFICE-WIN-PACKAGED-3a2e2cc06332bfde-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "Windows 격리 설치본 — 1/2"
+description = "3a2e2cc06332bfde · DB 기동 진단·안전 종료 보완본. 두 ZIP을 같은 폴더에 압축 해제한 뒤 START-ISOLATED.cmd를 실행하세요."
+logical_id = "25cb4111-b35d-46f6-9153-9958381df1d0"
+content_hash = "sha256:3da575804eb53c9a9a59d6ba2f5a54729f4b0d80b82df7cccab1381f77c5b40b"
+size = 83891746
+mtime_ms = 1792245911829
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/25cb4111-b35d-46f6-9153-9958381df1d0/77a5f8e1-eac5-431b-9c82-0a9ce9ca0983"
+storage_version_token = "1792245995935706"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "EPh8NiMPO11G5FBixwWXP"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-12/OFFICE-WIN-PACKAGED-3a2e2cc06332bfde-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "Windows 격리 설치본 — 2/2"
+description = "3a2e2cc06332bfde · 첫 번째 ZIP과 함께 필요합니다. 소스 코드가 아닌 설치 파일 분할본입니다. Windows 수용 상태는 HOLD입니다."
+logical_id = "c147fda3-a142-4760-ada7-f781cc5d3200"
+content_hash = "sha256:4fbef3ba919d03d4dbdbc6cf583ba4526468efa962a083a9fa8eb30aeb7973ba"
+size = 72099522
+mtime_ms = 1792245912637
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/c147fda3-a142-4760-ada7-f781cc5d3200/1885d55e-49c0-420d-abb8-92129016d65a"
+storage_version_token = "1792245997789073"
+content_type = "application/octet-stream"

@@ -63,7 +63,7 @@ test("postmaster PID mismatch rejects shutdown instead of stopping an unknown DB
   fs.mkdirSync(path.join(r.run, "db"));
   fs.writeFileSync(path.join(r.run, "db/postmaster.pid"), "456\n");
   r.db = { pid: 123, exitCode: null };
-  await assert.rejects(r.stop(), { code: "DB_OWNERSHIP_MISMATCH" });
+  await assert.rejects(r.stop(), { code: "DB_OWNERSHIP_UNVERIFIED" });
 });
 test("reparse/symlink directories are rejected", () => {
   const actual = fs.mkdtempSync(path.join(root, "actual-")), link = path.join(root, "link");

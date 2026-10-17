@@ -40,6 +40,12 @@ const asar = createRequire(req.resolve("@electron/packager"))("@electron/asar");
 const archive = path.join(payload, "resources/app.asar");
 const source = path.join(attempt, "source");
 const compiledMain = asar.extractFile(archive, "desktop/main.cjs").toString("utf8");
+const buildInputs = Object.keys(read(path.join(attempt, "desktop-build-inputs.json")).inputs);
+for (const file of ["database-monitor.cjs", "database-ownership.cjs"])
+  if (!buildInputs.some(input => input.endsWith("/" + file))) throw new Error("Missing DB startup supervisor module");
+if (!compiledMain.includes("Get-CimInstance Win32_Process") ||
+    !/stdio:\s*\[\s*"ignore",\s*"pipe",\s*"pipe"\s*\]/.test(compiledMain))
+  throw new Error("Startup capture or process inspection missing from actual package");
 const forbiddenURLs = ["https://swimnote-api.onrender.com", "https://swimnote.kr", "http://swimnote.kr"];
 for (const url of forbiddenURLs) {
   if (compiledMain.includes(url)) throw new Error("Operating URL in packaged main");
@@ -88,6 +94,7 @@ const result = {
   normalAuthEvidenceReused: read(path.join(source, "normal-auth-evidence.json")).passed,
   utf8ProcessManifestsVerified: processManifestEvidence.map(entry => entry.file),
   postgresVendorCodeSectionsPreserved: true,
+  databaseStartupMonitorAndOwnershipBundled: true,
   windowsInstallationExecutionDpapiIpcBusiness: "NOT RUN",
   verificationScope: "Static cross-package inspection and actual NSIS extraction on Linux; not Windows loader/execution proof",
 };

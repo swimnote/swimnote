@@ -6,6 +6,8 @@ const crypto = require("node:crypto");
 const net = require("node:net");
 const os = require("node:os");
 const { spawn, spawnSync } = require("node:child_process");
+const { DatabaseMonitor, databaseReason } = require("./database-monitor.cjs");
+const { PRIOR, processInfo, pidInfo, ownership, publicOwnership } = require("./database-ownership.cjs");
 
 const BASE = "OFFICE-WIN-AUTH-fad5704318bc64c4";
 const PORTS = [55440, 20411];
@@ -37,7 +39,13 @@ const ERROR_WORDS = new Set(("invalid byte sequence for encoding character with 
   "input output data locale settings check child process exited exit code terminated by exception " +
   "password version same as initdb postgres error fatal panic warning detail hint " +
   "syntax at or near unexpected end of memory shared dynamic create initialize initialization " +
-  "collation collations conversion COPY line").toLowerCase().split(/\s+/));
+  "collation collations conversion COPY line " +
+  "database ready accept connections connection refused authentication authorization supplied " +
+  "server starting up bind socket address already use configuration parameter value " +
+  "permissions lock listening shutdown checkpoint complete requested received request " +
+  "terminating background worker startup recovery interrupted invalid record length " +
+  "resources system startup process running stopped out of disk space limit " +
+  "not available accepting the on at host port to socket shared memory").toLowerCase().split(/\s+/));
 const ENCODINGS = /^(?:UTF8|SQL_ASCII|WIN(?:866|874|125[0-8])|LATIN(?:[1-9]|10)|EUC_(?:KR|JP|CN|TW|JIS_2004)|SJIS|SHIFT_JIS_2004|UHC|GBK|GB18030|BIG5|JOHAB|KOI8[RU])$/i;
 function secretValues(value) {
   if (typeof value === "string") return value ? [value] : [];
@@ -129,6 +137,10 @@ function supportsUtf8ProcessCodePage(release) {
   return !!match && (Number(match[1]) > 10 ||
     (Number(match[1]) === 10 && Number(match[3]) >= 18362));
 }
+function databaseInvocation(run) {
+  return { cwd: run, args: ["-D", "db", "-h", "127.0.0.1", "-p", "55440",
+    "-c", "log_statement=none", "-c", "log_min_error_statement=panic"] };
+}
 
 function assertPlainDirectory(folder) {
   const absolute = path.resolve(folder);
@@ -138,7 +150,7 @@ function assertPlainDirectory(folder) {
     throw Object.assign(new Error("Directory boundary rejected"), { code: "UNSAFE_DIRECTORY" });
 }
 function command(executable, args, options = {}) {
-  const { diagnosticSecrets = [], ...spawnOptions } = options;
+  const { diagnosticSecrets = [], databaseDiagnostic = false, ...spawnOptions } = options;
   const result = spawnSync(executable, args, {
     env: cleanEnv(process.env), encoding: "utf8", windowsHide: true,
     timeout: 120000, maxBuffer: 4 * 1024 * 1024, ...spawnOptions,
@@ -150,6 +162,10 @@ function command(executable, args, options = {}) {
       nativeCode: systemError(result.error),
        ...(path.basename(executable).toLowerCase() === "initdb.exe" ?
          { initdb: classifyInitdbFailure(result, diagnosticSecrets) } : {}),
+      ...(databaseDiagnostic ? {
+        databaseReason: databaseReason(String(result.stderr ?? "") + "\n" + String(result.stdout ?? ""), systemError(result.error)),
+        databaseMessages: collectInitdbMessages(result, diagnosticSecrets),
+      } : {}),
     });
     throw error;
   }
@@ -171,12 +187,14 @@ function restrict(folder) {
 class IsolatedRuntime {
   constructor({ resources, localData, identity, nodeVersion = process.version }) {
     this.resources = resources;
+    this.localData = localData;
     this.identity = identity;
     this.root = path.join(localData, "SwimNoteOffice-Isolated", identity.packageId);
     this.stage = "preflight";
     this.nodeVersion = nodeVersion;
     this.session = crypto.randomBytes(12).toString("hex");
     this.stopping = false;
+    this.queryProcess = pid => processInfo(pid, this.childEnv());
   }
   tool(name) { return path.join(this.resources, "postgres", "bin", name + ".exe"); }
   get node() { return path.join(this.resources, "node", "node.exe"); }
@@ -185,10 +203,12 @@ class IsolatedRuntime {
     return { ...cleanEnv(process.env), PATH: path.join(this.resources, "postgres", "bin"),
       LANG: "C", LC_ALL: "C", ...extra };
   }
-  sql(database, input) {
+  sql(database, input, diagnostic = false) {
     return command(this.tool("psql"), ["-X", "-w", "-v", "ON_ERROR_STOP=1",
       "-h", "127.0.0.1", "-p", "55440", "-U", "office_fixture", "-d", database], {
       input, env: this.childEnv({ PGCLIENTENCODING: "UTF8", PGPASSWORD: this.credentials.dbPassword }),
+      timeout: diagnostic ? 3000 : 120000, databaseDiagnostic: diagnostic,
+      diagnosticSecrets: diagnostic ? secretValues(this.credentials) : [],
     });
   }
   async start() {
@@ -199,12 +219,17 @@ class IsolatedRuntime {
     if (!process.env.LOCALAPPDATA || !process.env.SYSTEMROOT)
       throw Object.assign(new Error("Windows profile unavailable"), { code: "PROFILE_UNAVAILABLE" });
     const manifest = json(path.join(this.isolation, "runtime-manifest.json"));
+    this.manifest = manifest;
     for (const [file, expected] of Object.entries(manifest)) {
       if (path.isAbsolute(file) || file.includes("\\") || file.split("/").some(p => !p || p === "." || p === ".."))
         throw Object.assign(new Error("Runtime manifest rejected"), { code: "RUNTIME_MANIFEST_INVALID" });
       if (crypto.createHash("sha256").update(fs.readFileSync(path.join(this.resources, file))).digest("hex") !== expected)
         throw Object.assign(new Error("Runtime file changed"), { code: "RUNTIME_INTEGRITY_FAILED" });
     }
+    this.inspectResources();
+    if (this.resourceStatus?.some(s => s.hasRetainedLock &&
+        (s.processState === "UNKNOWN" || (s.processState === "PRESENT" && s.reason !== "IDENTITY_MISMATCH"))))
+      throw Object.assign(new Error("Retained resources require inspection"), { code: "RETAINED_RESOURCES_HOLD" });
     for (const port of PORTS) await vacant(port);
     fs.mkdirSync(this.root, { recursive: true });
     assertPlainDirectory(this.root);
@@ -265,25 +290,44 @@ class IsolatedRuntime {
       session: this.session, pid: process.pid, createdAt: new Date().toISOString() });
     this.ownsLock = true;
     this.stage = "start-database";
-    this.db = spawn(this.tool("postgres"), ["-D", "db", "-h", "127.0.0.1", "-p", "55440",
-      "-c", "log_statement=none", "-c", "log_min_error_statement=panic"], {
-      cwd: this.run, env: this.childEnv(), stdio: "ignore", windowsHide: true,
+    this.dbMonitor = new DatabaseMonitor(line => safeInitdbMessage(line, secretValues(this.credentials)));
+    this.dbRequestedAt = Date.now();
+    const dbInvocation = databaseInvocation(this.run);
+    this.db = spawn(this.tool("postgres"), dbInvocation.args, {
+      cwd: dbInvocation.cwd, env: this.childEnv(), stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
     });
-    this.db.on("error", () => { this.dbFailed = true; });
+    this.dbMonitor.attach(this.db);
     let ready = false;
-    for (let n = 0; n < 100; n++) {
-      if (this.dbFailed || this.db.exitCode !== null) throw Object.assign(new Error("DB start failed"), { code: "DB_START_FAILED" });
+    const dbDeadline = Date.now() + 25000;
+    for (let n = 0; n < 100 && Date.now() < dbDeadline; n++) {
+      if (this.dbMonitor.failureKind) {
+        await wait(100); // Drain a terminating child's final stderr, without restarting it.
+        throw Object.assign(new Error("DB start failed"), { code: "DB_START_FAILED" });
+      }
       try {
-        const pid = Number(fs.readFileSync(path.join(this.run, "db", "postmaster.pid"), "utf8").split("\n")[0]);
-        if (pid !== this.db.pid) throw Object.assign(new Error("DB PID mismatch"), { code: "DB_OWNERSHIP_MISMATCH" });
-        this.sql("postgres", "SELECT 1;");
+        const pidFile = pidInfo(path.join(this.run, "db", "postmaster.pid"));
+        if (!pidFile) {
+          this.dbMonitor.probe("PID_FILE_PENDING");
+          await wait(250); continue;
+        }
+        if (pidFile.pid !== this.db.pid) {
+          this.dbMonitor.probe("PID_MISMATCH");
+          throw Object.assign(new Error("DB PID mismatch"), { code: "DB_OWNERSHIP_MISMATCH" });
+        }
+        this.sql("postgres", "SELECT 1;", true);
+        const status = this.checkDatabase(this.currentContext(), this.db);
+        if (!status.verified) throw Object.assign(new Error("DB identity not verified"), { code: "DB_OWNERSHIP_UNVERIFIED" });
+        this.recordDatabaseOwner(status);
+        this.dbMonitor.probe("READY");
         ready = true; break;
       } catch (error) {
-        if (error.code === "DB_OWNERSHIP_MISMATCH") throw error;
+        if (["DB_OWNERSHIP_MISMATCH", "DB_OWNERSHIP_UNVERIFIED"].includes(error.code)) throw error;
+        this.dbMonitor.probe(error.databaseReason ?? (error.code === "ENOENT" ? "PID_FILE_PENDING" : "QUERY_FAILED"), error);
         await wait(250);
       }
     }
-    if (!ready) throw Object.assign(new Error("DB readiness timeout"), { code: "DB_READINESS_TIMEOUT" });
+    if (!ready) throw Object.assign(new Error("DB readiness failed"), {
+      code: this.dbMonitor.failureKind ? "DB_START_FAILED" : "DB_READINESS_TIMEOUT" });
     if (this.needsSeed) {
       this.stage = "seed-synthetic-only";
       this.sql("postgres", "CREATE DATABASE office_stage3_acceptance;");
@@ -335,7 +379,102 @@ class IsolatedRuntime {
       throw Object.assign(new Error("Preparation is not committed"), { code: "INCOMPLETE_PREPARATION" });
     fresh(path.join(this.root, "selected-run.json"), { packageId: this.identity.packageId, run: path.basename(this.run) });
   }
-  async stop() {
+  currentContext() {
+    if (!this.run) return null;
+    const lock = fs.existsSync(path.join(this.run, "active.json")) ? json(path.join(this.run, "active.json")) : null;
+    return { scope: "CURRENT", root: this.root, run: this.run, resources: this.resources,
+      executable: this.tool("postgres"), directory: path.join(this.run, "db"), lock,
+      packageId: this.identity.packageId, requestedAt: this.dbRequestedAt,
+      args: databaseInvocation(this.run).args };
+  }
+  retainedContext(root, packageId, resources, scope) {
+    if (!fs.existsSync(root)) return null;
+    assertPlainDirectory(root);
+    const pointer = ["selected-run.json", "preparing-run.json"].find(name => fs.existsSync(path.join(root, name)));
+    if (!pointer) return null;
+    const state = json(path.join(root, pointer));
+    if (state.packageId !== packageId || !/^run-[a-f0-9]{24}$/.test(state.run)) return null;
+    const run = path.join(root, state.run); assertPlainDirectory(run);
+    const lock = fs.existsSync(path.join(run, "active.json")) ? json(path.join(run, "active.json")) : null;
+    if (!lock && scope !== "PREVIOUS") return null;
+    if (lock && (lock.packageId !== packageId || !/^[a-f0-9]{24}$/.test(lock.session))) return null;
+    let fallbackPid;
+    const first = path.join(root, "first-preparation-failure.json");
+    if (fs.existsSync(first)) {
+      const name = json(first).file;
+      if (/^diagnostic-\d+-[a-f0-9]{24}\.json$/.test(name ?? "")) {
+        const file = path.join(root, "diagnostics", name);
+        if (fs.existsSync(file) && fs.statSync(file).size < 65536) {
+          const prior = json(file);
+          if (prior.packageId === packageId && Number.isSafeInteger(prior.ownedDbPid)) fallbackPid = prior.ownedDbPid;
+        }
+      }
+    }
+    return { scope, root, run, resources, lock, packageId, fallbackPid,
+      executable: path.join(resources, "postgres", "bin", "postgres.exe"),
+      directory: path.join(run, "db"), args: databaseInvocation(run).args };
+  }
+  checkDatabase(context, child) {
+    if (!context) return { scope: "CURRENT", processState: "ABSENT", verified: false, reason: "NO_RESOURCE" };
+    let record;
+    const recordFile = path.join(context.run, `db-owner-${context.lock?.session}.json`);
+    if (fs.existsSync(recordFile)) record = json(recordFile);
+    const pidFile = pidInfo(path.join(context.directory, "postmaster.pid"));
+    const recordedPid = record?.packageId === context.packageId && record?.session === context.lock?.session &&
+      Number.isSafeInteger(record.pid) && record.pid > 0 ? record.pid : undefined;
+    const pid = child?.pid ?? pidFile?.pid ?? recordedPid ?? context.fallbackPid;
+    if (child && (Number.isInteger(child.exitCode) || child.signalCode))
+      return { scope: context.scope, processState: "ABSENT", verified: false, reason: "OWNED_CHILD_EXITED",
+        pid, hasRetainedLock: true };
+    if (!context.lock && context.scope !== "PREVIOUS") return { scope: context.scope, processState: "UNKNOWN", verified: false,
+      reason: "IDENTITY_UNAVAILABLE", hasRetainedLock: false };
+    if (!pid) return { scope: context.scope, processState: "UNKNOWN", verified: false,
+      reason: "NO_DB_PID_EVIDENCE", hasRetainedLock: true };
+    const info = this.queryProcess(pid);
+    const result = ownership({ info, pidFile, child, record, lock: context.lock,
+      expected: { ...context, cwd: context.run, parentPid: process.pid } });
+    // Legacy installations lack a creation-time ownership record: never terminate them here.
+    if (context.scope === "PREVIOUS" && result.verified) {
+      result.verified = false; result.reason = "LEGACY_METADATA_ONLY";
+    }
+    if (result.verified) {
+      try {
+        assertPlainDirectory(context.run); assertPlainDirectory(context.directory);
+        const expected = this.manifest?.["postgres/bin/postgres.exe"];
+        if (!expected || crypto.createHash("sha256").update(fs.readFileSync(context.executable)).digest("hex") !== expected)
+          throw new Error("Unverified executable");
+      } catch { result.verified = false; result.reason = "EXECUTABLE_OR_DIRECTORY_UNVERIFIED"; }
+    }
+    return { scope: context.scope, ...result, pid, hasRetainedLock: !!context.lock,
+      createdAtMs: Number.isFinite(info.createdAtMs) ? info.createdAtMs : undefined };
+  }
+  recordDatabaseOwner(status) {
+    const file = path.join(this.run, `db-owner-${this.session}.json`);
+    if (fs.existsSync(file)) return;
+    fresh(file, { packageId: this.identity.packageId, session: this.session, pid: this.db.pid,
+      createdAtMs: status.createdAtMs, executable: this.tool("postgres"), directory: path.join(this.run, "db"),
+      cwd: this.run, argsHash: crypto.createHash("sha256").update(JSON.stringify(databaseInvocation(this.run).args)).digest("hex") });
+  }
+  inspectResources() {
+    const statuses = [];
+    try {
+      const own = this.db ? this.currentContext() :
+        this.retainedContext(this.root, this.identity.packageId, this.resources, "CURRENT");
+      this.currentResidue = own;
+      if (own) statuses.push(this.checkDatabase(own, this.db));
+      const previousRoot = path.join(this.localData, "SwimNoteOffice-Isolated", PRIOR);
+      const previousResources = path.join(this.localData, "Programs", "SWIMNOTE OFFICE Isolated", PRIOR, "resources");
+      const previous = this.retainedContext(previousRoot, PRIOR, previousResources, "PREVIOUS");
+      if (previous) statuses.push(this.checkDatabase(previous));
+    } catch {
+      statuses.push({ scope: "CURRENT", processState: "UNKNOWN", reason: "INSPECTION_FAILED",
+        verified: false, hasRetainedLock: true });
+    }
+    this.resourceStatus = statuses.map(publicOwnership);
+    return { resources: this.resourceStatus, canStop: statuses.some(s => s.scope === "CURRENT" && s.verified),
+      shutdown: this.shutdownOutcome ?? "NOT_ATTEMPTED" };
+  }
+  async stop({ preserveEvidence = false, allowRetained = false } = {}) {
     this.stopping = true;
     clearInterval(this.health);
     this.stage = "stop-owned-services";
@@ -348,24 +487,44 @@ class IsolatedRuntime {
       }
       if (this.api.exitCode === null) throw Object.assign(new Error("API stop timeout"), { code: "API_STOP_TIMEOUT" });
     }
-    if (this.db?.pid && this.db.exitCode === null && !this.dbFailed) {
-      const pid = Number(fs.readFileSync(path.join(this.run, "db", "postmaster.pid"), "utf8").split("\n")[0]);
-      if (pid !== this.db.pid) throw Object.assign(new Error("DB ownership mismatch"), { code: "DB_OWNERSHIP_MISMATCH" });
-      command(this.tool("pg_ctl"), ["-D", "db", "stop", "-m", "fast", "-w", "-t", "15"],
-        { cwd: this.run, env: this.childEnv(), timeout: 20000 });
-      for (let n = 0; n < 30 && this.db.exitCode === null; n++) await wait(100);
-      if (this.db.exitCode === null) throw Object.assign(new Error("DB stop timeout"), { code: "DB_STOP_TIMEOUT" });
+    // A failed launch may inspect another live instance. Only an explicit UI action may stop it.
+    const context = this.db ? this.currentContext() : allowRetained ? this.currentResidue : null;
+    if (context) {
+      const status = this.checkDatabase(context, this.db);
+      if (status.processState !== "ABSENT" && !status.verified) {
+        this.shutdownOutcome = "UNVERIFIED_RESOURCE_PRESERVED";
+        throw Object.assign(new Error("DB ownership unverified"), { code: "DB_OWNERSHIP_UNVERIFIED" });
+      }
+      if (status.verified) {
+        if (this.db) this.recordDatabaseOwner(status);
+        // Re-query immediately before signaling; PID alone never authorizes pg_ctl.
+        if (!this.checkDatabase(context, this.db).verified)
+          throw Object.assign(new Error("DB ownership changed"), { code: "DB_OWNERSHIP_UNVERIFIED" });
+        command(this.tool("pg_ctl"), ["-D", "db", "stop", "-m", "fast", "-w", "-t", "15"],
+          { cwd: context.run, env: this.childEnv(), timeout: 20000, databaseDiagnostic: true,
+            diagnosticSecrets: secretValues(this.credentials) });
+        for (let n = 0; n < 30 && this.db && this.db.exitCode === null && !this.db.signalCode; n++) await wait(100);
+        if (this.checkDatabase(context, this.db).processState !== "ABSENT")
+          throw Object.assign(new Error("DB stop unconfirmed"), { code: "DB_STOP_UNCONFIRMED" });
+      }
+      this.shutdownOutcome = status.verified ? "VERIFIED_DB_STOPPED" : "OWNED_DB_ALREADY_EXITED";
     }
     if (this.ownsLock) {
       for (const port of PORTS) await vacant(port);
       const file = path.join(this.run, "active.json");
       if (json(file).session !== this.session) throw Object.assign(new Error("Lock mismatch"), { code: "LOCK_OWNERSHIP_MISMATCH" });
-      fs.unlinkSync(file);
-      this.ownsLock = false;
+      if (preserveEvidence) {
+        const recordFile = path.join(this.run, `stopped-session-${this.session}.json`);
+        if (!fs.existsSync(recordFile)) fresh(recordFile, {
+          session: this.session, outcome: this.shutdownOutcome ?? "NO_DB_STARTED", activeLockPreserved: true });
+      } else {
+        fs.unlinkSync(file); // Normal release of this verified session only, never a stale lock.
+        this.ownsLock = false;
+      }
     }
     this.stage = "stopped";
   }
-  diagnose(error) {
+  diagnose(error, { currentStatus = false } = {}) {
     // Explicit allowlist: never stringify error/stack, env, SQL, credentials or raw child output.
     const secrets = secretValues(this.credentials);
     const messages = Array.isArray(error?.initdb?.messages) ? error.initdb.messages.slice(0, 8).flatMap(entry => {
@@ -378,7 +537,12 @@ class IsolatedRuntime {
     }) : [];
     const details = { packageId: this.identity.packageId, candidateId: BASE,
       at: new Date().toISOString(), platform: process.platform, arch: process.arch,
-      electronHostNode: this.nodeVersion, stage: this.stage, code: systemError(error),
+      electronHostNode: this.nodeVersion, stage: this.failureStage ?? this.stage, code: systemError(error),
+      database: this.dbMonitor?.snapshot(),
+      shutdownOutcome: ["NOT_ATTEMPTED", "UNVERIFIED_RESOURCE_PRESERVED", "VERIFIED_DB_STOPPED",
+        "OWNED_DB_ALREADY_EXITED", "STOP_FAILED"].includes(this.shutdownOutcome) ? this.shutdownOutcome : "NOT_ATTEMPTED",
+      shutdownErrorCode: this.shutdownErrorCode ? systemError({ code: this.shutdownErrorCode }) : undefined,
+      resourceInspection: this.resourceStatus?.map(publicOwnership),
       tool: /^[A-Za-z0-9_.-]+$/.test(error?.tool ?? "") ? error.tool : undefined,
       exitCode: Number.isInteger(error?.exitCode) ? error.exitCode : undefined,
       nativeCode: error?.nativeCode ? systemError({ code: error.nativeCode }) : undefined,
@@ -409,21 +573,29 @@ class IsolatedRuntime {
     fs.mkdirSync(folder, { recursive: true });
     this.lastDiagnosticAt = Math.max(Date.now(), (this.lastDiagnosticAt ?? 0) + 1);
     const file = path.join(folder, `diagnostic-${this.lastDiagnosticAt}-${this.session}.json`);
-    fresh(file, details);
     const first = path.join(this.root, "first-preparation-failure.json");
-    if (this.newPreparation && this.stage !== "stop-owned-services" && !fs.existsSync(first))
-      fresh(first, { file: path.basename(file) });
+    let originalFailure;
     if (details.code === "INCOMPLETE_PREPARATION" && fs.existsSync(first)) {
       const name = json(first).file;
       if (/^diagnostic-\d+-[a-f0-9]{24}\.json$/.test(name)) {
-        const original = path.join(folder, name), prior = json(original);
-        if (prior.packageId === this.identity.packageId)
-          return { file: original, code: systemError({ code: prior.code }), fromPriorPreparation: true };
+        const original = path.join(folder, name);
+        if (fs.existsSync(original)) {
+          const prior = json(original);
+          if (prior.packageId === this.identity.packageId) {
+            details.originalPreparationDiagnostic = name;
+            details.originalPreparationCode = systemError({ code: prior.code });
+            originalFailure = { file: original, code: details.originalPreparationCode, fromPriorPreparation: true };
+          }
+        }
       }
     }
-    return { file, code: details.code };
+    fresh(file, details);
+    if (this.newPreparation && this.stage !== "stop-owned-services" && !fs.existsSync(first))
+      fresh(first, { file: path.basename(file) });
+    if (originalFailure && !currentStatus) return originalFailure;
+    return { file, code: originalFailure?.code ?? details.code };
   }
 }
 module.exports = { IsolatedRuntime, cleanEnv, systemError, assertPlainDirectory, BASE, PORTS,
   classifyInitdbFailure, initdbInvocation, safeInitdbMessage, collectInitdbMessages, writeInitdbPassword,
-  supportsUtf8ProcessCodePage };
+  supportsUtf8ProcessCodePage, databaseInvocation };
