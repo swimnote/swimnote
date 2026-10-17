@@ -4,12 +4,15 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { ROOT, DB, run, vacant, verifyCandidate, cleanEnv, readJSON, restrictDirectory, assertRunDirectory, sha } from "./common.mjs";
 import { buildCandidate } from "./build.mjs";
+import { localCredentials } from "./normal/credentials.mjs";
+import { createRequire } from "node:module";
 
 const action = process.argv[2];
 if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Windows x64 only; no service started");
 if (!/^v24\./.test(process.version) || Number(process.versions.node.split(".")[1]) < 13)
   throw new Error("Host Node 24.13+ (24.x) required");
 const manifest = verifyCandidate();
+if (!manifest.normalAuthReady) throw new Error("Legacy candidate remains auth HOLD; no launch");
 const at = process.argv.indexOf("--run");
 let folder = at >= 0 ? assertRunDirectory(process.argv[at + 1]) : null;
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -41,12 +44,12 @@ async function status() {
   });
   const body = await response.json();
   if (!response.ok || body.candidateId !== manifest.candidateId || body.isolated !== true ||
-      body.normalAuthReady !== false || body.paidCalls !== 0) throw new Error("Unexpected API identity");
+      body.normalAuthReady !== true || body.paidCalls !== 0) throw new Error("Unexpected API identity");
   return body;
 }
 
 if (action === "VerifyCandidate") {
-  console.log(JSON.stringify({ candidateId: manifest.candidateId, integrity: "PASS", normalAuth: "HOLD" }));
+  console.log(JSON.stringify({ candidateId: manifest.candidateId, integrity: "PASS", normalAuth: "real-local-handlers; Windows NOT RUN" }));
 } else if (action === "BuildDesktop") {
   await buildCandidate();
   console.log("Verification build completed; NOT a Windows login/DPAPI acceptance result");
@@ -61,8 +64,12 @@ if (action === "VerifyCandidate") {
   folder = path.join(parent, "run-" + crypto.randomBytes(12).toString("hex"));
   fs.mkdirSync(folder);
   restrictDirectory(folder); // Abort BEFORE generating any credentials if ACL setup fails.
-  const state = { candidateId: manifest.candidateId, dbPassword: crypto.randomBytes(32).toString("base64url") };
+  const state = localCredentials(manifest.candidateId);
   writeJSON(path.join(folder, "private.json"), state);
+  writeJSON(path.join(folder, "fault-control.json"), { writes: true, dropRequest: null, dropNext: false, failRead: null });
+  fs.writeFileSync(path.join(folder, "login-info.txt"), state.accounts.map(account =>
+    `${account.id}\nID: ${account.identifier ?? account.email}\nPassword: ${account.password}\n${account.pin ? "PIN: " + account.pin + "\n" : ""}`
+  ).join("\n"), { flag: "wx", mode: 0o600 });
   const pwfile = path.join(folder, "init-password.txt");
   fs.writeFileSync(pwfile, state.dbPassword + "\n", { flag: "wx", mode: 0o600 });
   try {
@@ -71,30 +78,62 @@ if (action === "VerifyCandidate") {
   } finally { fs.unlinkSync(pwfile); }
   writeJSON(path.join(folder, "prepared.json"), { candidateId: manifest.candidateId, versions, normalAuthReady: false });
   log("prepared-no-services-started");
-  console.log(`RunDirectory: ${folder}\nPreparation only. Normal auth HOLD; no credential values logged.`);
+  console.log(`RunDirectory: ${folder}\nNew cluster prepared. Auth schema will be seeded and verified at first Start; no credentials logged.`);
 } else {
   if (!folder) throw new Error("Explicit -RunDirectory required");
   privateState();
   const activeFile = path.join(folder, "active.json");
   if (action === "Check") {
     ownBuild();
-    if (!fs.existsSync(activeFile)) console.log("Prepared; services NOT RUN; normal auth HOLD");
+    if (!fs.existsSync(activeFile)) console.log("Prepared; services NOT RUN");
     else {
       console.log(JSON.stringify(await status(), null, 2));
-      const denied = await fetch("http://127.0.0.1:20411/api/auth/login", {
-        method: "POST", headers: { "Content-Type": "application/json", Origin: "app://office" },
-        body: JSON.stringify({ email: "not-an-account", password: "not-a-password" }), redirect: "error",
-      });
-      if (denied.status !== 503 || (await denied.json()).code !== "ISOLATED_AUTH_NOT_READY")
-        throw new Error("Auth barrier mismatch");
-      log("diagnostic-check-auth-hold");
+      const denied = await fetch("http://127.0.0.1:20411/api/auth/me", { redirect: "error" });
+      if (denied.status !== 401) throw new Error("Missing-token rejection mismatch");
+      log("normal-auth-api-check");
     }
   } else if (action === "LaunchDesktop") {
     ownBuild();
     await status();
-    // Deliberately no --force or arbitrary URL override.
-    throw new Error("HOLD: canonical synthetic authentication is not ready. Electron launch blocked; no product credentials can be reused.");
+    const exe = path.join(ROOT, "node_modules/electron/dist/electron.exe");
+    if (!fs.existsSync(exe)) throw new Error("Electron Windows binary missing; explicit manual preparation required");
+    const desktopLock = path.join(folder, "desktop-active.json");
+    const fd = fs.openSync(desktopLock, "wx");
+    const child = spawn(exe, [path.join(ROOT, "build-evidence/app/desktop/main.cjs")], { env: cleanEnv(), stdio: "ignore", windowsHide: false });
+    fs.writeFileSync(fd, JSON.stringify({ pid: child.pid, launchedAt: new Date().toISOString(), candidateId: manifest.candidateId }));
+    fs.closeSync(fd);
+    child.on("error", () => console.error("Owned Electron launch failed"));
+    fs.writeFileSync(path.join(folder, "electron-launch.jsonl"), JSON.stringify({ pid: child.pid, at: new Date().toISOString() }) + "\n", { flag: "a" });
+    await new Promise(resolve => { child.once("exit", resolve); child.once("error", resolve); });
+    fs.unlinkSync(desktopLock);
+  } else if (action === "ShowLogin") {
+    spawn("notepad.exe", [path.join(folder, "login-info.txt")], { env: cleanEnv(), stdio: "ignore" });
+    console.log("Opened protected local login information. Never upload this file or its screenshot.");
+  } else if (action === "ShowOTP") {
+    const require = createRequire(path.join(ROOT, "package.json"));
+    const account = privateState().accounts.find(a => a.totpSecret);
+    const code = require("otplib").generateSync({ secret: account.totpSecret });
+    const file = path.join(folder, "otp-" + crypto.randomBytes(8).toString("hex") + ".txt");
+    fs.writeFileSync(file, "Current synthetic OTP (short-lived): " + code, { flag: "wx", mode: 0o600 });
+    spawn("notepad.exe", [file], { env: cleanEnv(), stdio: "ignore" });
+    console.log("Opened local short-lived OTP; value not logged.");
+  } else if (action === "Fault") {
+    const name = process.argv[process.argv.indexOf("--fault") + 1];
+    const valueAt = process.argv.indexOf("--value");
+    const value = valueAt < 0 ? "" : process.argv[valueAt + 1];
+    run(process.execPath, [path.join(ROOT, "scripts/office-stage3/windows/normal/fault.mjs"), name, value, "--run", folder]);
+    log("local-fault-" + name);
+    console.log("Local fault command completed.");
+  } else if (action === "DiagnoseLock") {
+    if (!fs.existsSync(activeFile)) console.log("No active lock.");
+    else {
+      const active = readJSON(activeFile);
+      console.log(JSON.stringify({ lock: active, action: "Inspect this exact supervisor's executable/command line/creation time and postmaster.pid; do not delete lock or kill PID without ownership evidence." }, null, 2));
+      console.log(run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+        `Get-CimInstance Win32_Process -Filter 'ProcessId=${Number(active.supervisorPid)}' | Select-Object ProcessId,ParentProcessId,CreationDate,ExecutablePath,CommandLine | ConvertTo-Json`]));
+    }
   } else if (action === "Stop") {
+    if (fs.existsSync(path.join(folder, "desktop-active.json"))) throw new Error("Close this verification Desktop window normally before Stop; do not discard pending work");
     if (!fs.existsSync(activeFile)) throw new Error("No owned active session; no process was stopped");
     const active = readJSON(activeFile);
     if (!/^session-[a-f0-9]{24}$/.test(active.sessionId)) throw new Error("Invalid active identity");
@@ -113,6 +152,7 @@ if (action === "VerifyCandidate") {
     // Only this tool's uniquely created cluster and its private credential. Preserve logs.
     fs.rmSync(dbDir, { recursive: true });
     fs.unlinkSync(path.join(folder, "private.json"));
+    for (const name of fs.readdirSync(folder)) if (name === "login-info.txt" || /^otp-[a-f0-9]{16}\.txt$/.test(name)) fs.unlinkSync(path.join(folder, name));
     log("explicit-synthetic-data-deletion");
     console.log("This run's synthetic cluster/credential deleted; evidence logs retained.");
   } else if (action === "Start") {
@@ -122,7 +162,8 @@ if (action === "VerifyCandidate") {
     fs.mkdirSync(path.join(folder, "sessions"), { recursive: true });
     const session = path.join(folder, "sessions", sessionId);
     fs.mkdirSync(session);
-    writeJSON(activeFile, { sessionId, supervisorPid: process.pid }); // Exclusive lock; stale lock requires inspection.
+    writeJSON(activeFile, { sessionId, supervisorPid: process.pid, createdAt: new Date().toISOString(),
+      candidateId: manifest.candidateId, supervisorScript: import.meta.filename }); // Exclusive lock; stale lock requires inspection.
     let dbProcess, apiProcess, stopping = false;
     const shouldStop = () => fs.existsSync(path.join(session, "stop.request")) || stopping;
     process.on("SIGINT", () => { stopping = true; });
@@ -149,12 +190,12 @@ if (action === "VerifyCandidate") {
         const inputs = ["seed-isolated.sql", "receipts.draft.sql", "search-seed.sql"].map(name =>
           fs.readFileSync(path.join(ROOT, "scripts/office-stage3", name), "utf8")).join("\n");
         sql(DB.database, "BEGIN;\n" + inputs + "\nCOMMIT;");
+        run(process.execPath, [path.join(ROOT, "build-evidence/normal-seed.mjs"), "--isolated-only", "--run", folder], { timeout: 60000 });
         writeJSON(initialized, { candidateId: manifest.candidateId, syntheticOnly: true });
       }
       sql(DB.database, "SET search_path=office_acceptance; DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM isolation_marker WHERE key='synthetic_only' AND value='office-stage3-acceptance') THEN RAISE EXCEPTION 'Wrong DB'; END IF; END $$;");
-      // Run source through the locked local tsx CLI; no operating API bootstrap or dist.
-      const tsx = path.join(ROOT, "node_modules/tsx/dist/cli.mjs");
-      apiProcess = spawn(process.execPath, [tsx, path.join(ROOT, "scripts/office-stage3/windows/api.ts"),
+      // Built exclusively from the pinned candidate. No operating app/index or tracked dist.
+      apiProcess = spawn(process.execPath, [path.join(ROOT, "build-evidence/normal-entry.mjs"),
         "--isolated-only", "--run", folder, "--session", sessionId],
         { env: childEnv, stdio: "ignore", windowsHide: true });
       apiProcess.on("error", () => { stopping = true; });
@@ -163,8 +204,8 @@ if (action === "VerifyCandidate") {
         try { await status(); apiReady = true; break; } catch { await wait(250); }
       }
       if (!apiReady) throw new Error("Isolated API readiness failed");
-      log("started-diagnostic-only-auth-hold");
-      console.log("Owned local DB/API started. Keep this terminal open. Normal auth HOLD; no Electron launch or paid inference.");
+      log("started-real-auth-local-only");
+      console.log("Owned local DB/API started with real auth. Keep this terminal open. Model replay only; no paid inference.");
       while (!shouldStop()) {
         if (apiProcess.exitCode !== null || dbProcess.exitCode !== null) throw new Error("Owned child exited");
         await wait(250);
@@ -182,7 +223,7 @@ if (action === "VerifyCandidate") {
         run("pg_ctl.exe", ["-D", path.join(folder, "db"), "stop", "-m", "fast", "-w", "-t", "15"]);
       }
       if (closed) {
-        writeJSON(path.join(session, "stopped.json"), { at: new Date().toISOString(), normalAuthReady: false });
+        writeJSON(path.join(session, "stopped.json"), { at: new Date().toISOString(), normalAuthReady: true });
         fs.unlinkSync(activeFile);
         log("supervisor-closed-owned-children");
       }

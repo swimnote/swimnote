@@ -15,11 +15,17 @@ Electron Packager 20.3.0 removes the build-only `private` property from the stag
 
 **How to apply:** 기존 후보를 보존하고 새 patch를 기준 source에 적용 가능한지 확인한다. 새 컴파일 증거는 ignored 디렉터리에 만들며, 승인 candidate로부터 재현한 배포 산출물과 전체 workspace의 참고 빌드를 구분한다.
 
-Replit 내부 loopback API는 사용자 Windows의 localhost가 아니다. Linux 브라우저의 합성 Bearer 인증과 제품 Electron의 정상 로그인·DPAPI·preload/IPC 통과는 별도 증거다.
+Replit 내부 loopback API는 사용자 Windows의 localhost가 아니다. Linux 브라우저에서 합성 Bearer뿐 아니라 실제 제품 로그인으로 발급받은 토큰을 사용해도, Windows Electron의 DPAPI·preload/IPC·네이티브 수용 증거를 대신하지 않는다.
 
 **Why:** 사용자는 접근할 수 없는 loopback 주소를 전달 가능한 환경으로 표현하거나 환경 준비 전에 설치본부터 만드는 것을 금지했다.
 
 **How to apply:** Windows가 실제로 접근할 API의 위치·bind·단일 Origin·서버 인증·검증 수명·종료·비용을 먼저 정한다. 로컬 PC 구성이면 그 PC에서 API/DB가 실행돼야 한다. test 전용 pinning이 필요해도 wildcard·임의 proxy·제품 인증 alias로 제한을 완화하지 않는다.
+
+응답 유실 검증은 서버 커밋 증거와 UI 불명 상태를 따로 관찰한다. 클라이언트/브라우저가 전송을 재시도할 수 있으므로 단순 네트워크 오류 발생만으로 재실행 없음이나 UI 불명 처리를 PASS로 판정하지 않는다.
+
+**Why:** 서버에서는 완료된 응답을 끊었더라도 브라우저가 같은 요청의 성공 응답을 다시 받아 UI가 성공으로 표시될 수 있다. 업무 중복 방지와 불명 UI의 검증 목표는 서로 다르다.
+
+**How to apply:** 실제 전송 방식에서 receipt/발급 수·업무 event 수·최종 UI 상태를 함께 확인한다. 네트워크 실패 주입은 격리 transport에서만 하고 제품 API에 테스트 endpoint나 인증 우회를 추가하지 않는다.
 
 격리 API를 사용하는 검증 후보는 기존 운영 설치본의 userData·single-instance namespace를 공유하지 않는다.
 

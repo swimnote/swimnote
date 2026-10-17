@@ -3,9 +3,11 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory=$true)]
-  [ValidateSet("Prepare","Start","Check","Stop","DeleteData","BuildDesktop","LaunchDesktop","VerifyCandidate")]
+  [ValidateSet("Prepare","Start","Check","Stop","DeleteData","BuildDesktop","LaunchDesktop","VerifyCandidate","ShowLogin","ShowOTP","Fault","DiagnoseLock")]
   [string]$Action,
   [string]$RunDirectory,
+  [string]$FaultName,
+  [string]$FaultValue,
   [switch]$ConfirmSyntheticDataDeletion
 )
 $ErrorActionPreference = "Stop"
@@ -16,6 +18,8 @@ if (-not [Environment]::Is64BitOperatingSystem) { throw "Windows x64 required." 
 $Node = (Get-Command node -CommandType Application -ErrorAction Stop).Source
 $ArgsList = @((Join-Path $PSScriptRoot "control.mjs"), $Action)
 if ($RunDirectory) { $ArgsList += @("--run", $RunDirectory) }
+if ($FaultName) { $ArgsList += @("--fault", $FaultName) }
+if ($FaultValue) { $ArgsList += @("--value", $FaultValue) }
 if ($ConfirmSyntheticDataDeletion) { $ArgsList += "--confirm-synthetic-data-deletion" }
 & $Node @ArgsList
 if ($LASTEXITCODE -ne 0) { throw "Isolated tool stopped with exit code $LASTEXITCODE (no automatic retry)." }

@@ -14,6 +14,15 @@ const git = args => execFileSync("git", args, { cwd: ROOT, maxBuffer: 32 * 1024 
 const serverRoot = path.join(ROOT, "generated-artifacts/office-stage3-search-recheck/candidate");
 const sourceManifest = readJSON(path.join(serverRoot, "candidate-manifest.json"));
 const tools = "scripts/office-stage3/windows";
+const normalSources = [
+  "artifacts/api-server/src/routes/auth.ts", "artifacts/api-server/src/routes/pools.ts",
+  "artifacts/api-server/src/lib/auth.ts", "artifacts/api-server/src/middlewares/auth.ts",
+  "artifacts/api-server/src/middlewares/rate-limit.ts", "artifacts/api-server/src/lib/auth-error-codes.ts",
+  "artifacts/api-server/src/lib/xmode.ts", "artifacts/api-server/src/lib/event-logger.ts",
+  "artifacts/api-server/src/config/ai-model-config.ts", "artifacts/api-server/src/migrations/pool-db-membership.ts",
+  "artifacts/api-server/src/utils/filename.ts",
+  "lib/db/src/schema/users.ts", "lib/db/src/schema/pools.ts", "lib/db/src/schema/parent-accounts.ts",
+];
 const walk = folder => fs.readdirSync(path.join(ROOT, folder), { withFileTypes: true }).flatMap(entry =>
   entry.isDirectory() ? walk(folder + "/" + entry.name) : [folder + "/" + entry.name]);
 const put = (relative, bytes) => {
@@ -25,6 +34,10 @@ if (process.argv.includes("--seal")) {
   if (fs.existsSync(path.join(output, "candidate-manifest.json"))) throw new Error("Candidate already sealed; preserve it");
   if (!fs.existsSync(path.join(output, "pnpm-lock.yaml"))) throw new Error("Standalone lockfile required");
   const draft = readJSON(path.join(output, "draft-manifest.json"));
+  const evidence = readJSON(path.join(output, "normal-auth-evidence.json"));
+  if (evidence.passed !== true || evidence.newPaidCalls !== 0) throw new Error("Actual normal authentication evidence required before sealing");
+  for (const entry of evidence.sourceHashes ?? []) if (!draft.selectedSource.some(file => file.file === entry.file && file.sha256 === entry.sha256))
+    throw new Error("Linux proof not from selected candidate source");
   const inventory = folder => fs.readdirSync(folder, { withFileTypes: true }).flatMap(entry => {
     if (["node_modules", "build-evidence"].includes(entry.name)) return [];
     const file = path.join(folder, entry.name);
@@ -33,7 +46,9 @@ if (process.argv.includes("--seal")) {
   const files = inventory(output).sort().map(file => ({
     path: path.relative(output, file).replaceAll("\\", "/"), sha256: sha(fs.readFileSync(file)),
   }));
-  put("candidate-manifest.json", JSON.stringify({ ...draft, files, standaloneLockSha256: sha(fs.readFileSync(path.join(output, "pnpm-lock.yaml"))) }, null, 2) + "\n");
+  put("candidate-manifest.json", JSON.stringify({ ...draft, files, normalAuthReady: true,
+    authEvidenceSha256: sha(fs.readFileSync(path.join(output, "normal-auth-evidence.json"))),
+    standaloneLockSha256: sha(fs.readFileSync(path.join(output, "pnpm-lock.yaml"))) }, null, 2) + "\n");
   verifyCandidate(output);
   console.log(JSON.stringify({ candidateId: draft.candidateId,
     manifestSha256: sha(fs.readFileSync(path.join(output, "candidate-manifest.json"))),
@@ -54,13 +69,14 @@ const selection = [
   ...walk(dashboard + "/desktop").filter(file => /(?:\.cts|\/contracts\.ts|\/tsconfig\.json)$/.test(file)),
   dashboard + "/desktop.html", dashboard + "/vite.desktop.config.ts",
   ...sourceManifest.runtimeServerFiles.map(entry => entry.file),
+  ...normalSources,
   ...sourceManifest.unchangedPrerequisites.map(entry => entry.file),
   "scripts/office-stage3/receipts.draft.sql", "scripts/office-stage3/seed-isolated.sql", "scripts/office-stage3/search-seed.sql",
   ...walk(tools).filter(file => !/\.test\.mjs$/.test(file)),
 ];
 const files = [...new Set(selection)].sort();
 const original = files.map(file => ({ file, sha256: sha(fs.readFileSync(path.join(ROOT, file))) }));
-const candidateId = "OFFICE-WIN-ISOLATED-" + sha(JSON.stringify({ original, server: sourceManifest.patchSha256,
+const candidateId = "OFFICE-WIN-AUTH-" + sha(JSON.stringify({ original, server: sourceManifest.patchSha256,
   origin: "http://127.0.0.1:20411", normalAuthReady: false })).slice(0, 16);
 const transformations = [];
 const changed = new Map();
@@ -93,6 +109,9 @@ for (const file of files) {
 }
 for (const file of ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", dashboard + "/package.json"])
   put("provenance/" + file, fs.readFileSync(path.join(ROOT, file)));
+for (const file of ["package.json", "pnpm-lock.yaml", "candidate-manifest.json"])
+  put("provenance/previous-windows/" + file, fs.readFileSync(path.join(ROOT,
+    "generated-artifacts/office-windows-isolated-prep/candidate-utf8", file)));
 put("server-candidate.patch", fs.readFileSync(path.join(serverRoot, "server-candidate.patch")));
 put("server-candidate-manifest.json", fs.readFileSync(path.join(serverRoot, "candidate-manifest.json")));
 const rows = fs.readFileSync(path.join(ROOT, "generated-artifacts/office-stage3-search-recheck/model-attempts.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
@@ -106,7 +125,7 @@ put("replay-records.json", JSON.stringify(recorded, null, 2) + "\n");
 
 // Standalone tool workspace: no root Unix preinstall hook or Windows-native-package exclusions.
 // Direct versions are copied from installed package metadata, never replaced with 'latest'.
-const packageRoots = ["artifacts/swimnote-dashboard", "artifacts/api-server", "scripts", ""].map(dir =>
+const packageRoots = ["artifacts/swimnote-dashboard", "artifacts/api-server", "lib/db", "scripts", ""].map(dir =>
   createRequire(path.join(ROOT, dir, "package.json")));
 function version(name) {
   for (const require of packageRoots) {
@@ -132,6 +151,7 @@ const dependencies = Object.fromEntries([
   "@radix-ui/react-slot", "@tanstack/react-query", "express", "express-rate-limit", "pg",
   "vite", "@vitejs/plugin-react", "@tailwindcss/vite", "tailwindcss", "typescript", "tsx", "esbuild", "electron",
   "@types/node", "@types/react", "@types/react-dom",
+  "drizzle-orm", "drizzle-zod", "bcryptjs", "jsonwebtoken", "otplib", "qrcode", "multer",
 ].map(name => [name, version(name)]));
 put("package.json", JSON.stringify({
   name: "swimnote-office-windows-isolated-tools", version: "0.0.0", private: true, type: "module",
@@ -166,10 +186,10 @@ put("draft-manifest.json", JSON.stringify({
   serverCandidate: { id: sourceManifest.candidateId, patchSha256: sourceManifest.patchSha256,
     manifestSha256: sha(fs.readFileSync(path.join(serverRoot, "candidate-manifest.json"))) },
   overlayPatchSha256: sha(overlay), overlayApplyCheck: "PASS; temporary copy only",
-  transformations, normalAuthReady: false, windowsExecution: "NOT RUN",
+  transformations, normalAuthReady: false, windowsExecution: "NOT RUN", normalSources,
   settings: { apiOrigin: "http://127.0.0.1:20411", rendererOrigin: "app://office",
     db: "127.0.0.1:55440/office_stage3_acceptance", rendererMainGates: "true in verification copy only",
-    apiExecutionAndInterpretation: "OFF; all auth-dependent requests fail closed" },
+    apiExecutionAndInterpretation: "Actual product auth; new local schema marker required; recorded-only model" },
   runtime: { hostNode: "24.13+ (24.x)", pnpm: "10.26.1", postgres: "16.10+ (16.x)",
     powershell: "7.4+", electron: dependencies.electron, versionBasis: "Existing installed package metadata; Windows not executed" },
   excluded: ["mobile", "ENGINE", "operating API entrypoint execution", "tracked dist", "node_modules", "secrets",

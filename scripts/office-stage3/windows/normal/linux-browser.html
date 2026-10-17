@@ -1,0 +1,12 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>정상 인증 Linux 격리 검증</title>
+<div id="root"></div>
+<script>
+// Linux browser test ONLY. Native bridge is an in-memory stub, NOT Windows/DPAPI evidence.
+window.officeDesktop={
+getBootstrapInfo:async()=>({stage:"F03",platform:"linux",packaged:false,version:"isolated-normal-auth"}),
+restoreSession:async()=>({token:null,remembered:false}),commitSession:async()=>({ok:true}),
+clearSession:async()=>({ok:true}),readLoginPreferences:async()=>({loginId:"",remember:false}),
+saveLoginPreferences:async()=>({ok:true})
+};
+</script>
+<script type="module" src="/artifacts/swimnote-dashboard/src/desktop/main.tsx"></script></html>

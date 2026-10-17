@@ -3,6 +3,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { ROOT, verifyCandidate, sha, cleanEnv } from "./common.mjs";
+import { buildNormal } from "./normal/build.mjs";
 
 export async function buildCandidate(root = ROOT) {
   const manifest = verifyCandidate(root);
@@ -22,17 +23,7 @@ export async function buildCandidate(root = ROOT) {
       });
       metadata[name] = result.metafile;
     }
-    const api = await esbuild.build({
-      entryPoints: [path.join(root, "scripts/office-stage3/windows/api.ts")],
-      platform: "node", target: "node24", format: "esm", bundle: true, packages: "external",
-      outfile: path.join(out, "isolated-api.mjs"), metafile: true, logLevel: "silent",
-    });
-    metadata.api = api.metafile;
-    const inputs = Object.keys(api.metafile.inputs);
-    if (inputs.some(name => /(?:\/routes\/|\/db\/|\/app\.ts$|\/index\.ts$|real-ai|isolated-api\.ts$)/.test(name)))
-      throw new Error("Operating/fixture bootstrap leaked into API build");
-    // Preserve directory-relative common.mjs ROOT semantics in the bundled entrypoint.
-    fs.copyFileSync(path.join(root, "scripts/office-stage3/windows/common.mjs"), path.join(out, "common.mjs"));
+    await buildNormal(root);
     const vite = path.join(path.dirname(require.resolve("vite/package.json")), "bin/vite.js");
     const result = spawnSync(process.execPath, [vite, "build", "--config", path.join(dashboard, "vite.desktop.config.ts")],
       { cwd: root, env: cleanEnv(), encoding: "utf8" });

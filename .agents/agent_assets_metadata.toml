@@ -627,3 +627,59 @@ mtime_ms = 1792225393303
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/e1c4988d-5f4d-4e52-aace-abbfa7659cb7/4094606a-0e34-4ae4-b792-7a9123d27a86"
 storage_version_token = "1792225418134478"
 content_type = "text/html"
+
+[[outputs]]
+id = "EJwL3qRbzQL225mehBzt5"
+uri = "file://generated-artifacts/office-windows-isolated-prep/OFFICE-WIN-AUTH-fad5704318bc64c4-source.zip"
+type = "unspecified"
+title = "Windows 정상 격리 인증 소스 후보"
+description = "OFFICE-WIN-AUTH-fad5704318bc64c4 · 설치본 아님 · 정상 인증/오류 도구/lock/실행 안내 포함 · Windows NOT RUN"
+logical_id = "902c8166-6b22-4c0f-96fb-bc46e1f9c9fc"
+content_hash = "sha256:fe099940f540b679b872c76d2932ce6f2fdea4258467aa2f0a27848264a3f9ee"
+size = 1347924
+mtime_ms = 1792228116180
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/902c8166-6b22-4c0f-96fb-bc46e1f9c9fc/22f0795a-6984-423f-bda5-0d7ae09f7cab"
+storage_version_token = "1792228266437470"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "OiO93336y5VlxjcYJGCgL"
+uri = "file://generated-artifacts/office-windows-isolated-prep/candidate-normal-auth/WINDOWS-RUN-GUIDE.md"
+type = "text"
+title = "Windows 실행·오류 주입 안내"
+description = "수동 의존성 준비, 정상 로그인, 정확한 오류·복구·종료 명령, stale lock 진단"
+logical_id = "0ef23967-0628-4891-a9a5-596fb2ff8a25"
+content_hash = "sha256:8e812bbb4c907b5df8c205c4256a910464f20f23e27655708916e58782aa2d1c"
+size = 10378
+mtime_ms = 1792227912948
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/0ef23967-0628-4891-a9a5-596fb2ff8a25/ecf3d19b-49e9-476e-91f9-950c654d64b6"
+storage_version_token = "1792228267725378"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "ad2b_Q9bBRDGkDugX0gK-"
+uri = "file://generated-artifacts/office-windows-isolated-prep/candidate-normal-auth/WINDOWS-CHECKLIST.md"
+type = "text"
+title = "Windows 수용 체크리스트"
+description = "모든 Windows 항목은 현재 NOT RUN · 실제 관찰 후 기록"
+logical_id = "b4e5696b-2447-41c0-825c-8ddd2f221ee4"
+content_hash = "sha256:845c3e3cd3ec1a7d3a1bfddb659d4c4db7ac13f265e0c696dd0d588680d8030b"
+size = 2996
+mtime_ms = 1792227912948
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/b4e5696b-2447-41c0-825c-8ddd2f221ee4/931d55d7-285a-43d2-bdcd-f0627d1268df"
+storage_version_token = "1792228269031293"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "C1wS1daG6Hl5vL64XLoOM"
+uri = "file://generated-artifacts/office-windows-isolated-prep/final-summary-normal-auth.md"
+type = "text"
+title = "정상 격리 인증 최종 보고"
+description = "검증 범위·제약·전체 해시·Windows 명령 및 운영 Gate"
+logical_id = "466c53f9-d97c-4cc1-948f-4ead53c3e3ab"
+content_hash = "sha256:97969cba430e7d88534506eef2d216b211dcb97f48f9cece10db995111926c80"
+size = 10773
+mtime_ms = 1792228239403
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/466c53f9-d97c-4cc1-948f-4ead53c3e3ab/5304ff5f-7d58-498f-9552-14f853f2af58"
+storage_version_token = "1792228270311836"
+content_type = "text/markdown"

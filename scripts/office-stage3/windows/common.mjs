@@ -52,9 +52,19 @@ export function verifyCandidate(root = ROOT) {
     if (fs.lstatSync(file).isSymbolicLink() || sha(fs.readFileSync(file)) !== entry.sha256)
       throw new Error(`Candidate integrity failure: ${entry.path}`);
   }
+  const legacy = manifest.candidateId === "OFFICE-WIN-ISOLATED-e2b7a63369cd6c18" && manifest.normalAuthReady === false;
   if (manifest.serverCandidate.id !== "OFFICE-S3-SEARCH-3d1e7e03a84c9152" ||
       manifest.settings.apiOrigin !== "http://127.0.0.1:20411" ||
-      manifest.settings.rendererOrigin !== "app://office" || manifest.normalAuthReady !== false)
+      manifest.settings.rendererOrigin !== "app://office" || !legacy && (manifest.normalAuthReady !== true ||
+      sha(fs.readFileSync(path.join(root, "normal-auth-evidence.json"))) !== manifest.authEvidenceSha256))
     throw new Error("Candidate contract mismatch");
+  if (!legacy) {
+    const evidence = readJSON(path.join(root,"normal-auth-evidence.json"));
+    if (!evidence.passed || evidence.newPaidCalls !== 0 || !evidence.sourceHashes?.length) throw new Error("Missing auth proof");
+    for (const entry of evidence.sourceHashes) {
+      if (!manifest.selectedSource.some(file => file.file === entry.file && file.sha256 === entry.sha256))
+        throw new Error("Auth proof/source mismatch");
+    }
+  }
   return manifest;
 }
