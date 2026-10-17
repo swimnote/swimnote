@@ -29,9 +29,60 @@ const INITDB_PHASES = new Map([
   ["performing post-bootstrap initialization", "POST_BOOTSTRAP"],
   ["syncing data to disk", "SYNC_DATA"],
 ]);
-function classifyInitdbFailure(result) {
-  // Process output stays in memory. Emit only constant categories/progress and a hex exception,
-  // never filenames, account names, SQL, command arguments or arbitrary lines.
+// A vocabulary, not a general-purpose log redactor. Unknown text is never published.
+const ERROR_WORDS = new Set(("invalid byte sequence for encoding character with has no equivalent in " +
+  "could not convert from to read open file directory permission denied access is empty " +
+  "does exist exists but regular failed failure system library load module specified found " +
+  "input output data locale settings check child process exited exit code terminated by exception " +
+  "password version same as initdb postgres error fatal panic warning detail hint " +
+  "syntax at or near unexpected end of memory shared dynamic create initialize initialization " +
+  "collation collations conversion COPY line").toLowerCase().split(/\s+/));
+const ENCODINGS = /^(?:UTF8|SQL_ASCII|WIN(?:866|874|125[0-8])|LATIN(?:[1-9]|10)|EUC_(?:KR|JP|CN|TW|JIS_2004)|SJIS|SHIFT_JIS_2004|UHC|GBK|GB18030|BIG5|JOHAB|KOI8[RU])$/i;
+function secretValues(value) {
+  if (typeof value === "string") return value ? [value] : [];
+  if (!value || typeof value !== "object") return [];
+  return Object.values(value).flatMap(secretValues);
+}
+function safeInitdbMessage(line, secrets = []) {
+  // Remove known local credentials BEFORE recognizing any message. No raw fallback.
+  for (const value of [...new Set(secrets)].sort((a, b) => b.length - a.length))
+    if (value) line = line.split(value).join("[redacted]");
+  const match = line.match(/\b(ERROR|FATAL|PANIC|WARNING|DETAIL|HINT):\s*(.*)$/i);
+  if (!match) {
+    const child = line.match(/^child process exited with exit code (1|[2-9]\d{0,2})$/i);
+    return child ? { severity: "CHILD", text: child[0] } : null;
+  }
+  const severity = match[1].toUpperCase();
+  let text = match[2];
+  // SQL/connection material is not eligible, even if some of its words are in the vocabulary.
+  if (/\b(?:ALTER|SELECT|INSERT|UPDATE|DELETE|CREATE|DO)\b.*\b(?:USER|PASSWORD|FROM|TABLE|ROLE)\b/i.test(text) ||
+      /(?:postgres(?:ql)?:\/\/|password\s*=|PGPASSWORD|Bearer\s)/i.test(text))
+    return { severity, text: "[redacted]" };
+  // Preserve the actual bounded PostgreSQL encoding phrase, including at most eight error bytes.
+  const encodingError = text.match(/^(invalid byte sequence for encoding) "(.*?)":((?: 0x[0-9a-f]{2}(?![0-9a-f])){1,8})(?:\s|$)/i);
+  if (encodingError && ENCODINGS.test(encodingError[2]))
+    return { severity, text: `${encodingError[1]} "${encodingError[2]}":${encodingError[3]}` };
+  // All other quoted identifiers, file paths, usernames and arbitrary tokens are withheld.
+  text = text.replace(/"[^"]*"|'[^']*'/g, "[redacted]")
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+|(?:[A-Za-z]:[\\/]|\\\\|\/)[^\s,;]*/gi, "[redacted]");
+  const words = text.match(/\[redacted\]|[A-Za-z0-9_]+|[^\x00-\x7f]+/g) ?? [];
+  text = words.map(word => ERROR_WORDS.has(word.toLowerCase()) ? word : "[redacted]")
+    .join(" ").replace(/(?:\[redacted\] ){1,}\[redacted\]/g, "[redacted]").slice(0, 240);
+  return { severity, text: text || "[redacted]" };
+}
+function collectInitdbMessages(result, secrets = []) {
+  const messages = [];
+  for (const stream of ["stderr", "stdout"]) {
+    for (const line of String(result[stream] ?? "").split(/\r?\n/)) {
+      const message = safeInitdbMessage(line, secrets);
+      if (message) messages.push({ stream, ...message });
+      if (messages.length === 8) return messages;
+    }
+  }
+  return messages;
+}
+function classifyInitdbFailure(result, secrets = []) {
+  // Raw stdout/stderr remain in memory only. Share only the constrained message excerpts below.
   const output = String(result.stdout ?? "") + "\n" + String(result.stderr ?? "");
   const text = output.toLowerCase();
   const rules = [
@@ -54,13 +105,23 @@ function classifyInitdbFailure(result) {
     if (index > last) { last = index; phase = value; }
   }
   const exception = output.match(/child process[^\r\n]*exception (0x[a-f0-9]{8})(?![a-f0-9])/i)?.[1]?.toUpperCase();
-  return { category, phase, exception };
+  return { category, phase, exception, messages: collectInitdbMessages(result, secrets),
+    capture: {
+      stdoutBytes: Buffer.byteLength(String(result.stdout ?? ""), "utf8"),
+      stderrBytes: Buffer.byteLength(String(result.stderr ?? ""), "utf8"),
+      incomplete: !!result.error,
+    } };
 }
 function initdbInvocation(run) {
   // libuv sets Windows cwd through the wide-character API. The PostgreSQL CRT receives only
   // ASCII relative file arguments, even when the user's profile name is non-ASCII.
   return { cwd: run, args: ["-D", "db", "-U", "office_fixture", "--encoding=UTF8", "--locale=C",
     "--auth-host=scram-sha-256", "--auth-local=scram-sha-256", "--pwfile=init-password.txt", "--no-clean"] };
+}
+function writeInitdbPassword(file, password) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(password))
+    throw Object.assign(new Error("Synthetic password format rejected"), { code: "INITDB_PASSWORD_FORMAT_REJECTED" });
+  fs.writeFileSync(file, Buffer.from(password + "\n", "utf8"), { flag: "wx", mode: 0o600 });
 }
 
 function assertPlainDirectory(folder) {
@@ -71,16 +132,18 @@ function assertPlainDirectory(folder) {
     throw Object.assign(new Error("Directory boundary rejected"), { code: "UNSAFE_DIRECTORY" });
 }
 function command(executable, args, options = {}) {
+  const { diagnosticSecrets = [], ...spawnOptions } = options;
   const result = spawnSync(executable, args, {
     env: cleanEnv(process.env), encoding: "utf8", windowsHide: true,
-    timeout: 120000, maxBuffer: 4 * 1024 * 1024, ...options,
+    timeout: 120000, maxBuffer: 4 * 1024 * 1024, ...spawnOptions,
   });
-  // Deliberately never forward command output: seed/SQL errors could contain secrets.
+  // Never forward raw command output: seed/SQL errors could contain secrets.
   if (result.error || result.status !== 0) {
     const error = Object.assign(new Error("Local command failed"), {
       code: "LOCAL_COMMAND_FAILED", tool: path.basename(executable), exitCode: result.status,
       nativeCode: systemError(result.error),
-      ...(path.basename(executable).toLowerCase() === "initdb.exe" ? { initdb: classifyInitdbFailure(result) } : {}),
+       ...(path.basename(executable).toLowerCase() === "initdb.exe" ?
+         { initdb: classifyInitdbFailure(result, diagnosticSecrets) } : {}),
     });
     throw error;
   }
@@ -172,11 +235,12 @@ class IsolatedRuntime {
         ].filter(Boolean).join("\r\n")),
       ].join("\r\n\r\n"), { flag: "wx", mode: 0o600 });
       const passwordFile = path.join(this.run, "init-password.txt");
-      fs.writeFileSync(passwordFile, this.credentials.dbPassword + "\n", { flag: "wx", mode: 0o600 });
+      writeInitdbPassword(passwordFile, this.credentials.dbPassword);
       try {
         this.stage = "prepare-initdb";
         const invocation = initdbInvocation(this.run);
-        command(this.tool("initdb"), invocation.args, { cwd: invocation.cwd, env: this.childEnv() });
+        command(this.tool("initdb"), invocation.args, { cwd: invocation.cwd, env: this.childEnv(),
+          diagnosticSecrets: secretValues(this.credentials) });
       } finally { fs.unlinkSync(passwordFile); }
       this.needsSeed = true;
     }
@@ -287,7 +351,16 @@ class IsolatedRuntime {
     this.stage = "stopped";
   }
   diagnose(error) {
-    // Explicit allowlist: never stringify error/stack, env, SQL, credentials or child output.
+    // Explicit allowlist: never stringify error/stack, env, SQL, credentials or raw child output.
+    const secrets = secretValues(this.credentials);
+    const messages = Array.isArray(error?.initdb?.messages) ? error.initdb.messages.slice(0, 8).flatMap(entry => {
+      if (!["stderr", "stdout"].includes(entry?.stream) ||
+          !["ERROR", "FATAL", "PANIC", "WARNING", "DETAIL", "HINT", "CHILD"].includes(entry?.severity) ||
+          typeof entry?.text !== "string") return [];
+      const sanitized = safeInitdbMessage(entry.severity === "CHILD" ? entry.text :
+        `${entry.severity}: ${entry.text}`, secrets);
+      return sanitized ? [{ stream: entry.stream, ...sanitized }] : [];
+    }) : [];
     const details = { packageId: this.identity.packageId, candidateId: BASE,
       at: new Date().toISOString(), platform: process.platform, arch: process.arch,
       electronHostNode: this.nodeVersion, stage: this.stage, code: systemError(error),
@@ -297,6 +370,15 @@ class IsolatedRuntime {
       initdbCategory: INITDB_CATEGORIES.has(error?.initdb?.category) ? error.initdb.category : undefined,
       initdbPhase: ["BEFORE_BOOTSTRAP", ...INITDB_PHASES.values()].includes(error?.initdb?.phase) ? error.initdb.phase : undefined,
       childException: /^0X[A-F0-9]{8}$/.test(error?.initdb?.exception ?? "") ? error.initdb.exception : undefined,
+      initdbMessages: messages.length ? messages : undefined,
+      initdbMessagePolicy: error?.initdb ? "bounded PostgreSQL error excerpts; unknown values withheld; no raw log" : undefined,
+      initdbCapture: error?.initdb?.capture ? {
+        stdoutBytes: Number.isSafeInteger(error.initdb.capture.stdoutBytes) && error.initdb.capture.stdoutBytes >= 0 ?
+          error.initdb.capture.stdoutBytes : undefined,
+        stderrBytes: Number.isSafeInteger(error.initdb.capture.stderrBytes) && error.initdb.capture.stderrBytes >= 0 ?
+          error.initdb.capture.stderrBytes : undefined,
+        incomplete: error.initdb.capture.incomplete === true,
+      } : undefined,
       port: PORTS.includes(error?.port) ? error.port : undefined,
       ownedApiPid: this.api?.pid, ownedDbPid: this.db?.pid, lockRetained: !!this.ownsLock,
       windowsAcceptance: "NOT RUN by build environment", paidCalls: 0 };
@@ -320,4 +402,4 @@ class IsolatedRuntime {
   }
 }
 module.exports = { IsolatedRuntime, cleanEnv, systemError, assertPlainDirectory, BASE, PORTS,
-  classifyInitdbFailure, initdbInvocation };
+  classifyInitdbFailure, initdbInvocation, safeInitdbMessage, collectInitdbMessages, writeInitdbPassword };

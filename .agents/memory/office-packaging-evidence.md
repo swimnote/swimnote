@@ -61,4 +61,10 @@ Windows PostgreSQL CLI의 파일 경로 처리를 Node의 Unicode 파일 I/O와 
 
 **Why:** PostgreSQL 공식 메일링리스트에는 비영문 프로필 아래의 password-file 절대 경로가 CRT에서 잘못 해석되는 사례가 있다. 출력 원문을 보관하지 않은 기존 진단은 최초 실패 도구만 증명하며, 이후 incomplete-preparation은 별도 후속 상태다.
 
-**How to apply:** native 도구 인자는 상대 ASCII 파일명과 명시적 cwd를 우선 검토하고, 비밀 없는 고정 실패 분류로 실제 원인을 구분한다. Linux Unicode 경로 검사는 Windows 코드페이지 수용 증거가 아니다. 참조: https://www.postgresql.org/message-id/CAB1XC2Lw8_zTa%3Dv2Rxu%3DhRik1vbTgk0yfC-PT1eODWjHuhgbMg%40mail.gmail.com
+**How to apply:** native 도구 인자는 상대 ASCII 파일명과 명시적 cwd를 우선 검토한다. 도구 분류명은 PostgreSQL 원문이 아니므로, 분류만으로 원인을 확정하지 말고 비밀값을 제외한 제한된 오류 문구도 남긴다. Linux Unicode 경로 검사는 Windows 코드페이지 수용 증거가 아니다. 참조: https://www.postgresql.org/message-id/CAB1XC2Lw8_zTa%3Dv2Rxu%3DhRik1vbTgk0yfC-PT1eODWjHuhgbMg%40mail.gmail.com
+
+상대 pwfile·DB 인자만으로 PostgreSQL 내부의 모든 경로가 ASCII가 되지는 않는다. PostgreSQL 16 initdb는 설치 위치로부터 absolute share 경로를 구하고 post-bootstrap SQL의 sql_features COPY에 사용한다. 이 단계의 encoding 분류와 공식 유사 사례는 조사 가설이지 해당 PC의 원인 확정이 아니다.
+
+**Why:** 사용자는 상대 경로 보완 후에도 post-bootstrap 인코딩 분류가 발생했으며, 한글 경로를 근본 원인으로 단정하지 말라고 명시했다. 공식 보고에는 Windows 설치 binary 경로의 비ASCII 문자로 유사 오류가 발생한 사례가 있으나 버전·PC별 재현 증거는 별도다.
+
+**How to apply:** 근거 없는 encoding/locale 변경이나 SQL_ASCII 전환을 피한다. 원인 미확정 후보는 진단 보완본으로 표시하고 초기화 성공·API 준비·실제 Windows 수용을 구분한다. 참조: https://www.postgresql.org/message-id/16926-e4ef345545d185ab%40postgresql.org

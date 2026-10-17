@@ -739,3 +739,31 @@ mtime_ms = 1792237619184
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/c23497e2-6b39-4d0e-9575-2cd68a395f2f/a569d450-508c-4bdd-a9a7-e118e1dcda18"
 storage_version_token = "1792237664201323"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "8HSGoWmmHEdCj_u4vrmRP"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-08/OFFICE-WIN-PACKAGED-50f8c7f01d733cfb-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "Windows 격리 검증본 — 다운로드 1/2"
+description = "진단 보완 후보 1d733cfb. 두 ZIP 모두 필요합니다. 새 빈 폴더에 함께 압축 해제해 주세요. Windows 오류 해결은 미검증입니다."
+logical_id = "79acda89-19d6-4578-a194-9dce1a3355d4"
+content_hash = "sha256:442191bb6f1dadf637f7b228dad951c45d6c1813c43f0876e73afc054e6c704b"
+size = 83891002
+mtime_ms = 1792242127659
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/79acda89-19d6-4578-a194-9dce1a3355d4/f9ab140b-d8cd-4054-8e77-5995abfea553"
+storage_version_token = "1792242156727705"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "aqhrxNQlXDu2-lSN8YG_u"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-08/OFFICE-WIN-PACKAGED-50f8c7f01d733cfb-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "Windows 격리 검증본 — 다운로드 2/2"
+description = "1/2와 같은 새 폴더에 압축 해제 → START-ISOLATED.cmd 더블클릭 → 열린 폴더의 Setup.exe 설치. 개발 도구·관리자 실행·보안 해제 불필요."
+logical_id = "47b16f6f-5345-4793-b256-e806e8218863"
+content_hash = "sha256:623a90c4b50b6dd12110f18263ae60751ed5426c1c30c10f810fbfedf4b16a92"
+size = 72123266
+mtime_ms = 1792242128407
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/47b16f6f-5345-4793-b256-e806e8218863/0223a97e-688e-4eac-bbae-161d3d532f4f"
+storage_version_token = "1792242158607406"
+content_type = "application/octet-stream"

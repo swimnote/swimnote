@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 
 const repo = path.resolve(import.meta.dirname, "../../../..");
-const attempt = process.argv[2] ?? "attempt-07";
+const attempt = process.argv[2] ?? "attempt-08";
 if (!/^attempt-\d{2}$/.test(attempt)) throw new Error("Explicit new attempt name required");
 const deliveryRoot = path.join(repo, "generated-artifacts/office-windows-packaged-auth");
 const output = path.join(deliveryRoot, attempt);
@@ -53,6 +53,7 @@ const identity = {
   headAtPackaging: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo }).toString().trim(),
   packagingFiles: packageSource, node: "24.13.0", electron: "44.7.2", postgres: "16.15",
   scope: "Unsigned isolated Windows x64 verification only; Windows execution NOT RUN",
+  initdbChangeScope: "Diagnostic correction only; initialization arguments/locale/environment unchanged; Windows cause UNCONFIRMED",
 };
 write(path.join(output, "package-identity.json"), identity);
 fs.cpSync(base, source, { recursive: true, errorOnExist: true, force: false });
@@ -342,6 +343,10 @@ write(setup + ".sha256", hash(setup) + "  " + path.basename(setup) + "\n");
 write(path.join(delivery, "사용안내.txt"), `SWIMNOTE OFFICE 격리 검증본 (미서명 / Windows x64)
 ID: ${packageId}
 원본: ${parentId}
+
+이번 후보는 initdb 오류 진단 보완본입니다. Windows 초기화 오류 해결을 확인한 수정본이 아닙니다.
+실패하면 stdout/stderr 중 제한된 PostgreSQL 오류 문구만 공유 진단에 남깁니다.
+비밀번호·PIN·키·연결정보·사용자 경로·SQL·알 수 없는 원문은 공유 진단에 기록하지 않습니다.
 
 1. Setup.exe를 다운로드하고 일반 사용자로 설치합니다.
 2. 설치 마지막 화면 또는 바탕화면의 'SWIMNOTE OFFICE 격리 검증본'으로 실행합니다.
