@@ -84,7 +84,7 @@ async function createWindow() {
           !candidate.username && !candidate.password;
       } catch { /* Deny malformed network URLs. */ }
     }
-    const image = details.resourceType === "image" && isAllowedOfficeImage(details.url);
+    const image = (details.resourceType === "image" || details.resourceType === "media" && ["GET", "HEAD"].includes(details.method)) && isAllowedOfficeImage(details.url);
     callback({ cancel: !local && !devSocket && !image && !details.url.startsWith("data:image/") &&
       !isAllowedAuthRequest(details.url, details.method,
         typeof __OFFICE_STAGE3_ACTIVE__ === "boolean" && __OFFICE_STAGE3_ACTIVE__) });

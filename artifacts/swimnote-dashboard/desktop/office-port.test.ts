@@ -1,6 +1,16 @@
 import { it, expect } from "vitest";
 import { OFFICE_PAGES, officePage, isOfficeApiRequest, isAllowedOfficeImage, officeConfirmation, officePageAllowed, officeRoleRequest } from "./office-access.cts";
 import { isAllowedAuthRequest } from "./security.cts";
+it("admits only the existing video contracts, not bulk deletion, direct-upload engines or a foreign host", () => {
+  for (const role of ["pool_admin", "teacher"]) {
+    expect(officeRoleRequest("/videos/group", "POST", role)).toBe(true);
+    expect(officeRoleRequest("/videos/note-attach", "POST", role)).toBe(true);
+    expect(officeRoleRequest("/videos/video_123_abc", "DELETE", role)).toBe(true);
+  }
+  for (const path of ["/videos/bulk", "/videos/saved", "/videos/direct-upload-init", "https://foreign.invalid/videos/group"])
+    expect(isOfficeApiRequest(path, "DELETE")).toBe(false);
+  expect(officeRoleRequest("/videos/group", "POST", "parent_account")).toBe(false);
+});
 it("all shared menu destinations are explicit and reject foreign or unknown pages", () => {
   expect(OFFICE_PAGES.map(([path]) => path)).toContain("/admin/diary/new");
   for (const [path] of OFFICE_PAGES) expect(officePage(path)?.[0]).toBe(path);

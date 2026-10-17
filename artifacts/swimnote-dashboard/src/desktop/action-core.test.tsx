@@ -19,6 +19,47 @@ function fixture(overrides: Partial<ActionDependencies> = {}) {
 }
 const request = (action: string, input: unknown = {}) => ({ action, input });
 
+it("uses the same confirmed canonical DELETE for typed AI diary deletion and includes its real target", async () => {
+  const call = vi.fn().mockResolvedValue({ success: true }), confirm = vi.fn().mockReturnValue(true), refresh = vi.fn();
+  const { core } = fixture({ existingApi: call, confirmExisting: confirm, changedExisting: refresh,
+    readDiary: async () => ({ id: "diary_1", class_group_id: "class_1", class_name: "가상 반", lesson_date: "2026-10-18" }) });
+  const result = await core.runStructured(request("office.diary.delete", { diaryId: "diary_1" }));
+  expect(result?.status).toBe("completed");
+  expect(result?.summary).not.toContain("업무 데이터 변경 없음");
+  expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/2026-10-18.*가상 반.*diary_1/));
+  expect(call).toHaveBeenCalledExactlyOnceWith("/diaries/diary_1", "DELETE", undefined);
+  expect(refresh).toHaveBeenCalledWith("/diaries/diary_1", "DELETE");
+});
+it("does not delete another teacher's diary or guess an unverified target", async () => {
+  const call = vi.fn(), confirm = vi.fn();
+  const { core } = fixture({ actor: { userId: "teacher_1", poolId: "pool_1", role: "teacher" },
+    existingApi: call, confirmExisting: confirm,
+    readDiary: async () => ({ id: "diary_1", class_group_id: "class_1", teacher_id: "teacher_2", lesson_date: "2026-10-18" }) });
+  await expect(core.execute(request("office.diary.delete", { diaryId: "diary_1" }))).rejects.toMatchObject({ status: 403 });
+  expect(call).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
+  expect((await core.execute(request("office.diary.delete", { diaryId: "../guess" }))).status).toBe("failed");
+});
+it("cancels verified diary deletion without sending DELETE", async () => {
+  const call = vi.fn();
+  const { core } = fixture({ existingApi: call, confirmExisting: () => false,
+    readDiary: async () => ({ id: "d1", class_group_id: "c1", lesson_date: "2026-10-18" }) });
+  expect((await core.execute(request("office.diary.delete", { diaryId: "d1" }))).status).toBe("cancelled");
+  expect(call).not.toHaveBeenCalled();
+});
+it("marks a video attachment updated-count mismatch partial rather than completed", async () => {
+  const { core } = fixture({ existingApi: async () => ({ updated: 0 }) });
+  await core.execute(request("office.operation.execute", { path: "/videos/diary-attach", method: "POST", body: JSON.stringify({ diary_id: "d1", video_ids: ["video_1"] }) }));
+  expect(core.getTasks()[0].status).toBe("partial");
+});
+it("blocks video multipart resend after an ambiguous response", async () => {
+  const call = vi.fn().mockRejectedValue({ status: 503 });
+  const { core } = fixture({ existingApi: call });
+  const form = () => { const body = new FormData(); body.append("video", new File(["fixture"], "fixture.mp4", { type: "video/mp4" })); return body; };
+  await expect(core.execute(request("office.operation.execute", { path: "/videos/group", method: "POST", body: form() }))).rejects.toMatchObject({ status: 503 });
+  await expect(core.execute(request("office.operation.execute", { path: "/videos/group", method: "POST", body: form() }))).rejects.toMatchObject({ status: 409 });
+  expect(call).toHaveBeenCalledOnce();
+});
+
 it("does not send a destructive operation when its actual execution confirmation is cancelled", async () => {
   const api = vi.fn(), confirm = vi.fn().mockReturnValue(false);
   const { core } = fixture({ existingApi: api, confirmExisting: confirm });
@@ -95,7 +136,7 @@ it("does not turn an unconfirmed structured general-API request into a save or a
   expect(call).not.toHaveBeenCalled();
 });
 it("registers explicit migrated pages and a narrow existing-API bridge, never arbitrary URL/SQL executors", () => {
-  expect(Object.keys(OFFICE_ACTIONS)).toHaveLength(8);
+  expect(Object.keys(OFFICE_ACTIONS)).toHaveLength(9);
   expect(Object.values(OFFICE_ACTIONS).filter(a => a.kind !== "mutation").every(a => a.confirmation === "none" && !a.invalidates.length && a.permission === "pool_admin")).toBe(true);
   expect(OFFICE_ACTIONS["office.member.update"].confirmation).toBe("explicit-save");
   expect(OFFICE_ACTIONS["office.member.move"].confirmation).toBe("preview-confirm");

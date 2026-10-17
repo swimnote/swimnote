@@ -1,0 +1,36 @@
+--- a/artifacts/api-server/src/routes/videos.ts
++++ b/artifacts/api-server/src/routes/videos.ts
+@@ -205,7 +205,7 @@
+     const rows = await db.execute(sql`
+       SELECT sv.id, sv.album_type, sv.class_id, sv.student_id, sv.pool_id,
+              sv.uploaded_by, sv.uploaded_by_name, sv.caption, sv.created_at, sv.file_size,
+-             sv.thumbnail_key, s.name AS student_name
++             sv.thumbnail_key, sv.object_key, s.name AS student_name
+       FROM video_assets_meta sv
+       LEFT JOIN students s ON s.id = sv.student_id
+       WHERE sv.album_type = 'group' AND sv.class_id = ${classId}
+@@ -240,13 +240,13 @@
+     const rows = await db.execute(sql`
+       SELECT sv.id, sv.album_type, sv.class_id, sv.student_id, sv.pool_id,
+              sv.uploaded_by, sv.uploaded_by_name, sv.caption, sv.created_at, sv.file_size,
+-             s.name AS student_name
++             sv.object_key, sv.thumbnail_key, s.name AS student_name
+       FROM video_assets_meta sv
+       LEFT JOIN students s ON s.id = sv.student_id
+       WHERE sv.album_type = 'private' AND sv.student_id = ${studentId}
+       ORDER BY sv.created_at DESC
+     `);
+-    const videos = (rows.rows as any[]).map(v => ({ ...v, file_url: `/api/videos/${v.id}/file` }));
++    const videos = await batchVideoPresign((rows.rows as any[]).map(v => ({ ...v, file_url: `/api/videos/${v.id}/file` })));
+     res.json(videos);
+   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+ });
+@@ -810,7 +810,7 @@
+     // student note videos는 class_diary_student_notes.diary_id = diaryId 조건으로 조인
+     const rows = await db.execute(sql`
+       SELECT v.id, v.uploaded_by_name, v.created_at, v.file_size, v.class_id,
+-             v.caption, v.thumbnail_key, v.status, v.student_note_id, v.sort_order,
++             v.caption, v.thumbnail_key, v.object_key, v.status, v.student_note_id, v.sort_order,
+              '/api/videos/' || v.id || '/file' AS file_url
+       FROM video_assets_meta v
+       WHERE (v.journal_id = ${diaryId} AND v.pool_id = ${poolId})

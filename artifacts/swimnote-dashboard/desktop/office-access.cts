@@ -62,8 +62,11 @@ const reads = [
   `/teacher/growth-reports(?:/${id}/review)?`,
   "/attendance", `/notices(?:/${id}/read-stats)?`, "/parent-requests",
   `/parent-requests/${id}/messages`, "/photos/teacher-all", `/photos/private/${id}`,
+  `/videos/(?:group|private|diary)/${id}`,
 ];
 const saves: [string, string][] = [
+  ["POST", "/videos/(?:group|private|diary-attach|note-attach)"],
+  ["DELETE", "/videos/video_[A-Za-z0-9_-]{1,154}"],
   ["POST", "/students"], ["POST", "/admin/members/bulk/(?:validate|commit)"],
   ["POST", `/admin/students/${id}/restore`],
   ["POST", "/class-groups"], ["PATCH", `/class-groups/${id}`],
@@ -144,7 +147,7 @@ export function officeRoleRequest(path: string, method: string, role: string) {
   if (!isOfficeApiRequest(path, method)) return false;
   if (role === "pool_admin") return true;
   if (role !== "teacher") return false;
-  return method === "GET" || new RegExp(`^/(?:attendance|teacher/|diaries(?:/|$)|photos(?:/|$)|parent-requests(?:/|$)|v1/teacher-diary/generate$|students/${id}/(?:change-status|move-class|remove-from-class))`).test(path);
+  return method === "GET" || new RegExp(`^/(?:attendance|teacher/|diaries(?:/|$)|photos(?:/|$)|videos(?:/|$)|parent-requests(?:/|$)|v1/teacher-diary/generate$|students/${id}/(?:change-status|move-class|remove-from-class))`).test(path);
 }
 export function officeConfirmation(path: string, method: string, body?: string | FormData): string | null {
   let action = "";

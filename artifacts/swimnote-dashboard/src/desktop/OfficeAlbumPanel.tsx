@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client";
 import { isAllowedOfficeImage } from "../../desktop/office-access.cts";
+import { OfficeVideoAlbum } from "./OfficeVideoAlbum";
 import { ContractError, Blocked, QState, arr, classIdsOf, errMsg, rec, type ClassGroup, type Student } from "./OfficeAppShared";
 
 export type PhotoMeta = { id: string; album_type: string; class_id: string | null; student_id?: string | null; uploaded_by_name: string | null; caption: string | null; created_at: string; class_name: string | null; presigned_url?: string };
@@ -17,7 +18,7 @@ export function Thumb({ url }: { url?: string }) {
   return <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 4 }} />;
 }
 
-export function AlbumPanel() {
+function PhotoAlbumPanel() {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -90,5 +91,14 @@ export function AlbumPanel() {
         {rows.map((p) => <tr key={p.id}><td><Thumb url={p.presigned_url} /></td><td>{p.created_at?.slice(0, 10) ?? "-"}</td><td>{p.class_name ?? "-"}</td><td>{p.uploaded_by_name ?? "-"}</td><td>{p.caption ?? "-"}</td>
           <td><button disabled={del.isPending} onClick={() => { if (window.confirm("이 사진을 삭제합니다. 되돌릴 수 없습니다. 삭제할까요?")) del.mutate(p.id); }}>삭제</button></td></tr>)}</tbody></table></div>)}
     <Blocked>사진은 서버가 발급한 임시 주소로 허용된 출처에서만 표시하며 주소는 노출하지 않습니다. 파일당 8MB, 한 번에 최대 100장입니다. 선생님은 담당 반만, 본인이 올린 사진만 삭제할 수 있습니다(서버 규칙).</Blocked>
+  </>;
+}
+export function AlbumPanel() {
+  const [media, setMedia] = useState("photos");
+  return <>
+    <div className="oap-row"><button aria-pressed={media === "photos"} onClick={() => setMedia("photos")}>사진</button>
+      <button aria-pressed={media === "videos"} onClick={() => setMedia("videos")}>영상</button></div>
+    <div hidden={media !== "photos"}><PhotoAlbumPanel /></div>
+    <div hidden={media !== "videos"}><OfficeVideoAlbum /></div>
   </>;
 }

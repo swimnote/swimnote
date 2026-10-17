@@ -1,0 +1,102 @@
+--- a/artifacts/api-server/src/routes/admin.ts
++++ b/artifacts/api-server/src/routes/admin.ts
+@@ -1,4 +1,5 @@
+ import { Router, RequestHandler } from "express";
++import { checkOfficeMakeupScope } from "../lib/office-makeup-scope.js";
+ import * as XLSX from "xlsx";
+ import { db, superAdminDb } from "@workspace/db";
+ import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
+@@ -1933,8 +1934,34 @@
+   }
+ );
+ 
++const requireOfficeMakeupScope: RequestHandler = async (request, res, next) => {
++  const req = request as AuthRequest;
++  try {
++    const result = await checkOfficeMakeupScope({
++      role: req.user!.role, poolId: await getAdminPoolId(req), makeupId: req.params.id,
++      classId: req.body?.class_group_id, teacherId: req.body?.substitute_teacher_id,
++      allowExpired: req.body?.allow_expired,
++    }, {
++      makeupAndStudentInPool: async (id, pool) => (await db.execute(sql`
++        SELECT m.id FROM makeup_sessions m JOIN students s ON s.id = m.student_id
++        WHERE m.id = ${id} AND m.swimming_pool_id = ${pool} AND s.swimming_pool_id = ${pool} LIMIT 1
++      `)).rows.length > 0,
++      classAndTeacherInPool: async (id, pool) => (await db.execute(sql`
++        SELECT cg.id FROM class_groups cg WHERE cg.id = ${id} AND cg.swimming_pool_id = ${pool}
++          AND (cg.teacher_user_id IS NULL OR EXISTS (SELECT 1 FROM users u
++            WHERE u.id = cg.teacher_user_id AND u.swimming_pool_id = ${pool} AND u.role IN ('teacher', 'pool_admin'))) LIMIT 1
++      `)).rows.length > 0,
++      teacherInPool: async (id, pool) => (await db.execute(sql`
++        SELECT id FROM users WHERE id = ${id} AND swimming_pool_id = ${pool} AND role IN ('teacher', 'pool_admin') LIMIT 1
++      `)).rows.length > 0,
++    });
++    if (!result.ok) { res.status(result.status).json({ error: result.error }); return; }
++    next();
++  } catch { res.status(503).json({ error: '보강 범위 확인 실패. 변경 요청은 실행하지 않았습니다.' }); }
++};
++
+ // PATCH /admin/makeups/:id/assign — 담당선생님 보강 반 배정
+-router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin"),
++router.patch("/makeups/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"), requireOfficeMakeupScope,
+   async (req: AuthRequest, res) => {
+     try {
+       const poolId = await getAdminPoolId(req);
+@@ -2056,7 +2083,7 @@
+ );
+ 
+ // PATCH /admin/makeups/:id/complete — 보강 완료 처리
+-router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin"),
++router.patch("/makeups/:id/complete", requireAuth, requireRole("super_admin", "pool_admin"), requireOfficeMakeupScope,
+   async (req: AuthRequest, res) => {
+     try {
+       const poolId = await getAdminPoolId(req);
+@@ -2112,7 +2139,7 @@
+ );
+ 
+ // PATCH /admin/makeups/:id/revert — 보강 대기로 되돌리기 (잘못 배정 시 원복)
+-router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin"),
++router.patch("/makeups/:id/revert", requireAuth, requireRole("super_admin", "pool_admin"), requireOfficeMakeupScope,
+   async (req: AuthRequest, res) => {
+     try {
+       const poolId = await getAdminPoolId(req);
+@@ -2156,7 +2183,7 @@
+ );
+ 
+ // PATCH /admin/makeups/:id/cancel — 보강 취소
+-router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin"),
++router.patch("/makeups/:id/cancel", requireAuth, requireRole("super_admin", "pool_admin"), requireOfficeMakeupScope,
+   async (req: AuthRequest, res) => {
+     try {
+       const poolId = await getAdminPoolId(req);
+@@ -2240,7 +2267,7 @@
+ );
+ 
+ // POST /admin/makeups/:id/extinguish — 결석소멸 (사유 포함)
+-router.post("/makeups/:id/extinguish", requireAuth, requireRole("super_admin"),
++router.post("/makeups/:id/extinguish", requireAuth, requireRole("super_admin", "pool_admin"), requireOfficeMakeupScope,
+   async (req: AuthRequest, res) => {
+     try {
+       const poolId = await getAdminPoolId(req);
+--- /dev/null
++++ b/artifacts/api-server/src/lib/office-makeup-scope.ts
+@@ -0,0 +1,19 @@
++/** Proposed server guard. Not imported by the running API; copied into the unapplied patch. */
++export type MakeupScopeInput = { role: string; poolId: string | null; makeupId: unknown; classId?: unknown; teacherId?: unknown; allowExpired?: unknown };
++export type MakeupScopeReads = {
++  makeupAndStudentInPool: (id: string, pool: string) => Promise<boolean>;
++  classAndTeacherInPool: (id: string, pool: string) => Promise<boolean>;
++  teacherInPool: (id: string, pool: string) => Promise<boolean>;
++};
++const id = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(value);
++export async function checkOfficeMakeupScope(input: MakeupScopeInput, reads: MakeupScopeReads): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
++  // Existing super_admin behavior is deliberately unchanged; routes retain requireAuth/requireRole.
++  if (input.role === "super_admin") return { ok: true };
++  if (input.role !== "pool_admin" || !input.poolId) return { ok: false, status: 403, error: "수영장 관리자 권한 필요" };
++  if (!id(input.makeupId) || input.classId != null && !id(input.classId) || input.teacherId != null && !id(input.teacherId) ||
++    input.allowExpired !== undefined && typeof input.allowExpired !== "boolean") return { ok: false, status: 400, error: "보강 대상/값 형식 오류" };
++  if (!await reads.makeupAndStudentInPool(input.makeupId, input.poolId)) return { ok: false, status: 404, error: "수영장 내 보강·학생 없음" };
++  if (input.classId != null && !await reads.classAndTeacherInPool(input.classId as string, input.poolId)) return { ok: false, status: 403, error: "같은 수영장의 반·담당선생님만 지정 가능" };
++  if (input.teacherId != null && !await reads.teacherInPool(input.teacherId as string, input.poolId)) return { ok: false, status: 403, error: "같은 수영장의 선생님만 지정 가능" };
++  return { ok: true };
++}

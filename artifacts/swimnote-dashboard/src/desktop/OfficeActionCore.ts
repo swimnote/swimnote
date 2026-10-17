@@ -5,7 +5,7 @@ import { OFFICE_MEMBER_TABS, type OfficeMemberTab } from "./OfficeNavigation";
 import type { OfficeStage3Transport, OfficeWriteReceipt } from "./office-stage3-transport";
 import { officePage, isOfficeApiRequest, officeRoleRequest, officePageAllowed, officeConfirmation } from "../../desktop/office-access.cts";
 
-export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search" | "office.member.update" | "office.member.move" | "office.page.open" | "office.operation.execute";
+export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search" | "office.member.update" | "office.member.move" | "office.page.open" | "office.operation.execute" | "office.diary.delete";
 export type ActionOrigin = "menu" | "shortcut" | "result" | "structured";
 export type ActionActor = { userId: string; poolId: string; role: string };
 export type ActionOutcome =
@@ -14,6 +14,7 @@ export type ActionOutcome =
   | { status: "cancelled"; message: string }
   | { status: "unknown"; message: string };
 export const OFFICE_ACTIONS = Object.freeze({
+  "office.diary.delete": { purpose: "기존 일지 조회·작성자 검증·대상 확인 후 삭제", kind: "mutation", permission: "existing-role", confirmation: "required", input: "{diaryId}", queries: ["diary"], invalidates: ["diaries"] },
   "office.page.open": { purpose: "기존 PC 업무 화면 열기", kind: "open", permission: "pool_admin", confirmation: "none", input: "{path}", queries: [], invalidates: [] },
   "office.operation.execute": { purpose: "기존 화면의 허용된 일반 API 실행", kind: "mutation", permission: "pool_admin", confirmation: "existing-ui", input: "{path,method,body?}", queries: [], invalidates: [] },
   "office.home.open": { purpose: "홈 현황 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{}", queries: ["dashboard-stats"], invalidates: [] },
@@ -38,7 +39,8 @@ export type ActionDependencies = {
   changed?: () => Promise<void>;
   existingApi?: (path: string, method: string, body?: string | FormData) => Promise<unknown>;
   confirmExisting?: (message: string) => boolean | Promise<boolean>;
-  changedExisting?: (path: string) => Promise<void>;
+  changedExisting?: (path: string, method: string) => Promise<void>;
+  readDiary?: (id: string) => Promise<unknown>;
 };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const own = (v: object, key: string) => Object.prototype.hasOwnProperty.call(v, key);
@@ -47,6 +49,7 @@ const failed = (code: Extract<ActionOutcome, { status: "failed" }>["code"], mess
 const cancelled = (): ActionOutcome => ({ status: "cancelled", message: "이전 요청 또는 세션을 취소했습니다." });
 function inputFor(action: ActionId, input: unknown): Record<string, any> | null {
   if (!object(input)) return null;
+  if (action === "office.diary.delete") return Object.keys(input).length === 1 && id(input.diaryId) ? input : null;
   if (action === "office.page.open") return Object.keys(input).length === 1 &&
     typeof input.path === "string" && officePage(input.path) ? input : null;
   if (action === "office.operation.execute") return Object.keys(input).every(k => ["path", "method", "body"].includes(k)) &&
@@ -113,6 +116,7 @@ export class OfficeActionCore {
       return Promise.resolve(failed("unsupported", "현재 지원하지 않는 Action입니다."));
     const action = request.action as ActionId, input = inputFor(action, request.input);
     if (!input) return Promise.resolve(failed("input", "Action 입력 형식이 올바르지 않습니다."));
+    if (action === "office.diary.delete") return this.execute({ action: "office.operation.execute", input: { path: `/diaries/${input.diaryId}`, method: "DELETE" } }, origin);
     if (action === "office.page.open" && !officePageAllowed(input.path, this.deps.actor.role) ||
       action === "office.operation.execute" && !officeRoleRequest(input.path, input.method, this.deps.actor.role) ||
       ["office.member.update", "office.member.move"].includes(action) && this.deps.actor.role !== "pool_admin")
@@ -141,7 +145,17 @@ export class OfficeActionCore {
         if (!this.current() || !this.deps.existingApi) return cancelled();
         let responded = false, attempted = false;
         try {
-          const message = officeConfirmation(input.path, input.method, input.body);
+          let message = officeConfirmation(input.path, input.method, input.body);
+          if (input.method === "DELETE" && /^\/diaries\/[A-Za-z0-9_-]{1,160}$/.test(input.path)) {
+            const diaryId = input.path.slice("/diaries/".length);
+            const diary = await this.deps.readDiary?.(diaryId);
+            if (!this.current()) return cancelled();
+            if (!object(diary) || diary.id !== diaryId || typeof diary.lesson_date !== "string" || typeof diary.class_group_id !== "string")
+              throw { status: 403, message: "삭제 대상 일지의 반·수업일을 확인하지 못했습니다. 삭제 요청 없음." };
+            if (this.deps.actor.role === "teacher" && diary.teacher_id !== this.deps.actor.userId)
+              throw { status: 403, message: "본인이 작성한 일지만 삭제할 수 있습니다. 삭제 요청 없음." };
+            message = `${diary.lesson_date} · ${typeof diary.class_name === "string" ? diary.class_name : diary.class_group_id} · ${diaryId} 일지를 삭제합니다. 기존 서버의 삭제·이력·미디어 정책이 적용됩니다. 삭제하시겠습니까?`;
+          }
           if (message && !(await this.deps.confirmExisting?.(message))) {
             this.tasks.set(taskId, { ...task, status: "cancelled", summary: "사용자가 실제 처리를 승인하지 않았습니다. 서버 요청 없음." });
             return cancelled();
@@ -154,9 +168,11 @@ export class OfficeActionCore {
             object(data.data) && data.data.success === false))
             throw { status: 200, message: String(data.message ?? data.error ?? "서버가 실패 결과를 반환했습니다.") };
           if (!this.current()) return cancelled();
-          await this.deps.changedExisting?.(input.path);
+          await this.deps.changedExisting?.(input.path, input.method);
           if (!this.current()) return cancelled();
-          const partial = /^\/photos\/(?:diary|note)-attach$/.test(input.path) && object(data) && typeof data.failed === "number" && data.failed > 0;
+          const partial = /^\/photos\/(?:diary|note)-attach$/.test(input.path) && object(data) && typeof data.failed === "number" && data.failed > 0 ||
+            /^\/videos\/(?:diary|note)-attach$/.test(input.path) && object(data) && typeof input.body === "string" &&
+            (!Array.isArray(JSON.parse(input.body).video_ids) || data.updated !== JSON.parse(input.body).video_ids.length);
           this.tasks.set(taskId, { ...task, status: partial ? "partial" : "completed",
             summary: partial ? "일부 미디어 연결에 실패했습니다. 저장된 일지와 개별 첨부 결과를 확인하세요." : "기존 API 응답 수신 · 해당 화면의 처리 결과를 확인하세요.",
             completedAt: this.now(), results: [{ id: taskId + ":result", label: "처리한 업무 화면", target, kind: "screen", storage: "not_stored" }] });
@@ -318,11 +334,16 @@ export class OfficeActionCore {
       if (outcome.status === "success" && outcome.filters) this.taskFilters.set(taskId, { ...outcome.filters });
       const completed: OfficeTask = outcome.status === "success" ? {
         ...task, status: "completed", completedAt: this.now(),
-        summary: outcome.kind === "query" ? `조회 성공 · ${outcome.count ?? 0}명 · 업무 데이터 변경 없음` : "화면 열기 성공 · 업무 데이터 변경 없음",
+        summary: outcome.kind === "query" ? `조회 성공 · ${outcome.count ?? 0}명 · 업무 데이터 변경 없음` : outcome.kind === "mutation" ? "사용자 확인 후 실제 변경 API 응답 수신 · 해당 목록에서 처리 결과를 확인하세요." : "화면 열기 성공 · 업무 데이터 변경 없음",
         results: [{ id: taskId + ":result", label: outcome.kind === "query" ? "회원 조회" : "업무 화면", target: outcome.destination,
           kind: outcome.kind === "query" ? "table" : "screen", storage: "not_stored" }],
       } : { ...task, status: outcome.status === "failed" ? "failed" : outcome.status === "cancelled" ? "cancelled" : "unknown",
         summary: outcome.message, failureReason: outcome.message };
+      this.tasks.set(taskId, completed); return structuredClone(completed);
+    }).catch(error => {
+      if (!this.current()) return null;
+      const message = typeof error?.message === "string" ? error.message : "실행 결과를 확인하지 못했습니다. 중복 실행하지 마세요.";
+      const completed: OfficeTask = { ...task, status: /저장 결과를 확인할 수 없습니다|결과 불명/.test(message) ? "unknown" : "failed", summary: message, failureReason: message };
       this.tasks.set(taskId, completed); return structuredClone(completed);
     }).finally(() => this.structured.delete(key));
     this.structured.set(key, promise);

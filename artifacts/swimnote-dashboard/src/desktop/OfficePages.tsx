@@ -19,6 +19,7 @@ import RevenuePage from "../pages/revenue/RevenuePage";
 import SettingsPage from "../pages/settings/SettingsPage";
 import { OfficeAppPage, OfficeTeacherHome, OfficeCurriculumReview, OfficeTeacherDiaryFeed, OfficeDiaryComposer } from "./OfficeAppPages";
 import { officePageAllowed } from "../../desktop/office-access.cts";
+import { OfficeTeacherGrowthReports } from "./OfficeTeacherGrowthReports";
 
 const webPages = [
   ["/admin/members/new", NewMemberPage], ["/admin/members/bulk", BulkMembersPage],
@@ -42,7 +43,7 @@ export const officePageRoutes = (role: "pool_admin" | "teacher" = "pool_admin", 
   ...(role === "pool_admin" ? [<Route key="curriculum-review" path="/admin/curriculum/review"><OfficeCurriculumReview /></Route>] : []),
   ...(role === "teacher" ? [
     <Route key="teacher-diary" path="/admin/diary"><OfficeTeacherDiaryFeed /></Route>,
-    ...["pending", "published"].map(kind => <Route key={`teacher-growth-${kind}`} path={`/admin/growth-reports/${kind}`}><OfficeAppPage kind="teacher-growth-reports" role={role} /></Route>),
+    ...["pending", "published"].map(kind => <Route key={`teacher-growth-${kind}`} path={`/admin/growth-reports/${kind}`}><OfficeTeacherGrowthReports publishedOnly={kind === "published"} /></Route>),
     <Route key="teacher-schedule" path="/admin/schedule"><OfficeTeacherHome onNavigate={navigate ? kind => navigate(kind === "makeup-assignment" ? "/admin/makeups/assign" : `/admin/${kind}`) : undefined} /></Route>,
     <Route key="teacher-makeups" path="/admin/makeups"><OfficeAppPage kind="makeup-assignment" role={role} /></Route>,
   ] : []),

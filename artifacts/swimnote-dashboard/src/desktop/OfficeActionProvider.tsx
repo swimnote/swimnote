@@ -9,7 +9,7 @@ import { OfficeActionContext } from "./OfficeActionContext";
 import { useOfficeNavigation } from "./OfficeNavigation";
 import { productionStage3Transport, type OfficeStage3Transport } from "./office-stage3-transport";
 import type { OfficeTask } from "./OfficeTaskContract";
-import { performOfficeOperation } from "../lib/api-client";
+import { api, performOfficeOperation } from "../lib/api-client";
 import { registerOfficeOperations } from "./office-operation";
 import { OFFICE_PAGES } from "../../desktop/office-access.cts";
 
@@ -67,20 +67,24 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     });
     const core = new OfficeActionCore({
       existingApi: performOfficeOperation,
+      readDiary: id => api.get<unknown>(`/diaries/${encodeURIComponent(id)}`),
       confirmExisting: message => window.confirm(message),
-      changedExisting: async path => {
+      changedExisting: async (path, method) => {
         const keys = path.includes("attendance") ? ["oap", "attendance", "makeups", "admin-makeups"] :
           path.includes("makeups") ? ["oap", "makeups", "admin-makeups"] :
           path.includes("diary-template") ? ["diary-template-levels", "diary-templates"] :
           path.includes("diaries") ? ["oap", "diaries", "admin-diaries", "diaries-admin", "diary-detail"] :
           path.includes("growth-reports") ? ["oap", "growth-reports-list", "gr-monthly-list", "growth-reports"] :
           path.includes("teacher-invites") ? ["teacher-invites", "teachers", "oap"] :
+          path.includes("videos") ? ["oap", "diaries", "diary-detail"] :
           path.includes("photos") || path.includes("notices") || path.includes("parent-requests") ? ["oap", "photos", "notices", "parent-requests"] :
           path.includes("curriculum") ? ["curriculum-levels", "curriculum-versions", "curriculum-nodes", "curriculum-facets"] :
           path.includes("homepage") ? ["homepage-settings"] :
           path.includes("settlement") ? ["settlement-admin-overview", "settlement-admin-teacher-detail"] :
           ["oap", "students", "class-groups", "dashboard-stats"];
-        await Promise.all(keys.map(key => qc.invalidateQueries({ queryKey: [key] }, { throwOnError: true })));
+        const deletedId = method === "DELETE" ? path.split("/").pop() : undefined;
+        await Promise.all(keys.map(key => qc.invalidateQueries({ queryKey: [key],
+          predicate: query => !deletedId || !query.queryKey.includes(deletedId) }, { throwOnError: true })));
       },
       stage3,
       changed: async () => {
@@ -124,6 +128,14 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     const publish = () => { if (isCurrent()) setTasks([...proposals.values()].map(p => p.task).concat(core.getTasks())); };
     const interpret = async (text: string) => {
       if (!isCurrent()) return;
+      const deleteDiary = /^일지\s+([A-Za-z0-9_-]{1,160})\s+삭제(?:해줘|해주세요)?[.!]?$/u.exec(text.trim());
+      if (deleteDiary) {
+        await core.runStructured({ action: "office.diary.delete", input: { diaryId: deleteDiary[1] } });
+        publish(); return;
+      }
+      if (/일지.*삭제|영상.*(?:업로드|전송)|선택한.*파일/.test(text)) {
+        setNotice("자연어 대상 추측·파일 자동 선택은 지원하지 않습니다. 일지 삭제는 '일지 ID 삭제'로 명시한 뒤 실제 반·수업일 확인이 필요합니다. 영상은 화면에서 파일·반·회원을 선택해 전송하세요."); return;
+      }
       const normalized = (v: string) => v.replace(/열어주세요|보여주세요|열어줘|보여줘|열기|화면|메뉴|[·\s]/g, "");
       const page = OFFICE_PAGES.find(p => normalized(p[1]) === normalized(text));
       if (page) { await core.runStructured({ action: "office.page.open", input: { path: page[0] } }); publish(); return; }

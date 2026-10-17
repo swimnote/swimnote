@@ -41,6 +41,7 @@ export const CONTENT_SECURITY_POLICY = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: ${AUTH_API_ORIGIN} https://*.r2.cloudflarestorage.com https://*.r2.dev`,
+  `media-src ${AUTH_API_ORIGIN} https://*.r2.cloudflarestorage.com https://*.r2.dev`,
   "font-src 'self'",
   `connect-src ${AUTH_API_ORIGIN}`,
   "object-src 'none'",

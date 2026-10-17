@@ -1,4 +1,6 @@
 import { StudentNoteEditor } from "./StudentNoteEditor";
+import { useOfficeActions } from "../../desktop/OfficeActionContext";
+import { OfficeDiaryVideos } from "../../desktop/OfficeDiaryVideos";
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -84,6 +86,7 @@ function errMsg(e: unknown): string {
 
 function DiaryDetailDrawer({ diaryId, onClose }: { diaryId: string; onClose: () => void; }) {
   const qc = useQueryClient();
+  const office = useOfficeActions();
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editError, setEditError] = useState("");
@@ -182,6 +185,7 @@ function DiaryDetailDrawer({ diaryId, onClose }: { diaryId: string; onClose: () 
                   </div>
                 )}
 
+                {office && detail.class_group_id && <OfficeDiaryVideos diaryId={diaryId} classId={detail.class_group_id} notes={detail.student_notes} />}
                 {(() => {
                   // photos + videos merge-sorted by sort_order ASC (null→last), created_at ASC tie-break
                   const photos: MediaItem[] = (detail.photos ?? []).map(p => ({ ...p, kind: "photo" as const }));
