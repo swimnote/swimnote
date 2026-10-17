@@ -532,6 +532,7 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
   const guardedWeb = !!student.office_stage3_enabled && !!student.office_revision && !assignmentChanged &&
     form.parent_phone === (student.parent_phone ?? "");
   const guardedRequest = useRef(newOfficeRequestId());
+  const issuedRequest = useRef<string | null>(null);
   const [unknownSave, setUnknownSave] = useState(false);
   const ordinaryChanges = Object.fromEntries(Object.entries({
     name: form.name.trim(), birth_year: form.birth_year, parent_name: form.parent_name, memo: form.memo,
@@ -549,7 +550,8 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
   };
   const confirmGuardedStatus = async () => {
     try {
-      const receipt = await api.get<OfficeWriteReceipt>(`/office/commands/${guardedRequest.current}`);
+      if (!issuedRequest.current) throw new Error("Issuance response not confirmed; no execution ID");
+      const receipt = await api.get<OfficeWriteReceipt>(`/office/commands/${issuedRequest.current}`);
       if (receipt.memberId !== student.id) throw new Error("Wrong receipt");
       await readBack(receipt); onSaved();
     } catch { setError("결과가 아직 확인되지 않았습니다. 같은 변경을 재실행하지 마세요."); }
@@ -560,11 +562,16 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
       if (guardedWeb || guardedMove) {
         if (unknownSave) throw { status: 409, message: "이전 요청 결과가 불명입니다. 재전송하지 마세요." };
         if (guardedMove || Object.keys(ordinaryChanges).length) {
-          const receipt = await api.post<OfficeWriteReceipt>("/office/command", {
+          const command = {
             action: guardedMove ? "move" : "update", memberId: student.id, requestId: guardedRequest.current,
             expectedRevision: student.office_revision,
             ...(guardedMove ? { fromClassId: removedIds[0], toClassId: addedIds[0] } : { changes: ordinaryChanges }),
-          });
+          };
+          if (!issuedRequest.current) {
+            const issued = await api.post<{ requestId: string }>("/office/requests", command);
+            issuedRequest.current = issued.requestId;
+          }
+          const receipt = await api.post<OfficeWriteReceipt>("/office/command", { ...command, requestId: issuedRequest.current });
           await readBack(receipt);
         }
         return;
@@ -585,7 +592,7 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
     onError: (e: ApiError) => {
       if ((guardedWeb || guardedMove) && (!e.status || e.status >= 500 || e.status === 410)) {
         setUnknownSave(true); setError("결과 불명입니다. 같은 변경을 재전송하지 말고 요청 상태를 확인하세요.");
-      } else { guardedRequest.current = newOfficeRequestId(); setError(e.message ?? "저장 중 오류가 발생했습니다."); }
+      } else { issuedRequest.current = null; guardedRequest.current = newOfficeRequestId(); setError(e.message ?? "저장 중 오류가 발생했습니다."); }
     },
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["students"] });

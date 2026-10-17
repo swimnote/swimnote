@@ -23,13 +23,10 @@ const record = (x: unknown): x is Record<string, unknown> => !!x && typeof x ===
 const bad = (code: string, message: string, status = 400): never => { throw new OfficeError(status, code, message); };
 export const OFFICE_EDIT_FIELDS = ["name", "phone", "birth_date", "birth_year", "parent_name", "memo"] as const;
 export const OFFICE_RECONFIRM_MS = 24 * 60 * 60 * 1000;
-/** Timestamp is a protocol deadline, not authorization or a permanently durable dedup key. */
-export function assertOfficeRequestWindow(requestId: string, now = Date.now()) {
-  const match = /^oc1_(\d{13})_[A-Za-z0-9_-]{1,110}$/.exec(requestId);
-  if (!match) return bad("REQUEST_VERSION", "현재 OFFICE 요청 형식이 필요합니다.");
-  const age = now - Number(match[1]);
-  if (age < -30_000 || age > OFFICE_RECONFIRM_MS)
-    return bad("REQUEST_EXPIRED", "24시간 재확인 기한이 지났거나 요청 시각이 잘못되었습니다. 자동 재실행하지 말고 수동 대조하세요.", 410);
+/** Format only. Admission/retention deadlines are checked against the stored row and DB clock. */
+export function assertOfficeRequestWindow(requestId: string) {
+  if (!/^os1_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(requestId))
+    return bad("REQUEST_VERSION", "서버가 발급한 실행 요청이 필요합니다.", 410);
 }
 export function parseOfficeCommand(value: unknown): OfficeCommand {
   if (!record(value)) return bad("INPUT", "명확한 작업 입력이 필요합니다.");
@@ -72,13 +69,30 @@ const classIds = (s: any): string[] => Array.isArray(s.assigned_class_ids) && s.
 const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 export class OfficeCommandService {
   constructor(private pool: OfficePool) {}
+  /** Issuance never mutates a member. Caller IDs/timestamps never become executable IDs. */
+  async issue(actor: OfficeActor, raw: unknown): Promise<{ requestId: string }> {
+    authorize(actor);
+    const parsed = parseOfficeCommand(raw);
+    const cmd = { ...parsed, requestId: "os1_" + randomUUID() };
+    const c = await this.pool.connect();
+    try {
+      const member = (await c.query("SELECT swimming_pool_id FROM students WHERE id=$1", [cmd.memberId])).rows[0];
+      if (!member || member.swimming_pool_id !== actor.poolId) return bad("MISSING", "해당 회원이 없거나 조회 권한이 없습니다.", 404);
+      await c.query(`INSERT INTO office_command_receipts(request_id,pool_id,actor_id,member_id,request_hash,action)
+        VALUES ($1,$2,$3,$4,$5,$6)`, [cmd.requestId, actor.poolId, actor.userId, cmd.memberId, requestHash(cmd), cmd.action]);
+      return { requestId: cmd.requestId };
+    } finally { c.release(); }
+  }
   async status(actor: OfficeActor, requestId: string): Promise<OfficeReceipt | null> {
     authorize(actor); if (!id(requestId)) return bad("INPUT", "요청 식별자가 필요합니다.");
     assertOfficeRequestWindow(requestId);
     const c = await this.pool.connect();
     try {
-      const { rows } = await c.query("SELECT payload FROM pool_event_logs WHERE id=$1 AND pool_id=$2 AND actor_id=$3 AND source='office_stage3'", [receiptKey(actor, requestId), actor.poolId, actor.userId]);
-      return rows[0]?.payload?.result ?? null;
+      const { rows } = await c.query(`SELECT result, clock_timestamp() < confirm_before AS current
+        FROM office_command_receipts WHERE request_id=$1 AND pool_id=$2 AND actor_id=$3`,
+        [requestId, actor.poolId, actor.userId]);
+      if (rows[0] && !rows[0].current) return bad("REQUEST_EXPIRED", "결과 재확인 기간이 만료되었습니다. 자동 재실행하지 마세요.", 410);
+      return rows[0]?.result ?? null;
     } finally { c.release(); }
   }
   async execute(actor: OfficeActor, raw: unknown): Promise<OfficeReceipt> {
@@ -88,14 +102,18 @@ export class OfficeCommandService {
     try {
       await c.query("BEGIN");
       await c.query("SET LOCAL lock_timeout='5s'");
-      // Scoped receipt lock precedes row locks. Same key cannot execute twice, even after response loss.
+      // Admission is a server-issued durable row, never absence-as-first-use.
       await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [key]);
       assertOfficeRequestWindow(cmd.requestId);
-      const old = (await c.query("SELECT payload FROM pool_event_logs WHERE id=$1", [key])).rows[0];
-      if (old) {
-        if (old.payload.requestHash !== hash) return bad("REQUEST_REUSED", "같은 요청 번호를 다른 변경에 사용할 수 없습니다.", 409);
-        await c.query("COMMIT"); return old.payload.result;
-      }
+      const old = (await c.query(`SELECT *, clock_timestamp() < execute_before AS executable,
+        clock_timestamp() < confirm_before AS current FROM office_command_receipts
+        WHERE request_id=$1 AND pool_id=$2 AND actor_id=$3 FOR UPDATE`,
+        [cmd.requestId, actor.poolId, actor.userId])).rows[0];
+      if (!old) return bad("REQUEST_UNCONFIRMED", "발급 기록이 없습니다. 처음 요청으로 취급하거나 재실행하지 않습니다.", 410);
+      if (old.request_hash !== hash) return bad("REQUEST_REUSED", "같은 요청 번호를 다른 변경에 사용할 수 없습니다.", 409);
+      if (!old.current) return bad("REQUEST_EXPIRED", "결과 재확인 기간이 만료되었습니다. 수동 대조가 필요합니다.", 410);
+      if (old.result) { await c.query("COMMIT"); return old.result; }
+      if (!old.executable) return bad("REQUEST_EXPIRED", "5분 실행 수락 기간이 만료되었습니다. 자동 재발급하지 마세요.", 410);
       const s = (await c.query("SELECT s.*, md5(row_to_json(s)::text) AS office_revision FROM students s WHERE id=$1 FOR UPDATE", [cmd.memberId])).rows[0];
       if (!s || s.swimming_pool_id !== actor.poolId) return bad("MISSING", "해당 회원이 없거나 조회 권한이 없습니다.", 404);
       if (s.office_revision !== cmd.expectedRevision) return bad("CONFLICT", "다른 변경이 있습니다. 입력을 보존한 채 최신 정보와 비교하세요.", 409);
@@ -148,10 +166,14 @@ export class OfficeCommandService {
       }
       const revision = (await c.query("SELECT md5(row_to_json(s)::text) AS revision FROM students s WHERE id=$1", [s.id])).rows[0].revision;
       const result: OfficeReceipt = { requestId: cmd.requestId, memberId: s.id, revision, action: cmd.action, changes, assignedClassIds: assigned };
-      // Existing PK + transaction provide durable result/audit, no new table or migration.
+      // Save minimal durable result. Before/after values are returned to the caller only.
+      const storedResult = { ...result, changes: [] };
+      await c.query(`UPDATE office_command_receipts SET result=$2::jsonb,completed_at=clock_timestamp()
+        WHERE request_id=$1`, [cmd.requestId, JSON.stringify(storedResult)]);
       await c.query(`INSERT INTO pool_event_logs (id,pool_id,event_type,entity_type,entity_id,actor_id,payload,source)
         VALUES ($1,$2,$3,'student',$4,$5,$6::jsonb,'office_stage3')`,
-        [key, actor.poolId, "member_" + cmd.action, s.id, actor.userId, JSON.stringify({ requestHash: hash, result })]);
+        [key, actor.poolId, "member_" + cmd.action, s.id, actor.userId,
+          JSON.stringify({ requestId: cmd.requestId, action: cmd.action, fields: changes.map(x => x.field) })]);
       await c.query("COMMIT"); return result;
     } catch (e) {
       await c.query("ROLLBACK").catch(() => {});

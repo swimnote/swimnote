@@ -38,6 +38,8 @@ import type {
   OfficeCommandReceipt,
   OfficeInterpretInput,
   OfficeInterpretation,
+  OfficeRequestAdmission,
+  OfficeRequestInput,
   Pool,
   RegisterRequest,
   RejectRequest,
@@ -49,11 +51,93 @@ import type {
 import { customFetch } from "../custom-fetch";
 import type { ErrorType, BodyType } from "../custom-fetch";
 
-type AwaitedInput<T> = PromiseLike<T> | T;
-
-type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
-
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Issue server-owned admission ID without changing a member; no automatic reissue
+ */
+export const getOfficeIssueRequestUrl = () => {
+  return `/api/office/requests`;
+};
+
+export const officeIssueRequest = async (
+  officeRequestInput: OfficeRequestInput,
+  options?: RequestInit,
+): Promise<OfficeRequestAdmission> => {
+  return customFetch<OfficeRequestAdmission>(getOfficeIssueRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(officeRequestInput),
+  });
+};
+
+export const getOfficeIssueRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof officeIssueRequest>>,
+    TError,
+    { data: BodyType<OfficeRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof officeIssueRequest>>,
+  TError,
+  { data: BodyType<OfficeRequestInput> },
+  TContext
+> => {
+  const mutationKey = ["officeIssueRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof officeIssueRequest>>,
+    { data: BodyType<OfficeRequestInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return officeIssueRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OfficeIssueRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof officeIssueRequest>>
+>;
+export type OfficeIssueRequestMutationBody = BodyType<OfficeRequestInput>;
+export type OfficeIssueRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Issue server-owned admission ID without changing a member; no automatic reissue
+ */
+export const useOfficeIssueRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof officeIssueRequest>>,
+    TError,
+    { data: BodyType<OfficeRequestInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof officeIssueRequest>>,
+  TError,
+  { data: BodyType<OfficeRequestInput> },
+  TContext
+> => {
+  return useMutation(getOfficeIssueRequestMutationOptions(options));
+};
 
 /**
  * @summary Gated OFFICE ordinary edit or single-membership move
@@ -142,7 +226,7 @@ export const useOfficeExecuteCommand = <
 };
 
 /**
- * @summary Read this authenticated actor's committed request, never retry mutation
+ * @summary Currently authorized actor and Pool receipt; independent of execution and AI gates
  */
 export const getOfficeGetCommandReceiptUrl = (requestId: string) => {
   return `/api/office/commands/${requestId}`;
@@ -207,7 +291,7 @@ export type OfficeGetCommandReceiptQueryResult = NonNullable<
 export type OfficeGetCommandReceiptQueryError = ErrorType<void>;
 
 /**
- * @summary Read this authenticated actor's committed request, never retry mutation
+ * @summary Currently authorized actor and Pool receipt; independent of execution and AI gates
  */
 
 export function useOfficeGetCommandReceipt<

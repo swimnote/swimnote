@@ -8,10 +8,101 @@
 import * as zod from "zod";
 
 /**
+ * @summary Issue server-owned admission ID without changing a member; no automatic reissue
+ */
+export const officeIssueRequestBodyOneRequestIdRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{1,160}$",
+);
+export const officeIssueRequestBodyOneMemberIdRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{1,160}$",
+);
+export const officeIssueRequestBodyOneExpectedRevisionRegExp = new RegExp(
+  "^[a-f0-9]{32}$",
+);
+export const officeIssueRequestBodyOneChangesNameMax = 120;
+
+export const officeIssueRequestBodyOneChangesPhoneMax = 30;
+
+export const officeIssueRequestBodyOneChangesBirthDateMax = 10;
+
+export const officeIssueRequestBodyOneChangesBirthYearMax = 4;
+
+export const officeIssueRequestBodyOneChangesParentNameMax = 120;
+
+export const officeIssueRequestBodyOneChangesMemoMax = 8000;
+
+export const officeIssueRequestBodyTwoRequestIdRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{1,160}$",
+);
+
+export const OfficeIssueRequestBody = zod
+  .object({
+    action: zod.enum(["update", "move"]),
+    requestId: zod
+      .string()
+      .regex(officeIssueRequestBodyOneRequestIdRegExp)
+      .describe(
+        "Execution requires an existing server-issued os1_UUID record. For issuance only, this value is nonauthoritative UI correlation. Missing records never admit execution. Never automatically reissue an unknown operation.",
+      ),
+    memberId: zod.string().regex(officeIssueRequestBodyOneMemberIdRegExp),
+    expectedRevision: zod
+      .string()
+      .regex(officeIssueRequestBodyOneExpectedRevisionRegExp),
+    changes: zod
+      .object({
+        name: zod
+          .string()
+          .min(1)
+          .max(officeIssueRequestBodyOneChangesNameMax)
+          .optional(),
+        phone: zod
+          .string()
+          .max(officeIssueRequestBodyOneChangesPhoneMax)
+          .optional(),
+        birth_date: zod
+          .string()
+          .max(officeIssueRequestBodyOneChangesBirthDateMax)
+          .optional(),
+        birth_year: zod
+          .string()
+          .max(officeIssueRequestBodyOneChangesBirthYearMax)
+          .optional(),
+        parent_name: zod
+          .string()
+          .max(officeIssueRequestBodyOneChangesParentNameMax)
+          .optional(),
+        memo: zod
+          .string()
+          .max(officeIssueRequestBodyOneChangesMemoMax)
+          .optional(),
+      })
+      .optional(),
+    fromClassId: zod.string().optional(),
+    toClassId: zod.string().optional(),
+  })
+  .and(
+    zod.object({
+      requestId: zod
+        .string()
+        .regex(officeIssueRequestBodyTwoRequestIdRegExp)
+        .optional()
+        .describe("UI correlation only; never an authoritative execution ID."),
+    }),
+  );
+
+export const officeIssueRequestResponseRequestIdRegExp = new RegExp(
+  "^os1_[0-9a-f-]{36}$",
+);
+
+export const OfficeIssueRequestResponse = zod.object({
+  requestId: zod.string().regex(officeIssueRequestResponseRequestIdRegExp),
+});
+
+/**
  * @summary Gated OFFICE ordinary edit or single-membership move
  */
 export const officeExecuteCommandBodyRequestIdRegExp = new RegExp(
-  "^oc1_[0-9]{13}_[A-Za-z0-9_-]{1,110}$",
+  "^[A-Za-z0-9_-]{1,160}$",
 );
 export const officeExecuteCommandBodyMemberIdRegExp = new RegExp(
   "^[A-Za-z0-9_-]{1,160}$",
@@ -37,7 +128,7 @@ export const OfficeExecuteCommandBody = zod.object({
     .string()
     .regex(officeExecuteCommandBodyRequestIdRegExp)
     .describe(
-      "24-hour request\/reconfirmation window; receipt retention must be verified before activation. Never automatically reissue an unknown operation.",
+      "Execution requires an existing server-issued os1_UUID record. For issuance only, this value is nonauthoritative UI correlation. Missing records never admit execution. Never automatically reissue an unknown operation.",
     ),
   memberId: zod.string().regex(officeExecuteCommandBodyMemberIdRegExp),
   expectedRevision: zod
@@ -89,7 +180,7 @@ export const OfficeExecuteCommandResponse = zod.object({
 });
 
 /**
- * @summary Read this authenticated actor's committed request, never retry mutation
+ * @summary Currently authorized actor and Pool receipt; independent of execution and AI gates
  */
 export const officeGetCommandReceiptPathRequestIdRegExp = new RegExp(
   "^[A-Za-z0-9_-]{1,160}$",

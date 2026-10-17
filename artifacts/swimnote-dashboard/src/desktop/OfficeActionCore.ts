@@ -77,7 +77,7 @@ export class OfficeActionCore {
   private structured = new Map<string, Promise<OfficeTask | null>>();
   private resultsPending = new Map<string, Promise<ActionOutcome>>();
   private now: () => number;
-  private writes = new Map<string, { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt }>();
+  private writes = new Map<string, { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt; serverRequestId?: string }>();
   canWrite() { return !!this.deps.stage3; }
   constructor(private deps: ActionDependencies) { this.now = deps.now ?? Date.now; }
   private current() { return this.active && this.deps.isCurrent(); }
@@ -158,12 +158,18 @@ export class OfficeActionCore {
       targetLabel: input.memberId, status: "running", summary: "서버 결과 확인 중", changes: [],
       preview: { targets: [input.memberId], messages: [], attachments: [] }, results: [] };
     this.tasks.set(taskId, task);
-    const entry: { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt } = { key, memberId: input.memberId };
+    const entry: { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt; serverRequestId?: string } = { key, memberId: input.memberId };
     this.writes.set(input.requestId, entry);
     let outcome: ActionOutcome;
     try {
-      const receipt = await this.deps.stage3!.write({ action: action === "office.member.move" ? "move" : "update", ...input });
-      if (receipt.memberId !== input.memberId || receipt.requestId !== input.requestId ||
+      const command = { action: action === "office.member.move" ? "move" : "update", ...input };
+      if (this.deps.stage3!.prepare) {
+        const issued = await this.deps.stage3!.prepare!(command);
+        entry.serverRequestId = issued.requestId;
+        if (!this.current() || signal.aborted) return cancelled();
+      } else if (this.deps.stage3!.mode === "server") throw new Error("Server issuance is required");
+      const receipt = await this.deps.stage3!.write({ ...command, requestId: entry.serverRequestId ?? input.requestId });
+      if (receipt.memberId !== input.memberId || receipt.requestId !== (entry.serverRequestId ?? input.requestId) ||
           receipt.action !== (action === "office.member.move" ? "move" : "update")) throw new Error("Receipt scope mismatch");
       entry.receipt = receipt;
       if (!this.current() || signal.aborted) return cancelled();
@@ -193,8 +199,9 @@ export class OfficeActionCore {
     const entry = this.writes.get(requestId);
     if (!entry || !this.deps.stage3 || !this.current()) return cancelled();
     try {
-      const receipt = await this.deps.stage3.status(requestId);
-      if (receipt.requestId !== requestId || receipt.memberId !== entry.memberId) throw new Error("Receipt scope mismatch");
+      const serverId = entry.serverRequestId ?? requestId;
+      const receipt = await this.deps.stage3.status(serverId);
+      if (receipt.requestId !== serverId || receipt.memberId !== entry.memberId) throw new Error("Receipt scope mismatch");
       if (!this.current()) return cancelled();
       const read = await this.deps.members(new AbortController().signal, true);
       if (!this.current() || read.source !== "network" || !read.data.some(s => s.id === receipt.memberId && (s as any).office_revision === receipt.revision))

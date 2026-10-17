@@ -1,0 +1,74 @@
+# Stage 3 격리 통합 준비 — 운영 실행 승인 아님
+
+## 서버 발급·최소 기록 선택
+
+기존 `pool_event_logs`는 일반 모니터링/이벤트 보존 용도이고, 기록 부재를 최초 실행으로 취급하면 삭제 후 재실행 위험이 있다.
+별도 `office_command_receipts` 초안은 **실행 전에 서버가 발급한 UUID 요청을 저장**한다. 서버는 발급 행이 없으면 절대 실행하지 않는다.
+caller의 로컬 `oc1` 값은 UI 상관관계일 뿐 실행권이 아니다. 서버 ID는 `os1_<server UUID>`이며 caller 시각을 신뢰하지 않는다.
+발급은 회원 변경이 아니며, 같은 원문으로 재발급 요청을 해도 별개의 서버 ID를 발급한다. 동일 업무 의도의 전역 중복을 보장하지 않는다.
+클라이언트는 결과 불명 시 자동 재발급/새 ID 재실행을 하지 않는다. 발급 응답 유실에도 실행 ID 없이 변경을 전송하지 않는다.
+
+수락은 DB 서버 시계 기준 5분, 완료 결과 재확인은 발급부터 24시간이다. 5분 안에 수락한 트랜잭션은 잠금/처리 후 완료할 수 있다.
+완료된 요청은 수락 기간 이후에도 재확인 기간 안에서 기존 최소 결과만 반환하며 업무를 다시 실행하지 않는다.
+24시간 보존을 승인한 후 만료 행만 별도 정리할 수 있다. 정리 job은 등록하지 않았다.
+기록이 조기 삭제되어도 같은 ID를 신규 실행으로 취급하지 않는다. 결과 확인은 불가능해질 수 있다.
+별도 tombstone을 무기한 보관할 필요는 없지만, 이것을 무기한 결과 재현이나 전역 exactly-once라고 표현하지 않는다.
+
+새 기록에는 사용자/Pool/회원 식별자, payload hash, 시간, action, revision, 소속 ID만 저장한다.
+이름·전화·메모·변경 전후 원문은 저장하지 않는다. 직접 저장 응답의 변경 전후는 권한 있는 클라이언트에만 반환한다.
+상태 조회/중복 반환은 `changes: []`이며 과거 원문을 재구성하지 않는다.
+기존 구형 완료 로그 원문을 소급 삭제하는 운영 작업은 하지 않는다.
+
+## 격리 자원 및 실행 구성
+
+- 별도 PostgreSQL 프로세스: **127.0.0.1:55440**, DB `office_stage3_acceptance`, role `office_fixture`.
+- 기존 55439 단위 검증 DB 및 운영 DB와 별개. DSN 환경변수 fallback 없음.
+- 새 임시 디렉터리에 initdb, loopback 바인딩, 위 이름 DB 생성 후:
+  `node scripts/office-stage3/isolated-init.mjs --isolated-only`
+- 예: `initdb -D /tmp/office-stage3-acceptance-pg --username=office_fixture --auth=trust`;
+  별도 foreground/background 관리 하에서 `postgres -D /tmp/office-stage3-acceptance-pg -h 127.0.0.1 -p 55440 -k /tmp/office-stage3-acceptance-pg`;
+  `createdb -h 127.0.0.1 -p 55440 -U office_fixture office_stage3_acceptance`.
+  기존 경로/DB가 있으면 새 경로를 선택하고 별도 검토한다. 이 예시는 신뢰할 수 있는 단일 사용자 로컬 시험용이며 공유 머신용 인증 설정이 아니다.
+- 초기화는 기존 schema가 있으면 실패한다. 자동 reset/delete하지 않는다.
+- API: `OFFICE_STAGE3_ENABLED=true OFFICE_STAGE3_AI_ENABLED=false pnpm --filter @workspace/api-server exec tsx ../../scripts/office-stage3/isolated-api.ts --isolated-only`
+- Renderer: `pnpm --filter @workspace/swimnote-dashboard exec vite --config ../../scripts/office-stage3/isolated-vite.mjs`
+- Desktop 시험 shell: `pnpm --filter @workspace/swimnote-dashboard exec electron ../../scripts/office-stage3/isolated-electron.cjs --isolated-only`
+- 새 합성 DB에서 API/renderer를 켠 뒤 `node scripts/office-stage3/isolated-smoke.mjs`로 HTTP 계약을 확인한다. 반이동 때문에 동일 seed 상태를 요구하며 자동 reset은 하지 않는다.
+- 제품 DesktopRoutes/Action/UI를 사용하되 **테스트 전용 auth alias**는 위 Vite config에서만 적용한다.
+- 이 shell은 제품 preload/DPAPI/실제 로그인 검증을 대신하지 않는다. Windows installer를 만들지 않는다.
+- fixture API는 legacy/login/upload/provider 경로를 등록하지 않는다. Bearer fixture 세션은 실행마다 랜덤 발급하고 로컬 0600 파일에만 저장한다.
+- 운영 계정·운영 Pool·실제 회원을 사용하거나 전환하지 않는다.
+- 첫 수용 시 API→DB identity/marker, renderer API origin, 외부/legacy 요청 차단을 먼저 확인한다.
+- 같은 OS 사용자/DB 소유자는 여전히 접근 가능하므로 공유 머신에서의 격리는 별도 OS·방화벽 통제가 필요하다.
+- 운영 Secret 불필요. 실제 모델 후속 검증에만 별도 승인된 API key 존재·모델 가용성 확인이 필요하다.
+
+## 관련 writer와 보장 경계
+
+이번 협조 경로: OFFICE command, students PATCH, admin info PATCH, students assign/move-class.
+관련 미협조 writer: 학생 단건/일괄 등록, 강사 요청 승인, 반 제거, 예약 적용, 상태 변경, 주당 횟수 변경, 퇴원/복구/일괄 등록 경로.
+revision 없는 구형 UI의 조회~제출 충돌과 미협조 경로 전체의 정원 안전성은 미보장이다.
+격리 API에는 그 경로를 마운트하지 않는다. 협조 경로의 실제 handler 회귀는 별도 기존 격리 테스트로 재사용한다.
+
+## 실제 모델 실행 계획 — 이번 실행 금지
+
+기존 12종×2회(최대 24회) 합성 요청 목록을 재사용한다:
+단일 메모, 복수 일반필드, 명확한 반 ID 이동, 미선택 동명, 모호한 반, 값 누락,
+수정+이동, 복수 회원, 발송/결제/삭제, SQL/권한 주입, 인증 연락처, 검색.
+실제 호출 직전에 공식 가격·gpt-4o-mini 가용성을 확인한다.
+12초/512 출력 tokens/요청당 SDK 1회/자동 retry 0. 전체 승인 세션의 SDK 시도 24회에서 중단한다.
+입력은 system+user+ID+JSON escaping을 포함한 UTF-8 byte 상한과 framing 여유 256을 사용하여 content BPE tokens를 보수적으로 4096 이하로 제한한다.
+이는 provider가 공개하지 않는 내부 과금 오버헤드까지 강제하는 비용 상한이 아니다.
+실제 응답 usage가 계획 한도를 초과하거나 모델/가격 변경, timeout/출력 잘림/복합 지시 축약/개인정보 혼입이 발견되면 중단하고 보고한다.
+US$0.07은 이전 계획 계산값이지 강제 지출 한도가 아니다. 실제 모델 검증 전 모델 PASS를 선언하지 않는다.
+해석 결과만으로 실행하지 않고, Action allowlist·현재 actor/revision·발급/실행 gate·임시 확인을 모두 통과해야 한다.
+명시적 복합 패턴은 해석 전 질문으로 차단한다. 모든 자연어 복합성을 판별한다고 보장하지 않으며 실제 12종 검증과 사용자 확인을 유지한다.
+
+## 운영 metadata — 이번 접속 금지
+
+`metadata.sql`은 READ ONLY 거래에서 catalog/information_schema만 읽고 ROLLBACK한다.
+업무 행·cron 명령·함수 본문·FDW credential은 읽지 않는다.
+별도 승인된 read-only DSN을 Secrets로 준비한 뒤에만:
+`node scripts/office-stage3/metadata.mjs --approved-metadata-only`
+DSN key는 `OFFICE_METADATA_DATABASE_URL`; 기존 운영 환경변수로 fallback하지 않는다.
+DB 내 동일 namespace/table metadata는 확인하지만 실제 운영 서비스가 같은 DSN을 쓰는지와 외부 보존 job 전부는 별도 증거가 필요하다.
+운영 draft 적용·서비스 역할 grant/보존·API startup 부작용·배포 source는 모두 별도 승인 사항이다.

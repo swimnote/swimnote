@@ -21,3 +21,12 @@ it("approved opt-in allowlist is exact method/path, never a blanket POST grant",
   }
   expect(isAllowedAuthRequest("https://example.invalid/api/office/command", "POST", true)).toBe(false);
 });
+it("read-only status remains allowed with all new-execution switches OFF", () => {
+  const path = "/office/commands/os1_00000000-0000-0000-0000-000000000001";
+  expect(isOfficeStage3Request(path, "GET", false)).toBe(true);
+  expect(isAllowedAuthRequest(origin + "/api" + path, "GET", false)).toBe(true);
+  expect(isAllowedAuthRequest(origin + "/api" + path, "POST", false)).toBe(false);
+  expect(isAllowedAuthRequest(origin + "/api" + path + "?pool=other", "GET", false)).toBe(false);
+  expect(isAllowedAuthRequest(origin + "/api/office/requests", "POST", false)).toBe(false);
+  expect(isAllowedAuthRequest(origin + "/api/office/requests", "POST", true)).toBe(true);
+});

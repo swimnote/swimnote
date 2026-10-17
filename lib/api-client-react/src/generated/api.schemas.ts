@@ -23,6 +23,11 @@ export interface OfficeOrdinaryChanges {
   memo?: string;
 }
 
+export interface OfficeRequestAdmission {
+  /** @pattern ^os1_[0-9a-f-]{36}$ */
+  requestId: string;
+}
+
 export type OfficeCommandInputAction =
   (typeof OfficeCommandInputAction)[keyof typeof OfficeCommandInputAction];
 
@@ -34,8 +39,8 @@ export const OfficeCommandInputAction = {
 export interface OfficeCommandInput {
   action: OfficeCommandInputAction;
   /**
-   * 24-hour request/reconfirmation window; receipt retention must be verified before activation. Never automatically reissue an unknown operation.
-   * @pattern ^oc1_[0-9]{13}_[A-Za-z0-9_-]{1,110}$
+   * Execution requires an existing server-issued os1_UUID record. For issuance only, this value is nonauthoritative UI correlation. Missing records never admit execution. Never automatically reissue an unknown operation.
+   * @pattern ^[A-Za-z0-9_-]{1,160}$
    */
   requestId: string;
   /** @pattern ^[A-Za-z0-9_-]{1,160}$ */
@@ -46,6 +51,14 @@ export interface OfficeCommandInput {
   fromClassId?: string;
   toClassId?: string;
 }
+
+export type OfficeRequestInput = OfficeCommandInput & {
+  /**
+   * UI correlation only; never an authoritative execution ID.
+   * @pattern ^[A-Za-z0-9_-]{1,160}$
+   */
+  requestId?: string;
+};
 
 export interface OfficeFieldChange {
   field: string;

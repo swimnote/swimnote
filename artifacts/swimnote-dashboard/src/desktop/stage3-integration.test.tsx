@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Router } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -63,12 +64,13 @@ beforeAll(async () => {
     CREATE TABLE student_class_history(id text PRIMARY KEY,student_id text,class_group_id text,swimming_pool_id text,enrolled_at date,left_at date,created_at timestamptz DEFAULT now());
     CREATE TABLE pool_event_logs(id text PRIMARY KEY,pool_id text,event_type text,entity_type text,entity_id text,actor_id text,payload jsonb,source text);`);
   canonical = new OfficeCommandService(db);
+  await db.query(readFileSync(resolve(process.cwd(), "../../scripts/office-stage3/receipts.draft.sql"), "utf8"));
 });
 beforeEach(async () => {
   actor = { userId: "ui_admin", poolId: "pool_ui", role: "pool_admin" };
   useDesktopTokenStorage();
   qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  await db.query(`TRUNCATE students,class_groups,student_class_history,pool_event_logs;
+  await db.query(`TRUNCATE students,class_groups,student_class_history,pool_event_logs,office_command_receipts;
     INSERT INTO class_groups(id,swimming_pool_id,name,schedule_days,schedule_time,capacity) VALUES
       ('ui_a','pool_ui','합성 A','월수금','16:00',10),('ui_b','pool_ui','합성 B','화목','17:00',10),('ui_c','pool_ui','합성 C','토','10:00',10);
     INSERT INTO students(id,swimming_pool_id,name,class_group_id,assigned_class_ids) VALUES
@@ -77,6 +79,7 @@ beforeEach(async () => {
       ('ui_h1','ui_one','ui_a','pool_ui','2026-01-01'),('ui_h2','ui_one','ui_b','pool_ui','2026-01-01'),('ui_h3','ui_two','ui_a','pool_ui','2026-01-01');`);
   transport = {
     mode: "fixture",
+    prepare: c => canonical.issue(actor, c),
     write: vi.fn(c => canonical.execute(actor, c)),
     status: vi.fn(async id => { const r = await canonical.status(actor, id); if (!r) throw new Error("Unknown receipt"); return r; }),
     interpret: vi.fn(input => interpretOffice(async () => ({ kind: "clarify", question: "동명 회원을 먼저 선택하세요." }), input)),
@@ -168,7 +171,7 @@ it("expired confirmation window and status lookup failure stay unknown, preservi
   await act(async () => { await actions.resolveWrite(requestId); });
   expect(actions.tasks[0].status).toBe("unknown");
   expect(transport.write).toHaveBeenCalledTimes(1);
-  expect(transport.status).toHaveBeenCalledWith(requestId);
+  expect(transport.status).toHaveBeenCalledWith(expect.stringMatching(/^os1_/));
   expect((screen.getByRole("textbox", { name: "이름", exact: true }) as HTMLInputElement).value).toBe("만료 후에도 보존");
 });
 it("mock interpretation clarifies ambiguity, then confirmed AI proposal uses same canonical Action/SQL as menu", async () => {
@@ -202,6 +205,7 @@ it("session/Pool switch quarantines late write responses and clears prior cards 
   const mounted = mount(); await open(); await startEdit();
   fireEvent.click(screen.getByRole("button", { name: "저장", exact: true }));
   await waitFor(() => expect(actions.tasks[0]?.status).toBe("running"));
+  await waitFor(() => expect(transport.write).toHaveBeenCalledTimes(1));
   mounted.unmount();
   actor = { ...actor, poolId: "pool_changed" }; mount();
   await act(async () => { finish({ requestId: "old", memberId: "ui_one", revision: "0".repeat(32), action: "update", changes: [], assignedClassIds: [] }); });
@@ -217,6 +221,7 @@ it("default production transport sends neither writes nor real AI", async () => 
 it("opt-in Web ordinary edit reaches identical canonical service; legacy Web contract stays available", async () => {
   const s = (await members()).find((s: any) => s.id === "ui_one"), saved = vi.fn();
   vi.mocked(api.post).mockImplementation(async (path, body) => {
+    if (path === "/office/requests") return canonical.issue(actor, body) as never;
     expect(path).toBe("/office/command"); return await canonical.execute(actor, body) as never;
   });
   render(<QueryClientProvider client={qc}><EditModal student={{ ...s, office_stage3_enabled: true }}
@@ -224,12 +229,13 @@ it("opt-in Web ordinary edit reaches identical canonical service; legacy Web con
   fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "합성 Web 공통 저장" } });
   fireEvent.click(screen.getByRole("button", { name: /저장/ }));
   await waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
-  expect(api.post).toHaveBeenCalledTimes(1); expect(api.patch).not.toHaveBeenCalled();
+  expect(api.post).toHaveBeenCalledTimes(2); expect(api.patch).not.toHaveBeenCalled();
   expect((await members()).find((x: any) => x.id === s.id).name).toBe("합성 Web 공통 저장");
 });
 it("opt-in Web single-membership move uses same canonical service and keeps other memberships", async () => {
   const s = (await members()).find((s: any) => s.id === "ui_one"), saved = vi.fn();
   vi.mocked(api.post).mockImplementation(async (path, body) => {
+    if (path === "/office/requests") return canonical.issue(actor, body) as never;
     expect(path).toBe("/office/command"); return await canonical.execute(actor, body) as never;
   });
   render(<QueryClientProvider client={qc}><EditModal student={{ ...s, office_stage3_enabled: true }}

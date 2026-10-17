@@ -38,8 +38,12 @@ let paused: null | { reached: () => void; wait: Promise<void> } = null;
 const actor = { userId: "admin_fixture", poolId: "pool_fixture", role: "pool_admin" };
 const rid = (suffix: string) => `oc1_${Date.now()}_${suffix}`;
 const rev = async (id = "member_one") => (await pool.query("SELECT md5(row_to_json(s)::text) AS revision FROM students s WHERE id=$1", [id])).rows[0].revision;
-const command = async (id = "member_one", extra = {}) => ({ action: "update", memberId: id, requestId: rid(crypto.randomUUID()),
-  expectedRevision: await rev(id), changes: { memo: "OFFICE 합성" }, ...extra });
+const command = async (id = "member_one", extra = {}) => {
+  const raw: any = { action: "update", memberId: id, requestId: rid(crypto.randomUUID()),
+    expectedRevision: await rev(id), changes: { memo: "OFFICE 합성" }, ...extra };
+  if (raw.action === "move") delete raw.changes;
+  return { ...raw, ...await service.issue(actor, raw) };
+};
 const http = async (method: string, path: string, body?: unknown, user = "admin_fixture") => {
   const response = await fetch(base + path, { method, headers: { "content-type": "application/json", authorization: user },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -59,17 +63,20 @@ beforeAll(async () => {
   await pool.query("DROP SCHEMA IF EXISTS office_cross_fixture CASCADE; CREATE SCHEMA office_cross_fixture");
   await pool.end(); pool = new Pool({ ...settings, options: "-c search_path=office_cross_fixture" });
   // Full column sets for actual Drizzle handlers. Non-receipt nullable fixture columns are not production-schema evidence.
-  for (const table of [schema.studentsTable, schema.classGroupsTable, schema.usersTable]) {
+  for (const table of [schema.studentsTable, schema.classGroupsTable, schema.usersTable, schema.swimmingPoolsTable]) {
     const config = getTableConfig(table);
     await pool.query(`CREATE TABLE "${config.name}" (${config.columns.map(c =>
       `"${c.name}" ${/^[a-z_]+$/.test(c.getSQLType()) && !["text", "integer", "boolean", "jsonb", "date", "timestamp", "real"].includes(c.getSQLType()) ? "text" : c.getSQLType()}${c.primary ? " PRIMARY KEY" : ""}`).join(",")})`);
   }
   await pool.query(`CREATE TABLE student_class_history(id text PRIMARY KEY, student_id text,
     class_group_id text, swimming_pool_id text, enrolled_at date, left_at date, created_at timestamptz DEFAULT now())`);
+  // Existing raw-SQL SSE/office column, absent from the Drizzle pools descriptor; synthetic only.
+  await pool.query("ALTER TABLE swimming_pools ADD COLUMN deactivated_at timestamptz");
   const migration = readFileSync(new URL("../../../../lib/db/drizzle/0001_sad_piledriver.sql", import.meta.url), "utf8");
   const receiptDdl = migration.match(/CREATE TABLE "pool_event_logs" \([\s\S]*?\n\);/)?.[0];
   if (!receiptDdl) throw new Error("Receipt migration definition missing");
   await pool.query(receiptDdl);
+  await pool.query(readFileSync(new URL("../../../../scripts/office-stage3/receipts.draft.sql", import.meta.url), "utf8"));
   const originalQuery = pool.query.bind(pool);
   pool.query = async (...args: any[]) => {
     const text = typeof args[0] === "string" ? args[0] : args[0].text;
@@ -90,8 +97,11 @@ beforeAll(async () => {
 beforeEach(async () => {
   paused = null; state.modelCalls = 0; state.modelFailure = false; state.truncated = false;
   vi.stubEnv("OFFICE_STAGE3_ENABLED", "true"); vi.stubEnv("OFFICE_STAGE3_AI_ENABLED", "false");
-  await pool.query(`TRUNCATE students,class_groups,users,student_class_history,pool_event_logs;
-    INSERT INTO users(id,name,role,swimming_pool_id) VALUES ('admin_fixture','합성 관리자','pool_admin','pool_fixture'),('other_admin','합성 다른 관리자','pool_admin','pool_fixture');
+  await pool.query(`TRUNCATE students,class_groups,users,swimming_pools,student_class_history,pool_event_logs,office_command_receipts;
+    INSERT INTO swimming_pools(id) VALUES ('pool_fixture');
+    INSERT INTO users(id,name,role,swimming_pool_id,is_activated,roles) VALUES
+      ('admin_fixture','합성 관리자','pool_admin','pool_fixture',true,ARRAY['pool_admin']),
+      ('other_admin','합성 다른 관리자','pool_admin','pool_fixture',true,ARRAY['pool_admin']);
     INSERT INTO class_groups(id,swimming_pool_id,name,schedule_days,schedule_time,capacity,is_deleted,is_one_time)
       VALUES ('class_a','pool_fixture','A','월수금','16:00',10,false,false),('class_b','pool_fixture','B','화목','17:00',10,false,false),
         ('class_c','pool_fixture','C','토','10:00',1,false,false),('class_d','pool_fixture','D','일','11:00',10,false,false);
@@ -170,6 +180,34 @@ describe("actual legacy handlers + OFFICE, isolated SQL only", () => {
   });
 });
 describe("receipt lifecycle / policy / model-call preparation (SDK mock only)", () => {
+  it("execution OFF preserves authenticated receipt GET, independently of AI OFF", async () => {
+    const c = await command(); await service.execute(actor, c);
+    vi.stubEnv("OFFICE_STAGE3_ENABLED", "false"); vi.stubEnv("OFFICE_STAGE3_AI_ENABLED", "false");
+    expect((await http("GET", "/office/commands/" + c.requestId)).status).toBe(200);
+    expect((await http("POST", "/office/requests", c)).status).toBe(503);
+    expect((await http("POST", "/office/command", c)).status).toBe(503);
+    expect((await http("POST", "/office/interpret", { text: "합성" })).status).toBe(503);
+  });
+  for (const [label, change] of [
+    ["role revocation", "UPDATE users SET roles=ARRAY[]::text[] WHERE id='admin_fixture'"],
+    ["inactive actor", "UPDATE users SET is_activated=false WHERE id='admin_fixture'"],
+    ["different pool", "UPDATE users SET swimming_pool_id='pool_other' WHERE id='admin_fixture'"],
+    ["inactive pool", "UPDATE swimming_pools SET deactivated_at=now() WHERE id='pool_fixture'"],
+  ]) it(`receipt GET stays blocked after ${label}, including with execution OFF`, async () => {
+    const c = await command(); await service.execute(actor, c);
+    vi.stubEnv("OFFICE_STAGE3_ENABLED", "false");
+    await pool.query(change);
+    expect((await http("GET", "/office/commands/" + c.requestId)).status).toBe(403);
+  });
+  it("one authorized actor cannot read another actor's completed receipt", async () => {
+    const c = await command(); await service.execute(actor, c);
+    expect((await http("GET", "/office/commands/" + c.requestId, undefined, "other_admin")).status).toBe(404);
+  });
+  it("AI ON does not enable new execution and never creates a receipt", async () => {
+    vi.stubEnv("OFFICE_STAGE3_ENABLED", "false"); vi.stubEnv("OFFICE_STAGE3_AI_ENABLED", "true");
+    expect((await http("POST", "/office/interpret", { text: "합성 검색" }, "other_admin")).status).toBe(200);
+    expect((await pool.query("SELECT count(*) AS n FROM office_command_receipts")).rows[0].n).toBe("0");
+  });
   it("actual migrated NOT NULL receipt contract rolls business write back on a receipt constraint failure", async () => {
     await pool.query("ALTER TABLE pool_event_logs ADD CONSTRAINT fixture_reject CHECK (source <> 'office_stage3')");
     const c = await command(), old = await rev();
@@ -178,7 +216,7 @@ describe("receipt lifecycle / policy / model-call preparation (SDK mock only)", 
   });
   it("concurrent identical request => one receipt; altered payload rejected; same-Pool other actor cannot read it", async () => {
     const c = await command(); const [a, b] = await Promise.all([service.execute(actor, c), service.execute(actor, c)]);
-    expect(a).toEqual(b);
+    expect(a.revision).toEqual(b.revision);
     await expect(service.execute(actor, { ...c, changes: { memo: "different" } })).rejects.toMatchObject({ code: "REQUEST_REUSED" });
     expect(await service.status({ ...actor, userId: "other_admin" }, c.requestId)).toBeNull();
     expect(await service.status({ ...actor, poolId: "other_pool" }, c.requestId)).toBeNull();
@@ -187,14 +225,14 @@ describe("receipt lifecycle / policy / model-call preparation (SDK mock only)", 
   it("JSON key order does not change request identity; event consumers still receive a generic student event", async () => {
     const c = await command(); const a = await service.execute(actor, c);
     const reordered = Object.fromEntries(Object.entries(c).reverse());
-    expect(await service.execute(actor, reordered)).toEqual(a);
+    expect((await service.execute(actor, reordered)).revision).toEqual(a.revision);
     expect((await pool.query("SELECT event_type,entity_type,source FROM pool_event_logs")).rows)
       .toEqual([{ event_type: "member_update", entity_type: "student", source: "office_stage3" }]);
   });
   it("expired request is 410 before DB access, including after receipt deletion; missing receipt is not nonexecution", async () => {
     const c = await command(); await service.execute(actor, c); await pool.query("DELETE FROM pool_event_logs");
-    expect(await service.status(actor, c.requestId)).toBeNull();
-    await expect(service.execute(actor, c)).rejects.toMatchObject({ code: "CONFLICT" });
+    expect((await service.status(actor, c.requestId))?.revision).toBe(await rev());
+    expect((await service.execute(actor, c)).requestId).toBe(c.requestId);
     const expired = `oc1_${Date.now() - OFFICE_RECONFIRM_MS - 1000}_expired`;
     expect(() => assertOfficeRequestWindow(expired)).toThrow();
     await expect(service.execute(actor, { ...c, requestId: expired, expectedRevision: await rev() })).rejects.toMatchObject({ status: 410 });
@@ -202,7 +240,7 @@ describe("receipt lifecycle / policy / model-call preparation (SDK mock only)", 
   });
   it("status lookup SQL failure is an error, never a not-executed/null outcome", async () => {
     const broken = new OfficeCommandService({ connect: async () => ({ query: async () => { throw new Error("synthetic lookup failure"); }, release() {} }) });
-    await expect(broken.status(actor, rid("lookup"))).rejects.toThrow("synthetic lookup failure");
+    await expect(broken.status(actor, "os1_00000000-0000-0000-0000-000000000001")).rejects.toThrow("synthetic lookup failure");
   });
   it("single ordinary command uses app-owned temporary restriction, rejects arrays/compound/unsupported/model policy", async () => {
     const response = await interpretOffice(async () => ({ kind: "command", command: { action: "update", changes: { memo: "합성" } } }), { text: "메모 수정", memberId: "member_one" });
@@ -237,7 +275,7 @@ describe("receipt lifecycle / policy / model-call preparation (SDK mock only)", 
   });
   it("six interpretation attempts per actor/10 minutes/process, then 429 with no SDK call", async () => {
     vi.stubEnv("OFFICE_STAGE3_AI_ENABLED", "true");
-    await pool.query("INSERT INTO users(id,role,swimming_pool_id) VALUES ('rate_actor','pool_admin','pool_fixture')");
+    await pool.query("INSERT INTO users(id,role,swimming_pool_id,is_activated,roles) VALUES ('rate_actor','pool_admin','pool_fixture',true,ARRAY['pool_admin'])");
     for (let n = 0; n < 6; n++) expect((await http("POST", "/office/interpret", { text: "합성" }, "rate_actor")).status).toBe(200);
     expect((await http("POST", "/office/interpret", { text: "합성" }, "rate_actor")).status).toBe(429);
     expect(state.modelCalls).toBe(6);

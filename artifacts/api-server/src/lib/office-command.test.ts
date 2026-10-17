@@ -1,5 +1,7 @@
 import { beforeAll, beforeEach, afterAll, describe, it, expect, vi } from "vitest";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { officeModelMessages, OFFICE_MODEL_INPUT_LIMIT } from "./office-model.js";
 import { OfficeCommandService, parseOfficeCommand, type OfficeSql, type OfficeReceipt } from "./office-command.js";
 import { interpretOffice } from "./office-interpret.js";
 import express from "express";
@@ -29,8 +31,81 @@ let pool: any, service: OfficeCommandService, server: any, origin = "";
 const actor = { userId: "admin_fixture", poolId: "pool_fixture", role: "pool_admin" };
 const rid = (suffix: string) => `oc1_${Date.now()}_${suffix}`;
 const revision = async (id = "member_one") => (await pool.query("SELECT md5(row_to_json(s)::text) AS revision FROM students s WHERE id=$1", [id])).rows[0].revision;
-const command = async (overrides = {}) => ({ action: "update", requestId: rid("request_one"), memberId: "member_one",
+const issue = async (raw: any) => ({ ...raw, ...await service.issue(actor, raw) });
+const command = async (overrides = {}) => issue({ action: "update", requestId: rid("request_one"), memberId: "member_one",
   expectedRevision: await revision(), changes: { memo: "합성 변경" }, ...overrides });
+describe("server-issued admission and minimal durable receipts", () => {
+  it("unissued plausible UUID cannot execute; caller timestamp cannot mint authority", async () => {
+    const c = await command();
+    for (const requestId of ["os1_00000000-0000-0000-0000-000000000001", `oc1_${Date.now() + 999999}_future`])
+      await expect(service.execute(actor, { ...c, requestId })).rejects.toMatchObject({ status: 410 });
+    expect((await pool.query("SELECT count(*) AS n FROM pool_event_logs")).rows[0].n).toBe("0");
+  });
+  it("deleting the general event leaves durable duplicate prevention and minimal status", async () => {
+    const c = await command({ changes: { name: "합성 이름 비저장", memo: "합성 메모 비저장" } });
+    const first = await service.execute(actor, c);
+    await pool.query("DELETE FROM pool_event_logs");
+    expect(await service.execute(actor, c)).toEqual({ ...first, changes: [] });
+    expect(await service.status(actor, c.requestId)).toEqual({ ...first, changes: [] });
+  });
+  it("deleting the dedicated record fails closed, even after restoring the entire old member row", async () => {
+    const old = (await pool.query("SELECT * FROM students WHERE id='member_one'")).rows[0];
+    const c = await command(); await service.execute(actor, c);
+    await pool.query("DELETE FROM office_command_receipts");
+    await pool.query("UPDATE students SET memo=$1,updated_at=$2 WHERE id='member_one'", [old.memo, old.updated_at]);
+    const before = await revision();
+    expect(await service.status(actor, c.requestId)).toBeNull();
+    await expect(service.execute(actor, c)).rejects.toMatchObject({ code: "REQUEST_UNCONFIRMED", status: 410 });
+    expect(await revision()).toBe(before);
+  });
+  it("re-issuance cannot resurrect a deleted caller-selected ID", async () => {
+    const c = await command(); await service.execute(actor, c);
+    await pool.query("DELETE FROM office_command_receipts");
+    const fresh = await service.issue(actor, c);
+    expect(fresh.requestId).not.toBe(c.requestId);
+    await expect(service.execute(actor, c)).rejects.toMatchObject({ code: "REQUEST_UNCONFIRMED" });
+  });
+  it("deadlines are server stored: five-minute admission, 24-hour reconciliation", async () => {
+    const c = await command();
+    const row = (await pool.query(`SELECT extract(epoch from execute_before-issued_at)::int AS execute_seconds,
+      extract(epoch from confirm_before-issued_at)::int AS confirm_seconds FROM office_command_receipts WHERE request_id=$1`, [c.requestId])).rows[0];
+    expect(row).toEqual({ execute_seconds: 300, confirm_seconds: 86400 });
+    await pool.query("UPDATE office_command_receipts SET execute_before=clock_timestamp()-interval '1 second',issued_at=clock_timestamp()-interval '10 minutes' WHERE request_id=$1", [c.requestId]);
+    await expect(service.execute(actor, c)).rejects.toMatchObject({ code: "REQUEST_EXPIRED" });
+    expect(await service.status(actor, c.requestId)).toBeNull(); // Not evidence of non-execution.
+  });
+  it("completed result remains readable past admission, but neither read nor execution passes reconciliation expiry", async () => {
+    const c = await command(); const first = await service.execute(actor, c);
+    await pool.query("UPDATE office_command_receipts SET execute_before=clock_timestamp()-interval '1 second',issued_at=clock_timestamp()-interval '10 minutes' WHERE request_id=$1", [c.requestId]);
+    expect((await service.execute(actor, c)).revision).toBe(first.revision);
+    await pool.query("UPDATE office_command_receipts SET issued_at=clock_timestamp()-interval '25 hours',execute_before=clock_timestamp()-interval '24 hours',confirm_before=clock_timestamp()-interval '1 second' WHERE request_id=$1", [c.requestId]);
+    await expect(service.status(actor, c.requestId)).rejects.toMatchObject({ status: 410 });
+    await expect(service.execute(actor, c)).rejects.toMatchObject({ status: 410 });
+  });
+  it("new durable/event records exclude ordinary before/after PII", async () => {
+    const c = await command({ changes: { name: "합성 비밀 이름", phone: "010-0000-1111", memo: "합성 비밀 메모" } });
+    await service.execute(actor, c);
+    const rows = await pool.query("SELECT row_to_json(r) AS row FROM office_command_receipts r");
+    const logs = await pool.query("SELECT payload FROM pool_event_logs");
+    const serialized = JSON.stringify([rows.rows, logs.rows]);
+    for (const value of ["합성 비밀 이름", "010-0000-1111", "합성 비밀 메모", '"before"', '"after"'])
+      expect(serialized).not.toContain(value);
+    expect(logs.rows[0].payload.fields.sort()).toEqual(["memo", "name", "phone"]);
+  });
+  it("compound update+move cannot be silently collapsed by a mocked model", async () => {
+    const model = vi.fn(async () => ({ kind: "command", command: { action: "update", changes: { memo: "합성" } } }));
+    expect(await interpretOffice(model, { text: "메모 수정하고 반 이동", memberId: "member_one" })).toMatchObject({ kind: "clarify" });
+    expect(model).not.toHaveBeenCalled();
+    expect((await pool.query("SELECT count(*) AS n FROM pool_event_logs")).rows[0].n).toBe("0");
+  });
+  it("actual model message byte ceiling includes system text, selected ID and escaped multibyte input", () => {
+    const input = { text: "합성 회원 검색", memberId: "member_one" };
+    const messages = officeModelMessages(input);
+    expect(Buffer.byteLength(JSON.stringify(messages), "utf8") + 256).toBeLessThanOrEqual(OFFICE_MODEL_INPUT_LIMIT);
+    expect(() => officeModelMessages({ text: "가".repeat(2000), memberId: "member_one" })).toThrow("모델 입력 한도");
+    expect(() => officeModelMessages({ text: "\u0000".repeat(1000) })).toThrow("모델 입력 한도");
+  });
+});
 const api = (path: string, body?: unknown, auth = "admin_fixture") => fetch(origin + path, {
   method: body === undefined ? "GET" : "POST",
   headers: { "content-type": "application/json", ...(auth ? { authorization: auth } : {}) },
@@ -56,6 +131,7 @@ beforeAll(async () => {
     CREATE TABLE pool_event_logs (id text PRIMARY KEY,pool_id text,event_type text,entity_type text,entity_id text,
       actor_id text,payload jsonb,source text,created_at timestamptz DEFAULT now());
   `);
+  await pool.query(readFileSync(new URL("../../../../scripts/office-stage3/receipts.draft.sql", import.meta.url), "utf8"));
   fixture.pool = pool; service = new OfficeCommandService(pool);
   const router = (await import("../routes/office.js")).default;
   const app = express(); app.use(express.json()); app.use("/api/office", router);
@@ -65,7 +141,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.stubEnv("OFFICE_STAGE3_ENABLED", "true"); vi.stubEnv("OFFICE_STAGE3_AI_ENABLED", "false");
   fixture.events = 0; fixture.modelCalls = 0;
-  await pool.query(`TRUNCATE students,class_groups,student_class_history,pool_event_logs;
+  await pool.query(`TRUNCATE students,class_groups,student_class_history,pool_event_logs,office_command_receipts;
     INSERT INTO class_groups(id,swimming_pool_id,name,schedule_days,schedule_time,capacity) VALUES
       ('class_a','pool_fixture','합성 A','월수금','16:00',10),
       ('class_b','pool_fixture','합성 B','화목','17:00',10),
@@ -96,7 +172,7 @@ describe("OFFICE isolated canonical SQL / HTTP contract", () => {
     const c = await command();
     expect((await api("/command", c, "")).status).toBe(401);
     expect((await api("/command", c, "teacher")).status).toBe(403);
-    expect((await api("/command", c, "foreign")).status).toBe(404);
+    expect((await api("/command", c, "foreign")).status).toBe(410);
     await expect(service.execute({ ...actor, role: "teacher" }, c)).rejects.toMatchObject({ status: 403 });
     expect((await pool.query("SELECT count(*) FROM pool_event_logs")).rows[0].count).toBe("0");
   });
@@ -110,15 +186,16 @@ describe("OFFICE isolated canonical SQL / HTTP contract", () => {
   });
   it("two concurrent ordinary saves using one revision: one commit, one conflict", async () => {
     const c = await command();
-    const results = await Promise.allSettled([service.execute(actor, c), service.execute(actor, { ...c, requestId: rid("request_two"), changes: { memo: "다른 변경" } })]);
+    const second = await issue({ ...c, changes: { memo: "다른 변경" } });
+    const results = await Promise.allSettled([service.execute(actor, c), service.execute(actor, second)]);
     expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
     expect(results.find(r => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
     expect((await pool.query("SELECT count(*) FROM pool_event_logs")).rows[0].count).toBe("1");
   });
   it("same request simultaneous/replayed returns one durable result; changed payload denied", async () => {
     const c = await command(), [a, b] = await Promise.all([service.execute(actor, c), service.execute(actor, c)]);
-    expect(a).toEqual(b);
-    expect(await service.execute(actor, c)).toEqual(a);
+    expect(a.revision).toEqual(b.revision);
+    expect((await service.execute(actor, c)).revision).toEqual(a.revision);
     await expect(service.execute(actor, { ...c, changes: { memo: "재사용 공격" } })).rejects.toMatchObject({ code: "REQUEST_REUSED" });
     expect((await pool.query("SELECT count(*) FROM pool_event_logs")).rows[0].count).toBe("1");
   });
@@ -127,12 +204,12 @@ describe("OFFICE isolated canonical SQL / HTTP contract", () => {
     const response = await api("/commands/" + c.requestId);
     expect(response.status).toBe(200); expect((await response.json() as OfficeReceipt).revision).toBe(await revision());
     expect((await api("/commands/" + c.requestId, undefined, "foreign")).status).toBe(404);
-    expect((await api("/commands/" + rid("not_committed"))).status).toBe(404);
+    expect((await api("/commands/os1_00000000-0000-0000-0000-000000000001")).status).toBe(404);
     expect((await pool.query("SELECT count(*) FROM pool_event_logs")).rows[0].count).toBe("1");
   });
   it("one selected membership moves atomically; other membership and weekly count retained", async () => {
     const { changes: _, ...base } = await command();
-    const result = await service.execute(actor, { ...base, action: "move", fromClassId: "class_a", toClassId: "class_c" });
+    const result = await service.execute(actor, await issue({ ...base, action: "move", fromClassId: "class_a", toClassId: "class_c" }));
     expect(result.assignedClassIds).toEqual(["class_c", "class_b"]);
     expect((await pool.query("SELECT assigned_class_ids,weekly_count FROM students WHERE id='member_one'")).rows[0])
       .toEqual({ assigned_class_ids: ["class_c", "class_b"], weekly_count: 2 });
@@ -145,17 +222,18 @@ describe("OFFICE isolated canonical SQL / HTTP contract", () => {
     const { changes: _, ...c } = await command();
     const base = { ...c, action: "move", fromClassId: "class_a" };
     for (const [target, code] of [["class_foreign", "CLASS"], ["class_b", "STATE"], ["class_conflict", "SCHEDULE"]])
-      await expect(service.execute(actor, { ...base, toClassId: target })).rejects.toMatchObject({ code });
+      await expect(service.execute(actor, await issue({ ...base, toClassId: target }))).rejects.toMatchObject({ code });
     await pool.query("UPDATE class_groups SET capacity=0 WHERE id='class_c'");
-    await expect(service.execute(actor, { ...base, toClassId: "class_c" })).rejects.toMatchObject({ code: "CAPACITY" });
+    await expect(service.execute(actor, await issue({ ...base, toClassId: "class_c" }))).rejects.toMatchObject({ code: "CAPACITY" });
     await pool.query("UPDATE class_groups SET capacity=10 WHERE id='class_c'; UPDATE student_class_history SET left_at='2026-02-01' WHERE id='h_one_a'");
-    await expect(service.execute(actor, { ...base, toClassId: "class_c" })).rejects.toMatchObject({ code: "HISTORY" });
+    await expect(service.execute(actor, await issue({ ...base, toClassId: "class_c" }))).rejects.toMatchObject({ code: "HISTORY" });
   });
   it("two members competing for last class seat cannot both commit", async () => {
     await pool.query("UPDATE class_groups SET capacity=1 WHERE id='class_c'");
     const a = { action: "move", requestId: rid("move_one"), memberId: "member_one", expectedRevision: await revision(), fromClassId: "class_a", toClassId: "class_c" };
     const b = { ...a, requestId: rid("move_two"), memberId: "member_two", expectedRevision: await revision("member_two") };
-    const results = await Promise.allSettled([service.execute(actor, a), service.execute(actor, b)]);
+    const issuedA = await issue(a), issuedB = await issue(b);
+    const results = await Promise.allSettled([service.execute(actor, issuedA), service.execute(actor, issuedB)]);
     expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
     expect(results.find(r => r.status === "rejected")).toMatchObject({ reason: { code: "CAPACITY" } });
   });

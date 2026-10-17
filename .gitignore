@@ -72,5 +72,6 @@ build/
 android/
 ios/
 /generated-artifacts/
+/artifacts/api-server/generated-artifacts/
 /artifacts/swimnote-dashboard/dist-desktop/
 

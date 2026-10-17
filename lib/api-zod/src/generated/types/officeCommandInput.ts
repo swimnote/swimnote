@@ -11,8 +11,8 @@ import type { OfficeOrdinaryChanges } from "./officeOrdinaryChanges";
 export interface OfficeCommandInput {
   action: OfficeCommandInputAction;
   /**
-   * 24-hour request/reconfirmation window; receipt retention must be verified before activation. Never automatically reissue an unknown operation.
-   * @pattern ^oc1_[0-9]{13}_[A-Za-z0-9_-]{1,110}$
+   * Execution requires an existing server-issued os1_UUID record. For issuance only, this value is nonauthoritative UI correlation. Missing records never admit execution. Never automatically reissue an unknown operation.
+   * @pattern ^[A-Za-z0-9_-]{1,160}$
    */
   requestId: string;
   /** @pattern ^[A-Za-z0-9_-]{1,160}$ */

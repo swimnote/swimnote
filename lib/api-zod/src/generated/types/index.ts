@@ -44,6 +44,8 @@ export * from "./officeInterpretInput";
 export * from "./officeOrdinaryChanges";
 export * from "./officeProposalCommand";
 export * from "./officeProposalCommandAction";
+export * from "./officeRequestAdmission";
+export * from "./officeRequestInput";
 export * from "./pool";
 export * from "./poolApprovalStatus";
 export * from "./poolSubscriptionStatus";
