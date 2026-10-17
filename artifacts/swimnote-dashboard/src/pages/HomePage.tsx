@@ -3,10 +3,14 @@ import { api } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
 import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
+import { useOfficeActions } from "@/desktop/OfficeActionContext";
 import {
   UserPlus, BookOpen, Calendar, TrendingUp,
   FileText, Settings, AlertCircle,
 } from "lucide-react";
+
+export const loadDashboardStats = ({ signal }: { signal: AbortSignal }) =>
+  api.get<DashboardStats>("/admin/dashboard-stats", { signal });
 
 type QuickAction = {
   icon: React.ReactNode;
@@ -71,7 +75,8 @@ type StatCard = {
 export default function HomePage() {
   const desktop = isDesktopTokenStorage();
   const { state } = useAuth();
-  const navigate = useOfficeNavigate();
+  const navigate = useOfficeNavigate("shortcut");
+  const actions = useOfficeActions();
 
   const poolId =
     state.status === "authenticated" ? state.user.swimming_pool_id : null;
@@ -83,7 +88,7 @@ export default function HomePage() {
     refetch,
   } = useQuery<DashboardStats>({
     queryKey: ["dashboard-stats", poolId],
-    queryFn: ({ signal }) => api.get<DashboardStats>("/admin/dashboard-stats", { signal }),
+    queryFn: actions?.homeQueryFn ?? loadDashboardStats,
     enabled: !!poolId,
     staleTime: 60_000,
   });

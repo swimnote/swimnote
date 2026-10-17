@@ -13,6 +13,7 @@ import type { LoginPreferences } from "../../desktop/contracts";
 import { OfficeNavigationProvider, OfficeNavigationBar, useOfficeNavigate } from "./OfficeNavigation";
 import { OfficeWorkspace } from "./OfficeWorkspace";
 import { OfficeManagerProvider } from "./OfficeManagerContext";
+import { OfficeActionProvider } from "./OfficeActionProvider";
 import "./OfficeInteractions.css";
 
 declare const __OFFICE_VERIFICATION_ID__: string;
@@ -126,7 +127,9 @@ export function DesktopApp() {
           scopeKey={`${state.user.id}:${state.user.swimming_pool_id ?? ""}`}>
           <AuthProvider desktopSession={controller}>
             <OfficeNavigationProvider key={`${state.user.id}:${state.user.swimming_pool_id ?? ""}:${state.user.role}:${state.user.xMode}`}>
-              <DesktopRoutes />
+              <OfficeActionProvider actor={{ userId: state.user.id, poolId: state.user.swimming_pool_id ?? "", role: state.user.role }}>
+                <DesktopRoutes />
+              </OfficeActionProvider>
             </OfficeNavigationProvider>
           </AuthProvider>
         </DesktopRealtime>

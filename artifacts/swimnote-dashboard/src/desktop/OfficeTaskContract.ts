@@ -1,7 +1,7 @@
 import { validOfficeDestination, type OfficeDestination } from "./OfficeNavigation";
 
 /** UI-only future integration contract. Not an executor, API, persistent store or approval. */
-export type TaskStatus = "ready" | "confirmation_required" | "running" | "completed" | "partial" | "failed" | "unknown";
+export type TaskStatus = "ready" | "confirmation_required" | "running" | "completed" | "partial" | "failed" | "unknown" | "cancelled";
 export type TaskResult = {
   id: string; label: string; target: OfficeDestination;
   kind: "screen" | "image" | "table" | "file";
@@ -32,6 +32,7 @@ export function taskPresentation(task: OfficeTask) {
     running: { label: "실행 중", tone: "neutral" },
     partial: { label: "일부 완료", tone: "partial" },
     failed: { label: "실패", tone: "failed" },
+    cancelled: { label: "취소됨", tone: "neutral" },
     unknown: { label: "결과 불명 · 상태 확인 필요", tone: "unknown" },
   })[task.status];
 }

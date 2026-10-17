@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useOfficeNavigation } from "@/desktop/OfficeNavigation";
 import { useOfficeBusinessVisible } from "@/desktop/OfficeWorkspace";
+import { useOfficeActions } from "@/desktop/OfficeActionContext";
+import { memberQuery, filterMembers } from "./member-query";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
@@ -21,7 +23,7 @@ type AssignedClass = {
   instructor?: string;
 };
 
-type Student = {
+export type Student = {
   id: string;
   name: string;
   phone?: string;
@@ -772,6 +774,7 @@ async function downloadMembersExcel(statusFilter: string, classFilter: string) {
 
 export default function MembersPage() {
   const office = useOfficeNavigation();
+  const actions = useOfficeActions();
   const businessVisible = useOfficeBusinessVisible();
   const rootRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -815,9 +818,13 @@ export default function MembersPage() {
   const statusFilter = office ? office.view.status : localStatus;
   const classFilter = office ? office.view.classId : localClass;
   const page = office ? office.view.page : localPage;
-  const setSearch = (value: string) => office ? office.updateView({ search: value, page: 1 }) : setLocalSearch(value);
-  const setStatusFilter = (value: string) => office ? office.updateView({ status: value, page: 1 }) : setLocalStatus(value);
-  const setClassFilter = (value: string) => office ? office.updateView({ classId: value, page: 1 }) : setLocalClass(value);
+  const updateOfficeFilters = (patch: Partial<{ search: string; status: string; classId: string }>) => {
+    office!.updateView({ ...patch, page: 1 }); // Controlled input stays responsive while the canonical query is pending.
+    if (actions) void actions.execute({ action: "office.members.search", input: { search, status: statusFilter, classId: classFilter, ...patch } }, "menu");
+  };
+  const setSearch = (value: string) => office ? updateOfficeFilters({ search: actions ? value.slice(0, 200) : value }) : setLocalSearch(value);
+  const setStatusFilter = (value: string) => office ? updateOfficeFilters({ status: value }) : setLocalStatus(value);
+  const setClassFilter = (value: string) => office ? updateOfficeFilters({ classId: value }) : setLocalClass(value);
   const setPage = (value: number | ((page: number) => number)) => {
     const next = typeof value === "function" ? value(page) : value;
     if (next === page) return;
@@ -828,7 +835,10 @@ export default function MembersPage() {
   const [localSelectedStudent, setLocalSelectedStudent] = useState<Student | null>(null);
   const setSelectedStudent = (value: Student | null) => {
     if (!office) setLocalSelectedStudent(value);
-    else if (value) office.open({ screen: "members", memberId: value.id });
+    else if (value) {
+      if (actions) void actions.execute({ action: "office.member.open", input: { memberId: value.id } }, "menu");
+      else office.open({ screen: "members", memberId: value.id });
+    }
     else office.closeDetail();
   };
   const [editStudent, setEditStudent] = useState<Student | null>(null);
@@ -837,9 +847,7 @@ export default function MembersPage() {
 
   // Fetch all students
   const { data: allStudents = [], isLoading, isError, isFetched, isFetching, error, refetch } = useQuery<Student[]>({
-    queryKey: ["students"],
-    queryFn: ({ signal }) => api.get<Student[]>("/students?pool_all=true", { signal }),
-    staleTime: 30_000,
+    ...(actions?.membersQuery ?? memberQuery),
   });
 
   // Fetch class groups for filter + edit
@@ -875,19 +883,8 @@ export default function MembersPage() {
   }, [updateView, isFetched, isError, businessVisible]);
 
   // Client-side filtering
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allStudents.filter((s) => {
-      if (statusFilter && s.status !== statusFilter) return false;
-      if (classFilter && s.class_group_id !== classFilter && s.class_group_name !== classFilter) return false;
-      if (q) {
-        const inName = s.name.toLowerCase().includes(q);
-        const inPhone = (s.phone ?? "").replace(/-/g, "").includes(q.replace(/-/g, ""));
-        if (!inName && !inPhone) return false;
-      }
-      return true;
-    });
-  }, [allStudents, search, statusFilter, classFilter]);
+  const filtered = useMemo(() => filterMembers(allStudents, { search, status: statusFilter, classId: classFilter }),
+    [allStudents, search, statusFilter, classFilter]);
 
   // Reset page when filter changes
   const searchRef = useRef(search);

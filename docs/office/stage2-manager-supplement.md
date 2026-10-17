@@ -179,3 +179,17 @@ Navigation·결과 열람 fixture, 중복 mount/auth/query/SSE, 실제 CSS 넓�
 - 현재 Breadcrumb는 배경·굵기, 상호작용 가능한 선택 메뉴는 지속 선택 표시, 키보드는 focus-visible로 구분한다.
 - 사진 속 줄은 실제 재현 근거 없이 caret browsing으로 단정하지 않는다. 전역 caret/outline/selection 억제를 금지한다.
 - Linux 코드/CSS 재현과 Windows 사진의 동일 원인·실기기 수용은 별도 증거다.
+
+## 사용자 수용 및 다음 승인 경계 — 2026-10-17
+
+사용자가 **STAGE2-eafa09b54cc3-cba253469d7d / Windows 10 Pro x64**에서
+공간 분할, 접기·확대·복원과 입력 위치, 메뉴 이동 후 상태 유지, 검은 세로줄 해결의 네 항목을 모두 PASS로 확인했다.
+상세 기록은 `foundation-acceptance.md`의 후속 수용 기록을 따른다.
+Agent 직접 Windows 실행으로 바꾸어 표현하지 않으며 실제 배율은 미제공이다.
+
+이번 후속 지시로 홈·회원목록·회원 상세·기존 검색의 공통 조회/OPEN Action 연결을 로컬 구현한다.
+기존 N01 Navigation·API client·QueryClient·검증된 Desktop session을 재사용하고, 격리 fixture에서 작업 카드·결과 보기·실제 query 시각에 따른 열람 증거를 검증한다.
+이는 위의 과거 “Action 실행 미구현” 경계를 이번 허용 조회/OPEN에 한해서만 갱신한다.
+실제 제품의 AI 미연결·전송 차단·쓰기 차단은 유지하며 테스트 작업/버튼은 제품에 설치하지 않는다.
+원래 Stage 3 전체(Thin Action + 첫 AI Vertical Slice, 회원검색 → 회원수정 → 반이동)를 완료했다는 의미가 아니다.
+이번에는 Windows 재패키징·설치/인증 재검사·CSS 전체 조합 재검증·운영 배포를 하지 않는다.

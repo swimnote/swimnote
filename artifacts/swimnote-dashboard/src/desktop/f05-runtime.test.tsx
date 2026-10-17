@@ -164,7 +164,7 @@ it.each([
   open();
   await screen.findByText("검증회원A-1");
   fireEvent.click(screen.getByText("검증회원A-1"));
-  const drawer = screen.getByRole("dialog", { name: "회원 상세" });
+  const drawer = await screen.findByRole("dialog", { name: "회원 상세" });
   await within(drawer).findByText(new RegExp(message as string));
   expect(within(drawer).queryByText("발행된 성장리포트가 없습니다.")).toBeNull();
   expect(drawer.textContent).not.toContain("PRIVATE_FIXTURE");
@@ -179,7 +179,7 @@ it("does not silently treat a malformed history response as no published reports
   open();
   await screen.findByText("검증회원A-1");
   fireEvent.click(screen.getByText("검증회원A-1"));
-  const drawer = screen.getByRole("dialog", { name: "회원 상세" });
+  const drawer = await screen.findByRole("dialog", { name: "회원 상세" });
   await within(drawer).findByText(/응답 형식/);
   expect(within(drawer).queryByText("발행된 성장리포트가 없습니다.")).toBeNull();
 });
@@ -240,6 +240,7 @@ it("unmounts private state and cancels late reads on logout and next Pool mount"
   await screen.findByText("검증회원A-1");
   fireEvent.change(screen.getByPlaceholderText("이름 또는 전화번호 검색"), { target: { value: "검증회원A" } });
   fireEvent.click(screen.getByText("검증회원A-1"));
+  await screen.findByRole("dialog", { name: "회원 상세" });
   expect((screen.getByRole("button", { name: "앱 내 뒤로" }) as HTMLButtonElement).disabled).toBe(false);
   let resolve!: (value: unknown) => void;
   delayList = new Promise(value => { resolve = value; });
@@ -284,7 +285,7 @@ it("integrated workspace keeps one authentication, SSE and business observer acr
   fireEvent.click(screen.getByRole("button", { name: /회원목록 회원 검색/ }));
   await screen.findByText("검증회원A-1");
   fireEvent.click(screen.getByText("검증회원A-1"));
-  await within(screen.getByRole("dialog")).findByText("발행된 성장리포트가 없습니다.");
+  await within(await screen.findByRole("dialog")).findByText("발행된 성장리포트가 없습니다.");
   const input = screen.getByPlaceholderText("이름 또는 전화번호 검색");
   const reads = vi.mocked(api.get).mock.calls.length;
   const transportCount = streams.length;
