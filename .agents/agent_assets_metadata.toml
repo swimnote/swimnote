@@ -851,3 +851,31 @@ mtime_ms = 1792248008716
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/2344d35f-c606-4751-ba8b-f9e7addcffe4/1e2d3084-ba56-475d-b7d8-745cf0435cd4"
 storage_version_token = "1792248037647428"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "LZ7X1w_bzVN3VIvwZRkHb"
+uri = "file://generated-artifacts/office-product-v1-delivery-04/SWIMNOTE-OFFICE-PRODUCT-babe64641c15-49abc5f58bdc-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "OFFICE V1.1 앱 이식 통합 설치본 — 1/2"
+description = "단일 설치 EXE의 전달 파일입니다. 2/2도 받아 두 ZIP을 같은 새 폴더에 풀고 START-PRODUCT.cmd를 실행하세요. Windows 실기기 실행은 미검증입니다."
+logical_id = "366b504a-54bf-4bab-891e-8e21a9c46668"
+content_hash = "sha256:ee944c6cd331ae5eb71d09ae24104d1d43bc7d75cc227a1a2f438958ee7050d7"
+size = 83891257
+mtime_ms = 1792250912831
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/366b504a-54bf-4bab-891e-8e21a9c46668/31716bcc-cb80-43da-b072-8dd3be9e080c"
+storage_version_token = "1792251038781616"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "WTHKarMez3r5X2mIrpw_2"
+uri = "file://generated-artifacts/office-product-v1-delivery-04/SWIMNOTE-OFFICE-PRODUCT-babe64641c15-49abc5f58bdc-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "OFFICE V1.1 앱 이식 통합 설치본 — 2/2"
+description = "1/2와 함께 필요합니다. 두 ZIP을 같은 새 폴더에 풀면 START-PRODUCT.cmd가 해시를 확인해 하나의 설치 EXE를 복원합니다. 기존 설치기 절차를 재사용했습니다."
+logical_id = "cf787ed8-7a3c-4a9c-9d64-7198b81549c2"
+content_hash = "sha256:8c2a3f3a2ac828181345d614af6d8baf5929344f2d172c29a9333e9364ad01a7"
+size = 29819721
+mtime_ms = 1792250913591
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/cf787ed8-7a3c-4a9c-9d64-7198b81549c2/6b49fe42-9bbd-4a87-aa12-266d3e3af989"
+storage_version_token = "1792251040392066"
+content_type = "application/octet-stream"
