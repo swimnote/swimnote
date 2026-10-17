@@ -44,3 +44,15 @@ Windows 설치 실패에서는 의존성 lifecycle 차단과 패키지 관리자
 **Why:** 사용자는 동일한 frozen 설치가 여러 우회 조건에서 비정상 종료된 뒤, 같은 설치 재시도 대신 원인별 증거 수집을 요구했다. `0xC0000409`는 fail-fast 계열 코드이며 원인 모듈·하위 코드 없이 버퍼 오버런으로 단정할 수 없다.
 
 **How to apply:** 후보 파일과 실제 Windows pnpm 진입점을 구분해 확인하고, 설치 재시도·보안 완화·버전 변경 없이 기존 WER/정책 이벤트의 시각·모듈·프로세스 상관관계를 먼저 조사한다. 이벤트 부재나 조회 권한 부족은 원인 배제 근거가 아니다.
+
+OFFICE 사용자 Windows 검증의 전달물은 필요한 런타임·격리 API·합성 DB가 포함된 설치본 또는 압축 실행본이다. 사용자는 다운로드→설치/해제→실행→결과 전달만 하며, 소스 ZIP·개발 도구 설치·pnpm 재시도·소스 빌드를 사용자에게 요구하지 않는다.
+
+**Why:** 사용자가 소스 전달본의 반복 설치 중단 뒤 이 방침을 재차 명시했다. 격리 검증본의 빌드·패키징 허용은 운영 배포·공개 게시·코드 서명·유료 CI·저장소 push 승인과 다르다.
+
+**How to apply:** 기존 제작 도구를 우선 재사용하고 고정 후보에 packaging/runtime glue만 별도 식별자로 추가한다. 기존 설치본의 세션·설치 경로·DB와 분리하며, Windows 실실행 불가는 NOT RUN으로 유지한다.
+
+Windows PostgreSQL app-local 패키징은 PE import 목록뿐 아니라 bootstrap catalog의 `$libdir` 참조까지 확인한다. Node/Electron 포함만으로 PostgreSQL의 Microsoft C++ 런타임도 충족된다고 가정하지 않는다.
+
+**Why:** ICU가 C++ 런타임 DLL을 추가로 요구하고, bootstrap의 인코딩 변환 DLL은 정적 PE import에 나타나지 않는다. Linux에서 의존성을 검사할 때는 Windows 파일명 대소문자 비구분도 반영해야 한다.
+
+**How to apply:** 공식 Windows 배포물에서 필요한 app-local 런타임과 bootstrap library를 포함하고 import closure·catalog 참조·실제 설치본 추출 해시를 구분해 확인한다. 이 정적 검사는 Windows loader/ACL/실행 수용 증거가 아니다.
