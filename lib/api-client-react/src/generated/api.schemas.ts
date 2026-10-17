@@ -5,6 +5,117 @@
  * 수영장 관리 플랫폼 API
  * OpenAPI spec version: 0.1.0
  */
+export interface OfficeOrdinaryChanges {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name?: string;
+  /** @maxLength 30 */
+  phone?: string;
+  /** @maxLength 10 */
+  birth_date?: string;
+  /** @maxLength 4 */
+  birth_year?: string;
+  /** @maxLength 120 */
+  parent_name?: string;
+  /** @maxLength 8000 */
+  memo?: string;
+}
+
+export type OfficeCommandInputAction =
+  (typeof OfficeCommandInputAction)[keyof typeof OfficeCommandInputAction];
+
+export const OfficeCommandInputAction = {
+  update: "update",
+  move: "move",
+} as const;
+
+export interface OfficeCommandInput {
+  action: OfficeCommandInputAction;
+  /** @pattern ^[A-Za-z0-9_-]{1,160}$ */
+  requestId: string;
+  /** @pattern ^[A-Za-z0-9_-]{1,160}$ */
+  memberId: string;
+  /** @pattern ^[a-f0-9]{32}$ */
+  expectedRevision: string;
+  changes?: OfficeOrdinaryChanges;
+  fromClassId?: string;
+  toClassId?: string;
+}
+
+export interface OfficeFieldChange {
+  field: string;
+  before: string;
+  after: string;
+}
+
+export type OfficeCommandReceiptAction =
+  (typeof OfficeCommandReceiptAction)[keyof typeof OfficeCommandReceiptAction];
+
+export const OfficeCommandReceiptAction = {
+  update: "update",
+  move: "move",
+} as const;
+
+export interface OfficeCommandReceipt {
+  requestId: string;
+  memberId: string;
+  revision: string;
+  action: OfficeCommandReceiptAction;
+  changes: OfficeFieldChange[];
+  assignedClassIds: string[];
+}
+
+export interface OfficeInterpretInput {
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  text: string;
+  memberId?: string;
+}
+
+export type OfficeProposalCommandAction =
+  (typeof OfficeProposalCommandAction)[keyof typeof OfficeProposalCommandAction];
+
+export const OfficeProposalCommandAction = {
+  update: "update",
+  move: "move",
+} as const;
+
+export interface OfficeProposalCommand {
+  action: OfficeProposalCommandAction;
+  memberId: string;
+  changes?: OfficeOrdinaryChanges;
+  fromClassId?: string;
+  toClassId?: string;
+}
+
+export type OfficeInterpretationKind =
+  (typeof OfficeInterpretationKind)[keyof typeof OfficeInterpretationKind];
+
+export const OfficeInterpretationKind = {
+  clarify: "clarify",
+  search: "search",
+  proposal: "proposal",
+} as const;
+
+export type OfficeInterpretationConfirmation =
+  (typeof OfficeInterpretationConfirmation)[keyof typeof OfficeInterpretationConfirmation];
+
+export const OfficeInterpretationConfirmation = {
+  required: "required",
+} as const;
+
+export interface OfficeInterpretation {
+  kind: OfficeInterpretationKind;
+  question?: string;
+  search?: string;
+  confirmation?: OfficeInterpretationConfirmation;
+  command?: OfficeProposalCommand;
+}
+
 export interface HealthStatus {
   status: string;
 }

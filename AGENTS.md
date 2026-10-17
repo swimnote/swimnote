@@ -6,6 +6,8 @@
 
 - [회원·운영 업무 구현설계 보완 V1](docs/office/member-operations-design-v1.md)은 기존 Stage 순서를 유지한 상세화·추가 요구다. 회원 상세 보완 이전/이후에 첫 AI 수정·반이동 작업을 자동 재개하지 않는다.
 
+  후속 명시 승인(2026-10-17): `attached_assets/Pasted--SWIMNOTE-APP-Replit-PROJECT-SWIMNOTE-OFFICE-V1-TASK-St_1792213955793.txt`에 한해 Stage 3 로컬 통합 구현·격리 검증을 재개한다. 운영 쓰기·실제 AI·배포·패키징 승인이 아니다.
+
 - 현재 Stage 2에는 [AI 매니저 UI·UX 보완 및 확장 계약](docs/office/stage2-manager-supplement.md)을 함께 적용한다. 두 모드·오른쪽 AI 패널의 대체 근거와 후속 단계 경계를 별도 기록하며 기존 원문·Stage 순서는 보존한다.
 
 SWIMNOTE OFFICE 관련 설계·구현·검수 전에 [UI·UX 헌법 V1.0](docs/office/ui-ux-constitution-v1.0.md)을 반드시 읽고 적용한다.

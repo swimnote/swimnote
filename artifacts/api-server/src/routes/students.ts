@@ -8,7 +8,7 @@ import {
   parentAccountsTable, usersTable, attendanceTable,
   classChangeLogsTable,
 } from "@workspace/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, getTableColumns } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import {
   assertMemberLimitInTx,
@@ -133,7 +133,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 
     if (req.user!.role === "teacher" && !poolAll) {
       // teacher (일반): 본인이 담당하는 반에 배정된 학생만 반환 (삭제된 반 제외)
-      students = await db.select().from(studentsTable)
+      students = await db.select({ ...getTableColumns(studentsTable),
+        office_revision: sql<string>`md5(row_to_json(${studentsTable})::text)` }).from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
           sql`status NOT IN ('archived', 'deleted')`,
@@ -142,7 +143,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     } else {
       // admin / super_admin / teacher(pool_all=true): 해당 수영장의 모든 학생 반환
       // archived/deleted 제외, suspended/withdrawn 포함 (회원 목록에서 필터로 구분)
-      students = await db.select().from(studentsTable)
+      students = await db.select({ ...getTableColumns(studentsTable),
+        office_revision: sql<string>`md5(row_to_json(${studentsTable})::text)` }).from(studentsTable)
         .where(and(
           eq(studentsTable.swimming_pool_id, poolId!),
           sql`status NOT IN ('archived', 'deleted')`
@@ -163,7 +165,8 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       const class_group_name = s.class_group_id
         ? (classGroupMap.get(s.class_group_id)?.name ?? null)
         : null;
-      return enrichWithClassesFromMap({ ...s, class_group_name }, classGroupMap);
+      return enrichWithClassesFromMap({ ...s, class_group_name,
+        office_stage3_enabled: process.env.OFFICE_STAGE3_ENABLED === "true" }, classGroupMap);
     });
 
     const sorted = enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

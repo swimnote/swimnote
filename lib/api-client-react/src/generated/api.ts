@@ -34,6 +34,10 @@ import type {
   LoginRequest,
   Member,
   Notice,
+  OfficeCommandInput,
+  OfficeCommandReceipt,
+  OfficeInterpretInput,
+  OfficeInterpretation,
   Pool,
   RegisterRequest,
   RejectRequest,
@@ -50,6 +54,273 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Gated OFFICE ordinary edit or single-membership move
+ */
+export const getOfficeExecuteCommandUrl = () => {
+  return `/api/office/command`;
+};
+
+export const officeExecuteCommand = async (
+  officeCommandInput: OfficeCommandInput,
+  options?: RequestInit,
+): Promise<OfficeCommandReceipt> => {
+  return customFetch<OfficeCommandReceipt>(getOfficeExecuteCommandUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(officeCommandInput),
+  });
+};
+
+export const getOfficeExecuteCommandMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof officeExecuteCommand>>,
+    TError,
+    { data: BodyType<OfficeCommandInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof officeExecuteCommand>>,
+  TError,
+  { data: BodyType<OfficeCommandInput> },
+  TContext
+> => {
+  const mutationKey = ["officeExecuteCommand"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof officeExecuteCommand>>,
+    { data: BodyType<OfficeCommandInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return officeExecuteCommand(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OfficeExecuteCommandMutationResult = NonNullable<
+  Awaited<ReturnType<typeof officeExecuteCommand>>
+>;
+export type OfficeExecuteCommandMutationBody = BodyType<OfficeCommandInput>;
+export type OfficeExecuteCommandMutationError = ErrorType<void>;
+
+/**
+ * @summary Gated OFFICE ordinary edit or single-membership move
+ */
+export const useOfficeExecuteCommand = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof officeExecuteCommand>>,
+    TError,
+    { data: BodyType<OfficeCommandInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof officeExecuteCommand>>,
+  TError,
+  { data: BodyType<OfficeCommandInput> },
+  TContext
+> => {
+  return useMutation(getOfficeExecuteCommandMutationOptions(options));
+};
+
+/**
+ * @summary Read this authenticated actor's committed request, never retry mutation
+ */
+export const getOfficeGetCommandReceiptUrl = (requestId: string) => {
+  return `/api/office/commands/${requestId}`;
+};
+
+export const officeGetCommandReceipt = async (
+  requestId: string,
+  options?: RequestInit,
+): Promise<OfficeCommandReceipt> => {
+  return customFetch<OfficeCommandReceipt>(
+    getOfficeGetCommandReceiptUrl(requestId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getOfficeGetCommandReceiptQueryKey = (requestId: string) => {
+  return [`/api/office/commands/${requestId}`] as const;
+};
+
+export const getOfficeGetCommandReceiptQueryOptions = <
+  TData = Awaited<ReturnType<typeof officeGetCommandReceipt>>,
+  TError = ErrorType<void>,
+>(
+  requestId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof officeGetCommandReceipt>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getOfficeGetCommandReceiptQueryKey(requestId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof officeGetCommandReceipt>>
+  > = ({ signal }) =>
+    officeGetCommandReceipt(requestId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!requestId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof officeGetCommandReceipt>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type OfficeGetCommandReceiptQueryResult = NonNullable<
+  Awaited<ReturnType<typeof officeGetCommandReceipt>>
+>;
+export type OfficeGetCommandReceiptQueryError = ErrorType<void>;
+
+/**
+ * @summary Read this authenticated actor's committed request, never retry mutation
+ */
+
+export function useOfficeGetCommandReceipt<
+  TData = Awaited<ReturnType<typeof officeGetCommandReceipt>>,
+  TError = ErrorType<void>,
+>(
+  requestId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof officeGetCommandReceipt>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getOfficeGetCommandReceiptQueryOptions(
+    requestId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Gated server model returns proposal only; no automatic execution
+ */
+export const getOfficeInterpretRequestUrl = () => {
+  return `/api/office/interpret`;
+};
+
+export const officeInterpretRequest = async (
+  officeInterpretInput: OfficeInterpretInput,
+  options?: RequestInit,
+): Promise<OfficeInterpretation> => {
+  return customFetch<OfficeInterpretation>(getOfficeInterpretRequestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(officeInterpretInput),
+  });
+};
+
+export const getOfficeInterpretRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof officeInterpretRequest>>,
+    TError,
+    { data: BodyType<OfficeInterpretInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof officeInterpretRequest>>,
+  TError,
+  { data: BodyType<OfficeInterpretInput> },
+  TContext
+> => {
+  const mutationKey = ["officeInterpretRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof officeInterpretRequest>>,
+    { data: BodyType<OfficeInterpretInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return officeInterpretRequest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OfficeInterpretRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof officeInterpretRequest>>
+>;
+export type OfficeInterpretRequestMutationBody = BodyType<OfficeInterpretInput>;
+export type OfficeInterpretRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Gated server model returns proposal only; no automatic execution
+ */
+export const useOfficeInterpretRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof officeInterpretRequest>>,
+    TError,
+    { data: BodyType<OfficeInterpretInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof officeInterpretRequest>>,
+  TError,
+  { data: BodyType<OfficeInterpretInput> },
+  TContext
+> => {
+  return useMutation(getOfficeInterpretRequestMutationOptions(options));
+};
 
 /**
  * @summary Health check

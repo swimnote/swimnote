@@ -1,4 +1,5 @@
 import { getToken, clearToken, isDesktopTokenStorage, getAuthGeneration } from "./token";
+import { OFFICE_STAGE3_ACTIVE, isOfficeStage3Request } from "./office-stage3-policy";
 
 const API_BASE = import.meta.env.VITE_API_BASE as string | undefined;
 
@@ -26,7 +27,8 @@ async function request<T>(
       throw new DOMException("이전 로그인 조회를 취소했습니다.", "AbortError");
     }
   };
-  if (isDesktopTokenStorage() && options.method && options.method !== "GET") {
+  if (isDesktopTokenStorage() && options.method && options.method !== "GET" &&
+      !isOfficeStage3Request(path, options.method, OFFICE_STAGE3_ACTIVE)) {
     throw { status: 403, message: "현재 Desktop은 조회 전용입니다." } as ApiError;
   }
   const headers: Record<string, string> = {

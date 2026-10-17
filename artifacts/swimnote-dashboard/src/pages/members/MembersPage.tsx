@@ -4,6 +4,8 @@ import { useOfficeBusinessVisible } from "@/desktop/OfficeWorkspace";
 import { useOfficeActions } from "@/desktop/OfficeActionContext";
 import { memberQuery, filterMembers } from "./member-query";
 import { OfficeMemberDetail } from "@/desktop/OfficeMemberDetail";
+import { OfficeMemberEditor } from "@/desktop/OfficeMemberEditor";
+import type { OfficeWriteReceipt } from "@/desktop/office-stage3-transport";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
@@ -25,6 +27,8 @@ type AssignedClass = {
 };
 
 export type Student = {
+  office_revision?: string;
+  office_stage3_enabled?: boolean;
   id: string;
   name: string;
   phone?: string;
@@ -524,9 +528,46 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
   });
   const [error, setError] = useState<string | null>(null);
   const [assignmentChanged, setAssignmentChanged] = useState(false);
+  const guardedWeb = !!student.office_stage3_enabled && !!student.office_revision && !assignmentChanged &&
+    form.parent_phone === (student.parent_phone ?? "");
+  const guardedRequest = useRef(crypto.randomUUID());
+  const [unknownSave, setUnknownSave] = useState(false);
+  const ordinaryChanges = Object.fromEntries(Object.entries({
+    name: form.name.trim(), birth_year: form.birth_year, parent_name: form.parent_name, memo: form.memo,
+  }).filter(([key, value]) => value !== String((student as any)[key] ?? "")));
+  const originalIds = Array.isArray(student.assigned_class_ids) ? student.assigned_class_ids : student.class_group_id ? [student.class_group_id] : [];
+  const removedIds = originalIds.filter(id => !form.assigned_class_ids.includes(id));
+  const addedIds = form.assigned_class_ids.filter(id => !originalIds.includes(id));
+  const guardedMove = !!student.office_stage3_enabled && !!student.office_revision && assignmentChanged &&
+    removedIds.length === 1 && addedIds.length === 1 && Object.keys(ordinaryChanges).length === 0 &&
+    form.parent_phone === (student.parent_phone ?? "");
+  const readBack = async (receipt: OfficeWriteReceipt) => {
+    const rows = await qc.fetchQuery({ ...memberQuery, staleTime: 0, retry: false });
+    if (!rows.some(s => s.id === student.id && s.office_revision === receipt.revision))
+      throw new Error("Committed revision not confirmed");
+  };
+  const confirmGuardedStatus = async () => {
+    try {
+      const receipt = await api.get<OfficeWriteReceipt>(`/office/commands/${guardedRequest.current}`);
+      if (receipt.memberId !== student.id) throw new Error("Wrong receipt");
+      await readBack(receipt); onSaved();
+    } catch { setError("결과가 아직 확인되지 않았습니다. 같은 변경을 재실행하지 마세요."); }
+  };
 
   const infoMutation = useMutation({
     mutationFn: async () => {
+      if (guardedWeb || guardedMove) {
+        if (unknownSave) throw { status: 409, message: "이전 요청 결과가 불명입니다. 재전송하지 마세요." };
+        if (guardedMove || Object.keys(ordinaryChanges).length) {
+          const receipt = await api.post<OfficeWriteReceipt>("/office/command", {
+            action: guardedMove ? "move" : "update", memberId: student.id, requestId: guardedRequest.current,
+            expectedRevision: student.office_revision,
+            ...(guardedMove ? { fromClassId: removedIds[0], toClassId: addedIds[0] } : { changes: ordinaryChanges }),
+          });
+          await readBack(receipt);
+        }
+        return;
+      }
       await api.patch(`/admin/students/${student.id}/info`, {
         name: form.name.trim(),
         birth_year: form.birth_year ? Number(form.birth_year) : undefined,
@@ -540,7 +581,11 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
         });
       }
     },
-    onError: (e: ApiError) => setError(e.message ?? "저장 중 오류가 발생했습니다."),
+    onError: (e: ApiError) => {
+      if ((guardedWeb || guardedMove) && (!e.status || e.status >= 500)) {
+        setUnknownSave(true); setError("결과 불명입니다. 같은 변경을 재전송하지 말고 요청 상태를 확인하세요.");
+      } else { guardedRequest.current = crypto.randomUUID(); setError(e.message ?? "저장 중 오류가 발생했습니다."); }
+    },
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["students"] });
       onSaved();
@@ -645,6 +690,7 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
         </div>
 
         <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
+          {unknownSave && <button type="button" onClick={() => void confirmGuardedStatus()}>요청 상태 확인</button>}
           <button
             onClick={onClose}
             style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer", fontSize: "14px" }}
@@ -657,7 +703,7 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
               setError(null);
               infoMutation.mutate();
             }}
-            disabled={infoMutation.isPending}
+            disabled={infoMutation.isPending || unknownSave}
             style={{
               flex: 2,
               padding: "10px",
@@ -864,7 +910,7 @@ export default function MembersPage() {
 
   // Fetch class groups for filter + edit
   const { data: classGroups = [], isError: classesError, refetch: refetchClasses } = useQuery<ClassGroup[]>({
-    queryKey: ["class-groups"],
+    queryKey: actions ? ["class-groups", ...actions.membersQuery.queryKey.slice(1)] : ["class-groups"],
     queryFn: ({ signal }) => api.get<ClassGroup[]>("/class-groups", { signal }),
     staleTime: 120_000,
   });
@@ -956,7 +1002,9 @@ export default function MembersPage() {
     else office?.open({ screen: "members", memberId: id, view: "full", tab });
   };
   if (fullDestination) return <div ref={rootRef}>
-    {isError ? <section role="alert" style={{ padding: 24 }}>
+    {isError && currentStudent && !(error && "status" in error && [401, 403, 404].includes(Number(error.status))) &&
+      <p role="alert">새 조회에 실패했습니다. 마지막 조회 정보와 미저장 입력을 유지합니다. 최신 상태가 확인된 것은 아닙니다.</p>}
+    {isError && (!currentStudent || error && "status" in error && [401, 403, 404].includes(Number(error.status))) ? <section role="alert" style={{ padding: 24 }}>
       <h1>전체 회원정보를 불러오지 못했습니다.</h1>
       <p>{error && "status" in error && (error.status === 401 || error.status === 403)
         ? "현재 회원정보를 조회할 권한을 확인해 주세요." : "조회에 실패했습니다. 빈 회원정보와는 다릅니다."}</p>
@@ -968,6 +1016,11 @@ export default function MembersPage() {
           if (actions) void actions.execute({ action: "office.members.open", input: { view: "list" } }, "menu");
           else office?.closeDetail();
         }}
+        editable={!!actions?.stage3Enabled}
+        editor={<OfficeMemberEditor student={currentStudent} tab={fullTab} classes={classGroups}
+          enabled={!!actions?.stage3Enabled} registerGuard={office!.registerGuard}
+          confirmedRequestIds={actions?.tasks.filter(t => t.status === "completed" && t.id.includes(":write:")).map(t => t.id.split(":write:")[1])}
+          execute={request => actions!.execute(request, "menu")} />}
         growth={<GrHistorySection key={currentStudent.id} studentId={currentStudent.id} />} />
       : <p role="status" style={{ padding: 24 }}>해당 회원이 없거나 현재 조회 범위에 없습니다.</p>}
   </div>;

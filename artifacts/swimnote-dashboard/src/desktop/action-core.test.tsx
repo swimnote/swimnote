@@ -18,9 +18,11 @@ function fixture(overrides: Partial<ActionDependencies> = {}) {
   return { core: new OfficeActionCore(deps), deps };
 }
 const request = (action: string, input: unknown = {}) => ({ action, input });
-it("registers only four read/open actions, no mutation/URL/SQL or fake confirmation executors", () => {
-  expect(Object.keys(OFFICE_ACTIONS)).toHaveLength(4);
-  expect(Object.values(OFFICE_ACTIONS).every(a => a.confirmation === "none" && !a.invalidates.length && a.permission === "pool_admin")).toBe(true);
+it("registers four read/open actions and two default-gated explicit writes, never URL/SQL executors", () => {
+  expect(Object.keys(OFFICE_ACTIONS)).toHaveLength(6);
+  expect(Object.values(OFFICE_ACTIONS).filter(a => a.kind !== "mutation").every(a => a.confirmation === "none" && !a.invalidates.length && a.permission === "pool_admin")).toBe(true);
+  expect(OFFICE_ACTIONS["office.member.update"].confirmation).toBe("explicit-save");
+  expect(OFFICE_ACTIONS["office.member.move"].confirmation).toBe("preview-confirm");
 });
 it.each([
   [null, "unsupported"],

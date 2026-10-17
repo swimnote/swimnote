@@ -9,6 +9,8 @@ export default defineConfig({
       if (id.endsWith(".cts")) return transformWithEsbuild(source, id, { loader: "ts", format: "esm" });
     },
   }],
-  test: { environment: "node", include: ["desktop/*.test.ts", "src/desktop/*.test.tsx"] },
+  test: { environment: "node", include: ["desktop/*.test.ts", "src/desktop/*.test.tsx",
+    // Canonical OFFICE writes must not change the existing Web multi-class editing contract.
+    "src/pages/members/multi-class-assignment.test.tsx"] },
   resolve: { alias: { "@": new URL("../src", import.meta.url).pathname } },
 });

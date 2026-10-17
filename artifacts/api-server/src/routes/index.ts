@@ -71,11 +71,13 @@ import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
 import publishGrowthReportRouter from "./publish-growth-report.js";
 import growthReportInteractionsRouter from "./growth-report-interactions.js";
 import archiveRouter from "./archive.js";
+import officeRouter from "./office.js";
 
 const router: IRouter = Router();
 
 // 읽기전용 풀 쓰기 차단 (결제 실패 / 삭제 예약 상태)
 router.use(requireWritable as any);
+router.use("/office", officeRouter);
 
 // ── Super 라우터 최우선 마운트 (다른 "/" 라우터들이 /super/* 경로를 가로채지 않도록) ──
 router.use("/", superSyncRouter);

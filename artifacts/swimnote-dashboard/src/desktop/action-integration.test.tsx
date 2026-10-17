@@ -126,8 +126,9 @@ it("restores a query task's exact filters before acknowledging its fresh result,
   await execute("office.members.search", { search: "가상회원B", status: "", classId: "" });
   expect(nav.view.search).toBe("가상회원B");
   const before = calls();
-  fireEvent.click(screen.getByRole("button", { name: "결과 보기: 회원 조회" }));
-  await screen.findByText("완료 · 열람함");
+  // The fixture also renders its diagnostic card; the production dock now exposes the same task.
+  fireEvent.click(screen.getAllByRole("button", { name: "결과 보기: 회원 조회" })[0]);
+  await screen.findAllByText("완료 · 열람함");
   expect(nav.view).toMatchObject({ search: "가상회원A", status: "active", classId: "class_a" });
   expect(calls()).toBe(before + 1);
   expect(service.core.getTasks()[0].changes).toEqual([]);

@@ -1,5 +1,7 @@
 # OFFICE 회원·운영 업무 구현설계 보완 V1
 
+> 후속 명시 승인(2026-10-17): 회원 상세 사용자 수용은 `foundation-acceptance.md`에 기록했다. 첨부 `Pasted--SWIMNOTE-APP-Replit-PROJECT-SWIMNOTE-OFFICE-V1-TASK-St_1792213955793.txt` 범위의 Stage 3 로컬 수정·반이동·AI 연결 기반만 재개한다. 아래 이전 범위는 당시 이력이며 운영 활성화·패키징 승인으로 확대하지 않는다.
+
 기준일: 2026-10-17. 근거: `attached_assets/Pasted--SWIMNOTE-APP-Replit-PROJECT-SWIMNOTE-OFFICE-V1-TASK--1_1792211341316.txt`.
 원본: [고정계획서](../../attached_assets/SWIMNOTE_OFFICE_V1_전체개발_고정계획서_V1.0_20261015_1792084020980.docx).
 필수 부속: [UI·UX 헌법](ui-ux-constitution-v1.0.md), [AI 매니저 보완](stage2-manager-supplement.md), [기존 수용 증거](foundation-acceptance.md).

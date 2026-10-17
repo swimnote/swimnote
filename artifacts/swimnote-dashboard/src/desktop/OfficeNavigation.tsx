@@ -32,6 +32,8 @@ type Navigation = {
   getRevision: () => number;
   getDetailScroll: (memberId: string, tab: OfficeMemberTab) => number;
   rememberDetailScroll: (memberId: string, tab: OfficeMemberTab, scroll: number) => void;
+  registerGuard: (guard: ((next: () => void) => void) | null) => void;
+  requestLeave: (next: () => void) => void;
   back: () => void; forward: () => void; closeDetail: () => void;
   missingMember: () => void;
   updateView: (patch: Partial<View>) => void;
@@ -49,14 +51,31 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
   const revision = useRef(0);
   const lastMembers = useRef<OfficeDestination>({ screen: "members" });
   const detailScrolls = useRef(new Map<string, number>());
+  const leaveGuard = useRef<((next: () => void) => void) | null>(null);
+  const bypassGuard = useRef(false);
+  const registerGuard = useCallback((guard: ((next: () => void) => void) | null) => { leaveGuard.current = guard; }, []);
+  const requestLeave = useCallback((next: () => void) => {
+    if (leaveGuard.current) leaveGuard.current(next); else next();
+  }, []);
+  useEffect(() => window.officeDesktop?.onCloseRequest?.(() => {
+    requestLeave(() => window.officeDesktop?.confirmClose?.());
+  }), [requestLeave]);
   const [view, setView] = useState<View>(initialView);
   const [notice, setNotice] = useState("");
   const commit = useCallback((next: History) => {
+    const before = historyRef.current.entries[historyRef.current.index], after = next.entries[next.index];
+    const sameEditor = before.screen === "members" && after.screen === "members" &&
+      before.view === "full" && after.view === "full" && before.memberId === after.memberId;
+    if (!bypassGuard.current && leaveGuard.current && !sameEditor) {
+      leaveGuard.current(() => { bypassGuard.current = true; try { commit(next); } finally { bypassGuard.current = false; } });
+      return false;
+    }
     revision.current++;
     historyRef.current = next;
     setHistory(next);
     // Keep the existing router, but not personal Context in browser history/URLs.
     navigate(route(next.entries[next.index]), { replace: true });
+    return true;
   }, [navigate]);
   const open = useCallback((input: OfficeDestination, options?: { directReturn?: boolean; listOnly?: boolean }) => {
     if (!validOfficeDestination(input)) {
@@ -77,8 +96,7 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
     if (!options?.directReturn && target.screen === "members" && target.memberId && current.entries[current.index].screen !== "members")
       entries.push({ screen: "members" });
     entries.push(target);
-    commit({ entries, index: entries.length - 1 });
-    return true;
+    return commit({ entries, index: entries.length - 1 });
   }, [commit]);
   const step = useCallback((delta: number) => {
     const current = historyRef.current;
@@ -123,9 +141,9 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
   const value = useMemo<Navigation>(() => ({
     destination: history.entries[history.index], view, notice,
     canBack: history.index > 0, canForward: history.index < history.entries.length - 1,
-    open, getDestination, getRevision, getDetailScroll, rememberDetailScroll,
+    open, getDestination, getRevision, getDetailScroll, rememberDetailScroll, registerGuard, requestLeave,
     back: () => step(-1), forward: () => step(1), closeDetail, missingMember, updateView,
-  }), [history, view, notice, open, getDestination, getRevision, getDetailScroll, rememberDetailScroll, step, closeDetail, missingMember, updateView]);
+  }), [history, view, notice, open, getDestination, getRevision, getDetailScroll, rememberDetailScroll, registerGuard, requestLeave, step, closeDetail, missingMember, updateView]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 

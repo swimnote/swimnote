@@ -14,11 +14,15 @@ const AUTH_ROUTES: Record<string, readonly string[]> = {
   "/api/admin/events/stream": ["GET", "OPTIONS"],
 };
 
-export function isAllowedAuthRequest(raw: string, method: string): boolean {
+export function isAllowedAuthRequest(raw: string, method: string, stage3Enabled = false): boolean {
   try {
     const url = new URL(raw);
     if (url.origin !== AUTH_API_ORIGIN || url.username || url.password || url.hash) return false;
     if (!url.search && AUTH_ROUTES[url.pathname]?.includes(method)) return true;
+    if (stage3Enabled && !url.search && (
+      (method === "POST" || method === "OPTIONS") && ["/api/office/command", "/api/office/interpret"].includes(url.pathname) ||
+      (method === "GET" || method === "OPTIONS") && /^\/api\/office\/commands\/[A-Za-z0-9_-]{1,160}$/.test(url.pathname)
+    )) return true;
     if (method !== "GET" && method !== "OPTIONS") return false;
     if (url.pathname === "/api/students") return url.search === "?pool_all=true";
     return !url.search && (

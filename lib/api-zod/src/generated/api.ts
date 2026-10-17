@@ -8,6 +8,176 @@
 import * as zod from "zod";
 
 /**
+ * @summary Gated OFFICE ordinary edit or single-membership move
+ */
+export const officeExecuteCommandBodyRequestIdRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{1,160}$",
+);
+export const officeExecuteCommandBodyMemberIdRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{1,160}$",
+);
+export const officeExecuteCommandBodyExpectedRevisionRegExp = new RegExp(
+  "^[a-f0-9]{32}$",
+);
+export const officeExecuteCommandBodyChangesNameMax = 120;
+
+export const officeExecuteCommandBodyChangesPhoneMax = 30;
+
+export const officeExecuteCommandBodyChangesBirthDateMax = 10;
+
+export const officeExecuteCommandBodyChangesBirthYearMax = 4;
+
+export const officeExecuteCommandBodyChangesParentNameMax = 120;
+
+export const officeExecuteCommandBodyChangesMemoMax = 8000;
+
+export const OfficeExecuteCommandBody = zod.object({
+  action: zod.enum(["update", "move"]),
+  requestId: zod.string().regex(officeExecuteCommandBodyRequestIdRegExp),
+  memberId: zod.string().regex(officeExecuteCommandBodyMemberIdRegExp),
+  expectedRevision: zod
+    .string()
+    .regex(officeExecuteCommandBodyExpectedRevisionRegExp),
+  changes: zod
+    .object({
+      name: zod
+        .string()
+        .min(1)
+        .max(officeExecuteCommandBodyChangesNameMax)
+        .optional(),
+      phone: zod
+        .string()
+        .max(officeExecuteCommandBodyChangesPhoneMax)
+        .optional(),
+      birth_date: zod
+        .string()
+        .max(officeExecuteCommandBodyChangesBirthDateMax)
+        .optional(),
+      birth_year: zod
+        .string()
+        .max(officeExecuteCommandBodyChangesBirthYearMax)
+        .optional(),
+      parent_name: zod
+        .string()
+        .max(officeExecuteCommandBodyChangesParentNameMax)
+        .optional(),
+      memo: zod.string().max(officeExecuteCommandBodyChangesMemoMax).optional(),
+    })
+    .optional(),
+  fromClassId: zod.string().optional(),
+  toClassId: zod.string().optional(),
+});
+
+export const OfficeExecuteCommandResponse = zod.object({
+  requestId: zod.string(),
+  memberId: zod.string(),
+  revision: zod.string(),
+  action: zod.enum(["update", "move"]),
+  changes: zod.array(
+    zod.object({
+      field: zod.string(),
+      before: zod.string(),
+      after: zod.string(),
+    }),
+  ),
+  assignedClassIds: zod.array(zod.string()),
+});
+
+/**
+ * @summary Read this authenticated actor's committed request, never retry mutation
+ */
+export const officeGetCommandReceiptPathRequestIdRegExp = new RegExp(
+  "^[A-Za-z0-9_-]{1,160}$",
+);
+
+export const OfficeGetCommandReceiptParams = zod.object({
+  requestId: zod.coerce
+    .string()
+    .regex(officeGetCommandReceiptPathRequestIdRegExp),
+});
+
+export const OfficeGetCommandReceiptResponse = zod.object({
+  requestId: zod.string(),
+  memberId: zod.string(),
+  revision: zod.string(),
+  action: zod.enum(["update", "move"]),
+  changes: zod.array(
+    zod.object({
+      field: zod.string(),
+      before: zod.string(),
+      after: zod.string(),
+    }),
+  ),
+  assignedClassIds: zod.array(zod.string()),
+});
+
+/**
+ * @summary Gated server model returns proposal only; no automatic execution
+ */
+export const officeInterpretRequestBodyTextMax = 2000;
+
+export const OfficeInterpretRequestBody = zod.object({
+  text: zod.string().min(1).max(officeInterpretRequestBodyTextMax),
+  memberId: zod.string().optional(),
+});
+
+export const officeInterpretRequestResponseCommandChangesNameMax = 120;
+
+export const officeInterpretRequestResponseCommandChangesPhoneMax = 30;
+
+export const officeInterpretRequestResponseCommandChangesBirthDateMax = 10;
+
+export const officeInterpretRequestResponseCommandChangesBirthYearMax = 4;
+
+export const officeInterpretRequestResponseCommandChangesParentNameMax = 120;
+
+export const officeInterpretRequestResponseCommandChangesMemoMax = 8000;
+
+export const OfficeInterpretRequestResponse = zod.object({
+  kind: zod.enum(["clarify", "search", "proposal"]),
+  question: zod.string().optional(),
+  search: zod.string().optional(),
+  confirmation: zod.enum(["required"]).optional(),
+  command: zod
+    .object({
+      action: zod.enum(["update", "move"]),
+      memberId: zod.string(),
+      changes: zod
+        .object({
+          name: zod
+            .string()
+            .min(1)
+            .max(officeInterpretRequestResponseCommandChangesNameMax)
+            .optional(),
+          phone: zod
+            .string()
+            .max(officeInterpretRequestResponseCommandChangesPhoneMax)
+            .optional(),
+          birth_date: zod
+            .string()
+            .max(officeInterpretRequestResponseCommandChangesBirthDateMax)
+            .optional(),
+          birth_year: zod
+            .string()
+            .max(officeInterpretRequestResponseCommandChangesBirthYearMax)
+            .optional(),
+          parent_name: zod
+            .string()
+            .max(officeInterpretRequestResponseCommandChangesParentNameMax)
+            .optional(),
+          memo: zod
+            .string()
+            .max(officeInterpretRequestResponseCommandChangesMemoMax)
+            .optional(),
+        })
+        .optional(),
+      fromClassId: zod.string().optional(),
+      toClassId: zod.string().optional(),
+    })
+    .optional(),
+});
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({

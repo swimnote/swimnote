@@ -11,6 +11,7 @@ import HomePage from "../pages/HomePage";
 import MembersPage from "../pages/members/MembersPage";
 import type { LoginPreferences } from "../../desktop/contracts";
 import { OfficeNavigationProvider, OfficeNavigationBar, useOfficeNavigate } from "./OfficeNavigation";
+import { useOfficeActions } from "./OfficeActionContext";
 import { OfficeWorkspace } from "./OfficeWorkspace";
 import { OfficeManagerProvider } from "./OfficeManagerContext";
 import { OfficeActionProvider } from "./OfficeActionProvider";
@@ -140,12 +141,15 @@ export function DesktopApp() {
 
 export function DesktopRoutes() {
   const navigate = useOfficeNavigate();
+  const actions = useOfficeActions();
   return <OfficeManagerProvider><DashboardLayout fillAvailable>
     <OfficeWorkspace>
     <OfficeNavigationBar />
     <details className="office-capability" data-office-navigation>
-      <summary>조회 전용 · 사용 범위</summary>
-      <p role="note">홈 현황·회원목록·회원 상세만 조회할 수 있습니다. 등록·수정·연기·퇴원 및 다른 업무 메뉴는 아직 연결되지 않았습니다.</p>
+      <summary>{actions?.stage3Enabled ? "회원 업무 · 사용 범위" : "조회 전용 · 사용 범위"}</summary>
+      <p role="note">{actions?.stage3Enabled
+        ? "일반 회원정보 수정·선택한 한 소속 반이동만 연결됩니다. 인증 연락처·권한·결제·발송·등록·연기·퇴원은 제외합니다."
+        : "홈 현황·회원목록·회원 상세만 조회할 수 있습니다. 등록·수정·연기·퇴원 및 다른 업무 메뉴는 아직 연결되지 않았습니다."}</p>
     </details>
     <Switch>
       <Route path="/admin/login"><Redirect to="/admin" /></Route>

@@ -20,6 +20,8 @@ export type SessionRestore = Readonly<{
 export type LoginPreferences = Readonly<{ loginId: string; remember: boolean }>;
 
 export type OfficeDesktopBridge = Readonly<{
+  onCloseRequest?: (callback: () => void) => () => void;
+  confirmClose?: () => void;
   getBootstrapInfo: () => Promise<BootstrapInfo>;
   restoreSession: () => Promise<SessionRestore>;
   commitSession: (session: SessionWrite) => Promise<SessionResult>;

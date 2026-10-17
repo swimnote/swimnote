@@ -8,3 +8,9 @@ description: Prevent mixed original/release test imports from escaping database 
 **Why:** 같은 패키지 이름이라도 테스트와 release 모듈의 importer 위치·node_modules 경로에 따라 서로 다른 모듈 ID로 해석될 수 있다. 겉으로 같은 mock 선언만으로 실제 DB 접근 차단을 보장할 수 없었다.
 
 **How to apply:** 원본 테스트의 import와 mock specifier를 모두 격리 release 모듈로 연결한다. DB 의존성에는 fail-closed trap을 적용하고, release에만 있는 동작을 검증해 원본 개발 source가 대신 실행되지 않았음을 확인한다. 테스트 증거는 release commit에 섞지 않는다.
+
+JSDOM/Vite 테스트에서는 `import.meta.url`이 HTTP 개발 URL로 변환될 수 있으므로, 이를 Node `createRequire`의 기준으로 넘기지 않는다.
+
+**Why:** 동일한 fixture가 Node 환경에서는 통과하지만 JSDOM에서는 file URL이 아닌 HTTP URL을 받아 모듈을 읽기도 전에 실패할 수 있다.
+
+**How to apply:** Node 전용 테스트 도구를 불러올 때는 검증한 절대 파일 경로를 사용한다. DB 연결은 운영 환경변수 대신 명시한 loopback 주소·전용 fixture DB로 제한하고, 실제 DB 이름도 확인한다.

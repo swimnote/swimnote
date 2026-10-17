@@ -3,6 +3,13 @@ import type { OfficeDesktopBridge } from "./contracts.js";
 
 // Sandboxed preload is deliberately self-contained: no filesystem or Node APIs.
 const bridge: OfficeDesktopBridge = Object.freeze({
+  onCloseRequest: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on("office:close-request", listener);
+    ipcRenderer.send("office:close-ready");
+    return () => { ipcRenderer.removeListener("office:close-request", listener); ipcRenderer.send("office:close-not-ready"); };
+  },
+  confirmClose: () => ipcRenderer.send("office:close-confirm"),
   getBootstrapInfo: () => ipcRenderer.invoke("office:bootstrap-info", null),
   restoreSession: () => ipcRenderer.invoke("office:session-restore", null),
   commitSession: (session) => ipcRenderer.invoke("office:session-commit", session),

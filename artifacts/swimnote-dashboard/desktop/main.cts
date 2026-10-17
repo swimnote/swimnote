@@ -52,6 +52,19 @@ async function createWindow() {
     },
   });
   mainWindow = win;
+  let rendererCloseReady = false, closeConfirmed = false;
+  const closeSender = (event: Electron.IpcMainEvent, args: unknown[]) =>
+    event.sender === win.webContents && !!event.senderFrame && event.senderFrame === win.webContents.mainFrame &&
+    isTrustedRendererURL(event.senderFrame.url, developmentURL) && args.length === 0;
+  const ready = (event: Electron.IpcMainEvent, ...args: unknown[]) => { if (closeSender(event, args)) rendererCloseReady = true; };
+  const notReady = (event: Electron.IpcMainEvent, ...args: unknown[]) => { if (closeSender(event, args)) rendererCloseReady = false; };
+  const confirm = (event: Electron.IpcMainEvent, ...args: unknown[]) => {
+    if (closeSender(event, args)) { closeConfirmed = true; win.close(); }
+  };
+  ipcMain.on("office:close-ready", ready);
+  ipcMain.on("office:close-not-ready", notReady);
+  ipcMain.on("office:close-confirm", confirm);
+  win.webContents.on("will-prevent-unload", event => { if (closeConfirmed) event.preventDefault(); });
   win.removeMenu();
   const ownSession = win.webContents.session;
   // Custom sessions have their own protocol registry.
@@ -105,7 +118,8 @@ async function createWindow() {
     if (saved.maximized === true) win.maximize();
     win.show();
   });
-  win.on("close", () => {
+  win.on("close", event => {
+    if (rendererCloseReady && !closeConfirmed) { event.preventDefault(); win.webContents.send("office:close-request"); return; }
     const geometry = { ...win.getNormalBounds(), maximized: win.isMaximized() };
     // Geometry only. Never persist renderer state, credentials, or auth tokens.
     const tmp = statePath + ".tmp";
@@ -115,6 +129,9 @@ async function createWindow() {
     } catch { /* Geometry persistence failure must not block normal exit. */ }
   });
   win.on("closed", () => {
+    ipcMain.removeListener("office:close-ready", ready);
+    ipcMain.removeListener("office:close-not-ready", notReady);
+    ipcMain.removeListener("office:close-confirm", confirm);
     ipcMain.removeHandler(BOOTSTRAP_CHANNEL);
     removeSessionIPC();
     removePreferencesIPC();

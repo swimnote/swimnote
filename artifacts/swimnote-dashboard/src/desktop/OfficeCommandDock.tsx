@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type ClipboardEvent, type DragEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useOfficeManager } from "./OfficeManagerContext";
+import { useOfficeActions } from "./OfficeActionContext";
+import { OfficeTaskCard } from "./OfficeTaskCard";
 import { ACCEPT_ATTR, MAX_FILES, formatBytes } from "./local-attachments";
 
 /** Future common Action boundary. Not connected: no submit handler exists yet. */
@@ -14,6 +16,7 @@ const STEP = 24;
 
 export function OfficeCommandDock({ available = 0 }: { available?: number }) {
   const m = useOfficeManager();
+  const actions = useOfficeActions();
   if (!m) throw new Error("OfficeCommandDock requires OfficeManagerProvider");
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -145,7 +148,7 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
     <header ref={head} className="office-dock-head">
       <div className="office-dock-title">
         <h2>AI 매니저</h2>
-        <span id={`${id}-connection`} className="office-dock-badge">AI 연결 전</span>
+        <span id={`${id}-connection`} className="office-dock-badge">{actions?.aiMode === "fixture" ? "mock 모델 격리 검증" : actions?.stage3Enabled ? "AI 서버 연결 · 실행 전 확인" : "AI 연결 전"}</span>
       </div>
       <div className="office-dock-tools">
         <button type="button" onClick={() => m.setLarge(!m.large)} disabled={!m.expanded} aria-pressed={m.large}>
@@ -157,10 +160,16 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
     </header>
     <div id={`${id}-body`} className="office-dock-log" role="log" aria-live="off" tabIndex={0}
       aria-label="AI 업무 처리 영역" hidden={!m.expanded}>
-      <p className="office-dock-status">처리 내역이 없습니다.</p>
+      {!actions?.tasks?.length && <p className="office-dock-status">처리 내역이 없습니다.</p>}
+      {actions?.tasks?.map(task => <div key={task.id}>
+        <OfficeTaskCard task={task} onConfirm={() => void actions.confirmProposal(task.id)}
+          onOpenResult={result => void actions.openResult(task.id, result.id)} />
+        {task.status === "unknown" && task.id.includes(":write:") && <button type="button"
+          onClick={() => void actions.resolveWrite(task.id.split(":write:")[1])}>요청 상태 확인 · 재실행 아님</button>}
+      </div>)}
     </div>
     <form ref={form} className={`office-dock-form${dragOver ? " is-dragover" : ""}`}
-      onSubmit={event => { event.preventDefault(); }}
+      onSubmit={event => { event.preventDefault(); if (actions?.stage3Enabled && !composing.current && m.draft.trim()) void actions.interpret(m.draft); }}
       onDragOver={e => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
       {(m.attachments.length > 0 || m.attachmentErrors.length > 0) && <div className="office-dock-attachments" hidden={!m.expanded && m.attachmentErrors.length === 0}>
@@ -189,11 +198,11 @@ export function OfficeCommandDock({ available = 0 }: { available?: number }) {
         <input ref={fileInput} type="file" multiple accept={ACCEPT_ATTR} hidden tabIndex={-1} onChange={pickFiles} />
         <div className="office-dock-actions">
           <button type="button" className="office-dock-attach" onClick={() => fileInput.current?.click()}>파일 선택</button>
-          <button type="submit" className="office-dock-send" disabled aria-describedby={`${id}-connection ${reason}`}>전송</button>
+          <button type="submit" className="office-dock-send" disabled={!actions?.stage3Enabled || !m.draft.trim()} aria-describedby={`${id}-connection ${reason}`}>전송</button>
         </div>
       </div>
       <div ref={footer} className="office-dock-footer">
-        <p id={reason} className="office-dock-reason">전송 불가 · 첨부는 로컬 선택만</p>
+        <p id={reason} className="office-dock-reason">{actions?.stage3Enabled ? "업무 텍스트만 전송 · 변경은 별도 확인" : "전송 불가"} · 첨부는 로컬 선택만</p>
         <button type="button" className="office-dock-help-toggle" aria-expanded={help} aria-controls={`${id}-file-help`}
           onClick={() => setHelp(v => !v)}>파일 안내</button>
       </div>

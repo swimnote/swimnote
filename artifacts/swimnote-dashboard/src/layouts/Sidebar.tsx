@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isDesktopTokenStorage } from "@/lib/token";
-import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
+import { useOfficeNavigate, useOfficeNavigation } from "@/desktop/OfficeNavigation";
 import { useOfficeManager } from "@/desktop/OfficeManagerContext";
 
 type NavItem =
@@ -99,6 +99,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
     .map(item => item.kind === "group" ? { ...item, children: item.children.filter(child => child.path === "/admin/members") } : item)
     : NAV_ITEMS;
   const { state, logout } = useAuth();
+  const officeNavigation = useOfficeNavigation();
   const [location, navigate] = useLocation();
   const officeNavigate = useOfficeNavigate();
   const manager = useOfficeManager();
@@ -128,8 +129,8 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
   }
 
   function handleLogout() {
-    logout();
-    navigate("/admin/login");
+    const leave = () => { logout(); navigate("/admin/login"); };
+    if (officeNavigation) officeNavigation.requestLeave(leave); else leave();
   }
 
   const isActive = (path: string) => {

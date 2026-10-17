@@ -59,9 +59,10 @@ function Fold({ id, title, children }: { id: string; title: string; children: Re
   );
 }
 
-export function OfficeMemberDetail({ student, tab, onTabChange, onBack, growth }: {
+export function OfficeMemberDetail({ student, tab, onTabChange, onBack, growth, editor, editable = false }: {
   student: Student; tab: OfficeMemberTab; onTabChange: (tab: OfficeMemberTab) => void;
   onBack: () => void; growth: ReactNode;
+  editor?: ReactNode; editable?: boolean;
 }) {
   const p = `office-member-detail-${student.id}`.replace(/[^a-zA-Z0-9_-]/g, "_");
   const classes = student.assignedClasses ?? [];
@@ -104,7 +105,7 @@ export function OfficeMemberDetail({ student, tab, onTabChange, onBack, growth }
           <div><dt>레벨</dt><dd>{levelText}</dd></div>
           <div><dt>등록일</dt><dd>{fmtDate(student.created_at) ?? MISSING}</dd></div>
         </dl>
-        <p className="office-member-detail-readonly">조회 전용 · 수강 기간 미연결 · 청구·납입 미연결</p>
+        <p className="office-member-detail-readonly">{editable ? "일반 정보·반이동 조건부 저장" : "조회 전용"} · 수강 기간 미연결 · 청구·납입 미연결</p>
       </header>
 
       <div role="tablist" aria-label="회원 상세 구분" className="office-member-detail-tabs" onKeyDown={onKey}>
@@ -115,6 +116,7 @@ export function OfficeMemberDetail({ student, tab, onTabChange, onBack, growth }
         ))}
       </div>
 
+      {editor}
       <div role="tabpanel" id={`${p}-panel`} aria-labelledby={`${p}-tab-${tab}`} className="office-member-detail-panel">
         {tab === "basic" && (
           <Fold id={`${p}-basic`} title="기본 정보">

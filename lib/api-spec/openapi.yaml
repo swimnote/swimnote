@@ -25,6 +25,68 @@ tags:
     description: Super admin operations
 
 paths:
+  /office/command:
+    post:
+      operationId: officeExecuteCommand
+      summary: Gated OFFICE ordinary edit or single-membership move
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OfficeCommandInput"
+      responses:
+        "200":
+          description: Committed command receipt; not a UI read receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeCommandReceipt"
+        "409":
+          description: Revision, policy or request identity conflict
+        "503":
+          description: Disabled pending integrated release approval
+  /office/commands/{requestId}:
+    get:
+      operationId: officeGetCommandReceipt
+      summary: Read this authenticated actor's committed request, never retry mutation
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Za-z0-9_-]{1,160}$"
+      responses:
+        "200":
+          description: Durable completion receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeCommandReceipt"
+        "404":
+          description: Completion unconfirmed, not proof of no write
+        "503":
+          description: Disabled
+  /office/interpret:
+    post:
+      operationId: officeInterpretRequest
+      summary: Gated server model returns proposal only; no automatic execution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OfficeInterpretInput"
+      responses:
+        "200":
+          description: Clarification, member search, or explicitly unexecuted proposal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OfficeInterpretation"
+        "503":
+          description: Actual AI disabled pending integrated release approval
   /healthz:
     get:
       operationId: healthCheck
@@ -571,6 +633,80 @@ components:
       bearerFormat: JWT
 
   schemas:
+    OfficeOrdinaryChanges:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        phone: { type: string, maxLength: 30 }
+        birth_date: { type: string, maxLength: 10 }
+        birth_year: { type: string, maxLength: 4 }
+        parent_name: { type: string, maxLength: 120 }
+        memo: { type: string, maxLength: 8000 }
+    OfficeCommandInput:
+      type: object
+      additionalProperties: false
+      required: [action, requestId, memberId, expectedRevision]
+      properties:
+        action: { type: string, enum: [update, move] }
+        requestId: { type: string, pattern: "^[A-Za-z0-9_-]{1,160}$" }
+        memberId: { type: string, pattern: "^[A-Za-z0-9_-]{1,160}$" }
+        expectedRevision: { type: string, pattern: "^[a-f0-9]{32}$" }
+        changes:
+          $ref: "#/components/schemas/OfficeOrdinaryChanges"
+        fromClassId: { type: string }
+        toClassId: { type: string }
+    OfficeFieldChange:
+      type: object
+      required: [field, before, after]
+      properties:
+        field: { type: string }
+        before: { type: string }
+        after: { type: string }
+    OfficeCommandReceipt:
+      type: object
+      required: [requestId, memberId, revision, action, changes, assignedClassIds]
+      properties:
+        requestId: { type: string }
+        memberId: { type: string }
+        revision: { type: string }
+        action: { type: string, enum: [update, move] }
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/OfficeFieldChange"
+        assignedClassIds:
+          type: array
+          items: { type: string }
+    OfficeInterpretInput:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 2000 }
+        memberId: { type: string }
+    OfficeProposalCommand:
+      type: object
+      additionalProperties: false
+      required: [action, memberId]
+      properties:
+        action: { type: string, enum: [update, move] }
+        memberId: { type: string }
+        changes:
+          $ref: "#/components/schemas/OfficeOrdinaryChanges"
+        fromClassId: { type: string }
+        toClassId: { type: string }
+    OfficeInterpretation:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [clarify, search, proposal] }
+        question: { type: string }
+        search: { type: string }
+        confirmation: { type: string, enum: [required] }
+        command:
+          $ref: "#/components/schemas/OfficeProposalCommand"
     HealthStatus:
       type: object
       properties:

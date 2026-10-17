@@ -2,12 +2,13 @@ import { filterMembers, type MemberFilters, type MemberSummary } from "../pages/
 import { confirmResultRead, type OfficeTask, type ResultReadEvidence } from "./OfficeTaskContract";
 import type { OfficeDestination } from "./OfficeNavigation";
 import { OFFICE_MEMBER_TABS, type OfficeMemberTab } from "./OfficeNavigation";
+import type { OfficeStage3Transport, OfficeWriteReceipt } from "./office-stage3-transport";
 
-export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search";
+export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search" | "office.member.update" | "office.member.move";
 export type ActionOrigin = "menu" | "shortcut" | "result" | "structured";
 export type ActionActor = { userId: string; poolId: string; role: string };
 export type ActionOutcome =
-  | { status: "success"; kind: "open" | "query"; destination: OfficeDestination; count?: number; filters?: MemberFilters }
+  | { status: "success"; kind: "open" | "query" | "mutation"; destination: OfficeDestination; count?: number; filters?: MemberFilters; receipt?: OfficeWriteReceipt }
   | { status: "failed"; code: "unsupported" | "input" | "forbidden" | "missing" | "query" | "navigation"; message: string }
   | { status: "cancelled"; message: string }
   | { status: "unknown"; message: string };
@@ -16,6 +17,8 @@ export const OFFICE_ACTIONS = Object.freeze({
   "office.members.open": { purpose: "기존 회원 화면 복원 또는 목록 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{view?:'list'}", queries: ["students", "class-groups"], invalidates: [] },
   "office.member.open": { purpose: "회원 ID로 빠른/전체 상세 및 탭 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{memberId,view?:'full',tab?:basic|contacts|classes|notes|growth}", queries: ["students"], invalidates: [] },
   "office.members.search": { purpose: "기존 회원 검색·필터 조회", kind: "query", confirmation: "none", permission: "pool_admin", input: "{search?,status?,classId?}", queries: ["students"], invalidates: [] },
+  "office.member.update": { purpose: "일반 회원정보 조건부 저장", kind: "mutation", confirmation: "explicit-save", permission: "pool_admin", input: "{memberId,requestId,expectedRevision,changes}", queries: ["students"], invalidates: ["students"] },
+  "office.member.move": { purpose: "명시한 소속 한 반만 이동", kind: "mutation", confirmation: "preview-confirm", permission: "pool_admin", input: "{memberId,requestId,expectedRevision,fromClassId,toClassId}", queries: ["students"], invalidates: ["students", "class-groups"] },
 } as const);
 type MembersRead = { data: MemberSummary[]; source: "network" | "cache"; queryStartedAt: number; receivedAt: number };
 export type ActionDependencies = {
@@ -28,14 +31,25 @@ export type ActionDependencies = {
   members: (signal: AbortSignal, fresh: boolean) => Promise<MembersRead>;
   readHome: (signal: AbortSignal) => Promise<Omit<MembersRead, "data">>;
   now?: () => number;
+  stage3?: OfficeStage3Transport;
+  changed?: () => Promise<void>;
 };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const own = (v: object, key: string) => Object.prototype.hasOwnProperty.call(v, key);
 const id = (v: unknown) => typeof v === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(v);
 const failed = (code: Extract<ActionOutcome, { status: "failed" }>["code"], message: string): ActionOutcome => ({ status: "failed", code, message });
 const cancelled = (): ActionOutcome => ({ status: "cancelled", message: "이전 요청 또는 세션을 취소했습니다." });
-function inputFor(action: ActionId, input: unknown): Record<string, string> | null {
+function inputFor(action: ActionId, input: unknown): Record<string, any> | null {
   if (!object(input)) return null;
+  if (action === "office.member.update" || action === "office.member.move") {
+    const keys = ["memberId", "requestId", "expectedRevision", ...(action === "office.member.update" ? ["changes"] : ["fromClassId", "toClassId"])];
+    if (Object.keys(input).some(k => !keys.includes(k)) || !id(input.memberId) || !id(input.requestId) ||
+        typeof input.expectedRevision !== "string" || !/^[a-f0-9]{32}$/.test(input.expectedRevision)) return null;
+    if (action === "office.member.update" && (!object(input.changes) || !Object.keys(input.changes).length ||
+      Object.entries(input.changes).some(([k, v]) => !["name", "phone", "birth_date", "birth_year", "parent_name", "memo"].includes(k) || typeof v !== "string"))) return null;
+    if (action === "office.member.move" && (!id(input.fromClassId) || !id(input.toClassId) || input.fromClassId === input.toClassId)) return null;
+    return input;
+  }
   if (action === "office.home.open") return Object.keys(input).length ? null : {};
   if (action === "office.members.open") return Object.keys(input).length === 0 ? {}
     : Object.keys(input).length === 1 && own(input, "view") && input.view === "list" ? { view: "list" } : null;
@@ -52,7 +66,7 @@ function inputFor(action: ActionId, input: unknown): Record<string, string> | nu
   return input as Record<string, string>;
 }
 
-/** Thin allowlist executor; no URL/API/SQL payloads, mutations, credentials or separate data store. */
+/** Thin allowlist executor. All writes use the gated canonical service; no arbitrary URL/API/SQL. */
 export class OfficeActionCore {
   private active = true;
   private sequence = 0;
@@ -63,6 +77,8 @@ export class OfficeActionCore {
   private structured = new Map<string, Promise<OfficeTask | null>>();
   private resultsPending = new Map<string, Promise<ActionOutcome>>();
   private now: () => number;
+  private writes = new Map<string, { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt }>();
+  canWrite() { return !!this.deps.stage3; }
   constructor(private deps: ActionDependencies) { this.now = deps.now ?? Date.now; }
   private current() { return this.active && this.deps.isCurrent(); }
   private permitted() { return this.deps.actor.role === "pool_admin" && !!this.deps.actor.userId && !!this.deps.actor.poolId; }
@@ -70,6 +86,7 @@ export class OfficeActionCore {
     this.active = false;
     for (const request of this.pending.values()) request.abort.abort();
     this.pending.clear(); this.tasks.clear(); this.taskFilters.clear(); this.structured.clear(); this.resultsPending.clear();
+    this.writes.clear();
   }
   cancelAll() { for (const request of this.pending.values()) request.abort.abort(); }
   getTasks(): OfficeTask[] { return structuredClone([...this.tasks.values()]); }
@@ -85,6 +102,16 @@ export class OfficeActionCore {
     const key = JSON.stringify([action, Object.entries(input).sort()]);
     const existing = this.pending.get(key);
     if (existing) return existing.promise;
+    if (action === "office.member.update" || action === "office.member.move") {
+      if (!this.deps.stage3) return Promise.resolve(failed("forbidden", "통합 배포 전 회원 저장·반이동은 비활성입니다."));
+      const previous = this.writes.get(input.requestId);
+      if (previous) return Promise.resolve(previous.key === key ? previous.outcome ?? { status: "unknown", message: "기존 요청 결과를 확인하세요." } : failed("input", "요청 번호를 다른 변경에 재사용할 수 없습니다."));
+      if ([...this.writes.values()].some(w => w.memberId === input.memberId && w.outcome?.status === "unknown"))
+        return Promise.resolve({ status: "unknown", message: "이 회원의 이전 요청 상태 확인이 필요합니다. 재전송하지 마세요." });
+      const controller = new AbortController();
+      const write = this.mutate(action, input, key, controller.signal).finally(() => this.pending.delete(key));
+      this.pending.set(key, { promise: write, abort: controller }); return write;
+    }
     const abort = new AbortController(), intent = ++this.intent, navigationVersion = this.deps.navigationVersion?.();
     const run = async (): Promise<ActionOutcome> => {
       try {
@@ -123,9 +150,71 @@ export class OfficeActionCore {
     this.pending.set(key, { promise, abort });
     return promise;
   }
-  /** Fixture/future structured adapter only. No production execution button or NL parser. */
+  private async mutate(action: "office.member.update" | "office.member.move", input: Record<string, any>, key: string, signal: AbortSignal): Promise<ActionOutcome> {
+    const taskId = `${this.deps.scope}:write:${input.requestId}`;
+    const tab: OfficeMemberTab = action === "office.member.move" ? "classes" : Object.keys(input.changes).every(k => k === "memo") ? "notes" : "basic";
+    const target: OfficeDestination = { screen: "members", memberId: input.memberId, view: "full", tab };
+    const task: OfficeTask = { id: taskId, scope: this.deps.scope, request: action === "office.member.move" ? "회원 반이동" : "회원정보 저장",
+      targetLabel: input.memberId, status: "running", summary: "서버 결과 확인 중", changes: [],
+      preview: { targets: [input.memberId], messages: [], attachments: [] }, results: [] };
+    this.tasks.set(taskId, task);
+    const entry: { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt } = { key, memberId: input.memberId };
+    this.writes.set(input.requestId, entry);
+    let outcome: ActionOutcome;
+    try {
+      const receipt = await this.deps.stage3!.write({ action: action === "office.member.move" ? "move" : "update", ...input });
+      if (receipt.memberId !== input.memberId || receipt.requestId !== input.requestId ||
+          receipt.action !== (action === "office.member.move" ? "move" : "update")) throw new Error("Receipt scope mismatch");
+      entry.receipt = receipt;
+      if (!this.current() || signal.aborted) return cancelled();
+      await this.deps.changed?.();
+      const read = await this.deps.members(signal, true);
+      if (!this.current() || signal.aborted) return cancelled();
+      if (read.source !== "network" || !read.data.some(s => s.id === receipt.memberId && (s as any).office_revision === receipt.revision))
+        throw new Error("Committed revision not verified");
+      outcome = { status: "success", kind: "mutation", destination: target, receipt };
+      this.tasks.set(taskId, { ...task, status: "completed", summary: "서버 저장 및 정상 재조회 확인 · 자동 이동 없음",
+        completedAt: this.now(), changes: receipt.changes,
+        results: [{ id: taskId + ":result", label: "변경된 회원정보", target, kind: "screen", storage: "not_stored", expectedRevision: receipt.revision }] });
+    } catch (e) {
+      if (!this.current()) return cancelled();
+      const status = object(e) && typeof e.status === "number" ? e.status : 0;
+      const known = status >= 400 && status < 500;
+      outcome = known ? failed(status === 403 || status === 401 ? "forbidden" : "query",
+        object(e) && typeof e.message === "string" ? e.message : "서버가 변경을 거부했습니다. 입력은 보존됩니다.")
+        : { status: "unknown", message: "결과 불명입니다. 같은 변경을 재전송하지 말고 요청 상태를 확인하세요." };
+      this.tasks.set(taskId, { ...task, status: known ? "failed" : "unknown", summary: "message" in outcome ? outcome.message : "결과 확인 필요" });
+    }
+    entry.outcome = outcome;
+    return outcome;
+  }
+  async resolveMutation(requestId: string): Promise<ActionOutcome> {
+    const entry = this.writes.get(requestId);
+    if (!entry || !this.deps.stage3 || !this.current()) return cancelled();
+    try {
+      const receipt = await this.deps.stage3.status(requestId);
+      if (receipt.requestId !== requestId || receipt.memberId !== entry.memberId) throw new Error("Receipt scope mismatch");
+      if (!this.current()) return cancelled();
+      const read = await this.deps.members(new AbortController().signal, true);
+      if (!this.current() || read.source !== "network" || !read.data.some(s => s.id === receipt.memberId && (s as any).office_revision === receipt.revision))
+        throw new Error("Receipt revision not observed");
+      const taskId = `${this.deps.scope}:write:${requestId}`, task = this.tasks.get(taskId)!;
+      const target: OfficeDestination = { screen: "members", memberId: receipt.memberId, view: "full", tab: receipt.action === "move" ? "classes" : "basic" };
+      this.tasks.set(taskId, { ...task, status: "completed", summary: "완료 기록과 현재 조회로 저장 확인", changes: receipt.changes, completedAt: this.now(),
+        results: [{ id: taskId + ":result", label: "변경된 회원정보", target, kind: "screen", storage: "not_stored", expectedRevision: receipt.revision }] });
+      return entry.outcome = { status: "success", kind: "mutation", destination: target, receipt };
+    } catch { return { status: "unknown", message: "완료를 확인할 수 없습니다. 재실행하지 마세요." }; }
+  }
+  /** Structured queries and confirmed proposals use the same allowlist as menus. */
   runStructured(request: unknown): Promise<OfficeTask | null> {
     if (!this.current()) return Promise.resolve(null);
+    if (object(request) && ["office.member.update", "office.member.move"].includes(String(request.action))) {
+      return this.execute(request, "structured").then(() => {
+        if (!this.current() || !object(request.input)) return null;
+        const requestId = request.input.requestId;
+        return this.getTasks().find(t => t.id === `${this.deps.scope}:write:${requestId}`) ?? null;
+      });
+    }
     let key: string;
     try { key = JSON.stringify(request) ?? "undefined"; } catch { return Promise.resolve(null); }
     const existing = this.structured.get(key);
@@ -176,11 +265,13 @@ export class OfficeActionCore {
       this.pending.set(key, { promise, abort });
       const target = result.target;
       let memberPresent = true;
+      let revision: string | undefined;
       let read: Omit<MembersRead, "data">;
       if (target.screen === "home") read = await this.deps.readHome(abort.signal);
       else {
         const members = await this.deps.members(abort.signal, true);
         memberPresent = !target.memberId || members.data.some(s => s.id === target.memberId);
+        revision = (members.data.find(s => s.id === (target.screen === "members" ? target.memberId : "")) as any)?.office_revision;
         read = members;
       }
       if (!this.current() || abort.signal.aborted) return cancelled();
@@ -189,7 +280,7 @@ export class OfficeActionCore {
         (target.screen === "home" || current.screen === "members" && current.memberId === target.memberId &&
           current.view === target.view && (current.tab ?? "basic") === (target.tab ?? "basic"));
       const evidence: ResultReadEvidence = { scope: this.deps.scope, resultId, target, entered,
-        outcome: memberPresent ? "success" : "missing", source: read.source, queryStartedAt: read.queryStartedAt, receivedAt: read.receivedAt };
+        outcome: memberPresent ? "success" : "missing", source: read.source, revision, queryStartedAt: read.queryStartedAt, receivedAt: read.receivedAt };
       const latest = this.tasks.get(taskId);
       if (latest) this.tasks.set(taskId, confirmResultRead(latest, evidence));
       return memberPresent ? outcome : failed("missing", "결과 회원이 없거나 조회 권한이 없습니다.");
