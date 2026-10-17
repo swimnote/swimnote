@@ -20,7 +20,7 @@ declare const __OFFICE_VERIFICATION_ID__: string;
 
 export function DesktopApp() {
   const verificationId = typeof __OFFICE_VERIFICATION_ID__ === "string" ? __OFFICE_VERIFICATION_ID__ : "개발 미지정";
-  const verificationStage = verificationId.startsWith("STAGE2-") ? "Stage 2 N01/N02" : "F05";
+  const verificationStage = verificationId.startsWith("MEMBER-") ? "회원 상세 보완" : verificationId.startsWith("STAGE2-") ? "Stage 2 N01/N02" : "F05";
   const bridge = window.officeDesktop;
   const [controller] = useState(() => new DesktopSessionController(bridge));
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);

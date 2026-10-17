@@ -3,6 +3,7 @@ import { useOfficeNavigation } from "@/desktop/OfficeNavigation";
 import { useOfficeBusinessVisible } from "@/desktop/OfficeWorkspace";
 import { useOfficeActions } from "@/desktop/OfficeActionContext";
 import { memberQuery, filterMembers } from "./member-query";
+import { OfficeMemberDetail } from "@/desktop/OfficeMemberDetail";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
@@ -34,12 +35,17 @@ export type Student = {
   notes?: string;
   parent_name?: string;
   parent_phone?: string;
+  parent_phone2?: string;
+  parent_phone3?: string;
+  parent_phone4?: string;
+  weekly_count?: number;
+  class_enrolled_at?: string;
   created_at?: string;
   class_group_id?: string;
   assigned_class_ids?: string[];
   class_group_name?: string;
   assignedClasses?: AssignedClass[];
-  schedule_labels?: string[];
+  schedule_labels?: string | string[];
   level?: string;
 };
 
@@ -105,9 +111,10 @@ type DrawerProps = {
   onSuspend: (id: string, name: string) => void;
   onEdit: (student: Student) => void;
   onViewDiary: (studentId: string) => void;
+  onOpenFull?: (studentId: string) => void;
 };
 
-function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewDiary }: DrawerProps) {
+function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewDiary, onOpenFull }: DrawerProps) {
   const readOnly = isDesktopTokenStorage();
   const navigationEnabled = !!useOfficeNavigation();
   const businessVisible = useOfficeBusinessVisible();
@@ -274,6 +281,8 @@ function MemberDrawer({ student, onClose, onWithdraw, onSuspend, onEdit, onViewD
             flexShrink: 0,
           }}
         >
+          {navigationEnabled && onOpenFull && <button type="button" data-office-navigation
+            onClick={() => onOpenFull(student.id)} style={{ padding: "10px", cursor: "pointer" }}>전체 회원정보</button>}
           {readOnly && <p id="member-drawer-readonly" style={{ margin: 0, fontSize: "12px", color: "#64748B" }}>
             Desktop 조회 전용: 수정·연기·퇴원은 사용할 수 없습니다. 일지 보기는 현재 검증 단계에서 지원하지 않습니다.
           </p>}
@@ -775,6 +784,9 @@ async function downloadMembersExcel(statusFilter: string, classFilter: string) {
 export default function MembersPage() {
   const office = useOfficeNavigation();
   const actions = useOfficeActions();
+  const fullDestination = office?.destination.screen === "members" && office.destination.view === "full" ? office.destination : null;
+  const fullTab = fullDestination?.tab ?? "basic";
+  const fullKey = fullDestination ? `${fullDestination.memberId}:${fullTab}` : "";
   const businessVisible = useOfficeBusinessVisible();
   const rootRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -803,7 +815,7 @@ export default function MembersPage() {
     restore();
     node.addEventListener("scroll", remember);
     return () => { observer?.disconnect(); node.removeEventListener("scroll", remember); };
-  }, [officeEnabled, updateTableView]);
+  }, [officeEnabled, updateTableView, fullKey]);
   const readOnly = isDesktopTokenStorage();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
@@ -873,14 +885,19 @@ export default function MembersPage() {
     if (!updateView || !isFetched || isError || !businessVisible) return;
     const scroller = rootRef.current?.closest<HTMLElement>("[data-office-business-scroll], main");
     if (!scroller) return;
-    scroller.scrollTop = restoredScroll.current;
+    scroller.scrollTop = fullDestination?.memberId
+      ? office!.getDetailScroll(fullDestination.memberId, fullTab) : restoredScroll.current;
     const saveScroll = () => {
+      if (fullDestination?.memberId) {
+        office!.rememberDetailScroll(fullDestination.memberId, fullTab, scroller.scrollTop);
+        return;
+      }
       restoredScroll.current = scroller.scrollTop;
       updateView({ scroll: scroller.scrollTop });
     };
     scroller.addEventListener("scroll", saveScroll);
     return () => scroller.removeEventListener("scroll", saveScroll);
-  }, [updateView, isFetched, isError, businessVisible]);
+  }, [updateView, isFetched, isError, businessVisible, fullKey]);
 
   // Client-side filtering
   const filtered = useMemo(() => filterMembers(allStudents, { search, status: statusFilter, classId: classFilter }),
@@ -933,6 +950,27 @@ export default function MembersPage() {
   const handleDrawerClose = useCallback(() => {
     if (closeDetail) closeDetail(); else setLocalSelectedStudent(null);
   }, [closeDetail]);
+
+  const openFull = (id: string, tab: import("@/desktop/OfficeNavigation").OfficeMemberTab = "basic") => {
+    if (actions) void actions.execute({ action: "office.member.open", input: { memberId: id, view: "full", tab } }, "menu");
+    else office?.open({ screen: "members", memberId: id, view: "full", tab });
+  };
+  if (fullDestination) return <div ref={rootRef}>
+    {isError ? <section role="alert" style={{ padding: 24 }}>
+      <h1>전체 회원정보를 불러오지 못했습니다.</h1>
+      <p>{error && "status" in error && (error.status === 401 || error.status === 403)
+        ? "현재 회원정보를 조회할 권한을 확인해 주세요." : "조회에 실패했습니다. 빈 회원정보와는 다릅니다."}</p>
+      <button type="button" onClick={() => void refetch()}>회원정보 다시 조회</button>
+    </section> : isLoading || !isFetched ? <p role="status" style={{ padding: 24 }}>회원정보 조회 중…</p>
+      : currentStudent ? <OfficeMemberDetail key={currentStudent.id} student={currentStudent} tab={fullTab}
+        onTabChange={tab => openFull(currentStudent.id, tab)}
+        onBack={() => {
+          if (actions) void actions.execute({ action: "office.members.open", input: { view: "list" } }, "menu");
+          else office?.closeDetail();
+        }}
+        growth={<GrHistorySection key={currentStudent.id} studentId={currentStudent.id} />} />
+      : <p role="status" style={{ padding: 24 }}>해당 회원이 없거나 현재 조회 범위에 없습니다.</p>}
+  </div>;
 
   return (
     <div ref={rootRef} className={officeEnabled ? "office-members-page" : undefined} style={{ padding: "28px 32px", maxWidth: "1200px" }}>
@@ -1172,6 +1210,7 @@ export default function MembersPage() {
       {/* Detail Drawer */}
       <MemberDrawer
         student={readOnly ? currentStudent ?? null : selectedStudent}
+        onOpenFull={office ? id => openFull(id) : undefined}
         onViewDiary={(sid) => navigate(`/admin/diary?student_id=${sid}`)}
         classGroups={classGroups}
         onClose={handleDrawerClose}

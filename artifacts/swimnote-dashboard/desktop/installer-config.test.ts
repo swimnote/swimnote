@@ -8,6 +8,16 @@ const input = { payloadDir: "/tmp/payload", outputFile: "/tmp/setup.exe",
   packageId: "F06-" + "a".repeat(12) + "-" + "b".repeat(12),
   files: ["SwimnoteOffice.exe", "resources/app.asar", "locales/ko.pak"] };
 describe("F06 internal installer static contract, not Windows execution", () => {
+  it("identifies the member-detail delivery without changing ownership or security policy", () => {
+    const script = renderInstaller({ ...input, stage: "MEMBER",
+      packageId: "MEMBER-" + "a".repeat(12) + "-" + "b".repeat(12) });
+    expect(script).toContain("회원 상세 보완");
+    expect(script).toContain('VIProductVersion "0.0.0.8"');
+    expect(script).toContain("SWIMNOTE-OFFICE-INTERNAL-F06");
+    expect(script).toContain("RequestExecutionLevel user");
+    expect(script).not.toMatch(/RMDir \/r|HKLM|RunAs|ExecutionPolicy/);
+    expect(() => renderInstaller({ ...input, stage: "MEMBER" })).toThrow();
+  });
   it("identifies Stage 2 while retaining F06 installation ownership and user-only policies", () => {
     const script = renderInstaller({ ...input, stage: "STAGE2",
       packageId: "STAGE2-" + "a".repeat(12) + "-" + "b".repeat(12) });

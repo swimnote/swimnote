@@ -1,5 +1,7 @@
 # OFFICE Stage 2 — AI 매니저 UI·UX 및 확장 계약 보완
 
+> 후속 [회원·운영 구현설계 보완](member-operations-design-v1.md)에 따라 넓은 회원 상세를 정상 업무 영역에 추가한다. 기존 하단 AI 배치와 수용 이력은 유지하며 이번 지시에서만 새 내부 설치본 1회 제작을 승인한다.
+
 ## 근거·우선순위·판정 경계
 
 사용자 첨부 `attached_assets/Pasted--SWIMNOTE-APP-Replit-PROJECT-SWIMNOTE-OFFICE-V1-TASK-St_1792178301081.txt`의 승인 범위다.

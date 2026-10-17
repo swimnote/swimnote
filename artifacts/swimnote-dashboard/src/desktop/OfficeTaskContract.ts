@@ -47,7 +47,9 @@ export function confirmResultRead(task: OfficeTask, evidence: ResultReadEvidence
   const result = task.results.find(r => r.id === evidence.resultId);
   if (!result || !validOfficeDestination(result.target) || result.viewedAt !== undefined ||
       result.target.screen !== evidence.target.screen ||
-      (result.target.screen === "members" && evidence.target.screen === "members" && result.target.memberId !== evidence.target.memberId) ||
+      (result.target.screen === "members" && evidence.target.screen === "members" &&
+        (result.target.memberId !== evidence.target.memberId || result.target.view !== evidence.target.view ||
+          (result.target.tab ?? "basic") !== (evidence.target.tab ?? "basic"))) ||
       (result.expectedRevision !== undefined && result.expectedRevision !== evidence.revision)) return task;
   return { ...task, results: task.results.map(r => r === result ? { ...r, viewedAt: evidence.receivedAt } : r) };
 }

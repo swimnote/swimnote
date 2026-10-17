@@ -541,3 +541,25 @@ mtime_ms = 1792182560647
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/2188742f-ffdf-43ca-8fd3-505dc2b98ff3/bbe130ac-82eb-4f5f-b839-518893cea1f5"
 storage_version_token = "1792182840679801"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "FbmUbWee85snwUbgIhrlA"
+uri = "file://generated-artifacts/office-member-detail-delivery/SWIMNOTE-OFFICE-MEMBER-faaf3483a3c2-900fe47ba071-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 회원 상세 검증본 — 1/2"
+description = "두 ZIP 모두 다운로드해 같은 새 폴더에 압축 해제하세요. 1번의 START-MEMBER.cmd로 검증·재결합합니다. MEMBER-faaf3483a3c2-900fe47ba071 / unsigned Windows x64 내부용. Windows 실행 미검증."
+logical_id = "79b78bef-aa49-4d3f-a283-9f743ffca538"
+
+[[outputs]]
+id = "hiIBWLJkncGpes8jjKeFG"
+uri = "file://generated-artifacts/office-member-detail-delivery/SWIMNOTE-OFFICE-MEMBER-faaf3483a3c2-900fe47ba071-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 회원 상세 검증본 — 2/2"
+description = "두 ZIP 모두 다운로드해 같은 새 폴더에 압축 해제하세요. 1번의 START-MEMBER.cmd로 검증·재결합합니다. MEMBER-faaf3483a3c2-900fe47ba071 / unsigned Windows x64 내부용. Windows 실행 미검증."
+logical_id = "141cfded-243c-4516-a9a4-97451de03f7f"
+content_hash = "sha256:96f3e3dcf5fb867eb90a91eaba172790c6a8e284f716eccbd61d8c5b5108e5be"
+size = 29728395
+mtime_ms = 1792212635870
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/141cfded-243c-4516-a9a4-97451de03f7f/687fa3a5-ace1-4e6c-b145-5c751fe72ec1"
+storage_version_token = "1792212683626149"
+content_type = "application/octet-stream"

@@ -3,20 +3,25 @@ import { useLocation } from "wouter";
 import { useOfficeActions } from "./OfficeActionContext";
 import type { ActionOrigin } from "./OfficeActionCore";
 
-export type OfficeDestination = { screen: "home" } | { screen: "members"; memberId?: string };
+export const OFFICE_MEMBER_TABS = ["basic", "contacts", "classes", "notes", "growth"] as const;
+export type OfficeMemberTab = typeof OFFICE_MEMBER_TABS[number];
+export type OfficeDestination = { screen: "home" } | { screen: "members"; memberId?: string; view?: "full"; tab?: OfficeMemberTab };
 type View = { search: string; status: string; classId: string; page: number; scroll: number; horizontalScroll: number };
 type History = { entries: OfficeDestination[]; index: number };
 const initialView: View = { search: "", status: "active", classId: "", page: 1, scroll: 0, horizontalScroll: 0 };
 const route = (target: OfficeDestination) => target.screen === "home" ? "/admin" : "/admin/members";
 const same = (a: OfficeDestination, b: OfficeDestination) =>
-  a.screen === b.screen && (a.screen === "home" || (b.screen === "members" && a.memberId === b.memberId));
+  a.screen === b.screen && (a.screen === "home" || (b.screen === "members" && a.memberId === b.memberId &&
+    a.view === b.view && (a.tab ?? "basic") === (b.tab ?? "basic")));
 
 export function validOfficeDestination(value: unknown): value is OfficeDestination {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   if (v.screen === "home") return Object.keys(v).every(key => key === "screen");
-  return v.screen === "members" && Object.keys(v).every(key => key === "screen" || key === "memberId") &&
-    (v.memberId === undefined || typeof v.memberId === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(v.memberId));
+  return v.screen === "members" && Object.keys(v).every(key => ["screen", "memberId", "view", "tab"].includes(key)) &&
+    (v.memberId === undefined || typeof v.memberId === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(v.memberId)) &&
+    (v.view === undefined || v.view === "full" && !!v.memberId) &&
+    (v.tab === undefined || v.view === "full" && OFFICE_MEMBER_TABS.includes(v.tab as OfficeMemberTab));
 }
 
 type Navigation = {
@@ -25,6 +30,8 @@ type Navigation = {
   open: (target: OfficeDestination, options?: { directReturn?: boolean; listOnly?: boolean }) => boolean;
   getDestination: () => OfficeDestination;
   getRevision: () => number;
+  getDetailScroll: (memberId: string, tab: OfficeMemberTab) => number;
+  rememberDetailScroll: (memberId: string, tab: OfficeMemberTab, scroll: number) => void;
   back: () => void; forward: () => void; closeDetail: () => void;
   missingMember: () => void;
   updateView: (patch: Partial<View>) => void;
@@ -41,6 +48,7 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
   const historyRef = useRef(history);
   const revision = useRef(0);
   const lastMembers = useRef<OfficeDestination>({ screen: "members" });
+  const detailScrolls = useRef(new Map<string, number>());
   const [view, setView] = useState<View>(initialView);
   const [notice, setNotice] = useState("");
   const commit = useCallback((next: History) => {
@@ -57,7 +65,7 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
     }
     const current = historyRef.current;
     const target: OfficeDestination = input.screen === "home" ? { screen: "home" }
-      : input.memberId ? { screen: "members", memberId: input.memberId } : options?.listOnly ? { screen: "members" } : lastMembers.current;
+      : input.memberId ? { ...input } : options?.listOnly ? { screen: "members" } : lastMembers.current;
     setNotice("");
     if (same(current.entries[current.index], target)) {
       commit(current); // Also recovers a supported destination from a blocked direct URL.
@@ -102,6 +110,10 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
   const updateView = useCallback((patch: Partial<View>) => setView(current => ({ ...current, ...patch })), []);
   const getDestination = useCallback(() => historyRef.current.entries[historyRef.current.index], []);
   const getRevision = useCallback(() => revision.current, []);
+  const getDetailScroll = useCallback((id: string, tab: OfficeMemberTab) => detailScrolls.current.get(`${id}:${tab}`) ?? 0, []);
+  const rememberDetailScroll = useCallback((id: string, tab: OfficeMemberTab, scroll: number) => {
+    detailScrolls.current.set(`${id}:${tab}`, Math.max(0, scroll));
+  }, []);
   useEffect(() => {
     const current = historyRef.current.entries[historyRef.current.index];
     if (location === "/admin/login") navigate(route(current), { replace: true });
@@ -111,8 +123,9 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
   const value = useMemo<Navigation>(() => ({
     destination: history.entries[history.index], view, notice,
     canBack: history.index > 0, canForward: history.index < history.entries.length - 1,
-    open, getDestination, getRevision, back: () => step(-1), forward: () => step(1), closeDetail, missingMember, updateView,
-  }), [history, view, notice, open, getDestination, getRevision, step, closeDetail, missingMember, updateView]);
+    open, getDestination, getRevision, getDetailScroll, rememberDetailScroll,
+    back: () => step(-1), forward: () => step(1), closeDetail, missingMember, updateView,
+  }), [history, view, notice, open, getDestination, getRevision, getDetailScroll, rememberDetailScroll, step, closeDetail, missingMember, updateView]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
@@ -145,8 +158,8 @@ export function OfficeNavigationBar() {
         {nav.destination.screen === "home" ? <span className="office-breadcrumb-current" aria-current="page">홈 현황</span> : <>
           <button onClick={() => actions ? void actions.execute({ action: "office.home.open", input: {} }, "menu") : nav.open({ screen: "home" })}>홈 현황</button>
           {" / "}
-          {nav.destination.memberId
-            ? <><button onClick={nav.closeDetail}>회원목록</button>{" / "}<span className="office-breadcrumb-current" aria-current="page">회원 상세</span></>
+            {nav.destination.memberId
+              ? <><button onClick={nav.closeDetail}>회원목록</button>{" / "}<span className="office-breadcrumb-current" aria-current="page">{nav.destination.view === "full" ? "전체 회원정보" : "회원 상세"}</span></>
             : <span className="office-breadcrumb-current" aria-current="page">회원목록</span>}
         </>}
       </nav>

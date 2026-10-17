@@ -1,5 +1,7 @@
 # SWIMNOTE OFFICE — Foundation 사용자 수용 증거
 
+> 후속 [회원·운영 구현설계 보완](member-operations-design-v1.md)의 새 상세 화면·내부 설치본은 이 문서의 기존 Windows PASS와 별도다. 이번 로컬/패키징 검증을 사용자 실기기 수용으로 소급하지 않는다.
+
 > 후속 Stage 2는 [AI 매니저 보완 계약](stage2-manager-supplement.md)의 명시 승인 범위로 진행한다. 이 문서 말미의 HOLD는 당시 입력 부재 기록이며 기존 Foundation 사용자 PASS나 이번 Windows UI 검증을 소급 변경하지 않는다.
 
 기록일: 2026-10-17  

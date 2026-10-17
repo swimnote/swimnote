@@ -31,6 +31,9 @@ it.each([
   [request("office.members.open", { view: "arbitrary" }), "input"],
   [request("office.member.open", { memberId: "../other" }), "input"],
   [request("office.member.open", { memberId: "member_1", userId: "other" }), "input"],
+  [request("office.member.open", { memberId: "member_1", view: "edit" }), "input"],
+  [request("office.member.open", { memberId: "member_1", tab: "notes" }), "input"],
+  [request("office.member.open", { memberId: "member_1", view: "full", tab: "payments" }), "input"],
   [request("office.members.search", { poolId: "other" }), "input"],
   [request("office.members.search", { search: "a".repeat(201) }), "input"],
   [request("office.members.search", { status: "arbitrary" }), "input"],
@@ -118,6 +121,15 @@ it("creates a real controlled task result but OPEN alone does not acknowledge a 
   const x = core.openTaskResult(task.id, task.results[0].id), y = core.openTaskResult(task.id, task.results[0].id);
   expect(x).toBe(y); await x;
   expect(core.getTasks()[0].results[0].viewedAt).toBeGreaterThanOrEqual(task.completedAt!);
+});
+it("preserves full member view and exact tab in Action results, repeated OPEN and read evidence", async () => {
+  const { core, deps } = fixture();
+  const input = request("office.member.open", { memberId: "member_1", view: "full", tab: "notes" });
+  const task = (await core.runStructured(input))!;
+  expect(task.results[0].target).toEqual({ screen: "members", memberId: "member_1", view: "full", tab: "notes" });
+  await core.openTaskResult(task.id, task.results[0].id);
+  expect(deps.open).toHaveBeenLastCalledWith(task.results[0].target, false);
+  expect(core.getTasks()[0].results[0].viewedAt).toBeDefined();
 });
 it.each(["cache", "old-network", "failed", "missing"])("keeps a result unread for %s evidence", async mode => {
   const f = fixture();

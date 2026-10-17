@@ -10,9 +10,12 @@ import { sourceIdentity, dashboard, repo, output, sha, verificationStage } from 
 import { renderInstaller, APP_ID } from "./installer-config.mjs";
 import { assemblyCommand } from "./integration-delivery.mjs";
 
-if (verificationStage !== "STAGE2") throw new Error("Use --stage2");
+if (!["STAGE2", "MEMBER"].includes(verificationStage)) throw new Error("Use --stage2 or --member-detail");
+const memberDetail = verificationStage === "MEMBER";
+const tag = memberDetail ? "MEMBER" : "STAGE2";
+const startFile = `START-${tag}.cmd`, readmeFile = `${tag}-READ-ME.txt`, sourceFile = `${tag}-SOURCE.json`;
 const readability = process.argv.includes("--readability");
-const finalLayout = process.argv.includes("--final-layout");
+const finalLayout = process.argv.includes("--final-layout") || memberDetail;
 const manager = process.argv.includes("--manager") || finalLayout;
 const unified = process.argv.includes("--unified") || manager;
 const require = createRequire(import.meta.url);
@@ -60,6 +63,13 @@ for (const file of [oldResult.installer, oldResult.archive, ...oldResult.deliver
   oldHashes[file] = await hashFile(path.join(repo, file));
 if (oldHashes[oldResult.installer] !== oldResult.sha256 || oldHashes[oldResult.archive] !== oldResult.archiveSha256)
   throw new Error("Existing F06 delivery hash mismatch");
+if (memberDetail) {
+  const previous = JSON.parse(await readFile(path.join(repo, "generated-artifacts/office-stage2-final-layout-delivery/installer-result.json"), "utf8"));
+  for (const file of [previous.installer, previous.archive, ...previous.delivery.map(item => item.file)])
+    oldHashes[file] = await hashFile(path.join(repo, file));
+  if (oldHashes[previous.installer] !== previous.sha256 || oldHashes[previous.archive] !== previous.archiveSha256)
+    throw new Error("Previous Stage 2 delivery hash mismatch");
+}
 await mkdir(output, { recursive: false }); // Existing attempt/output is a hard stop, never overwritten.
 const identity = await sourceIdentity();
 await fresh(path.join(output, "source-identity.json"), identity);
@@ -70,7 +80,7 @@ async function frozen() {
 }
 const compiled = path.join(output, "compiled"), stage = path.join(output, "stage");
 await mkdir(stage);
-run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", finalLayout ? "stage2-final-layout" : manager ? "stage2-manager" : unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
+run("pnpm", ["exec", "vite", "build", "--config", "vite.desktop.config.ts", "--mode", memberDetail ? "member-detail" : finalLayout ? "stage2-final-layout" : manager ? "stage2-manager" : unified ? "stage2-unified" : readability ? "stage2-readability" : "stage2", "--outDir", path.join(compiled, "renderer")]);
 run("pnpm", ["exec", "tsc", "-p", "desktop/tsconfig.json", "--outDir", path.join(compiled, "desktop")]);
 await mkdir(path.join(stage, "desktop"));
 const mainFiles = ["main.cjs", "preload.cjs", "security.cjs", "session-ipc.cjs", "token-store.cjs"];
@@ -90,7 +100,8 @@ await renderer(path.join(compiled, "renderer"), path.join(stage, "renderer"));
 const compiledHashes = { ...await inventory(path.join(stage, "desktop"), "desktop/"), ...await inventory(path.join(stage, "renderer"), "renderer/") };
 const js = (await readdir(path.join(stage, "renderer/assets"))).filter(name => name.endsWith(".js"));
 const bundle = (await Promise.all(js.map(file => readFile(path.join(stage, "renderer/assets", file), "utf8")))).join("\n");
-for (const value of [identity.buildId, "Stage 2 N01/N02", "office-workspace", unified ? "업무 입력" : "AI 중심", "앱 내 뒤로"])
+for (const value of [identity.buildId, memberDetail ? "회원 상세 보완" : "Stage 2 N01/N02", "office-workspace", unified ? "업무 입력" : "AI 중심", "앱 내 뒤로",
+  ...(memberDetail ? ["office-member-detail", "전체 회원정보", "office.member.open"] : [])])
   if (!bundle.includes(value)) throw new Error("Required identity/N01/N02 missing from renderer: " + value);
 if (readability || unified) {
   for (const value of ["office-members-table-scroll", "회원표 가로 스크롤", "auto hidden"])
@@ -149,25 +160,31 @@ const pe = executable.readUInt32LE(0x3c);
 if (executable.toString("ascii", 0, 2) !== "MZ" || executable.readUInt32LE(pe) !== 0x4550 ||
     executable.readUInt16LE(pe + 4) !== 0x8664 || executable.readUInt16LE(pe + 24) !== 0x20b)
   throw new Error("Expected AMD64 PE32+ runtime");
-const readme = `SWIMNOTE OFFICE Stage 2 ${unified ? "통합 업무 레이아웃" : "N01/N02"} — 내부 검증용 unsigned Windows x64
+const readme = `SWIMNOTE OFFICE ${memberDetail ? "회원 상세 보완 (기존 제작 도구 재사용)" : `Stage 2 ${unified ? "통합 업무 레이아웃" : "N01/N02"}`} — 내부 검증용 unsigned Windows x64
 검증본 ID: ${identity.buildId}
 HEAD: ${identity.head}
 DIFF ID: ${identity.diffId}
 
 제작·전달 PASS와 Windows UI 수용 PASS는 별개입니다. AI 영역은 연결 전이며 채팅·모델 호출·업무 실행 기능이 없습니다.
-화면 상단 검증본 ID와 STAGE2-SOURCE.json의 ID를 대조하세요. Shell F03 표시는 기반 Shell 단계이며 새 검증본 ID와 구분합니다.
+화면 상단 검증본 ID와 ${sourceFile}의 ID를 대조하세요. Shell F03 표시는 기반 Shell 단계이며 새 검증본 ID와 구분합니다.
 
-전달 ZIP을 모두 같은 새 폴더에 압축 해제하고 START-STAGE2.cmd를 실행합니다.
+전달 ZIP을 모두 같은 새 폴더에 압축 해제하고 ${startFile}를 실행합니다.
 CMD는 SHA-256 확인·압축 해제·폴더 열기만 합니다. 설치 EXE는 자동 실행하지 않습니다.
 기존 ZIP/출력 폴더·조각 누락·해시 불일치면 STOP합니다.
-기존 OFFICE를 정상 종료한 뒤 SWIMNOTE-OFFICE-STAGE2-Setup.exe를 일반 사용자로 직접 실행하세요.
+기존 OFFICE를 정상 종료한 뒤 SWIMNOTE-OFFICE-${tag}-Setup.exe를 일반 사용자로 직접 실행하세요.
 관리자 실행·Defender/SmartScreen 해제·보안정책 변경은 하지 마세요. 보안 차단 시 중단하세요.
 기존 F06의 사용자별 설치 경로·아이콘·실행 중 설치 차단·재설치·제거 정책을 유지합니다.
 재설치·제거는 공유 userData 설정·암호화 인증정보를 보존합니다. 인증정보 제거는 앱의 명시적 로그아웃으로 수행합니다.
 설치·제거·로그인 유지 전체 검사는 반복하지 않습니다. 로그인이 필요하면 기존 절차만 사용하세요.
 
 현재 Windows 버전과 디스플레이 배율(%)을 먼저 기록하고 아래만 조회로 확인하세요.
-${finalLayout ? `1. AI 크기 변경 때 업무 영역·회원 상세가 가려지지 않고 실제 공간이 줄어드는지.
+${memberDetail ? `1. 기존 회원목록→빠른 Drawer→전체 회원정보 진입, 넓은 중앙 화면과 기존 AI 공간 분할.
+2. 기본정보·연락처·수강반·메모·성장리포트 탭과 접기/펼치기. 복수 반이 단일 반으로 축소되지 않는지.
+3. 뒤로/앞으로·같은 회원 재선택·홈/회원 복귀 후 검색/필터/스크롤/탭·AI 초안/로컬 첨부 유지.
+4. AI 일반/접기/크게 보기 및 좁고 낮은 창에서 상세 본문·탭·스크롤 접근.
+5. 청구/납입·기간·관계/동의의 미연결 표시가 0원/미납 없음/정상으로 오인되지 않는지.
+변경된 위 UI만 조회로 확인합니다. 기존 설치·로그인·창 수용 전체 검사는 반복하지 않습니다.
+미등록 개인정보를 새로 입력하거나 회원 수정·발송·결제·AI 실행을 하지 마세요.` : finalLayout ? `1. AI 크기 변경 때 업무 영역·회원 상세가 가려지지 않고 실제 공간이 줄어드는지.
 2. 접기·크게 보기·원래 크기 복원과 입력창 하단 위치, 큰 빈 여백이나 잘린 문구가 없는지.
 3. 메뉴·초안·로컬 첨부·검색/필터·선택·스크롤 유지와 클릭/키보드로 파일 안내 접근.
 4. 홈 현황·회원목록 앞 검은 세로줄의 잔존 여부.
@@ -198,16 +215,16 @@ ${readability || unified ? "배율은 실제 확인한 값만 기록합니다." 
 미검증: 이번 Windows UI 수용·CMD→PowerShell 직접 실행, 운영 변경→SSE·편집 보호·저장 충돌,
 Windows 11·서명·공개 배포. 서버/API/DB 변경·Render 배포·OTA·자동업데이트 없음.
 `;
-await fresh(path.join(payload, "STAGE2-SOURCE.json"), { ...identity, appId: APP_ID, installerVersion: "0.0.0.7" });
-await fresh(path.join(payload, "STAGE2-READ-ME.txt"), readme);
+await fresh(path.join(payload, sourceFile), { ...identity, appId: APP_ID, installerVersion: memberDetail ? "0.0.0.8" : "0.0.0.7" });
+await fresh(path.join(payload, readmeFile), readme);
 const payloadHashes = await inventory(payload);
 await fresh(path.join(output, "payload-manifest.json"), payloadHashes);
-const folderName = "SWIMNOTE-OFFICE-STAGE2", deliveryFolder = path.join(output, folderName);
+const folderName = `SWIMNOTE-OFFICE-${tag}`, deliveryFolder = path.join(output, folderName);
 await mkdir(deliveryFolder);
-const setup = "SWIMNOTE-OFFICE-STAGE2-Setup.exe", installer = path.join(deliveryFolder, setup);
+const setup = `SWIMNOTE-OFFICE-${tag}-Setup.exe`, installer = path.join(deliveryFolder, setup);
 const nsi = path.join(output, "installer.nsi");
 await fresh(nsi, renderInstaller({ payloadDir: payload, outputFile: installer, packageId: identity.buildId,
-  files: Object.keys(payloadHashes).sort(), stage: "STAGE2" }));
+  files: Object.keys(payloadHashes).sort(), stage: tag }));
 execFileSync("makensis", ["-PPO", nsi], { stdio: ["ignore", "ignore", "inherit"] });
 await frozen();
 await fresh(path.join(output, "installer-attempt.json"), { source: identity, installerInvocations: 1 });
@@ -226,7 +243,7 @@ for (const [file, hash] of Object.entries(payloadHashes))
     throw new Error("Installer payload mismatch: " + file);
 const installerHash = sha(binary);
 await fresh(installer + ".sha256", `${installerHash}  ${setup}\n`);
-for (const file of ["STAGE2-SOURCE.json", "STAGE2-READ-ME.txt"])
+for (const file of [sourceFile, readmeFile])
   await copyFile(path.join(payload, file), path.join(deliveryFolder, file));
 const zipName = `SWIMNOTE-OFFICE-${identity.buildId}.zip`, zip = path.join(output, zipName);
 run("zip", ["-q", "-0", "-r", zip, folderName], output);
@@ -239,13 +256,13 @@ const reassembled = createHash("sha256");
 for (const part of parts) for await (const chunk of createReadStream(path.join(output, part))) reassembled.update(chunk);
 if (reassembled.digest("hex") !== zipHash) throw new Error("Part reassembly hash mismatch");
 const command = assemblyCommand(zipName, parts, zipHash, identity.buildId + "-Windows", folderName, setup);
-await fresh(path.join(output, "START-STAGE2.cmd"), command);
-await fresh(path.join(output, "STAGE2-READ-ME.txt"), readme);
+await fresh(path.join(output, startFile), command);
+await fresh(path.join(output, readmeFile), readme);
 const delivery = [];
 for (let i = 0; i < parts.length; i++) {
   const file = `SWIMNOTE-OFFICE-${identity.buildId}-DOWNLOAD-${i + 1}-of-${parts.length}.zip`;
   run("zip", ["-q", "-0", path.join(output, file), parts[i],
-    ...(i === 0 ? ["START-STAGE2.cmd", "STAGE2-READ-ME.txt", zipName + ".sha256"] : [])], output);
+    ...(i === 0 ? [startFile, readmeFile, zipName + ".sha256"] : [])], output);
   run("unzip", ["-tq", path.join(output, file)]);
   if ((await stat(path.join(output, file))).size > 100 * 1024 * 1024) throw new Error("Delivery limit exceeded");
   delivery.push({ file: path.relative(repo, path.join(output, file)), bytes: (await stat(path.join(output, file))).size,
@@ -257,7 +274,7 @@ await mkdir(delivered);
 for (const item of delivery) run("unzip", ["-q", path.join(repo, item.file), "-d", delivered]);
 const joined = createHash("sha256");
 for (const part of parts) for await (const chunk of createReadStream(path.join(delivered, part))) joined.update(chunk);
-if (joined.digest("hex") !== zipHash || await readFile(path.join(delivered, "START-STAGE2.cmd"), "ascii") !== command)
+if (joined.digest("hex") !== zipHash || await readFile(path.join(delivered, startFile), "ascii") !== command)
   throw new Error("Delivered parts/CMD mismatch");
 await frozen();
 if (JSON.stringify(await oldSnapshot()) !== JSON.stringify(oldFiles)) throw new Error("Old outputs changed");

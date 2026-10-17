@@ -1,6 +1,7 @@
 import { filterMembers, type MemberFilters, type MemberSummary } from "../pages/members/member-query";
 import { confirmResultRead, type OfficeTask, type ResultReadEvidence } from "./OfficeTaskContract";
 import type { OfficeDestination } from "./OfficeNavigation";
+import { OFFICE_MEMBER_TABS, type OfficeMemberTab } from "./OfficeNavigation";
 
 export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search";
 export type ActionOrigin = "menu" | "shortcut" | "result" | "structured";
@@ -13,7 +14,7 @@ export type ActionOutcome =
 export const OFFICE_ACTIONS = Object.freeze({
   "office.home.open": { purpose: "홈 현황 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{}", queries: ["dashboard-stats"], invalidates: [] },
   "office.members.open": { purpose: "기존 회원 화면 복원 또는 목록 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{view?:'list'}", queries: ["students", "class-groups"], invalidates: [] },
-  "office.member.open": { purpose: "회원 ID로 상세 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{memberId}", queries: ["students"], invalidates: [] },
+  "office.member.open": { purpose: "회원 ID로 빠른/전체 상세 및 탭 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{memberId,view?:'full',tab?:basic|contacts|classes|notes|growth}", queries: ["students"], invalidates: [] },
   "office.members.search": { purpose: "기존 회원 검색·필터 조회", kind: "query", confirmation: "none", permission: "pool_admin", input: "{search?,status?,classId?}", queries: ["students"], invalidates: [] },
 } as const);
 type MembersRead = { data: MemberSummary[]; source: "network" | "cache"; queryStartedAt: number; receivedAt: number };
@@ -38,7 +39,12 @@ function inputFor(action: ActionId, input: unknown): Record<string, string> | nu
   if (action === "office.home.open") return Object.keys(input).length ? null : {};
   if (action === "office.members.open") return Object.keys(input).length === 0 ? {}
     : Object.keys(input).length === 1 && own(input, "view") && input.view === "list" ? { view: "list" } : null;
-  if (action === "office.member.open") return Object.keys(input).length === 1 && own(input, "memberId") && id(input.memberId) ? { memberId: input.memberId as string } : null;
+  if (action === "office.member.open") {
+    if (!own(input, "memberId") || !id(input.memberId) || Object.keys(input).some(k => !["memberId", "view", "tab"].includes(k))) return null;
+    if (input.view !== undefined && input.view !== "full") return null;
+    if (input.tab !== undefined && (input.view !== "full" || !OFFICE_MEMBER_TABS.includes(input.tab as OfficeMemberTab))) return null;
+    return { memberId: input.memberId as string, ...(input.view === "full" ? { view: "full", tab: (input.tab ?? "basic") as string } : {}) };
+  }
   if (Object.keys(input).some(k => !["search", "status", "classId"].includes(k))) return null;
   if (input.search !== undefined && (typeof input.search !== "string" || input.search.length > 200)) return null;
   if (input.status !== undefined && !["", "active", "suspended", "withdrawn", "inactive", "pending", "archived", "unassigned"].includes(input.status as string)) return null;
@@ -91,7 +97,8 @@ export class OfficeActionCore {
           if (!this.current() || abort.signal.aborted || intent !== this.intent || this.deps.navigationVersion?.() !== navigationVersion) return cancelled();
           if (action === "office.member.open") {
             if (!read.data.some(s => s.id === input.memberId)) return failed("missing", "해당 회원이 없거나 조회 권한이 없습니다.");
-            destination = { screen: "members", memberId: input.memberId };
+            destination = { screen: "members", memberId: input.memberId,
+              ...(input.view === "full" ? { view: "full" as const, tab: input.tab as OfficeMemberTab } : {}) };
           } else {
             filters = { ...this.deps.filters(), ...input };
             count = filterMembers(read.data, filters).length;
@@ -156,7 +163,8 @@ export class OfficeActionCore {
     const filters = this.taskFilters.get(taskId);
     const request = filters ? { action: "office.members.search", input: { ...filters } }
       : result.target.screen === "home" ? { action: "office.home.open", input: {} }
-      : result.target.memberId ? { action: "office.member.open", input: { memberId: result.target.memberId } } : { action: "office.members.open", input: { view: "list" } };
+      : result.target.memberId ? { action: "office.member.open", input: { memberId: result.target.memberId,
+        ...(result.target.view === "full" ? { view: "full", tab: result.target.tab ?? "basic" } : {}) } } : { action: "office.members.open", input: { view: "list" } };
     const outcome = await this.execute(request, "result");
     if (outcome.status !== "success" || !this.current()) return outcome;
     const abort = new AbortController();
@@ -178,7 +186,8 @@ export class OfficeActionCore {
       if (!this.current() || abort.signal.aborted) return cancelled();
       const current = this.deps.destination();
       const entered = this.deps.navigationVersion?.() === navigationVersion && current.screen === target.screen &&
-        (target.screen === "home" || current.screen === "members" && current.memberId === target.memberId);
+        (target.screen === "home" || current.screen === "members" && current.memberId === target.memberId &&
+          current.view === target.view && (current.tab ?? "basic") === (target.tab ?? "basic"));
       const evidence: ResultReadEvidence = { scope: this.deps.scope, resultId, target, entered,
         outcome: memberPresent ? "success" : "missing", source: read.source, queryStartedAt: read.queryStartedAt, receivedAt: read.receivedAt };
       const latest = this.tasks.get(taskId);
