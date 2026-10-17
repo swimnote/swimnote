@@ -1,0 +1,13 @@
+{
+  "packageId": "OFFICE-WIN-PACKAGED-ffcb6d5e1a2fac24",
+  "candidateId": "OFFICE-WIN-AUTH-fad5704318bc64c4",
+  "at": "2026-10-17T11:28:57.485Z",
+  "platform": "win32",
+  "arch": "x64",
+  "electronHostNode": "v24.21.0",
+  "stage": "preflight",
+  "code": "INCOMPLETE_PREPARATION",
+  "lockRetained": false,
+  "windowsAcceptance": "NOT RUN by build environment",
+  "paidCalls": 0
+}
