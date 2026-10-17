@@ -38,3 +38,9 @@ Replit 내부 loopback API는 사용자 Windows의 localhost가 아니다. Linux
 **Why:** Linux용 workspace override는 Windows 네이티브 의존성을 제외할 수 있다. Windows 패키지가 들어 있는 별도 lock을 만들었어도 기존 Linux node_modules로 컴파일한 결과가 그 lock의 새 Windows 설치 성공을 증명하지 않는다.
 
 **How to apply:** 기존 workspace lock을 보존하고 대상용 의존성을 따로 동결한다. 실제 사용한 빌드 도구체인을 기록하고 Windows 설치·실행 검증은 미검증으로 남긴다.
+
+Windows 설치 실패에서는 의존성 lifecycle 차단과 패키지 관리자 자체의 네이티브 실행을 구분한다. `ignore-scripts`는 pnpm/Node worker까지 비활성화하지 않는다. Windows 종료 코드만으로 보안 제품 차단이나 특정 의존성 결함을 확정하지 않는다.
+
+**Why:** 사용자는 동일한 frozen 설치가 여러 우회 조건에서 비정상 종료된 뒤, 같은 설치 재시도 대신 원인별 증거 수집을 요구했다. `0xC0000409`는 fail-fast 계열 코드이며 원인 모듈·하위 코드 없이 버퍼 오버런으로 단정할 수 없다.
+
+**How to apply:** 후보 파일과 실제 Windows pnpm 진입점을 구분해 확인하고, 설치 재시도·보안 완화·버전 변경 없이 기존 WER/정책 이벤트의 시각·모듈·프로세스 상관관계를 먼저 조사한다. 이벤트 부재나 조회 권한 부족은 원인 배제 근거가 아니다.
