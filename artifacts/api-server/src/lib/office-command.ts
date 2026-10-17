@@ -22,6 +22,15 @@ const id = (x: unknown): x is string => typeof x === "string" && /^[A-Za-z0-9_-]
 const record = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const bad = (code: string, message: string, status = 400): never => { throw new OfficeError(status, code, message); };
 export const OFFICE_EDIT_FIELDS = ["name", "phone", "birth_date", "birth_year", "parent_name", "memo"] as const;
+export const OFFICE_RECONFIRM_MS = 24 * 60 * 60 * 1000;
+/** Timestamp is a protocol deadline, not authorization or a permanently durable dedup key. */
+export function assertOfficeRequestWindow(requestId: string, now = Date.now()) {
+  const match = /^oc1_(\d{13})_[A-Za-z0-9_-]{1,110}$/.exec(requestId);
+  if (!match) return bad("REQUEST_VERSION", "현재 OFFICE 요청 형식이 필요합니다.");
+  const age = now - Number(match[1]);
+  if (age < -30_000 || age > OFFICE_RECONFIRM_MS)
+    return bad("REQUEST_EXPIRED", "24시간 재확인 기한이 지났거나 요청 시각이 잘못되었습니다. 자동 재실행하지 말고 수동 대조하세요.", 410);
+}
 export function parseOfficeCommand(value: unknown): OfficeCommand {
   if (!record(value)) return bad("INPUT", "명확한 작업 입력이 필요합니다.");
   const keys = ["action", "requestId", "memberId", "expectedRevision",
@@ -52,8 +61,12 @@ function authorize(actor: OfficeActor) {
 }
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 const receiptKey = (actor: OfficeActor, requestId: string) => "office_" + digest(JSON.stringify([actor.poolId, actor.userId, requestId]));
-const requestHash = (c: OfficeCommand) => digest(JSON.stringify({ ...c,
-  ...(c.changes ? { changes: Object.fromEntries(Object.entries(c.changes).sort(([a], [b]) => a.localeCompare(b))) } : {}) }));
+const requestHash = (c: OfficeCommand) => digest(JSON.stringify({
+  action: c.action, requestId: c.requestId, memberId: c.memberId, expectedRevision: c.expectedRevision,
+  ...(c.action === "update"
+    ? { changes: Object.fromEntries(Object.entries(c.changes!).sort(([a], [b]) => a.localeCompare(b))) }
+    : { fromClassId: c.fromClassId, toClassId: c.toClassId }),
+}));
 const classIds = (s: any): string[] => Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.length
   ? [...new Set(s.assigned_class_ids as string[])] : s.class_group_id ? [s.class_group_id] : [];
 const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -61,6 +74,7 @@ export class OfficeCommandService {
   constructor(private pool: OfficePool) {}
   async status(actor: OfficeActor, requestId: string): Promise<OfficeReceipt | null> {
     authorize(actor); if (!id(requestId)) return bad("INPUT", "요청 식별자가 필요합니다.");
+    assertOfficeRequestWindow(requestId);
     const c = await this.pool.connect();
     try {
       const { rows } = await c.query("SELECT payload FROM pool_event_logs WHERE id=$1 AND pool_id=$2 AND actor_id=$3 AND source='office_stage3'", [receiptKey(actor, requestId), actor.poolId, actor.userId]);
@@ -69,12 +83,14 @@ export class OfficeCommandService {
   }
   async execute(actor: OfficeActor, raw: unknown): Promise<OfficeReceipt> {
     authorize(actor); const cmd = parseOfficeCommand(raw), hash = requestHash(cmd), key = receiptKey(actor, cmd.requestId);
+    assertOfficeRequestWindow(cmd.requestId);
     const c = await this.pool.connect();
     try {
       await c.query("BEGIN");
       await c.query("SET LOCAL lock_timeout='5s'");
       // Scoped receipt lock precedes row locks. Same key cannot execute twice, even after response loss.
       await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [key]);
+      assertOfficeRequestWindow(cmd.requestId);
       const old = (await c.query("SELECT payload FROM pool_event_logs WHERE id=$1", [key])).rows[0];
       if (old) {
         if (old.payload.requestHash !== hash) return bad("REQUEST_REUSED", "같은 요청 번호를 다른 변경에 사용할 수 없습니다.", 409);

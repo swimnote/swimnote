@@ -7,6 +7,7 @@
  */
 import type { OfficeInterpretationConfirmation } from "./officeInterpretationConfirmation";
 import type { OfficeInterpretationKind } from "./officeInterpretationKind";
+import type { OfficeInterpretationPolicy } from "./officeInterpretationPolicy";
 import type { OfficeProposalCommand } from "./officeProposalCommand";
 
 export interface OfficeInterpretation {
@@ -14,5 +15,6 @@ export interface OfficeInterpretation {
   question?: string;
   search?: string;
   confirmation?: OfficeInterpretationConfirmation;
+  policy?: OfficeInterpretationPolicy;
   command?: OfficeProposalCommand;
 }

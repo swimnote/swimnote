@@ -1,3 +1,4 @@
+import { newOfficeRequestId } from "../../lib/office-request-id";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useOfficeNavigation } from "@/desktop/OfficeNavigation";
 import { useOfficeBusinessVisible } from "@/desktop/OfficeWorkspace";
@@ -530,7 +531,7 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
   const [assignmentChanged, setAssignmentChanged] = useState(false);
   const guardedWeb = !!student.office_stage3_enabled && !!student.office_revision && !assignmentChanged &&
     form.parent_phone === (student.parent_phone ?? "");
-  const guardedRequest = useRef(crypto.randomUUID());
+  const guardedRequest = useRef(newOfficeRequestId());
   const [unknownSave, setUnknownSave] = useState(false);
   const ordinaryChanges = Object.fromEntries(Object.entries({
     name: form.name.trim(), birth_year: form.birth_year, parent_name: form.parent_name, memo: form.memo,
@@ -582,9 +583,9 @@ export function EditModal({ student, classGroups, onClose, onSaved }: EditModalP
       }
     },
     onError: (e: ApiError) => {
-      if ((guardedWeb || guardedMove) && (!e.status || e.status >= 500)) {
+      if ((guardedWeb || guardedMove) && (!e.status || e.status >= 500 || e.status === 410)) {
         setUnknownSave(true); setError("결과 불명입니다. 같은 변경을 재전송하지 말고 요청 상태를 확인하세요.");
-      } else { guardedRequest.current = crypto.randomUUID(); setError(e.message ?? "저장 중 오류가 발생했습니다."); }
+      } else { guardedRequest.current = newOfficeRequestId(); setError(e.message ?? "저장 중 오류가 발생했습니다."); }
     },
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["students"] });

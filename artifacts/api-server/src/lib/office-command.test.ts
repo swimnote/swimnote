@@ -27,8 +27,9 @@ vi.mock("./pg-realtime.js", () => ({ notifyPoolEvent: async () => { fixture.even
 vi.mock("../routes/ai.js", () => ({ getOpenAI: () => { fixture.modelCalls++; throw new Error("Actual AI is forbidden in fixture"); } }));
 let pool: any, service: OfficeCommandService, server: any, origin = "";
 const actor = { userId: "admin_fixture", poolId: "pool_fixture", role: "pool_admin" };
+const rid = (suffix: string) => `oc1_${Date.now()}_${suffix}`;
 const revision = async (id = "member_one") => (await pool.query("SELECT md5(row_to_json(s)::text) AS revision FROM students s WHERE id=$1", [id])).rows[0].revision;
-const command = async (overrides = {}) => ({ action: "update", requestId: "request_one", memberId: "member_one",
+const command = async (overrides = {}) => ({ action: "update", requestId: rid("request_one"), memberId: "member_one",
   expectedRevision: await revision(), changes: { memo: "합성 변경" }, ...overrides });
 const api = (path: string, body?: unknown, auth = "admin_fixture") => fetch(origin + path, {
   method: body === undefined ? "GET" : "POST",
@@ -109,7 +110,7 @@ describe("OFFICE isolated canonical SQL / HTTP contract", () => {
   });
   it("two concurrent ordinary saves using one revision: one commit, one conflict", async () => {
     const c = await command();
-    const results = await Promise.allSettled([service.execute(actor, c), service.execute(actor, { ...c, requestId: "request_two", changes: { memo: "다른 변경" } })]);
+    const results = await Promise.allSettled([service.execute(actor, c), service.execute(actor, { ...c, requestId: rid("request_two"), changes: { memo: "다른 변경" } })]);
     expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
     expect(results.find(r => r.status === "rejected")).toMatchObject({ reason: { code: "CONFLICT" } });
     expect((await pool.query("SELECT count(*) FROM pool_event_logs")).rows[0].count).toBe("1");
@@ -126,7 +127,7 @@ describe("OFFICE isolated canonical SQL / HTTP contract", () => {
     const response = await api("/commands/" + c.requestId);
     expect(response.status).toBe(200); expect((await response.json() as OfficeReceipt).revision).toBe(await revision());
     expect((await api("/commands/" + c.requestId, undefined, "foreign")).status).toBe(404);
-    expect((await api("/commands/not_committed")).status).toBe(404);
+    expect((await api("/commands/" + rid("not_committed"))).status).toBe(404);
     expect((await pool.query("SELECT count(*) FROM pool_event_logs")).rows[0].count).toBe("1");
   });
   it("one selected membership moves atomically; other membership and weekly count retained", async () => {
@@ -152,8 +153,8 @@ describe("OFFICE isolated canonical SQL / HTTP contract", () => {
   });
   it("two members competing for last class seat cannot both commit", async () => {
     await pool.query("UPDATE class_groups SET capacity=1 WHERE id='class_c'");
-    const a = { action: "move", requestId: "move_one", memberId: "member_one", expectedRevision: await revision(), fromClassId: "class_a", toClassId: "class_c" };
-    const b = { ...a, requestId: "move_two", memberId: "member_two", expectedRevision: await revision("member_two") };
+    const a = { action: "move", requestId: rid("move_one"), memberId: "member_one", expectedRevision: await revision(), fromClassId: "class_a", toClassId: "class_c" };
+    const b = { ...a, requestId: rid("move_two"), memberId: "member_two", expectedRevision: await revision("member_two") };
     const results = await Promise.allSettled([service.execute(actor, a), service.execute(actor, b)]);
     expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
     expect(results.find(r => r.status === "rejected")).toMatchObject({ reason: { code: "CAPACITY" } });

@@ -33,7 +33,10 @@ export const OfficeCommandInputAction = {
 
 export interface OfficeCommandInput {
   action: OfficeCommandInputAction;
-  /** @pattern ^[A-Za-z0-9_-]{1,160}$ */
+  /**
+   * 24-hour request/reconfirmation window; receipt retention must be verified before activation. Never automatically reissue an unknown operation.
+   * @pattern ^oc1_[0-9]{13}_[A-Za-z0-9_-]{1,110}$
+   */
   requestId: string;
   /** @pattern ^[A-Za-z0-9_-]{1,160}$ */
   memberId: string;
@@ -108,11 +111,48 @@ export const OfficeInterpretationConfirmation = {
   required: "required",
 } as const;
 
+export type OfficeInterpretationPolicySingleOrdinaryUpdateOrMove =
+  (typeof OfficeInterpretationPolicySingleOrdinaryUpdateOrMove)[keyof typeof OfficeInterpretationPolicySingleOrdinaryUpdateOrMove];
+
+export const OfficeInterpretationPolicySingleOrdinaryUpdateOrMove = {
+  "validate-then-execute": "validate-then-execute",
+} as const;
+
+export type OfficeInterpretationPolicyAmbiguous =
+  (typeof OfficeInterpretationPolicyAmbiguous)[keyof typeof OfficeInterpretationPolicyAmbiguous];
+
+export const OfficeInterpretationPolicyAmbiguous = {
+  clarify: "clarify",
+} as const;
+
+export type OfficeInterpretationPolicySendPaymentDeleteBulk =
+  (typeof OfficeInterpretationPolicySendPaymentDeleteBulk)[keyof typeof OfficeInterpretationPolicySendPaymentDeleteBulk];
+
+export const OfficeInterpretationPolicySendPaymentDeleteBulk = {
+  "confirmation-required": "confirmation-required",
+} as const;
+
+export type OfficeInterpretationPolicyReleaseRestriction =
+  (typeof OfficeInterpretationPolicyReleaseRestriction)[keyof typeof OfficeInterpretationPolicyReleaseRestriction];
+
+export const OfficeInterpretationPolicyReleaseRestriction = {
+  "preview-confirm-until-integrated-acceptance":
+    "preview-confirm-until-integrated-acceptance",
+} as const;
+
+export type OfficeInterpretationPolicy = {
+  singleOrdinaryUpdateOrMove?: OfficeInterpretationPolicySingleOrdinaryUpdateOrMove;
+  ambiguous?: OfficeInterpretationPolicyAmbiguous;
+  sendPaymentDeleteBulk?: OfficeInterpretationPolicySendPaymentDeleteBulk;
+  releaseRestriction?: OfficeInterpretationPolicyReleaseRestriction;
+};
+
 export interface OfficeInterpretation {
   kind: OfficeInterpretationKind;
   question?: string;
   search?: string;
   confirmation?: OfficeInterpretationConfirmation;
+  policy?: OfficeInterpretationPolicy;
   command?: OfficeProposalCommand;
 }
 

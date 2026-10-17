@@ -6,6 +6,7 @@ import { OfficeCommandService, OfficeError, type OfficeActor } from "../lib/offi
 import { interpretOffice } from "../lib/office-interpret.js";
 import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import { AI_MODEL } from "../config/ai-model-config.js";
+import rateLimit from "express-rate-limit";
 
 const router = Router();
 const service = new OfficeCommandService(pool);
@@ -39,19 +40,26 @@ router.get("/commands/:requestId", async (req: AuthRequest, res) => {
     res.json(result);
   } catch (e) { failure(res, e); }
 });
-router.post("/interpret", async (req: AuthRequest, res) => {
+// Per-process authenticated-user limit. Not a distributed/provider-account budget.
+const interpretationLimit = rateLimit({ windowMs: 10 * 60_000, limit: 6,
+  keyGenerator: req => (req as AuthRequest).user!.userId, standardHeaders: "draft-7", legacyHeaders: false,
+  message: { code: "MODEL_LIMIT", error: "AI 해석 요청 한도를 초과했습니다. 자동 재시도하지 마세요." } });
+router.post("/interpret", interpretationLimit, async (req: AuthRequest, res) => {
   if (process.env.OFFICE_STAGE3_AI_ENABLED !== "true") { res.status(503).json({ code: "AI_NOT_ENABLED", error: "실제 AI 전송은 통합 배포 승인 전 비활성입니다." }); return; }
   try {
     await actor(req);
     const interpreted = await interpretOffice(async input => {
       const { getOpenAI } = await import("./ai.js");
       const response = await getOpenAI().chat.completions.create({
-        model: AI_MODEL.SUPPORT, response_format: { type: "json_object" }, temperature: 0,
+        model: AI_MODEL.SUPPORT, response_format: { type: "json_object" }, temperature: 0, max_tokens: 512,
         messages: [
-          { role: "system", content: 'Return JSON only. Allowed: {"kind":"search","search":"..."}, {"kind":"clarify","question":"..."}, {"kind":"command","command":{"action":"update","changes":{"name|phone|birth_date|birth_year|parent_name|memo":"value"}}}, or command action move with fromClassId,toClassId. Never invent IDs. If a member is not selected or source/destination class ID is unknown ask a question. Never output URLs, SQL, actor, pool, requestId, revision, approval. Commands are proposals, not execution.' },
+          { role: "system", content: 'Return JSON only. Allowed: {"kind":"search","search":"..."}, {"kind":"clarify","question":"..."}, {"kind":"command","command":{"action":"update","changes":{"name|phone|birth_date|birth_year|parent_name|memo":"value"}}}, or command action move with fromClassId,toClassId. Only ONE action on ONE selected member. Multiple ordinary fields in that one update are allowed. For update plus move, multiple members, sending, payments, deletion, bulk or unsupported requests, ask a question; never silently execute a subset. Never invent IDs. If a member is not selected or source/destination class ID is unknown ask a question. Never output URLs, SQL, actor, pool, requestId, revision, approval. Commands are proposals, not execution. Never echo credentials, secrets or unrelated personal information.' },
           { role: "user", content: JSON.stringify(input) },
         ],
-      });
+      }, { timeout: 12_000, maxRetries: 0 });
+      if ((response.choices[0]?.message.content?.length ?? 0) > 8000 ||
+          response.choices[0]?.finish_reason !== "stop")
+        throw new OfficeError(502, "MODEL_OUTPUT", "잘리거나 너무 긴 해석 결과입니다. 업무는 실행되지 않았습니다.");
       return JSON.parse(response.choices[0]?.message.content ?? "null");
     }, req.body);
     res.json(interpreted);

@@ -1,3 +1,4 @@
+import { newOfficeRequestId } from "../lib/office-request-id";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAuthGeneration } from "../lib/token";
@@ -122,7 +123,7 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
         if (!isCurrent()) return;
         const student = read.find(s => s.id === selectedId) as any;
         if (!student?.office_revision) throw new Error("Missing revision");
-        const c = result.command, requestId = crypto.randomUUID(), taskId = "proposal:" + requestId;
+        const c = result.command, requestId = newOfficeRequestId(), taskId = "proposal:" + requestId;
         const request = { action: c.action === "update" ? "office.member.update" : c.action === "move" ? "office.member.move" : "invalid",
           input: { memberId: selectedId, requestId, expectedRevision: student.office_revision,
             ...(c.action === "update" ? { changes: c.changes } : { fromClassId: c.fromClassId, toClassId: c.toClassId }) } };

@@ -650,7 +650,7 @@ components:
       required: [action, requestId, memberId, expectedRevision]
       properties:
         action: { type: string, enum: [update, move] }
-        requestId: { type: string, pattern: "^[A-Za-z0-9_-]{1,160}$" }
+        requestId: { type: string, pattern: "^oc1_[0-9]{13}_[A-Za-z0-9_-]{1,110}$", description: "24-hour request/reconfirmation window; receipt retention must be verified before activation. Never automatically reissue an unknown operation." }
         memberId: { type: string, pattern: "^[A-Za-z0-9_-]{1,160}$" }
         expectedRevision: { type: string, pattern: "^[a-f0-9]{32}$" }
         changes:
@@ -705,6 +705,13 @@ components:
         question: { type: string }
         search: { type: string }
         confirmation: { type: string, enum: [required] }
+        policy:
+          type: object
+          properties:
+            singleOrdinaryUpdateOrMove: { type: string, enum: [validate-then-execute] }
+            ambiguous: { type: string, enum: [clarify] }
+            sendPaymentDeleteBulk: { type: string, enum: [confirmation-required] }
+            releaseRestriction: { type: string, enum: [preview-confirm-until-integrated-acceptance] }
         command:
           $ref: "#/components/schemas/OfficeProposalCommand"
     HealthStatus:

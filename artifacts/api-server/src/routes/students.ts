@@ -25,6 +25,8 @@ import {
 import { withdrawStudent } from "../lib/withdraw-student-service.js";
 import { teacherCanAccessClass, teacherCanAccessStudent, getCurrentStudentClassIds, studentAccessPredicate, classAccessPredicate } from "../lib/class-membership.js";
 import { writeCanonicalAttendance, AttendanceConflict } from "../lib/canonical-attendance.js";
+import { guardLegacyMembership, officeLegacyGuardEnabled } from "../lib/office-legacy-guard.js";
+import { OfficeError } from "../lib/office-command.js";
 
 const router = Router();
 
@@ -639,7 +641,8 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
   const { name, phone, birth_date, birth_year, parent_name, parent_phone, class_group_id, memo, weekly_count, status } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
-    const [existing] = await db.select()
+    const [existing] = await db.select({ ...getTableColumns(studentsTable),
+      office_revision: sql<string>`md5(row_to_json(${studentsTable})::text)` })
       .from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
@@ -715,8 +718,10 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         ...(resolvedParentUserId && !existing.parent_user_id && { parent_user_id: resolvedParentUserId }),
         updated_at: new Date(),
       })
-      .where(eq(studentsTable.id, req.params.id))
+      .where(and(eq(studentsTable.id, req.params.id), officeLegacyGuardEnabled()
+        ? sql`md5(row_to_json(${studentsTable})::text) = ${existing.office_revision}` : sql`true`))
       .returning();
+    if (!student) return err(res, 409, "다른 변경이 있습니다. 최신 회원 정보를 조회하세요.");
 
     // ── parent_students 연결 레코드 생성 (신규 매칭 시) ─────────────
     if (resolvedParentUserId && !existing.parent_user_id) {
@@ -1223,7 +1228,8 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
   try {
     const poolId = await getPoolId(req.user!.userId);
 
-    const [existing] = await db.select().from(studentsTable)
+    const [existing] = await db.select({ ...getTableColumns(studentsTable),
+      office_revision: sql<string>`md5(row_to_json(${studentsTable})::text)` }).from(studentsTable)
       .where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생 없음");
     if (poolId && existing.swimming_pool_id !== poolId) return err(res, 403, "접근 권한 없음");
@@ -1284,6 +1290,7 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
 
     // ── 단일 트랜잭션: history + students 동시 갱신 ──────────────────────────
     await db.transaction(async (tx) => {
+      await guardLegacyMembership(tx, existing, newIds, effectiveDate);
       // 1) 출발반 history left_at 설정 (열린 row만)
       await tx.execute(sql`
         UPDATE student_class_history
@@ -1337,7 +1344,10 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
 
     console.log("[PERF][move-class]", { elapsed_ms: Date.now() - _moveStartedAt, student_id: req.params.id });
     return res.json({ success: true, assigned_class_ids: newIds, effective_date: effectiveDate });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
+  } catch (e) {
+    if (e instanceof OfficeError) return err(res, e.status, e.message);
+    console.error(e); return err(res, 500, "서버 오류");
+  }
 });
 
 // ── PATCH /:id/assign — 반 배정 (관리자 + 선생님 허용) ─────────────
@@ -1351,7 +1361,8 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
 
   try {
     const poolId = await getPoolId(req.user!.userId);
-    const [existing] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
+    const [existing] = await db.select({ ...getTableColumns(studentsTable),
+      office_revision: sql<string>`md5(row_to_json(${studentsTable})::text)` }).from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     if (!existing) return err(res, 404, "학생을 찾을 수 없습니다.");
     if (req.user!.role !== "super_admin" && poolId && existing.swimming_pool_id !== poolId) {
       return err(res, 403, "접근 권한이 없습니다.");
@@ -1409,6 +1420,7 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
 
     // ── 단일 트랜잭션: history + students 동시 갱신 ──────────────────────────
     await db.transaction(async (tx) => {
+      await guardLegacyMembership(tx, existing, assigned_class_ids, effectiveDate);
       // 1) 제거된 반 → history left_at 설정
       for (const classId of removedIds) {
         await tx.execute(sql`
@@ -1458,7 +1470,10 @@ router.patch("/:id/assign", requireAuth, requireRole("super_admin", "pool_admin"
       payload: { assigned_class_ids, student_name: existing.name, effective_date: effectiveDate },
     }).catch(() => {});
     res.json({ success: true, ...enriched });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+  } catch (e) {
+    if (e instanceof OfficeError) return err(res, e.status, e.message);
+    console.error(e); return err(res, 500, "서버 오류가 발생했습니다.");
+  }
 });
 
 // ── PATCH /:id/weekly-count — 주 수업 횟수 변경 (선생님도 가능) ────

@@ -17,8 +17,8 @@ export const OFFICE_ACTIONS = Object.freeze({
   "office.members.open": { purpose: "기존 회원 화면 복원 또는 목록 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{view?:'list'}", queries: ["students", "class-groups"], invalidates: [] },
   "office.member.open": { purpose: "회원 ID로 빠른/전체 상세 및 탭 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{memberId,view?:'full',tab?:basic|contacts|classes|notes|growth}", queries: ["students"], invalidates: [] },
   "office.members.search": { purpose: "기존 회원 검색·필터 조회", kind: "query", confirmation: "none", permission: "pool_admin", input: "{search?,status?,classId?}", queries: ["students"], invalidates: [] },
-  "office.member.update": { purpose: "일반 회원정보 조건부 저장", kind: "mutation", confirmation: "explicit-save", permission: "pool_admin", input: "{memberId,requestId,expectedRevision,changes}", queries: ["students"], invalidates: ["students"] },
-  "office.member.move": { purpose: "명시한 소속 한 반만 이동", kind: "mutation", confirmation: "preview-confirm", permission: "pool_admin", input: "{memberId,requestId,expectedRevision,fromClassId,toClassId}", queries: ["students"], invalidates: ["students", "class-groups"] },
+  "office.member.update": { purpose: "일반 회원정보 조건부 저장", kind: "mutation", confirmation: "explicit-save", businessPolicy: "validate-then-execute", releaseRestriction: "preview-confirm-until-integrated-acceptance", permission: "pool_admin", input: "{memberId,requestId,expectedRevision,changes}", queries: ["students"], invalidates: ["students"] },
+  "office.member.move": { purpose: "명시한 소속 한 반만 이동", kind: "mutation", confirmation: "preview-confirm", businessPolicy: "validate-then-execute", releaseRestriction: "preview-confirm-until-integrated-acceptance", permission: "pool_admin", input: "{memberId,requestId,expectedRevision,fromClassId,toClassId}", queries: ["students"], invalidates: ["students", "class-groups"] },
 } as const);
 type MembersRead = { data: MemberSummary[]; source: "network" | "cache"; queryStartedAt: number; receivedAt: number };
 export type ActionDependencies = {
@@ -179,7 +179,8 @@ export class OfficeActionCore {
     } catch (e) {
       if (!this.current()) return cancelled();
       const status = object(e) && typeof e.status === "number" ? e.status : 0;
-      const known = status >= 400 && status < 500;
+      // An expired reconciliation window does not prove the original operation never committed.
+      const known = status >= 400 && status < 500 && status !== 410;
       outcome = known ? failed(status === 403 || status === 401 ? "forbidden" : "query",
         object(e) && typeof e.message === "string" ? e.message : "서버가 변경을 거부했습니다. 입력은 보존됩니다.")
         : { status: "unknown", message: "결과 불명입니다. 같은 변경을 재전송하지 말고 요청 상태를 확인하세요." };

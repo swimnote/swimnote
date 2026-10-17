@@ -11,7 +11,7 @@ import * as zod from "zod";
  * @summary Gated OFFICE ordinary edit or single-membership move
  */
 export const officeExecuteCommandBodyRequestIdRegExp = new RegExp(
-  "^[A-Za-z0-9_-]{1,160}$",
+  "^oc1_[0-9]{13}_[A-Za-z0-9_-]{1,110}$",
 );
 export const officeExecuteCommandBodyMemberIdRegExp = new RegExp(
   "^[A-Za-z0-9_-]{1,160}$",
@@ -33,7 +33,12 @@ export const officeExecuteCommandBodyChangesMemoMax = 8000;
 
 export const OfficeExecuteCommandBody = zod.object({
   action: zod.enum(["update", "move"]),
-  requestId: zod.string().regex(officeExecuteCommandBodyRequestIdRegExp),
+  requestId: zod
+    .string()
+    .regex(officeExecuteCommandBodyRequestIdRegExp)
+    .describe(
+      "24-hour request\/reconfirmation window; receipt retention must be verified before activation. Never automatically reissue an unknown operation.",
+    ),
   memberId: zod.string().regex(officeExecuteCommandBodyMemberIdRegExp),
   expectedRevision: zod
     .string()
@@ -138,6 +143,18 @@ export const OfficeInterpretRequestResponse = zod.object({
   question: zod.string().optional(),
   search: zod.string().optional(),
   confirmation: zod.enum(["required"]).optional(),
+  policy: zod
+    .object({
+      singleOrdinaryUpdateOrMove: zod
+        .enum(["validate-then-execute"])
+        .optional(),
+      ambiguous: zod.enum(["clarify"]).optional(),
+      sendPaymentDeleteBulk: zod.enum(["confirmation-required"]).optional(),
+      releaseRestriction: zod
+        .enum(["preview-confirm-until-integrated-acceptance"])
+        .optional(),
+    })
+    .optional(),
   command: zod
     .object({
       action: zod.enum(["update", "move"]),

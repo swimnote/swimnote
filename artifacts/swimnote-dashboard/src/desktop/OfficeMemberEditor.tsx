@@ -1,3 +1,4 @@
+import { newOfficeRequestId } from "../lib/office-request-id";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Student } from "../pages/members/MembersPage";
 import type { OfficeMemberTab } from "./OfficeNavigation";
@@ -110,7 +111,7 @@ export function OfficeMemberEditor({ student, tab, classes, enabled, execute, re
     }
     busyRef.current = true; setBusy(true); setOutcome(null);
     try {
-      const requestId = crypto.randomUUID(); setLastRequest(requestId);
+      const requestId = newOfficeRequestId(); setLastRequest(requestId);
       const r = await execute({ action: "office.member.update", input: {
         memberId: student.id, expectedRevision: openRev, requestId, changes } });
       const kind = classify(r);
@@ -171,7 +172,7 @@ export function OfficeMemberEditor({ student, tab, classes, enabled, execute, re
     if (busyRef.current || !from || !to || !moveRev || unknown || moveStale) return false;
     busyRef.current = true; setBusy(true); setOutcome(null);
     try {
-      const requestId = crypto.randomUUID(); setLastRequest(requestId);
+      const requestId = newOfficeRequestId(); setLastRequest(requestId);
       const r = await execute({ action: "office.member.move", input: {
         memberId: student.id, expectedRevision: moveRev, requestId, fromClassId: from, toClassId: to } });
       const kind = classify(r);

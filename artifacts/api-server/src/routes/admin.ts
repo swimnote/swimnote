@@ -1549,7 +1549,8 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
       const { name, birth_year, parent_name, parent_phone, parent_phone2, parent_phone3, parent_phone4, memo, notes } = req.body;
 
-      const [student] = (await db.execute(sql`SELECT * FROM students WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
+      const [student] = (await db.execute(sql`SELECT s.*, md5(row_to_json(s)::text) AS office_revision
+        FROM students s WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
 
       const [actor] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${req.user!.userId}`)).rows as any[];
@@ -1600,7 +1601,7 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
         }
       }
 
-      await db.execute(sql`
+      const saved = await db.execute(sql`
         UPDATE students SET
           name = COALESCE(${name ?? null}, name),
           birth_year = COALESCE(${birth_year ?? null}, birth_year),
@@ -1613,7 +1614,10 @@ router.patch("/students/:id/info", requireAuth, requireRole("super_admin", "pool
           notes = COALESCE(${notes ?? null}, notes),
           updated_at = NOW()
         WHERE id = ${req.params.id}
+          AND (${process.env.OFFICE_STAGE3_ENABLED !== "true"} OR md5(row_to_json(students)::text) = ${student.office_revision})
+        RETURNING id
       `);
+      if (!saved.rows.length) return res.status(409).json({ error: "다른 변경이 있습니다. 최신 회원 정보를 조회하세요." });
 
       // 신규 학부모 연결 시 parent_user_id 업데이트
       if (newParentUserId && !student.parent_user_id) {

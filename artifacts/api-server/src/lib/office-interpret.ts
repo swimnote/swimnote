@@ -2,6 +2,13 @@ import { OfficeError, parseOfficeCommand } from "./office-command.js";
 
 /** Only user text + selected IDs are sent. No DB import, member roster, credentials or attachments. */
 export type OfficeModel = (input: { text: string; memberId?: string }) => Promise<unknown>;
+export const OFFICE_BUSINESS_POLICY = Object.freeze({
+  singleOrdinaryUpdateOrMove: "validate-then-execute",
+  ambiguous: "clarify",
+  sendPaymentDeleteBulk: "confirmation-required",
+  // A temporary, common menu/AI release restriction; not the final product policy.
+  releaseRestriction: "preview-confirm-until-integrated-acceptance",
+});
 export async function interpretOffice(model: OfficeModel, input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new OfficeError(400, "INPUT", "업무 요청이 필요합니다.");
   const v = input as Record<string, unknown>;
@@ -26,5 +33,5 @@ export async function interpretOffice(model: OfficeModel, input: unknown) {
   return { kind: "proposal" as const, command: {
     action: validated.action, memberId: validated.memberId, changes: validated.changes,
     fromClassId: validated.fromClassId, toClassId: validated.toClassId,
-  }, confirmation: "required" as const };
+  }, confirmation: "required" as const, policy: OFFICE_BUSINESS_POLICY };
 }

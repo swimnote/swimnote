@@ -10,7 +10,10 @@ import type { OfficeOrdinaryChanges } from "./officeOrdinaryChanges";
 
 export interface OfficeCommandInput {
   action: OfficeCommandInputAction;
-  /** @pattern ^[A-Za-z0-9_-]{1,160}$ */
+  /**
+   * 24-hour request/reconfirmation window; receipt retention must be verified before activation. Never automatically reissue an unknown operation.
+   * @pattern ^oc1_[0-9]{13}_[A-Za-z0-9_-]{1,110}$
+   */
   requestId: string;
   /** @pattern ^[A-Za-z0-9_-]{1,160}$ */
   memberId: string;

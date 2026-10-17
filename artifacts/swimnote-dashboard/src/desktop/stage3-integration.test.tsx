@@ -157,6 +157,20 @@ it("lost write response becomes unknown; state lookup confirms result without re
   expect(actions.tasks[0].status).toBe("completed");
   expect(transport.write).toHaveBeenCalledTimes(1);
 });
+it("expired confirmation window and status lookup failure stay unknown, preserving draft and request identity", async () => {
+  transport.write = vi.fn(async () => { throw { status: 410, message: "재확인 기한 만료" }; });
+  transport.status = vi.fn(async () => { throw { status: 500, message: "조회 실패" }; });
+  mount(); await open(); await startEdit("만료 후에도 보존");
+  fireEvent.click(screen.getByRole("button", { name: "저장", exact: true }));
+  await waitFor(() => expect(actions.tasks[0]?.status).toBe("unknown"));
+  const requestId = actions.tasks[0].id.split(":write:")[1];
+  expect(requestId).toMatch(/^oc1_\d{13}_/);
+  await act(async () => { await actions.resolveWrite(requestId); });
+  expect(actions.tasks[0].status).toBe("unknown");
+  expect(transport.write).toHaveBeenCalledTimes(1);
+  expect(transport.status).toHaveBeenCalledWith(requestId);
+  expect((screen.getByRole("textbox", { name: "이름", exact: true }) as HTMLInputElement).value).toBe("만료 후에도 보존");
+});
 it("mock interpretation clarifies ambiguity, then confirmed AI proposal uses same canonical Action/SQL as menu", async () => {
   mount();
   await act(async () => { await actions.interpret("합성 동명을 옮겨줘"); });
