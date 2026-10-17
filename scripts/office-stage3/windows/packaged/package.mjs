@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 
 const repo = path.resolve(import.meta.dirname, "../../../..");
-const attempt = process.argv[2] ?? "attempt-06";
+const attempt = process.argv[2] ?? "attempt-07";
 if (!/^attempt-\d{2}$/.test(attempt)) throw new Error("Explicit new attempt name required");
 const deliveryRoot = path.join(repo, "generated-artifacts/office-windows-packaged-auth");
 const output = path.join(deliveryRoot, attempt);

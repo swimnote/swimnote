@@ -711,3 +711,31 @@ mtime_ms = 1792235679388
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/1b90892d-4906-4af9-a56a-89db89b544a8/cebcb314-4440-48ec-9b7f-cd42389b91ea"
 storage_version_token = "1792235747614743"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "DQtXzpKxB8EeVoWQLnoQo"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-07/OFFICE-WIN-PACKAGED-653f5491f774baed-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "DB 준비·진단 보완본 — 1/2"
+description = "두 ZIP을 새 빈 폴더에 모두 해제 → START-ISOLATED.cmd → 새 Setup.exe 설치. Windows 실제 해결 여부는 미검증입니다."
+logical_id = "8284778c-3c89-4e78-8416-c546a1fbfda6"
+content_hash = "sha256:53fcf86c383428e4e05310b72aceb4169e653ca46c873b7254cf9c21e1003049"
+size = 83890641
+mtime_ms = 1792237618420
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/8284778c-3c89-4e78-8416-c546a1fbfda6/44078bc6-be84-443c-865a-bcc5b467e28b"
+storage_version_token = "1792237662289736"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "EhjZad8FijWB0rf9TtCk5"
+uri = "file://generated-artifacts/office-windows-packaged-auth/attempt-07/OFFICE-WIN-PACKAGED-653f5491f774baed-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "DB 준비·진단 보완본 — 2/2"
+description = "1/2와 함께 필요합니다. 설치 후 바탕화면 이름 끝이 f774baed인 새 검증본을 실행하세요. 기존 설치본과 데이터는 보존합니다."
+logical_id = "c23497e2-6b39-4d0e-9575-2cd68a395f2f"
+content_hash = "sha256:236dd813471d96bd612efcdd4e74ca15459df7a453a4d1b490624348d71900ac"
+size = 72114957
+mtime_ms = 1792237619184
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/c23497e2-6b39-4d0e-9575-2cd68a395f2f/a569d450-508c-4bdd-a9a7-e118e1dcda18"
+storage_version_token = "1792237664201323"
+content_type = "application/octet-stream"

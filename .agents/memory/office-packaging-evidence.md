@@ -56,3 +56,9 @@ Windows PostgreSQL app-local 패키징은 PE import 목록뿐 아니라 bootstra
 **Why:** ICU가 C++ 런타임 DLL을 추가로 요구하고, bootstrap의 인코딩 변환 DLL은 정적 PE import에 나타나지 않는다. Linux에서 의존성을 검사할 때는 Windows 파일명 대소문자 비구분도 반영해야 한다.
 
 **How to apply:** 공식 Windows 배포물에서 필요한 app-local 런타임과 bootstrap library를 포함하고 import closure·catalog 참조·실제 설치본 추출 해시를 구분해 확인한다. 이 정적 검사는 Windows loader/ACL/실행 수용 증거가 아니다.
+
+Windows PostgreSQL CLI의 파일 경로 처리를 Node의 Unicode 파일 I/O와 동일시하지 않는다. `initdb` 종료 코드 1만으로 비영문 경로·권한·보안 제품 중 하나를 원인으로 확정하지 않는다.
+
+**Why:** PostgreSQL 공식 메일링리스트에는 비영문 프로필 아래의 password-file 절대 경로가 CRT에서 잘못 해석되는 사례가 있다. 출력 원문을 보관하지 않은 기존 진단은 최초 실패 도구만 증명하며, 이후 incomplete-preparation은 별도 후속 상태다.
+
+**How to apply:** native 도구 인자는 상대 ASCII 파일명과 명시적 cwd를 우선 검토하고, 비밀 없는 고정 실패 분류로 실제 원인을 구분한다. Linux Unicode 경로 검사는 Windows 코드페이지 수용 증거가 아니다. 참조: https://www.postgresql.org/message-id/CAB1XC2Lw8_zTa%3Dv2Rxu%3DhRik1vbTgk0yfC-PT1eODWjHuhgbMg%40mail.gmail.com

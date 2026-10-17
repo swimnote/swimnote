@@ -1,0 +1,16 @@
+{
+  "packageId": "OFFICE-WIN-PACKAGED-ffcb6d5e1a2fac24",
+  "candidateId": "OFFICE-WIN-AUTH-fad5704318bc64c4",
+  "at": "2026-10-17T11:25:52.999Z",
+  "platform": "win32",
+  "arch": "x64",
+  "electronHostNode": "v24.21.0",
+  "stage": "prepare",
+  "code": "LOCAL_COMMAND_FAILED",
+  "tool": "initdb.exe",
+  "exitCode": 1,
+  "nativeCode": "UNCLASSIFIED",
+  "lockRetained": false,
+  "windowsAcceptance": "NOT RUN by build environment",
+  "paidCalls": 0
+}

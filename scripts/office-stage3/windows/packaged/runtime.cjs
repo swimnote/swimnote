@@ -14,6 +14,54 @@ const fresh = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 
 const systemError = error => /^[A-Z][A-Z0-9_]{1,45}$/.test(error?.code ?? "") ? error.code : "UNCLASSIFIED";
 const cleanEnv = source => Object.fromEntries(Object.entries(source).filter(([key]) =>
   /^(SYSTEMROOT|WINDIR|COMSPEC|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|HOMEDRIVE|HOMEPATH)$/i.test(key)));
+const INITDB_CATEGORIES = new Set([
+  "INITDB_PASSWORD_FILE_UNREADABLE", "INITDB_PASSWORD_FILE_EMPTY",
+  "POSTGRES_EXECUTABLE_NOT_FOUND", "POSTGRES_VERSION_CHECK_FAILED",
+  "INITDB_PERMISSION_DENIED", "INITDB_ENCODING_FAILED", "INITDB_LIBRARY_LOAD_FAILED",
+  "INITDB_INPUT_FILE_UNREADABLE", "INITDB_DATA_DIRECTORY_NOT_EMPTY",
+  "INITDB_CHILD_EXCEPTION", "INITDB_CHILD_EXIT_FAILED", "INITDB_UNCLASSIFIED",
+]);
+const INITDB_PHASES = new Map([
+  ["creating subdirectories", "CREATE_DIRECTORIES"],
+  ["selecting dynamic shared memory", "SELECT_RUNTIME_SETTINGS"],
+  ["creating configuration files", "CREATE_CONFIGURATION"],
+  ["running bootstrap script", "BOOTSTRAP"],
+  ["performing post-bootstrap initialization", "POST_BOOTSTRAP"],
+  ["syncing data to disk", "SYNC_DATA"],
+]);
+function classifyInitdbFailure(result) {
+  // Process output stays in memory. Emit only constant categories/progress and a hex exception,
+  // never filenames, account names, SQL, command arguments or arbitrary lines.
+  const output = String(result.stdout ?? "") + "\n" + String(result.stderr ?? "");
+  const text = output.toLowerCase();
+  const rules = [
+    ["INITDB_PASSWORD_FILE_EMPTY", /password file[^\r\n]*is empty/i],
+    ["INITDB_PASSWORD_FILE_UNREADABLE", /could not read password from file|could not open file[^\r\n]*(?:init-password\.txt|passwd|pwfile)[^\r\n]*for reading/i],
+    ["POSTGRES_EXECUTABLE_NOT_FOUND", /program "postgres"[^\r\n]*was not found/i],
+    ["POSTGRES_VERSION_CHECK_FAILED", /not the same version as initdb/i],
+    ["INITDB_PERMISSION_DENIED", /permission denied|access is denied/i],
+    ["INITDB_ENCODING_FAILED", /invalid byte sequence|character.*has no equivalent|could not convert.*(?:utf|encoding)/i],
+    ["INITDB_LIBRARY_LOAD_FAILED", /could not load library|specified module could not be found/i],
+    ["INITDB_INPUT_FILE_UNREADABLE", /could not (?:open|read|access) (?:file|directory)/i],
+    ["INITDB_DATA_DIRECTORY_NOT_EMPTY", /exists but is not empty/i],
+    ["INITDB_CHILD_EXCEPTION", /child process[^\r\n]*exception/i],
+    ["INITDB_CHILD_EXIT_FAILED", /child process exited with exit code/i],
+  ];
+  const category = rules.find(([, pattern]) => pattern.test(output))?.[0] ?? "INITDB_UNCLASSIFIED";
+  let phase = "BEFORE_BOOTSTRAP", last = -1;
+  for (const [phrase, value] of INITDB_PHASES) {
+    const index = text.lastIndexOf(phrase);
+    if (index > last) { last = index; phase = value; }
+  }
+  const exception = output.match(/child process[^\r\n]*exception (0x[a-f0-9]{8})(?![a-f0-9])/i)?.[1]?.toUpperCase();
+  return { category, phase, exception };
+}
+function initdbInvocation(run) {
+  // libuv sets Windows cwd through the wide-character API. The PostgreSQL CRT receives only
+  // ASCII relative file arguments, even when the user's profile name is non-ASCII.
+  return { cwd: run, args: ["-D", "db", "-U", "office_fixture", "--encoding=UTF8", "--locale=C",
+    "--auth-host=scram-sha-256", "--auth-local=scram-sha-256", "--pwfile=init-password.txt", "--no-clean"] };
+}
 
 function assertPlainDirectory(folder) {
   const absolute = path.resolve(folder);
@@ -32,6 +80,7 @@ function command(executable, args, options = {}) {
     const error = Object.assign(new Error("Local command failed"), {
       code: "LOCAL_COMMAND_FAILED", tool: path.basename(executable), exitCode: result.status,
       nativeCode: systemError(result.error),
+      ...(path.basename(executable).toLowerCase() === "initdb.exe" ? { initdb: classifyInitdbFailure(result) } : {}),
     });
     throw error;
   }
@@ -64,7 +113,8 @@ class IsolatedRuntime {
   get node() { return path.join(this.resources, "node", "node.exe"); }
   get isolation() { return path.join(this.resources, "isolation"); }
   childEnv(extra = {}) {
-    return { ...cleanEnv(process.env), PATH: path.join(this.resources, "postgres", "bin"), ...extra };
+    return { ...cleanEnv(process.env), PATH: path.join(this.resources, "postgres", "bin"),
+      LANG: "C", LC_ALL: "C", ...extra };
   }
   sql(database, input) {
     return command(this.tool("psql"), ["-X", "-w", "-v", "ON_ERROR_STOP=1",
@@ -89,6 +139,8 @@ class IsolatedRuntime {
     assertPlainDirectory(this.root);
     restrict(this.root); // BEFORE generating any credentials.
     const selected = path.join(this.root, "selected-run.json");
+    if (!fs.existsSync(selected) && fs.existsSync(path.join(this.root, "preparing-run.json")))
+      throw Object.assign(new Error("Prior preparation retained"), { code: "INCOMPLETE_PREPARATION" });
     if (fs.existsSync(selected)) {
       const state = json(selected);
       if (state.packageId !== this.identity.packageId || !/^run-[a-f0-9]{24}$/.test(state.run))
@@ -101,6 +153,7 @@ class IsolatedRuntime {
         throw Object.assign(new Error("Incomplete prior preparation"), { code: "INCOMPLETE_PREPARATION" });
     } else {
       this.stage = "prepare";
+      this.newPreparation = true;
       this.run = path.join(this.root, "run-" + crypto.randomBytes(12).toString("hex"));
       fs.mkdirSync(this.run);
       restrict(this.run);
@@ -109,7 +162,7 @@ class IsolatedRuntime {
       fresh(path.join(this.run, "private.json"), this.credentials);
       fresh(path.join(this.run, "prepared.json"), { candidateId: BASE, packageId: this.identity.packageId });
       fresh(path.join(this.run, "fault-control.json"), { writes: true, dropRequest: null, dropNext: false, failRead: null });
-      fresh(selected, { packageId: this.identity.packageId, run: path.basename(this.run) });
+      fresh(path.join(this.root, "preparing-run.json"), { packageId: this.identity.packageId, run: path.basename(this.run) });
       fs.writeFileSync(path.join(this.run, "login-info.txt"), [
         "SWIMNOTE OFFICE - 격리 검증 전용 / 외부 공유 금지",
         "기본 PIN 로그인: fixture_pool / Pool ID: fixture_pool",
@@ -121,9 +174,9 @@ class IsolatedRuntime {
       const passwordFile = path.join(this.run, "init-password.txt");
       fs.writeFileSync(passwordFile, this.credentials.dbPassword + "\n", { flag: "wx", mode: 0o600 });
       try {
-        command(this.tool("initdb"), ["-D", path.join(this.run, "db"), "-U", "office_fixture",
-          "--encoding=UTF8", "--locale=C", "--auth-host=scram-sha-256",
-          "--auth-local=scram-sha-256", "--pwfile=" + passwordFile], { env: this.childEnv() });
+        this.stage = "prepare-initdb";
+        const invocation = initdbInvocation(this.run);
+        command(this.tool("initdb"), invocation.args, { cwd: invocation.cwd, env: this.childEnv() });
       } finally { fs.unlinkSync(passwordFile); }
       this.needsSeed = true;
     }
@@ -133,9 +186,9 @@ class IsolatedRuntime {
       session: this.session, pid: process.pid, createdAt: new Date().toISOString() });
     this.ownsLock = true;
     this.stage = "start-database";
-    this.db = spawn(this.tool("postgres"), ["-D", path.join(this.run, "db"), "-h", "127.0.0.1", "-p", "55440",
+    this.db = spawn(this.tool("postgres"), ["-D", "db", "-h", "127.0.0.1", "-p", "55440",
       "-c", "log_statement=none", "-c", "log_min_error_statement=panic"], {
-      env: this.childEnv(), stdio: "ignore", windowsHide: true,
+      cwd: this.run, env: this.childEnv(), stdio: "ignore", windowsHide: true,
     });
     this.db.on("error", () => { this.dbFailed = true; });
     let ready = false;
@@ -188,12 +241,20 @@ class IsolatedRuntime {
     }
     if (!ready) throw Object.assign(new Error("API readiness timeout"), { code: "API_READINESS_TIMEOUT" });
     this.stage = "ready";
+    this.commitSelection();
+    this.newPreparation = false;
     this.health = setInterval(() => {
       if (!this.stopping && (this.db?.exitCode !== null || this.api?.exitCode !== null)) {
         clearInterval(this.health);
         this.onFailure?.(Object.assign(new Error("Owned service stopped"), { code: "OWNED_SERVICE_EXITED" }));
       }
     }, 1500);
+  }
+  commitSelection() {
+    if (!this.newPreparation) return;
+    if (this.stage !== "ready" || json(path.join(this.run, "initialized.json")).packageId !== this.identity.packageId)
+      throw Object.assign(new Error("Preparation is not committed"), { code: "INCOMPLETE_PREPARATION" });
+    fresh(path.join(this.root, "selected-run.json"), { packageId: this.identity.packageId, run: path.basename(this.run) });
   }
   async stop() {
     this.stopping = true;
@@ -211,8 +272,8 @@ class IsolatedRuntime {
     if (this.db?.pid && this.db.exitCode === null && !this.dbFailed) {
       const pid = Number(fs.readFileSync(path.join(this.run, "db", "postmaster.pid"), "utf8").split("\n")[0]);
       if (pid !== this.db.pid) throw Object.assign(new Error("DB ownership mismatch"), { code: "DB_OWNERSHIP_MISMATCH" });
-      command(this.tool("pg_ctl"), ["-D", path.join(this.run, "db"), "stop", "-m", "fast", "-w", "-t", "15"],
-        { env: this.childEnv(), timeout: 20000 });
+      command(this.tool("pg_ctl"), ["-D", "db", "stop", "-m", "fast", "-w", "-t", "15"],
+        { cwd: this.run, env: this.childEnv(), timeout: 20000 });
       for (let n = 0; n < 30 && this.db.exitCode === null; n++) await wait(100);
       if (this.db.exitCode === null) throw Object.assign(new Error("DB stop timeout"), { code: "DB_STOP_TIMEOUT" });
     }
@@ -233,14 +294,30 @@ class IsolatedRuntime {
       tool: /^[A-Za-z0-9_.-]+$/.test(error?.tool ?? "") ? error.tool : undefined,
       exitCode: Number.isInteger(error?.exitCode) ? error.exitCode : undefined,
       nativeCode: error?.nativeCode ? systemError({ code: error.nativeCode }) : undefined,
+      initdbCategory: INITDB_CATEGORIES.has(error?.initdb?.category) ? error.initdb.category : undefined,
+      initdbPhase: ["BEFORE_BOOTSTRAP", ...INITDB_PHASES.values()].includes(error?.initdb?.phase) ? error.initdb.phase : undefined,
+      childException: /^0X[A-F0-9]{8}$/.test(error?.initdb?.exception ?? "") ? error.initdb.exception : undefined,
       port: PORTS.includes(error?.port) ? error.port : undefined,
       ownedApiPid: this.api?.pid, ownedDbPid: this.db?.pid, lockRetained: !!this.ownsLock,
       windowsAcceptance: "NOT RUN by build environment", paidCalls: 0 };
     const folder = path.join(this.root, "diagnostics");
     fs.mkdirSync(folder, { recursive: true });
-    const file = path.join(folder, `diagnostic-${Date.now()}-${this.session}.json`);
+    this.lastDiagnosticAt = Math.max(Date.now(), (this.lastDiagnosticAt ?? 0) + 1);
+    const file = path.join(folder, `diagnostic-${this.lastDiagnosticAt}-${this.session}.json`);
     fresh(file, details);
+    const first = path.join(this.root, "first-preparation-failure.json");
+    if (this.newPreparation && this.stage !== "stop-owned-services" && !fs.existsSync(first))
+      fresh(first, { file: path.basename(file) });
+    if (details.code === "INCOMPLETE_PREPARATION" && fs.existsSync(first)) {
+      const name = json(first).file;
+      if (/^diagnostic-\d+-[a-f0-9]{24}\.json$/.test(name)) {
+        const original = path.join(folder, name), prior = json(original);
+        if (prior.packageId === this.identity.packageId)
+          return { file: original, code: systemError({ code: prior.code }), fromPriorPreparation: true };
+      }
+    }
     return { file, code: details.code };
   }
 }
-module.exports = { IsolatedRuntime, cleanEnv, systemError, assertPlainDirectory, BASE, PORTS };
+module.exports = { IsolatedRuntime, cleanEnv, systemError, assertPlainDirectory, BASE, PORTS,
+  classifyInitdbFailure, initdbInvocation };

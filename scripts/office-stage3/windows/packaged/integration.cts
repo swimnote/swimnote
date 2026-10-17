@@ -14,7 +14,7 @@ async function failure(error: unknown) {
   let location = "", code = "STARTUP_FAILED";
   try { const result = runtime.diagnose(error); location = result.file; code = result.code; } catch { /* No raw fallback logging. */ }
   try { await runtime?.stop(); } catch (stopError) {
-    try { const result = runtime.diagnose(stopError); location = result.file; } catch { /* Preserve original evidence. */ }
+     try { runtime.diagnose(stopError); } catch { /* Never replace the primary failure with shutdown evidence. */ }
   }
   const result = await dialog.showMessageBox({
     type: "error", title: "SWIMNOTE OFFICE 격리 검증본",
