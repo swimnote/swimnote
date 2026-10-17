@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { officeContractPlugin } from "./vite.office-contract";
 
 const rawPort = process.env.PORT;
 const isBuild = process.env.NODE_ENV === "production" || process.argv.includes("build");
@@ -14,7 +15,7 @@ const port = rawPort ? Number(rawPort) : 3000;
 
 export default defineConfig({
   base: "/admin/",
-  plugins: [react(), tailwindcss()],
+  plugins: [officeContractPlugin(), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),

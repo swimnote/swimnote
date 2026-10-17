@@ -83,6 +83,12 @@ Windows의 LANG/LC_ALL과 프로세스 ANSI code page는 별개다. DB를 UTF-8�
 
 API 번들 바이트 비교와 빌드 메타데이터 수집 순서 비교는 구분한다. 허용하는 소스 경로 라벨 정규화는 정확한 두 후보 경로에 한정한다.
 
+Node CJS와 renderer가 계약을 공유할 때 Vitest·TypeScript의 통과는 production Vite 번들 가능성의 증거가 아니다.
+
+**Why:** Vitest와 native TypeScript가 처리한 `.cts` 공유 계약을 Vite의 기본 변환 필터는 제외하여 production 번들에서 타입 구문 파싱이 실패했다.
+
+**How to apply:** 계약은 한 소스로 유지하되 일반 Web과 Desktop의 실제 번들러가 모두 해당 확장자를 변환하도록 연결한다. native 산출물 의존성 포함과 renderer production 번들을 각각 확인한다.
+
 **Why:** 병렬 번들러의 seam 발견 순서만 달라도 메타데이터 배열은 바뀌지만 API 번들은 동일할 수 있다. 이를 업무 계약 변경으로 오인하거나, 반대로 광범위한 정규화로 실제 코드 차이를 숨기면 안 된다.
 
 **How to apply:** 실제 entry·seed·writer 번들은 제한된 경로 정규화 후 바이트로 대조한다. 수집 순서가 의미 없는 seam 증거만 importer/dependency 키로 정렬해 별도 비교하고, 그 처리를 실행 코드·업무 데이터의 순서에 적용하지 않는다.

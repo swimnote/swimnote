@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { readFileSync } from "node:fs";
+import { officeContractPlugin } from "./vite.office-contract";
 
 // Prepared from HEAD + tracked diff + untracked Desktop source, never from credentials.
 export default defineConfig(({ mode }) => {
@@ -42,6 +43,7 @@ return {
     "import.meta.env.VITE_API_BASE": JSON.stringify("https://swimnote-api.onrender.com/api"),
   },
   plugins: [
+    officeContractPlugin(),
     {
       name: "office-local-fonts",
       enforce: "pre",
