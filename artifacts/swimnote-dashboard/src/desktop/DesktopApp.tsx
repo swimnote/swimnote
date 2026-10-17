@@ -16,12 +16,13 @@ import { OfficeWorkspace } from "./OfficeWorkspace";
 import { OfficeManagerProvider } from "./OfficeManagerContext";
 import { OfficeActionProvider } from "./OfficeActionProvider";
 import "./OfficeInteractions.css";
+import { officePageRoutes } from "./OfficePages";
 
 declare const __OFFICE_VERIFICATION_ID__: string;
 
 export function DesktopApp() {
   const verificationId = typeof __OFFICE_VERIFICATION_ID__ === "string" ? __OFFICE_VERIFICATION_ID__ : "개발 미지정";
-  const verificationStage = verificationId.startsWith("MEMBER-") ? "회원 상세 보완" : verificationId.startsWith("STAGE2-") ? "Stage 2 N01/N02" : "F05";
+  const verificationStage = verificationId.startsWith("PRODUCT-") ? "앱 이식 통합본" : verificationId.startsWith("MEMBER-") ? "회원 상세 보완" : verificationId.startsWith("STAGE2-") ? "Stage 2 N01/N02" : "F05";
   const bridge = window.officeDesktop;
   const [controller] = useState(() => new DesktopSessionController(bridge));
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
@@ -148,13 +149,14 @@ export function DesktopRoutes() {
     <details className="office-capability" data-office-navigation>
       <summary>{actions?.stage3Enabled ? "회원 업무 · 사용 범위" : "조회 전용 · 사용 범위"}</summary>
       <p role="note">{actions?.stage3Enabled
-        ? "일반 회원정보 수정·선택한 한 소속 반이동만 연결됩니다. 인증 연락처·권한·결제·발송·등록·연기·퇴원은 제외합니다."
+        ? "기존 앱·Web 화면을 재사용합니다. 허용된 일반 저장은 기존 API와 공통 Action으로 실행하며 서버 권한을 유지합니다. 실발송·유료 생성·금융 실행·권한 변경·삭제는 차단됩니다. AI 해석·회원 수정·지정 반이동의 신규 서버 경로는 운영 적용 상태에 따라 제한됩니다."
         : "홈 현황·회원목록·회원 상세만 조회할 수 있습니다. 등록·수정·연기·퇴원 및 다른 업무 메뉴는 아직 연결되지 않았습니다."}</p>
     </details>
     <Switch>
       <Route path="/admin/login"><Redirect to="/admin" /></Route>
       <Route path="/admin" component={HomePage} />
       <Route path="/admin/members" component={MembersPage} />
+      {officePageRoutes()}
       <Route>
         <section style={{ padding: 32 }}>
           <h1>현재 단계에서 지원하지 않는 메뉴입니다.</h1>

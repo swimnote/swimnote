@@ -20,6 +20,7 @@ type NavItem =
       children: { label: string; path: string }[];
     };
 
+import { OFFICE_PAGES } from "../../desktop/office-access.cts";
 const NAV_ITEMS: NavItem[] = [
   { kind: "link", label: "홈", icon: <Home size={16} />, path: "/admin" },
   {
@@ -95,8 +96,11 @@ const NAV_ITEMS: NavItem[] = [
 
 export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) {
   const desktop = isDesktopTokenStorage();
-  const items = desktop ? NAV_ITEMS.filter(item => item.kind === "link" ? item.path === "/admin" : item.label === "회원")
-    .map(item => item.kind === "group" ? { ...item, children: item.children.filter(child => child.path === "/admin/members") } : item)
+  const items: NavItem[] = desktop ? [NAV_ITEMS[0], ...[...new Set(OFFICE_PAGES.map(p => p[2]))].map(label => ({
+    kind: "group" as const, label, icon: <Users size={16} />,
+    children: [...(label === "회원" ? [{ label: "전체 회원", path: "/admin/members" }] : []),
+      ...OFFICE_PAGES.filter(p => p[2] === label).map(([path, title]) => ({ path, label: title }))],
+  }))]
     : NAV_ITEMS;
   const { state, logout } = useAuth();
   const officeNavigation = useOfficeNavigation();

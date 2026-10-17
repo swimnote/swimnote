@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { api } from "@/lib/api-client";
 
 // ─── Student Detail Types ──────────────────────────────────────────────────
@@ -458,7 +458,7 @@ function FilterDropdown({
 // ─── SchedulePage ─────────────────────────────────────────────────────────────
 
 export default function SchedulePage() {
-  const [, navigate] = useLocation();
+  const navigate = useOfficeNavigate();
   const [filterTeacher, setFilterTeacher] = useState("");
   const [filterClass, setFilterClass] = useState("");
   const [selected, setSelected] = useState<ClassGroup | null>(null);

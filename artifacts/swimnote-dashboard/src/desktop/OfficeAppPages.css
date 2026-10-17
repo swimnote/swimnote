@@ -1,0 +1,13 @@
+.oap{padding:24px;display:flex;flex-direction:column;gap:14px;color:var(--text-body)}
+.oap h1{font-size:20px;font-weight:700;margin:0}
+.oap-sub{font-size:13px;opacity:.7;margin:0}
+.oap-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.oap-card{background:#fff;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden}
+.oap table{width:100%;border-collapse:collapse}
+.oap th,.oap td{padding:9px 12px;font-size:13px;text-align:left;border-bottom:1px solid #F1F5F9}
+.oap th{background:#F8FAFC;color:#64748B;font-size:12px}
+.oap button,.oap select,.oap input,.oap textarea{font:inherit;font-size:13px;padding:6px 10px;border:1px solid #CBD5E1;border-radius:6px;background:#fff}
+.oap button{cursor:pointer}.oap button[aria-pressed=true]{border:2px solid #1D4E8F;background:#EEF4FB;font-weight:600}
+.oap button:disabled{opacity:.5;cursor:not-allowed}
+.oap-note{font-size:12px;padding:10px 12px;border-radius:6px;background:#FEF9C3;color:#92400E}
+.oap-err{font-size:13px;color:#DC2626}.oap-empty{padding:48px;text-align:center;color:#94A3B8}

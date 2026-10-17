@@ -1,5 +1,7 @@
 import { getToken, clearToken, isDesktopTokenStorage, getAuthGeneration } from "./token";
 import { OFFICE_STAGE3_ACTIVE, isOfficeStage3Request } from "./office-stage3-policy";
+import { isOfficeApiRequest } from "../../desktop/office-access.cts";
+import { runOfficeOperation } from "../desktop/office-operation";
 
 const API_BASE = import.meta.env.VITE_API_BASE as string | undefined;
 
@@ -14,11 +16,14 @@ if (!API_BASE) {
 export type ApiError = {
   status: number;
   message: string;
+  code?: string;
+  responseReceived?: boolean;
 };
 
 async function request<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  throughAction = true
 ): Promise<T> {
   const token = getToken();
   const generation = getAuthGeneration();
@@ -29,7 +34,11 @@ async function request<T>(
   };
   if (isDesktopTokenStorage() && options.method && options.method !== "GET" &&
       !isOfficeStage3Request(path, options.method, OFFICE_STAGE3_ACTIVE)) {
-    throw { status: 403, message: "현재 Desktop은 조회 전용입니다." } as ApiError;
+    if (!OFFICE_STAGE3_ACTIVE || !isOfficeApiRequest(path, options.method)) {
+      throw { status: 403, code: "OFFICE_NOT_CONNECTED", message: "이 동작은 현재 PC에서 실행하지 않았습니다. 발송·금융·권한 변경 등 별도 승인 또는 추가 연결이 필요합니다." } as ApiError;
+    }
+    if (throughAction) return runOfficeOperation({ path, method: options.method,
+      body: typeof options.body === "string" ? options.body : undefined }) as Promise<T>;
   }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -54,20 +63,26 @@ async function request<T>(
 
   if (!res.ok) {
     let message = `서버 오류 (${res.status})`;
+    let code: string | undefined;
     try {
       const body = await res.json();
       assertSession();
       message = body.message ?? body.error ?? message;
+      code = typeof body.code === "string" ? body.code : undefined;
     } catch {
       // non-JSON error
     }
-    throw { status: res.status, message } as ApiError;
+    throw { status: res.status, message, code, responseReceived: true } as ApiError;
   }
 
   const body = await res.json();
   assertSession();
   return body as T;
 }
+
+/** Only called by the session-owned Action executor. Native policy and server auth still apply. */
+export const performOfficeOperation = (path: string, method: string, body?: string) =>
+  request<unknown>(path, { method, ...(body === undefined ? {} : { body }) }, false);
 
 export const api = {
   getBaseUrl: () => API_BASE as string,
@@ -81,7 +96,7 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   /** Multipart/form-data upload — no Content-Type override (browser sets boundary) */
   postForm: async <T>(path: string, formData: FormData): Promise<T> => {
-    if (isDesktopTokenStorage()) throw { status: 403, message: "현재 Desktop은 조회 전용입니다." } as ApiError;
+    if (isDesktopTokenStorage()) throw { status: 403, message: "파일 업로드·구조화/AI 처리는 아직 PC에 연결되지 않았습니다. 파일을 전송하지 않았습니다." } as ApiError;
     const token = getToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;

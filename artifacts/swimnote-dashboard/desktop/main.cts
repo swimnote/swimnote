@@ -11,6 +11,7 @@ import {
 import { TokenStore } from "./token-store.cjs";
 import { registerSessionIPC, registerLoginPreferencesIPC, LoginPreferencesStore } from "./session-ipc.cjs";
 declare const __OFFICE_STAGE3_ACTIVE__: boolean;
+import { isAllowedOfficeImage } from "./office-access.cjs";
 
 protocol.registerSchemesAsPrivileged([{
   scheme: "app",
@@ -83,7 +84,8 @@ async function createWindow() {
           !candidate.username && !candidate.password;
       } catch { /* Deny malformed network URLs. */ }
     }
-    callback({ cancel: !local && !devSocket && !details.url.startsWith("data:image/") &&
+    const image = details.resourceType === "image" && isAllowedOfficeImage(details.url);
+    callback({ cancel: !local && !devSocket && !image && !details.url.startsWith("data:image/") &&
       !isAllowedAuthRequest(details.url, details.method,
         typeof __OFFICE_STAGE3_ACTIVE__ === "boolean" && __OFFICE_STAGE3_ACTIVE__) });
   });

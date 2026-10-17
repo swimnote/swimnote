@@ -9,6 +9,9 @@ import { OfficeActionContext } from "./OfficeActionContext";
 import { useOfficeNavigation } from "./OfficeNavigation";
 import { productionStage3Transport, type OfficeStage3Transport } from "./office-stage3-transport";
 import type { OfficeTask } from "./OfficeTaskContract";
+import { performOfficeOperation } from "../lib/api-client";
+import { registerOfficeOperations } from "./office-operation";
+import { OFFICE_PAGES } from "../../desktop/office-access.cts";
 
 let scopeSequence = 0;
 const abortError = () => new DOMException("이전 조회를 취소했습니다.", "AbortError");
@@ -63,6 +66,15 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
       queryStartedAt: after?.queryStartedAt ?? 0, receivedAt: after?.receivedAt ?? 0,
     });
     const core = new OfficeActionCore({
+      existingApi: performOfficeOperation,
+      changedExisting: async path => {
+        const keys = path.includes("attendance") ? ["oap", "attendance", "makeups", "admin-makeups"] :
+          path.includes("makeups") ? ["makeups", "admin-makeups"] :
+          path.includes("diary-template") ? ["diary-template-levels", "diary-templates"] :
+          path.includes("diaries") ? ["diaries", "admin-diaries"] :
+          path.includes("homepage") ? ["homepage-settings"] : ["students", "class-groups", "dashboard-stats"];
+        await Promise.all(keys.map(key => qc.invalidateQueries({ queryKey: [key] })));
+      },
       stage3,
       changed: async () => {
         await qc.invalidateQueries({ queryKey: ["students"] });
@@ -105,6 +117,9 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     const publish = () => { if (isCurrent()) setTasks([...proposals.values()].map(p => p.task).concat(core.getTasks())); };
     const interpret = async (text: string) => {
       if (!isCurrent()) return;
+      const normalized = (v: string) => v.replace(/열어주세요|보여주세요|열어줘|보여줘|열기|화면|메뉴|[·\s]/g, "");
+      const page = OFFICE_PAGES.find(p => normalized(p[1]) === normalized(text));
+      if (page) { await core.runStructured({ action: "office.page.open", input: { path: page[0] } }); publish(); return; }
       if (!stage3) { setNotice("실제 AI 전송은 통합 배포 승인 전 비활성입니다."); return; }
       setNotice(""); // A new request must not retain the previous clarification/error as its current result.
       const destination = navRef.current.getDestination();
@@ -135,7 +150,12 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
           status: "confirmation_required", summary: "실행되지 않았습니다. 대상과 변경 전후를 확인하세요.", changes,
           preview: { targets: [student.name], messages: [], attachments: [] }, results: [] } });
         publish();
-      } catch { if (isCurrent()) setNotice("AI 요청 결과를 확인할 수 없습니다. 실행하지 않았습니다."); }
+      } catch (e) {
+        const error = e as { code?: string; status?: number };
+        if (isCurrent()) setNotice(error.code === "AI_NOT_ENABLED" ? "서버의 AI 해석이 비활성입니다. 다른 PC 업무는 계속 사용할 수 있습니다."
+          : error.status === 401 || error.status === 403 ? "AI 해석 권한 또는 로그인 상태를 확인하세요."
+          : "AI 해석 결과를 확인할 수 없습니다. 이 해석 경로에서는 업무 실행 요청을 보내지 않았습니다.");
+      }
     };
     const confirmProposal = async (id: string) => {
       const proposal = proposals.get(id); if (!proposal || !isCurrent()) return;
@@ -143,11 +163,24 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     };
     const openResult = async (taskId: string, resultId: string) => { await core.openTaskResult(taskId, resultId); publish(); };
     const resolveWrite = async (requestId: string) => { await core.resolveMutation(requestId); publish(); };
-    return { core, execute, membersQuery, homeQueryFn, life, interpret, confirmProposal, openResult, resolveWrite };
+    return { core, execute, membersQuery, homeQueryFn, life, interpret, confirmProposal, openResult, resolveWrite, publish };
   }, [actor.userId, actor.poolId, actor.role, generation, qc, stage3]);
   useLayoutEffect(() => {
     session.life.live = true;
+    const unregisterOperations = registerOfficeOperations(async operation => {
+      if (!session.life.live) throw { status: 403, message: "현재 세션이 아닙니다." };
+      try {
+        const pending = session.core.execute({ action: "office.operation.execute", input: operation }, "menu");
+        session.publish();
+        const result = await pending;
+        if (result.status !== "success") throw { status: 403, message: "현재 로그인 업무를 실행할 수 없습니다." };
+        return result.data;
+      } finally {
+        session.publish();
+      }
+    });
     return () => {
+      unregisterOperations();
       session.life.live = false;
       session.core.cancelAll();
       // StrictMode's synchronous setup/cleanup probe is not a new authenticated session.

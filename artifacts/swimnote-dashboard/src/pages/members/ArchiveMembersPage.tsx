@@ -62,13 +62,13 @@ function phoneMatchLabel(m: boolean | null) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function ArchiveMembersPage({ userRole }: { userRole?: string }) {
-  const isAdmin = userRole === "pool_admin" || userRole === "super_admin";
+export default function ArchiveMembersPage({ userRole, readOnly = false }: { userRole?: string; readOnly?: boolean }) {
+  const isAdmin = !readOnly && (userRole === "pool_admin" || userRole === "super_admin");
 
   const [members, setMembers] = useState<ArchiveMember[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
   const [detail, setDetail] = useState<ArchiveDetail | null>(null);
@@ -83,16 +83,18 @@ export default function ArchiveMembersPage({ userRole }: { userRole?: string }) 
   const [linking, setLinking] = useState(false);
   const [unlinkConfirm, setUnlinkConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   // load list
   const loadList = useCallback(async (q?: string) => {
     setLoading(true);
+    setLoadError("");
     try {
       const qs = q ? `?search=${encodeURIComponent(q)}&limit=100` : "?limit=100";
-      const data = await api(`/admin/archives${qs}`);
+      const data = await api.get<{ items: ArchiveMember[]; total: number }>(`/admin/archives${qs}`);
       setMembers(data.items ?? []);
       setTotal(data.total ?? 0);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch { setLoadError("퇴원 기록 조회에 실패했습니다. 연결·권한을 확인하세요."); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadList(); }, [loadList]);
@@ -104,14 +106,15 @@ export default function ArchiveMembersPage({ userRole }: { userRole?: string }) 
     setDetail({ ...m });
     setDiaries([]);
     setDetailLoading(true);
+    setLoadError("");
     try {
       const [det, dias] = await Promise.all([
-        api(`/admin/archives/${m.id}`),
-        api(`/admin/archives/${m.id}/diaries`),
+        api.get<ArchiveDetail>(`/admin/archives/${m.id}`),
+        api.get<ArchiveDiary[]>(`/admin/archives/${m.id}/diaries`),
       ]);
       setDetail(det);
       setDiaries(dias ?? []);
-    } catch { /* ignore */ } finally { setDetailLoading(false); }
+    } catch { setLoadError("퇴원 상세·일지 조회에 실패했습니다. 빈 이력으로 간주하지 마세요."); } finally { setDetailLoading(false); }
   };
 
   // link candidate search
@@ -119,15 +122,15 @@ export default function ArchiveMembersPage({ userRole }: { userRole?: string }) 
     if (!q.trim()) { setLinkCandidates([]); return; }
     setLinkLoading(true);
     try {
-      const data = await api(`/admin/students?search=${encodeURIComponent(q)}&limit=20`);
-      setLinkCandidates(data.students ?? data ?? []);
+      const data = await api.get<StudentCandidate[] | { students: StudentCandidate[] }>(`/admin/students?search=${encodeURIComponent(q)}&limit=20`);
+      setLinkCandidates(Array.isArray(data) ? data : data.students);
     } catch { /* ignore */ } finally { setLinkLoading(false); }
   };
 
   const selectLinkCandidate = async (candidate: StudentCandidate) => {
     if (!detail) return;
     try {
-      const data = await api(`/admin/archive-link-candidates?archive_id=${detail.id}&student_id=${candidate.id}`);
+      const data = await api.get<Record<string, unknown>>(`/admin/archive-link-candidates?archive_id=${detail.id}&student_id=${candidate.id}`);
       setLinkConfirm({ ...data, candidate });
     } catch { /* ignore */ }
   };
@@ -136,10 +139,7 @@ export default function ArchiveMembersPage({ userRole }: { userRole?: string }) 
     if (!detail || !linkConfirm) return;
     setLinking(true);
     try {
-      await api("/admin/archive-links", {
-        method: "POST",
-        body: JSON.stringify({ archive_member_id: detail.id, current_student_id: linkConfirm.current?.id }),
-      });
+      await api.post("/admin/archive-links", { archive_member_id: detail.id, current_student_id: linkConfirm.current?.id });
       setShowLinkSearch(false);
       setLinkConfirm(null);
       setLinkSearchInput("");
@@ -154,12 +154,15 @@ export default function ArchiveMembersPage({ userRole }: { userRole?: string }) 
     if (!detail?.active_link) return;
     setSaving(true);
     try {
-      await api(`/admin/archive-links/${detail.active_link.id}`, { method: "DELETE" });
+      await api.delete(`/admin/archive-links/${detail.active_link.id}`);
       setDetail(d => d ? { ...d, active_link: null } : d);
       setUnlinkConfirm(false);
     } catch { /* ignore */ } finally { setSaving(false); }
   };
 
+  if (loadError) return <section role="alert" style={{ padding: 24 }}><p>{loadError}</p>
+    <button onClick={() => detail ? void openDetail(detail) : void loadList(searchInput)}>다시 조회</button>
+    <button onClick={() => { setDetail(null); void loadList(searchInput); }}>목록으로</button></section>;
   // ── List view ──────────────────────────────────────────────────────────────
   if (!detail) {
     return (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { api } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 
@@ -506,7 +506,7 @@ function ConfirmModal({
 // ─── ClassesPage ──────────────────────────────────────────────────────────────
 
 export default function ClassesPage() {
-  const [, navigate] = useLocation();
+  const navigate = useOfficeNavigate();
   const qc = useQueryClient();
 
   const [search, setSearch] = useState("");

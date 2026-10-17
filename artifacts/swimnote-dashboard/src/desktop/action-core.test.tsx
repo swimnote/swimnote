@@ -18,8 +18,38 @@ function fixture(overrides: Partial<ActionDependencies> = {}) {
   return { core: new OfficeActionCore(deps), deps };
 }
 const request = (action: string, input: unknown = {}) => ({ action, input });
-it("registers four read/open actions and two default-gated explicit writes, never URL/SQL executors", () => {
-  expect(Object.keys(OFFICE_ACTIONS)).toHaveLength(6);
+
+it("opens a migrated page through the existing permission-checked Action without reading unrelated members", async () => {
+  const { core, deps } = fixture();
+  const result = await core.execute(request("office.page.open", { path: "/admin/schedule/classes" }));
+  expect(result.status).toBe("success");
+  expect(deps.open).toHaveBeenCalledWith({ screen: "page", path: "/admin/schedule/classes" }, false);
+  expect(deps.members).not.toHaveBeenCalled();
+});
+it("coalesces identical existing API saves, refreshes results, and blocks unknown-result resend", async () => {
+  const call = vi.fn().mockRejectedValue({ status: 503, responseReceived: true });
+  const { core } = fixture({ existingApi: call });
+  const operation = request("office.operation.execute", { path: "/class-groups/class_1", method: "PATCH", body: '{"name":"A"}' });
+  await expect(core.execute(operation)).rejects.toMatchObject({ status: 503 });
+  await expect(core.execute(operation)).rejects.toMatchObject({ status: 409 });
+  expect(call).toHaveBeenCalledTimes(1);
+  expect(core.getTasks().slice(-1)[0]?.status).toBe("unknown");
+});
+it("keeps a saved operation unknown if the result refresh fails with 403", async () => {
+  const { core } = fixture({ existingApi: vi.fn().mockResolvedValue({ success: true }),
+    changedExisting: vi.fn().mockRejectedValue({ status: 403 }) });
+  await expect(core.execute(request("office.operation.execute", { path: "/students", method: "POST", body: "{}" }))).rejects.toMatchObject({ status: 403 });
+  expect(core.getTasks().slice(-1)[0]?.status).toBe("unknown");
+});
+it("does not turn an unconfirmed structured general-API request into a save or a false no-change completion", async () => {
+  const call = vi.fn();
+  const { core } = fixture({ existingApi: call });
+  const task = await core.runStructured(request("office.operation.execute", { path: "/students", method: "POST", body: "{}" }));
+  expect(task?.status).toBe("failed");
+  expect(call).not.toHaveBeenCalled();
+});
+it("registers explicit migrated pages and a narrow existing-API bridge, never arbitrary URL/SQL executors", () => {
+  expect(Object.keys(OFFICE_ACTIONS)).toHaveLength(8);
   expect(Object.values(OFFICE_ACTIONS).filter(a => a.kind !== "mutation").every(a => a.confirmation === "none" && !a.invalidates.length && a.permission === "pool_admin")).toBe(true);
   expect(OFFICE_ACTIONS["office.member.update"].confirmation).toBe("explicit-save");
   expect(OFFICE_ACTIONS["office.member.move"].confirmation).toBe("preview-confirm");

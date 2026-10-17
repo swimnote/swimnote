@@ -2,22 +2,26 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLocation } from "wouter";
 import { useOfficeActions } from "./OfficeActionContext";
 import type { ActionOrigin } from "./OfficeActionCore";
+import { officePage } from "../../desktop/office-access.cts";
 
 export const OFFICE_MEMBER_TABS = ["basic", "contacts", "classes", "notes", "growth"] as const;
 export type OfficeMemberTab = typeof OFFICE_MEMBER_TABS[number];
-export type OfficeDestination = { screen: "home" } | { screen: "members"; memberId?: string; view?: "full"; tab?: OfficeMemberTab };
+export type OfficeDestination = { screen: "home" } | { screen: "members"; memberId?: string; view?: "full"; tab?: OfficeMemberTab }
+  | { screen: "page"; path: string; memberId?: never; view?: never; tab?: never };
 type View = { search: string; status: string; classId: string; page: number; scroll: number; horizontalScroll: number };
 type History = { entries: OfficeDestination[]; index: number };
 const initialView: View = { search: "", status: "active", classId: "", page: 1, scroll: 0, horizontalScroll: 0 };
-const route = (target: OfficeDestination) => target.screen === "home" ? "/admin" : "/admin/members";
+const route = (target: OfficeDestination) => target.screen === "page" ? target.path : target.screen === "home" ? "/admin" : "/admin/members";
 const same = (a: OfficeDestination, b: OfficeDestination) =>
-  a.screen === b.screen && (a.screen === "home" || (b.screen === "members" && a.memberId === b.memberId &&
+  a.screen === b.screen && (a.screen === "home" || (a.screen === "page" && b.screen === "page" && a.path === b.path) || (a.screen === "members" && b.screen === "members" && a.memberId === b.memberId &&
     a.view === b.view && (a.tab ?? "basic") === (b.tab ?? "basic")));
 
 export function validOfficeDestination(value: unknown): value is OfficeDestination {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   if (v.screen === "home") return Object.keys(v).every(key => key === "screen");
+  if (v.screen === "page") return Object.keys(v).every(key => ["screen", "path"].includes(key)) &&
+    typeof v.path === "string" && !!officePage(v.path);
   return v.screen === "members" && Object.keys(v).every(key => ["screen", "memberId", "view", "tab"].includes(key)) &&
     (v.memberId === undefined || typeof v.memberId === "string" && /^[A-Za-z0-9_-]{1,160}$/.test(v.memberId)) &&
     (v.view === undefined || v.view === "full" && !!v.memberId) &&
@@ -45,7 +49,7 @@ export const useOfficeNavigation = () => useContext(Context);
 export function OfficeNavigationProvider({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const [history, setHistory] = useState<History>(() => ({
-    entries: [{ screen: location === "/admin/members" ? "members" : "home" }], index: 0,
+    entries: [officePage(location) ? { screen: "page", path: location } : { screen: location === "/admin/members" ? "members" : "home" }], index: 0,
   }));
   const historyRef = useRef(history);
   const revision = useRef(0);
@@ -83,7 +87,7 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
       return false;
     }
     const current = historyRef.current;
-    const target: OfficeDestination = input.screen === "home" ? { screen: "home" }
+    const target: OfficeDestination = input.screen === "page" ? { ...input } : input.screen === "home" ? { screen: "home" }
       : input.memberId ? { ...input } : options?.listOnly ? { screen: "members" } : lastMembers.current;
     setNotice("");
     if (same(current.entries[current.index], target)) {
@@ -135,6 +139,8 @@ export function OfficeNavigationProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     const current = historyRef.current.entries[historyRef.current.index];
     if (location === "/admin/login") navigate(route(current), { replace: true });
+    else if (location !== route(current).split("?")[0] && officePage(location))
+      open({ screen: "page", path: location + window.location.search });
     else if (location !== route(current) && (location === "/admin" || location === "/admin/members"))
       open({ screen: location === "/admin" ? "home" : "members" });
   }, [location, navigate, open]);
@@ -158,8 +164,13 @@ export function useOfficeNavigate(origin: ActionOrigin = "menu") {
       void actions.execute({ action: path === "/admin" ? "office.home.open" : "office.members.open", input: {} }, origin);
       return;
     }
+    if (actions && officePage(path)) {
+      void actions.execute({ action: "office.page.open", input: { path } }, origin);
+      return;
+    }
     if (path === "/admin") office.open({ screen: "home" });
     else if (path === "/admin/members") office.open({ screen: "members" });
+    else if (officePage(path)) office.open({ screen: "page", path });
     else office.open({ screen: "unsupported" } as unknown as OfficeDestination);
   };
 }
@@ -176,7 +187,9 @@ export function OfficeNavigationBar() {
         {nav.destination.screen === "home" ? <span className="office-breadcrumb-current" aria-current="page">홈 현황</span> : <>
           <button onClick={() => actions ? void actions.execute({ action: "office.home.open", input: {} }, "menu") : nav.open({ screen: "home" })}>홈 현황</button>
           {" / "}
-            {nav.destination.memberId
+            {nav.destination.screen === "page"
+              ? <span className="office-breadcrumb-current" aria-current="page">{officePage(nav.destination.path)?.[1]}</span>
+              : nav.destination.memberId
               ? <><button onClick={nav.closeDetail}>회원목록</button>{" / "}<span className="office-breadcrumb-current" aria-current="page">{nav.destination.view === "full" ? "전체 회원정보" : "회원 상세"}</span></>
             : <span className="office-breadcrumb-current" aria-current="page">회원목록</span>}
         </>}

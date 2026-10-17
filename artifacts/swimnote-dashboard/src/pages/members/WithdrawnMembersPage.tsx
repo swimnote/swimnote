@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "@/lib/api-client";
 import { ChevronLeft, AlertCircle, RotateCcw } from "lucide-react";
@@ -86,7 +86,7 @@ function RestoreConfirm({ name, onConfirm, onCancel, loading }: ConfirmProps) {
 }
 
 export default function WithdrawnMembersPage() {
-  const [, navigate] = useLocation();
+  const navigate = useOfficeNavigate();
   const qc = useQueryClient();
   const [restoreTarget, setRestoreTarget] = useState<{ id: string; name: string } | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);

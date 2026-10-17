@@ -131,7 +131,7 @@ it("N01 rejects unsupported/URL/write destinations and accepts UUID and server t
 });
 
 it("N01 recovers blocked direct routes using the same supported navigation entry", async () => {
-  window.history.replaceState({}, "", "/admin/members/new");
+  window.history.replaceState({}, "", "/admin/not-connected");
   render(<App />);
   await screen.findByText("현재 단계에서 지원하지 않는 메뉴입니다.");
   fireEvent.click(screen.getByRole("button", { name: "홈 현황으로 이동" }));

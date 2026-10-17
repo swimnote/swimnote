@@ -1,4 +1,5 @@
 import path from "node:path";
+import { isOfficeApiRequest } from "./office-access.cjs";
 
 export const ENTRY_URL = "app://office/admin/login";
 export const BOOTSTRAP_CHANNEL = "office:bootstrap-info";
@@ -19,6 +20,8 @@ export function isAllowedAuthRequest(raw: string, method: string, stage3Enabled 
     const url = new URL(raw);
     if (url.origin !== AUTH_API_ORIGIN || url.username || url.password || url.hash) return false;
     if (!url.search && AUTH_ROUTES[url.pathname]?.includes(method)) return true;
+    if (stage3Enabled && url.pathname.startsWith("/api/") &&
+        isOfficeApiRequest(url.pathname.slice(4) + url.search, method)) return true;
     if (!url.search && (
       stage3Enabled && (method === "POST" || method === "OPTIONS") && ["/api/office/requests", "/api/office/command", "/api/office/interpret"].includes(url.pathname) ||
       (method === "GET" || method === "OPTIONS") && /^\/api\/office\/commands\/[A-Za-z0-9_-]{1,160}$/.test(url.pathname)
@@ -37,7 +40,7 @@ export const CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  `img-src 'self' data: ${AUTH_API_ORIGIN} https://*.r2.cloudflarestorage.com https://*.r2.dev`,
   "font-src 'self'",
   `connect-src ${AUTH_API_ORIGIN}`,
   "object-src 'none'",

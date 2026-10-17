@@ -92,7 +92,7 @@ if (product) {
   await writeFile(main, transformed.code);
 }
 await mkdir(path.join(stage, "desktop"));
-const mainFiles = ["main.cjs", "preload.cjs", "security.cjs", "session-ipc.cjs", "token-store.cjs"];
+const mainFiles = ["main.cjs", "preload.cjs", "security.cjs", "session-ipc.cjs", "token-store.cjs", "office-access.cjs"];
 for (const file of mainFiles) await copyFile(path.join(compiled, "desktop", file), path.join(stage, "desktop", file));
 async function renderer(from, to) {
   await mkdir(to);
@@ -170,16 +170,21 @@ const pe = executable.readUInt32LE(0x3c);
 if (executable.toString("ascii", 0, 2) !== "MZ" || executable.readUInt32LE(pe) !== 0x4550 ||
     executable.readUInt16LE(pe + 4) !== 0x8664 || executable.readUInt16LE(pe + 24) !== 0x20b)
   throw new Error("Expected AMD64 PE32+ runtime");
-const readme = product ? `SWIMNOTE OFFICE V1 — Windows x64 (unsigned)
+const readme = product ? `SWIMNOTE OFFICE V1.1 앱 이식 통합본 — Windows x64 (unsigned)
 제품 빌드: ${identity.buildId}
 기존 OFFICE 설치·로그인·서버 연결·AI 매니저·회원 화면을 그대로 사용합니다.
 다운로드한 ZIP을 같은 폴더에 풀고 START-PRODUCT.cmd를 더블클릭한 뒤 열린 폴더에서 Setup.exe를 실행하세요.
 기존 계정으로 로그인합니다. Node·PostgreSQL·소스 빌드·명령 입력은 필요 없습니다.
 로컬 DB·검증 서버·가짜 계정·AI 응답 재생은 이 제품에 포함되지 않습니다.
 
-회원 검색과 결과 보기, 지원 필드 수정·지정 소속 반이동은 기존 공통 Action을 사용합니다.
-실제 AI·수정·반이동은 서버의 Stage 3 배포·DB 준비·활성화 승인이 별도로 필요합니다.
-서버 미활성 또는 권한·revision 미확인 상태에서는 실행하지 않으며 완료로 표시하지 않습니다.
+회원 등록·일괄등록·지난 회원·퇴원 기록, 시간표·반/정원, 출결·보강, 일지·앨범·교육과정·성장리포트,
+학부모 요청/대화·공지·선생님·직원·통계·운영/Desktop 설정을 같은 메뉴·작업 영역에 연결했습니다.
+기존 Web 화면/앱 계약을 재사용하며 허용된 일반 저장은 세션 소유 공통 Action과 기존 API를 사용합니다.
+조회 연결과 저장/발송 가능 여부는 다릅니다. 보강 배정은 선택/미리보기까지 가능하며 pool_admin 저장 권한이 서버에 없습니다.
+발송·초대·유료 AI 생성·금융 확정·권한 변경·삭제·파일 구조화·Archive 관계 연결은 차단 또는 미연결로 표시합니다.
+상담·체험·등록전환과 재등록·청구·수납 원장은 후속 완성 범위입니다.
+AI 해석과 기존 revision 기반 회원 수정/반이동은 Stage 3 서버·DB·활성화가 별도로 필요합니다.
+확인된 실행 전 거부와 결과 불명은 구분합니다. HTTP 5xx/연결 오류를 미실행으로 단정하지 않습니다.
 기존 작업 카드·명시적 확인·권한·중복 방지·결과 불명 시 재조회·충돌 보호는 유지합니다.
 연결 오류가 표시되면 반복 실행하지 말고 화면을 전달하세요.
 Windows에서 직접 실행 검증하지 않았습니다. 운영 배포·schema 적용은 수행하지 않았습니다.

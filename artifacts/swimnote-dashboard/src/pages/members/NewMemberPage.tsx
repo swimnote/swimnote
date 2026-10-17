@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useLocation } from "wouter";
+import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "@/lib/api-client";
 import { AlertCircle, ChevronLeft, FileSpreadsheet } from "lucide-react";
@@ -22,7 +22,7 @@ type CreateStudentBody = {
 };
 
 export default function NewMemberPage() {
-  const [, navigate] = useLocation();
+  const navigate = useOfficeNavigate();
   const qc = useQueryClient();
 
   const [form, setForm] = useState({

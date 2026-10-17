@@ -3,16 +3,19 @@ import { confirmResultRead, type OfficeTask, type ResultReadEvidence } from "./O
 import type { OfficeDestination } from "./OfficeNavigation";
 import { OFFICE_MEMBER_TABS, type OfficeMemberTab } from "./OfficeNavigation";
 import type { OfficeStage3Transport, OfficeWriteReceipt } from "./office-stage3-transport";
+import { officePage, isOfficeApiRequest } from "../../desktop/office-access.cts";
 
-export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search" | "office.member.update" | "office.member.move";
+export type ActionId = "office.home.open" | "office.members.open" | "office.member.open" | "office.members.search" | "office.member.update" | "office.member.move" | "office.page.open" | "office.operation.execute";
 export type ActionOrigin = "menu" | "shortcut" | "result" | "structured";
 export type ActionActor = { userId: string; poolId: string; role: string };
 export type ActionOutcome =
-  | { status: "success"; kind: "open" | "query" | "mutation"; destination: OfficeDestination; count?: number; filters?: MemberFilters; receipt?: OfficeWriteReceipt }
+  | { status: "success"; kind: "open" | "query" | "mutation"; destination: OfficeDestination; count?: number; filters?: MemberFilters; receipt?: OfficeWriteReceipt; data?: unknown }
   | { status: "failed"; code: "unsupported" | "input" | "forbidden" | "missing" | "query" | "navigation"; message: string }
   | { status: "cancelled"; message: string }
   | { status: "unknown"; message: string };
 export const OFFICE_ACTIONS = Object.freeze({
+  "office.page.open": { purpose: "기존 PC 업무 화면 열기", kind: "open", permission: "pool_admin", confirmation: "none", input: "{path}", queries: [], invalidates: [] },
+  "office.operation.execute": { purpose: "기존 화면의 허용된 일반 API 실행", kind: "mutation", permission: "pool_admin", confirmation: "existing-ui", input: "{path,method,body?}", queries: [], invalidates: [] },
   "office.home.open": { purpose: "홈 현황 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{}", queries: ["dashboard-stats"], invalidates: [] },
   "office.members.open": { purpose: "기존 회원 화면 복원 또는 목록 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{view?:'list'}", queries: ["students", "class-groups"], invalidates: [] },
   "office.member.open": { purpose: "회원 ID로 빠른/전체 상세 및 탭 열기", kind: "open", confirmation: "none", permission: "pool_admin", input: "{memberId,view?:'full',tab?:basic|contacts|classes|notes|growth}", queries: ["students"], invalidates: [] },
@@ -33,6 +36,8 @@ export type ActionDependencies = {
   now?: () => number;
   stage3?: OfficeStage3Transport;
   changed?: () => Promise<void>;
+  existingApi?: (path: string, method: string, body?: string) => Promise<unknown>;
+  changedExisting?: (path: string) => Promise<void>;
 };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const own = (v: object, key: string) => Object.prototype.hasOwnProperty.call(v, key);
@@ -41,6 +46,11 @@ const failed = (code: Extract<ActionOutcome, { status: "failed" }>["code"], mess
 const cancelled = (): ActionOutcome => ({ status: "cancelled", message: "이전 요청 또는 세션을 취소했습니다." });
 function inputFor(action: ActionId, input: unknown): Record<string, any> | null {
   if (!object(input)) return null;
+  if (action === "office.page.open") return Object.keys(input).length === 1 &&
+    typeof input.path === "string" && officePage(input.path) ? input : null;
+  if (action === "office.operation.execute") return Object.keys(input).every(k => ["path", "method", "body"].includes(k)) &&
+    typeof input.path === "string" && typeof input.method === "string" && ["POST", "PATCH", "PUT"].includes(input.method) &&
+    isOfficeApiRequest(input.path, input.method) && (input.body === undefined || typeof input.body === "string" && input.body.length <= 5_000_000) ? input : null;
   if (action === "office.member.update" || action === "office.member.move") {
     const keys = ["memberId", "requestId", "expectedRevision", ...(action === "office.member.update" ? ["changes"] : ["fromClassId", "toClassId"])];
     if (Object.keys(input).some(k => !keys.includes(k)) || !id(input.memberId) || !id(input.requestId) ||
@@ -78,6 +88,7 @@ export class OfficeActionCore {
   private resultsPending = new Map<string, Promise<ActionOutcome>>();
   private now: () => number;
   private writes = new Map<string, { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt; serverRequestId?: string }>();
+  private unknownOperations = new Set<string>();
   canWrite() { return !!this.deps.stage3; }
   constructor(private deps: ActionDependencies) { this.now = deps.now ?? Date.now; }
   private current() { return this.active && this.deps.isCurrent(); }
@@ -86,7 +97,7 @@ export class OfficeActionCore {
     this.active = false;
     for (const request of this.pending.values()) request.abort.abort();
     this.pending.clear(); this.tasks.clear(); this.taskFilters.clear(); this.structured.clear(); this.resultsPending.clear();
-    this.writes.clear();
+    this.writes.clear(); this.unknownOperations.clear();
   }
   cancelAll() { for (const request of this.pending.values()) request.abort.abort(); }
   getTasks(): OfficeTask[] { return structuredClone([...this.tasks.values()]); }
@@ -102,6 +113,40 @@ export class OfficeActionCore {
     const key = JSON.stringify([action, Object.entries(input).sort()]);
     const existing = this.pending.get(key);
     if (existing) return existing.promise;
+    if (action === "office.operation.execute") {
+      if (this.unknownOperations.has(key))
+        return Promise.reject({ status: 409, message: "이 요청의 저장 결과가 불명입니다. 기존 화면에서 상태를 조회하고 중복 실행하지 마세요." });
+      const abort = new AbortController();
+      const taskId = `${this.deps.scope}:operation:${++this.sequence}`;
+      const target = this.deps.destination();
+      const task: OfficeTask = { id: taskId, scope: this.deps.scope, request: "기존 업무 API 처리",
+        targetLabel: officePage(target.screen === "page" ? target.path : "")?.[1] ?? "회원 업무",
+        status: "running", summary: "서버 응답 확인 중", changes: [], preview: { targets: [], messages: [], attachments: [] }, results: [] };
+      this.tasks.set(taskId, task);
+      const run = Promise.resolve().then(async (): Promise<ActionOutcome> => {
+        if (!this.current() || !this.deps.existingApi) return cancelled();
+        let responded = false;
+        try {
+          const data = await this.deps.existingApi(input.path, input.method, input.body);
+          responded = true;
+          if (!this.current()) return cancelled();
+          await this.deps.changedExisting?.(input.path);
+          if (!this.current()) return cancelled();
+          this.tasks.set(taskId, { ...task, status: "completed", summary: "기존 API 응답 수신 · 해당 화면의 처리 결과를 확인하세요.",
+            completedAt: this.now(), results: [] });
+          return { status: "success", kind: "mutation", destination: target, data };
+        } catch (e) {
+          const error = e as { status?: number; message?: string; code?: string };
+          const rejected = !responded && !!error.status && error.status >= 400 && error.status < 500 && error.status !== 410;
+          const message = rejected ? error.message ?? "서버가 요청을 거부했습니다." :
+            "저장 결과를 확인할 수 없습니다. 기존 화면에서 상태를 조회하고 같은 요청을 재전송하지 마세요.";
+          if (!rejected) this.unknownOperations.add(key);
+          if (this.current()) this.tasks.set(taskId, { ...task, status: rejected ? "failed" : "unknown", summary: message });
+          throw { ...error, message };
+        }
+      }).finally(() => this.pending.delete(key));
+      this.pending.set(key, { promise: run, abort }); return run;
+    }
     if (action === "office.member.update" || action === "office.member.move") {
       if (!this.deps.stage3) return Promise.resolve(failed("forbidden", "통합 배포 전 회원 저장·반이동은 비활성입니다."));
       const previous = this.writes.get(input.requestId);
@@ -117,7 +162,8 @@ export class OfficeActionCore {
       try {
         if (!this.current() || abort.signal.aborted || intent !== this.intent) return cancelled();
         let destination: OfficeDestination, count: number | undefined, filters: MemberFilters | undefined;
-        if (action === "office.home.open") destination = { screen: "home" };
+        if (action === "office.page.open") destination = { screen: "page", path: input.path };
+        else if (action === "office.home.open") destination = { screen: "home" };
         else if (action === "office.members.open") destination = { screen: "members" };
         else {
           const read = await this.deps.members(abort.signal, false);
@@ -161,6 +207,7 @@ export class OfficeActionCore {
     const entry: { key: string; outcome?: ActionOutcome; memberId: string; receipt?: OfficeWriteReceipt; serverRequestId?: string } = { key, memberId: input.memberId };
     this.writes.set(input.requestId, entry);
     let outcome: ActionOutcome;
+    let commandSent = false;
     try {
       const command = { action: action === "office.member.move" ? "move" : "update", ...input };
       if (this.deps.stage3!.prepare) {
@@ -168,6 +215,7 @@ export class OfficeActionCore {
         entry.serverRequestId = issued.requestId;
         if (!this.current() || signal.aborted) return cancelled();
       } else if (this.deps.stage3!.mode === "server") throw new Error("Server issuance is required");
+      commandSent = true;
       const receipt = await this.deps.stage3!.write({ ...command, requestId: entry.serverRequestId ?? input.requestId });
       if (receipt.memberId !== input.memberId || receipt.requestId !== (entry.serverRequestId ?? input.requestId) ||
           receipt.action !== (action === "office.member.move" ? "move" : "update")) throw new Error("Receipt scope mismatch");
@@ -186,7 +234,8 @@ export class OfficeActionCore {
       if (!this.current()) return cancelled();
       const status = object(e) && typeof e.status === "number" ? e.status : 0;
       // An expired reconciliation window does not prove the original operation never committed.
-      const known = status >= 400 && status < 500 && status !== 410;
+      const explicitPreflightRejection = !commandSent && object(e) && e.responseReceived === true && e.code === "NOT_ENABLED";
+      const known = explicitPreflightRejection || !entry.receipt && status >= 400 && status < 500 && status !== 410;
       outcome = known ? failed(status === 403 || status === 401 ? "forbidden" : "query",
         object(e) && typeof e.message === "string" ? e.message : "서버가 변경을 거부했습니다. 입력은 보존됩니다.")
         : { status: "unknown", message: "결과 불명입니다. 같은 변경을 재전송하지 말고 요청 상태를 확인하세요." };
@@ -216,6 +265,13 @@ export class OfficeActionCore {
   /** Structured queries and confirmed proposals use the same allowlist as menus. */
   runStructured(request: unknown): Promise<OfficeTask | null> {
     if (!this.current()) return Promise.resolve(null);
+    if (object(request) && request.action === "office.operation.execute") {
+      const task: OfficeTask = { id: `${this.deps.scope}:action:${++this.sequence}`, scope: this.deps.scope,
+        request: "일반 업무 API 요청", targetLabel: "현재 수영장", status: "failed",
+        summary: "일반 저장은 연결된 기존 업무 화면의 확인 절차에서 실행하세요. AI 일반화 연결 전에는 직접 실행하지 않습니다.",
+        changes: [], preview: { targets: [], messages: [], attachments: [] }, results: [] };
+      this.tasks.set(task.id, task); return Promise.resolve(structuredClone(task));
+    }
     if (object(request) && ["office.member.update", "office.member.move"].includes(String(request.action))) {
       return this.execute(request, "structured").then(() => {
         if (!this.current() || !object(request.input)) return null;
@@ -257,6 +313,7 @@ export class OfficeActionCore {
     if (!this.current()) return cancelled();
     const task = this.tasks.get(taskId), result = task?.results.find(r => r.id === resultId);
     if (!task || !result || task.scope !== this.deps.scope) return failed("missing", "현재 세션의 결과가 아닙니다.");
+    if (result.target.screen === "page") return this.execute({ action: "office.page.open", input: { path: result.target.path } }, "result");
     const filters = this.taskFilters.get(taskId);
     const request = filters ? { action: "office.members.search", input: { ...filters } }
       : result.target.screen === "home" ? { action: "office.home.open", input: {} }

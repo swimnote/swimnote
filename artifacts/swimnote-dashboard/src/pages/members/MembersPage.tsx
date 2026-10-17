@@ -7,7 +7,7 @@ import { memberQuery, filterMembers } from "./member-query";
 import { OfficeMemberDetail } from "@/desktop/OfficeMemberDetail";
 import { OfficeMemberEditor } from "@/desktop/OfficeMemberEditor";
 import type { OfficeWriteReceipt } from "@/desktop/office-stage3-transport";
-import { useLocation } from "wouter";
+import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
 import { api, type ApiError } from "@/lib/api-client";
@@ -809,7 +809,8 @@ function ConfirmDialog({ title, message, confirmLabel, danger, onConfirm, onCanc
 // ── Main Page ──────────────────────────────────────────────────────────────
 
 async function downloadMembersExcel(statusFilter: string, classFilter: string) {
-  const { getToken } = await import("@/lib/token");
+  const { getToken, getAuthGeneration } = await import("@/lib/token");
+  const generation = getAuthGeneration();
   const API_BASE = import.meta.env.VITE_API_BASE as string;
   const params = new URLSearchParams();
   if (statusFilter) params.set("status", statusFilter);
@@ -823,6 +824,8 @@ async function downloadMembersExcel(statusFilter: string, classFilter: string) {
     throw new Error(body.message ?? body.error ?? `서버 오류 (${res.status})`);
   }
   const blob = await res.blob();
+  if (isDesktopTokenStorage() && generation !== getAuthGeneration())
+    throw new Error("로그인이 변경되어 회원 내보내기를 중단했습니다.");
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -871,7 +874,7 @@ export default function MembersPage() {
     return () => { observer?.disconnect(); node.removeEventListener("scroll", remember); };
   }, [officeEnabled, updateTableView, fullKey]);
   const readOnly = isDesktopTokenStorage();
-  const [, navigate] = useLocation();
+  const navigate = useOfficeNavigate();
   const qc = useQueryClient();
   const [excelLoading, setExcelLoading] = useState(false);
 
@@ -1040,7 +1043,7 @@ export default function MembersPage() {
         <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: 0 }}>회원</h1>
         <div className={officeEnabled ? "office-members-actions" : undefined} style={{ display: "flex", gap: "8px" }}>
           <button
-            disabled={readOnly}
+            disabled={readOnly && !actions?.stage3Enabled}
             onClick={() => navigate("/admin/members/withdrawn")}
             style={{
               display: "flex", alignItems: "center", gap: "5px",
@@ -1052,7 +1055,7 @@ export default function MembersPage() {
             <RefreshCw size={13} /> 지난 회원
           </button>
           <button
-            disabled={readOnly || excelLoading}
+            disabled={readOnly && !actions?.stage3Enabled || excelLoading}
             onClick={async () => {
               setExcelLoading(true);
               try { await downloadMembersExcel(statusFilter, classFilter); }
@@ -1070,7 +1073,7 @@ export default function MembersPage() {
             <Download size={13} /> {excelLoading ? "다운로드 중…" : "Excel"}
           </button>
           <button
-            disabled={readOnly}
+            disabled={readOnly && !actions?.stage3Enabled}
             onClick={() => navigate("/admin/members/new")}
             style={{
               display: "flex", alignItems: "center", gap: "5px",

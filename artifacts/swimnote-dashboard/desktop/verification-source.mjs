@@ -39,7 +39,8 @@ export async function sourceIdentity() {
   return { head, trackedDiffSha256, untracked, diffId,
     buildId: `${verificationStage}-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
     scope: "HEAD plus tracked binary diff and explicitly listed untracked Desktop source and OFFICE docs; attachments and generated output excluded",
-    apiSource: verificationStage.startsWith("F05") || verificationStage === "F06" || verificationStage === "STAGE2" || verificationStage === "MEMBER" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
+    apiSource: verificationStage === "PRODUCT" ? "Canonical production API; deployment SHA not inspected or changed for this client build"
+      : verificationStage.startsWith("F05") || verificationStage === "F06" || verificationStage === "STAGE2" || verificationStage === "MEMBER" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
