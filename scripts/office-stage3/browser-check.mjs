@@ -29,7 +29,15 @@ try {
   await cdp("Network.setBlockedURLs", { urls: ["*swimnote-api.onrender.com*", "*swimnote.kr*", "*supabase*"] });
   await cdp("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   const [action, arg] = process.argv.slice(2);
-  if (action === "open") { await cdp("Page.navigate", { url: "http://127.0.0.1:20412/admin/members" }); }
+  if (action === "verify-search") {
+    const { verifySearch } = await import("./verify-search-browser.mjs");
+    await verifySearch({ cdp, evaluate });
+  }
+  else if (action === "verify-navigation") {
+    const { verifyNavigation } = await import("./verify-navigation-browser.mjs");
+    await verifyNavigation({ cdp, evaluate });
+  }
+  else if (action === "open") { await cdp("Page.navigate", { url: "http://127.0.0.1:20412/admin/members" }); }
   else if (action === "eval") console.log(JSON.stringify(await evaluate(arg)));
   else if (action === "inspect") console.log(await evaluate("document.body.innerText.slice(0,14000)"));
   else if (action === "attachment") {

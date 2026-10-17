@@ -13,7 +13,9 @@ const authFile = path.join(dashboard, "src/contexts/AuthContext.tsx");
 export default {
   root: import.meta.dirname, base: "/", envPrefix: "__NO_ENV_IMPORT__",
   define: { "import.meta.env.VITE_API_BASE": JSON.stringify("http://127.0.0.1:20411/api"),
-    __FIXTURE_SESSION__: JSON.stringify(fixture.token), __OFFICE_VERIFICATION_ID__: JSON.stringify("ISOLATED-SYNTHETIC-NOT-PRODUCTION") },
+    __FIXTURE_SESSION__: JSON.stringify(fixture.token),
+    __FIXTURE_SESSIONS__: JSON.stringify({ fixture_admin: fixture.token, ...fixture.evalTokens }),
+    __OFFICE_VERIFICATION_ID__: JSON.stringify("ISOLATED-SYNTHETIC-NOT-PRODUCTION") },
   plugins: [{ name: "isolated-fixture-auth", enforce: "pre",
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {

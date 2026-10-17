@@ -585,3 +585,31 @@ mtime_ms = 1792220939842
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/3d6550ba-5fbc-4fa1-932f-9104a8334d5b/4f368825-ad2d-4e62-abbc-9ccd7fbaec56"
 storage_version_token = "1792221292435132"
 content_type = "image/png"
+
+[[outputs]]
+id = "4ZiAPJZHHV1bjH0NnyKKH"
+uri = "file://generated-artifacts/office-stage3-search-recheck/homonym.png"
+type = "image"
+title = "신규 실제 AI 검색: 동명이인 2명"
+description = "실제 interpretation handler·공통 검색 Action·합성 DB·UI에서 2명 조회. 변경 대상 자동 확정 없음."
+logical_id = "7b8c06e8-98ed-447e-8408-1c832f0d7c3a"
+content_hash = "sha256:261a778c0485ee9633374da0ed6b1fe5a66408406eb6c41782f635831eecae55"
+size = 101801
+mtime_ms = 1792222737323
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/7b8c06e8-98ed-447e-8408-1c832f0d7c3a/3a50627b-7e05-49df-b6d0-3950bd9adf37"
+storage_version_token = "1792223285440099"
+content_type = "image/png"
+
+[[outputs]]
+id = "3naLaUJuJJTi0S6a5L8kz"
+uri = "file://generated-artifacts/office-stage3-search-recheck/back-restored.png"
+type = "image"
+title = "변경 결과에서 뒤로: 목록 상태 복원"
+description = "검색·반 필터·스크롤 복원과 AI 초안·로컬 첨부 보존을 확인한 실제 합성 브라우저 화면. Windows 실행 증거는 아닙니다."
+logical_id = "6a47a8dd-d548-4834-b2b6-92f6bfcbed22"
+content_hash = "sha256:04927b9d5639c739f0491d232ab1f76b5108a3656c0ad8ff1bc07608dc7d11f6"
+size = 127232
+mtime_ms = 1792222836771
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/6a47a8dd-d548-4834-b2b6-92f6bfcbed22/cfb07419-2bb9-45e5-b9ef-4058c071f05e"
+storage_version_token = "1792223286844923"
+content_type = "image/png"

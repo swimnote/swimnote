@@ -6,7 +6,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { completeOfficeModel, officeModelMessages } from "../../artifacts/api-server/src/lib/office-model.js";
 import { OfficeError } from "../../artifacts/api-server/src/lib/office-command.js";
 export const context = new AsyncLocalStorage<{ actor: string; caseId: string }>();
-const out = fileURLToPath(new URL("../../generated-artifacts/office-stage3-real-ai/", import.meta.url));
+const searchApproval = process.argv.includes("--search-recheck-approved");
+const cap = searchApproval ? 8 : 24;
+const out = fileURLToPath(new URL(searchApproval
+  ? "../../generated-artifacts/office-stage3-search-recheck/" : "../../generated-artifacts/office-stage3-real-ai/", import.meta.url));
 mkdirSync(out, { recursive: true });
 const ledger = out + "model-attempts.jsonl";
 const records = () => existsSync(ledger) ? readFileSync(ledger, "utf8").trim().split("\n").filter(Boolean).map(s => JSON.parse(s)) : [];
@@ -22,7 +25,8 @@ export async function approvedModel() {
     if (model.id !== "gpt-4o-mini") throw new Error("Unexpected model");
     writeFileSync(out + "preflight.json", JSON.stringify({ at: new Date().toISOString(), model: model.id,
       metadataAccess: true, officialSource: "https://developers.openai.com/api/docs/models/gpt-4o-mini.md",
-      inputUSDPerMillion: .15, outputUSDPerMillion: .60, worstCase24CallsUSD: .0221184,
+      inputUSDPerMillion: .15, outputUSDPerMillion: .60, attemptCap: cap,
+      worstCaseCallsUSD: cap * (4096 * .15 + 512 * .60) / 1e6,
       note: "Model metadata availability is not proof of sufficient billing quota" }, null, 2));
   } catch { throw new Error("Model metadata access unavailable; no inference attempted"); }
   return async (input: { text: string; memberId?: string }) => {
@@ -33,7 +37,7 @@ export async function approvedModel() {
     const previous = evidence.filter(r => r.event === "attempt");
     const owner = context.getStore();
     if (!owner) throw new OfficeError(403, "FIXTURE_CONTEXT", "Synthetic model context required");
-    if (previous.length >= 24) throw new OfficeError(429, "SESSION_CAP", "24 SDK attempts exhausted");
+    if (previous.length >= cap) throw new OfficeError(429, "SESSION_CAP", `${cap} SDK attempts exhausted`);
     if (previous.filter(r => r.actor === owner.actor && Date.now() - r.atMs < 600000).length >= 6)
       throw new OfficeError(429, "ACTOR_CAP", "6 attempts/actor/10min");
     const seq = previous.length + 1;

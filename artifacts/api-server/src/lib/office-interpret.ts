@@ -1,4 +1,5 @@
 import { OfficeError, parseOfficeCommand } from "./office-command.js";
+import { groundedOfficeSearch, isOfficeSearch, mixedOfficeSearch } from "./office-search.js";
 
 /** Only user text + selected IDs are sent. No DB import, member roster, credentials or attachments. */
 export type OfficeModel = (input: { text: string; memberId?: string }) => Promise<unknown>;
@@ -20,7 +21,7 @@ export async function interpretOffice(model: OfficeModel, input: unknown) {
   const move = /(반|class).{0,60}(이동|옮|move)|move.{0,60}(반|class)/i.test(v.text);
   const update = /(메모|이름|연락처|생년|보호자|memo|name|phone|birth).{0,50}(수정|변경|바꿔|바꾸|update|change|edit)/i.test(v.text);
   const protectedContact = /parent_phone|(?:보호자|학부모).{0,30}(?:로그인|인증).{0,30}(?:전화|연락|번호)|(?:로그인|인증).{0,20}(?:전화|연락처)/i.test(v.text);
-  if (move && update || protectedContact || /발송|결제|환불|삭제|여러\s*회원|두\s*명|전체\s*회원|bulk|delete|payment/i.test(v.text))
+  if (move && update || protectedContact || mixedOfficeSearch(v.text) || /발송|결제|환불|삭제|여러\s*회원|두\s*명|전체\s*회원|bulk|delete|payment/i.test(v.text))
     return { kind: "clarify" as const, question: "한 회원의 일반정보 수정 또는 반이동 한 작업씩 명확히 요청하세요. 이 요청은 실행하지 않았습니다." };
   const result = await model(v as { text: string; memberId?: string });
   if (!result || typeof result !== "object" || Array.isArray(result)) throw new OfficeError(502, "MODEL_OUTPUT", "AI 결과를 확인할 수 없습니다.");
@@ -28,14 +29,14 @@ export async function interpretOffice(model: OfficeModel, input: unknown) {
   if (r.kind === "clarify" && Object.keys(r).every(k => ["kind", "question"].includes(k)) && typeof r.question === "string" && r.question.length <= 500)
     return { kind: "clarify" as const, question: r.question };
   if (r.kind === "search" && Object.keys(r).every(k => ["kind", "search"].includes(k)) && typeof r.search === "string" && r.search.length <= 200) {
-    // A descriptor in "X 이름 검색" is not part of X. Only correct the exact, input-grounded expansion.
-    const explicit = v.text.match(/^(.+?)\s+(이름|회원명|성명)\s+검색(?:만)?/);
-    const search = explicit && r.search.trim() === `${explicit[1].trim()} ${explicit[2]}`
-      ? explicit[1].trim() : r.search;
-    return { kind: "search" as const, search };
+    const search = groundedOfficeSearch(v.text, r.search);
+    return search ? { kind: "search" as const, search } :
+      { kind: "clarify" as const, question: "원문에서 확인되는 정확한 회원 이름 또는 전화번호를 따옴표로 지정해 검색해 주세요. 대상을 선택하거나 변경하지 않았습니다." };
   }
   if (r.kind !== "command" || Object.keys(r).some(k => !["kind", "command"].includes(k)))
     throw new OfficeError(502, "MODEL_OUTPUT", "허용되지 않은 AI 결과입니다.");
+  if (isOfficeSearch(v.text))
+    return { kind: "clarify" as const, question: "검색 요청을 정보 변경으로 실행할 수 없습니다. 검색과 변경을 나누어 요청해 주세요." };
   // Model cannot choose the authenticated actor, request identity, revision or confirmation policy.
   if (!r.command || typeof r.command !== "object" || Array.isArray(r.command)) throw new OfficeError(502, "MODEL_OUTPUT", "작업 형식을 확인하세요.");
   const c = r.command as Record<string, unknown>;

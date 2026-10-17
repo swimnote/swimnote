@@ -67,7 +67,36 @@ US$0.07은 이전 계획 계산값이지 강제 지출 한도가 아니다. 실�
 해석 결과만으로 실행하지 않고, Action allowlist·현재 actor/revision·발급/실행 gate·임시 확인을 모두 통과해야 한다.
 명시적 복합 패턴은 해석 전 질문으로 차단한다. 모든 자연어 복합성을 판별한다고 보장하지 않으며 실제 12종 검증과 사용자 확인을 유지한다.
 
-## 운영 metadata — 이번 접속 금지
+## 검색 후속 승인과 후보 경계
+
+`--search-recheck-approved --real-ai-approved --isolated-only`는 별도 승인된 검색 재검증에만 사용한다.
+기존 24회 증거는 그대로 보존하고 `generated-artifacts/office-stage3-search-recheck/`에 추가 추론 최대 8회 ledger를 유지한다.
+재시작은 승인 횟수·actor별 제한을 초기화하지 않는다. 비용 없는 탐색 검증에서는 interpretation 요청 자체를 transport에서 금지한다.
+`verify-search-browser.mjs`는 최초 제출/응답/UI 건수를 보존하며 동일 평가 파일의 반복 실행을 거부한다.
+`verify-navigation-browser.mjs`는 실제 공통 Action과 합성 DB로 결과/뒤로/앞으로/스크롤/초안/첨부/세션 격리를 확인하며 유료 호출을 하지 않는다.
+
+`prepare-search-candidate.cjs`는 기존 두 후보를 검증·보존하고 명시한 서버 source 10개와 미적용 migration draft만 patch/manifest로 식별한다.
+추적 `artifacts/api-server/dist/index.mjs`는 임의 삭제·복원·재빌드하지 않는다.
+package start/start:worker는 dist를 사용하지만 dev와 저장소 render.yaml은 TS source를 실행한다. 실제 운영 Render 설정은 조회하지 않았다.
+source 실행에는 해당 추적 dist가 필요 없으며 dist 실행을 승인할 때만 승인 source를 별도 재빌드해야 한다.
+`build-search-evidence.cjs`는 기존 빌드 옵션을 사용해 ignored 디렉터리에만 컴파일하며 전체 워크스페이스 컴파일 결과를 배포 후보에 포함하지 않는다.
+
+### 다음 Windows 통합 검증 — 아직 연결 가능한 환경이 아님
+
+현재 Replit의 127.0.0.1:20411/20412/55440은 사용자 PC의 localhost가 아니다. 현재 설치본으로 접근할 수 있다고 안내하지 않는다.
+현 단계에서 외부 API나 Windows 설치본을 만들지 않는다. 다음 실행의 구체적 선택은 **사용자 Windows PC 안에서 API와 DB를 함께 실행하는 로컬 전용 구성**이다.
+
+1. 사용자 승인 후 PC에 Node/pnpm/PostgreSQL 런타임과 해시가 식별된 격리 source만 준비한다. 기존 운영 DB와 다른 로컬 DB·합성 계정·Pool만 초기화하고 운영 DSN fallback을 금지한다.
+2. PostgreSQL 127.0.0.1:55440, API 127.0.0.1:20411로만 bind한다. 외부 listen·포트포워딩·공개 proxy는 필요하지 않다. 해당 주소는 **PC에서 프로세스를 시작한 뒤에만** PC에 유효하다.
+3. 현재 fixture API는 임의 Bearer fixture이며 제품 login API가 아니다. Windows용으로는 합성 DB에 한정한 정상 로그인/JWT·role·Pool 확인 경로가 먼저 필요하다. 기존 fixture 토큰을 DPAPI에 넣거나 AuthContext alias를 제품에 포함하는 방식은 금지한다.
+4. 별도 검증 빌드만 main의 정확한 API origin pin/CSP와 renderer API base를 해당 loopback origin으로 맞춰야 한다. API는 renderer Origin app://office만 허용한다. 기존 preload·IPC sender 검사, contextIsolation/sandbox, webSecurity, 경로·메서드 allowlist와 DPAPI를 유지한다. Origin 와일드카드나 임의 URL bridge를 만들지 않는다.
+5. renderer/main 실행 gate는 현재 false이다. 검증 전용 후보에서만 승인된 고정 gate를 일치시키고 API 프로세스의 실행/해석 gate를 따로 관리한다. 제품 기본값은 바꾸지 않는다.
+6. 서버 인증은 정상 로그인으로 발급한 단기 합성 세션, API 수명은 명시한 검증 창으로 제한한다. 종료 시 Electron/API/DB 프로세스·포트를 닫고 합성 세션을 폐기한다. OS 사용자 외에는 DB·인증 파일을 읽지 못하게 한다.
+7. 기록된 실제 모델 응답을 재생하면 새 모델 비용·OpenAI Secret은 필요 없다. 새 추론은 별도 횟수/비용 승인과 PC의 안전한 Secret 제공 방식이 필요하다. 외부 호스팅/네트워크 비용은 이 로컬 구성에는 없지만 PC 자원·설치 권한이 필요하다.
+
+정상 합성 로그인, 단일 origin pinning과 검증 전용 gate를 준비·검사하기 전에는 Windows 패키징을 진행하지 않는다.
+
+## 운영 metadata — 별도 승인 필요
 
 `metadata.sql`은 READ ONLY 거래에서 catalog/information_schema만 읽고 ROLLBACK한다.
 업무 행·cron 명령·함수 본문·FDW credential은 읽지 않는다.
