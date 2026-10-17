@@ -19,3 +19,7 @@ INSERT INTO students(id,swimming_pool_id,name,status,class_group_id,assigned_cla
  VALUES ('fixture_member','fixture_pool','합성 회원','active','fixture_a','["fixture_a","fixture_b"]',3);
 INSERT INTO student_class_history(id,student_id,class_group_id,swimming_pool_id,enrolled_at)
  VALUES ('fixture_ha','fixture_member','fixture_a','fixture_pool','2026-01-01'),('fixture_hb','fixture_member','fixture_b','fixture_pool','2026-01-01');
+INSERT INTO students(id,swimming_pool_id,name,status,class_group_id,assigned_class_ids,weekly_count)
+ VALUES ('fixture_twin','fixture_pool','합성 회원','active','fixture_b','["fixture_b"]',1);
+INSERT INTO student_class_history(id,student_id,class_group_id,swimming_pool_id,enrolled_at)
+ VALUES ('fixture_ht','fixture_twin','fixture_b','fixture_pool','2026-01-01');

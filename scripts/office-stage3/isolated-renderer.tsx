@@ -12,14 +12,14 @@ import "../../artifacts/swimnote-dashboard/src/index.css";
 declare const __FIXTURE_SESSION__: string;
 setToken(__FIXTURE_SESSION__);
 const actor = { userId: "fixture_admin", poolId: "fixture_pool", role: "pool_admin" };
-const transport = { mode: "fixture" as const,
+const transport = { mode: "server" as const,
   prepare: (body: unknown) => api.post<{ requestId: string }>("/office/requests", body),
   write: (body: unknown) => api.post<any>("/office/command", body),
   status: (id: string) => api.get<any>("/office/commands/" + encodeURIComponent(id)),
-  interpret: async () => { throw new Error("Paid AI is not enabled in this harness"); },
+  interpret: (body: unknown) => api.post("/office/interpret", body),
 };
 const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 createRoot(document.getElementById("root")!).render(<QueryClientProvider client={qc}><Router>
-  <aside role="note">합성 전용 격리 검증 — 운영 인증·운영 데이터·실제 AI 미연결</aside>
+  <aside role="note">합성 전용 격리 검증 — 운영 인증·운영 데이터 미연결 · 실제 AI는 승인된 실행에서만 사용</aside>
   <OfficeNavigationProvider><OfficeActionProvider actor={actor} stage3={transport}><DesktopRoutes /></OfficeActionProvider></OfficeNavigationProvider>
 </Router></QueryClientProvider>);

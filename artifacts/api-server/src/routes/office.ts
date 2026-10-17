@@ -5,7 +5,7 @@ import { OfficeCommandService, OfficeError, type OfficeActor } from "../lib/offi
 import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import { AI_MODEL } from "../config/ai-model-config.js";
 import { createOfficeRouter } from "../lib/office-http.js";
-import { officeModelMessages } from "../lib/office-model.js";
+import { completeOfficeModel } from "../lib/office-model.js";
 
 const service = new OfficeCommandService(pool);
 async function actor(req: AuthRequest): Promise<OfficeActor> {
@@ -21,16 +21,8 @@ async function actor(req: AuthRequest): Promise<OfficeActor> {
 const router = createOfficeRouter({ service, auth: [requireAuth as any, requireRole("pool_admin") as any], actor,
   notify: (owner, memberId) => notifyPoolEvent({ type: "member.changed", pool_id: owner.poolId, entity_id: memberId }),
   model: async input => {
-      const messages = officeModelMessages(input);
       const { getOpenAI } = await import("./ai.js");
-      const response = await getOpenAI().chat.completions.create({
-        model: AI_MODEL.SUPPORT, response_format: { type: "json_object" }, temperature: 0, max_tokens: 512,
-        messages,
-      }, { timeout: 12_000, maxRetries: 0 });
-      if ((response.choices[0]?.message.content?.length ?? 0) > 8000 ||
-          response.choices[0]?.finish_reason !== "stop")
-        throw new OfficeError(502, "MODEL_OUTPUT", "잘리거나 너무 긴 해석 결과입니다. 업무는 실행되지 않았습니다.");
-      return JSON.parse(response.choices[0]?.message.content ?? "null");
+      return completeOfficeModel(getOpenAI(), AI_MODEL.SUPPORT, input);
   },
 });
 export default router;

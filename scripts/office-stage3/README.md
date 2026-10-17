@@ -49,12 +49,16 @@ caller의 로컬 `oc1` 값은 UI 상관관계일 뿐 실행권이 아니다. 서
 revision 없는 구형 UI의 조회~제출 충돌과 미협조 경로 전체의 정원 안전성은 미보장이다.
 격리 API에는 그 경로를 마운트하지 않는다. 협조 경로의 실제 handler 회귀는 별도 기존 격리 테스트로 재사용한다.
 
-## 실제 모델 실행 계획 — 이번 실행 금지
+## 실제 모델 실행 — 별도 명시 승인 시 격리 환경에서만
 
 기존 12종×2회(최대 24회) 합성 요청 목록을 재사용한다:
 단일 메모, 복수 일반필드, 명확한 반 ID 이동, 미선택 동명, 모호한 반, 값 누락,
 수정+이동, 복수 회원, 발송/결제/삭제, SQL/권한 주입, 인증 연락처, 검색.
 실제 호출 직전에 공식 가격·gpt-4o-mini 가용성을 확인한다.
+`--real-ai-approved` 없이는 실제 모델을 호출하지 않는다. append-only `model-attempts.jsonl`의 SDK 시도는 재시작해도 유지하며 전체 24회·합성 actor별 6회/10분을 강제한다.
+4개의 평가 actor·브라우저 actor·raw 관찰 actor는 모두 로컬 fixture이며 실제 계정이 아니다. 기존 HTTP 제한도 유지한다. 모델 전에 차단된 건수는 실제 SDK 호출 수와 분리한다.
+원시 응답 probe는 evaluation-only이며 Action 제안이나 업무 실행을 반환하지 않는다. 최초 평가 파일이 있으면 평가 runner의 재실행을 거부한다.
+`real-ai-isolated-flow.test.tsx`의 실제 로컬 HTTP 재생 검증은 `OFFICE_STAGE3_REAL_REPLAY=true`로 명시 실행한다. 유료 모델 호출은 하지 않으며 격리 API·보존된 합성 응답이 필요하다.
 12초/512 출력 tokens/요청당 SDK 1회/자동 retry 0. 전체 승인 세션의 SDK 시도 24회에서 중단한다.
 입력은 system+user+ID+JSON escaping을 포함한 UTF-8 byte 상한과 framing 여유 256을 사용하여 content BPE tokens를 보수적으로 4096 이하로 제한한다.
 이는 provider가 공개하지 않는 내부 과금 오버헤드까지 강제하는 비용 상한이 아니다.

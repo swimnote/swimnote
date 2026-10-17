@@ -563,3 +563,25 @@ mtime_ms = 1792212635870
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/141cfded-243c-4516-a9a4-97451de03f7f/687fa3a5-ace1-4e6c-b145-5c751fe72ec1"
 storage_version_token = "1792212683626149"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "mYKekYivL6pPfCUM2uehd"
+uri = "file://generated-artifacts/office-stage3-real-ai/screenshots/move-completed.png"
+type = "image"
+title = "격리 브라우저: 실제 AI 반이동 완료"
+description = "합성 회원의 B·C 소속과 주 3회 보존, 회원 상세와 작업 카드 확인. Windows 실행 증거는 아닙니다."
+logical_id = "e9618d63-c393-4710-818c-14a270b5d326"
+
+[[outputs]]
+id = "JlTk9-GVY_oF9bFrbWiyV"
+uri = "file://generated-artifacts/office-stage3-real-ai/screenshots/save-failure-preserved.png"
+type = "image"
+title = "격리 브라우저: 저장 실패와 입력 보존"
+description = "합성 저장 거부 안내와 미저장 편집·AI 입력·로컬 첨부 보존 화면. 실제 파일 업로드 없음."
+logical_id = "3d6550ba-5fbc-4fa1-932f-9104a8334d5b"
+content_hash = "sha256:9a908927b9f35139e9a9b701ccdc908655c823581b44412d288d1f20776a8133"
+size = 121319
+mtime_ms = 1792220939842
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/3d6550ba-5fbc-4fa1-932f-9104a8334d5b/4f368825-ad2d-4e62-abbc-9ccd7fbaec56"
+storage_version_token = "1792221292435132"
+content_type = "image/png"

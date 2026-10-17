@@ -106,6 +106,7 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     const interpret = async (text: string) => {
       if (!isCurrent()) return;
       if (!stage3) { setNotice("실제 AI 전송은 통합 배포 승인 전 비활성입니다."); return; }
+      setNotice(""); // A new request must not retain the previous clarification/error as its current result.
       const destination = navRef.current.getDestination();
       const selectedId = destination.screen === "members" ? destination.memberId : undefined;
       try {
