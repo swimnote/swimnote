@@ -15,11 +15,15 @@ it("approved opt-in allowlist is exact method/path, never a blanket POST grant",
       expect(isAllowedAuthRequest(origin + "/api" + path, method, true)).toBe(true);
   expect(isAllowedAuthRequest(origin + "/api/office/commands/request_1", "GET", true)).toBe(true);
   for (const [path, method] of [["/office/command?pool=other", "POST"], ["/office/command/", "POST"], ["/office/command", "PATCH"],
-    ["/office/commands/request_1", "POST"], ["/students/ui_one", "PATCH"], ["/anything", "POST"], ["/office/interpret/extra", "POST"]]) {
+    ["/office/commands/request_1", "POST"], ["/anything", "POST"], ["/office/interpret/extra", "POST"]]) {
     expect(isAllowedAuthRequest(origin + "/api" + path, method, true)).toBe(false);
     expect(isOfficeStage3Request(path, method, true)).toBe(false);
   }
   expect(isAllowedAuthRequest("https://example.invalid/api/office/command", "POST", true)).toBe(false);
+  // Existing product Action editing is independent of the new Stage3 write gate.
+  expect(isAllowedAuthRequest(origin + "/api/students/ui_one","PATCH",true)).toBe(true);
+  expect(isOfficeStage3Request("/students/ui_one","PATCH",true)).toBe(false);
+  expect(isAllowedAuthRequest(origin + "/api/students/ui_one/anything","PATCH",true)).toBe(false);
 });
 it("read-only status remains allowed with all new-execution switches OFF", () => {
   const path = "/office/commands/os1_00000000-0000-0000-0000-000000000001";

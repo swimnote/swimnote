@@ -32,6 +32,8 @@ export function createOfficeOperationsAiRouter(pool:Pool,run:Wrap){
       throw new OperationError(403,"SCOPE_MISMATCH","선택 회원을 확인하세요.");
     const today=new Date(Date.now()+9*3600_000).toISOString().slice(0,10);
     const resource=resources.includes(input.resource)?input.resource as Resource:undefined;
+    if(input.resource!==undefined&&!resource)throw new OperationError(400,"INVALID_RESOURCE","지원하는 공통 입력 양식을 선택하세요.");
+    if(input.recordId&&!resource)throw new OperationError(400,"INVALID_TARGET","자료 ID는 선택한 입력 양식과 함께 전달해야 합니다.");
     if(resource==="imports") throw new OperationError(400,"IMPORT_WORKSPACE","무료 이전은 별도 이전 작업창을 사용하세요.");
     const recordId=input.recordId?text(input.recordId,"선택 자료",160):undefined;
     let existing:any;
@@ -55,7 +57,8 @@ export function createOfficeOperationsAiRouter(pool:Pool,run:Wrap){
     if(raw.kind==="clarify"){res.json({kind:"clarify",question:text(raw.question,"확인 질문",1000)});return;}
     if(resource&&raw.kind==="operations-draft"){
       const data=validateData(resource,{...existing,...object(raw.data)});
-      for(const [key,value] of Object.entries(data)) if(key.endsWith("Id")&&value&&value!==existing?.[key]&&!instruction.includes(String(value)))
+      for(const [key,value] of Object.entries(data)) if(key.endsWith("Id")&&value&&value!==existing?.[key]&&
+        !(key==="studentId"&&value===memberId)&&!instruction.includes(String(value)))
         throw new OperationError(409,"AMBIGUOUS_TARGET","정확한 대상 ID를 입력/선택하세요. 이름만으로 귀속을 정하지 않습니다.");
       res.json({kind:"operations-draft",resource,recordId,data,message:"입력 초안만 준비했습니다. 일반 저장의 권한·현재 버전·영향 확인을 동일하게 적용합니다."});return;
     }

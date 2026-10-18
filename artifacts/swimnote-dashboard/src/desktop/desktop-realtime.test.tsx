@@ -20,7 +20,7 @@ it("wires the Desktop boundary to bearer SSE without requesting business data an
     <p>인증 확인 완료</p>
   </DesktopRealtime>);
   await act(async () => { await Promise.resolve(); });
-  expect(screen.getByText(/실시간 연결 확인됨/)).toBeTruthy();
+  expect(screen.getByText(/^실시간 연결 확인됨 · 연결 진단$/)).toBeTruthy();
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(fetcher.mock.calls[0][0]).toBe("https://api.fixture/api/admin/events/stream");
   expect(fetcher.mock.calls[0][1].headers.Authorization).toBe("Bearer fixture-only");

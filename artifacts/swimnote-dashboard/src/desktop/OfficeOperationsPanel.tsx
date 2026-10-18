@@ -11,6 +11,7 @@ import { ui } from "./office-ops-styles";
 import {useAuth} from "../contexts/AuthContext";
 import { isUnknown,receiptItem } from "./office-unknown";
 import { OfficeJourney } from "./OfficeJourney";
+import {registerOfficeAiEditor} from "./office-ai-editor";
 
 export type OpsView = "contacts" | "courses" | "sessions" | "imports" | "marketing" | "cards" | "applications" | "support" | "policies";
 const VIEW: Record<OpsView, { title: string; res: OpsResource[] }> = {
@@ -46,7 +47,7 @@ if(typeof window!=="undefined")window.addEventListener("office:session-invalid",
 /** Unknown-outcome writes retain identity and input, for receipt lookup only, never replay. */
 const unsure = new Map<string, { reqId: string; body: string; target: string }>();
 
-export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue,canContinue }: { res: Exclude<OpsResource, "imports">;scopeKey:string;seed?:{form:Record<string,string>;edit?:OpsItem};draftKey?:string;onSaved?:(item:OpsItem)=>void;onContinue?:(item:OpsItem)=>void;canContinue?:(item:OpsItem)=>boolean }) {
+export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue,canContinue,aiActive=true }: { res: Exclude<OpsResource, "imports">;scopeKey:string;seed?:{form:Record<string,string>;edit?:OpsItem};draftKey?:string;onSaved?:(item:OpsItem)=>void;onContinue?:(item:OpsItem)=>void;canContinue?:(item:OpsItem)=>boolean;aiActive?:boolean }) {
   const cacheKey=`${scopeKey}:${res}:${draftKey}`;
   const [, nav] = useLocation();
   const { state: auth } = useAuth(), hasX = auth.status === "authenticated" && auth.user.hasX;
@@ -62,6 +63,15 @@ export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue
   useEffect(() => { if (edit) drafts.set(cacheKey, { edit, form, reqId }); else drafts.delete(cacheKey); }, [cacheKey, edit, form, reqId]);
   const list = useQuery({ queryKey: ["ops",scopeKey,res,q,offset], queryFn: () => listOps(res, q, offset), retry: false });
   const label = (f: Field, v: any) => f.type === "ref" ? (refs[f.ref!].find(([i]) => i === v)?.[1] ?? v) : f.type === "select" ? (f.options!.find(([i]) => i === v)?.[1] ?? v) : v;
+  useEffect(()=>{
+    if(!edit||!aiActive||unsure.has(cacheKey))return;
+    return registerOfficeAiEditor({scope:scopeKey,resource:res,recordId:edit==="new"?undefined:edit.id,memberId:form.studentId,
+      token:JSON.stringify([reqId,form]),stage:data=>{
+        if(unsure.has(cacheKey))throw new Error("미확인 저장이 있어 현재 양식의 초안을 변경하지 않았습니다.");
+        setForm(f=>({...f,...Object.fromEntries(Object.entries(data).filter(([k,v])=>spec.fields.some(x=>x.key===k)&&v!==null&&v!==undefined).map(([k,v])=>[k,String(v)]))}));
+        setReqId(uuid());setMsg("일상 AI 초안을 현재 양식에 채웠습니다. 미저장입니다. 대상과 필드를 확인하고 저장하세요.");
+      }});
+  },[edit,form,reqId,scopeKey,res,aiActive,cacheKey,unsure.has(cacheKey)]);
   const open = (it: OpsItem | "new") => { if (unsure.has(cacheKey) && edit) return setMsg("미확인 저장이 있습니다. 먼저 해결하세요."); setEdit(it); setMsg(""); setReqId(uuid()); setForm(it === "new" ? (seed&&!seed.edit?{...seed.form}:{}) : Object.fromEntries(Object.entries(it.data).map(([k, v]) => [k, String(v ?? "")]))); };
   const save = async () => {
     const miss = spec.fields.find(f => f.req && !form[f.key]?.trim());
@@ -177,6 +187,7 @@ export function OfficeOperationsPanel({ view }: { view: OpsView }) {
         </>:<OfficeJourney key={journey.id} scope={scopeKey} contact={tab==="contacts"?journey:undefined} contract={tab==="contracts"?journey:undefined}/>}
       </section>}
       <div hidden={!!journey}>{tab === "imports" ? <OfficeImportsPanel key={scopeKey} scopeKey={scopeKey} /> : <ResourceTable key={`${scopeKey}:${tab}`} scopeKey={scopeKey} res={tab as Exclude<OpsResource, "imports">}
+        aiActive={!journey}
         onContinue={["contacts","contracts","marketing","support","cards"].includes(tab)?setJourney:undefined}
         canContinue={tab==="support"?item=>item.data.kind==="competition"&&!item.data.competitionId:tab==="cards"?item=>["lost","revoked"].includes(item.data.status):undefined}
         onSaved={["contacts","contracts"].includes(tab)?setJourney:undefined}/>}</div>

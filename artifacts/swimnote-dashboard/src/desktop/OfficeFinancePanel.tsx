@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api-client";
@@ -9,6 +9,7 @@ import { OfficeMerchantPanel } from "./OfficeMerchantPanel";
 import {confirmRecoveryPointer} from "./OfficeRecovery";
 import {financeDrill} from "./office-finance-drill";
 import {OfficeAdminActivity} from "./OfficeAdminActivity";
+import {registerOfficeAiEditor} from "./office-ai-editor";
 import {
   financeKey, fetchSnapshot, previewFinance, executeFinance, lookupReceipt, buildCommand, isUnknownOutcome, financeCsv, krw, uuid,
   type FinanceSnapshot, type PreviewResult, type FinanceActionSpec, type Totals,
@@ -38,11 +39,14 @@ type Interpret = { kind: "unavailable"; message: string } | { kind: "clarify"; q
 
 function AiDraft({ scope, studentId, hasX }: { scope: string; studentId: string; hasX: boolean }) {
   const [text, setText] = useState(""), [busy, setBusy] = useState(false), [out, setOut] = useState(""), [catalog, setCatalog] = useState<any>(null);
+  const current=useRef("");current.current=JSON.stringify([scope,studentId,text]);
+  useEffect(()=>()=>{current.current="unmounted";},[]);
   useEffect(() => { let on = true; api.get<any>("/office/operations/workspace/catalog").then(c => { if (on) setCatalog(c); }).catch(() => { if (on) setCatalog(null); }); return () => { on = false; }; }, [scope]);
   const ask = async () => {
-    if (!text.trim()) return; setBusy(true); setOut("");
+    if (!text.trim()||busy||!hasX||catalog?.modelEnabled!==true) return; const sent=current.current;setBusy(true); setOut("");
     try {
       const r = await api.post<Interpret>("/office/operations/workspace/interpret", { text: text.trim(), ...(studentId ? { memberId: studentId } : {}) });
+      if(current.current!==sent)return;
       if (r.kind === "draft") { stageFinanceDraft(scope, r.command); setOut(`${r.message ?? "초안을 업무 입력 양식에 채웠습니다."} 확정되지 않았습니다. 미리보기와 영향 확인 후 직접 기록하세요.`); }
       else if (r.kind === "clarify") setOut(r.question); else setOut(r.message);
     } catch (e: any) { setOut(e?.status === 403 ? "이 기능은 스윔노트 AI 이용 권한이 필요합니다(서버 판단)." : errMsg(e)); } finally { setBusy(false); }
@@ -55,7 +59,7 @@ function AiDraft({ scope, studentId, hasX }: { scope: string; studentId: string;
       <li>실행: 항상 일반 영향 미리보기와 사람의 확인 후에만 기록됩니다.</li></ul>
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
       <input data-testid="finance-ai-text" style={{ ...inp, flex: 1, minWidth: 220 }} disabled={!hasX} placeholder={studentId ? "선택한 회원 기준 초안 요청" : "예: 이번 달 수납 초안 요청"} value={text} onChange={e => setText(e.target.value)} />
-      <button style={btn2} data-testid="finance-ai-ask" disabled={busy || !hasX || !text.trim()} onClick={ask}>{busy ? "요청 중…" : "초안 요청"}</button></div>
+      <button style={btn2} data-testid="finance-ai-ask" disabled={busy || !hasX || catalog?.modelEnabled!==true || !text.trim()} onClick={ask}>{busy ? "요청 중…" : catalog?.modelEnabled===true?"초안 요청":"모델 실행 OFF · 연결 구현됨"}</button></div>
     {!hasX && <small style={{ color: "var(--text-muted)" }}>스윔노트 AI 이용 권한이 없어 AI 초안을 사용할 수 없습니다. 수납 업무는 AI 없이 그대로 사용할 수 있습니다.</small>}
     {out && <div role="status" data-testid="finance-ai-out" style={{ fontSize: 13 }}>{out}</div>}
   </section>;
@@ -89,6 +93,8 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
   const [exportError,setExportError]=useState("");
   useEffect(()=>{views.set(scope,{tab,from,to,studentId,search,drill});},[scope,tab,from,to,studentId,search,drill]);
   const [staged, setStaged] = useState<{ command: Record<string, unknown>; nonce: number } | null>(null);
+  useEffect(()=>registerOfficeAiEditor({scope,memberId:studentId||undefined,token:JSON.stringify([studentId,from,to,tab]),
+    stage:command=>stageFinanceDraft(scope,command)}),[scope,studentId,from,to,tab]);
   useEffect(() => {
     const h = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.scope === scope) { setStaged({ command: d.command, nonce: Date.now() }); setTab("entry"); } };
     window.addEventListener("office-finance-draft", h); return () => window.removeEventListener("office-finance-draft", h);

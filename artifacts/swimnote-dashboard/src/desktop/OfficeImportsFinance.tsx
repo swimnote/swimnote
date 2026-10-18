@@ -13,7 +13,7 @@ type Preview = { previewHash: string; ledgerVersion: number; rows: Row[]; totals
 type Applied = { applied: number; held: number; results: any[]; totals: { amountKrw: number; remainingCount: number }; revision: number };
 
 /** Financial source mapping: separate rule object from the member rules. Server validates every row. */
-export function OfficeImportsFinance({ cur, headers, scopeKey, onRevision, suggested,onLockChange }: { onLockChange?:(locked:boolean)=>void; suggested?: Record<string, string>; cur: OpsItem | null; headers: string[]; scopeKey: string; onRevision: (rev: number) => void }) {
+export function OfficeImportsFinance({ cur, headers, scopeKey, onRevision, suggested,onLockChange,onRulesChange }: { onRulesChange?:(rules:Record<string,string>)=>void;onLockChange?:(locked:boolean)=>void; suggested?: Record<string, string>; cur: OpsItem | null; headers: string[]; scopeKey: string; onRevision: (rev: number) => void }) {
   const qc = useQueryClient(), pk = `${scopeKey}|import-fin`;
   const [rules, setRules] = useState<Record<string, string>>(cur?.data.financeRules ?? {});
   const [undo,setUndo]=useState<Record<string,string>[]>([]);
@@ -21,7 +21,8 @@ export function OfficeImportsFinance({ cur, headers, scopeKey, onRevision, sugge
   const [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [lock, setLock] = useState(!!pendingGet(pk));
   useEffect(()=>{onLockChange?.(lock||busy);},[lock,busy,onLockChange]);
   useEffect(() => { setRules(cur?.data.financeRules ?? {});setUndo([]); setPrev(null); setRes(null); setOk(false); }, [cur?.id]);
-  useEffect(() => { if (suggested && !pendingGet(pk)) { setRules(suggested); setPrev(null); setOk(false); } }, [suggested]);
+  useEffect(()=>{onRulesChange?.(rules);},[rules,onRulesChange]);
+  useEffect(() => { if (suggested && !pendingGet(pk)) { setUndo(u=>[...u,rules]);setRules(suggested); setPrev(null); setOk(false); } }, [suggested]);
   const edit = (r: Record<string, string>) => { if (lock) return;setUndo(u=>[...u,rules].slice(-20)); setRules(r); setPrev(null); setOk(false); };
   const bad = useMemo(() => prev?.rows.filter(r => r.errors.length || r.status !== "ready") ?? [], [prev]);
   const missing = !rules.kind || !rules.student_id;

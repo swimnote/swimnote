@@ -60,7 +60,7 @@ afterEach(() => {
 
 it("shows safe identity/revalidation/storage/SSE states; offline does not erase the session", async () => {
   const view = render(<Router><DesktopApp /></Router>);
-  await screen.findByText(/실시간 연결 확인됨/);
+  await screen.findByText(/^실시간 연결 확인됨 · 연결 진단$/);
   expect(screen.getByText(/서버 사용자·Pool·권한 재검증 완료/)).toBeTruthy();
   expect(screen.getByText(/main 안전 저장 성공 응답 확인/)).toBeTruthy();
   expect(screen.getByText(/업무 조회 대상: Dashboard/)).toBeTruthy();
@@ -70,14 +70,14 @@ it("shows safe identity/revalidation/storage/SSE states; offline does not erase 
   expect(clear).not.toHaveBeenCalled();
   expect(getToken()).toBe(token);
   await act(async () => window.dispatchEvent(new Event("online")));
-  await screen.findByText(/실시간 연결 확인됨/);
+  await screen.findByText(/^실시간 연결 확인됨 · 연결 진단$/);
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(clear).not.toHaveBeenCalled();
 });
 
 it("clears main storage, in-memory token, private UI and query cache on authoritative SSE denial", async () => {
   const view = render(<Router><DesktopApp /></Router>);
-  await screen.findByText(/실시간 연결 확인됨/);
+  await screen.findByText(/^실시간 연결 확인됨 · 연결 진단$/);
   queryClient.setQueryData(["students"], [{ phone: "PRIVATE_PHONE" }]);
   await act(async () => {
     stream.enqueue(new TextEncoder().encode('data: {"type":"session.invalid","reason":"revoked"}\n\n'));

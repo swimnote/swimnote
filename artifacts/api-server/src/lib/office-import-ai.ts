@@ -4,6 +4,11 @@ import {financialTargets} from "./office-finance-import.js";
 export function importModelEnabled(env:Record<string,string|undefined>) {
   return env.OFFICE_IMPORT_AI_ENABLED==="true";
 }
+export function assertImportInstruction(instruction:string){
+  if(!/열|컬럼|매핑|규칙|변환|보호자|전화|연락처|이름|생년|미납|수납|금액|잔여|횟수|보강|거래일/.test(instruction)||
+    /SQL|https?:\/\/|tool_calls|fetch\s*\(|(?:발송|결제|환불|청구|서명).*(?:실행|계산|승인)|일지.*작성|공지.*작성/i.test(instruction))
+    throw new OperationError(400,"IMPORT_MAPPING_ONLY","무료 이전은 원본 열의 변환 규칙 해석만 지원합니다. 일반 AI 업무·계산·발송·SQL은 실행하지 않습니다.");
+}
 
 /** Model can propose mappings only. It cannot select an actor, call tools or apply data. */
 export function parseImportRules(raw:string,headers:string[]) {
@@ -12,6 +17,8 @@ export function parseImportRules(raw:string,headers:string[]) {
   const allowed=new Set(["name","parent_phone","parent_name","phone","birth_year","memo","class_name","class_group_id"]);
   if(!value || !value.rules || typeof value.rules!=="object" || Array.isArray(value.rules))
     throw new OperationError(502,"INVALID_MODEL_RESULT","열 매핑 형식 오류");
+  if(Object.keys(value).some(k=>!["rules","financeRules","question"].includes(k)))
+    throw new OperationError(502,"INVALID_MODEL_RESULT","이전은 열 매핑 제안만 허용합니다. 도구·SQL·업무 실행 응답은 사용할 수 없습니다.");
   const rules:Record<string,string>={};
   for(const [key,column] of Object.entries(value.rules)) {
     if(!allowed.has(key) || typeof column!=="string" || !headers.includes(column))

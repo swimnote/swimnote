@@ -7,7 +7,7 @@ import { getToken, useDesktopTokenStorage } from "../lib/token";
 import { queryClient } from "../lib/query-client";
 import { api } from "../lib/api-client";
 
-vi.mock("../lib/api-client", () => ({ publicPost: vi.fn(), api: { get: vi.fn(), getBaseUrl: () => "https://fixture.invalid/api" } }));
+vi.mock("../lib/api-client", () => ({ publicPost: vi.fn(), api: { get: vi.fn(), post:vi.fn(), getBaseUrl: () => "https://fixture.invalid/api" } }));
 const id = "11111111-1111-4111-8111-111111111111";
 let version: number;
 let pool: string;
@@ -69,7 +69,7 @@ beforeEach(() => {
       if (statsError) throw new Error("fixture stats failure");
       return { total_members: studentsEmpty ? 0 : version, today_present: 0, pending_makeups: 0, pending_requests: 0 } as never;
     }
-    if (route === "/students?pool_all=true") {
+    if (route === "/students") {
       if (delayList) return await delayList as never;
       if (listError) throw new Error("fixture list failure");
       return (studentsEmpty ? [] : students()) as never;
@@ -108,7 +108,7 @@ it("hands one verified session to the existing dashboard, routes, Pool and sideb
   expect(screen.queryByRole("button", { name: "설정", exact: true })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /회원목록 회원 검색/ }));
   await screen.findByText("검증회원A-1");
-  expect(calls("/students?pool_all=true")).toBe(1);
+  expect(calls("/students")).toBe(1);
   expect((screen.getByRole("button", { name: "+ 회원 등록" }) as HTMLButtonElement).disabled).toBe(true);
   expect((screen.getByRole("button", { name: /Excel/ }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByText("검증회원A-1"));
@@ -116,15 +116,11 @@ it("hands one verified session to the existing dashboard, routes, Pool and sideb
   await within(drawer).findByText("발행된 성장리포트가 없습니다.");
   for (const label of ["수정", "연기", "퇴원", "일지 보기"]) {
     const button = within(drawer).getByRole("button", { name: label }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-    expect(button.style.opacity).toBe("0.45");
-    expect(button.getAttribute("aria-describedby")).toBe("member-drawer-readonly");
-    fireEvent.click(button);
-    expect(screen.getByRole("dialog", { name: "회원 상세" })).toBe(drawer);
-    expect(screen.queryByText("회원 정보 수정")).toBeNull();
-    expect(window.location.pathname).toBe("/admin/members");
+    expect(button.disabled).toBe(false);
+    expect(button.style.opacity).not.toBe("0.45");
+    expect(button.getAttribute("aria-describedby")).not.toBe("member-drawer-readonly");
   }
-  expect(within(drawer).getByText(/Desktop 조회 전용: 수정·연기·퇴원/)).toBeTruthy();
+  expect(api.post).not.toHaveBeenCalled(); // Rendering/enabling existing Actions must never execute one.
   expect(calls(`/admin/growth-reports/students/${id}`)).toBe(1);
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -245,7 +241,7 @@ it("unmounts private state and cancels late reads on logout and next Pool mount"
   let resolve!: (value: unknown) => void;
   delayList = new Promise(value => { resolve = value; });
   await act(async () => emit("member.changed"));
-  await waitFor(() => expect(calls("/students?pool_all=true")).toBe(2));
+  await waitFor(() => expect(calls("/students")).toBe(2));
   fireEvent.click(screen.getByRole("button", { name: "로그아웃", exact: true }));
   await screen.findByPlaceholderText("아이디를 입력하세요");
   expect(getToken()).toBeNull();
@@ -273,10 +269,10 @@ it("shows loading until the actual dashboard response and blocks unsupported dir
   await act(async () => resolve({ total_members: 0, today_present: 0, pending_makeups: 0, pending_requests: 0 }));
   await waitFor(() => expect(screen.getAllByText("0").length).toBe(4));
   view.unmount();
-  window.history.replaceState({}, "", "/admin/members/new");
+  window.history.replaceState({}, "", "/admin/not-an-approved-office-page");
   open();
   await screen.findByText("현재 단계에서 지원하지 않는 메뉴입니다.");
-  expect(calls("/students?pool_all=true")).toBe(0);
+  expect(calls("/students")).toBe(0);
 });
 
 it("integrated workspace keeps one authentication, SSE and business observer across menu collapse until logout", async () => {

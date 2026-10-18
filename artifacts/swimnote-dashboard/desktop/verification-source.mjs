@@ -39,7 +39,7 @@ export async function sourceIdentity() {
   return { head, trackedDiffSha256, untracked, diffId,
     buildId: `${verificationStage}-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
     scope: "HEAD plus tracked binary diff and untracked Dashboard/API source and OFFICE docs; attachments and generated output excluded",
-    apiSource: verificationStage === "PRODUCT" ? "Canonical API origin unchanged. Operational baseline 65970347d33889c90e896ed2b236da45ac1ae290 and OFFICE schema 2 already applied. New bulk/report/merchant/renewal source changes in this build require separate server approval; no repeat migration."
+    apiSource: verificationStage === "PRODUCT" ? "Canonical API origin unchanged. Operational baseline 65970347d33889c90e896ed2b236da45ac1ae290 and OFFICE schema 2 already approved. New member receipt, report/activity, import/AI editor and operating source in this build requires separate exact-SHA approval. No repeat schema 2 migration, paid model activation, real sends or payment execution."
       : verificationStage.startsWith("F05") || verificationStage === "F06" || verificationStage === "STAGE2" || verificationStage === "MEMBER" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
 }
 

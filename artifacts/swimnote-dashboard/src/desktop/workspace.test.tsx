@@ -37,7 +37,7 @@ beforeEach(() => {
     }
   });
   vi.mocked(api.get).mockImplementation(async path => {
-    if (path === "/students?pool_all=true") return [{
+    if (path === "/students") return [{
       id: "student_legacy_001", name: "PRIVATE_MEMBER_NAME", status: "active",
       class_group_id: "class-a", class_group_name: "기초반", phone: "PRIVATE_PHONE", parent_name: "PRIVATE_PARENT",
     }] as never;

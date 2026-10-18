@@ -14,6 +14,7 @@ import { registerOfficeOperations } from "./office-operation";
 import { OFFICE_PAGES } from "../../desktop/office-access.cts";
 import { useAuth } from "../contexts/AuthContext";
 import { recoverableWrite,OfficeRecovery } from "./OfficeRecovery";
+import {readOfficeAiEditor,applyOfficeAiDraft} from "./office-ai-editor";
 
 let scopeSequence = 0;
 const abortError = () => new DOMException("이전 조회를 취소했습니다.", "AbortError");
@@ -147,11 +148,30 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
       const normalized = (v: string) => v.replace(/열어주세요|보여주세요|열어줘|보여줘|열기|화면|메뉴|[·\s]/g, "");
       const page = OFFICE_PAGES.find(p => normalized(p[1]) === normalized(text));
       if (page) { await core.runStructured({ action: "office.page.open", input: { path: page[0] } }); publish(); return; }
-      if (!stage3) { setNotice("실제 AI 전송은 통합 배포 승인 전 비활성입니다."); return; }
       setNotice(""); // A new request must not retain the previous clarification/error as its current result.
       const destination = navRef.current.getDestination();
       const selectedId = destination.screen === "members" ? destination.memberId : undefined;
       try {
+        const editor=readOfficeAiEditor(`${owner.userId}:${owner.poolId}`);
+        if(editor){
+          const catalog=await api.get<{modelEnabled?:boolean}>("/office/operations/workspace/catalog");
+          if(!isCurrent()||readOfficeAiEditor(editor.scope)!==editor)return;
+          if(catalog.modelEnabled!==true){setNotice("현재 입력 양식과 공통 Action 연결은 구현됐습니다. 모델 실행 스위치 OFF이며 실제 모델 응답은 미확인입니다. 직접 입력·저장은 계속 가능합니다.");return;}
+          const draft=await api.post<any>("/office/operations/workspace/interpret",{text,
+            ...(editor.resource?{resource:editor.resource}:{}),...(editor.recordId?{recordId:editor.recordId}:{}),
+            ...(editor.memberId?{memberId:editor.memberId}:{})});
+          if(!isCurrent()||readOfficeAiEditor(editor.scope)!==editor)return;
+          if(draft.kind==="clarify"){setNotice(String(draft.question));return;}
+          if(draft.kind==="unavailable"){setNotice(String(draft.message));return;}
+          const data=editor.resource?draft.data:draft.command;
+          if((editor.resource?(draft.kind!=="operations-draft"||draft.resource!==editor.resource||(draft.recordId??undefined)!==editor.recordId):draft.kind!=="draft")||
+            !data||typeof data!=="object"||Array.isArray(data))throw new Error("Invalid editor draft");
+          // This is an explicit field handoff, not a saved or approved business action.
+          applyOfficeAiDraft(editor,data);
+          setNotice("초안을 현재 공통 입력 양식에 채웠습니다. 저장되지 않았습니다. 대상·필드·금액·영향을 확인하고 같은 양식의 저장/미리보기/확정 Action으로 실행하세요.");
+          return;
+        }
+        if(!stage3){setNotice("실제 AI 전송은 통합 배포 승인 전 비활성입니다.");return;}
         const result = await stage3.interpret({ text, ...(selectedId ? { memberId: selectedId } : {}) }) as any;
         if (!isCurrent()) return;
         const current = navRef.current.getDestination();

@@ -37,7 +37,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/admin");
   vi.mocked(api.get).mockImplementation(async path => {
     if (path === "/admin/dashboard-stats") return { total_members: 75, today_present: 0, pending_makeups: 0, pending_requests: 0 } as never;
-    if (path === "/students?pool_all=true") return students() as never;
+    if (path === "/students") return students() as never;
     if (path === "/class-groups") return [{ id: "class-a", name: "기초반" }] as never;
     if (path.startsWith("/admin/growth-reports/students/")) return { success: true, reports: [] } as never;
     throw new Error("Unapproved fixture route: " + path);
@@ -173,7 +173,7 @@ it("N01 closes outside/ESC without blocking menu or another member and handles f
   await act(async () => control.open({ screen: "members", memberId: textId }));
   const previous = vi.mocked(api.get).getMockImplementation()!;
   vi.mocked(api.get).mockImplementation((path, ...args) => {
-    if (path === "/students?pool_all=true") return Promise.reject({ status: 403 });
+    if (path === "/students") return Promise.reject({ status: 403 });
     return previous(path, ...args);
   });
   await act(async () => { await queryClient.invalidateQueries({ queryKey: ["students"] }); });

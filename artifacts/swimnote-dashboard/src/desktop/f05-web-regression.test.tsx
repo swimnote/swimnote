@@ -20,7 +20,7 @@ beforeEach(() => {
     if (route === "/auth/me") return { id: "fixture", name: "웹검증관리자", role: "pool_admin", swimming_pool_id: "pool" } as never;
     if (route === "/pools/my-pools") return [{ id: "pool", name: "웹검증수영장" }] as never;
     if (route === "/pools/x-mode") return { mode: "x" } as never;
-    if (route === "/students?pool_all=true") return [{ id: "fixture-member", name: "웹검증회원", status: "active" }] as never;
+    if (route === "/students") return [{ id: "fixture-member", name: "웹검증회원", status: "active" }] as never;
     if (route === "/class-groups") return [] as never;
     if (route === "/admin/dashboard-stats") return { total_members: 0, today_present: 0, pending_makeups: 0, pending_requests: 0 } as never;
     if (route.startsWith("/admin/growth-reports/students/")) return { success: true, reports: [] } as never;
