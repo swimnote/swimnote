@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {afterEach,it,expect,vi} from "vitest";
-import {cleanup,render,screen,fireEvent,waitFor} from "@testing-library/react";
+import {cleanup,render,screen,fireEvent,waitFor,act} from "@testing-library/react";
 import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
 import {OfficeActionProvider} from "./OfficeActionProvider";
 import {useOfficeActions} from "./OfficeActionContext";
@@ -37,4 +37,19 @@ it("keeps the implemented daily editor path OFF without an interpreter/model POS
   get.mockResolvedValue({modelEnabled:false});mount();fireEvent.click(screen.getByText("요청"));
   await waitFor(()=>expect(screen.getByTestId("notice").textContent).toContain("모델 실행 스위치 OFF"));
   expect(post).not.toHaveBeenCalled();expect(stage).not.toHaveBeenCalled();
+});
+it("discards the mocked daily financial reply if the user changes the currently mounted form",async()=>{
+  const stage=vi.fn(),editor={scope:"u:p",memberId:"member",token:"before",stage};
+  registerOfficeAiEditor(editor);get.mockResolvedValue({modelEnabled:true});
+  let deliver!:(v:unknown)=>void;post.mockImplementation(()=>new Promise(r=>{deliver=r;}));
+  mount();fireEvent.click(screen.getByText("요청"));await waitFor(()=>expect(post).toHaveBeenCalledTimes(1));
+  registerOfficeAiEditor({...editor,token:"changed-amount"});
+  await act(async()=>deliver({kind:"draft",command:{action:"receipt.record",studentId:"member",amountKrw:100000}}));
+  expect(stage).not.toHaveBeenCalled();expect(post).toHaveBeenCalledTimes(1);
+});
+it("blocks all interpreter/model requests while the current financial form is locked",async()=>{
+  registerOfficeAiEditor({scope:"u:p",memberId:"member",token:"locked",locked:true,stage:vi.fn()});
+  mount();fireEvent.click(screen.getByText("요청"));
+  await waitFor(()=>expect(screen.getByTestId("notice").textContent).toContain("처리 중이거나 결과 확인 대기"));
+  expect(post).not.toHaveBeenCalled();expect(get).not.toHaveBeenCalled();
 });

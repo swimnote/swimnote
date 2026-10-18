@@ -154,6 +154,7 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
       try {
         const editor=readOfficeAiEditor(`${owner.userId}:${owner.poolId}`);
         if(editor){
+          if(editor.locked){setNotice("현재 양식이 처리 중이거나 결과 확인 대기입니다. 초안 요청·입력 변경을 하지 않았습니다.");return;}
           const catalog=await api.get<{modelEnabled?:boolean}>("/office/operations/workspace/catalog");
           if(!isCurrent()||readOfficeAiEditor(editor.scope)!==editor)return;
           if(catalog.modelEnabled!==true){setNotice("현재 입력 양식과 공통 Action 연결은 구현됐습니다. 모델 실행 스위치 OFF이며 실제 모델 응답은 미확인입니다. 직접 입력·저장은 계속 가능합니다.");return;}

@@ -6,12 +6,12 @@ const { box, inp, btn2 } = ui;
 type Reply = { kind: "operations-draft"; resource: string; recordId?: string; data: Record<string, unknown>; message?: string } | { kind: "clarify"; question: string } | { kind: "unavailable"; message: string };
 
 /** Optional paid draft helper. Explicit click only; result goes into the existing editor form, never saved here. */
-export function OfficeOpsAiDraft({ resource, recordId, hasX, locked, onDraft }: {
-  resource: string; recordId?: string; hasX: boolean; locked: boolean; onDraft: (data: Record<string, unknown>) => void;
+export function OfficeOpsAiDraft({ resource, recordId, hasX, locked, onDraft,contextToken }: {
+  resource: string; recordId?: string; hasX: boolean; locked: boolean;contextToken?:string; onDraft: (data: Record<string, unknown>) => void;
 }) {
   const [text, setText] = useState(""), [busy, setBusy] = useState(false), [out, setOut] = useState("");
   const [enabled,setEnabled]=useState(false);
-  const current=useRef("");current.current=JSON.stringify([resource,recordId,text,locked]);
+  const current=useRef("");current.current=JSON.stringify([resource,recordId,text,locked,contextToken]);
   useEffect(()=>{let live=true;api.get<{modelEnabled?:boolean}>("/office/operations/workspace/catalog").then(c=>{if(live)setEnabled(c.modelEnabled===true);}).catch(()=>{if(live)setEnabled(false);});return()=>{live=false;current.current="unmounted";};},[resource,recordId]);
   const ask = async () => {
     if (!text.trim() || locked || !enabled || !hasX || busy) return;

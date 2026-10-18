@@ -139,6 +139,7 @@ export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue
     {edit && <div data-resource-editor style={{ ...box, background: "var(--surface-off)" }}>
       <strong>{edit === "new" ? "새 항목" : `수정 (rev ${edit.revision})`}</strong>
       <OfficeOpsAiDraft key={`${cacheKey}:${edit === "new" ? "new" : edit.id}`} resource={res} recordId={edit === "new" ? undefined : edit.id} hasX={hasX} locked={unsure.has(cacheKey)}
+        contextToken={JSON.stringify([form,reqId])}
         onDraft={d => { if (unsure.has(cacheKey)) return; setForm(f => ({ ...f, ...Object.fromEntries(Object.entries(d).filter(([k, v]) => spec.fields.some(x => x.key === k) && v !== null && v !== undefined).map(([k, v]) => [k, String(v)])) })); setReqId(uuid()); setMsg("AI 초안을 채웠습니다. 확인 후 저장하세요."); }} />
       {refState.error&&<p role="alert">대상 참조 조회 실패: {errText(refState.error)}</p>}
       <fieldset disabled={busy||!!lockMsg} style={{border:0,padding:0,display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 8, margin: "8px 0" }}>

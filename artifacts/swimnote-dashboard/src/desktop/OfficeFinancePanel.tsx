@@ -9,7 +9,7 @@ import { OfficeMerchantPanel } from "./OfficeMerchantPanel";
 import {confirmRecoveryPointer} from "./OfficeRecovery";
 import {financeDrill} from "./office-finance-drill";
 import {OfficeAdminActivity} from "./OfficeAdminActivity";
-import {registerOfficeAiEditor} from "./office-ai-editor";
+import {registerOfficeAiEditor,readOfficeAiEditor,applyOfficeAiDraft} from "./office-ai-editor";
 import {
   financeKey, fetchSnapshot, previewFinance, executeFinance, lookupReceipt, buildCommand, isUnknownOutcome, financeCsv, krw, uuid,
   type FinanceSnapshot, type PreviewResult, type FinanceActionSpec, type Totals,
@@ -37,17 +37,20 @@ export function stageFinanceDraft(scope: string, command: Record<string, unknown
 }
 type Interpret = { kind: "unavailable"; message: string } | { kind: "clarify"; question: string } | { kind: "draft"; command: Record<string, unknown>; message?: string };
 
-function AiDraft({ scope, studentId, hasX }: { scope: string; studentId: string; hasX: boolean }) {
+function AiDraft({ scope,ownerScope, studentId, hasX }: { scope: string;ownerScope:string; studentId: string; hasX: boolean }) {
   const [text, setText] = useState(""), [busy, setBusy] = useState(false), [out, setOut] = useState(""), [catalog, setCatalog] = useState<any>(null);
   const current=useRef("");current.current=JSON.stringify([scope,studentId,text]);
   useEffect(()=>()=>{current.current="unmounted";},[]);
   useEffect(() => { let on = true; api.get<any>("/office/operations/workspace/catalog").then(c => { if (on) setCatalog(c); }).catch(() => { if (on) setCatalog(null); }); return () => { on = false; }; }, [scope]);
   const ask = async () => {
-    if (!text.trim()||busy||!hasX||catalog?.modelEnabled!==true) return; const sent=current.current;setBusy(true); setOut("");
+    if (!text.trim()||busy||!hasX||catalog?.modelEnabled!==true) return;
+    const editor=readOfficeAiEditor(ownerScope);
+    if(!editor||editor.locked){setOut("현재 입력 양식이 없거나 처리 결과 확인 대기입니다. 요청하지 않았습니다.");return;}
+    const sent=current.current;setBusy(true); setOut("");
     try {
       const r = await api.post<Interpret>("/office/operations/workspace/interpret", { text: text.trim(), ...(studentId ? { memberId: studentId } : {}) });
-      if(current.current!==sent)return;
-      if (r.kind === "draft") { stageFinanceDraft(scope, r.command); setOut(`${r.message ?? "초안을 업무 입력 양식에 채웠습니다."} 확정되지 않았습니다. 미리보기와 영향 확인 후 직접 기록하세요.`); }
+      if(current.current!==sent||readOfficeAiEditor(ownerScope)!==editor)return;
+      if (r.kind === "draft") { applyOfficeAiDraft(editor,r.command); setOut(`${r.message ?? "초안을 업무 입력 양식에 채웠습니다."} 확정되지 않았습니다. 미리보기와 영향 확인 후 직접 기록하세요.`); }
       else if (r.kind === "clarify") setOut(r.question); else setOut(r.message);
     } catch (e: any) { setOut(e?.status === 403 ? "이 기능은 스윔노트 AI 이용 권한이 필요합니다(서버 판단)." : errMsg(e)); } finally { setBusy(false); }
   };
@@ -80,10 +83,10 @@ export function OfficeFinancePanel({initialStudentId=""}:{initialStudentId?:stri
   const hasX = state.status === "authenticated" && state.user.hasX;
   useEffect(() => { clearMemory(scope === "unauthenticated" ? undefined : scope); }, [scope]);
   if(state.status!=="authenticated"||state.user.role!=="pool_admin")return <p role="alert">수납 업무는 센터 관리자 권한이 필요합니다.</p>;
-  return <FinanceInner key={`${scope}:${initialStudentId}`} scope={initialStudentId?`${scope}|member:${initialStudentId}`:scope} hasX={hasX} initialStudentId={initialStudentId}/>;
+  return <FinanceInner key={`${scope}:${initialStudentId}`} ownerScope={scope} scope={initialStudentId?`${scope}|member:${initialStudentId}`:scope} hasX={hasX} initialStudentId={initialStudentId}/>;
 }
 
-function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: boolean;initialStudentId:string }) {
+function FinanceInner({ scope,ownerScope, hasX,initialStudentId }: { scope: string;ownerScope:string; hasX: boolean;initialStudentId:string }) {
   const qc = useQueryClient();
   const previous=views.get(scope);
   const [tab, setTab] = useState<Tab>(previous?.tab??"summary");
@@ -93,8 +96,16 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
   const [exportError,setExportError]=useState("");
   useEffect(()=>{views.set(scope,{tab,from,to,studentId,search,drill});},[scope,tab,from,to,studentId,search,drill]);
   const [staged, setStaged] = useState<{ command: Record<string, unknown>; nonce: number } | null>(null);
-  useEffect(()=>registerOfficeAiEditor({scope,memberId:studentId||undefined,token:JSON.stringify([studentId,from,to,tab]),
-    stage:command=>stageFinanceDraft(scope,command)}),[scope,studentId,from,to,tab]);
+  useEffect(()=>{
+    if(tab==="entry")return;
+    return registerOfficeAiEditor({scope:ownerScope,memberId:studentId||undefined,token:JSON.stringify([scope,studentId,from,to,tab]),locked:unsure.has(scope),
+      stage:command=>{
+        if(unsure.has(scope))throw new Error("미확인 재무 요청이 있어 현재 초안을 바꾸지 않았습니다.");
+        const old=drafts.get(scope);
+        if(old?.actionKey||Object.keys(old?.form??{}).length)throw new Error("입력 중인 재무 초안이 있습니다. 업무 입력 탭에서 내용을 확인한 후 요청하세요.");
+        stageFinanceDraft(scope,command);
+      }});
+  },[scope,ownerScope,studentId,from,to,tab]);
   useEffect(() => {
     const h = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.scope === scope) { setStaged({ command: d.command, nonce: Date.now() }); setTab("entry"); } };
     window.addEventListener("office-finance-draft", h); return () => window.removeEventListener("office-finance-draft", h);
@@ -168,11 +179,11 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
     {d && d.reportVersion!==1 && <div role="note" style={box}>보고서 서버 확장 승인 대기: 검색/회원 필터와 일치하는 새 합계는 아직 표시하지 않습니다. 기존 개별 업무는 그대로 사용할 수 있습니다.</div>}
     {search.trim()!==serverSearch && <div role="status">검색 조건 적용 중… 출력 전 갱신을 기다리세요.</div>}
     {tab==="summary"&&search.trim()===serverSearch&&<OfficeAdminActivity scope={scope} from={from} to={to} studentId={studentId} search={serverSearch}/>}
-    <AiDraft scope={scope} studentId={studentId} hasX={hasX} />
+    <AiDraft scope={scope} ownerScope={ownerScope} studentId={studentId} hasX={hasX} />
     <div data-finance-noprint style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[...TABS,["workflows","대량 청구·재등록"] as [Tab,string],["merchant","가맹점 결제 신청"] as [Tab,string]].map(([k, l]) => <button key={k} data-testid={`finance-tab-${k}`} style={tab === k ? btn : btn2} onClick={() => setTab(k)}>{l}</button>)}</div>
     {tab==="workflows" && d && <OfficeBillingWorkflows scope={scope} snapshot={d} onDone={()=>{qc.invalidateQueries({queryKey:["office-finance",scope]});qc.invalidateQueries({queryKey:["ops"]});}} />}
     {tab==="merchant" && <OfficeMerchantPanel key={scope} scope={scope} />}
-    {tab === "entry" && <EntryForm scope={scope} d={d} date={to} staged={staged} onDone={() => { qc.invalidateQueries({ queryKey: ["office-finance", scope] }); qc.invalidateQueries({ queryKey: ["ops"] }); }} />}
+    {tab === "entry" && <EntryForm scope={scope} ownerScope={ownerScope} d={d} date={to} selectedStudentId={studentId} staged={staged} onDone={() => { qc.invalidateQueries({ queryKey: ["office-finance", scope] }); qc.invalidateQueries({ queryKey: ["ops"] }); }} />}
     {d && tab !== "entry" && tab!=="workflows" && tab!=="merchant" && <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{fontSize:12}}>기간 {from}~{to} · 회원 {studentId?nameOf(studentId):"전체"} · 검색 {serverSearch||"없음"} · {tab==="summary"?"요약":TABS.find(t=>t[0]===tab)?.[1]}</div>
       {tab === "summary" && <div data-testid="finance-report">
@@ -228,12 +239,16 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
   </div>;
 }
 
-function EntryForm({ scope, d, date: defDate, onDone, staged }: { staged: { command: Record<string, unknown>; nonce: number } | null; scope: string; d?: FinanceSnapshot; date: string; onDone: () => void }) {
+function EntryForm({ scope,ownerScope, d, date: defDate, onDone, staged,selectedStudentId }: { ownerScope:string;selectedStudentId:string;staged: { command: Record<string, unknown>; nonce: number } | null; scope: string; d?: FinanceSnapshot; date: string; onDone: () => void }) {
   const d0 = drafts.get(scope);
   const [actionKey, setActionKey] = useState(d0?.actionKey ?? ""), [date, setDate] = useState(d0?.date ?? defDate), [form, setForm] = useState<Record<string, string>>(d0?.form ?? {});
   const [prev, setPrev] = useState<PreviewResult | null>(null), [ok, setOk] = useState(false), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(unsure.has(scope)), [done, setDone] = useState("");
   const [allocation,setAllocation]=useState<Record<string,string>|null>(null);
+  useEffect(()=>registerOfficeAiEditor({scope:ownerScope,memberId:form.studentId||selectedStudentId||undefined,
+    token:JSON.stringify([scope,actionKey,date,form,locked,busy,selectedStudentId]),locked:locked||busy,
+    stage:command=>{if(unsure.has(scope)||busy)throw new Error("처리 결과 확인 대기 중인 재무 초안을 바꾸지 않았습니다.");stageFinanceDraft(scope,command);}}),
+    [scope,ownerScope,actionKey,date,form,locked,busy,selectedStudentId]);
   useEffect(()=>{const h=(e:Event)=>{
     const {requestId,result}=(e as CustomEvent).detail??{};
     if(unsure.get(scope)?.requestId!==requestId||!result?.event?.id||!Number.isSafeInteger(result.version))return;

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import {afterEach,it,expect,vi} from "vitest";
-import {cleanup,render,screen,fireEvent,waitFor} from "@testing-library/react";
+import {cleanup,render,screen,fireEvent,waitFor,act} from "@testing-library/react";
 import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
 import {importConversation} from "./office-import-conversation";
 import {registerOfficeAiEditor,readOfficeAiEditor,applyOfficeAiDraft} from "./office-ai-editor";
 import {OfficeImportSemantic} from "./OfficeImportSemantic";
+import {OfficeOpsAiDraft} from "./OfficeOpsAiDraft";
 const {get,post}=vi.hoisted(()=>({get:vi.fn(),post:vi.fn()}));
 vi.mock("../lib/api-client",()=>({api:{get,post}}));
 afterEach(()=>{cleanup();vi.clearAllMocks();window.dispatchEvent(new Event("office:session-invalid"));});
@@ -55,4 +56,16 @@ it("uses a mocked semantic reply as a proposal only, then explicitly hands confi
   fireEvent.click(screen.getByRole("button",{name:"확인한 제안을 규칙에 반영"}));
   expect(applied).toHaveBeenCalledWith(expect.objectContaining({rules:{name:"성명"}}));
   expect(post).toHaveBeenCalledTimes(1); // No create/apply/model retry.
+});
+it("does not overwrite manually edited operation fields with a late mocked form-helper response",async()=>{
+  get.mockResolvedValue({modelEnabled:true});
+  let deliver!:(v:unknown)=>void;post.mockImplementation(()=>new Promise(r=>{deliver=r;}));
+  const onDraft=vi.fn(),p={resource:"contacts",recordId:"contact",hasX:true,locked:false,onDraft};
+  const view=render(<OfficeOpsAiDraft {...p} contextToken="original-fields"/>);
+  fireEvent.change(screen.getByPlaceholderText("초안으로 채울 내용을 설명"),{target:{value:"상담 초안"}});
+  fireEvent.click(await screen.findByRole("button",{name:"초안 요청"}));
+  await waitFor(()=>expect(post).toHaveBeenCalledTimes(1));
+  view.rerender(<OfficeOpsAiDraft {...p} contextToken="user-edited-fields"/>);
+  await act(async()=>deliver({kind:"operations-draft",resource:"contacts",recordId:"contact",data:{name:"이전 응답"}}));
+  expect(onDraft).not.toHaveBeenCalled();expect(post).toHaveBeenCalledTimes(1);
 });
