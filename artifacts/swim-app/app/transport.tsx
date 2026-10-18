@@ -6,10 +6,14 @@ import {useAuth,apiRequest} from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 import {transportVault,transportRequestId,type TransportVault} from "@/lib/transport-vault";
 import {useTransportApproach} from "@/lib/use-transport-approach";
+import {startTransportBackground,stopTransportBackground,refreshTransportSurface,cancelTransportHint} from "@/lib/transport-background";
+import {router,useLocalSearchParams} from "expo-router";
+import {useTransportRealtime} from "@/lib/use-transport-realtime";
 import {validateRunPlan,checkTransportCommand,transportState,nextTransportStep,transportHint,type TransportCommand,type TransportEvent} from "../../../lib/api-zod/src/transport";
 const C=Colors.light;
 const empty=(owner:string):TransportVault=>({owner,runId:"",manifest:null,queue:[],hints:[]});
 export default function TransportScreen(){
+  const params=useLocalSearchParams<{runId?:string;stepId?:string}>();
   const auth=useAuth(),qc=useQueryClient(),insets=useSafeAreaInsets();
   const account=auth.kind==="parent"?auth.parentAccount:auth.adminUser;
   const poolId=(account as any)?.swimming_pool_id??auth.pool?.id??auth.activePoolId;
@@ -81,7 +85,9 @@ export default function TransportScreen(){
     const sub=AppState.addEventListener("change",state=>{if(state==="active")void load();});
     return()=>{clearInterval(timer);sub.remove();};
   },[owner,v.runId,auth.token,busy]);
-  const pending=v.queue.filter(x=>x.runId===v.runId);
+  const liveLoad=useRef(load);liveLoad.current=load;
+  useTransportRealtime(owner,auth.token,()=>{void liveLoad.current();});
+  const pending=v.queue.filter(x=>x.runId===v.runId&&!x.resolution);
   const localEvents:TransportEvent[]=manifest?[...manifest.events,...pending.map(x=>({...x.command,actor,serverAt:""}))]:[];
   const state=manifest?transportState(manifest.run.plan,localEvents):null;
   const serverState=manifest?transportState(manifest.run.plan,manifest.events):null;
@@ -95,7 +101,14 @@ export default function TransportScreen(){
       if(AppState.currentState!=="active")return;
       const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date()).split(":");
       const h=transportHint(manifest.run.plan,state.pending,v.hints,manifest.run.revision,Number(parts[0])*60+Number(parts[1]),gps.nearStepId,manifest.run.id);
-      if(h&&!hint){setHint(h);void save(old=>({...old,hints:old.hints.includes(h.key)?old.hints:[...old.hints,h.key]})).catch(e=>{setLocalFault(true);setMessage(e.message);});}
+      if(h&&!hint){
+        let claimed=false;
+        void save(old=>{
+          if(old.hints.includes(h.key))return old;
+          claimed=true;return {...old,hints:[...old.hints,h.key]};
+        }).then(async()=>{if(claimed){await cancelTransportHint(h.key).catch(()=>{});setHint(h);}})
+          .catch(e=>{setLocalFault(true);setMessage(e.message);});
+      }
     };
     tick();const timer=setInterval(tick,15000);return()=>clearInterval(timer);
   },[manifest,state?.pending.join(","),state?.started,state?.closed,v.hints.join(","),hint,gps.nearStepId]);
@@ -103,7 +116,7 @@ export default function TransportScreen(){
     if(syncing.current||!owner||localFault)return;syncing.current=true;setBusy(true);
     try{
       while(liveOwner.current===owner){
-        const current=await transportVault.read(owner),head=current.queue[0];
+        const current=await transportVault.read(owner),head=current.queue.find(x=>!x.resolution);
         if(!head||head.blocked)break;
         try{
           const result=await call(`/runs/${head.runId}/events`,head.command);
@@ -131,19 +144,39 @@ export default function TransportScreen(){
       checkTransportCommand(manifest.run.plan,localEvents,c,actor,manifest.run.revision);
       const stored=await save(old=>{
         if(!old.manifest||old.manifest.run.id!==manifest.run.id||old.manifest.run.revision!==c.revision)throw Error("기기 운행 버전이 바뀌었습니다.");
-        const effective=[...old.manifest.events,...old.queue.map(x=>({...x.command,actor,serverAt:""}))];
+        const effective=[...old.manifest.events,...old.queue.filter(x=>!x.resolution).map(x=>({...x.command,actor,serverAt:""}))];
         checkTransportCommand(old.manifest.run.plan,effective,c,actor,c.revision);
         return {...old,queue:[...old.queue,{runId:manifest.run.id,command:c}]};
       });
       setChosen([]);
-      const nextState=transportState(manifest.run.plan,[...manifest.events,...stored.queue.map(x=>({...x.command,actor,serverAt:""}))]);
+      const nextState=transportState(manifest.run.plan,[...manifest.events,...stored.queue.filter(x=>!x.resolution).map(x=>({...x.command,actor,serverAt:""}))]);
       if(["BOARD","ALIGHT","NO_SHOW"].includes(kind))setSelected(nextTransportStep(manifest.run.plan,nextState.pending,step.id)??step.id);
       setMessage(kind==="FINISH"?"현장 최종 확인·종료 입력 / 서버 전송 대기":"기기에 확인 입력을 보관했습니다. 서버 반영 전 전송 대기입니다.");
       setTimeout(()=>void sync(),0);
     }catch(e:any){if(!(e.code))setLocalFault(true);setMessage(e.message);}
     finally{setBusy(false);}
   }
-  if(!auth.token)return <View style={{padding:24}}><Text>기존 스윔노트 계정으로 로그인하세요.</Text></View>;
+  useEffect(()=>{if(owner&&params.runId&&params.runId!==v.runId&&!busy)void load(params.runId);},[owner,params.runId]);
+  useEffect(()=>{if(params.stepId&&manifest?.run.plan.steps.some((s:any)=>s.id===params.stepId))setSelected(params.stepId);},[params.stepId,manifest?.run.id]);
+  useEffect(()=>{
+    if(manifest&&state?.started&&!state.closed)void refreshTransportSurface(owner).catch(e=>setMessage(e.message));
+    else if(state?.closed||!owner)void stopTransportBackground().catch(()=>{});
+  },[owner,manifest?.run.revision,state?.pending.join(","),state?.closed,pending.length]);
+  async function reconcile(){
+    setBusy(true);
+    try{
+      for(const item of pending.filter(x=>x.blocked)){
+        const uploadId=item.observationRequestId??transportRequestId();
+        await save(old=>({...old,queue:old.queue.map(x=>x.command.requestId===item.command.requestId?{...x,observationRequestId:uploadId}:x)}));
+        await call("/observations",{requestId:uploadId,runId:item.runId,command:item.command,reason:item.blocked});
+        const result=await call(`/observations/${item.command.requestId}`);
+        if(result.decision)await save(old=>({...old,queue:old.queue.map(x=>x.command.requestId===item.command.requestId?{...x,resolution:{decision:result.decision,reason:result.reason,event_id:result.event_id}}:x)}));
+      }
+      setMessage("당시 원 관측을 PC 대조에 전달했습니다. 관리자 해결 전 원 기록은 보류하며 새 승하차로 만들지 않습니다.");
+    }catch(e:any){setMessage(`관측 전달·결과 미확인: ${e.message}. 원 요청과 대기는 보존합니다.`);}
+    finally{setBusy(false);}
+  }
+  if(!auth.token)return <View style={{padding:24}}><Text>기존 스윔노트 계정으로 로그인하거나 센터 초대를 받아 가입하세요.</Text><Button title="기사·인솔자 최초 가입" onPress={()=>router.push("/(auth)/signup?transport=1" as any)}/></View>;
   return <ScrollView contentContainerStyle={{padding:16,paddingTop:insets.top+12,paddingBottom:insets.bottom+24,backgroundColor:C.background,gap:12}}>
     <Text style={{fontSize:22,fontWeight:"700",color:C.text}}>차량 확인·운행</Text>
     <Text>정차 후 또는 인솔자가 조작하세요. 버튼 확인은 실제 안전벨트·인계를 자동 증명하지 않습니다.</Text>
@@ -166,13 +199,15 @@ export default function TransportScreen(){
     </>:<>
       <TextInput accessibilityLabel="운행 초대 코드" placeholder="본인에게 전달된 초대 코드" value={invite} onChangeText={setInvite} style={{borderWidth:1,padding:12}}/>
       <Button title="운행 전용 초대 수락" disabled={busy||!invite} onPress={async()=>{
-        setBusy(true);try{await call("/memberships/accept",{requestId:transportRequestId(),inviteCode:invite});setInvite("");qc.invalidateQueries({queryKey:["transport-me",owner]});qc.invalidateQueries({queryKey:["transport-runs",owner]});setMessage("운행 전용 초대를 수락했습니다. 관리자·강사 권한은 추가하지 않습니다.");}catch(e:any){setMessage(e.message);}finally{setBusy(false);}
+        setBusy(true);try{await call("/onboarding/accept",{requestId:transportRequestId(),inviteCode:invite});setInvite("");qc.invalidateQueries({queryKey:["transport-me",owner]});qc.invalidateQueries({queryKey:["transport-runs",owner]});setMessage("운행 전용 초대를 수락했습니다. 관리자·강사 권한은 추가하지 않습니다.");}catch(e:any){setMessage(e.message);}finally{setBusy(false);}
       }}/>
       {runs.error&&<Text>담당 목록 조회 실패: {(runs.error as Error).message}</Text>}
       {runs.data?.items.map((run:any)=><Button key={run.id} title={`${run.date} ${run.name} / v${run.revision} ${run.status}`} disabled={busy} onPress={()=>void load(run.id)}/>)}
       <Button title="저장된 운행 다시 조회" disabled={busy||!v.runId} onPress={()=>void load()}/>
        <Button title={`기존 요청 ID로 전송 대기 동기화 (${localFault?"기기 오류·수량 확인 불가":pending.length})`} disabled={busy||localFault||!pending.length} onPress={()=>void sync()}/>
       {pending.map(x=><Text key={x.command.requestId}>전송 {x.blocked?"보류·관리자 대조":"대기"} / {x.command.kind} / v{x.command.revision} / {x.command.requestId} {x.blocked}</Text>)}
+      <Button title="보류 관측 PC 대조 전달·해결 결과 확인" disabled={busy||!pending.some(x=>x.blocked)} onPress={()=>void reconcile()}/>
+      {v.queue.filter(x=>x.resolution).map(x=><Text key={x.command.requestId}>원 관측 보존 / {x.command.requestId} / {x.resolution?.decision} / {x.resolution?.reason} (새 승하차가 아닙니다)</Text>)}
       {manifest&&state&&<>
         <Text style={{fontWeight:"700"}}>{manifest.run.plan.name} / v{manifest.run.revision}</Text>
         <Text>서버 마지막 반영 {serverState?.lastServerAt??"확인 없음"} / 기기 미처리 {state.pending.length} / 미하차 {state.onboard.length}</Text>
@@ -187,6 +222,7 @@ export default function TransportScreen(){
         {step&&<>
           <Text style={{fontSize:20,fontWeight:"700"}}>{step.name} / {step.time} / {step.action}</Text>
           <Text>{step.address??"센터 지정 장소"}</Text>
+          <Text>운행 당시 인계조건: {step.studentIds.map((id:string)=>`${manifest.students.find((x:any)=>x.id===id)?.name??id}: ${manifest.run.plan.handoverSnapshot?.[id]||"별도 조건 미등록·현장 확인"}`).join(" / ")}</Text>
           <Button title="이전 (화면 이동만)" onPress={()=>{const i=manifest.run.plan.steps.findIndex((x:any)=>x.id===step.id);setSelected(manifest.run.plan.steps[Math.max(0,i-1)].id);setChosen([]);}}/>
           <Button title="다음 (화면 이동만)" onPress={()=>{const i=manifest.run.plan.steps.findIndex((x:any)=>x.id===step.id);setSelected(manifest.run.plan.steps[Math.min(manifest.run.plan.steps.length-1,i+1)].id);setChosen([]);}}/>
           {step.studentIds.map((id:string)=>{
@@ -207,7 +243,10 @@ export default function TransportScreen(){
           void command("CORRECT",undefined,{corrects:last?.requestId,reason});
         }}/>
         <Button title={pending.some(x=>x.command.kind==="FINISH")?"현장 종료 확인·전송 대기":"센터 인계·차량 내부 최종 확인 후 종료"} disabled={busy||state.closed||state.pending.length>0||state.onboard.length>0} onPress={()=>Alert.alert("센터 복귀·차량 내부 최종 확인","센터로 복귀했고 모든 학생의 하차·인계와 차량 내부 잔류 여부를 직접 확인했습니까?",[{text:"취소",style:"cancel"},{text:"확인·종료",onPress:()=>void command("FINISH",undefined,{cabinChecked:true,centerReturned:true})}])}/>
-         <Text>GPS·시간 안내는 앱 사용 중에만 동작합니다. 다른 앱·잠금·강제 종료 상태의 위치·액션/Live Activity는 미연결입니다. iOS/Android native 통합 빌드와 실기기 검증 전 OTA만으로 배포하면 안 됩니다.</Text>
+          <Button title="운행 알림·iPhone Live Activity 켜기" disabled={busy||!state.started||state.closed} onPress={()=>void startTransportBackground(owner).then(()=>setMessage("운행 표시 연결. iPhone은 잠금 해제 후 앱에서 확인하며 Android 전원 확인은 기기 보관 대기입니다.")).catch(e=>setMessage(e.message))}/>
+          <Button title="백그라운드 GPS 접근 안내 추가 (선택)" disabled={busy||!state.started||state.closed} onPress={()=>void startTransportBackground(owner,true).then(()=>setMessage("운행 중 위치 안내를 켰습니다. OS가 중단할 수 있으며 위치는 서버에 보내지 않습니다.")).catch(e=>setMessage(e.message))}/>
+          <Button title="운행 표시·백그라운드 위치 끄기" onPress={()=>void stopTransportBackground().catch(e=>setMessage(e.message))}/>
+          <Text>알림 시각은 도착 증거가 아닙니다. iPhone Live Activity는 iOS 16.2 이상·새 native binary에서 지원하며 표시 제한 시 알림에서 현재 운행을 여세요. 잠금·강제 종료·절전에서는 OS가 실행을 중단할 수 있습니다. Android도 잠금으로 보호 보관이 불가능하면 앱에서 확인합니다. OTA만으로 배포할 수 없습니다.</Text>
       </>}
     </>}
     {message&&<Text accessibilityLiveRegion="polite">{message}</Text>}

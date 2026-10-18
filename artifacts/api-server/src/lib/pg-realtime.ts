@@ -20,6 +20,7 @@ const { Client } = pg;
 
 // ── Event Types ──────────────────────────────────────────────────────────────
 export type PoolEventType =
+  | "transport.changed"
   | "member.changed"
   | "class.changed"
   | "makeup.changed"

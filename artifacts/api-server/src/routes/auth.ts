@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createHash, randomUUID } from "crypto";
-import { db, superAdminDb } from "@workspace/db";
+import { db, superAdminDb, pool as transportIdentityPool } from "@workspace/db";
+import {registerTransportCarrier} from "../lib/transport-onboarding.js";
 import { usersTable, parentAccountsTable, swimmingPoolsTable, studentRegistrationRequestsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import {
@@ -3002,6 +3003,14 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
 // POST /auth/v2/parent-register
 // ══════════════════════════════════════════════════════════════════════
 router.post("/v2/parent-register", async (req, res) => {
+  if(req.body.transport_invite){
+    try{
+      const parent=await registerTransportCarrier(transportIdentityPool,req.body);
+      const claim=await parentPhoneVerifiedClaim(parent.id,parent.phone);
+      return res.status(201).json({token:signToken({userId:parent.id,role:"parent_account",poolId:parent.swimming_pool_id,...claim}),
+        status:"transport",transport:true,parent,matched_student:null,matched_students:[]});
+    }catch(e:any){return res.status(Number.isInteger(e.status)?e.status:500).json({error:e.code??"TRANSPORT_REGISTER_FAILED",message:e.status?e.message:"차량 가입 결과를 확인하지 못했습니다. 로그인으로 계정 상태를 확인하세요."});}
+  }
   const { parent_name, phone, password, pool_id, child_name, loginId, apple_id, kakao_id, phone_proof } = req.body;
 
   const name     = (parent_name || "").trim();

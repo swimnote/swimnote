@@ -2,6 +2,7 @@ import {useQuery,useQueryClient} from "@tanstack/react-query";
 import {api} from "../lib/api-client";
 import {useOfficeFormState} from "./office-form-bridge";
 import {confirmRecoveryPointer} from "./OfficeRecovery";
+import {OfficeTransportOperations} from "./OfficeTransportOperations";
 import type {TransportRunPlan,TransportStep} from "../../../../lib/api-zod/src/transport";
 const root="/transport";
 const uuid=()=>crypto.randomUUID();
@@ -130,7 +131,7 @@ export function OfficeTransportV2({scope,records}:{scope:string;records:{id:stri
           <label><input type="checkbox" checked={v.fixed} onChange={e=>step(i,{fixed:e.target.checked})}/>시각 고정(해제만 먼저 저장)</label>
         </div>)}
         <button onClick={()=>steps([...p.steps.slice(0,-1),{id:uuid(),action:"DROP",stopId:"",name:"정류장",time:"09:00",travelMinutes:0,fixed:false,studentIds:[]},p.steps[p.steps.length-1]])}>하차/승차 정류장 추가</button>
-        <p>이동분은 관리자 등록값이며 도로 ETA가 아닙니다. 회원 ID는 위 운행일 대조 목록에서 확인하세요. AI 초안·본격 Solver는 아직 연결되지 않았습니다.</p>
+        <p>이동분은 관리자 등록값이며 도로 ETA가 아닙니다. 아래 자동 초안은 결정적 제약 삽입 계산이며 최적 도로 경로·실제 모델 호출이 아닙니다. 미배정·충돌은 별도로 검수하세요.</p>
         <button onClick={()=>void write("/runs/save",{id:s.id||undefined,expectedRevision:s.revision,plan:p})}>날짜별 운행 저장</button>
         <button disabled={!s.id||s.dirty} onClick={()=>void read(`/runs/${s.id}/review`,r=>set(old=>({...old,preview:r})))}>최신 저장본 검수</button>
         {field("부분 재계산 시작 순번(0부터)",s.recalculateFrom,x=>set(old=>({...old,recalculateFrom:Number(x)})),"number")}
@@ -155,6 +156,7 @@ export function OfficeTransportV2({scope,records}:{scope:string;records:{id:stri
         </article>}
       </>}
     </fieldset>}
+    {boot&&<OfficeTransportOperations scope={scope} plan={p} runId={s.id||undefined} records={records} runs={boot.runs} locked={locked} onPlan={(plan:TransportRunPlan)=>change(plan)}/>}
     {s.message&&<p role="status">{s.message}</p>}
     {s.op&&!s.busy&&<div role="alert">처리 결과 미확인: {s.op.body.requestId}. 편집·재전송을 잠갔습니다.<button onClick={()=>void recover()}>V2 서버 결과 확인</button></div>}
   </section>;

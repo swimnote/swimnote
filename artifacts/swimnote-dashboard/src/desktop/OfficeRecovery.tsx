@@ -13,6 +13,12 @@ export function isSavedReceipt(path:string,r:any):boolean{
   if(!r||typeof r!=="object")return false;
   if(path.startsWith("/transport/")){
     const parts=path.split("/");
+    if(parts[2]==="onboarding")return typeof r.id==="string"&&r.sent===false&&typeof r.inviteCode==="string";
+    if(parts[2]==="planning"&&parts[3]==="ai-propose")return typeof r.id==="string"&&typeof r.source==="string"&&Array.isArray(r.plan?.steps);
+    if(parts[2]==="planning")return Number.isInteger(r.revision)||Number.isInteger(r.settings?.revision);
+    if(parts[2]==="operations")return typeof r.item?.id==="string"||typeof r.id==="string";
+    if(parts[2]==="reconciliation")return r.id===parts[3]||r.item?.id===parts[3];
+    if(parts[2]==="runs"&&parts[4]==="certify")return r.id===parts[3]&&r.status==="CERTIFIED"&&typeof r.hash==="string";
     if(path==="/transport/runs/save")return typeof r.item?.id==="string"&&Number.isInteger(r.item.revision);
     if(path==="/transport/memberships/invite")return typeof r.id==="string"&&r.status==="INVITED"&&typeof r.inviteCode==="string";
     if(parts[2]==="preferences")return r.studentId===parts[3]&&Number.isInteger(r.revision);
@@ -40,7 +46,8 @@ export async function confirmRecoveryPointer(requestId:string,result:unknown){
 }
 /** Native pointer is durably written BEFORE sending. No body replay or automatic retry. */
 export async function recoverableWrite(actor:Actor,path:string,method:string,body:string|FormData|undefined,send:()=>Promise<unknown>){
-  if((!path.startsWith("/office/operations/")&&!path.startsWith("/transport/")&&path!=="/students")||method==="GET"||/(\/preview|\/prepare|\/interpret|\/resolve|\/catalog|\/recalculate)$/.test(path))return send();
+  if(/^\/transport\/planning\/(calculate|interpret)$/.test(path))return send();
+  if((!path.startsWith("/office/operations/")&&!path.startsWith("/transport/")&&path!=="/students")||method==="GET"||/(\/preview|\/prepare|\/interpret|(?<!\/transport\/reconciliation\/[A-Za-z0-9_-]+)\/resolve|\/catalog|\/recalculate)$/.test(path))return send();
   if(typeof body!=="string")return send();
   const data=JSON.parse(body);
   if(typeof data.requestId!=="string")return send();

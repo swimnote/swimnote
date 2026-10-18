@@ -27,6 +27,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@expo/ui": "~55.0.17",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-native-seoul/kakao-login": "^5.4.2",
@@ -58,9 +59,11 @@
     "expo-secure-store": "~55.0.18",
     "expo-sharing": "~55.0.22",
     "expo-splash-screen": "55.0.23",
+    "expo-task-manager": "~55.0.20",
     "expo-updates": "~55.0.26",
     "expo-video-thumbnails": "55.0.17",
     "expo-web-browser": "~55.0.18",
+    "expo-widgets": "~55.0.20",
     "lucide-react-native": "^0.475.0",
     "react": "19.2.0",
     "react-native": "0.83.10",

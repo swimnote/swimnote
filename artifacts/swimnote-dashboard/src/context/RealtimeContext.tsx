@@ -49,6 +49,9 @@ const EVENT_QUERY_MAP: Record<string, string[][]> = {
     ["curriculum-versions"],
     ["diary-templates"],
   ],
+  "transport.changed": [
+    ["transport-v2"],["transport-v2-detail"],["transport-planning"],["transport-operations"],["transport-reconciliation"],
+  ],
   "pool_settings.changed": [
     ["homepage-settings"],
     ["x-setup-status"],

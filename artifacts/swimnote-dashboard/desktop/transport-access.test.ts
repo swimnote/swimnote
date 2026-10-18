@@ -1,6 +1,14 @@
 import {it,expect} from "vitest";
 import {isOfficeApiRequest,officePage} from "./office-access.cjs";
 import {readFileSync} from "node:fs";
+it("allows only explicit transport completion, observation and gated-model paths",()=>{
+  for(const path of ["/transport/planning","/transport/planning/ai-capability","/transport/reconciliation","/transport/operations","/transport/notifications"])
+    expect(isOfficeApiRequest(path,"GET")).toBe(true);
+  for(const path of ["/transport/planning/settings","/transport/planning/calculate","/transport/planning/interpret","/transport/planning/ai-propose","/transport/onboarding/invites","/transport/reconciliation/o/resolve"])
+    expect(isOfficeApiRequest(path,"POST")).toBe(true);
+  for(const path of ["/transport/planning/free-ai-admin","/transport/notifications/send","/transport/everything"])
+    expect(isOfficeApiRequest(path,"POST")).toBe(false);
+});
 it("transport: registers the same normal navigation page and only explicit preparation routes",()=>{
   expect(officePage("/admin/office/transport")).toBeTruthy();
   for(const [path,method] of [

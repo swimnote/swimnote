@@ -1,5 +1,5 @@
 import type {TransportCommand} from "../../../lib/api-zod/src/transport";
-export type TransportQueueItem={runId:string;command:TransportCommand;blocked?:string};
+export type TransportQueueItem={runId:string;command:TransportCommand;blocked?:string;observationRequestId?:string;resolution?:{decision:string;reason:string;event_id?:string}};
 export type TransportVault={owner:string;runId:string;manifest:any|null;queue:TransportQueueItem[];hints:string[]};
 type Storage={get:(k:string)=>Promise<string|null>;set:(k:string,v:string)=>Promise<void>;remove:(k:string)=>Promise<void>};
 async function secure(){

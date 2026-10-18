@@ -55,6 +55,7 @@ export default function SignupScreen() {
     kakaoPhoneMissing?: string;  // "1" = 카카오 전화번호 scope 미동의 → 직접 입력 안내
     parentIntent?: string; role?: string; phone?: string; parentName?: string; name?: string;
     childName?: string; loginId?: string;
+    transport?: string; transport_invite?: string;
   }>();
   const appleId    = params.appleId    || "";
   const appleEmail = params.appleEmail || "";
@@ -97,7 +98,10 @@ export default function SignupScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /* ── Step 3 ── */
-  const [role, setRole] = useState<Role | null>(parentIntent || params.role === "parent" ? "parent" : null);
+  // 운행 전용(기사·인솔자) 가입: 역할은 parent_account 신원 전달용일 뿐, 실제 권한은 전화번호에 묶인 센터 초대가 결정
+  const [transportMode, setTransportMode] = useState(params.transport === "1" || params.role === "transport");
+  const [transportInvite, setTransportInvite] = useState(params.transport_invite || "");
+  const [role, setRole] = useState<Role | null>(parentIntent || params.role === "parent" || params.role === "transport" || params.transport === "1" ? "parent" : null);
 
   /* ── Step 4 ── */
   const [name, setName]             = useState(params.parentName || params.name || socialName);  // 소셜/부모가입 이름 미리채움
@@ -337,7 +341,8 @@ export default function SignupScreen() {
     } else if (role === "parent") {
       // V2: 가입 시 수영장 + 자녀 이름 필수
       if (!selectedPool) { setError("검색 결과에서 수영장을 선택해 주세요."); return; }
-      if (!childName.trim()) { setError("우리 아이 이름을 입력해주세요."); return; }
+      if (transportMode && !transportInvite.trim()) { setError("센터에서 전달받은 운행 초대 코드를 입력해주세요."); return; }
+      if (!transportMode && !childName.trim()) { setError("우리 아이 이름을 입력해주세요."); return; }
       if (!parentPhoneProof) {
         setError("학부모 가입을 위해 휴대폰 소유 인증을 완료해주세요.");
         setSmsState("idle");
@@ -449,7 +454,7 @@ export default function SignupScreen() {
             loginId: isSocial ? undefined : (loginId.trim().toLowerCase() || undefined),
             password: effectivePw,
             pool_id: selectedPool!.id,
-            child_name: childName.trim(),
+            ...(transportMode ? { transport_invite: transportInvite.trim() } : { child_name: childName.trim() }),
             phone_proof: parentPhoneProof,
             ...socialBody,
           }),
@@ -519,6 +524,15 @@ export default function SignupScreen() {
           setError(isServerError
             ? "가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
             : (rawError || "가입에 실패했습니다."));
+          return;
+        }
+        if (transportMode) {
+          if (data.token && data.transport === true && data.status === "transport" && Array.isArray(data.matched_students) && data.matched_students.length === 0) {
+            await setParentSession(data.token, data.parent);
+            router.replace("/transport");
+            return;
+          }
+          setError("운행 가입 응답을 확인하지 못했습니다. 이미 계정이 있다면 로그인 후 운행 화면에서 초대 코드를 수락하세요.");
           return;
         }
         // 자녀 이름을 호칭 화면에서 자동 불러오기 위해 임시 저장
@@ -758,7 +772,7 @@ export default function SignupScreen() {
         <Text style={[styles.cardDesc, { color: C.textSecondary }]}>어떤 역할로 가입하시겠어요?</Text>
         <View style={{ gap: 12, marginTop: 4 }}>
           {ROLE_CARDS.map(r => {
-            const selected = role === r.role;
+            const selected = role === r.role && !transportMode;
             return (
               <Pressable
                 key={r.role}
@@ -768,7 +782,7 @@ export default function SignupScreen() {
                     ? { backgroundColor: C.brandStrong, borderColor: "#0099AA", borderWidth: 2 }
                     : { backgroundColor: "#fff", borderColor: "#E5E5E5", borderWidth: 1.5 },
                 ]}
-                onPress={() => setRole(r.role)}
+                onPress={() => { setTransportMode(false); setRole(r.role); }}
               >
                 {/* 우측 상단 체크 */}
                 {selected && (
@@ -789,6 +803,21 @@ export default function SignupScreen() {
               </Pressable>
             );
           })}
+          <Pressable
+            style={[styles.roleCard, transportMode
+              ? { backgroundColor: C.brandStrong, borderColor: "#0099AA", borderWidth: 2 }
+              : { backgroundColor: "#fff", borderColor: "#E5E5E5", borderWidth: 1.5 }]}
+            onPress={() => { setTransportMode(true); setRole("parent"); }}
+          >
+            <View style={[styles.roleIcon, { backgroundColor: transportMode ? "rgba(255,255,255,0.25)" : "#E8F1F8" }]}>
+              <LucideIcon name="truck" size={22} color={transportMode ? "#fff" : "#2F6F9F"} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.roleLabel, { color: transportMode ? "#fff" : C.text }]}>차량 기사·인솔자</Text>
+              <Text style={[styles.roleDesc, { color: transportMode ? "rgba(255,255,255,0.85)" : C.textSecondary }]}>센터가 이 휴대폰 번호로 만든 운행 초대 코드로 가입</Text>
+              <Text style={[styles.roleCond, { color: transportMode ? "rgba(255,255,255,0.7)" : "#999" }]}>(자녀 등록 불필요 · 실제 역할은 센터 초대가 결정)</Text>
+            </View>
+          </Pressable>
         </View>
       </View>
     );
@@ -896,8 +925,27 @@ export default function SignupScreen() {
               </>
             )}
 
+            {transportMode && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 8 }}>운행 초대 코드</Text>
+                <View style={[styles.inputBox, { borderColor: transportInvite ? "#E4A93A" : C.border, backgroundColor: C.background }]}>
+                  <TextInput
+                    style={[styles.input, { color: C.text }]}
+                    placeholder="센터에서 화면으로 전달받은 코드"
+                    placeholderTextColor={C.textMuted}
+                    value={transportInvite}
+                    onChangeText={setTransportInvite}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                </View>
+                <Text style={{ fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 6, lineHeight: 17 }}>
+                  초대받은 휴대폰 번호로 인증해야 합니다. 이미 계정이 있으면 로그인 후 운행 화면에서 코드를 수락하세요.
+                </Text>
+              </View>
+            )}
             {/* 자녀 이름 입력 */}
-            <View style={{ marginTop: 16 }}>
+            {!transportMode && <View style={{ marginTop: 16 }}>
               <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: C.textSecondary, marginBottom: 8 }}>
                 우리 아이 이름 (수영장 등록명)
               </Text>
@@ -916,7 +964,7 @@ export default function SignupScreen() {
               <Text style={{ fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular", marginTop: 6, lineHeight: 17 }}>
                 수영장에 등록된 이름과 정확히 일치해야 자동 연결됩니다.
               </Text>
-            </View>
+            </View>}
           </View>
         )}
 

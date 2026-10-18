@@ -5,6 +5,7 @@ export type TransportStep = {
   stopId:string; name:string; address?:string; gps?:TransportGps; time:string; travelMinutes:number; fixed:boolean; studentIds:string[];
 };
 export type TransportRunPlan = {
+  handoverSnapshot?:Record<string,string>;
   name:string; date:string; vehicleId:string; driverId:string; escortId:string;
   capacity:number; startTime:string; returnBy:string; steps:TransportStep[];
 };

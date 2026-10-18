@@ -59,7 +59,7 @@ export function attachTransportPreparation(route:TransportRoute){
     const date=transportDate(req.query.date),weekday=new Date(`${date}T00:00:00Z`).getUTCDay()||7;
     const rows=(await c.query(`SELECT p.student_id,s.name,p.data,
       EXISTS(SELECT 1 FROM student_class_history h WHERE h.student_id=s.id AND h.swimming_pool_id=$1 AND h.enrolled_at::date<=$2::date AND (h.left_at IS NULL OR h.left_at::date>$2::date)) AS enrolled,
-      EXISTS(SELECT 1 FROM makeup_sessions m WHERE m.student_id=s.id AND m.swimming_pool_id=$1 AND m.assigned_date=$2 AND m.assigned_class_group_id IS NOT NULL AND m.cancelled_at IS NULL AND m.status NOT IN ('cancelled','expired','extinguished')) AS makeup,
+       EXISTS(SELECT 1 FROM makeup_sessions m WHERE m.student_id=s.id AND m.swimming_pool_id=$1 AND m.assigned_date=$2::text AND m.assigned_class_group_id IS NOT NULL AND m.cancelled_at IS NULL AND m.status NOT IN ('cancelled','expired','extinguished')) AS makeup,
       EXISTS(SELECT 1 FROM attendance a JOIN users u ON u.id=COALESCE(a.modified_by,a.created_by) AND u.swimming_pool_id=a.swimming_pool_id
         WHERE a.student_id=s.id AND a.swimming_pool_id=$1 AND a.date=$2 AND a.status='absent') AS explicit_absence
       FROM office_transport_preferences p JOIN students s ON s.id=p.student_id AND s.swimming_pool_id=p.pool_id AND s.status='active' WHERE p.pool_id=$1 ORDER BY s.id`,[who.poolId,date])).rows;

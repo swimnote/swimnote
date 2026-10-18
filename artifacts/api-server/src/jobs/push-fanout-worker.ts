@@ -13,6 +13,7 @@
  *   - Exactly-once residual risk: Expo 성공 후 DB 커밋 전 crash → 재발송 가능 (허용됨, §10)
  */
 import { db, superAdminDb }    from "@workspace/db";
+import {dispatchApprovedTransportIntents} from "../lib/transport-push-dispatch.js";
 import { sql }                  from "drizzle-orm";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 import {
@@ -306,6 +307,7 @@ export interface FanoutWorkerResult {
  */
 export async function runFanoutWorker(): Promise<FanoutWorkerResult> {
   const start = Date.now();
+  await dispatchApprovedTransportIntents();
   const locked = await acquireLock(WORKER_LOCK, WORKER_TTL_SECONDS);
   if (!locked) {
     console.log("[push-fanout-worker] lock_not_acquired — other worker running");

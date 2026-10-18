@@ -1,3 +1,5 @@
+import "@/lib/transport-bootstrap";
+import {guardTransportBackground} from "@/lib/transport-background";
 import Colors from "@/constants/colors";
 const C = Colors.light;
 import { useFonts } from "expo-font";
@@ -393,7 +395,11 @@ async function setupNotificationChannels(N: NotificationsModule) {
 }
 
 function PushTokenSync() {
-  const { token, kind, parentAccount } = useAuth();
+  const { token, kind, parentAccount,adminUser,pool,activePoolId } = useAuth();
+  const identity=kind==="parent"?parentAccount:adminUser;
+  const identityPool=(identity as any)?.swimming_pool_id??pool?.id??activePoolId;
+  const transportOwner=token&&identity?.id&&identityPool?`${kind==="parent"?"parent_accounts":"users"}:${identity.id}:${identityPool}`:"";
+  useEffect(()=>{void guardTransportBackground(transportOwner).catch(()=>{});},[transportOwner]);
   const parentId = kind === "parent" ? parentAccount?.id ?? null : null;
 
   useEffect(() => {
@@ -469,6 +475,10 @@ function PushNavSync() {
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data as Record<string, unknown> | null;
       const notifType = (data?.type as string | undefined) ?? "";
+      if(notifType==="transport"){
+        router.push({pathname:"/transport",params:{runId:String(data?.runId??""),stepId:String(data?.stepId??"")}} as any);
+        return;
+      }
       const role = adminUser?.roles?.[0] ?? adminUser?.role ?? "";
       const isSuperAdmin = role === "super_admin" || role === "platform_admin" || role === "super_manager";
       const isTeacher = role === "teacher";

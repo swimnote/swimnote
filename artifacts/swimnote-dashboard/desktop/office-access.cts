@@ -57,7 +57,7 @@ export function officePage(raw: string) {
 const id = "[A-Za-z0-9_-]{1,160}";
 const OPS = "(?:contacts|products|contracts|sessions|enrollments|marketing|cards|imports|templates|support|policies)";
 const reads = [
-  "/transport/admin", "/transport/students", "/transport/candidates",
+  "/transport/admin", "/transport/planning", "/transport/planning/ai-capability", "/transport/operations", "/transport/reconciliation", "/transport/notifications", `/transport/runs/${id}/document`, "/transport/students", "/transport/candidates",
   `/transport/requests/${id}`, `/transport/runs/${id}/review`, `/transport/admin/runs/${id}`,
   "/office/operations/finance/snapshot", "/office/operations/applications", "/office/operations/activity-report",
   "/office/operations/workspace/catalog",
@@ -86,7 +86,7 @@ const reads = [
 ];
 const saves: [string, string][] = [
   ["POST","/transport/memberships/invite"], ["POST",`/transport/memberships/${id}/revoke`],
-  ["POST","/transport/runs/save"], ["POST",`/transport/runs/${id}/(?:approve|publish|recalculate)`],
+  ["POST","/transport/runs/save"], ["POST","/transport/planning/(?:settings|calculate|interpret|ai-propose)"], ["POST","/transport/operations"], ["POST","/transport/onboarding/invites"], ["POST",`/transport/reconciliation/${id}/resolve`], ["POST",`/transport/runs/${id}/certify`], ["POST",`/transport/runs/${id}/(?:approve|publish|recalculate)`],
   ["POST",`/transport/preferences/${id}`], ["POST",`/transport/vehicles/${id}/availability`],
   ["POST","/office/operations/transport/records"],
   ["PATCH",`/office/operations/transport/records/${id}`],
@@ -147,7 +147,7 @@ export function isOfficeApiRequest(raw: string, method: string): boolean {
       "date", "from", "to", "start_date", "end_date", "month", "year", "limit", "offset", "page",
       "search", "level_order", "level_id", "category", "stroke", "skill", "q", "include_archived",
       "domain", "include_inactive", "scope", "product_status",
-      "archive_id", "lesson_date", "cursor", "studentId", "history",
+      "vehicleId", "archive_id", "lesson_date", "cursor", "studentId", "history",
     ].includes(k))) return false;
     if (method === "OPTIONS")
       return reads.some(p => new RegExp(`^${p}$`).test(u.pathname)) ||

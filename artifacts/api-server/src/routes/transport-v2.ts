@@ -6,8 +6,13 @@ import {object,text,requestId,digest,OperationError} from "../lib/office-operati
 import {TransportConflict,validateRunPlan,transportState,checkTransportCommand,recalculateTransport,type TransportRunPlan,type TransportCommand} from "@workspace/api-zod";
 import {transportFail,reviewRun,readRunEvents,transportContacts,type TransportIdentity} from "../lib/transport-v2-store.js";
 import {attachTransportPreparation} from "./transport-v2-preparation.js";
+import {attachTransportCompletion} from "./transport-v2-completion.js";
+import {attachTransportOnboarding} from "../lib/transport-onboarding.js";
+import {addSseClient,removeSseClient} from "../lib/pg-realtime.js";
+import {verifyToken} from "../lib/auth.js";
+import {configuredTransportModel,type TransportModelPort} from "../lib/transport-ai-proposal.js";
 const hash=(s:string)=>createHash("sha256").update(s).digest("hex");
-export function createTransportV2Router(pool:Pool){
+export function createTransportV2Router(pool:Pool,model:TransportModelPort|undefined=configuredTransportModel()){
   const r=Router();r.use(requireAuth as any);
   async function identity(req:AuthRequest,c:PoolClient):Promise<TransportIdentity>{
     const type=["parent","parent_account"].includes(req.user!.role)?"parent_accounts":"users";
@@ -31,6 +36,10 @@ export function createTransportV2Router(pool:Pool){
           AND to_regclass('office_transport_run_versions') IS NOT NULL AND to_regclass('office_transport_events') IS NOT NULL
           AND to_regclass('office_transport_preferences') IS NOT NULL AND to_regclass('office_transport_vehicle_availability') IS NOT NULL
           AND to_regclass('office_transport_notification_intents') IS NOT NULL AND to_regclass('office_operation_receipts') IS NOT NULL
+           AND to_regclass('office_transport_settings') IS NOT NULL AND to_regclass('office_transport_observations') IS NOT NULL
+           AND to_regclass('office_transport_resolutions') IS NOT NULL AND to_regclass('office_transport_operations') IS NOT NULL
+           AND to_regclass('office_transport_certifications') IS NOT NULL AND to_regclass('office_transport_join_invites') IS NOT NULL
+           AND to_regclass('office_transport_model_calls') IS NOT NULL
           AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('parent_students') AND attname='transport_notify' AND NOT attisdropped) AS ready`)).rows[0]?.ready;
         if(!ready)throw new OperationError(503,"TRANSPORT_V2_MIGRATION_REQUIRED","V2 소스·신규 migration 적용 승인 대기입니다. 운영에 저장·게시된 상태가 아닙니다.");
         const who=await identity(req,c);
@@ -50,7 +59,8 @@ export function createTransportV2Router(pool:Pool){
         const result=await fn(req,c,who);
         if(rid)await c.query("INSERT INTO office_operation_receipts(pool_id,request_id,actor_id,input_hash,result) VALUES($1,$2,$3,$4,$5::jsonb)",
           [who.poolId,rid,who.key,ih,JSON.stringify({transportScope:{admin,runId:!admin?req.params.id??null:null,
-            childId:path==="/parent/preferences"?req.body.studentId:null},value:result})]);
+            childId:path==="/parent/preferences"?req.body.studentId:null,observationId:path==="/observations"?result.id:null},value:result})]);
+        if(write)await c.query("SELECT pg_notify('pool_events',$1)",[JSON.stringify({type:"transport.changed",pool_id:who.poolId})]);
         await c.query("COMMIT");res.json(result);
       }catch(e:any){
         if(c)await c.query("ROLLBACK").catch(()=>{});
@@ -59,6 +69,31 @@ export function createTransportV2Router(pool:Pool){
       }finally{c?.release();}
     });
   };
+  r.get("/stream",async(raw,res)=>{
+    const req=raw as AuthRequest;
+    const authorized=async()=>{
+      verifyToken(String(req.headers.authorization??"").replace(/^Bearer\s+/i,""));
+      const c=await pool.connect();
+      try{
+        const who=await identity(req,c);
+        if(!who.admin){
+          const allowed=(await c.query(`SELECT 1 FROM office_transport_memberships WHERE pool_id=$1 AND principal_type=$2 AND principal_id=$3 AND status='ACTIVE'
+            UNION ALL SELECT 1 FROM parent_students WHERE swimming_pool_id=$1 AND parent_id=$3 AND status='approved' AND $2='parent_accounts' LIMIT 1`,[who.poolId,who.type,who.id])).rows.length>0;
+          if(!allowed)throw new OperationError(403,"STREAM_SCOPE","현재 센터 운행 권한·자녀 관계가 필요합니다.");
+        }
+        return who;
+      }finally{c.release();}
+    };
+    try{
+      const who=await authorized();res.set({"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive"});res.flushHeaders();res.write(": connected\n\n");
+      let allowed=true,closed=false;
+      const client={poolId:who.poolId,res,beforeEvent:(type:string)=>{allowed=type==="transport.changed";},canSend:()=>allowed&&!closed};
+      addSseClient(client);
+      const close=()=>{if(closed)return;closed=true;clearInterval(timer);removeSseClient(client);res.end();};
+      const timer=setInterval(()=>{void authorized().then(()=>res.write(": heartbeat\n\n")).catch(close);},15000);
+      req.on("close",close);
+    }catch(e:any){if(!res.headersSent)res.status(e.status??403).json({code:e.code??"STREAM_UNAVAILABLE",error:"운행 갱신 연결을 확인하지 못했습니다. 직접 재조회하세요."});}
+  });
   async function assigned(c:PoolClient,who:TransportIdentity,id:string){
     const run=(await c.query("SELECT * FROM office_transport_runs WHERE id=$1 AND pool_id=$2",[id,who.poolId])).rows[0];
     if(!run||!["PUBLISHED","ACTIVE","CLOSED"].includes(run.status))throw new OperationError(404,"NOT_FOUND","게시된 담당 운행이 없습니다.");
@@ -71,6 +106,11 @@ export function createTransportV2Router(pool:Pool){
     if(!result?.transportScope)throw new OperationError(403,"RECEIPT_SCOPE","이 업무의 영수증이 아닙니다.");
     if(result.transportScope.admin&&!who.admin)throw new OperationError(403,"ADMIN_REQUIRED","기존 관리자 권한이 해제됐습니다.");
     if(result.transportScope.runId)await assigned(c,who,result.transportScope.runId);
+    if(result.transportScope.observationId){
+      const row=(await c.query("SELECT id FROM office_transport_observations WHERE id=$1 AND actor=$2 AND pool_id=$3",[result.transportScope.observationId,who.key,who.poolId])).rows[0];
+      if(!row)throw new OperationError(403,"OBSERVATION_SCOPE","본인 관측 영수증만 조회하세요.");
+      return;
+    }
     if(result.transportScope.childId){
       const relation=(await c.query("SELECT id FROM parent_students WHERE parent_id=$1 AND student_id=$2 AND swimming_pool_id=$3 AND status='approved'",[who.id,result.transportScope.childId,who.poolId])).rows[0];
       if(who.type!=="parent_accounts"||!relation)throw new OperationError(403,"CHILD_SCOPE","승인된 자기 자녀 관계를 다시 확인하세요.");
@@ -82,7 +122,13 @@ export function createTransportV2Router(pool:Pool){
   }
   route("get","/requests/:id",false,false,async(req,c,who)=>{
     const row=(await c.query("SELECT result FROM office_operation_receipts WHERE pool_id=$1 AND request_id=$2 AND actor_id=$3",[who.poolId,requestId(req.params.id),who.key])).rows[0];
-    if(!row)throw new OperationError(404,"NOT_FOUND","처리 결과를 찾지 못했습니다. 미처리 증거는 아닙니다.");
+    if(!row){
+      if(who.admin){
+        const ai=(await c.query("SELECT result FROM office_transport_model_calls WHERE request_id=$1 AND pool_id=$2 AND actor=$3 AND state='COMPLETED'",[req.params.id,who.poolId,who.key])).rows[0];
+        if(ai)return ai.result;
+      }
+      throw new OperationError(404,"NOT_FOUND","처리 결과를 찾지 못했습니다. 미처리 증거는 아닙니다.");
+    }
     await receiptAccess(c,who,row.result);return row.result.value;
   });
   route("get","/me",false,false,async(_req,c,who)=>({identity:{key:who.key,id:who.id,type:who.type,poolId:who.poolId,name:who.name},
@@ -92,7 +138,8 @@ export function createTransportV2Router(pool:Pool){
     runs:(await c.query("SELECT * FROM office_transport_runs WHERE pool_id=$1 ORDER BY updated_at DESC LIMIT 100",[who.poolId])).rows,
     preferences:(await c.query("SELECT student_id,revision,data FROM office_transport_preferences WHERE pool_id=$1",[who.poolId])).rows,
     availability:(await c.query("SELECT vehicle_id,revision,data FROM office_transport_vehicle_availability WHERE pool_id=$1",[who.poolId])).rows,
-    ai:{enabled:false,reason:"새 유료 호출 승인 전 AI 배차 제안 미연결"},push:{enabled:false,reason:"발송 경로 연결·운영 승인 전 미발송"}}));
+    ai:{enabled:!!model&&model.approval.poolId===who.poolId&&model.approval.expiresAt>Date.now(),reason:"차량 전용 비용 승인 전 모델 호출 차단; 계산 초안·수동 검수 사용 가능"},
+    push:{enabled:false,reason:"기존 dispatcher 어댑터 연결; 실발송 승인 전 미발송"}}));
   route("post","/memberships/invite",true,true,async(req,c,who)=>{
     const b=object(req.body),type=b.principalType;
     if(!["users","parent_accounts"].includes(type)||!["DRIVER","ESCORT"].includes(b.duty)||b.confirmed!==true)transportFail("INVITE","계정 종류·운행 전용 역할·초대 확인이 필요합니다.");
@@ -155,7 +202,13 @@ export function createTransportV2Router(pool:Pool){
   route("post","/runs/:id/recalculate",true,false,async(req,c,who)=>{
     const row=(await c.query("SELECT * FROM office_transport_runs WHERE id=$1 AND pool_id=$2",[req.params.id,who.poolId])).rows[0];
     if(!row||(row.pending_revision??row.revision)!==req.body.expectedRevision)transportFail("VERSION_CHANGED","최신 운행 버전을 선택하세요.");
-    return {...recalculateTransport(row.pending_plan??row.plan,req.body.from),id:row.id,revision:row.pending_revision??row.revision,applied:false};
+    const original=row.pending_plan??row.plan,plan=structuredClone(original) as TransportRunPlan;
+    const processed=new Set((await readRunEvents(c,row.id)).filter(e=>["BOARD","ALIGHT","NO_SHOW"].includes(e.kind)).map(e=>e.stepId));
+    for(const step of plan.steps)if(processed.has(step.id))step.fixed=true;
+    const recalculated=recalculateTransport(plan,req.body.from);
+    for(const step of recalculated.plan.steps)if(processed.has(step.id))step.fixed=original.steps.find((s:any)=>s.id===step.id).fixed;
+    const checked=await reviewRun(c,who.poolId,recalculated.plan,row.id);
+    return {...recalculated,plan:checked.plan,id:row.id,revision:row.pending_revision??row.revision,applied:false};
   });
   route("post","/runs/:id/approve",true,true,async(req,c,who)=>{
     const row=(await c.query("SELECT * FROM office_transport_runs WHERE id=$1 AND pool_id=$2 FOR UPDATE",[req.params.id,who.poolId])).rows[0];
@@ -245,5 +298,7 @@ export function createTransportV2Router(pool:Pool){
     return {studentId:id,enabled:row.transport_notify,dispatch:"HELD_FOR_DISPATCH_APPROVAL"};
   });
   attachTransportPreparation(route);
+  attachTransportCompletion(route,pool,model);
+  attachTransportOnboarding(route);
   return r;
 }

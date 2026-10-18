@@ -1,6 +1,8 @@
 import type {PoolClient} from "pg";
 import {validateRunPlan,TransportConflict,type TransportRunPlan,type TransportEvent} from "@workspace/api-zod";
 import {digest} from "./office-operations-data.js";
+import {loadTransportPlanning} from "./transport-v2-planning.js";
+import {checkTransportWindows} from "../../../../lib/api-zod/src/transport-planning.js";
 export const transportFail=(code:string,message:string):never=>{throw new TransportConflict(code,message);};
 export type TransportIdentity={id:string;type:"users"|"parent_accounts";poolId:string;name:string;admin:boolean;key:string};
 export async function reviewRun(c:PoolClient,poolId:string,input:TransportRunPlan,runId?:string){
@@ -34,7 +36,7 @@ export async function reviewRun(c:PoolClient,poolId:string,input:TransportRunPla
       EXISTS(SELECT 1 FROM student_class_history h WHERE h.student_id=s.id AND h.swimming_pool_id=$1
         AND h.enrolled_at::date<=$3::date AND (h.left_at IS NULL OR h.left_at::date>$3::date))
       OR EXISTS(SELECT 1 FROM makeup_sessions m WHERE m.student_id=s.id AND m.swimming_pool_id=$1
-        AND m.assigned_date=$3 AND m.assigned_class_group_id IS NOT NULL AND m.cancelled_at IS NULL
+        AND m.assigned_date=$3::text AND m.assigned_class_group_id IS NOT NULL AND m.cancelled_at IS NULL
         AND m.status NOT IN ('cancelled','expired','extinguished'))
     )`,[poolId,ids,plan.date])).rows;
   if(students.length!==ids.length)transportFail("STUDENT","운행일의 센터 수강 이력·보강 배정이 확인되는 회원만 배정하세요.");
@@ -42,7 +44,6 @@ export async function reviewRun(c:PoolClient,poolId:string,input:TransportRunPla
     JOIN users u ON u.id=COALESCE(a.modified_by,a.created_by) AND u.swimming_pool_id=a.swimming_pool_id
     WHERE a.swimming_pool_id=$1 AND a.date=$2 AND a.status='absent' AND a.student_id=ANY($3::text[])`,[poolId,plan.date,ids])).rows;
   // An operator-recorded absence must be reconciled, not silently reclassified as safe/no-show.
-  if(absence.length)transportFail("ABSENCE_REVIEW","운영자 기록 결석과 배차가 충돌합니다. 결석·임시 이용을 원 업무에서 대조한 뒤 다시 검수하세요.");
   const others=(await c.query(`SELECT id,plan FROM office_transport_runs WHERE pool_id=$1 AND id<>$2
     AND plan->>'date'=$3 AND status IN ('APPROVED','PUBLISHED','ACTIVE')`,[poolId,runId??"",plan.date])).rows;
   for(const row of others){
@@ -51,7 +52,23 @@ export async function reviewRun(c:PoolClient,poolId:string,input:TransportRunPla
     if(p.vehicleId===plan.vehicleId||[p.driverId,p.escortId].filter(Boolean).some(x=>[plan.driverId,plan.escortId].includes(x))||
       p.steps.some(s=>s.studentIds.some(id=>ids.includes(id))))transportFail("OVERLAP","같은 날짜·시간에 차량·운행 담당자·회원이 겹칩니다.");
   }
-  return {plan,students,hash:digest(plan),timingSource:"ADMIN_REGISTERED_MINUTES_NOT_ROAD_ETA"};
+  // New validation is additive and does not reinterpret already observed steps.
+  const ready=(await c.query("SELECT to_regclass('office_transport_settings') IS NOT NULL AS ready")).rows[0]?.ready;
+  if(ready){
+    const context=await loadTransportPlanning(c,poolId,plan.date);
+    if(!context.settings.revision)transportFail("BUFFER_SETTINGS_REQUIRED","센터 출발·복귀 인계 버퍼를 관리자가 명시적으로 저장한 뒤 검수하세요.");
+    const unchecked=structuredClone(plan);
+    for(const s of unchecked.steps)if(processed.has(s.id))s.studentIds=[];
+    const conflicts=checkTransportWindows(unchecked,context.items,context.settings.data);
+    if(conflicts.length)transportFail("CLASS_TIMING",conflicts.join("; "));
+    const previous=runId?(await c.query("SELECT plan FROM office_transport_runs WHERE id=$1 AND pool_id=$2",[runId,poolId])).rows[0]?.plan:null;
+    const observedIds=new Set(plan.steps.filter(s=>processed.has(s.id)).flatMap(s=>s.studentIds));
+    plan.handoverSnapshot={};
+    for(const item of context.items)if(ids.includes(item.studentId))
+      plan.handoverSnapshot[item.studentId]=observedIds.has(item.studentId)?previous?.handoverSnapshot?.[item.studentId]??item.handover:item.handover;
+  }
+  else if(absence.length)transportFail("ABSENCE_REVIEW","운영자 기록 결석과 배차가 충돌합니다. 결석·임시 이용을 원 업무에서 대조한 뒤 다시 검수하세요.");
+  return {plan,students,hash:digest(plan),timingSource:"REGISTERED_CLASS_SCHEDULE_AND_MINUTES_NOT_ROAD_ETA"};
 }
 export async function readRunEvents(c:PoolClient,runId:string):Promise<TransportEvent[]>{
   const rows=(await c.query("SELECT payload,actor,server_at FROM office_transport_events WHERE run_id=$1 ORDER BY seq",[runId])).rows;
