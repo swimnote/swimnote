@@ -24,6 +24,7 @@ import {
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import {TransportShortcut} from "@/components/TransportShortcut";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
@@ -204,6 +205,7 @@ export default function ParentMoreScreen() {
   return (
     <View style={[s.root, { backgroundColor: "#F4F5F7" }]}>
       <ParentScreenHeader title="설정" showHome={false} />
+      <TransportShortcut/>
 
       <ScrollView
         showsVerticalScrollIndicator={false}

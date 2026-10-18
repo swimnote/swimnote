@@ -3,6 +3,7 @@
  * 대부분의 메뉴는 홈 대시보드 5대 카테고리 팝업으로 이동됨
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
+import {TransportShortcut} from "@/components/TransportShortcut";
 import { Activity, ChevronRight, User, UserRound } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -206,6 +207,7 @@ export default function MoreScreen() {
               ))}
             </View>
           </View>
+          <TransportShortcut/>
         </ScrollView>
       ) : (
         /* 활동 로그 탭 */

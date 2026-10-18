@@ -11,9 +11,9 @@ export const SESSION_CHANNELS = ["office:session-restore", "office:session-commi
 const PREFERENCE_CHANNELS = ["office:login-preferences-read", "office:login-preferences-save"] as const;
 
 type RequestPointer = { owner: string; requestId: string; path: string; createdAt: string };
-const pointerPath = /^(?:\/students|\/office\/operations\/[a-z-]+(?:\/[a-zA-Z0-9_-]+){0,4})$/;
+const pointerPath = /^(?:\/students|\/office\/operations\/[a-z-]+(?:\/[a-zA-Z0-9_-]+){0,4}|\/transport\/[a-z-]+(?:\/[a-zA-Z0-9_-]+){0,3})$/;
 const pointerId = /^[a-zA-Z0-9_-]{1,160}$/;
-const lane = (p: string) => p === "/students" ? "member-create" : p.split("/")[3];
+const lane = (p: string) => p === "/students" ? "member-create" : p.startsWith("/transport/")?"transport":p.split("/")[3];
 /** Only opaque owner hashes/request IDs and endpoint names; never bodies, money, tokens or member data. */
 export class PendingRequestStore {
   private queue: Promise<unknown> = Promise.resolve();

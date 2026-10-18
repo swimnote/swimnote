@@ -1,4 +1,5 @@
 import {OperationError,object,text} from "./office-operations-data.js";
+import {validateTransportGps,type TransportGps} from "@workspace/api-zod";
 export type TransportKind="vehicle"|"stop"|"plan";
 export type TransportRecord={id:string;kind:TransportKind;data:Record<string,any>;revision:number};
 const reject=(message:string):never=>{throw new OperationError(400,"TRANSPORT_REVIEW_REQUIRED",message);};
@@ -22,8 +23,10 @@ export function transportData(kind:TransportKind,raw:unknown){
       status:status(d.status)};
   }
   if(kind==="stop"){
-    keys(d,["name","address","status"]);
-    return {name:text(d.name,"승차지 이름",100),address:text(d.address,"승차지 주소·위치 안내",500),status:status(d.status)};
+    keys(d,["name","address","status","gps"]);
+    let gps:TransportGps|undefined;
+    if(d.gps!=null){try{gps=validateTransportGps(d.gps);}catch(e:any){return reject(e.message);}}
+    return {name:text(d.name,"승차지 이름",100),address:text(d.address,"승차지 주소·위치 안내",500),status:status(d.status),...(gps?{gps}:{})};
   }
   if(kind!=="plan")return reject("차량·승차지·정기 배차만 지원합니다.");
   keys(d,["name","weekday","direction","vehicleId","classGroupId","classTime","earliestTime","bufferMinutes","toCenterMinutes","stops","sourceSnapshotId"]);

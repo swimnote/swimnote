@@ -11,6 +11,15 @@ export async function recoveryOwner(actor:Actor){
 }
 export function isSavedReceipt(path:string,r:any):boolean{
   if(!r||typeof r!=="object")return false;
+  if(path.startsWith("/transport/")){
+    const parts=path.split("/");
+    if(path==="/transport/runs/save")return typeof r.item?.id==="string"&&Number.isInteger(r.item.revision);
+    if(path==="/transport/memberships/invite")return typeof r.id==="string"&&r.status==="INVITED"&&typeof r.inviteCode==="string";
+    if(parts[2]==="preferences")return r.studentId===parts[3]&&Number.isInteger(r.revision);
+    if(parts[2]==="vehicles")return r.vehicleId===parts[3]&&Number.isInteger(r.revision);
+    if(parts[2]==="runs")return r.id===parts[3]&&Number.isInteger(r.revision)&&["APPROVED","PUBLISHED","ACTIVE"].includes(r.status);
+    return r.item?.id===parts[3]&&r.status==="REVOKED";
+  }
   if(path==="/students")return r.success===false || (r.success===true&&typeof r.id==="string");
   if(path.startsWith("/office/operations/imports/")||path==="/office/operations/imports")return typeof r.item?.id==="string" || (Array.isArray(r.results)&&Number.isSafeInteger(r.revision));
   if(path.includes("/finance/batch/"))return Array.isArray(r.events)&&r.events.length>0&&r.events.every((e:any)=>typeof e?.id==="string")&&Number.isSafeInteger(r.version);
@@ -31,7 +40,7 @@ export async function confirmRecoveryPointer(requestId:string,result:unknown){
 }
 /** Native pointer is durably written BEFORE sending. No body replay or automatic retry. */
 export async function recoverableWrite(actor:Actor,path:string,method:string,body:string|FormData|undefined,send:()=>Promise<unknown>){
-  if((!path.startsWith("/office/operations/")&&path!=="/students")||method==="GET"||/(\/preview|\/prepare|\/interpret|\/resolve|\/catalog)$/.test(path))return send();
+  if((!path.startsWith("/office/operations/")&&!path.startsWith("/transport/")&&path!=="/students")||method==="GET"||/(\/preview|\/prepare|\/interpret|\/resolve|\/catalog|\/recalculate)$/.test(path))return send();
   if(typeof body!=="string")return send();
   const data=JSON.parse(body);
   if(typeof data.requestId!=="string")return send();
@@ -71,7 +80,7 @@ export function OfficeRecovery({actor}:{actor:Actor}){
   const check=async(p:Pointer)=>{
     setBusy(true);
     try{
-      const r=await api.get(`/office/operations/receipts/${encodeURIComponent(p.requestId)}`);
+      const r=await api.get(p.path.startsWith("/transport/")?`/transport/requests/${encodeURIComponent(p.requestId)}`:`/office/operations/receipts/${encodeURIComponent(p.requestId)}`);
       if(!isSavedReceipt(p.path,r) || (p.path==="/students"&&((r as any).kind!=="member.create"||(r as any).requestId!==p.requestId||(r as any).success!==true)))throw new Error("영수증 형식을 확정하지 못했습니다.");
       await confirmRecoveryPointer(p.requestId,r);
       if(p.path==="/students"){setRecoveredMember((r as any).id);qc.invalidateQueries({queryKey:["students"]});qc.invalidateQueries({queryKey:["ops-ref"]});}

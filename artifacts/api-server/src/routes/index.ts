@@ -74,6 +74,7 @@ import publishGrowthReportRouter from "./publish-growth-report.js";
 import growthReportInteractionsRouter from "./growth-report-interactions.js";
 import archiveRouter from "./archive.js";
 import officeRouter from "./office.js";
+import {createTransportV2Router} from "./transport-v2.js";
 
 const router: IRouter = Router();
 
@@ -81,6 +82,7 @@ const router: IRouter = Router();
 router.use(requireWritable as any);
 router.use("/office-tablet", createOfficeTabletRouter(officeTabletPool));
 router.use("/office", officeRouter);
+router.use("/transport", createTransportV2Router(officeTabletPool));
 
 // ── Super 라우터 최우선 마운트 (다른 "/" 라우터들이 /super/* 경로를 가로채지 않도록) ──
 router.use("/", superSyncRouter);

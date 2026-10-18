@@ -1,3 +1,4 @@
+import {TransportShortcut} from "@/components/TransportShortcut";
 /**
  * (teacher)/settings.tsx — 설정
  * Settings Design Rule: compact profile · section container · hairline divider
@@ -484,6 +485,7 @@ export default function TeacherSettingsScreen() {
             Powered by SWIMNOTE AI with OpenAI GPT
           </Text>
         </View>
+        <TransportShortcut/>
       </ScrollView>
 
       <WithdrawalModal

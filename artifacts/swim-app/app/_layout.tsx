@@ -836,6 +836,7 @@ function RootNav() {
         <Stack.Screen name="signup-role" />
         <Stack.Screen name="teacher-activate" />
         <Stack.Screen name="pending" />
+        <Stack.Screen name="transport" />
         <Stack.Screen name="rejected" />
         <Stack.Screen name="subscription-expired" />
         {/* 역할별 앱 그룹 */}

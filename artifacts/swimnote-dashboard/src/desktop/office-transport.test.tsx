@@ -28,9 +28,24 @@ it("transport: keeps manual preparation free and preserves drafts across menu re
 it("transport: refuses teacher access without issuing a data query",()=>{
   user.role="teacher";mount();expect(screen.getByText(/센터 관리자만/)).toBeTruthy();expect(get).not.toHaveBeenCalled();
 });
+it("transport: keeps GPS optional and requires operator-entered thresholds instead of hidden defaults",async()=>{
+  const gps={latitude:37,longitude:127,radiusMeters:80,dwellSeconds:10,verified:true};
+  post.mockResolvedValue({item:{...stop,data:{...stop.data,gps}}});mount();
+  fireEvent.click(await screen.findByRole("button",{name:"승차지"}));
+  expect(screen.queryByLabelText("현장 확인 반경(m)")).toBeNull();
+  fireEvent.click(screen.getByLabelText("선택: 앱 사용 중 GPS 접근 안내 설정"));
+  expect((screen.getByLabelText("현장 확인 반경(m)") as HTMLInputElement).value).toBe("");
+  expect((screen.getByLabelText("좌표·반경·머무름을 현장에서 확인했습니다") as HTMLInputElement).checked).toBe(false);
+  fireEvent.change(screen.getByLabelText("이름"),{target:{value:stop.data.name}});
+  fireEvent.change(screen.getByLabelText("승차지 주소·위치 안내"),{target:{value:stop.data.address}});
+  for(const [label,value] of [["위도","37"],["경도","127"],["현장 확인 반경(m)","80"],["현장 확인 머무름(초)","10"]])fireEvent.change(screen.getByLabelText(label),{target:{value}});
+  fireEvent.click(screen.getByLabelText("좌표·반경·머무름을 현장에서 확인했습니다"));
+  fireEvent.click(screen.getByText("준비 자료 저장"));
+  await waitFor(()=>expect(post).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({data:expect.objectContaining({gps})})));
+});
 it("transport: uses the same manual page in X without adding a model request",async()=>{
   user.hasX=true;mount();await screen.findByRole("button",{name:"차량"});
-  expect(get.mock.calls.every(([path])=>path==="/office/operations/transport")).toBe(true);
+   expect(get.mock.calls.every(([path])=>["/office/operations/transport","/transport/admin"].includes(path))).toBe(true);
   expect(screen.getByRole("button",{name:"준비 자료 저장"})).toBeTruthy();expect(post).not.toHaveBeenCalled();
 });
 it("transport: shows migration failure rather than a false empty success or editable form",async()=>{

@@ -1,3 +1,17 @@
+## 무료 배차 V2 신규 운영 적용 후보 — 소스만 준비, 승인/적용하지 않음
+
+- 2026-10-19 V2는 GPS 접근 안내와 비순차 승하차 확인을 허용한다. 내비·학부모 위치 추적·셔틀 NFC는 제외한다. V1 준비 원본과 기존 공통 업무·인증·영수증을 재사용한다.
+- 적용 대상은 후속 검증 후 승인된 정확한 feature SHA다. 이전 승인 서버 SHA·4회 모델 시험을 이 변경/유료 호출에 재사용하지 않는다.
+- SQL 순서: 기존 OFFICE 기본 capability 확인 → 미적용 V1 `office-transport-preparation.sql` → 신규 `office-transport-v2.sql`. V2는 7개 테이블과 `parent_students.transport_notify` 기본 OFF 열을 추가한다. V1 immutable trigger 함수를 사용하며 기존 trigger/function을 교체하지 않는다. startup 실행·별도 업무 DB·기존 global role 변경이 없다.
+- 연결 소스: PC 혼합 운행/권한/선호/게시/현황, API `/transport`, 기존 기사·인솔자/학부모 앱 운행 화면. 확정/게시/기사 ACK·기기 확인/서버 반영을 구분하며 새 게시 전 pending 초안은 기사에게 숨긴다.
+- 외부 계정은 현행 신원+센터별 DRIVER/ESCORT 명시 초대·본인 수락만 허용한다. 기존 강사/관리자 role을 대용 부여하지 않는다. 신규 계정 최초 가입 UX는 별도 결정 대상이다.
+- 운영 전 필수 소스 Gate: 실제 수업 일정/종료/휴강·센터 버퍼 대조, 인계조건 snapshot, AI/Solver와 후보 자동 배차, 보류 기록 대조 해결, 실제 push 연결/실패 정책, 모바일 다른 앱/잠금 표시 및 법정 산출물의 미구현 범위를 먼저 닫는다. 현재 source를 전체 운영 완성본으로 승인 요청하지 않는다.
+- 검증 Gate: 운영 쓰기 없이 허용된 기존 환경에서 새 SQL·권한·동시성/멱등·rollback 검증, 기존 정상 인증을 사용한 PC→게시→기사 ACK/오프라인/정정→자녀 투영 통합, Windows/iPhone/Android 실기기 및 실제 binary target/min OS 확인. 합성 운영 인증·검증 전용 제품을 새로 만들지 않는다.
+- native 변경: Expo SDK 55 SecureStore/Location. foreground 명시 동의 위치만 사용하며 Always/Background/Android foreground service 권한은 OFF다. 기존 binary 모듈/런타임 호환 검증 없이 OTA만 배포하지 않는다. source 완료 후 승인된 한 번의 통합 빌드로 묶는다.
+- 현재 AI enabled=false, push intents=HELD_FOR_DISPATCH_APPROVAL. 위치 서버 전송/실제 모델 호출/실제 push/SMS가 없다. dispatcher를 연결해도 보호자 관계 승인+차량 알림 ON인 수신자만 허용해야 하며 결과 불명 provider 자동 재발송은 승인하지 않는다.
+- 비용: 이번 V2 신규 모델·유료 지도/경로 API 호출 0회. 미래 유료 모델은 모델명·횟수·입출력 token 상한·재시도/대체 금지·총액을 새로 제시한 뒤 승인받는다. 기존 알림/인프라 원가가 0이라는 뜻은 아니다.
+- 장애 시 자동 DROP·역변환·원기록/전송 대기 삭제·다른 계정 재전송을 하지 않는다. 진입/추가 발송을 중단하고 운영 소스 복구도 승인된 절차로만 한다. 과거 event·버전·영수증은 보존한다.
+
 # OFFICE 잔여 서버 변경 — 적용 전 검토안
 
 ## 2026-10-19 승인분 실행 결과 / 다음 묶음 분리

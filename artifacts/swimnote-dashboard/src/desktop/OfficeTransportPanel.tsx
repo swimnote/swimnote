@@ -1,6 +1,7 @@
 import {useQuery,useQueryClient} from "@tanstack/react-query";
 import {api} from "../lib/api-client";
 import {useOfficeFormOwner,useOfficeFormState} from "./office-form-bridge";
+import {OfficeTransportV2} from "./OfficeTransportV2";
 type Kind="vehicle"|"stop"|"plan";
 type Item={id:string;kind:Kind;data:Record<string,any>;revision:number};
 type Named={id:string;name:string};
@@ -88,7 +89,7 @@ function TransportBody({scope}:{scope:string}){
     <option value="">선택</option>{items.map(x=><option key={x.id} value={x.id}>{x.name} [{x.id}]</option>)}</select></label>;
   return <div className="space-y-4 p-4">
     <h1 className="text-xl font-semibold">무료 배차 준비·검수</h1>
-    <p>수동 정기 배차와 확정 당시 기록입니다. GPS·내비·도로 ETA·자동 최적화·기사 배포·운행 실시간 연동은 아직 제공하지 않습니다.</p>
+    <p>기존 단방향 준비 자료와 확정 당시 기록입니다. 날짜별 혼합 운행·운행 전용 배정·기사 게시·현황은 아래 V2에서 진행합니다. 내비·도로 ETA·AI 자동 최적화는 제공하지 않습니다.</p>
     <p>기사 담당자는 기존 강사 계정에 지정하는 준비 정보이며 기사 운행 권한을 부여하지 않습니다.</p>
     {q.isPending&&<p>배차 자료 조회 중</p>}
     {q.error&&<p role="alert">{errorText(q.error)} 기존 서버에는 배차 준비 소스·신규 migration의 별도 승인이 필요합니다. 저장된 것으로 표시하지 않습니다.</p>}
@@ -104,6 +105,14 @@ function TransportBody({scope}:{scope:string}){
           {input("name","이름")}
           {s.kind==="vehicle"&&<>{input("plate","차량번호")}{input("capacity","정원","number")}{pick("driverId","기사 담당자",boot.drivers)}</>}
           {s.kind==="stop"&&input("address","승차지 주소·위치 안내")}
+          {s.kind==="stop"&&<div>
+            <label><input type="checkbox" checked={!!d.gps} onChange={e=>field("gps",e.target.checked?{latitude:"",longitude:"",radiusMeters:"",dwellSeconds:"",verified:false}:null)}/>선택: 앱 사용 중 GPS 접근 안내 설정</label>
+            {d.gps&&<>
+              {(["latitude","longitude","radiusMeters","dwellSeconds"] as const).map((k,i)=><label key={k}>{["위도","경도","현장 확인 반경(m)","현장 확인 머무름(초)"][i]}<input type="number" value={d.gps[k]} onChange={e=>field("gps",{...d.gps,[k]:e.target.value===""?"":Number(e.target.value)})}/></label>)}
+              <label><input type="checkbox" checked={d.gps.verified===true} onChange={e=>field("gps",{...d.gps,verified:e.target.checked})}/>좌표·반경·머무름을 현장에서 확인했습니다</label>
+              <p>기본 반경·머무름을 자동 적용하지 않습니다. 기기 GPS는 도착·승하차 증거가 아니며, 권한 거절·정확도 부족 시 시간 안내·수동 확인을 유지합니다. 좌표 자동 변환·지도 유료 API는 호출하지 않습니다.</p>
+            </>}
+          </div>}
           {s.kind!=="plan"&&<label>사용 상태<select aria-label="사용 상태" value={d.status} onChange={e=>field("status",e.target.value)}><option value="active">사용</option><option value="inactive">중지</option></select></label>}
           {s.kind==="plan"&&<>
             {pick("vehicleId","배차 차량",boot.records.filter(x=>x.kind==="vehicle"&&x.data.status==="active").map(x=>({id:x.id,name:x.data.name})))}
@@ -149,6 +158,7 @@ function TransportBody({scope}:{scope:string}){
           <ol>{s.snapshot.snapshot.stops.map((row:any)=><li key={row.stopId}>{row.time} {row.name} · {row.address} · {row.students.map((v:Named)=>v.name).join(", ")}</li>)}</ol>
         </article>}
       </section>
+      <OfficeTransportV2 scope={scope} records={boot.records}/>
     </>}
     {s.message&&<p role="status">{s.message}</p>}
     {s.unknown&&<section role="alert">저장 결과 미확인입니다. 입력·재전송을 잠갔습니다. 메뉴 복귀 후에도 기존 영수증만 확인합니다.

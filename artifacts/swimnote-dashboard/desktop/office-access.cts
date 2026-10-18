@@ -57,6 +57,8 @@ export function officePage(raw: string) {
 const id = "[A-Za-z0-9_-]{1,160}";
 const OPS = "(?:contacts|products|contracts|sessions|enrollments|marketing|cards|imports|templates|support|policies)";
 const reads = [
+  "/transport/admin", "/transport/students", "/transport/candidates",
+  `/transport/requests/${id}`, `/transport/runs/${id}/review`, `/transport/admin/runs/${id}`,
   "/office/operations/finance/snapshot", "/office/operations/applications", "/office/operations/activity-report",
   "/office/operations/workspace/catalog",
   `/office/operations/applications/${id}/document`,
@@ -83,6 +85,9 @@ const reads = [
   `/videos/(?:group|private|diary)/${id}`,
 ];
 const saves: [string, string][] = [
+  ["POST","/transport/memberships/invite"], ["POST",`/transport/memberships/${id}/revoke`],
+  ["POST","/transport/runs/save"], ["POST",`/transport/runs/${id}/(?:approve|publish|recalculate)`],
+  ["POST",`/transport/preferences/${id}`], ["POST",`/transport/vehicles/${id}/availability`],
   ["POST","/office/operations/transport/records"],
   ["PATCH",`/office/operations/transport/records/${id}`],
   ["POST",`/office/operations/transport/plans/${id}/approve`],
