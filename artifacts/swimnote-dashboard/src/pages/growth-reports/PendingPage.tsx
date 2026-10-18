@@ -1,3 +1,4 @@
+import { ReportPager, ReportContentView, normalizeReportList } from "./ReportViews";
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -151,10 +152,7 @@ function ReviewDrawer({
 }) {
   const qc = useQueryClient();
   const [showDiscard, setShowDiscard] = useState(false);
-  const [showReanalysis, setShowReanalysis] = useState(false);
   const [discardReason, setDiscardReason] = useState("");
-  const [reanalysisCode, setReanalysisCode] = useState("OTHER");
-  const [reanalysisNote, setReanalysisNote] = useState("");
   const [actionError, setActionError] = useState("");
 
   const { data: detail, isLoading, isError } = useQuery<ReportDetail>({
@@ -164,7 +162,7 @@ function ReviewDrawer({
   });
 
   const approveMut = useMutation({
-    mutationFn: () => api.post(`/teacher/growth-reports/${reportId}/review`, { action: "APPROVE" }),
+    mutationFn: () => api.post(`/admin/growth-reports/${reportId}/mark-reviewed`, {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
@@ -180,27 +178,11 @@ function ReviewDrawer({
   });
 
   const discardMut = useMutation({
-    mutationFn: () => api.patch(`/admin/growth-reports/${reportId}/discard`, { reason: discardReason.trim() }),
+    mutationFn: () => api.put(`/admin/growth-reports/${reportId}/discard`, { reason: discardReason.trim() }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
       setShowDiscard(false);
       setDiscardReason("");
-      if (currentIndex < pendingList.length - 1) onNavigate(currentIndex + 1);
-      else onClose();
-    },
-    onError: (e) => setActionError(errMsg(e)),
-  });
-
-  const reanalysisMut = useMutation({
-    mutationFn: () =>
-      api.post(`/teacher/growth-reports/${reportId}/review`, {
-        action: "REQUEST_REANALYSIS",
-        reason_code: reanalysisCode,
-        note: reanalysisNote.trim() || undefined,
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
-      setShowReanalysis(false);
       if (currentIndex < pendingList.length - 1) onNavigate(currentIndex + 1);
       else onClose();
     },
@@ -215,11 +197,10 @@ function ReviewDrawer({
 
   useEffect(() => {
     setShowDiscard(false);
-    setShowReanalysis(false);
+
     setActionError("");
   }, [reportId]);
 
-  const rc = detail?.report_content as Record<string, string | unknown> | null;
 
   return (
     <>
@@ -293,45 +274,8 @@ function ReviewDrawer({
               </div>
 
               {/* Report content */}
-              {rc ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  {typeof rc.summary === "string" && (
-                    <Section title="요약">{rc.summary}</Section>
-                  )}
-                  {typeof rc.overall_assessment === "string" && (
-                    <Section title="전반적 평가">{rc.overall_assessment}</Section>
-                  )}
-                  {detail.sns_summary && (
-                    <Section title="SNS 요약">{detail.sns_summary}</Section>
-                  )}
-                  {detail.positive_growth_signals && detail.positive_growth_signals.length > 0 && (
-                    <Section title="긍정적 성장 신호">
-                      <ul style={{ margin: 0, padding: "0 0 0 16px" }}>
-                        {detail.positive_growth_signals.map((s, i) => <li key={i} style={{ fontSize: "13px", marginBottom: "2px" }}>{s}</li>)}
-                      </ul>
-                    </Section>
-                  )}
-                  {detail.next_growth_targets && detail.next_growth_targets.length > 0 && (
-                    <Section title="다음 성장 목표">
-                      <ul style={{ margin: 0, padding: "0 0 0 16px" }}>
-                        {detail.next_growth_targets.map((s, i) => <li key={i} style={{ fontSize: "13px", marginBottom: "2px" }}>{s}</li>)}
-                      </ul>
-                    </Section>
-                  )}
-                  {detail.next_observation_targets && detail.next_observation_targets.length > 0 && (
-                    <Section title="다음 관찰 목표">
-                      <ul style={{ margin: 0, padding: "0 0 0 16px" }}>
-                        {detail.next_observation_targets.map((s, i) => <li key={i} style={{ fontSize: "13px", marginBottom: "2px" }}>{s}</li>)}
-                      </ul>
-                    </Section>
-                  )}
-                  {/* Remaining string fields in report_content */}
-                  {Object.entries(rc).filter(([k]) => !["summary", "overall_assessment"].includes(k)).map(([k, v]) =>
-                    typeof v === "string" ? (
-                      <Section key={k} title={k.replace(/_/g, " ")}>{v}</Section>
-                    ) : null
-                  )}
-                </div>
+              {detail.report_content ? (
+                <ReportContentView content={detail.report_content} extra={{ sns_summary: detail.sns_summary, positive_growth_signals: detail.positive_growth_signals, next_growth_targets: detail.next_growth_targets, next_observation_targets: detail.next_observation_targets }} />
               ) : (
                 <div style={{ color: "#94A3B8", fontSize: "13px", padding: "20px", textAlign: "center" }}>
                   리포트 내용이 없습니다.
@@ -346,34 +290,6 @@ function ReviewDrawer({
               )}
 
               {/* Reanalysis form */}
-              {showReanalysis && (
-                <div style={{ marginTop: "16px", padding: "14px", background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: "6px" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>재분석 요청</div>
-                  <select
-                    value={reanalysisCode}
-                    onChange={(e) => setReanalysisCode(e.target.value)}
-                    style={{ width: "100%", padding: "7px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", marginBottom: "8px" }}
-                  >
-                    {REANALYSIS_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                  </select>
-                  <textarea
-                    value={reanalysisNote}
-                    onChange={(e) => setReanalysisNote(e.target.value)}
-                    placeholder="메모 (선택)"
-                    style={{ width: "100%", padding: "7px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", resize: "vertical", minHeight: "60px", boxSizing: "border-box", marginBottom: "8px" }}
-                  />
-                  <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
-                    <button onClick={() => setShowReanalysis(false)} style={{ padding: "6px 12px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: "4px", cursor: "pointer", fontSize: "12px" }}>취소</button>
-                    <button
-                      onClick={() => reanalysisMut.mutate()}
-                      disabled={reanalysisMut.isPending}
-                      style={{ padding: "6px 12px", background: "#D97706", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
-                    >
-                      {reanalysisMut.isPending ? "요청 중…" : "재분석 요청"}
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* Discard form */}
               {showDiscard && (
@@ -413,16 +329,10 @@ function ReviewDrawer({
         {detail && detail.product_status === "REVIEW_REQUIRED" && (
           <div style={{ padding: "14px 20px", borderTop: "1px solid #E2E8F0", display: "flex", gap: "8px", flexShrink: 0 }}>
             <button
-              onClick={() => { setShowDiscard(!showDiscard); setShowReanalysis(false); setActionError(""); }}
+              onClick={() => { setShowDiscard(!showDiscard);  setActionError(""); }}
               style={{ padding: "8px 14px", background: "#fff", border: "1px solid #E2E8F0", borderRadius: "6px", cursor: "pointer", fontSize: "13px", color: "#475569" }}
             >
               반려
-            </button>
-            <button
-              onClick={() => { setShowReanalysis(!showReanalysis); setShowDiscard(false); setActionError(""); }}
-              style={{ padding: "8px 14px", background: "#fff", border: "1px solid #FCD34D", borderRadius: "6px", cursor: "pointer", fontSize: "13px", color: "#92400E" }}
-            >
-              재분석 요청
             </button>
             <button
               onClick={() => { setActionError(""); approveMut.mutate(); }}
@@ -435,21 +345,12 @@ function ReviewDrawer({
                 fontSize: "13px", fontWeight: 600,
               }}
             >
-              {approveMut.isPending ? "승인 중…" : "✓ 승인"}
+              {approveMut.isPending ? "처리 중…" : "✓ 검수 확인"}
             </button>
           </div>
         )}
       </div>
     </>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div style={{ fontSize: "11px", fontWeight: 600, color: "#94A3B8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{title}</div>
-      <div style={{ fontSize: "13px", color: "#1E293B", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{children}</div>
-    </div>
   );
 }
 
@@ -467,10 +368,11 @@ export default function PendingPage() {
   const [search, setSearch] = useState("");
   const [drawerIndex, setDrawerIndex] = useState<number | null>(null);
   const [allDone, setAllDone] = useState(false);
+  const [offset, setOffset] = useState(0);
 
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
-    queryKey: ["growth-reports-list", year, month],
-    queryFn: () => api.get(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=200`),
+    queryKey: ["growth-reports-list", "REVIEW_REQUIRED", year, month, search, offset],
+    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}${search ? `&q=${encodeURIComponent(search)}` : ""}&product_status=REVIEW_REQUIRED`).then(normalizeReportList),
   });
 
   // Show only REVIEW_REQUIRED reports
@@ -501,13 +403,13 @@ export default function PendingPage() {
             </span>
           </p>
         </div>
-        <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setDrawerIndex(null); setAllDone(false); }} />
+        <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setOffset(0); setDrawerIndex(null); setAllDone(false); }} />
       </div>
 
       <div style={{ marginBottom: "16px" }}>
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
           placeholder="회원명 검색…"
           style={{ padding: "6px 10px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", width: "200px" }}
         />
@@ -529,6 +431,7 @@ export default function PendingPage() {
         </div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: "8px", overflow: "hidden" }}>
+          <div style={{ padding: "8px 12px" }}><ReportPager offset={offset} total={data?.total} onChange={setOffset} /></div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>

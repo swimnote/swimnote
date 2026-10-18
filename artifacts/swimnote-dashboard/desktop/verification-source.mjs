@@ -28,7 +28,7 @@ export async function sourceIdentity() {
   const head = git(["rev-parse", "HEAD"]).toString().trim();
   const diff = git(["diff", "--binary", "HEAD", "--"]);
   const newFiles = git(["ls-files", "--others", "--exclude-standard", "-z", "--",
-    "artifacts/swimnote-dashboard/desktop", "artifacts/swimnote-dashboard/src/desktop", "docs/office"])
+    "artifacts/swimnote-dashboard/desktop", "artifacts/swimnote-dashboard/src", "artifacts/api-server/src", "docs/office"])
     .toString().split("\0").filter(Boolean).sort();
   const untracked = [];
   for (const file of newFiles) {
@@ -38,8 +38,8 @@ export async function sourceIdentity() {
   const diffId = sha(JSON.stringify({ trackedDiffSha256, untracked }));
   return { head, trackedDiffSha256, untracked, diffId,
     buildId: `${verificationStage}-${head.slice(0, 12)}-${diffId.slice(0, 12)}`,
-    scope: "HEAD plus tracked binary diff and explicitly listed untracked Desktop source and OFFICE docs; attachments and generated output excluded",
-    apiSource: verificationStage === "PRODUCT" ? "Canonical production API; deployment SHA not inspected or changed for this client build"
+    scope: "HEAD plus tracked binary diff and untracked Dashboard/API source and OFFICE docs; attachments and generated output excluded",
+    apiSource: verificationStage === "PRODUCT" ? "Canonical API origin unchanged. Administrator core server/migration changes NOT deployed; new operations remain unavailable until separately approved server application."
       : verificationStage.startsWith("F05") || verificationStage === "F06" || verificationStage === "STAGE2" || verificationStage === "MEMBER" ? "08ad801188848a54b563be096fa38776678711a9" : "e3018d51262091981b444fb30ab476520f45ddcd" };
 }
 

@@ -12,6 +12,7 @@ import type { OfficeTask } from "./OfficeTaskContract";
 import { api, performOfficeOperation } from "../lib/api-client";
 import { registerOfficeOperations } from "./office-operation";
 import { OFFICE_PAGES } from "../../desktop/office-access.cts";
+import { useAuth } from "../contexts/AuthContext";
 
 let scopeSequence = 0;
 const abortError = () => new DOMException("이전 조회를 취소했습니다.", "AbortError");
@@ -28,6 +29,8 @@ function observed<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 export function OfficeActionProvider({ actor, children, stage3 = productionStage3Transport }: {
   actor: ActionActor; children: ReactNode; stage3?: OfficeStage3Transport;
 }) {
+  const { state: authState } = useAuth();
+  const hasAi = authState.status === "authenticated" && authState.user.hasX;
   const nav = useOfficeNavigation();
   if (!nav) throw new Error("OfficeActionProvider requires OfficeNavigationProvider");
   const navRef = useRef(nav); navRef.current = nav;
@@ -128,6 +131,10 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     const publish = () => { if (isCurrent()) setTasks([...proposals.values()].map(p => p.task).concat(core.getTasks())); };
     const interpret = async (text: string) => {
       if (!isCurrent()) return;
+      if (!hasAi) {
+        setNotice("일상 AI 작업창은 스윔노트 AI 이용권이 필요합니다. 일반 메뉴와 무료 데이터 이전은 이용권 없이 사용할 수 있습니다.");
+        return;
+      }
       const deleteDiary = /^일지\s+([A-Za-z0-9_-]{1,160})\s+삭제(?:해줘|해주세요)?[.!]?$/u.exec(text.trim());
       if (deleteDiary) {
         await core.runStructured({ action: "office.diary.delete", input: { diaryId: deleteDiary[1] } });
@@ -183,7 +190,7 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
     const openResult = async (taskId: string, resultId: string) => { await core.openTaskResult(taskId, resultId); publish(); };
     const resolveWrite = async (requestId: string) => { await core.resolveMutation(requestId); publish(); };
     return { core, execute, membersQuery, homeQueryFn, life, interpret, confirmProposal, openResult, resolveWrite, publish };
-  }, [actor.userId, actor.poolId, actor.role, generation, qc, stage3]);
+  }, [actor.userId, actor.poolId, actor.role, generation, qc, stage3, hasAi]);
   useLayoutEffect(() => {
     session.life.live = true;
     const unregisterOperations = registerOfficeOperations(async operation => {

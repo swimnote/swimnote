@@ -446,7 +446,7 @@ router.post(
       }
 
       // class_id가 있을 때만 학부모 푸시 발송
-      if (inserted.length > 0 && class_id) {
+      if (inserted.length > 0 && class_id && req.body.notify_parents !== "false") {
         const pSettings = await db.execute(sql`
           SELECT COALESCE(tpl_photo, '새 사진이 업로드되었습니다.') AS tpl
           FROM pool_push_settings WHERE pool_id = ${user.swimming_pool_id} LIMIT 1
@@ -548,7 +548,7 @@ router.post(
       }
 
       // 개인 앨범 업로드 → 해당 학생 학부모에게 푸시 알림
-      if (inserted.length > 0) {
+      if (inserted.length > 0 && req.body.notify_parents !== "false") {
         const pSettings = await db.execute(sql`
           SELECT COALESCE(tpl_photo, '새 사진이 업로드되었습니다.') AS tpl
           FROM pool_push_settings WHERE pool_id = ${user.swimming_pool_id} LIMIT 1

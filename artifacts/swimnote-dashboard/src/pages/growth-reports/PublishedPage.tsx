@@ -1,3 +1,4 @@
+import { normalizeReportList, ReportDetailLink, ReportPager } from "./ReportViews";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -78,9 +79,10 @@ export default function PublishedPage() {
 
   const qc = useQueryClient();
 
+  const [offset, setOffset] = useState(0);
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
-    queryKey: ["growth-reports-list", year, month],
-    queryFn: () => api.get(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=200`),
+    queryKey: ["growth-reports-list", "PUBLISHED", year, month, search, offset],
+    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}${search ? `&q=${encodeURIComponent(search)}` : ""}&product_status=PUBLISHED`).then(normalizeReportList),
   });
 
   // READY_TO_SEND is pre-delivery (awaiting send) → belongs in PublishPage, not here
@@ -117,13 +119,13 @@ export default function PublishedPage() {
             </span>
           </p>
         </div>
-        <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); }} />
+        <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setOffset(0); }} />
       </div>
 
       <div style={{ marginBottom: "16px" }}>
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
           placeholder="회원명 검색…"
           style={{ padding: "6px 10px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px", width: "200px" }}
         />
@@ -144,6 +146,7 @@ export default function PublishedPage() {
         </div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: "8px", overflow: "hidden" }}>
+          <div style={{ padding: "8px 12px" }}><ReportPager offset={offset} total={data?.total} onChange={setOffset} /></div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
@@ -155,7 +158,7 @@ export default function PublishedPage() {
             <tbody>
               {filtered.map((r, i) => (
                 <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
-                  <td style={{ padding: "10px 14px", fontSize: "13px", fontWeight: 600, color: "#1E293B", borderBottom: "1px solid #F1F5F9" }}>{r.student_name}</td>
+                  <td style={{ padding: "10px 14px", fontSize: "13px", fontWeight: 600, color: "#1E293B", borderBottom: "1px solid #F1F5F9" }}><ReportDetailLink id={r.id} label={r.student_name} /></td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9" }}>{formatPeriod(r.report_period)}</td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9", whiteSpace: "nowrap" }}>{formatDate(r.published_at)}</td>
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>

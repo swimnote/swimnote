@@ -6,6 +6,8 @@ import { eq, sql, and } from "drizzle-orm";
 import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
 import { onParentApproved } from "../lib/parent-approval-hooks.js";
 import { assertMemberLimitInTx, MemberLimitError, sendMemberLimitResponse } from "../lib/member-limit.js";
+import { commitBulkMemberRows } from "../lib/office-bulk-members.js";
+import { OperationError } from "../lib/office-operations-data.js";
 import { requireAuth, requireRole, requirePermission, requireXMode, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
@@ -5698,79 +5700,16 @@ router.post("/members/bulk/commit",
         });
       }
 
-      // ── 학부모 계정 사전 조회 (N+1 방지, transaction 밖) ──────────────────
-      const paRes = await db.execute(sql`
-        SELECT id,
-               REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') AS phone_norm,
-               REPLACE(LOWER(COALESCE(name,'')),' ','') AS name_norm
-        FROM parent_accounts
-        WHERE swimming_pool_id = ${poolId} OR swimming_pool_id IS NULL
-        ORDER BY (swimming_pool_id = ${poolId}) DESC NULLS LAST
-      `);
-      const parentByPhone = new Map<string, string>();
-      const parentByName  = new Map<string, string>();
-      for (const pa of paRes.rows as any[]) {
-        if (pa.phone_norm && !parentByPhone.has(pa.phone_norm)) parentByPhone.set(pa.phone_norm, pa.id);
-        if (pa.name_norm  && !parentByName.has(pa.name_norm))   parentByName.set(pa.name_norm, pa.id);
-      }
-
-      function inviteCode(): string {
-        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-      }
-
       // ── ALL-OR-NOTHING: 단일 transaction ─────────────────────────────────
       const createdIds: string[] = [];
-      const psInserts: Array<{ parentId: string; studentId: string }> = [];
 
       try {
         await db.transaction(async (tx) => {
-          await assertMemberLimitInTx(tx, poolId);
-
-          // 250명 chunk INSERT (SQL 크기 제한 방어)
-          const CHUNK = 250;
-          for (let i = 0; i < validRows.length; i += CHUNK) {
-            const chunk = validRows.slice(i, i + CHUNK);
-            for (const row of chunk) {
-              const id     = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-              const ic     = inviteCode();
-              const pName  = row.parent_name ? row.parent_name.replace(/\s+/g, "").toLowerCase() : null;
-              const parentUserId =
-                parentByPhone.get(row.parent_phone) ??
-                (pName ? parentByName.get(pName) : null) ??
-                null;
-
-              await tx.execute(sql`
-                INSERT INTO students (
-                  id, swimming_pool_id, name, birth_year, parent_name, parent_phone,
-                  parent_user_id, class_group_id, memo, status, registration_path,
-                  weekly_count, invite_code, assigned_class_ids, schedule_labels,
-                  phone, created_at, updated_at
-                ) VALUES (
-                  ${id}, ${poolId}, ${row.name}, ${row.birth_year}, ${row.parent_name},
-                  ${row.parent_phone}, ${parentUserId}, ${row.class_group_id}, ${row.memo},
-                  ${parentUserId ? "active" : "unregistered"}, 'admin_created',
-                  ${row.weekly_count}, ${ic}, '[]'::jsonb, NULL, ${row.phone},
-                  NOW(), NOW()
-                )
-              `);
-              createdIds.push(id);
-              if (parentUserId) psInserts.push({ parentId: parentUserId, studentId: id });
-            }
-          }
-
-          // parent_students 연결 (approved)
-          for (const { parentId, studentId } of psInserts) {
-            const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            await tx.execute(sql`
-              INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status, approved_at)
-              VALUES (${psId}, ${parentId}, ${studentId}, ${poolId}, 'approved', NOW())
-              ON CONFLICT DO NOTHING
-            `);
-          }
+          createdIds.push(...await commitBulkMemberRows(tx, poolId, validRows));
         });
       } catch (e: any) {
         if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+        if (e instanceof OperationError) return res.status(e.status).json({code:e.code,error:e.message});
         console.error("[members/bulk/commit] tx error:", e);
         return res.status(500).json({ code: "IMPORT_SYSTEM_ERROR", error: `등록 실패 (전체 rollback): ${e?.message ?? "서버 오류"}` });
       }

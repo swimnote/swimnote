@@ -251,7 +251,7 @@ export function LoginForm({
                 padding: "1px 6px",
               }}
             >
-              X
+              OFFICE
             </span>
           </div>
           <div

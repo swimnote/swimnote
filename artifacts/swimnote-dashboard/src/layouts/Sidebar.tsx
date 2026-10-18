@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import swimnoteXLogo from "@/assets/swimnote-x-logo.png";
 import {
   Home, Users, Calendar, RotateCcw, TrendingUp,
   BookOpen, FileText, GraduationCap, DollarSign,
@@ -98,7 +97,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
   const desktop = isDesktopTokenStorage();
   const { state, logout } = useAuth();
   const role = state.status === "authenticated" ? state.user.role : "";
-  const visiblePages = OFFICE_PAGES.filter(([path]) => officePageAllowed(path, role));
+  const visiblePages = OFFICE_PAGES.filter(([path]) => officePageAllowed(path, role) && !(role === "pool_admin" && path === "/admin/diary/new"));
   const items: NavItem[] = desktop ? [NAV_ITEMS[0], ...[...new Set(visiblePages.map(p => p[2]))].map(label => ({
     kind: "group" as const, label, icon: <Users size={16} />,
     children: [...(label === "회원" ? [{ label: "전체 회원", path: "/admin/members" }] : []),
@@ -176,17 +175,7 @@ export function Sidebar({ fillAvailable = false }: { fillAvailable?: boolean }) 
         }}
       >
         <div style={{ marginBottom: "6px" }}>
-          <img
-            src={swimnoteXLogo}
-            alt="SwimNote X"
-            style={{
-              height: "28px",
-              width: "auto",
-              maxWidth: "180px",
-              objectFit: "contain",
-              display: "block",
-            }}
-          />
+          <span style={{fontSize:16,fontWeight:800,color:"var(--x-primary)",whiteSpace:"nowrap"}}>SWIMNOTE OFFICE</span>
         </div>
         <div
           style={{

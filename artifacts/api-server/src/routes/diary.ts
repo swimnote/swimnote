@@ -3173,7 +3173,7 @@ router.get("/diaries/admin/all-entries",
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
 
-      const { q = "", limit = "100", offset = "0", student_id = "", from = "", to = "" } = req.query as Record<string, string>;
+      const { q = "", limit = "100", offset = "0", student_id = "", from = "", to = "", class_group_id = "", teacher_id = "" } = req.query as Record<string, string>;
       const lim = Math.min(parseInt(limit) || 100, 300);
       const off = parseInt(offset) || 0;
 
@@ -3202,6 +3202,8 @@ router.get("/diaries/admin/all-entries",
         ${sid ? sql`JOIN class_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${sid} AND csn.is_deleted = false` : sql``}
         WHERE cd.swimming_pool_id = ${poolId}
           AND cd.is_deleted = false
+          ${class_group_id ? sql`AND cd.class_group_id=${class_group_id}` : sql``}
+          ${teacher_id ? sql`AND cd.teacher_id=${teacher_id}` : sql``}
           ${fromDate ? sql`AND cd.lesson_date >= ${fromDate}` : sql``}
           ${toDate   ? sql`AND cd.lesson_date <= ${toDate}`   : sql``}
           ${q        ? sql`AND (cg.name ILIKE ${`%${q}%`} OR cd.teacher_name ILIKE ${`%${q}%`} OR cd.common_content ILIKE ${`%${q}%`})` : sql``}
@@ -3216,14 +3218,20 @@ router.get("/diaries/admin/all-entries",
         ${sid ? sql`JOIN class_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${sid} AND csn.is_deleted = false` : sql``}
         WHERE cd.swimming_pool_id = ${poolId}
           AND cd.is_deleted = false
+          ${class_group_id ? sql`AND cd.class_group_id=${class_group_id}` : sql``}
+          ${teacher_id ? sql`AND cd.teacher_id=${teacher_id}` : sql``}
           ${fromDate ? sql`AND cd.lesson_date >= ${fromDate}` : sql``}
           ${toDate   ? sql`AND cd.lesson_date <= ${toDate}`   : sql``}
           ${q        ? sql`AND (cg.name ILIKE ${`%${q}%`} OR cd.teacher_name ILIKE ${`%${q}%`} OR cd.common_content ILIKE ${`%${q}%`})` : sql``}
       `);
 
+      const filterRows=await db.execute(sql`SELECT DISTINCT cd.class_group_id,cg.name AS class_name,cd.teacher_id,cd.teacher_name
+        FROM class_diaries cd LEFT JOIN class_groups cg ON cg.id=cd.class_group_id
+        WHERE cd.swimming_pool_id=${poolId} AND cd.is_deleted=false`);
       res.json({
         success: true,
         entries: rows.rows,
+        filter_options:filterRows.rows,
         total: Number((countRow.rows[0] as any)?.total || 0),
       });
     } catch (e) { console.error("[diaries/admin/all-entries]", e); apiErr(res, 500, "서버 오류"); }

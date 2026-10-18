@@ -245,7 +245,7 @@ export default function TemplatesPage() {
 
       {/* Scope notice */}
       <div style={{ padding: "10px 14px", background: "#F0F7FF", border: "1px solid #BFDBFE", borderRadius: "6px", fontSize: "12px", color: "#1E40AF", marginBottom: "16px" }}>
-        관리자 공통 템플릿(scope: global)만 표시됩니다. SWIMNOTE X 기본 템플릿(x_global)은 읽기 전용으로 운영팀에서 관리합니다.
+        관리자 공통 템플릿(scope: global)만 표시됩니다. 스윔노트 AI 기본 템플릿(x_global)은 읽기 전용으로 운영팀에서 관리합니다.
       </div>
 
       {error && (

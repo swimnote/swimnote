@@ -26,6 +26,7 @@ interface DiaryListResponse {
   success: boolean;
   entries: DiaryEntry[];
   total: number;
+  filter_options?: {class_group_id:string;class_name:string;teacher_id:string;teacher_name:string}[];
 }
 
 interface StudentNote {
@@ -275,6 +276,8 @@ export default function DiaryPage({ initialStudentId }: { initialStudentId?: str
   const [dateTo, setDateTo] = useState("");
   const [studentId, setStudentId] = useState(urlStudentId);
   const [offset, setOffset] = useState(0);
+  const [fClass, setFClass] = useState("");
+  const [fAuthor, setFAuthor] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Build server params — date range + student_id now go to server
@@ -284,18 +287,25 @@ export default function DiaryPage({ initialStudentId }: { initialStudentId?: str
     if (dateFrom) p.set("from", dateFrom);
     if (dateTo) p.set("to", dateTo);
     if (studentId) p.set("student_id", studentId);
+    if(fClass) p.set("class_group_id",fClass);
+    if(fAuthor) p.set("teacher_id",fAuthor);
     p.set("limit", String(PAGE_SIZE));
     p.set("offset", String(offset));
     return p.toString();
   }
 
   const { data, isLoading, isError } = useQuery<DiaryListResponse>({
-    queryKey: ["diaries-admin", search, dateFrom, dateTo, studentId, offset],
+    queryKey: ["diaries-admin", search, dateFrom, dateTo, studentId, fClass, fAuthor, offset],
     queryFn: () => api.get(`/diaries/admin/all-entries?${buildParams()}`),
     placeholderData: (prev) => prev,
   });
 
-  const entries = data?.entries ?? [];
+  const studentsQ = useQuery<any>({ queryKey: ["diary-filter-students"], queryFn: () => api.get("/students") });
+  const studentOpts: { id: string; name: string }[] = Array.isArray(studentsQ.data) ? studentsQ.data : studentsQ.data?.students ?? studentsQ.data?.items ?? [];
+  const pageEntries = data?.entries ?? [];
+  const classOpts = [...new Map((data?.filter_options??[]).filter(e=>e.class_group_id).map(e=>[e.class_group_id,e.class_name])).entries()];
+  const authorOpts = [...new Map((data?.filter_options??[]).filter(e=>e.teacher_id).map(e=>[e.teacher_id,e.teacher_name])).entries()];
+  const entries = pageEntries;
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
@@ -309,10 +319,11 @@ export default function DiaryPage({ initialStudentId }: { initialStudentId?: str
     setDateFrom("");
     setDateTo("");
     setStudentId("");
+    setFClass("");setFAuthor("");
     setOffset(0);
   }
 
-  const hasFilters = !!(search || dateFrom || dateTo || studentId);
+  const hasFilters = !!(search || dateFrom || dateTo || studentId || fClass || fAuthor);
 
   return (
     <div style={{ padding: "24px" }}>
@@ -340,6 +351,9 @@ export default function DiaryPage({ initialStudentId }: { initialStudentId?: str
           <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setOffset(0); }}
             style={{ padding: "6px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px" }} />
         </div>
+        <select aria-label="회원 필터" value={studentId} onChange={(e) => { setStudentId(e.target.value); setOffset(0); }} style={{ padding: "6px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px" }}><option value="">모든 회원</option>{studentOpts.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}</select>
+        <select aria-label="반 필터" value={fClass} onChange={(e) => {setFClass(e.target.value);setOffset(0);}} style={{ padding: "6px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px" }}><option value="">모든 반</option>{classOpts.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select>
+        <select aria-label="작성자 필터" value={fAuthor} onChange={(e) => {setFAuthor(e.target.value);setOffset(0);}} style={{ padding: "6px 8px", border: "1px solid #CBD5E1", borderRadius: "6px", fontSize: "13px" }}><option value="">모든 작성자</option>{authorOpts.map(([id,label]) => <option key={id} value={id}>{label}</option>)}</select>
         <button onClick={handleSearch}
           style={{ padding: "6px 12px", background: "#1D4E8F", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}>
           검색

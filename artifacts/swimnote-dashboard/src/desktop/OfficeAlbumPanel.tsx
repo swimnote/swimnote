@@ -5,7 +5,7 @@ import { isAllowedOfficeImage } from "../../desktop/office-access.cts";
 import { OfficeVideoAlbum } from "./OfficeVideoAlbum";
 import { ContractError, Blocked, QState, arr, classIdsOf, errMsg, rec, type ClassGroup, type Student } from "./OfficeAppShared";
 
-export type PhotoMeta = { id: string; album_type: string; class_id: string | null; student_id?: string | null; uploaded_by_name: string | null; caption: string | null; created_at: string; class_name: string | null; presigned_url?: string };
+export type PhotoMeta = { id: string; album_type: string; class_id: string | null; student_id?: string | null; uploaded_by_name: string | null; caption: string | null; created_at: string; class_name: string | null; presigned_url?: string; media_status?: string | null; journal_id?: string | null; student_note_id?: string | null };
 type PhotoList = { photos: PhotoMeta[]; total: number };
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_FILES = 100;
@@ -50,11 +50,16 @@ function PhotoAlbumPanel() {
       files.forEach((f) => fd.append("photos", f, f.name));
       if (student) { fd.append("class_id", cls); fd.append("student_id", student); }
       else { if (cls) fd.append("class_id", cls); if (lessonDate) fd.append("lesson_date", lessonDate); }
+      fd.append("notify_parents", "false");
       const o = rec(await api.postForm<unknown>(student ? "/photos/private" : "/photos/group", fd), "photo upload");
       if (typeof o.count !== "number" || !Array.isArray(o.photos)) throw new ContractError("photo upload");
-      return o.count;
+      const ids = (o.photos as { id?: string }[]).map((x) => x.id).filter(Boolean) as string[];
+      const listUrl = student ? `/photos/private/${encodeURIComponent(student)}?limit=200` : "/photos/teacher-all?scope=group";
+      const back = rec(await api.get<unknown>(listUrl), "upload requery");
+      const present = Array.isArray(back.photos) ? ids.filter((i) => (back.photos as { id: string }[]).some((x) => x.id === i)).length : 0;
+      return { n: o.count, ids: ids.length, present };
     },
-    onSuccess: (n) => { setMsg(`${n}장을 업로드했습니다.`);
+    onSuccess: ({ n, ids, present }) => { setMsg(present === ids && ids === n ? `${n}장 업로드 확인: 서버 재조회에서 ${present}장 모두 확인됨.` : `${n}장 업로드 응답, 재조회 확인 ${present}/${ids}장 — 목록을 새로고침해 확인하세요.`);
       if (student) { setView("private"); setViewStudent(student); } else setView("group"); setFiles([]); if (fileRef.current) fileRef.current.value = ""; qc.invalidateQueries({ queryKey: ["oap", "photos"] }); },
     onError: (e) => setMsg(`업로드 결과를 확인하세요: ${errMsg(e)}`),
   });
@@ -68,7 +73,10 @@ function PhotoAlbumPanel() {
     const where = student ? `${classStudents.find((s) => s.id === student)?.name ?? "회원"} 개인 앨범` : cls ? `${groups.data?.find((g) => g.id === cls)?.name ?? "반"} 반 앨범` : "전체 앨범";
     if (window.confirm(`${files.length}장을 ${where}에 업로드합니다. 진행할까요?`)) upload.mutate();
   };
-  const rows = q.data?.photos ?? [];
+  const [fCls, setFCls] = useState(""), [fFrom, setFFrom] = useState(""), [fTo, setFTo] = useState(""), [fAuthor, setFAuthor] = useState("");
+  const all = q.data?.photos ?? [];
+  const authors = [...new Set(all.map((p) => p.uploaded_by_name).filter(Boolean))] as string[];
+  const rows = all.filter((p) => (!fCls || p.class_name === groups.data?.find((g) => g.id === fCls)?.name) && (!fFrom || (p.created_at?.slice(0, 10) ?? "") >= fFrom) && (!fTo || (p.created_at?.slice(0, 10) ?? "") <= fTo) && (!fAuthor || p.uploaded_by_name === fAuthor));
   return <>
     <div className="oap-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
       <div className="oap-row">
@@ -84,12 +92,19 @@ function PhotoAlbumPanel() {
       {(["group", "private", "saved"] as const).map((v) => <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>{v === "group" ? "전체 앨범" : v === "private" ? "회원 개인 앨범" : "내가 저장한 사진"}</button>)}
       {view === "private" && <select value={viewStudent} onChange={(e) => setViewStudent(e.target.value)} aria-label="회원 앨범 선택"><option value="">회원 선택</option>{(students.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>}
     </div>
+    <div className="oap-row" aria-label="사진 필터">
+      <select value={fCls} onChange={(e) => setFCls(e.target.value)} aria-label="반 필터"><option value="">모든 반</option>{(groups.data ?? []).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
+      <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} aria-label="시작일" /><input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} aria-label="종료일" />
+      <select value={fAuthor} onChange={(e) => setFAuthor(e.target.value)} aria-label="작성자 필터"><option value="">모든 업로더</option>{authors.map((a) => <option key={a}>{a}</option>)}</select>
+      <span className="oap-sub">{rows.length} / {all.length}장 표시 (회원 필터는 &lsquo;회원 개인 앨범&rsquo;에서 선택)</span>
+    </div>
     {view === "private" && !viewStudent && <div className="oap-empty">회원을 선택하면 개인 앨범을 조회합니다.</div>}
     <QState q={q} />
     {(view !== "private" || !!viewStudent) && !q.isLoading && !q.isError && (rows.length === 0 ? <div className="oap-empty">등록된 사진이 없습니다.</div>
-      : <div className="oap-card"><table><thead><tr><th>이미지</th><th>업로드일</th><th>반</th><th>업로더</th><th>설명</th><th /></tr></thead><tbody>
-        {rows.map((p) => <tr key={p.id}><td><Thumb url={p.presigned_url} /></td><td>{p.created_at?.slice(0, 10) ?? "-"}</td><td>{p.class_name ?? "-"}</td><td>{p.uploaded_by_name ?? "-"}</td><td>{p.caption ?? "-"}</td>
+      : <div className="oap-card"><table><thead><tr><th>이미지</th><th>업로드일</th><th>반</th><th>업로더</th><th>상태</th><th>설명</th><th /></tr></thead><tbody>
+        {rows.map((p) => <tr key={p.id}><td><Thumb url={p.presigned_url} /></td><td>{p.created_at?.slice(0, 10) ?? "-"}</td><td>{p.class_name ?? "-"}</td><td>{p.uploaded_by_name ?? "-"}</td><td>{p.media_status === "attached" || p.journal_id || p.student_note_id ? "일지 첨부됨 (학부모 노출은 연결된 기록 기준, 보장 아님)" : p.media_status === "draft" ? "초안 (학부모 비노출)" : p.media_status ?? "-"}</td><td>{p.caption ?? "-"}</td>
           <td><button disabled={del.isPending} onClick={() => { if (window.confirm("이 사진을 삭제합니다. 되돌릴 수 없습니다. 삭제할까요?")) del.mutate(p.id); }}>삭제</button></td></tr>)}</tbody></table></div>)}
+    <Blocked>PC 업로드는 학부모 알림을 보내지 않습니다(notify_parents=false). 업로드 직후 사진은 앨범에 올라간 상태이며, 일지에 첨부되기 전에는 학부모에게 일지로 노출되지 않습니다. </Blocked>
     <Blocked>사진은 서버가 발급한 임시 주소로 허용된 출처에서만 표시하며 주소는 노출하지 않습니다. 파일당 8MB, 한 번에 최대 100장입니다. 선생님은 담당 반만, 본인이 올린 사진만 삭제할 수 있습니다(서버 규칙).</Blocked>
   </>;
 }

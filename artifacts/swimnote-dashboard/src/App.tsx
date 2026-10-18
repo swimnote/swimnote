@@ -9,7 +9,7 @@ import { SuperLayout } from "@/layouts/SuperLayout";
 import LoginPage from "@/pages/LoginPage";
 import SuperLoginPage from "@/pages/SuperLoginPage";
 import HomePage from "@/pages/HomePage";
-import XGatePage from "@/pages/XGatePage";
+import { OfficeOperationsPanel } from "@/desktop/OfficeOperationsPanel";
 import MembersPage from "@/pages/members/MembersPage";
 import NewMemberPage from "@/pages/members/NewMemberPage";
 import WithdrawnMembersPage from "@/pages/members/WithdrawnMembersPage";
@@ -113,16 +113,17 @@ function AppRoutes() {
     return <Redirect to="/super" />;
   }
 
-  // Authenticated: check X entitlement
-  if (!state.user.hasX) {
-    return <XGatePage />;
-  }
-
-  // Full dashboard for X members
+  // General administrative PC access is free; paid AI keeps its own entitlement boundary.
   return (
     <DashboardLayout>
       <Switch>
         <Route path="/admin" component={HomePage} />
+        <Route path="/admin/office/contacts">{()=><OfficeOperationsPanel view="contacts" />}</Route>
+        <Route path="/admin/office/courses">{()=><OfficeOperationsPanel view="courses" />}</Route>
+        <Route path="/admin/office/sessions">{()=><OfficeOperationsPanel view="sessions" />}</Route>
+        <Route path="/admin/office/imports">{()=><OfficeOperationsPanel view="imports" />}</Route>
+        <Route path="/admin/office/marketing">{()=><OfficeOperationsPanel view="marketing" />}</Route>
+        <Route path="/admin/office/cards">{()=><OfficeOperationsPanel view="cards" />}</Route>
 
         {/* Members */}
         <Route path="/admin/members" component={MembersPage} />

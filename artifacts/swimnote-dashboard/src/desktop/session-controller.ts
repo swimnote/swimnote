@@ -88,7 +88,7 @@ export class DesktopSessionController {
       setToken(token); // Memory only; never persist before canonical identity/Pool/access revalidation.
       const user = await readAuthSession(true, this.abort.signal);
       if (generation !== this.generation) return;
-      if (!user.hasX) throw new SessionAccessError("인증은 완료됐지만 현재 계정에는 OFFICE/X 접근 권한이 없습니다.");
+      // General OFFICE is free. X controls paid AI, never identity/Pool access.
       let stored;
       try { stored = await this.bridge.commitSession({ token, remember }); }
       catch { stored = { ok: false, error: "write-failed" as const }; }

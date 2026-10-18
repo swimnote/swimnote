@@ -6,6 +6,8 @@ import { notifyPoolEvent } from "../lib/pg-realtime.js";
 import { AI_MODEL } from "../config/ai-model-config.js";
 import { createOfficeRouter } from "../lib/office-http.js";
 import { completeOfficeModel } from "../lib/office-model.js";
+import { resolvePoolMode } from "../lib/xmode.js";
+import { createOfficeOperationsRouter } from "./office-operations.js";
 
 const service = new OfficeCommandService(pool);
 async function actor(req: AuthRequest): Promise<OfficeActor> {
@@ -19,10 +21,15 @@ async function actor(req: AuthRequest): Promise<OfficeActor> {
   return { userId: req.user!.userId, role: req.user!.role, poolId };
 }
 const router = createOfficeRouter({ service, auth: [requireAuth as any, requireRole("pool_admin") as any], actor,
+  canInterpret: async owner => {
+    const mode = await resolvePoolMode(owner.poolId);
+    return !!mode && (mode.mode === "x" || (mode.mode === "x_trial" && mode.x_trial_active));
+  },
   notify: (owner, memberId) => notifyPoolEvent({ type: "member.changed", pool_id: owner.poolId, entity_id: memberId }),
   model: async input => {
       const { getOpenAI } = await import("./ai.js");
       return completeOfficeModel(getOpenAI(), AI_MODEL.SUPPORT, input);
   },
 });
+router.use("/operations", createOfficeOperationsRouter(pool, actor));
 export default router;

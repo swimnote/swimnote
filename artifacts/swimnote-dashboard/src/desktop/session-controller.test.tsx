@@ -30,6 +30,14 @@ function bridge() {
 beforeEach(() => { vi.clearAllMocks(); useDesktopTokenStorage(); allow(); });
 
 describe("Desktop token lifecycle with mocked canonical API and storage bridge", () => {
+  it("keeps free identity/Pool access when only the AI-mode service is temporarily unavailable",async()=>{
+    const implementation=get.getMockImplementation()!;
+    get.mockImplementation(route=>route==="/pools/x-mode"?Promise.reject({status:503}):implementation(route));
+    const desktop=bridge(),controller=new DesktopSessionController(desktop);
+    await controller.accept("synthetic-final-token",false);
+    expect(controller.getSnapshot()).toMatchObject({status:"authenticated",user:{hasX:false,xMode:"unknown"}});
+    expect(desktop.commitSession).toHaveBeenCalled();
+  });
   it("default OFF, no token: shows login without querying production", async () => {
     const controller = new DesktopSessionController(bridge());
     await controller.restore();
@@ -67,14 +75,13 @@ describe("Desktop token lifecycle with mocked canonical API and storage bridge",
     expect(desktop.commitSession).not.toHaveBeenCalled();
     expect(getToken()).toBeNull();
   });
-  it.each(["normal", "x_pending", "subscription_required"])("authentication is not OFFICE permission for %s", async mode => {
+  it.each(["normal", "x_pending", "subscription_required"])("free OFFICE entry keeps identity/Pool checks without X for %s", async mode => {
     allow(mode);
     const desktop = bridge();
     const controller = new DesktopSessionController(desktop);
     await controller.accept("synthetic-final-token", true);
-    expect(controller.getSnapshot()).toMatchObject({ status: "login", denied: true });
-    expect(desktop.commitSession).not.toHaveBeenCalled();
-    expect(desktop.clearSession).toHaveBeenCalled();
+    expect(controller.getSnapshot()).toMatchObject({ status: "authenticated", user: {hasX:false} });
+    expect(desktop.commitSession).toHaveBeenCalled();
   });
   it("rejects changed role or mismatched Pool", async () => {
     for (const altered of [{ ...identity, role: "parent_account" }, { ...identity, swimming_pool_id: "different-pool" }]) {

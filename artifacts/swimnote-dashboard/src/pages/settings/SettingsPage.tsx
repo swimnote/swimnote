@@ -32,7 +32,7 @@ export default function SettingsPage() {
     queryKey: ["homepage-settings"],
     queryFn: async () => {
       const r = await api.get<HomepageSettings>("/homepage/settings");
-      return r.data;
+      return r;
     },
   });
 
@@ -41,7 +41,7 @@ export default function SettingsPage() {
     queryFn: async () => {
       try {
         const r = await api.get<{ submission: XSetupSubmission | null }>("/x-setup/status");
-        return r.data.submission;
+        return r.submission;
       } catch {
         return null;
       }
@@ -131,7 +131,7 @@ export default function SettingsPage() {
 
       {/* X Mode Status */}
       <section style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 24, marginBottom: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>SWIMNOTE X 상태</h3>
+        <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>스윔노트 AI 상태</h3>
         {xSetup ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -148,7 +148,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <p style={{ fontSize: 14, color: "#6b7280", margin: 0 }}>
-            X 설정 정보를 불러오지 못했습니다. SWIMNOTE X를 구독 중인지 확인하세요.
+            AI 설정 정보를 불러오지 못했습니다. 일반 PC 업무는 AI 구독 없이 사용할 수 있습니다.
           </p>
         )}
       </section>

@@ -1,3 +1,4 @@
+import { normalizeReportList, ReportDetailLink, ReportPager } from "./ReportViews";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
@@ -144,9 +145,10 @@ export default function PublishPage() {
 
   const qc = useQueryClient();
 
+  const [offset, setOffset] = useState(0);
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
-    queryKey: ["growth-reports-list", year, month],
-    queryFn: () => api.get(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=200`),
+    queryKey: ["growth-reports-list", "APPROVED,READY_TO_SEND", year, month, offset],
+    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}&product_status=APPROVED,READY_TO_SEND`).then(normalizeReportList),
   });
 
   // APPROVED + READY_TO_SEND are both sendable
@@ -198,7 +200,7 @@ export default function PublishPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setSelected(new Set()); }} />
+          <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setOffset(0); setSelected(new Set()); }} />
           {selected.size > 0 && (
             <button
               onClick={() => { setPublishError(""); setPublishResult(null); setShowConfirm(true); }}
@@ -218,6 +220,7 @@ export default function PublishPage() {
         <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>발행할 승인 리포트가 없습니다.</div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: "8px", overflow: "hidden" }}>
+          <div style={{ padding: "8px 12px" }}><ReportPager offset={offset} total={data?.total} onChange={setOffset} /></div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#F8FAFC" }}>
@@ -243,7 +246,7 @@ export default function PublishPage() {
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleOne(r.id)} onClick={(e) => e.stopPropagation()} style={{ cursor: "pointer" }} />
                     </td>
-                    <td style={{ padding: "10px 14px", fontSize: "13px", fontWeight: 600, color: "#1E293B", borderBottom: "1px solid #F1F5F9" }}>{r.student_name}</td>
+                    <td style={{ padding: "10px 14px", fontSize: "13px", fontWeight: 600, color: "#1E293B", borderBottom: "1px solid #F1F5F9" }}><ReportDetailLink id={r.id} label={r.student_name} /></td>
                     <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9" }}>{formatPeriod(r.report_period)}</td>
                     <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9", whiteSpace: "nowrap" }}>{formatDate(r.teacher_reviewed_at)}</td>
                     <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>

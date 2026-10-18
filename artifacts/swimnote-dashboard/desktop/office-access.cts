@@ -28,6 +28,12 @@ export const OFFICE_PAGES = [
   ["/admin/revenue", "기존 통계·강사 정산", "통계·설정"],
   ["/admin/settings", "Pool·운영 설정", "통계·설정"],
   ["/admin/desktop-settings", "Desktop 설정", "통계·설정"],
+  ["/admin/office/contacts", "상담·체험·등록전환", "운영"],
+  ["/admin/office/courses", "상품·계약·수강", "운영"],
+  ["/admin/office/sessions", "수업 세션", "운영"],
+  ["/admin/office/imports", "엑셀 가져오기", "운영"],
+  ["/admin/office/marketing", "마케팅 수동 관리", "운영"],
+  ["/admin/office/cards", "출입 카드", "운영"],
   ["/admin/legacy", "상담·체험·등록전환", "후속 완성"],
   ["/admin/tuition", "재등록·청구·수납", "후속 완성"],
 ] as const;
@@ -44,7 +50,10 @@ export function officePage(raw: string) {
 }
 
 const id = "[A-Za-z0-9_-]{1,160}";
+const OPS = "(?:contacts|products|contracts|sessions|enrollments|marketing|cards|imports)";
 const reads = [
+  "/office/operations/capabilities", `/office/operations/${OPS}`, `/office/operations/imports/${id}/results`,
+  `/office/operations/receipts/${id}`, `/office/operations/${OPS}/${id}/history`,
   "/students", `/students/${id}(?:/parents|/attendance)?`, "/class-groups", "/teachers",
   `/admin/(?:students/${id}/detail|class-groups/${id}/detail|withdrawn-members|members/export|makeups)`,
   `/admin/teacher-invites(?:/${id}/detail)?`,
@@ -65,6 +74,9 @@ const reads = [
   `/videos/(?:group|private|diary)/${id}`,
 ];
 const saves: [string, string][] = [
+  ["POST", `/office/operations/${OPS}`], ["PATCH", `/office/operations/${OPS}/${id}`],
+  ["POST", `/office/operations/imports/${id}/(?:prepare|apply|interpret)`],
+  ["PUT", `/admin/growth-reports/${id}/discard`], ["POST", `/admin/growth-reports/${id}/mark-reviewed`],
   ["POST", "/videos/(?:group|private|diary-attach|note-attach)"],
   ["DELETE", "/videos/video_[A-Za-z0-9_-]{1,154}"],
   ["POST", "/students"], ["POST", "/admin/members/bulk/(?:validate|commit)"],
@@ -110,7 +122,7 @@ export function isOfficeApiRequest(raw: string, method: string): boolean {
       "pool_all", "status", "class_id", "class_group_id", "student_id", "teacher_id",
       "date", "from", "to", "start_date", "end_date", "month", "year", "limit", "offset", "page",
       "search", "level_order", "level_id", "category", "stroke", "skill", "q", "include_archived",
-      "domain", "include_inactive", "scope",
+      "domain", "include_inactive", "scope", "product_status",
       "archive_id", "lesson_date", "cursor",
     ].includes(k))) return false;
     if (method === "OPTIONS")
@@ -158,6 +170,7 @@ export function officeConfirmation(path: string, method: string, body?: string |
   if (path === "/x-setup/upload/curriculum") return "DOCX 파일을 실제 업로드하고 기존 서버의 접수·구조화·검토 처리를 요청합니다. 파일과 대상 수영장을 확인하고 진행하시겠습니까?";
   if (/\/send$|bulk-send|teacher-invites|parent-requests.*messages|\/notices|parent-v2-pending/.test(path))
     return "기존 앱과 같은 발송·초대 또는 권한 처리를 요청합니다. 대상과 내용을 확인했으며 실제 처리를 승인하시겠습니까?";
+  if (/^\/office\/operations\/imports\/[^/]+\/apply$/.test(path)) return "준비된 행을 실제 회원 등록에 반영합니다. 미리보기 건수와 보류 행을 확인했으며 적용하시겠습니까?";
   if (path === "/settlement/finalize") return "이 정산 확정은 실제 운영 금액에 반영됩니다. 월·대상·금액을 확인했으며 확정하시겠습니까?";
   if (action === "REQUEST_REANALYSIS") return "기존 재분석 요청을 실행합니다. 유료 AI 처리로 이어질 수 있습니다. 대상·사유를 확인하고 요청하시겠습니까?";
   if (path.includes("archive-links")) return "퇴원 기록과 재원생의 연결 관계를 변경합니다. 비교 정보·전화 일치 여부·대상을 확인했으며 처리하시겠습니까?";

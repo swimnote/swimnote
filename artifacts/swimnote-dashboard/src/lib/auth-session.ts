@@ -42,13 +42,12 @@ export async function readAuthSession(strict = false, signal?: AbortSignal): Pro
       [401, 403, 404].includes(result.reason?.status));
     if (permanent?.status === "rejected") throw permanent.reason;
     if (pools.status === "rejected") throw pools.reason;
-    if (mode.status === "rejected") throw mode.reason;
     if (!user.swimming_pool_id || !Array.isArray(pools.value) ||
         !pools.value.some(pool => pool.id === user.swimming_pool_id) ||
-        mode.value?.pool_id !== user.swimming_pool_id) {
+        (mode.status==="fulfilled" && mode.value?.pool_id !== user.swimming_pool_id)) {
       throw new SessionAccessError("현재 사용자와 수영장 연결을 확인할 수 없습니다.");
     }
-    if (!["x", "x_trial", "x_pending", "normal", "subscription_required"].includes(mode.value.mode ?? "")) {
+    if (mode.status==="fulfilled" && !["x", "x_trial", "x_pending", "normal", "subscription_required"].includes(mode.value.mode ?? "")) {
       throw new Error("X 접근 권한을 확인할 수 없습니다. 다시 확인해주세요.");
     }
   }

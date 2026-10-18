@@ -61,7 +61,7 @@ export default function XGatePage() {
             margin: "0 0 8px",
           }}
         >
-          SWIMNOTE X 전용 기능
+          스윔노트 AI 전용 기능
         </h1>
         <p
           style={{
@@ -71,8 +71,8 @@ export default function XGatePage() {
             lineHeight: 1.6,
           }}
         >
-          PC 관리 대시보드는{" "}
-          <strong style={{ color: "#111827" }}>SWIMNOTE X 이용 수영장 전용</strong>
+          AI 기능은{" "}
+          <strong style={{ color: "#111827" }}>스윔노트 AI 이용 수영장 전용</strong>
           입니다.
           <br />현재 수영장의 X 이용 권한을 확인해 주세요.
         </p>

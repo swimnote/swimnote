@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { api } from "@/lib/api-client";
@@ -277,7 +277,6 @@ function ClassDrawer({
   students,
   studentsLoading,
   onClose,
-  onEdit,
   onDelete,
 }: {
   mode: "detail" | "edit" | "create";

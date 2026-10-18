@@ -11,6 +11,7 @@ import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { isDesktopTokenStorage } from "@/lib/token";
 import { api, type ApiError } from "@/lib/api-client";
+import { ReportDetailLink } from "@/pages/growth-reports/ReportViews";
 import { loadGrHistory, grHistoryErrorMessage } from "./gr-history";
 import {
   Search, X, ChevronLeft, ChevronRight, UserMinus,
@@ -444,7 +445,7 @@ function GrHistorySection({ studentId }: { studentId: string }) {
             >
               <FileText size={14} color="#64748B" />
               <span style={{ flex: 1, fontSize: "13px", fontWeight: 500, color: "#1E293B" }}>
-                {formatGrPeriod(item.report_period)} 성장리포트
+                <ReportDetailLink id={item.report_id} label={`${formatGrPeriod(item.report_period)} 성장리포트`} />
               </span>
               {(() => {
                 if (!item.published_at) return null;

@@ -150,6 +150,12 @@ router.get(
       const limit  = Math.min(parseInt(String(req.query["limit"]  ?? "100"), 10), 200);
       const offset = parseInt(String(req.query["offset"] ?? "0"), 10);
       const q      = req.query["q"] ? String(req.query["q"]).trim() : null;
+      const statuses=String(req.query["product_status"] ?? "").split(",").filter(Boolean);
+      if(!Number.isInteger(limit)||limit<1||!Number.isInteger(offset)||offset<0||
+        !Number.isInteger(year)||month<1||month>12||!Number.isInteger(month))
+        return res.status(400).json({error:"조회 기간·페이지 조건을 확인하세요."});
+      if(statuses.some(s=>!["REVIEW_REQUIRED","ANALYZING","APPROVED","PUBLISHED","DISCARDED","FAILED","REGENERATING","READY","READY_TO_SEND","NOT_OPEN","DRAFT","GENERATED","SENT"].includes(s)))
+        return res.status(400).json({error:"보고서 상태를 확인하세요."});
 
       const prevMonth = month === 1 ? 12 : month - 1;
       const prevYear  = month === 1 ? year - 1 : year;
@@ -203,6 +209,7 @@ router.get(
         LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE l.product_status != 'NOT_OPEN'
           ${q ? sql`AND s.name ILIKE ${'%' + q + '%'}` : sql``}
+          ${statuses.length ? sql`AND l.product_status::text IN (${sql.join(statuses.map(s=>sql`${s}`),sql`, `)})` : sql``}
         ORDER BY s.name ASC
         LIMIT ${limit} OFFSET ${offset}
       `);
@@ -218,8 +225,10 @@ router.get(
             AND gr.cycle_id IS NOT NULL
           ORDER BY gr.student_id, gr.cycle_id, gr.version_number DESC NULLS LAST, gr.created_at DESC
         )
-        SELECT COUNT(*) AS cnt FROM latest
-        WHERE product_status != 'NOT_OPEN'
+        SELECT COUNT(*) AS cnt FROM latest l JOIN students s ON s.id=l.student_id
+        WHERE l.product_status != 'NOT_OPEN'
+          ${q ? sql`AND s.name ILIKE ${'%' + q + '%'}` : sql``}
+          ${statuses.length ? sql`AND l.product_status::text IN (${sql.join(statuses.map(s=>sql`${s}`),sql`, `)})` : sql``}
       `);
 
       return res.json({
@@ -266,6 +275,8 @@ router.get(
           gr.teacher_review_action,
           gr.teacher_review_reason_code,
           gr.teacher_review_note,
+          gr.admin_reviewed_at,
+          gr.admin_reviewed_by,
           gr.published_at,
           gr.created_at,
           gr.version_number,
@@ -316,6 +327,8 @@ router.get(
         teacher_review_action:      report.teacher_review_action,
         teacher_review_reason_code: report.teacher_review_reason_code,
         teacher_review_note:        report.teacher_review_note,
+        admin_reviewed_at:          toIsoOrNull(report.admin_reviewed_at),
+        admin_reviewed_by:          report.admin_reviewed_by,
         report_period_open:   report.parent_input_open_at,
         report_period_close:  report.parent_input_close_at,
         student: {
@@ -357,7 +370,7 @@ router.put(
       await discardReportVersion(db, {
         reportId,
         poolId,
-        actorId: req.user!.id ?? "unknown",
+        actorId: req.user!.userId,
         reason,
         memo,
       });
@@ -395,7 +408,7 @@ router.post(
       const result = await regenerateReport(db, {
         discardedReportId: reportId,
         poolId,
-        actorId: req.user!.id ?? "unknown",
+        actorId: req.user!.userId,
       });
 
       notifyPoolEvent({ type: "growth_report.changed", pool_id: poolId!, entity_id: result.newReportId }).catch(() => {});
@@ -430,7 +443,7 @@ router.post(
       const result = await sendIndividualReport(db, {
         reportId,
         poolId,
-        actorId: req.user!.id ?? "unknown",
+        actorId: req.user!.userId,
       });
 
       // KPI refresh (background)

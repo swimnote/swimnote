@@ -69,7 +69,7 @@ export default function CurriculumNewPage() {
       const msg = e?.message || "업로드 실패";
       const code = e?.code;
       if (code === "XMODE_REQUIRED") {
-        setError("SWIMNOTE X 구독이 필요합니다. 앱에서 X 플랜을 구독하면 사용 가능합니다.");
+        setError("스윔노트 AI 구독이 필요합니다. 일반 PC 업무는 구독 없이 사용할 수 있습니다.");
       } else {
         setError(msg);
       }
@@ -105,7 +105,7 @@ export default function CurriculumNewPage() {
         <p style={{ margin: 0, fontSize: 13, color: "#1e40af", lineHeight: 1.6 }}>
           <strong>Pool Local Curriculum</strong>: 이 수영장 전용 커리큘럼을 DOCX 파일로 등록합니다.<br />
           업로드 후 SWIMNOTE 운영팀이 내용을 검토합니다. 승인 완료 후 커리큘럼 탭에서 활성화됩니다.<br />
-          SWIMNOTE X 구독이 필요합니다.
+          스윔노트 AI 구독이 필요합니다.
         </p>
       </div>
 

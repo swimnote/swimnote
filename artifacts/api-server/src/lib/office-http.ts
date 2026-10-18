@@ -7,6 +7,7 @@ import { interpretOffice, type OfficeModel } from "./office-interpret.js";
 export function createOfficeRouter(deps: {
   service: OfficeCommandService; auth: RequestHandler[];
   actor: (req: any) => Promise<OfficeActor>; model: OfficeModel;
+  canInterpret?: (actor: OfficeActor) => Promise<boolean>;
   notify: (actor: OfficeActor, memberId: string) => Promise<void>;
 }) {
   const router = Router();
@@ -49,7 +50,13 @@ export function createOfficeRouter(deps: {
     if (process.env.OFFICE_STAGE3_AI_ENABLED !== "true") {
       res.status(503).json({ code: "AI_NOT_ENABLED", error: "AI 해석은 비활성입니다." }); return;
     }
-    try { await deps.actor(req); res.json(await interpretOffice(deps.model, req.body)); }
+    try {
+      const owner = await deps.actor(req);
+      if (!deps.canInterpret || !await deps.canInterpret(owner)) {
+        res.status(403).json({ code: "AI_ENTITLEMENT_REQUIRED", error: "일상 AI 작업창은 스윔노트 AI 이용권이 필요합니다. 일반 PC 업무와 무료 데이터 이전은 별개입니다." }); return;
+      }
+      res.json(await interpretOffice(deps.model, req.body));
+    }
     catch (e) { failure(res, e); }
   });
   return router;
