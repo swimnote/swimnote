@@ -20,7 +20,7 @@ export function OfficeOpsAiDraft({ resource, recordId, hasX, locked, onDraft }: 
         if (r.resource !== sentResource || (r.recordId ?? undefined) !== (sentId ?? undefined)) setOut("응답이 현재 편집 중인 항목과 달라 사용하지 않았습니다.");
         else { onDraft(r.data); setOut(`${r.message ?? "초안을 입력 양식에 채웠습니다."} 저장되지 않았습니다. 내용을 확인하고 직접 저장하세요.`); }
       } else if (r.kind === "clarify") setOut(r.question); else setOut(r.message);
-    } catch (e: any) { setOut(e?.status === 403 ? "이 기능은 X 이용 권한이 필요합니다(서버 판단)." : e?.message ?? "요청 실패"); } finally { setBusy(false); }
+    } catch (e: any) { setOut(e?.status === 403 ? "이 기능은 스윔노트 AI 이용 권한이 필요합니다(서버 판단)." : e?.message ?? "요청 실패"); } finally { setBusy(false); }
   };
   return <div data-testid="ops-ai-draft" style={{ ...box, background: "var(--surface-white)", display: "flex", flexDirection: "column", gap: 4, margin: "6px 0" }}>
     <strong style={{ fontSize: 12 }}>AI 초안 (선택)</strong>
@@ -28,7 +28,7 @@ export function OfficeOpsAiDraft({ resource, recordId, hasX, locked, onDraft }: 
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
       <input style={{ ...inp, flex: 1, minWidth: 200 }} disabled={!hasX || locked} placeholder="초안으로 채울 내용을 설명" value={text} onChange={e => setText(e.target.value)} />
       <button style={btn2} disabled={!hasX || locked || busy || !text.trim()} onClick={ask}>{busy ? "요청 중…" : "초안 요청"}</button></div>
-    {!hasX && <small style={{ color: "var(--text-muted)" }}>X 이용 권한이 없어 사용할 수 없습니다. 직접 입력은 그대로 가능합니다.</small>}
+    {!hasX && <small style={{ color: "var(--text-muted)" }}>스윔노트 AI 이용 권한이 없어 사용할 수 없습니다. 직접 입력은 그대로 가능합니다.</small>}
     {locked && <small style={{ color: "var(--color-warning)" }}>미확인 저장이 있어 초안을 채울 수 없습니다.</small>}
     {out && <div role="status" style={{ fontSize: 12 }}>{out}</div>}
   </div>;

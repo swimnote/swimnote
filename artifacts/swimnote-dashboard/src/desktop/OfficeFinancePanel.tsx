@@ -38,7 +38,7 @@ function AiDraft({ scope, studentId, hasX }: { scope: string; studentId: string;
       const r = await api.post<Interpret>("/office/operations/workspace/interpret", { text: text.trim(), ...(studentId ? { memberId: studentId } : {}) });
       if (r.kind === "draft") { stageFinanceDraft(scope, r.command); setOut(`${r.message ?? "초안을 업무 입력 양식에 채웠습니다."} 확정되지 않았습니다. 미리보기와 영향 확인 후 직접 기록하세요.`); }
       else if (r.kind === "clarify") setOut(r.question); else setOut(r.message);
-    } catch (e: any) { setOut(e?.status === 403 ? "이 기능은 X 이용 권한이 필요합니다(서버 판단)." : errMsg(e)); } finally { setBusy(false); }
+    } catch (e: any) { setOut(e?.status === 403 ? "이 기능은 스윔노트 AI 이용 권한이 필요합니다(서버 판단)." : errMsg(e)); } finally { setBusy(false); }
   };
   return <section data-finance-noprint style={{ ...box, display: "flex", flexDirection: "column", gap: 6 }} data-testid="finance-ai">
     <strong>AI 초안 (선택)</strong>
@@ -49,7 +49,7 @@ function AiDraft({ scope, studentId, hasX }: { scope: string; studentId: string;
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
       <input data-testid="finance-ai-text" style={{ ...inp, flex: 1, minWidth: 220 }} disabled={!hasX} placeholder={studentId ? "선택한 회원 기준 초안 요청" : "예: 이번 달 수납 초안 요청"} value={text} onChange={e => setText(e.target.value)} />
       <button style={btn2} data-testid="finance-ai-ask" disabled={busy || !hasX || !text.trim()} onClick={ask}>{busy ? "요청 중…" : "초안 요청"}</button></div>
-    {!hasX && <small style={{ color: "var(--text-muted)" }}>X 이용 권한이 없어 AI 초안을 사용할 수 없습니다. 수납 업무는 AI 없이 그대로 사용할 수 있습니다.</small>}
+    {!hasX && <small style={{ color: "var(--text-muted)" }}>스윔노트 AI 이용 권한이 없어 AI 초안을 사용할 수 없습니다. 수납 업무는 AI 없이 그대로 사용할 수 있습니다.</small>}
     {out && <div role="status" data-testid="finance-ai-out" style={{ fontSize: 13 }}>{out}</div>}
   </section>;
 }
