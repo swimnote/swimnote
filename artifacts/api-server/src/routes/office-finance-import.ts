@@ -1,3 +1,4 @@
+import { POST_REFERENCE_ATTENDANCE_SQL } from "../lib/office-finance-sql.js";
 import { Router,type Response } from "express";
 import type { Pool } from "pg";
 import type { OfficeActor } from "../lib/office-command.js";
@@ -31,7 +32,7 @@ export function createOfficeFinanceImportRouter(pool:Pool,run:Wrap) {
       const referenceDate=date(job.data.referenceDate);
       const context=await courseContext(c,owner.poolId,ledger,referenceDate);
       const preview=financialRows(job.data,rules,new Set(context.students.map(s=>s.id)),context.rights,ledger);
-      const operated=new Set((await c.query("SELECT DISTINCT student_id FROM attendance WHERE swimming_pool_id=$1 AND date>$2::date",[owner.poolId,referenceDate])).rows.map(x=>x.student_id));
+      const operated=new Set((await c.query(POST_REFERENCE_ATTENDANCE_SQL,[owner.poolId,referenceDate])).rows.map(x=>x.student_id));
       for(const row of preview.rows) if(row.status==="ready"&&["opening_due","opening_credit","remaining_rights"].includes(row.kind)&&operated.has(row.studentId)){
         row.status="held";row.errors.push("기준일 이후 실제 출결이 있는 회원입니다. 시작 잔액·권리를 별도 대조하세요.");
       }

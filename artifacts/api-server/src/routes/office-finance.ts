@@ -4,6 +4,7 @@ import type { AuthRequest } from "../middlewares/auth.js";
 import type { OfficeActor } from "../lib/office-command.js";
 import { OperationError, object, requestId, digest, date } from "../lib/office-operations-data.js";
 import { financeActions, normalizeFinance, checkFinance, projectFinance, financeTotals, type FinanceEvent } from "../lib/office-finance.js";
+import { COURSE_ATTENDANCE_SQL, historicalContractAttendanceSql } from "../lib/office-finance-sql.js";
 
 type Handler = (req: AuthRequest, res: Response, owner: OfficeActor) => Promise<void>;
 type Wrap = (fn: Handler, needsSchema?: boolean) => (req: AuthRequest, res: Response) => Promise<void>;
@@ -26,12 +27,7 @@ export async function courseContext(c: Query, poolId: string, events: FinanceEve
   const records = (await c.query(`SELECT id,resource,data FROM office_operation_records
     WHERE pool_id=$1 AND resource IN ('contracts','enrollments','products')`, [poolId])).rows;
   const students = (await c.query("SELECT id,name,parent_phone FROM students WHERE swimming_pool_id=$1 AND deleted_at IS NULL ORDER BY name,id", [poolId])).rows;
-  const attendance = (await c.query(`SELECT a.id,a.student_id,a.class_group_id,a.date::text,a.status,
-    COALESCE(ms.original_class_group_id,a.class_group_id) AS entitlement_class,
-    COALESCE(ms.absence_date,a.date::text) AS entitlement_date
-    FROM attendance a LEFT JOIN makeup_sessions ms ON ms.completed_attendance_id=a.id
-      AND ms.swimming_pool_id=a.swimming_pool_id AND ms.cancelled_at IS NULL
-    WHERE a.swimming_pool_id=$1 AND a.status IN ('present','late') AND a.date<=$2::date`, [poolId, asOf])).rows;
+  const attendance = (await c.query(COURSE_ATTENDANCE_SQL, [poolId, asOf])).rows;
   const contracts = records.filter(r => r.resource === "contracts");
   const enrollments = records.filter(r => r.resource === "enrollments");
   const candidates = (a: any) => contracts.filter(r => {
@@ -91,10 +87,7 @@ async function checkReferences(c: Query, poolId: string, events: FinanceEvent[],
       throw new OperationError(400, "INVALID_PERIOD", "변경 기록일 이전의 수강 이력을 만료일 변경으로 잘라내지 않습니다.");
     if(["contract.hold","contract.cancel","contract.amend"].includes(command.action)){
       const boundary=command.action==="contract.amend"?command.endDate:command.date;
-      const actual=await c.query(`SELECT 1 FROM attendance a WHERE a.swimming_pool_id=$1 AND a.student_id=$2
-        AND a.status IN ('present','late') AND a.date${command.action==="contract.amend"?">":">="}$3::date
-        AND EXISTS(SELECT 1 FROM office_operation_records en WHERE en.pool_id=$1 AND en.resource='enrollments'
-          AND en.data->>'contractId'=$4 AND en.data->>'classId'=a.class_group_id) LIMIT 1`,
+      const actual=await c.query(historicalContractAttendanceSql(command.action==="contract.amend"),
       [poolId,r.studentId,boundary,command.contractId]);
       if(actual.rows.length) throw new OperationError(409,"HISTORICAL_ATTENDANCE","이미 확정 출결이 있는 과거 권리를 휴회·종료·기간 단축으로 덮어쓰지 않습니다.");
     }
