@@ -963,3 +963,31 @@ mtime_ms = 1792300167636
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/02d3e3e6-ba83-4a75-a91e-e77c57e87f2b/89747054-09e0-438e-86c2-53877e5d3ec5"
 storage_version_token = "1792300332151796"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "PVMRbm8S0MEcWJcy1vUOc"
+uri = "file://generated-artifacts/office-product-v1-delivery-11/SWIMNOTE-OFFICE-PRODUCT-f019fe8ec07a-49abc5f58bdc-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 통합 설치본 — 다운로드 1/2"
+description = "두 ZIP 모두 다운로드해 같은 폴더에 압축 해제하세요. START-PRODUCT.cmd를 더블클릭하면 설치본을 준비합니다."
+logical_id = "7aba3733-0d2d-4294-8098-baa9985ba858"
+content_hash = "sha256:655b5a06b907ab8bfbe4f4e55413a8da393c468e4c911f7ed0a1ac820e0b3850"
+size = 83897647
+mtime_ms = 1792308155539
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/7aba3733-0d2d-4294-8098-baa9985ba858/a34912da-0bae-4531-bac3-db2633cc1ce7"
+storage_version_token = "1792308253884362"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "r6ci7pfaxgoq-UQqdAZho"
+uri = "file://generated-artifacts/office-product-v1-delivery-11/SWIMNOTE-OFFICE-PRODUCT-f019fe8ec07a-49abc5f58bdc-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 통합 설치본 — 다운로드 2/2"
+description = "1/2와 함께 필요한 두 번째 파일입니다. 별도 제품이나 기능별 설치본이 아닙니다."
+logical_id = "3d6530c2-c630-4a3f-a137-b027b0840d30"
+content_hash = "sha256:45a68653a6c5cdcdff9959755287f804f2bea096aa8cbc218f7826750504307b"
+size = 29904623
+mtime_ms = 1792308156371
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/3d6530c2-c630-4a3f-a137-b027b0840d30/e94a35ba-caca-4966-8122-36b111244441"
+storage_version_token = "1792308256225581"
+content_type = "application/octet-stream"
