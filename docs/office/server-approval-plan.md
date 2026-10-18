@@ -51,3 +51,29 @@ PC는 현재 API로 원본 업로드·파일 ID 목록 재조회·공용/개인 
 - **배포:** 승인된 정확한 SHA만 기존 운영 절차로 반영, health SHA와 읽기 상태/권한을 확인한다. 운영 쓰기·원본 이전·알림·실발송·환불은 승인된 각 대상/범위 없이는 수행하지 않는다.
 - **복구:** 우선 모델·NFC 알림을 OFF로 유지/차단하고 직전 승인 서버 SHA로 복구한다. 새 schema/기록은 보존하며 자동 DROP/데이터 역변환/환불·발송 재시도는 하지 않는다. 업무 기록 정정은 별도 사유 있는 원거래 정정으로 한다.
 - **별도 외부 조건:** Windows 10/11 실기기/인쇄·태블릿·UID+Enter 리더, Smartro 계약/SDK/MID/실거래, 앱 입력·모바일 결제 후속 통합, 배차 원문, 미정 요금/법률 정책. GitLab 인증 복구와 원격 게시도 별도이며 다른 원격으로 우회하지 않는다.
+
+## 5. 승인 후 운영 사전검사 — 2026-10-18 HOLD
+
+사용자의 조건부 승인을 받았으나, 아래 호환성 Gate 실패로 migration과 배포를 실행하지 않았다.
+
+### 고정 적용 대상
+- 승인 소스: `f019fe8ec07ad6cd37cde955ac32943637bad939`.
+- 기본 migration: `artifacts/api-server/src/migrations/office-admin-core.sql`
+  - SHA-256: `80f5c104bd32e4ada84641118cb3b4d1838dae1b2630aa26178c2d4d2e13bc7b`
+- 금융 migration: `artifacts/api-server/src/migrations/office-finance-core.sql`
+  - SHA-256: `7703f09ee7f07bbfdd6749af9e1d80ef92b36436003bdd99d53532e2c272cde3`
+
+### 확인 결과
+- 실제 API: `https://swimnote-api.onrender.com/api`. Render 연결은 기존 GitLab 저장소/main, 자동 배포 OFF를 그대로 확인했다.
+- 기존 LIVE/복구 기준: `e3018d51262091981b444fb30ab476520f45ddcd`, Render deploy `dep-db90le7f3r2c73fmgksg`. 실제 `/api/health`는 200이며 같은 commit을 반환했다. 기존 소스는 로컬 이력에 보존되어 있다. 복구 배포 자체를 시험하지는 않았다.
+- 운영 PostgreSQL 17.6에서 `BEGIN READ ONLY`로 schema·관련 컬럼을 확인했다. OFFICE 기본/금융 테이블·marker는 없었으며, 적용 완료 증거로 간주하지 않았다.
+- 기존 `attendance.date`는 `text`이다. 새 금융 `courseContext` 조회의 원문 조건 `a.date <= $2::date`를 실제 운영 DB에서 `EXPLAIN`했고, SQLSTATE `42883`, `operator does not exist: text <= date`를 확인했다. `ANALYZE`나 업무 데이터 쓰기는 실행하지 않았다. SAVEPOINT로 오류를 격리하고 전체 읽기 전용 transaction을 ROLLBACK했다.
+- 따라서 새 수강권·금융 조회의 기존 앱 schema 호환성은 FAIL이다. 기존 날짜 컬럼의 형식 변환·강제 덮어쓰기로 우회하지 않는다.
+- GitLab API 읽기는 정상이나 승인 commit 조회는 404였다. 원격 OFFICE branch는 `c3f9e6a975550e6d4d3ce595bc86c210d9dd561e`이며, Git의 기존 인증 경로 조회는 시간 초과로 끝났다. API 읽기 성공을 Git push 인증/게시 성공으로 해석하지 않는다. 원격 쓰기·다른 remote 우회는 하지 않았다.
+- 새 복구용 DB 백업은 생성하지 않았다. 백업 테이블의 존재만 확인했으며, 기존 백업의 복구 가능성을 검증 완료로 표시하지 않는다. **복구 가능한 변경 전 백업 확보 전 migration 금지** 조건은 그대로 유지한다.
+- 새 `OFFICE_OPERATIONS_AI_ENABLED`, `OFFICE_IMPORT_AI_ENABLED`, `OFFICE_NFC_NOTIFICATIONS_ENABLED`는 운영 서비스에 없으며 승인 소스에서 기본 OFF다. 기존 운영 설정은 변경하지 않았다.
+
+### 실행하지 않은 항목과 재개 조건
+- 기본/금융 migration, 서버 배포, 실데이터 변경, 모델 호출, 발송/알림, 결제/환불, 가격·구독·용량 정책 변경은 모두 미실행이다. 직접 실행한 운영 작업은 읽기 전용 사전검사뿐이다.
+- 배포 후 로그인·조회·새 업무 검증은 아직 수행 대상이 아니다. 기존 health 확인을 이 검사들의 PASS로 확대하지 않는다.
+- 기존 DB 형식을 유지하는 서버 SQL 수정·관련 재검증, 수정 SHA 확정, 동일 GitLab 저장소 게시, 복구 가능한 백업 확인 후에만 적용을 재개한다. 승인 SHA를 임의로 다른 HEAD로 바꾸거나 migration 실패/호환성 실패 상태에서 배포하지 않는다.

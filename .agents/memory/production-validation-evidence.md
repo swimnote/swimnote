@@ -22,3 +22,11 @@ A pre-issue readiness PASS is a snapshot, not a guarantee of readiness or device
 **Why:** In production, post-seal withdrawals removed previously completed, unpublished reports; subsequent preparation recreated unresolved rows and the READY gate correctly remained closed.
 
 **How to apply:** Trace the specific cohort's withdrawal, missing-row and recreation evidence without rerunning analysis or repairing data during diagnosis. Distinguish today's cycle-preparation log from today's readiness execution. A registered cron and an old deduplicated incident do not prove a particular day's reconciliation ran; report that evidence gap explicitly.
+
+## Compilation is not production SQL compatibility
+
+Before applying manual operational migrations, validate new raw SQL against actual production column types in a read-only transaction. Use EXPLAIN without ANALYZE when planning alone can establish compatibility. Do not convert existing column types merely to accommodate new code.
+
+**Why:** TypeScript and pure-domain tests can pass while PostgreSQL rejects a comparison during planning, even with no matching business rows. Additive new tables do not repair incompatible queries over legacy tables, and installed clients depend on the existing data contract.
+
+**How to apply:** Hold migrations and deployment on a failed compatibility gate. Keep the approved source identity fixed, preserve the existing server version, and establish a recoverable pre-change backup before resuming. Report source compilation, SQL planning, backup recoverability, and post-deploy behavior as separate evidence.
