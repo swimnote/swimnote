@@ -99,3 +99,70 @@ PC는 현재 API로 원본 업로드·파일 ID 목록 재조회·공용/개인 
 
 ### 계속 남는 적용 조건
 새 후보 SHA 확정 승인, 동일 GitLab 원격 게시, 복구 가능한 변경 전 백업 확보, 실제 신규 테이블·권한·트랜잭션 적용 검증을 완료하기 전 운영 적용은 중지한다. GitLab 인증 복구·백업 생성·migration·배포·모델 호출·발송/자동 알림·결제/환불·기존 설정 변경은 이번 수정 작업에서 실행하지 않았다. 기존 통합 설치본은 보존하며 서버-only 수정 때문에 다시 만들지 않았다.
+
+## 7. 새 SHA 조건부 운영 적용 — 2026-10-18
+
+이 절은 위 HOLD 기록 이후의 새 승인·실행 기록이다. 사용자는 기존 안전 조건을 유지하여 아래 SHA의 운영 적용을 승인했으며, 같은 조건의 반복 승인이나 기능별 사용자 확인은 요구하지 않는다. 원격 게시·백업·schema 검증을 선행하고 기본 migration → 금융 migration → 지정 SHA 배포 순서로 진행한다. main 반영·강제 push·다른 원격·새 모델/무료 이전 모델 호출·실발송·자동 알림·실결제/환불·기존 구독/가격/청구/용량 정책 변경은 제외한다.
+
+### 승인 소스와 게시
+- **운영 대상 SHA:** `65970347d33889c90e896ed2b236da45ac1ae290`.
+- 동일 `origin` GitLab `swimnote.admin/swimnote-app`의 `office/f02-foundation`에 정상 fast-forward push 성공. 기존 APP 전용 인증을 사용했고 Secret·전역 인증·원격 URL은 변경하지 않았다.
+- 작업 시작 HEAD는 문서-only 후속 commit `00cbb2f1f8a9d23f53e7924348f81e2e58710820`이며, 이를 배포 대상으로 사용하지 않는다. 기존 `.replit` 작업 트리 변경도 보존한다.
+- 사전 확인 main SHA: `04b120515c693f75a58ede06f74d2814ec1a099f`. main push/merge는 하지 않는다. API의 `main` 연결·자동 배포 OFF는 보존하고 Render `commitId`로 승인 SHA만 지정한다.
+
+### 변경 전 복구 자료
+- 기존 LIVE SHA `e3018d51262091981b444fb30ab476520f45ddcd`, deploy `dep-db90le7f3r2c73fmgksg` 및 해당 tracked source archive 보존.
+- 운영 PostgreSQL 17.6 `pg_dump --format=custom --schema=public` 완료. 범위는 변경 대상 public 업무 schema·데이터·함수·권한이며 provider 관리 auth/storage schema·역할 password까지 포함한 전체 클러스터 백업은 아니다.
+- DB dump는 평문 파일을 만들지 않고 AES-256-GCM으로 암호화했다. 복호화 후 dump SHA-256 대조 및 `pg_restore --file=/dev/null` 전체 archive member 읽기 성공. 별도 DB 실제 복원 시험은 미실행이며, 새 로컬 DB/서버를 만들지 않았다.
+- 암호화 archive SHA-256: `3113d2ff02cffb2097b37deca0e8013eec3ba95528f169b33142d5698a944216`.
+- 기존 서버 source archive SHA-256: `cb6c982c446a2945a1cdbe4c9b46f88331212572429a3bd815bb10b7a8ef2187`.
+- 비공개 보존 위치: `generated-artifacts/office-production-apply-20261018/` (Git/배포 제외, 디렉터리 0700·파일 0600). dump는 `public-before.dump.aesgcm`, 복호화 metadata는 `backup-metadata.json`, 기존 소스는 `prior-server-source.tar.gz`. 공개 첨부/Library에 등록하지 않는다.
+- 복구 키는 백업 당시 기존 `JWT_SECRET`에서 metadata의 salt/info로 HKDF-SHA256 도출한다. **복구 시 해당 Secret 버전이 필요하므로 키의 별도 안전한 보존 없이 rotation하지 않는다.** Secret 값은 문서·로그·archive metadata에 저장하지 않았다.
+
+### 실제 schema·SQL·경쟁 보호 검사
+- 새 5개 테이블을 실제 public schema에서 transaction 내 생성하고, 운영 앱과 동일한 DB role의 SELECT/INSERT/UPDATE 권한을 확인했다.
+- 실제 route의 `readLedger`·`courseContext`, 과거 출결 보호 2종 및 이전 기준일 SQL 실행 성공. 빈 CTE로 대체하지 않았다. 이 검사는 실제 계약·수납 실행을 하지 않는다.
+- 원장 순번·이전 원천·활성 카드·멱등 영수증의 중복을 SQLSTATE `23505`로 차단했다. 검증용 기록은 모두 rollback했다.
+- 실제 동시 연결의 동일 수영장 `FOR UPDATE NOWAIT`가 `55P03`으로 차단됨을 확인했다. 이는 잠금·DB 제약 증거이며 모든 HTTP 업무의 commit 경쟁 E2E 완료를 의미하지 않는다.
+- 다른 Pool 조건으로 fixture를 읽을 수 없음을 확인했다. HTTP 다른 역할 계정 전체 검증과 동일한 증거는 아니다.
+- 전체 probe transaction rollback 후 OFFICE 테이블이 미생성 상태로 복귀했고 기존 업무 6개 테이블의 fingerprint가 일치했다.
+
+### 적용된 migration
+- 2026-10-18 18:35 KST 기본 → 금융 순서로 각각 COMMIT 성공. 위에 고정한 두 파일 hash는 동일하다.
+- 수동 migration 이전에는 OFFICE 테이블/marker와 업무 migration 이력이 없었다. provider 관리 schema의 migration 이력을 OFFICE 이력으로 대체하지 않았다. 신규 금융 marker는 version=2, 1행이다.
+- 신규 기록/버전/영수증/NFC 알림은 각 0행, 신규 index 전부 valid. 기존 날짜 컬럼 강제 변환·업무 자료 이전·학생/청구 변경은 하지 않았다.
+- 기존 업무 6개 테이블의 migration 전후 전체 행 fingerprint 일치. 산식은 `encode(sha256(convert_to(COALESCE(string_agg(to_jsonb(t)::text,E'\n' ORDER BY id),''),'UTF8')),'hex')`이며 각 public 테이블 전체 행, 동일 PostgreSQL JSONB text 직렬화·id 정렬·LF 구분을 사용한다.
+
+| 전체 행 기준 테이블 | 행수 | SHA-256 |
+|---|---:|---|
+| students | 998 | `8c2c3ae4cebf524e50c70872972f7f23f7e5159586aee3f021c1f440fc4c49a9` |
+| student_class_history | 409 | `1c13707db25aec453f310e2376c015d1b1db6fbcd276e8d832ce9cbc07160a0d` |
+| class_groups | 131 | `ebdd13a35e633923b32d55de07fcda3d8d206ef917d8dfe15185ace697df6a76` |
+| attendance | 2507 | `e49abf9058857645296d330783d7a4aedccb619e5d64c86fbb3096bcbe0c7d4b` |
+| makeup_sessions | 405 | `7c99b66ce784ab19d45b4b14aaadb7db88f482125f1b1a267e74dc8fe03c021e` |
+| swimming_pools | 18 | `3529d1d2247bcfc3a86b940550867d398d1512c4c59b828ec2dda8b787575ca0` |
+
+### 배포 요청과 후속 검증
+- 지정 SHA를 Render deploy `dep-dba9620m7kps73fv1ml0`로 1회 요청했다. 상태 불명 때 요청을 재전송하지 않는다. 아래 후속 결과가 기록되기 전 요청 수락을 LIVE/로그인/업무 조회 PASS로 해석하지 않는다.
+- **최종 상태: LIVE 및 배포 후 검증 PASS.** Render는 2026-10-18 18:40:10 KST LIVE, 실제 `/api/health`는 HTTP 200·`ok=true`·commit `65970347d33889c90e896ed2b236da45ac1ae290`. boot ID `9d25d493-db07-459e-bcb2-e79cecf0f475`.
+- 18:43 KST 기존 자격증명으로 실제 앱 통합 로그인 `/auth/unified-login` HTTP 200. 해당 계정의 기존 허용 역할을 `/auth/switch-role`로 전환한 후 `/auth/me`, `/students`, `/class-groups` 모두 200. 회원 233명·반 65개는 해당 계정의 기존 조회 범위이며 전체 DB 행수와 다른 scope이다. 회원 응답의 Pool 일치를 확인했다.
+- 교사 활성 token의 OFFICE 접근은 403, 비로그인은 401. 관리자 token은 capabilities·기본 자원 11종 목록·금융 snapshot·접수 목록 조회 모두 200. 신규 업무 기록은 비어 있으며 임의 자료를 넣어 성공으로 꾸미지 않았다. 정상 20건 + 권한 거부 2건 = 22개 HTTP 검사 PASS.
+- 첫 smoke에서 사용한 구형 `/auth/login`은 401이었다. 읽기 전용 진단에서 기존 비밀번호와 DB hash가 일치하고, 백업 전후 password hash·기본 역할 및 기존 인증 코드가 동일함을 확인했다. 실제 앱의 통합 로그인 경로를 사용하여 해결했으며 비밀번호 재설정·계정 역할/권한 변경·직접 JWT 생성·인증 우회는 하지 않았다. 첫 실패 증거는 별도 파일로 보존한다.
+- 운영 repo/branch/자동 배포 OFF 설정과 세 OFFICE flag 부재/default OFF를 재확인했다. 모델/이전 AI/알림 경로를 실행하지 않고 capabilities와 설정의 비활성 상태를 확인했다.
+- 배포 후 같은 산식으로 위 6개 테이블 전체 행 fingerprint 재측정·모두 일치. OFFICE 기록/버전/영수증/NFC 알림도 각각 0행이다. 이를 전체 DB 모든 테이블의 쓰기 0건으로 확대하지 않는다. 기존 로그인 활동 로그 및 기존 기동 초기화는 별개다.
+- 새 target instance의 runtime log 372건에서 기동/DB 초기화 완료, SQL `42883`·OFFICE SQL 오류·error/fatal level 각각 0건 확인. 전체 조회 438건, 다음 페이지 없음.
+- 적용·검증 evidence는 위 비공개 디렉터리의 `migration-application.json`, `deploy-terminal.json`, `postdeploy-verification-unified.json`, `runtime-log-summary.json`에 보존한다. 계정 식별자·비밀번호·token은 evidence에 저장하지 않는다.
+
+### 최종 통합 체크리스트 — 기능별 사용자 재확인 요청 없이 모아서 수행
+| 항목 | 현재 증거 / 후속 경계 |
+|---|---|
+| 지정 GitLab feature 게시·기본/금융 migration·실행 SHA/health | 이번 운영 적용 PASS; main 미반영 |
+| 기존 앱 로그인·역할 전환·회원/반 조회 | 실제 운영 HTTP PASS; 휴대폰 UI 실행 검증과는 별개 |
+| 관리자 신규 기본 목록·금융 snapshot·접수 목록·권한 거부 | 실제 운영 HTTP PASS; 실제 업무 저장/승인·원본 이전 완료는 아님 |
+| 기존 데이터·설정 보존 | 위 6개 테이블 전체 행 일치·feature flag/서비스 설정 보존; DB 전체 무쓰기 주장 아님 |
+| 암호화 업무 DB 백업·직전 서버 소스 | 전체 archive 읽기·복호화 hash PASS; 별도 DB 실제 복원 시험은 미실행 |
+| 기존 통합 설치본의 신규 업무 화면·입력/저장/미리보기·인쇄/PDF | 최종 Windows 통합 검수에 모음; 이번 서버-only 작업에서 installer 재생성·Windows 실행 없음 |
+| 실제 태블릿·NFC UID+Enter·카드·인쇄 장비 | 최종 실장비 검수; readerVerified=false를 PASS로 바꾸지 않음 |
+| 모델·이전 AI·실발송/자동 알림·실결제/환불·Smartro | 이번 작업에서 미실행/비활성; 별도 허용된 최종 범위/외부 조건에 따름 |
+
+이번 완료 범위는 승인 서버 SHA의 운영 적용과 위 제한된 검증이다. OFFICE 전체 기능·실장비·실거래 완료를 의미하지 않는다.
