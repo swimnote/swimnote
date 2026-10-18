@@ -9,6 +9,10 @@
  */
 
 export const AI_MODEL = {
+  /** OFFICE 제한 필드/열 해석: 시험 비용과 모델 식별을 고정. 기존 기능 모델은 변경하지 않음. */
+  OFFICE_SIMPLE: 'gpt-4o-mini-2024-07-18',
+  /** 명시적 복합 문서 요청 + 별도 실행 승인 시에만 사용. */
+  OFFICE_COMPLEX: 'gpt-4.1-2025-04-14',
   /** 교사 일지 생성 */
   DIARY:   'gpt-4o-mini',
   /** 학부모 지원 AI 응답 */

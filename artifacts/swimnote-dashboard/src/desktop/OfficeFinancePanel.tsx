@@ -10,6 +10,7 @@ import {confirmRecoveryPointer} from "./OfficeRecovery";
 import {financeDrill} from "./office-finance-drill";
 import {OfficeAdminActivity} from "./OfficeAdminActivity";
 import {registerOfficeAiEditor,readOfficeAiEditor,applyOfficeAiDraft} from "./office-ai-editor";
+import {officeFormEpoch} from "./office-form-bridge";
 import {
   financeKey, fetchSnapshot, previewFinance, executeFinance, lookupReceipt, buildCommand, isUnknownOutcome, financeCsv, krw, uuid,
   type FinanceSnapshot, type PreviewResult, type FinanceActionSpec, type Totals,
@@ -27,8 +28,11 @@ const drafts = new Map<string, Draft>();
 type View={tab:Tab;from:string;to:string;studentId:string;search:string;drill:keyof Totals|null};
 const views=new Map<string,View>();
 /** Unknown outcome: same requestId and body kept; only receipt confirmation allowed. */
-const unsure = new Map<string, { requestId: string; body: any }>();
-const clearMemory = (keep?: string) => { for (const m of [drafts, unsure,views] as Map<string, unknown>[]) for (const k of [...m.keys()]) if (!keep || k!==keep&&!k.startsWith(keep+"|")) m.delete(k); };
+type PendingFinance={requestId:string;body:any;allocationHint?:string};
+type AllocationHint=Record<string,string>;
+const unsure = new Map<string,PendingFinance>();
+const followUps=new Map<string,Record<string,AllocationHint>>();
+const clearMemory = (keep?: string) => { for (const m of [drafts, unsure,views,followUps] as Map<string, unknown>[]) for (const k of [...m.keys()]) if (!keep || k!==keep&&!k.startsWith(keep+"|")) m.delete(k); };
 if (typeof window !== "undefined") window.addEventListener("office:session-invalid", () => clearMemory());
 
 /** Stage an AI/Action draft into the regular entry form of the same user+pool scope. Never executes. */
@@ -244,14 +248,38 @@ function EntryForm({ scope,ownerScope, d, date: defDate, onDone, staged,selected
   const [actionKey, setActionKey] = useState(d0?.actionKey ?? ""), [date, setDate] = useState(d0?.date ?? defDate), [form, setForm] = useState<Record<string, string>>(d0?.form ?? {});
   const [prev, setPrev] = useState<PreviewResult | null>(null), [ok, setOk] = useState(false), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(unsure.has(scope)), [done, setDone] = useState("");
-  const [allocation,setAllocation]=useState<Record<string,string>|null>(null);
+  const [allocation,setAllocation]=useState(()=>followUps.get(scope)??{});
+  const rememberAllocation=(result:any,pending:PendingFinance)=>{
+    const c=pending.body.command,e=result?.event;
+    if(c?.action!=="receipt.record"||e?.action!=="receipt.record"||typeof e.id!=="string"||!pending.allocationHint||
+      e.studentId!==c.studentId||e.amountKrw!==c.amountKrw||!Number.isSafeInteger(e.amountKrw)||e.amountKrw<=0)return;
+    const next={...followUps.get(scope),[e.id]:{receiptId:e.id,invoiceId:pending.allocationHint,amountKrw:String(e.amountKrw)}};
+    followUps.set(scope,next);setAllocation(next);
+  };
+  useEffect(()=>{
+    const next=Object.fromEntries(Object.entries(followUps.get(scope)??{}).filter(([id,hint])=>{
+      const receipt=d?.receipts.find(r=>r.id===id),invoice=d?.invoices.find(i=>i.id===hint.invoiceId);
+      return !(receipt&&(receipt.voided||receipt.unallocatedKrw===0))&&!(invoice&&(invoice.cancelled||invoice.dueKrw===0));
+    }));
+    followUps.set(scope,next);setAllocation(next);
+  },[scope,d?.version]);
+  useEffect(()=>{
+    const sync=(e:Event)=>{
+      if((e as CustomEvent).detail?.scope!==scope)return;
+      setLocked(unsure.has(scope));setAllocation(followUps.get(scope)??{});
+      if(!unsure.has(scope)&&!drafts.has(scope)){setForm({});setActionKey("");setPrev(null);setOk(false);}
+    };
+    window.addEventListener("office-finance-outcome",sync);return()=>window.removeEventListener("office-finance-outcome",sync);
+  },[scope]);
   useEffect(()=>registerOfficeAiEditor({scope:ownerScope,memberId:form.studentId||selectedStudentId||undefined,
     token:JSON.stringify([scope,actionKey,date,form,locked,busy,selectedStudentId]),locked:locked||busy,
     stage:command=>{if(unsure.has(scope)||busy)throw new Error("처리 결과 확인 대기 중인 재무 초안을 바꾸지 않았습니다.");stageFinanceDraft(scope,command);}}),
     [scope,ownerScope,actionKey,date,form,locked,busy,selectedStudentId]);
   useEffect(()=>{const h=(e:Event)=>{
     const {requestId,result}=(e as CustomEvent).detail??{};
-    if(unsure.get(scope)?.requestId!==requestId||!result?.event?.id||!Number.isSafeInteger(result.version))return;
+    const pending=unsure.get(scope);
+    if(!pending||pending.requestId!==requestId||!result?.event?.id||!Number.isSafeInteger(result.version))return;
+    rememberAllocation(result,pending);
     unsure.delete(scope);drafts.delete(scope);setLocked(false);setPrev(null);setOk(false);setForm({});setActionKey("");setDone("서버 처리 영수증으로 저장을 확인했습니다.");onDone();
   };window.addEventListener("office:receipt-recovered",h);return()=>window.removeEventListener("office:receipt-recovered",h);},[scope,onDone]);
   useEffect(() => { if (actionKey) drafts.set(scope, { actionKey, date, form }); }, [scope, actionKey, date, form]);
@@ -263,7 +291,7 @@ function EntryForm({ scope,ownerScope, d, date: defDate, onDone, staged,selected
     setPrev(null); setOk(false); setMsg("선택한 업무의 내용을 채웠습니다. 실제 수납액·수단을 확인하고 미리보기를 실행하세요(자동 확정 없음).");
   }, [staged?.nonce]);
   const spec: FinanceActionSpec | undefined = d?.actions.find(a => a.key === actionKey);
-  const edit = (patch: Record<string, string>) => { if (locked) return; setForm(f => ({ ...f, ...patch })); setPrev(null); setOk(false); };
+  const edit = (patch: Record<string, string>) => { if (locked||busy) return; setForm(f => ({ ...f, ...patch })); setPrev(null); setOk(false); };
   const doPreview = async () => {
     if (!spec || !d || locked) return;
     const b = buildCommand(spec, date, form); if (b.error) return setMsg(b.error);
@@ -271,28 +299,38 @@ function EntryForm({ scope,ownerScope, d, date: defDate, onDone, staged,selected
     try { setPrev(await previewFinance(b.command!, d.version)); setOk(false); } catch (e: any) { setPrev(null); setMsg(errMsg(e)); } finally { setBusy(false); }
   };
   const doExecute = async () => {
-    if (!prev || !ok) return;
+    if (!prev || !ok||busy||locked) return;
+    const epoch=officeFormEpoch();
     const pend = unsure.get(scope);
     const body = pend?.body ?? { requestId: uuid(), command: prev.command, expectedVersion: prev.expectedVersion, previewHash: prev.previewHash, confirmed: true as const };
-    unsure.set(scope,{requestId:body.requestId,body});
+    const pending=pend??{requestId:body.requestId,body,allocationHint:actionKey==="receipt.record"?form._invoiceId:undefined};
+    unsure.set(scope,pending);
     setBusy(true); setMsg("");
     try {
       const r = await executeFinance(body);
+      if(epoch!==officeFormEpoch())return;
       if(!r.event?.id||!Number.isSafeInteger(r.version))throw Object.assign(new Error("서버 처리 결과 형식 확인 필요"),{status:502});
-      if(actionKey==="receipt.record"&&form._invoiceId)setAllocation({receiptId:r.event.id,invoiceId:form._invoiceId,amountKrw:String(r.event.amountKrw)});
-      else setAllocation(null);
+      rememberAllocation(r,pending);
       unsure.delete(scope); drafts.delete(scope); setLocked(false); setPrev(null); setOk(false); setForm({}); setActionKey("");
       setDone(`처리 완료: 요청 ${body.requestId.slice(0, 8)} · 원장 버전 ${r.version} (영수증 확인됨)`); onDone();
     } catch (e: any) {
-      if (isUnknownOutcome(e)) { unsure.set(scope, { requestId: body.requestId, body }); setLocked(true); setMsg(`${errMsg(e)} — 결과를 확인하지 못했습니다(성공으로 처리하지 않음). 처리 결과 확인만 가능합니다.`); }
+      if(epoch!==officeFormEpoch())return;
+      if (isUnknownOutcome(e)) { unsure.set(scope, pending); setLocked(true); setMsg(`${errMsg(e)} — 결과를 확인하지 못했습니다(성공으로 처리하지 않음). 처리 결과 확인만 가능합니다.`); }
       else { unsure.delete(scope); setPrev(null); setOk(false); setMsg(errMsg(e)); }
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+      if(epoch===officeFormEpoch())window.dispatchEvent(new CustomEvent("office-finance-outcome",{detail:{scope}}));
+    }
   };
   const confirmReceipt = async () => {
     const p = unsure.get(scope); if (!p) return;
+    const epoch=officeFormEpoch();
     try { const r = await lookupReceipt(p.requestId);
+      if(epoch!==officeFormEpoch())return;
       if (!r.event?.id || !Number.isSafeInteger(r.version)) return setMsg("확정된 처리 결과가 없습니다. 기록 없음은 미처리 증거가 아니므로 잠금을 유지합니다.");
       await confirmRecoveryPointer(p.requestId,r);
+      if(epoch!==officeFormEpoch())return;
+      rememberAllocation(r,p);
       unsure.delete(scope); drafts.delete(scope); setLocked(false); setPrev(null); setForm({}); setActionKey(""); setDone("서버 처리 영수증으로 저장을 확인했습니다."); onDone();
     } catch { setMsg("결과를 확정하지 못했습니다. 조회 실패·404는 미처리 증거가 아닙니다. 동일 요청을 유지합니다."); }
   };
@@ -301,6 +339,7 @@ function EntryForm({ scope,ownerScope, d, date: defDate, onDone, staged,selected
   void rows;
   return <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }} data-testid="finance-entry">
     <strong>업무 입력 (미리보기 후 영향 확인 필수)</strong>
+    <fieldset disabled={busy} style={{display:"contents",border:0,padding:0}}>
     <select data-testid="finance-action" style={inp} disabled={locked} value={actionKey} onChange={e => { setActionKey(e.target.value); setForm({}); setPrev(null); setOk(false); }}>
       <option value="">업무 선택</option>{d.actions.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}</select>
     {spec && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 8 }}>
@@ -314,8 +353,8 @@ function EntryForm({ scope,ownerScope, d, date: defDate, onDone, staged,selected
     {locked && <div role="alert" data-testid="finance-unknown" style={{ color: "var(--color-warning)", fontSize: 13 }}>이전 처리 결과가 미확인입니다. 입력이 잠겼습니다. <button style={btn2} onClick={confirmReceipt}>처리 결과 확인</button></div>}
     {msg && <div role="alert" style={{ color: "var(--color-error)", fontSize: 13 }}>{msg}</div>}
     {done && <div role="status" data-testid="finance-done" style={{ color: "var(--color-success, #1a7f37)", fontSize: 13 }}>{done}</div>}
-    {allocation&&<div style={box} data-testid="finance-next-allocation"><p>수납 기록이 저장되었습니다. 아직 청구 배분 완료가 아닙니다.</p>
-      <button style={btn} onClick={()=>{setActionKey("receipt.allocate");setForm(allocation);setPrev(null);setOk(false);setAllocation(null);setDone("");}}>이 수납을 선택한 청구에 배분 · 미리보기로</button></div>}
+    {Object.values(allocation).map(hint=><div key={hint.receiptId} style={box} data-testid="finance-next-allocation"><p>확인된 수납 {hint.receiptId} → 청구 {hint.invoiceId}. 현재 배분·잔액은 원장 미리보기에서 확인합니다.</p>
+      <button style={btn} disabled={locked||busy} onClick={()=>{setActionKey("receipt.allocate");setForm(hint);setPrev(null);setOk(false);setDone("");}}>이 수납을 선택한 청구에 배분 · 미리보기로</button></div>)}
     {prev && <div style={{ ...box, background: "var(--surface-off)", fontSize: 13 }} data-testid="finance-preview">
       <strong>영향 미리보기 (저장 전)</strong>
       <Table testid="finance-impact" empty="" head={["항목", "이전", "이후"]} rows={TOTAL_LABELS.map(([k, l]) => [l, krw(prev.impact.before[k]), krw(prev.impact.after[k])])} />
@@ -323,6 +362,7 @@ function EntryForm({ scope,ownerScope, d, date: defDate, onDone, staged,selected
       <label style={{ display: "flex", gap: 6, marginTop: 6 }}><input data-testid="finance-confirm" type="checkbox" checked={ok} disabled={locked} onChange={e => setOk(e.target.checked)} />위 영향을 확인했고 이 금액 변경을 기록합니다.</label></div>}
     <div style={{ display: "flex", gap: 6 }}>
       <button style={btn2} data-testid="finance-preview-btn" disabled={busy || locked || !spec} onClick={doPreview}>{busy ? "처리 중…" : "미리보기"}</button>
-      <button style={btn} data-testid="finance-execute" disabled={busy || !prev || !ok} onClick={doExecute}>기록 확정</button></div>
+      <button style={btn} data-testid="finance-execute" disabled={busy || locked || !prev || !ok} onClick={doExecute}>기록 확정</button></div>
+    </fieldset>
   </section>;
 }

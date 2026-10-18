@@ -1,6 +1,8 @@
 /** Session-only handoff to an already mounted common editor. Never an executor. */
 export type OfficeAiEditor={
   scope:string; resource?:string; recordId?:string; memberId?:string;
+  formKind?:"notice"|"parent-reply";draftContext?:Record<string,string>;
+  preview?:()=>void;requestSubmit?:()=>void;canSend?:boolean;
   token:string; locked?:boolean;stage:(data:Record<string,unknown>)=>void;
 };
 let editor:OfficeAiEditor|null=null;

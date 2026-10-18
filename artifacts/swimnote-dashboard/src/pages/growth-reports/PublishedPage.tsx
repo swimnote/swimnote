@@ -172,13 +172,7 @@ export default function PublishedPage() {
                   </td>
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>
                     <div style={{ display: "flex", gap: "6px" }}>
-                      <button
-                        title="PDF 다운로드 미지원"
-                        disabled
-                        style={{ padding: "4px 10px", background: "#F1F5F9", border: "none", borderRadius: "4px", cursor: "not-allowed", fontSize: "11px", color: "#94A3B8" }}
-                      >
-                        PDF
-                      </button>
+                      <ReportDetailLink id={r.id} label="인쇄·PDF 저장"/>
                       <button
                         onClick={() => { setConfirmTarget(r); setResendError(""); }}
                         disabled={r.product_status!=="PUBLISHED"}

@@ -12,13 +12,33 @@ vi.mock("./OfficeNavigation",async original=>({...await original<typeof import("
   useOfficeNavigation:()=>({getDestination:()=>({screen:"page",path:"/admin/office/contacts"}),open:vi.fn()})}));
 vi.mock("./OfficeRecovery",()=>({OfficeRecovery:()=>null,recoverableWrite:vi.fn()}));
 afterEach(()=>{cleanup();vi.clearAllMocks();window.dispatchEvent(new Event("office:session-invalid"));});
-function Command(){
+it("never pays to interpret a fixed form command when no form is selected",async()=>{
+  mount("현재 공지 저장");fireEvent.click(screen.getByText("요청"));
+  await waitFor(()=>expect(screen.getByTestId("notice").textContent).toContain("양식을 먼저 여세요"));
+  expect(post).not.toHaveBeenCalled();expect(get).not.toHaveBeenCalled();
+});
+it("opens the current notice preview deterministically without an interpreter/model call",async()=>{
+  const preview=vi.fn(),submit=vi.fn();
+  registerOfficeAiEditor({scope:"u:p",formKind:"notice",token:"1",stage:vi.fn(),preview,requestSubmit:submit});
+  mount("현재 공지 미리보기");fireEvent.click(screen.getByText("요청"));
+  await waitFor(()=>expect(preview).toHaveBeenCalledTimes(1));
+  expect(submit).not.toHaveBeenCalled();expect(post).not.toHaveBeenCalled();expect(get).not.toHaveBeenCalled();
+});
+it("hands an explicit reply-send command to the same confirmation form, never the model or an automatic POST",async()=>{
+  const submit=vi.fn();
+  registerOfficeAiEditor({scope:"u:p",formKind:"parent-reply",recordId:"req",token:"1",canSend:true,stage:vi.fn(),requestSubmit:submit});
+  mount("현재 답장 발송");fireEvent.click(screen.getByText("요청"));
+  await waitFor(()=>expect(submit).toHaveBeenCalledTimes(1));
+  expect(post).not.toHaveBeenCalled();expect(get).not.toHaveBeenCalled();
+  expect(screen.getByTestId("notice").textContent).toContain("완료로 간주하지");
+});
+function Command({text}:{text:string}){
   const action=useOfficeActions()!;
-  return <><button onClick={()=>action.interpret("현재 상담 내용 초안")}>요청</button><p data-testid="notice">{action.notice}</p></>;
+  return <><button onClick={()=>action.interpret(text)}>요청</button><p data-testid="notice">{action.notice}</p></>;
 }
-function mount(){
+function mount(text="현재 상담 내용 초안"){
   render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}>
-    <OfficeActionProvider actor={{userId:"u",poolId:"p",role:"pool_admin"}}><Command/></OfficeActionProvider>
+    <OfficeActionProvider actor={{userId:"u",poolId:"p",role:"pool_admin"}}><Command text={text}/></OfficeActionProvider>
   </QueryClientProvider>);
 }
 it("connects daily command -> currently selected editor -> explicit common-form save, not automatic execution",async()=>{

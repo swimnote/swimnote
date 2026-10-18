@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useEffect,useId,useState, type ReactNode } from "react";
+import {createPortal} from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import {ReportWorkflowNav,useReportTarget} from "./ReportWorkflow";
@@ -28,27 +29,41 @@ export function ReportContentView({ content, extra }: { content: unknown; extra?
 
 export function ReportDetailLink({ id, label }: { id: string; label: string }) {
   const [open, setOpen] = useState(false);
-  const q = useQuery<any>({ queryKey: ["growth-report-detail", id], queryFn: () => api.get(`/admin/growth-reports/${id}`), enabled: open });
-  const d = q.data;
+  const printId=useId(),[printError,setPrintError]=useState("");
+  useEffect(()=>{
+    const done=()=>{if(document.body.dataset.officeReportPrintId===printId)delete document.body.dataset.officeReportPrintId;};
+    window.addEventListener("afterprint",done);return()=>{window.removeEventListener("afterprint",done);done();};
+  },[printId,open]);
+  const q = useQuery<any>({ queryKey: ["growth-report-detail", id], queryFn: () => api.get(`/admin/growth-reports/${encodeURIComponent(id)}`), enabled: open,staleTime:0 });
+  const matches=!q.data||(q.data.report_id??q.data.id)===undefined||(q.data.report_id??q.data.id)===id;
+  const d = matches?q.data:undefined;
+  const canPrint=!!d&&!q.isFetching&&!q.isError&&Number.isSafeInteger(d.version_number)&&
+    typeof d.student?.id==="string"&&((d.report_id??d.id)===undefined||(d.report_id??d.id)===id);
   const [,setTarget]=useReportTarget();
   return <>
     <button onClick={e => { e.stopPropagation(); setOpen(true); }} data-testid={`report-detail-${id}`} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 600, color: "#1A4070", textDecoration: "underline", cursor: "pointer" }}>{label}</button>
-    {open && <>
-      <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", zIndex: 40 }} />
-      <div onClick={e => e.stopPropagation()} style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 480, maxWidth: "100vw", background: "#fff", zIndex: 50, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
+    {open && createPortal(<div data-office-report-print={printId} onClick={e=>e.stopPropagation()}>
+      <style>{`@media print{body[data-office-report-print-id="${printId}"]>:not([data-office-report-print="${printId}"]){display:none!important}[data-office-report-print] [data-report-noprint]{display:none!important}[data-office-report-print] .report-print-sheet{position:static!important;inset:auto!important;width:100%!important;max-width:none!important;box-shadow:none!important;display:block!important}[data-office-report-print] .report-print-body{overflow:visible!important;display:block!important}body{background:white!important}}`}</style>
+      <div data-report-noprint onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.25)", zIndex: 40 }} />
+      <div className="report-print-sheet" onClick={e => e.stopPropagation()} style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 480, maxWidth: "100vw", background: "#fff", zIndex: 50, display: "flex", flexDirection: "column", boxShadow: "-4px 0 24px rgba(0,0,0,0.12)" }}>
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between" }}>
-          <strong>{label} 성장리포트 상세</strong><button onClick={() => setOpen(false)}>닫기</button></div>
-        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+          <strong>{d?.student?.name??label} 성장리포트 상세</strong><button data-report-noprint onClick={() => setOpen(false)}>닫기</button></div>
+        <div className="report-print-body" style={{ flex: 1, overflowY: "auto", padding: 20 }}>
           {q.isLoading && <div style={{ color: "#94A3B8" }}>로딩 중…</div>}
           {q.isError && <div style={{ color: "#EF4444" }}>불러오지 못했습니다. <button onClick={() => q.refetch()}>다시 시도</button></div>}
+          {!matches&&<div role="alert">선택한 보고서와 응답 ID가 달라 본문 표시·인쇄를 중단했습니다.</div>}
           {d && <>
             <div style={{ fontSize: 12, color: "#64748B", marginBottom: 10 }}>ID {d.report_id??id} · 버전 {d.version_number} · 상태 {d.product_status} · 기간 {d.report_period}<br/>
               강사 검수: {d.teacher_reviewed_at??"미확인"} · 관리자 확인: {d.admin_reviewed_at??"미확인"}<br/>
               {d.published_at?`당시 발행본 · 발행 ${d.published_at}. 최신 초안으로 바꾸지 않습니다.`:"현재 미발행 본문"}</div>
-            <p style={{fontSize:12}}>본문은 읽기 전용입니다. 관리자 확인은 기존 경로에서만 기록하며, 강사 검수를 대신하거나 새 유료 재분석을 실행하지 않습니다.</p>
-            <button onClick={()=>setTarget({id,studentId:d.student.id,name:d.student.name??label,period:d.report_period,version:d.version_number})}>이 보고서를 연속 업무 대상으로 선택</button>
+            <p data-report-noprint style={{fontSize:12}}>본문은 읽기 전용입니다. 관리자 확인은 기존 경로에서만 기록하며, 강사 검수를 대신하거나 새 유료 재분석을 실행하지 않습니다.</p>
+            <div data-report-noprint><button disabled={!canPrint} onClick={()=>{
+              if(!canPrint)return;setPrintError("");document.body.dataset.officeReportPrintId=printId;
+              try{window.print();}catch{delete document.body.dataset.officeReportPrintId;setPrintError("인쇄창을 열지 못했습니다. PDF 저장 완료로 처리하지 않았습니다.");}
+            }}>이 보고서 인쇄·PDF 저장</button><p>이 ID·버전의 표시 본문만 인쇄합니다. PDF 파일 생성·저장 완료 여부는 운영체제 인쇄창에서 확인하세요.</p>{printError&&<p role="alert">{printError}</p>}
+              <button onClick={()=>setTarget({id,studentId:d.student.id,name:d.student.name??label,period:d.report_period,version:d.version_number})}>이 보고서를 연속 업무 대상으로 선택</button></div>
             <ReportContentView content={d.report_content} extra={{ sns_summary: d.sns_summary, positive_growth_signals: d.positive_growth_signals, next_growth_targets: d.next_growth_targets, next_observation_targets: d.next_observation_targets }} /></>}
-        </div>{d&&<ReportWorkflowNav target={{id,studentId:d.student.id,name:d.student.name??label,period:d.report_period,version:d.version_number}}/>}</div></>}
+        </div>{d&&<div data-report-noprint><ReportWorkflowNav target={{id,studentId:d.student.id,name:d.student.name??label,period:d.report_period,version:d.version_number}}/></div>}</div></div>,document.body)}
   </>;
 }
 

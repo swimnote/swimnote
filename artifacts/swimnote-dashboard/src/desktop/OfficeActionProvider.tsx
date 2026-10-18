@@ -153,19 +153,31 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
       const selectedId = destination.screen === "members" ? destination.memberId : undefined;
       try {
         const editor=readOfficeAiEditor(`${owner.userId}:${owner.poolId}`);
+        const command=/^(?:현재)?(공지|답장|양식|입력)(미리보기|저장|발송)(?:해줘|해주세요)?[.!]?$/.exec(text.replace(/\s/g,""));
+        if(command&&!editor){setNotice("현재 선택한 공지·답장 입력 양식을 먼저 여세요. 모델 호출·실행 요청 없음.");return;}
         if(editor){
           if(editor.locked){setNotice("현재 양식이 처리 중이거나 결과 확인 대기입니다. 초안 요청·입력 변경을 하지 않았습니다.");return;}
+          if(command){
+            if(!editor.formKind||(command[1]==="공지"&&editor.formKind!=="notice")||(command[1]==="답장"&&editor.formKind!=="parent-reply")){
+              setNotice("명령과 현재 선택한 입력 양식이 다릅니다. 해당 대상 양식을 먼저 여세요.");return;
+            }
+            if(command[2]==="미리보기"){editor.preview?.();setNotice("현재 양식의 미리보기만 열었습니다. 저장·발송 요청 없음.");return;}
+            if(command[2]==="발송"&&!editor.canSend){setNotice("현재 양식은 발송 대상/알림 선택이 확정되지 않았습니다. 직접 확인하세요.");return;}
+            editor.requestSubmit?.();setNotice("기존 양식의 미리보기·사용자 확인 절차로 연결했습니다. 모델은 호출하지 않았으며 완료로 간주하지 않습니다.");return;
+          }
           const catalog=await api.get<{modelEnabled?:boolean}>("/office/operations/workspace/catalog");
           if(!isCurrent()||readOfficeAiEditor(editor.scope)!==editor)return;
           if(catalog.modelEnabled!==true){setNotice("현재 입력 양식과 공통 Action 연결은 구현됐습니다. 모델 실행 스위치 OFF이며 실제 모델 응답은 미확인입니다. 직접 입력·저장은 계속 가능합니다.");return;}
           const draft=await api.post<any>("/office/operations/workspace/interpret",{text,
+            ...(editor.formKind?{formKind:editor.formKind,draftContext:editor.draftContext}:{}),
             ...(editor.resource?{resource:editor.resource}:{}),...(editor.recordId?{recordId:editor.recordId}:{}),
             ...(editor.memberId?{memberId:editor.memberId}:{})});
           if(!isCurrent()||readOfficeAiEditor(editor.scope)!==editor)return;
           if(draft.kind==="clarify"){setNotice(String(draft.question));return;}
           if(draft.kind==="unavailable"){setNotice(String(draft.message));return;}
-          const data=editor.resource?draft.data:draft.command;
-          if((editor.resource?(draft.kind!=="operations-draft"||draft.resource!==editor.resource||(draft.recordId??undefined)!==editor.recordId):draft.kind!=="draft")||
+          const data=editor.resource||editor.formKind?draft.data:draft.command;
+          if((editor.formKind?(draft.kind!=="form-draft"||draft.formKind!==editor.formKind||(draft.recordId??undefined)!==editor.recordId):
+            editor.resource?(draft.kind!=="operations-draft"||draft.resource!==editor.resource||(draft.recordId??undefined)!==editor.recordId):draft.kind!=="draft")||
             !data||typeof data!=="object"||Array.isArray(data))throw new Error("Invalid editor draft");
           // This is an explicit field handoff, not a saved or approved business action.
           applyOfficeAiDraft(editor,data);
