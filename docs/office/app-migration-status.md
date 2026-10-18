@@ -115,3 +115,11 @@
 16. **Windows/장비:** 최종 설치본을 기존 PC에 설치해 기존 사용자 데이터 유지, 현재 화면 인쇄/PDF, 기존 태블릿 제한 링크 서명과 UID+Enter reader를 함께 확인한다. 실패 시 재설치/재청구를 반복하지 않고 요청 ID·서버 결과/원본을 먼저 확인한다. 개발 도구 설치나 소스 빌드는 필요 없다.
 
 현재 최소 외부 결정은 새 서버/웹 소스 운영 반영 승인, Smartro 제휴 원문·공식 경로, 배차 원문이다. 실제 Windows/reader/서명 검증은 최종 통합본에 모으며 기능별 설치본이나 중간 확인을 요구하지 않는다.
+
+### 최종 통합 설치본 전달 결과
+- 빌드 `PRODUCT-3376160d69ce-972ed3ff844d`, 설치본 기준 HEAD `3376160d69ceb7f10d9d9c7d2360959bc99a4399`. 운영 승인 대상 서버·웹 소스는 `f580b7a076cad009675a253ee1124ee8c26b0e0d`; 두 커밋 사이에는 승인 문서만 있다.
+- `generated-artifacts/office-product-v1-delivery-13/installer-result.json` 기준 Windows x64 unsigned Setup 113,747,428 bytes. 패키저/설치본 제작 각 1회, 컴파일 파일 10개·최종 payload 75개 대조. source freeze·기존 출력 보존·compiled→ASAR→installer·비공개 파일 제외·분할 재조립 PASS.
+- Setup SHA-256 `e5e3d62e926800ca3c22f7f58b62238da1d3879fb6d800aeaf3edd4ba8430124`. 원 ZIP SHA-256 `f245eb99778098cae87454fcc92788860aef91a6cfa8ea8dd75698edd5ea1a16`.
+- DOWNLOAD-1-of-2.zip과 DOWNLOAD-2-of-2.zip은 같은 설치본의 분할 전달물이다. 같은 폴더에 모두 풀고 START-PRODUCT.cmd 실행 후 Setup을 직접 실행한다. Node/개발 환경 설치는 필요 없다. 실제 Windows/CMD 실행·설치 수용은 NOT VERIFIED.
+- GitLab 동일 origin/feature branch 정상 push는 `HTTP Basic: Access denied`로 실패했다. 별도 GitLab connector는 healthy지만 조회 scope만 확인됐으며 Git 쓰기의 대체로 사용하지 않았다. 다른 원격·force/reset/main·PAT 설정 변경 없음. 로컬 소스 커밋과 baseline 기반 `office-source-preservation.bundle` 검증/보존은 완료했지만 **원격 push 완료가 아니므로 전체 완료로 표시하지 않는다**.
+- 원래 수정된 `.replit`과 사용자 첨부는 그대로 두고 커밋에 포함하지 않았다. 새 Render/웹 운영 반영·migration 재적용·앱 빌드/OTA·실거래/실발송/유료 AI 호출은 실행하지 않았다.
