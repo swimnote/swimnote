@@ -112,7 +112,7 @@
 - [로그인 복구 증거 경계](login-recovery-identifier-evidence.md) — DB identifier로 API 200이어도 사용자용 ID가 확인되지 않으면 실사용 로그인 복구 PASS 금지.
 - [신규 가입 PUSH 계약](pool-signup-push-boundary.md) — 최초 이벤트의 논리 dispatch만 허용; 불명확한 provider 결과 재발송 금지, 실기기 표시와 분리.
 - [시범사업 X 수동 부여 정책](x-manual-pilot-policy.md) — SUPERADMIN 직접 manual 부여는 커리큘럼 없이 X 진입 허용; 일반 경로 prerequisite·AI 데이터 검증 유지.
-- [OFFICE 제품 경계](office-product-boundaries.md) — 공유 확장·Zero Orphan Action·Windows 증거 경계·로그인 편의 설정과 인증정보 분리.
+- [OFFICE 제품 경계](office-product-boundaries.md) — 관리자 중심·PC 일지 작성 제외·기본 이용권에 PC 포함·공유 Action·Windows 증거 경계.
 - [OFFICE 패키징 증거](office-packaging-evidence.md) — payload 대조·source/dist 후보 구분; loopback 접근성과 Windows 정상 인증·실행 증거는 별도 확인.
 - [GitHub 개발 인증 경계](github-source-control-auth.md) — Git push 인증과 제품 로그인을 구분; source-control 연결 상태와 실제 인증 성공을 혼동하지 않는다.
 - [격리 release 테스트의 DB 차단](worktree-test-isolation.md) — importer별 mock ID 차이를 막기 위해 DB 의존성을 단일 경로와 fail-closed trap으로 통일한다.
