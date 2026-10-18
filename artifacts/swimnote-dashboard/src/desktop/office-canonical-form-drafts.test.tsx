@@ -46,6 +46,22 @@ it("stages notice text only, previews its actual notification choice, and saves 
   await waitFor(()=>expect(post).toHaveBeenCalledWith("/notices",expect.objectContaining({title:"운영 공지",send_push:true})));
   expect(post).toHaveBeenCalledTimes(1);
 });
+it("recorded live: stages the approved synthetic model notice and previews without saving",async()=>{
+  mount(<NoticesPanel canManage/>);
+  await waitFor(()=>expect(readOfficeAiEditor("owner:pool")?.formKind).toBe("notice"));
+  // Actual one-shot response captured 2026-10-19; replay only, never another provider request.
+  act(()=>applyOfficeAiDraft(readOfficeAiEditor("owner:pool")!,{title:"합성 안내",content:"준비물: 수모, 수경."}));
+  fireEvent.click(screen.getByText("미리보기"));
+  expect(screen.getByRole("region",{name:"공지 미리보기"}).textContent).toContain("준비물: 수모, 수경.");
+  expect(post).not.toHaveBeenCalled();
+});
+it("recorded live: previews the actual synthetic reply on its selected request without sending",async()=>{
+  mount(<ParentRequestsPanel/>);await open();
+  act(()=>applyOfficeAiDraft(readOfficeAiEditor("owner:pool")!,{content:"안녕하세요. 준비물은 수모와 수경입니다. 감사합니다."}));
+  fireEvent.click(screen.getByText("답장 미리보기"));
+  expect((screen.getByPlaceholderText("답장 내용") as HTMLTextAreaElement).value).toBe("안녕하세요. 준비물은 수모와 수경입니다. 감사합니다.");
+  expect(post).not.toHaveBeenCalled();
+});
 it("does not allow a late helper response to overwrite manual notice edits",async()=>{
   get.mockImplementation(async(path:string)=>path==="/notices"?[]:{modelEnabled:true});
   let deliver!:(value:unknown)=>void;post.mockImplementation(()=>new Promise(r=>{deliver=r;}));

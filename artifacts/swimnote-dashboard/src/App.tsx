@@ -10,6 +10,7 @@ import LoginPage from "@/pages/LoginPage";
 import SuperLoginPage from "@/pages/SuperLoginPage";
 import HomePage from "@/pages/HomePage";
 import { OfficeOperationsPanel } from "@/desktop/OfficeOperationsPanel";
+import {OfficeTransportPanel} from "@/desktop/OfficeTransportPanel";
 import { OfficeFinancePanel } from "@/desktop/OfficeFinancePanel";
 import MembersPage from "@/pages/members/MembersPage";
 import NewMemberPage from "@/pages/members/NewMemberPage";
@@ -127,6 +128,7 @@ function AppRoutes() {
         <Route path="/admin/office/finance">{()=><OfficeFinancePanel />}</Route>
         <Route path="/admin/office/applications">{()=><OfficeOperationsPanel view="applications" />}</Route>
         <Route path="/admin/office/support">{()=><OfficeOperationsPanel view="support" />}</Route>
+        <Route path="/admin/office/transport">{()=><OfficeTransportPanel />}</Route>
         <Route path="/admin/office/policies">{()=><OfficeOperationsPanel view="policies" />}</Route>
         <Route path="/admin/office/cards">{()=><OfficeOperationsPanel view="cards" />}</Route>
 

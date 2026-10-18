@@ -21,6 +21,7 @@ import { OfficeAppPage, OfficeTeacherHome, OfficeCurriculumReview, OfficeTeacher
 import { officePageAllowed } from "../../desktop/office-access.cts";
 import { OfficeOperationsPanel } from "./OfficeOperationsPanel";
 import { OfficeFinancePanel } from "./OfficeFinancePanel";
+import {OfficeTransportPanel} from "./OfficeTransportPanel";
 import { OfficeTeacherGrowthReports } from "./OfficeTeacherGrowthReports";
 
 const webPages = [
@@ -58,6 +59,7 @@ export const officePageRoutes = (role: "pool_admin" | "teacher" = "pool_admin", 
   ...appPages.filter(([path]) => officePageAllowed(`/admin/${path}`, role)).map(([path, kind]) => <Route key={path} path={`/admin/${path}`}><OfficeAppPage kind={kind} role={role} /></Route>),
   ...(role === "pool_admin" ? ["contacts", "courses", "sessions", "imports", "marketing", "cards", "applications", "support", "policies"].map(r => <Route key={`ops-${r}`} path={`/admin/office/${r}`}><OfficeOperationsPanel view={r as never} /></Route>) : []),
   ...(role === "pool_admin" ? [<Route key="ops-finance" path="/admin/office/finance"><OfficeFinancePanel /></Route>] : []),
+  ...(role === "pool_admin" ? [<Route key="ops-transport" path="/admin/office/transport"><OfficeTransportPanel /></Route>] : []),
   ...(role === "pool_admin" ? ["legacy", "tuition"] : []).map(path => <Route key={path} path={`/admin/${path}`}>
     <section style={{ padding: 24 }}><h1>{path === "legacy" ? "상담·체험·등록전환" : "재등록·청구·수납"}</h1>
       <p>V1 후속 완성 범위입니다. 현재 원장·저장·AI 실행은 연결되지 않았습니다.</p>

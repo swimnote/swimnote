@@ -1,5 +1,13 @@
 # OFFICE 잔여 서버 변경 — 적용 전 검토안
 
+## 2026-10-19 승인분 실행 결과 / 다음 묶음 분리
+
+- 승인 대상 `d8e77c91352e201e6eb5d2b6f5c6e18d26aeca05`: 같은 GitLab feature branch의 정상 push·원격 SHA 확인 후 명시 commitId 배포. Render `dep-dbae18e1egvs73ablc40` LIVE·실제 health commit 일치(HTTP 200). main/연결 branch/autoDeploy=no 보존.
+- 직전 LIVE `65970347d33889c90e896ed2b236da45ac1ae290`과 복구 요청 body를 `generated-artifacts/office-approval-20261019/before.json`에 보존했다. 복구는 해당 commitId로 API 소스만 되돌리는 수동 배포이며 DB·처리 영수증 삭제/역 migration은 하지 않는다.
+- 이번 승인 SHA에는 직전 LIVE 대비 신규 migration이 없어서 migration·schema 2 재적용을 하지 않았다. 모델 스위치/알림 OFF 유지. 실제 모델 4회는 합성 fixture·실제 SDK/helper의 독립 시험이며 운영 저장/발송을 실행하지 않았다. 실제 응답/usage/요청 전 예산 확인은 같은 디렉터리의 model-budget.json에 있다.
+- **후속 무료 배차 준비 소스는 위 승인 SHA 밖이다.** 새로운 `office-transport-preparation.sql`은 새 레코드/불변 스냅샷 테이블·변경 차단 trigger를 위한 별도 승인 대상이며 작성만 했다. 기존 schema 2를 변경·재적용하는 방법으로 대체하지 않는다. 실제 migration/경쟁/trigger 적용 검증은 아직 없다.
+- 후속 영향: 관리자 전용 무료 준비 CRUD/검수·스냅샷·서버 영수증 재사용. 기사/학부모 권한·APP·SSE·PUSH·가격·구독·용량·AI ENGINE 변경 없음. 향후 적용은 최종 보고의 새 source SHA와 새 migration을 묶어 별도 승인하며, 미적용 서버는 저장을 허위 성공 처리하지 않는다.
+
 이 문서는 Agent의 후속 적용을 검토하기 위한 것이다. 사용자가 Windows에서 개발 도구·터미널·DB를 실행할 필요는 없다. 두 패치는 **실행 중인 API 소스에 적용하지 않았다.** 운영 배포·DB/schema 변경·운영 업로드/삭제/발송·유료 호출도 하지 않았다.
 
 ## 1. 관리자 보강: 최소 후보

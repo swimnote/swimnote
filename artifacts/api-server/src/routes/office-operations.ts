@@ -17,6 +17,7 @@ import { createOfficeOperationsAiRouter } from "./office-operations-ai.js";
 import rateLimit from "express-rate-limit";
 import { date } from "../lib/office-operations-data.js";
 import { ACTIVITY_KINDS, ACTIVITY_REPORT_SQL, type ActivityKind } from "../lib/office-activity-report.js";
+import {createOfficeTransportRouter} from "./office-transport.js";
 
 type RecordRow = {id:string;data:Record<string,any>;revision:number};
 type Handler = (req:AuthRequest,res:Response,owner:OfficeActor)=>Promise<void>;
@@ -28,6 +29,7 @@ const conflict = (message:string):never => { throw new OperationError(409,"CONFL
  */
 export function createOfficeOperationsRouter(pool:Pool, actor:(req:AuthRequest)=>Promise<OfficeActor>) {
   const router = Router();
+  router.use("/transport",createOfficeTransportRouter(pool,actor));
   const schema = async () => {
     const r = await pool.query(`SELECT to_regclass('public.office_operation_records') IS NOT NULL
       AND to_regclass('public.office_operation_receipts') IS NOT NULL

@@ -37,6 +37,7 @@ export const OFFICE_PAGES = [
   ["/admin/office/applications", "태블릿 가입 신청", "운영"],
   ["/admin/office/finance", "재등록·청구·수납 원장", "운영"],
   ["/admin/office/support", "시설·물품·대회·업체·본사", "운영"],
+  ["/admin/office/transport", "무료 배차 준비·검수", "운영"],
   ["/admin/office/policies", "센터 운영 기준", "운영"],
   ["/admin/legacy", "상담·체험·등록전환", "후속 완성"],
   ["/admin/tuition", "재등록·청구·수납", "후속 완성"],
@@ -77,10 +78,14 @@ const reads = [
   `/admin/parent-v2-pending(?:/${id}/approval-info)?`,
   `/teacher/growth-reports(?:/${id}/review)?`,
   "/attendance", `/notices(?:/${id}/read-stats)?`, "/parent-requests",
+  "/office/operations/transport", `/office/operations/transport/snapshots/${id}`, `/office/operations/transport/plans/${id}/preview`,
   `/parent-requests/${id}/messages`, "/photos/teacher-all", `/photos/private/${id}`,
   `/videos/(?:group|private|diary)/${id}`,
 ];
 const saves: [string, string][] = [
+  ["POST","/office/operations/transport/records"],
+  ["PATCH",`/office/operations/transport/records/${id}`],
+  ["POST",`/office/operations/transport/plans/${id}/approve`],
   ["POST", "/office/operations/finance/(?:preview|execute)"],
   ["POST", "/office/operations/finance/batch/(?:preview|execute)"],
   ["POST", "/office/operations/workspace/interpret"],
