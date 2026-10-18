@@ -10,6 +10,58 @@ import { isTrustedRendererURL, isValidBootstrapPayload } from "./security.cjs";
 export const SESSION_CHANNELS = ["office:session-restore", "office:session-commit", "office:session-clear"] as const;
 const PREFERENCE_CHANNELS = ["office:login-preferences-read", "office:login-preferences-save"] as const;
 
+type RequestPointer = { owner: string; requestId: string; path: string; createdAt: string };
+const pointerPath = /^\/office\/operations\/[a-z-]+(?:\/[a-zA-Z0-9_-]+){0,4}$/;
+const pointerId = /^[a-zA-Z0-9_-]{1,160}$/;
+const lane = (p: string) => p.split("/")[3];
+/** Only opaque owner hashes/request IDs and endpoint names; never bodies, money, tokens or member data. */
+export class PendingRequestStore {
+  private queue: Promise<unknown> = Promise.resolve();
+  private file: string;
+  constructor(directory: string) { this.file = path.join(directory, "office-pending-requests.json"); }
+  apply(input: { op: "list" | "begin" | "finish"; owner: string; requestId?: string; path?: string }): Promise<Omit<RequestPointer,"owner">[]> {
+    const run = this.queue.then(async () => {
+      if (!input || typeof input.owner!=="string" || !/^[a-f0-9]{64}$/.test(input.owner) || !["list","begin","finish"].includes(input.op) ||
+          Object.keys(input).some(k=>!["op","owner","requestId","path"].includes(k))) throw new Error("Invalid recovery pointer");
+      let rows: RequestPointer[] = [];
+      try {
+        const info = await lstat(this.file);
+        if (!info.isFile() || info.isSymbolicLink() || info.size > 65536) throw new Error("Invalid recovery file");
+        rows = JSON.parse(await readFile(this.file,"utf8"));
+        if (!Array.isArray(rows) || rows.length > 128 || rows.some(r=>!r || typeof r.owner!=="string" || !/^[a-f0-9]{64}$/.test(r.owner) ||
+          typeof r.requestId!=="string" || !pointerId.test(r.requestId) || typeof r.path!=="string" || !pointerPath.test(r.path) || typeof r.createdAt!=="string" || !Number.isFinite(Date.parse(r.createdAt)) ||
+          Object.keys(r).sort().join(",")!=="createdAt,owner,path,requestId")) throw new Error("Invalid recovery file");
+      } catch(e) { if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e; }
+      if (input.op !== "list") {
+        if (typeof input.requestId!=="string" || !pointerId.test(input.requestId)) throw new Error("Invalid request ID");
+        if (input.op === "begin") {
+          if (typeof input.path!=="string" || !pointerPath.test(input.path)) throw new Error("Invalid request path");
+          if (rows.some(r=>r.owner===input.owner && lane(r.path)===lane(input.path!))) throw new Error("이전 요청 결과를 먼저 확인하세요. 새 요청은 전송하지 않았습니다.");
+          if (rows.length >= 128) throw new Error("미확인 요청 보관 한도입니다. 기존 영수증을 먼저 확인하세요.");
+          rows.push({owner:input.owner,requestId:input.requestId,path:input.path,createdAt:new Date().toISOString()});
+        } else rows = rows.filter(r=>r.owner!==input.owner || r.requestId!==input.requestId);
+        const tmp=this.file+"."+randomUUID()+".tmp";
+        await writeFile(tmp,JSON.stringify(rows),{flag:"wx",mode:0o600});
+        await rename(tmp,this.file);
+      }
+      return rows.filter(r=>r.owner===input.owner).map(({owner,...r})=>r);
+    });
+    this.queue = run.catch(()=>undefined);
+    return run;
+  }
+}
+
+export function registerPendingRequestsIPC(ipc: Pick<IpcMain,"handle"|"removeHandler">, contents: WebContents, store: PendingRequestStore, developmentURL?: string) {
+  const channel="office:pending-requests";
+  ipc.handle(channel,(event,...args:unknown[])=>{
+    if(event.sender!==contents || !event.senderFrame || event.senderFrame!==contents.mainFrame ||
+      !isTrustedRendererURL(event.senderFrame.url,developmentURL) || args.length!==1 || !args[0] || typeof args[0]!=="object")
+      throw new Error("Invalid recovery request");
+    return store.apply(args[0] as Parameters<PendingRequestStore["apply"]>[0]);
+  });
+  return ()=>ipc.removeHandler(channel);
+}
+
 export function isLoginPreferences(value: unknown): value is LoginPreferences {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;

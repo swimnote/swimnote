@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client";
 import { ui } from "./office-ops-styles";
-import { pendingGet, pendingSet, pendingDelete, isUnknown, receiptSaved, errText, uuid } from "./office-unknown";
+import { pendingGet, pendingSet, pendingDelete, isUnknown, receiptSaved, errText, uuid,useRecoveredPending } from "./office-unknown";
 
 const { box, inp, btn, btn2 } = ui;
 type Resolved = { student: { id: string; name: string }; classes: { id: string; name: string }[]; date: string };
 type Scan = { attendance: { id: string; student_id: string; class_group_id: string; date: string; status: string }; duplicate: boolean; notificationStatus: string };
 
-/** Keyboard-wedge station: input focused only when armed; no global key listener. */
+/** Explicit scan-only mode; captures keyboard-wedge input only while armed. */
 export function OfficeNfcPanel({ scopeKey }: { scopeKey: string }) {
   const qc = useQueryClient();
   const pk = `${scopeKey}|nfc`;
@@ -16,6 +16,24 @@ export function OfficeNfcPanel({ scopeKey }: { scopeKey: string }) {
   const [armed, setArmed] = useState(false), [uid, setUid] = useState(""), [res, setRes] = useState<Resolved | null>(null);
   const [classId, setClassId] = useState(""), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [scan, setScan] = useState<Scan | null>(null);
   const [locked, setLocked] = useState(!!pendingGet(pk));
+  const swallowed=useRef(false);
+  useEffect(()=>{
+    if(!armed)return;
+    const capture=(e:KeyboardEvent)=>{
+      if(e.key==="Escape"){setArmed(false);swallowed.current=false;return;}
+      if(e.target===ref.current)return;
+      if(e.ctrlKey||e.metaKey||e.altKey)return;
+      if(e.key.length===1&&!e.isComposing){
+        e.preventDefault();e.stopImmediatePropagation();swallowed.current=true;
+        if(!res&&!busy&&!locked){ref.current?.focus();if(/^[A-Za-z0-9_-]$/.test(e.key))setUid(u=>(u+e.key).slice(0,160));}
+      }else if(e.key==="Enter"&&(swallowed.current||!(e.target instanceof Element&&e.target.closest('[data-testid="nfc-station"]')))){
+        e.preventDefault();e.stopImmediatePropagation();swallowed.current=false;ref.current?.focus();
+      }
+    };
+    const preventInput=(e:Event)=>{if(e.target!==ref.current){e.preventDefault();e.stopImmediatePropagation();ref.current?.focus();}};
+    document.addEventListener("keydown",capture,true);document.addEventListener("beforeinput",preventInput,true);document.addEventListener("paste",preventInput,true);
+    return()=>{document.removeEventListener("keydown",capture,true);document.removeEventListener("beforeinput",preventInput,true);document.removeEventListener("paste",preventInput,true);};
+  },[armed,res,busy,locked]);
   useEffect(() => { if (armed && !res) ref.current?.focus(); }, [armed, res, scan]);
   const reset = () => { setUid(""); setRes(null); setClassId(""); setScan(null); setMsg(""); };
   const resolve = async () => {
@@ -26,17 +44,19 @@ export function OfficeNfcPanel({ scopeKey }: { scopeKey: string }) {
     finally { setBusy(false); }
   };
   const submit = async () => {
-    if (!res || locked) return;
+    if (!res || locked || busy || pendingGet(pk)) return;
     if (!classId) return setMsg("반을 선택하세요.");
     const body = (pendingGet(pk)?.body as any) ?? { requestId: uuid(), uid: uid.trim(), classId };
+    pendingSet(pk,{requestId:body.requestId,body,label:"nfc"});
     setBusy(true); setMsg("");
     try {
       const r = await api.post<Scan>("/office/operations/nfc/scan", body);
+      if(!r.attendance?.id)throw {status:502,message:"출결 응답을 확정할 수 없습니다."};
       pendingDelete(pk); setLocked(false); setScan(r);
       qc.invalidateQueries({ queryKey: ["attendance"] }); setRes(null); setUid("");
     } catch (e: any) {
       if (isUnknown(e)) { pendingSet(pk, { requestId: body.requestId, body, label: "nfc" }); setLocked(true); setMsg("출결 기록 결과를 확인하지 못했습니다. 다시 스캔하지 말고 처리 결과를 확인하세요."); }
-      else { setMsg(errText(e)); }
+      else { pendingDelete(pk);setMsg(errText(e)); }
     } finally { setBusy(false); }
   };
   const check = async () => {
@@ -44,13 +64,15 @@ export function OfficeNfcPanel({ scopeKey }: { scopeKey: string }) {
     if (await receiptSaved(p.requestId)) { pendingDelete(pk); setLocked(false); reset(); setMsg("서버에 저장된 처리 결과를 확인했습니다. 출결 화면에서 확인하세요."); }
     else setMsg("저장 증거를 찾지 못했습니다. 기록 없음 또는 조회 실패는 미처리 증거가 아니므로 잠금을 유지합니다.");
   };
+  useRecoveredPending(pk,()=>{void check();});
   return <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }} data-testid="nfc-station">
     <strong>카드 리더 스테이션 (키보드 입력형)</strong>
+    {armed&&<p role="status">스캔 전용 모드: 다른 메모·금액 입력은 차단하고 UID 칸으로 보냅니다. 일반 업무 입력은 스테이션을 끄거나 Esc로 복귀하세요.</p>}
     <p role="note" style={{ fontSize: 12, color: "var(--color-warning)", margin: 0 }}>실제 카드 리더기 연동은 검증되지 않았습니다(NOT VERIFIED). 수동 UID 입력과 자동 출결은 같지 않습니다. 날짜는 서버의 한국 시간 오늘로만 기록되며 셔틀 정보는 다루지 않습니다.</p>
     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       <button style={armed ? btn : btn2} data-testid="nfc-arm" onClick={() => { setArmed(!armed); if (armed) reset(); }}>{armed ? "스테이션 켜짐 (끄기)" : "스테이션 켜기"}</button>
       <input ref={ref} data-testid="nfc-uid" style={{ ...inp, flex: 1, minWidth: 200 }} disabled={!armed || locked || !!res} autoComplete="off" placeholder={armed ? "카드를 대면 UID가 입력됩니다" : "스테이션을 켜세요"} value={uid}
-        onChange={e => setUid(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); resolve(); } }} />
+        onChange={e => setUid(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault();swallowed.current=false; resolve(); } }} />
       <button style={btn2} disabled={!armed || !uid.trim() || busy || locked || !!res} onClick={resolve}>조회</button>
     </div>
     {res && <div style={{ ...box, background: "var(--surface-off)" }} data-testid="nfc-resolved">

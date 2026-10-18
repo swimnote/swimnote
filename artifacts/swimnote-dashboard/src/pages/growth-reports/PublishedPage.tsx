@@ -1,5 +1,6 @@
 import { normalizeReportList, ReportDetailLink, ReportPager } from "./ReportViews";
 import { useState } from "react";
+import {useReportPeriod,useReportPageState,ReportWorkflowNav} from "./ReportWorkflow";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
@@ -72,9 +73,8 @@ export default function PublishedPage() {
   const issueYear  = now.getFullYear();
   const issueMonth = now.getMonth() + 1;
 
-  const [year, setYear] = useState(issueYear);
-  const [month, setMonth] = useState(issueMonth);
-  const [search, setSearch] = useState("");
+  const {year,setYear,month,setMonth}=useReportPeriod(issueYear,issueMonth);
+  const [search, setSearch] = useReportPageState("published-search","");
   const [confirmTarget, setConfirmTarget] = useState<ReportItem | null>(null);
   const [resendError, setResendError] = useState("");
 
@@ -111,7 +111,7 @@ export default function PublishedPage() {
     <div style={{ padding: "24px" }}>
       <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>발행 완료</h1>
+          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>발행 완료</h1><ReportWorkflowNav/>
           <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0" }}>
             {isLoading ? "…" : `${filtered.length}건`}
             {" · "}

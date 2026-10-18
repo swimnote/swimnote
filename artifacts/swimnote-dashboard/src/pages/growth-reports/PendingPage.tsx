@@ -1,5 +1,6 @@
 import { ReportPager, ReportContentView, normalizeReportList } from "./ReportViews";
 import { useState, useEffect, useCallback } from "react";
+import {useReportPeriod,useReportPageState,ReportWorkflowNav} from "./ReportWorkflow";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
@@ -363,9 +364,8 @@ export default function PendingPage() {
   const issueYear  = now.getFullYear();
   const issueMonth = now.getMonth() + 1; // 1-indexed current month
 
-  const [year, setYear] = useState(issueYear);
-  const [month, setMonth] = useState(issueMonth);
-  const [search, setSearch] = useState("");
+  const {year,setYear,month,setMonth}=useReportPeriod(issueYear,issueMonth);
+  const [search, setSearch] = useReportPageState("pending-search","");
   const [drawerIndex, setDrawerIndex] = useState<number | null>(null);
   const [allDone, setAllDone] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -394,7 +394,7 @@ export default function PendingPage() {
     <div style={{ padding: "24px" }}>
       <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>검수 대기</h1>
+          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>검수 대기</h1><ReportWorkflowNav/>
           <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0" }}>
             {isLoading ? "…" : `${filtered.length}건 대기 중`}
             {" · "}

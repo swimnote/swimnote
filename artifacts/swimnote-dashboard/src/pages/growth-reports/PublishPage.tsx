@@ -1,5 +1,6 @@
 import { normalizeReportList, ReportDetailLink, ReportPager } from "./ReportViews";
-import { useState } from "react";
+import { useEffect,useState } from "react";
+import {useReportPeriod,useReportPageState,ReportWorkflowNav} from "./ReportWorkflow";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
@@ -136,9 +137,8 @@ export default function PublishPage() {
   const issueYear  = now.getFullYear();
   const issueMonth = now.getMonth() + 1;
 
-  const [year, setYear] = useState(issueYear);
-  const [month, setMonth] = useState(issueMonth);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const {year,setYear,month,setMonth}=useReportPeriod(issueYear,issueMonth);
+  const [selected, setSelected] = useReportPageState<Set<string>>(`publish-selected:${year}:${month}`,new Set());
   const [showConfirm, setShowConfirm] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [publishResult, setPublishResult] = useState<BulkSendResult | null>(null);
@@ -152,6 +152,11 @@ export default function PublishPage() {
   });
 
   // APPROVED + READY_TO_SEND are both sendable
+  useEffect(()=>{
+    if(!data||isLoading||isError)return;
+    const eligible=new Set(data.items.filter(r=>["APPROVED","READY_TO_SEND"].includes(r.product_status)).map(r=>r.id));
+    setSelected(old=>new Set([...old].filter(id=>eligible.has(id))));
+  },[data,isLoading,isError]);
   // READY_TO_SEND = pre-delivery state (awaiting send), not yet published to user
   const approved = (data?.items ?? []).filter(
     (r) => r.product_status === "APPROVED" || r.product_status === "READY_TO_SEND"
@@ -189,7 +194,7 @@ export default function PublishPage() {
     <div style={{ padding: "24px" }}>
       <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>발행 관리</h1>
+          <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#1E293B", margin: 0 }}>발행 관리</h1><ReportWorkflowNav/>
           <p style={{ fontSize: "13px", color: "#64748B", margin: "4px 0 0" }}>
             {isLoading ? "…" : `승인됨 ${approved.length}건`}
             {selected.size > 0 && ` · ${selected.size}건 선택됨`}

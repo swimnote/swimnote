@@ -53,5 +53,5 @@ export function buildCommand(spec: FinanceActionSpec, date: string, form: Record
   }
   return { command };
 }
-export const isUnknownOutcome = (e: any) => { const s = e?.status; return !(typeof s === "number" && s >= 400 && s < 500 && s !== 408 && s !== 429); };
+export const isUnknownOutcome = (e: any) => { if(e?.code==="OFFICE_OUTCOME_UNKNOWN")return true; const s = e?.status; return !(typeof s === "number" && s >= 400 && s < 500 && s !== 408 && s !== 429); };
 export const financeCsv = (head: string[], rows: unknown[][]) => "\ufeff" + [head, ...rows].map(r => r.map(csvCell).join(",")).join("\r\n");

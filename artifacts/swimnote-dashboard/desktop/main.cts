@@ -9,7 +9,7 @@ import {
   resolveRendererPath, validateDevelopmentURL, isAllowedAuthRequest,
 } from "./security.cjs";
 import { TokenStore } from "./token-store.cjs";
-import { registerSessionIPC, registerLoginPreferencesIPC, LoginPreferencesStore } from "./session-ipc.cjs";
+import { registerSessionIPC, registerLoginPreferencesIPC, LoginPreferencesStore, registerPendingRequestsIPC, PendingRequestStore } from "./session-ipc.cjs";
 declare const __OFFICE_STAGE3_ACTIVE__: boolean;
 import { isAllowedOfficeImage } from "./office-access.cjs";
 
@@ -114,6 +114,7 @@ async function createWindow() {
     return { version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, stage: "F03" };
   });
   const store = new TokenStore(app.getPath("userData"), safeStorage, process.platform);
+  const removePendingIPC = registerPendingRequestsIPC(ipcMain,win.webContents,new PendingRequestStore(app.getPath("userData")),developmentURL);
   const removeSessionIPC = registerSessionIPC(ipcMain, win.webContents, store, developmentURL);
   const removePreferencesIPC = registerLoginPreferencesIPC(
     ipcMain, win.webContents, new LoginPreferencesStore(app.getPath("userData")), developmentURL,
@@ -139,6 +140,7 @@ async function createWindow() {
     ipcMain.removeHandler(BOOTSTRAP_CHANNEL);
     removeSessionIPC();
     removePreferencesIPC();
+    removePendingIPC();
     mainWindow = null;
   });
   await win.loadURL(developmentURL || ENTRY_URL);

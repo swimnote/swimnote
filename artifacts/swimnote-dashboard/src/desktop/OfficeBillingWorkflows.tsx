@@ -5,6 +5,7 @@ import { listAllOps, type OpsItem } from "./office-ops-lib";
 import { ui } from "./office-ops-styles";
 import { receiptItem, isUnknown, errText, uuid } from "./office-unknown";
 import { previewFinance, executeFinance, fetchSnapshot, krw, type FinanceSnapshot, type Totals, type PreviewResult } from "./office-finance-api";
+import { ContractContinuation } from "./OfficeJourney";
 
 const { box, inp, btn, btn2 } = ui;
 const today = () => new Date(Date.now()+9*3600_000).toISOString().slice(0, 10);
@@ -37,15 +38,21 @@ function Impact({ before, after }: { before: Totals; after: Totals }) {
 export function OfficeBillingWorkflows({ scope, snapshot, onDone }: { scope: string; snapshot: FinanceSnapshot; onDone: () => void }) {
   const cap = useQuery({ queryKey: ["ops-cap"], queryFn: () => api.get<{ financeBatchVersion?: number }>("/office/operations/capabilities"), retry: false });
   const [mode, setMode] = useState<"bulk" | "renew">("renew");
+  const [revision,setRevision]=useState(0);
+  useEffect(()=>{const h=(e:Event)=>{
+    const id=(e as CustomEvent).detail?.requestId;let found=false;
+    if(batchPend.get(scope)?.requestId===id){batchPend.delete(scope);found=true;}
+    if(found){setRevision(n=>n+1);onDone();}
+  };window.addEventListener("office:receipt-recovered",h);return()=>window.removeEventListener("office:receipt-recovered",h);},[scope,onDone]);
   useEffect(() => { dropOthers(scope); }, [scope]);
   return <section style={{ ...box, display: "flex", flexDirection: "column", gap: 10 }} data-testid="office-billing-workflows">
     <p role="note" style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>수기 원장 기록입니다. 결제 승인·실제 수납이 아니며 금액은 직접 입력하거나 서버가 저장한 계약 금액만 사용합니다.</p>
     <div style={{ display: "flex", gap: 4 }}>
       <button style={mode === "renew" ? btn : btn2} data-testid="billing-mode-renew" onClick={() => setMode("renew")}>재등록 (계약 + 청구)</button>
       <button style={mode === "bulk" ? btn : btn2} data-testid="billing-mode-bulk" onClick={() => setMode("bulk")}>일괄 청구</button></div>
-    {mode === "bulk" ? (cap.data?.financeBatchVersion === 1 ? <Bulk scope={scope} snapshot={snapshot} onDone={onDone} />
+    {mode === "bulk" ? (cap.data?.financeBatchVersion === 1 ? <Bulk key={revision} scope={scope} snapshot={snapshot} onDone={onDone} />
       : <div role="status" data-testid="billing-bulk-disabled" style={warn}>{cap.isLoading ? "서버 기능 확인 중…" : "서버가 일괄 청구를 아직 지원하지 않아 사용할 수 없습니다(financeBatchVersion 필요). 개별 청구는 업무 입력에서 가능합니다."}</div>)
-      : <Renew scope={scope} snapshot={snapshot} onDone={onDone} />}
+      : <Renew key={revision} scope={scope} snapshot={snapshot} onDone={onDone} />}
   </section>;
 }
 
@@ -143,6 +150,9 @@ function Renew({ scope, snapshot, onDone }: { scope: string; snapshot: FinanceSn
   const [ackC, setAckC] = useState(false), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   const [cLocked, setCLocked] = useState(contractPend.has(scope));
   const [created, setCreated] = useState<OpsItem | null>(null), [newId, setNewId] = useState("");
+  useEffect(()=>{const h=(e:Event)=>{const {requestId,result}=(e as CustomEvent).detail??{};if(contractPend.get(scope)?.requestId!==requestId||!result?.item?.id)return;
+    contractPend.delete(scope);setCLocked(false);setCreated(result.item);setNewId(result.item.id);setAckC(false);qc.invalidateQueries({queryKey:["ops"]});onDone();
+  };window.addEventListener("office:receipt-recovered",h);return()=>window.removeEventListener("office:receipt-recovered",h);},[scope,onDone,qc]);
   const name = (id: string) => snapshot.students.find(s => s.id === id)?.name ?? id;
   const all = useMemo(() => { const l = contracts.data?.items ?? []; return created && !l.some(c => c.id === created.id) ? [created, ...l] : l; }, [contracts.data, created]);
   const prods = products.data?.items ?? [];
@@ -214,13 +224,13 @@ function Renew({ scope, snapshot, onDone }: { scope: string; snapshot: FinanceSn
       <strong>2단계 · 청구</strong>
       <label style={lab}>재등록 계약 선택(서버에 저장된 새 계약, 이어서 진행 가능)<select data-testid="renew-new" style={inp} value={newId} onChange={e => setNewId(e.target.value)}><option value="">선택</option>
         {renewals.map(c => <option key={c.id} value={c.id}>{name(c.data.studentId)} · {prodName(c.data.productId)} · {c.data.startDate}~{c.data.endDate}</option>)}</select></label>
-      {nc ? <InvoiceStep key={nc.id} scope={scope} contract={nc} studentName={name(nc.data.studentId)} onDone={() => { qc.invalidateQueries({ queryKey: ["ops"] }); onDone(); }} />
+      {nc ? <ContractContinuation key={nc.id} scope={scope} contract={nc} studentName={name(nc.data.studentId)} onDone={() => { qc.invalidateQueries({ queryKey: ["ops"] }); onDone(); }} />
         : <small style={{ color: "var(--text-muted)" }}>계약을 선택하면 발행된 청구 여부와 청구 단계가 표시됩니다.</small>}
     </div>
   </div>;
 }
 
-function InvoiceStep({ scope, contract, studentName, onDone }: { scope: string; contract: OpsItem; studentName: string; onDone: () => void }) {
+export function InvoiceStep({ scope, contract, studentName, onDone }: { scope: string; contract: OpsItem; studentName: string; onDone: () => void }) {
   const price = termsOf(contract).contractPriceKrw;
   const fresh = useQuery({ queryKey: ["office-finance-fresh", scope, contract.id], queryFn: () => fetchSnapshot("0001-01-01", kstToday(), ""), retry: false, refetchOnMount: "always", staleTime: 0, gcTime: 0 });
   const fs = fresh.data;
@@ -231,6 +241,9 @@ function InvoiceStep({ scope, contract, studentName, onDone }: { scope: string; 
   const [date, setDate] = useState(today()), [due, setDue] = useState(today()), [label, setLabel] = useState(`재등록 ${contract.data.startDate}~${contract.data.endDate}`);
   const [prev, setPrev] = useState<PreviewResult | null>(null), [ok, setOk] = useState(false), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [done, setDone] = useState("");
   const [locked, setLocked] = useState(!!pendHere);
+  useEffect(()=>{const h=(e:Event)=>{const {requestId,result}=(e as CustomEvent).detail??{};if(invoicePend.get(scope)?.requestId!==requestId||!result?.event?.id)return;
+    invoicePend.delete(scope);setLocked(false);setPrev(null);setOk(false);setDone("서버 영수증으로 청구를 확인했습니다.");fresh.refetch();onDone();
+  };window.addEventListener("office:receipt-recovered",h);return()=>window.removeEventListener("office:receipt-recovered",h);},[scope,onDone]);
   const otherLock = !!pend && !pendHere;
   const validPrice = typeof price === "number" && Number.isInteger(price) && price >= 0;
   const touch = () => { setPrev(null); setOk(false); };

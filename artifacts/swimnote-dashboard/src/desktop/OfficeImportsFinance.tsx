@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client";
 import { toCsv, download, type OpsItem } from "./office-ops-lib";
 import { ui } from "./office-ops-styles";
-import { pendingGet, pendingSet, pendingDelete, isUnknown, receiptItem, errText, uuid } from "./office-unknown";
+import { pendingGet, pendingSet, pendingDelete, isUnknown, receiptItem, errText, uuid,useRecoveredPending } from "./office-unknown";
 
 const { box, inp, btn, btn2 } = ui;
 export const FIN_TARGETS: [string, string][] = [["student_id", "회원 ID"], ["kind", "구분"], ["amount_krw", "금액(원)"], ["remaining_count", "잔여 횟수"], ["contract_id", "계약 ID"], ["makeup_class_id", "보강 반 ID"], ["transaction_date", "원 결제일(과거 수납 필수)"], ["makeup_date", "원 결석일(배정일 아님)"]];
@@ -47,6 +47,7 @@ export function OfficeImportsFinance({ cur, headers, scopeKey, onRevision, sugge
     const saved:any=await receiptItem(p.requestId);
     if (Number.isSafeInteger(saved?.revision)&&Array.isArray(saved?.results)) { pendingDelete(pk); setLock(false); setPrev(null);setRes(saved);onRevision(saved.revision); setMsg("서버 처리 영수증으로 반영을 확인했습니다. 결과 CSV를 확인하세요."); qc.invalidateQueries({ queryKey: ["office-finance", scopeKey] });qc.invalidateQueries({queryKey:["ops"]}); }
     else setMsg("저장 증거를 찾지 못했습니다. 404/조회 실패는 미처리 증거가 아니므로 잠금을 유지합니다."); };
+  useRecoveredPending(pk,()=>{void check();});
   const csv = (name: string, rows: any[]) => download(name, toCsv(["sourceKey", "구분", "회원", "금액", "잔여횟수", "상태", "오류"], rows.map(r => [r.sourceKey, r.kind, r.studentId, r.amountKrw, r.remainingCount, r.status, (r.errors ?? [r.error ?? ""]).join("; ")])));
   return <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }} data-testid="import-finance">
     <strong>금융·수강권 자료 연결 (별도 규칙)</strong>

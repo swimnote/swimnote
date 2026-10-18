@@ -21,21 +21,22 @@ type CreateStudentBody = {
   registration_path: "admin_created";
 };
 
-export default function NewMemberPage() {
+export default function NewMemberPage({initialValues={},onCreated}:{initialValues?:Partial<Record<"name"|"parent_phone"|"phone"|"parent_name"|"memo",string>>;onCreated?:(student:{id:string;name:string})=>void}={}) {
   const navigate = useOfficeNavigate();
   const qc = useQueryClient();
 
   const [form, setForm] = useState({
-    name: "",
-    phone: "",
+    name: initialValues.name??"",
+    phone: initialValues.phone??"",
     birth_year: "",
-    parent_name: "",
-    parent_phone: "",
+    parent_name: initialValues.parent_name??"",
+    parent_phone: initialValues.parent_phone??"",
     class_group_id: "",
-    memo: "",
+    memo: initialValues.memo??"",
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [unknown,setUnknown]=useState(false);
 
   const { data: classGroups = [] } = useQuery<ClassGroup[]>({
     queryKey: ["class-groups"],
@@ -44,18 +45,28 @@ export default function NewMemberPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (body: CreateStudentBody) => api.post("/students", body),
-    onSuccess: () => {
+    mutationFn: async(body: CreateStudentBody) => {
+      const r=await api.post<{id?:string;name?:string;success?:boolean;student?:{id:string;name:string}}>("/students",body);
+      const s=r.student??r;
+      if(r.success===false)throw {status:409,message:"등록이 확정되지 않았습니다. 유사한 기존 회원을 목록에서 먼저 확인하세요."};
+      if(typeof s.id!=="string")throw {status:502,message:"회원 생성 결과를 확인하지 못했습니다. 회원 목록에서 기존 저장 여부를 확인하고 다시 등록하지 마세요."};
+      return {id:s.id,name:s.name??body.name};
+    },
+    onSuccess: (student) => {
       qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({queryKey:["ops-ref"]});
       setSuccess(true);
+      onCreated?.(student);
     },
     onError: (e: ApiError) => {
       setError(e.message ?? "등록 중 오류가 발생했습니다.");
+      if(!e.status||e.status>=500||[408,429].includes(e.status))setUnknown(true);
     },
   });
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if(unknown)return;
     setError(null);
     if (!form.name.trim()) {
       setError("이름은 필수 항목입니다.");
@@ -251,7 +262,7 @@ export default function NewMemberPage() {
           </button>
           <button
             type="submit"
-            disabled={createMutation.isPending}
+            disabled={createMutation.isPending||unknown}
             style={{
               flex: 2, padding: "11px", borderRadius: "8px", border: "none",
               background: createMutation.isPending ? "#9CA3AF" : "var(--x-primary, #1E6FD9)",

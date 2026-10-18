@@ -6,6 +6,7 @@ import { download } from "./office-ops-lib";
 import { ui } from "./office-ops-styles";
 import { OfficeBillingWorkflows } from "./OfficeBillingWorkflows";
 import { OfficeMerchantPanel } from "./OfficeMerchantPanel";
+import {confirmRecoveryPointer} from "./OfficeRecovery";
 import {
   financeKey, fetchSnapshot, previewFinance, executeFinance, lookupReceipt, buildCommand, isUnknownOutcome, financeCsv, krw, uuid,
   type FinanceSnapshot, type PreviewResult, type FinanceActionSpec, type Totals,
@@ -22,7 +23,7 @@ type Draft = { actionKey: string; date: string; form: Record<string, string> };
 const drafts = new Map<string, Draft>();
 /** Unknown outcome: same requestId and body kept; only receipt confirmation allowed. */
 const unsure = new Map<string, { requestId: string; body: any }>();
-const clearMemory = (keep?: string) => { for (const m of [drafts, unsure] as Map<string, unknown>[]) for (const k of [...m.keys()]) if (k !== keep) m.delete(k); };
+const clearMemory = (keep?: string) => { for (const m of [drafts, unsure] as Map<string, unknown>[]) for (const k of [...m.keys()]) if (!keep || k!==keep&&!k.startsWith(keep+"|")) m.delete(k); };
 if (typeof window !== "undefined") window.addEventListener("office:session-invalid", () => clearMemory());
 
 /** Stage an AI/Action draft into the regular entry form of the same user+pool scope. Never executes. */
@@ -65,18 +66,19 @@ function Table({ head, rows, empty, testid }: { head: string[]; rows: React.Reac
       {!rows.length && <tr><td colSpan={head.length} style={{ ...td, color: "var(--text-muted)", padding: 16 }}>{empty}</td></tr>}</tbody></table></div>;
 }
 
-export function OfficeFinancePanel() {
+export function OfficeFinancePanel({initialStudentId=""}:{initialStudentId?:string}={}) {
   const { state } = useAuth();
   const scope = state.status === "authenticated" ? `${state.user.id}:${state.user.swimming_pool_id}` : "unauthenticated";
   const hasX = state.status === "authenticated" && state.user.hasX;
   useEffect(() => { clearMemory(scope === "unauthenticated" ? undefined : scope); }, [scope]);
-  return <FinanceInner key={scope} scope={scope} hasX={hasX} />;
+  if(state.status!=="authenticated"||state.user.role!=="pool_admin")return <p role="alert">수납 업무는 센터 관리자 권한이 필요합니다.</p>;
+  return <FinanceInner key={`${scope}:${initialStudentId}`} scope={initialStudentId?`${scope}|member:${initialStudentId}`:scope} hasX={hasX} initialStudentId={initialStudentId}/>;
 }
 
-function FinanceInner({ scope, hasX }: { scope: string; hasX: boolean }) {
+function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: boolean;initialStudentId:string }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("summary");
-  const [from, setFrom] = useState(`${today().slice(0, 8)}01`), [to, setTo] = useState(today()), [studentId, setStudentId] = useState("");
+  const [from, setFrom] = useState(`${today().slice(0, 8)}01`), [to, setTo] = useState(today()), [studentId, setStudentId] = useState(initialStudentId);
   const [search, setSearch] = useState("");
   const [staged, setStaged] = useState<{ command: Record<string, unknown>; nonce: number } | null>(null);
   useEffect(() => {
@@ -125,7 +127,7 @@ function FinanceInner({ scope, hasX }: { scope: string; hasX: boolean }) {
     <div data-finance-noprint style={{ ...box, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
       <label style={{ fontSize: 12 }}>기간 시작 <input data-testid="finance-from" style={inp} type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
       <label style={{ fontSize: 12 }}>기간 종료(기준일) <input data-testid="finance-to" style={inp} type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
-      <label style={{ fontSize: 12 }}>회원 <select data-testid="finance-student" style={inp} value={studentId} onChange={e => setStudentId(e.target.value)}><option value="">전체</option>
+      <label style={{ fontSize: 12 }}>회원 <select data-testid="finance-student" style={inp} disabled={!!initialStudentId} value={studentId} onChange={e => setStudentId(e.target.value)}><option value="">전체</option>
         {(d?.students ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       <input data-testid="finance-search" style={{ ...inp, marginLeft: "auto" }} placeholder="목록 검색" value={search} onChange={e => setSearch(e.target.value)} />
       <button style={btn2} onClick={() => snap.refetch()}>새로고침</button>
@@ -151,8 +153,9 @@ function FinanceInner({ scope, hasX }: { scope: string; hasX: boolean }) {
         <div data-finance-noprint style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {Object.keys(reports).map(k => <button key={k} style={btn2} disabled={search.trim()!==serverSearch} onClick={reports[k]}>{k} CSV</button>)}</div>
       </div>}
-      {tab === "invoices" && <Table testid="finance-invoices" empty="청구가 없습니다." head={["회원", "내용", "청구일", "기한", "청구액", "배분", "미납", "상태"]}
-        rows={invoices.map(x => [sid(x.studentId), x.label, x.date, x.dueDate, krw(x.amountKrw), krw(x.allocatedKrw), krw(x.dueKrw), x.cancelled ? "취소" : x.dueKrw === 0 ? "완납" : x.dueDate < to ? "연체" : "미납"])} />}
+      {tab === "invoices" && <Table testid="finance-invoices" empty="청구가 없습니다." head={["회원", "내용", "청구일", "기한", "청구액", "배분", "미납", "상태","다음 업무"]}
+        rows={invoices.map(x => [sid(x.studentId), x.label, x.date, x.dueDate, krw(x.amountKrw), krw(x.allocatedKrw), krw(x.dueKrw), x.cancelled ? "취소" : x.dueKrw === 0 ? "완납" : x.dueDate < to ? "연체" : "미납",
+          <button style={btn2} disabled={x.cancelled||x.dueKrw<=0} onClick={()=>{setStaged({nonce:Date.now(),command:{action:"receipt.record",date:today(),studentId:x.studentId,amountKrw:x.dueKrw,_invoiceId:x.id}});setTab("entry");}}>수납·부분수납 이어가기</button>])} />}
       {tab === "receipts" && <Table testid="finance-receipts" empty="수납이 없습니다." head={["회원", "거래일", "방식", "금액", "환불누계", "미배분", "상태","입력시각","처리자ID","경로·식별번호"]}
         rows={receipts.map(x => [sid(x.studentId), x.date, x.method, krw(x.amountKrw), krw(x.refundedKrw), krw(x.unallocatedKrw), x.voided ? "오입력 정정" : "수기 기록",x.recordedAt??"기존 기록(미제공)",x.actorId??"-",`${x.source??"기존 기록"} / ${x.externalRef??"-"}`])} />}
       {tab === "allocations" && <Table testid="finance-allocations" empty="배분이 없습니다." head={["배분 ID", "수납", "청구", "배분액", "잔여"]}
@@ -186,13 +189,19 @@ function EntryForm({ scope, d, date: defDate, onDone, staged }: { staged: { comm
   const [actionKey, setActionKey] = useState(d0?.actionKey ?? ""), [date, setDate] = useState(d0?.date ?? defDate), [form, setForm] = useState<Record<string, string>>(d0?.form ?? {});
   const [prev, setPrev] = useState<PreviewResult | null>(null), [ok, setOk] = useState(false), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   const [locked, setLocked] = useState(unsure.has(scope)), [done, setDone] = useState("");
+  const [allocation,setAllocation]=useState<Record<string,string>|null>(null);
+  useEffect(()=>{const h=(e:Event)=>{
+    const {requestId,result}=(e as CustomEvent).detail??{};
+    if(unsure.get(scope)?.requestId!==requestId||!result?.event?.id||!Number.isSafeInteger(result.version))return;
+    unsure.delete(scope);drafts.delete(scope);setLocked(false);setPrev(null);setOk(false);setForm({});setActionKey("");setDone("서버 처리 영수증으로 저장을 확인했습니다.");onDone();
+  };window.addEventListener("office:receipt-recovered",h);return()=>window.removeEventListener("office:receipt-recovered",h);},[scope,onDone]);
   useEffect(() => { if (actionKey) drafts.set(scope, { actionKey, date, form }); }, [scope, actionKey, date, form]);
   useEffect(() => {
     if (!staged || unsure.has(scope)) return;
     const { action, date: dd, ...rest } = staged.command as Record<string, unknown>;
     setActionKey(String(action ?? "")); if (typeof dd === "string") setDate(dd);
     setForm(Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => [k, String(v)])));
-    setPrev(null); setOk(false); setMsg("AI 초안을 채웠습니다. 내용을 확인하고 미리보기를 실행하세요(자동 확정 없음).");
+    setPrev(null); setOk(false); setMsg("선택한 업무의 내용을 채웠습니다. 실제 수납액·수단을 확인하고 미리보기를 실행하세요(자동 확정 없음).");
   }, [staged?.nonce]);
   const spec: FinanceActionSpec | undefined = d?.actions.find(a => a.key === actionKey);
   const edit = (patch: Record<string, string>) => { if (locked) return; setForm(f => ({ ...f, ...patch })); setPrev(null); setOk(false); };
@@ -211,6 +220,8 @@ function EntryForm({ scope, d, date: defDate, onDone, staged }: { staged: { comm
     try {
       const r = await executeFinance(body);
       if(!r.event?.id||!Number.isSafeInteger(r.version))throw Object.assign(new Error("서버 처리 결과 형식 확인 필요"),{status:502});
+      if(actionKey==="receipt.record"&&form._invoiceId)setAllocation({receiptId:r.event.id,invoiceId:form._invoiceId,amountKrw:String(r.event.amountKrw)});
+      else setAllocation(null);
       unsure.delete(scope); drafts.delete(scope); setLocked(false); setPrev(null); setOk(false); setForm({}); setActionKey("");
       setDone(`처리 완료: 요청 ${body.requestId.slice(0, 8)} · 원장 버전 ${r.version} (영수증 확인됨)`); onDone();
     } catch (e: any) {
@@ -222,6 +233,7 @@ function EntryForm({ scope, d, date: defDate, onDone, staged }: { staged: { comm
     const p = unsure.get(scope); if (!p) return;
     try { const r = await lookupReceipt(p.requestId);
       if (!r.event?.id || !Number.isSafeInteger(r.version)) return setMsg("확정된 처리 결과가 없습니다. 기록 없음은 미처리 증거가 아니므로 잠금을 유지합니다.");
+      await confirmRecoveryPointer(p.requestId,r);
       unsure.delete(scope); drafts.delete(scope); setLocked(false); setPrev(null); setForm({}); setActionKey(""); setDone("서버 처리 영수증으로 저장을 확인했습니다."); onDone();
     } catch { setMsg("결과를 확정하지 못했습니다. 조회 실패·404는 미처리 증거가 아닙니다. 동일 요청을 유지합니다."); }
   };
@@ -243,6 +255,8 @@ function EntryForm({ scope, d, date: defDate, onDone, staged }: { staged: { comm
     {locked && <div role="alert" data-testid="finance-unknown" style={{ color: "var(--color-warning)", fontSize: 13 }}>이전 처리 결과가 미확인입니다. 입력이 잠겼습니다. <button style={btn2} onClick={confirmReceipt}>처리 결과 확인</button></div>}
     {msg && <div role="alert" style={{ color: "var(--color-error)", fontSize: 13 }}>{msg}</div>}
     {done && <div role="status" data-testid="finance-done" style={{ color: "var(--color-success, #1a7f37)", fontSize: 13 }}>{done}</div>}
+    {allocation&&<div style={box} data-testid="finance-next-allocation"><p>수납 기록이 저장되었습니다. 아직 청구 배분 완료가 아닙니다.</p>
+      <button style={btn} onClick={()=>{setActionKey("receipt.allocate");setForm(allocation);setPrev(null);setOk(false);setAllocation(null);setDone("");}}>이 수납을 선택한 청구에 배분 · 미리보기로</button></div>}
     {prev && <div style={{ ...box, background: "var(--surface-off)", fontSize: 13 }} data-testid="finance-preview">
       <strong>영향 미리보기 (저장 전)</strong>
       <Table testid="finance-impact" empty="" head={["항목", "이전", "이후"]} rows={TOTAL_LABELS.map(([k, l]) => [l, krw(prev.impact.before[k]), krw(prev.impact.after[k])])} />

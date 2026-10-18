@@ -5,7 +5,7 @@ import { api } from "../lib/api-client";
 import { listOps, uuid, toCsv, download, autoRules, parseRuleText, TARGETS, type OpsItem } from "./office-ops-lib";
 import { ui } from "./office-ops-styles";
 import { OfficeImportsFinance } from "./OfficeImportsFinance";
-import { pendingGet,pendingSet,pendingDelete,pendingClear,receiptItem,isUnknown } from "./office-unknown";
+import { pendingGet,pendingSet,pendingDelete,pendingClear,receiptItem,isUnknown,useRecoveredPending } from "./office-unknown";
 
 type F = { name: string; sheet: string; rows: Record<string, unknown>[] };
 type Prep = { preview: { rows: { source: { file: string; sheet: string; row: number }; normalized: Record<string, unknown>; errors: string[] }[]; ready: number; held: number }; revision: number };
@@ -64,6 +64,13 @@ export function OfficeImportsPanel({ scopeKey = "local" }: { scopeKey?: string }
     if (!Object.keys(rules).length) setRules(autoRules([...new Set(all.flatMap(f => f.rows.flatMap(r => Object.keys(r))))]));
   };
   const rule = async () => {
+    const lines=text.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
+    if(lines.length>1){
+      const parsed=lines.map(s=>parseRuleText(s,headers));
+      if(parsed.some(x=>!x)){say(text,"일부 규칙을 확인하지 못했습니다. 각 줄을 '대상=원본 열'로 작성하세요. 어떤 규칙도 부분 적용하지 않았습니다.");return;}
+      setRulesTracked({...rules,...Object.fromEntries(parsed.map(p=>[p!.target,p!.source]))});
+      say(text,`${parsed.length}개 규칙을 한 번에 반영했습니다. 변환 미리보기를 확인하세요. 서버 적용은 아직 하지 않았습니다.`);setText("");return;
+    }
     const p = parseRuleText(text, headers);
     if (p) { setRulesTracked({ ...rules, [p.target]: p.source }); setText(""); say(text, `규칙 적용: ${p.target} = ${p.source}`); return setMsg(`규칙 적용: ${p.target} = ${p.source}`); }
     if (!cur) return setMsg("자유 문장 해석은 저장된 가져오기가 필요합니다. 먼저 저장하거나 '이름=성명' 형식을 사용하세요.");
@@ -129,6 +136,7 @@ export function OfficeImportsPanel({ scopeKey = "local" }: { scopeKey?: string }
       download(`import-${cur.id}-results.csv`, toCsv(["file", "sheet", "row", "status", "detail"], rows.map(x => [x.source?.file ?? x.file, x.source?.sheet ?? x.sheet, x.source?.row ?? x.row, x.status, x.error ?? (x.errors ?? []).join("; ") ?? ""]))); }
     catch (e: any) { setMsg(e?.message ?? "결과 조회 실패"); }
   };
+  useRecoveredPending(pk,()=>{void checkPending();});
   const exportPrep = () => prep && download("import-preview.csv", toCsv(["file", "sheet", "row", "ready", "errors", ...TARGETS.map(t => t[0])], prep.preview.rows.map(r => [r.source.file, r.source.sheet, r.source.row, r.errors.length ? "held" : "ready", r.errors.join("; "), ...TARGETS.map(t => r.normalized[t[0]])])));
 
   return <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 10 }}>
@@ -153,7 +161,7 @@ export function OfficeImportsPanel({ scopeKey = "local" }: { scopeKey?: string }
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button style={btn2} data-testid="import-undo" disabled={!undo.length} onClick={() => { const u = undo[undo.length - 1]; setUndo(undo.slice(0, -1)); setRules(u); say("되돌리기", "직전 규칙 변경을 되돌렸습니다."); }}>직전 규칙 되돌리기</button>
         <select data-testid="import-remove-rule" style={inp} value="" onChange={e => { const k = e.target.value; if (!k) return; const n = { ...rules }; delete n[k]; setRulesTracked(n); say(`${k} 규칙 제거`, `${k} 매핑을 명시적으로 제거했습니다.`); }}><option value="">규칙 제거…</option>{Object.keys(rules).map(k => <option key={k} value={k}>{k} = {rules[k]}</option>)}</select>
         <small style={{ color: "var(--text-muted)" }}>이 입력은 규칙 문장 해석이며 모델을 자동 호출하지 않습니다.</small></div>
-      <div style={{ display: "flex", gap: 6 }}><input style={{ ...inp, flex: 1 }} placeholder="규칙 입력: 이름=성명" value={text} onChange={e => setText(e.target.value)} /><button style={btn2} onClick={rule} disabled={!text.trim()}>규칙 적용</button></div>
+      <div style={{ display: "flex", gap: 6 }}><textarea aria-label="이전 대화·규칙 입력" rows={3} style={{ ...inp, flex: 1 }} placeholder={"규칙을 한 줄에 하나씩 입력하세요\n이름=성명\n보호자 연락처=휴대폰"} value={text} onChange={e => setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&!e.nativeEvent.isComposing){e.preventDefault();void rule();}}}/><button style={btn2} onClick={rule} disabled={!text.trim()}>규칙 적용 · Ctrl+Enter</button></div>
       {mapped.length > 0 && <div style={{ overflowX: "auto", maxHeight: 220 }}><table style={{ fontSize: 12, borderCollapse: "collapse" }}><thead><tr><th>원본</th>{Object.keys(rules).map(k => <th key={k} style={{ padding: "2px 8px" }}>{k}</th>)}</tr></thead>
         <tbody>{mapped.slice(0, 20).map((m, i) => <tr key={i}><td style={{ padding: "2px 8px" }}>{m.f}/{m.s}#{m.i}</td>{Object.keys(rules).map(k => <td key={k} style={{ padding: "2px 8px" }}>{String(m.v[k] ?? "")}</td>)}</tr>)}</tbody></table>
         <small>미리보기 20 / {mapped.length}행 (로컬 매핑, 서버 검증 전)</small></div>}

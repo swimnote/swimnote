@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import {ReportWorkflowNav} from "./ReportWorkflow";
 
 const LABELS: Record<string, string> = { summary: "요약", overall_assessment: "전반적 평가", positive_growth_signals: "긍정적 성장 신호", next_growth_targets: "다음 성장 목표", next_observation_targets: "다음 관찰 목표", success_conditions: "성공 조건", support_levers: "지원 방법" };
 
@@ -42,7 +43,7 @@ export function ReportDetailLink({ id, label }: { id: string; label: string }) {
           {d && <>
             <div style={{ fontSize: 12, color: "#64748B", marginBottom: 10 }}>상태 {d.product_status} · 기간 {d.report_period} · 검수 {d.admin_reviewed_at ? "관리자 확인" : d.teacher_reviewed_at ? "선생님 검수" : "미검수"}</div>
             <ReportContentView content={d.report_content} extra={{ sns_summary: d.sns_summary, positive_growth_signals: d.positive_growth_signals, next_growth_targets: d.next_growth_targets, next_observation_targets: d.next_observation_targets }} /></>}
-        </div></div></>}
+        </div><ReportWorkflowNav/></div></>}
   </>;
 }
 

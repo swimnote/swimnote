@@ -13,6 +13,7 @@ import { api, performOfficeOperation } from "../lib/api-client";
 import { registerOfficeOperations } from "./office-operation";
 import { OFFICE_PAGES } from "../../desktop/office-access.cts";
 import { useAuth } from "../contexts/AuthContext";
+import { recoverableWrite,OfficeRecovery } from "./OfficeRecovery";
 
 let scopeSequence = 0;
 const abortError = () => new DOMException("이전 조회를 취소했습니다.", "AbortError");
@@ -69,7 +70,7 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
       queryStartedAt: after?.queryStartedAt ?? 0, receivedAt: after?.receivedAt ?? 0,
     });
     const core = new OfficeActionCore({
-      existingApi: performOfficeOperation,
+      existingApi: (path,method,body)=>recoverableWrite(owner,path,method,body,()=>performOfficeOperation(path,method,body)),
       readDiary: id => api.get<unknown>(`/diaries/${encodeURIComponent(id)}`),
       confirmExisting: message => window.confirm(message),
       changedExisting: async (path, method) => {
@@ -218,5 +219,5 @@ export function OfficeActionProvider({ actor, children, stage3 = productionStage
   return <OfficeActionContext.Provider value={{ ...session, actorRole: actor.role,
     notice: noticeState.owner === session.life ? noticeState.text : "",
     tasks: taskState.owner === session.life ? taskState.tasks : [], stage3Enabled: !!stage3,
-    aiMode: stage3 ? stage3.mode ?? "server" : "off" }}>{children}</OfficeActionContext.Provider>;
+    aiMode: stage3 ? stage3.mode ?? "server" : "off" }}><OfficeRecovery actor={actor}/>{children}</OfficeActionContext.Provider>;
 }

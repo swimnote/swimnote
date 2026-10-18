@@ -2,6 +2,7 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Student } from "../pages/members/MembersPage";
 import { OFFICE_MEMBER_TABS, type OfficeMemberTab } from "./OfficeNavigation";
 import "./OfficeMemberDetail.css";
+import { OfficeFinancePanel } from "./OfficeFinancePanel";
 
 const TAB_LABELS: Record<OfficeMemberTab, string> = {
   basic: "기본정보", contacts: "연락처·보호자", classes: "수강반", notes: "메모", growth: "성장리포트",
@@ -73,6 +74,7 @@ export function OfficeMemberDetail({ student, tab, onTabChange, onBack, growth, 
   const enrichmentMissing = classes.length === 0 && assignedIds.length > 0;
   const missingClassCount = assignedIds.filter(id => !classes.some(c => c.id === id)).length;
   const extra = student as { parent_phone2?: string; parent_phone3?: string; parent_phone4?: string; class_enrolled_at?: string };
+  const [financeOpen,setFinanceOpen]=useState(false);
   const enrolledAt = fmtDate(extra.class_enrolled_at);
   const levelText = text(student.level) ?? "미연결";
   const memo = text(student.memo);
@@ -94,6 +96,8 @@ export function OfficeMemberDetail({ student, tab, onTabChange, onBack, growth, 
   return (
     <article className="office-member-detail" aria-label={`${student.name} 회원 상세`}>
       <header className="office-member-detail-summary">
+        {editable&&<div><button type="button" onClick={()=>setFinanceOpen(x=>!x)} aria-expanded={financeOpen}>청구·미납·부분수납 {financeOpen?"접기":"이어가기"}</button>
+          {financeOpen&&<OfficeFinancePanel key={student.id} initialStudentId={student.id}/>}</div>}
         <button type="button" className="office-member-detail-back" onClick={onBack}>회원 목록으로</button>
         <div className="office-member-detail-title">
           <h2>{student.name}</h2>

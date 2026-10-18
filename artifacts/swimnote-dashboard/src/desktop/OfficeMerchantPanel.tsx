@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client";
 import { listOps, uuid, type OpsItem } from "./office-ops-lib";
-import { pendingGet, pendingSet, pendingDelete, pendingClear, isUnknown, receiptItem, errText } from "./office-unknown";
+import { pendingGet, pendingSet, pendingDelete, pendingClear, isUnknown, receiptItem, errText,useRecoveredPending } from "./office-unknown";
 import { ui } from "./office-ops-styles";
 
 const { box, inp, btn, btn2 } = ui;
@@ -87,6 +87,7 @@ export function OfficeMerchantPanel({ scope }: { scope: string }) {
     try { const r = await api.get<any>(`/office/operations/support/${id}/history`); setHist({ id, rows: r?.items ?? [] }); }
     catch (e: any) { setHist({ id, err: errText(e) }); }
   };
+  useRecoveredPending(pkey,()=>{void recover();});
   const lab = { fontSize: 12, display: "flex", flexDirection: "column", gap: 2 } as const;
   return <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }} data-testid="office-merchant-panel">
     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
