@@ -4,17 +4,19 @@ import { useAuth } from "../contexts/AuthContext";
 import { api } from "../lib/api-client";
 import { download } from "./office-ops-lib";
 import { ui } from "./office-ops-styles";
+import { OfficeBillingWorkflows } from "./OfficeBillingWorkflows";
+import { OfficeMerchantPanel } from "./OfficeMerchantPanel";
 import {
   financeKey, fetchSnapshot, previewFinance, executeFinance, lookupReceipt, buildCommand, isUnknownOutcome, financeCsv, krw, uuid,
   type FinanceSnapshot, type PreviewResult, type FinanceActionSpec, type Totals,
 } from "./office-finance-api";
 
 const { box, inp, btn, btn2 } = ui;
-type Tab = "summary" | "invoices" | "receipts" | "allocations" | "refunds" | "expenses" | "rights" | "closings" | "families" | "events" | "entry";
+type Tab = "summary" | "invoices" | "receipts" | "allocations" | "refunds" | "expenses" | "rights" | "closings" | "families" | "events" | "entry" | "workflows" | "merchant";
 const TABS: [Tab, string][] = [["summary", "요약·보고서"], ["invoices", "청구"], ["receipts", "수납"], ["allocations", "배분"], ["refunds", "환불"], ["expenses", "지출·강사정산"], ["rights", "수강권·갱신"], ["closings", "마감"], ["families", "가족·회원"], ["events", "처리 내역"], ["entry", "업무 입력"]];
 const TOTAL_LABELS: [keyof Totals, string, string][] = [["billedKrw", "청구 누계", "기준일 잔액"], ["dueKrw", "미납 잔액", "기준일 잔액"], ["unallocatedKrw", "미배분 수납", "기준일 잔액"], ["receivedKrw", "기간 수납", "기간 거래일"], ["refundedKrw", "기간 환불", "기간 거래일"], ["expensesPaidKrw", "기간 지출 지급", "기간 거래일"], ["cashFlowKrw", "기간 현금흐름", "기간 거래일"]];
 const errMsg = (e: any) => e?.status === 503 ? "수납 원장 서버 마이그레이션이 아직 적용되지 않았습니다. 합계·목록을 표시하지 않으며 저장도 되지 않습니다." : e?.status === 409 ? `충돌: ${e.message ?? "다른 변경과 겹칩니다. 새로고침 후 미리보기를 다시 실행하세요."}` : e?.message ?? "요청 실패";
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
 type Draft = { actionKey: string; date: string; form: Record<string, string> };
 const drafts = new Map<string, Draft>();
@@ -81,11 +83,13 @@ function FinanceInner({ scope, hasX }: { scope: string; hasX: boolean }) {
     const h = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.scope === scope) { setStaged({ command: d.command, nonce: Date.now() }); setTab("entry"); } };
     window.addEventListener("office-finance-draft", h); return () => window.removeEventListener("office-finance-draft", h);
   }, [scope]);
-  const key = financeKey(scope, from, to, studentId);
-  const snap = useQuery({ queryKey: key, queryFn: () => fetchSnapshot(from, to, studentId), retry: false, refetchOnWindowFocus: false, staleTime: 10_000, refetchOnMount: "always", refetchInterval: 30_000, refetchIntervalInBackground: false, enabled: scope !== "unauthenticated" });
+  const [serverSearch,setServerSearch] = useState("");
+  useEffect(()=>{const t=setTimeout(()=>setServerSearch(search.trim()),250);return()=>clearTimeout(t);},[search]);
+  const key = financeKey(scope, from, to, studentId,serverSearch);
+  const snap = useQuery({ queryKey: key, queryFn: () => fetchSnapshot(from, to, studentId,serverSearch), retry: false, refetchOnWindowFocus: false, staleTime: 10_000, refetchOnMount: "always", refetchInterval: 30_000, refetchIntervalInBackground: false, enabled: scope !== "unauthenticated" });
   const d: FinanceSnapshot | undefined = snap.data;
   const nameOf = useMemo(() => { const m = new Map((d?.students ?? []).map(s => [s.id, s.name])); return (id: string) => m.get(id) ?? id; }, [d]);
-  const match = (...v: unknown[]) => !search.trim() || v.some(x => String(x ?? "").toLowerCase().includes(search.trim().toLowerCase()));
+  const match = (...v: unknown[]) => d?.reportVersion === 1 || !search.trim() || v.some(x => String(x ?? "").toLowerCase().includes(search.trim().toLowerCase()));
   const sid = (id: string) => `${nameOf(id)}`;
 
   const invoices = (d?.invoices ?? []).filter(x => match(x.label, nameOf(x.studentId), x.id));
@@ -96,17 +100,26 @@ function FinanceInner({ scope, hasX }: { scope: string; hasX: boolean }) {
   const rights = (d?.rights ?? []).filter(x => match(x.label, nameOf(x.studentId)));
   const events = (d?.events ?? []).filter(e => match(e.action, e.reason, e.label, e.externalRef, e.id));
 
-  const csv = (name: string, head: string[], rows: unknown[][]) => download(`${name}-${from}_${to}.csv`, financeCsv(head, rows));
+  const csv = (name: string, head: string[], rows: unknown[][]) => {
+    const totals=d?.tableTotals?.[name];
+    const columns:Record<string,string>={"청구액":"amountKrw","금액":"amountKrw","배분액":"allocatedKrw","미납액":"dueKrw","미지급":"dueKrw","환불누계":"refundedKrw","환불":"refundedKrw","미배분":"unallocatedKrw","지급":"paidKrw"};
+    const footer=head.map((h,i)=>i===0?"합계(서버)":totals?.[columns[h]]??"");
+    download(`${name}-${from}_${to}.csv`,financeCsv(head,totals?[...rows,footer]:rows));
+  };
   const reports: Record<string, () => void> = {
     청구: () => csv("invoices", ["id", "회원", "내용", "청구일", "기한", "청구액", "배분액", "미납액", "취소"], invoices.map(x => [x.id, nameOf(x.studentId), x.label, x.date, x.dueDate, x.amountKrw, x.allocatedKrw, x.dueKrw, x.cancelled])),
-    수납: () => csv("receipts", ["id", "회원", "수납일", "방식", "금액", "환불", "미배분", "오입력취소"], receipts.map(x => [x.id, nameOf(x.studentId), x.date, x.method, x.amountKrw, x.refundedKrw, x.unallocatedKrw, x.voided])),
+    수납: () => csv("receipts", ["id", "회원", "거래일", "방식", "금액", "환불누계", "미배분", "오입력취소","입력시각","처리자ID","경로","거래식별번호"], receipts.map(x => [x.id, nameOf(x.studentId), x.date, x.method, x.amountKrw, x.refundedKrw, x.unallocatedKrw, x.voided,x.recordedAt,x.actorId,x.source,x.externalRef])),
     지출: () => csv("expenses", ["id", "내용", "예정일", "거래처", "분류", "구분", "금액", "지급", "미지급", "취소"], expenses.map(x => [x.id, x.label, x.dueDate, x.vendor, x.category, x.kind, x.amountKrw, x.paidKrw, x.dueKrw, x.cancelled])),
     배분: () => csv("allocations", ["id", "수납", "청구", "배분액", "잔여"], allocations.map(x => [x.id, x.receiptId, x.invoiceId, x.amountKrw, x.remainingKrw])),
-    처리내역: () => csv("events", ["id", "업무", "기록일", "금액", "사유"], events.map(e => [e.id, e.action, e.date, e.amountKrw ?? e.deltaKrw ?? "", e.reason ?? ""])),
+    처리내역: () => csv("events", ["id", "업무", "거래일", "금액", "사유","입력시각","처리자ID","경로"], events.map(e => [e.id, e.action, e.date, e.amountKrw ?? e.deltaKrw ?? "", e.reason ?? "",e.recordedAt,e.actorId,e.source])),
+    미납: () => csv("unpaid",["id","회원","내용","기한","미납액"],invoices.filter(x=>!x.cancelled&&x.dueKrw>0).map(x=>[x.id,nameOf(x.studentId),x.label,x.dueDate,x.dueKrw])),
+    환불: () => csv("refunds",["id","거래일","원수납","금액","식별번호","사유","입력시각","처리자ID","경로"],refunds.map(e=>[e.id,e.date,e.receiptId,e.amountKrw,e.externalRef,e.reason,e.recordedAt,e.actorId,e.source])),
+    마감: () => csv("closings",["id","시작일","종료일","마감중","사유"],(d?.closings??[]).map(x=>[x.id,x.fromDate,x.toDate,x.active,x.reason])),
+    요약: () => csv("summary",["항목","기준","금액(원)"],TOTAL_LABELS.map(([k,l,b])=>[l,b,d?.reportVersion===1?d.totals[k]:"서버 보고서 확장 반영 대기"])),
   };
 
-  return <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }} data-testid="office-finance">
-    <style>{`@media print{[data-finance-noprint]{display:none!important}}`}</style>
+  return <div data-finance-print-area style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }} data-testid="office-finance">
+    <style>{`@media print{[data-finance-noprint]{display:none!important}body:has([data-finance-print-area]) *{visibility:hidden}[data-finance-print-area],[data-finance-print-area] *{visibility:visible}[data-finance-print-area]{position:absolute;left:0;top:0;width:100%;height:auto!important}[data-finance-print-area] div{overflow:visible!important}}`}</style>
     <h1 style={{ fontSize: 18 }}>재등록·청구·수납 원장</h1>
     <p role="note" style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>센터 운영 기록용 수기 원장입니다. 수동 수납·환불은 PG 승인·실제 환불이 아니며, 실제 입출금 식별번호를 직접 기록합니다. 앱 구독 결제를 대체하지 않습니다.</p>
     <div data-finance-noprint style={{ ...box, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -119,25 +132,29 @@ function FinanceInner({ scope, hasX }: { scope: string; hasX: boolean }) {
     </div>
     {snap.isLoading && <div style={{ height: 80, background: "var(--surface-subtle)", borderRadius: 4 }} />}
     {snap.isError && <div role="alert" data-testid="finance-error" style={{ ...box, color: "var(--color-error)" }}>{errMsg(snap.error)} <button style={btn2} onClick={() => snap.refetch()}>다시 시도</button></div>}
+    {d && d.reportVersion!==1 && <div role="note" style={box}>보고서 서버 확장 승인 대기: 검색/회원 필터와 일치하는 새 합계는 아직 표시하지 않습니다. 기존 개별 업무는 그대로 사용할 수 있습니다.</div>}
+    {search.trim()!==serverSearch && <div role="status">검색 조건 적용 중… 출력 전 갱신을 기다리세요.</div>}
     <AiDraft scope={scope} studentId={studentId} hasX={hasX} />
-    <div data-finance-noprint style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{TABS.map(([k, l]) => <button key={k} data-testid={`finance-tab-${k}`} style={tab === k ? btn : btn2} onClick={() => setTab(k)}>{l}</button>)}</div>
+    <div data-finance-noprint style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[...TABS,["workflows","대량 청구·재등록"] as [Tab,string],["merchant","가맹점 결제 신청"] as [Tab,string]].map(([k, l]) => <button key={k} data-testid={`finance-tab-${k}`} style={tab === k ? btn : btn2} onClick={() => setTab(k)}>{l}</button>)}</div>
+    {tab==="workflows" && d && <OfficeBillingWorkflows scope={scope} snapshot={d} onDone={()=>{qc.invalidateQueries({queryKey:["office-finance",scope]});qc.invalidateQueries({queryKey:["ops"]});}} />}
+    {tab==="merchant" && <OfficeMerchantPanel key={scope} scope={scope} />}
     {tab === "entry" && <EntryForm scope={scope} d={d} date={to} staged={staged} onDone={() => { qc.invalidateQueries({ queryKey: ["office-finance", scope] }); qc.invalidateQueries({ queryKey: ["ops"] }); }} />}
-    {d && tab !== "entry" && <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
+    {d && tab !== "entry" && tab!=="workflows" && tab!=="merchant" && <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{fontSize:12}}>기간 {from}~{to} · 회원 {studentId?nameOf(studentId):"전체"} · 검색 {serverSearch||"없음"} · {tab==="summary"?"요약":TABS.find(t=>t[0]===tab)?.[1]}</div>
       {tab === "summary" && <div data-testid="finance-report">
         <strong>재무 보고서 {from} ~ {to}{studentId && ` · ${nameOf(studentId)}`}</strong>
         <p style={{ fontSize: 12, color: "var(--text-muted)" }}>기준일 잔액은 {to}까지의 누적이며, 기간 거래일 항목은 {from}~{to} 사이 기록일 합계입니다.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 8 }}>
           {TOTAL_LABELS.map(([k, l, b]) => <div key={k} style={{ ...box, background: "var(--surface-off)" }}><div style={{ fontSize: 12 }}>{l} <span style={{ color: "var(--text-muted)" }}>({b})</span></div>
-            <strong data-testid={`total-${k}`}>{krw(d.totals[k])}</strong></div>)}</div>
+            <strong data-testid={`total-${k}`}>{d.reportVersion===1?krw(d.totals[k]):"서버 반영 대기"}</strong></div>)}</div>
         <ul style={{ fontSize: 12, color: "var(--text-muted)" }}>{d.basis.map((b, i) => <li key={i}>{b}</li>)}</ul>
         <div data-finance-noprint style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {Object.keys(reports).map(k => <button key={k} style={btn2} onClick={reports[k]}>{k} CSV</button>)}
-          <button style={btn} data-testid="finance-print" onClick={() => window.print()}>인쇄·PDF 저장(브라우저 인쇄)</button></div>
+          {Object.keys(reports).map(k => <button key={k} style={btn2} disabled={search.trim()!==serverSearch} onClick={reports[k]}>{k} CSV</button>)}</div>
       </div>}
       {tab === "invoices" && <Table testid="finance-invoices" empty="청구가 없습니다." head={["회원", "내용", "청구일", "기한", "청구액", "배분", "미납", "상태"]}
         rows={invoices.map(x => [sid(x.studentId), x.label, x.date, x.dueDate, krw(x.amountKrw), krw(x.allocatedKrw), krw(x.dueKrw), x.cancelled ? "취소" : x.dueKrw === 0 ? "완납" : x.dueDate < to ? "연체" : "미납"])} />}
-      {tab === "receipts" && <Table testid="finance-receipts" empty="수납이 없습니다." head={["회원", "수납일", "방식", "금액", "환불", "미배분", "상태"]}
-        rows={receipts.map(x => [sid(x.studentId), x.date, x.method, krw(x.amountKrw), krw(x.refundedKrw), krw(x.unallocatedKrw), x.voided ? "오입력 정정" : "수기 기록"])} />}
+      {tab === "receipts" && <Table testid="finance-receipts" empty="수납이 없습니다." head={["회원", "거래일", "방식", "금액", "환불누계", "미배분", "상태","입력시각","처리자ID","경로·식별번호"]}
+        rows={receipts.map(x => [sid(x.studentId), x.date, x.method, krw(x.amountKrw), krw(x.refundedKrw), krw(x.unallocatedKrw), x.voided ? "오입력 정정" : "수기 기록",x.recordedAt??"기존 기록(미제공)",x.actorId??"-",`${x.source??"기존 기록"} / ${x.externalRef??"-"}`])} />}
       {tab === "allocations" && <Table testid="finance-allocations" empty="배분이 없습니다." head={["배분 ID", "수납", "청구", "배분액", "잔여"]}
         rows={allocations.map(x => [x.id.slice(0, 8), x.receiptId.slice(0, 8), d.invoices.find(i => i.id === x.invoiceId)?.label ?? x.invoiceId, krw(x.amountKrw), krw(x.remainingKrw)])} />}
       {tab === "refunds" && <><p style={{ fontSize: 12, color: "var(--text-muted)" }}>실제로 돌려준 환불을 수기로 기록한 내역입니다. 원 수납 원금 범위 안에서만 가능하며 PG 환불 승인이 아닙니다.</p>
@@ -154,8 +171,12 @@ function FinanceInner({ scope, hasX }: { scope: string; hasX: boolean }) {
         <strong>회원별 귀속</strong><Table testid="finance-students" empty="회원이 없습니다." head={["회원", "청구", "수납", "미납"]}
           rows={d.students.filter(s => match(s.name)).map(s => [s.name, studentId === s.id && d.studentTotals ? krw(d.studentTotals.billedKrw) : "회원 선택 시 서버 합계", studentId === s.id && d.studentTotals ? krw(d.studentTotals.receivedKrw) : "-", studentId === s.id && d.studentTotals ? krw(d.studentTotals.dueKrw) : "-"])} />
         <p style={{ fontSize: 12, color: "var(--text-muted)" }}>회원별 귀속 합계는 서버 계산값(studentTotals)만 표시합니다. 위에서 회원을 선택하세요.</p></>}
-      {tab === "events" && <Table testid="finance-events" empty="처리 내역이 없습니다." head={["기록일", "업무", "금액", "사유"]}
-        rows={events.map(e => [e.date, d.actions.find(a => a.key === e.action)?.label ?? e.action, e.amountKrw ?? e.deltaKrw ?? "-", e.reason ?? e.label ?? ""])} />}
+      {tab === "events" && <Table testid="finance-events" empty="처리 내역이 없습니다." head={["거래일", "업무", "금액", "사유","입력시각","처리자ID","경로"]}
+        rows={events.map(e => [e.date, d.actions.find(a => a.key === e.action)?.label ?? e.action, e.amountKrw ?? e.deltaKrw ?? "-", e.reason ?? e.label ?? "",e.recordedAt??"기존 기록(미제공)",e.actorId??"-",e.source??"기존 기록"])} />}
+      {d.tableTotals?.[tab] && <div data-testid="finance-visible-totals" style={{fontSize:13}}>표시 목록 서버 합계: {Object.entries(d.tableTotals[tab]).map(([k,v])=>`${({amountKrw:"금액",allocatedKrw:"배분",dueKrw:"미납/미지급",refundedKrw:"환불누계",unallocatedKrw:"미배분",paidKrw:"지급누계"} as Record<string,string>)[k]??k} ${krw(v)}`).join(" · ")}</div>}
+      <div data-finance-noprint style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        <button style={btn} data-testid="finance-print" disabled={search.trim()!==serverSearch} onClick={()=>window.print()}>현재 화면 인쇄·PDF 저장</button>
+      </div>
     </section>}
   </div>;
 }
@@ -185,9 +206,11 @@ function EntryForm({ scope, d, date: defDate, onDone, staged }: { staged: { comm
     if (!prev || !ok) return;
     const pend = unsure.get(scope);
     const body = pend?.body ?? { requestId: uuid(), command: prev.command, expectedVersion: prev.expectedVersion, previewHash: prev.previewHash, confirmed: true as const };
+    unsure.set(scope,{requestId:body.requestId,body});
     setBusy(true); setMsg("");
     try {
       const r = await executeFinance(body);
+      if(!r.event?.id||!Number.isSafeInteger(r.version))throw Object.assign(new Error("서버 처리 결과 형식 확인 필요"),{status:502});
       unsure.delete(scope); drafts.delete(scope); setLocked(false); setPrev(null); setOk(false); setForm({}); setActionKey("");
       setDone(`처리 완료: 요청 ${body.requestId.slice(0, 8)} · 원장 버전 ${r.version} (영수증 확인됨)`); onDone();
     } catch (e: any) {
@@ -198,7 +221,7 @@ function EntryForm({ scope, d, date: defDate, onDone, staged }: { staged: { comm
   const confirmReceipt = async () => {
     const p = unsure.get(scope); if (!p) return;
     try { const r = await lookupReceipt(p.requestId);
-      if (!r.item) return setMsg("확정된 처리 결과가 없습니다. 기록 없음은 미처리 증거가 아니므로 잠금을 유지합니다.");
+      if (!r.event?.id || !Number.isSafeInteger(r.version)) return setMsg("확정된 처리 결과가 없습니다. 기록 없음은 미처리 증거가 아니므로 잠금을 유지합니다.");
       unsure.delete(scope); drafts.delete(scope); setLocked(false); setPrev(null); setForm({}); setActionKey(""); setDone("서버 처리 영수증으로 저장을 확인했습니다."); onDone();
     } catch { setMsg("결과를 확정하지 못했습니다. 조회 실패·404는 미처리 증거가 아닙니다. 동일 요청을 유지합니다."); }
   };

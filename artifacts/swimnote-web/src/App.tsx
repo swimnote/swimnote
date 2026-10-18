@@ -29,6 +29,7 @@ const NotFound          = lazy(() => import("@/pages/not-found"));
 const SwimnotePage      = lazy(() => import("@/pages/SwimnotePage"));
 const SwimnoteXPage     = lazy(() => import("@/pages/SwimnoteXPage"));
 const SwimnoteOfficePage = lazy(() => import("@/pages/SwimnoteOfficePage"));
+const MerchantApplicationPage = lazy(() => import("@/pages/MerchantApplicationPage"));
 
 // ── WP7 확장 메뉴 페이지 (/:slug 보다 먼저 등록 필수) ────────────────────────
 const AIPage            = lazy(() => import("@/pages/AIPage"));
@@ -347,6 +348,10 @@ function Router() {
         </Route>
         <Route path="/swimnote-office">
           <PublicLayout><SwimnoteOfficePage /></PublicLayout>
+        </Route>
+
+        <Route path="/merchant-application">
+          <PublicLayout><MerchantApplicationPage /></PublicLayout>
         </Route>
 
         {/* 수영장 관리자 (레거시) */}

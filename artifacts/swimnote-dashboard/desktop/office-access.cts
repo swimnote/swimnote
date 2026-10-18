@@ -82,6 +82,7 @@ const reads = [
 ];
 const saves: [string, string][] = [
   ["POST", "/office/operations/finance/(?:preview|execute)"],
+  ["POST", "/office/operations/finance/batch/(?:preview|execute)"],
   ["POST", "/office/operations/workspace/interpret"],
   ["POST", "/office/operations/nfc/(?:resolve|scan)"],
   ["POST", "/office/operations/applications/invite"],

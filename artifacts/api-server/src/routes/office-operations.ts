@@ -53,7 +53,8 @@ export function createOfficeOperationsRouter(pool:Pool, actor:(req:AuthRequest)=
   router.get("/capabilities",run(async (_req,res) => {
     const financialReady=(await pool.query("SELECT to_regclass('public.office_finance_schema') IS NOT NULL AS ready")).rows[0]?.ready===true;
     res.json({available:await schema(),schemaVersion:financialReady?2:1,resources,readerVerified:false,nfcReaderMode:"keyboard_wedge_uid_enter",
-      aiImportModelEnabled:importModelEnabled(process.env),financialImportEnabled:financialReady});
+      aiImportModelEnabled:importModelEnabled(process.env),financialImportEnabled:financialReady,
+      financeBatchVersion:financialReady?1:0,merchantOnboardingVersion:financialReady?1:0});
   },false));
   router.get("/receipts/:requestId",run(async (req,res,owner) => {
     const id = requestId(req.params.requestId);
@@ -287,6 +288,10 @@ async function validateReferences(c:PoolClient,poolId:string,resource:Resource,d
       const old=(await c.query("SELECT data FROM office_operation_records WHERE pool_id=$1 AND resource='contracts' AND id=$2",[poolId,d.previousContractId])).rows[0];
       if(!old||old.data.studentId!==d.studentId||d.previousContractId===id) conflict("동일 회원의 이전 계약을 연결하세요.");
       if(d.startDate<=old.data.startDate) conflict("이전 계약보다 뒤에 시작하는 재등록이어야 합니다.");
+      const duplicate = await c.query(`SELECT id FROM office_operation_records WHERE pool_id=$1 AND resource='contracts'
+        AND id<>$2 AND data->>'previousContractId'=$3 AND data->>'startDate'=$4 AND data->>'status'<>'cancelled' LIMIT 1`,
+      [poolId,id,d.previousContractId,d.startDate]);
+      if(duplicate.rows.length) conflict("같은 이전 계약·시작일의 재등록 계약이 이미 있습니다. 기존 새 계약에서 청구를 이어가세요.");
     }
     const discount=d.discountKrw??product.data.discountKrw??0;
     if(discount>product.data.priceKrw) conflict("계약 할인은 상품 금액을 초과할 수 없습니다.");

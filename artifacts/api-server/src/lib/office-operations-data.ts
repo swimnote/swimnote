@@ -40,7 +40,7 @@ const fields: Record<Resource, string[]> = {
   cards: ["studentId","cardUid","status","note"],
   imports: ["name","files","rules","decisions","status","note","referenceDate"],
   templates: ["name","version","body","consentText","status"],
-  support: ["name","kind","status","dueDate","assigneeId","vendor","quantity","note","url"],
+  support: ["name","kind","status","dueDate","assigneeId","vendor","quantity","note","url","merchantStage","merchantReference","merchantConfirmedAt"],
   policies: ["name","refundPolicy","discountPolicy","attendancePolicy","note"],
 };
 export const operationFields=(resource:Resource)=>fields[resource];
@@ -105,8 +105,19 @@ export function validateData(resource: Resource, input: unknown): Record<string,
     choice("status",["draft","active","retired"]);
   }
   if(resource==="support") {
-    required("name"); choice("kind",["facility","supplies","competition","vendor","headquarters"]);
+    required("name"); choice("kind",["facility","supplies","competition","vendor","headquarters","merchant_application"]);
     choice("status",["planned","requested","in_progress","completed","held","cancelled"]);
+    if (data.kind === "merchant_application") {
+      choice("merchantStage",["preparing","application_submitted","contract_signed","review_approved","payment_active"]);
+      if (data.merchantStage !== "preparing") required("merchantReference","merchantConfirmedAt");
+      if (data.merchantConfirmedAt) {
+        data.merchantConfirmedAt = date(data.merchantConfirmedAt);
+        if (data.merchantConfirmedAt > new Date(Date.now()+9*3600_000).toISOString().slice(0,10)) bad("확인일은 미래일 수 없습니다.");
+      }
+      // These are centre-entered progress notes only; never a payment capability.
+    } else {
+      delete data.merchantStage; delete data.merchantReference; delete data.merchantConfirmedAt;
+    }
     if(data.dueDate) data.dueDate=date(data.dueDate);
     if(data.quantity!==undefined) integer("quantity",0);
     if(data.url) {

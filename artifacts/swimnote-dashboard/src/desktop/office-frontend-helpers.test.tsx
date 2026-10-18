@@ -31,6 +31,10 @@ describe("unknown outcome", () => {
     expect(pendingGet("u:p|x")).toBeTruthy();
     get.mockResolvedValue({ item: { id: 1 } });
     expect(await receiptSaved("r1")).toBe(true);
+    get.mockResolvedValue({ event:{id:"fin_1"},version:1 });
+    expect(await receiptSaved("r1")).toBe(true);
+    get.mockResolvedValue({ results:[],revision:2,applied:0 });
+    expect(await receiptSaved("r1")).toBe(true);
   });
   it("actor change clears other scopes, session-invalid clears all", () => {
     pendingSet("a:1|x", { requestId: "1", body: {}, label: "x" }); pendingSet("b:1|x", { requestId: "2", body: {}, label: "x" });

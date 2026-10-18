@@ -5,6 +5,8 @@ import type { OfficeActor } from "../lib/office-command.js";
 import { OperationError, object, requestId, digest, date } from "../lib/office-operations-data.js";
 import { financeActions, normalizeFinance, checkFinance, projectFinance, financeTotals, type FinanceEvent } from "../lib/office-finance.js";
 import { COURSE_ATTENDANCE_SQL, historicalContractAttendanceSql } from "../lib/office-finance-sql.js";
+import { normalizeInvoiceBatch, previewInvoiceBatch } from "../lib/office-finance-batch.js";
+import { financeView } from "../lib/office-finance-view.js";
 
 type Handler = (req: AuthRequest, res: Response, owner: OfficeActor) => Promise<void>;
 type Wrap = (fn: Handler, needsSchema?: boolean) => (req: AuthRequest, res: Response) => Promise<void>;
@@ -138,6 +140,10 @@ export function createOfficeFinanceRouter(pool: Pool, run: Wrap) {
         dueKrw: p.invoices.filter(i => studentIds.includes(i.studentId)).reduce((n, i) => n + i.dueKrw, 0) }));
       const sid = String(req.query.studentId ?? "");
       if (sid && !context.students.some(s => s.id === sid)) throw new OperationError(403, "SCOPE_MISMATCH", "센터 회원을 확인하세요.");
+      const search = String(req.query.search ?? "").trim();
+      if (search.length > 200) throw new OperationError(400,"INVALID_SEARCH","검색어는 200자 이하로 입력하세요.");
+      const view = financeView(events, context.students, from, to, sid, search);
+      const studentView = sid ? financeView(events, context.students, from, to, sid) : null;
       const invIds = new Set(p.invoices.filter(i => !sid || i.studentId === sid).map(i => i.id));
       const recIds = new Set(p.receipts.filter(r => !sid || r.studentId === sid).map(r => r.id));
       const selected = events.filter(e => !sid || e.studentId === sid || invIds.has(e.invoiceId) || recIds.has(e.receiptId) ||
@@ -154,12 +160,16 @@ export function createOfficeFinanceRouter(pool: Pool, run: Wrap) {
         closings: p.closings.filter(c => c.active).map(c => ({ id: c.id, label: `${c.fromDate} ~ ${c.toDate}` })),
       };
       await c.query("COMMIT");
-      res.json({ ...p, invoices: p.invoices.filter(i => invIds.has(i.id)), receipts: p.receipts.filter(r => recIds.has(r.id)),
-        allocations: p.allocations.filter(a => !sid || invIds.has(a.invoiceId) || recIds.has(a.receiptId)),
-        version: all.length, actions: financeActions, events: selected.filter(e=>e.date>=from), rights: context.rights.filter(r => !sid || r.studentId === sid),
-        students: context.students, families, refs, totals: financeTotals(events, from, to), studentTotals: sid ? financeTotals(selected, from, to) : null,
+      res.json({ ...p, ...view,
+        version: all.length, actions: financeActions, rights: context.rights.filter(r => (!sid || r.studentId === sid) &&
+          (!search || `${r.label} ${name(r.studentId)}`.toLowerCase().includes(search.toLowerCase()))),
+        students: context.students, families: families.filter(f=>(!sid||f.studentIds.includes(sid))&&
+          (!search||f.label.toLowerCase().includes(search.toLowerCase()))), refs, studentTotals: studentView?.totals ?? null,
+        reportVersion:1,filter:{from,to,studentId:sid,search},tableTotals:view.tableTotals,
         ambiguousAttendance: context.ambiguousAttendance,
         basis: ["청구·미납·미배분·수강권은 종료일 기준 잔액, 수납·환불·지출·자금수지는 선택 기간 거래입니다.",
+          "검색·회원 조건은 목록과 서버 합계·CSV에 동일 적용합니다. 수납 목록 금액/환불 누계는 기준일까지, 요약의 기간 수납/환불은 거래일 기준입니다.",
+          "회원 조회에서는 센터 공통 지출을 제외합니다. 가족 간 배분은 수납자 귀속과 청구 회원 귀속을 분리하며 실제 전체 원장을 먼저 계산합니다.",
           "전체 합계와 회원별 귀속을 구분합니다. 가족 묶음은 기존 보호자 관계 기준이며 권한을 새로 부여하지 않습니다.",
           "여러 보호자 가족 묶음에 같은 회원이 포함될 수 있습니다. 가족 행을 단순 합산하지 않고 전체/회원 합계를 사용하세요.",
           "수기 수납·환불·지출 기록이며 PG 승인·실제 송금·환불 실행이 아닙니다.",
@@ -224,6 +234,57 @@ export function createOfficeFinanceRouter(pool: Pool, run: Wrap) {
   });
   router.post("/preview", process(false));
   router.post("/execute", process(true));
+  const batch = (execute: boolean) => run(async (req, res, owner) => {
+    const input = object(req.body), commands = normalizeInvoiceBatch(input.commands);
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    if (commands.some(e => e.date > today)) throw new OperationError(400, "FUTURE_FINANCIAL_RECORD", "청구 기록일은 오늘 이후일 수 없습니다. 납부기한을 별도로 지정하세요.");
+    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0)
+      throw new OperationError(400, "INVALID_VERSION", "원장 버전을 확인하세요.");
+    const rid = execute ? requestId(input.requestId) : null;
+    const hash = digest({ kind: "invoice.batch", commands, version: input.expectedVersion });
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT id FROM swimming_pools WHERE id=$1 FOR UPDATE", [owner.poolId]);
+      await requireFinanceSchema(c);
+      if (rid) {
+        const old = (await c.query("SELECT actor_id,input_hash,result FROM office_operation_receipts WHERE pool_id=$1 AND request_id=$2", [owner.poolId, rid])).rows[0];
+        if (old) {
+          if (old.actor_id !== owner.userId || old.input_hash !== hash)
+            throw new OperationError(409, "REQUEST_REUSED", "다른 처리에 사용한 요청 ID입니다.");
+          await c.query("COMMIT"); res.json(old.result); return;
+        }
+      }
+      const events = await readLedger(c, owner.poolId);
+      if (events.length !== input.expectedVersion) throw new OperationError(409, "REVISION_CONFLICT", "원장이 변경됐습니다. 다시 조회·미리보기 하세요.");
+      // Scope, contract owner and existing business rules are shared with single entry.
+      const checked = [...events];
+      for (const [i, command] of commands.entries()) {
+        const event = { ...command, id: `fin_${rid ?? "preview"}_${i}`, sequence: events.length + i + 1 };
+        await checkReferences(c, owner.poolId, checked, event);
+        checked.push(event);
+      }
+      const proof = digest({ owner, version: events.length, commands });
+      const impact = previewInvoiceBatch(events, commands);
+      if (!execute) {
+        await c.query("ROLLBACK");
+        res.json({ commands, expectedVersion: events.length, previewHash: proof, impact,
+          warnings: ["대상 전체를 한 번에 기록합니다. 한 명이라도 권한·마감·계약 검사가 실패하면 전체가 저장되지 않습니다.", "청구 발행은 실제 결제나 자동 발송이 아닙니다."] });
+        return;
+      }
+      if (input.confirmed !== true || input.previewHash !== proof)
+        throw new OperationError(409, "PREVIEW_REQUIRED", "현재 대상·금액의 미리보기 확인이 필요합니다.");
+      const recordedAt = new Date().toISOString();
+      const saved = checked.slice(events.length).map(e => ({ ...e, actorId: owner.userId, recordedAt, source: "manual_record_not_pg" }));
+      for (const e of saved) await appendLedger(c, owner.poolId, owner.userId, e);
+      const result = { events: saved, version: events.length + saved.length };
+      await c.query("INSERT INTO office_operation_receipts(pool_id,request_id,actor_id,input_hash,result) VALUES($1,$2,$3,$4,$5::jsonb)",
+        [owner.poolId, rid, owner.userId, hash, JSON.stringify(result)]);
+      await c.query("COMMIT"); res.json(result);
+    } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); }
+  });
+  router.post("/batch/preview", batch(false));
+  router.post("/batch/execute", batch(true));
   return router;
 }
 

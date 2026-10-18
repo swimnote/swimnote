@@ -3,6 +3,7 @@ import {isOfficeApiRequest,officeRoleRequest,officePageAllowed} from "./office-a
 const paths:[string,string][]=[
   ["/office/operations/finance/snapshot?from=2026-10-01&to=2026-10-18&studentId=student_text_123","GET"],
   ["/office/operations/finance/preview","POST"],["/office/operations/finance/execute","POST"],
+  ["/office/operations/finance/batch/preview","POST"],["/office/operations/finance/batch/execute","POST"],
   ["/office/operations/nfc/resolve","POST"],["/office/operations/nfc/scan","POST"],
   ["/office/operations/applications","GET"],["/office/operations/applications/invite","POST"],
   ["/office/operations/applications/application_text_123/confirm","POST"],
