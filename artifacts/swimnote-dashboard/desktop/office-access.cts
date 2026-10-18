@@ -34,6 +34,10 @@ export const OFFICE_PAGES = [
   ["/admin/office/imports", "엑셀 가져오기", "운영"],
   ["/admin/office/marketing", "마케팅 수동 관리", "운영"],
   ["/admin/office/cards", "출입 카드", "운영"],
+  ["/admin/office/applications", "태블릿 가입 신청", "운영"],
+  ["/admin/office/finance", "재등록·청구·수납 원장", "운영"],
+  ["/admin/office/support", "시설·물품·대회·업체·본사", "운영"],
+  ["/admin/office/policies", "센터 운영 기준", "운영"],
   ["/admin/legacy", "상담·체험·등록전환", "후속 완성"],
   ["/admin/tuition", "재등록·청구·수납", "후속 완성"],
 ] as const;
@@ -50,8 +54,11 @@ export function officePage(raw: string) {
 }
 
 const id = "[A-Za-z0-9_-]{1,160}";
-const OPS = "(?:contacts|products|contracts|sessions|enrollments|marketing|cards|imports)";
+const OPS = "(?:contacts|products|contracts|sessions|enrollments|marketing|cards|imports|templates|support|policies)";
 const reads = [
+  "/office/operations/finance/snapshot", "/office/operations/applications",
+  "/office/operations/workspace/catalog",
+  `/office/operations/applications/${id}/document`,
   "/office/operations/capabilities", `/office/operations/${OPS}`, `/office/operations/imports/${id}/results`,
   `/office/operations/receipts/${id}`, `/office/operations/${OPS}/${id}/history`,
   "/students", `/students/${id}(?:/parents|/attendance)?`, "/class-groups", "/teachers",
@@ -74,6 +81,12 @@ const reads = [
   `/videos/(?:group|private|diary)/${id}`,
 ];
 const saves: [string, string][] = [
+  ["POST", "/office/operations/finance/(?:preview|execute)"],
+  ["POST", "/office/operations/workspace/interpret"],
+  ["POST", "/office/operations/nfc/(?:resolve|scan)"],
+  ["POST", "/office/operations/applications/invite"],
+  ["POST", `/office/operations/applications/${id}/confirm`],
+  ["POST", `/office/operations/imports/${id}/finance-(?:preview|apply)`],
   ["POST", `/office/operations/${OPS}`], ["PATCH", `/office/operations/${OPS}/${id}`],
   ["POST", `/office/operations/imports/${id}/(?:prepare|apply|interpret)`],
   ["PUT", `/admin/growth-reports/${id}/discard`], ["POST", `/admin/growth-reports/${id}/mark-reviewed`],
@@ -123,7 +136,7 @@ export function isOfficeApiRequest(raw: string, method: string): boolean {
       "date", "from", "to", "start_date", "end_date", "month", "year", "limit", "offset", "page",
       "search", "level_order", "level_id", "category", "stroke", "skill", "q", "include_archived",
       "domain", "include_inactive", "scope", "product_status",
-      "archive_id", "lesson_date", "cursor",
+      "archive_id", "lesson_date", "cursor", "studentId", "history",
     ].includes(k))) return false;
     if (method === "OPTIONS")
       return reads.some(p => new RegExp(`^${p}$`).test(u.pathname)) ||
@@ -159,6 +172,7 @@ export function officeRoleRequest(path: string, method: string, role: string) {
   if (!isOfficeApiRequest(path, method)) return false;
   if (role === "pool_admin") return true;
   if (role !== "teacher") return false;
+  if(path.startsWith("/office/operations/")||path.startsWith("/admin/growth-reports/")) return false;
   return method === "GET" || new RegExp(`^/(?:attendance|teacher/|diaries(?:/|$)|photos(?:/|$)|videos(?:/|$)|parent-requests(?:/|$)|v1/teacher-diary/generate$|students/${id}/(?:change-status|move-class|remove-from-class))`).test(path);
 }
 export function officeConfirmation(path: string, method: string, body?: string | FormData): string | null {

@@ -15,7 +15,7 @@ describe("OFFICE administrator core pure boundary checks (no DB/auth/model calls
   });
   it("retains integer price and strips client-owned authorization fields",()=>{
     expect(validateData("products",{name:"수강",priceKrw:0,lessonCount:4,validDays:30,poolId:"foreign",actorId:"other"}))
-      .toEqual({name:"수강",priceKrw:0,lessonCount:4,validDays:30});
+      .toEqual({name:"수강",priceKrw:0,lessonCount:4,validDays:30,productType:"count",freeCount:0,discountKrw:0});
   });
   it.each(["2026-02-30","2026-13-01","2026-1-1","not-a-date"])("rejects invalid date %s",v=>expect(()=>date(v)).toThrow());
   it("requires actual student link before registered contact",()=>{

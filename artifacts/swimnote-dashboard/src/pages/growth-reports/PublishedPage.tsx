@@ -13,6 +13,7 @@ interface ReportItem {
   report_period: string;
   published_at: string | null;
   created_at: string;
+  version_number?:number;
 }
 
 interface ReportListResponse {
@@ -82,12 +83,12 @@ export default function PublishedPage() {
   const [offset, setOffset] = useState(0);
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
     queryKey: ["growth-reports-list", "PUBLISHED", year, month, search, offset],
-    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}${search ? `&q=${encodeURIComponent(search)}` : ""}&product_status=PUBLISHED`).then(normalizeReportList),
+    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}${search ? `&q=${encodeURIComponent(search)}` : ""}&history=published`).then(normalizeReportList),
   });
 
   // READY_TO_SEND is pre-delivery (awaiting send) → belongs in PublishPage, not here
   const published = (data?.items ?? []).filter(
-    (r) => r.product_status === "PUBLISHED"
+    (r) => !!r.published_at
   );
 
   const filtered = published.filter((r) => {
@@ -158,12 +159,12 @@ export default function PublishedPage() {
             <tbody>
               {filtered.map((r, i) => (
                 <tr key={r.id} style={{ background: i % 2 === 0 ? "#fff" : "#FAFAFA" }}>
-                  <td style={{ padding: "10px 14px", fontSize: "13px", fontWeight: 600, color: "#1E293B", borderBottom: "1px solid #F1F5F9" }}><ReportDetailLink id={r.id} label={r.student_name} /></td>
+                  <td style={{ padding: "10px 14px", fontSize: "13px", fontWeight: 600, color: "#1E293B", borderBottom: "1px solid #F1F5F9" }}><ReportDetailLink id={r.id} label={`${r.student_name} · 당시 v${r.version_number??1}`} /></td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9" }}>{formatPeriod(r.report_period)}</td>
                   <td style={{ padding: "10px 14px", fontSize: "13px", color: "#475569", borderBottom: "1px solid #F1F5F9", whiteSpace: "nowrap" }}>{formatDate(r.published_at)}</td>
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>
                     <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: 600, background: "#E0F2FE", color: "#075985" }}>
-                      발행됨
+                      {r.product_status==="PUBLISHED"?"발행됨":`발행 이력 · 현재 ${r.product_status}`}
                     </span>
                   </td>
                   <td style={{ padding: "10px 14px", borderBottom: "1px solid #F1F5F9" }}>
@@ -177,6 +178,7 @@ export default function PublishedPage() {
                       </button>
                       <button
                         onClick={() => { setConfirmTarget(r); setResendError(""); }}
+                        disabled={r.product_status!=="PUBLISHED"}
                         style={{ padding: "4px 10px", background: "#F1F5F9", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "11px", color: "#475569" }}
                       >
                         재발행

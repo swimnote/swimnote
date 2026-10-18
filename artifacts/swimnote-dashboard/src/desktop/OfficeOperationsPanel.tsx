@@ -1,34 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client";
-import { SPECS, listOps, coerce, uuid, toCsv, download, type OpsItem, type OpsResource, type Ref, type Field } from "./office-ops-lib";
+import { SPECS, listOps, listAllOps, coerce, uuid, toCsv, download, type OpsItem, type OpsResource, type Ref, type Field } from "./office-ops-lib";
 import { useLocation } from "wouter";
 import { OfficeImportsPanel } from "./OfficeImportsPanel";
+import { OfficeOpsAiDraft } from "./OfficeOpsAiDraft";
+import { OfficeNfcPanel } from "./OfficeNfcPanel";
+import { OfficeIntakePanel } from "./OfficeIntakePanel";
 import { ui } from "./office-ops-styles";
 import {useAuth} from "../contexts/AuthContext";
 
-export type OpsView = "contacts" | "courses" | "sessions" | "imports" | "marketing" | "cards";
+export type OpsView = "contacts" | "courses" | "sessions" | "imports" | "marketing" | "cards" | "applications" | "support" | "policies";
 const VIEW: Record<OpsView, { title: string; res: OpsResource[] }> = {
   contacts: { title: "상담·체험·등록전환", res: ["contacts"] }, courses: { title: "상품·계약·수강", res: ["products", "contracts", "enrollments"] },
   sessions: { title: "수업 세션", res: ["sessions"] }, imports: { title: "엑셀 가져오기", res: ["imports"] },
   marketing: { title: "마케팅 수동 관리", res: ["marketing"] }, cards: { title: "출입 카드", res: ["cards"] },
+  applications: { title: "태블릿 가입 신청·확정 양식", res: ["templates"] },
+  support: {title:"운영지원",res:["support"]},policies:{title:"센터 운영 기준",res:["policies"]},
 };
 const {box,inp,btn,btn2}=ui;
 
 const errText = (e: any) => e?.status === 409 ? `충돌: ${e.message ?? "시간·정원 또는 다른 사용자의 수정과 겹칩니다. 새로고침 후 다시 시도하세요."}` : e?.message ?? "요청 실패";
 
-function useRefs() {
+function useRefs(scopeKey:string) {
   const s = useQuery({ queryKey: ["ops-ref", "students"], queryFn: () => api.get<any>("/students") });
   const c = useQuery({ queryKey: ["ops-ref", "classes"], queryFn: () => api.get<any>("/class-groups") });
-  const p = useQuery({ queryKey: ["ops", "products", "", 0], queryFn: () => listOps("products", "", 0, 100) });
-  const k = useQuery({ queryKey: ["ops", "contracts", "", 0], queryFn: () => listOps("contracts", "", 0, 100) });
+  const p = useQuery({ queryKey: ["ops-ref", scopeKey, "products"], queryFn: () => listAllOps("products"),staleTime:15000 });
+  const k = useQuery({ queryKey: ["ops-ref", scopeKey, "contracts"], queryFn: () => listAllOps("contracts"),staleTime:15000 });
   const a = (x: any) => (Array.isArray(x) ? x : x?.students ?? x?.items ?? x?.data ?? []) as any[];
-  return useMemo(() => ({
+  const refs=useMemo(() => ({
     students: a(s.data).map(x => [String(x.id), x.name ?? x.id] as [string, string]),
     classes: a(c.data).map(x => [String(x.id), x.name ?? x.class_name ?? x.id] as [string, string]),
     products: (p.data?.items ?? []).map(x => [x.id, x.data.name] as [string, string]),
     contracts: (k.data?.items ?? []).map(x => [x.id, `${x.data.studentId?.slice(0, 6)} / ${x.data.startDate}`] as [string, string]),
   }), [s.data, c.data, p.data, k.data]) as Record<Ref, [string, string][]>;
+  return {refs,error:s.error||c.error||p.error||k.error};
 }
 
 type Draft = { edit: OpsItem | "new" | null; form: Record<string, string>; reqId: string };
@@ -39,7 +45,8 @@ const unsure = new Map<string, { reqId: string; body: string; target: string }>(
 function ResourceTable({ res,scopeKey }: { res: Exclude<OpsResource, "imports">;scopeKey:string }) {
   const cacheKey=`${scopeKey}:${res}`;
   const [, nav] = useLocation();
-  const spec = SPECS[res], qc = useQueryClient(), refs = useRefs();
+  const { state: auth } = useAuth(), hasX = auth.status === "authenticated" && auth.user.hasX;
+  const spec = SPECS[res], qc = useQueryClient(), refState = useRefs(scopeKey),refs=refState.refs;
   const [search, setSearch] = useState(""), [q, setQ] = useState(""), [offset, setOffset] = useState(0);
   const d0 = drafts.get(cacheKey);
   const [edit, setEdit] = useState<OpsItem | "new" | null>(d0?.edit ?? null), [form, setForm] = useState<Record<string, string>>(d0?.form ?? {});
@@ -62,7 +69,7 @@ function ResourceTable({ res,scopeKey }: { res: Exclude<OpsResource, "imports">;
     try {
       if (edit === "new") await api.post(`/office/operations/${res}`, { requestId: id, data });
       else await api.patch(`/office/operations/${res}/${(edit as OpsItem).id}`, { requestId: id, expectedRevision: (edit as OpsItem).revision, data });
-       unsure.delete(cacheKey); setLockMsg(""); setEdit(null); setReqId(uuid()); qc.invalidateQueries({ queryKey: ["ops"] });
+       unsure.delete(cacheKey); setLockMsg(""); setEdit(null); setReqId(uuid()); qc.invalidateQueries({ queryKey: ["ops"] });qc.invalidateQueries({queryKey:["ops-ref"]});
     } catch (e: any) {
       const st = e?.status;
        if (typeof st === "number" && st >= 400 && st < 500 && st !== 408 && st !== 429) { unsure.delete(cacheKey); setLockMsg(""); setReqId(uuid()); setMsg(errText(e)); }
@@ -73,7 +80,7 @@ function ResourceTable({ res,scopeKey }: { res: Exclude<OpsResource, "imports">;
     try {
       const receipt=await api.get<{item:OpsItem}>(`/office/operations/receipts/${unsure.get(cacheKey)?.reqId??reqId}`);
       if(!receipt.item) {setMsg("확정된 처리 결과가 없습니다. 동일 요청 ID와 내용을 유지합니다.");return;}
-      unsure.delete(cacheKey);setLockMsg("");setEdit(null);setReqId(uuid());qc.invalidateQueries({queryKey:["ops"]});setMsg("서버 처리 영수증으로 저장을 확인했습니다.");
+      unsure.delete(cacheKey);setLockMsg("");setEdit(null);setReqId(uuid());qc.invalidateQueries({queryKey:["ops"]});qc.invalidateQueries({queryKey:["ops-ref"]});setMsg("서버 처리 영수증으로 저장을 확인했습니다.");
     } catch {setMsg("결과를 확정하지 못했습니다. 조회 실패·기록 없음은 미처리 증거가 아닙니다. 동일 요청 ID와 내용을 유지합니다.");}
   };
   const items = list.data?.items ?? [];
@@ -107,9 +114,12 @@ function ResourceTable({ res,scopeKey }: { res: Exclude<OpsResource, "imports">;
     </div>
     {edit && <div style={{ ...box, background: "var(--surface-off)" }}>
       <strong>{edit === "new" ? "새 항목" : `수정 (rev ${edit.revision})`}</strong>
+      <OfficeOpsAiDraft key={`${cacheKey}:${edit === "new" ? "new" : edit.id}`} resource={res} recordId={edit === "new" ? undefined : edit.id} hasX={hasX} locked={unsure.has(cacheKey)}
+        onDraft={d => { if (unsure.has(cacheKey)) return; setForm(f => ({ ...f, ...Object.fromEntries(Object.entries(d).filter(([k, v]) => spec.fields.some(x => x.key === k) && v !== null && v !== undefined).map(([k, v]) => [k, String(v)])) })); setReqId(uuid()); setMsg("AI 초안을 채웠습니다. 확인 후 저장하세요."); }} />
+      {refState.error&&<p role="alert">대상 참조 조회 실패: {errText(refState.error)}</p>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 8, margin: "8px 0" }}>
         {spec.fields.map(f => <label key={f.key} style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 2 }}>{f.label}{f.req && " *"}
-          {f.type === "select" || f.type === "ref"
+          {f.type==="textarea"?<textarea rows={5} style={inp} value={form[f.key]??""} onChange={e=>setForm({...form,[f.key]:e.target.value})} />:f.type === "select" || f.type === "ref"
             ? <select style={inp} value={form[f.key] ?? ""} onChange={e => setForm({ ...form, [f.key]: e.target.value })}><option value="">선택</option>
               {(f.type === "select" ? f.options! : refs[f.ref!]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
             : <input style={inp} type={f.type ?? "text"} value={form[f.key] ?? ""} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />}</label>)}
@@ -133,8 +143,10 @@ export function OfficeOperationsPanel({ view }: { view: OpsView }) {
     {cap.isError && <div role="alert" style={{ ...box, color: "var(--color-error)" }}>운영 API에 연결할 수 없습니다: {errText(cap.error)} <button style={btn2} onClick={() => cap.refetch()}>다시 시도</button></div>}
     {cap.data && !cap.data.available && <div role="alert" style={{ ...box, color: "var(--color-warning)" }}>서버 마이그레이션 대기 중입니다. 저장 목록은 표시하지 않으며 입력 중인 내용은 이 화면에서 유지됩니다.</div>}
     {cap.data?.available && <>
+      {view === "applications" && <OfficeIntakePanel key={scopeKey} scopeKey={scopeKey} />}
+      {view === "cards" && <OfficeNfcPanel key={scopeKey} scopeKey={scopeKey} />}
       {v.res.length > 1 && <div style={{ display: "flex", gap: 4 }}>{v.res.map(r => <button key={r} style={tab === r ? btn : btn2} onClick={() => setTab(r)}>{SPECS[r as Exclude<OpsResource, "imports">].title}</button>)}</div>}
-      {tab === "imports" ? <OfficeImportsPanel key={scopeKey} /> : <ResourceTable key={`${scopeKey}:${tab}`} scopeKey={scopeKey} res={tab as Exclude<OpsResource, "imports">} />}
+      {tab === "imports" ? <OfficeImportsPanel key={scopeKey} scopeKey={scopeKey} /> : <ResourceTable key={`${scopeKey}:${tab}`} scopeKey={scopeKey} res={tab as Exclude<OpsResource, "imports">} />}
     </>}
   </div>;
 }

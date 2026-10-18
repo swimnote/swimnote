@@ -151,6 +151,8 @@ router.get(
       const offset = parseInt(String(req.query["offset"] ?? "0"), 10);
       const q      = req.query["q"] ? String(req.query["q"]).trim() : null;
       const statuses=String(req.query["product_status"] ?? "").split(",").filter(Boolean);
+      const history=req.query["history"]==="published";
+      if(req.query["history"]&&!history) return res.status(400).json({error:"이력 조회 조건을 확인하세요."});
       if(!Number.isInteger(limit)||limit<1||!Number.isInteger(offset)||offset<0||
         !Number.isInteger(year)||month<1||month>12||!Number.isInteger(month))
         return res.status(400).json({error:"조회 기간·페이지 조건을 확인하세요."});
@@ -164,7 +166,7 @@ router.get(
       // 최신 version 기준 학생별 1개 리포트 조회
       const rows = await db.execute(sql`
         WITH latest AS (
-          SELECT DISTINCT ON (gr.student_id, gr.cycle_id)
+          SELECT ${history?sql``:sql`DISTINCT ON (gr.student_id, gr.cycle_id)`}
             gr.id, gr.student_id, gr.cycle_id,
             gr.product_status, gr.analysis_status, gr.version_number,
             to_jsonb(gr)->>'monthly_final_disposition' AS monthly_final_disposition,
@@ -179,6 +181,7 @@ router.get(
             AND gr.report_period    = ${period}
             AND gr.deleted_at IS NULL
             AND gr.cycle_id IS NOT NULL
+            ${history?sql`AND gr.published_at IS NOT NULL`:sql``}
           ORDER BY gr.student_id, gr.cycle_id, gr.version_number DESC NULLS LAST, gr.created_at DESC
         )
         SELECT
@@ -210,19 +213,20 @@ router.get(
         WHERE l.product_status != 'NOT_OPEN'
           ${q ? sql`AND s.name ILIKE ${'%' + q + '%'}` : sql``}
           ${statuses.length ? sql`AND l.product_status::text IN (${sql.join(statuses.map(s=>sql`${s}`),sql`, `)})` : sql``}
-        ORDER BY s.name ASC
+         ORDER BY s.name ASC,l.version_number DESC NULLS LAST,l.id
         LIMIT ${limit} OFFSET ${offset}
       `);
 
       const total = await db.execute(sql`
         WITH latest AS (
-          SELECT DISTINCT ON (gr.student_id, gr.cycle_id)
+          SELECT ${history?sql``:sql`DISTINCT ON (gr.student_id, gr.cycle_id)`}
             gr.student_id, gr.product_status
           FROM growth_reports gr
           WHERE gr.swimming_pool_id = ${poolId}
             AND gr.report_period    = ${period}
             AND gr.deleted_at IS NULL
             AND gr.cycle_id IS NOT NULL
+            ${history?sql`AND gr.published_at IS NOT NULL`:sql``}
           ORDER BY gr.student_id, gr.cycle_id, gr.version_number DESC NULLS LAST, gr.created_at DESC
         )
         SELECT COUNT(*) AS cnt FROM latest l JOIN students s ON s.id=l.student_id

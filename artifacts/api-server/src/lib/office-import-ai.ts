@@ -1,4 +1,5 @@
 import { OperationError } from "./office-operations-data.js";
+import {financialTargets} from "./office-finance-import.js";
 /** Free import-model activation is separate from the existing paid workspace switch. */
 export function importModelEnabled(env:Record<string,string|undefined>) {
   return env.OFFICE_IMPORT_AI_ENABLED==="true";
@@ -17,5 +18,14 @@ export function parseImportRules(raw:string,headers:string[]) {
       throw new OperationError(502,"INVALID_MODEL_RESULT","지원하지 않는 열 또는 도구 요청입니다.");
     rules[key]=column;
   }
-  return {kind:"rules",rules,question:typeof value.question==="string"?value.question.slice(0,500):""};
+  const financeRules:Record<string,string>={};
+  if(value.financeRules!==undefined) {
+    if(!value.financeRules||typeof value.financeRules!=="object"||Array.isArray(value.financeRules)) throw new OperationError(502,"INVALID_MODEL_RESULT","이전 금융 매핑 형식 오류");
+    for(const [key,column] of Object.entries(value.financeRules)) {
+      if(!(financialTargets as readonly string[]).includes(key)||typeof column!=="string"||!headers.includes(column))
+        throw new OperationError(502,"INVALID_MODEL_RESULT","지원하지 않는 금융 열입니다.");
+      financeRules[key]=column;
+    }
+  }
+  return {kind:"rules",rules,question:typeof value.question==="string"?value.question.slice(0,500):"",...(Object.keys(financeRules).length?{financeRules}:{})};
 }

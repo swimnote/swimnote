@@ -4,12 +4,13 @@ import * as XLSX from "xlsx";
 import { api } from "../lib/api-client";
 import { listOps, uuid, toCsv, download, autoRules, parseRuleText, TARGETS, type OpsItem } from "./office-ops-lib";
 import { ui } from "./office-ops-styles";
+import { OfficeImportsFinance } from "./OfficeImportsFinance";
 
 type F = { name: string; sheet: string; rows: Record<string, unknown>[] };
 type Prep = { preview: { rows: { source: { file: string; sheet: string; row: number }; normalized: Record<string, unknown>; errors: string[] }[]; ready: number; held: number }; revision: number };
 const { box, inp, btn, btn2 } = ui;
 
-export function OfficeImportsPanel() {
+export function OfficeImportsPanel({ scopeKey = "local" }: { scopeKey?: string } = {}) {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ["ops", "imports", "", 0], queryFn: () => listOps("imports", "", 0) });
   const [cur, setCur] = useState<OpsItem | null>(null);
@@ -17,6 +18,10 @@ export function OfficeImportsPanel() {
   const [text, setText] = useState(""), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   const [prep, setPrep] = useState<Prep | null>(null), [applied, setApplied] = useState(false);
   const [referenceDate,setReferenceDate]=useState("");
+  const [finSuggest, setFinSuggest] = useState<Record<string, string> | undefined>();
+  const [log, setLog] = useState<{ who: "user" | "system"; text: string }[]>([]), [undo, setUndo] = useState<Record<string, string>[]>([]);
+  const say = (user: string, system: string) => setLog(l => [...l, { who: "user" as const, text: user }, { who: "system" as const, text: system }].slice(-40));
+  const setRulesTracked = (n: Record<string, string>) => { setUndo(u => [...u, rules].slice(-20)); setRules(n); };
   useEffect(()=>{setPrep(null);setApplied(false);},[name,files,rules,referenceDate]);
   const classes = useQuery({ queryKey: ["ops-ref", "classes"], queryFn: () => api.get<any>("/class-groups") });
   const classRows: any[] = Array.isArray(classes.data) ? classes.data : classes.data?.items ?? classes.data?.data ?? [];
@@ -41,7 +46,7 @@ export function OfficeImportsPanel() {
     return out;
   }, [files, rules, classMap]);
   const pick = (it: OpsItem | null) => { setCur(it); setPrep(null); setApplied(false); setMsg("");
-    setName(it?.data.name ?? ""); setFiles(it?.data.files ?? []); setRules(it?.data.rules ?? {});setReferenceDate(it?.data.referenceDate??""); };
+    setLog([]); setUndo([]); setName(it?.data.name ?? ""); setFiles(it?.data.files ?? []); setRules(it?.data.rules ?? {});setReferenceDate(it?.data.referenceDate??""); };
   const addFiles = async (list: FileList | null) => {
     if (!list) return; const add: F[] = [];
     for (const file of Array.from(list)) {
@@ -53,11 +58,12 @@ export function OfficeImportsPanel() {
   };
   const rule = async () => {
     const p = parseRuleText(text, headers);
-    if (p) { setRules({ ...rules, [p.target]: p.source }); setText(""); return setMsg(`규칙 적용: ${p.target} = ${p.source}`); }
+    if (p) { setRulesTracked({ ...rules, [p.target]: p.source }); setText(""); say(text, `규칙 적용: ${p.target} = ${p.source}`); return setMsg(`규칙 적용: ${p.target} = ${p.source}`); }
     if (!cur) return setMsg("자유 문장 해석은 저장된 가져오기가 필요합니다. 먼저 저장하거나 '이름=성명' 형식을 사용하세요.");
-    try { const r = await api.post<{ kind: string; message?: string; rules?:Record<string,string>;question?:string }>(`/office/operations/imports/${cur.id}/interpret`, { text });
-      if(r.kind==="rules" && r.rules) { setRules({...rules,...r.rules});setPrep(null);setMsg(r.question || "규칙 제안을 미리보기에 반영했습니다. 실제 회원 등록은 별도입니다."); }
-      else setMsg(r.message ?? "해석 결과를 사용할 수 없습니다."); }
+    try { const r = await api.post<{ kind: string; message?: string; rules?:Record<string,string>;financeRules?:Record<string,string>;question?:string }>(`/office/operations/imports/${cur.id}/interpret`, { text });
+      if(r.financeRules) { setFinSuggest(r.financeRules); say(text, `금융 매핑 제안(자동 적용·호출 없음): ${Object.entries(r.financeRules).map(([a,b])=>`${a}=${b}`).join(", ")} — 아래 금융 섹션에서 확인하세요.`); }
+      if(r.kind==="rules" && r.rules) { setRulesTracked({...rules,...r.rules});say(text,r.question||"규칙 제안을 미리보기에 반영했습니다.");setPrep(null);setMsg(r.question || "규칙 제안을 미리보기에 반영했습니다. 실제 회원 등록은 별도입니다."); }
+      else { say(text, r.message ?? "해석 결과를 사용할 수 없습니다."); setMsg(r.message ?? "해석 결과를 사용할 수 없습니다."); } }
     catch (e: any) { setMsg(e?.message ?? "해석 요청 실패"); }
   };
   const save = async (status: "draft" | "reviewed" = "draft"): Promise<OpsItem | null> => {
@@ -97,14 +103,18 @@ export function OfficeImportsPanel() {
       {(list.data?.items ?? []).map(i => <div key={i.id}><button style={{ ...btn2, width: "100%", marginTop: 4, textAlign: "left", background: cur?.id === i.id ? "var(--x-primary-soft)" : undefined }} onClick={() => pick(i)}>{i.data.name} <small>({i.data.status === "reviewed" ? "검토됨" : "초안"})</small></button></div>)}
       {list.isError && <p role="alert" style={{ color: "var(--color-error)", fontSize: 12 }}>목록을 불러오지 못했습니다.</p>}</aside>
     <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }}>
-      <p role="note" style={{ fontSize: 12, color: "var(--text-muted)" }}>금융 데이터는 가져오지 않습니다. 회원 등록 행만 준비(staged) 후 적용하며, 적용 전에는 실제 회원이 생성되지 않습니다.</p>
+      <p role="note" style={{ fontSize: 12, color: "var(--text-muted)" }}>회원 등록 적용은 금융 자료를 포함하지 않습니다(아래 별도 섹션). 회원 등록 행만 준비(staged) 후 적용하며, 적용 전에는 실제 회원이 생성되지 않습니다.</p>
       <input style={inp} placeholder="가져오기 이름" value={name} onChange={e => setName(e.target.value)} />
       <label style={{fontSize:12}}>원본 자료 기준일(추적용·선택) <input style={inp} type="date" value={referenceDate} onChange={e=>setReferenceDate(e.target.value)} /> — 회원 등록·반 배정일로 자동 소급하지 않습니다.</label>
       <input type="file" multiple accept=".xlsx,.xls,.csv" onChange={e => addFiles(e.target.files)} />
       {files.map((f, i) => <div key={i} style={{ fontSize: 12 }}>{f.name} / {f.sheet} · {f.rows.length}행 <button style={btn2} onClick={() => setFiles(files.filter((_, j) => j !== i))}>제거</button></div>)}
       {headers.length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: 6 }}>
-        {TARGETS.map(([k, l]) => <label key={k} style={{ fontSize: 12 }}>{l}<select style={{ ...inp, width: "100%" }} value={rules[k] ?? ""} onChange={e => { const n = { ...rules }; if (e.target.value) n[k] = e.target.value; else delete n[k]; setRules(n); }}>
+        {TARGETS.map(([k, l]) => <label key={k} style={{ fontSize: 12 }}>{l}<select style={{ ...inp, width: "100%" }} value={rules[k] ?? ""} onChange={e => { const n = { ...rules }; if (e.target.value) n[k] = e.target.value; else delete n[k]; setRulesTracked(n); }}>
           <option value="">(매핑 안 함)</option>{headers.map(h => <option key={h}>{h}</option>)}</select></label>)}</div>}
+      {log.length > 0 && <div data-testid="import-log" style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>{log.map((m, i) => <div key={i} style={{ alignSelf: m.who === "user" ? "flex-end" : "flex-start", maxWidth: "80%", padding: "4px 10px", borderRadius: 12, fontSize: 12, background: m.who === "user" ? "var(--x-primary-soft)" : "var(--surface-off)" }}>{m.text}</div>)}</div>}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button style={btn2} data-testid="import-undo" disabled={!undo.length} onClick={() => { const u = undo[undo.length - 1]; setUndo(undo.slice(0, -1)); setRules(u); say("되돌리기", "직전 규칙 변경을 되돌렸습니다."); }}>직전 규칙 되돌리기</button>
+        <select data-testid="import-remove-rule" style={inp} value="" onChange={e => { const k = e.target.value; if (!k) return; const n = { ...rules }; delete n[k]; setRulesTracked(n); say(`${k} 규칙 제거`, `${k} 매핑을 명시적으로 제거했습니다.`); }}><option value="">규칙 제거…</option>{Object.keys(rules).map(k => <option key={k} value={k}>{k} = {rules[k]}</option>)}</select>
+        <small style={{ color: "var(--text-muted)" }}>이 입력은 규칙 문장 해석이며 모델을 자동 호출하지 않습니다.</small></div>
       <div style={{ display: "flex", gap: 6 }}><input style={{ ...inp, flex: 1 }} placeholder="규칙 입력: 이름=성명" value={text} onChange={e => setText(e.target.value)} /><button style={btn2} onClick={rule} disabled={!text.trim()}>규칙 적용</button></div>
       {mapped.length > 0 && <div style={{ overflowX: "auto", maxHeight: 220 }}><table style={{ fontSize: 12, borderCollapse: "collapse" }}><thead><tr><th>원본</th>{Object.keys(rules).map(k => <th key={k} style={{ padding: "2px 8px" }}>{k}</th>)}</tr></thead>
         <tbody>{mapped.slice(0, 20).map((m, i) => <tr key={i}><td style={{ padding: "2px 8px" }}>{m.f}/{m.s}#{m.i}</td>{Object.keys(rules).map(k => <td key={k} style={{ padding: "2px 8px" }}>{String(m.v[k] ?? "")}</td>)}</tr>)}</tbody></table>
@@ -121,5 +131,6 @@ export function OfficeImportsPanel() {
       {prep && <div style={{ fontSize: 13 }}>상태: {applied ? "적용됨" : "준비됨(staged)"} · 준비 {prep.preview.ready} · 보류 {prep.preview.held}
         {prep.preview.rows.filter(r => r.errors.length).slice(0, 30).map((r, i) => <div key={i} style={{ color: "var(--color-error)", fontSize: 12 }}>{r.source.file}/{r.source.sheet}#{r.source.row}: {r.errors.join(", ")}</div>)}</div>}
       {msg && <div role="status" style={{ fontSize: 13 }}>{msg}</div>}
+      <OfficeImportsFinance cur={cur} headers={headers} scopeKey={scopeKey} suggested={finSuggest} onRevision={rev => setCur(c => c ? { ...c, revision: rev } : c)} />
     </section></div>;
 }

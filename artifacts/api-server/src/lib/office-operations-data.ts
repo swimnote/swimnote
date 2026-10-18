@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const resources = ["contacts", "products", "contracts", "sessions", "enrollments", "marketing", "cards", "imports"] as const;
+export const resources = ["contacts", "products", "contracts", "sessions", "enrollments", "marketing", "cards", "imports", "templates", "support", "policies"] as const;
 export type Resource = typeof resources[number];
 export class OperationError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
@@ -31,23 +31,27 @@ export function digest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
 }
 const fields: Record<Resource, string[]> = {
-  contacts: ["name","phone","stage","assigneeId","followUpAt","note","source","campaignId","studentId"],
-  products: ["name","priceKrw","lessonCount","validDays"],
-  contracts: ["studentId","productId","startDate","endDate","status","note"],
+  contacts: ["name","phone","stage","assigneeId","followUpAt","note","source","campaignId","studentId","referrerStudentId"],
+  products: ["name","priceKrw","lessonCount","validDays","productType","weeklyCount","freeCount","discountKrw","conditions"],
+  contracts: ["studentId","productId","startDate","endDate","status","note","previousContractId","discountKrw"],
   sessions: ["classId","teacherId","lane","date","startTime","endTime","capacity","status","note"],
   enrollments: ["studentId","contractId","classId","startDate","endDate","status"],
-  marketing: ["name","channel","managementUrl","publishAt","assigneeId","postUrl","status","note"],
+  marketing: ["name","channel","managementUrl","publishAt","assigneeId","postUrl","status","note","consentReference","materialUrl","relatedContactId"],
   cards: ["studentId","cardUid","status","note"],
   imports: ["name","files","rules","decisions","status","note","referenceDate"],
+  templates: ["name","version","body","consentText","status"],
+  support: ["name","kind","status","dueDate","assigneeId","vendor","quantity","note","url"],
+  policies: ["name","refundPolicy","discountPolicy","attendancePolicy","note"],
 };
+export const operationFields=(resource:Resource)=>fields[resource];
 export function validateData(resource: Resource, input: unknown): Record<string, any> {
   const raw = object(input), data: Record<string, any> = {};
   for (const key of fields[resource]) if (raw[key] !== undefined) data[key] = raw[key];
   for (const [key, value] of Object.entries(data)) {
     if (["files", "rules", "decisions"].includes(key)) continue;
-    if (typeof value === "string" && value.length > (key === "note" ? 8000 : 1000)) bad("입력 길이를 초과했습니다.");
+    if (typeof value === "string" && value.length > (["body","consentText","note"].includes(key) ? 12000 : 2000)) bad("입력 길이를 초과했습니다.");
   }
-  const required = (...keys: string[]) => keys.forEach(k => { data[k] = text(data[k], k); });
+  const required = (...keys: string[]) => keys.forEach(k => { data[k] = text(data[k], k,["body","consentText"].includes(k)?12000:1000); });
   const choice = (key: string, values: string[]) => {
     if (!values.includes(data[key])) bad(`${key} 상태를 확인하세요.`);
   };
@@ -60,7 +64,13 @@ export function validateData(resource: Resource, input: unknown): Record<string,
     if (data.stage === "registered" && !data.studentId) bad("등록전환은 실제 회원 연결이 필요합니다.");
   }
   if (resource === "products") {
-    required("name"); integer("priceKrw", 0); integer("lessonCount", 1); integer("validDays", 1);
+    required("name"); integer("priceKrw", 0); integer("lessonCount", ["period","weekly"].includes(data.productType)?0:1); integer("validDays", 1);
+    data.productType ??= "count"; data.freeCount ??= 0; data.discountKrw ??= 0;
+    choice("productType", ["period","count","weekly","composite"]);
+    integer("freeCount",0); integer("discountKrw",0);
+    if(data.discountKrw>data.priceKrw) bad("할인은 상품 금액을 초과할 수 없습니다.");
+    if(data.weeklyCount!==undefined) {integer("weeklyCount",1);if(data.weeklyCount>7) bad("주당 횟수를 확인하세요.");}
+    if(data.productType==="weekly"&&!data.weeklyCount) bad("주당형은 주당 횟수가 필요합니다.");
   }
   if (resource === "contracts" || resource === "enrollments") {
     required("studentId");
@@ -68,6 +78,7 @@ export function validateData(resource: Resource, input: unknown): Record<string,
     if (data.endDate < data.startDate) bad("종료일은 시작일 이후여야 합니다.");
     if (resource === "contracts") {
       required("productId"); choice("status", ["draft","active","cancelled"]);
+      if(data.discountKrw!==undefined) integer("discountKrw",0);
     } else {
       required("contractId","classId"); choice("status", ["active","paused","ended"]);
     }
@@ -82,12 +93,28 @@ export function validateData(resource: Resource, input: unknown): Record<string,
   if (resource === "marketing") {
     required("name","channel");
     choice("status", ["draft","scheduled","posted_manual","held","closed"]);
-    for (const key of ["managementUrl","postUrl"]) if (data[key]) {
+    for (const key of ["managementUrl","postUrl","materialUrl"]) if (data[key]) {
       try { const u = new URL(data[key]); if (!["https:","http:"].includes(u.protocol) || u.username || u.password) bad("웹 주소를 확인하세요."); }
       catch { bad("웹 주소를 확인하세요."); }
     }
     if (data.status === "posted_manual" && !data.postUrl) bad("수동 게시 확인에는 게시 링크가 필요합니다.");
+    if(data.materialUrl&&!data.consentReference) bad("홍보 자료 사용 근거·동의 기록을 확인하세요.");
   }
+  if(resource==="templates") {
+    required("name","version","body","consentText");
+    choice("status",["draft","active","retired"]);
+  }
+  if(resource==="support") {
+    required("name"); choice("kind",["facility","supplies","competition","vendor","headquarters"]);
+    choice("status",["planned","requested","in_progress","completed","held","cancelled"]);
+    if(data.dueDate) data.dueDate=date(data.dueDate);
+    if(data.quantity!==undefined) integer("quantity",0);
+    if(data.url) {
+      try {const u=new URL(data.url);if(!["https:","http:"].includes(u.protocol)||u.username||u.password) bad("주소를 확인하세요.");}
+      catch {bad("주소를 확인하세요.");}
+    }
+  }
+  if(resource==="policies") required("name");
   if (resource === "cards") {
     required("studentId","cardUid"); choice("status", ["active","lost","revoked"]);
     data.cardUid = data.cardUid.replace(/[\s:-]/g, "").toUpperCase();

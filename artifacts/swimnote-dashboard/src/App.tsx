@@ -10,6 +10,7 @@ import LoginPage from "@/pages/LoginPage";
 import SuperLoginPage from "@/pages/SuperLoginPage";
 import HomePage from "@/pages/HomePage";
 import { OfficeOperationsPanel } from "@/desktop/OfficeOperationsPanel";
+import { OfficeFinancePanel } from "@/desktop/OfficeFinancePanel";
 import MembersPage from "@/pages/members/MembersPage";
 import NewMemberPage from "@/pages/members/NewMemberPage";
 import WithdrawnMembersPage from "@/pages/members/WithdrawnMembersPage";
@@ -123,13 +124,17 @@ function AppRoutes() {
         <Route path="/admin/office/sessions">{()=><OfficeOperationsPanel view="sessions" />}</Route>
         <Route path="/admin/office/imports">{()=><OfficeOperationsPanel view="imports" />}</Route>
         <Route path="/admin/office/marketing">{()=><OfficeOperationsPanel view="marketing" />}</Route>
+        <Route path="/admin/office/finance">{()=><OfficeFinancePanel />}</Route>
+        <Route path="/admin/office/applications">{()=><OfficeOperationsPanel view="applications" />}</Route>
+        <Route path="/admin/office/support">{()=><OfficeOperationsPanel view="support" />}</Route>
+        <Route path="/admin/office/policies">{()=><OfficeOperationsPanel view="policies" />}</Route>
         <Route path="/admin/office/cards">{()=><OfficeOperationsPanel view="cards" />}</Route>
 
         {/* Members */}
         <Route path="/admin/members" component={MembersPage} />
         <Route path="/admin/members/new" component={NewMemberPage} />
         <Route path="/admin/members/withdrawn" component={WithdrawnMembersPage} />
-        <Route path="/admin/members/archive" component={() => <ArchiveMembersPage userRole={user?.role} />} />
+        <Route path="/admin/members/archive" component={() => <ArchiveMembersPage userRole={state.status === "authenticated" ? state.user.role : undefined} />} />
         <Route path="/admin/members/bulk" component={BulkMembersPage} />
 
         {/* Schedule */}
@@ -152,7 +157,7 @@ function AppRoutes() {
         <Route path="/admin/curriculum/templates" component={TemplatesPage} />
 
         {/* Diary */}
-        <Route path="/admin/diary" component={DiaryPage} />
+        <Route path="/admin/diary">{() => <DiaryPage />}</Route>
 
         {/* Teachers */}
         <Route path="/admin/teachers" component={TeachersPage} />

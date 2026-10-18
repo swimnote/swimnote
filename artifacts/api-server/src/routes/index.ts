@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import aiV1Router from "./ai-v1.js";
 import { requireWritable } from "../lib/readonlyGuard.js";
+import { createOfficeTabletRouter } from "./office-applications.js";
+import { pool as officeTabletPool } from "@workspace/db";
 import healthRouter from "./health";
 import authRouter from "./auth.js";
 import poolsRouter from "./pools.js";
@@ -77,6 +79,7 @@ const router: IRouter = Router();
 
 // 읽기전용 풀 쓰기 차단 (결제 실패 / 삭제 예약 상태)
 router.use(requireWritable as any);
+router.use("/office-tablet", createOfficeTabletRouter(officeTabletPool));
 router.use("/office", officeRouter);
 
 // ── Super 라우터 최우선 마운트 (다른 "/" 라우터들이 /super/* 경로를 가로채지 않도록) ──
