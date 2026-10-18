@@ -935,3 +935,31 @@ mtime_ms = 1792257115472
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/cd3a0f0b-b8eb-47cd-9433-72bab6e90fcf/e6ce2e4f-8ec5-43af-bf7b-70d83ac6e994"
 storage_version_token = "1792257225357364"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "lRNg8vsA5HGjXuoRWlQRM"
+uri = "file://generated-artifacts/office-product-v1-delivery-09/SWIMNOTE-OFFICE-PRODUCT-0138fb9c64ab-fb90ce903b27-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "스윔노트 오피스 통합 설치본 — 1/2"
+description = "Windows x64 · 두 ZIP을 같은 폴더에 압축 해제하세요. 서버 신규 업무는 운영 적용 대기이며 Windows 실기기 실행은 미검증입니다."
+logical_id = "83cfc5d2-5e9e-4549-8583-e84756721368"
+content_hash = "sha256:7f277efd6e5446c56f885a8533bc2a064290f05d29a316f54f33f585df4708ff"
+size = 83895623
+mtime_ms = 1792300166912
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/83cfc5d2-5e9e-4549-8583-e84756721368/9915c848-649c-4076-8fdf-26be42dd7413"
+storage_version_token = "1792300329946589"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "oWKPSJ0TGCBjftu-Ntq9z"
+uri = "file://generated-artifacts/office-product-v1-delivery-09/SWIMNOTE-OFFICE-PRODUCT-0138fb9c64ab-fb90ce903b27-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "스윔노트 오피스 통합 설치본 — 2/2"
+description = "1/2와 함께 받으세요. 압축 해제 후 START-PRODUCT.cmd를 더블클릭하고 열린 폴더의 Setup.exe를 실행합니다. 개발 도구 설치는 필요 없습니다."
+logical_id = "02d3e3e6-ba83-4a75-a91e-e77c57e87f2b"
+content_hash = "sha256:056a9a2933c72da765c5ccf232cc938e40b5e21a5d885dd238bc9c6181df4cbf"
+size = 29900387
+mtime_ms = 1792300167636
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/02d3e3e6-ba83-4a75-a91e-e77c57e87f2b/89747054-09e0-438e-86c2-53877e5d3ec5"
+storage_version_token = "1792300332151796"
+content_type = "application/octet-stream"
