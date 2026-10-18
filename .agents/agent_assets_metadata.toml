@@ -1019,3 +1019,31 @@ mtime_ms = 1792319869095
 storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/e46598a3-c1c9-4b40-93f7-672649ff791e/bb4c9009-1e41-454b-b7af-6fce28d8f847"
 storage_version_token = "1792319993007687"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "qAQ4hUmMN0YXLIYnq185F"
+uri = "file://generated-artifacts/office-product-v1-delivery-15/SWIMNOTE-OFFICE-PRODUCT-d4d1e699da58-49abc5f58bdc-DOWNLOAD-1-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 최신 통합 설치본 1/2"
+description = "단일 Windows x64 설치본의 분할 전달 파일 · 84MB · 소스 d4d1e699da58. 두 ZIP 모두 같은 폴더에 풀어 사용하세요."
+logical_id = "bc9a2b92-89e7-4f26-a9e6-a807039104cb"
+content_hash = "sha256:235d52dc654e2a9b9307cd6b6e41cb8338b0f053d00c9bd917accde955936c65"
+size = 83899184
+mtime_ms = 1792332759570
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/bc9a2b92-89e7-4f26-a9e6-a807039104cb/3b7686d9-6172-419c-9873-1d0ecc44c7ed"
+storage_version_token = "1792332824210043"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "GuLd5BXRr8KWYX8oRWTSN"
+uri = "file://generated-artifacts/office-product-v1-delivery-15/SWIMNOTE-OFFICE-PRODUCT-d4d1e699da58-49abc5f58bdc-DOWNLOAD-2-of-2.zip"
+type = "unspecified"
+title = "SWIMNOTE OFFICE 최신 통합 설치본 2/2"
+description = "단일 Windows x64 설치본의 분할 전달 파일 · 30MB · 소스 d4d1e699da58. 두 ZIP 모두 같은 폴더에 풀어 사용하세요."
+logical_id = "20002c72-6c0d-489e-975c-bfcccd4d75bc"
+content_hash = "sha256:6b09d1c6a39378178e9e43432778da56a2f088f2c9aee7e3936d433183d1d380"
+size = 29901658
+mtime_ms = 1792332760238
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:d300c019-4f8f-4111-9bb4-3f0a71da5af8/20002c72-6c0d-489e-975c-bfcccd4d75bc/97597de9-a123-4031-9238-fc4cba76800b"
+storage_version_token = "1792332825895018"
+content_type = "application/octet-stream"
