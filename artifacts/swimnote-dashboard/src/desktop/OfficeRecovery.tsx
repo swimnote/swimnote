@@ -1,6 +1,8 @@
 import { useEffect,useState } from "react";
 import { api } from "../lib/api-client";
 import { ui } from "./office-ops-styles";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOfficeNavigate } from "./OfficeNavigation";
 type Actor={userId:string;poolId:string;role?:string};
 type Pointer={requestId:string;path:string;createdAt:string};
 export async function recoveryOwner(actor:Actor){
@@ -9,6 +11,7 @@ export async function recoveryOwner(actor:Actor){
 }
 export function isSavedReceipt(path:string,r:any):boolean{
   if(!r||typeof r!=="object")return false;
+  if(path==="/students")return r.success===false || (r.success===true&&typeof r.id==="string");
   if(path.startsWith("/office/operations/imports/")||path==="/office/operations/imports")return typeof r.item?.id==="string" || (Array.isArray(r.results)&&Number.isSafeInteger(r.revision));
   if(path.includes("/finance/batch/"))return Array.isArray(r.events)&&r.events.length>0&&r.events.every((e:any)=>typeof e?.id==="string")&&Number.isSafeInteger(r.version);
   if(path.includes("/finance/"))return typeof r.event?.id==="string"&&Number.isSafeInteger(r.version);
@@ -28,12 +31,17 @@ export async function confirmRecoveryPointer(requestId:string,result:unknown){
 }
 /** Native pointer is durably written BEFORE sending. No body replay or automatic retry. */
 export async function recoverableWrite(actor:Actor,path:string,method:string,body:string|FormData|undefined,send:()=>Promise<unknown>){
-  if(!path.startsWith("/office/operations/")||method==="GET"||/(\/preview|\/prepare|\/interpret|\/resolve|\/catalog)$/.test(path))return send();
+  if((!path.startsWith("/office/operations/")&&path!=="/students")||method==="GET"||/(\/preview|\/prepare|\/interpret|\/resolve|\/catalog)$/.test(path))return send();
   if(typeof body!=="string")return send();
   const data=JSON.parse(body);
   if(typeof data.requestId!=="string")return send();
   const bridge=window.officeDesktop?.pendingRequests;
   if(!bridge)throw {status:400,code:"OFFICE_RECOVERY_UNAVAILABLE",message:"재시작 복구 보관을 사용할 수 없어 요청을 보내지 않았습니다."};
+  if(path==="/students"){
+    let ready=false;
+    try{ready=(await api.get<{memberCreationReceiptVersion?:number}>("/office/operations/capabilities")).memberCreationReceiptVersion===1;}catch{}
+    if(!ready)throw {status:400,code:"OFFICE_MEMBER_RECOVERY_NOT_READY",message:"서버의 회원 생성 복구 계약 적용 대기입니다. 요청을 보내지 않았습니다."};
+  }
   const owner=await recoveryOwner(actor);
   try{await bridge({op:"begin",owner,requestId:data.requestId,path});}
   catch{throw {status:409,code:"OFFICE_RECOVERY_BLOCKED",message:"미확인 요청 또는 복구 보관 오류입니다. 상단 처리 결과 확인에서 해결하세요. 새 요청은 보내지 않았습니다."};}
@@ -51,6 +59,8 @@ export async function recoverableWrite(actor:Actor,path:string,method:string,bod
 }
 export function OfficeRecovery({actor}:{actor:Actor}){
   const [rows,setRows]=useState<Pointer[]>([]),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);
+  const [recoveredMember,setRecoveredMember]=useState<string|null>(null);
+  const qc=useQueryClient(),navigate=useOfficeNavigate();
   useEffect(()=>{
     currentActor=actor;
     let live=true;
@@ -62,19 +72,21 @@ export function OfficeRecovery({actor}:{actor:Actor}){
     setBusy(true);
     try{
       const r=await api.get(`/office/operations/receipts/${encodeURIComponent(p.requestId)}`);
-      if(!isSavedReceipt(p.path,r))throw new Error("영수증 형식을 확정하지 못했습니다.");
+      if(!isSavedReceipt(p.path,r) || (p.path==="/students"&&((r as any).kind!=="member.create"||(r as any).requestId!==p.requestId||(r as any).success!==true)))throw new Error("영수증 형식을 확정하지 못했습니다.");
       await confirmRecoveryPointer(p.requestId,r);
+      if(p.path==="/students"){setRecoveredMember((r as any).id);qc.invalidateQueries({queryKey:["students"]});qc.invalidateQueries({queryKey:["ops-ref"]});}
       setRows(rs=>rs.filter(x=>x.requestId!==p.requestId));
       setMsg("서버 영수증으로 저장을 확인했습니다. 원래 화면에서 최신 목록을 조회하세요. 같은 저장을 다시 실행하지 마세요.");
     }catch{setMsg("처리 결과를 확정하지 못했습니다. 404·조회 실패는 미처리 증거가 아닙니다. 재전송 잠금을 유지합니다.");}
     finally{setBusy(false);}
   };
-  if(!rows.length&&!msg)return null;
+  if(!rows.length&&!msg&&!recoveredMember)return null;
   return <aside data-testid="office-recovery" style={{...ui.box,margin:8}} aria-label="기존 요청 결과 복구">
     <strong>이전 요청 처리 결과 확인</strong>
     {rows.map(p=><div key={p.requestId} style={{display:"flex",gap:8,alignItems:"center"}}>
       <span>{p.path.split("/")[3]} · {p.requestId.slice(0,8)} · {p.createdAt}</span>
       <button style={ui.btn2} disabled={busy} onClick={()=>check(p)}>영수증 조회 (재실행 안 함)</button></div>)}
     {msg&&<p role="status">{msg}</p>}
+    {recoveredMember&&<button style={ui.btn2} onClick={()=>navigate(`/admin/members/${encodeURIComponent(recoveredMember)}`)}>확인된 회원 상세 열기 · 새로 등록하지 않음</button>}
   </aside>;
 }

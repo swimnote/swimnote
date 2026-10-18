@@ -27,6 +27,8 @@ import { teacherCanAccessClass, teacherCanAccessStudent, getCurrentStudentClassI
 import { writeCanonicalAttendance, AttendanceConflict } from "../lib/canonical-attendance.js";
 import { guardLegacyMembership, officeLegacyGuardEnabled } from "../lib/office-legacy-guard.js";
 import { OfficeError } from "../lib/office-command.js";
+import { withMemberCreationReceipt } from "../lib/member-creation-receipt.js";
+import { OperationError } from "../lib/office-operations-data.js";
 
 const router = Router();
 
@@ -441,6 +443,9 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
     // ── 학부모 전화번호/이름으로 기존 계정 찾기 (자동 연결용) ─────────
     // [WP2] 회원 한도 체크는 아래 INSERT를 감싸는 transaction 안에서 race-safe하게 처리
     // 같은 수영장 우선, 없으면 수영장 미선택(NULL) 학부모도 매칭
+    const outcome = await withMemberCreationReceipt(db, {
+      requestId: req.body.requestId, poolId, actorId: req.user!.userId, body: req.body,
+    }, async (db) => {
     const normParentPhone = parent_phone ? parent_phone.replace(/[^0-9]/g, "") : null;
     const normParentName  = parent_name  ? parent_name.replace(/\s+/g, "").toLowerCase() : null;
 
@@ -497,9 +502,10 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
         `);
         const [merged] = (await db.execute(sql`SELECT * FROM students WHERE id = ${placeholderId}`)).rows as any[];
         const enriched = await enrichWithClasses({ ...merged, class_group_name: null });
-        await logChange({ tenantId: poolId!, tableName: "students", recordId: placeholderId, changeType: "update", payload: { action: "placeholder_merged", status: "active" } });
-        logPoolEvent({ pool_id: poolId!, event_type: "student.activate", entity_type: "student", entity_id: placeholderId, actor_id: req.user!.userId, payload: { name: name.trim() } }).catch(() => {});
-        return res.status(201).json({ success: true, ...enriched });
+        return { status: 201, body: { success: true, ...enriched }, afterCommit: async () => {
+          await logChange({ tenantId: poolId!, tableName: "students", recordId: placeholderId, changeType: "update", payload: { action: "placeholder_merged", status: "active" } });
+          logPoolEvent({ pool_id: poolId!, event_type: "student.activate", entity_type: "student", entity_id: placeholderId, actor_id: req.user!.userId, payload: { name: name.trim() } }).catch(() => {});
+        }};
       }
     }
 
@@ -523,8 +529,8 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
           (!birth_year || r.birth_year === birth_year) &&
           (!normParentPhone || (r.parent_phone || "").replace(/[^0-9]/g, "") === normParentPhone)
         );
-        if (exact) return res.status(409).json({ success: false, duplicate: true, existing: exact, message: "동일한 학생이 이미 등록되어 있습니다." });
-        return res.status(200).json({ success: false, possible_duplicate: true, candidates: dupRows.rows, message: "유사한 학생 정보가 있습니다. 계속 등록하시겠습니까?" });
+        if (exact) return { status: 409, body: { success: false, duplicate: true, existing: exact, message: "동일한 학생이 이미 등록되어 있습니다." } };
+        return { status: 200, body: { success: false, possible_duplicate: true, candidates: dupRows.rows, message: "유사한 학생 정보가 있습니다. 계속 등록하시겠습니까?" } };
       }
     }
 
@@ -537,10 +543,10 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
     const id = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // [WP2] Race-safe 회원 한도 검사 + INSERT 원자적 실행
-    // 부모 lookup & 중복 체크는 위에서 read-only로 처리했으므로 여기서는 lock + count + insert만
+    // OFFICE 요청은 바깥 트랜잭션에 영수증까지 포함하며 레거시 앱 호출은 기존 경로를 유지한다.
     let student: any;
     try {
-      await db.transaction(async (tx) => {
+      await db.transaction(async (tx: any) => {
         await assertMemberLimitInTx(tx, poolId!);
 
         const [inserted] = await tx.insert(studentsTable).values({
@@ -579,11 +585,12 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
         }
       });
     } catch (e) {
-      if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
       throw e;
     }
 
-    // V2 자동연결 트리거 (단일 학생 등록)
+    const enriched = await enrichWithClasses({ ...student, class_group_name: null });
+    return { status: 201, body: { success: true, ...enriched }, afterCommit: async () => {
+    // V2 자동연결 트리거 (단일 학생 등록), only after transaction AND receipt commit.
     triggerAutoLinkOnStudentV2(student.id, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
       console.error("[v2-admin-trigger] 단일등록 트리거 오류:", e?.message)
     );
@@ -592,7 +599,6 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       onParentApproved({ parentId: resolvedParentUserId, studentId: student.id, poolId: student.swimming_pool_id! })
         .catch((e: unknown) => console.warn("[students-create] approval-hook failed:", (e as any)?.message));
     }
-    const enriched = await enrichWithClasses({ ...student, class_group_name: null });
     await logChange({ tenantId: poolId!, tableName: "students", recordId: student.id, changeType: "create", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
     logPoolEvent({
       pool_id: poolId!, event_type: "student.create", entity_type: "student",
@@ -600,8 +606,16 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin", "teacher"
       payload: { name: student.name, class_group_id: student.class_group_id },
     }).catch(() => {});
     notifyPoolEvent({ type: "member.changed", pool_id: poolId!, entity_id: student.id }).catch(() => {});
-    res.status(201).json({ success: true, ...enriched });
-  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+    }};
+    });
+    // A post-commit observer failure must not turn a saved creation into a rejection.
+    await outcome.afterCommit?.().catch(e => console.warn("[students-create] post-commit observer failed:", e?.message));
+    res.status(outcome.status).json(outcome.body);
+  } catch (e) {
+    if (e instanceof MemberLimitError) return sendMemberLimitResponse(res, e);
+    if (e instanceof OperationError) return res.status(e.status).json({ success: false, code: e.code, message: e.message });
+    console.error(e); return err(res, 500, "서버 오류가 발생했습니다.");
+  }
 });
 
 // ── GET /:id ───────────────────────────────────────────────────────

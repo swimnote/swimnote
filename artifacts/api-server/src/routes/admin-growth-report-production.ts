@@ -152,6 +152,8 @@ router.get(
       const q      = req.query["q"] ? String(req.query["q"]).trim() : null;
       const statuses=String(req.query["product_status"] ?? "").split(",").filter(Boolean);
       const history=req.query["history"]==="published";
+      const target=req.query["report_id"]?String(req.query["report_id"]):null;
+      if(target&&!/^[a-zA-Z0-9_-]{1,160}$/.test(target))return res.status(400).json({error:"보고서 ID를 확인하세요."});
       if(req.query["history"]&&!history) return res.status(400).json({error:"이력 조회 조건을 확인하세요."});
       if(!Number.isInteger(limit)||limit<1||!Number.isInteger(offset)||offset<0||
         !Number.isInteger(year)||month<1||month>12||!Number.isInteger(month))
@@ -211,6 +213,7 @@ router.get(
         LEFT JOIN class_groups cg ON cg.id = s.class_group_id AND cg.is_deleted = false
         LEFT JOIN users u ON u.id = cg.teacher_user_id
         WHERE l.product_status != 'NOT_OPEN'
+          ${target ? sql`AND l.id = ${target}` : sql``}
           ${q ? sql`AND s.name ILIKE ${'%' + q + '%'}` : sql``}
           ${statuses.length ? sql`AND l.product_status::text IN (${sql.join(statuses.map(s=>sql`${s}`),sql`, `)})` : sql``}
          ORDER BY s.name ASC,l.version_number DESC NULLS LAST,l.id
@@ -220,7 +223,7 @@ router.get(
       const total = await db.execute(sql`
         WITH latest AS (
           SELECT ${history?sql``:sql`DISTINCT ON (gr.student_id, gr.cycle_id)`}
-            gr.student_id, gr.product_status
+            gr.id, gr.student_id, gr.product_status
           FROM growth_reports gr
           WHERE gr.swimming_pool_id = ${poolId}
             AND gr.report_period    = ${period}
@@ -231,6 +234,7 @@ router.get(
         )
         SELECT COUNT(*) AS cnt FROM latest l JOIN students s ON s.id=l.student_id
         WHERE l.product_status != 'NOT_OPEN'
+          ${target ? sql`AND l.id = ${target}` : sql``}
           ${q ? sql`AND s.name ILIKE ${'%' + q + '%'}` : sql``}
           ${statuses.length ? sql`AND l.product_status::text IN (${sql.join(statuses.map(s=>sql`${s}`),sql`, `)})` : sql``}
       `);

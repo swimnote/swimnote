@@ -7,6 +7,8 @@ import { ui } from "./office-ops-styles";
 import { OfficeBillingWorkflows } from "./OfficeBillingWorkflows";
 import { OfficeMerchantPanel } from "./OfficeMerchantPanel";
 import {confirmRecoveryPointer} from "./OfficeRecovery";
+import {financeDrill} from "./office-finance-drill";
+import {OfficeAdminActivity} from "./OfficeAdminActivity";
 import {
   financeKey, fetchSnapshot, previewFinance, executeFinance, lookupReceipt, buildCommand, isUnknownOutcome, financeCsv, krw, uuid,
   type FinanceSnapshot, type PreviewResult, type FinanceActionSpec, type Totals,
@@ -21,9 +23,11 @@ const today = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 1
 
 type Draft = { actionKey: string; date: string; form: Record<string, string> };
 const drafts = new Map<string, Draft>();
+type View={tab:Tab;from:string;to:string;studentId:string;search:string;drill:keyof Totals|null};
+const views=new Map<string,View>();
 /** Unknown outcome: same requestId and body kept; only receipt confirmation allowed. */
 const unsure = new Map<string, { requestId: string; body: any }>();
-const clearMemory = (keep?: string) => { for (const m of [drafts, unsure] as Map<string, unknown>[]) for (const k of [...m.keys()]) if (!keep || k!==keep&&!k.startsWith(keep+"|")) m.delete(k); };
+const clearMemory = (keep?: string) => { for (const m of [drafts, unsure,views] as Map<string, unknown>[]) for (const k of [...m.keys()]) if (!keep || k!==keep&&!k.startsWith(keep+"|")) m.delete(k); };
 if (typeof window !== "undefined") window.addEventListener("office:session-invalid", () => clearMemory());
 
 /** Stage an AI/Action draft into the regular entry form of the same user+pool scope. Never executes. */
@@ -77,9 +81,13 @@ export function OfficeFinancePanel({initialStudentId=""}:{initialStudentId?:stri
 
 function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: boolean;initialStudentId:string }) {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("summary");
-  const [from, setFrom] = useState(`${today().slice(0, 8)}01`), [to, setTo] = useState(today()), [studentId, setStudentId] = useState(initialStudentId);
-  const [search, setSearch] = useState("");
+  const previous=views.get(scope);
+  const [tab, setTab] = useState<Tab>(previous?.tab??"summary");
+  const [from, setFrom] = useState(previous?.from??`${today().slice(0, 8)}01`), [to, setTo] = useState(previous?.to??today()), [studentId, setStudentId] = useState(initialStudentId||previous?.studentId||"");
+  const [search, setSearch] = useState(previous?.search??"");
+  const [drill,setDrill]=useState<keyof Totals|null>(previous?.drill??null);
+  const [exportError,setExportError]=useState("");
+  useEffect(()=>{views.set(scope,{tab,from,to,studentId,search,drill});},[scope,tab,from,to,studentId,search,drill]);
   const [staged, setStaged] = useState<{ command: Record<string, unknown>; nonce: number } | null>(null);
   useEffect(() => {
     const h = (e: Event) => { const d = (e as CustomEvent).detail; if (d?.scope === scope) { setStaged({ command: d.command, nonce: Date.now() }); setTab("entry"); } };
@@ -90,9 +98,26 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
   const key = financeKey(scope, from, to, studentId,serverSearch);
   const snap = useQuery({ queryKey: key, queryFn: () => fetchSnapshot(from, to, studentId,serverSearch), retry: false, refetchOnWindowFocus: false, staleTime: 10_000, refetchOnMount: "always", refetchInterval: 30_000, refetchIntervalInBackground: false, enabled: scope !== "unauthenticated" });
   const d: FinanceSnapshot | undefined = snap.data;
+  const detail=d&&drill?financeDrill(d,drill):null;
+  const drillHead=["기록ID","기록일","귀속 회원ID","귀속 회원","업무","금액(원)"];
+  const drillRows=()=>detail?.rows.map(r=>[r.id,r.date,r.studentId,nameOf(r.studentId),r.label,r.amountKrw])??[];
   const nameOf = useMemo(() => { const m = new Map((d?.students ?? []).map(s => [s.id, s.name])); return (id: string) => m.get(id) ?? id; }, [d]);
   const match = (...v: unknown[]) => d?.reportVersion === 1 || !search.trim() || v.some(x => String(x ?? "").toLowerCase().includes(search.trim().toLowerCase()));
   const sid = (id: string) => `${nameOf(id)}`;
+  const exportDrill=async(excel:boolean)=>{
+    if(!detail?.matches||!drill||snap.isFetching||snap.isError||search.trim()!==serverSearch)return;
+    setExportError("");
+    const head=[["기간 시작",from,"기준일",to],["회원",studentId||"전체","검색",serverSearch||"없음"],drillHead];
+    const rows=[...head,...drillRows(),["합계","","","","",detail.total]];
+    try{
+      if(!excel)download(`${drill}-${from}_${to}.csv`,financeCsv(rows[0].map(String),rows.slice(1)));
+      else{
+        const x=await import("xlsx");
+        const workbook=x.utils.book_new();x.utils.book_append_sheet(workbook,x.utils.aoa_to_sheet(rows),"상세");
+        x.writeFile(workbook,`${drill}-${from}_${to}.xlsx`);
+      }
+    }catch{setExportError("출력 파일을 생성하지 못했습니다. 저장이나 거래는 실행하지 않았습니다.");}
+  };
 
   const invoices = (d?.invoices ?? []).filter(x => match(x.label, nameOf(x.studentId), x.id));
   const receipts = (d?.receipts ?? []).filter(x => match(x.method, nameOf(x.studentId), x.id));
@@ -136,6 +161,7 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
     {snap.isError && <div role="alert" data-testid="finance-error" style={{ ...box, color: "var(--color-error)" }}>{errMsg(snap.error)} <button style={btn2} onClick={() => snap.refetch()}>다시 시도</button></div>}
     {d && d.reportVersion!==1 && <div role="note" style={box}>보고서 서버 확장 승인 대기: 검색/회원 필터와 일치하는 새 합계는 아직 표시하지 않습니다. 기존 개별 업무는 그대로 사용할 수 있습니다.</div>}
     {search.trim()!==serverSearch && <div role="status">검색 조건 적용 중… 출력 전 갱신을 기다리세요.</div>}
+    {tab==="summary"&&search.trim()===serverSearch&&<OfficeAdminActivity scope={scope} from={from} to={to} studentId={studentId} search={serverSearch}/>}
     <AiDraft scope={scope} studentId={studentId} hasX={hasX} />
     <div data-finance-noprint style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{[...TABS,["workflows","대량 청구·재등록"] as [Tab,string],["merchant","가맹점 결제 신청"] as [Tab,string]].map(([k, l]) => <button key={k} data-testid={`finance-tab-${k}`} style={tab === k ? btn : btn2} onClick={() => setTab(k)}>{l}</button>)}</div>
     {tab==="workflows" && d && <OfficeBillingWorkflows scope={scope} snapshot={d} onDone={()=>{qc.invalidateQueries({queryKey:["office-finance",scope]});qc.invalidateQueries({queryKey:["ops"]});}} />}
@@ -147,8 +173,20 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
         <strong>재무 보고서 {from} ~ {to}{studentId && ` · ${nameOf(studentId)}`}</strong>
         <p style={{ fontSize: 12, color: "var(--text-muted)" }}>기준일 잔액은 {to}까지의 누적이며, 기간 거래일 항목은 {from}~{to} 사이 기록일 합계입니다.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 8 }}>
-          {TOTAL_LABELS.map(([k, l, b]) => <div key={k} style={{ ...box, background: "var(--surface-off)" }}><div style={{ fontSize: 12 }}>{l} <span style={{ color: "var(--text-muted)" }}>({b})</span></div>
-            <strong data-testid={`total-${k}`}>{d.reportVersion===1?krw(d.totals[k]):"서버 반영 대기"}</strong></div>)}</div>
+          {TOTAL_LABELS.map(([k, l, b]) => <button key={k} disabled={d.reportVersion!==1||snap.isFetching||snap.isError} onClick={()=>setDrill(k)} style={{ ...box, background: "var(--surface-off)",textAlign:"left",cursor:"pointer" }}><div style={{ fontSize: 12 }}>{l} <span style={{ color: "var(--text-muted)" }}>({b})</span></div>
+            <strong data-testid={`total-${k}`}>{d.reportVersion===1?krw(d.totals[k]):"서버 반영 대기"}</strong><small> · 같은 조건 상세</small></button>)}</div>
+        {detail&&drill&&<section data-testid="finance-drill" style={box}>
+          <strong>{TOTAL_LABELS.find(x=>x[0]===drill)?.[1]} 상세 · {detail.rows.length}개 원장 기록</strong>
+          <p>사람 수·계약 수가 아닙니다. 현재 서버 검색 결과 전체이며 페이지로 나누지 않습니다. {["billedKrw","dueKrw","unallocatedKrw"].includes(drill)?`${to}까지 누적 잔액`:`${from}~${to} 기간 거래일`} 기준입니다.</p>
+          <Table testid="finance-drill-rows" empty="해당 기록이 없습니다." head={drillHead} rows={drillRows()}/>
+          <p role={detail.matches?"status":"alert"}>상세 합계 {krw(detail.total)} · 서버 요약 {krw(detail.expected)} · {detail.matches?"일치":"불일치 — 출력 차단"}</p>
+          <div data-finance-noprint style={{display:"flex",gap:6}}>
+            <button style={btn2} disabled={!detail.matches||snap.isFetching||snap.isError||search.trim()!==serverSearch} onClick={()=>void exportDrill(false)}>상세 검색 결과 전체 CSV</button>
+            <button style={btn2} disabled={!detail.matches||snap.isFetching||snap.isError||search.trim()!==serverSearch} onClick={()=>void exportDrill(true)}>동일 내용 Excel</button>
+            <button style={btn2} onClick={()=>setDrill(null)}>상세 접기</button>
+          </div>
+          {exportError&&<p role="alert">{exportError}</p>}
+        </section>}
         <ul style={{ fontSize: 12, color: "var(--text-muted)" }}>{d.basis.map((b, i) => <li key={i}>{b}</li>)}</ul>
         <div data-finance-noprint style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {Object.keys(reports).map(k => <button key={k} style={btn2} disabled={search.trim()!==serverSearch} onClick={reports[k]}>{k} CSV</button>)}</div>
@@ -178,7 +216,7 @@ function FinanceInner({ scope, hasX,initialStudentId }: { scope: string; hasX: b
         rows={events.map(e => [e.date, d.actions.find(a => a.key === e.action)?.label ?? e.action, e.amountKrw ?? e.deltaKrw ?? "-", e.reason ?? e.label ?? "",e.recordedAt??"기존 기록(미제공)",e.actorId??"-",e.source??"기존 기록"])} />}
       {d.tableTotals?.[tab] && <div data-testid="finance-visible-totals" style={{fontSize:13}}>표시 목록 서버 합계: {Object.entries(d.tableTotals[tab]).map(([k,v])=>`${({amountKrw:"금액",allocatedKrw:"배분",dueKrw:"미납/미지급",refundedKrw:"환불누계",unallocatedKrw:"미배분",paidKrw:"지급누계"} as Record<string,string>)[k]??k} ${krw(v)}`).join(" · ")}</div>}
       <div data-finance-noprint style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        <button style={btn} data-testid="finance-print" disabled={search.trim()!==serverSearch} onClick={()=>window.print()}>현재 화면 인쇄·PDF 저장</button>
+        <button style={btn} data-testid="finance-print" disabled={search.trim()!==serverSearch||snap.isFetching||snap.isError||!!(tab==="summary"&&detail&&!detail.matches)} onClick={()=>window.print()}>현재 화면 인쇄·PDF 저장 (표시 목록 전체)</button>
       </div>
     </section>}
   </div>;

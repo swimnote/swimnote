@@ -46,7 +46,7 @@ if(typeof window!=="undefined")window.addEventListener("office:session-invalid",
 /** Unknown-outcome writes retain identity and input, for receipt lookup only, never replay. */
 const unsure = new Map<string, { reqId: string; body: string; target: string }>();
 
-export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue }: { res: Exclude<OpsResource, "imports">;scopeKey:string;seed?:{form:Record<string,string>;edit?:OpsItem};draftKey?:string;onSaved?:(item:OpsItem)=>void;onContinue?:(item:OpsItem)=>void }) {
+export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue,canContinue }: { res: Exclude<OpsResource, "imports">;scopeKey:string;seed?:{form:Record<string,string>;edit?:OpsItem};draftKey?:string;onSaved?:(item:OpsItem)=>void;onContinue?:(item:OpsItem)=>void;canContinue?:(item:OpsItem)=>boolean }) {
   const cacheKey=`${scopeKey}:${res}:${draftKey}`;
   const [, nav] = useLocation();
   const { state: auth } = useAuth(), hasX = auth.status === "authenticated" && auth.user.hasX;
@@ -62,7 +62,7 @@ export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue
   useEffect(() => { if (edit) drafts.set(cacheKey, { edit, form, reqId }); else drafts.delete(cacheKey); }, [cacheKey, edit, form, reqId]);
   const list = useQuery({ queryKey: ["ops",scopeKey,res,q,offset], queryFn: () => listOps(res, q, offset), retry: false });
   const label = (f: Field, v: any) => f.type === "ref" ? (refs[f.ref!].find(([i]) => i === v)?.[1] ?? v) : f.type === "select" ? (f.options!.find(([i]) => i === v)?.[1] ?? v) : v;
-  const open = (it: OpsItem | "new") => { if (unsure.has(cacheKey) && edit) return setMsg("미확인 저장이 있습니다. 먼저 해결하세요."); setEdit(it); setMsg(""); setReqId(uuid()); setForm(it === "new" ? {} : Object.fromEntries(Object.entries(it.data).map(([k, v]) => [k, String(v ?? "")]))); };
+  const open = (it: OpsItem | "new") => { if (unsure.has(cacheKey) && edit) return setMsg("미확인 저장이 있습니다. 먼저 해결하세요."); setEdit(it); setMsg(""); setReqId(uuid()); setForm(it === "new" ? (seed&&!seed.edit?{...seed.form}:{}) : Object.fromEntries(Object.entries(it.data).map(([k, v]) => [k, String(v ?? "")]))); };
   const save = async () => {
     const miss = spec.fields.find(f => f.req && !form[f.key]?.trim());
     if (miss) return setMsg(`${miss.label}을(를) 입력하세요.`);
@@ -120,7 +120,7 @@ export function ResourceTable({ res,scopeKey,seed,draftKey="",onSaved,onContinue
     {list.data && <div style={{ overflow: "auto",maxHeight:480 }} ref={el=>{if(el){el.scrollTop=views.get(cacheKey)?.top??0;el.scrollLeft=views.get(cacheKey)?.left??0;}}} onScroll={e=>{const v=views.get(cacheKey);if(v)views.set(cacheKey,{...v,top:e.currentTarget.scrollTop,left:e.currentTarget.scrollLeft});}}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
       <thead><tr>{spec.fields.filter(f => spec.list.includes(f.key)).map(f => <th key={f.key} style={{ textAlign: "left", padding: 6, borderBottom: "1px solid var(--border-strong)", whiteSpace: "nowrap" }}>{f.label}</th>)}<th /></tr></thead>
       <tbody>{items.map(i => <tr key={i.id}>{spec.fields.filter(f => spec.list.includes(f.key)).map(f => <td key={f.key} style={{ padding: 6, borderBottom: "1px solid var(--border-default)" }}>{String(label(f, i.data[f.key]) ?? "")}</td>)}
-        <td style={{ padding: 6, textAlign: "right" }}><button style={btn2} onClick={() => open(i)}>수정</button>{onContinue&&<button style={btn2} onClick={()=>onContinue(i)}>다음 업무 이어가기</button>}</td></tr>)}
+        <td style={{ padding: 6, textAlign: "right" }}><button style={btn2} onClick={() => open(i)}>수정</button>{onContinue&&(!canContinue||canContinue(i))&&<button style={btn2} onClick={()=>onContinue(i)}>다음 업무 이어가기</button>}</td></tr>)}
         {!items.length && <tr><td colSpan={9} style={{ padding: 16, color: "var(--text-muted)" }}>저장된 항목이 없습니다.</td></tr>}</tbody></table></div>}
     <div style={{ display: "flex", gap: 6 }}>
       <button style={btn2} disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 100))}>이전</button>
@@ -161,8 +161,25 @@ export function OfficeOperationsPanel({ view }: { view: OpsView }) {
       {view === "applications" && <OfficeIntakePanel key={scopeKey} scopeKey={scopeKey} />}
       {view === "cards" && <OfficeNfcPanel key={scopeKey} scopeKey={scopeKey} />}
       {v.res.length > 1 && <div style={{ display: "flex", gap: 4 }}>{v.res.map(r => <button key={r} style={tab === r ? btn : btn2} onClick={() => {setTab(r);setJourney(null);}}>{SPECS[r as Exclude<OpsResource, "imports">].title}</button>)}</div>}
-      {journey&&<section style={box}><button style={btn2} onClick={()=>setJourney(null)}>연속 작업 접기 · 목록으로</button><OfficeJourney key={journey.id} scope={scopeKey} contact={tab==="contacts"?journey:undefined} contract={tab==="contracts"?journey:undefined}/></section>}
-      <div hidden={!!journey}>{tab === "imports" ? <OfficeImportsPanel key={scopeKey} scopeKey={scopeKey} /> : <ResourceTable key={`${scopeKey}:${tab}`} scopeKey={scopeKey} res={tab as Exclude<OpsResource, "imports">} onContinue={["contacts","contracts"].includes(tab)?setJourney:undefined} onSaved={["contacts","contracts"].includes(tab)?setJourney:undefined}/>}</div>
+      {journey&&<section style={box}><button style={btn2} onClick={()=>setJourney(null)}>연속 작업 접기 · 목록으로</button>
+        {tab==="marketing"?<>
+          <h2>캠페인 참여·소개·유입 기록</h2><p>참여 사실은 홍보 사용 동의가 아닙니다. 게시·자료 사용 근거는 원 캠페인에서 별도로 기록합니다. 외부 자동 연동이나 게시·신청 전송은 하지 않습니다.</p>
+          <ResourceTable key={`campaign-${journey.id}`} res="contacts" scopeKey={scopeKey} draftKey={`campaign-${journey.id}`}
+            seed={{form:{campaignId:journey.id,source:journey.data.channel??"",stage:"inquiry"}}}/>
+        </>:tab==="cards"?<>
+          <h2>분실·폐기 카드의 재발급 등록</h2><p>기존 카드 {journey.id}는 {journey.data.status} 상태로 보존합니다. 같은 회원을 전달했으며 새 카드 UID를 입력·저장해야 합니다. 기존 카드를 재활성화하거나 알림을 자동 발송하지 않습니다.</p>
+          <ResourceTable key={`reissue-${journey.id}`} res="cards" scopeKey={scopeKey} draftKey={`reissue-${journey.id}`}
+            seed={{form:{studentId:journey.data.studentId,status:"active",note:`분실/폐기 카드 ${journey.id}의 재발급`}}}/>
+        </>:tab==="support"?<>
+          <h2>{journey.data.name} · 센터 참가 명단 기록</h2><p>원 대회 ID를 전달했습니다. 실제 회원을 선택해 센터 참가 기록을 저장하세요. 주최측 접수 확정·경기 운영·외부 신청 전송이 아닙니다.</p>
+          <ResourceTable key={`competition-${journey.id}`} res="support" scopeKey={scopeKey} draftKey={`competition-${journey.id}`}
+            seed={{form:{competitionId:journey.id,name:`${journey.data.name} 참가`,kind:"competition",status:"planned",dueDate:journey.data.dueDate??""}}}/>
+        </>:<OfficeJourney key={journey.id} scope={scopeKey} contact={tab==="contacts"?journey:undefined} contract={tab==="contracts"?journey:undefined}/>}
+      </section>}
+      <div hidden={!!journey}>{tab === "imports" ? <OfficeImportsPanel key={scopeKey} scopeKey={scopeKey} /> : <ResourceTable key={`${scopeKey}:${tab}`} scopeKey={scopeKey} res={tab as Exclude<OpsResource, "imports">}
+        onContinue={["contacts","contracts","marketing","support","cards"].includes(tab)?setJourney:undefined}
+        canContinue={tab==="support"?item=>item.data.kind==="competition"&&!item.data.competitionId:tab==="cards"?item=>["lost","revoked"].includes(item.data.status):undefined}
+        onSaved={["contacts","contracts"].includes(tab)?setJourney:undefined}/>}</div>
     </>}
   </div>;
 }

@@ -40,7 +40,7 @@ const fields: Record<Resource, string[]> = {
   cards: ["studentId","cardUid","status","note"],
   imports: ["name","files","rules","decisions","status","note","referenceDate"],
   templates: ["name","version","body","consentText","status"],
-  support: ["name","kind","status","dueDate","assigneeId","vendor","quantity","note","url","merchantStage","merchantReference","merchantConfirmedAt"],
+  support: ["name","kind","status","dueDate","assigneeId","vendor","quantity","note","url","merchantStage","merchantReference","merchantConfirmedAt","competitionId","studentId"],
   policies: ["name","refundPolicy","discountPolicy","attendancePolicy","note"],
 };
 export const operationFields=(resource:Resource)=>fields[resource];
@@ -107,6 +107,11 @@ export function validateData(resource: Resource, input: unknown): Record<string,
   if(resource==="support") {
     required("name"); choice("kind",["facility","supplies","competition","vendor","headquarters","merchant_application"]);
     choice("status",["planned","requested","in_progress","completed","held","cancelled"]);
+    if(data.competitionId||data.studentId){
+      if(data.kind!=="competition")bad("대회 참가 연결은 대회 업무에서만 사용할 수 있습니다.");
+      required("competitionId","studentId");
+      data.competitionId=requestId(data.competitionId);
+    }
     if (data.kind === "merchant_application") {
       choice("merchantStage",["preparing","application_submitted","contract_signed","review_approved","payment_active"]);
       if (data.merchantStage !== "preparing") required("merchantReference","merchantConfirmedAt");

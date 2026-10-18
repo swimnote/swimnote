@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import {ReportWorkflowNav} from "./ReportWorkflow";
+import {ReportWorkflowNav,useReportTarget} from "./ReportWorkflow";
 
 const LABELS: Record<string, string> = { summary: "요약", overall_assessment: "전반적 평가", positive_growth_signals: "긍정적 성장 신호", next_growth_targets: "다음 성장 목표", next_observation_targets: "다음 관찰 목표", success_conditions: "성공 조건", support_levers: "지원 방법" };
 
@@ -30,6 +30,7 @@ export function ReportDetailLink({ id, label }: { id: string; label: string }) {
   const [open, setOpen] = useState(false);
   const q = useQuery<any>({ queryKey: ["growth-report-detail", id], queryFn: () => api.get(`/admin/growth-reports/${id}`), enabled: open });
   const d = q.data;
+  const [,setTarget]=useReportTarget();
   return <>
     <button onClick={e => { e.stopPropagation(); setOpen(true); }} data-testid={`report-detail-${id}`} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 600, color: "#1A4070", textDecoration: "underline", cursor: "pointer" }}>{label}</button>
     {open && <>
@@ -41,9 +42,13 @@ export function ReportDetailLink({ id, label }: { id: string; label: string }) {
           {q.isLoading && <div style={{ color: "#94A3B8" }}>로딩 중…</div>}
           {q.isError && <div style={{ color: "#EF4444" }}>불러오지 못했습니다. <button onClick={() => q.refetch()}>다시 시도</button></div>}
           {d && <>
-            <div style={{ fontSize: 12, color: "#64748B", marginBottom: 10 }}>상태 {d.product_status} · 기간 {d.report_period} · 검수 {d.admin_reviewed_at ? "관리자 확인" : d.teacher_reviewed_at ? "선생님 검수" : "미검수"}</div>
+            <div style={{ fontSize: 12, color: "#64748B", marginBottom: 10 }}>ID {d.report_id??id} · 버전 {d.version_number} · 상태 {d.product_status} · 기간 {d.report_period}<br/>
+              강사 검수: {d.teacher_reviewed_at??"미확인"} · 관리자 확인: {d.admin_reviewed_at??"미확인"}<br/>
+              {d.published_at?`당시 발행본 · 발행 ${d.published_at}. 최신 초안으로 바꾸지 않습니다.`:"현재 미발행 본문"}</div>
+            <p style={{fontSize:12}}>본문은 읽기 전용입니다. 관리자 확인은 기존 경로에서만 기록하며, 강사 검수를 대신하거나 새 유료 재분석을 실행하지 않습니다.</p>
+            <button onClick={()=>setTarget({id,studentId:d.student.id,name:d.student.name??label,period:d.report_period,version:d.version_number})}>이 보고서를 연속 업무 대상으로 선택</button>
             <ReportContentView content={d.report_content} extra={{ sns_summary: d.sns_summary, positive_growth_signals: d.positive_growth_signals, next_growth_targets: d.next_growth_targets, next_observation_targets: d.next_observation_targets }} /></>}
-        </div><ReportWorkflowNav/></div></>}
+        </div>{d&&<ReportWorkflowNav target={{id,studentId:d.student.id,name:d.student.name??label,period:d.report_period,version:d.version_number}}/>}</div></>}
   </>;
 }
 

@@ -14,6 +14,8 @@ import { createOfficeApplicationsRouter } from "./office-applications.js";
 import { createOfficeFinanceImportRouter } from "./office-finance-import.js";
 import { createOfficeOperationsAiRouter } from "./office-operations-ai.js";
 import rateLimit from "express-rate-limit";
+import { date } from "../lib/office-operations-data.js";
+import { ACTIVITY_KINDS, ACTIVITY_REPORT_SQL, type ActivityKind } from "../lib/office-activity-report.js";
 
 type RecordRow = {id:string;data:Record<string,any>;revision:number};
 type Handler = (req:AuthRequest,res:Response,owner:OfficeActor)=>Promise<void>;
@@ -54,13 +56,24 @@ export function createOfficeOperationsRouter(pool:Pool, actor:(req:AuthRequest)=
     const financialReady=(await pool.query("SELECT to_regclass('public.office_finance_schema') IS NOT NULL AS ready")).rows[0]?.ready===true;
     res.json({available:await schema(),schemaVersion:financialReady?2:1,resources,readerVerified:false,nfcReaderMode:"keyboard_wedge_uid_enter",
       aiImportModelEnabled:importModelEnabled(process.env),financialImportEnabled:financialReady,
-      financeBatchVersion:financialReady?1:0,merchantOnboardingVersion:financialReady?1:0});
+      financeBatchVersion:financialReady?1:0,merchantOnboardingVersion:financialReady?1:0,
+      memberCreationReceiptVersion:await schema()?1:0});
   },false));
   router.get("/receipts/:requestId",run(async (req,res,owner) => {
     const id = requestId(req.params.requestId);
     const r = await pool.query("SELECT result FROM office_operation_receipts WHERE pool_id=$1 AND actor_id=$2 AND request_id=$3",[owner.poolId,owner.userId,id]);
     if (!r.rows.length) {res.status(404).json({code:"UNCONFIRMED",error:"기록 없음은 미처리 증거가 아닙니다."});return;}
     res.json(r.rows[0].result);
+  }));
+  router.get("/activity-report",run(async(req,res,owner)=>{
+    const from=date(req.query.from),to=date(req.query.to),kind=String(req.query.kind??"members") as ActivityKind;
+    const offset=Number(req.query.offset??0),limit=Number(req.query.limit??100),search=String(req.query.search??"").trim();
+    const studentId=String(req.query.studentId??"");
+    if(from>to||!ACTIVITY_KINDS.includes(kind)||!Number.isSafeInteger(offset)||offset<0||
+      !Number.isSafeInteger(limit)||limit<1||limit>200||search.length>160||studentId.length>160)
+      throw new OperationError(400,"INVALID_FILTER","현황 조회 조건을 확인하세요.");
+    const result=(await pool.query(ACTIVITY_REPORT_SQL,[owner.poolId,from,to,search,kind,offset,limit,studentId])).rows[0];
+    res.json({...result,from,to,search,studentId,kind,offset,limit,reportVersion:1});
   }));
   router.use("/finance", createOfficeFinanceRouter(pool, run));
   router.use("/nfc", createOfficeNfcRouter(pool, run));
@@ -280,6 +293,11 @@ async function validateReferences(c:PoolClient,poolId:string,resource:Resource,d
   if(d.relatedContactId) {
     const r=await c.query("SELECT id FROM office_operation_records WHERE pool_id=$1 AND resource='contacts' AND id=$2",[poolId,d.relatedContactId]);
     if(!r.rows.length) throw new OperationError(403,"SCOPE_MISMATCH","센터 상담 기록을 확인하세요.");
+  }
+  if(resource==="support"&&d.competitionId){
+    const r=await c.query(`SELECT id FROM office_operation_records WHERE pool_id=$1 AND resource='support'
+      AND id=$2 AND data->>'kind'='competition' AND NULLIF(data->>'competitionId','') IS NULL`,[poolId,d.competitionId]);
+    if(!r.rows.length||d.competitionId===id)throw new OperationError(403,"SCOPE_MISMATCH","같은 센터의 원 대회 기록을 연결하세요. 참가 기록을 대회로 연결할 수 없습니다.");
   }
   if (resource==="contracts") {
     const product = (await c.query("SELECT data FROM office_operation_records WHERE pool_id=$1 AND resource='products' AND id=$2",[poolId,d.productId])).rows[0];

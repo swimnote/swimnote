@@ -56,7 +56,7 @@ export function officePage(raw: string) {
 const id = "[A-Za-z0-9_-]{1,160}";
 const OPS = "(?:contacts|products|contracts|sessions|enrollments|marketing|cards|imports|templates|support|policies)";
 const reads = [
-  "/office/operations/finance/snapshot", "/office/operations/applications",
+  "/office/operations/finance/snapshot", "/office/operations/applications", "/office/operations/activity-report",
   "/office/operations/workspace/catalog",
   `/office/operations/applications/${id}/document`,
   "/office/operations/capabilities", `/office/operations/${OPS}`, `/office/operations/imports/${id}/results`,

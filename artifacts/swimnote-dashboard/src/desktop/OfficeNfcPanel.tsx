@@ -67,6 +67,7 @@ export function OfficeNfcPanel({ scopeKey }: { scopeKey: string }) {
   useRecoveredPending(pk,()=>{void check();});
   return <section style={{ ...box, display: "flex", flexDirection: "column", gap: 8 }} data-testid="nfc-station">
     <strong>카드 리더 스테이션 (키보드 입력형)</strong>
+    <p style={{fontSize:12}}>현재 지원 범위는 UID+Enter 키보드 입력형의 스캔 전용 모드입니다. 일반 업무와 병행하는 백그라운드 수신은 지원하지 않습니다. 장치별 HID·Serial·SDK 연결 사양이 확인되기 전 일반 키 입력을 카드 입력으로 추정하지 않습니다.</p>
     {armed&&<p role="status">스캔 전용 모드: 다른 메모·금액 입력은 차단하고 UID 칸으로 보냅니다. 일반 업무 입력은 스테이션을 끄거나 Esc로 복귀하세요.</p>}
     <p role="note" style={{ fontSize: 12, color: "var(--color-warning)", margin: 0 }}>실제 카드 리더기 연동은 검증되지 않았습니다(NOT VERIFIED). 수동 UID 입력과 자동 출결은 같지 않습니다. 날짜는 서버의 한국 시간 오늘로만 기록되며 셔틀 정보는 다루지 않습니다.</p>
     <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>

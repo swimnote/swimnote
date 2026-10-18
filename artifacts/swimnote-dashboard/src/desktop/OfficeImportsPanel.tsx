@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { api } from "../lib/api-client";
-import { listOps, uuid, toCsv, download, autoRules, parseRuleText, TARGETS, type OpsItem } from "./office-ops-lib";
+import { listOps, uuid, toCsv, download, autoRules, previewRuleChanges, TARGETS, type OpsItem } from "./office-ops-lib";
 import { ui } from "./office-ops-styles";
 import { OfficeImportsFinance } from "./OfficeImportsFinance";
 import { pendingGet,pendingSet,pendingDelete,pendingClear,receiptItem,isUnknown,useRecoveredPending } from "./office-unknown";
@@ -32,6 +32,7 @@ export function OfficeImportsPanel({ scopeKey = "local" }: { scopeKey?: string }
   const classes = useQuery({ queryKey: ["ops-ref", "classes"], queryFn: () => api.get<any>("/class-groups") });
   const classRows: any[] = Array.isArray(classes.data) ? classes.data : classes.data?.items ?? classes.data?.data ?? [];
   const headers = useMemo(() => [...new Set(files.flatMap(f => f.rows.flatMap(r => Object.keys(r))))], [files]);
+  const rulePreview=useMemo(()=>previewRuleChanges(text,headers,rules),[text,headers,rules]);
   const mapped = useMemo(() => files.flatMap(f => f.rows.map((r, i) => ({ f: f.name, s: f.sheet, i: i + 2, v: Object.fromEntries(Object.entries(rules).map(([t, c]) => [t, r[c]])) }))), [files, rules]);
 
   /** class_name -> class_group_id only when exactly one real class matches; others are held. */
@@ -60,25 +61,23 @@ export function OfficeImportsPanel({ scopeKey = "local" }: { scopeKey?: string }
       const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
       for (const sh of wb.SheetNames) add.push({ name: file.name, sheet: sh, rows: XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sh], { defval: "", raw: false }) });
     }
+    const keys=new Set<string>();
+    for(const f of [...files,...add]){
+      const key=JSON.stringify([f.name,f.sheet]);
+      if(keys.has(key)){setMsg("같은 파일명·시트가 이미 포함돼 있습니다. 기존 결정과 원본 행을 덮어쓰지 않았습니다. 새 파일은 이름을 구분해 추가하세요.");return;}
+      keys.add(key);
+    }
     const all = [...files, ...add]; setFiles(all);
     if (!Object.keys(rules).length) setRules(autoRules([...new Set(all.flatMap(f => f.rows.flatMap(r => Object.keys(r))))]));
   };
   const rule = async () => {
-    const lines=text.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
-    if(lines.length>1){
-      const parsed=lines.map(s=>parseRuleText(s,headers));
-      if(parsed.some(x=>!x)){say(text,"일부 규칙을 확인하지 못했습니다. 각 줄을 '대상=원본 열'로 작성하세요. 어떤 규칙도 부분 적용하지 않았습니다.");return;}
-      setRulesTracked({...rules,...Object.fromEntries(parsed.map(p=>[p!.target,p!.source]))});
-      say(text,`${parsed.length}개 규칙을 한 번에 반영했습니다. 변환 미리보기를 확인하세요. 서버 적용은 아직 하지 않았습니다.`);setText("");return;
+    if(!rulePreview){
+      say(text,"일부 의견을 정형 규칙으로 확인하지 못했습니다. '이름=성명' 또는 '이름 규칙 취소'를 한 줄에 하나씩 입력하세요. 부분 적용·유료 모델 호출은 하지 않았습니다.");
+      setMsg("자유 자연어 AI 해석 실행은 새 모델 호출 승인 대기입니다. 정형 규칙·수동 매핑은 계속 사용할 수 있습니다.");return;
     }
-    const p = parseRuleText(text, headers);
-    if (p) { setRulesTracked({ ...rules, [p.target]: p.source }); setText(""); say(text, `규칙 적용: ${p.target} = ${p.source}`); return setMsg(`규칙 적용: ${p.target} = ${p.source}`); }
-    if (!cur) return setMsg("자유 문장 해석은 저장된 가져오기가 필요합니다. 먼저 저장하거나 '이름=성명' 형식을 사용하세요.");
-    try { const r = await api.post<{ kind: string; message?: string; rules?:Record<string,string>;financeRules?:Record<string,string>;question?:string }>(`/office/operations/imports/${cur.id}/interpret`, { text });
-      if(r.financeRules) { setFinSuggest(r.financeRules); say(text, `금융 매핑 제안(자동 적용·호출 없음): ${Object.entries(r.financeRules).map(([a,b])=>`${a}=${b}`).join(", ")} — 아래 금융 섹션에서 확인하세요.`); }
-      if(r.kind==="rules" && r.rules) { setRulesTracked({...rules,...r.rules});say(text,r.question||"규칙 제안을 미리보기에 반영했습니다.");setPrep(null);setMsg(r.question || "규칙 제안을 미리보기에 반영했습니다. 실제 회원 등록은 별도입니다."); }
-      else { say(text, r.message ?? "해석 결과를 사용할 수 없습니다."); setMsg(r.message ?? "해석 결과를 사용할 수 없습니다."); } }
-    catch (e: any) { setMsg(e?.message ?? "해석 요청 실패"); }
+    setRulesTracked(rulePreview.next);
+    say(text,`${rulePreview.changes.length}개 규칙 변경·취소를 반영했습니다. 원본 파일·기존 반 선택은 유지하며 이전 서버 검증은 무효화합니다. 회원·금융 반영은 각각 별도입니다.`);
+    setText("");
   };
   const save = async (status: "draft" | "reviewed" = "draft"): Promise<OpsItem | null> => {
     if(locked||pendingGet(pk)) return null;
@@ -162,6 +161,11 @@ export function OfficeImportsPanel({ scopeKey = "local" }: { scopeKey?: string }
         <select data-testid="import-remove-rule" style={inp} value="" onChange={e => { const k = e.target.value; if (!k) return; const n = { ...rules }; delete n[k]; setRulesTracked(n); say(`${k} 규칙 제거`, `${k} 매핑을 명시적으로 제거했습니다.`); }}><option value="">규칙 제거…</option>{Object.keys(rules).map(k => <option key={k} value={k}>{k} = {rules[k]}</option>)}</select>
         <small style={{ color: "var(--text-muted)" }}>이 입력은 규칙 문장 해석이며 모델을 자동 호출하지 않습니다.</small></div>
       <div style={{ display: "flex", gap: 6 }}><textarea aria-label="이전 대화·규칙 입력" rows={3} style={{ ...inp, flex: 1 }} placeholder={"규칙을 한 줄에 하나씩 입력하세요\n이름=성명\n보호자 연락처=휴대폰"} value={text} onChange={e => setText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&!e.nativeEvent.isComposing){e.preventDefault();void rule();}}}/><button style={btn2} onClick={rule} disabled={!text.trim()}>규칙 적용 · Ctrl+Enter</button></div>
+      {text.trim()&&<section style={box} data-testid="import-rule-impact"><strong>적용 전 영향 미리보기 · 정형 해석</strong>
+        {rulePreview?<><p>현재 {files.length}개 파일·시트 / {mapped.length}개 회원 원본 행에 적용할 매핑입니다. 준비 결과를 폐기하고 다시 검증하며, 이미 저장된 회원·금융·잔여권리는 수정하지 않습니다.</p>
+          {rulePreview.changes.map(c=><div key={c.target}>{TARGETS.find(t=>t[0]===c.target)?.[1]??c.target}: {c.before||"없음"} → {c.after||"규칙 제거"}</div>)}</>:<p>확인할 수 없는 줄이나 같은 대상의 중복 지시가 있습니다. 어떤 변경도 부분 적용하지 않습니다.</p>}
+        <button style={btn2} disabled>자유 자연어 AI 해석 · 새 호출 승인 대기</button>
+      </section>}
       {mapped.length > 0 && <div style={{ overflowX: "auto", maxHeight: 220 }}><table style={{ fontSize: 12, borderCollapse: "collapse" }}><thead><tr><th>원본</th>{Object.keys(rules).map(k => <th key={k} style={{ padding: "2px 8px" }}>{k}</th>)}</tr></thead>
         <tbody>{mapped.slice(0, 20).map((m, i) => <tr key={i}><td style={{ padding: "2px 8px" }}>{m.f}/{m.s}#{m.i}</td>{Object.keys(rules).map(k => <td key={k} style={{ padding: "2px 8px" }}>{String(m.v[k] ?? "")}</td>)}</tr>)}</tbody></table>
         <small>미리보기 20 / {mapped.length}행 (로컬 매핑, 서버 검증 전)</small></div>}

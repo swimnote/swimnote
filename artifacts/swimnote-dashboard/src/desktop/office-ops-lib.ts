@@ -45,10 +45,12 @@ export const SPECS: Record<Exclude<OpsResource, "imports">, { title: string; fie
   templates: { title: "신청·동의 양식 버전", list: ["name","version","status"], fields: [
     {key:"name",label:"양식명",req:true},{key:"version",label:"버전",req:true},{key:"body",label:"양식 본문(센터 확정 내용)",type:"textarea",req:true},
     {key:"consentText",label:"직접 동의 문구",type:"textarea",req:true},{key:"status",label:"상태",type:"select",req:true,options:opt(["draft","초안"],["active","활성"],["retired","사용 종료"])} ] },
-  support: {title:"시설·물품·대회·업체·본사 업무 기록",list:["name","kind","status","dueDate"],fields:[
+  support: {title:"시설·물품·대회·업체·본사 업무 기록",list:["name","kind","status","dueDate","competitionId","studentId"],fields:[
     {key:"name",label:"업무명",req:true},{key:"kind",label:"업무 종류",type:"select",req:true,options:opt(["facility","시설"],["supplies","물품"],["competition","대회"],["vendor","업체"],["headquarters","본사 안내·신청 기록"])},
     {key:"status",label:"기록 상태(외부 전송 아님)",type:"select",req:true,options:opt(["planned","계획"],["requested","신청 기록"],["in_progress","진행"],["completed","완료 기록"],["held","보류"],["cancelled","취소"])},
-    {key:"dueDate",label:"예정일",type:"date"},{key:"assigneeId",label:"담당 직원 ID"},{key:"vendor",label:"업체"},{key:"quantity",label:"수량",type:"number"},{key:"url",label:"안내·신청 URL",type:"url"},{key:"note",label:"상세·결과 메모"}]},
+    {key:"dueDate",label:"예정일",type:"date"},{key:"assigneeId",label:"담당 직원 ID"},{key:"vendor",label:"업체"},{key:"quantity",label:"수량",type:"number"},{key:"url",label:"안내·신청 URL",type:"url"},
+    {key:"competitionId",label:"원 대회 ID (참가 기록일 때)"},{key:"studentId",label:"참가 회원 (원 대회에는 선택하지 않음)",type:"ref",ref:"students"},
+    {key:"note",label:"상세·결과 메모"}]},
   policies: {title:"센터 운영 기준(자동 법정 계산 아님)",list:["name","refundPolicy","discountPolicy"],fields:[
     {key:"name",label:"기준명",req:true},{key:"refundPolicy",label:"센터가 확인한 환불 기준"},{key:"discountPolicy",label:"할인 기준"},{key:"attendancePolicy",label:"출결·권리 기준"},{key:"note",label:"근거·검토 메모"}]},
   cards: { title: "출입 카드 (수동 UID)", list: ["studentId", "cardUid", "status"], fields: [
@@ -116,4 +118,23 @@ export function parseRuleText(text: string, headers: string[]) {
   const t = TARGETS.find(([k, l]) => k === m[1].trim() || l === m[1].trim());
   const h = headers.find(x => norm(x) === norm(m[2]));
   return t && h ? { target: t[0], source: h } : null;
+}
+
+/** Explicit, deterministic user decisions only. Unknown lines apply NOTHING. */
+export function previewRuleChanges(text:string,headers:string[],current:Record<string,string>){
+  const lines=text.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);
+  if(!lines.length)return null;
+  const next={...current},changes:Array<{target:string;before:string;after:string}>=[];
+  const seen=new Set<string>();
+  for(const line of lines){
+    const remove=/^(.+?)\s+규칙\s*(?:취소|제거)$/.exec(line);
+    const parsed=remove?null:parseRuleText(line,headers);
+    const target=remove?TARGETS.find(([k,l])=>k===remove[1].trim()||l===remove[1].trim())?.[0]:parsed?.target;
+    if(!target||seen.has(target))return null;
+    seen.add(target);
+    const after=parsed?.source??"";
+    changes.push({target,before:current[target]??"",after});
+    if(remove)delete next[target];else next[target]=after;
+  }
+  return {next,changes};
 }

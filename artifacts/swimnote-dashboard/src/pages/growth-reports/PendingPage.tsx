@@ -1,6 +1,6 @@
 import { ReportPager, ReportContentView, normalizeReportList } from "./ReportViews";
 import { useState, useEffect, useCallback } from "react";
-import {useReportPeriod,useReportPageState,ReportWorkflowNav} from "./ReportWorkflow";
+import {useReportPeriod,useReportPageState,useReportTarget,ReportWorkflowNav} from "./ReportWorkflow";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
@@ -20,6 +20,7 @@ interface ReportItem {
   created_at: string;
   class_name?: string;
   teacher_name?: string;
+  version_number?: number;
 }
 
 interface ReportListResponse {
@@ -142,19 +143,20 @@ function ReviewDrawer({
   currentIndex,
   onNavigate,
   onClose,
-  onApproved,
 }: {
   reportId: string;
   pendingList: ReportItem[];
   currentIndex: number;
   onNavigate: (index: number) => void;
   onClose: () => void;
-  onApproved: () => void;
 }) {
   const qc = useQueryClient();
   const [showDiscard, setShowDiscard] = useState(false);
   const [discardReason, setDiscardReason] = useState("");
+  const [discardMemo,setDiscardMemo]=useState("");
   const [actionError, setActionError] = useState("");
+  const [actionSuccess,setActionSuccess]=useState("");
+  const [,setTarget]=useReportTarget();
 
   const { data: detail, isLoading, isError } = useQuery<ReportDetail>({
     queryKey: ["growth-report-detail", reportId],
@@ -164,28 +166,24 @@ function ReviewDrawer({
 
   const approveMut = useMutation({
     mutationFn: () => api.post(`/admin/growth-reports/${reportId}/mark-reviewed`, {}),
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      await qc.invalidateQueries({queryKey:["growth-report-detail",reportId]});
       setActionError("");
-      // Advance to next if available
-      if (currentIndex < pendingList.length - 1) {
-        onNavigate(currentIndex + 1);
-      } else {
-        onApproved();
-      }
+      setActionSuccess("이 보고서의 관리자 확인을 기록하고 상태를 다시 조회했습니다. 강사 검수·승인 상태·발급·발송은 변경하지 않습니다.");
     },
     onError: (e) => setActionError(errMsg(e)),
   });
 
   const discardMut = useMutation({
-    mutationFn: () => api.put(`/admin/growth-reports/${reportId}/discard`, { reason: discardReason.trim() }),
-    onSuccess: () => {
+    mutationFn: () => api.put(`/admin/growth-reports/${reportId}/discard`, { reason: discardReason, memo:discardMemo.trim()||undefined }),
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
+      await qc.invalidateQueries({queryKey:["growth-report-detail",reportId]});
       setShowDiscard(false);
       setDiscardReason("");
-      if (currentIndex < pendingList.length - 1) onNavigate(currentIndex + 1);
-      else onClose();
+      setActionSuccess("선택한 보고서를 반려하고 같은 ID의 상태를 다시 조회했습니다.");
     },
     onError: (e) => setActionError(errMsg(e)),
   });
@@ -200,7 +198,11 @@ function ReviewDrawer({
     setShowDiscard(false);
 
     setActionError("");
+    setActionSuccess("");
   }, [reportId]);
+  useEffect(()=>{
+    if(detail)setTarget({id:reportId,studentId:detail.student.id,name:detail.student.name,period:detail.report_period,version:detail.version_number});
+  },[detail,reportId]);
 
 
   return (
@@ -214,7 +216,7 @@ function ReviewDrawer({
         {/* Header */}
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B" }}>성장리포트 검수</div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B" }}>성장리포트 본문·관리자 확인</div>
             <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#64748B" }}>×</button>
           </div>
           {/* Prev/Next */}
@@ -232,7 +234,7 @@ function ReviewDrawer({
               ← 이전
             </button>
             <span style={{ fontSize: "12px", color: "#94A3B8" }}>
-              {currentIndex + 1} / {pendingList.length}
+              {currentIndex<0?"선택한 ID · 현재 페이지 밖":`${currentIndex + 1} / ${pendingList.length}`}
             </span>
             <button
               onClick={() => { setActionError(""); onNavigate(currentIndex + 1); }}
@@ -271,6 +273,7 @@ function ReviewDrawer({
                 </div>
                 <div style={{ marginTop: "6px" }}>
                   <StatusBadge status={detail.product_status} />
+                  <p style={{fontSize:12}}>ID {reportId} · 버전 {detail.version_number}<br/>강사 검수 {detail.teacher_reviewed_at??"미확인"}<br/>관리자 확인 {detail.admin_reviewed_at??"미확인"}</p>
                 </div>
               </div>
 
@@ -298,10 +301,13 @@ function ReviewDrawer({
                   <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px", color: "#DC2626" }}>
                     {detail.student.name} 회원의 {formatPeriod(detail.report_period)} 성장리포트를 반려합니다.
                   </div>
+                  <label>반려 구분 <select value={discardReason} onChange={e=>setDiscardReason(e.target.value)}>
+                    <option value="">선택</option>{["글자·레이아웃 오류","내용 오류","데이터 누락","기타"].map(r=><option key={r}>{r}</option>)}
+                  </select></label>
                   <textarea
-                    value={discardReason}
-                    onChange={(e) => setDiscardReason(e.target.value)}
-                    placeholder="반려 사유 *"
+                    value={discardMemo}
+                    onChange={(e) => setDiscardMemo(e.target.value)}
+                    placeholder="상세 메모 (선택)"
                     style={{ width: "100%", padding: "7px 8px", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", resize: "vertical", minHeight: "60px", boxSizing: "border-box", marginBottom: "8px" }}
                   />
                   <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
@@ -322,22 +328,25 @@ function ReviewDrawer({
                   {actionError}
                 </div>
               )}
+              {actionSuccess&&<p role="status">{actionSuccess}</p>}
             </>
           ) : null}
         </div>
 
         {/* Footer actions */}
-        {detail && detail.product_status === "REVIEW_REQUIRED" && (
+        {detail && ["REVIEW_REQUIRED","APPROVED","READY_TO_SEND"].includes(detail.product_status) && (
           <div style={{ padding: "14px 20px", borderTop: "1px solid #E2E8F0", display: "flex", gap: "8px", flexShrink: 0 }}>
             <button
               onClick={() => { setShowDiscard(!showDiscard);  setActionError(""); }}
+              disabled={!["APPROVED","READY_TO_SEND"].includes(detail.product_status)||approveMut.isPending||discardMut.isPending}
+              title="기존 서버는 승인·발급 대기 상태에서만 반려를 허용합니다."
               style={{ padding: "8px 14px", background: "#fff", border: "1px solid #E2E8F0", borderRadius: "6px", cursor: "pointer", fontSize: "13px", color: "#475569" }}
             >
               반려
             </button>
             <button
               onClick={() => { setActionError(""); approveMut.mutate(); }}
-              disabled={approveMut.isPending}
+              disabled={approveMut.isPending||discardMut.isPending||!!detail.admin_reviewed_at}
               style={{
                 flex: 1, padding: "8px 14px",
                 background: approveMut.isPending ? "#93A8C4" : "#1D4E8F",
@@ -346,10 +355,11 @@ function ReviewDrawer({
                 fontSize: "13px", fontWeight: 600,
               }}
             >
-              {approveMut.isPending ? "처리 중…" : "✓ 검수 확인"}
+              {approveMut.isPending ? "처리 중…" : detail.admin_reviewed_at ? "관리자 확인됨 · 발급과 별개" : "관리자 확인 기록"}
             </button>
           </div>
         )}
+        {detail&&<ReportWorkflowNav target={{id:reportId,studentId:detail.student.id,name:detail.student.name,period:detail.report_period,version:detail.version_number}}/>}
       </div>
     </>
   );
@@ -366,9 +376,10 @@ export default function PendingPage() {
 
   const {year,setYear,month,setMonth}=useReportPeriod(issueYear,issueMonth);
   const [search, setSearch] = useReportPageState("pending-search","");
-  const [drawerIndex, setDrawerIndex] = useState<number | null>(null);
+  const [target]=useReportTarget();
+  const [drawerId,setDrawerId]=useState<string|null>(target?.id??null);
   const [allDone, setAllDone] = useState(false);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useReportPageState(`pending-offset:${year}:${month}`,0);
 
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
     queryKey: ["growth-reports-list", "REVIEW_REQUIRED", year, month, search, offset],
@@ -383,12 +394,12 @@ export default function PendingPage() {
     return r.student_name?.toLowerCase().includes(search.toLowerCase());
   });
 
-  const openDrawer = useCallback((index: number) => {
+  const openDrawer = (index: number) => {
     setAllDone(false);
-    setDrawerIndex(index);
-  }, []);
+    setDrawerId(filtered[index].id);
+  };
 
-  const closeDrawer = useCallback(() => setDrawerIndex(null), []);
+  const closeDrawer = useCallback(() => setDrawerId(null), []);
 
   return (
     <div style={{ padding: "24px" }}>
@@ -403,7 +414,7 @@ export default function PendingPage() {
             </span>
           </p>
         </div>
-        <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setOffset(0); setDrawerIndex(null); setAllDone(false); }} />
+        <MonthPicker year={year} month={month} onChange={(y, m) => { setYear(y); setMonth(m); setOffset(0); setDrawerId(null); setAllDone(false); }} />
       </div>
 
       <div style={{ marginBottom: "16px" }}>
@@ -468,14 +479,14 @@ export default function PendingPage() {
         </div>
       )}
 
-      {drawerIndex !== null && filtered[drawerIndex] && (
+      {drawerId && (
         <ReviewDrawer
-          reportId={filtered[drawerIndex].id}
+          key={drawerId}
+          reportId={drawerId}
           pendingList={filtered}
-          currentIndex={drawerIndex}
-          onNavigate={(idx) => setDrawerIndex(idx)}
+          currentIndex={filtered.findIndex(r=>r.id===drawerId)}
+          onNavigate={(idx) => {if(filtered[idx])setDrawerId(filtered[idx].id);}}
           onClose={closeDrawer}
-          onApproved={() => { setDrawerIndex(null); setAllDone(true); }}
         />
       )}
     </div>

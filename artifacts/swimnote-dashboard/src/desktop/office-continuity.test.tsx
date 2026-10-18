@@ -25,6 +25,14 @@ beforeEach(()=>{
   });
   post.mockResolvedValue({item:{id:"enrollment",revision:1,data:{}}});
 });
+it("keeps inline assignment context when starting the next repeated entry",async()=>{
+  mount(assignment());
+  fireEvent.click(screen.getByRole("button",{name:"새로 등록",exact:true}));
+  expect((screen.getByDisplayValue("2026-10-01") as HTMLInputElement).value).toBe("2026-10-01");
+  fireEvent.click(screen.getByRole("button",{name:"저장",exact:true}));
+  await waitFor(()=>expect(post).toHaveBeenCalled());
+  expect(post.mock.calls[0][1].data).toMatchObject({studentId:"student",contractId:"contract",startDate:"2026-10-01",endDate:"2026-12-31"});
+});
 afterEach(()=>{cleanup();window.dispatchEvent(new Event("office:session-invalid"));});
 function assignment(){
   const classKey=SPECS.enrollments.fields.find(f=>f.ref==="classes")!.key;

@@ -1,6 +1,6 @@
 import { normalizeReportList, ReportDetailLink, ReportPager } from "./ReportViews";
 import { useState } from "react";
-import {useReportPeriod,useReportPageState,ReportWorkflowNav} from "./ReportWorkflow";
+import {useReportPeriod,useReportPageState,useReportTarget,ReportWorkflowNav} from "./ReportWorkflow";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
@@ -75,32 +75,35 @@ export default function PublishedPage() {
 
   const {year,setYear,month,setMonth}=useReportPeriod(issueYear,issueMonth);
   const [search, setSearch] = useReportPageState("published-search","");
+  const [target]=useReportTarget();
+  const targetId=target?.id??"";
   const [confirmTarget, setConfirmTarget] = useState<ReportItem | null>(null);
   const [resendError, setResendError] = useState("");
 
   const qc = useQueryClient();
 
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useReportPageState(`published-offset:${year}:${month}:${search}:${targetId}`,0);
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
-    queryKey: ["growth-reports-list", "PUBLISHED", year, month, search, offset],
-    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}${search ? `&q=${encodeURIComponent(search)}` : ""}&history=published`).then(normalizeReportList),
+    queryKey: ["growth-reports-list", "PUBLISHED", year, month, search, offset,targetId],
+    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}${search ? `&q=${encodeURIComponent(search)}` : ""}&history=published${targetId?`&report_id=${encodeURIComponent(targetId)}`:""}`).then(normalizeReportList),
   });
 
   // READY_TO_SEND is pre-delivery (awaiting send) → belongs in PublishPage, not here
   const published = (data?.items ?? []).filter(
-    (r) => !!r.published_at
+    (r) => !!r.published_at&&(!targetId||r.id===targetId)
   );
 
   const filtered = published.filter((r) => {
-    if (!search) return true;
+    if (targetId||!search) return true;
     return r.student_name?.toLowerCase().includes(search.toLowerCase());
   });
 
   // Re-send (re-publish) single report
   const resendMut = useMutation({
     mutationFn: (id: string) => api.post(`/admin/growth-reports/${id}/send`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
+    onSuccess: async (_result,id) => {
+      await Promise.allSettled([qc.invalidateQueries({ queryKey: ["growth-reports-list"] }),
+        qc.fetchQuery({queryKey:["growth-report-detail",id],queryFn:()=>api.get(`/admin/growth-reports/${encodeURIComponent(id)}`),staleTime:0})]);
       setConfirmTarget(null);
       setResendError("");
     },
@@ -181,7 +184,7 @@ export default function PublishedPage() {
                         disabled={r.product_status!=="PUBLISHED"}
                         style={{ padding: "4px 10px", background: "#F1F5F9", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "11px", color: "#475569" }}
                       >
-                        재발행
+                        발급 상태 확인
                       </button>
                     </div>
                   </td>
@@ -202,9 +205,9 @@ export default function PublishedPage() {
             boxShadow: "0 8px 40px rgba(0,0,0,0.16)", padding: "28px",
             width: "min(380px, calc(100vw - 48px))",
           }}>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "10px" }}>재발행</div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "10px" }}>기존 발급 상태 확인</div>
             <div style={{ fontSize: "13px", color: "#475569", marginBottom: "20px", lineHeight: 1.6 }}>
-              {confirmTarget.student_name} 회원의 {formatPeriod(confirmTarget.report_period)} 성장리포트를 다시 발행합니다.
+              {confirmTarget.student_name} 회원의 {formatPeriod(confirmTarget.report_period)} · ID {confirmTarget.id} · 버전 {confirmTarget.version_number??"미제공"}를 확인합니다. 기존 서버는 이미 발급된 ID에 새 버전을 만들거나 알림을 재발송하지 않습니다.
             </div>
             {resendError && (
               <div style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>
@@ -221,7 +224,7 @@ export default function PublishedPage() {
                 disabled={resendMut.isPending}
                 style={{ padding: "8px 16px", background: resendMut.isPending ? "#93A8C4" : "#1D4E8F", color: "#fff", border: "none", borderRadius: "6px", cursor: resendMut.isPending ? "not-allowed" : "pointer", fontSize: "13px", fontWeight: 600 }}
               >
-                {resendMut.isPending ? "처리 중…" : "재발행"}
+                {resendMut.isPending ? "처리 중…" : "기존 ID 확인"}
               </button>
             </div>
           </div>

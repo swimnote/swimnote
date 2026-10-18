@@ -4,6 +4,7 @@ import {webcrypto} from "node:crypto";
 import {recoverableWrite,isSavedReceipt,recoveryOwner} from "./OfficeRecovery";
 const {get}=vi.hoisted(()=>({get:vi.fn()}));
 vi.mock("../lib/api-client",()=>({api:{get}}));
+vi.mock("./OfficeNavigation",()=>({useOfficeNavigate:()=>vi.fn()}));
 const actor={userId:"u",poolId:"p"};
 const path="/office/operations/contracts",body=JSON.stringify({requestId:"r",data:{name:"not-stored"}});
 const bridge=vi.fn();
@@ -39,4 +40,16 @@ it("matches actual finance-import results rather than expecting a finance event"
   expect(isSavedReceipt("/office/operations/imports/job/finance-apply",{applied:1,held:0,results:[],revision:3})).toBe(true);
   expect(isSavedReceipt("/office/operations/finance/execute",{event:{id:"e"},version:2})).toBe(true);
   expect(isSavedReceipt("/office/operations/finance/execute",{results:[],revision:2})).toBe(false);
+});
+it("blocks member creation before transport when the server lacks the optional receipt contract",async()=>{
+  get.mockResolvedValue({});
+  const send=vi.fn();
+  await expect(recoverableWrite(actor,"/students","POST",body,send)).rejects.toMatchObject({status:400,code:"OFFICE_MEMBER_RECOVERY_NOT_READY"});
+  expect(send).not.toHaveBeenCalled();expect(bridge).not.toHaveBeenCalled();
+});
+it("uses the native pointer for a member and never retries a lost response",async()=>{
+  get.mockResolvedValue({memberCreationReceiptVersion:1});
+  const send=vi.fn().mockRejectedValue(new TypeError("response lost"));
+  await expect(recoverableWrite(actor,"/students","POST",body,send)).rejects.toThrow("response lost");
+  expect(send).toHaveBeenCalledTimes(1);expect(bridge.mock.calls.map(c=>c[0].op)).toEqual(["begin"]);
 });

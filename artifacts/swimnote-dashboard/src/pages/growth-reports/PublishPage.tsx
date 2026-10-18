@@ -1,6 +1,6 @@
 import { normalizeReportList, ReportDetailLink, ReportPager } from "./ReportViews";
 import { useEffect,useState } from "react";
-import {useReportPeriod,useReportPageState,ReportWorkflowNav} from "./ReportWorkflow";
+import {useReportPeriod,useReportPageState,useReportTarget,ReportWorkflowNav} from "./ReportWorkflow";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
@@ -14,6 +14,7 @@ interface ReportItem {
   report_period: string;
   teacher_reviewed_at: string | null;
   created_at: string;
+  version_number?: number;
 }
 
 interface ReportListResponse {
@@ -29,6 +30,12 @@ interface BulkSendResult {
   published?: number;
   already?: number;
   skipped?: number;
+  requested_count?:number;
+  published_count?:number;
+  already_published_count?:number;
+  skipped_count?:number;
+  push_attempted_count?:number;
+  push_failed_count?:number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,11 +99,14 @@ function ConfirmModal({
       }}>
         {result ? (
           <>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "12px" }}>발행 완료</div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "12px" }}>서버 발급·발송 처리 결과</div>
             <div style={{ fontSize: "13px", color: "#475569", lineHeight: 1.8 }}>
-              발행 성공: <strong>{result.published ?? 0}건</strong><br />
-              이미 발행됨: {result.already ?? 0}건<br />
-              건너뜀: {result.skipped ?? 0}건
+              발행 성공: <strong>{result.published_count ?? result.published ?? "미제공"}건</strong><br />
+              이미 발행됨: {result.already_published_count ?? result.already ?? "미제공"}건<br />
+              건너뜀: {result.skipped_count ?? result.skipped ?? "미제공"}건<br/>
+              알림 시도 {result.push_attempted_count??"미제공"}건 · 실패 {result.push_failed_count??"미제공"}건
+              {error&&<p role="alert">{error}</p>}
+              <p>표시한 건수는 서버 처리 결과입니다. 보호자 기기 알림 도착 여부와는 다릅니다.</p>
             </div>
             <div style={{ marginTop: "20px", textAlign: "right" }}>
               <button onClick={onCancel} style={{ padding: "8px 20px", background: "#1D4E8F", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>확인</button>
@@ -104,10 +114,11 @@ function ConfirmModal({
           </>
         ) : (
           <>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "10px" }}>일괄 발행</div>
+            <div style={{ fontSize: "16px", fontWeight: 700, color: "#1E293B", marginBottom: "10px" }}>발급·발송 영향 확인</div>
             <div style={{ fontSize: "13px", color: "#475569", marginBottom: "20px", lineHeight: 1.6 }}>
               승인된 성장리포트 <strong>{count}건</strong>을 발행합니다.<br />
               발행 후에는 학부모 앱에 즉시 공개됩니다.
+              <p>기존 서버의 발급·발송 결합 동작입니다. 관리자 확인만 기록하는 기능이 아니며, 알림 처리가 포함될 수 있습니다.</p>
             </div>
             {error && (
               <div style={{ padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "6px", fontSize: "13px", color: "#DC2626", marginBottom: "12px" }}>
@@ -138,41 +149,54 @@ export default function PublishPage() {
   const issueMonth = now.getMonth() + 1;
 
   const {year,setYear,month,setMonth}=useReportPeriod(issueYear,issueMonth);
-  const [selected, setSelected] = useReportPageState<Set<string>>(`publish-selected:${year}:${month}`,new Set());
+  const [target]=useReportTarget();
+  const targetId=target?.id??"";
+  const [selected, setSelected] = useReportPageState<Set<string>>(`publish-selected:${year}:${month}:${targetId}`,new Set());
   const [showConfirm, setShowConfirm] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [publishResult, setPublishResult] = useState<BulkSendResult | null>(null);
+  const [uncertain,setUncertain]=useReportPageState<string[]>("publish-unknown",[]);
 
   const qc = useQueryClient();
 
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useReportPageState(`publish-offset:${year}:${month}:${targetId}`,0);
   const { data, isLoading, isError } = useQuery<ReportListResponse>({
-    queryKey: ["growth-reports-list", "APPROVED,READY_TO_SEND", year, month, offset],
-    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}&product_status=APPROVED,READY_TO_SEND`).then(normalizeReportList),
+    queryKey: ["growth-reports-list", "APPROVED,READY_TO_SEND", year, month, offset,targetId],
+    queryFn: () => api.get<ReportListResponse>(`/admin/growth-reports/monthly-list?year=${year}&month=${month}&limit=50&offset=${offset}&product_status=APPROVED,READY_TO_SEND${targetId?`&report_id=${encodeURIComponent(targetId)}`:""}`).then(normalizeReportList),
   });
 
   // APPROVED + READY_TO_SEND are both sendable
   useEffect(()=>{
     if(!data||isLoading||isError)return;
-    const eligible=new Set(data.items.filter(r=>["APPROVED","READY_TO_SEND"].includes(r.product_status)).map(r=>r.id));
-    setSelected(old=>new Set([...old].filter(id=>eligible.has(id))));
-  },[data,isLoading,isError]);
+    const eligible=new Set(data.items.filter(r=>(!targetId||r.id===targetId)&&["APPROVED","READY_TO_SEND"].includes(r.product_status)).map(r=>r.id));
+    setSelected(old=>{const kept=[...old].filter(id=>eligible.has(id));return kept.length===old.size?old:new Set(kept);});
+  },[data,isLoading,isError,targetId]);
   // READY_TO_SEND = pre-delivery state (awaiting send), not yet published to user
   const approved = (data?.items ?? []).filter(
-    (r) => r.product_status === "APPROVED" || r.product_status === "READY_TO_SEND"
+    (r) => (!targetId||r.id===targetId)&&(r.product_status === "APPROVED" || r.product_status === "READY_TO_SEND")
   );
 
   const bulkSendMut = useMutation({
-    mutationFn: (ids: string[]) =>
-      api.post<BulkSendResult>("/admin/growth-reports/bulk-send", { report_ids: ids }),
-    onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["growth-reports-list"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    mutationFn: async (ids: string[]) => {
+      const result=await api.post<BulkSendResult>("/admin/growth-reports/bulk-send", { report_ids: ids });
+      if(result.ok!==true)throw {status:502,message:"서버 결과를 확정하지 못했습니다. 같은 발송을 반복하지 마세요."};
+      return result;
+    },
+    onSuccess: async (result,_ids) => {
       setSelected(new Set());
       setPublishResult(result);
       setPublishError("");
+      const refreshed=await Promise.allSettled([
+        qc.invalidateQueries({ queryKey: ["growth-reports-list"] }),
+        ..._ids.map(id=>qc.fetchQuery({queryKey:["growth-report-detail",id],queryFn:()=>api.get(`/admin/growth-reports/${encodeURIComponent(id)}`),staleTime:0})),
+      ]);
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      if(refreshed.some(r=>r.status==="rejected"))setPublishError("서버 발급 응답은 받았지만 일부 상태 재조회에 실패했습니다. 같은 발송을 반복하지 말고 이력을 조회하세요.");
     },
-    onError: (e) => setPublishError(errMsg(e)),
+    onError: (e:any,ids) => {
+      setPublishError(errMsg(e));
+      if(!e?.status||e.status>=500||[408,429].includes(e.status)){setUncertain(ids);setShowConfirm(false);}
+    },
   });
 
   const allSelected = approved.length > 0 && selected.size === approved.length;
@@ -209,6 +233,7 @@ export default function PublishPage() {
           {selected.size > 0 && (
             <button
               onClick={() => { setPublishError(""); setPublishResult(null); setShowConfirm(true); }}
+              disabled={uncertain.length>0||isLoading||isError}
               style={{ padding: "7px 14px", background: "#1D4E8F", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}
             >
               선택 리포트 발행 ({selected.size}건)
@@ -217,12 +242,23 @@ export default function PublishPage() {
         </div>
       </div>
 
+      {uncertain.length>0&&<div role="alert" style={{padding:12,border:"1px solid #FECACA"}}>
+        발급·발송 결과 불명 {uncertain.length}건: 재실행하지 말고 같은 ID의 상태를 조회하세요.
+        <button onClick={async()=>{
+          const result=await Promise.allSettled(uncertain.map(id=>api.get<{product_status:string;published_at:string|null}>(`/admin/growth-reports/${encodeURIComponent(id)}`)));
+          if(result.every(r=>r.status==="fulfilled"&&r.value.product_status==="PUBLISHED"&&!!r.value.published_at)){
+            setUncertain([]);setSelected(new Set());setShowConfirm(false);
+            qc.invalidateQueries({queryKey:["growth-reports-list"]});setPublishError("");
+          }else setPublishError("아직 모든 ID의 발행을 확인하지 못했습니다. 재전송 잠금을 유지합니다.");
+        }}>상태만 조회 · 발송 안 함</button>
+        {publishError&&<p>{publishError}</p>}
+      </div>}
       {isError ? (
         <div style={{ textAlign: "center", padding: "60px", color: "#EF4444" }}>성장리포트를 불러오지 못했습니다.</div>
       ) : isLoading ? (
         <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>로딩 중…</div>
       ) : approved.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>발행할 승인 리포트가 없습니다.</div>
+        <div style={{ textAlign: "center", padding: "60px", color: "#94A3B8" }}>{target?"선택한 보고서는 이 기간의 최신 발급 가능 목록에 없습니다. 다른 버전으로 자동 대체하지 않습니다.":"발행할 승인 리포트가 없습니다."}{target&&<p><ReportDetailLink id={target.id} label="선택한 ID의 본문·현재 상태 확인"/></p>}</div>
       ) : (
         <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: "8px", overflow: "hidden" }}>
           <div style={{ padding: "8px 12px" }}><ReportPager offset={offset} total={data?.total} onChange={setOffset} /></div>
@@ -268,9 +304,13 @@ export default function PublishPage() {
       {showConfirm && (
         <ConfirmModal
           count={selected.size}
-          onConfirm={() => bulkSendMut.mutate(Array.from(selected))}
+           onConfirm={() => {
+             const ids=approved.filter(r=>selected.has(r.id)).map(r=>r.id);
+             if(!ids.length||ids.length!==selected.size){setPublishError("대상 목록이 바뀌었습니다. 다시 확인하세요.");return;}
+             bulkSendMut.mutate(ids);
+           }}
           onCancel={() => { setShowConfirm(false); setPublishResult(null); setPublishError(""); }}
-          loading={bulkSendMut.isPending}
+           loading={bulkSendMut.isPending||uncertain.length>0}
           error={publishError}
           result={publishResult}
         />

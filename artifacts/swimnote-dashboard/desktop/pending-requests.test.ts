@@ -36,3 +36,11 @@ it("fails closed on corrupt files and rejects payloads or traversal",async()=>{
   await expect(store.apply({op:"list",owner})).rejects.toThrow();
   await expect(store.apply({op:"begin",owner,requestId:"new",path:"/office/operations/cards"})).rejects.toThrow();
 });
+it("preserves member creation across restart and blocks a second creation, not unrelated work",async()=>{
+  const {store,dir}=await setup();
+  await store.apply({op:"begin",owner,requestId:"member-original",path:"/students"});
+  const fresh=new PendingRequestStore(dir);
+  await expect(fresh.apply({op:"begin",owner,requestId:"member-new",path:"/students"})).rejects.toThrow();
+  await fresh.apply({op:"begin",owner,requestId:"other-work",path:"/office/operations/contacts"});
+  expect((await fresh.apply({op:"list",owner})).map(p=>p.requestId)).toEqual(["member-original","other-work"]);
+});

@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
+import { isDesktopTokenStorage } from "@/lib/token";
 import { useOfficeNavigate } from "@/desktop/OfficeNavigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ApiError } from "@/lib/api-client";
@@ -10,6 +11,7 @@ type ClassGroup = {
 };
 
 type CreateStudentBody = {
+  requestId?: string;
   name: string;
   phone?: string;
   birth_year?: number;
@@ -37,6 +39,22 @@ export default function NewMemberPage({initialValues={},onCreated}:{initialValue
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [unknown,setUnknown]=useState(false);
+  const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
+  function saved(student:{id:string;name:string}){
+    qc.invalidateQueries({queryKey:["students"]});qc.invalidateQueries({queryKey:["ops-ref"]});
+    setUnknown(false);setError(null);setSuccess(true);onCreated?.(student);
+  }
+  useEffect(()=>{
+    const recovered=(event:Event)=>{
+      const d=(event as CustomEvent).detail;
+      if(d?.requestId!==requestId||d.result?.kind!=="member.create")return;
+      // Exact ID comes from the original receipt, never a name/phone match.
+      void api.get<{id:string;name:string}>(`/students/${encodeURIComponent(d.result.id)}`)
+        .then(saved).catch(()=>{setUnknown(true);setError(`저장된 회원 ID: ${d.result.id}. 상세 조회 실패로 재등록 잠금을 유지합니다.`);});
+    };
+    window.addEventListener("office:receipt-recovered",recovered);
+    return()=>window.removeEventListener("office:receipt-recovered",recovered);
+  },[requestId]);
 
   const { data: classGroups = [] } = useQuery<ClassGroup[]>({
     queryKey: ["class-groups"],
@@ -53,14 +71,11 @@ export default function NewMemberPage({initialValues={},onCreated}:{initialValue
       return {id:s.id,name:s.name??body.name};
     },
     onSuccess: (student) => {
-      qc.invalidateQueries({ queryKey: ["students"] });
-      qc.invalidateQueries({queryKey:["ops-ref"]});
-      setSuccess(true);
-      onCreated?.(student);
+      saved(student);
     },
     onError: (e: ApiError) => {
       setError(e.message ?? "등록 중 오류가 발생했습니다.");
-      if(!e.status||e.status>=500||[408,429].includes(e.status))setUnknown(true);
+      if(!e.status||e.status>=500||[408,429].includes(e.status)||e.code==="OFFICE_RECOVERY_BLOCKED")setUnknown(true);
     },
   });
 
@@ -73,6 +88,7 @@ export default function NewMemberPage({initialValues={},onCreated}:{initialValue
       return;
     }
     const body: CreateStudentBody = {
+      ...(isDesktopTokenStorage()?{requestId}:{}),
       name: form.name.trim(),
       registration_path: "admin_created",
       phone: form.phone.trim() || undefined,
@@ -106,6 +122,7 @@ export default function NewMemberPage({initialValues={},onCreated}:{initialValue
             onClick={() => {
               setForm({ name: "", phone: "", birth_year: "", parent_name: "", parent_phone: "", class_group_id: "", memo: "" });
               setSuccess(false);
+              setRequestId(crypto.randomUUID());
               setError(null);
             }}
             style={{ padding: "9px 18px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer", fontSize: "14px" }}
